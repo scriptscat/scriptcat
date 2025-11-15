@@ -162,54 +162,82 @@ export class ScriptService {
     // 兼容 chrome 内核 < 128 处理
     const browserType = getBrowserType();
     const addResponseHeaders = browserType.chrome && browserType.chromeVersion >= 128;
+    // Chrome 84+
     const conditions: chrome.declarativeNetRequest.RuleCondition[] = [
       {
-        regexFilter: "^[^?#]+\\.user(\\.bg|\\.sub)?\\.js([?#][^./\\s#?]*?)*?$",
+        regexFilter: "^([^?#]+?\\.user(\\.bg|\\.sub)?\\.js)", // Chrome 84+
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME], // Chrome 84+
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false, // Chrome 84+
+        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(.+?\\.user(\\.bg|\\.sub)?\\.js&response-content-type=application%2Foctet-stream)",
         resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
         isUrlFilterCaseSensitive: false,
-        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
+        requestDomains: ["githubusercontent.com"], // Chrome 101+
       },
       {
         regexFilter:
-          "^https?://github.com/[^\\s/?#]+/[^\\s/?#]+/releases/([^\\s.?#]+/|)[^.?#]+.user(\\.bg|\\.sub)?.js([?#][^./\\s#?]*?)*?$",
+          "^(https?:\\/\\/github.com\\/[^\\s/?#]+\\/[^\\s/?#]+\\/releases/[^\\s/?#]+/download/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
         // https://github.com/<user>/<repo>/releases/latest/download/file.user.js
         resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
         isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
       },
       {
         regexFilter:
-          "^https?://github.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z]+/([^\\s.?#]+/|)[^.?#]+.user(\\.bg|\\.sub)?.js([?#][^./\\s#?]*?)*?$",
+          "^(https?:\\/\\/gitlab\\.com\\/[^\\s/?#]+\\/[^\\s/?#]+\\/-\\/raw\\/[a-z0-9_/.-]+\\/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitlab.com"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(https?:\\/\\/github\\.com\\/[^\\/]+\\/[^\\/]+\\/releases\\/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://github.com/<user>/<repo>/releases/latest/download/file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(https?://github.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z]+/[^?#]+?.user(\\.bg|\\.sub)?.js)",
         // https://github.com/<user>/<repo>/raw/refs/heads/main/.../file.user.js
         // https://github.com/<user>/<repo>/raw/<branch>/.../file.user.js
         resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
         isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
       },
       {
         regexFilter:
-          "^https?://gitlab\\.com/[^\\s/?#]+/[^\\s/?#]+/-/raw/[a-z0-9_/.-]+/([^\\s.?#]+/|)[^.?#]+\\.user(\\.bg|\\.sub)?\\.js([?#][^./\\s#?]*?)*?$",
+          "^(https?://gitlab\\.com/[^\\s/?#]+/[^\\s/?#]+/-/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
         // https://gitlab.com/<user>/<repo>/-/raw/<branch>/.../file.user.js
         resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
         isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitlab.com"], // Chrome 101+
       },
       {
         regexFilter:
-          "^https?://gitea\\.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/([^\\s.?#]+/|)[^.?#]+\\.user(\\.bg|\\.sub)?\\.js([?#][^./\\s#?]*?)*?$",
+          "^(https?://gitea\\.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
         // https://gitea.com/<user>/<repo>/raw/<branch>/.../file.user.js
         resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
         isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitea.com"], // Chrome 101+
       },
       {
         regexFilter:
-          "^https?://bitbucket\\.org/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/([^\\s.?#]+/|)[^.?#]+\\.user(\\.bg|\\.sub)?\\.js([?#][^./\\s#?]*?)*?$",
+          "^(https?://bitbucket\\.org/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
         // https://bitbucket.org/<user>/<repo>/raw/<branch>/.../file.user.js
         resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
         isUrlFilterCaseSensitive: false,
+        requestDomains: ["bitbucket.org"], // Chrome 101+
       },
     ];
     const rules = conditions.map((condition, idx) => {
@@ -239,7 +267,7 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
-            regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\0`,
+            regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\1`,
           },
         },
         condition: condition,
