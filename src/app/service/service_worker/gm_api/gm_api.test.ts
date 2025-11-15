@@ -41,7 +41,7 @@ describe.concurrent("isConnectMatched", () => {
   it.concurrent('metadata 包含 "self" 且 sender.url 与 reqURL 主机相同时回传 true', () => {
     const req = new URL("https://app.example.com/dashboard");
     const sender = makeSender("https://app.example.com/some-page");
-    expect(getConnectMatched(["self"], req, sender)).toBe(ConnectMatch.SELF);
+    expect(getConnectMatched(["self"], req, sender)).toBe(ConnectMatch.EXACT);
   });
 
   it.concurrent('metadata 包含 "self" 但 sender.url 与 reqURL 主机不同时回传 false（若无其他规则命中）', () => {

@@ -141,12 +141,12 @@ export enum ConnectMatch {
   NONE = 0,
   ALL = 1,
   DOMAIN = 2,
-  SELF = 3,
+  EXACT = 3,
 }
 
 export enum SelfMatch {
   NONE = 0,
-  SELF = 1,
+  EXACT = 1,
   SUB = 2,
 }
 
@@ -166,7 +166,7 @@ export const getConnectMatched = (
           // ignore
         }
         if (senderURLObject) {
-          if (reqURL.hostname === senderURLObject.hostname) return SelfMatch.SELF; // 自身
+          if (reqURL.hostname === senderURLObject.hostname) return SelfMatch.EXACT; // 自身
           if (`.${reqURL.hostname}`.endsWith(`.${senderURLObject.hostname}`)) return SelfMatch.SUB; // 子域
         }
       }
@@ -176,12 +176,12 @@ export const getConnectMatched = (
     for (let i = 0, l = metadataConnect.length; i < l; i += 1) {
       const lowerMetaConnect = metadataConnect[i].toLowerCase();
       if (lowerMetaConnect === "self") {
-        if (checkSelfDomainMatching()) return ConnectMatch.SELF; // 包含子域
+        if (checkSelfDomainMatching() > 0) return ConnectMatch.DOMAIN; // 完全匹配或其子域
       } else if (lowerMetaConnect === "*") {
-        if (checkSelfDomainMatching()) return ConnectMatch.SELF; // 包含子域
-        withWildCard = true;
+        if (checkSelfDomainMatching() === SelfMatch.EXACT) return ConnectMatch.EXACT; // 完全匹配
+        withWildCard = true; // 检查其他 @connect
       } else if (`.${reqURL.hostname}`.endsWith(`.${lowerMetaConnect}`)) {
-        return ConnectMatch.DOMAIN;
+        return ConnectMatch.DOMAIN; // 完全匹配或其子域
       }
     }
     // 有 * 但不是自身网域 又不是列明网域 则询问
