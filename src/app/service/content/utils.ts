@@ -1,6 +1,7 @@
 import type { SCMetadata, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
+import { DefinedFlags } from "../service_worker/runtime.consts";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -104,7 +105,11 @@ export function compilePreInjectScript(
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const eventNamePrefix = isInjectIntoContent(script.metadata) ? messageFlags.contentFlag : messageFlags.injectFlag;
+  const isContent = isInjectIntoContent(script.metadata);
+  const messageFlag = messageFlags.messageFlag;
+  const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
+  const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+  const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
   return `window['${script.flag}'] = {
   scriptInfo: ${JSON.stringify(script)},
@@ -112,13 +117,13 @@ export function compilePreInjectScript(
 };
 (() => {
   const f = () => {
-    const event = new CustomEvent('${eventNamePrefix}${messageFlags.scriptLoadComplete}', 
+    const event = new CustomEvent('${scriptLoadCompleteEvtName}', 
     { cancelable: true, detail: { scriptFlag: '${script.flag}' } });
     return window.dispatchEvent(event);
   };
   const noCheckEarlyStartScript = f();
   if (noCheckEarlyStartScript) {
-    window.addEventListener('${eventNamePrefix}${messageFlags.envLoadComplete}', f, { once: true });
+    window.addEventListener('${envLoadCompleteEvtName}', f, { once: true });
   }
 })();
 `;
