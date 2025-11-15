@@ -12,7 +12,7 @@ let client: CustomEventMessage;
 const nextTick = () => Promise.resolve().then(() => {});
 
 const setupGlobal = () => {
-  const flags = { messageFlag: "-test.server" };
+  const flags = "-test.server";
   // 创建 content 和 inject 之间的消息通道
   contentMessage = new CustomEventMessage(flags, true); // content 端
   injectMessage = new CustomEventMessage(flags, false); // inject 端

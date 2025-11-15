@@ -4,7 +4,8 @@ import { type RuntimeService } from "./runtime";
 import type { ScriptMenu, TPopupScript } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client";
 import { cacheInstance } from "@App/app/cache";
-import type { Script, ScriptDAO } from "@App/app/repo/scripts";
+import type { ScriptDAO } from "@App/app/repo/scripts";
+import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type {
   TDeleteScript,
@@ -14,7 +15,7 @@ import type {
   TScriptMenuUnregister,
   TScriptRunStatus,
 } from "../queue";
-import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
+import { getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
@@ -311,24 +312,6 @@ export class PopupService {
     }
   }
 
-  // 将 Script 转为 ScriptMenu 并初始化其在该 tab 的菜单暂存（menus 空阵列、计数归零）。
-  scriptToMenu(script: Script): ScriptMenu {
-    return {
-      uuid: script.uuid,
-      name: script.name,
-      storageName: getStorageName(script),
-      enable: script.status === SCRIPT_STATUS_ENABLE,
-      updatetime: script.updatetime || 0,
-      hasUserConfig: !!script.config,
-      metadata: script.metadata,
-      runStatus: script.runStatus,
-      runNum: script.type === SCRIPT_TYPE_NORMAL ? 0 : script.runStatus === SCRIPT_RUN_STATUS_RUNNING ? 1 : 0,
-      runNumByIframe: 0,
-      menus: [],
-      isEffective: null,
-    };
-  }
-
   // 获取popup页面数据
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
     const { url, tabId } = req;
@@ -365,7 +348,7 @@ export class PopupService {
         if (script.selfMetadata) {
           script.metadata = getCombinedMeta(script.metadata, script.selfMetadata);
         }
-        run = this.scriptToMenu(script);
+        run = scriptToMenu(script);
         run.isEffective = o.effective!;
       }
       scriptMenuMap.set(uuid, run);
@@ -391,14 +374,15 @@ export class PopupService {
     return (await cacheInstance.get<ScriptMenu[]>(cacheKey)) || [];
   }
 
-  async addScriptRunNumber({ tabId, frameId, scripts }: { tabId: number; frameId: number; scripts: Script[] }) {
+  async addScriptRunNumber(o: TPopupPageLoadInfo) {
+    const { tabId, frameId, scriptmenus } = o;
     // 设置数据
     await cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
       // 特例：frameId 为 0/未提供时，重置当前 tab 的计数资料（视为页面重新载入）。
       data = !frameId ? [] : data || [];
       // 设置脚本运行次数
-      scripts.forEach((script) => {
-        const scriptMenu = data.find((item) => item.uuid === script.uuid);
+      scriptmenus.forEach((scriptmenu) => {
+        const scriptMenu = data.find((item) => item.uuid === scriptmenu.uuid);
         if (scriptMenu) {
           // runNum：累计总执行次数；runNumByIframe：仅 iframe 执行次数（用于精细显示/统计）。
           scriptMenu.runNum = (scriptMenu.runNum || 0) + 1;
@@ -406,7 +390,7 @@ export class PopupService {
             scriptMenu.runNumByIframe = (scriptMenu.runNumByIframe || 0) + 1;
           }
         } else {
-          const item = this.scriptToMenu(script);
+          const item = scriptmenu;
           item.isEffective = true;
           item.runNum = 1;
           if (frameId) {
@@ -445,7 +429,7 @@ export class PopupService {
         const scriptMenu = menu.find((item) => item.uuid === script.uuid);
         // 加入菜单
         if (!scriptMenu) {
-          const item = this.scriptToMenu(script);
+          const item = scriptToMenu(script);
           menu.push(item);
           tx.set(menu);
         }
@@ -469,7 +453,7 @@ export class PopupService {
           if (script.status === SCRIPT_STATUS_ENABLE) {
             // 加入菜单
             if (index === -1) {
-              const item = this.scriptToMenu(script);
+              const item = scriptToMenu(script);
               menu.push(item);
               tx.set(menu);
             }
@@ -706,15 +690,12 @@ export class PopupService {
 
     // 监听运行次数
     // 监听页面载入事件以更新脚本执行计数；若为当前活动 tab，同步刷新 badge。
-    this.mq.subscribe(
-      "pageLoad",
-      async ({ tabId, frameId, scripts }: { tabId: number; frameId: number; document: string; scripts: Script[] }) => {
-        await this.addScriptRunNumber({ tabId, frameId, scripts });
-        // 设置角标 (chrome.tabs.onActivated 切换后)
-        if (tabId === lastActiveTabId) {
-          await this.updateBadgeIcon();
-        }
+    this.mq.subscribe<TPopupPageLoadInfo>("popupPageLoadUpdate", async (o) => {
+      await this.addScriptRunNumber(o);
+      // 设置角标 (chrome.tabs.onActivated 切换后)
+      if (o.tabId === lastActiveTabId) {
+        await this.updateBadgeIcon();
       }
-    );
+    });
   }
 }
