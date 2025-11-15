@@ -1,4 +1,4 @@
-import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata, UserConfig } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_RUN_STATUS, SCMetadata, ScriptLoadInfo } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type IGetSender } from "@Packages/message/server";
 
@@ -19,18 +19,7 @@ export interface ScriptMatchInfo extends Script {
   originalUrlPatterns: URLRuleEntry[];
 }
 
-/**
- * 脚本加载信息。
- * 包含脚本元数据与用户配置。
- */
-export interface ScriptLoadInfo extends ScriptRunResource {
-  /** 脚本元数据字符串 */
-  metadataStr: string;
-  /** 用户配置字符串 */
-  userConfigStr: string;
-  /** 用户配置对象（可选） */
-  userConfig?: UserConfig;
-}
+export { ScriptLoadInfo };
 
 /**
  * 用于缓存的脚本匹配信息。

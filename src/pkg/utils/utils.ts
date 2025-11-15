@@ -1,4 +1,4 @@
-import type { SCMetadata, Script } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, TScriptInfo } from "@App/app/repo/scripts";
 import type { SystemConfigKey } from "../config/config";
 
 export function randNum(a: number, b: number) {
@@ -143,7 +143,7 @@ export function sleep(millis: number) {
   });
 }
 
-export function getStorageName(script: Script): string {
+export function getStorageName(script: Script | TScriptInfo): string {
   const storagename = script.metadata?.storagename;
   return storagename ? storagename[0] : script.uuid;
 }

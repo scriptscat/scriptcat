@@ -3,7 +3,8 @@ import type { Message } from "@Packages/message/types";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
 import type { ScriptExecutor } from "./script_executor";
-import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
+import type { TScriptInfo } from "@App/app/repo/scripts";
+import type { EmitEventRequest } from "../service_worker/types";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
 
 export class InjectRuntime {
@@ -27,8 +28,8 @@ export class InjectRuntime {
     this.scriptExecutor.setEnvInfo(envInfo);
   }
 
-  startScripts(scripts: ScriptLoadInfo[]) {
-    this.scriptExecutor.startScripts(scripts);
+  startScripts(injectScriptList: TScriptInfo[]) {
+    this.scriptExecutor.startScripts(injectScriptList);
   }
 
   onInjectPageLoaded() {

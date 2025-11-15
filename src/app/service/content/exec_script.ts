@@ -4,14 +4,14 @@ import { createContext, createProxyContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript } from "./utils";
 import type { Message } from "@Packages/message/types";
-import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_info";
 import { type IGM_Base } from "./gm_api";
+import type { TScriptInfo } from "@App/app/repo/scripts";
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
-  scriptRes: ScriptLoadInfo;
+  scriptRes: TScriptInfo;
 
   scriptFunc: ScriptFunc;
 
@@ -24,7 +24,7 @@ export default class ExecScript {
   named?: { [key: string]: any };
 
   constructor(
-    scriptRes: ScriptLoadInfo,
+    scriptRes: TScriptInfo,
     envPrefix: "content" | "offscreen",
     message: Message,
     code: string | ScriptFunc,

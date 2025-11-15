@@ -2,10 +2,7 @@ import { Client, sendMessage } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import type { GMInfoEnv } from "./types";
-import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ScriptExecutor } from "./script_executor";
-import { isInjectIntoContent } from "./utils";
 import { RuntimeClient } from "../service_worker/client";
 
 // content页的处理
@@ -128,33 +125,23 @@ export default class ContentRuntime {
 
   pageLoad(messageFlags: MessageFlags) {
     this.scriptExecutor.checkEarlyStartScript("content", messageFlags);
-
     const client = new RuntimeClient(this.senderToExt);
-    // 向service_worker请求脚本列表
-    client.pageLoad().then((data) => {
-      this.start(data.scripts, data.envInfo);
+    // 向service_worker请求脚本列表及環境資訊
+    client.pageLoad().then((o) => {
+      if (!o.ok) return;
+      const { injectScriptList, contentScriptList, envInfo } = o;
+      // 启动脚本：向 inject頁面 傳送脚本列表及環境資訊
+      const client = new Client(this.senderToInject, "inject");
+      // 根据@inject-into content过滤脚本
+      client.do("pageLoad", { injectScriptList, envInfo });
+      // 处理注入到content环境的脚本
+      for (const script of contentScriptList) {
+        this.contentScriptSet.add(script.uuid);
+      }
+      // 监听事件
+      this.scriptExecutor.setEnvInfo(envInfo);
+      // 启动脚本
+      this.scriptExecutor.startScripts(contentScriptList);
     });
-  }
-
-  start(scripts: ScriptLoadInfo[], envInfo: GMInfoEnv) {
-    // 启动脚本
-    const client = new Client(this.senderToInject, "inject");
-    // 根据@inject-into content过滤脚本
-    const injectScriptList: ScriptLoadInfo[] = [];
-    const contentScriptList: ScriptLoadInfo[] = [];
-    for (const script of scripts) {
-      const list = isInjectIntoContent(script.metadata) ? contentScriptList : injectScriptList;
-      list.push(script);
-    }
-    client.do("pageLoad", { scripts: injectScriptList, envInfo });
-
-    // 处理注入到content环境的脚本
-    for (const script of contentScriptList) {
-      this.contentScriptSet.add(script.uuid);
-    }
-    // 监听事件
-    this.scriptExecutor.setEnvInfo(envInfo);
-    // 启动脚本
-    this.scriptExecutor.startScripts(contentScriptList);
   }
 }

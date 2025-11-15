@@ -4,6 +4,8 @@ declare module "*.json";
 declare module "*.yaml";
 declare module "@App/app/types.d.ts";
 
+type Override<T, U> = Omit<T, keyof U> & U;
+
 declare const sandbox: Window;
 
 declare const self: ServiceWorkerGlobalScope;

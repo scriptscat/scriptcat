@@ -1,8 +1,9 @@
-import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
+import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, ScriptMenu } from "./types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group, IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
-import type { Script, ScriptDAO, ScriptRunResource, ScriptSite } from "@App/app/repo/scripts";
+import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
+import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
@@ -27,7 +28,13 @@ import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
 import type { CompileScriptCodeResource } from "../content/utils";
-import { compileInjectScriptByFlag, compileScriptCodeByResource, isEarlyStartScript } from "../content/utils";
+import {
+  compileInjectScriptByFlag,
+  compileScriptCodeByResource,
+  isEarlyStartScript,
+  isInjectIntoContent,
+  trimScriptInfo,
+} from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -42,6 +49,7 @@ import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompiledResource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
+import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 
 // 避免使用版本号控制导致代码理解混乱
 // 用来清除 UserScript API 里的旧缓存
@@ -59,6 +67,19 @@ const runtimeGlobal = {
     envLoadComplete: "PENDING",
   } as MessageFlags,
 };
+
+export type TTabInfo = {
+  url: string;
+  tabId: number | undefined;
+  frameId: number | undefined;
+};
+
+export type TScriptsForTab = {
+  injectScriptList: TScriptInfo[];
+  contentScriptList: TScriptInfo[];
+  envInfo: GMInfoEnv;
+  scriptmenus: ScriptMenu[];
+} | null;
 
 export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
@@ -968,26 +989,54 @@ export class RuntimeService {
     }
   }
 
-  async pageLoad(_: any, sender: IGetSender) {
-    if (!this.isLoadScripts) {
-      return { flag: "", scripts: [] };
-    }
+  async pageLoad(_: any, sender: IGetSender): Promise<TClientPageLoadInfo> {
     const chromeSender = sender.getSender();
-    if (!chromeSender?.url) {
+    const url = chromeSender?.url;
+    if (!url) {
       // 异常加载
-      return { flag: "", scripts: [] };
+      return { ok: false };
+    }
+    const tabId = chromeSender.tab?.id || -1;
+    const frameId = chromeSender.frameId;
+    const res = await this.getScriptsForTab({ url, tabId, frameId });
+
+    this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
+      tabId: tabId,
+      frameId: frameId,
+      scriptmenus: res?.scriptmenus || [], // 对于 popup, resources那些不需要
+    });
+
+    if (res) {
+      // 返回脚本资料，在页面加载
+      return {
+        ok: true,
+        injectScriptList: res.injectScriptList,
+        contentScriptList: res.contentScriptList,
+        envInfo: res.envInfo,
+      };
+    } else {
+      // 没有脚本资料，不需要加载
+      return { ok: false };
+    }
+  }
+  async getScriptsForTab({ url, frameId }: TTabInfo): Promise<TScriptsForTab> {
+    if (!this.isLoadScripts) {
+      return null;
     }
 
     // 判断是否黑名单（针对网址，与个别脚本设定无关）
-    if (this.isUrlBlacklist(chromeSender.url!)) {
+    if (this.isUrlBlacklist(url)) {
       // 如果在黑名单中, 则不加载脚本
-      return { flag: "", scripts: [] };
+      return null;
     }
 
     // 匹配当前页面的脚本（只包含有效脚本。自定义排除了的不包含）
-    const matchingResult = this.getPageScriptMatchingResultByUrl(chromeSender.url!, false, false);
+    const matchingResult = this.getPageScriptMatchingResultByUrl(url, false, false);
 
-    const enableScript = [] as ScriptLoadInfo[];
+    // 该网址没有任何脚本匹配，包括排除匹配
+    if (!matchingResult.size) return null;
+
+    const enableScriptList = [] as ScriptLoadInfo[];
 
     const uuids = [...matchingResult.keys()];
 
@@ -1043,18 +1092,21 @@ export class RuntimeService {
         }
       }
       // 如果是iframe,判断是否允许在iframe里运行
-      if (chromeSender.frameId) {
+      if (frameId) {
         if (scriptRes.metadata.noframes) {
           continue;
         }
       }
-      enableScript.push(scriptRes);
+      enableScriptList.push(scriptRes);
     }
+
+    // 没有任何启用脚本
+    if (!enableScriptList.length) return null;
 
     const scriptCodes = {} as Record<string, string>;
     // 更新资源使用了file协议的脚本
     const scriptsWithUpdatedResources = new Map<string, ScriptLoadInfo>();
-    for (const scriptRes of enableScript) {
+    for (const scriptRes of enableScriptList) {
       const uuid = scriptRes.uuid;
       const resourceCheck = resourceChecks[uuid];
       if (resourceCheck) {
@@ -1104,7 +1156,7 @@ export class RuntimeService {
 
     const { value, resource, scriptDAO } = this;
     await Promise.all(
-      enableScript.flatMap((script) => [
+      enableScriptList.flatMap((script) => [
         // 加载value
         value.getScriptValue(script!).then((value) => {
           script.value = value;
@@ -1167,36 +1219,44 @@ export class RuntimeService {
         }
       }
     }
-    this.mq.emit("pageLoad", {
-      tabId: chromeSender.tab?.id || -1,
-      frameId: chromeSender.frameId,
-      scripts: enableScript,
-    });
+
+    // 发布给 Popup 的资讯
+    const scriptmenus = enableScriptList.map((script) => scriptToMenu(script));
 
     let domain = "";
     try {
-      const url = chromeSender.url ? new URL(chromeSender.url) : null;
-      if (url?.protocol?.startsWith("http")) {
-        domain = url.hostname;
+      const u = url ? new URL(url) : null;
+      if (u?.protocol?.startsWith("http")) {
+        domain = u.hostname;
       }
     } catch {
       // ignore
     }
     if (domain) {
-      for (const script of enableScript) {
+      for (const script of enableScriptList) {
         this.sitesLoaded.add(`${script.uuid}|${domain}`);
       }
       Promise.resolve().then(() => this.updateSites());
     }
 
+    const injectScriptList: TScriptInfo[] = [];
+    const contentScriptList: TScriptInfo[] = [];
+    for (const script of enableScriptList) {
+      const list = isInjectIntoContent(script.metadata) ? contentScriptList : injectScriptList;
+      list.push(trimScriptInfo({ ...script }));
+    }
+
+    // 发布给 inject 和 content 的资讯
     return {
-      scripts: enableScript,
+      injectScriptList: injectScriptList,
+      contentScriptList: contentScriptList,
       envInfo: {
         sandboxMode: "raw",
         isIncognito: chrome.extension?.inIncognitoContext ?? undefined,
         userAgentData: this.userAgentData ?? undefined,
       } as GMInfoEnv,
-    };
+      scriptmenus,
+    } satisfies TScriptsForTab;
   }
 
   // 停止脚本

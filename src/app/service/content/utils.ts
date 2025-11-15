@@ -1,4 +1,4 @@
-import type { SCMetadata, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, ScriptRunResource, TScriptInfo } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 
@@ -96,6 +96,39 @@ export function compileInjectScriptByFlag(
 }
 
 /**
+ * 脚本加载信息。（Inject/Content环境用，避免过多不必要资讯公开，减少页面加载资讯储存量）
+ */
+export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
+  // --- 处理 resource ---
+  // 由于不需要 complie code, resource 只用在 GM_getResourceURL 和 GM_getResourceText
+  const resource = {} as Record<string, { base64?: string; content: string; contentType: string }>;
+  if (script.resource) {
+    for (const [url, { base64, content, contentType }] of Object.entries(script.resource || {})) {
+      resource[url] = { base64, content, contentType };
+    }
+  }
+  // --- 处理 resource ---
+  // --- 处理 scriptInfo ---
+  const scriptInfo = { ...script, resource, code: "" } as TScriptInfo;
+  // 删除其他不需要注入的 script 资讯
+  delete scriptInfo.originalMetadata;
+  delete scriptInfo.selfMetadata;
+  delete scriptInfo.lastruntime;
+  delete scriptInfo.nextruntime;
+  delete scriptInfo.ignoreVersion; // UserScript 裡面不需要知道用戶有沒有在更新時忽略
+  delete scriptInfo.sort; // UserScript 裡面不需要知道用戶如何 sort
+  delete scriptInfo.error;
+  delete scriptInfo.subscribeUrl; // UserScript 裡面不需要知道用戶從何處訂閱
+  delete scriptInfo.originDomain; // 脚本来源域名
+  delete scriptInfo.origin; // 脚本来源
+  delete scriptInfo.runStatus; // 前台脚本不用
+  delete scriptInfo.type; // 脚本类型總是普通脚本
+  delete scriptInfo.status; // 脚本状态總是启用
+  // --- 处理 scriptInfo ---
+  return scriptInfo;
+};
+
+/**
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
@@ -106,9 +139,7 @@ export function compilePreInjectScript(
 ): string {
   const eventNamePrefix = isInjectIntoContent(script.metadata) ? messageFlags.contentFlag : messageFlags.injectFlag;
   const flag = `${script.flag}`;
-  const scriptInfo = { ...script }; // clone
-  // 不需要 code
-  scriptInfo.code = "";
+  const scriptInfo = trimScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const evScriptLoad = `${eventNamePrefix}${messageFlags.scriptLoadComplete}`;

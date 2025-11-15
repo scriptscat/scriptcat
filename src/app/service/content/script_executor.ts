@@ -1,12 +1,13 @@
 import type { Message } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
+import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyle, definePropertyListener } from "./utils";
+import type { TScriptInfo } from "@App/app/repo/scripts";
 
 export type ExecScriptEntry = {
-  scriptLoadInfo: ScriptLoadInfo;
+  scriptLoadInfo: TScriptInfo;
   scriptFlag: string;
   envInfo: any;
   scriptFunc: any;
@@ -42,8 +43,8 @@ export class ScriptExecutor {
     }
   }
 
-  startScripts(scripts: ScriptLoadInfo[]) {
-    const loadExec = (script: ScriptLoadInfo, scriptFunc: any) => {
+  startScripts(scripts: TScriptInfo[]) {
+    const loadExec = (script: TScriptInfo, scriptFunc: any) => {
       this.execScriptEntry({
         scriptLoadInfo: script,
         scriptFlag: script.flag,
@@ -88,8 +89,8 @@ export class ScriptExecutor {
     window.dispatchEvent(ev);
   }
 
-  execEarlyScript(flag: string, scriptInfo: ScriptLoadInfo) {
-    const scriptFunc = (window as any)[flag] as PreScriptFunc;
+  execEarlyScript(flag: string, scriptInfo: TScriptInfo) {
+    const scriptFunc = (window as any)[flag] as ScriptFunc;
     this.execScriptEntry({
       scriptLoadInfo: scriptInfo,
       scriptFunc: scriptFunc,
