@@ -45,7 +45,7 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 
 const askUnlistedConnect = false;
-const askConnectStar = false;
+const askConnectStar = true; // 如果只有 "*", 而脚本要求连接自己以外的网域，则需要询问
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -144,33 +144,48 @@ export enum ConnectMatch {
   SELF = 3,
 }
 
+export enum SelfMatch {
+  NONE = 0,
+  SELF = 1,
+  SUB = 2,
+}
+
 export const getConnectMatched = (
   metadataConnect: string[] | undefined,
   reqURL: URL,
   sender: IGetSender
 ): ConnectMatch => {
   if (metadataConnect?.length) {
+    const checkSelfDomainMatching = () => {
+      const senderURL = sender.getSender()?.url;
+      if (senderURL) {
+        let senderURLObject;
+        try {
+          senderURLObject = new URL(senderURL);
+        } catch {
+          // ignore
+        }
+        if (senderURLObject) {
+          if (reqURL.hostname === senderURLObject.hostname) return SelfMatch.SELF; // 自身
+          if (`.${reqURL.hostname}`.endsWith(`.${senderURLObject.hostname}`)) return SelfMatch.SUB; // 子域
+        }
+      }
+      return SelfMatch.NONE;
+    };
+    let withWildCard = false;
     for (let i = 0, l = metadataConnect.length; i < l; i += 1) {
       const lowerMetaConnect = metadataConnect[i].toLowerCase();
       if (lowerMetaConnect === "self") {
-        const senderURL = sender.getSender()?.url;
-        if (senderURL) {
-          let senderURLObject;
-          try {
-            senderURLObject = new URL(senderURL);
-          } catch {
-            // ignore
-          }
-          if (senderURLObject) {
-            if (reqURL.hostname === senderURLObject.hostname) return ConnectMatch.SELF;
-          }
-        }
+        if (checkSelfDomainMatching()) return ConnectMatch.SELF; // 包含子域
       } else if (lowerMetaConnect === "*") {
-        return ConnectMatch.ALL;
+        if (checkSelfDomainMatching()) return ConnectMatch.SELF; // 包含子域
+        withWildCard = true;
       } else if (`.${reqURL.hostname}`.endsWith(`.${lowerMetaConnect}`)) {
         return ConnectMatch.DOMAIN;
       }
     }
+    // 有 * 但不是自身网域 又不是列明网域 则询问
+    if (withWildCard) return ConnectMatch.ALL;
   }
   return ConnectMatch.NONE;
 };
@@ -280,7 +295,7 @@ export default class GMApi {
         url.host = detail.domain || "";
         url.hostname = detail.domain || "";
       }
-      if (getConnectMatched(request.script.metadata.connect, url, sender) === 0) {
+      if (getConnectMatched(request.script.metadata.connect, url, sender) === ConnectMatch.NONE) {
         throw new Error("hostname must be in the definition of connect");
       }
       const metadata: { [key: string]: string } = {};
@@ -682,7 +697,7 @@ export default class GMApi {
         return false;
       }
       const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
-      if (connectMatched === 1) {
+      if (connectMatched === ConnectMatch.ALL) {
         if (!askConnectStar) {
           return true;
         }
