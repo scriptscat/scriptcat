@@ -267,13 +267,7 @@ export class SubscribeService {
     }
   }
 
-  async checkSubscribeUpdate() {
-    const checkCycle = await this.systemConfig.getCheckScriptUpdateCycle();
-    if (!checkCycle) {
-      return;
-    }
-    this.logger.debug("start check update");
-    const checkDisable = await this.systemConfig.getUpdateDisableScript();
+  async checkSubscribeUpdate(checkCycle: number, checkDisable: boolean) {
     const list = await this.subscribeDAO.find((_, value) => {
       return value.checktime + checkCycle * 1000 < Date.now();
     });
@@ -316,21 +310,6 @@ export class SubscribeService {
       this.upsertScript(message.subscribe.url);
     });
 
-    // 定时检查更新, 首次執行為5分钟後，然後每30分钟检查一次
-    chrome.alarms.create(
-      "checkSubscribeUpdate",
-      {
-        delayInMinutes: 5,
-        periodInMinutes: 30,
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-          // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-          console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
-        }
-      }
-    );
+    chrome.alarms.clear("checkSubscribeUpdate");
   }
 }

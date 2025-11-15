@@ -18,6 +18,7 @@ import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config
 import { type TKeyValue } from "@Packages/message/message_queue";
 import { useEffect, useMemo } from "react";
 import { systemConfig } from "@App/pages/store/global";
+import { initRegularUpdateCheck } from "@App/app/service/service_worker/regular_updatecheck";
 
 function Setting() {
   const { subscribeMessage } = useAppContext();
@@ -308,13 +309,16 @@ function Setting() {
         <Space direction="vertical" size={20} className="w-full">
           <div className="flex items-center justify-between min-h-9">
             <div className="flex items-center gap-4 flex-1">
-              <span className="min-w-20 font-medium">{t("check_frequency")}</span>
+              <span className="min-w-20 font-medium">{t("script_update_check_frequency")}</span>
               <Select
                 value={checkScriptUpdateCycle.toString()}
                 className="w-35 max-w-45"
                 onChange={(value) => {
                   const num = parseInt(value, 10);
                   submitCheckScriptUpdateCycle(num);
+                  Promise.resolve().then(() => {
+                    initRegularUpdateCheck(systemConfig);
+                  });
                 }}
               >
                 <Select.Option value="0">{t("never")}</Select.Option>

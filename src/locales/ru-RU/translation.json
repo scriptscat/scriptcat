@@ -473,7 +473,7 @@
   "display_right_click_menu_desc": "Показать меню скрипта в контекстном меню браузера",
   "expand_count": "Количество развернутых",
   "auto_collapse_when_exceeds": "Автоматически сворачивать при превышении этого количества",
-  "check_frequency": "Частота проверки",
+  "script_update_check_frequency": "Частота проверки обновления скрипта",
   "script_auto_update_frequency": "Частота автоматической проверки обновлений скриптов",
   "update_options": "Параметры обновления",
   "control_script_update_behavior": "Управление поведением обновления скриптов",
