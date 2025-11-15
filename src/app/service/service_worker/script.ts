@@ -269,9 +269,15 @@ export class ScriptService {
   }
 
   // 安装脚本 / 更新腳本
-  async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
+  async installScript(param: {
+    script: Script;
+    code: string;
+    upsertBy?: InstallSource;
+    createtime?: number;
+    updatetime?: number;
+  }) {
     param.upsertBy = param.upsertBy || "user";
-    const { script, upsertBy } = param;
+    const { script, upsertBy, createtime, updatetime } = param;
     // 删 storage cache
     const compiledResourceUpdatePromise = this.compiledResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
@@ -289,6 +295,12 @@ export class ScriptService {
       script.selfMetadata = oldScript.selfMetadata;
     }
     if (script.ignoreVersion) script.ignoreVersion = "";
+    if (createtime) {
+      script.createtime = createtime;
+    }
+    if (updatetime) {
+      script.updatetime = updatetime;
+    }
     return this.scriptDAO
       .save(script)
       .then(async () => {

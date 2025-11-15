@@ -52,8 +52,15 @@ export class ScriptClient extends Client {
     return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean }]>("getInstallInfo", uuid);
   }
 
-  install(script: Script, code: string, upsertBy: InstallSource = "user"): Promise<{ update: boolean }> {
-    return this.doThrow("install", { script, code, upsertBy });
+  install(params: {
+    script: Script;
+    code: string;
+    upsertBy?: InstallSource;
+    createtime?: number;
+    updatetime?: number;
+  }): Promise<{ update: boolean }> {
+    if (!params.upsertBy) params.upsertBy = "user";
+    return this.doThrow("install", { ...params });
   }
 
   // delete(uuid: string) {

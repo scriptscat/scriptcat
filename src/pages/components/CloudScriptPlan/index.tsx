@@ -10,7 +10,7 @@ import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import type { ExportParams } from "@Packages/cloudscript/cloudscript";
 import { parseExportCookie, parseExportValue } from "@Packages/cloudscript/cloudscript";
 import CloudScriptFactory from "@Packages/cloudscript/factory";
-import JSZip from "jszip";
+import { createJSZip } from "@App/pkg/utils/jszip-x";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -118,9 +118,9 @@ const CloudScriptPlan: React.FC<{
         const values = await parseExportValue(script, params.exportValue);
         const cookies = await parseExportCookie(params.exportCookie);
         if (cloudScriptType === "local") {
-          const jszip = new JSZip();
+          const zipFile = createJSZip();
           const cloudScript = CloudScriptFactory.create("local", {
-            zip: jszip,
+            zip: zipFile,
             ...params,
           });
           const code = await new ScriptCodeDAO().findByUUID(script.uuid);
@@ -130,7 +130,7 @@ const CloudScriptPlan: React.FC<{
           }
           cloudScript.exportCloud(script, code.code, values, cookies);
           // 生成文件,并下载
-          const zipOutput = await jszip.generateAsync({
+          const zipOutput = await zipFile.generateAsync({
             type: "blob",
             compression: "DEFLATE",
             compressionOptions: {

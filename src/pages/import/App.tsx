@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Button, Card, Checkbox, Divider, List, Message, Space, Switch, Typography } from "@arco-design/web-react";
 import { useTranslation } from "react-i18next"; // 导入react-i18next的useTranslation钩子
-import JSZip from "jszip";
+import { loadAsyncJSZip } from "@App/pkg/utils/jszip-x";
 import type { ScriptOptions, ScriptData, SubscribeData } from "@App/pkg/backup/struct";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
@@ -93,7 +93,7 @@ function App() {
       const resp = await cacheInstance.get<{ filename: string; url: string }>(cacheKey);
       if (!resp) throw new Error("fetchData failed");
       const filedata = await fetch(resp.url).then((resp) => resp.blob());
-      const zip = await JSZip.loadAsync(filedata);
+      const zip = await loadAsyncJSZip(filedata);
       const backData = await parseBackupZipFile(zip);
       const backDataScript = backData.script as ScriptData[];
 
@@ -169,7 +169,10 @@ function App() {
       if (item.script?.script) {
         if (item.script.script.ignoreVersion) item.script.script.ignoreVersion = "";
       }
-      await scriptClient.install(item.script!.script!, item.code);
+      const scriptDetails = item.script!.script!;
+      const createtime = item.lastModificationDate;
+      const updatetime = item.lastModificationDate;
+      await scriptClient.install({ script: scriptDetails, code: item.code, createtime, updatetime });
       await Promise.all([
         (async () => {
           // 导入资源
@@ -186,6 +189,7 @@ function App() {
         (async () => {
           // 导入数据
           const { data } = item.storage;
+          const ts = item.storage.ts || 0;
           const entries = Object.entries(data);
           if (entries.length === 0) return;
           await sleep(((Math.random() * 600) | 0) + 200);
@@ -194,7 +198,7 @@ function App() {
           for (const [key, value] of entries) {
             keyValuePairs.push([key, encodeRValue(value)]);
           }
-          await valueClient.setScriptValues({ uuid: uuid, keyValuePairs, isReplace: false, ts: Date.now() });
+          await valueClient.setScriptValues({ uuid: uuid, keyValuePairs, isReplace: false, ts: ts });
         })(),
       ]);
       setInstallNum((prev) => [prev[0] + 1, prev[1]]);
