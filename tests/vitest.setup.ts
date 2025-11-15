@@ -2,6 +2,10 @@ import chromeMock from "@Packages/chrome-extension-mock";
 import { initTestEnv } from "./utils";
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
+import { MockRequest } from "./mocks/request";
+import { MockBlob } from "./mocks/blob";
+import { MockResponse } from "./mocks/response";
+import { mockFetch } from "./mocks/fetch";
 
 vi.stubGlobal("chrome", chromeMock);
 chromeMock.init();
@@ -117,5 +121,11 @@ vi.stubGlobal("sandboxTestValue2", "sandboxTestValue2");
 
 vi.stubGlobal("ttest1", 1);
 vi.stubGlobal("ttest2", 2);
+
+// Install globals
+vi.stubGlobal("fetch", mockFetch);
+vi.stubGlobal("Request", MockRequest);
+vi.stubGlobal("Response", MockResponse);
+vi.stubGlobal("Blob", MockBlob);
 
 vi.stubGlobal("define", "特殊关键字不能穿透沙盒");

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import ExecScript from "./exec_script";
-import type { ScriptLoadInfo } from "../service_worker/types";
-import type { GMInfoEnv, ScriptFunc } from "./types";
-import { compileScript, compileScriptCode } from "./utils";
+import ExecScript from "../exec_script";
+import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
+import type { GMInfoEnv, ScriptFunc } from "../types";
+import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { v4 as uuidv4 } from "uuid";

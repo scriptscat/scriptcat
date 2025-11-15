@@ -4,6 +4,7 @@ import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyle, definePropertyListener } from "./utils";
+import { DefinedFlags } from "../service_worker/runtime.consts";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: ScriptLoadInfo;
@@ -71,10 +72,14 @@ export class ScriptExecutor {
   }
 
   checkEarlyStartScript(env: "content" | "inject", messageFlags: MessageFlags) {
-    const eventNamePrefix = env === "content" ? messageFlags.contentFlag : messageFlags.injectFlag;
+    const isContent = env === "content";
+    const messageFlag = messageFlags.messageFlag;
+    const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
+    const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+    const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (event) => {
+    window.addEventListener(scriptLoadCompleteEvtName, (event) => {
       if (event instanceof CustomEvent) {
         if (typeof event.detail.scriptFlag === "string") {
           event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
@@ -85,7 +90,7 @@ export class ScriptExecutor {
     });
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
-    const ev = new CustomEvent(eventNamePrefix + messageFlags.envLoadComplete);
+    const ev = new CustomEvent(envLoadCompleteEvtName);
     window.dispatchEvent(ev);
   }
 

@@ -8,19 +8,21 @@ import type {
   SWScriptMenuItemOption,
   TScriptMenuItemID,
   TScriptMenuItemKey,
-} from "../service_worker/types";
+  MessageRequest,
+} from "@App/app/service/service_worker/types";
 import { base64ToBlob, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
-import type { ValueUpdateDataEncoded } from "./types";
-import type { MessageRequest } from "../service_worker/types";
+import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { ListenerManager } from "./listener_manager";
+import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
+import type { ContextType } from "./gm_xhr";
+import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
@@ -28,6 +30,11 @@ export interface IGM_Base {
   connect(api: string, params: any[]): Promise<any>;
   valueUpdate(data: ValueUpdateDataEncoded): void;
   emitEvent(event: string, eventId: string, data: any): void;
+}
+
+export interface GMRequestHandle {
+  /** Abort the ongoing request */
+  abort: () => void;
 }
 
 const integrity = {}; // 仅防止非法实例化
@@ -460,7 +467,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public CAT_createBlobUrl(blob: Blob): Promise<string> {
-    return this.sendMessage("CAT_createBlobUrl", [blob]);
+    return Promise.resolve(toBlobURL(this, blob));
   }
 
   // 辅助GM_xml获取blob数据
@@ -471,8 +478,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    const nodeId = await this.sendMessage("CAT_fetchDocument", [url]);
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(nodeId) as Document;
+    return urlToDocumentInContentPage(this, url);
   }
 
   static _GM_cookie(
@@ -577,7 +583,7 @@ export default class GMApi extends GM_Base {
   // 每个 contentEnvKey（执行环境）初始化时会重设；不持久化、只保证当前环境内递增唯一。
   menuIdCounter: number | undefined;
 
-  // 菜单注冊累计器 - 用於穩定同一Tab不同frame之選項的單獨項目不合併狀態
+  // 菜单注册累计器 - 用于稳定同一Tab不同frame之选项的单独项目不合并状态
   // 每个 contentEnvKey（执行环境）初始化时会重设；不持久化、只保证当前环境内递增唯一。
   regMenuCounter: number | undefined;
 
@@ -760,7 +766,7 @@ export default class GMApi extends GM_Base {
       file: details.file,
     };
     if (action === "upload") {
-      const url = await this.CAT_createBlobUrl(details.data);
+      const url = await toBlobURL(this, details.data);
       sendDetails.data = url;
     }
     this.sendMessage("CAT_fileStorage", [action, sendDetails]).then(async (resp: { action: string; data: any }) => {
@@ -786,306 +792,242 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  static _GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails) {
-    if (a.isInvalidContext()) {
-      return {
-        abort: () => {},
-      };
-    }
-    const u = new URL(details.url, window.location.href);
-    const headers = details.headers;
-    if (headers) {
-      for (const key of Object.keys(headers)) {
-        if (key.toLowerCase() === "cookie") {
-          details.cookie = headers[key];
-          delete headers[key];
-        }
-      }
-    }
-
-    const param: GMSend.XHRDetails = {
-      method: details.method,
-      timeout: details.timeout,
-      url: u.href,
-      headers: details.headers,
-      cookie: details.cookie,
-      context: details.context,
-      responseType: details.responseType,
-      overrideMimeType: details.overrideMimeType,
-      anonymous: details.anonymous,
-      user: details.user,
-      password: details.password,
-      redirect: details.redirect,
-      fetch: details.fetch,
-    };
-    if (!param.headers) {
-      param.headers = {};
-    }
-    if (details.nocache) {
-      param.headers["Cache-Control"] = "no-cache";
-    }
-    let connect: MessageConnect;
-    const handler = async () => {
-      // 处理数据
-      if (details.data instanceof FormData) {
-        // 处理FormData
-        param.dataType = "FormData";
-        const keys: { [key: string]: boolean } = {};
-        details.data.forEach((val, key) => {
-          keys[key] = true;
-        });
-        // 处理FormData中的数据
-        const data = (await Promise.all(
-          Object.keys(keys).flatMap((key) =>
-            (<FormData>details.data).getAll(key).map((val) =>
-              val instanceof File
-                ? a.CAT_createBlobUrl(val).then(
-                    (url) =>
-                      ({
-                        key,
-                        type: "file",
-                        val: url,
-                        filename: val.name,
-                      }) as GMSend.XHRFormData
-                  )
-                : ({
-                    key,
-                    type: "text",
-                    val,
-                  } as GMSend.XHRFormData)
-            )
-          )
-        )) as GMSend.XHRFormData[];
-        param.data = data;
-      } else if (details.data instanceof Blob) {
-        // 处理blob
-        param.dataType = "Blob";
-        param.data = await a.CAT_createBlobUrl(details.data);
-      } else {
-        param.data = details.data;
-      }
-
-      // 处理返回数据
-      let readerStream: ReadableStream<Uint8Array> | undefined;
-      let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
-      // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
-      // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
-      const responseType = details.responseType?.toLocaleLowerCase();
-      const warpResponse = (old: (xhr: GMTypes.XHRResponse) => void) => {
-        if (responseType === "stream") {
-          readerStream = new ReadableStream<Uint8Array>({
-            start(ctrl) {
-              controller = ctrl;
-            },
-          });
-        }
-        return async (xhr: GMTypes.XHRResponse) => {
-          if (xhr.response) {
-            if (responseType === "document") {
-              xhr.response = await a.CAT_fetchDocument(<string>xhr.response);
-              xhr.responseXML = xhr.response;
-              xhr.responseType = "document";
-            } else {
-              const resp = await a.CAT_fetchBlob(<string>xhr.response);
-              if (responseType === "arraybuffer") {
-                xhr.response = await resp.arrayBuffer();
-              } else {
-                xhr.response = resp;
-              }
-            }
-          }
-          if (responseType === "stream") {
-            xhr.response = readerStream;
-          }
-          old(xhr);
-        };
-      };
-      if (
-        responseType === "arraybuffer" ||
-        responseType === "blob" ||
-        responseType === "document" ||
-        responseType === "stream"
-      ) {
-        if (details.onload) {
-          details.onload = warpResponse(details.onload);
-        }
-        if (details.onreadystatechange) {
-          details.onreadystatechange = warpResponse(details.onreadystatechange);
-        }
-        if (details.onloadend) {
-          details.onloadend = warpResponse(details.onloadend);
-        }
-        // document类型读取blob,然后在content页转化为document对象
-        if (responseType === "document") {
-          param.responseType = "blob";
-        }
-        if (responseType === "stream") {
-          if (details.onloadstart) {
-            details.onloadstart = warpResponse(details.onloadstart);
-          }
-        }
-      }
-
-      // 发送信息
-      a.connect("GM_xmlhttpRequest", [param]).then((con) => {
-        connect = con;
-        con.onMessage((data) => {
-          if (data.code === -1) {
-            // 处理错误
-            LoggerCore.logger().error("GM_xmlhttpRequest error", {
-              code: data.code,
-              message: data.message,
-            });
-            if (details.onerror) {
-              details.onerror({
-                readyState: 4,
-                error: data.message || "unknown",
-              });
-            }
-            return;
-          }
-          // 处理返回
-          switch (data.action) {
-            case "onload":
-              details.onload?.(data.data);
-              break;
-            case "onloadend":
-              details.onloadend?.(data.data);
-              break;
-            case "onloadstart":
-              details.onloadstart?.(data.data);
-              break;
-            case "onprogress":
-              details.onprogress?.(data.data);
-              break;
-            case "onreadystatechange":
-              details.onreadystatechange && details.onreadystatechange(data.data);
-              break;
-            case "ontimeout":
-              details.ontimeout?.();
-              break;
-            case "onerror":
-              details.onerror?.(data.data);
-              break;
-            case "onabort":
-              details.onabort?.();
-              break;
-            case "onstream":
-              controller?.enqueue(new Uint8Array(data.data));
-              break;
-            default:
-              LoggerCore.logger().warn("GM_xmlhttpRequest resp is error", {
-                data,
-              });
-              break;
-          }
-        });
-      });
-    };
-    // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
-    handler();
-    return {
-      abort: () => {
-        if (connect) {
-          connect.disconnect();
-        }
-      },
-    };
-  }
-
   // 用于脚本跨域请求,需要@connect domain指定允许的域名
   @GMContext.API({
     depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
   })
   public GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
-    return _GM_xmlhttpRequest(this, details);
+    const { abort } = GM_xmlhttpRequest(this, details, false);
+    return { abort };
   }
 
   @GMContext.API({ depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"] })
-  public ["GM.xmlHttpRequest"](details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse> {
-    let abort: { abort: () => void };
-    const ret = new Promise<GMTypes.XHRResponse>((resolve, reject) => {
-      const oldOnload = details.onload;
-      details.onloadend = (xhr: GMTypes.XHRResponse) => {
-        oldOnload && oldOnload(xhr);
-        resolve(xhr);
-      };
-      const oldOnerror = details.onerror;
-      details.onerror = (error: any) => {
-        oldOnerror && oldOnerror(error);
-        reject(error);
-      };
-      abort = _GM_xmlhttpRequest(this, details);
-    });
-    //@ts-ignore
-    ret.abort = () => {
-      abort && abort.abort && abort.abort();
-    };
+  public ["GM.xmlHttpRequest"](details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse> & GMRequestHandle {
+    const { retPromise, abort } = GM_xmlhttpRequest(this, details, true);
+    const ret = retPromise as Promise<GMTypes.XHRResponse> & GMRequestHandle;
+    ret.abort = abort;
     return ret;
   }
 
+  /**
+   *
+   * SC的 downloadMode 设置在API呼叫，TM 的 downloadMode 设置在扩展设定
+   * native, disabled, browser
+   * native: 后台xhr下载 -> 后台chrome.download API，disabled: 禁止下载，browser: 后台chrome.download API
+   *
+   */
   @GMContext.API({ alias: "GM.download" })
-  GM_download(url: GMTypes.DownloadDetails | string, filename?: string): GMTypes.AbortHandle<void> {
-    if (this.isInvalidContext()) {
+  static _GM_download(a: GMApi, details: GMTypes.DownloadDetails<string | Blob | File>, requirePromise: boolean) {
+    if (a.isInvalidContext()) {
       return {
+        retPromise: requirePromise ? Promise.reject("GM_download: Invalid Context") : null,
         abort: () => {},
       };
     }
-    let details: GMTypes.DownloadDetails;
-    if (typeof url === "string") {
-      details = {
-        name: filename || "",
-        url,
-      };
-    } else {
-      details = url;
-    }
+    let retPromiseResolve: (value: unknown) => void | undefined;
+    let retPromiseReject: (reason?: any) => void | undefined;
+    const retPromise = requirePromise
+      ? new Promise((resolve, reject) => {
+          retPromiseResolve = resolve;
+          retPromiseReject = reject;
+        })
+      : null;
+    const urlPromiseLike = typeof details.url === "object" ? convObjectToURL(details.url) : details.url;
+    let aborted = false;
     let connect: MessageConnect;
-    this.connect("GM_download", [
-      {
-        method: details.method,
-        downloadMode: details.downloadMode || "native", // 默认使用xhr下载
-        url: details.url,
-        name: details.name,
-        headers: details.headers,
-        saveAs: details.saveAs,
-        timeout: details.timeout,
-        cookie: details.cookie,
-        anonymous: details.anonymous,
-      } as GMTypes.DownloadDetails,
-    ]).then((con) => {
-      connect = con;
-      connect.onMessage((data) => {
-        switch (data.action) {
-          case "onload":
-            details.onload && details.onload(data.data);
-            break;
-          case "onprogress":
-            details.onprogress && details.onprogress(<GMTypes.XHRProgress>data.data);
-            break;
-          case "ontimeout":
-            details.ontimeout && details.ontimeout();
-            break;
-          case "onerror":
-            details.onerror &&
-              details.onerror({
-                error: "unknown",
-              });
-            break;
-          default:
-            LoggerCore.logger().warn("GM_download resp is error", {
-              data,
-            });
-            break;
+    let nativeAbort: (() => any) | null = null;
+    const contentContext = details.context;
+    const makeCallbackParam = <T extends Record<string, any>, K extends T & { data?: any; context?: ContextType }>(
+      o: T
+    ): K => {
+      const retParam = { ...o } as unknown as K;
+      if (o?.data) {
+        retParam.data = o.data;
+      }
+      if (typeof contentContext !== "undefined") {
+        retParam.context = contentContext;
+      }
+      return retParam as K;
+    };
+    const handle = async () => {
+      const url = await urlPromiseLike;
+      const downloadMode = details.downloadMode || "native"; // native = sc_default; browser = chrome api
+      details.url = url;
+      if (downloadMode === "browser" || url.startsWith("blob:")) {
+        if (typeof details.user === "string" && details.user) {
+          // scheme://[user[:password]@]host[:port]/path[?query][#fragment]
+          try {
+            const u = new URL(details.url);
+            const userPart = `${encodeURIComponent(details.user)}`;
+            const passwordPart = details.password ? `:${encodeURIComponent(details.password)}` : "";
+            details.url = `${u.protocol}//${userPart}${passwordPart}@${u.host}${u.pathname}${u.search}${u.hash}`;
+          } catch {
+            // ignored
+          }
         }
-      });
-    });
+        const con = await a.connect("GM_download", [
+          {
+            method: details.method,
+            downloadMode: "browser", // 默认使用xhr下载
+            url: url as string,
+            name: details.name,
+            headers: details.headers,
+            saveAs: details.saveAs,
+            timeout: details.timeout,
+            cookie: details.cookie,
+            anonymous: details.anonymous,
+          } as GMTypes.DownloadDetails<string>,
+        ]);
+        if (aborted) return;
+        connect = con;
+        connect.onMessage((data) => {
+          switch (data.action) {
+            case "onload":
+              details.onload?.(makeCallbackParam({ ...data.data }));
+              retPromiseResolve?.(data.data);
+              break;
+            case "onprogress":
+              details.onprogress?.(makeCallbackParam({ ...data.data }));
+              retPromiseReject?.(new Error("Timeout ERROR"));
+              break;
+            case "ontimeout":
+              details.ontimeout?.(makeCallbackParam({}));
+              retPromiseReject?.(new Error("Timeout ERROR"));
+              break;
+            case "onerror":
+              details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+              retPromiseReject?.(new Error("Unknown ERROR"));
+              break;
+            default:
+              LoggerCore.logger().warn("GM_download resp is error", {
+                data,
+              });
+              retPromiseReject?.(new Error("Unexpected Internal ERROR"));
+              break;
+          }
+        });
+      } else {
+        // native
+        const xhrParams = {
+          url: url,
+          fetch: true, // 跟随TM使用 fetch; 使用 fetch 避免 1) 大量数据存放offscreen xhr 2) vivaldi offscreen client block
+          responseType: "blob",
+          onloadend: async (res) => {
+            if (aborted) return;
+            if (res.response instanceof Blob) {
+              const url = URL.createObjectURL(res.response); // 生命周期跟随当前 content/page 而非 offscreen
+              const con = await a.connect("GM_download", [
+                {
+                  method: details.method,
+                  downloadMode: "browser",
+                  url: url as string,
+                  name: details.name,
+                  headers: details.headers,
+                  saveAs: details.saveAs,
+                  timeout: details.timeout,
+                  cookie: details.cookie,
+                  anonymous: details.anonymous,
+                } as GMTypes.DownloadDetails<string>,
+              ]);
+              if (aborted) return;
+              connect = con;
+              connect.onMessage((data) => {
+                switch (data.action) {
+                  case "onload":
+                    details.onload?.(makeCallbackParam({ ...data.data }));
+                    retPromiseResolve?.(data.data);
+                    setTimeout(() => {
+                      // 释放不需要的 URL
+                      URL.revokeObjectURL(url);
+                    }, 1);
+                    break;
+                  case "ontimeout":
+                    details.ontimeout?.(makeCallbackParam({}));
+                    retPromiseReject?.(new Error("Timeout ERROR"));
+                    break;
+                  case "onerror":
+                    details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+                    retPromiseReject?.(new Error("Unknown ERROR"));
+                    break;
+                  default:
+                    LoggerCore.logger().warn("GM_download resp is error", {
+                      data,
+                    });
+                    retPromiseReject?.(new Error("Unexpected Internal ERROR"));
+                    break;
+                }
+              });
+            }
+          },
+          onload: () => {
+            // details.onload?.(makeCallbackParam({}))
+          },
+          onprogress: (e) => {
+            details.onprogress?.(makeCallbackParam({ ...e }));
+          },
+          ontimeout: () => {
+            details.ontimeout?.(makeCallbackParam({}));
+          },
+          onerror: () => {
+            details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+          },
+        } as GMTypes.XHRDetails;
+        if (typeof details.headers === "object") {
+          xhrParams.headers = details.headers;
+        }
+        // -- 其他参数 --
+        if (typeof details.method === "string") {
+          xhrParams.method = details.method || "GET";
+        }
+        if (typeof details.timeout === "number") {
+          xhrParams.timeout = details.timeout;
+        }
+        if (typeof details.cookie === "string") {
+          xhrParams.cookie = details.cookie;
+        }
+        if (typeof details.anonymous === "boolean") {
+          xhrParams.anonymous = details.anonymous;
+        }
+        if (typeof details.user === "string" && details.user) {
+          xhrParams.user = details.user;
+          xhrParams.password = details.password || "";
+        }
+        // -- 其他参数 --
+        const { retPromise, abort } = GM_xmlhttpRequest(a, xhrParams, true, true);
+        retPromise?.catch(() => {
+          if (aborted) return;
+          retPromiseReject?.(new Error("Native Download ERROR"));
+        });
+        nativeAbort = abort;
+      }
+    };
+    handle().catch(console.error);
 
     return {
+      retPromise,
       abort: () => {
+        aborted = true;
         connect?.disconnect();
+        nativeAbort?.();
       },
     };
+  }
+
+  // 用于脚本跨域请求,需要@connect domain指定允许的域名
+  @GMContext.API()
+  public GM_download(arg1: GMTypes.DownloadDetails<string | Blob | File> | string, arg2?: string) {
+    const details = typeof arg1 === "string" ? { url: arg1, name: arg2 } : { ...arg1 };
+    const { abort } = _GM_download(this, details as GMTypes.DownloadDetails<string | Blob | File>, false);
+    return { abort };
+  }
+
+  @GMContext.API()
+  public ["GM.download"](arg1: GMTypes.DownloadDetails<string | Blob | File> | string, arg2?: string) {
+    const details = typeof arg1 === "string" ? { url: arg1, name: arg2 } : { ...arg1 };
+    const { retPromise, abort } = _GM_download(this, details as GMTypes.DownloadDetails<string | Blob | File>, true);
+    const ret = retPromise as Promise<GMTypes.XHRResponse> & GMRequestHandle;
+    ret.abort = abort;
+    return ret;
   }
 
   @GMContext.API({
@@ -1423,4 +1365,4 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_xmlhttpRequest } = GMApi;
+const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download } = GMApi;
