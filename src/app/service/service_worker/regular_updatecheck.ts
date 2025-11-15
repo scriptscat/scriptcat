@@ -2,6 +2,15 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { type ScriptService } from "./script";
 import { type SubscribeService } from "./subscribe";
 
+// 如果距离下次检查还有超过30秒，则使用计算的时间；否则使用默认延迟
+const MIN_REMAINING_TIME_MS = 30000;
+// Service Worker 启动后的默认延迟时间，给予足够的初始化时间
+const DEFAULT_FIRST_CHECK_DELAY_MS = 6000;
+// 允许在预定时间前最多65秒内触发检查（考虑 alarm 触发时间的不精确性）
+const ALARM_TRIGGER_WINDOW_MS = 65000;
+// Service Worker 启动后允许执行 alarm 的延迟时间
+const ALLOW_CHECK_DELAY_MS = 3000;
+
 export let allowRegularUpdateCheck = 0; // 避免SW启动时alarm触发
 
 export const initRegularUpdateCheck = async (systemConfig: SystemConfig) => {
@@ -18,11 +27,11 @@ export const initRegularUpdateCheck = async (systemConfig: SystemConfig) => {
   if (checkupdate_script_lasttime && (checkupdate_script_lasttime & 1) === 1) {
     const updateCycleMs = updateCycleSecond * 1000;
     const next = checkupdate_script_lasttime + updateCycleMs;
-    if (next > now + 30000) {
+    if (next > now + MIN_REMAINING_TIME_MS) {
       when = next;
     }
   }
-  when = when || now + 6000; // 六秒后触发第一个alarm
+  when = when || now + DEFAULT_FIRST_CHECK_DELAY_MS; // 六秒后触发第一个alarm
   let targetPeriodInMinutes = Math.ceil(updateCycleSecond / 60); // 分钟
   targetPeriodInMinutes = Math.ceil(targetPeriodInMinutes / 5) * 5; // 5的倍数
   if (targetPeriodInMinutes < 15) targetPeriodInMinutes = 15; // 至少15分钟
@@ -41,7 +50,7 @@ export const initRegularUpdateCheck = async (systemConfig: SystemConfig) => {
       }
     }
   );
-  allowRegularUpdateCheck = now + 3000; // 可以触发alarm的更新程序了
+  allowRegularUpdateCheck = now + ALLOW_CHECK_DELAY_MS; // 可以触发alarm的更新程序了
 };
 
 const setCheckupdateScriptLasttime = async (t: number) => {
@@ -67,7 +76,7 @@ export const onRegularUpdateCheckAlarm = async (
   if (updateCycleSecond === 0) return null; // no regular update check
   const checkupdate_script_lasttime: number = result.checkupdate_script_lasttime || 0;
   const targetWhen = checkupdate_script_lasttime + updateCycleSecond * 1000;
-  if (targetWhen - 65000 > now) return null; // 已检查过了（alarm触发了）
+  if (targetWhen - ALARM_TRIGGER_WINDOW_MS > now) return null; // 已检查过了（alarm触发了）
   const storeTime = Math.floor(now / 2) * 2; // 双数
   await setCheckupdateScriptLasttime(storeTime); // 双数值：alarm触发了，但不知道有没有真的检查好（例如中途浏览器关了）
   const res = await script.checkScriptUpdate({ checkType: "system" });
