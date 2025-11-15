@@ -92,27 +92,6 @@ export function parseUrlSRI(url: string): {
   return { url: urls[0], hash };
 }
 
-export type TMsgResponse<T> =
-  | {
-      ok: true;
-      res: T;
-    }
-  | {
-      ok: false;
-      err: {
-        name?: string;
-        message?: string;
-        errType?: number;
-        [key: string]: any;
-      };
-    };
-
-export function msgResponse<T>(errType: number, t: Error | any, params?: T): TMsgResponse<T> {
-  if (!errType) return { ok: true, res: t };
-  const { name, message } = t;
-  return { ok: false, err: { name, message, errType, ...t, ...params } };
-}
-
 export async function notificationsUpdate(
   notificationId: string,
   options: chrome.notifications.NotificationOptions
@@ -191,7 +170,7 @@ export function compileInjectionCode(messageFlags: MessageFlags, scriptRes: Scri
   return scriptInjectCode;
 }
 
-// 构建userScript注册信息（忽略代碼部份）
+// 构建userScript注册信息（忽略代码部份）
 export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
 
@@ -259,7 +238,7 @@ export function scriptURLPatternResults(scriptRes: {
     return null;
   }
 
-  // 黑名单排除 統一在腳本注冊時添加
+  // 黑名单排除 统一在脚本注册时添加
   const scriptUrlPatterns = extractUrlPatterns([
     ...(metaMatch || []).map((e) => `@match ${e}`),
     ...(metaInclude || []).map((e) => `@include ${e}`),
@@ -281,3 +260,16 @@ export function scriptURLPatternResults(scriptRes: {
 
   return { scriptUrlPatterns, originalUrlPatterns };
 }
+
+export const getFaviconRootFolder = (): Promise<FileSystemDirectoryHandle> => {
+  return navigator.storage
+    .getDirectory()
+    .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`, { create: true }));
+};
+
+export const removeFavicon = (filename: string): Promise<void> => {
+  return navigator.storage
+    .getDirectory()
+    .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`))
+    .then((faviconsFolder) => faviconsFolder.removeEntry(`${filename}`, { recursive: true }));
+};

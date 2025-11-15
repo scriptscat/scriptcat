@@ -5,7 +5,7 @@ import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import type { Script, ScriptDAO, ScriptRunResource, ScriptSite } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
-import GMApi, { GMExternalDependencies } from "./gm_api";
+import GMApi, { GMExternalDependencies } from "./gm_api/gm_api";
 import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortedScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
@@ -48,11 +48,7 @@ const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns�
 const runtimeGlobal = {
   registered: false,
   messageFlags: {
-    contentFlag: "PENDING",
-    injectFlag: "PENDING",
     messageFlag: "PENDING",
-    scriptLoadComplete: "PENDING",
-    envLoadComplete: "PENDING",
   } as MessageFlags,
 };
 
@@ -95,7 +91,7 @@ export class RuntimeService {
   sitesLoaded: Set<string> = new Set<string>();
   updateSitesBusy: boolean = false;
 
-  loadingInitFlagPromise: Promise<any> | undefined;
+  loadingInitFlagsPromise: Promise<any> | undefined;
   loadingInitProcessPromise: Promise<any> | undefined;
   initialCompiledResourcePromise: Promise<any> | undefined;
 
@@ -112,7 +108,7 @@ export class RuntimeService {
     private scriptDAO: ScriptDAO,
     private localStorageDAO: LocalStorageDAO
   ) {
-    this.loadingInitFlagPromise = this.localStorageDAO
+    this.loadingInitFlagsPromise = this.localStorageDAO
       .get("scriptInjectMessageFlags")
       .then((res) => {
         runtimeGlobal.messageFlags = res?.value || this.generateMessageFlags();
@@ -472,6 +468,7 @@ export class RuntimeService {
         if (enable) {
           await this.registerUserscripts();
         }
+        this.updateIcon();
       });
     }
 
@@ -495,12 +492,14 @@ export class RuntimeService {
         await this.unregisterUserscripts();
         await this.registerUserscripts();
       }
+      this.updateIcon();
     };
 
     const onUserScriptAPIGrantRemoved = async () => {
       this.isUserScriptsAvailable = false;
       // 取消当前注册 （如有）
       await this.unregisterUserscripts();
+      this.updateIcon();
     };
 
     chrome.permissions.onAdded.addListener((permissions: chrome.permissions.Permissions) => {
@@ -540,7 +539,7 @@ export class RuntimeService {
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
-        this.loadingInitFlagPromise, // messageFlag 初始化等待
+        this.loadingInitFlagsPromise, // messageFlags 初始化等待
         this.loadingInitProcessPromise, // 初始化程序等待
         this.initUserAgentData(), // 初始化：userAgentData
       ]);
@@ -549,6 +548,9 @@ export class RuntimeService {
       this.isUserScriptsAvailable = isUserScriptsAvailable;
       this.isLoadScripts = isLoadScripts;
       this.blacklist = obtainBlackList(strBlacklist);
+
+      // 更新 logo
+      this.updateIcon();
 
       // 检查是否开启了开发者模式
       if (!this.isUserScriptsAvailable) {
@@ -575,6 +577,24 @@ export class RuntimeService {
       // 初始化完成
       return true;
     })();
+  }
+
+  updateIcon() {
+    const enableUserscript: boolean = this.isUserScriptsAvailable && this.isLoadScripts;
+    const iconUrl = enableUserscript
+      ? chrome.runtime.getURL("assets/logo-32.png") // 设置正常logo
+      : chrome.runtime.getURL("assets/logo-gray-32.png"); // 如果未启用脚本，设置灰色的logo
+    chrome.action.setIcon(
+      {
+        path: { "32": iconUrl },
+      },
+      () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.action.setIcon:", lastError);
+        }
+      }
+    );
   }
 
   public loadBlacklist() {
@@ -622,13 +642,8 @@ export class RuntimeService {
 
   // 生成messageFlags
   generateMessageFlags(): MessageFlags {
-    return {
-      injectFlag: randomMessageFlag(),
-      contentFlag: randomMessageFlag(),
-      messageFlag: randomMessageFlag(),
-      scriptLoadComplete: randomMessageFlag(),
-      envLoadComplete: randomMessageFlag(),
-    };
+    const r = randomMessageFlag();
+    return { messageFlag: r };
   }
 
   getMessageFlags() {

@@ -177,7 +177,7 @@ const ListMenuItem = React.memo(
   ({ item, scriptMenus, menuExpandNum, isBackscript, url, onEnableChange, handleDeleteScript }: ListMenuItemProps) => {
     const { t } = useTranslation();
     const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
-
+    const [isActive, setIsActive] = useState<boolean>(false);
     const [isExpand, setIsExpand] = useState<boolean>(false);
 
     const handleExpandMenu = () => {
@@ -185,12 +185,16 @@ const ListMenuItem = React.memo(
     };
 
     const visibleMenus = useMemo(() => {
+      // 当menuExpandNum为0时，跟随 isActive 状态显示全部菜单
       const m = scriptMenus?.group || [];
+      if (menuExpandNum === 0 && isActive) {
+        return m;
+      }
       return m.length > menuExpandNum && !isExpand ? m.slice(0, menuExpandNum) : m;
-    }, [scriptMenus?.group, isExpand, menuExpandNum]);
+    }, [scriptMenus?.group, isExpand, menuExpandNum, isActive]);
 
     const shouldShowMore = useMemo(
-      () => scriptMenus?.group?.length > menuExpandNum,
+      () => menuExpandNum > 0 && scriptMenus?.group?.length > menuExpandNum,
       [scriptMenus?.group, menuExpandNum]
     );
 
@@ -201,7 +205,15 @@ const ListMenuItem = React.memo(
     };
 
     return (
-      <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
+      <Collapse
+        activeKey={isActive ? item.uuid : undefined}
+        onChange={(_, keys) => {
+          setIsActive(keys.includes(item.uuid));
+        }}
+        bordered={false}
+        expandIconPosition="right"
+        key={item.uuid}
+      >
         <CollapseItem
           header={<CollapseHeader item={item} onEnableChange={onEnableChange} />}
           name={item.uuid}

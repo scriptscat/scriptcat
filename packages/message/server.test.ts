@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
 import { CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
+import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
 
 let contentMessage: CustomEventMessage;
 let injectMessage: CustomEventMessage;
@@ -11,11 +12,7 @@ let client: CustomEventMessage;
 const nextTick = () => Promise.resolve().then(() => {});
 
 const setupGlobal = () => {
-  const flags = {
-    contentFlag: "ct",
-    injectFlag: "fd",
-    messageFlag: "test",
-  };
+  const flags = { messageFlag: "-test.server" };
   // 创建 content 和 inject 之间的消息通道
   contentMessage = new CustomEventMessage(flags, true); // content 端
   injectMessage = new CustomEventMessage(flags, false); // inject 端
@@ -36,35 +33,35 @@ const setupGlobal = () => {
     vi.fn().mockImplementation((event: Event) => {
       if (event instanceof CustomEvent) {
         const eventType = event.type;
-        if (eventType.includes("test")) {
+        if (eventType.includes("-test.server")) {
+          let targetEventType: string;
+          let messageThis: CustomEventMessage;
+          let messageThat: CustomEventMessage;
           // 根据事件类型确定目标消息处理器
-          if (eventType.startsWith("ct")) {
+          if (eventType.includes(DefinedFlags.contentFlag)) {
             // inject -> content
-            nextTick().then(() => {
-              contentMessage.messageHandle(event.detail, {
-                postMessage: (data: any) => {
-                  // content -> inject 的响应
-                  const responseEvent = new CustomEvent("fd" + "test", { detail: data });
-                  injectMessage.messageHandle(responseEvent.detail, {
-                    postMessage: vi.fn(),
-                  });
-                },
-              });
-            });
-          } else if (eventType.startsWith("fd")) {
+            targetEventType = eventType.replace(DefinedFlags.contentFlag, DefinedFlags.injectFlag);
+            messageThis = contentMessage;
+            messageThat = injectMessage;
+          } else if (eventType.includes(DefinedFlags.injectFlag)) {
             // content -> inject
-            nextTick().then(() => {
-              injectMessage.messageHandle(event.detail, {
-                postMessage: (data: any) => {
-                  // inject -> content 的响应
-                  const responseEvent = new CustomEvent("ct" + "test", { detail: data });
-                  contentMessage.messageHandle(responseEvent.detail, {
-                    postMessage: vi.fn(),
-                  });
-                },
-              });
-            });
+            targetEventType = eventType.replace(DefinedFlags.injectFlag, DefinedFlags.contentFlag);
+            messageThis = injectMessage;
+            messageThat = contentMessage;
+          } else {
+            throw new Error("test mock failed");
           }
+          nextTick().then(() => {
+            messageThis.messageHandle(event.detail, {
+              postMessage: (data: any) => {
+                // 响应
+                const responseEvent = new CustomEvent(targetEventType, { detail: data });
+                messageThat.messageHandle(responseEvent.detail, {
+                  postMessage: vi.fn(),
+                });
+              },
+            });
+          });
         }
       }
       return true;

@@ -191,7 +191,6 @@
   "yes": "Да",
   "no": "Нет",
   "confirm_delete_permission": "Подтвердить удаление этого разрешения?",
-  "script_setting": "Настройки скрипта",
   "basic_info": "Основная информация",
   "update_url": "URL обновления",
   "permission_management": "Управление разрешениями",
@@ -489,10 +488,16 @@
   "enter_search_value": "Введите {{search}} для поиска",
   "script_run_env": {
     "title": "Среда выполнения",
-    "default": "По умолчанию",
     "all": "Все вкладки",
     "normal-tabs": "Обычные вкладки",
     "incognito-tabs": "Приватные вкладки"
+  },
+  "script_run_at": {
+    "title": "Время выполнения"
+  },
+  "script_setting": {
+    "title": "Настройки скрипта",
+    "default": "По умолчанию"
   },
   "editor_config": "Конфигурация редактора",
   "editor_config_description": "Вы можете настроить compilerOptions, ссылаясь на <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>",
@@ -532,6 +537,7 @@
   "error_old_script_code_missing": "Предыдущий код скрипта не найден",
   "error_subscribe_name_required": "Имя подписки обязательно",
   "error_grant_conflict": "@grant одновременно объявляет 'none' и GM API",
+  "error_metadata_line_duplicated": "В метаданных есть повторяющиеся объявления.",
   "notification": {
     "script_sync_delete": "Синхронизация удаления скрипта",
     "script_sync_delete_desc": "Скрипт {{scriptName}} был удален",

@@ -61,6 +61,7 @@ export type MessageRequest<T = any[]> = {
 
 export type GMApiRequest<T = any> = MessageRequest<T> & {
   script: Script;
+  extraCode?: number; // 用于 confirm 传额外资讯
 };
 
 export type NotificationMessageOption = {
@@ -97,7 +98,7 @@ export type SWScriptMenuItemOption = {
   accessKey?: string; // 菜单快捷键
   autoClose?: boolean; // 默认为 true，false 时点击后不关闭弹出菜单页面
   nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
-  mIndividualKey?: number; // 内部用。用於单独项提供稳定 GroupKey，当多iframe时，相同的菜单项不自动合并
+  mIndividualKey?: number; // 内部用。用于单独项提供稳定 GroupKey，当多iframe时，相同的菜单项不自动合并
   mSeparator?: boolean; // 内部用。true 为分隔线
   /** 可选输入框类型 */
   inputType?: "text" | "number" | "boolean";

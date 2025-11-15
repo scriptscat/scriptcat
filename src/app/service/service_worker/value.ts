@@ -57,7 +57,7 @@ export class ValueService {
     this.valueDAO.enableCache();
   }
 
-  async getScriptValue(script: Script) {
+  async getScriptValueDetails(script: Script) {
     let data: { [key: string]: any } = {};
     const ret = await this.valueDAO.get(getStorageName(script));
     if (ret) {
@@ -86,7 +86,11 @@ export class ValueService {
         }
       }
     }
-    return newValues;
+    return [newValues, ret] as const;
+  }
+
+   getScriptValue(script: Script): Promise<Record<string, any>> {
+    return this.getScriptValueDetails(script).then((res) => res[0]);
   }
 
   async waitForFreshValueState(uuid: string, id: string, valueSender: ValueUpdateSender): Promise<number> {
@@ -190,8 +194,8 @@ export class ValueService {
           uuid: uuid,
           storageName: storageName,
           data: dataModel,
-          createtime: ts || Math.min(ts!, now),
-          updatetime: ts || Math.min(ts!, now),
+          createtime: ts ? Math.min(ts, now) : now,
+          updatetime: ts ? Math.min(ts, now) : now,
         };
         newData = dataModel;
       } else {

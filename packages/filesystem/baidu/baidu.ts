@@ -1,6 +1,6 @@
 import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { File, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
 
@@ -29,11 +29,11 @@ export default class BaiduFileSystem implements FileSystem {
     return new BaiduFileSystem(joinPath(this.path, path), this.accessToken);
   }
 
-  async create(path: string): Promise<FileWriter> {
+  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
     return new BaiduFileWriter(this, joinPath(this.path, path));
   }
 
-  async createDir(dir: string): Promise<void> {
+  async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
     dir = joinPath(this.path, dir);
     const urlencoded = new URLSearchParams();
     urlencoded.append("path", dir);

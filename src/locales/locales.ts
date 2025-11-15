@@ -65,18 +65,18 @@ export function initLocales(systemConfig: SystemConfig) {
 }
 
 export function i18nName(script: { name: string; metadata: SCMetadata }) {
-  const m = script.metadata[`name:${i18n.language.toLowerCase()}`];
+  const m = script.metadata[`name:${i18n?.language?.toLowerCase()}`];
   return m ? m[0] : script.name;
 }
 
 export function i18nDescription(script: { metadata: SCMetadata }) {
-  const m = script.metadata[`description:${i18n.language.toLowerCase()}`];
+  const m = script.metadata[`description:${i18n?.language?.toLowerCase()}`];
   return m ? m[0] : script.metadata.description;
 }
 
 // 判断是否是中文用户
 export function isChineseUser() {
-  const language = i18n.language.toLowerCase();
+  const language = i18n?.language?.toLowerCase();
   return language.startsWith("zh-");
 }
 

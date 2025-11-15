@@ -1,6 +1,6 @@
 import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { File, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { GoogleDriveFileReader, GoogleDriveFileWriter } from "./rw";
 
@@ -31,10 +31,10 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return Promise.resolve(new GoogleDriveFileSystem(joinPath(this.path, path), this.accessToken));
   }
 
-  create(path: string): Promise<FileWriter> {
+  create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
     return Promise.resolve(new GoogleDriveFileWriter(this, joinPath(this.path, path)));
   }
-  async createDir(dir: string): Promise<void> {
+  async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
     if (!dir) {
       return Promise.resolve();
     }

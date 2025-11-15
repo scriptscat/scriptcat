@@ -2,11 +2,11 @@ import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { v4 as uuidv4 } from "uuid";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
-import { GMContextApiGet } from "./gm_context";
-import { createGMBase } from "./gm_api";
-import { protect } from "./gm_context";
+import { GMContextApiGet } from "./gm_api/gm_context";
+import { protect } from "./gm_api/gm_context";
 import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
+import { createGMBase } from "./gm_api/gm_api";
 
 // 构建沙盒上下文
 export const createContext = (

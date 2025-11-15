@@ -12,6 +12,7 @@ import { type TDeleteScript } from "../queue";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { isBase64, parseUrlSRI } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { blobToUint8Array } from "@App/pkg/utils/datatype";
 
 export class ResourceService {
   logger: Logger;
@@ -264,7 +265,7 @@ export class ResourceService {
     const data = await resp.blob();
     const [hash, arrayBuffer, base64] = await Promise.all([
       this.calculateHash(data),
-      data.arrayBuffer(),
+      blobToUint8Array(data),
       blobToBase64(data),
     ]);
     const resource: Resource = {
@@ -299,7 +300,8 @@ export class ResourceService {
     if (!data.source) {
       return undefined;
     }
-    const time = Date.now();
+    const now = Date.now();
+    const ts = data.meta.ts || 0;
     let res = await this.resourceDAO.get(data.meta.url);
     if (!res) {
       // 新增资源
@@ -313,12 +315,13 @@ export class ResourceService {
         base64,
         link: {},
         type,
-        createtime: time,
-        updatetime: time,
+        createtime: ts ? Math.min(ts, now) : now,
+        updatetime: ts ? Math.min(ts, now) : now,
       };
+    } else {
+      res.updatetime = now;
     }
     res.link[uuid] = true;
-    res.updatetime = time;
     return await this.resourceDAO.update(data.meta.url, res);
   }
 

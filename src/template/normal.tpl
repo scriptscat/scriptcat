@@ -7,6 +7,7 @@
 // @match        {{match}}
 // @icon         {{icon}}
 // @grant        none
+// @noframes
 // ==/UserScript==
 
 (function() {

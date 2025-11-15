@@ -88,7 +88,6 @@ class ScriptUpdateCheck {
           }),
         }
       : {};
-    // console.log(3881, record);
     this.updateDeliveryTexts(recordLite);
   }
   public makeDeliveryPacket(i: number) {

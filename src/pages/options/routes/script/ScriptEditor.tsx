@@ -23,6 +23,7 @@ import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 const { Row, Col } = Grid;
 
@@ -246,7 +247,7 @@ function ScriptEditor() {
         }
         if (script.ignoreVersion) script.ignoreVersion = "";
         return scriptClient
-          .install(script, code)
+          .install({ script, code })
           .then((update): Script => {
             if (!update) {
               Message.success(t("create_success_note"));
@@ -304,7 +305,10 @@ function ScriptEditor() {
     return new Promise<void>((resolve) => {
       chrome.downloads.download(
         {
-          url: URL.createObjectURL(new Blob([e.getValue()], { type: "text/javascript" })),
+          url: makeBlobURL({
+            blob: new Blob([e.getValue()], { type: "text/javascript" }),
+            persistence: false,
+          }) as string,
           saveAs: true, // true直接弹出对话框；false弹出下载选项
           filename: `${script.name}.user.js`,
         },
@@ -710,36 +714,40 @@ function ScriptEditor() {
       }}
     >
       {contextHolder}
-      <ScriptStorage
-        visible={visible.scriptStorage}
-        script={currentScript}
-        onOk={() => {
-          setShow("scriptStorage", false);
-        }}
-        onCancel={() => {
-          setShow("scriptStorage", false);
-        }}
-      />
-      <ScriptResource
-        visible={visible.scriptResource}
-        script={currentScript}
-        onOk={() => {
-          setShow("scriptResource", false);
-        }}
-        onCancel={() => {
-          setShow("scriptResource", false);
-        }}
-      />
-      <ScriptSetting
-        visible={visible.scriptSetting}
-        script={currentScript!}
-        onOk={() => {
-          setShow("scriptSetting", false);
-        }}
-        onCancel={() => {
-          setShow("scriptSetting", false);
-        }}
-      />
+      {currentScript && (
+        <>
+          <ScriptStorage
+            visible={visible.scriptStorage}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptStorage", false);
+            }}
+            onCancel={() => {
+              setShow("scriptStorage", false);
+            }}
+          />
+          <ScriptResource
+            visible={visible.scriptResource}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptResource", false);
+            }}
+            onCancel={() => {
+              setShow("scriptResource", false);
+            }}
+          />
+          <ScriptSetting
+            visible={visible.scriptSetting}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptSetting", false);
+            }}
+            onCancel={() => {
+              setShow("scriptSetting", false);
+            }}
+          />
+        </>
+      )}
       <div
         className="h-6"
         style={{
