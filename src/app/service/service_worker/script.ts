@@ -51,6 +51,7 @@ import {
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
+import { mightCreatePeriodicAlarm } from "./alarm";
 // import { gzip as pakoGzip } from "pako";
 
 const cIdKey = `(cid_${Math.random()})`;
@@ -265,7 +266,7 @@ export class ScriptService {
     return this.mq.publish<TInstallScript>("installScript", { script, ...options });
   }
 
-  // 安装脚本 / 更新腳本
+  // 安装脚本 / 更新脚本
   async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy } = param;
@@ -304,7 +305,7 @@ export class ScriptService {
         ]);
 
         // 广播一下
-        // Runtime 會負責更新 CompiledResource
+        // Runtime 会负责更新 CompiledResource
         this.publishInstallScript(script, { update, upsertBy });
 
         return { update };
@@ -1306,21 +1307,10 @@ export class ScriptService {
     this.group.on("openBatchUpdatePage", this.openBatchUpdatePage.bind(this));
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
-    // 定时检查更新, 首次执行为5分钟后，然后每30分钟检查一次
-    chrome.alarms.create(
-      "checkScriptUpdate",
-      {
-        delayInMinutes: 5,
-        periodInMinutes: 30,
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-          // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-          console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
-        }
-      }
-    );
+    // 定时检查更新, 首次执行为4分钟后，然后每32分钟检查一次
+    mightCreatePeriodicAlarm("checkScriptUpdate", {
+      delayInMinutes: 4,
+      periodInMinutes: 32, // 时间相隔和 checkSubscribeUpdate 错开
+    });
   }
 }
