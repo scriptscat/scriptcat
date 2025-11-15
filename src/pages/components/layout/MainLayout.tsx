@@ -36,6 +36,7 @@ import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import type { ScriptClient } from "@App/app/service/service_worker/client";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 const MainLayout: React.FC<{
   children: ReactNode;
@@ -114,7 +115,7 @@ const MainLayout: React.FC<{
               // 清理 import-local files 避免同文件不再触发onChange
               (document.getElementById("import-local") as HTMLInputElement).value = "";
               const blob = new Blob([aFile], { type: "application/javascript" });
-              const url = URL.createObjectURL(blob); // 生成一个临时的URL
+              const url = makeBlobURL({ blob, persistence: false }) as string; // 生成一个临时的URL
               const result = await scriptClient.importByUrl(url);
               if (result.success) {
                 stat.success++;

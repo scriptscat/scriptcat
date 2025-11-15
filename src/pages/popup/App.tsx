@@ -253,7 +253,7 @@ function App() {
       for (const unhook of unhooks) unhook();
       unhooks.length = 0;
     };
-  }, []);
+  }, [subscribeMessage]);
 
   const { handleEnableScriptChange, handleSettingsClick, handleNotificationClick } = {
     handleEnableScriptChange: (val: boolean) => {

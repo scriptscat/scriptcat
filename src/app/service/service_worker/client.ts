@@ -21,11 +21,11 @@ import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
-import { type SystemService } from "./system";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -49,7 +49,7 @@ export class ScriptClient extends Client {
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return this.do<[boolean, ScriptInfo]>("getInstallInfo", uuid);
+    return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean }]>("getInstallInfo", uuid);
   }
 
   install(script: Script, code: string, upsertBy: InstallSource = "user"): Promise<{ update: boolean }> {
@@ -353,10 +353,7 @@ export class SynchronizeClient extends Client {
 
   async openImportWindow(filename: string, file: File | Blob) {
     // 打开导入窗口，用cache实现数据交互
-    const url = URL.createObjectURL(file);
-    // setTimeout(() => {
-    //   URL.revokeObjectURL(url);
-    // }, 60 * 1000);
+    const url = makeBlobURL({ blob: file, persistence: true }) as string;
     const uuid = uuidv4();
     const cacheKey = `${CACHE_KEY_IMPORT_FILE}${uuid}`;
     await cacheInstance.set(cacheKey, {
@@ -406,13 +403,5 @@ export class SystemClient extends Client {
 
   connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
     return this.do("connectVSCode", params);
-  }
-
-  loadFavicon(icon: string): Promise<string> {
-    return this.doThrow("loadFavicon", icon);
-  }
-
-  getFaviconFromDomain(domain: string): ReturnType<SystemService["getFaviconFromDomain"]> {
-    return this.doThrow("getFaviconFromDomain", domain);
   }
 }

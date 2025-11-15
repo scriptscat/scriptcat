@@ -2,7 +2,7 @@ import type { Resource } from "@App/app/repo/resource";
 import type { Script } from "@App/app/repo/scripts";
 import { ResourceClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
-import { base64ToBlob } from "@App/pkg/utils/utils";
+import { base64ToBlob, makeBlobURL } from "@App/pkg/utils/utils";
 import { Button, Drawer, Input, Message, Popconfirm, Space, Table } from "@arco-design/web-react";
 import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
@@ -92,10 +92,7 @@ const ScriptResource: React.FC<{
               type="text"
               icon={<IconDownload />}
               onClick={() => {
-                const url = URL.createObjectURL(base64ToBlob(value.base64));
-                setTimeout(() => {
-                  URL.revokeObjectURL(url);
-                }, 60 * 1000);
+                const url = makeBlobURL({ blob: base64ToBlob(value.base64), persistence: false }) as string;
                 const filename = value.url.split("/").pop();
                 chrome.downloads.download({
                   url,

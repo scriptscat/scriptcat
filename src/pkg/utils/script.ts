@@ -84,6 +84,7 @@ export async function prepareScriptByCode(
   dao?: ScriptDAO,
   options?: {
     byEditor?: boolean; // 是否通过编辑器导入
+    byWebRequest?: boolean; // 是否通过網頁連結安裝或更新
   }
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
   dao = dao ?? new ScriptDAO();
@@ -131,7 +132,7 @@ export async function prepareScriptByCode(
     uuid: newUUID,
     name: metadata.name[0],
     author: metadata.author && metadata.author[0],
-    namespace: metadata.namespace && metadata.namespace[0],
+    namespace: metadata.namespace[0], // 上面的代码已检查 meta.namespace, 不会为undefined
     originDomain: domain,
     origin,
     checkUpdate: true,
@@ -156,20 +157,45 @@ export async function prepareScriptByCode(
   if (!old && (!uuid || override)) {
     old = await dao.findByNameAndNamespace(script.name, script.namespace);
   }
+  if (!old && options?.byWebRequest) {
+    const test = await dao.searchExistingScript(script);
+    if (test.length === 1) {
+      const testCheckUrl = test[0]?.checkUpdateUrl;
+      if (testCheckUrl) {
+        // 尝试下载该脚本的url, 检查是否指向要求脚本
+        try {
+          const code = await fetchScriptBody(testCheckUrl);
+          const metadata = code ? parseMetadata(code) : null;
+          if (metadata && metadata.name![0] === script.name && (metadata.namespace?.[0] || "") === script.namespace) {
+            old = test[0];
+          }
+        } catch {
+          /* empty */
+        }
+      }
+    }
+  }
+  const hasGrantConflict = (metadata: SCMetadata | undefined | null) =>
+    metadata?.grant?.includes("none") && metadata?.grant?.some((s: string) => s.startsWith("GM"));
+  const hasDuplicatedMetaline = (metadata: SCMetadata | undefined | null) => {
+    if (metadata) {
+      for (const list of Object.values(metadata)) {
+        if (list && new Set(list).size !== list.length) return true;
+      }
+    }
+  };
+  if (options?.byEditor && hasGrantConflict(script.metadata) && (!old || !hasGrantConflict(old.metadata))) {
+    throw new Error(i18n_t("error_grant_conflict"));
+  }
+  if (options?.byEditor && hasDuplicatedMetaline(script.metadata) && (!old || !hasDuplicatedMetaline(old.metadata))) {
+    throw new Error(i18n_t("error_metadata_line_duplicated"));
+  }
   if (old) {
     if (
       (old.type === SCRIPT_TYPE_NORMAL && script.type !== SCRIPT_TYPE_NORMAL) ||
       (script.type === SCRIPT_TYPE_NORMAL && old.type !== SCRIPT_TYPE_NORMAL)
     ) {
       throw new Error(i18n_t("error_script_type_mismatch"));
-    }
-    if (
-      options?.byEditor &&
-      script.metadata?.grant?.includes("none") &&
-      script.metadata?.grant?.some((s: string) => s.startsWith("GM")) &&
-      !(old.metadata?.grant?.includes("none") && old.metadata?.grant?.some((s: string) => s.startsWith("GM")))
-    ) {
-      throw new Error(i18n_t("error_grant_conflict"));
     }
     const scriptCode = await new ScriptCodeDAO().get(old.uuid);
     if (!scriptCode) {

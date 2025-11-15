@@ -191,7 +191,6 @@
   "yes": "はい",
   "no": "いいえ",
   "confirm_delete_permission": "この認証を削除してもよろしいですか？",
-  "script_setting": "スクリプト設定",
   "basic_info": "基本情報",
   "update_url": "URLを更新",
   "permission_management": "権限管理",
@@ -489,10 +488,16 @@
   "enter_search_value": "{{search}}を入力して検索してください",
   "script_run_env": {
     "title": "実行環境",
-    "default": "デフォルト",
     "all": "すべてのタブ",
     "normal-tabs": "通常のタブ",
     "incognito-tabs": "シークレットタブ"
+  },
+  "script_run_at": {
+    "title": "実行タイミング"
+  },
+  "script_setting": {
+    "title": "スクリプト設定",
+    "default": "デフォルト"
   },
   "editor_config": "エディタ設定",
   "editor_config_description": "<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>のcompilerOptionsを参考に設定できます",
@@ -532,6 +537,7 @@
   "error_old_script_code_missing": "既存スクリプトのコードが見つかりません",
   "error_subscribe_name_required": "サブスクライブ名は必須です",
   "error_grant_conflict": "@grant に 'none' と GM API の両方が指定されています",
+  "error_metadata_line_duplicated": "メタデータ内に重複した宣言があります。",
   "notification": {
     "script_sync_delete": "スクリプト同期削除",
     "script_sync_delete_desc": "スクリプト {{scriptName}} が削除されました",
