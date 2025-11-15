@@ -1,4 +1,4 @@
-import type { Script, SCRIPT_RUN_STATUS, SCRIPT_STATUS, SCRIPT_TYPE } from "../repo/scripts";
+import type { SCRIPT_RUN_STATUS, SCRIPT_STATUS, SCRIPT_TYPE } from "../repo/scripts";
 import type {
   InstallSource,
   SWScriptMenuItemOption,
@@ -30,7 +30,7 @@ export type TEnableScript = { uuid: string; enable: boolean };
 
 export type TScriptRunStatus = { uuid: string; runStatus: SCRIPT_RUN_STATUS };
 
-export type TScriptValueUpdate = { script: Script; valueUpdated: boolean };
+export type TScriptValueUpdate = { uuid: string; valueUpdated: boolean; status: SCRIPT_STATUS; isEarlyStart: boolean };
 
 export type TScriptMenuRegister = {
   uuid: string;

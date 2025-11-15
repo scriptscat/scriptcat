@@ -10,7 +10,8 @@ import type {
   TScriptMenuItemKey,
   MessageRequest,
 } from "@App/app/service/service_worker/types";
-import { base64ToBlob, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
+import type { Deferred } from "@App/pkg/utils/utils";
+import { base64ToBlob, deferred, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
@@ -23,12 +24,13 @@ import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/messag
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
 import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
   sendMessage(api: string, params: any[]): Promise<any>;
   connect(api: string, params: any[]): Promise<any>;
-  valueUpdate(data: ValueUpdateDataEncoded): void;
+  valueUpdate(storageName: string, uuid: string, data: ValueUpdateDataEncoded[]): void;
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
@@ -43,7 +45,19 @@ let valChangeCounterId = 0;
 
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
-const valueChangePromiseMap = new Map<string, any>();
+type PromiseResolve = ((...args: any[]) => any) | null | undefined;
+
+const valueChangePromiseMap = new Map<string, PromiseResolve>();
+
+const generateValChangeId = () => {
+  if (valChangeCounterId > 1e8) {
+    // 防止 valChangeCounterId 过大导致无法正常工作
+    valChangeCounterId = 0;
+    valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+  }
+  const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+  return id;
+};
 
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
@@ -52,6 +66,21 @@ const execEnvInit = (execEnv: GMApi) => {
     execEnv.menuIdCounter = 0;
     execEnv.regMenuCounter = 0;
   }
+};
+
+const emitToListener = (
+  a: GM_Base,
+  key: string,
+  oldValue: any,
+  value: any,
+  remote: boolean,
+  tabId: number | undefined // 注： tabId 的提供不在标准 GM API 的定义
+) => {
+  // 在 valueUpdate 完成后才放行。避免卡住 valueUpdate 线程
+  stackAsyncTask("valueUpdateEventListenerEmit", () => {
+    // 不等待结果
+    a.valueChangeListener?.execute(key, oldValue, value, remote, tabId);
+  });
 };
 
 // GM_Base 定义内部用变量和函数。均使用@protected
@@ -73,7 +102,7 @@ class GM_Base implements IGM_Base {
 
   // Extension Context 无效时释放 valueChangeListener
   @GMContext.protected()
-  protected valueChangeListener?: ListenerManager<GMTypes.ValueChangeListener>;
+  public valueChangeListener?: ListenerManager<GMTypes.ValueChangeListener>;
 
   // Extension Context 无效时释放 EE
   @GMContext.protected()
@@ -109,6 +138,15 @@ class GM_Base implements IGM_Base {
 
   @GMContext.protected()
   public setInvalidContext!: () => void;
+
+  @GMContext.protected()
+  public readFreshes: Map<number, Deferred<number>> | undefined;
+
+  @GMContext.protected()
+  public extValueStoreCopy: Record<string, any> | undefined; // 使每个tab的valueChange次序保持一致
+
+  @GMContext.protected()
+  valueDaoUpdatetime: number | undefined;
 
   // 单次回调使用
   @GMContext.protected()
@@ -149,36 +187,65 @@ class GM_Base implements IGM_Base {
   }
 
   @GMContext.protected()
-  public valueUpdate(data: ValueUpdateDataEncoded) {
-    if (!this.scriptRes || !this.valueChangeListener) return;
+  public valueUpdate(storageName: string, uuid: string, list: ValueUpdateDataEncoded[]) {
+    if (!this.scriptRes) return;
     const scriptRes = this.scriptRes;
-    const { id, uuid, entries, storageName, sender, valueUpdated } = data;
-    if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
+    let lastUpdateTime = 0;
+    if (uuid == scriptRes.uuid || storageName === getStorageName(scriptRes)) {
+      const hold = deferred();
+      // 避免立即 emit
+      stackAsyncTask("valueUpdateEventListenerEmit", () => hold.promise);
+      // ----- 更新 valueStore (同步) -----
+      scriptRes.value = this.extValueStoreCopy || scriptRes.value;
       const valueStore = scriptRes.value;
-      const remote = sender.runFlag !== this.runFlag;
-      if (!remote && id) {
-        const fn = valueChangePromiseMap.get(id);
-        if (fn) {
-          valueChangePromiseMap.delete(id);
-          fn();
-        }
-      }
-      if (valueUpdated) {
-        const valueChanges = entries;
-        for (const [key, rTyped1, rTyped2] of valueChanges) {
-          const value = decodeRValue(rTyped1);
-          const oldValue = decodeRValue(rTyped2);
-          // 触发,并更新值
-          if (value === undefined) {
-            if (valueStore[key] !== undefined) {
-              delete valueStore[key];
-            }
-          } else {
-            valueStore[key] = value;
+      for (const data of list) {
+        const { id, entries, sender, updatetime } = data;
+        const remote = sender.runFlag !== this.runFlag;
+        if (!remote && id) {
+          const fn = valueChangePromiseMap.get(id);
+          if (fn) {
+            valueChangePromiseMap.delete(id);
+            fn();
           }
-          this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
+        }
+        const isUpdated = entries.length > 0;
+        if (isUpdated) {
+          const valueChanges = entries;
+          for (const [key, rTyped1, rTyped2] of valueChanges) {
+            const value = decodeRValue(rTyped1);
+            const oldValue = decodeRValue(rTyped2);
+            // 触发,并更新值
+            if (value === undefined) {
+              if (valueStore[key] !== undefined) {
+                delete valueStore[key];
+              }
+            } else {
+              valueStore[key] = value;
+            }
+            if (this.valueChangeListener) {
+              emitToListener(this, key, oldValue, value, remote, sender.tabId);
+            }
+          }
+        }
+        if (updatetime) {
+          lastUpdateTime = updatetime;
         }
       }
+      this.extValueStoreCopy = { ...valueStore };
+      // ----- 更新 valueStore (同步) -----
+      if (lastUpdateTime) {
+        const readFreshes = this.readFreshes;
+        if (readFreshes) {
+          for (const [t, d] of readFreshes.entries()) {
+            if (lastUpdateTime >= t) {
+              readFreshes.delete(t);
+              d.resolve(lastUpdateTime);
+            }
+          }
+        }
+        this.valueDaoUpdatetime = lastUpdateTime;
+      }
+      hold.resolve(); // 放行 emit
     }
   }
 
@@ -233,6 +300,37 @@ export default class GMApi extends GM_Base {
     );
   }
 
+  static async waitForFreshValueState(a: GMApi): Promise<void> {
+    // 读取前没有任何 valueUpdate 的话，valueDaoUpdatetime 为 undefined
+    // valueDaoUpdatetime 需透过 valueUpdate 提供 (不要从其他途径影响页面缓存values)
+    if (!a.scriptRes) return;
+    let id = "";
+    let d: Deferred<any> | null = null;
+    if (!a.valueDaoUpdatetime) {
+      // 没有 setValues 直接 listValues / getValues 的话， valueDaoUpdatetime 为 undefined
+      // 要向 service_worker 发出请求，更新 页面缓存values，并触发 valueDaoUpdatetime 设置。
+      id = generateValChangeId();
+      d = deferred();
+      valueChangePromiseMap.set(id, d.resolve); // 在 valueUpdate 里放行 Promise
+    }
+    const updatetimePromise = a.sendMessage("internalApiWaitForFreshValueState", [id]);
+    // 这里返回的 updatetime 是现时最新的 updatetime
+    const updatetime = (await Promise.all([updatetimePromise, d?.promise]))[0];
+    if (updatetime && a.valueDaoUpdatetime && a.valueDaoUpdatetime < updatetime) {
+      // 未同步至最新状态，先等待
+      // 由于 internalApiWaitForFreshValueState 返回的 updatetime 较新
+      // 期待 pushToTab -> valueUpdate 的触发
+      // 只要有 >=updatetime 的 valueUpdate, 就可以放行
+      const readFreshes = (a.readFreshes ||= new Map<number, Deferred<number>>());
+      let d = readFreshes.get(updatetime);
+      if (!d) {
+        readFreshes.set(updatetime, (d = deferred()));
+      }
+      await d.promise;
+    }
+    // valueDaoUpdatetime 最新，表示现在 缓存values 也是最新。可进行 listValues, getValues 等操作
+  }
+
   static _GM_getValue(a: GMApi, key: string, defaultValue?: any) {
     if (!a.scriptRes) return undefined;
     const ret = a.scriptRes.value[key];
@@ -251,50 +349,46 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public ["GM.getValue"](key: string, defaultValue?: any): Promise<any> {
     // 兼容GM.getValue
-    return new Promise((resolve) => {
-      const ret = _GM_getValue(this, key, defaultValue);
-      resolve(ret);
+    return waitForFreshValueState(this).then(() => {
+      return _GM_getValue(this, key, defaultValue);
     });
   }
 
-  static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
+  static _GM_setValue(a: GMApi, promiseResolve: PromiseResolve, key: string, value: any) {
     if (!a.scriptRes) return;
-    if (valChangeCounterId > 1e8) {
-      // 防止 valChangeCounterId 过大导致无法正常工作
-      valChangeCounterId = 0;
-      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
-    }
-    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
-    if (promise) {
-      valueChangePromiseMap.set(id, promise);
+    const id = generateValChangeId();
+    if (promiseResolve) {
+      valueChangePromiseMap.set(id, promiseResolve);
     }
     // 对object的value进行一次转化
     if (value && typeof value === "object") {
       value = JSON.parse(JSON.stringify(value));
     }
+    const valueStore = a.scriptRes.value;
+    if (!a.extValueStoreCopy) {
+      a.extValueStoreCopy = { ...valueStore };
+    }
     if (value === undefined) {
-      delete a.scriptRes.value[key];
+      delete valueStore[key];
       a.sendMessage("GM_setValue", [id, key]);
     } else {
-      a.scriptRes.value[key] = value;
+      valueStore[key] = value;
       a.sendMessage("GM_setValue", [id, key, value]);
     }
     return id;
   }
 
-  static _GM_setValues(a: GMApi, promise: any, values: TGMKeyValue) {
+  static _GM_setValues(a: GMApi, promiseResolve: PromiseResolve, values: TGMKeyValue) {
     if (!a.scriptRes) return;
-    if (valChangeCounterId > 1e8) {
-      // 防止 valChangeCounterId 过大导致无法正常工作
-      valChangeCounterId = 0;
-      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
-    }
-    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
-    if (promise) {
-      valueChangePromiseMap.set(id, promise);
+    const id = generateValChangeId();
+    if (promiseResolve) {
+      valueChangePromiseMap.set(id, promiseResolve);
     }
     const valueStore = a.scriptRes.value;
     const keyValuePairs = [] as [string, REncoded<unknown>][];
+    if (!a.extValueStoreCopy) {
+      a.extValueStoreCopy = { ...valueStore };
+    }
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
       // 对object的value进行一次转化
@@ -349,10 +443,10 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public ["GM.listValues"](): Promise<string[]> {
     // Asynchronous wrapper for GM_listValues to support GM.listValues
-    return new Promise((resolve) => {
-      if (!this.scriptRes) return resolve([]);
+    return waitForFreshValueState(this).then(() => {
+      if (!this.scriptRes) return [];
       const keys = Object.keys(this.scriptRes.value);
-      resolve(keys);
+      return keys;
     });
   }
 
@@ -396,9 +490,8 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ depend: ["GM_getValues"] })
   public ["GM.getValues"](keysOrDefaults: TGMKeyValue | string[] | null | undefined): Promise<TGMKeyValue> {
     if (!this.scriptRes) return new Promise<TGMKeyValue>(() => {});
-    return new Promise((resolve) => {
-      const ret = this.GM_getValues(keysOrDefaults);
-      resolve(ret);
+    return waitForFreshValueState(this).then(() => {
+      return this.GM_getValues(keysOrDefaults);
     });
   }
 
@@ -1365,4 +1458,4 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download } = GMApi;
+const { waitForFreshValueState, _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download } = GMApi;

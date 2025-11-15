@@ -117,7 +117,12 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  async verify<T>(request: GMApiRequest<T>, api: ApiValue, sender: IGetSender, GMApiInstance: GMApi): Promise<boolean> {
+  async verify<T extends Array<any>>(
+    request: GMApiRequest<T>,
+    api: ApiValue,
+    sender: IGetSender,
+    GMApiInstance: GMApi
+  ): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;
@@ -135,7 +140,9 @@ export default class PermissionVerify {
         // 别名相等
         (alias && alias.includes(grantName)) ||
         // 关联包含
-        (link && link.includes(grantName))
+        (link && link.includes(grantName)) ||
+        // 关联包含 (GM.XXXX)
+        (link && link.includes(grantName.replace(".", "_")))
       ) {
         // 需要用户确认
         if (confirm) {

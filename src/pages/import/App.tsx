@@ -198,7 +198,7 @@ function App() {
           for (const [key, value] of entries) {
             keyValuePairs.push([key, encodeRValue(value)]);
           }
-          await valueClient.setScriptValues({ uuid: uuid, keyValuePairs, isReplace: false, ts: ts });
+          await valueClient.setScriptValues({ uuid: uuid, keyValuePairs, isReplace: false, ts: Date.now() });
         })(),
       ]);
       setInstallNum((prev) => [prev[0] + 1, prev[1]]);
