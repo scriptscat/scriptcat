@@ -10,6 +10,8 @@ import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { parseBackupZipFile } from "@App/pkg/backup/utils";
 import { scriptClient, synchronizeClient, valueClient } from "../store/features/script";
 import { sleep } from "@App/pkg/utils/utils";
+import type { TKeyValuePair } from "@App/pkg/utils/message_value";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 
 const ScriptListItem = React.memo(
   ({
@@ -187,9 +189,12 @@ function App() {
           const entries = Object.entries(data);
           if (entries.length === 0) return;
           await sleep(((Math.random() * 600) | 0) + 200);
+          const uuid = item.script!.script.uuid!;
+          const keyValuePairs = [] as TKeyValuePair[];
           for (const [key, value] of entries) {
-            await valueClient.setScriptValue(item.script!.script.uuid!, key, value);
+            keyValuePairs.push([key, encodeRValue(value)]);
           }
+          await valueClient.setScriptValues({ uuid: uuid, keyValuePairs, isReplace: false, ts: Date.now() });
         })(),
       ]);
       setInstallNum((prev) => [prev[0] + 1, prev[1]]);

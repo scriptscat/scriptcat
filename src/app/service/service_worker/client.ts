@@ -23,6 +23,8 @@ import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
+import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
+import { type TSetValuesParams } from "./value";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 
 export class ServiceWorkerClient extends Client {
@@ -234,12 +236,13 @@ export class ValueClient extends Client {
     return this.doThrow("getScriptValue", script);
   }
 
-  setScriptValue(uuid: string, key: string, value: any) {
-    return this.do("setScriptValue", { uuid, key, value });
+  setScriptValue({ uuid, key, value, ts }: { uuid: string; key: string; value: any; ts?: number }) {
+    const keyValuePairs = [[key, encodeRValue(value)]] as TKeyValuePair[];
+    return this.do("setScriptValues", { uuid, keyValuePairs, ts } as TSetValuesParams);
   }
 
-  setScriptValues(uuid: string, values: { [key: string]: any }) {
-    return this.do("setScriptValues", { uuid, values });
+  setScriptValues(params: TSetValuesParams) {
+    return this.do("setScriptValues", params);
   }
 }
 

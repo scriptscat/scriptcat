@@ -11,6 +11,34 @@ export function randomMessageFlag(): string {
   return `-${Date.now().toString(36)}.${randNum(8e11, 2e12).toString(36)}`;
 }
 
+let prevNow = 0;
+/**
+ * accumulated "now".
+ * 用 aNow 取得的现在时间能保证严格递增
+ */
+export const aNow = () => {
+  let now = Date.now();
+  if (prevNow >= now) now = prevNow + 0.0009765625; // 2^-10
+  prevNow = now;
+  return now;
+};
+
+export type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (v: T | PromiseLike<T>) => void;
+  reject: (e?: any) => void;
+};
+
+export const deferred = <T = void>(): Deferred<T> => {
+  let resolve!: (v: T | PromiseLike<T>) => void;
+  let reject!: (e?: any) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
+
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";
