@@ -5,8 +5,8 @@ import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
-import { evaluateGMInfo } from "./gm_info";
-import { type IGM_Base } from "./gm_api";
+import { evaluateGMInfo } from "./gm_api/gm_info";
+import type { IGM_Base } from "./gm_api/gm_api";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 
 // 执行脚本,控制脚本执行与停止

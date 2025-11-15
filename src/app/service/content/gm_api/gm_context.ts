@@ -1,4 +1,4 @@
-import type { ApiParam, ApiValue } from "./types";
+import type { ApiParam, ApiValue } from "../types";
 
 const apis: Map<string, ApiValue[]> = new Map();
 

@@ -1,5 +1,5 @@
 import { ExtVersion } from "@App/app/const";
-import type { GMInfoEnv } from "./types";
+import type { GMInfoEnv } from "../types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 
 // 获取脚本信息和管理器信息
