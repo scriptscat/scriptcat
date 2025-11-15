@@ -8,9 +8,9 @@ import { InjectRuntime } from "./app/service/content/inject";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
 
-/* global MessageFlags  */
+/* global MessageFlag  */
 
-const msg: Message = new CustomEventMessage(MessageFlags, false);
+const msg: Message = new CustomEventMessage(MessageFlag, false);
 
 // 加载logger组件
 const logger = new LoggerCore({
@@ -23,7 +23,7 @@ const scriptExecutor = new ScriptExecutor(msg);
 const runtime = new InjectRuntime(server, msg, scriptExecutor);
 runtime.init();
 // 检查early-start的脚本
-scriptExecutor.checkEarlyStartScript("inject", MessageFlags);
+scriptExecutor.checkEarlyStartScript("inject", MessageFlag);
 
 server.on("pageLoad", (data: { injectScriptList: TScriptInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");

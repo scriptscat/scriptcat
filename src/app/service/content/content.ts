@@ -123,8 +123,8 @@ export default class ContentRuntime {
     );
   }
 
-  pageLoad(messageFlags: MessageFlags) {
-    this.scriptExecutor.checkEarlyStartScript("content", messageFlags);
+  pageLoad(messageFlag: string) {
+    this.scriptExecutor.checkEarlyStartScript("content", messageFlag);
     const client = new RuntimeClient(this.senderToExt);
     // 向service_worker请求脚本列表及環境資訊
     client.pageLoad().then((o) => {

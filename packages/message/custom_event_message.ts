@@ -23,10 +23,9 @@ export class CustomEventMessage implements Message {
   relatedTarget: Map<number, EventTarget> = new Map();
 
   constructor(
-    flags: MessageFlags | string,
+    messageFlag: string,
     protected readonly isContent: boolean
   ) {
-    const messageFlag = typeof flags === "string" ? flags : flags.messageFlag;
     this.receiveFlag = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}${DefinedFlags.domEvent}`;
     this.sendFlag = `evt${messageFlag}${isContent ? DefinedFlags.injectFlag : DefinedFlags.contentFlag}${DefinedFlags.domEvent}`;
     window.addEventListener(this.receiveFlag, (event) => {

@@ -59,9 +59,7 @@ const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns�
 
 const runtimeGlobal = {
   registered: false,
-  messageFlags: {
-    messageFlag: "PENDING",
-  } as MessageFlags,
+  messageFlag: "PENDING",
 };
 
 export type TTabInfo = {
@@ -134,10 +132,10 @@ export class RuntimeService {
     private localStorageDAO: LocalStorageDAO
   ) {
     this.loadingInitFlagsPromise = this.localStorageDAO
-      .get("scriptInjectMessageFlags")
+      .get("scriptInjectMessageFlag")
       .then((res) => {
-        runtimeGlobal.messageFlags = res?.value || this.generateMessageFlags();
-        return this.localStorageDAO.save({ key: "scriptInjectMessageFlags", value: runtimeGlobal.messageFlags });
+        runtimeGlobal.messageFlag = res?.value || this.generateMessageFlag();
+        return this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag });
       })
       .catch(console.error);
     this.logger = LoggerCore.logger({ component: "runtime" });
@@ -563,7 +561,7 @@ export class RuntimeService {
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
-        this.loadingInitFlagsPromise, // messageFlags 初始化等待
+        this.loadingInitFlagsPromise, // messageFlag 初始化等待
         this.loadingInitProcessPromise, // 初始化程序等待
         this.initUserAgentData(), // 初始化：userAgentData
       ]);
@@ -635,22 +633,21 @@ export class RuntimeService {
       runtimeGlobal.registered = false;
       // 重置 flag 避免取消注册失败
       // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
-      runtimeGlobal.messageFlags = this.generateMessageFlags();
+      runtimeGlobal.messageFlag = this.generateMessageFlag();
       await Promise.allSettled([
         chrome.userScripts.unregister(),
-        this.localStorageDAO.save({ key: "scriptInjectMessageFlags", value: runtimeGlobal.messageFlags }),
+        this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag }),
       ]);
     }
   }
 
-  // 生成messageFlags
-  generateMessageFlags(): MessageFlags {
-    const r = randomMessageFlag();
-    return { messageFlag: r };
+  // 生成messageFlag
+  generateMessageFlag(): string {
+    return randomMessageFlag();
   }
 
-  getMessageFlags() {
-    return runtimeGlobal.messageFlags;
+  getMessageFlag() {
+    return runtimeGlobal.messageFlag;
   }
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
@@ -665,7 +662,7 @@ export class RuntimeService {
 
     let jsCode = "";
     if (withCode) {
-      const code = compileInjectionCode(this.getMessageFlags(), scriptRes, scriptRes.code);
+      const code = compileInjectionCode(this.getMessageFlag(), scriptRes, scriptRes.code);
       registerScript.js[0].code = jsCode = code;
     }
 
@@ -708,7 +705,7 @@ export class RuntimeService {
     if (earlyScript) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
-      return compileInjectionCode(this.getMessageFlags(), scriptRes, scriptRes.code);
+      return compileInjectionCode(this.getMessageFlag(), scriptRes, scriptRes.code);
     }
 
     const originalCode = await this.script.scriptCodeDAO.get(result.uuid);
@@ -787,7 +784,7 @@ export class RuntimeService {
     excludeMatches: string[];
     excludeGlobs: string[];
   }) {
-    const messageFlags = runtimeGlobal.messageFlags;
+    const messageFlag = runtimeGlobal.messageFlag;
     // 配置脚本运行环境: 注册时前先准备 chrome.runtime 等设定
     // Firefox MV3 只提供 runtime.sendMessage 及 runtime.connect
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts/WorldProperties#messaging
@@ -811,7 +808,7 @@ export class RuntimeService {
     if (contentJs) {
       retScript.push({
         id: "scriptcat-content",
-        js: [{ code: `(function (MessageFlags) {\n${contentJs}\n})(${JSON.stringify(messageFlags)})` }],
+        js: [{ code: `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')` }],
         matches: ["<all_urls>"],
         allFrames: true,
         runAt: "document_start",
@@ -824,7 +821,7 @@ export class RuntimeService {
     // inject.js
     const injectJs = await this.getInjectJsCode();
     if (injectJs) {
-      const apiScripts = this.compileInjectUserScript(injectJs, messageFlags, {
+      const apiScripts = this.compileInjectUserScript(injectJs, messageFlag, {
         excludeMatches,
         excludeGlobs,
       });
@@ -1191,7 +1188,7 @@ export class RuntimeService {
         const scriptRes = scriptsWithUpdatedResources.get(targetUUID);
         const scriptDAOCode = scriptCodes[targetUUID];
         if (scriptRes && scriptDAOCode) {
-          const scriptInjectCode = compileInjectionCode(this.getMessageFlags(), scriptRes, scriptDAOCode);
+          const scriptInjectCode = compileInjectionCode(this.getMessageFlag(), scriptRes, scriptDAOCode);
           scriptRegisterInfo.js = [
             {
               code: scriptInjectCode,
@@ -1266,11 +1263,11 @@ export class RuntimeService {
 
   compileInjectUserScript(
     injectJs: string,
-    messageFlags: MessageFlags,
+    messageFlag: string,
     { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
   ) {
     // 构建inject.js的脚本注册信息
-    const code = `(function (MessageFlags) {\n${injectJs}\n})(${JSON.stringify(messageFlags)})`;
+    const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
     const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-inject",
       js: [{ code }],

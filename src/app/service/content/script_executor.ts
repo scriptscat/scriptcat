@@ -72,9 +72,8 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(env: "content" | "inject", messageFlags: MessageFlags) {
+  checkEarlyStartScript(env: "content" | "inject", messageFlag: string) {
     const isContent = env === "content";
-    const messageFlag = messageFlags.messageFlag;
     const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
     const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;

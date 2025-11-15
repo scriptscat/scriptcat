@@ -133,12 +133,12 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
-  messageFlags: MessageFlags,
+  messageFlag: string,
   script: ScriptLoadInfo,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const eventNamePrefix = `evt${messageFlags.messageFlag}${
+  const eventNamePrefix = `evt${messageFlag}${
     isInjectIntoContent(script.metadata) ? DefinedFlags.contentFlag : DefinedFlags.injectFlag
   }`;
   const flag = `${script.flag}`;
