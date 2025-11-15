@@ -60,11 +60,7 @@ const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns�
 const runtimeGlobal = {
   registered: false,
   messageFlags: {
-    contentFlag: "PENDING",
-    injectFlag: "PENDING",
     messageFlag: "PENDING",
-    scriptLoadComplete: "PENDING",
-    envLoadComplete: "PENDING",
   } as MessageFlags,
 };
 
@@ -120,7 +116,7 @@ export class RuntimeService {
   sitesLoaded: Set<string> = new Set<string>();
   updateSitesBusy: boolean = false;
 
-  loadingInitFlagPromise: Promise<any> | undefined;
+  loadingInitFlagsPromise: Promise<any> | undefined;
   loadingInitProcessPromise: Promise<any> | undefined;
   initialCompiledResourcePromise: Promise<any> | undefined;
 
@@ -137,7 +133,7 @@ export class RuntimeService {
     private scriptDAO: ScriptDAO,
     private localStorageDAO: LocalStorageDAO
   ) {
-    this.loadingInitFlagPromise = this.localStorageDAO
+    this.loadingInitFlagsPromise = this.localStorageDAO
       .get("scriptInjectMessageFlags")
       .then((res) => {
         runtimeGlobal.messageFlags = res?.value || this.generateMessageFlags();
@@ -567,7 +563,7 @@ export class RuntimeService {
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
-        this.loadingInitFlagPromise, // messageFlag 初始化等待
+        this.loadingInitFlagsPromise, // messageFlags 初始化等待
         this.loadingInitProcessPromise, // 初始化程序等待
         this.initUserAgentData(), // 初始化：userAgentData
       ]);
@@ -649,13 +645,8 @@ export class RuntimeService {
 
   // 生成messageFlags
   generateMessageFlags(): MessageFlags {
-    return {
-      injectFlag: randomMessageFlag(),
-      contentFlag: randomMessageFlag(),
-      messageFlag: randomMessageFlag(),
-      scriptLoadComplete: randomMessageFlag(),
-      envLoadComplete: randomMessageFlag(),
-    };
+    const r = randomMessageFlag();
+    return { messageFlag: r };
   }
 
   getMessageFlags() {

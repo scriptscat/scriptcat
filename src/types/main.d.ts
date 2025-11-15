@@ -28,16 +28,8 @@ interface FileSystemObserverInstance {
 }
 
 interface MessageFlags {
-  // inject 环境flag
-  injectFlag: string;
-  // content 环境flag
-  contentFlag: string;
   // 通信flag
   messageFlag: string;
-  // 脚本加载完成事件
-  scriptLoadComplete: string;
-  // 环境加载完成事件
-  envLoadComplete: string;
 }
 
 declare const MessageFlags: MessageFlags;

@@ -5,6 +5,7 @@ import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyle, definePropertyListener } from "./utils";
 import type { TScriptInfo } from "@App/app/repo/scripts";
+import { DefinedFlags } from "../service_worker/runtime.consts";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
@@ -72,10 +73,14 @@ export class ScriptExecutor {
   }
 
   checkEarlyStartScript(env: "content" | "inject", messageFlags: MessageFlags) {
-    const eventNamePrefix = env === "content" ? messageFlags.contentFlag : messageFlags.injectFlag;
+    const isContent = env === "content";
+    const messageFlag = messageFlags.messageFlag;
+    const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
+    const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+    const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (ev) => {
+    window.addEventListener(scriptLoadCompleteEvtName, (ev) => {
       const detail = (ev as CustomEvent).detail;
       const scriptFlag = detail?.scriptFlag;
       if (typeof scriptFlag === "string") {
@@ -85,7 +90,7 @@ export class ScriptExecutor {
     });
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
-    const ev = new CustomEvent(`${eventNamePrefix}${messageFlags.envLoadComplete}`);
+    const ev = new CustomEvent(envLoadCompleteEvtName);
     window.dispatchEvent(ev);
   }
 

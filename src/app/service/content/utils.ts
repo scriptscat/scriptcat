@@ -1,6 +1,7 @@
 import type { SCMetadata, ScriptRunResource, TScriptInfo } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
+import { DefinedFlags } from "../service_worker/runtime.consts";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -137,13 +138,15 @@ export function compilePreInjectScript(
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const eventNamePrefix = isInjectIntoContent(script.metadata) ? messageFlags.contentFlag : messageFlags.injectFlag;
+  const eventNamePrefix = `evt${messageFlags.messageFlag}${
+    isInjectIntoContent(script.metadata) ? DefinedFlags.contentFlag : DefinedFlags.injectFlag
+  }`;
   const flag = `${script.flag}`;
   const scriptInfo = trimScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
-  const evScriptLoad = `${eventNamePrefix}${messageFlags.scriptLoadComplete}`;
-  const evEnvLoad = `${eventNamePrefix}${messageFlags.envLoadComplete}`;
+  const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+  const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
   return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
