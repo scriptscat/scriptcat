@@ -75,10 +75,11 @@ export class ScriptExecutor {
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
     window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (ev) => {
-      const scriptFlag = (ev as CustomEvent).detail?.scriptFlag;
+      const detail = (ev as CustomEvent).detail;
+      const scriptFlag = detail?.scriptFlag;
       if (typeof scriptFlag === "string") {
         ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
-        this.execEarlyScript(scriptFlag);
+        this.execEarlyScript(scriptFlag, detail.scriptInfo);
       }
     });
     // 通知 环境 加载完成
@@ -87,11 +88,11 @@ export class ScriptExecutor {
     window.dispatchEvent(ev);
   }
 
-  execEarlyScript(flag: string) {
+  execEarlyScript(flag: string, scriptInfo: ScriptLoadInfo) {
     const scriptFunc = (window as any)[flag] as PreScriptFunc;
     this.execScriptEntry({
-      scriptLoadInfo: scriptFunc.scriptInfo,
-      scriptFunc: scriptFunc.func,
+      scriptLoadInfo: scriptInfo,
+      scriptFunc: scriptFunc,
       scriptFlag: flag,
       envInfo: {},
     });

@@ -105,22 +105,21 @@ export function compilePreInjectScript(
   autoDeleteMountFunction: boolean = false
 ): string {
   const eventNamePrefix = isInjectIntoContent(script.metadata) ? messageFlags.contentFlag : messageFlags.injectFlag;
-  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
-  return `window['${script.flag}'] = {
-  scriptInfo: ${JSON.stringify(script)},
-  func: function(){${autoDeleteMountCode}${scriptCode}}
-};
-(() => {
-  const f = () => {
-    const ev = new CustomEvent('${eventNamePrefix}${messageFlags.scriptLoadComplete}', 
-    { cancelable: true, detail: { scriptFlag: '${script.flag}' } });
-    return window.dispatchEvent(ev);
-  };
-  const noCbHooked = f();
-  if (noCbHooked) {
-    window.addEventListener('${eventNamePrefix}${messageFlags.envLoadComplete}', f, { once: true });
-  }
-})();
+  const flag = `${script.flag}`;
+  const scriptInfo = { ...script }; // clone
+  // 不需要 code
+  scriptInfo.code = "";
+  const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
+  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
+  const evScriptLoad = `${eventNamePrefix}${messageFlags.scriptLoadComplete}`;
+  const evEnvLoad = `${eventNamePrefix}${messageFlags.envLoadComplete}`;
+  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
+{
+  let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
+  f = () => window.dispatchEvent(new CustomEvent('${evScriptLoad}', o)),
+  needWait = f();
+  if (needWait) window.addEventListener('${evEnvLoad}', f, { once: true });
+}
 `;
 }
 
