@@ -238,7 +238,7 @@ export class ValueClient extends Client {
 
   setScriptValue({ uuid, key, value, ts }: { uuid: string; key: string; value: any; ts?: number }) {
     const keyValuePairs = [[key, encodeRValue(value)]] as TKeyValuePair[];
-    return this.do("setScriptValues", { uuid, keyValuePairs, ts });
+    return this.do("setScriptValues", { uuid, keyValuePairs, ts } as TSetValuesParams);
   }
 
   setScriptValues(params: TSetValuesParams) {
