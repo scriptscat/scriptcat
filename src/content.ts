@@ -5,13 +5,19 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
 import { ScriptExecutor } from "./app/service/content/script_executor";
-import { randomMessageFlag } from "./pkg/utils/utils";
+import { randomMessageFlag, getUspMessageFlags } from "./pkg/utils/utils";
 import type { Message } from "@Packages/message/types";
 
-/* global MessageFlags  */
+// @ts-ignore
+const MessageFlags: MessageFlags | null = (typeof arguments === "object" && arguments?.[0]) || getUspMessageFlags();
 
-if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
-  // Firefox MV3 之类好像没有 chrome.runtime.onMessage.addListener ?
+if (!MessageFlags) {
+  console.error("MessageFlags is unavailable.");
+} else if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
+  // Firefox userScripts.RegisteredUserScript does not provide chrome.runtime.onMessage.addListener
+  // Firefox scripting.RegisteredContentScript does provide chrome.runtime.onMessage.addListener
+  // Firefox 的 userScripts.RegisteredUserScript 不提供 chrome.runtime.onMessage.addListener
+  // Firefox 的 scripting.RegisteredContentScript 提供 chrome.runtime.onMessage.addListener
   console.error("chrome.runtime.onMessage.addListener is not a function");
 } else {
   // 建立与service_worker页面的连接

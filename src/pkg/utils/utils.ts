@@ -11,6 +11,37 @@ export function randomMessageFlag(): string {
   return `-${Date.now().toString(36)}.${randNum(8e11, 2e12).toString(36)}`;
 }
 
+export const getUspMessageFlags = () => {
+  const s = new Error().stack;
+  if (s) {
+    const search1 = "content.js?FlagsStart&";
+    const len1 = search1.length;
+    const idx1 = s.indexOf(search1);
+    if (idx1 > 0) {
+      const search2 = "&FlagsEnd";
+      const idx2 = s.indexOf(search2, idx1 + len1);
+      if (idx2 > 0) {
+        const param = s.substring(idx1 + len1, idx2);
+        try {
+          const ret: Record<string, string> = {};
+          const usp = new URLSearchParams(param);
+          // ⚠️ In Firefox content scripts, Xray wrappers strip the iterator from URLSearchParams.entries()
+          // → Do not use for...of or [...usp.entries()] here
+          // ⚠️ 在 Firefox 内容脚本中，Xray 包装器会移除 URLSearchParams.entries() 的迭代器
+          // → 此处不要使用 for...of 或 [...usp.entries()]
+          usp.forEach((value, key) => {
+            ret[key] = value;
+          });
+          return ret as unknown as MessageFlags;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }
+  return null;
+};
+
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";
@@ -178,7 +209,7 @@ export async function checkUserScriptsAvailable() {
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
     const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts.getScripts({
-      ids: ["scriptcat-content", "undefined-id-3"],
+      ids: ["scriptcat-inject", "undefined-id-3"],
     });
     // 返回结果不是阵列的话表示API不可使用
     if (ret === undefined || ret === null || typeof ret[Symbol.iterator] !== "function") {
@@ -187,10 +218,10 @@ export async function checkUserScriptsAvailable() {
 
     if (ret[0]) {
       // API内部处理实际给予扩展权限才会有返回Script
-      // 含有 "scriptcat-content" 或 "undefined-id-3"
+      // 含有 "scriptcat-inject" 或 "undefined-id-3"
       return true;
     } else {
-      // 没有 "scriptcat-content" 和 "undefined-id-3"
+      // 没有 "scriptcat-inject" 和 "undefined-id-3"
       // 进行 "undefined-id-3" 的注册反注册测试
       // Chrome MV3 的一部分浏览器（如 Vivaldi ）没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩展权限)
       // 此时会无法注册 (1. register 报错)
