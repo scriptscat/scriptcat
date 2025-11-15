@@ -3,7 +3,7 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
-import { addStyle, definePropertyListener } from "./utils";
+import { addStyleSheet, definePropertyListener } from "./utils";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: ScriptLoadInfo;
@@ -112,7 +112,7 @@ export class ScriptExecutor {
       for (const val of metadata["require-css"]) {
         const res = resource[val];
         if (res) {
-          addStyle(res.content);
+          addStyleSheet(res.content);
         }
       }
     }
