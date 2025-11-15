@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { compileScriptCode, compileScript, compileInjectScript, addStyle } from "./utils";
+import { compileScriptCode, compileScript, compileInjectScript, addStyle, addStyleSheet } from "./utils";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 
@@ -418,6 +418,104 @@ describe("utils", () => {
 
       expect(returnedElement).toBe(queriedElement);
       expect(returnedElement?.textContent).toBe(css);
+    });
+  });
+
+  describe("addStyleSheet", () => {
+    // 简单的 CSSStyleSheet mock，适配 jsdom 环境
+    beforeEach(() => {
+      class MockCSSStyleSheet {
+        cssText = "";
+        replaceSync(css: string) {
+          this.cssText = css;
+        }
+      }
+      vi.stubGlobal("CSSStyleSheet", MockCSSStyleSheet);
+      //@ts-expect-error
+      if (!document.adoptedStyleSheets) document.adoptedStyleSheets = undefined;
+      let adoptedSheets = [] as CSSStyleSheet[];
+      const getSpy = vi.spyOn(document, "adoptedStyleSheets", "get");
+      const setSpy = vi.spyOn(document, "adoptedStyleSheets", "set");
+
+      // FrozenArray
+      getSpy.mockImplementation(() => [...adoptedSheets]);
+      setSpy.mockImplementation((value: CSSStyleSheet[]) => {
+        adoptedSheets = Array.isArray(value) ? [...value] : [];
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks(); // Restores spies + stubGlobal
+      vi.resetAllMocks(); // Clears call history
+    });
+
+    it("应该创建并返回 CSSStyleSheet 实例，并添加到 adoptedStyleSheets", () => {
+      const css = "body { background: red; }";
+
+      const sheet = addStyleSheet(css);
+
+      expect(sheet).toBeInstanceOf(CSSStyleSheet);
+      expect((sheet as any).cssText).toBe(css);
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+      expect(adopted.includes(sheet)).toBe(true);
+    });
+
+    it("应该在已有样式表的基础上追加新的样式表", () => {
+      const existing = new (CSSStyleSheet as any)();
+      (existing as any).replaceSync("html { color: black; }");
+
+      (document as any).adoptedStyleSheets = [existing];
+
+      const css = ".test { color: blue; }";
+      const newSheet = addStyleSheet(css);
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+
+      expect(adopted.length).toBe(2);
+      expect(adopted[0]).toBe(existing);
+      expect(adopted[1]).toBe(newSheet);
+      expect((newSheet as any).cssText).toBe(css);
+    });
+
+    it("应该处理空的 CSS 字符串", () => {
+      const css = "";
+
+      const sheet = addStyleSheet(css);
+
+      expect(sheet).toBeInstanceOf(CSSStyleSheet);
+      expect((sheet as any).cssText).toBe("");
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+      expect(adopted.includes(sheet)).toBe(true);
+    });
+
+    it("应该允许添加多个样式表", () => {
+      const css1 = ".class1 { color: red; }";
+      const css2 = ".class2 { color: blue; }";
+
+      const sheet1 = addStyleSheet(css1);
+      const sheet2 = addStyleSheet(css2);
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+
+      expect(adopted.length).toBe(2);
+      expect(adopted[0]).toBe(sheet1);
+      expect(adopted[1]).toBe(sheet2);
+      expect((sheet1 as any).cssText).toBe(css1);
+      expect((sheet2 as any).cssText).toBe(css2);
+    });
+
+    it("应该返回刚刚添加到 adoptedStyleSheets 末尾的样式表", () => {
+      const css = ".return-test { font-size: 14px; }";
+
+      const returnedSheet = addStyleSheet(css);
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+      const lastSheet = adopted[adopted.length - 1];
+
+      expect(returnedSheet).toBe(lastSheet);
+      expect((returnedSheet as any).cssText).toBe(css);
     });
   });
 });
