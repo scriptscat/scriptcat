@@ -276,13 +276,26 @@ export class ScriptService {
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
-        removeRuleIds: [1, ...rules.map((rule) => rule.id)],
-        addRules: rules,
+        removeRuleIds: [1],
       },
       () => {
         if (chrome.runtime.lastError) {
           console.error(
             "chrome.runtime.lastError in chrome.declarativeNetRequest.updateDynamicRules:",
+            chrome.runtime.lastError
+          );
+        }
+      }
+    );
+    chrome.declarativeNetRequest.updateSessionRules(
+      {
+        removeRuleIds: [...rules.map((rule) => rule.id)],
+        addRules: rules,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateSessionRules:",
             chrome.runtime.lastError
           );
         }
