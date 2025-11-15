@@ -25,7 +25,7 @@ export const initRegularUpdateCheck = async (systemConfig: SystemConfig) => {
   when = when || now + 6000; // 六秒后触发第一个alarm
   let targetPeriodInMinutes = Math.ceil(updateCycleSecond / 60); // 分钟
   targetPeriodInMinutes = Math.ceil(targetPeriodInMinutes / 5) * 5; // 5的倍数
-  if (targetPeriodInMinutes < 15) targetPeriodInMinutes = 15; // 至少15的分钟
+  if (targetPeriodInMinutes < 15) targetPeriodInMinutes = 15; // 至少15分钟
   chrome.alarms.create(
     "checkScriptUpdate",
     {
