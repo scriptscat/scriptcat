@@ -29,13 +29,13 @@ export function parseMetadata(code: string): SCMetadata | null {
     }
     issub = true;
   }
-  regex = /\/\/\s*@([\S]+)((.+?)$|$)/gm;
+  regex = /\/\/\s*@(\S+)((.+?)$|$)/gm;
   const ret = {} as SCMetadata;
   let meta: RegExpExecArray | null = regex.exec(header[1]);
   while (meta !== null) {
     const [key, val] = [meta[1].toLowerCase().trim(), meta[2].trim()];
     let values = ret[key];
-    if (values == null) {
+    if (!values) {
       values = [];
     }
     values.push(val);
@@ -88,7 +88,7 @@ export async function prepareScriptByCode(
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
   dao = dao ?? new ScriptDAO();
   const metadata = parseMetadata(code);
-  if (metadata == null) {
+  if (!metadata) {
     throw new Error(i18n_t("error_metadata_invalid"));
   }
   if (metadata.name === undefined) {

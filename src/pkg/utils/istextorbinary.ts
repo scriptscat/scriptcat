@@ -3,7 +3,7 @@
 // copy from istextorbinary
 // 由于未知原因,该包在jest中运行提示"Cannot find module",故将其代码简化并copy到此处
 
-export interface EncodingOpts {
+interface EncodingOpts {
   /** Defaults to 24 */
   chunkLength?: number;
 
@@ -20,24 +20,10 @@ export interface EncodingOpts {
  * @param buffer The buffer for the file if available
  * @returns Will be `null` if neither `filename` nor `buffer` were provided. Otherwise will be a boolean value with the detection result.
  */
-export function isText(buffer: Uint8Array): boolean {
+export function isText(buffer: Uint8Array | undefined | null): boolean {
   // Fallback to encoding if extension check was not enough
+  if (!buffer || typeof buffer !== "object") return false;
   return getEncoding(buffer) === "utf8";
-}
-
-/**
- * Determine if the filename and/or buffer is binary.
- * Determined by extension checks first (if filename is available), otherwise if unknown extension or no filename, will perform a slower buffer encoding detection.
- * This order is done, as extension checks are quicker, and also because encoding checks cannot guarantee accuracy for chars between utf8 and utf16.
- * The extension checks are performed using the resources https://github.com/bevry/textextensions and https://github.com/bevry/binaryextensions
- * @param filename The filename for the file/buffer if available
- * @param buffer The buffer for the file if available
- * @returns Will be `null` if neither `filename` nor `buffer` were provided. Otherwise will be a boolean value with the detection result.
- */
-export function isBinary(buffer: Buffer) {
-  const text = isText(buffer);
-  if (text == null) return null;
-  return !text;
 }
 
 /**
@@ -46,7 +32,7 @@ export function isBinary(buffer: Buffer) {
  * History has shown that inspection at all three locations is necessary.
  * @returns Will be `null` if `buffer` was not provided. Otherwise will be either `'utf8'` or `'binary'`
  */
-export function getEncoding(buffer: Uint8Array, opts?: EncodingOpts): "utf8" | "binary" | null {
+function getEncoding(buffer: Uint8Array, opts?: EncodingOpts): "utf8" | "binary" | null {
   // Check
   if (!buffer) return null;
 
@@ -57,7 +43,7 @@ export function getEncoding(buffer: Uint8Array, opts?: EncodingOpts): "utf8" | "
   let chunkBegin = opts?.chunkBegin ?? 0;
 
   // Discover
-  if (opts?.chunkBegin == null) {
+  if (opts?.chunkBegin === undefined) {
     // Start
     let encoding = getEncoding(buffer, { chunkLength, chunkBegin });
     if (encoding === textEncoding) {

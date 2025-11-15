@@ -1,9 +1,19 @@
 import chromeMock from "@Packages/chrome-extension-mock";
 import { initTestEnv } from "./utils";
 import "@testing-library/jest-dom/vitest";
+import { vi } from "vitest";
+import { MockRequest } from "./mocks/request";
+import { MockBlob } from "./mocks/blob";
+import { MockResponse } from "./mocks/response";
+import { mockFetch } from "./mocks/fetch";
 
+vi.stubGlobal("chrome", chromeMock);
 chromeMock.init();
 initTestEnv();
+
+chromeMock.runtime.getURL = vi.fn().mockImplementation((path: string) => {
+  return `chrome-extension://${chrome.runtime.id}${path}`;
+});
 
 const isPrimitive = (x: any) => x !== Object(x);
 
@@ -106,15 +116,16 @@ Object.assign(global, {
   },
 });
 
-//@ts-ignore
-global.sandboxTestValue = "sandboxTestValue";
-//@ts-ignore
-global.sandboxTestValue2 = "sandboxTestValue2";
+vi.stubGlobal("sandboxTestValue", "sandboxTestValue");
+vi.stubGlobal("sandboxTestValue2", "sandboxTestValue2");
 
-//@ts-ignore
-global.ttest1 = 1;
-//@ts-ignore
-global.ttest2 = 2;
+vi.stubGlobal("ttest1", 1);
+vi.stubGlobal("ttest2", 2);
 
-//@ts-ignore
-global.define = "特殊关键字不能穿透沙盒";
+// Install globals
+vi.stubGlobal("fetch", mockFetch);
+vi.stubGlobal("Request", MockRequest);
+vi.stubGlobal("Response", MockResponse);
+vi.stubGlobal("Blob", MockBlob);
+
+vi.stubGlobal("define", "特殊关键字不能穿透沙盒");

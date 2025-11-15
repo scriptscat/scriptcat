@@ -33,18 +33,13 @@ const customRender = (
 // Setup global mocks
 export const setupGlobalMocks = () => {
   // Chrome mock已经在vitest.setup.ts中通过chromeMock.init()设置了
-
-  // Mock window.open
-  Object.assign(global, {
-    open: vi.fn(),
-    location: { href: "https://example.com" },
-    matchMedia: () => {
-      return {
-        matches: false,
-        addEventListener: vi.fn(),
-      };
-    },
-  });
+  vi.stubGlobal("open", vi.fn());
+  vi.stubGlobal("location", { href: "https://example.com" });
+  const matchMedia0 = {
+    matches: false,
+    addEventListener: vi.fn(),
+  };
+  vi.stubGlobal("matchMedia", () => matchMedia0);
 };
 
 export * from "@testing-library/react";

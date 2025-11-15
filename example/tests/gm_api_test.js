@@ -24,6 +24,7 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_unregisterMenuCommand
 // @grant        GM_cookie
+// @grant        GM.setValue
 // @grant        unsafeWindow
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js#sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK
 // @resource     testCSS https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css#sha256=62f74b1cf824a89f03554c638e719594c309b4d8a627a758928c0516fa7890ab
@@ -32,7 +33,7 @@
 // @run-at       document-start
 // ==/UserScript==
 
-(function () {
+(async function () {
   "use strict";
 
   console.log("%c=== ScriptCat GM API 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
@@ -145,9 +146,9 @@
   });
 
   // ============ GM_addValueChangeListener 测试 ============
-  (async () => {
+  await (async () => {
     await testAsync("GM_addValueChangeListener", () => {
-      return new Promise((resolve, reject) => {
+      return new Promise(async (resolve, reject) => {
         let listenerId = null;
         let timeoutId = null;
 
@@ -160,7 +161,7 @@
         }, 2000);
 
         // 先设置初始值，然后再添加监听器
-        GM_setValue("test_listener", "initial");
+        await GM.setValue("test_listener", "initial");
         console.log("已设置初始值: initial");
 
         // 使用 setTimeout 确保初始值已完全设置

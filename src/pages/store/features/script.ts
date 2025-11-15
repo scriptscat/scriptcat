@@ -11,7 +11,7 @@ import {
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
 import type { SearchType, TBatchUpdateListAction } from "@App/app/service/service_worker/types";
-import { type TCheckScriptUpdateOption } from "@App/app/service/service_worker/script";
+import type { TOpenBatchUpdatePageOption, TCheckScriptUpdateOption } from "@App/app/service/service_worker/script";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
@@ -62,8 +62,11 @@ export const requestOpenUpdatePageByUUID = async (uuid: string) => {
   return await scriptClient.openUpdatePageByUUID(uuid);
 };
 
-export const requestOpenBatchUpdatePage = async (q: string) => {
-  return await scriptClient.openBatchUpdatePage(q);
+export const requestOpenBatchUpdatePage = async (domain: string) => {
+  return await scriptClient.openBatchUpdatePage({
+    q: `autoclose=-1${domain ? `&site=${domain}` : ""}`,
+    dontCheckNow: false,
+  } as TOpenBatchUpdatePageOption);
 };
 
 export const requestCheckScriptUpdate = async (opts: TCheckScriptUpdateOption) => {

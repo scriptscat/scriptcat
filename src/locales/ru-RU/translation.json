@@ -388,8 +388,12 @@
   "guide_script_list_enable_content": "Скрипты нужно включить для использования. Скрипты страниц включены по умолчанию при установке, фоновые скрипты выключены по умолчанию",
   "guide_script_list_apply_to_run_status_title": "Применить к и статус выполнения",
   "guide_script_list_apply_to_run_status_content": "Отображение статуса выполнения скрипта. Наведите курсор на тег, чтобы увидеть тип скрипта",
-  "guide_script_list_sort_title": "Сортировка/Последнее обновление/Операции",
-  "guide_script_list_sort_content": "Вы можете перетаскивать теги скриптов для сортировки. Щелкните по тегу колонки «Последнее обновление», чтобы проверить обновления скрипта. В колонке операций можно войти в редактирование скрипта, управлять запуском/остановкой скрипта (фоновые скрипты), настроить <Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>",
+  "guide_script_list_sort_title": "Сортировка",
+  "guide_script_list_sort_content": "Вы можете перетаскивать метки сценариев, чтобы сортировать их.",
+  "guide_script_list_update_title": "Последнее обновление",
+  "guide_script_list_update_content": "При нажатии на заголовок столбца «Последнее обновление» будет выполнена проверка наличия обновлений для скрипта.",
+  "guide_script_list_action_title": "Действие",
+  "guide_script_list_action_content": "Панель управления позволяет редактировать скрипты, управлять их выполнением и завершением (фоновые скрипты), а также настраивать параметры (см. <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>). Кнопки справа позволяют получить доступ к расширенной фильтрации и переключать режимы просмотра.",
   "guide_tools_title": "Часто используемые инструменты",
   "guide_tools_content": "В инструментах предоставлены функции резервного копирования и разработки",
   "guide_tools_backup_title": "Резервное копирование",
@@ -537,5 +541,6 @@
     "script_sync_delete_desc": "Скрипт {{scriptName}} был удален",
     "subscribe_update": "Подписка {{subscribeName}} была обновлена",
     "subscribe_update_desc": "Новые скрипты: {{newScripts}}\nУдаленные скрипты: {{deletedScripts}}"
-  }
+  },
+  "loading": "Загрузка..."
 }

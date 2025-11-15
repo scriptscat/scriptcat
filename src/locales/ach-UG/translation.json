@@ -388,8 +388,12 @@
   "guide_script_list_enable_content": "crwdns8570:0crwdne8570:0",
   "guide_script_list_apply_to_run_status_title": "crwdns8572:0crwdne8572:0",
   "guide_script_list_apply_to_run_status_content": "crwdns8574:0crwdne8574:0",
-  "guide_script_list_sort_title": "crwdns8576:0crwdne8576:0",
-  "guide_script_list_sort_content": "crwdns8578:0crwdne8578:0",
+  "guide_script_list_sort_title": "crwdns12858:0crwdne12858:0",
+  "guide_script_list_sort_content": "crwdns12860:0crwdne12860:0",
+  "guide_script_list_update_title": "crwdns12862:0crwdne12862:0",
+  "guide_script_list_update_content": "crwdns12864:0crwdne12864:0",
+  "guide_script_list_action_title": "crwdns12866:0crwdne12866:0",
+  "guide_script_list_action_content": "crwdns12868:0crwdne12868:0",
   "guide_tools_title": "crwdns8580:0crwdne8580:0",
   "guide_tools_content": "crwdns8582:0crwdne8582:0",
   "guide_tools_backup_title": "crwdns8584:0crwdne8584:0",
@@ -537,5 +541,6 @@
     "script_sync_delete_desc": "crwdns12852:0{{scriptName}}crwdne12852:0",
     "subscribe_update": "crwdns12854:0{{subscribeName}}crwdne12854:0",
     "subscribe_update_desc": "crwdns12856:0{{newScripts}}crwdnd12856:0{{deletedScripts}}crwdne12856:0"
-  }
+  },
+  "loading": "crwdns12870:0crwdne12870:0"
 }

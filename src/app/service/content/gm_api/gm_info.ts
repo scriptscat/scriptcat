@@ -1,6 +1,6 @@
 import { ExtVersion } from "@App/app/const";
-import type { GMInfoEnv } from "./types";
-import type { ScriptLoadInfo } from "../service_worker/types";
+import type { GMInfoEnv } from "../types";
+import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
 
 // 获取脚本信息和管理器信息
 export function evaluateGMInfo(envInfo: GMInfoEnv, script: ScriptLoadInfo) {

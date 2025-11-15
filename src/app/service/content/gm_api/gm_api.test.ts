@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import ExecScript from "./exec_script";
-import type { ScriptLoadInfo } from "../service_worker/types";
-import type { GMInfoEnv, ScriptFunc } from "./types";
-import { compileScript, compileScriptCode } from "./utils";
+import ExecScript from "../exec_script";
+import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
+import type { GMInfoEnv, ScriptFunc } from "../types";
+import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeMessage } from "@App/pkg/utils/message_value";
 import { v4 as uuidv4 } from "uuid";
@@ -30,8 +30,8 @@ const envInfo: GMInfoEnv = {
   isIncognito: false,
 };
 
-describe("@grant GM", () => {
-  it("GM_", async () => {
+describe.concurrent("@grant GM", () => {
+  it.concurrent("GM_", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_saveTab", "GM_cookie"];
     // @ts-ignore
@@ -60,7 +60,7 @@ describe("@grant GM", () => {
     expect(ret["GM.cookie"]).toBeUndefined();
   });
 
-  it("GM.*", async () => {
+  it.concurrent("GM.*", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.getTabs", "GM.saveTab", "GM.cookie"];
     // @ts-ignore
@@ -93,8 +93,8 @@ describe("@grant GM", () => {
   });
 });
 
-describe("window.*", () => {
-  it("window.close", async () => {
+describe.concurrent("window.*", () => {
+  it.concurrent("window.close", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["window.close"];
     script.code = `return window.close;`;
@@ -106,8 +106,8 @@ describe("window.*", () => {
   });
 });
 
-describe("GM Api", () => {
-  it("GM_getValue", async () => {
+describe.concurrent("GM Api", () => {
+  it.concurrent("GM_getValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test: "ok" };
     script.metadata.grant = ["GM_getValue"];
@@ -118,7 +118,7 @@ describe("GM Api", () => {
     const ret = await exec.exec();
     expect(ret).toEqual("ok");
   });
-  it("GM.getValue", async () => {
+  it.concurrent("GM.getValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test: "ok" };
     script.metadata.grant = ["GM.getValue"];
@@ -130,7 +130,7 @@ describe("GM Api", () => {
     expect(ret).toEqual("ok!");
   });
 
-  it("GM_listValues", async () => {
+  it.concurrent("GM_listValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM_listValues"];
@@ -142,7 +142,7 @@ describe("GM Api", () => {
     expect(ret).toEqual("test1-test2-test3");
   });
 
-  it("GM_listValues No Sort", async () => {
+  it.concurrent("GM_listValues No Sort", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = {};
     script.value.test5 = "30";
@@ -158,7 +158,7 @@ describe("GM Api", () => {
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
   });
 
-  it("GM.listValues", async () => {
+  it.concurrent("GM.listValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM.listValues"];
@@ -170,7 +170,7 @@ describe("GM Api", () => {
     expect(ret).toEqual("test1-test2-test3");
   });
 
-  it("GM.listValues No Sort", async () => {
+  it.concurrent("GM.listValues No Sort", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = {};
     script.value.test5 = "30";
@@ -186,7 +186,7 @@ describe("GM Api", () => {
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
   });
 
-  it("GM_getValues", async () => {
+  it.concurrent("GM_getValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM_getValues"];
@@ -207,7 +207,7 @@ describe("GM Api", () => {
     expect(ret2.test4).toEqual("default");
   });
 
-  it("GM.getValues", async () => {
+  it.concurrent("GM.getValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM.getValues"];
@@ -222,8 +222,8 @@ describe("GM Api", () => {
   });
 });
 
-describe("early-script", () => {
-  it("没有 @run-at document-start 会报错", async () => {
+describe.concurrent("early-script", () => {
+  it.concurrent("没有 @run-at document-start 会报错", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata = {};
     script.metadata["early-start"] = [""];
@@ -235,7 +235,7 @@ describe("early-script", () => {
     // 抛出错误
     await expect(exec.exec()).rejects.toThrowError();
   });
-  it("成功", async () => {
+  it.concurrent("成功", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata = {};
     script.metadata["early-start"] = [""];
@@ -252,8 +252,8 @@ describe("early-script", () => {
   });
 });
 
-describe("GM_menu", () => {
-  it("注册菜单", async () => {
+describe.concurrent("GM_menu", () => {
+  it.concurrent("注册菜单", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_registerMenuCommand"];
     script.code = `return new Promise(resolve=>{
@@ -301,7 +301,7 @@ describe("GM_menu", () => {
     expect(await retPromise).toEqual(123);
   });
 
-  it("取消注册菜单", async () => {
+  it.concurrent("取消注册菜单", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_registerMenuCommand", "GM_unregisterMenuCommand"];
     script.code = `
@@ -324,14 +324,14 @@ describe("GM_menu", () => {
     expect(await ret).toEqual(1);
   });
 
-  it("同id菜单，执行最后一个", async () => {
+  it.concurrent("同id菜单，执行最后一个", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_registerMenuCommand"];
     script.code = `return new Promise(resolve=>{
-      GM_registerMenuCommand("test", ()=>resolve(123),{id: "abc"});
-      GM_registerMenuCommand("test", ()=>resolve(456),{id: "abc"});
+      GM_registerMenuCommand("duplicate-menu-id", ()=>resolve(123),{id: "abc"});
+      GM_registerMenuCommand("duplicate-menu-id", ()=>resolve(456),{id: "abc"});
     })`;
-    const mockSendMessage = vi.fn().mockResolvedValueOnce({ code: 0 });
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -355,7 +355,7 @@ describe("GM_menu", () => {
           api: "GM_registerMenuCommand",
           params: [
             actualMenuKey,
-            "test",
+            "duplicate-menu-id",
             {
               autoClose: true,
               id: undefined,
@@ -375,7 +375,7 @@ describe("GM_menu", () => {
     expect(await retPromise).toEqual(456);
   });
 
-  it("id生成逻辑", async () => {
+  it.concurrent("id生成逻辑", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_registerMenuCommand"];
     script.code = `
@@ -406,8 +406,8 @@ describe("GM_menu", () => {
   });
 });
 
-describe("GM_value", () => {
-  it("GM_setValue", async () => {
+describe.concurrent("GM_value", () => {
+  it.concurrent("GM_setValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_setValue"];
     script.code = `
@@ -461,7 +461,7 @@ describe("GM_value", () => {
     expect(ret).toEqual({ ret1: 123, ret2: 456 });
   });
 
-  it("GM_setValues", async () => {
+  it.concurrent("GM_setValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues"];
     script.code = `
@@ -538,7 +538,7 @@ describe("GM_value", () => {
     expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { b: 456 } });
   });
 
-  it("GM_deleteValue", async () => {
+  it.concurrent("GM_deleteValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues", "GM_deleteValue"];
     script.code = `
@@ -609,7 +609,7 @@ describe("GM_value", () => {
     expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { a: 123, c: "789" } });
   });
 
-  it("GM_deleteValues", async () => {
+  it.concurrent("GM_deleteValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues", "GM_deleteValues"];
     script.code = `
@@ -686,16 +686,16 @@ describe("GM_value", () => {
     expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { b: 456 } });
   });
 
-  it("GM_addValueChangeListener", async () => {
+  it.concurrent("GM_addValueChangeListener - remote: false", async () => {
     const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
     script.metadata.storageName = ["testStorage"];
     script.code = `
     return new Promise(resolve=>{
-      GM_addValueChangeListener("a", (name, oldValue, newValue, remote)=>{
+      GM_addValueChangeListener("param1", (name, oldValue, newValue, remote)=>{
         resolve({name, oldValue, newValue, remote});
       });
-      GM_setValue("a", 123);
+      GM_setValue("param1", 123);
     });
    `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
@@ -705,33 +705,56 @@ describe("GM_value", () => {
     // @ts-ignore
     const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    let retPromise = exec.exec();
+    const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
     exec.valueUpdate({
-      id: "123",
-      entries: encodeMessage([["a", 123, undefined]]),
+      id: "id-1",
+      entries: encodeMessage([["param1", 123, undefined]]),
       uuid: script.uuid,
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      valueUpdated: true,
     });
     const ret = await retPromise;
-    expect(ret).toEqual({ name: "a", oldValue: undefined, newValue: 123, remote: false });
+    expect(ret).toEqual({ name: "param1", oldValue: undefined, newValue: 123, remote: false });
+  });
+
+  it.concurrent("GM_addValueChangeListener - remote: true", async () => {
+    const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
+    script.metadata.storageName = ["testStorage"];
+    script.code = `
+    return new Promise(resolve=>{
+      GM_addValueChangeListener("param2", (name, oldValue, newValue, remote)=>{
+        resolve({name, oldValue, newValue, remote});
+      });
+      GM_setValue("param2", 456);
+    });
+   `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
     // remote = true
-    retPromise = exec.exec();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    const retPromise = exec.exec();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
     exec.valueUpdate({
-      id: "123",
-      entries: encodeMessage([["a", 123, undefined]]),
+      id: "id-2",
+      entries: encodeMessage([["param2", 456, undefined]]),
       uuid: script.uuid,
       storageName: "testStorage",
       sender: { runFlag: "user", tabId: -2 },
+      valueUpdated: true,
     });
     const ret2 = await retPromise;
-    expect(ret2).toEqual({ name: "a", oldValue: undefined, newValue: 123, remote: true });
+    expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
   });
-  it("异步GM.setValue，等待回调", async () => {
+  it.concurrent("异步GM.setValue，等待回调", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM.getValue", "GM.setValue"];
     script.code = `await GM.setValue("a", 123); return await GM.getValue("a");`;
@@ -750,14 +773,18 @@ describe("GM_value", () => {
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 获取调用参数
     const actualCall = mockSendMessage.mock.calls[0][0];
-    console.log("actualCall", actualCall.data.params[0]);
+    const id = actualCall.data.params[0];
+
+    expect(id).toBeTypeOf("string");
+    expect(id.length).greaterThan(0);
     // 触发valueUpdate
     exec.valueUpdate({
-      id: actualCall.data.params[0],
+      id: id,
       entries: encodeMessage([["a", 123, undefined]]),
       uuid: script.uuid,
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      valueUpdated: true,
     });
 
     const ret = await retPromise;

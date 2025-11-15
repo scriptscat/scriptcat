@@ -10,6 +10,7 @@
 // @grant        GM_log
 // @grant        GM_info
 // @grant        GM_setValue
+// @grant        GM.setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_listValues
@@ -80,10 +81,12 @@
     console.log("querySelector('*') 找到的第一个元素:", firstElement?.tagName);
     assertTrue(firstElement !== null, "应该能找到第一个DOM节点");
     assert("HTML", firstElement.tagName, "早期脚本运行时，第一个可用节点应该是HTML元素");
+    assert("", firstElement.innerHTML, "HTML元素内容应该为空");
     console.log("节点详情:", {
       tagName: firstElement.tagName,
       childNodes: firstElement.childNodes.length,
       children: firstElement.children.length,
+      innerHTML: firstElement.innerHTML,
     });
   });
 
@@ -180,8 +183,8 @@
   // ============ GM 存储 API 测试 ============
   console.log("\n%c--- GM 存储 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await test("GM_setValue - 字符串", () => {
-    GM_setValue("test_key", "早期脚本测试值");
+  await test("GM_setValue - 字符串", async () => {
+    await GM.setValue("test_key", "早期脚本测试值");
     const value = GM_getValue("test_key");
     assert("早期脚本测试值", value, "应该正确保存和读取字符串");
   });

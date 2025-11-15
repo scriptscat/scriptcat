@@ -1,13 +1,13 @@
 {
   "name": "scriptcat",
-  "version": "1.2.0-beta.2",
+  "version": "1.2.0-beta.4",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
   "author": "CodFrm",
   "license": "GPLv3",
   "private": true,
   "scripts": {
     "preinstall": "pnpm dlx only-allow pnpm",
-    "test": "vitest",
+    "test": "vitest --test-timeout=500 --no-coverage --isolate=false --reporter=verbose",
     "coverage": "vitest run --coverage",
     "build": "cross-env NODE_ENV=production rspack build",
     "dev": "cross-env NODE_ENV=development rspack",

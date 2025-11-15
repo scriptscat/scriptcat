@@ -10,6 +10,9 @@ export interface AppContextType {
   colorThemeState: "auto" | "light" | "dark";
   updateColorTheme: (theme: "auto" | "light" | "dark") => void;
   subscribeMessage: <T>(topic: string, handler: (msg: T) => void) => () => void;
+  // 指引模式
+  setGuideMode: (mode: boolean) => void;
+  guideMode: boolean;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -61,6 +64,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     colorThemeInit();
     return localStorage.lightMode || "auto";
   });
+  const [guideMode, setGuideMode] = useState(false);
 
   const subscribeMessage = <T,>(topic: string, handler: (msg: T) => void) => {
     return messageQueue.subscribe<T & { myMessage?: T }>(topic, (data) => {
@@ -98,7 +102,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   return (
-    <AppContext.Provider value={{ colorThemeState, updateColorTheme, subscribeMessage }}>
+    <AppContext.Provider
+      value={{
+        colorThemeState,
+        updateColorTheme,
+        subscribeMessage,
+        setGuideMode,
+        guideMode,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

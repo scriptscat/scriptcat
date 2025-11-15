@@ -148,3 +148,25 @@ pnpm run coverage      # Generate coverage reports
 - The code is developed and maintained by developers based in Mainland China.
 - Comments should preferably be written in Simplified Chinese.
 - The user interface supports multiple languages, with English set as the default for global users.
+
+## PR Review Policy
+
+When performing Pull Request (PR) reviews, Copilot must always conduct a **comprehensive and independent review** of the entire PR content.
+
+- **Full Review Every Time**  
+  Always review **all modified files** in every PR, regardless of previous reviews or user comments. Even during re-reviews, treat the PR as new and **do not rely on prior review states**.
+
+- **No Skipping of Files**  
+  Do not skip or ignore any text-based file types (including `.md`, `.json`, `.yml`, `.toml`, `.ts`, `.js`, `.py`, `.html`, `.css`, `.tsx`, `.vue`, `.sh`, etc.). Every file that is changed must be fully examined.
+
+- **Reference as Context Only**  
+  PR descriptions, commit messages, or user discussions serve only as **reference context**. The review must focus primarily on the **actual code and file changes**.
+
+- **Infer Intent from Code Changes**  
+  Always attempt to **infer the purpose and intent** of the changes directly from the modified content, rather than relying solely on user statements or PR titles.
+
+- **Critical Thinking Requirement**  
+  For each change, Copilot should assess correctness, consistency, and maintainability — ensuring that logic, style, and architectural impact align with project standards.
+
+- **Independent Verification**  
+  Do not assume unchanged files or previously reviewed sections are safe; verify all code paths potentially affected by the modifications.

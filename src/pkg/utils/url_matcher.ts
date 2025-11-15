@@ -15,7 +15,7 @@ export const enum RuleTypeBit {
 
 export type URLRuleEntry = {
   ruleType: RuleType;
-  ruleContent: string | string[] | [string, string]; // 由於 cache 设计，ruleContent 不能含有 RegExp
+  ruleContent: string | string[] | [string, string]; // 由于 cache 设计，ruleContent 不能含有 RegExp
   ruleTag: string;
   patternString: string;
 };
@@ -23,7 +23,7 @@ export type URLRuleEntry = {
 const URL_MATCH_CACHE_MAX_SIZE = 512; // 用来做简单缓存，512 算是足够大小应付需要。
 
 // 检查 @match @include @exclude 是否按照MV3的 match pattern
-// export 只用於测试，不要在外部直接引用 checkUrlMatch
+// export 只用于测试，不要在外部直接引用 checkUrlMatch
 export function checkUrlMatch(s: string) {
   s = s.trim();
 
@@ -57,7 +57,7 @@ export function checkUrlMatch(s: string) {
 }
 
 const globSplit = (text: string) => {
-  text = text.replace(/\*{2,}/g, "*"); // api定义的 glob * 是等价於 glob **
+  text = text.replace(/\*{2,}/g, "*"); // api定义的 glob * 是等价于 glob **
   text = text.replace(/\*(\?+)/g, "$1*"); // "*????" 改成 "????*"，避免 backward 处理
   return text.split(/([*?])/g);
 };
@@ -124,7 +124,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
         if (tldIdx > 0) {
           // 最短匹配*.tld/
           const left = content.substring(0, tldIdx);
-          // 斜线不能多於2个, 例如 https://www.hello.com/abc.tld/123
+          // 斜线不能多于2个, 例如 https://www.hello.com/abc.tld/123
           if (left.split("/").length <= 3) {
             const right = content.substring(tldIdx + 5);
             content = `${left}.??*/${right}`;
@@ -132,7 +132,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
         }
       }
       // 内部处理用
-      // 适用於 glob pattern 及 match pattern
+      // 适用于 glob pattern 及 match pattern
       if (content.includes("**")) {
         // SC内部处理不能处理多过一个以上连续星号
         content = content.replace(/\*{2,}/g, "*"); // glob * 修正
@@ -450,14 +450,14 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
       }
 
       if (apiIncludeGlobs.includes(globPattern)) {
-        // 已存在，不重覆添加
+        // 已存在，不重复添加
         continue;
       }
       apiIncludeGlobs.push(globPattern);
     }
   }
 
-  // 由於有 glob pattern, 会先假设需要全域匹配，确保 UserScript API 的注入有效
+  // 由于有 glob pattern, 会先假设需要全域匹配，确保 UserScript API 的注入有效
   if (apiIncludeGlobs.length > 0 && !matchAll) matchAll = ["*://*/*"];
 
   // 为了改变现有的 match pattern, 现有的 match pattern 全部转换至 glob pattern, 并添加在目前的 globs

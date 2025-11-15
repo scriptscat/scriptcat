@@ -405,7 +405,7 @@ export function regexToGlob(reStr: string): string | null {
   // 递归汇总：将子模式转为 glob，并估算 min/var
   function summarizePattern(sub: string): Unit | null {
     const g = regexToGlob(sub);
-    if (g == null) return null;
+    if (g === null) return null;
     let min = 0,
       varStar = false;
     for (let k = 0; k < g.length; k++) {

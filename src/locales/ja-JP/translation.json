@@ -388,8 +388,12 @@
   "guide_script_list_enable_content": "スクリプトは有効にしないと使用できません。ページスクリプトはインストール時にデフォルトで有効、バックグラウンドスクリプトはインストール時にデフォルトで無効です",
   "guide_script_list_apply_to_run_status_title": "適用先と実行状態",
   "guide_script_list_apply_to_run_status_content": "スクリプトの実行状態を表示します。タグにマウスを合わせるとスクリプトタイプを確認できます",
-  "guide_script_list_sort_title": "ソート/最終更新/操作",
-  "guide_script_list_sort_content": "スクリプトのタグをドラッグしてソートできます。最終更新列のタグをクリックしてスクリプトの更新チェックを実行できます。操作列からスクリプト編集、スクリプトの実行停止制御（バックグラウンドスクリプト）、<Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>の設定ができます",
+  "guide_script_list_sort_title": "ソート",
+  "guide_script_list_sort_content": "スクリプトをドラッグして順番を付ける事ができます。",
+  "guide_script_list_update_title": "最終更新",
+  "guide_script_list_update_content": "「最終更新」列ラベルをクリックすると、スクリプトの更新がチェックされます。",
+  "guide_script_list_action_title": "アクション",
+  "guide_script_list_action_content": "操作バーでは、スクリプトの編集、制御スクリプトの実行と終了（バックグラウンドスクリプト）、および設定（<Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link> を参照）にアクセスできます。右側のボタンからは、高度なフィルタリングや表示モードの切り替えにアクセスできます。",
   "guide_tools_title": "常用ツール",
   "guide_tools_content": "ツールにはバックアップと開発のツールが提供されています",
   "guide_tools_backup_title": "バックアップ",
@@ -537,5 +541,6 @@
     "script_sync_delete_desc": "スクリプト {{scriptName}} が削除されました",
     "subscribe_update": "サブスクリプション {{subscribeName}} が更新されました",
     "subscribe_update_desc": "新しいスクリプト: {{newScripts}}\n削除されたスクリプト: {{deletedScripts}}"
-  }
+  },
+  "loading": "読み込み中..."
 }

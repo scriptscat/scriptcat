@@ -388,8 +388,12 @@
   "guide_script_list_enable_content": "Scripts need to be enabled to be used. Page scripts are enabled by default upon installation, while background scripts are disabled by default.",
   "guide_script_list_apply_to_run_status_title": "Apply To and Run Status",
   "guide_script_list_apply_to_run_status_content": "The running status of scripts is displayed here. Hover over the tags to view the script type.",
-  "guide_script_list_sort_title": "Sort/Last Update/Actions",
-  "guide_script_list_sort_content": "You can drag the tags of scripts to sort them. Clicking on the \"Last Update\" column label will check for updates once. The \"Actions\" column allows you to enter script editing, control script running/stopping (for background scripts), and configure <Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>.",
+  "guide_script_list_sort_title": "Sort",
+  "guide_script_list_sort_content": "You can drag the tag of the script to sort",
+  "guide_script_list_update_title": "Last Updated",
+  "guide_script_list_update_content": "Click the last update column label to check for updates to the script",
+  "guide_script_list_action_title": "Action",
+  "guide_script_list_action_content": "The operation bar allows access to script editing, control script execution and termination (background scripts), and settings (see <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>). The buttons on the right allow access to advanced filtering and toggling view modes.",
   "guide_tools_title": "Common Tools",
   "guide_tools_content": "The tools provide backup and development features.",
   "guide_tools_backup_title": "Backup",
@@ -537,5 +541,6 @@
     "script_sync_delete_desc": "Script {{scriptName}} has been deleted",
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
     "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
-  }
+  },
+  "loading": "Loading..."
 }
