@@ -1,7 +1,7 @@
 /* global process */
 import { promises as fs } from "fs";
 import { createWriteStream } from "fs";
-import JSZip from "jszip";
+import { createJSZip } from "@App/pkg/utils/jszip-x";
 import ChromeExtension from "crx";
 import { execSync } from "child_process";
 import manifest from "../src/manifest.json" with { type: "json" };
@@ -90,8 +90,8 @@ firefoxManifest.commands = {
   _execute_action: {},
 };
 
-const chrome = new JSZip();
-const firefox = new JSZip();
+const chrome = createJSZip();
+const firefox = createJSZip();
 
 async function addDir(zip, localDir, toDir, filters) {
   const sub = async (localDir, toDir) => {
