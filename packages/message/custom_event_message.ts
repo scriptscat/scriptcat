@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { type PostMessage, type WindowMessageBody, WindowMessageConnect } from "./window_message";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
+import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
 
 export class CustomEventPostMessage implements PostMessage {
   constructor(private send: CustomEventMessage) {}
@@ -15,15 +16,20 @@ export class CustomEventPostMessage implements PostMessage {
 // 使用CustomEvent来进行通讯, 可以在content与inject中传递一些dom对象
 export class CustomEventMessage implements Message {
   EE = new EventEmitter<string, any>();
+  readonly receiveFlag: string;
+  readonly sendFlag: string;
 
   // 关联dom目标
   relatedTarget: Map<number, EventTarget> = new Map();
 
   constructor(
-    protected flag: string,
-    protected isContent: boolean
+    flags: MessageFlags | string,
+    protected readonly isContent: boolean
   ) {
-    window.addEventListener((isContent ? "ct" : "fd") + flag, (event) => {
+    const messageFlag = typeof flags === "string" ? flags : flags.messageFlag;
+    this.receiveFlag = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}${DefinedFlags.domEvent}`;
+    this.sendFlag = `evt${messageFlag}${isContent ? DefinedFlags.injectFlag : DefinedFlags.contentFlag}${DefinedFlags.domEvent}`;
+    window.addEventListener(this.receiveFlag, (event) => {
       if (event instanceof MouseEvent && event.movementX && event.relatedTarget) {
         this.relatedTarget.set(event.movementX, event.relatedTarget!);
       } else if (event instanceof CustomEvent) {
@@ -95,7 +101,7 @@ export class CustomEventMessage implements Message {
       }
     }
 
-    const ev = new CustomEvent((this.isContent ? "fd" : "ct") + this.flag, {
+    const ev = new CustomEvent(this.sendFlag, {
       detail,
     });
     window.dispatchEvent(ev);
@@ -148,7 +154,7 @@ export class CustomEventMessage implements Message {
     // 先将relatedTarget转换成id发送过去
     const id = ++this.relateId;
     // 可以使用此种方式交互element
-    const ev = new MouseEvent((this.isContent ? "fd" : "ct") + this.flag, {
+    const ev = new MouseEvent(this.sendFlag, {
       movementX: id,
       relatedTarget: target,
     });

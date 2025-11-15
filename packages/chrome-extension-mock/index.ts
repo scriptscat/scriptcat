@@ -26,7 +26,5 @@ const chromeMock = {
   userScripts: new MockUserScripts(),
   init() {},
 };
-// @ts-ignore
-global.chrome = chromeMock;
 
 export default chromeMock;

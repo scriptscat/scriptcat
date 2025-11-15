@@ -4,6 +4,7 @@ import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyle, definePropertyListener } from "./utils";
+import { DefinedFlags } from "../service_worker/runtime.consts";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: ScriptLoadInfo;
@@ -14,10 +15,10 @@ export type ExecScriptEntry = {
 
 // 脚本执行器
 export class ScriptExecutor {
+  earlyScriptFlag: Set<string> = new Set();
   execMap: Map<string, ExecScript> = new Map();
 
   envInfo: GMInfoEnv | undefined;
-  earlyScriptFlag: string[] = [];
 
   constructor(private msg: Message) {}
 
@@ -51,41 +52,57 @@ export class ScriptExecutor {
         envInfo: this.envInfo!,
       });
     };
+    // 监听脚本加载
     scripts.forEach((script) => {
       const flag = script.flag;
       // 如果是EarlyScriptFlag，处理沙盒环境
-      if (this.earlyScriptFlag.includes(flag)) {
+      if (this.earlyScriptFlag.has(flag)) {
         for (const val of this.execMap.values()) {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             val.updateEarlyScriptGMInfo(this.envInfo!);
-            break;
+            return;
           }
         }
-        return;
       }
-
       definePropertyListener(window, flag, (val: ScriptFunc) => {
         loadExec(script, val);
       });
     });
   }
 
-  checkEarlyStartScript(earlyStarFlag: string[]) {
-    this.earlyScriptFlag = earlyStarFlag;
-    const loadExec = (flag: string, scriptFunc: any) => {
-      this.execScriptEntry({
-        scriptLoadInfo: scriptFunc.scriptInfo,
-        scriptFunc: scriptFunc.func,
-        scriptFlag: flag,
-        envInfo: {},
-      });
-    };
-    this.earlyScriptFlag.forEach((flag) => {
-      definePropertyListener(window, flag, (val: PreScriptFunc) => {
-        loadExec(flag, val);
-      });
+  checkEarlyStartScript(env: "content" | "inject", messageFlags: MessageFlags) {
+    const isContent = env === "content";
+    const messageFlag = messageFlags.messageFlag;
+    const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
+    const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+    const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
+    // 监听 脚本加载
+    // 适用于此「通知环境加载完成」代码执行后的脚本加载
+    window.addEventListener(scriptLoadCompleteEvtName, (event) => {
+      if (event instanceof CustomEvent) {
+        if (typeof event.detail.scriptFlag === "string") {
+          event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
+          const scriptFlag = event.detail.scriptFlag;
+          this.execEarlyScript(scriptFlag);
+        }
+      }
     });
+    // 通知 环境 加载完成
+    // 适用于此「通知环境加载完成」代码执行前的脚本加载
+    const ev = new CustomEvent(envLoadCompleteEvtName);
+    window.dispatchEvent(ev);
+  }
+
+  execEarlyScript(flag: string) {
+    const scriptFunc = (window as any)[flag] as PreScriptFunc;
+    this.execScriptEntry({
+      scriptLoadInfo: scriptFunc.scriptInfo,
+      scriptFunc: scriptFunc.func,
+      scriptFlag: flag,
+      envInfo: {},
+    });
+    this.earlyScriptFlag.add(flag);
   }
 
   execScriptEntry(scriptEntry: ExecScriptEntry) {

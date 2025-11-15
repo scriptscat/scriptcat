@@ -334,7 +334,7 @@ export const obtainBlackList = (strBlacklist: string | null | undefined) => {
 
 // 将蛇形的 key 转换为驼峰的函数名
 export function toCamelCase(key: SystemConfigKey) {
-  return key.replace(/_([a-z])/g, (g) => g[1].toUpperCase()).replace(/^([a-z])/, (g) => g.toUpperCase());
+  return key.replace(/^[a-z]|_([a-z])/g, (_, c = _) => c.toUpperCase());
 }
 
 export function cleanFileName(name: string): string {

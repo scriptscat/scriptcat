@@ -4,8 +4,8 @@ import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { ScriptMatchInfo } from "./types";
 
-describe("parseUrlSRI", () => {
-  it("should parse URL SRI", () => {
+describe.concurrent("parseUrlSRI", () => {
+  it.concurrent("should parse URL SRI", () => {
     const sha512b64 = "Pa4Jto+LuCGBHy2/POQEbTh0reuoiEXQWXGn8S7aRlhcwpVkO8+4uoZVSOqUjdCsE+77oygfu2Tl+7qGHGIWsw==";
     const url1 = `https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.0/jquery.min.js#sha512=${sha512b64}`;
     const result1 = parseUrlSRI(url1);
@@ -25,7 +25,7 @@ describe("parseUrlSRI", () => {
     expect(result4.url).toEqual("https://example.com/script.js");
     expect(result4.hash).toEqual({ md5: "AbCd" });
   });
-  it("多个哈希值", () => {
+  it.concurrent("多个哈希值", () => {
     const sha512b64 = "zKeerWHHuP3ar7kX2WKBSENzb+GJytFSBL6HrR2nPSR1kOX1qjm+oHooQtbDpDBSITgyl7QXZApvDfDWvKjkUw==";
     const sha384b64 = "7qAoOXltbVP82dhxHAUje59V5r2YsVfBafyUDxEdApLPmcdhBPg1DKg1ERo0BZlK";
     const sha256hex = "95e979ec98a6d7f096e08d621246877b12bf27d87f6519de78e44a890b8d3888";
@@ -48,13 +48,13 @@ describe("parseUrlSRI", () => {
     expect(result4.url).toEqual("https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.min.js");
     expect(result4.hash).toEqual({ sha256: sha256hex, md5: md5hex });
   });
-  it("没有哈希值", () => {
+  it.concurrent("没有哈希值", () => {
     const url = "https://example.com/script.js";
     const result = parseUrlSRI(url);
     expect(result.url).toEqual("https://example.com/script.js");
     expect(result.hash).toBeUndefined();
   });
-  it("不规则的SRI", () => {
+  it.concurrent("不规则的SRI", () => {
     const url = "https://example.com/script.js#sha256";
     const result = parseUrlSRI(url);
     expect(result.url).toEqual("https://example.com/script.js");
@@ -71,8 +71,8 @@ describe("parseUrlSRI", () => {
   });
 });
 
-describe("isBase64", () => {
-  it("should return true for valid base64 strings", () => {
+describe.concurrent("isBase64", () => {
+  it.concurrent("should return true for valid base64 strings", () => {
     expect(isBase64("dGVzdA==")).toBe(true);
     expect(isBase64("7qAoOXltbVP82dhxHAUje59V5r2YsVfBafyUDxEdApLPmcdhBPg1DKg1ERo0BZlK")).toBe(true);
     expect(isBase64("zKeerWHHuP3ar7kX2WKBSENzb+GJytFSBL6HrR2nPSR1kOX1qjm+oHooQtbDpDBSITgyl7QXZApvDfDWvKjkUw==")).toBe(
@@ -80,7 +80,7 @@ describe("isBase64", () => {
     );
   });
 
-  it("should return false for invalid base64 strings", () => {
+  it.concurrent("should return false for invalid base64 strings", () => {
     expect(isBase64("invalid_base64")).toBe(false);
     expect(isBase64("12345")).toBe(false);
     expect(isBase64("c4ca4238a0b923820dcc509a6f75849b")).toBe(false);
@@ -99,7 +99,7 @@ describe("isBase64", () => {
   });
 });
 
-describe("getCombinedMeta", () => {
+describe.concurrent("getCombinedMeta", () => {
   const baseMetadata: SCMetadata = {
     name: ["Test Script"],
     version: ["1.0.0"],
@@ -107,7 +107,7 @@ describe("getCombinedMeta", () => {
     grant: ["none"],
   };
 
-  it("应该合并并覆盖元数据", () => {
+  it.concurrent("应该合并并覆盖元数据", () => {
     const custom: SCMetadata = {
       match: ["https://custom.com/*"],
       exclude: ["https://custom.com/admin/*"],
@@ -124,13 +124,13 @@ describe("getCombinedMeta", () => {
     });
   });
 
-  it("应该处理空的自定义元数据", () => {
+  it.concurrent("应该处理空的自定义元数据", () => {
     const result = getCombinedMeta(baseMetadata, {});
     expect(result).toEqual(baseMetadata);
     expect(result).not.toBe(baseMetadata); // 确保是一个新对象
   });
 
-  it("应该处理特殊值（undefined 和空数组）", () => {
+  it.concurrent("应该处理特殊值（undefined 和空数组）", () => {
     const custom: SCMetadata = {
       match: undefined,
       grant: [],
@@ -145,7 +145,7 @@ describe("getCombinedMeta", () => {
   });
 });
 
-describe("selfMetadataUpdate", () => {
+describe.concurrent("selfMetadataUpdate", () => {
   const createMockScript = (selfMetadata?: SCMetadata): Script => ({
     uuid: "test-uuid",
     name: "Test Script",
@@ -166,7 +166,7 @@ describe("selfMetadataUpdate", () => {
     selfMetadata,
   });
 
-  it("应该添加和更新字段", () => {
+  it.concurrent("应该添加和更新字段", () => {
     const script = createMockScript({
       exclude: ["https://admin.com/*"],
     });
@@ -180,7 +180,7 @@ describe("selfMetadataUpdate", () => {
     expect(result).not.toBe(script);
   });
 
-  it("应该删除空字段并处理空对象", () => {
+  it.concurrent("应该删除空字段并处理空对象", () => {
     const script = createMockScript({
       exclude: ["https://admin.com/*"],
     });
@@ -190,7 +190,7 @@ describe("selfMetadataUpdate", () => {
     expect(result.selfMetadata).toBeUndefined();
   });
 
-  it("应该处理没有 selfMetadata 的脚本", () => {
+  it.concurrent("应该处理没有 selfMetadata 的脚本", () => {
     const script = createMockScript();
 
     const result = selfMetadataUpdate(script, "exclude", new Set(["https://new.com/*"]));
@@ -200,7 +200,7 @@ describe("selfMetadataUpdate", () => {
     });
   });
 
-  it("应该过滤非字符串值", () => {
+  it.concurrent("应该过滤非字符串值", () => {
     const script = createMockScript();
     const mixedValues = new Set(["valid", 123 as any, null as any, "another-valid"]);
 
@@ -210,12 +210,12 @@ describe("selfMetadataUpdate", () => {
   });
 });
 
-describe("getUserScriptRegister", () => {
-  it("should return a valid RegisteredUserScript object", () => {
+describe.concurrent("getUserScriptRegister", () => {
+  it.concurrent("should return a valid RegisteredUserScript object", () => {
     const mockScriptMatchInfo: ScriptMatchInfo = {
       uuid: "test-uuid",
       name: "Test Script",
-      code: "console.log('test');",
+      // code: "console.log('test');",
       metadata: {
         "run-at": ["document-end"],
         noframes: [],
@@ -237,10 +237,10 @@ describe("getUserScriptRegister", () => {
       runStatus: "running",
       createtime: Date.now(),
       checktime: Date.now(),
-      value: {},
-      flag: "test",
-      resource: {},
-      originalMetadata: {},
+      // value: {},
+      // flag: "test",
+      // resource: {},
+      // originalMetadata: {},
     };
 
     // const code = compileInjectionCode(mockScriptMatchInfo, mockScriptMatchInfo.code);

@@ -45,8 +45,8 @@ const scriptRes2 = {
 // @ts-ignore
 const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, nilFn, envInfo);
 
-describe("GM_info", () => {
-  it("none", async () => {
+describe.concurrent("GM_info", () => {
+  it.concurrent("none", async () => {
     expect(noneExec.sandboxContext).toBeUndefined();
     expect(noneExec.named).not.toBeUndefined();
     scriptRes.code = "return {_this:this,GM_info};";
@@ -56,7 +56,7 @@ describe("GM_info", () => {
     expect(ret.GM_info.script.version).toEqual("1.0.0");
     expect(ret._this).toEqual(global);
   });
-  it("sandbox", async () => {
+  it.concurrent("sandbox", async () => {
     expect(sandboxExec.sandboxContext).not.toBeUndefined();
     expect(sandboxExec.named).toBeUndefined();
     scriptRes2.code = "return {_this:this,GM_info};";
@@ -68,8 +68,8 @@ describe("GM_info", () => {
   });
 });
 
-describe("unsafeWindow", () => {
-  it("unsafeWindow available", async () => {
+describe.concurrent("unsafeWindow", () => {
+  it.concurrent("unsafeWindow available", async () => {
     const ret0 = sandboxExec.sandboxContext?.unsafeWindow === global;
     expect(ret0).toEqual(true);
     scriptRes2.code = `return unsafeWindow`;
@@ -82,7 +82,7 @@ describe("unsafeWindow", () => {
     expect(ret3).not.toEqual(global);
   });
 
-  it("sandbox", async () => {
+  it.concurrent("sandbox", async () => {
     const ret0 = sandboxExec.sandboxContext?.unsafeWindow === global;
     expect(ret0).toEqual(true);
     // @ts-ignore
@@ -97,7 +97,7 @@ describe("unsafeWindow", () => {
     expect(ret2).toEqual(undefined);
   });
 
-  it("sandbox NodeFilter", async () => {
+  it.concurrent("sandbox NodeFilter", async () => {
     const nodeFilter = global.NodeFilter;
     expect(nodeFilter).toEqual(expect.any(Function));
     scriptRes2.code = `return unsafeWindow.NodeFilter`;
@@ -111,8 +111,8 @@ describe("unsafeWindow", () => {
   });
 });
 
-describe("sandbox", () => {
-  it("global", async () => {
+describe.concurrent("sandbox", () => {
+  it.concurrent("global", async () => {
     scriptRes2.code = "window.testObj = 'ok';return window.testObj";
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     let ret = await sandboxExec.exec();
@@ -122,13 +122,13 @@ describe("sandbox", () => {
     ret = await sandboxExec.exec();
     expect(ret).toEqual("ok2");
   });
-  it("this", async () => {
+  it.concurrent("this", async () => {
     scriptRes2.code = "this.testObj='ok2';return testObj;";
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("ok2");
   });
-  it("this2", async () => {
+  it.concurrent("this2", async () => {
     scriptRes2.code = `
     !function(t, e) {
       "object" == typeof exports ? module.exports = exports = e() : "function" == typeof define && define.amd ? define([], e) : t.CryptoJS = e()
@@ -142,7 +142,7 @@ describe("sandbox", () => {
   });
 
   // 沉浸式翻译, 常量值被改变
-  it("NodeFilter #214", async () => {
+  it.concurrent("NodeFilter #214", async () => {
     scriptRes2.code = `return NodeFilter.FILTER_REJECT;`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
@@ -150,7 +150,7 @@ describe("sandbox", () => {
   });
 
   // RegExp.$x 内容被覆盖 https://github.com/scriptscat/scriptcat/issues/293
-  it("RegExp", async () => {
+  it.concurrent("RegExp", async () => {
     scriptRes2.code = `let ok = /12(3)/.test('123');return RegExp.$1;`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
@@ -158,7 +158,7 @@ describe("sandbox", () => {
   });
 });
 
-describe("this", () => {
+describe.concurrent("this", () => {
   it("onload", async () => {
     // null确认
     global.onload = null;
@@ -183,13 +183,13 @@ describe("this", () => {
     // global.onload
     expect(global.onload).toBeNull();
   });
-  it("undefined variable", async () => {
+  it.concurrent("undefined variable", async () => {
     scriptRes2.code = `return typeof testVar;`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("undefined");
   });
-  it("undefined variable in global", async () => {
+  it.concurrent("undefined variable in global", async () => {
     scriptRes2.code = `return testVar;`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     // 在沙盒中访问未定义的变量会抛出错误
@@ -213,7 +213,7 @@ describe("none this", () => {
     expect(global.onload).toEqual(expect.any(Function));
     global.onload = null; // 清理全局变量
   });
-  it("this.test", async () => {
+  it.concurrent("this.test", async () => {
     scriptRes2.code = `this.test = "ok";return this.test;`;
     noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await noneExec.exec();
@@ -240,8 +240,8 @@ describe("沙盒环境测试", async () => {
   expect(_win).toEqual(expect.any(Object));
   expect(_win.setTimeout).toEqual(expect.any(Function));
 
-  describe("测试全局变量访问性", () => {
-    it("global gbok", () => {
+  describe.concurrent("测试全局变量访问性", () => {
+    it.concurrent("global gbok", () => {
       expect(_global["gbok"]).toEqual("gbok");
       expect(_global["gbok2"]).toEqual("gbok2");
       expect(_global["gbok3"]?.name).toEqual("gbok3");
@@ -251,7 +251,7 @@ describe("沙盒环境测试", async () => {
       // 这是后来新加入的值，沙盒中应该是无法访问的
       expect(_this["gbok"]).toEqual(undefined);
     });
-    it("global sandboxTestValue", () => {
+    it.concurrent("global sandboxTestValue", () => {
       expect(_global["sandboxTestValue"]).toEqual("sandboxTestValue");
       // 这是初始的值，沙盒中应该是可以访问的
       expect(_this["sandboxTestValue"]).toEqual("sandboxTestValue");
@@ -266,14 +266,14 @@ describe("沙盒环境测试", async () => {
     });
   });
 
-  it("set contenxt", () => {
+  it.concurrent("set contenxt", () => {
     _this["test_md5"] = "ok";
     expect(_this["test_md5"]).toEqual("ok");
     expect(_global["test_md5"]).toEqual(undefined);
   });
 
-  describe("set window.onload null", () => {
-    it("初始状态确认", () => {
+  describe.concurrent("set window.onload null", () => {
+    it.concurrent("初始状态确认", () => {
       // null确认
       _this["onload"] = null;
       _global["onload"] = null;
@@ -281,8 +281,8 @@ describe("沙盒环境测试", async () => {
       expect(_global["onload"]).toBeNull();
     });
 
-    describe("沙盒环境 onload 设置", () => {
-      it("设置 _this.onload 不影响 global.onload", () => {
+    describe.concurrent("沙盒环境 onload 设置", () => {
+      it.concurrent("设置 _this.onload 不影响 global.onload", () => {
         const mockFn = vi.fn();
         _this["onload"] = function thisOnLoad() {
           mockFn();
@@ -291,7 +291,7 @@ describe("沙盒环境测试", async () => {
         expect(_global["onload"]).toBeNull();
       });
 
-      it("验证 onload 事件调用", () => {
+      it.concurrent("验证 onload 事件调用", () => {
         const mockFn = vi.fn();
         _this["onload"] = function thisOnLoad() {
           mockFn();
@@ -304,7 +304,7 @@ describe("沙盒环境测试", async () => {
       // 在模拟环境无法测试：在实际操作中和TM一致
       // 在非拦截式沙盒裡删除 沙盒onload 后，会取得页面的真onload
       // 在非拦截式沙盒裡删除 真onload 后，会变undefined
-      // it("删除 onload 后应该为 null", () => {
+      // it.concurrent("删除 onload 后应该为 null", () => {
       //   const mockFn = vi.fn();
       //   _this["onload"] = function thisOnLoad() {
       //     mockFn();
@@ -346,7 +346,7 @@ describe("沙盒环境测试", async () => {
   });
 
   // https://github.com/scriptscat/scriptcat/issues/273
-  it("禁止穿透global对象", () => {
+  it.concurrent("禁止穿透global对象", () => {
     expect(_this["gbok"]).toBeUndefined();
     expect(_this["gbok2"]).toBeUndefined();
     expect(_this["gbok3"]).toBeUndefined();
@@ -355,7 +355,7 @@ describe("沙盒环境测试", async () => {
     expect(_this["gbok6"]).toBeUndefined();
   });
 
-  it("禁止修改window", () => {
+  it.concurrent("禁止修改window", () => {
     // expect(() => (_this["window"] = "ok")).toThrow();
     expect(() => {
       const before = _this["window"];
@@ -364,16 +364,16 @@ describe("沙盒环境测试", async () => {
     }).toThrow();
   });
 
-  it("访问location", () => {
+  it.concurrent("访问location", () => {
     expect(_this.location).not.toBeUndefined();
   });
 
   // 只允许访问onxxxxx
-  it("window.onxxxxx", () => {
+  it.concurrent("window.onxxxxx", () => {
     expect(_this.onanimationstart).toBeNull();
   });
 
-  it("[兼容问题] Ensure Illegal invocation can be tested", () => {
+  it.concurrent("[兼容问题] Ensure Illegal invocation can be tested", () => {
     expect(global.setTimeout.name).toEqual("setTimeout");
     //@ts-ignore
     expect(global.setTimeoutForTest.name).toEqual("setTimeoutForTest");
@@ -386,32 +386,38 @@ describe("沙盒环境测试", async () => {
     expect(() => global.setTimeoutForTest.call({}, () => {}, 1)).toThrow();
   });
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
-  it("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
-    return new Promise((resolve) => {
-      console.log(_this.setTimeoutForTest.prototype);
-      _this.setTimeoutForTest(resolve, 100);
+  it.concurrent("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
+    // setTimeout 和 setTimeoutForTest 都測試吧
+    const promise1 = new Promise((resolve) => {
+      console.log(_this.setTimeout.prototype);
+      _this.setTimeoutForTest(resolve, 1);
     });
+    const promise2 = new Promise((resolve) => {
+      console.log(_this.setTimeout.prototype);
+      _this.setTimeout(resolve, 1);
+    });
+    expect(Promise.all([promise1, promise2]).then(() => "ok")).resolves.toBe("ok");
   });
   // AC-baidu-重定向优化百度搜狗谷歌必应搜索_favicon_双列
-  it("[兼容问题] TypeError: Object.freeze is not a function #116", () => {
+  it.concurrent("[兼容问题] TypeError: Object.freeze is not a function #116", () => {
     expect(() => _this.Object.freeze({})).not.toThrow();
   });
 
   const tag = (<any>global)[Symbol.toStringTag]; // 实际环境：'[object Window]' 测试环境：'[object global]'
 
   // 允许往global写入Symbol属性,影响内容: https://bbs.tampermonkey.net.cn/thread-5509-1-1.html
-  it("Symbol", () => {
+  it.concurrent("Symbol", () => {
     const s = Symbol("test");
     _this[s] = "ok";
     expect(_this[s]).toEqual("ok");
   });
   // toString.call(window)返回的是'[object Object]',影响内容: https://github.com/scriptscat/scriptcat/issues/260
-  it("toString.call(window)", () => {
+  it.concurrent("toString.call(window)", () => {
     expect(toString.call(_this)).toEqual(`[object Window]`);
   });
 
   // 与TM保持一致，toString返回global([object Window]) #737
-  it("toString", async () => {
+  it.concurrent("toString", async () => {
     scriptRes2.code = `return {
       toStringThis: {}.toString.call(this),
       toStringWindow: {}.toString.call(window),
@@ -427,14 +433,14 @@ describe("沙盒环境测试", async () => {
   });
 
   // Object.hasOwnProperty穿透 https://github.com/scriptscat/scriptcat/issues/272
-  it("[穿透测试] Object.hasOwnProperty", () => {
+  it.concurrent("[穿透测试] Object.hasOwnProperty", () => {
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(false);
     _this.test1 = "ok";
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(true);
     expect(Object.prototype.hasOwnProperty.call(_this, "test")).toEqual(false);
   });
 
-  it("特殊关键字不能穿透沙盒", async () => {
+  it.concurrent("特殊关键字不能穿透沙盒", async () => {
     expect(_global["define"]).toEqual("特殊关键字不能穿透沙盒");
     expect(_this["define"]).toBeUndefined();
     _this["define"] = "ok";
@@ -442,18 +448,19 @@ describe("沙盒环境测试", async () => {
     expect(_global["define"]).toEqual("特殊关键字不能穿透沙盒");
   });
 
-  it("RegExp", async () => {
+  it.concurrent("RegExp", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `const str = "12345";
 const reg = /(123)/;
-str.match(reg);`;
+return [str.match(reg), RegExp.$1];`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    await exec.exec();
-    expect(RegExp.$1).toEqual("123");
+    const ret = await exec.exec();
+    expect(ret?.[0][1]).toEqual("123");
+    expect(ret?.[1]).toEqual("123");
   });
-  it("沙盒之间不应该共享变量", async () => {
+  it.concurrent("沙盒之间不应该共享变量", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.code = `this.testVar = "ok"; ttest1 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
     // @ts-ignore
@@ -501,7 +508,7 @@ str.match(reg);`;
     expect(cacheRet3Onload() + ret4.onload()).toEqual(579);
   });
 
-  it("沙盒之间能用unsafeWindow（及全局作用域）共享变量", async () => {
+  it.concurrent("沙盒之间能用unsafeWindow（及全局作用域）共享变量", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.code = `unsafeWindow.testSVar1 = "shareA"; ggaa1 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
     // @ts-ignore
@@ -519,7 +526,7 @@ str.match(reg);`;
     expect(ret2).toEqual({ testSVar1: "shareA", testSVar2: "shareB", ggaa1: "string", ggaa2: "string" });
   });
 
-  it("测试SC沙盒与TM沙盒有相近的特殊处理", async () => {
+  it.concurrent("测试SC沙盒与TM沙盒有相近的特殊处理", async () => {
     const script1 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script1.code = `onfocus = function(){}; onresize = 123; onblur = "123"; const ret = {onfocus, onresize, onblur}; onfocus = null; onresize = null; onblur = null; return ret;`;
     // @ts-ignore

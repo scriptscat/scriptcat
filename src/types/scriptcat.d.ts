@@ -168,7 +168,7 @@ declare function GM_openInTab(url: string): GMTypes.Tab | undefined;
 
 declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHandle<void>;
 
-declare function GM_download(details: GMTypes.DownloadDetails): GMTypes.AbortHandle<boolean>;
+declare function GM_download(details: GMTypes.DownloadDetails<string | Blob | File>): GMTypes.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
 declare function GM_getTab(callback: (obj: object) => void): void;
@@ -466,16 +466,23 @@ declare namespace GMTypes {
 
   type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
 
+  type ReadyState =
+    | 0 // UNSENT
+    | 1 // OPENED
+    | 2 // HEADERS_RECEIVED
+    | 3 // LOADING
+    | 4; // DONE
+
   interface XHRResponse {
     finalUrl?: string;
-    readyState?: 0 | 1 | 2 | 3 | 4;
+    readyState?: ReadyState;
     responseHeaders?: string;
     status?: number;
     statusText?: string;
-    response?: string | Blob | ArrayBuffer | Document | ReadableStream | null;
+    response?: string | Blob | ArrayBuffer | Document | ReadableStream<Uint8Array> | null;
     responseText?: string;
     responseXML?: Document | null;
-    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
+    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "";
   }
 
   interface XHRProgress extends XHRResponse {
@@ -490,11 +497,13 @@ declare namespace GMTypes {
   type Listener<OBJ> = (event: OBJ) => unknown;
   type ContextType = unknown;
 
+  type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
+
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
-    url: string;
+    url: string | URL | File | Blob;
     headers?: { [key: string]: string };
-    data?: string | FormData | Blob;
+    data?: GMXHRDataType;
     cookie?: string;
     binary?: boolean;
     timeout?: number;
@@ -502,19 +511,25 @@ declare namespace GMTypes {
     responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream"; // stream 在当前版本是一个较为简陋的实现
     overrideMimeType?: string;
     anonymous?: boolean;
+    mozAnon?: boolean; // 发送请求时不携带cookie (兼容Greasemonkey)
     fetch?: boolean;
     user?: string;
     password?: string;
     nocache?: boolean;
+    revalidate?: boolean; // 强制重新验证缓存内容：允许缓存，但必须在使用缓存内容之前重新验证
     redirect?: "follow" | "error" | "manual"; // 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
+    cookiePartition?: Record<string, any> & {
+      topLevelSite?: string; // 表示分区 cookie 的顶部帧站点
+    }; // 包含用于发送和接收的分区 cookie 的分区键 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+    context?: any; // 自定义值，传递给响应的 response.context 属性
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;
     onloadend?: Listener<XHRResponse>;
     onprogress?: Listener<XHRProgress>;
     onreadystatechange?: Listener<XHRResponse>;
-    ontimeout?: () => void;
-    onabort?: () => void;
+    ontimeout?: Listener<XHRResponse>;
+    onabort?: Listener<XHRResponse>;
     onerror?: (err: string | (XHRResponse & { error: string })) => void;
   }
 
@@ -527,21 +542,30 @@ declare namespace GMTypes {
     details?: string;
   }
 
-  interface DownloadDetails {
-    method?: "GET" | "POST";
-    downloadMode?: "native" | "browser";
-    url: string;
+  interface DownloadDetails<URL> {
+    // TM/SC 标准参数
+    url: URL;
     name: string;
     headers?: { [key: string]: string };
     saveAs?: boolean;
-    timeout?: number;
-    cookie?: string;
-    anonymous?: boolean;
+    conflictAction?: "uniquify" | "overwrite" | "prompt";
 
-    onerror?: Listener<DownloadError>;
-    ontimeout?: () => void;
+    // 其他参数
+    timeout?: number; // SC/VM
+    anonymous?: boolean; // SC/VM
+    context?: ContextType; // SC/VM
+    user?: string; // SC/VM
+    password?: string; // SC/VM
+
+    method?: "GET" | "POST"; // SC
+    downloadMode?: "native" | "browser"; // SC
+    cookie?: string; // SC
+
+    // TM/SC 标准回调
     onload?: Listener<object>;
+    onerror?: Listener<DownloadError>;
     onprogress?: Listener<XHRProgress>;
+    ontimeout?: (arg1?: any) => void;
   }
 
   interface NotificationThis extends NotificationDetails {
