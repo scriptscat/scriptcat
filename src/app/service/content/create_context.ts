@@ -99,17 +99,38 @@ export const createContext = (
 
 const noEval = false;
 
-// 判断是否应该将函数绑定到global （原生类函数）
-const shouldFnBind = (f: any, propKey: string) => {
+// 取得原生函数代码表示
+const getNativeCodeSeg = () => {
+  const k = "propertyIsEnumerable"; // 选用 Object.propertyIsEnumerable 取得原生函数代码表示
+  const codeSeg = `${Object[k]}`;
+  const idx1 = codeSeg.indexOf(k);
+  const idx2 = codeSeg.indexOf("()");
+  const idx3 = codeSeg.lastIndexOf("(");
+  if (idx1 > 0 && idx2 > 0 && idx3 === idx2) {
+    return codeSeg.substring(idx1 + k.length);
+  }
+  return "";
+};
+
+const nativeCodeSeg = getNativeCodeSeg();
+
+// 判断是否应该将函数绑定到global （原生函数）
+const shouldFnBind = (f: any) => {
   if (typeof f !== "function") return false;
   // 函数有 prototype 即为 Class
   if ("prototype" in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
   // 要求函数名字小写字头 能筛选掉 NodeFilter 之类 Interface （ 大写开头不用于直接呼叫 ）
-  // 要求函数名字包含 propKey 能筛选掉 封装层函数
-  const { name } = f;
+  // 要求函数名字不包含空白 能筛选掉 已经this绑定函数
+  const { name } = f as typeof Function.prototype;
   if (!name) return false;
   const e = name.charCodeAt(0);
-  return e >= 97 && e <= 122 && name.includes(propKey);
+  if (e >= 97 && e <= 122 && !name.includes(" ")) {
+    // 为避免浏览器插件封装了 原生函数，需要进行 toString 测试
+    if (nativeCodeSeg.length && `${f}`.endsWith(`${name}${nativeCodeSeg}`)) {
+      return true;
+    }
+  }
+  return false;
 };
 
 type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
@@ -149,7 +170,7 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
     // 例：父类的 addEventListener
     // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
     // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
-    if (shouldFnBind(value, key)) {
+    if (shouldFnBind(value)) {
       const boundValue = value.bind(global);
       overridedDescs[key] = {
         ...desc,

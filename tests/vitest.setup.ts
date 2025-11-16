@@ -179,6 +179,9 @@ Object.assign(global, {
     return this.setTimeout(...args);
   },
 });
+//@ts-ignore 强行修改 setTimeoutForTest toString 为 原生代码显示
+global.setTimeoutForTest.toString = () =>
+  `${Object.propertyIsEnumerable}`.replace("propertyIsEnumerable", "setTimeoutForTest");
 
 vi.stubGlobal("sandboxTestValue", "sandboxTestValue");
 vi.stubGlobal("sandboxTestValue2", "sandboxTestValue2");
