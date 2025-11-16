@@ -45,24 +45,42 @@ class EventTargetE {
     return gblRemoveEventListener.call(this, a, ...args);
   }
 }
-//@ts-ignore
-delete global.addEventListener;
-//@ts-ignore
-delete global.removeEventListener;
-
-//@ts-ignore
-delete Object.getPrototypeOf(global).addEventListener;
-//@ts-ignore
-delete Object.getPrototypeOf(global).removeEventListener;
-
-//@ts-ignore
-delete Object.getPrototypeOf(Object.getPrototypeOf(global)).addEventListener;
-//@ts-ignore
-delete Object.getPrototypeOf(Object.getPrototypeOf(global)).removeEventListener;
-
-Object.getPrototypeOf(global).addEventListener = EventTargetE.prototype.addEventListener;
-Object.getPrototypeOf(global).removeEventListener = EventTargetE.prototype.removeEventListener;
-
+// 为了确保全局 addEventListener/removeEventListener 行为符合预期，需要彻底移除 global 及其原型链上的相关属性，
+// 然后在原型链上重新定义。此处操作较为复杂，务必小心维护。
+// 先安全地删除 global 上的 addEventListener/removeEventListener
+if (Object.getOwnPropertyDescriptor(global, "addEventListener")) {
+  // @ts-ignore
+  delete global.addEventListener;
+}
+if (Object.getOwnPropertyDescriptor(global, "removeEventListener")) {
+  // @ts-ignore
+  delete global.removeEventListener;
+}
+// 再删除 global 的原型上的属性
+const globalProto = Object.getPrototypeOf(global);
+if (globalProto && Object.getOwnPropertyDescriptor(globalProto, "addEventListener")) {
+  // @ts-ignore
+  delete globalProto.addEventListener;
+}
+if (globalProto && Object.getOwnPropertyDescriptor(globalProto, "removeEventListener")) {
+  // @ts-ignore
+  delete globalProto.removeEventListener;
+}
+// 继续向上查找一层原型（防御性检查）
+const globalProtoProto = globalProto && Object.getPrototypeOf(globalProto);
+if (globalProtoProto && Object.getOwnPropertyDescriptor(globalProtoProto, "addEventListener")) {
+  // @ts-ignore
+  delete globalProtoProto.addEventListener;
+}
+if (globalProtoProto && Object.getOwnPropertyDescriptor(globalProtoProto, "removeEventListener")) {
+  // @ts-ignore
+  delete globalProtoProto.removeEventListener;
+}
+// 在 global 的原型上重新定义方法
+if (globalProto) {
+  globalProto.addEventListener = EventTargetE.prototype.addEventListener;
+  globalProto.removeEventListener = EventTargetE.prototype.removeEventListener;
+}
 if (!("onanimationstart" in global)) {
   // Define or mock the global handler
   let val: any = null;
