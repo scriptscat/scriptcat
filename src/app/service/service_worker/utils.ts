@@ -179,12 +179,12 @@ export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
   };
 }
 
-export function compileInjectionCode(messageFlags: MessageFlags, scriptRes: ScriptRunResource, scriptCode: string) {
+export function compileInjectionCode(messageFlag: string, scriptRes: ScriptRunResource, scriptCode: string) {
   const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
   let scriptInjectCode;
   scriptCode = compileScriptCode(scriptRes, scriptCode);
   if (preDocumentStartScript) {
-    scriptInjectCode = compilePreInjectScript(messageFlags, parseScriptLoadInfo(scriptRes), scriptCode);
+    scriptInjectCode = compilePreInjectScript(messageFlag, parseScriptLoadInfo(scriptRes), scriptCode);
   } else {
     scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
   }
