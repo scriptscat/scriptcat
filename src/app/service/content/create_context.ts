@@ -147,7 +147,8 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
 
     // 替换 function 的 this 为 实际的 global window
     // 例：父类的 addEventListener
-    // 被封装的属性，shouldFnBind 会传回 false。即略过封装层，向父类寻找原生属性
+    // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
+    // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
     if (shouldFnBind(value, key)) {
       const boundValue = value.bind(global);
       overridedDescs[key] = {
