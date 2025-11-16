@@ -138,10 +138,10 @@ export const checkHasUnsafeHeaders = (key: string) => {
 };
 
 export enum ConnectMatch {
-  NONE = 0,
-  ALL = 1,
-  DOMAIN = 2,
-  EXACT = 3,
+  NONE = 0, // 没有匹配
+  ALL = 1, // 遇到 "*" 通配符
+  DOMAIN = 2, // 匹配子域
+  EXACT = 3, // 完全匹配
 }
 
 export enum SelfMatch {
@@ -176,7 +176,12 @@ export const getConnectMatched = (
     for (let i = 0, l = metadataConnect.length; i < l; i += 1) {
       const lowerMetaConnect = metadataConnect[i].toLowerCase();
       if (lowerMetaConnect === "self") {
-        if (checkSelfDomainMatching() > 0) return ConnectMatch.DOMAIN; // 完全匹配或其子域
+        switch (checkSelfDomainMatching()) {
+          case SelfMatch.EXACT:
+            return ConnectMatch.EXACT; // 完全匹配
+          case SelfMatch.SUB:
+            return ConnectMatch.DOMAIN; // 完全匹配或其子域
+        }
       } else if (lowerMetaConnect === "*") {
         if (checkSelfDomainMatching() === SelfMatch.EXACT) return ConnectMatch.EXACT; // 完全匹配
         withWildCard = true; // 检查其他 @connect
