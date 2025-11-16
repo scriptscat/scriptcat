@@ -42,6 +42,10 @@ describe.concurrent("isConnectMatched", () => {
     const req = new URL("https://app.example.com/dashboard");
     const sender = makeSender("https://app.example.com/some-page");
     expect(getConnectMatched(["self"], req, sender)).toBe(ConnectMatch.EXACT);
+
+    const req2 = new URL("https://app.example.com/dashboard");
+    const sender2 = makeSender("https://example.com/some-page");
+    expect(getConnectMatched(["self"], req2, sender2)).toBe(ConnectMatch.DOMAIN);
   });
 
   it.concurrent('metadata 包含 "self" 但 sender.url 与 reqURL 主机不同时回传 false（若无其他规则命中）', () => {
