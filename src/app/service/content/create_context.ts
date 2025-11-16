@@ -99,15 +99,17 @@ export const createContext = (
 
 const noEval = false;
 
-// 判断是否应该将函数绑定到global
-const shouldFnBind = (f: any) => {
+// 判断是否应该将函数绑定到global （原生类函数）
+const shouldFnBind = (f: any, propKey: string) => {
   if (typeof f !== "function") return false;
+  // 函数有 prototype 即为 Class
   if ("prototype" in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
-  // window中的函式，大写开头不用于直接呼叫 （例如NodeFilter)
+  // 要求函数名字小写字头 能筛选掉 NodeFilter 之类 Interface （ 大写开头不用于直接呼叫 ）
+  // 要求函数名字包含 propKey 能筛选掉 封装层函数
   const { name } = f;
   if (!name) return false;
   const e = name.charCodeAt(0);
-  return e >= 97 && e <= 122;
+  return e >= 97 && e <= 122 && name.includes(propKey);
 };
 
 type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
@@ -146,7 +148,7 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
     // 替换 function 的 this 为 实际的 global window
     // 例：父类的 addEventListener
     // 被封装的属性，shouldFnBind 会传回 false。即略过封装层，向父类寻找原生属性
-    if (shouldFnBind(value)) {
+    if (shouldFnBind(value, key)) {
       const boundValue = value.bind(global);
       overridedDescs[key] = {
         ...desc,
