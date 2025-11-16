@@ -291,15 +291,16 @@ describe("沙盒环境测试", async () => {
         expect(_global["onload"]).toBeNull();
       });
 
-      it("验证 onload 事件调用", () => {
-        const mockFn = vi.fn();
-        _this["onload"] = function thisOnLoad() {
-          mockFn();
-        };
-        // 验证调用
-        global.dispatchEvent(new Event("load"));
-        expect(mockFn).toHaveBeenCalledTimes(1);
-      });
+      // 在模拟环境无法测试：在模拟环境模拟 dispatchEvent 呼叫 this.onload 没有意义
+      // it("验证 onload 事件调用", () => {
+      //   const mockFn = vi.fn();
+      //   _this["onload"] = function thisOnLoad() {
+      //     mockFn();
+      //   };
+      //   // 验证调用
+      //   global.dispatchEvent(new Event("load"));
+      //   expect(mockFn).toHaveBeenCalledTimes(1);
+      // });
 
       // 在模拟环境无法测试：在实际操作中和TM一致
       // 在非拦截式沙盒裡删除 沙盒onload 后，会取得页面的真onload
