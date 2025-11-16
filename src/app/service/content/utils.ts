@@ -97,7 +97,7 @@ export function compileInjectScriptByFlag(
 }
 
 /**
- * 脚本加载信息。（Inject/Content环境用，避免过多不必要资讯公开，减少页面加载资讯储存量）
+ * 脚本加载信息。（Inject/Content环境用，避免过多不必要信息公开，减少页面加载信息存储量）
  */
 export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   // --- 处理 resource ---
@@ -111,20 +111,20 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   // --- 处理 resource ---
   // --- 处理 scriptInfo ---
   const scriptInfo = { ...script, resource, code: "" } as TScriptInfo;
-  // 删除其他不需要注入的 script 资讯
+  // 删除其他不需要注入的 script 信息
   delete scriptInfo.originalMetadata;
   delete scriptInfo.selfMetadata;
   delete scriptInfo.lastruntime;
   delete scriptInfo.nextruntime;
-  delete scriptInfo.ignoreVersion; // UserScript 裡面不需要知道用戶有沒有在更新時忽略
-  delete scriptInfo.sort; // UserScript 裡面不需要知道用戶如何 sort
+  delete scriptInfo.ignoreVersion; // UserScript 里面不需要知道用户有没有在更新时忽略
+  delete scriptInfo.sort; // UserScript 里面不需要知道用户如何 sort
   delete scriptInfo.error;
-  delete scriptInfo.subscribeUrl; // UserScript 裡面不需要知道用戶從何處訂閱
+  delete scriptInfo.subscribeUrl; // UserScript 里面不需要知道用户从何处订阅
   delete scriptInfo.originDomain; // 脚本来源域名
   delete scriptInfo.origin; // 脚本来源
   delete scriptInfo.runStatus; // 前台脚本不用
-  delete scriptInfo.type; // 脚本类型總是普通脚本
-  delete scriptInfo.status; // 脚本状态總是启用
+  delete scriptInfo.type; // 脚本类型总是普通脚本
+  delete scriptInfo.status; // 脚本状态总是启用
   // --- 处理 scriptInfo ---
   return scriptInfo;
 };

@@ -126,11 +126,11 @@ export default class ContentRuntime {
   pageLoad(messageFlag: string) {
     this.scriptExecutor.checkEarlyStartScript("content", messageFlag);
     const client = new RuntimeClient(this.senderToExt);
-    // 向service_worker请求脚本列表及環境資訊
+    // 向service_worker请求脚本列表及环境信息
     client.pageLoad().then((o) => {
       if (!o.ok) return;
       const { injectScriptList, contentScriptList, envInfo } = o;
-      // 启动脚本：向 inject頁面 傳送脚本列表及環境資訊
+      // 启动脚本：向 inject页面 发送脚本列表及环境信息
       const client = new Client(this.senderToInject, "inject");
       // 根据@inject-into content过滤脚本
       client.do("pageLoad", { injectScriptList, envInfo });

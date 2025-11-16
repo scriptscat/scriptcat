@@ -1208,7 +1208,7 @@ export class RuntimeService {
       }
     }
 
-    // 发布给 Popup 的资讯
+    // 发布给 Popup 的信息
     const scriptmenus = enableScriptList.map((script) => scriptToMenu(script));
 
     let domain = "";
@@ -1234,7 +1234,7 @@ export class RuntimeService {
       list.push(trimScriptInfo({ ...script }));
     }
 
-    // 发布给 inject 和 content 的资讯
+    // 发布给 inject 和 content 的信息
     return {
       injectScriptList: injectScriptList,
       contentScriptList: contentScriptList,
