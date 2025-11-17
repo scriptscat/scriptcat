@@ -21,6 +21,7 @@ const createJSZip = () => {
   const dateWithOffset = new Date(currDate.getTime() - currDate.getTimezoneOffset() * 60000);
   // replace the default date with dateWithOffset
   JSZip.defaults.date = dateWithOffset;
+  return new JSZip();
 };
 
 // 判断是否为beta版本
