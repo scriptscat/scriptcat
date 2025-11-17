@@ -32,6 +32,11 @@ export function changeLanguage(lng: string, callback?: Callback): void {
   dayjs.locale(lng.toLocaleLowerCase());
 }
 
+let initLocalesResolve: (value: string) => void;
+export const initLocalesPromise = new Promise<string>((resolve) => {
+  initLocalesResolve = resolve;
+});
+
 export function initLocales(systemConfig: SystemConfig) {
   const uiLanguage = chrome.i18n.getUILanguage();
   const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
@@ -58,18 +63,35 @@ export function initLocales(systemConfig: SystemConfig) {
     localePath = "/en";
   }
 
-  systemConfig.watch("language", (lng) => {
+  const changeLanguageCallback = (lng: string) => {
     if (!lng.startsWith("zh-")) {
       localePath = "/en";
     } else {
       localePath = "";
     }
     changeLanguage(lng);
+  };
+
+  systemConfig.getLanguage().then((lng) => {
+    initLocalesResolve(lng);
+    changeLanguageCallback(lng);
   });
+
+  systemConfig.watch("language", changeLanguageCallback);
 }
 
 export function watchLanguageChange(callback: (lng: string) => void) {
-  i18n.on("languageChanged", callback);
+  // 马上执行一次
+  initLocalesPromise.then(() => {
+    callback(i18n.language);
+
+    // 监听变化
+    i18n.on("languageChanged", callback);
+  });
+
+  return () => {
+    i18n.off("languageChanged", callback);
+  };
 }
 
 export function i18nName(script: { name: string; metadata: SCMetadata }) {
