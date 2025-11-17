@@ -82,15 +82,19 @@ export function initLocales(systemConfig: SystemConfig) {
 
 export function watchLanguageChange(callback: (lng: string) => void) {
   // 马上执行一次
+  let registered = false;
   initLocalesPromise.then(() => {
     callback(i18n.language);
 
     // 监听变化
     i18n.on("languageChanged", callback);
+    registered = true;
   });
 
   return () => {
-    i18n.off("languageChanged", callback);
+    if (registered) {
+      i18n.off("languageChanged", callback);
+    }
   };
 }
 
