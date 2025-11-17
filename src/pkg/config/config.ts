@@ -7,6 +7,7 @@ import { matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import { toCamelCase } from "../utils/utils";
+import EventEmitter from "eventemitter3";
 
 export const SystemConfigChange = "systemConfigChange";
 
@@ -74,17 +75,34 @@ export class SystemConfig {
 
   private readonly storage = new ChromeStorage("system", true);
 
+  private EE: EventEmitter<string> = new EventEmitter<string>();
+
   constructor(private mq: IMessageQueue) {
     this.mq.subscribe<TKeyValue>(SystemConfigChange, ({ key, value }) => {
+      // 更新缓存
       this.cache.set(key, value);
+      // 触发事件
+      this.EE.emit(key, value);
     });
   }
 
-  addListener(key: string, callback: (value: any) => void) {
-    this.mq.subscribe<TKeyValue>(SystemConfigChange, (data) => {
-      if (data.key === key) {
-        callback(data.value);
-      }
+  // 添加配置变更监听
+  addListener(key: SystemConfigKey, callback: (value: any) => void) {
+    this.EE.on(key, callback);
+    return () => {
+      this.EE.off(key, callback);
+    };
+  }
+
+  // 监听配置变更，会使用设置值立即执行一次回调
+  watch<T extends SystemConfigKey>(key: T, callback: (value: SystemConfigValueType<T>) => void) {
+    // 立即执行一次
+    this.get(key).then((val) => {
+      callback(val);
+    });
+    // 监听变更
+    return this.addListener(key, (val) => {
+      callback(val);
     });
   }
 

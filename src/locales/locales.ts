@@ -58,20 +58,18 @@ export function initLocales(systemConfig: SystemConfig) {
     localePath = "/en";
   }
 
-  systemConfig.getLanguage().then((lng) => {
-    changeLanguage(lng);
-    if (!lng.startsWith("zh-")) {
-      localePath = "/en";
-    }
-  });
-  systemConfig.addListener("language", (lng) => {
-    changeLanguage(lng);
+  systemConfig.watch("language", (lng) => {
     if (!lng.startsWith("zh-")) {
       localePath = "/en";
     } else {
       localePath = "";
     }
+    changeLanguage(lng);
   });
+}
+
+export function watchLanguageChange(callback: (lng: string) => void) {
+  i18n.on("languageChanged", callback);
 }
 
 export function i18nName(script: { name: string; metadata: SCMetadata }) {

@@ -178,13 +178,9 @@ export default class ServiceWorkerManager {
       }
     });
 
-    // 监听配置变化
-    systemConfig.addListener("cloud_sync", (value) => {
+    // 云同步
+    systemConfig.watch("cloud_sync", (value) => {
       synchronize.cloudSyncConfigChange(value);
-    });
-    // 启动一次云同步
-    systemConfig.getCloudSync().then((config) => {
-      synchronize.cloudSyncConfigChange(config);
     });
 
     if (process.env.NODE_ENV === "production") {
