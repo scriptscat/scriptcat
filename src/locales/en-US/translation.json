@@ -472,7 +472,7 @@
   "display_right_click_menu_desc": "Show script menu in browser right-click menu",
   "expand_count": "Expand Count",
   "auto_collapse_when_exceeds": "Auto collapse when exceeds this number",
-  "check_frequency": "Check Frequency",
+  "script_update_check_frequency": "Script Update Check Frequency",
   "script_auto_update_frequency": "Script automatic update check frequency",
   "update_options": "Update Options",
   "control_script_update_behavior": "Control script update behavior",

@@ -472,7 +472,7 @@
   "display_right_click_menu_desc": "Hiển thị menu script trong menu chuột phải của trình duyệt",
   "expand_count": "Số lượng mở rộng",
   "auto_collapse_when_exceeds": "Tự động thu gọn khi vượt quá số này",
-  "check_frequency": "Tần suất kiểm tra",
+  "script_update_check_frequency": "Tần suất kiểm tra cập nhật tập lệnh",
   "script_auto_update_frequency": "Tần suất kiểm tra cập nhật script tự động",
   "update_options": "Tùy chọn cập nhật",
   "control_script_update_behavior": "Kiểm soát hành vi cập nhật script",

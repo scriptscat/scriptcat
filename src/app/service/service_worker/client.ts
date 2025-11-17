@@ -1,15 +1,8 @@
-import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/scripts";
+import type { Script, ScriptCode, ScriptRunResource, TClientPageLoadInfo } from "@App/app/repo/scripts";
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
-import type {
-  InstallSource,
-  ScriptLoadInfo,
-  ScriptMenu,
-  ScriptMenuItem,
-  SearchType,
-  TBatchUpdateListAction,
-} from "./types";
+import type { InstallSource, ScriptMenu, ScriptMenuItem, SearchType, TBatchUpdateListAction } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -20,7 +13,6 @@ import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
-import type { GMInfoEnv } from "../content/types";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
@@ -266,7 +258,7 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<{ scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }> {
+  pageLoad(): Promise<TClientPageLoadInfo> {
     return this.doThrow("pageLoad");
   }
 

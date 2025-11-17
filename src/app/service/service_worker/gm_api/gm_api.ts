@@ -43,9 +43,6 @@ import {
 import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 
-const askUnlistedConnect = false;
-const askConnectStar = true;
-
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
 // 用来生成绝不重复的 MarkerID
@@ -137,10 +134,16 @@ export const checkHasUnsafeHeaders = (key: string) => {
 };
 
 export enum ConnectMatch {
+  NONE = 0, // 没有匹配
+  ALL = 1, // 遇到 "*" 通配符
+  DOMAIN = 2, // 匹配子域
+  EXACT = 3, // 完全匹配
+}
+
+export enum SelfMatch {
   NONE = 0,
-  ALL = 1,
-  DOMAIN = 2,
-  SELF = 3,
+  EXACT = 1,
+  SUB = 2,
 }
 
 export const getConnectMatched = (
@@ -148,26 +151,39 @@ export const getConnectMatched = (
   reqURL: URL,
   sender: IGetSender
 ): ConnectMatch => {
+  const checkSelfDomainMatching = () => {
+    const senderURL = sender.getSender()?.url;
+    if (senderURL) {
+      let senderURLObject;
+      try {
+        senderURLObject = new URL(senderURL);
+      } catch {
+        // ignore
+      }
+      if (senderURLObject) {
+        if (reqURL.hostname === senderURLObject.hostname) return SelfMatch.EXACT; // 自身
+        if (`.${reqURL.hostname}`.endsWith(`.${senderURLObject.hostname}`)) return SelfMatch.SUB; // 子域
+      }
+    }
+    return SelfMatch.NONE;
+  };
+  const selfCheckRes = checkSelfDomainMatching();
+  if (selfCheckRes === SelfMatch.EXACT) {
+    // TM 行为：只要是同一个网域的Xhr都放行。目前SC未支持finalUrl改变的拒绝
+    return ConnectMatch.EXACT; // 完全匹配
+  }
+  // 不是同一网域时，检查一下 @connect
   if (metadataConnect?.length) {
     for (let i = 0, l = metadataConnect.length; i < l; i += 1) {
       const lowerMetaConnect = metadataConnect[i].toLowerCase();
       if (lowerMetaConnect === "self") {
-        const senderURL = sender.getSender()?.url;
-        if (senderURL) {
-          let senderURLObject;
-          try {
-            senderURLObject = new URL(senderURL);
-          } catch {
-            // ignore
-          }
-          if (senderURLObject) {
-            if (reqURL.hostname === senderURLObject.hostname) return ConnectMatch.SELF;
-          }
-        }
+        // 此处包含子网域
+        if (selfCheckRes === SelfMatch.SUB) return ConnectMatch.DOMAIN; // 匹配其子域
       } else if (lowerMetaConnect === "*") {
+        // 不完全遵照TM。SC 只要有 @connect * 就全放行不询问
         return ConnectMatch.ALL;
       } else if (`.${reqURL.hostname}`.endsWith(`.${lowerMetaConnect}`)) {
-        return ConnectMatch.DOMAIN;
+        return ConnectMatch.DOMAIN; // 完全匹配或其子域
       }
     }
   }
@@ -279,7 +295,7 @@ export default class GMApi {
         url.host = detail.domain || "";
         url.hostname = detail.domain || "";
       }
-      if (getConnectMatched(request.script.metadata.connect, url, sender) === 0) {
+      if (getConnectMatched(request.script.metadata.connect, url, sender) === ConnectMatch.NONE) {
         throw new Error("hostname must be in the definition of connect");
       }
       const metadata: { [key: string]: string } = {};
@@ -395,7 +411,7 @@ export default class GMApi {
     return true;
   }
 
-  @PermissionVerify.API({ link: ["GM_deleteValue"] })
+  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_deleteValues"] })
   async GM_setValue(request: GMApiRequest<[string, string, any?]>, sender: IGetSender) {
     if (!request.params || request.params.length < 2) {
       throw new Error("param is failed");
@@ -684,18 +700,20 @@ export default class GMApi {
         return false;
       }
       const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
-      if (connectMatched === 1) {
-        if (!askConnectStar) {
-          return true;
-        }
+      if (connectMatched === ConnectMatch.ALL) {
+        // SC: 有 @connect * 就不询问
+        return true;
       } else {
+        // 如果 @connect 有匹配到就放行
         if (connectMatched > 0) {
           return true;
         }
-        if (!askUnlistedConnect && request.script.metadata.connect?.find((e) => !!e)) {
+        // @connect 没有匹配，但有列明 @connect 的话，则自动拒绝
+        if (request.script.metadata.connect?.find((e) => !!e)) {
           request.extraCode = xhrExtraCode.DOMAIN_NOT_INCLUDED;
           return false;
         }
+        // 其他情况：要询问用户
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);

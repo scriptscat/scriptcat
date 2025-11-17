@@ -1,4 +1,4 @@
-import type { SCMetadata, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, ScriptRunResource, TScriptInfo } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import { DefinedFlags } from "../service_worker/runtime.consts";
@@ -97,35 +97,63 @@ export function compileInjectScriptByFlag(
 }
 
 /**
+ * 脚本加载信息。（Inject/Content环境用，避免过多不必要信息公开，减少页面加载信息存储量）
+ */
+export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
+  // --- 处理 resource ---
+  // 由于不需要 complie code, resource 只用在 GM_getResourceURL 和 GM_getResourceText
+  const resource = {} as Record<string, { base64?: string; content: string; contentType: string }>;
+  if (script.resource) {
+    for (const [url, { base64, content, contentType }] of Object.entries(script.resource || {})) {
+      resource[url] = { base64, content, contentType };
+    }
+  }
+  // --- 处理 resource ---
+  // --- 处理 scriptInfo ---
+  const scriptInfo = { ...script, resource, code: "" } as TScriptInfo;
+  // 删除其他不需要注入的 script 信息
+  delete scriptInfo.originalMetadata;
+  delete scriptInfo.selfMetadata;
+  delete scriptInfo.lastruntime;
+  delete scriptInfo.nextruntime;
+  delete scriptInfo.ignoreVersion; // UserScript 里面不需要知道用户有没有在更新时忽略
+  delete scriptInfo.sort; // UserScript 里面不需要知道用户如何 sort
+  delete scriptInfo.error;
+  delete scriptInfo.subscribeUrl; // UserScript 里面不需要知道用户从何处订阅
+  delete scriptInfo.originDomain; // 脚本来源域名
+  delete scriptInfo.origin; // 脚本来源
+  delete scriptInfo.runStatus; // 前台脚本不用
+  delete scriptInfo.type; // 脚本类型总是普通脚本
+  delete scriptInfo.status; // 脚本状态总是启用
+  // --- 处理 scriptInfo ---
+  return scriptInfo;
+};
+
+/**
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
-  messageFlags: MessageFlags,
+  messageFlag: string,
   script: ScriptLoadInfo,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const isContent = isInjectIntoContent(script.metadata);
-  const messageFlag = messageFlags.messageFlag;
-  const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
-  const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
-  const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
-  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
-  return `window['${script.flag}'] = {
-  scriptInfo: ${JSON.stringify(script)},
-  func: function(){${autoDeleteMountCode}${scriptCode}}
-};
-(() => {
-  const f = () => {
-    const event = new CustomEvent('${scriptLoadCompleteEvtName}', 
-    { cancelable: true, detail: { scriptFlag: '${script.flag}' } });
-    return window.dispatchEvent(event);
-  };
-  const noCheckEarlyStartScript = f();
-  if (noCheckEarlyStartScript) {
-    window.addEventListener('${envLoadCompleteEvtName}', f, { once: true });
-  }
-})();
+  const eventNamePrefix = `evt${messageFlag}${
+    isInjectIntoContent(script.metadata) ? DefinedFlags.contentFlag : DefinedFlags.injectFlag
+  }`;
+  const flag = `${script.flag}`;
+  const scriptInfo = trimScriptInfo(script);
+  const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
+  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
+  const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+  const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
+  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
+{
+  let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
+  f = () => window.dispatchEvent(new CustomEvent('${evScriptLoad}', o)),
+  needWait = f();
+  if (needWait) window.addEventListener('${evEnvLoad}', f, { once: true });
+}
 `;
 }
 

@@ -472,7 +472,7 @@
   "display_right_click_menu_desc": "crwdns8918:0crwdne8918:0",
   "expand_count": "crwdns8896:0crwdne8896:0",
   "auto_collapse_when_exceeds": "crwdns8898:0crwdne8898:0",
-  "check_frequency": "crwdns8900:0crwdne8900:0",
+  "script_update_check_frequency": "crwdns8900:0crwdne8900:0",
   "script_auto_update_frequency": "crwdns8902:0crwdne8902:0",
   "update_options": "crwdns8904:0crwdne8904:0",
   "control_script_update_behavior": "crwdns8906:0crwdne8906:0",

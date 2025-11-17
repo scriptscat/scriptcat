@@ -472,7 +472,7 @@
   "display_right_click_menu_desc": "在瀏覽器右鍵選單中顯示腳本選單",
   "expand_count": "展開數量",
   "auto_collapse_when_exceeds": "超過此數量時自動摺疊",
-  "check_frequency": "檢查頻率",
+  "script_update_check_frequency": "腳本更新檢查頻率",
   "script_auto_update_frequency": "腳本自動檢查更新的頻率",
   "update_options": "更新選項",
   "control_script_update_behavior": "控制腳本更新的行為",

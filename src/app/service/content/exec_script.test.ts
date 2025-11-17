@@ -158,7 +158,7 @@ describe.concurrent("sandbox", () => {
   });
 });
 
-describe.concurrent("this", () => {
+describe("this", () => {
   it("onload", async () => {
     // null确认
     global.onload = null;
@@ -234,7 +234,7 @@ describe("沙盒环境测试", async () => {
 
   const _global = <any>global;
 
-  scriptRes2.code = `return [this, window];`;
+  scriptRes2.code = `return [window, this];`;
   sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
   const [_win, _this] = await sandboxExec.exec();
   expect(_win).toEqual(expect.any(Object));
@@ -272,8 +272,8 @@ describe("沙盒环境测试", async () => {
     expect(_global["test_md5"]).toEqual(undefined);
   });
 
-  describe.concurrent("set window.onload null", () => {
-    it.concurrent("初始状态确认", () => {
+  describe("set window.onload null", () => {
+    it("初始状态确认", () => {
       // null确认
       _this["onload"] = null;
       _global["onload"] = null;
@@ -281,8 +281,8 @@ describe("沙盒环境测试", async () => {
       expect(_global["onload"]).toBeNull();
     });
 
-    describe.concurrent("沙盒环境 onload 设置", () => {
-      it.concurrent("设置 _this.onload 不影响 global.onload", () => {
+    describe("沙盒环境 onload 设置", () => {
+      it("设置 _this.onload 不影响 global.onload", () => {
         const mockFn = vi.fn();
         _this["onload"] = function thisOnLoad() {
           mockFn();
@@ -291,15 +291,16 @@ describe("沙盒环境测试", async () => {
         expect(_global["onload"]).toBeNull();
       });
 
-      it.concurrent("验证 onload 事件调用", () => {
-        const mockFn = vi.fn();
-        _this["onload"] = function thisOnLoad() {
-          mockFn();
-        };
-        // 验证调用
-        global.dispatchEvent(new Event("load"));
-        expect(mockFn).toHaveBeenCalledTimes(1);
-      });
+      // 在模拟环境无法测试：在模拟环境模拟 dispatchEvent 呼叫 this.onload 没有意义
+      // it("验证 onload 事件调用", () => {
+      //   const mockFn = vi.fn();
+      //   _this["onload"] = function thisOnLoad() {
+      //     mockFn();
+      //   };
+      //   // 验证调用
+      //   global.dispatchEvent(new Event("load"));
+      //   expect(mockFn).toHaveBeenCalledTimes(1);
+      // });
 
       // 在模拟环境无法测试：在实际操作中和TM一致
       // 在非拦截式沙盒裡删除 沙盒onload 后，会取得页面的真onload
@@ -438,6 +439,33 @@ describe("沙盒环境测试", async () => {
     _this.test1 = "ok";
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(true);
     expect(Object.prototype.hasOwnProperty.call(_this, "test")).toEqual(false);
+  });
+
+  // https://github.com/scriptscat/scriptcat/issues/962
+  // window.constructor === Window
+  // window instanceof Window === false
+  it.concurrent("TM Sandbox Window", () => {
+    const window = global;
+    //@ts-ignore
+    expect(_win.PERSISTENT === window.PERSISTENT).toEqual(true);
+    //@ts-ignore
+    expect(_win.TEMPORARY === window.TEMPORARY).toEqual(true);
+    //@ts-ignore
+    expect(_win.constructor === window.constructor).toEqual(true);
+    //@ts-ignore
+    expect(_win.__proto__ === window.__proto__).toEqual(true);
+    //@ts-ignore
+    expect(typeof window.constructor === "function").toEqual(true);
+    //@ts-ignore
+    expect(typeof _win.constructor === "function").toEqual(true);
+    //@ts-ignore
+    expect(window instanceof window.constructor === true).toEqual(true);
+    //@ts-ignore
+    expect(_win instanceof window.constructor === false).toEqual(true);
+    //@ts-ignore
+    expect(_win.addEventListener !== window.addEventListener).toEqual(true);
+    //@ts-ignore
+    expect(Object.getPrototypeOf(_win) === null).toEqual(true);
   });
 
   it.concurrent("特殊关键字不能穿透沙盒", async () => {

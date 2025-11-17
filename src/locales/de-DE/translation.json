@@ -472,7 +472,7 @@
   "display_right_click_menu_desc": "Skriptmenü im Rechtsklickmenü des Browsers anzeigen",
   "expand_count": "Erweiterte Anzahl",
   "auto_collapse_when_exceeds": "Automatisch einklappen, wenn diese Anzahl überschritten wird",
-  "check_frequency": "Prüffrequenz",
+  "script_update_check_frequency": "Häufigkeit der Skript-Aktualisierungsprüfung",
   "script_auto_update_frequency": "Frequenz der automatischen Skript-Update-Prüfung",
   "update_options": "Update-Optionen",
   "control_script_update_behavior": "Skript-Update-Verhalten kontrollieren",

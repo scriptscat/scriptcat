@@ -8,17 +8,17 @@ import { RuntimeService } from "./runtime";
 import { type ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { PopupService } from "./popup";
 import { SystemConfig } from "@App/pkg/config/config";
-import { systemConfig } from "@App/pages/store/global";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
-import { localePath, t } from "@App/locales/locales";
+import { initLocales, localePath, t } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FaviconDAO } from "@App/app/repo/favicon";
+import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -51,6 +51,8 @@ export default class ServiceWorkerManager {
     const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
+
+    initLocales(systemConfig);
 
     let pendingOpen = 0;
     let targetSites: string[] = [];
@@ -99,10 +101,26 @@ export default class ServiceWorkerManager {
     system.init();
 
     const regularScriptUpdateCheck = async () => {
-      const res = await script.checkScriptUpdate({ checkType: "system" });
+      const res = await onRegularUpdateCheckAlarm(systemConfig, script, subscribe);
       if (!res?.ok) return;
       targetSites = res.targetSites;
       pendingOpen = res.checktime;
+    };
+
+    const regularExtensionUpdateCheck = () => {
+      fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
+        .then((resp) => resp.json())
+        .then((resp: { data: { [key: string]: any; notice: string; version: string } }) => {
+          const data = resp.data;
+          systemConfig
+            .getCheckUpdate()
+            .then((items) => {
+              const isRead = items.notice !== data.notice ? false : items.isRead;
+              systemConfig.setCheckUpdate({ ...data, isRead: isRead });
+            })
+            .catch((e) => console.error("regularExtensionUpdateCheck: Check Error", e));
+        })
+        .catch((e) => console.error("regularExtensionUpdateCheck: Network Error", e));
     };
 
     this.mq.subscribe<any>("msgUpdatePageOpened", () => {
@@ -128,12 +146,9 @@ export default class ServiceWorkerManager {
             });
           });
           break;
-        case "checkSubscribeUpdate":
-          subscribe.checkSubscribeUpdate();
-          break;
         case "checkUpdate":
           // 检查扩展更新
-          this.checkUpdate();
+          regularExtensionUpdateCheck();
           break;
       }
     });
@@ -275,21 +290,5 @@ export default class ServiceWorkerManager {
       }
       onTabRemoved(tabId);
     });
-  }
-
-  checkUpdate() {
-    fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
-      .then((resp) => resp.json())
-      .then((resp: { data: { notice: string; version: string } }) => {
-        systemConfig
-          .getCheckUpdate()
-          .then((items) => {
-            const isRead = items.notice !== resp.data.notice ? false : items.isRead;
-            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: isRead }));
-          })
-          .catch((e) => {
-            console.error(e);
-          });
-      });
   }
 }
