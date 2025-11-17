@@ -42,8 +42,7 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
 
 export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(resource.name)}.user.js`)}`;
-  const requireCode = resource.require.map((r) => r.content).join("\n;");
-  const preCode = requireCode; // 不需要 async 封装
+  const preCode = resource.require.map((r) => r.content).join("\n;");
   const code = [resource.code, sourceURL].join("\n"); // 需要 async 封装, 可top-level await
   // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
   // this = context: globalThis
