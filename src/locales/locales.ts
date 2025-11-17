@@ -77,7 +77,7 @@ export function initLocales(systemConfig: SystemConfig) {
     changeLanguageCallback(lng);
   });
 
-  systemConfig.watch("language", changeLanguageCallback);
+  systemConfig.addListener("language", changeLanguageCallback);
 }
 
 export function watchLanguageChange(callback: (lng: string) => void) {

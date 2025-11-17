@@ -243,7 +243,7 @@ export class ScriptService {
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
     ];
-    watchLanguageChange((lng) => {
+    watchLanguageChange(() => {
       const rules = conditions.map((condition, idx) => {
         Object.assign(condition, {
           excludedTabIds: [chrome.tabs.TAB_ID_NONE],
