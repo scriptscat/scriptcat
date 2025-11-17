@@ -1,9 +1,9 @@
 import { ExtVersion } from "@App/app/const";
 import type { GMInfoEnv } from "../types";
-import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
+import type { TScriptInfo } from "@App/app/repo/scripts";
 
 // 获取脚本信息和管理器信息
-export function evaluateGMInfo(envInfo: GMInfoEnv, script: ScriptLoadInfo) {
+export function evaluateGMInfo(envInfo: GMInfoEnv, script: TScriptInfo) {
   const options = {
     description: script.metadata.description?.[0] || null,
     matches: script.metadata.match || [],
@@ -21,7 +21,7 @@ export function evaluateGMInfo(envInfo: GMInfoEnv, script: ScriptLoadInfo) {
     isIncognito: envInfo.isIncognito,
     // relaxedCsp
     sandboxMode: envInfo.sandboxMode,
-    scriptWillUpdate: true,
+    scriptWillUpdate: !!script.checkUpdate,
     scriptHandler: "ScriptCat",
     userAgentData: envInfo.userAgentData,
     // "" => null
@@ -29,7 +29,6 @@ export function evaluateGMInfo(envInfo: GMInfoEnv, script: ScriptLoadInfo) {
     scriptMetaStr: script.metadataStr,
     userConfig: script.userConfig,
     userConfigStr: script.userConfigStr,
-    // scriptSource: script.sourceCode,
     version: ExtVersion,
     script: {
       // TODO: 更多完整的信息(为了兼容Tampermonkey,后续待定)

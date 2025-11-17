@@ -191,7 +191,6 @@
   "yes": "Yes",
   "no": "No",
   "confirm_delete_permission": "Confirm deletion of this authorization?",
-  "script_setting": "Script Setting",
   "basic_info": "Basic Information",
   "update_url": "Update URL",
   "permission_management": "Permission Management",
@@ -473,7 +472,7 @@
   "display_right_click_menu_desc": "Show script menu in browser right-click menu",
   "expand_count": "Expand Count",
   "auto_collapse_when_exceeds": "Auto collapse when exceeds this number",
-  "check_frequency": "Check Frequency",
+  "script_update_check_frequency": "Script Update Check Frequency",
   "script_auto_update_frequency": "Script automatic update check frequency",
   "update_options": "Update Options",
   "control_script_update_behavior": "Control script update behavior",
@@ -489,10 +488,16 @@
   "enter_search_value": "Enter {{search}} to search",
   "script_run_env": {
     "title": "Operating environment",
-    "default": "default",
     "all": "All",
     "normal-tabs": "Normal tags",
     "incognito-tabs": "Incognito tags"
+  },
+  "script_run_at": {
+    "title": "Run Timing"
+  },
+  "script_setting": {
+    "title": "Script Setting",
+    "default": "default"
   },
   "editor_config": "Editor Configuration",
   "editor_config_description": "You can refer to the compilerOptions in <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> for configuration",
@@ -532,6 +537,7 @@
   "error_old_script_code_missing": "Previous script code not found",
   "error_subscribe_name_required": "Subscription name is required",
   "error_grant_conflict": "@grant declares both 'none' and GM API",
+  "error_metadata_line_duplicated": "There are duplicate declarations in the metadata.",
   "notification": {
     "script_sync_delete": "Script Sync Delete",
     "script_sync_delete_desc": "Script {{scriptName}} has been deleted",

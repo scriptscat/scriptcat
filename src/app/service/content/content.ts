@@ -2,29 +2,27 @@ import { Client, sendMessage } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import type { GMInfoEnv } from "./types";
-import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ScriptExecutor } from "./script_executor";
-import { isInjectIntoContent } from "./utils";
 import { RuntimeClient } from "../service_worker/client";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 // content页的处理
 export default class ContentRuntime {
   // 运行在content页面的脚本
-  contentScript: Map<string, ScriptLoadInfo> = new Map();
+  private readonly contentScriptSet: Set<string> = new Set();
 
   constructor(
     // 监听来自service_worker的消息
-    private extServer: Server,
+    private readonly extServer: Server,
     // 监听来自inject的消息
-    private server: Server,
+    private readonly server: Server,
     // 发送给扩展service_worker的通信接口
-    private senderToExt: MessageSend,
+    private readonly senderToExt: MessageSend,
     // 发送给inject的消息接口
-    private senderToInject: CustomEventMessage,
+    private readonly senderToInject: CustomEventMessage,
     // 脚本执行器消息接口
-    private scriptExecutorMsg: CustomEventMessage,
-    private scriptExecutor: ScriptExecutor
+    private readonly scriptExecutorMsg: CustomEventMessage,
+    private readonly scriptExecutor: ScriptExecutor
   ) {}
 
   init() {
@@ -49,10 +47,7 @@ export default class ContentRuntime {
         switch (data.api) {
           case "CAT_createBlobUrl": {
             const file = data.params[0] as File;
-            const url = URL.createObjectURL(file);
-            setTimeout(() => {
-              URL.revokeObjectURL(url);
-            }, 60 * 1000);
+            const url = makeBlobURL({ blob: file, persistence: false }) as string;
             return url;
           }
           case "CAT_fetchBlob": {
@@ -76,7 +71,7 @@ export default class ContentRuntime {
             let parentNode: EventTarget | undefined;
             // 判断是不是content脚本发过来的
             let msg: CustomEventMessage;
-            if (this.contentScript.has(data.uuid) || this.scriptExecutor.execMap.has(data.uuid)) {
+            if (this.contentScriptSet.has(data.uuid) || this.scriptExecutor.execMap.has(data.uuid)) {
               msg = this.scriptExecutorMsg;
             } else {
               msg = this.senderToInject;
@@ -126,38 +121,25 @@ export default class ContentRuntime {
     );
   }
 
-  pageLoad(messageFlags: MessageFlags) {
-    this.scriptExecutor.checkEarlyStartScript("content", messageFlags);
-
+  pageLoad(messageFlag: string) {
+    this.scriptExecutor.checkEarlyStartScript("content", messageFlag);
     const client = new RuntimeClient(this.senderToExt);
-    // 向service_worker请求脚本列表
-    client.pageLoad().then((data) => {
-      this.start(data.scripts, data.envInfo);
-    });
-  }
-
-  start(scripts: ScriptLoadInfo[], envInfo: GMInfoEnv) {
-    // 启动脚本
-    const client = new Client(this.senderToInject, "inject");
-    // 根据@inject-into content过滤脚本
-    const injectScript: ScriptLoadInfo[] = [];
-    const contentScript: ScriptLoadInfo[] = [];
-    for (const script of scripts) {
-      if (isInjectIntoContent(script.metadata)) {
-        contentScript.push(script);
-        continue;
+    // 向service_worker请求脚本列表及环境信息
+    client.pageLoad().then((o) => {
+      if (!o.ok) return;
+      const { injectScriptList, contentScriptList, envInfo } = o;
+      // 启动脚本：向 inject页面 发送脚本列表及环境信息
+      const client = new Client(this.senderToInject, "inject");
+      // 根据@inject-into content过滤脚本
+      client.do("pageLoad", { injectScriptList, envInfo });
+      // 处理注入到content环境的脚本
+      for (const script of contentScriptList) {
+        this.contentScriptSet.add(script.uuid);
       }
-      injectScript.push(script);
-    }
-    client.do("pageLoad", { scripts: injectScript, envInfo });
-
-    // 处理注入到content环境的脚本
-    for (const script of contentScript) {
-      this.contentScript.set(script.uuid, script);
-    }
-    // 监听事件
-    this.scriptExecutor.init(envInfo);
-    // 启动脚本
-    this.scriptExecutor.start(contentScript);
+      // 监听事件
+      this.scriptExecutor.setEnvInfo(envInfo);
+      // 启动脚本
+      this.scriptExecutor.startScripts(contentScriptList);
+    });
   }
 }

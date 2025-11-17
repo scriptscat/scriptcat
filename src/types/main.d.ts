@@ -4,6 +4,8 @@ declare module "*.json";
 declare module "*.yaml";
 declare module "@App/app/types.d.ts";
 
+type Override<T, U> = Omit<T, keyof U> & U;
+
 declare const sandbox: Window;
 
 declare const self: ServiceWorkerGlobalScope;
@@ -25,20 +27,7 @@ interface FileSystemObserverInstance {
   observe(handle: FileSystemFileHandle | FileSystemDirectoryHandle | FileSystemSyncAccessHandle): Promise<void>;
 }
 
-interface MessageFlags {
-  // inject 环境flag
-  injectFlag: string;
-  // content 环境flag
-  contentFlag: string;
-  // 通信flag
-  messageFlag: string;
-  // 脚本加载完成事件
-  scriptLoadComplete: string;
-  // 环境加载完成事件
-  envLoadComplete: string;
-}
-
-declare const MessageFlags: MessageFlags;
+declare const MessageFlag: string;
 
 // 可以让content与inject环境交换携带dom的对象
 declare let cloneInto: ((detail: any, view: any) => any) | undefined;

@@ -19,6 +19,16 @@ describe.concurrent("isConnectMatched", () => {
     expect(getConnectMatched([], req, makeSender("https://app.example.com"))).toBe(ConnectMatch.NONE);
   });
 
+  it.concurrent("无 connect 时，可以同域匹配成功，但是子/上级域不匹配", () => {
+    const req = new URL("https://service.example.com/data");
+    const sender = makeSender("https://service.example.com/page");
+    expect(getConnectMatched(undefined, req, sender)).toBe(ConnectMatch.EXACT);
+    const subdomainSender = makeSender("https://sub.service.example.com/page");
+    expect(getConnectMatched(undefined, req, subdomainSender)).toBe(ConnectMatch.NONE);
+    const topdomainSender = makeSender("https://example.com/page");
+    expect(getConnectMatched(undefined, req, topdomainSender)).toBe(ConnectMatch.NONE);
+  });
+
   it.concurrent('遇到 "*" 应回传 true', () => {
     const req = new URL("https://anything.example.com/path");
     expect(getConnectMatched(["*"], req, makeSender())).toBe(ConnectMatch.ALL);
@@ -41,7 +51,11 @@ describe.concurrent("isConnectMatched", () => {
   it.concurrent('metadata 包含 "self" 且 sender.url 与 reqURL 主机相同时回传 true', () => {
     const req = new URL("https://app.example.com/dashboard");
     const sender = makeSender("https://app.example.com/some-page");
-    expect(getConnectMatched(["self"], req, sender)).toBe(ConnectMatch.SELF);
+    expect(getConnectMatched(["self"], req, sender)).toBe(ConnectMatch.EXACT);
+
+    const req2 = new URL("https://app.example.com/dashboard");
+    const sender2 = makeSender("https://example.com/some-page");
+    expect(getConnectMatched(["self"], req2, sender2)).toBe(ConnectMatch.DOMAIN);
   });
 
   it.concurrent('metadata 包含 "self" 但 sender.url 与 reqURL 主机不同时回传 false（若无其他规则命中）', () => {

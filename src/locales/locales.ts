@@ -32,10 +32,7 @@ export function changeLanguage(lng: string, callback?: Callback): void {
   dayjs.locale(lng.toLocaleLowerCase());
 }
 
-// let cachedSystemConfig: SystemConfig;
-
 export function initLocales(systemConfig: SystemConfig) {
-  // cachedSystemConfig = systemConfig;
   const uiLanguage = chrome.i18n.getUILanguage();
   const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
   i18n.use(initReactI18next).init({
@@ -56,10 +53,23 @@ export function initLocales(systemConfig: SystemConfig) {
     },
   });
 
+  // 先根据默认语言设置路径
+  if (!defaultLanguage.startsWith("zh-")) {
+    localePath = "/en";
+  }
+
   systemConfig.getLanguage().then((lng) => {
     changeLanguage(lng);
     if (!lng.startsWith("zh-")) {
       localePath = "/en";
+    }
+  });
+  systemConfig.addListener("language", (lng) => {
+    changeLanguage(lng);
+    if (!lng.startsWith("zh-")) {
+      localePath = "/en";
+    } else {
+      localePath = "";
     }
   });
 }

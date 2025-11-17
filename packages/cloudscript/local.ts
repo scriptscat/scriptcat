@@ -1,7 +1,7 @@
 import { ExtVersion } from "@App/app/const";
 import type { Script } from "@App/app/repo/scripts";
 import type { Value } from "@App/app/repo/value";
-import type JSZip from "jszip";
+import { type JSZipFile } from "@App/pkg/utils/jszip-x";
 import packageTpl from "@App/template/cloudcat-package/package.tpl";
 import utilsTpl from "@App/template/cloudcat-package/utils.tpl";
 import indexTpl from "@App/template/cloudcat-package/index.tpl";
@@ -10,12 +10,12 @@ import type CloudScript from "./cloudscript";
 
 // 导出到本地,一个可执行到npm包
 export default class LocalCloudScript implements CloudScript {
-  zip: JSZip;
+  zip: JSZipFile;
 
   params: ExportParams;
 
   constructor(params: ExportParams) {
-    this.zip = params.zip! as JSZip;
+    this.zip = params.zip! as JSZipFile;
     this.params = params;
   }
 
