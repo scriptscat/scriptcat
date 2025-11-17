@@ -13,7 +13,7 @@ import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
-import type { ValueUpdateDataEncoded } from "../content/types";
+import type { ValueUpdateSendData } from "../content/types";
 import { getStorageName, getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
@@ -323,20 +323,25 @@ export class Runtime {
     return this.execScript(loadScript, true);
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    const dataEntries = data.entries;
-    // 转发给脚本
-    this.execScripts.forEach((val) => {
-      if (val.scriptRes.uuid === data.uuid || getStorageName(val.scriptRes) === data.storageName) {
-        val.valueUpdate(data);
-      }
-    });
-    // 更新crontabScripts中的脚本值
-    for (const script of this.crontabSripts) {
-      if (script.uuid === data.uuid || getStorageName(script) === data.storageName) {
-        for (const [key, rTyped1, _rTyped2] of dataEntries) {
-          const value = decodeRValue(rTyped1);
-          script.value[key] = value;
+  valueUpdate(sendData: ValueUpdateSendData) {
+    const storageName = sendData.storageName;
+    for (const [uuid, list] of Object.entries(sendData.data)) {
+      // 转发给脚本
+      this.execScripts.forEach((val) => {
+        if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
+          val.valueUpdate(storageName, uuid, list);
+        }
+      });
+      for (const data of list) {
+        const dataEntries = data.entries;
+        // 更新crontabScripts中的脚本值
+        for (const script of this.crontabSripts) {
+          if (script.uuid === uuid || getStorageName(script) === storageName) {
+            for (const [key, rTyped1, _rTyped2] of dataEntries) {
+              const value = decodeRValue(rTyped1);
+              script.value[key] = value;
+            }
+          }
         }
       }
     }
