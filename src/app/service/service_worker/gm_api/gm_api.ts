@@ -44,9 +44,6 @@ import {
 import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 
-const askUnlistedConnect = false;
-const askConnectStar = true; // 如果只有 "*", 而脚本要求连接自己以外的网域，则需要询问
-
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
 // 用来生成绝不重复的 MarkerID
@@ -155,42 +152,41 @@ export const getConnectMatched = (
   reqURL: URL,
   sender: IGetSender
 ): ConnectMatch => {
-  if (metadataConnect?.length) {
-    const checkSelfDomainMatching = () => {
-      const senderURL = sender.getSender()?.url;
-      if (senderURL) {
-        let senderURLObject;
-        try {
-          senderURLObject = new URL(senderURL);
-        } catch {
-          // ignore
-        }
-        if (senderURLObject) {
-          if (reqURL.hostname === senderURLObject.hostname) return SelfMatch.EXACT; // 自身
-          if (`.${reqURL.hostname}`.endsWith(`.${senderURLObject.hostname}`)) return SelfMatch.SUB; // 子域
-        }
+  const checkSelfDomainMatching = () => {
+    const senderURL = sender.getSender()?.url;
+    if (senderURL) {
+      let senderURLObject;
+      try {
+        senderURLObject = new URL(senderURL);
+      } catch {
+        // ignore
       }
-      return SelfMatch.NONE;
-    };
-    let withWildCard = false;
+      if (senderURLObject) {
+        if (reqURL.hostname === senderURLObject.hostname) return SelfMatch.EXACT; // 自身
+        if (`.${reqURL.hostname}`.endsWith(`.${senderURLObject.hostname}`)) return SelfMatch.SUB; // 子域
+      }
+    }
+    return SelfMatch.NONE;
+  };
+  const selfCheckRes = checkSelfDomainMatching();
+  if (selfCheckRes === SelfMatch.EXACT) {
+    // TM 行为：只要是同一个网域的Xhr都放行。目前SC未支持finalUrl改变的拒绝
+    return ConnectMatch.EXACT; // 完全匹配
+  }
+  // 不是同一网域时，检查一下 @connect
+  if (metadataConnect?.length) {
     for (let i = 0, l = metadataConnect.length; i < l; i += 1) {
       const lowerMetaConnect = metadataConnect[i].toLowerCase();
       if (lowerMetaConnect === "self") {
-        switch (checkSelfDomainMatching()) {
-          case SelfMatch.EXACT:
-            return ConnectMatch.EXACT; // 完全匹配
-          case SelfMatch.SUB:
-            return ConnectMatch.DOMAIN; // 完全匹配或其子域
-        }
+        // 此处包含子网域
+        if (selfCheckRes === SelfMatch.SUB) return ConnectMatch.DOMAIN; // 匹配其子域
       } else if (lowerMetaConnect === "*") {
-        if (checkSelfDomainMatching() === SelfMatch.EXACT) return ConnectMatch.EXACT; // 完全匹配
-        withWildCard = true; // 检查其他 @connect
+        // 不完全遵照TM。SC 只要有 @connect * 就全放行不询问
+        return ConnectMatch.ALL;
       } else if (`.${reqURL.hostname}`.endsWith(`.${lowerMetaConnect}`)) {
         return ConnectMatch.DOMAIN; // 完全匹配或其子域
       }
     }
-    // 有 * 但不是自身网域 又不是列明网域 则询问
-    if (withWildCard) return ConnectMatch.ALL;
   }
   return ConnectMatch.NONE;
 };
@@ -703,17 +699,19 @@ export default class GMApi {
       }
       const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
       if (connectMatched === ConnectMatch.ALL) {
-        if (!askConnectStar) {
-          return true;
-        }
+        // SC: 有 @connect * 就不询问
+        return true;
       } else {
+        // 如果 @connect 有匹配到就放行
         if (connectMatched > 0) {
           return true;
         }
-        if (!askUnlistedConnect && request.script.metadata.connect?.find((e) => !!e)) {
+        // @connect 没有匹配，但有列明 @connect 的话，则自动拒绝
+        if (request.script.metadata.connect?.find((e) => !!e)) {
           request.extraCode = xhrExtraCode.DOMAIN_NOT_INCLUDED;
           return false;
         }
+        // 其他情况：要询问用户
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
