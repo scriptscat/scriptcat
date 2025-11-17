@@ -10,7 +10,7 @@
     "test": "vitest --test-timeout=500 --no-coverage --isolate=false --reporter=verbose",
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && cross-env NODE_ENV=production rspack build",
+    "build": "cross-env NODE_ENV=production rspack build",
     "dev": "cross-env NODE_ENV=development rspack",
     "dev:noMap": "cross-env NODE_ENV=development NO_MAP=true rspack",
     "pack": "node ./scripts/pack.js",
