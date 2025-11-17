@@ -25,6 +25,7 @@ export function parseUserConfig(code: string): UserConfig | undefined {
         throw new Error(`UserConfig group "${groupKey}" is not a valid object.`);
       }
 
+      //@ts-ignore
       ret[groupKey] = groupValue;
 
       if (groupKey === "#options") {

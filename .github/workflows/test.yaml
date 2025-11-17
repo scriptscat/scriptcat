@@ -27,7 +27,9 @@ jobs:
         run: pnpm i --frozen-lockfile
 
       - name: Lint
-        run: pnpm run lint
+        run: |
+          pnpm run typecheck
+          pnpm run lint
 
       - name: Unit Test
         run: |
