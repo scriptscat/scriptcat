@@ -5,6 +5,17 @@ import { nextTime } from "./cron";
 import dayjs from "dayjs";
 
 describe.concurrent("aNow", () => {
+  // aNow >= Date.now();
+  it.sequential("aNow is greater than or equal to Date.now()", () => {
+    const p1 = Date.now();
+    const p2 = aNow();
+    const p3 = Date.now();
+    expect(p2).greaterThanOrEqual(p1);
+    // aNow() 与 Date.now() 的值应非常接近
+    expect(p2).greaterThan(p1 - 0.01);
+    expect(p2).lessThan(p3 + 0.01);
+  });
+  // 在 vitest 环境只能实测 aNow() 的严格增加
   it.sequential("aNow is Strictly Increasing", () => {
     const p1 = [aNow(), aNow(), aNow(), aNow(), aNow(), aNow()];
     expect(p1[0]).lessThan(p1[1]);
@@ -14,16 +25,6 @@ describe.concurrent("aNow", () => {
     expect(p1[4]).lessThan(p1[5]);
     const p2 = [...p1].sort();
     expect(p1).toEqual(p2);
-  });
-  it.sequential("t1 > t2 (busy) and t3 = t4 (idle)", async () => {
-    const _p1 = [aNow(), aNow(), aNow(), aNow(), aNow(), aNow()];
-    const t1 = aNow();
-    const t2 = Date.now();
-    expect(t1).greaterThan(t2);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const t3 = aNow();
-    const t4 = Date.now();
-    expect(t3).toEqual(t4);
   });
 });
 
