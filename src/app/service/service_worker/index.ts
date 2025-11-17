@@ -14,7 +14,7 @@ import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
-import { localePath, t } from "@App/locales/locales";
+import { initLocales, localePath, t } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
@@ -48,6 +48,8 @@ export default class ServiceWorkerManager {
     const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
+
+    initLocales(systemConfig);
 
     let pendingOpen = 0;
     let targetSites: string[] = [];
