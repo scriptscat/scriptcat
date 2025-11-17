@@ -59,6 +59,40 @@ function App() {
   const { t } = useTranslation();
   const pageTabIdRef = useRef(0);
 
+  // 只随 script 数量和启动状态而改变的state
+  const normalEnables = useMemo(() => {
+    // 返回字串让 React 比对 state 有否改动
+    return scriptList.map((script) => (script.enable ? 1 : 0)).join(",");
+  }, [scriptList]);
+
+  // 只随 script 数量和启动状态而改变的state
+  const backEnables = useMemo(() => {
+    // 返回字串让 React 比对 state 有否改动
+    return backScriptList.map((script) => (script.enable ? 1 : 0)).join(",");
+  }, [backScriptList]);
+
+  const normalScriptCounts = useMemo(() => {
+    // 拆回array
+    const enables = normalEnables.split(",");
+    // 计算已开启了的数量
+    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
+    return {
+      running,
+      total: enables.length, // 总数
+    };
+  }, [normalEnables]);
+
+  const backScriptCounts = useMemo(() => {
+    // 拆回array
+    const enables = backEnables.split(",");
+    // 计算已开启了的数量
+    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
+    return {
+      running,
+      total: enables.length, // 总数
+    };
+  }, [backEnables]);
+
   const urlHost = useMemo(() => {
     let url: URL | undefined;
     try {
@@ -443,7 +477,7 @@ function App() {
           style={{ maxWidth: 640, maxHeight: 500, overflow: "auto" }}
         >
           <CollapseItem
-            header={t("current_page_scripts")}
+            header={`${t("current_page_scripts")} (${normalScriptCounts.running}/${normalScriptCounts.total})`}
             name="script"
             style={{ padding: "0" }}
             contentStyle={{ padding: "0" }}
@@ -457,7 +491,7 @@ function App() {
           </CollapseItem>
 
           <CollapseItem
-            header={t("enabled_background_scripts")}
+            header={`${t("enabled_background_scripts")} (${backScriptCounts.running}/${backScriptCounts.total})`}
             name="background"
             style={{
               padding: "0",
