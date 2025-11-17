@@ -19,6 +19,16 @@ describe.concurrent("isConnectMatched", () => {
     expect(getConnectMatched([], req, makeSender("https://app.example.com"))).toBe(ConnectMatch.NONE);
   });
 
+  it.concurrent("无 connect 时，可以同域匹配成功，但是子/上级域不匹配", () => {
+    const req = new URL("https://service.example.com/data");
+    const sender = makeSender("https://service.example.com/page");
+    expect(getConnectMatched(undefined, req, sender)).toBe(ConnectMatch.EXACT);
+    const subdomainSender = makeSender("https://sub.service.example.com/page");
+    expect(getConnectMatched(undefined, req, subdomainSender)).toBe(ConnectMatch.NONE);
+    const topdomainSender = makeSender("https://example.com/page");
+    expect(getConnectMatched(undefined, req, topdomainSender)).toBe(ConnectMatch.NONE);
+  });
+
   it.concurrent('遇到 "*" 应回传 true', () => {
     const req = new URL("https://anything.example.com/path");
     expect(getConnectMatched(["*"], req, makeSender())).toBe(ConnectMatch.ALL);
