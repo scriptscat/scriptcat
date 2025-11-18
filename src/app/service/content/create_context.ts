@@ -240,6 +240,10 @@ const sharedInitCopy = USE_PSEUDO_WINDOW
       ...overridedDescs,
     });
 
+// 把沙盒的 console 和网页的 console 隔离
+const initConsoleDescs = Object.getOwnPropertyDescriptors(console);
+const ConsolePrototype = Object.getPrototypeOf(console);
+
 type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 
 const isPrimitive = (x: any) => x !== Object(x);
@@ -387,6 +391,9 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     // 目前 TM 只支援 null. ScriptCat不需要grant预设启用？
     mySandbox.onurlchange = null;
   }
+
+  // 从网页 console 隔离出来的沙盒 console
+  mySandbox.console = Object.create(ConsolePrototype, initConsoleDescs);
 
   return mySandbox;
 };
