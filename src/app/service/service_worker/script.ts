@@ -107,7 +107,7 @@ export class ScriptService {
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
         logger.debug("install script");
-        this.openInstallPageByUrl(targetUrl, "user")
+        this.openInstallPageByUrl(targetUrl, { source: "user", byWebRequest: true })
           .catch((e) => {
             logger.error("install script error", Logger.E(e));
             // 不再重定向当前url
@@ -319,9 +319,12 @@ export class ScriptService {
     );
   }
 
-  public async openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
+  public async openInstallPageByUrl(
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean }
+  ): Promise<{ success: boolean; msg: string }> {
     try {
-      const installPageUrl = await this.getInstallPageUrl(url, source);
+      const installPageUrl = await this.getInstallPageUrl(url, options);
       if (!installPageUrl) throw new Error("getInstallPageUrl failed");
       await openInCurrentTab(installPageUrl);
       return { success: true, msg: "" };
@@ -331,10 +334,13 @@ export class ScriptService {
     }
   }
 
-  public async getInstallPageUrl(url: string, source: InstallSource): Promise<string> {
+  public async getInstallPageUrl(
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean }
+  ): Promise<string> {
     const uuid = uuidv4();
     try {
-      await this.openUpdateOrInstallPage(uuid, url, source, false);
+      await this.openUpdateOrInstallPage(uuid, url, options, false);
       return `/src/install.html?uuid=${uuid}`;
     } catch (err: any) {
       console.error(err);
@@ -838,7 +844,14 @@ export class ScriptService {
     return script;
   }
 
-  async openUpdateOrInstallPage(uuid: string, url: string, upsertBy: InstallSource, update: boolean, logger?: Logger) {
+  async openUpdateOrInstallPage(
+    uuid: string,
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean },
+    update: boolean,
+    logger?: Logger
+  ) {
+    const upsertBy = options.source;
     const code = await fetchScriptBody(url);
     if (update && (await this.systemConfig.getSilenceUpdateScript())) {
       try {
@@ -862,7 +875,7 @@ export class ScriptService {
     if (!metadata) {
       throw new Error("parse script info failed");
     }
-    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata)];
+    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata), options];
     await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
     return 1;
   }
@@ -878,7 +891,7 @@ export class ScriptService {
     });
     const url = downloadUrl || checkUpdateUrl!;
     try {
-      const ret = await this.openUpdateOrInstallPage(uuid, url, source, true, logger);
+      const ret = await this.openUpdateOrInstallPage(uuid, url, { source }, true, logger);
       if (ret === 2) return; // slience update
       // 打开安装页面
       openInCurrentTab(`/src/install.html?uuid=${uuid}`);
@@ -1269,7 +1282,7 @@ export class ScriptService {
   }
 
   importByUrl(url: string) {
-    return this.openInstallPageByUrl(url, "user");
+    return this.openInstallPageByUrl(url, { source: "user" });
   }
 
   setCheckUpdateUrl({
