@@ -80,13 +80,13 @@ export class ScriptService {
   listenerScriptInstall() {
     // 初始化脚本安装监听
     chrome.webNavigation.onBeforeNavigate.addListener(
-      (req: chrome.webNavigation.WebNavigationParentedCallbackDetails) => {
+      (req: chrome.webNavigation.WebNavigationBaseCallbackDetails) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           console.error(lastError.message);
         }
         // 处理url, 实现安装脚本
-        let targetUrl: string | null = null;
+        let targetUrl: string;
         // 判断是否为 file:///*/*.user.js
         if (req.url.startsWith("file://") && req.url.endsWith(".user.js")) {
           targetUrl = req.url;
