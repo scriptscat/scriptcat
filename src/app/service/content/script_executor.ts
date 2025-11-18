@@ -1,12 +1,14 @@
 import type { Message } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
+import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyle, definePropertyListener } from "./utils";
+import type { TScriptInfo } from "@App/app/repo/scripts";
+import { DefinedFlags } from "../service_worker/runtime.consts";
 
 export type ExecScriptEntry = {
-  scriptLoadInfo: ScriptLoadInfo;
+  scriptLoadInfo: TScriptInfo;
   scriptFlag: string;
   envInfo: any;
   scriptFunc: any;
@@ -21,7 +23,7 @@ export class ScriptExecutor {
 
   constructor(private msg: Message) {}
 
-  init(envInfo: GMInfoEnv) {
+  setEnvInfo(envInfo: GMInfoEnv) {
     this.envInfo = envInfo;
   }
 
@@ -42,8 +44,8 @@ export class ScriptExecutor {
     }
   }
 
-  start(scripts: ScriptLoadInfo[]) {
-    const loadExec = (script: ScriptLoadInfo, scriptFunc: any) => {
+  startScripts(scripts: TScriptInfo[]) {
+    const loadExec = (script: TScriptInfo, scriptFunc: any) => {
       this.execScriptEntry({
         scriptLoadInfo: script,
         scriptFlag: script.flag,
@@ -70,30 +72,32 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(env: "content" | "inject", messageFlags: MessageFlags) {
-    const eventNamePrefix = env === "content" ? messageFlags.contentFlag : messageFlags.injectFlag;
+  checkEarlyStartScript(env: "content" | "inject", messageFlag: string) {
+    const isContent = env === "content";
+    const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
+    const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+    const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (event) => {
-      if (event instanceof CustomEvent) {
-        if (typeof event.detail.scriptFlag === "string") {
-          event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
-          const scriptFlag = event.detail.scriptFlag;
-          this.execEarlyScript(scriptFlag);
-        }
+    window.addEventListener(scriptLoadCompleteEvtName, (ev) => {
+      const detail = (ev as CustomEvent).detail;
+      const scriptFlag = detail?.scriptFlag;
+      if (typeof scriptFlag === "string") {
+        ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
+        this.execEarlyScript(scriptFlag, detail.scriptInfo);
       }
     });
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
-    const ev = new CustomEvent(eventNamePrefix + messageFlags.envLoadComplete);
+    const ev = new CustomEvent(envLoadCompleteEvtName);
     window.dispatchEvent(ev);
   }
 
-  execEarlyScript(flag: string) {
-    const scriptFunc = (window as any)[flag] as PreScriptFunc;
+  execEarlyScript(flag: string, scriptInfo: TScriptInfo) {
+    const scriptFunc = (window as any)[flag] as ScriptFunc;
     this.execScriptEntry({
-      scriptLoadInfo: scriptFunc.scriptInfo,
-      scriptFunc: scriptFunc.func,
+      scriptLoadInfo: scriptInfo,
+      scriptFunc: scriptFunc,
       scriptFlag: flag,
       envInfo: {},
     });

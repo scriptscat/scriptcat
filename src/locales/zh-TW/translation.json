@@ -191,7 +191,6 @@
   "yes": "是",
   "no": "否",
   "confirm_delete_permission": "確定要刪除此授權嗎？",
-  "script_setting": "腳本設定",
   "basic_info": "基本資訊",
   "update_url": "更新URL",
   "permission_management": "授權管理",
@@ -477,7 +476,7 @@
   "display_right_click_menu_desc": "在瀏覽器右鍵選單中顯示腳本選單",
   "expand_count": "展開數量",
   "auto_collapse_when_exceeds": "超過此數量時自動摺疊",
-  "check_frequency": "檢查頻率",
+  "script_update_check_frequency": "腳本更新檢查頻率",
   "script_auto_update_frequency": "腳本自動檢查更新的頻率",
   "update_options": "更新選項",
   "control_script_update_behavior": "控制腳本更新的行為",
@@ -493,10 +492,16 @@
   "enter_search_value": "請輸入 {{search}} 進行搜尋",
   "script_run_env": {
     "title": "運作環境",
-    "default": "預設",
     "all": "所有標籤",
     "normal-tabs": "普通標籤",
     "incognito-tabs": "隱身標籤"
+  },
+  "script_run_at": {
+    "title": "運行時機"
+  },
+  "script_setting": {
+    "title": "腳本設定",
+    "default": "預設"
   },
   "editor_config": "編輯器設定",
   "editor_config_description": "你可以參考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions進行配置",
@@ -536,6 +541,7 @@
   "error_old_script_code_missing": "舊的腳本程式碼不存在",
   "error_subscribe_name_required": "訂閱名稱不可為空",
   "error_grant_conflict": "@grant 同時宣告了 none 與 GM API",
+  "error_metadata_line_duplicated": "Metadata 裡有重覆的聲明。",
   "notification": {
     "script_sync_delete": "腳本刪除同步",
     "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",

@@ -4,7 +4,7 @@ import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "../types";
 import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
-import { encodeMessage } from "@App/pkg/utils/message_value";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 import { v4 as uuidv4 } from "uuid";
 const nilFn: ScriptFunc = () => {};
 
@@ -484,6 +484,12 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
 
+    const keyValuePairs1 = [
+      ["a", encodeRValue(123)],
+      ["b", encodeRValue(456)],
+      ["c", encodeRValue("789")],
+    ];
+
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
@@ -495,20 +501,18 @@ describe.concurrent("GM_value", () => {
             // event id
             expect.stringMatching(/^.+::\d$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: 123,
-                b: 456,
-                c: "789",
-              }),
-            }),
+            keyValuePairs1,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
         },
       })
     );
+
+    const keyValuePairs2 = [
+      ["a", encodeRValue(undefined)],
+      ["c", encodeRValue(undefined)],
+    ];
 
     // 第二次调用：删除值（设置为 undefined）
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -521,13 +525,7 @@ describe.concurrent("GM_value", () => {
             // event id
             expect.stringMatching(/^.+::\d$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: expect.stringMatching(/^##[\d.]+##undefined$/),
-                c: expect.stringMatching(/^##[\d.]+##undefined$/),
-              }),
-            }),
+            keyValuePairs2,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -561,6 +559,11 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
 
+    const keyValuePairs1 = [
+      ["a", encodeRValue(123)],
+      ["b", encodeRValue(456)],
+      ["c", encodeRValue("789")],
+    ];
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
@@ -572,14 +575,7 @@ describe.concurrent("GM_value", () => {
             // event id
             expect.stringMatching(/^.+::\d$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: 123,
-                b: 456,
-                c: "789",
-              }),
-            }),
+            keyValuePairs1,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -632,6 +628,12 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
 
+    const keyValuePairs1 = [
+      ["a", encodeRValue(123)],
+      ["b", encodeRValue(456)],
+      ["c", encodeRValue("789")],
+    ];
+
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
@@ -643,20 +645,18 @@ describe.concurrent("GM_value", () => {
             // event id
             expect.stringMatching(/^.+::\d$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: 123,
-                b: 456,
-                c: "789",
-              }),
-            }),
+            keyValuePairs1,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
         },
       })
     );
+
+    const keyValuePairs2 = [
+      ["a", encodeRValue(undefined)],
+      ["c", encodeRValue(undefined)],
+    ];
 
     // 第二次调用：删除值（设置为 undefined）
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -669,13 +669,7 @@ describe.concurrent("GM_value", () => {
             // event id
             expect.stringMatching(/^.+::\d$/),
             // the string payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: expect.stringMatching(/^##[\d.]+##undefined$/),
-                c: expect.stringMatching(/^##[\d.]+##undefined$/),
-              }),
-            }),
+            keyValuePairs2,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -710,7 +704,7 @@ describe.concurrent("GM_value", () => {
     // 模拟值变化
     exec.valueUpdate({
       id: "id-1",
-      entries: encodeMessage([["param1", 123, undefined]]),
+      entries: [["param1", encodeRValue(123), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
@@ -745,7 +739,7 @@ describe.concurrent("GM_value", () => {
     // 模拟值变化
     exec.valueUpdate({
       id: "id-2",
-      entries: encodeMessage([["param2", 456, undefined]]),
+      entries: [["param2", encodeRValue(456), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: "testStorage",
       sender: { runFlag: "user", tabId: -2 },
@@ -780,7 +774,7 @@ describe.concurrent("GM_value", () => {
     // 触发valueUpdate
     exec.valueUpdate({
       id: id,
-      entries: encodeMessage([["a", 123, undefined]]),
+      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },

@@ -1,7 +1,7 @@
 import type { AuthType, FileStat, WebDAVClient } from "webdav";
 import { createClient } from "webdav";
 import type FileSystem from "../filesystem";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { File, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";
@@ -47,11 +47,11 @@ export default class WebDAVFileSystem implements FileSystem {
     return new WebDAVFileSystem(this.client, joinPath(this.basePath, path), this.url);
   }
 
-  async create(path: string): Promise<FileWriter> {
+  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
     return new WebDAVFileWriter(this.client, joinPath(this.basePath, path));
   }
 
-  async createDir(path: string): Promise<void> {
+  async createDir(path: string, _opts?: FileCreateOptions): Promise<void> {
     try {
       await this.client.createDirectory(joinPath(this.basePath, path));
     } catch (e: any) {

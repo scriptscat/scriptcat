@@ -8,7 +8,7 @@ import { ScriptExecutor } from "./app/service/content/script_executor";
 import { randomMessageFlag } from "./pkg/utils/utils";
 import type { Message } from "@Packages/message/types";
 
-/* global MessageFlags  */
+/* global MessageFlag  */
 
 if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
   // Firefox MV3 之类好像没有 chrome.runtime.onMessage.addListener ?
@@ -24,7 +24,7 @@ if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
 
   loggerCore.logger().debug("content start");
 
-  const msgInject = new CustomEventMessage(MessageFlags, true);
+  const msgInject = new CustomEventMessage(MessageFlag, true);
 
   // 处理scriptExecutor
   const scriptExecutorFlag = randomMessageFlag();
@@ -41,5 +41,5 @@ if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
   const runtime = new ContentRuntime(extServer, server, extMsgComm, msgInject, scriptExecutorMsg, scriptExecutor);
   runtime.init();
   // 页面加载，注入脚本
-  runtime.pageLoad(MessageFlags);
+  runtime.pageLoad(MessageFlag);
 }

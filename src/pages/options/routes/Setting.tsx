@@ -13,34 +13,25 @@ import { blackListSelfCheck } from "@App/pkg/utils/match";
 import { obtainBlackList } from "@App/pkg/utils/utils";
 import CustomTrans from "@App/pages/components/CustomTrans";
 import { useSystemConfig } from "./utils";
-import { useAppContext } from "@App/pages/store/AppContext";
-import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config";
-import { type TKeyValue } from "@Packages/message/message_queue";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { systemConfig } from "@App/pages/store/global";
+import { initRegularUpdateCheck } from "@App/app/service/service_worker/regular_updatecheck";
 
 function Setting() {
-  const { subscribeMessage } = useAppContext();
-
   const [editorConfig, setEditorConfig, submitEditorConfig] = useSystemConfig("editor_config");
   const [cloudSync, setCloudSync, submitCloudSync] = useSystemConfig("cloud_sync");
-  const [language, setLanguage, submitLanguage] = useSystemConfig("language");
-  const [menuExpandNum, setMenuExpandNum, submitMenuExpandNum] = useSystemConfig("menu_expand_num");
-  const [checkScriptUpdateCycle, setCheckScriptUpdateCycle, submitCheckScriptUpdateCycle] =
-    useSystemConfig("check_script_update_cycle");
-  const [updateDisableScript, setUpdateDisableScript, submitUpdateDisableScript] =
-    useSystemConfig("update_disable_script");
-  const [silenceUpdateScript, setSilenceUpdateScript, submitSilenceUpdateScript] =
-    useSystemConfig("silence_update_script");
-  const [enableEslint, setEnableEslint, submitEnableEslint] = useSystemConfig("enable_eslint");
+  const [language, , submitLanguage] = useSystemConfig("language");
+  const [menuExpandNum, , submitMenuExpandNum] = useSystemConfig("menu_expand_num");
+  const [checkScriptUpdateCycle, , submitCheckScriptUpdateCycle] = useSystemConfig("check_script_update_cycle");
+  const [updateDisableScript, , submitUpdateDisableScript] = useSystemConfig("update_disable_script");
+  const [silenceUpdateScript, , submitSilenceUpdateScript] = useSystemConfig("silence_update_script");
+  const [enableEslint, , submitEnableEslint] = useSystemConfig("enable_eslint");
   const [eslintConfig, setEslintConfig, submitEslintConfig] = useSystemConfig("eslint_config");
   const [blacklist, setBlacklist, submitBlacklist] = useSystemConfig("blacklist");
-  const [badgeNumberType, setBadgeNumberType, submitBadgeNumberType] = useSystemConfig("badge_number_type");
-  const [badgeBackgroundColor, setBadgeBackgroundColor, submitBadgeBackgroundColor] =
-    useSystemConfig("badge_background_color");
-  const [badgeTextColor, setBadgeTextColor, submitBadgeTextColor] = useSystemConfig("badge_text_color");
-  const [scriptMenuDisplayType, setScriptMenuDisplayType, submitScriptMenuDisplayType] =
-    useSystemConfig("script_menu_display_type");
+  const [badgeNumberType, , submitBadgeNumberType] = useSystemConfig("badge_number_type");
+  const [badgeBackgroundColor, , submitBadgeBackgroundColor] = useSystemConfig("badge_background_color");
+  const [badgeTextColor, , submitBadgeTextColor] = useSystemConfig("badge_text_color");
+  const [scriptMenuDisplayType, , submitScriptMenuDisplayType] = useSystemConfig("script_menu_display_type");
 
   const [editorTypeDefinition, setEditorTypeDefinition, submitEditorTypeDefinition] =
     useSystemConfig("editor_type_definition");
@@ -64,47 +55,6 @@ function Setting() {
     });
     return languageList;
   }, [t]);
-
-  useEffect(() => {
-    // only string / number / boolean
-    const autoRefresh = {
-      editor_config: setEditorConfig,
-      language: setLanguage,
-      menu_expand_num: setMenuExpandNum,
-      check_script_update_cycle: setCheckScriptUpdateCycle,
-      update_disable_script: setUpdateDisableScript,
-      silence_update_script: setSilenceUpdateScript,
-      enable_eslint: setEnableEslint,
-      eslint_config: setEslintConfig,
-      blacklist: setBlacklist,
-      badge_number_type: setBadgeNumberType,
-      badge_background_color: setBadgeBackgroundColor,
-      badge_text_color: setBadgeTextColor,
-      script_menu_display_type: setScriptMenuDisplayType,
-      editor_type_definition: setEditorTypeDefinition,
-    };
-    const unhooks = [
-      subscribeMessage<TKeyValue>(SystemConfigChange, ({ key, value: _value }: TKeyValue) => {
-        const setter = autoRefresh[key as keyof typeof autoRefresh];
-        if (typeof setter === "function") {
-          // 异步方式，先让 systemConfig.cache 更新，再在下一个 microTask 读取 systemConfig.get 使页面的设定更新
-          // 考虑React更新会对值进行新旧对比，只更新 string/number/boolean，不更新 array/object。 array/object 的话需另外处理避免过度更新。
-          Promise.resolve()
-            .then(() => systemConfig.get(key as SystemConfigKey))
-            .then((v) => {
-              const type = typeof v;
-              if (type === "string" || type === "number" || type === "boolean") {
-                setter(v);
-              }
-            });
-        }
-      }),
-    ];
-    return () => {
-      for (const unhook of unhooks) unhook();
-      unhooks.length = 0;
-    };
-  }, []);
 
   return (
     <Space className="setting w-full h-full overflow-auto relative" direction="vertical">
@@ -308,13 +258,16 @@ function Setting() {
         <Space direction="vertical" size={20} className="w-full">
           <div className="flex items-center justify-between min-h-9">
             <div className="flex items-center gap-4 flex-1">
-              <span className="min-w-20 font-medium">{t("check_frequency")}</span>
+              <span className="min-w-20 font-medium">{t("script_update_check_frequency")}</span>
               <Select
                 value={checkScriptUpdateCycle.toString()}
                 className="w-35 max-w-45"
                 onChange={(value) => {
                   const num = parseInt(value, 10);
                   submitCheckScriptUpdateCycle(num);
+                  Promise.resolve().then(() => {
+                    initRegularUpdateCheck(systemConfig);
+                  });
                 }}
               >
                 <Select.Option value="0">{t("never")}</Select.Option>

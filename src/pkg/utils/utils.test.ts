@@ -1,8 +1,32 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { checkSilenceUpdate, cleanFileName, stringMatching, toCamelCase } from "./utils";
+import { aNow, checkSilenceUpdate, cleanFileName, stringMatching, toCamelCase } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
+
+describe.concurrent("aNow", () => {
+  // aNow >= Date.now();
+  it.sequential("aNow is greater than or equal to Date.now()", () => {
+    const p1 = Date.now();
+    const p2 = aNow();
+    const p3 = Date.now();
+    expect(p2).greaterThanOrEqual(p1);
+    // aNow() 与 Date.now() 的值应非常接近
+    expect(p2).greaterThan(p1 - 0.01);
+    expect(p2).lessThan(p3 + 0.01);
+  });
+  // 在 vitest 环境只能实测 aNow() 的严格增加
+  it.sequential("aNow is Strictly Increasing", () => {
+    const p1 = [aNow(), aNow(), aNow(), aNow(), aNow(), aNow()];
+    expect(p1[0]).lessThan(p1[1]);
+    expect(p1[1]).lessThan(p1[2]);
+    expect(p1[2]).lessThan(p1[3]);
+    expect(p1[3]).lessThan(p1[4]);
+    expect(p1[4]).lessThan(p1[5]);
+    const p2 = [...p1].sort();
+    expect(p1).toEqual(p2);
+  });
+});
 
 describe.concurrent("nextTime", () => {
   const date = new Date(1737275107000);

@@ -1,4 +1,4 @@
-import type { SCMetadata, Script } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, TScriptInfo } from "@App/app/repo/scripts";
 import type { SystemConfigKey } from "../config/config";
 
 export function randNum(a: number, b: number) {
@@ -10,6 +10,34 @@ export function randomMessageFlag(): string {
   // parseInt('zzzzzzzz', 36) = 2821109907455;
   return `-${Date.now().toString(36)}.${randNum(8e11, 2e12).toString(36)}`;
 }
+
+let prevNow = 0;
+/**
+ * accumulated "now".
+ * 用 aNow 取得的现在时间能保证严格递增
+ */
+export const aNow = () => {
+  let now = Date.now();
+  if (prevNow >= now) now = prevNow + 0.0009765625; // 2^-10
+  prevNow = now;
+  return now;
+};
+
+export type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (v: T | PromiseLike<T>) => void;
+  reject: (e?: any) => void;
+};
+
+export const deferred = <T = void>(): Deferred<T> => {
+  let resolve!: (v: T | PromiseLike<T>) => void;
+  let reject!: (e?: any) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
 
 export function isFirefox() {
   //@ts-ignore
@@ -143,7 +171,7 @@ export function sleep(millis: number) {
   });
 }
 
-export function getStorageName(script: Script): string {
+export function getStorageName(script: Script | TScriptInfo): string {
   const storagename = script.metadata?.storagename;
   return storagename ? storagename[0] : script.uuid;
 }
@@ -265,6 +293,26 @@ export function getBrowserType() {
   }
   return o;
 }
+
+export const makeBlobURL = <T extends { blob: Blob; persistence: boolean }>(
+  params: T,
+  fallbackFn?: (params: T) => string | Promise<string>
+): Promise<string> | string => {
+  if (typeof URL?.createObjectURL !== "function") {
+    // 在service worker中，透过 offscreen 取得 blob URL
+    if (!fallbackFn) throw new Error("URL.createObjectURL is not supported");
+    return fallbackFn(params);
+  } else {
+    const url = URL.createObjectURL(params.blob);
+    if (!params.persistence) {
+      // 如果不是持久化的，则在1分钟后释放
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60_000);
+    }
+    return url;
+  }
+};
 
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve) => {

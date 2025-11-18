@@ -191,7 +191,6 @@
   "yes": "Có",
   "no": "Không",
   "confirm_delete_permission": "Xác nhận xóa ủy quyền này?",
-  "script_setting": "Cài đặt script",
   "basic_info": "Thông tin cơ bản",
   "update_url": "Url cập nhật",
   "permission_management": "Quản lý quyền",
@@ -477,7 +476,7 @@
   "display_right_click_menu_desc": "Hiển thị menu script trong menu chuột phải của trình duyệt",
   "expand_count": "Số lượng mở rộng",
   "auto_collapse_when_exceeds": "Tự động thu gọn khi vượt quá số này",
-  "check_frequency": "Tần suất kiểm tra",
+  "script_update_check_frequency": "Tần suất kiểm tra cập nhật tập lệnh",
   "script_auto_update_frequency": "Tần suất kiểm tra cập nhật script tự động",
   "update_options": "Tùy chọn cập nhật",
   "control_script_update_behavior": "Kiểm soát hành vi cập nhật script",
@@ -493,10 +492,16 @@
   "enter_search_value": "Nhập {{search}} để tìm kiếm",
   "script_run_env": {
     "title": "Môi trường chạy",
-    "default": "Mặc định",
     "all": "Tất cả tab",
     "normal-tabs": "Tab thường",
     "incognito-tabs": "Tab ẩn danh"
+  },
+  "script_run_at": {
+    "title": "Thời điểm chạy"
+  },
+  "script_setting": {
+    "title": "Cài đặt script",
+    "default": "Mặc định"
   },
   "editor_config": "Cấu hình trình soạn thảo",
   "editor_config_description": "Bạn có thể tham khảo compilerOptions trong <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> để cấu hình",
@@ -536,6 +541,7 @@
   "error_old_script_code_missing": "Không tìm thấy mã script cũ",
   "error_subscribe_name_required": "Tên đăng ký là bắt buộc",
   "error_grant_conflict": "@grant khai báo đồng thời 'none' và GM API",
+  "error_metadata_line_duplicated": "Có các khai báo trùng lặp trong metadata.",
   "notification": {
     "script_sync_delete": "Đồng bộ xóa script",
     "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",

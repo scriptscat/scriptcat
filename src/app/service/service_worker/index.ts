@@ -8,16 +8,17 @@ import { RuntimeService } from "./runtime";
 import { type ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { PopupService } from "./popup";
 import { SystemConfig } from "@App/pkg/config/config";
-import { systemConfig } from "@App/pages/store/global";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
-import { localePath, t } from "@App/locales/locales";
+import { initLocales, initLocalesPromise, localePath, t, watchLanguageChange } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { FaviconDAO } from "@App/app/repo/favicon";
+import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -42,12 +43,16 @@ export default class ServiceWorkerManager {
     });
     this.sender.init();
 
+    const faviconDAO = new FaviconDAO();
+
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
 
     const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
+
+    initLocales(systemConfig);
 
     let pendingOpen = 0;
     let targetSites: string[] = [];
@@ -85,14 +90,37 @@ export default class ServiceWorkerManager {
     synchronize.init();
     const subscribe = new SubscribeService(systemConfig, this.api.group("subscribe"), this.mq, script);
     subscribe.init();
-    const system = new SystemService(systemConfig, this.api.group("system"), this.sender);
+    const system = new SystemService(
+      systemConfig,
+      this.api.group("system"),
+      this.sender,
+      this.mq,
+      scriptDAO,
+      faviconDAO
+    );
     system.init();
 
     const regularScriptUpdateCheck = async () => {
-      const res = await script.checkScriptUpdate({ checkType: "system" });
+      const res = await onRegularUpdateCheckAlarm(systemConfig, script, subscribe);
       if (!res?.ok) return;
       targetSites = res.targetSites;
       pendingOpen = res.checktime;
+    };
+
+    const regularExtensionUpdateCheck = () => {
+      fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
+        .then((resp) => resp.json())
+        .then((resp: { data: { [key: string]: any; notice: string; version: string } }) => {
+          const data = resp.data;
+          systemConfig
+            .getCheckUpdate()
+            .then((items) => {
+              const isRead = items.notice !== data.notice ? false : items.isRead;
+              systemConfig.setCheckUpdate({ ...data, isRead: isRead });
+            })
+            .catch((e) => console.error("regularExtensionUpdateCheck: Check Error", e));
+        })
+        .catch((e) => console.error("regularExtensionUpdateCheck: Network Error", e));
     };
 
     this.mq.subscribe<any>("msgUpdatePageOpened", () => {
@@ -118,12 +146,9 @@ export default class ServiceWorkerManager {
             });
           });
           break;
-        case "checkSubscribeUpdate":
-          subscribe.checkSubscribeUpdate();
-          break;
         case "checkUpdate":
           // 检查扩展更新
-          this.checkUpdate();
+          regularExtensionUpdateCheck();
           break;
       }
     });
@@ -153,13 +178,9 @@ export default class ServiceWorkerManager {
       }
     });
 
-    // 监听配置变化
-    systemConfig.addListener("cloud_sync", (value) => {
+    // 云同步
+    systemConfig.watch("cloud_sync", (value) => {
       synchronize.cloudSyncConfigChange(value);
-    });
-    // 启动一次云同步
-    systemConfig.getCloudSync().then((config) => {
-      synchronize.cloudSyncConfigChange(config);
     });
 
     if (process.env.NODE_ENV === "production") {
@@ -169,41 +190,45 @@ export default class ServiceWorkerManager {
           console.error("chrome.runtime.lastError in chrome.runtime.onInstalled:", lastError);
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
-        if (details.reason === "install") {
-          chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
-        } else if (details.reason === "update") {
-          const url = `${DocumentationSite}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
-          getCurrentTab()
-            .then((tab) => {
-              // 检查是否正在播放视频，或者窗口未激活
-              const openInBackground = !tab || tab.audible === true || !tab.active;
-              // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
-              return chrome.tabs.create({
-                url,
-                active: !openInBackground,
-                index: !tab ? undefined : tab.index + 1,
-                windowId: !tab ? undefined : tab.windowId,
+        initLocalesPromise.then(() => {
+          if (details.reason === "install") {
+            chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
+          } else if (details.reason === "update") {
+            const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
+            getCurrentTab()
+              .then((tab) => {
+                // 检查是否正在播放视频，或者窗口未激活
+                const openInBackground = !tab || tab.audible === true || !tab.active;
+                // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
+                return chrome.tabs.create({
+                  url,
+                  active: !openInBackground,
+                  index: !tab ? undefined : tab.index + 1,
+                  windowId: !tab ? undefined : tab.windowId,
+                });
+              })
+              .then((_createdTab) => {
+                // 当新 Tab 成功建立时才执行
+                InfoNotification(
+                  t("ext_update_notification"),
+                  t("ext_update_notification_desc", { version: ExtVersion })
+                );
+              })
+              .catch((e) => {
+                console.error(e);
               });
-            })
-            .then((_createdTab) => {
-              // 当新 Tab 成功建立时才执行
-              InfoNotification(
-                t("ext_update_notification"),
-                t("ext_update_notification_desc", { version: ExtVersion })
-              );
-            })
-            .catch((e) => {
-              console.error(e);
-            });
-        }
+          }
+        });
       });
 
       // 监听扩展卸载事件
-      chrome.runtime.setUninstallURL(`${DocumentationSite}${localePath}/uninstall`, () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.runtime.setUninstallURL:", lastError);
-        }
+      watchLanguageChange(() => {
+        chrome.runtime.setUninstallURL(`${DocumentationSite}${localePath}/uninstall`, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.runtime.setUninstallURL:", lastError);
+          }
+        });
       });
     }
 
@@ -265,21 +290,5 @@ export default class ServiceWorkerManager {
       }
       onTabRemoved(tabId);
     });
-  }
-
-  checkUpdate() {
-    fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
-      .then((resp) => resp.json())
-      .then((resp: { data: { notice: string; version: string } }) => {
-        systemConfig
-          .getCheckUpdate()
-          .then((items) => {
-            const isRead = items.notice !== resp.data.notice ? false : items.isRead;
-            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: isRead }));
-          })
-          .catch((e) => {
-            console.error(e);
-          });
-      });
   }
 }

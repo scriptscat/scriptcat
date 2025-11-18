@@ -26,7 +26,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { arrayMove } from "@dnd-kit/sortable";
 import type {
@@ -48,6 +48,7 @@ import {
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
+import { initRegularUpdateCheck } from "./regular_updatecheck";
 // import { gzip as pakoGzip } from "pako";
 
 export type TCheckScriptUpdateOption = Partial<
@@ -380,9 +381,15 @@ export class ScriptService {
   }
 
   // 安装脚本 / 更新腳本
-  async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
+  async installScript(param: {
+    script: Script;
+    code: string;
+    upsertBy?: InstallSource;
+    createtime?: number;
+    updatetime?: number;
+  }) {
     param.upsertBy = param.upsertBy || "user";
-    const { script, upsertBy } = param;
+    const { script, upsertBy, createtime, updatetime } = param;
     // 删 storage cache
     const compiledResourceUpdatePromise = this.compiledResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
@@ -400,6 +407,12 @@ export class ScriptService {
       script.selfMetadata = oldScript.selfMetadata;
     }
     if (script.ignoreVersion) script.ignoreVersion = "";
+    if (createtime) {
+      script.createtime = createtime;
+    }
+    if (updatetime) {
+      script.updatetime = updatetime;
+    }
     return this.scriptDAO
       .save(script)
       .then(async () => {
@@ -470,8 +483,7 @@ export class ScriptService {
           uuid: script.uuid,
           storageName: getStorageName(script),
           type: script.type,
-          isEarlyStart: isEarlyStartScript(script.metadata),
-        }));
+        })) as TDeleteScript[];
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
@@ -1420,21 +1432,6 @@ export class ScriptService {
     this.group.on("openBatchUpdatePage", this.openBatchUpdatePage.bind(this));
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
-    // 定时检查更新, 首次执行为5分钟后，然后每30分钟检查一次
-    chrome.alarms.create(
-      "checkScriptUpdate",
-      {
-        delayInMinutes: 5,
-        periodInMinutes: 30,
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-          // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-          console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
-        }
-      }
-    );
+    initRegularUpdateCheck(this.systemConfig);
   }
 }

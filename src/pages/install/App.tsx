@@ -212,7 +212,7 @@ function App() {
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
     if (newScript.ignoreVersion) newScript.ignoreVersion = "";
-    await scriptClient.install(newScript, code);
+    await scriptClient.install({ script: newScript, code });
     const metadata = newScript.metadata;
     setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
     setOldScriptVersion(metadata!.version![0]);
@@ -250,11 +250,13 @@ function App() {
       }
       setLoaded(true);
 
+      let paramOptions = {};
       if (uuid) {
         const cachedInfo = await scriptClient.getInstallInfo(uuid);
         cleanupStaleInstallInfo(uuid);
         if (cachedInfo?.[0]) isKnownUpdate = true;
         info = cachedInfo?.[1] || undefined;
+        paramOptions = cachedInfo?.[2] || {};
         if (!info) {
           throw new Error("fetch script info failed");
         }
@@ -307,7 +309,7 @@ function App() {
         diffCode = prepare.oldSubscribe?.code;
       } else {
         const knownUUID = isKnownUpdate ? info.uuid : undefined;
-        prepare = await prepareScriptByCode(code, url, knownUUID);
+        prepare = await prepareScriptByCode(code, url, knownUUID, false, undefined, paramOptions);
         action = prepare.script;
         if (prepare.oldScript) {
           oldVersion = prepare.oldScript!.metadata!.version![0] || "";
@@ -474,7 +476,7 @@ function App() {
           (upsertScript as Script).checkUpdate = false;
         }
         // 故意只安装或执行，不改变显示内容
-        await scriptClient.install(upsertScript as Script, scriptCode);
+        await scriptClient.install({ script: upsertScript as Script, code: scriptCode });
         if (isUpdate) {
           Message.success(t("install.update_success")!);
           setBtnText(t("install.update_success")!);
@@ -486,7 +488,7 @@ function App() {
           }
           if ((upsertScript as Script).ignoreVersion) (upsertScript as Script).ignoreVersion = "";
           // 故意只安装或执行，不改变显示内容
-          await scriptClient.install(upsertScript as Script, scriptCode);
+          await scriptClient.install({ script: upsertScript as Script, code: scriptCode });
           if (isUpdate) {
             Message.success(t("install.update_success")!);
             setBtnText(t("install.update_success")!);

@@ -17,6 +17,70 @@ chromeMock.runtime.getURL = vi.fn().mockImplementation((path: string) => {
 
 const isPrimitive = (x: any) => x !== Object(x);
 
+// Window.prototype[Symbol.toStringTag] = "Window"
+Object.defineProperty(Object.getPrototypeOf(global), Symbol.toStringTag, {
+  value: "Window",
+  writable: false,
+  enumerable: false,
+  configurable: true,
+});
+// 先改变 global[Symbol.toStringTag] 定义
+Object.defineProperty(global, Symbol.toStringTag, {
+  value: undefined,
+  writable: false,
+  enumerable: false,
+  configurable: true,
+});
+// 删除 global 表面的 property，使用 Window.prototype[Symbol.toStringTag]
+//@ts-expect-error
+if (!global[Symbol.toStringTag]) delete global[Symbol.toStringTag];
+
+const gblAddEventListener = Object.getPrototypeOf(global).addEventListener || global.addEventListener;
+const gblRemoveEventListener = Object.getPrototypeOf(global).removeEventListener || global.removeEventListener;
+class EventTargetE {
+  addEventListener(a: any, b: any, ...args: any[]) {
+    return gblAddEventListener.call(this, a, b, ...args);
+  }
+  removeEventListener(a: any, ...args: any[]) {
+    return gblRemoveEventListener.call(this, a, ...args);
+  }
+}
+// 为了确保全局 addEventListener/removeEventListener 行为符合预期，需要彻底移除 global 及其原型链上的相关属性，
+// 然后在原型链上重新定义。此处操作较为复杂，务必小心维护。
+// 先安全地删除 global 上的 addEventListener/removeEventListener
+if (Object.getOwnPropertyDescriptor(global, "addEventListener")) {
+  // @ts-ignore
+  delete global.addEventListener;
+}
+if (Object.getOwnPropertyDescriptor(global, "removeEventListener")) {
+  // @ts-ignore
+  delete global.removeEventListener;
+}
+// 再删除 global 的原型上的属性
+const globalProto = Object.getPrototypeOf(global);
+if (globalProto && Object.getOwnPropertyDescriptor(globalProto, "addEventListener")) {
+  // @ts-ignore
+  delete globalProto.addEventListener;
+}
+if (globalProto && Object.getOwnPropertyDescriptor(globalProto, "removeEventListener")) {
+  // @ts-ignore
+  delete globalProto.removeEventListener;
+}
+// 继续向上查找一层原型（防御性检查）
+const globalProtoProto = globalProto && Object.getPrototypeOf(globalProto);
+if (globalProtoProto && Object.getOwnPropertyDescriptor(globalProtoProto, "addEventListener")) {
+  // @ts-ignore
+  delete globalProtoProto.addEventListener;
+}
+if (globalProtoProto && Object.getOwnPropertyDescriptor(globalProtoProto, "removeEventListener")) {
+  // @ts-ignore
+  delete globalProtoProto.removeEventListener;
+}
+// 在 global 的原型上重新定义方法
+if (globalProto) {
+  globalProto.addEventListener = EventTargetE.prototype.addEventListener;
+  globalProto.removeEventListener = EventTargetE.prototype.removeEventListener;
+}
 if (!("onanimationstart" in global)) {
   // Define or mock the global handler
   let val: any = null;
@@ -115,6 +179,9 @@ Object.assign(global, {
     return this.setTimeout(...args);
   },
 });
+//@ts-ignore 强行修改 setTimeoutForTest toString 为 原生代码显示
+global.setTimeoutForTest.toString = () =>
+  `${Object.propertyIsEnumerable}`.replace("propertyIsEnumerable", "setTimeoutForTest");
 
 vi.stubGlobal("sandboxTestValue", "sandboxTestValue");
 vi.stubGlobal("sandboxTestValue2", "sandboxTestValue2");

@@ -19,7 +19,7 @@ import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
-import { decodeMessage, encodeMessage } from "@App/pkg/utils/message_value";
+import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
 import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
@@ -164,8 +164,10 @@ class GM_Base implements IGM_Base {
         }
       }
       if (valueUpdated) {
-        const valueChanges = decodeMessage(entries);
-        for (const [key, value, oldValue] of valueChanges) {
+        const valueChanges = entries;
+        for (const [key, rTyped1, rTyped2] of valueChanges) {
+          const value = decodeRValue(rTyped1);
+          const oldValue = decodeRValue(rTyped2);
           // 触发,并更新值
           if (value === undefined) {
             if (valueStore[key] !== undefined) {
@@ -292,6 +294,7 @@ export default class GMApi extends GM_Base {
       valueChangePromiseMap.set(id, promise);
     }
     const valueStore = a.scriptRes.value;
+    const keyValuePairs = [] as [string, REncoded<unknown>][];
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
       // 对object的value进行一次转化
@@ -303,10 +306,10 @@ export default class GMApi extends GM_Base {
       } else {
         valueStore[key] = value_;
       }
+      // 避免undefined 等空值流失，先进行映射处理
+      keyValuePairs.push([key, encodeRValue(value)]);
     }
-    // 避免undefined 等空值流失，先进行映射处理
-    const valuesNew = encodeMessage(values);
-    a.sendMessage("GM_setValues", [id, valuesNew]);
+    a.sendMessage("GM_setValues", [id, keyValuePairs]);
     return id;
   }
 

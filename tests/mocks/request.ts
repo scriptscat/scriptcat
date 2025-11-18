@@ -17,8 +17,7 @@ export class MockRequest implements Request {
   readonly destination: RequestDestination = "";
   readonly isHistoryNavigation: boolean = false;
   readonly isReloadNavigation: boolean = false;
-  // @ts-expect-error
-  readonly body: ReadableStream<Uint8Array> | null;
+  readonly body: ReadableStream<Uint8Array<ArrayBuffer>> | null;
   #bytes: Uint8Array | null;
 
   constructor(input: RequestInfo | URL, init?: RequestInit) {
@@ -62,9 +61,12 @@ export class MockRequest implements Request {
     }
 
     this.body = this.#bytes
-      ? new ReadableStream<Uint8Array>({
+      ? new ReadableStream<Uint8Array<ArrayBuffer>>({
           start: (controller) => {
-            controller.enqueue(this.#bytes!);
+            const buffer = new ArrayBuffer(this.#bytes!.byteLength);
+            const view = new Uint8Array(buffer);
+            view.set(this.#bytes!);
+            controller.enqueue(view);
             controller.close();
           },
           pull: () => {
@@ -124,9 +126,18 @@ export class MockRequest implements Request {
     return this.#bytes ? new TextDecoder().decode(this.#bytes) : "";
   }
 
+  async bytes(): Promise<Uint8Array<ArrayBuffer>> {
+    if (this.bodyUsed) throw new TypeError("Body already consumed");
+    (this as any).bodyUsed = true;
+    if (!this.#bytes) return new Uint8Array(new ArrayBuffer(0));
+    const buffer = new ArrayBuffer(this.#bytes.byteLength);
+    const view = new Uint8Array(buffer);
+    view.set(this.#bytes);
+    return view;
+  }
+
   clone(): Request {
     if (this.bodyUsed) throw new TypeError("Cannot clone: Body already consumed");
-    // @ts-expect-error
     return new MockRequest(this, {
       method: this.method,
       headers: this.headers,

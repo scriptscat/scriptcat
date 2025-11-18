@@ -1,15 +1,8 @@
-import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/scripts";
+import type { Script, ScriptCode, ScriptRunResource, TClientPageLoadInfo } from "@App/app/repo/scripts";
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
-import type {
-  InstallSource,
-  ScriptLoadInfo,
-  ScriptMenu,
-  ScriptMenuItem,
-  SearchType,
-  TBatchUpdateListAction,
-} from "./types";
+import type { InstallSource, ScriptMenu, ScriptMenuItem, SearchType, TBatchUpdateListAction } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -20,10 +13,11 @@ import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
-import type { GMInfoEnv } from "../content/types";
-import { type SystemService } from "./system";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
+import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
+import { type TSetValuesParams } from "./value";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -47,11 +41,18 @@ export class ScriptClient extends Client {
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return this.do<[boolean, ScriptInfo]>("getInstallInfo", uuid);
+    return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean }]>("getInstallInfo", uuid);
   }
 
-  install(script: Script, code: string, upsertBy: InstallSource = "user"): Promise<{ update: boolean }> {
-    return this.doThrow("install", { script, code, upsertBy });
+  install(params: {
+    script: Script;
+    code: string;
+    upsertBy?: InstallSource;
+    createtime?: number;
+    updatetime?: number;
+  }): Promise<{ update: boolean }> {
+    if (!params.upsertBy) params.upsertBy = "user";
+    return this.doThrow("install", { ...params });
   }
 
   // delete(uuid: string) {
@@ -234,12 +235,13 @@ export class ValueClient extends Client {
     return this.doThrow("getScriptValue", script);
   }
 
-  setScriptValue(uuid: string, key: string, value: any) {
-    return this.do("setScriptValue", { uuid, key, value });
+  setScriptValue({ uuid, key, value, ts }: { uuid: string; key: string; value: any; ts?: number }) {
+    const keyValuePairs = [[key, encodeRValue(value)]] as TKeyValuePair[];
+    return this.do("setScriptValues", { uuid, keyValuePairs, ts } as TSetValuesParams);
   }
 
-  setScriptValues(uuid: string, values: { [key: string]: any }) {
-    return this.do("setScriptValues", { uuid, values });
+  setScriptValues(params: TSetValuesParams) {
+    return this.do("setScriptValues", params);
   }
 }
 
@@ -256,7 +258,7 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<{ scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }> {
+  pageLoad(): Promise<TClientPageLoadInfo> {
     return this.doThrow("pageLoad");
   }
 
@@ -350,10 +352,7 @@ export class SynchronizeClient extends Client {
 
   async openImportWindow(filename: string, file: File | Blob) {
     // 打开导入窗口，用cache实现数据交互
-    const url = URL.createObjectURL(file);
-    // setTimeout(() => {
-    //   URL.revokeObjectURL(url);
-    // }, 60 * 1000);
+    const url = makeBlobURL({ blob: file, persistence: true }) as string;
     const uuid = uuidv4();
     const cacheKey = `${CACHE_KEY_IMPORT_FILE}${uuid}`;
     await cacheInstance.set(cacheKey, {
@@ -403,13 +402,5 @@ export class SystemClient extends Client {
 
   connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
     return this.do("connectVSCode", params);
-  }
-
-  loadFavicon(icon: string): Promise<string> {
-    return this.doThrow("loadFavicon", icon);
-  }
-
-  getFaviconFromDomain(domain: string): ReturnType<SystemService["getFaviconFromDomain"]> {
-    return this.doThrow("getFaviconFromDomain", domain);
   }
 }
