@@ -78,16 +78,19 @@ export class SystemConfig {
   private EE: EventEmitter<string> = new EventEmitter<string>();
 
   constructor(private mq: IMessageQueue) {
-    this.mq.subscribe<TKeyValue>(SystemConfigChange, ({ key, value }) => {
+    this.mq.subscribe<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key, value, prev }) => {
       // 更新缓存
       this.cache.set(key, value);
       // 触发事件
-      this.EE.emit(key, value);
+      this.EE.emit(key, value, prev);
     });
   }
 
   // 添加配置变更监听
-  addListener(key: SystemConfigKey, callback: (value: any) => void) {
+  addListener<T extends SystemConfigKey>(
+    key: T,
+    callback: (value: SystemConfigValueType<T>, prev: SystemConfigValueType<T> | undefined) => void
+  ) {
     this.EE.on(key, callback);
     return () => {
       this.EE.off(key, callback);
@@ -95,15 +98,16 @@ export class SystemConfig {
   }
 
   // 监听配置变更，会使用设置值立即执行一次回调
-  watch<T extends SystemConfigKey>(key: T, callback: (value: SystemConfigValueType<T>) => void) {
+  watch<T extends SystemConfigKey>(
+    key: T,
+    callback: (value: SystemConfigValueType<T>, prev: SystemConfigValueType<T> | undefined) => void
+  ) {
     // 立即执行一次
     this.get(key).then((val) => {
-      callback(val);
+      callback(val, undefined);
     });
     // 监听变更
-    return this.addListener(key, (val) => {
-      callback(val);
-    });
+    return this.addListener(key, callback);
   }
 
   private _get<T extends string | number | boolean | object>(
@@ -159,7 +163,8 @@ export class SystemConfig {
     }
   }
 
-  private _set(key: SystemConfigKey, value: any) {
+  private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
+    const prev = this.cache.get(key);
     if (value === undefined) {
       this.cache.delete(key);
       this.storage.remove(key);
@@ -168,9 +173,10 @@ export class SystemConfig {
       this.storage.set(key, value);
     }
     // 发送消息通知更新
-    this.mq.publish<TKeyValue>(SystemConfigChange, {
+    this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
       key,
       value,
+      prev,
     });
   }
 
