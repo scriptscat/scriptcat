@@ -42,7 +42,7 @@ import { type ResourceService } from "./resource";
 import { type LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
 import type { GMInfoEnv } from "../content/types";
-import { localePath } from "@App/locales/locales";
+import { initLocalesPromise, localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
@@ -183,8 +183,10 @@ export class RuntimeService {
           value: true,
         });
         // 打开页面
-        chrome.tabs.create({
-          url: `${DocumentationSite}${localePath}/docs/use/open-dev/`,
+        initLocalesPromise.then(() => {
+          chrome.tabs.create({
+            url: `${DocumentationSite}${localePath}/docs/use/open-dev/`,
+          });
         });
       }
     });

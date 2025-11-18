@@ -139,7 +139,7 @@ const Sider: React.FC = () => {
                 <RiGuideLine /> {t("guide")}
               </Menu.Item>
               <Menu.Item key="scriptcat/docs/use/">
-                <a href={`${DocumentationSite}${localePath}/docs/use/`} target="_blank" rel="noreferrer">
+                <a href={`${DocumentationSite}${localePath}/docs/use/use/`} target="_blank" rel="noreferrer">
                   <RiFileCodeLine /> {t("user_guide")}
                 </a>
               </Menu.Item>

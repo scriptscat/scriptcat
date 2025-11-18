@@ -28,7 +28,7 @@ import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
-import { localePath } from "@App/locales/locales";
+import { localePath, watchLanguageChange } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
 import { DocumentationSite } from "@App/app/const";
 import type {
@@ -243,67 +243,69 @@ export class ScriptService {
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
     ];
-    const rules = conditions.map((condition, idx) => {
-      Object.assign(condition, {
-        excludedTabIds: [chrome.tabs.TAB_ID_NONE],
-      });
-      if (addResponseHeaders) {
+    watchLanguageChange(() => {
+      const rules = conditions.map((condition, idx) => {
         Object.assign(condition, {
-          responseHeaders: [
-            {
-              header: "Content-Type",
-              values: [
-                "text/javascript*",
-                "application/javascript*",
-                "text/html*",
-                "text/plain*",
-                "application/octet-stream*",
-                "application/force-download*",
-              ],
-            },
-          ],
+          excludedTabIds: [chrome.tabs.TAB_ID_NONE],
         });
-      }
-      return {
-        id: 1000 + idx,
-        priority: 1,
-        action: {
-          type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
-          redirect: {
-            regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\1`,
+        if (addResponseHeaders) {
+          Object.assign(condition, {
+            responseHeaders: [
+              {
+                header: "Content-Type",
+                values: [
+                  "text/javascript*",
+                  "application/javascript*",
+                  "text/html*",
+                  "text/plain*",
+                  "application/octet-stream*",
+                  "application/force-download*",
+                ],
+              },
+            ],
+          });
+        }
+        return {
+          id: 1000 + idx,
+          priority: 1,
+          action: {
+            type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
+            redirect: {
+              regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\1`,
+            },
           },
+          condition: condition,
+        } as chrome.declarativeNetRequest.Rule;
+      });
+      // 重定向到脚本安装页
+      chrome.declarativeNetRequest.updateDynamicRules(
+        {
+          removeRuleIds: [1],
         },
-        condition: condition,
-      } as chrome.declarativeNetRequest.Rule;
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "chrome.runtime.lastError in chrome.declarativeNetRequest.updateDynamicRules:",
+              chrome.runtime.lastError
+            );
+          }
+        }
+      );
+      chrome.declarativeNetRequest.updateSessionRules(
+        {
+          removeRuleIds: [...rules.map((rule) => rule.id)],
+          addRules: rules,
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "chrome.runtime.lastError in chrome.declarativeNetRequest.updateSessionRules:",
+              chrome.runtime.lastError
+            );
+          }
+        }
+      );
     });
-    // 重定向到脚本安装页
-    chrome.declarativeNetRequest.updateDynamicRules(
-      {
-        removeRuleIds: [1],
-      },
-      () => {
-        if (chrome.runtime.lastError) {
-          console.error(
-            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateDynamicRules:",
-            chrome.runtime.lastError
-          );
-        }
-      }
-    );
-    chrome.declarativeNetRequest.updateSessionRules(
-      {
-        removeRuleIds: [...rules.map((rule) => rule.id)],
-        addRules: rules,
-      },
-      () => {
-        if (chrome.runtime.lastError) {
-          console.error(
-            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateSessionRules:",
-            chrome.runtime.lastError
-          );
-        }
-      }
-    );
   }
 
   public async openInstallPageByUrl(
