@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { type Group } from "@Packages/message/server";
+import type { Server, Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { ScriptClient } from "../service_worker/client";
 import { v5 as uuidv5 } from "uuid";
@@ -26,12 +26,15 @@ export class VSCodeConnect {
 
   private readonly scriptClient: ScriptClient;
 
-  constructor(
-    vscodeConnectServer: Group,
-    private readonly msgSender: MessageSend
-  ) {
-    this.scriptClient = new ScriptClient(this.msgSender);
-    vscodeConnectServer.on("connect", (param: VSCodeConnectParam) => this.connect(param));
+  private readonly vscodeConnectGroup: Group;
+
+  constructor(windowServer: Server, msgSender: MessageSend) {
+    this.vscodeConnectGroup = windowServer.group("vscodeConnect");
+    this.scriptClient = new ScriptClient(msgSender);
+  }
+
+  init() {
+    this.vscodeConnectGroup.on("connect", (param: VSCodeConnectParam) => this.connect(param));
   }
 
   /* ---------- Public API ---------- */
