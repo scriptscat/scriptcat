@@ -172,14 +172,19 @@ export function GM_xmlhttpRequest(
     const xhrType = param.responseType;
     const responseType = responseTypeOriginal; // 回传用
 
-    if (isDownload) {
-      // 如果是下载，带上 downloadMode 参数
-      // 在 SW 中处理，实际使用 GM_xmlhttpRequest 进行下载
-      (param as typeof param & { downloadMode?: "native" }).downloadMode = "native";
-    }
-
     // 发送信息
-    a.connect(isDownload ? "GM_download" : "GM_xmlhttpRequest", [param]).then((con) => {
+    let connectMessage: Promise<MessageConnect>;
+    if (isDownload) {
+      // 如果是下载，带上 downloadMode 参数，呼叫 SW 的 GM_download
+      // 在 SW 中处理，实际使用 GM_xmlhttpRequest 进行下载
+      const method = param.method === "POST" ? "POST" : "GET";
+      const downloadParam: GMTypes.DownloadDetails<string> = { ...param, method, downloadMode: "native", name: "" };
+      connectMessage = a.connect("GM_download", [downloadParam]);
+    } else {
+      // 一般 GM_xmlhttpRequest，呼叫 SW 的 GM_xmlhttpRequest
+      connectMessage = a.connect("GM_xmlhttpRequest", [param]);
+    }
+    connectMessage.then((con) => {
       // 注意。在此 callback 里，不应直接存取 param, 否则会影响 GC
       connect = con;
       const resultTexts = [] as string[]; // 函数参考清掉后，变数会被GC
