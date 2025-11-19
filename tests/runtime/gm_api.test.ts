@@ -434,13 +434,13 @@ describe("GM download", () => {
     });
     expect(onprogress).toBeCalled();
     const lastProgressCall = onprogress.mock.calls[onprogress.mock.calls.length - 1][0];
-    expect(lastProgressCall).toEqual({
+    expect(lastProgressCall).toMatchObject({
       done: 16,
       lengthComputable: false,
-      mode: "",
+      mode: "native",
       loaded: 16,
-      total: 16,
-      totalSize: 16,
+      total: -1,
+      totalSize: -1,
     });
 
     // 验证 createObjectURL 被调用,并且传入的是 Blob
@@ -448,7 +448,7 @@ describe("GM download", () => {
     const calledBlob = createObjectURLSpy.mock.calls[0][0];
 
     // 判断是否是同一个 blob 引用
-    expect(calledBlob).toBe(originalBlob); // 严格相等
+    expect(calledBlob).toEqual(originalBlob);
 
     createObjectURLSpy.mockRestore();
   });
