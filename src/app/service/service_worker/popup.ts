@@ -406,6 +406,15 @@ export class PopupService {
       const isPrevDataEmpty = !data?.length;
       // 特例：frameId 为 0/未提供时，重置当前 tab 的计数资料（视为页面重新载入）。
       data = !frameId ? [] : data || [];
+
+      // 所有脚本都没有启动。更新适用于之前打开了现在关掉的情况，见 #978
+      if (scriptmenus.length === 0 && data.length === 0) {
+        scriptCountMap.set(tabId, "");
+        runCountMap.set(tabId, "");
+        // 之前也是没数据的话，不用 tx.set (storage.session.set)
+        if (isPrevDataEmpty) return;
+      }
+
       // 设置脚本运行次数
       scriptmenus.forEach((scriptmenu) => {
         const scriptMenu = data.find((item) => item.uuid === scriptmenu.uuid);
@@ -429,16 +438,8 @@ export class PopupService {
       for (const d of data) {
         runCount += d.runNum;
       }
-      // 所有脚本都没有启动。更新适用于之前打开了现在关掉的情况，见 #978
-      if (scriptmenus.length === 0 && data.length === 0) {
-        scriptCountMap.set(tabId, "");
-        runCountMap.set(tabId, "");
-        // 之前也是没数据的话，不用 tx.set (storage.session.set)
-        if (isPrevDataEmpty) return;
-      } else {
-        data.length && scriptCountMap.set(tabId, `${data.length}`);
-        runCount && runCountMap.set(tabId, `${runCount}`);
-      }
+      data.length && scriptCountMap.set(tabId, `${data.length}`);
+      runCount && runCountMap.set(tabId, `${runCount}`);
       tx.set(data);
     });
   }
