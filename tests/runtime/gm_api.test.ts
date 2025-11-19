@@ -34,6 +34,12 @@ const script: Script = {
   createtime: 0,
   checktime: 0,
 };
+vi.spyOn(URL, "createObjectURL").mockImplementation(() => {
+  return "";
+});
+vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {
+  return undefined;
+});
 
 beforeAll(async () => {
   await new ScriptDAO().save(script);

@@ -197,6 +197,7 @@ vi.stubGlobal("Blob", MockBlob);
 
 vi.stubGlobal("define", "特殊关键字不能穿透沙盒");
 
-// URL.createObjectURL 和 URL.revokeObjectURL mock
-URL.createObjectURL = vi.fn();
-URL.revokeObjectURL = vi.fn();
+//@ts-expect-error
+if (!URL.createObjectURL) URL.createObjectURL = undefined;
+//@ts-expect-error
+if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
