@@ -192,8 +192,6 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
       responseHeaders: {},
       responseContent: blob,
     });
-    // const fn1 = vitest.fn();
-    // const fn2 = vitest.fn();
     const onload = vitest.fn();
     await new Promise((resolve) => {
       gmApi.GM_xmlhttpRequest({
@@ -201,15 +199,6 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
         responseType: "blob",
         onload: (res) => {
           onload(res);
-          // if (!(res.response instanceof Blob)) {
-          //   resolve(false);
-          //   return;
-          // }
-          // fn2(res.response);
-          // (res.response as Blob).text().then((text) => {
-          //   resolve(true);
-          //   fn1(text);
-          // });
         },
         onloadend: () => {
           resolve(false);
@@ -218,9 +207,6 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
     });
     customXhrResponseMap.delete(testUrl);
     expect(onload).toBeCalled();
-    // expect(fn1).toBeCalled();
-    // expect(fn1.mock.calls[0][0]).toBe(htmlContent);
-    // expect(fn2.mock.calls[0][0]).not.toBe(blob);
   });
 
   it.concurrent("test GM xhr - blob [fetch]", async () => {
@@ -413,5 +399,57 @@ describe.concurrent("GM xmlHttpRequest", () => {
         },
       });
     });
+  });
+});
+
+describe("GM download", () => {
+  const msg = initTestGMApi();
+  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
+    uuid: script.uuid,
+  });
+  it("simple download", async () => {
+    const testUrl = "https://download.test/";
+    const originalBlob = new Blob(["download content"], { type: "text/plain" });
+
+    const mockBlobUrl = "blob:http://localhost/mock-blob-url";
+    const createObjectURLSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue(mockBlobUrl);
+
+    setMockNetworkResponse(testUrl, {
+      data: originalBlob,
+      contentType: "text/plain",
+    });
+
+    const onprogress = vitest.fn();
+    await new Promise<void>((resolve) => {
+      gmApi.GM_download({
+        url: "https://download.test/",
+        name: "example.txt",
+        onprogress: onprogress,
+        onload: () => {
+          // 下载完成
+          console.log("Download completed");
+          resolve();
+        },
+      });
+    });
+    expect(onprogress).toBeCalled();
+    const lastProgressCall = onprogress.mock.calls[onprogress.mock.calls.length - 1][0];
+    expect(lastProgressCall).toEqual({
+      done: 16,
+      lengthComputable: false,
+      mode: "",
+      loaded: 16,
+      total: 16,
+      totalSize: 16,
+    });
+
+    // 验证 createObjectURL 被调用,并且传入的是 Blob
+    expect(createObjectURLSpy).toHaveBeenCalled();
+    const calledBlob = createObjectURLSpy.mock.calls[0][0];
+
+    // 判断是否是同一个 blob 引用
+    expect(calledBlob).toBe(originalBlob); // 严格相等
+
+    createObjectURLSpy.mockRestore();
   });
 });
