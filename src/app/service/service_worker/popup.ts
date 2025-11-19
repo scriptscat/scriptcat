@@ -66,6 +66,28 @@ let lastActiveTabId = 0;
 // 串接中的更新承诺：序列化 genScriptMenu 执行，避免并行重建 contextMenu。
 let contextMenuUpdatePromise = Promise.resolve();
 
+// 呼叫 API 设置 Badge
+const apiSetBadge = (o: { text: string; tabId: number; backgroundColor?: string; textColor?: string }) => {
+  const { text, tabId, backgroundColor, textColor } = o;
+  if (!text) badgeShownSet.delete(tabId);
+  chrome.action.setBadgeText({
+    text: text,
+    tabId: tabId,
+  });
+  if (backgroundColor) {
+    chrome.action.setBadgeBackgroundColor({
+      color: backgroundColor,
+      tabId: tabId,
+    });
+  }
+  if (textColor) {
+    chrome.action.setBadgeTextColor({
+      color: textColor,
+      tabId: tabId,
+    });
+  }
+};
+
 // 处理popup页面的数据
 export class PopupService {
   constructor(
@@ -128,59 +150,60 @@ export class PopupService {
   }
 
   // 生成chrome菜单
-  async genScriptMenu() {
+  genScriptMenu() {
     // 使用简单 Promise chain 避免同一个程序同时跑
     contextMenuUpdatePromise = contextMenuUpdatePromise
       .then(async () => {
         const tabId = lastActiveTabId;
-        if (tabId === 0) return;
-        const menuEntries = [] as chrome.contextMenus.CreateProperties[];
-        const displayType = await this.systemConfig.getScriptMenuDisplayType();
-        if (displayType === "all") {
-          const [menu, backgroundMenu] = await Promise.all([this.getScriptMenu(tabId), this.getScriptMenu(-1)]);
-          if (menu?.length) this.genScriptMenuByTabMap(menuEntries, menu);
-          if (backgroundMenu?.length) this.genScriptMenuByTabMap(menuEntries, backgroundMenu); // 后台脚本的菜单
-          if (menuEntries.length > 0) {
-            // 创建根菜单
-            // 若有子项才建立根节点「ScriptCat」，避免出现空的顶层菜单。
-            menuEntries.unshift({
-              id: "scriptMenu",
-              title: "ScriptCat",
-              contexts: ["all"],
+        if (tabId > 0) {
+          const menuEntries = [] as chrome.contextMenus.CreateProperties[];
+          const displayType = await this.systemConfig.getScriptMenuDisplayType();
+          if (displayType === "all") {
+            const [menu, backgroundMenu] = await Promise.all([this.getScriptMenu(tabId), this.getScriptMenu(-1)]);
+            if (menu?.length) this.genScriptMenuByTabMap(menuEntries, menu);
+            if (backgroundMenu?.length) this.genScriptMenuByTabMap(menuEntries, backgroundMenu); // 后台脚本的菜单
+            if (menuEntries.length > 0) {
+              // 创建根菜单
+              // 若有子项才建立根节点「ScriptCat」，避免出现空的顶层菜单。
+              menuEntries.unshift({
+                id: "scriptMenu",
+                title: "ScriptCat",
+                contexts: ["all"],
+              });
+            }
+          }
+
+          // 移除之前所有的菜单
+          await chrome.contextMenus.removeAll();
+          contextMenuConvMap1.clear();
+          contextMenuConvMap2.clear();
+
+          let i = 0;
+          for (const menuEntry of menuEntries) {
+            // 菜单项目用的共通 uuid. 不会随 tab 切换或换页换iframe载入等行为改变。稳定id
+            // 稳定显示 id：即使 removeAll 重建，显示 id 仍保持一致以规避 Chrome 的不稳定行为。
+            const menuDisplayId = `${groupKeyNS}-${100000 + i}`;
+            // 把 SC管理用id 换成 menu显示用id
+            if (menuEntry.id) {
+              // 建立 SC id ↔ 显示 id 的双向映射：parentId/点击回推都依赖此映射。
+              contextMenuConvMap1.set(menuEntry.id!, menuDisplayId); // 用于parentId转换menuDisplayId
+              contextMenuConvMap2.set(menuDisplayId, menuEntry.id!); // 用于menuDisplayId转换成SC管理用id
+              menuEntry.id = menuDisplayId;
+            }
+            if (menuEntry.parentId) {
+              menuEntry.parentId = contextMenuConvMap1.get(menuEntry.parentId) || menuEntry.parentId;
+            }
+
+            i++;
+            // 由于使用旧id，旧的内部context menu item应会被重用因此不会造成记忆体失控。
+            // （推论内部有cache机制，即使removeAll也是有残留）
+            chrome.contextMenus.create(menuEntry, () => {
+              const lastError = chrome.runtime.lastError;
+              if (lastError) {
+                console.error("chrome.runtime.lastError in chrome.contextMenus.create:", lastError.message);
+              }
             });
           }
-        }
-
-        // 移除之前所有的菜单
-        await chrome.contextMenus.removeAll();
-        contextMenuConvMap1.clear();
-        contextMenuConvMap2.clear();
-
-        let i = 0;
-        for (const menuEntry of menuEntries) {
-          // 菜单项目用的共通 uuid. 不会随 tab 切换或换页换iframe载入等行为改变。稳定id
-          // 稳定显示 id：即使 removeAll 重建，显示 id 仍保持一致以规避 Chrome 的不稳定行为。
-          const menuDisplayId = `${groupKeyNS}-${100000 + i}`;
-          // 把 SC管理用id 换成 menu显示用id
-          if (menuEntry.id) {
-            // 建立 SC id ↔ 显示 id 的双向映射：parentId/点击回推都依赖此映射。
-            contextMenuConvMap1.set(menuEntry.id!, menuDisplayId); // 用于parentId转换menuDisplayId
-            contextMenuConvMap2.set(menuDisplayId, menuEntry.id!); // 用于menuDisplayId转换成SC管理用id
-            menuEntry.id = menuDisplayId;
-          }
-          if (menuEntry.parentId) {
-            menuEntry.parentId = contextMenuConvMap1.get(menuEntry.parentId) || menuEntry.parentId;
-          }
-
-          i++;
-          // 由于使用旧id，旧的内部context menu item应会被重用因此不会造成记忆体失控。
-          // （推论内部有cache机制，即使removeAll也是有残留）
-          chrome.contextMenus.create(menuEntry, () => {
-            const lastError = chrome.runtime.lastError;
-            if (lastError) {
-              console.error("chrome.runtime.lastError in chrome.contextMenus.create:", lastError.message);
-            }
-          });
         }
       })
       .catch(console.warn);
@@ -221,7 +244,7 @@ export class PopupService {
               nested: undefined,
               mSeparator: undefined,
             })
-          : `${nameForKey}_${options.mIndividualKey}`; // 一般菜單項目不需要 JSON.stringify
+          : `${nameForKey}_${options.mIndividualKey}`; // 一般菜单项目不需要 JSON.stringify
         const groupKey = `${uuidv5(popupGroup, groupKeyNS)},${options.nested ? 3 : 2}`;
         const menu = menus.find((item) => item.key === key);
         if (!menu) {
@@ -297,18 +320,20 @@ export class PopupService {
 
   // 更新脚本菜单
   async updateScriptMenu(tabId: number) {
-    if (tabId !== lastActiveTabId) return; // 其他页面的指令，不理
+    if (tabId > 0) {
+      if (tabId !== lastActiveTabId) return; // 其他页面的指令，不理
 
-    // 注意：不要使用 getCurrentTab()。
-    // 因为如果使用者切换到其他应用（如 Excel/Photoshop），网页仍可能触发 menu 的注册/解除操作。
-    // 若此时用 getCurrentTab()，就无法正确更新右键选单。
+      // 注意：不要使用 getCurrentTab()。
+      // 因为如果使用者切换到其他应用（如 Excel/Photoshop），网页仍可能触发 menu 的注册/解除操作。
+      // 若此时用 getCurrentTab()，就无法正确更新右键选单。
 
-    // 检查一下 tab的有效性
-    // 仅针对目前 lastActiveTabId 进行检查与更新，避免误在非当前 tab 重建菜单。
-    const tab = await chrome.tabs.get(lastActiveTabId);
-    if (tab && !tab.frozen && tab.active && !tab.discarded && tab.lastAccessed) {
-      // 更新菜单 / 生成菜单
-      await this.genScriptMenu();
+      // 检查一下 tab的有效性
+      // 仅针对目前 lastActiveTabId 进行检查与更新，避免误在非当前 tab 重建菜单。
+      const tab = await chrome.tabs.get(lastActiveTabId);
+      if (tab && !tab.frozen && tab.active && !tab.discarded && tab.lastAccessed) {
+        // 更新菜单 / 生成菜单
+        this.genScriptMenu();
+      }
     }
   }
 
@@ -403,8 +428,14 @@ export class PopupService {
       for (const d of data) {
         runCount += d.runNum;
       }
-      data.length && scriptCountMap.set(tabId, `${data.length}`);
-      runCount && runCountMap.set(tabId, `${runCount}`);
+      // 所有脚本都没有启动。更新适用于之前打开了现在关掉的情况，见 #978
+      if (scriptmenus.length === 0 && data.length === 0) {
+        scriptCountMap.set(tabId, "");
+        runCountMap.set(tabId, "");
+      } else {
+        data.length && scriptCountMap.set(tabId, `${data.length}`);
+        runCount && runCountMap.set(tabId, `${runCount}`);
+      }
       tx.set(data);
     });
   }
@@ -533,16 +564,16 @@ export class PopupService {
     } else {
       // 不显示数字
       if (badgeShownSet.has(tabId)) {
-        badgeShownSet.delete(tabId);
-        chrome.action.setBadgeText({
-          text: "",
-          tabId: tabId,
-        });
+        apiSetBadge({ text: "", tabId });
       }
       return;
     }
     const text = map.get(tabId);
     if (typeof text !== "string") return;
+    if (!text && !badgeShownSet.has(tabId)) {
+      // 没有脚本不用显示 & 没有设置
+      return;
+    }
     const backgroundColor = await this.systemConfig.getBadgeBackgroundColor();
     const textColor = await this.systemConfig.getBadgeTextColor();
     // 标记此 tab 的 badge 已设定，便于后续在「不显示」模式时进行清理。
@@ -551,18 +582,7 @@ export class PopupService {
       `${cIdKey}-tabId#${tabId}`,
       () => {
         if (!badgeShownSet.has(tabId)) return;
-        chrome.action.setBadgeText({
-          text: text || "",
-          tabId: tabId,
-        });
-        chrome.action.setBadgeBackgroundColor({
-          color: backgroundColor,
-          tabId: tabId,
-        });
-        chrome.action.setBadgeTextColor({
-          color: textColor,
-          tabId: tabId,
-        });
+        apiSetBadge({ text, tabId, backgroundColor, textColor });
       },
       50
     );
@@ -614,16 +634,27 @@ export class PopupService {
       }
       clearData(tabId);
     });
-    // 监听页面切换加载菜单
-    // 进程启动时可能尚未触发 onActivated：补一次初始化以建立当前 tab 的菜单与 badge。
-    getCurrentTab().then((tab) => {
-      // 处理载入时未触发 chrome.tabs.onActivated 的情况
-      if (!lastActiveTabId && tab?.id) {
-        lastActiveTabId = tab.id;
-        this.genScriptMenu();
+    /**
+     * @param tabId 当前页面的 tabId。如 tabId 为 null, 则呼叫 getCurrentTab() 以API取当前页面的 tabId。
+     */
+    const doBadgeAndMenuUpdate = async (tabId: number | undefined | null = null) => {
+      if (tabId === null) {
+        tabId = await getCurrentTab().then((tab) => tab?.id);
+      }
+      tabId = tabId || 0;
+      if (tabId && tabId > 0) {
+        // 若 tabId 有变化，则更新菜单。
+        if (lastActiveTabId !== tabId) {
+          lastActiveTabId = tabId;
+          this.genScriptMenu();
+        }
+        // 更新Badge显示。
         this.updateBadgeIcon();
       }
-    });
+    };
+    // 监听页面切换加载菜单
+    // 进程启动时可能尚未触发 onActivated：补一次初始化以建立当前 tab 的菜单与 badge。
+    doBadgeAndMenuUpdate(null);
     chrome.tabs.onActivated.addListener((activeInfo) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
@@ -631,12 +662,30 @@ export class PopupService {
         // 没有 tabId 资讯，无法加载菜单
         return;
       }
-      lastActiveTabId = activeInfo.tabId;
       // 目前设计：subframe 和 mainframe 的 contextMenu 是共用的。
       // 换句话说，subframe 的右键菜单可以执行 mainframe 的选项，反之亦然。
-      this.genScriptMenu();
-      this.updateBadgeIcon();
+      lastActiveTabId = 0; // 强制呼叫 genScriptMenu()
+      doBadgeAndMenuUpdate(activeInfo.tabId);
     });
+
+    // chrome.tabs.onUpdated.addListener((_tabId, _changeInfo, _tab) => {
+    //   const lastError = chrome.runtime.lastError;
+    //   if (lastError) {
+    //     console.error("chrome.runtime.lastError in chrome.tabs.onUpdated:", lastError);
+    //     // 没有 tabId 资讯，无法加载菜单
+    //     return;
+    //   }
+    //   doBadgeAndMenuUpdate(null);
+    // });
+    // chrome.windows.onFocusChanged.addListener((_windowId) => {
+    //   const lastError = chrome.runtime.lastError;
+    //   if (lastError) {
+    //     console.error("chrome.runtime.lastError in chrome.windows.onFocusChanged:", lastError);
+    //     // 没有 tabId 资讯，无法加载菜单
+    //     return;
+    //   }
+    //   doBadgeAndMenuUpdate(null);
+    // });
 
     chrome.webNavigation.onBeforeNavigate.addListener((details) => {
       const lastError = chrome.runtime.lastError;
@@ -687,6 +736,9 @@ export class PopupService {
         }
       }
     });
+
+    // scriptCountMap.clear();
+    // runCountMap.clear();
 
     // 监听运行次数
     // 监听页面载入事件以更新脚本执行计数；若为当前活动 tab，同步刷新 badge。
