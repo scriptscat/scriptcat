@@ -121,9 +121,6 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   const charsetMatch = contentType.match(/charset=([^;]+)/i);
   const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "utf-8";
 
-  if (response.status !== 200) {
-    throw new Error("fetch script info failed");
-  }
 
   // 合并分片（chunks）
   const chunksAll = new Uint8Array(receivedLength);
