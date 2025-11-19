@@ -175,8 +175,7 @@ export function GM_xmlhttpRequest(
     if (isDownload) {
       // 如果是下载，带上 downloadMode 参数
       // 在 SW 中处理，实际使用 GM_xmlhttpRequest 进行下载
-      //@ts-ignore
-      param.downloadMode = "native";
+      (param as typeof param & { downloadMode?: "native" }).downloadMode = "native";
     }
 
     // 发送信息
