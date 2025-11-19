@@ -11,6 +11,24 @@ export type RequestResultParams = {
   finalUrl: string;
 };
 
+type BgGMXhrCallbackResult = Record<string, any> & {
+  //
+  readyState: GMTypes.ReadyState;
+  status: number;
+  statusText: string;
+  responseHeaders: string | null;
+  //
+  useFetch: boolean;
+  eventType: string;
+  ok: boolean;
+  contentType: string;
+  error: string | Error | undefined;
+  // progress
+  total?: number;
+  loaded?: number;
+  lengthComputable?: boolean;
+};
+
 type XHRProgressEvents = "progress";
 type XHREvent = ({ type: XHRProgressEvents } & Omit<ProgressEvent<EventTarget>, "type">) | Event;
 
@@ -194,25 +212,7 @@ export class BgGMXhr {
     });
   }
 
-  callback(
-    result: Record<string, any> & {
-      //
-      readyState: GMTypes.ReadyState;
-      status: number;
-      statusText: string;
-      responseHeaders: string | null;
-      //
-      useFetch: boolean;
-      eventType: string;
-      ok: boolean;
-      contentType: string;
-      error: string | Error | undefined;
-      // progress
-      total?: number;
-      loaded?: number;
-      lengthComputable?: boolean;
-    }
-  ) {
+  callback(result: BgGMXhrCallbackResult) {
     const data = {
       ...result,
       finalUrl: this.resultParams.finalUrl,
@@ -329,7 +329,7 @@ export class BgGMXhr {
           }
         }
 
-        const result = {
+        const result: BgGMXhrCallbackResult = {
           /*
         
         
@@ -366,7 +366,7 @@ export class BgGMXhr {
           responseURL: xhr.responseURL,
           // How to get the error message in native XHR ?
           error: eventType !== "error" ? undefined : (err as Error)?.message || err || "Unknown Error",
-        } as Parameters<typeof this.callback>[0];
+        } satisfies BgGMXhrCallbackResult;
 
         if (isProgressEvt) {
           result.total = evt.total;
