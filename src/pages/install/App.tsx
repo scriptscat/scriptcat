@@ -31,7 +31,7 @@ import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
-import Paragraph from "@arco-design/web-react/es/Typography/paragraph";
+import { formatBytes } from "@App/pkg/utils/utils";
 
 type ScriptOrSubscribe = Script | Subscribe;
 
@@ -50,23 +50,6 @@ const closeWindow = (doBackwards: boolean) => {
   } else {
     window.close();
   }
-};
-
-/**
- * 將字節數轉換為人類可讀的格式（B, KB, MB, GB 等）。
- * @param bytes - 要轉換的字節數（number）。
- * @param decimals - 小數位數，默認為 2。
- * @returns 格式化的字符串，例如 "1.23 MB"。
- */
-const formatBytes = (bytes: number, decimals: number = 2): string => {
-  if (bytes === 0) return "0 B";
-
-  const k = 1024;
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const value = bytes / Math.pow(k, i);
-
-  return `${value.toFixed(decimals)} ${units[i]}`;
 };
 
 const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any }) => {
@@ -120,7 +103,6 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   const contentType = response.headers.get("content-type") || "";
   const charsetMatch = contentType.match(/charset=([^;]+)/i);
   const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "utf-8";
-
 
   // 合并分片（chunks）
   const chunksAll = new Uint8Array(receivedLength);
@@ -818,9 +800,9 @@ function App() {
           {descriptionParagraph?.length ? (
             <div className="flex flex-col shrink-0 grow-1">
               <Typography>
-                <Paragraph blockquote className="pt-2 pb-2">
+                <Typography.Paragraph blockquote className="pt-2 pb-2">
                   {descriptionParagraph}
-                </Paragraph>
+                </Typography.Paragraph>
               </Typography>
             </div>
           ) : (
