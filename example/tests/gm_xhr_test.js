@@ -874,7 +874,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200);
         assert(progressEvents >= 4, "received at least 4 progress events");
-        assert(lastLoaded >= 0, "progress loaded captured");
+        assert(lastLoaded > 0, "progress loaded captured");
         assert(!response, "no response");
       },
     },
