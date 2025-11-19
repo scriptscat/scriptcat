@@ -147,7 +147,7 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
 };
 
 const cleanupStaleInstallInfo = (uuid: string) => {
-  // 頁面打開時不清除當前uuid，每30秒更新一次記錄
+  // 页面打开时不清除当前uuid，每30秒更新一次记录
   const f = () => {
     cacheInstance.tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
       val = val || {};
