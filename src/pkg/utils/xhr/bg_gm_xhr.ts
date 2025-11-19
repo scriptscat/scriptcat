@@ -11,6 +11,13 @@ export type RequestResultParams = {
   finalUrl: string;
 };
 
+type XHRProgressEvents = "progress";
+type XHREvent = ({ type: XHRProgressEvents } & Omit<ProgressEvent<EventTarget>, "type">) | Event;
+
+const isProgressEvent = (e: XHREvent): e is ProgressEvent<EventTarget> & { type: "progress" } => {
+  return e.type === "progress";
+};
+
 /**
  * ## GM_xmlhttpRequest(details)
  *
@@ -286,11 +293,12 @@ export class BgGMXhr {
 
       let contentType = "";
       let responseHeaders: string | null = null;
-      let finalStateChangeEvent: Event | ProgressEvent<EventTarget> | null = null;
+      let finalStateChangeEvent: XHREvent | null = null;
       let canTriggerFinalStateChangeEvent = false;
-      const callback = (evt: Event | ProgressEvent<EventTarget>, err?: Error | string) => {
+      const callback = (evt: XHREvent, err?: Error | string) => {
         const xhr = baseXHR;
         const eventType = evt.type;
+        const isProgressEvt = isProgressEvent(evt);
 
         if (eventType === "load") {
           canTriggerFinalStateChangeEvent = true;
@@ -360,10 +368,10 @@ export class BgGMXhr {
           error: eventType !== "error" ? undefined : (err as Error)?.message || err || "Unknown Error",
         } as Parameters<typeof this.callback>[0];
 
-        if (eventType === "progress") {
-          result.total = (evt as ProgressEvent).total;
-          result.loaded = (evt as ProgressEvent).loaded;
-          result.lengthComputable = (evt as ProgressEvent).lengthComputable;
+        if (isProgressEvt) {
+          result.total = evt.total;
+          result.loaded = evt.loaded;
+          result.lengthComputable = evt.lengthComputable;
         }
 
         this.callback(result);
