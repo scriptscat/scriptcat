@@ -126,7 +126,20 @@ const shouldFnBind = (f: any) => {
   const e = name.charCodeAt(0);
   if (e >= 97 && e <= 122 && !name.includes(" ")) {
     // 为避免浏览器插件封装了 原生函数，需要进行 toString 测试
-    if (nativeCodeSeg.length && `${f}`.endsWith(`${name}${nativeCodeSeg}`)) {
+    if (nativeCodeSeg.length) {
+      const s = `${f}`;
+      if (s.length > nativeCodeSeg.length) {
+        if (s.endsWith(`${name}${nativeCodeSeg}`)) {
+          // 真原生
+          return true;
+        } else {
+          // Proxy Function
+          const b = nativeCodeSeg[0] === " " ? `${nativeCodeSeg}` : ` ${nativeCodeSeg}`;
+          if (s === `function${b}`) return true;
+        }
+      }
+    } else {
+      // 代码错误，全部 bind
       return true;
     }
   }
