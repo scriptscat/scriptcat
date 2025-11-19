@@ -1,9 +1,12 @@
 import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
 import { messageQueue } from "./global";
-import { editor } from "monaco-editor";
 import { type TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage } from "@App/locales/locales";
 import { SystemConfigChange } from "@App/pkg/config/config";
+
+export const fnPlaceHolder = {
+  setEditorTheme: null,
+} as { setEditorTheme: ((theme: string) => void) | null };
 
 export type ThemeParam = { theme: "auto" | "light" | "dark" };
 export interface AppContextType {
@@ -49,12 +52,12 @@ const setAppColorTheme = (theme: "light" | "dark" | "auto") => {
     case "dark":
       document.documentElement.classList.add("dark");
       document.body.setAttribute("arco-theme", "dark");
-      editor.setTheme("vs-dark");
+      fnPlaceHolder.setEditorTheme?.("vs-dark");
       break;
     case "light":
       document.documentElement.classList.remove("dark");
       document.body.removeAttribute("arco-theme");
-      editor.setTheme("vs");
+      fnPlaceHolder.setEditorTheme?.("vs");
       break;
   }
 };
