@@ -158,8 +158,8 @@ const cleanupStaleInstallInfo = (uuid: string) => {
   f();
   setInterval(f, 30_000);
 
-  // 頁面打開後清除舊記錄
-  const delay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免瀏览器重啟时大量Tabs同时执行清除
+  // 页面打开后清除旧记录
+  const delay = Math.floor(5000 * Math.random()) + 10000; // 使用随机时间避免浏览器重启时大量Tabs同时执行清除
   timeoutExecution(
     `${cIdKey}cleanupStaleInstallInfo`,
     () => {
