@@ -171,7 +171,7 @@ if (!("onblur" in global)) {
 }
 
 Object.assign(global, {
-  setTimeoutForTest(...args: any) {
+  setTimeoutForTest1(...args: any) {
     // 注意： function XXX (){} 会导致 Class prototype 出现
     //@ts-ignore
     if (typeof this === "object" && this && this !== global) throw new TypeError("Illegal invocation");
@@ -179,9 +179,35 @@ Object.assign(global, {
     return this.setTimeout(...args);
   },
 });
-//@ts-ignore 强行修改 setTimeoutForTest toString 为 原生代码显示
-global.setTimeoutForTest.toString = () =>
-  `${Object.propertyIsEnumerable}`.replace("propertyIsEnumerable", "setTimeoutForTest");
+//@ts-ignore 强行修改 setTimeoutForTest1 toString 为 原生代码显示
+global.setTimeoutForTest1.toString = () =>
+  `${Object.propertyIsEnumerable}`.replace("propertyIsEnumerable", "setTimeoutForTest1");
+
+Object.assign(global, {
+  setTimeoutForTest2(...args: any) {
+    // 注意： function XXX (){} 会导致 Class prototype 出现
+    //@ts-ignore
+    if (typeof this === "object" && this && this !== global) throw new TypeError("Illegal invocation");
+    //@ts-ignore
+    return this.setTimeout(...args);
+  },
+});
+//@ts-ignore 强行修改 setTimeoutForTest2 toString 为 原生代码显示
+global.setTimeoutForTest2.toString = () =>
+  `${Object.propertyIsEnumerable}`.replace("propertyIsEnumerable", "setTimeoutForTest2");
+
+//@ts-ignore 模擬擴展攔截
+global.setTimeoutForTest2 = new Proxy(global.setTimeoutForTest2, {
+  apply: (target, thisArg, argArray) => {
+    return target.call(
+      thisArg,
+      () => {
+        argArray[0]("proxy");
+      },
+      argArray[1]
+    );
+  },
+});
 
 vi.stubGlobal("sandboxTestValue", "sandboxTestValue");
 vi.stubGlobal("sandboxTestValue2", "sandboxTestValue2");

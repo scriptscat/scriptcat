@@ -376,32 +376,57 @@ describe("沙盒环境测试", async () => {
 
   it.concurrent("[兼容问题] Ensure Illegal invocation can be tested", () => {
     expect(global.setTimeout.name).toEqual("setTimeout");
+    // -----
     //@ts-ignore
-    expect(global.setTimeoutForTest.name).toEqual("setTimeoutForTest");
-    expect(_this.setTimeoutForTest.name).toEqual("bound setTimeoutForTest");
+    expect(global.setTimeoutForTest1.name).toEqual("setTimeoutForTest1");
+    expect(_this.setTimeoutForTest1.name).toEqual("bound setTimeoutForTest1");
     //@ts-ignore
     expect(() => global.setTimeout.call(global, () => {}, 1)).not.toThrow();
     //@ts-ignore
-    expect(() => global.setTimeoutForTest.call(global, () => {}, 1)).not.toThrow();
+    expect(() => global.setTimeoutForTest1.call(global, () => {}, 1)).not.toThrow();
     //@ts-ignore
-    expect(() => global.setTimeoutForTest.call({}, () => {}, 1)).toThrow();
+    expect(() => global.setTimeoutForTest1.call({}, () => {}, 1)).toThrow();
+    // -----
+    //@ts-ignore
+    expect(global.setTimeoutForTest2.name).toEqual("setTimeoutForTest2");
+    expect(_this.setTimeoutForTest2.name).toEqual("bound setTimeoutForTest2");
+    //@ts-ignore
+    expect(() => global.setTimeout.call(global, () => {}, 1)).not.toThrow();
+    //@ts-ignore
+    expect(() => global.setTimeoutForTest2.call(global, () => {}, 1)).not.toThrow();
+    //@ts-ignore
+    expect(() => global.setTimeoutForTest2.call({}, () => {}, 1)).toThrow();
   });
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
   it.concurrent("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
-    // setTimeout 和 setTimeoutForTest 都測試吧
+    // setTimeout 和 setTimeoutForTest1 都測試吧
     const promise1 = new Promise((resolve) => {
       console.log(_this.setTimeout.prototype);
-      _this.setTimeoutForTest(resolve, 1);
+      _this.setTimeoutForTest1(resolve, 1);
     });
     const promise2 = new Promise((resolve) => {
       console.log(_this.setTimeout.prototype);
       _this.setTimeout(resolve, 1);
     });
-    expect(Promise.all([promise1, promise2]).then(() => "ok")).resolves.toBe("ok");
+    const res = Promise.all([promise1, promise2]);
+    expect(res.then((res) => (!res[0] && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
   });
   // AC-baidu-重定向优化百度搜狗谷歌必应搜索_favicon_双列
   it.concurrent("[兼容问题] TypeError: Object.freeze is not a function #116", () => {
     expect(() => _this.Object.freeze({})).not.toThrow();
+  });
+  it.concurrent("Proxy Function #985", () => {
+    // setTimeout 和 setTimeoutForTest2 都測試吧
+    const promise1 = new Promise((resolve) => {
+      console.log(_this.setTimeout.prototype);
+      _this.setTimeoutForTest2(resolve, 1);
+    });
+    const promise2 = new Promise((resolve) => {
+      console.log(_this.setTimeout.prototype);
+      _this.setTimeout(resolve, 1);
+    });
+    const res = Promise.all([promise1, promise2]);
+    expect(res.then((res) => (res[0] === "proxy" && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
   });
 
   const tag = (<any>global)[Symbol.toStringTag]; // 实际环境：'[object Window]' 测试环境：'[object global]'
