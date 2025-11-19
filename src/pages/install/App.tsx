@@ -642,7 +642,7 @@ function App() {
         const url = searchParams.get("url");
         if (url) {
           const urlObject = new URL(url);
-          if (urlObject && urlObject.protocol && urlObject.hostname && urlObject.pathname) {
+          if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
             return urlObject.href;
           }
         }
