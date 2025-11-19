@@ -11,8 +11,8 @@ import {
   Modal,
   Popconfirm,
   Space,
+  Typography,
 } from "@arco-design/web-react";
-import Title from "@arco-design/web-react/es/Typography/title";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
@@ -51,7 +51,7 @@ function Tools() {
       {contextHolder}
       <Card className="backup" title={t("backup")} bordered={false}>
         <Space direction="vertical">
-          <Title heading={6}>{t("local")}</Title>
+          <Typography.Title heading={6}>{t("local")}</Typography.Title>
           <Space>
             <input type="file" ref={fileRef} style={{ display: "none" }} accept=".zip" />
             <Button
@@ -91,7 +91,7 @@ function Tools() {
               {t("import_file")}
             </Button>
           </Space>
-          <Title heading={6}>{t("cloud")}</Title>
+          <Typography.Title heading={6}>{t("cloud")}</Typography.Title>
           <FileSystemParams
             preNode={t("backup_to")}
             onChangeFileSystemType={(type) => {
@@ -255,7 +255,7 @@ function Tools() {
               )}
             />
           </Drawer>
-          <Title heading={6}>{t("backup_strategy")}</Title>
+          <Typography.Title heading={6}>{t("backup_strategy")}</Typography.Title>
           <Empty description={t("under_construction")} />
           <Popconfirm
             title={t("migration_confirm_message")}
@@ -293,7 +293,7 @@ function Tools() {
         bordered={false}
       >
         <Space direction="vertical">
-          <Title heading={6}>{t("vscode_url")}</Title>
+          <Typography.Title heading={6}>{t("vscode_url")}</Typography.Title>
           <Input
             ref={vscodeRef}
             value={vscodeUrl}
