@@ -303,8 +303,8 @@ describe("沙盒环境测试", async () => {
       // });
 
       // 在模拟环境无法测试：在实际操作中和TM一致
-      // 在非拦截式沙盒裡删除 沙盒onload 后，会取得页面的真onload
-      // 在非拦截式沙盒裡删除 真onload 后，会变undefined
+      // 在非拦截式沙盒里删除 沙盒onload 后，会取得页面的真onload
+      // 在非拦截式沙盒里删除 真onload 后，会变undefined
       // it.concurrent("删除 onload 后应该为 null", () => {
       //   const mockFn = vi.fn();
       //   _this["onload"] = function thisOnLoad() {
@@ -399,7 +399,7 @@ describe("沙盒环境测试", async () => {
   });
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
   it.concurrent("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
-    // setTimeout 和 setTimeoutForTest1 都測試吧
+    // setTimeout 和 setTimeoutForTest1 都测试吧
     const promise1 = new Promise((resolve) => {
       console.log(_this.setTimeout.prototype);
       _this.setTimeoutForTest1(resolve, 1);
@@ -416,7 +416,7 @@ describe("沙盒环境测试", async () => {
     expect(() => _this.Object.freeze({})).not.toThrow();
   });
   it.concurrent("Proxy Function #985", () => {
-    // setTimeout 和 setTimeoutForTest2 都測試吧
+    // setTimeout 和 setTimeoutForTest2 都测试吧
     const promise1 = new Promise((resolve) => {
       console.log(_this.setTimeout.prototype);
       _this.setTimeoutForTest2(resolve, 1);
