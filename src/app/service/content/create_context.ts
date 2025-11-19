@@ -115,7 +115,7 @@ const getNativeCodeSeg = () => {
 const nativeCodeSeg = getNativeCodeSeg();
 
 // 判断是否应该将函数绑定到global （原生函数）
-const shouldFnBind = (f: any) => {
+export const shouldFnBind = (f: any) => {
   if (typeof f !== "function") return false;
   // 函数有 prototype 即为 Class
   if ("prototype" in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
