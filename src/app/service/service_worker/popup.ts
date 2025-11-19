@@ -403,6 +403,7 @@ export class PopupService {
     const { tabId, frameId, scriptmenus } = o;
     // 设置数据
     await cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
+      const isPrevDataEmpty = !data?.length;
       // 特例：frameId 为 0/未提供时，重置当前 tab 的计数资料（视为页面重新载入）。
       data = !frameId ? [] : data || [];
       // 设置脚本运行次数
@@ -432,6 +433,8 @@ export class PopupService {
       if (scriptmenus.length === 0 && data.length === 0) {
         scriptCountMap.set(tabId, "");
         runCountMap.set(tabId, "");
+        // 之前也是没数据的话，不用 tx.set (storage.session.set)
+        if (isPrevDataEmpty) return;
       } else {
         data.length && scriptCountMap.set(tabId, `${data.length}`);
         runCount && runCountMap.set(tabId, `${runCount}`);
