@@ -172,6 +172,13 @@ export function GM_xmlhttpRequest(
     const xhrType = param.responseType;
     const responseType = responseTypeOriginal; // 回传用
 
+    if (isDownload) {
+      // 如果是下载，带上 downloadMode 参数
+      // 在 SW 中处理，实际使用 GM_xmlhttpRequest 进行下载
+      //@ts-ignore
+      param.downloadMode = "native";
+    }
+
     // 发送信息
     a.connect(isDownload ? "GM_download" : "GM_xmlhttpRequest", [param]).then((con) => {
       // 注意。在此 callback 里，不应直接存取 param, 否则会影响 GC
@@ -336,9 +343,6 @@ export function GM_xmlhttpRequest(
               return responseXML as Document | null;
             },
             get responseText() {
-              if (responseTypeOriginal === "document") {
-                // console.log(resultType, resultBuffers.length, resultTexts.length);
-              }
               if (responseText === false) {
                 if (resultType === 2) {
                   finalResultBuffers ||= concatUint8(resultBuffers);
@@ -347,7 +351,6 @@ export function GM_xmlhttpRequest(
                   const text = decoder.decode(buf);
                   responseText = text;
                 } else {
-                  // resultType === 3
                   if (finalResultText === null) finalResultText = `${resultTexts.join("")}`;
                   responseText = finalResultText;
                 }

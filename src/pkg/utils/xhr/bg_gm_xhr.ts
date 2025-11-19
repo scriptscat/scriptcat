@@ -200,6 +200,10 @@ export class BgGMXhr {
       ok: boolean;
       contentType: string;
       error: string | Error | undefined;
+      // progress
+      total?: number;
+      loaded?: number;
+      lengthComputable?: boolean;
     }
   ) {
     const data = {
@@ -316,7 +320,8 @@ export class BgGMXhr {
             }
           }
         }
-        this.callback({
+
+        const result = {
           /*
         
         
@@ -353,7 +358,15 @@ export class BgGMXhr {
           responseURL: xhr.responseURL,
           // How to get the error message in native XHR ?
           error: eventType !== "error" ? undefined : (err as Error)?.message || err || "Unknown Error",
-        });
+        } as Parameters<typeof this.callback>[0];
+
+        if (eventType === "progress") {
+          result.total = (evt as ProgressEvent).total;
+          result.loaded = (evt as ProgressEvent).loaded;
+          result.lengthComputable = (evt as ProgressEvent).lengthComputable;
+        }
+
+        this.callback(result);
 
         evt.type;
       };
