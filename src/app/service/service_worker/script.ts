@@ -83,7 +83,8 @@ export class ScriptService {
       (req: chrome.webNavigation.WebNavigationBaseCallbackDetails) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error(lastError.message);
+          console.error("chrome.runtime.lastError in chrome.webNavigation.onBeforeNavigate:", lastError);
+          return;
         }
         // 处理url, 实现安装脚本
         let targetUrl: string;
