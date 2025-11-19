@@ -1141,7 +1141,7 @@ export default class GMApi {
     const params = request.params[0];
     // 如果downloadMode为native则走GM_xmlhttpRequest
     if (params.downloadMode === "native") {
-      return this.GM_xmlhttpRequest(request, sender);
+      return this.GM_xmlhttpRequest(request satisfies GMApiRequest<[GMSend.XHRDetails?]>, sender);
     }
     let reqCompleteWith = "";
     let cDownloadId = 0;
