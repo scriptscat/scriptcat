@@ -112,6 +112,9 @@ export function GM_xmlhttpRequest(
     }
   }
   const contentContext = details.context;
+  if (details.method) {
+    details.method = `${details.method}`.toUpperCase() as typeof details.method;
+  }
 
   const param: GMSend.XHRDetails = {
     method: details.method,
