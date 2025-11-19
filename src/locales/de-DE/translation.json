@@ -282,7 +282,7 @@
   "cookie_warning": "Achtung: Dieses Skript beantragt Cookie-Operationsberechtigung. Dies ist eine gefährliche Berechtigung, bitte stellen Sie die Sicherheit des Skripts sicher.",
   "scheduled_script_description_title": "Dies ist ein geplantes Skript. Wenn aktiviert, wird es zu bestimmten Zeiten automatisch ausgeführt und kann im Panel manuell gesteuert werden.",
   "scheduled_script_description_description_expr": "Geplante Aufgaben-Ausdruck",
-  "scheduled_script_description_description_next": "Letzte Ausführungszeit",
+  "scheduled_script_description_description_next": "Letzte Ausführungszeit:",
   "background_script_description": "Dies ist ein Hintergrundskript. Wenn aktiviert, wird es automatisch einmal ausgeführt, wenn der Browser geöffnet wird, und kann im Panel manuell gesteuert werden.",
   "install_success": "Installation erfolgreich",
   "install": {
