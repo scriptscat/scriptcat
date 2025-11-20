@@ -390,6 +390,11 @@ export function cleanFileName(name: string): string {
   return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
 }
 
+export const sourceMapTo = (scriptName: string) => {
+  const url = chrome.runtime.getURL(`/${encodeURI(scriptName)}`);
+  return `\n//# sourceURL=${url}`;
+};
+
 export const stringMatching = (main: string, sub: string): boolean => {
   // If no wildcards, use simple includes check
   if (!sub.includes("*") && !sub.includes("?")) {

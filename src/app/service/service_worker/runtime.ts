@@ -22,6 +22,7 @@ import {
   getMetadataStr,
   getUserConfigStr,
   obtainBlackList,
+  sourceMapTo,
 } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
@@ -832,9 +833,11 @@ export class RuntimeService {
     const retScript: chrome.userScripts.RegisteredUserScript[] = [];
     const contentJs = await this.getContentJsCode();
     if (contentJs) {
+      const codeBody = `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')`;
+      const code = `${codeBody}${sourceMapTo("scriptcat-content.js")}\n`;
       retScript.push({
         id: "scriptcat-content",
-        js: [{ code: `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')` }],
+        js: [{ code }],
         matches: ["<all_urls>"],
         allFrames: true,
         runAt: "document_start",
@@ -1293,7 +1296,8 @@ export class RuntimeService {
     { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
   ) {
     // 构建inject.js的脚本注册信息
-    const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
+    const codeBody = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
+    const code = `${codeBody}${sourceMapTo("scriptcat-inject.js")}\n`;
     const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-inject",
       js: [{ code }],
