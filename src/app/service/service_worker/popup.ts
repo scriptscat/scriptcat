@@ -672,25 +672,6 @@ export class PopupService {
       doBadgeAndMenuUpdate(activeInfo.tabId);
     });
 
-    // chrome.tabs.onUpdated.addListener((_tabId, _changeInfo, _tab) => {
-    //   const lastError = chrome.runtime.lastError;
-    //   if (lastError) {
-    //     console.error("chrome.runtime.lastError in chrome.tabs.onUpdated:", lastError);
-    //     // 没有 tabId 资讯，无法加载菜单
-    //     return;
-    //   }
-    //   doBadgeAndMenuUpdate(null);
-    // });
-    // chrome.windows.onFocusChanged.addListener((_windowId) => {
-    //   const lastError = chrome.runtime.lastError;
-    //   if (lastError) {
-    //     console.error("chrome.runtime.lastError in chrome.windows.onFocusChanged:", lastError);
-    //     // 没有 tabId 资讯，无法加载菜单
-    //     return;
-    //   }
-    //   doBadgeAndMenuUpdate(null);
-    // });
-
     chrome.webNavigation.onBeforeNavigate.addListener((details) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
@@ -740,9 +721,6 @@ export class PopupService {
         }
       }
     });
-
-    // scriptCountMap.clear();
-    // runCountMap.clear();
 
     // 监听运行次数
     // 监听页面载入事件以更新脚本执行计数；若为当前活动 tab，同步刷新 badge。
