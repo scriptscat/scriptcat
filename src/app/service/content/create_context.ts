@@ -100,22 +100,22 @@ export const createContext = (
 const noEval = false;
 
 // 取得原生函数代码表示
-const getNativeCodeSeg = () => {
+const getNativeCodeSegs = () => {
   const k = "propertyIsEnumerable"; // 选用 Object.propertyIsEnumerable 取得原生函数代码表示
   const codeSeg = `${Object[k]}`;
   const idx1 = codeSeg.indexOf(k);
   const idx2 = codeSeg.indexOf("()");
   const idx3 = codeSeg.lastIndexOf("(");
   if (idx1 > 0 && idx2 > 0 && idx3 === idx2) {
-    return codeSeg.substring(idx1 + k.length);
+    return [codeSeg.substring(0, idx1), codeSeg.substring(idx1 + k.length)];
   }
-  return "";
+  return null;
 };
 
-const nativeCodeSeg = getNativeCodeSeg();
+const ncs = getNativeCodeSegs();
 
 // 判断是否应该将函数绑定到global （原生函数）
-const shouldFnBind = (f: any) => {
+export const shouldFnBind = (f: any) => {
   if (typeof f !== "function") return false;
   // 函数有 prototype 即为 Class
   if ("prototype" in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
@@ -125,8 +125,15 @@ const shouldFnBind = (f: any) => {
   if (!name) return false;
   const e = name.charCodeAt(0);
   if (e >= 97 && e <= 122 && !name.includes(" ")) {
-    // 为避免浏览器插件封装了 原生函数，需要进行 toString 测试
-    if (nativeCodeSeg.length && `${f}`.endsWith(`${name}${nativeCodeSeg}`)) {
+    // 为避免浏览器插件封装了 原生函数，需要进行 toString 测试 （Proxy封装例外）
+    if (ncs?.[1]) {
+      const s = `${f}`;
+      // 广告拦截扩展进行Proxy封装后丢失名字 （Chrome：所有经Proxy封装都会变成无名原生函数）
+      if (s === `${ncs[0]}${name}${ncs[1]}` || s === `${ncs[0]}${ncs[1]}`) {
+        return true;
+      }
+    } else {
+      // 代码错误，全部 bind
       return true;
     }
   }
