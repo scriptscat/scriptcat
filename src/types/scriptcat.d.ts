@@ -564,7 +564,14 @@ declare namespace GMTypes {
     // TM/SC 标准回调
     onload?: Listener<object>;
     onerror?: Listener<DownloadError>;
-    onprogress?: Listener<XHRProgress>;
+    onprogress?: Listener<{
+      done: number;
+      lengthComputable: boolean;
+      loaded: number;
+      position?: number;
+      total: number;
+      totalSize: number;
+    }>;
     ontimeout?: (arg1?: any) => void;
   }
 
