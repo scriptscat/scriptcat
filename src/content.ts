@@ -18,15 +18,17 @@ const logger = new LoggerCore({
 const scriptFlag = randomString(8);
 
 const injectJs1 = fixCoding(injectJs);
+const randomId = (Math.random() + 10).toString(36);
 
 // 注入运行框架
-const temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
+let temp: HTMLScriptElement | null = document.createElementNS("http://www.w3.org/1999/xhtml", "script") as HTMLScriptElement;
 temp.setAttribute("type", "text/javascript");
 temp.setAttribute("charset", "UTF-8");
-temp.textContent = `(function (ScriptFlag) {\n${injectJs1}\n})('${scriptFlag}')`;
+temp.textContent = `(function (ScriptFlag) {\n${injectJs1}\n})('${scriptFlag}');\ndispatchEvent(new CustomEvent('${randomId}'));`;
 temp.className = "injected-js";
+// eslint-disable-next-line no-restricted-globals
+addEventListener(randomId, () => { temp && temp.remove(); temp = null; }, { once: true });
 document.documentElement.appendChild(temp);
-temp.remove();
 
 internalMessage.syncSend("pageLoad", null).then((resp) => {
   logger.logger().debug("content start");

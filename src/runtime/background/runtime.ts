@@ -452,16 +452,17 @@ export default class Runtime extends Manager {
                 runAt = "document_idle";
                 break;
             }
+            const randomId = (Math.random() + 10).toString(36);
             chrome.tabs.executeScript(sender.tabId!, {
               frameId: sender.frameId,
               code: `(function(){
                 let temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
                     temp.setAttribute('type', 'text/javascript');
                     temp.setAttribute('charset', 'UTF-8');
-                    temp.textContent = "${script.code}";
+                    temp.textContent = "${script.code}\\n;dispatchEvent(new CustomEvent('${randomId}'));";
                     temp.className = "injected-js";
+                    addEventListener("${randomId}", () => { temp && temp.remove(); temp = null; }, { once: true });
                     document.documentElement.appendChild(temp);
-                    temp.remove();
                 }())`,
               runAt,
             });
