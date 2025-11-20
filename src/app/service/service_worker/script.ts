@@ -80,7 +80,7 @@ export class ScriptService {
   listenerScriptInstall() {
     // 初始化脚本安装监听
     chrome.webNavigation.onBeforeNavigate.addListener(
-      (req: chrome.webNavigation.WebNavigationParentedCallbackDetails) => {
+      (req: chrome.webNavigation.WebNavigationBaseCallbackDetails) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.webNavigation.onBeforeNavigate:", lastError);
