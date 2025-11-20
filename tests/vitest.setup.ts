@@ -196,7 +196,7 @@ Object.assign(global, {
 global.setTimeoutForTest2.toString = () =>
   `${Object.propertyIsEnumerable}`.replace("propertyIsEnumerable", "setTimeoutForTest2");
 
-//@ts-ignore 模擬擴展攔截
+//@ts-ignore 模拟扩展拦截
 global.setTimeoutForTest2 = new Proxy(global.setTimeoutForTest2, {
   apply: (target, thisArg, argArray) => {
     return target.call(
