@@ -440,6 +440,7 @@ export const formatBytes = (bytes: number, decimals: number = 2): string => {
   return `${value.toFixed(decimals)} ${units[i]}`;
 };
 
+// 把编码URL变成使用者可以阅读的格式
 export const prettyUrl = (s: string | undefined | null, baseUrl?: string) => {
   if (s?.includes("://")) {
     let u;
@@ -453,8 +454,16 @@ export const prettyUrl = (s: string | undefined | null, baseUrl?: string) => {
     if (pathname && pathname.includes("%")) {
       try {
         const raw = decodeURI(pathname);
-        if (raw && raw.length < pathname.length) {
-          s = s.replace(pathname, decodeURI(pathname));
+        if (
+          raw &&
+          raw.length < pathname.length &&
+          !raw.includes("?") &&
+          !raw.includes("#") &&
+          !raw.includes("&") &&
+          !raw.includes("=") &&
+          !raw.includes("%")
+        ) {
+          s = s.replace(pathname, raw);
         }
       } catch {
         // ignored
