@@ -128,7 +128,7 @@ export const shouldFnBind = (f: any) => {
     // 为避免浏览器插件封装了 原生函数，需要进行 toString 测试 （Proxy封装例外）
     if (ncs?.[1]) {
       const s = `${f}`;
-      // 广告拦截扩展进行Proxy封装后掉失名字 （Chrome：所有经Proxy封装都会变成无名原生函数）
+      // 广告拦截扩展进行Proxy封装后丢失名字 （Chrome：所有经Proxy封装都会变成无名原生函数）
       if (s === `${ncs[0]}${name}${ncs[1]}` || s === `${ncs[0]}${ncs[1]}`) {
         return true;
       }
