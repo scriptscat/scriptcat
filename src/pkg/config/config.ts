@@ -460,7 +460,7 @@ export class SystemConfig {
   }
 
   getBadgeNumberType() {
-    return this._get<"none" | "run_count" | "script_count">("badge_number_type", "run_count");
+    return this._get<"none" | "run_count" | "script_count">("badge_number_type", "script_count");
   }
 
   setBadgeBackgroundColor(color: string) {
