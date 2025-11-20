@@ -56,6 +56,16 @@ describe("Cache", () => {
       expect(await cacheInstance.has("key2")).toBe(false);
     });
 
+    it("应该能够批量删除键", async () => {
+      await cacheInstance.batchSet({ key1: "v1", key2: "v2", key3: "v3", key4: "v4" });
+
+      await (cacheInstance as any).dels(["key1", "key2", "key3"]);
+      expect(await cacheInstance.has("key1")).toBe(false);
+      expect(await cacheInstance.has("key2")).toBe(false);
+      expect(await cacheInstance.has("key3")).toBe(false);
+      expect(await cacheInstance.has("key4")).toBe(true);
+    });
+
     it("应该返回所有键的列表", async () => {
       await cacheInstance.batchSet({ key1: "v1", key2: "v2", key3: "v3" });
       const keys = await cacheInstance.list();
