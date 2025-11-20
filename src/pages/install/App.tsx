@@ -31,7 +31,7 @@ import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
-import { formatBytes } from "@App/pkg/utils/utils";
+import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
 
 type ScriptOrSubscribe = Script | Subscribe;
 
@@ -779,13 +779,13 @@ function App() {
                     bold
                     style={{
                       overflowWrap: "break-word",
-                      wordBreak: "break-all",
+                      wordBreak: "break-word",
                       maxHeight: "70px",
                       display: "block",
                       overflowY: "auto",
                     }}
                   >
-                    {`${t("source")}: ${scriptInfo?.url}`}
+                    {`${t("source")}: ${prettyUrl(scriptInfo?.url)}`}
                   </Typography.Text>
                 </div>
               </div>

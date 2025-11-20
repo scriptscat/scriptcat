@@ -439,3 +439,27 @@ export const formatBytes = (bytes: number, decimals: number = 2): string => {
 
   return `${value.toFixed(decimals)} ${units[i]}`;
 };
+
+export const prettyUrl = (s: string | undefined | null, baseUrl?: string) => {
+  if (s?.includes("://")) {
+    let u;
+    try {
+      u = baseUrl ? new URL(s, baseUrl) : new URL(s);
+    } catch {
+      // ignored
+    }
+    if (!u) return s;
+    const pathname = u.pathname;
+    if (pathname && pathname.includes("%")) {
+      try {
+        const raw = decodeURI(pathname);
+        if (raw && raw.length < pathname.length) {
+          s = s.replace(pathname, decodeURI(pathname));
+        }
+      } catch {
+        // ignored
+      }
+    }
+  }
+  return s;
+};
