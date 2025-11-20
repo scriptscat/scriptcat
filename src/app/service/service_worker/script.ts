@@ -80,7 +80,7 @@ export class ScriptService {
   listenerScriptInstall() {
     // 初始化脚本安装监听
     chrome.webNavigation.onBeforeNavigate.addListener(
-      (req: chrome.webNavigation.WebNavigationBaseCallbackDetails) => {
+      (req: chrome.webNavigation.WebNavigationParentedCallbackDetails) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.webNavigation.onBeforeNavigate:", lastError);
@@ -159,21 +159,6 @@ export class ScriptService {
         ],
       }
     );
-
-    // chrome.webRequest.onHeadersReceived.addListener(
-    //   (details) => {
-    //     const lastError = chrome.runtime.lastError;
-    //     if (lastError) {
-    //       console.error(lastError.message);
-    //     }
-    //     console.log("onHeadersReceived inspect", details);
-    //     return undefined;
-    //   },
-    //   {
-    //     urls: ["*://*/*.user.js", "*://*/*.user.bg.js", "*://*/*.user.sub.js"],
-    //   },
-    //   ["responseHeaders"]
-    // );
 
     // 兼容 chrome 内核 < 128 处理
     const browserType = getBrowserType();

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { aNow, checkSilenceUpdate, cleanFileName, stringMatching, toCamelCase } from "./utils";
+import { aNow, checkSilenceUpdate, cleanFileName, formatBytes, stringMatching, toCamelCase } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
@@ -371,5 +371,30 @@ describe.concurrent("toCamelCase", () => {
   it.concurrent("应当正确处理多下划线配置键", () => {
     expect(toCamelCase("editor_type_definition")).toBe("EditorTypeDefinition");
     expect(toCamelCase("script_list_column_width")).toBe("ScriptListColumnWidth");
+  });
+});
+
+describe.concurrent("formatBytes", () => {
+  it.concurrent("应当正确格式化字节大小", () => {
+    // 0 字节
+    expect(formatBytes(0)).toBe("0 B");
+
+    // 字节单位
+    expect(formatBytes(100)).toBe("100.00 B");
+    expect(formatBytes(512)).toBe("512.00 B");
+
+    // KB 单位
+    expect(formatBytes(1024)).toBe("1.00 KB");
+    expect(formatBytes(2048)).toBe("2.00 KB");
+    expect(formatBytes(1536)).toBe("1.50 KB");
+
+    // MB 单位
+    expect(formatBytes(1048576)).toBe("1.00 MB");
+    expect(formatBytes(2097152)).toBe("2.00 MB");
+    expect(formatBytes(1234567)).toBe("1.18 MB");
+
+    // 自定义小数位数
+    expect(formatBytes(1536, 0)).toBe("2 KB");
+    expect(formatBytes(1536, 1)).toBe("1.5 KB");
   });
 });

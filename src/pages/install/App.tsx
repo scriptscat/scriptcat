@@ -607,12 +607,6 @@ function App() {
     };
   }, [memoWatchFile]);
 
-  // 处理没有 uuid 和 file 的情况
-  // const handleCreateNewScript = () => {
-  //   const newUuid = uuidv4();
-  //   setSearchParams({ uuid: newUuid }, { replace: true });
-  // };
-
   // 检查是否有 uuid 或 file
   const hasUUIDorFile = useMemo(() => {
     return !!(searchParams.get("uuid") || searchParams.get("file"));
