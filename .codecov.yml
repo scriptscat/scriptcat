@@ -1,4 +1,4 @@
-# Codecov configuration
+# Codecov 配置
 coverage:
   status:
     project:
