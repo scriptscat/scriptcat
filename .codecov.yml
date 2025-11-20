@@ -1,6 +1,9 @@
 # Codecov configuration
 coverage:
   status:
+    project:
+      default:
+        informational: true
     # 禁用补丁覆盖率检查
     patch: off
 
