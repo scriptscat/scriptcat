@@ -461,7 +461,8 @@ export const prettyUrl = (s: string | undefined | null, baseUrl?: string) => {
           !raw.includes("#") &&
           !raw.includes("&") &&
           !raw.includes("=") &&
-          !raw.includes("%")
+          !raw.includes("%") &&
+          !raw.includes(":")
         ) {
           s = s.replace(pathname, raw);
         }
