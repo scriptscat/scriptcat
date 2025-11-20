@@ -222,3 +222,8 @@ vi.stubGlobal("Response", MockResponse);
 vi.stubGlobal("Blob", MockBlob);
 
 vi.stubGlobal("define", "特殊关键字不能穿透沙盒");
+
+//@ts-expect-error
+if (!URL.createObjectURL) URL.createObjectURL = undefined;
+//@ts-expect-error
+if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
