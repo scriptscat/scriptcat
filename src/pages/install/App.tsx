@@ -2,7 +2,6 @@ import {
   Avatar,
   Button,
   Dropdown,
-  Grid,
   Message,
   Menu,
   Space,
@@ -29,6 +28,10 @@ import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/fi
 import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/filehandle-db";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
+import { useSearchParams } from "react-router-dom";
+import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
+import { cacheInstance } from "@App/app/cache";
+import { formatBytes } from "@App/pkg/utils/utils";
 
 type ScriptOrSubscribe = Script | Subscribe;
 
@@ -41,8 +44,132 @@ interface PermissionItem {
 
 type Permission = PermissionItem[];
 
-const closeWindow = () => {
-  window.close();
+const closeWindow = (doBackwards: boolean) => {
+  if (doBackwards) {
+    history.go(-1);
+  } else {
+    window.close();
+  }
+};
+
+const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any }) => {
+  let origin;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    throw new Error(`Invalid url: ${url}`);
+  }
+  const response = await fetch(url, {
+    headers: {
+      "Cache-Control": "no-cache",
+      Accept: "text/javascript,application/javascript,text/plain,application/octet-stream,application/force-download",
+      // 参考：加权 Accept-Encoding 值说明
+      // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Encoding#weighted_accept-encoding_values
+      "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1",
+      Origin: origin,
+    },
+    referrer: origin + "/",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Fetch failed with status ${response.status}`);
+  }
+
+  if (!response.body || !response.headers) {
+    throw new Error("No response body or headers");
+  }
+  if (response.headers.get("content-type")?.includes("text/html")) {
+    throw new Error("Response is text/html, not a valid UserScript");
+  }
+
+  const reader = response.body.getReader();
+
+  // 读取数据
+  let receivedLength = 0; // 当前已接收的长度
+  const chunks = []; // 已接收的二进制分片数组（用于组装正文）
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    chunks.push(value);
+    receivedLength += value.length;
+    onProgress?.({ receivedLength });
+  }
+
+  // 检查 Content-Type 中的 charset
+  const contentType = response.headers.get("content-type") || "";
+  const charsetMatch = contentType.match(/charset=([^;]+)/i);
+  const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "utf-8";
+
+  // 合并分片（chunks）
+  const chunksAll = new Uint8Array(receivedLength);
+  let position = 0;
+  for (const chunk of chunks) {
+    chunksAll.set(chunk, position);
+    position += chunk.length;
+  }
+
+  // 使用检测到的 charset 解码
+  let code;
+  try {
+    code = new TextDecoder(charset).decode(chunksAll);
+  } catch (e: any) {
+    throw new Error(`Failed to decode response with charset ${charset}: ${e.message}`);
+  }
+
+  const metadata = parseMetadata(code);
+  if (!metadata) {
+    throw new Error("parse script info failed");
+  }
+
+  return { code, metadata };
+};
+
+const cleanupStaleInstallInfo = (uuid: string) => {
+  // 页面打开时不清除当前uuid，每30秒更新一次记录
+  const f = () => {
+    cacheInstance.tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
+      val = val || {};
+      val[uuid] = Date.now();
+      tx.set(val);
+    });
+  };
+  f();
+  setInterval(f, 30_000);
+
+  // 页面打开后清除旧记录
+  const delay = Math.floor(5000 * Math.random()) + 10000; // 使用随机时间避免浏览器重启时大量Tabs同时执行清除
+  timeoutExecution(
+    `${cIdKey}cleanupStaleInstallInfo`,
+    () => {
+      cacheInstance
+        .tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
+          const now = Date.now();
+          const keeps = new Set<string>();
+          const out: Record<string, number> = {};
+          for (const [k, ts] of Object.entries(val ?? {})) {
+            if (ts > 0 && now - ts < 60_000) {
+              keeps.add(`${CACHE_KEY_SCRIPT_INFO}${k}`);
+              out[k] = ts;
+            }
+          }
+          tx.set(out);
+          return keeps;
+        })
+        .then(async (keeps) => {
+          const list = await cacheInstance.list();
+          const filtered = list.filter((key) => key.startsWith(CACHE_KEY_SCRIPT_INFO) && !keeps.has(key));
+          if (filtered.length) {
+            // 清理缓存
+            cacheInstance.dels(filtered);
+          }
+        });
+    },
+    delay
+  );
 };
 
 const cIdKey = `(cid_${Math.random()})`;
@@ -58,6 +185,9 @@ function App() {
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
   const [localFileHandle, setLocalFileHandle] = useState<FileSystemFileHandle | null>(null);
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [loaded, setLoaded] = useState<boolean>(false);
+  const [doBackwards, setDoBackwards] = useState<boolean>(false);
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
     if (newScript.ignoreVersion) newScript.ignoreVersion = "";
@@ -84,13 +214,25 @@ function App() {
 
   const initAsync = async () => {
     try {
-      const locationUrl = new URL(window.location.href);
-      const uuid = locationUrl.searchParams.get("uuid");
+      const uuid = searchParams.get("uuid");
+      const fid = searchParams.get("file");
       let info: ScriptInfo | undefined;
       let isKnownUpdate: boolean = false;
+
+      // 如果没有 uuid 和 file，跳过初始化逻辑
+      if (!uuid && !fid) {
+        return;
+      }
+
+      if (window.history.length > 1) {
+        setDoBackwards(true);
+      }
+      setLoaded(true);
+
       let paramOptions = {};
       if (uuid) {
         const cachedInfo = await scriptClient.getInstallInfo(uuid);
+        cleanupStaleInstallInfo(uuid);
         if (cachedInfo?.[0]) isKnownUpdate = true;
         info = cachedInfo?.[1] || undefined;
         paramOptions = cachedInfo?.[2] || {};
@@ -99,7 +241,6 @@ function App() {
         }
       } else {
         // 检查是不是本地文件安装
-        const fid = locationUrl.searchParams.get("file");
         if (!fid) {
           throw new Error("url param - local file id is not found");
         }
@@ -173,8 +314,8 @@ function App() {
   };
 
   useEffect(() => {
-    initAsync();
-  }, []);
+    !loaded && initAsync();
+  }, [searchParams, loaded]);
 
   const [watchFile, setWatchFile] = useState(false);
   const metadataLive = useMemo(() => (scriptInfo?.metadata || {}) as SCMetadata, [scriptInfo]);
@@ -209,16 +350,16 @@ function App() {
     }
 
     return permissions;
-  }, [scriptInfo, metadataLive]);
+  }, [scriptInfo, metadataLive, t]);
 
-  const description = useMemo(() => {
-    const description: JSX.Element[] = [];
+  const descriptionParagraph = useMemo(() => {
+    const ret: JSX.Element[] = [];
 
-    if (!scriptInfo) return description;
+    if (!scriptInfo) return ret;
 
     const isCookie = metadataLive.grant?.some((val) => val === "GM_cookie");
     if (isCookie) {
-      description.push(
+      ret.push(
         <Typography.Text type="error" key="cookie">
           {t("cookie_warning")}
         </Typography.Text>
@@ -226,21 +367,21 @@ function App() {
     }
 
     if (metadataLive.crontab) {
-      description.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
-      description.push(
-        <Typography.Text key="cronta-nexttime">
-          {t("scheduled_script_description_description", {
-            expression: metadataLive.crontab[0],
-            time: nextTime(metadataLive.crontab[0]),
-          })}
-        </Typography.Text>
+      ret.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
+      ret.push(
+        <div key="cronta-nexttime" className="flex flex-row flex-wrap gap-x-2">
+          <Typography.Text>{t("scheduled_script_description_description_expr")}</Typography.Text>
+          <Typography.Text code>{metadataLive.crontab[0]}</Typography.Text>
+          <Typography.Text>{t("scheduled_script_description_description_next")}</Typography.Text>
+          <Typography.Text code>{nextTime(metadataLive.crontab[0])}</Typography.Text>
+        </div>
       );
     } else if (metadataLive.background) {
-      description.push(<Typography.Text key="background">{t("background_script_description")}</Typography.Text>);
+      ret.push(<Typography.Text key="background">{t("background_script_description")}</Typography.Text>);
     }
 
-    return description;
-  }, [scriptInfo, metadataLive]);
+    return ret;
+  }, [scriptInfo, metadataLive, t]);
 
   const antifeatures: { [key: string]: { color: string; title: string; description: string } } = {
     "referral-link": {
@@ -285,7 +426,7 @@ function App() {
     if (upsertScript) {
       document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript!)} - ScriptCat`;
     }
-  }, [isUpdate, scriptInfo, upsertScript]);
+  }, [isUpdate, scriptInfo, upsertScript, t]);
 
   // 设置脚本状态
   useEffect(() => {
@@ -339,7 +480,7 @@ function App() {
 
       if (shouldClose) {
         setTimeout(() => {
-          closeWindow();
+          closeWindow(doBackwards);
         }, 500);
       }
     } catch (e) {
@@ -353,7 +494,7 @@ function App() {
     if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
       scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
     }
-    closeWindow();
+    closeWindow(doBackwards);
   };
 
   const {
@@ -466,123 +607,138 @@ function App() {
     };
   }, [memoWatchFile]);
 
+  // 检查是否有 uuid 或 file
+  const hasUUIDorFile = useMemo(() => {
+    return !!(searchParams.get("uuid") || searchParams.get("file"));
+  }, [searchParams]);
+
+  const urlHref = useMemo(() => {
+    try {
+      if (!hasUUIDorFile) {
+        const url = searchParams.get("url");
+        if (url) {
+          const urlObject = new URL(url);
+          if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
+            return urlObject.href;
+          }
+        }
+      }
+    } catch {
+      // ignored
+    }
+    return "";
+  }, [hasUUIDorFile, searchParams]);
+
+  const [fetchingState, setFetchingState] = useState({
+    loadingStatus: "",
+    errorStatus: "",
+  });
+
+  const loadURLAsync = async (urlHref: string) => {
+    try {
+      const { code, metadata } = await fetchScriptBody(urlHref, {
+        onProgress: (info: { receivedLength: number }) => {
+          setFetchingState((prev) => ({
+            ...prev,
+            loadingStatus: t("downloading_status_text", { bytes: `${formatBytes(info.receivedLength)}` }),
+          }));
+        },
+      });
+      const update = false;
+      const uuid = uuidv4();
+      const url = urlHref;
+      const upsertBy = "user";
+
+      const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata)];
+      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+      setSearchParams(
+        (prev) => {
+          prev.delete("url");
+          prev.set("uuid", uuid);
+          return prev;
+        },
+        { replace: true }
+      );
+    } catch (err: any) {
+      const errMessage = `${err.message || err}`;
+      setFetchingState((prev) => ({
+        ...prev,
+        loadingStatus: "",
+        errorStatus: errMessage,
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (!urlHref) return;
+    loadURLAsync(urlHref);
+  }, [urlHref]);
+
+  if (!hasUUIDorFile) {
+    return urlHref ? (
+      <div className="flex justify-center items-center h-screen">
+        <Space direction="vertical" align="center">
+          <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
+          {fetchingState.loadingStatus && (
+            <div className="downloading">
+              <Typography.Text>{fetchingState.loadingStatus}</Typography.Text>
+              <div className="loader"></div>
+            </div>
+          )}
+          {fetchingState.errorStatus && <div className="error-message">{fetchingState.errorStatus}</div>}
+        </Space>
+      </div>
+    ) : (
+      <div className="flex justify-center items-center h-screen">
+        <Space direction="vertical" align="center">
+          <Typography.Title heading={3}>{t("invalid_page")}</Typography.Title>
+        </Space>
+      </div>
+    );
+  }
+
   return (
-    <div id="install-app-container">
-      <Grid.Row className="mb-2" gutter={8}>
-        <Grid.Col flex={1} className="flex-col p-8px">
-          <Space direction="vertical" className="w-full">
-            <div>
-              {upsertScript?.metadata.icon && (
-                <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
-                  <img src={upsertScript.metadata.icon[0]} alt={upsertScript.name} />
-                </Avatar>
-              )}
-              <Typography.Text bold className="text-size-lg">
-                {upsertScript && i18nName(upsertScript)}
-                <Tooltip
-                  content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
-                >
-                  <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
-                </Tooltip>
+    <div id="install-app-container" className="flex flex-col">
+      <div className="flex flex-row gap-x-3 pt-3 pb-3">
+        <div className="grow-1 shrink-1 flex flex-row justify-start items-center">
+          {upsertScript?.metadata.icon && (
+            <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
+              <img src={upsertScript.metadata.icon[0]} alt={upsertScript.name} />
+            </Avatar>
+          )}
+          {upsertScript && (
+            <Tooltip position="tl" content={i18nName(upsertScript)}>
+              <Typography.Text bold className="text-size-lg truncate w-0 grow-1">
+                {i18nName(upsertScript)}
               </Typography.Text>
-            </div>
-            <div>
-              <Typography.Text bold>{upsertScript && i18nDescription(upsertScript!)}</Typography.Text>
-            </div>
-            <div>
-              <Typography.Text bold>{`${t("author")}: ${metadataLive.author}`}</Typography.Text>
-            </div>
-            <div>
-              <Typography.Text
-                bold
-                style={{
-                  overflowWrap: "break-word",
-                  wordBreak: "break-all",
-                  maxHeight: "70px",
-                  display: "block",
-                  overflowY: "auto",
-                }}
-              >
-                {`${t("source")}: ${scriptInfo?.url}`}
-              </Typography.Text>
-            </div>
-            <div className="text-end">
-              <Space>
-                <Button.Group>
-                  <Button type="primary" size="small" onClick={handleInstallBasic} disabled={watchFile}>
-                    {btnText}
-                  </Button>
-                  <Dropdown
-                    droplist={
-                      <Menu>
-                        <Menu.Item key="install-no-close" onClick={handleInstallCloseAfterInstall}>
-                          {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
-                        </Menu.Item>
-                        {!scriptInfo?.userSubscribe && (
-                          <Menu.Item key="install-no-updates" onClick={handleInstallNoMoreUpdates}>
-                            {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
-                          </Menu.Item>
-                        )}
-                      </Menu>
-                    }
-                    position="bottom"
-                    disabled={watchFile}
-                  >
-                    <Button type="primary" size="small" icon={<IconDown />} disabled={watchFile} />
-                  </Dropdown>
-                </Button.Group>
-                {localFileHandle && (
-                  <Popover content={t("watch_file_description")}>
-                    <Button type="secondary" size="small" onClick={setWatchFileClick}>
-                      {watchFile ? t("stop_watch_file") : t("watch_file")}
-                    </Button>
-                  </Popover>
-                )}
-                {isUpdate ? (
-                  <Button.Group>
-                    <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
-                      {t("close")}
-                    </Button>
-                    <Dropdown
-                      droplist={
-                        <Menu>
-                          {!scriptInfo?.userSubscribe && (
-                            <Menu.Item key="install-no-updates" onClick={handleCloseNoMoreUpdates}>
-                              {t("close_update_script_no_more_update")}
-                            </Menu.Item>
-                          )}
-                        </Menu>
-                      }
-                      position="bottom"
-                    >
-                      <Button type="primary" status="danger" size="small" icon={<IconDown />} />
-                    </Dropdown>
-                  </Button.Group>
-                ) : (
-                  <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
-                    {t("close")}
-                  </Button>
-                )}
-              </Space>
-            </div>
-          </Space>
-        </Grid.Col>
-        <Grid.Col flex={1} className="p-8px">
-          <Space direction="vertical">
-            <div>
-              <Space>
-                {oldScriptVersion && (
-                  <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
-                    <Tag bordered>{oldScriptVersion}</Tag>
-                  </Tooltip>
-                )}
-                {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
-                  <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
-                    <Tag bordered color="red">
-                      {metadataLive.version[0]}
-                    </Tag>
-                  </Tooltip>
-                )}
+            </Tooltip>
+          )}
+          <Tooltip content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}>
+            <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
+          </Tooltip>
+        </div>
+        <div className="grow-0 shrink-1 flex flex-row flex-wrap gap-x-2 gap-y-1 items-center">
+          <div className="flex flex-row flex-nowrap gap-x-2">
+            {oldScriptVersion && (
+              <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
+                <Tag bordered>{oldScriptVersion}</Tag>
+              </Tooltip>
+            )}
+            {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
+              <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
+                <Tag bordered color="red">
+                  {metadataLive.version[0]}
+                </Tag>
+              </Tooltip>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="shrink-1 grow-1 overflow-y-auto pl-4 pr-4 gap-y-2 flex flex-col mb-4">
+        <div className="flex flex-wrap gap-x-3 gap-y-2 items-start">
+          <div className="flex flex-col shrink-1 grow-1 basis-8/12">
+            <div className="grow-1 shrink-0">
+              <div className="flex flex-wrap gap-x-2 gap-y-1 tag-container float-right">
                 {(metadataLive.background || metadataLive.crontab) && (
                   <Tooltip color="green" content={t("background_script_tag")}>
                     <Tag bordered color="green">
@@ -597,7 +753,7 @@ function App() {
                     </Tag>
                   </Tooltip>
                 )}
-                {metadataLive.antifeature &&
+                {metadataLive.antifeature?.length &&
                   metadataLive.antifeature.map((antifeature) => {
                     const item = antifeature.split(" ")[0];
                     return (
@@ -610,47 +766,143 @@ function App() {
                       )
                     );
                   })}
-              </Space>
+              </div>
+              <div>
+                <div>
+                  <Typography.Text bold>{upsertScript && i18nDescription(upsertScript!)}</Typography.Text>
+                </div>
+                <div>
+                  <Typography.Text bold>{`${t("author")}: ${metadataLive.author}`}</Typography.Text>
+                </div>
+                <div>
+                  <Typography.Text
+                    bold
+                    style={{
+                      overflowWrap: "break-word",
+                      wordBreak: "break-all",
+                      maxHeight: "70px",
+                      display: "block",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {`${t("source")}: ${scriptInfo?.url}`}
+                  </Typography.Text>
+                </div>
+              </div>
             </div>
-            {description && description}
-            <div>
-              <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
+          </div>
+          {descriptionParagraph?.length ? (
+            <div className="flex flex-col shrink-0 grow-1">
+              <Typography>
+                <Typography.Paragraph blockquote className="pt-2 pb-2">
+                  {descriptionParagraph}
+                </Typography.Paragraph>
+              </Typography>
             </div>
-          </Space>
-        </Grid.Col>
-        <Grid.Col span={24}>
-          <Grid.Row>
+          ) : (
+            <></>
+          )}
+          <div className="flex flex-row flex-wrap gap-x-4">
             {permissions.map((item) => (
-              <Grid.Col
-                key={item.label}
-                span={8}
-                style={{
-                  maxHeight: "200px",
-                  overflowY: "auto",
-                  overflowX: "auto",
-                  boxSizing: "border-box",
-                }}
-                className="p-8px"
-              >
-                <Typography.Text bold color={item.color}>
-                  {item.label}
-                </Typography.Text>
-                {item.value.map((v) => (
-                  <div key={v}>
-                    <Typography.Text style={{ wordBreak: "unset", color: item.color }}>{v}</Typography.Text>
-                  </div>
-                ))}
-              </Grid.Col>
+              <div key={item.label} className="flex flex-col gap-y-2">
+                {item.value?.length > 0 ? (
+                  <>
+                    <Typography.Text bold color={item.color}>
+                      {item.label}
+                    </Typography.Text>
+                    <div
+                      style={{
+                        maxHeight: "calc( 7.5 * 1.2rem )",
+                        overflowY: "auto",
+                        overflowX: "auto",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {item.value.map((v) => (
+                        <div key={v} className="permission-entry">
+                          <Typography.Text style={{ wordBreak: "unset", color: item.color }}>{v}</Typography.Text>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <></>
+                )}
+              </div>
             ))}
-          </Grid.Row>
-        </Grid.Col>
-      </Grid.Row>
-      <div id="show-code-container">
-        <CodeEditor
-          id="show-code"
-          code={scriptCode || undefined}
-          diffCode={diffCode === scriptCode ? "" : diffCode || ""}
-        />
+          </div>
+        </div>
+        <div className="flex flex-row flex-wrap items-center gap-2">
+          <div className="grow-1">
+            <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
+          </div>
+          <div className="grow-1 shrink-0 text-end">
+            <Space>
+              <Button.Group>
+                <Button type="primary" size="small" onClick={handleInstallBasic} disabled={watchFile}>
+                  {btnText}
+                </Button>
+                <Dropdown
+                  droplist={
+                    <Menu>
+                      <Menu.Item key="install-no-close" onClick={handleInstallCloseAfterInstall}>
+                        {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
+                      </Menu.Item>
+                      {!scriptInfo?.userSubscribe && (
+                        <Menu.Item key="install-no-updates" onClick={handleInstallNoMoreUpdates}>
+                          {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
+                        </Menu.Item>
+                      )}
+                    </Menu>
+                  }
+                  position="bottom"
+                  disabled={watchFile}
+                >
+                  <Button type="primary" size="small" icon={<IconDown />} disabled={watchFile} />
+                </Dropdown>
+              </Button.Group>
+              {localFileHandle && (
+                <Popover content={t("watch_file_description")}>
+                  <Button type="secondary" size="small" onClick={setWatchFileClick}>
+                    {watchFile ? t("stop_watch_file") : t("watch_file")}
+                  </Button>
+                </Popover>
+              )}
+              {isUpdate ? (
+                <Button.Group>
+                  <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
+                    {t("close")}
+                  </Button>
+                  <Dropdown
+                    droplist={
+                      <Menu>
+                        {!scriptInfo?.userSubscribe && (
+                          <Menu.Item key="install-no-updates" onClick={handleCloseNoMoreUpdates}>
+                            {t("close_update_script_no_more_update")}
+                          </Menu.Item>
+                        )}
+                      </Menu>
+                    }
+                    position="bottom"
+                  >
+                    <Button type="primary" status="danger" size="small" icon={<IconDown />} />
+                  </Dropdown>
+                </Button.Group>
+              ) : (
+                <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
+                  {t("close")}
+                </Button>
+              )}
+            </Space>
+          </div>
+        </div>
+        <div id="show-code-container">
+          <CodeEditor
+            id="show-code"
+            code={scriptCode || undefined}
+            diffCode={diffCode === scriptCode ? "" : diffCode || ""}
+          />
+        </div>
       </div>
     </div>
   );

@@ -422,3 +422,20 @@ export const stringMatching = (main: string, sub: string): boolean => {
     return false;
   }
 };
+
+/**
+ * 将字节数转换为人类可读的格式（B, KB, MB, GB 等）。
+ * @param bytes - 要转换的字节数（number）。
+ * @param decimals - 小数位数，默认为 2。
+ * @returns 格式化的字符串，例如 "1.23 MB"。
+ */
+export const formatBytes = (bytes: number, decimals: number = 2): string => {
+  if (bytes === 0) return "0 B";
+
+  const k = 1024;
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const value = bytes / Math.pow(k, i);
+
+  return `${value.toFixed(decimals)} ${units[i]}`;
+};

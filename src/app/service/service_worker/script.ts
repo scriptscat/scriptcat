@@ -28,9 +28,7 @@ import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
-import { localePath, watchLanguageChange } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
-import { DocumentationSite } from "@App/app/const";
 import type {
   TScriptRunStatus,
   TDeleteScript,
@@ -39,7 +37,6 @@ import type {
   TSortedScript,
   TInstallScriptParams,
 } from "../queue";
-import { timeoutExecution } from "@App/pkg/utils/timer";
 import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
 import {
   BatchUpdateListActionCode,
@@ -53,8 +50,6 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
 // import { gzip as pakoGzip } from "pako";
-
-const cIdKey = `(cid_${Math.random()})`;
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -84,13 +79,15 @@ export class ScriptService {
 
   listenerScriptInstall() {
     // 初始化脚本安装监听
-    chrome.webRequest.onBeforeRequest.addListener(
-      (req: chrome.webRequest.OnBeforeRequestDetails) => {
-        // 处理url, 实现安装脚本
-        if (req.method !== "GET") {
-          return undefined;
+    chrome.webNavigation.onBeforeNavigate.addListener(
+      (req: chrome.webNavigation.WebNavigationBaseCallbackDetails) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.webNavigation.onBeforeNavigate:", lastError);
+          return;
         }
-        let targetUrl: string | null = null;
+        // 处理url, 实现安装脚本
+        let targetUrl: string;
         // 判断是否为 file:///*/*.user.js
         if (req.url.startsWith("file://") && req.url.endsWith(".user.js")) {
           targetUrl = req.url;
@@ -101,11 +98,12 @@ export class ScriptService {
             return undefined;
           }
           // 判断是否有url参数
-          if (!reqUrl.hash.includes("url=")) {
+          const idx = reqUrl.hash.indexOf("url=");
+          if (idx < 0) {
             return undefined;
           }
           // 获取url参数
-          targetUrl = reqUrl.hash.split("url=")[1];
+          targetUrl = reqUrl.hash.substring(idx + 4);
         }
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
@@ -153,15 +151,15 @@ export class ScriptService {
           });
       },
       {
-        urls: [
-          `${DocumentationSite}/docs/script_installation/*`,
-          `${DocumentationSite}/en/docs/script_installation/*`,
-          "https://www.tampermonkey.net/script_installation.php*",
-          "file:///*/*.user.js*",
+        url: [
+          { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/docs/script_installation/" },
+          { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/en/docs/script_installation/" },
+          { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
+          { schemes: ["file"], pathSuffix: ".user.js" },
         ],
-        types: ["main_frame"],
       }
     );
+
     // 兼容 chrome 内核 < 128 处理
     const browserType = getBrowserType();
     const addResponseHeaders = browserType.chrome && browserType.chromeVersion >= 128;
@@ -243,91 +241,96 @@ export class ScriptService {
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
     ];
-    watchLanguageChange(() => {
-      const rules = conditions.map((condition, idx) => {
-        Object.assign(condition, {
-          excludedTabIds: [chrome.tabs.TAB_ID_NONE],
-        });
-        if (addResponseHeaders) {
-          Object.assign(condition, {
-            responseHeaders: [
-              {
-                header: "Content-Type",
-                values: [
-                  "text/javascript*",
-                  "application/javascript*",
-                  "text/html*",
-                  "text/plain*",
-                  "application/octet-stream*",
-                  "application/force-download*",
-                ],
-              },
-            ],
-          });
-        }
-        return {
-          id: 1000 + idx,
-          priority: 1,
-          action: {
-            type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
-            redirect: {
-              regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\1`,
-            },
-          },
-          condition: condition,
-        } as chrome.declarativeNetRequest.Rule;
+    const installPageURL = chrome.runtime.getURL("src/install.html");
+    const rules = conditions.map((condition, idx) => {
+      Object.assign(condition, {
+        excludedTabIds: [chrome.tabs.TAB_ID_NONE],
       });
-      // 重定向到脚本安装页
-      chrome.declarativeNetRequest.updateDynamicRules(
-        {
-          removeRuleIds: [1],
+      if (addResponseHeaders) {
+        Object.assign(condition, {
+          responseHeaders: [
+            {
+              header: "Content-Type",
+              values: [
+                "text/javascript*",
+                "application/javascript*",
+                "text/html*",
+                "text/plain*",
+                "application/octet-stream*",
+                "application/force-download*",
+              ],
+            },
+          ],
+        });
+      }
+      return {
+        id: 1000 + idx,
+        priority: 1,
+        action: {
+          type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
+          redirect: {
+            regexSubstitution: `${installPageURL}?url=\\1`,
+          },
         },
-        () => {
-          if (chrome.runtime.lastError) {
-            console.error(
-              "chrome.runtime.lastError in chrome.declarativeNetRequest.updateDynamicRules:",
-              chrome.runtime.lastError
-            );
-          }
-        }
-      );
-      chrome.declarativeNetRequest.updateSessionRules(
-        {
-          removeRuleIds: [...rules.map((rule) => rule.id)],
-          addRules: rules,
-        },
-        () => {
-          if (chrome.runtime.lastError) {
-            console.error(
-              "chrome.runtime.lastError in chrome.declarativeNetRequest.updateSessionRules:",
-              chrome.runtime.lastError
-            );
-          }
-        }
-      );
+        condition: condition,
+      } as chrome.declarativeNetRequest.Rule;
     });
+    // 重定向到脚本安装页
+    chrome.declarativeNetRequest.updateDynamicRules(
+      {
+        removeRuleIds: [1],
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateDynamicRules:",
+            chrome.runtime.lastError
+          );
+        }
+      }
+    );
+    chrome.declarativeNetRequest.updateSessionRules(
+      {
+        removeRuleIds: [...rules.map((rule) => rule.id)],
+        addRules: rules,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateSessionRules:",
+            chrome.runtime.lastError
+          );
+        }
+      }
+    );
   }
 
   public async openInstallPageByUrl(
     url: string,
     options: { source: InstallSource; byWebRequest?: boolean }
   ): Promise<{ success: boolean; msg: string }> {
-    const uuid = uuidv4();
     try {
-      await this.openUpdateOrInstallPage(uuid, url, options, false);
-      timeoutExecution(
-        `${cIdKey}_cleanup_${uuid}`,
-        () => {
-          // 清理缓存
-          cacheInstance.del(`${CACHE_KEY_SCRIPT_INFO}${uuid}`);
-        },
-        30 * 1000
-      );
-      await openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+      const installPageUrl = await this.getInstallPageUrl(url, options);
+      if (!installPageUrl) throw new Error("getInstallPageUrl failed");
+      await openInCurrentTab(installPageUrl);
       return { success: true, msg: "" };
     } catch (err: any) {
       console.error(err);
       return { success: false, msg: err.message };
+    }
+  }
+
+  public async getInstallPageUrl(
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean }
+  ): Promise<string> {
+    const uuid = uuidv4();
+    try {
+      await this.openUpdateOrInstallPage(uuid, url, options, false);
+      return `/src/install.html?uuid=${uuid}`;
+    } catch (err: any) {
+      console.error(err);
+      return "";
     }
   }
 
