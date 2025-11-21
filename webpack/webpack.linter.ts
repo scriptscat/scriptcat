@@ -14,6 +14,7 @@ common.entry = {
 };
 
 common.output = {
+  globalObject: "self",
   path: path.join(dist, "ext/src"),
   filename: "[name].js",
   clean: false,
