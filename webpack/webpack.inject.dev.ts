@@ -1,4 +1,5 @@
 /* eslint-disable import/no-extraneous-dependencies */
+import path from "path";
 import merge from "webpack-merge";
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
@@ -6,8 +7,8 @@ import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import TerserPlugin from "terser-webpack-plugin";
 import common from "../webpack.config";
 
-const src = `${__dirname}/../src`;
-const dist = `${__dirname}/../dist`;
+const src = path.resolve(__dirname, "../src");
+const dist = path.resolve(__dirname, "../dist");
 
 // 不要分割的文件
 common.entry = {

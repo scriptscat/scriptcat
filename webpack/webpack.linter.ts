@@ -1,13 +1,12 @@
 /* eslint-disable import/no-extraneous-dependencies */
+import path from "path";
+import NodePolyfillPlugin from "node-polyfill-webpack-plugin";
 import merge from "webpack-merge";
 import TerserPlugin from "terser-webpack-plugin";
 import common from "../webpack.config";
 
-const path = require("path");
-const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
-
-const src = `${__dirname}/../src`;
-const dist = `${__dirname}/../dist`;
+const src = path.resolve(__dirname, "../src");
+const dist = path.resolve(__dirname, "../dist");
 
 // eslint文件
 common.entry = {
@@ -15,7 +14,7 @@ common.entry = {
 };
 
 common.output = {
-  path: `${dist}/ext/src`,
+  path: path.join(dist, "ext/src"),
   filename: "[name].js",
   clean: false,
 };
