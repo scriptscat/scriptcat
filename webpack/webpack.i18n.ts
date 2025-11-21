@@ -3,6 +3,7 @@ import merge from "webpack-merge";
 import CompressionPlugin from "compression-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
 import HtmlWebpackPlugin from "html-webpack-plugin";
+import TerserPlugin from "terser-webpack-plugin";
 import common from "../webpack.config";
 
 const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
@@ -27,8 +28,16 @@ common.output = {
   clean: false,
 };
 
-// 取消splitChunks
-common.optimization = {};
+common.optimization = {
+  minimize: true,
+  splitChunks: false,
+  runtimeChunk: false,
+  minimizer: [
+    new TerserPlugin({
+      extractComments: false, // 避免额外产生 .LICENSE.txt
+    }),
+  ],
+};
 
 common.plugins = common.plugins!.filter((plugin) => {
   if (plugin instanceof HtmlWebpackPlugin && plugin.userOptions) {

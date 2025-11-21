@@ -3,6 +3,7 @@ import merge from "webpack-merge";
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
+import TerserPlugin from "terser-webpack-plugin";
 import common from "../webpack.config";
 
 const src = `${__dirname}/../src`;
@@ -19,8 +20,22 @@ common.output = {
   clean: false,
 };
 
-// 取消splitChunks
-common.optimization = {};
+common.optimization = {
+  minimize: true,
+  splitChunks: false,
+  runtimeChunk: false,
+  minimizer: [
+    new TerserPlugin({
+      extractComments: false, // 避免额外产生 .LICENSE.txt
+      terserOptions: {
+        format: {
+          // 输出只用 ASCII，非 ASCII 变成 \uXXXX
+          ascii_only: true,
+        },
+      },
+    }),
+  ],
+};
 
 // 移除插件
 common.plugins = common.plugins!.filter(

@@ -161,7 +161,11 @@ const config: Configuration = {
   },
   optimization: {
     minimize: true,
-    minimizer: [new TerserPlugin()],
+    minimizer: [
+      new TerserPlugin({
+        extractComments: false, // 避免额外产生 .LICENSE.txt
+      }),
+    ],
     splitChunks: {
       chunks: "all",
       minSize: 307200,
