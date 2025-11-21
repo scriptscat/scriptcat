@@ -8,6 +8,7 @@
   "scripts": {
     "preinstall": "pnpm dlx only-allow pnpm",
     "test": "vitest --test-timeout=500 --no-coverage --isolate=false --reporter=verbose",
+    "test:ci": "vitest run --test-timeout=500 --no-coverage --isolate=false --reporter=default --reporter.summary=false",
     "coverage": "vitest run --coverage",
     "build": "cross-env NODE_ENV=production rspack build",
     "dev": "cross-env NODE_ENV=development rspack",

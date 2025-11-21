@@ -31,7 +31,7 @@ jobs:
 
       - name: Unit Test
         run: |
-          pnpm test
+          pnpm test:ci
           pnpm run coverage
 
       - name: Upload coverage reports to Codecov with GitHub Action
