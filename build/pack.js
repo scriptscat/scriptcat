@@ -73,6 +73,15 @@ firefoxManifest.browser_specific_settings = {
         : "8e515334-52b5-4cc5-b4e8-675d50af677d"
     }}`,
     strict_min_version: "91.1.0",
+    data_collection_permissions:  {
+      "required": [
+        "none" // 没有必须传送至第三方的资料。安装转页没有记录用户何时何地安装了什么。
+      ],
+      "optional": [
+        "authenticationInfo", // 使用 Cloud Backup / Import 时，有传送用户的资料至第三方作登入验证
+        "personallyIdentifyingInfo" // 使用 电邮 或 帐密 让第三方识别个人身份进行 Cloud Backup / Import
+      ]
+    }
   },
 };
 
