@@ -17,6 +17,7 @@
     "pack": "node ./scripts/pack.js",
     "format": "prettier --write .",
     "lint": "eslint .",
+    "lint:ci": "eslint . --cache --cache-location .eslintcache",
     "lint-fix": "eslint --fix .",
     "changlog": "node ./scripts/changlog.js",
     "crowdin": "crowdin",

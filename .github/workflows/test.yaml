@@ -23,11 +23,22 @@ jobs:
           node-version: 22
           cache: 'pnpm'
 
+      - name: Setup pnpm
+        run: corepack enable
+
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
 
+      - name: Cache ESLint cache
+        uses: actions/cache@v4
+        with:
+          path: .eslintcache
+          key: eslint-${{ hashFiles('pnpm-lock.yaml', '.eslintrc*') }}
+          restore-keys: |
+            eslint-
+
       - name: Lint
-        run: pnpm run lint
+        run: pnpm lint:ci
 
       - name: Unit Test
         run: |
