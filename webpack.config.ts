@@ -17,7 +17,7 @@ const dist = `${__dirname}/dist`;
 const assets = `${__dirname}/build/assets`;
 const template = `${assets}/template`;
 
-const config: Configuration = {
+const configCommon: Configuration = {
   entry: {
     options: `${src}/pages/options/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
@@ -209,4 +209,62 @@ const config: Configuration = {
   },
 };
 
-export default config;
+const configWebWorker: Configuration = {
+  ...configCommon,
+
+  optimization: {
+    minimize: true,
+    splitChunks: false,
+    runtimeChunk: false,
+    minimizer: [
+      new TerserPlugin({
+        extractComments: false, // 避免额外产生 .LICENSE.txt
+        terserOptions: {
+          format: {
+            // 输出只用 ASCII，非 ASCII 变成 \uXXXX
+            ascii_only: true,
+          },
+        },
+      }),
+    ],
+  },
+  
+  // 移除插件
+  plugins: [],
+} satisfies Configuration;
+
+const configInjectScript: Configuration = {
+  ...configCommon,
+
+  optimization: {
+    minimize: true,
+    splitChunks: false,
+    runtimeChunk: false,
+    minimizer: [
+      new TerserPlugin({
+        extractComments: false, // 避免额外产生 .LICENSE.txt
+        terserOptions: {
+          format: {
+            // 输出只用 ASCII，非 ASCII 变成 \uXXXX
+            ascii_only: true,
+          },
+        },
+      }),
+    ],
+  },
+  
+  // 移除插件
+  plugins: configCommon.plugins!.filter(
+    (plugin) =>
+      !(
+        plugin instanceof HtmlWebpackPlugin ||
+        plugin instanceof CopyPlugin ||
+        plugin instanceof CleanWebpackPlugin
+      )
+  ),
+
+} satisfies Configuration;
+
+
+
+export { configCommon, configWebWorker, configInjectScript };

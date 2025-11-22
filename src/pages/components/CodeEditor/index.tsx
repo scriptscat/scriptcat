@@ -30,8 +30,6 @@ const CodeEditor: React.ForwardRefRenderFunction<
       return () => {};
     }
     let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
-    // @ts-ignore
-    const ts = window.tsUrl ? 0 : 200;
     setTimeout(() => {
       const div = document.getElementById(id) as HTMLDivElement;
       if (diffCode) {
@@ -70,7 +68,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
 
         setEditor(edit);
       }
-    }, ts);
+    }, 0);
     return () => {
       if (edit) {
         edit.dispose();

@@ -1,35 +1,83 @@
+/* eslint-disable no-await-in-loop */
 // @ts-ignore
 // eslint-disable-next-line import/no-unresolved
 import dts from "@App/types/scriptcat";
 import Hook from "@App/app/service/hook";
 import { languages } from "monaco-editor";
-import pako from "pako";
 import Cache from "@App/app/cache";
-import { isFirefox } from "./utils";
 
 // 注册eslint
 const linterWorker = new Worker("/src/linter.worker.js");
+const editorWorker = new Worker("/src/editor.worker.js", { type: "module" });
+
+const getPartialBlob = (idx: number): Promise<Blob | null> => fetch(
+  chrome.runtime.getURL(`/src/ts.worker.js.part${idx}`)
+).then((resp) => (resp.ok ? resp.blob() : null))
+  .catch(() => null);
+const combineBlobsToUrl = async (blobs: Blob[], defaultType?: string): Promise<string> => {
+  const arrayBuffers: ArrayBuffer[] = [];
+  let totalLength = 0;
+
+  // Read all blobs into ArrayBuffers and compute total length
+  for (const blob of blobs) {
+    const arrayBuffer = await blob.arrayBuffer();
+    arrayBuffers.push(arrayBuffer);
+    totalLength += arrayBuffer.byteLength; // <-- sum, don't overwrite
+  }
+
+  // Allocate a single Uint8Array large enough for everything
+  const combined = new Uint8Array(totalLength);
+
+  // Copy each buffer into the combined array
+  let offset = 0;
+  for (const buffer of arrayBuffers) {
+    combined.set(new Uint8Array(buffer), offset);
+    offset += buffer.byteLength;
+  }
+
+  // Create a single Blob out of the combined data
+  const type = defaultType || blobs[0]?.type || "application/octet-stream";
+  const combinedBlob = new Blob([combined], { type });
+
+  // Create a Blob URL
+  const blobUrl = URL.createObjectURL(combinedBlob);
+  // 注意：此处生成的 Blob URL 在整个应用生命周期内用于 Worker，不会被释放。
+  // 如果未来 Worker 支持销毁重建，请在销毁时调用 URL.revokeObjectURL(blobUrl) 释放资源。
+  return blobUrl;
+}
+
+
+const tsWorkerPromise = fetch(chrome.runtime.getURL("/src/ts.worker.js.part0")).then((resp) => {
+  return resp.ok ? resp.blob() : null;
+}).catch(() => { return null }).then(async (blob) => {
+  let worker: Worker;
+  if (blob) {
+    // 有分割
+    const blobs: Blob[] = [];
+    let idx = 0;
+    do {
+      blobs.push(blob);
+      blob = await getPartialBlob(++idx);
+    } while (blob);
+    const url = await combineBlobsToUrl(blobs, "text/javascript");
+    worker = new Worker(url, { type: "module" });
+  } else {
+    // 沒分割
+    worker = new Worker("/src/ts.worker.js", { type: "module" });
+  }
+  return worker;
+});
 
 export default function registerEditor() {
-  // @ts-ignore
-  window.tsUrl = "";
 
-  fetch(chrome.runtime.getURL(`/src/ts.worker.js${isFirefox() ? ".gz" : ""}`))
-    .then((resp) => resp.blob())
-    .then(async (blob) => {
-      const result = pako.inflate(await blob.arrayBuffer());
-      // @ts-ignore
-      window.tsUrl = URL.createObjectURL(new Blob([result]));
-    });
-  // @ts-ignore
   window.MonacoEnvironment = {
-    getWorkerUrl(moduleId: any, label: any) {
+    // https://microsoft.github.io/monaco-editor/typedoc/interfaces/Environment.html#getWorker
+    // Returns Worker | Promise<Worker>
+    getWorker(workerId: string, label: string) {
       if (label === "typescript" || label === "javascript") {
-        // return "/src/ts.worker.js";
-        // @ts-ignore
-        return window.tsUrl;
+        return tsWorkerPromise;
       }
-      return "/src/editor.worker.js";
+      return editorWorker;
     },
   };
 

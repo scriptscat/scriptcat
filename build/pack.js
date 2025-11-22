@@ -6,6 +6,41 @@ const semver = require("semver");
 const manifest = require("../src/manifest.json");
 const package = require("../package.json");
 
+// --- utils ---
+
+const MAX_CHUNK_SIZE = 3 * 1024 * 1024; // 3 MiB
+
+function addFileInChunks(zip, filePath, toDir, baseName, maxChunkSize = MAX_CHUNK_SIZE) {
+  const buffer = fs.readFileSync(filePath);
+  let offset = 0;
+
+  const chunks = [];
+  while (offset < buffer.length) {
+    const end = Math.min(offset + maxChunkSize, buffer.length);
+    const chunk = buffer.subarray(offset, end);
+    chunks.push(chunk);
+    offset = end;
+  }
+  const len = chunks.length;
+
+  for (let idx = 0; idx < len; idx += 1) {
+    const chunk = chunks[idx];
+    // e.g. src/ts.worker.js.part30, src/ts.worker.js.part31, ...
+    const chunkPath = `${toDir}${baseName}.part${idx}`;
+    zip.file(chunkPath, chunk);
+  }
+}
+
+const createJSZip = () => {
+  const currDate = new Date();
+  const dateWithOffset = new Date(currDate.getTime() - currDate.getTimezoneOffset() * 60000);
+  // replace the default date with dateWithOffset
+  JSZip.defaults.date = dateWithOffset;
+  return new JSZip();
+};
+
+// --- utils ---
+
 // 判断是否为beta版本
 const version = semver.parse(package.version);
 if (version.prerelease.length) {
@@ -63,8 +98,8 @@ const chromeManifest = { ...manifest };
 delete chromeManifest.content_security_policy;
 
 delete firefoxManifest.sandbox;
-// firefoxManifest.content_security_policy =
-// "script-src 'self' blob:; object-src 'self' blob:";
+// firefoxManifest.content_security_policy 是为了支持动态组合的 ts.worker.js Blob URL
+firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: {
     id: `{${
@@ -95,8 +130,8 @@ firefoxManifest.permissions = firefoxManifest.permissions.filter(
   (permission) => permission !== "background"
 );
 
-const chrome = new JSZip();
-const firefox = new JSZip();
+const chrome = createJSZip();
+const firefox = createJSZip();
 
 function addDir(zip, localDir, toDir, filters) {
   const files = fs.readdirSync(localDir);
@@ -120,10 +155,13 @@ firefox.file("manifest.json", JSON.stringify(firefoxManifest));
 
 addDir(chrome, "./dist/ext", "", ["manifest.json"]);
 addDir(firefox, "./dist/ext", "", ["manifest.json", "ts.worker.js"]);
-// 添加ts.worker.js名字为gz
-firefox.file(
-  "src/ts.worker.js.gz",
-  fs.readFileSync("./dist/ext/src/ts.worker.js")
+
+// Now split ts.worker.js into chunks (<4MB each) for Firefox
+addFileInChunks(
+  firefox,
+  "./dist/ext/src/ts.worker.js", // source file on disk
+  "src/",                         // folder path inside zip
+  "ts.worker.js"                  // base name for chunked file
 );
 
 // 导出zip包
