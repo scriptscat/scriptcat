@@ -128,17 +128,17 @@ export const ScriptCardItem = React.memo(
           boxSizing: "border-box",
         }}
       >
-        <div className="uno-flex uno-flex-col uno-justify-between uno-h-full uno-gap-1">
-          <div className="uno-flex uno-flex-col uno-gap-3">
-            <div className="uno-flex uno-flex-row uno-justify-between uno-items-start uno-gap-1">
-              <div className="uno-flex-1 uno-min-w-0">
+        <div className="tw-flex tw-flex-col tw-justify-between tw-h-full tw-gap-1">
+          <div className="tw-flex tw-flex-col tw-gap-3">
+            <div className="tw-flex tw-flex-row tw-justify-between tw-items-start tw-gap-1">
+              <div className="tw-flex-1 tw-min-w-0">
                 <Link
                   to={`/script/editor/${item.uuid}`}
                   style={{
                     textDecoration: "none",
                   }}
                 >
-                  <div className="uno-flex uno-items-center uno-gap-2 uno-mb-2">
+                  <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
                     <ScriptIcons script={item} size={24} />
                     <Text
                       style={{
@@ -189,10 +189,10 @@ export const ScriptCardItem = React.memo(
             </div>
 
             {/* 版本和更新时间 */}
-            <div className="uno-flex uno-flex-row uno-gap-4 uno-text-sm uno-text-gray-500">
+            <div className="tw-flex tw-flex-row tw-gap-4 tw-text-sm tw-text-gray-500">
               {item.metadata.version && (
                 <div>
-                  <span className="uno-font-medium">
+                  <span className="tw-font-medium">
                     {t("version")}
                     {": "}
                   </span>
@@ -200,16 +200,16 @@ export const ScriptCardItem = React.memo(
                 </div>
               )}
               <div className="script-updatetime">
-                <span className="uno-font-medium">
+                <span className="tw-font-medium">
                   {t("last_updated")}
                   {": "}
                 </span>
-                <UpdateTimeCell className="uno-text-sm uno-text-gray-500" script={item} />
+                <UpdateTimeCell className="tw-text-sm tw-text-gray-500" script={item} />
               </div>
             </div>
 
             {/* 运行状态 */}
-            <div className="uno-flex uno-flex-row uno-gap-4">
+            <div className="tw-flex tw-flex-row tw-gap-4">
               {item.type !== SCRIPT_TYPE_NORMAL && (
                 <div>
                   <Tooltip
@@ -234,7 +234,7 @@ export const ScriptCardItem = React.memo(
               <SourceCell item={item} t={t} />
             </div>
 
-            <div className="uno-flex uno-flex-row uno-gap-3 uno-items-center apply_to_run_status">
+            <div className="tw-flex tw-flex-row tw-gap-3 tw-items-center apply_to_run_status">
               {item.type === SCRIPT_TYPE_NORMAL && (
                 <Avatar.Group size={20}>
                   {favoriteMemo.trimmed.map((fav) => (
@@ -248,16 +248,16 @@ export const ScriptCardItem = React.memo(
                       }}
                     />
                   ))}
-                  {favoriteMemo.originalLen > 8 && <span className="uno-text-xs uno-ml-1">{"..."}</span>}
+                  {favoriteMemo.originalLen > 8 && <span className="tw-text-xs tw-ml-1">{"..."}</span>}
                 </Avatar.Group>
               )}
               <HomeCell item={item} />
             </div>
           </div>
           {/* 操作按钮 */}
-          <div className="uno-flex uno-flex-col script-action">
+          <div className="tw-flex tw-flex-col script-action">
             <Divider style={{ margin: "4px 0 14px" }} />
-            <div className="uno-flex uno-flex-row uno-justify-between">
+            <div className="tw-flex tw-flex-row tw-justify-between">
               <div>
                 {item.type !== SCRIPT_TYPE_NORMAL && (
                   <Button
@@ -271,7 +271,7 @@ export const ScriptCardItem = React.memo(
                   </Button>
                 )}
               </div>
-              <div className="uno-flex uno-flex-row uno-justify-between uno-items-center">
+              <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
                 <Space>
                   <Link to={`/script/editor/${item.uuid}`}>
                     <Button type="outline" icon={<RiPencilFill />} size="mini">
@@ -415,8 +415,8 @@ export const ScriptCard = ({
           padding: "0 16px",
         }}
       >
-        <div className="uno-flex uno-flex-row uno-justify-between uno-items-center" style={{ padding: "8px 0" }}>
-          <div className="uno-flex-1">
+        <div className="tw-flex tw-flex-row tw-justify-between tw-items-center" style={{ padding: "8px 0" }}>
+          <div className="tw-flex-1">
             <Input.Search
               size="small"
               searchButton

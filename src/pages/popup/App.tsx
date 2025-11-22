@@ -386,12 +386,12 @@ function App() {
       <Card
         size="small"
         title={
-          <div className="uno-flex uno-justify-between">
-            <div className="uno-text-xl uno-inline-flex uno-flex-row uno-items-center uno-gap-x-1">
+          <div className="tw-flex tw-justify-between">
+            <div className="tw-text-xl tw-inline-flex tw-flex-row tw-items-center tw-gap-x-1">
               <span>{"ScriptCat"}</span>
             </div>
-            <div className="uno-flex uno-flex-row uno-items-center">
-              <Switch size="small" className="uno-mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
+            <div className="tw-flex tw-flex-row tw-items-center">
+              <Switch size="small" className="tw-mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
               <Button type="text" icon={<IconSettings />} iconOnly onClick={handleSettingsClick} />
               <Badge count={checkUpdate.isRead ? 0 : 1} dot offset={[-8, 6]}>
                 <Button type="text" icon={<IconNotification />} iconOnly onClick={handleNotificationClick} />
@@ -418,42 +418,42 @@ function App() {
                     }}
                     onClickMenuItem={handleMenuClick}
                   >
-                    <Menu.Item key="newScript" className="uno-flex uno-flex-row uno-items-center">
+                    <Menu.Item key="newScript" className="tw-flex tw-flex-row tw-items-center">
                       <IconPlus style={iconStyle} />
                       {t("create_script")}
                     </Menu.Item>
                     <Menu.Item
                       key={`https://scriptcat.org/search?domain=${urlHost}`}
-                      className="uno-flex uno-flex-row uno-items-center"
+                      className="tw-flex tw-flex-row tw-items-center"
                     >
                       <IconSearch style={iconStyle} />
                       {t("get_script")}
                     </Menu.Item>
-                    <Menu.Item key={"checkUpdate"} className="uno-flex uno-flex-row uno-items-center">
+                    <Menu.Item key={"checkUpdate"} className="tw-flex tw-flex-row tw-items-center">
                       <IconSync style={iconStyle} />
                       {t("check_update")}
                     </Menu.Item>
-                    <Menu.Item key="report_issue" className="uno-flex uno-flex-row uno-items-center">
+                    <Menu.Item key="report_issue" className="tw-flex tw-flex-row tw-items-center">
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
                     <Menu.Item
                       key={`${DocumentationSite}${localePath}`}
-                      className="uno-flex uno-flex-row uno-items-center"
+                      className="tw-flex tw-flex-row tw-items-center"
                     >
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>
                     <Menu.Item
                       key={isChineseUser() ? "https://bbs.tampermonkey.net.cn/" : Discord}
-                      className="uno-flex uno-flex-row uno-items-center"
+                      className="tw-flex tw-flex-row tw-items-center"
                     >
                       <RiMessage2Line style={iconStyle} />
                       {t("community")}
                     </Menu.Item>
                     <Menu.Item
                       key="https://github.com/scriptscat/scriptcat"
-                      className="uno-flex uno-flex-row uno-items-center"
+                      className="tw-flex tw-flex-row tw-items-center"
                     >
                       <IconGithub style={iconStyle} />
                       {"GitHub"}
@@ -514,14 +514,14 @@ function App() {
             />
           </CollapseItem>
         </Collapse>
-        <div className="uno-flex uno-flex-row arco-card-header !uno-h-6">
+        <div className="tw-flex tw-flex-row arco-card-header !tw-h-6">
           {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS ? (
             <Tooltip content={`${t("popup.new_version_available")} (v${checkUpdate.version})`}>
               <span
                 onClick={() => {
                   window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
                 }}
-                className={`uno-text-[12px] uno-font-500 uno-cursor-pointer uno-underline uno-underline-offset-2 uno-text-blue-500 dark:uno-text-blue-400`}
+                className={`tw-text-[12px] tw-font-500 tw-cursor-pointer tw-underline tw-underline-offset-2 tw-text-blue-500 dark:tw-text-blue-400`}
               >{`v${ExtVersion}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 0 ? (
@@ -530,12 +530,12 @@ function App() {
                 onClick={() => {
                   setCheckUpdateStatus(1);
                 }}
-                className="uno-text-[12px] uno-font-500 uno-cursor-pointer hover:uno-underline hover:uno-underline-offset-2"
+                className="tw-text-[12px] tw-font-500 tw-cursor-pointer hover:tw-underline hover:tw-underline-offset-2"
               >{`v${ExtVersion}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 1 ? (
             <Tooltip content={t("checking_for_updates")}>
-              <span className="uno-text-[12px] uno-font-500">{`${t("checking_for_updates")}`}</span>
+              <span className="tw-text-[12px] tw-font-500">{`${t("checking_for_updates")}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 2 ? (
             <Tooltip content={t("latest_version")}>
@@ -543,7 +543,7 @@ function App() {
                 onClick={() => {
                   setCheckUpdateStatus(1);
                 }}
-                className="uno-text-[12px] uno-font-500 uno-cursor-pointer hover:uno-underline hover:uno-underline-offset-2"
+                className="tw-text-[12px] tw-font-500 tw-cursor-pointer hover:tw-underline hover:tw-underline-offset-2"
               >{`${t("latest_version")}`}</span>
             </Tooltip>
           ) : (

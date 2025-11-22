@@ -50,7 +50,7 @@ const Sider: React.FC = () => {
     <HashRouter>
       <SiderGuide ref={guideRef} />
       <Layout.Sider collapsed={collapsed} width={170}>
-        <div className="uno-flex uno-flex-col uno-justify-between uno-h-full">
+        <div className="tw-flex tw-flex-col tw-justify-between tw-h-full">
           <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
             <CustomLink to="/">
               <MenuItem key="/" className="menu-script">
@@ -100,7 +100,7 @@ const Sider: React.FC = () => {
                 key="/external_links"
                 title={
                   <>
-                    <RiLinkM /> <span className="uno-grow">{t("external_links")}</span>
+                    <RiLinkM /> <span className="tw-grow">{t("external_links")}</span>
                   </>
                 }
               >
@@ -166,7 +166,7 @@ const Sider: React.FC = () => {
           position: "relative",
         }}
       >
-        <div className="uno-absolute sc-inset-0 uno-m-[10px]">
+        <div className="tw-absolute sc-inset-0 tw-m-[10px]">
           <Routes>
             <Route index element={<ScriptList />} />
             <Route path="/script/editor">

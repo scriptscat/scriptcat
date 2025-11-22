@@ -27,7 +27,7 @@ loggerCore.logger().debug("options page start");
 
 const Root = (
   <AppProvider>
-    <MainLayout className="!uno-flex-row" pageName="options">
+    <MainLayout className="!tw-flex-row" pageName="options">
       <Sider />
     </MainLayout>
   </AppProvider>

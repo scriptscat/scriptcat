@@ -20,7 +20,7 @@ loggerCore.logger().debug("confirm page start");
 
 const Root = (
   <AppProvider>
-    <MainLayout className="!uno-flex-col !uno-px-4 uno-box-border">
+    <MainLayout className="!tw-flex-col !tw-px-4 tw-box-border">
       <App />
     </MainLayout>
   </AppProvider>

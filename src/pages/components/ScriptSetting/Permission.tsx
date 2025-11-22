@@ -130,7 +130,7 @@ const PermissionManager: React.FC<{
           }
         }}
       >
-        <Space className="uno-w-full" direction="vertical">
+        <Space className="tw-w-full" direction="vertical">
           <Select
             value={permissionValue?.permission}
             onChange={(e) => {
@@ -156,7 +156,7 @@ const PermissionManager: React.FC<{
           </Checkbox>
         </Space>
       </Modal>
-      <div className="uno-flex uno-flex-row uno-justify-between uno-pb-2">
+      <div className="tw-flex tw-flex-row tw-justify-between tw-pb-2">
         <Typography.Title heading={6}>{t("permission_management")}</Typography.Title>
         <Space>
           <Button

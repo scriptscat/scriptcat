@@ -62,15 +62,15 @@ function App() {
   const metadata = useMemo(() => (confirm && confirm.metadata && Object.keys(confirm.metadata)) || [], [confirm]);
 
   return (
-    <div className="uno-h-full">
+    <div className="tw-h-full">
       <Space direction="vertical">
-        <span className="uno-text-2xl uno-font-500">{confirm?.title}</span>
+        <span className="tw-text-2xl tw-font-500">{confirm?.title}</span>
         {metadata.map((key) => (
-          <span className="uno-text-base" key={key}>
+          <span className="tw-text-base" key={key}>
             {`${key}: ${confirm!.metadata![key]}`}
           </span>
         ))}
-        <span className="uno-text-xl uno-font-500">{confirm?.describe}</span>
+        <span className="tw-text-xl tw-font-500">{confirm?.describe}</span>
         <div>
           <Button type="primary" onClick={handleConfirm(false, 1)}>
             {`${t("ignore")} (${second})`}

@@ -248,8 +248,8 @@ const ScriptStorage: React.FC<{
           </Form>
         )}
       </Modal>
-      <Space className="uno-w-full" direction="vertical">
-        <Space className="!uno-flex uno-justify-end">
+      <Space className="tw-w-full" direction="vertical">
+        <Space className="!tw-flex tw-justify-end">
           {isEdit ? (
             <>
               <Button

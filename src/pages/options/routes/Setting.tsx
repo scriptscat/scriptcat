@@ -57,15 +57,15 @@ function Setting() {
   }, [t]);
 
   return (
-    <Space className="setting uno-w-full uno-h-full uno-overflow-auto uno-relative" direction="vertical">
+    <Space className="setting tw-w-full tw-h-full tw-overflow-auto tw-relative" direction="vertical">
       {/* 基本设置 */}
       <Card title={t("general")} bordered={false}>
-        <div className="uno-flex uno-items-center uno-justify-between uno-min-h-10">
-          <div className="uno-flex uno-items-center uno-gap-4 uno-flex-1">
-            <span className="uno-min-w-20 uno-font-medium">{t("language")}</span>
+        <div className="tw-flex tw-items-center tw-justify-between tw-min-h-10">
+          <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
+            <span className="tw-min-w-20 tw-font-medium">{t("language")}</span>
             <Select
               value={language}
-              className="uno-w-50 uno-max-w-75"
+              className="tw-w-50 tw-max-w-75"
               onChange={(value) => {
                 if (value === "help") {
                   window.open("https://crowdin.com/project/scriptcat", "_blank");
@@ -82,14 +82,14 @@ function Setting() {
               ))}
             </Select>
           </div>
-          <span className="uno-text-xs uno-ml-6 uno-flex-shrink-0">{t("select_interface_language")}</span>
+          <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("select_interface_language")}</span>
         </div>
       </Card>
 
       {/* 脚本同步 */}
       <Card className="sync" title={t("script_sync")} bordered={false}>
-        <Space direction="vertical" className="uno-w-full">
-          <Space direction="horizontal" className="uno-w-full">
+        <Space direction="vertical" className="tw-w-full">
+          <Space direction="horizontal" className="tw-w-full">
             <Checkbox
               checked={cloudSync.syncDelete}
               onChange={(checked) => {
@@ -158,17 +158,17 @@ function Setting() {
 
       {/* 界面外观 */}
       <Card title={t("interface_settings")} bordered={false}>
-        <Space direction="vertical" size={16} className="uno-w-full">
+        <Space direction="vertical" size={16} className="tw-w-full">
           {/* 扩展图标徽标 */}
           <div>
-            <div className="uno-text-sm uno-font-medium uno-mb-3">{t("extension_icon_badge")}</div>
-            <Space direction="vertical" size={12} className="uno-w-full">
-              <div className="uno-flex uno-items-center uno-justify-between uno-min-h-9">
-                <div className="uno-flex uno-items-center uno-gap-4 uno-flex-1">
-                  <span className="uno-min-w-20">{t("display_type")}</span>
+            <div className="tw-text-sm tw-font-medium tw-mb-3">{t("extension_icon_badge")}</div>
+            <Space direction="vertical" size={12} className="tw-w-full">
+              <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+                <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
+                  <span className="tw-min-w-20">{t("display_type")}</span>
                   <Select
                     value={badgeNumberType}
-                    className="uno-w-40 uno-max-w-50"
+                    className="tw-w-40 tw-max-w-50"
                     onChange={(value) => {
                       submitBadgeNumberType(value);
                     }}
@@ -178,11 +178,11 @@ function Setting() {
                     <Select.Option value="script_count">{t("badge_type_script_count")}</Select.Option>
                   </Select>
                 </div>
-                <span className="uno-text-xs uno-ml-6 uno-flex-shrink-0">{t("extension_icon_badge_type")}</span>
+                <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("extension_icon_badge_type")}</span>
               </div>
-              <div className="uno-flex uno-items-center uno-justify-between uno-min-h-9">
-                <div className="uno-flex uno-items-center uno-gap-4 uno-flex-1">
-                  <span className="uno-min-w-20">{t("background_color")}</span>
+              <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+                <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
+                  <span className="tw-min-w-20">{t("background_color")}</span>
                   <ColorPicker
                     value={badgeBackgroundColor}
                     onChange={(value) => {
@@ -191,14 +191,14 @@ function Setting() {
                     }}
                     showText
                     disabledAlpha
-                    className="uno-w-50 uno-max-w-62.5"
+                    className="tw-w-50 tw-max-w-62.5"
                   />
                 </div>
-                <span className="uno-text-xs uno-ml-6 uno-flex-shrink-0">{t("badge_background_color_desc")}</span>
+                <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("badge_background_color_desc")}</span>
               </div>
-              <div className="uno-flex uno-items-center uno-justify-between uno-min-h-9">
-                <div className="uno-flex uno-items-center uno-gap-4 uno-flex-1">
-                  <span className="uno-min-w-20">{t("text_color")}</span>
+              <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+                <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
+                  <span className="tw-min-w-20">{t("text_color")}</span>
                   <ColorPicker
                     value={badgeTextColor}
                     onChange={(value) => {
@@ -207,20 +207,20 @@ function Setting() {
                     }}
                     showText
                     disabledAlpha
-                    className="uno-w-50 uno-max-w-62.5"
+                    className="tw-w-50 tw-max-w-62.5"
                   />
                 </div>
-                <span className="uno-text-xs uno-ml-6 uno-flex-shrink-0">{t("badge_text_color_desc")}</span>
+                <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("badge_text_color_desc")}</span>
               </div>
             </Space>
           </div>
 
           {/* 脚本菜单 */}
           <div>
-            <div className="uno-text-sm uno-font-medium uno-mb-3">{t("script_menu")}</div>
-            <Space direction="vertical" size={12} className="uno-w-full">
-              <div className="uno-flex uno-items-center uno-justify-between uno-min-h-9">
-                <div className="uno-flex uno-items-center uno-gap-4 uno-flex-1">
+            <div className="tw-text-sm tw-font-medium tw-mb-3">{t("script_menu")}</div>
+            <Space direction="vertical" size={12} className="tw-w-full">
+              <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+                <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
                   <Checkbox
                     checked={scriptMenuDisplayType === "all"}
                     onChange={(e) => {
@@ -231,13 +231,13 @@ function Setting() {
                     {t("display_right_click_menu")}
                   </Checkbox>
                 </div>
-                <span className="uno-text-xs uno-ml-6 uno-flex-shrink-0">{t("display_right_click_menu_desc")}</span>
+                <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("display_right_click_menu_desc")}</span>
               </div>
-              <div className="uno-flex uno-items-center uno-justify-between uno-min-h-9">
-                <div className="uno-flex uno-items-center uno-gap-4 uno-flex-1">
-                  <span className="uno-min-w-20">{t("expand_count")}</span>
+              <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+                <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
+                  <span className="tw-min-w-20">{t("expand_count")}</span>
                   <Input
-                    className="uno-w-25 uno-max-w-30"
+                    className="tw-w-25 tw-max-w-30"
                     type="number"
                     value={menuExpandNum.toString()}
                     onChange={(val) => {
@@ -246,7 +246,7 @@ function Setting() {
                     }}
                   />
                 </div>
-                <span className="uno-text-xs uno-ml-6 uno-flex-shrink-0">{t("auto_collapse_when_exceeds")}</span>
+                <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("auto_collapse_when_exceeds")}</span>
               </div>
             </Space>
           </div>
@@ -255,13 +255,13 @@ function Setting() {
 
       {/* 脚本更新设置 */}
       <Card title={t("update")} bordered={false}>
-        <Space direction="vertical" size={20} className="uno-w-full">
-          <div className="uno-flex uno-items-center uno-justify-between uno-min-h-9">
-            <div className="uno-flex uno-items-center uno-gap-4 uno-flex-1">
-              <span className="uno-min-w-20 uno-font-medium">{t("script_update_check_frequency")}</span>
+        <Space direction="vertical" size={20} className="tw-w-full">
+          <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+            <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
+              <span className="tw-min-w-20 tw-font-medium">{t("script_update_check_frequency")}</span>
               <Select
                 value={checkScriptUpdateCycle.toString()}
-                className="uno-w-35 uno-max-w-45"
+                className="tw-w-35 tw-max-w-45"
                 onChange={(value) => {
                   const num = parseInt(value, 10);
                   submitCheckScriptUpdateCycle(num);
@@ -277,12 +277,12 @@ function Setting() {
                 <Select.Option value="604800">{t("every_week")}</Select.Option>
               </Select>
             </div>
-            <span className="uno-text-xs uno-ml-6 uno-flex-shrink-0">{t("script_auto_update_frequency")}</span>
+            <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("script_auto_update_frequency")}</span>
           </div>
 
-          <div className="uno-flex uno-items-start uno-justify-between">
-            <div className="uno-flex uno-flex-col uno-gap-3 uno-flex-1">
-              <span className="uno-font-medium uno-mb-1">{t("update_options")}</span>
+          <div className="tw-flex tw-items-start tw-justify-between">
+            <div className="tw-flex tw-flex-col tw-gap-3 tw-flex-1">
+              <span className="tw-font-medium tw-mb-1">{t("update_options")}</span>
               <Checkbox
                 onChange={(checked) => {
                   submitUpdateDisableScript(checked);
@@ -300,7 +300,7 @@ function Setting() {
                 {t("silent_update_non_critical_changes")}
               </Checkbox>
             </div>
-            <span className="uno-text-xs uno-max-w-50 uno-text-right uno-ml-6 uno-flex-shrink-0">
+            <span className="tw-text-xs tw-max-w-50 tw-text-right tw-ml-6 tw-flex-shrink-0">
               {t("control_script_update_behavior")}
             </span>
           </div>
@@ -310,9 +310,9 @@ function Setting() {
       {/* 安全设置 */}
       <Card title={t("security")} bordered={false}>
         <div>
-          <div className="uno-flex uno-items-start uno-justify-between uno-mb-3">
-            <span className="uno-font-medium uno-min-w-20">{t("blacklist_pages")}</span>
-            <span className="uno-text-xs uno-max-w-60 uno-text-right">{t("blacklist_pages_desc")}</span>
+          <div className="tw-flex tw-items-start tw-justify-between tw-mb-3">
+            <span className="tw-font-medium tw-min-w-20">{t("blacklist_pages")}</span>
+            <span className="tw-text-xs tw-max-w-60 tw-text-right">{t("blacklist_pages_desc")}</span>
           </div>
           <Input.TextArea
             placeholder={t("blacklist_placeholder")}
@@ -340,34 +340,34 @@ function Setting() {
       </Card>
       {/* 开发工具 */}
       <Card title={t("development_tools")} bordered={false}>
-        <Space direction="vertical" size={20} className="uno-w-full">
-          <div className="uno-flex uno-items-center uno-justify-between uno-min-h-9">
-            <div className="uno-flex uno-items-center uno-gap-4 uno-flex-1">
+        <Space direction="vertical" size={20} className="tw-w-full">
+          <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+            <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
               <Checkbox
                 onChange={(checked) => {
                   submitEnableEslint(checked);
                 }}
                 checked={enableEslint}
               >
-                <span className="uno-font-medium">{t("enable_eslint")}</span>
+                <span className="tw-font-medium">{t("enable_eslint")}</span>
               </Checkbox>
               <Button
                 type="text"
                 size="small"
-                className="uno-p-1"
+                className="tw-p-1"
                 icon={<IconQuestionCircleFill />}
                 href="https://eslint.org/play/"
                 target="_blank"
               />
             </div>
-            <span className="uno-text-xs uno-ml-6 uno-flex-shrink-0">{t("check_script_code_quality")}</span>
+            <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("check_script_code_quality")}</span>
           </div>
 
           {enableEslint && (
             <div>
-              <div className="uno-flex uno-items-start uno-justify-between uno-mb-3">
-                <span className="uno-font-medium uno-min-w-20">{t("eslint_rules")}</span>
-                <span className="uno-text-xs uno-max-w-60 uno-text-right uno-ml-6 uno-flex-shrink-0">
+              <div className="tw-flex tw-items-start tw-justify-between tw-mb-3">
+                <span className="tw-font-medium tw-min-w-20">{t("eslint_rules")}</span>
+                <span className="tw-text-xs tw-max-w-60 tw-text-right tw-ml-6 tw-flex-shrink-0">
                   {t("custom_eslint_rules_config")}
                 </span>
               </div>
@@ -403,10 +403,10 @@ function Setting() {
             </div>
           )}
           <div>
-            <div className="uno-flex uno-items-start uno-justify-between uno-mb-3">
-              <span className="uno-font-medium uno-min-w-20">{t("editor_config")}</span>
+            <div className="tw-flex tw-items-start tw-justify-between tw-mb-3">
+              <span className="tw-font-medium tw-min-w-20">{t("editor_config")}</span>
               <CustomTrans
-                className="uno-text-xs uno-max-w-80 uno-text-right uno-ml-6 uno-flex-shrink-0"
+                className="tw-text-xs tw-max-w-80 tw-text-right tw-ml-6 tw-flex-shrink-0"
                 i18nKey="editor_config_description"
               />
             </div>
@@ -441,10 +441,10 @@ function Setting() {
             />
           </div>
           <div>
-            <div className="uno-flex uno-items-start uno-justify-between uno-mb-3">
-              <span className="uno-font-medium uno-min-w-20">{t("editor_type_definition")}</span>
+            <div className="tw-flex tw-items-start tw-justify-between tw-mb-3">
+              <span className="tw-font-medium tw-min-w-20">{t("editor_type_definition")}</span>
               <span
-                className="uno-text-xs uno-max-w-100 uno-text-right uno-ml-6 uno-flex-shrink-0"
+                className="tw-text-xs tw-max-w-100 tw-text-right tw-ml-6 tw-flex-shrink-0"
                 dangerouslySetInnerHTML={{
                   __html: t("editor_type_definition_description"),
                 }}
