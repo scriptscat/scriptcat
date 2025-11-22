@@ -1,29 +1,45 @@
 /* eslint-disable import/no-extraneous-dependencies */
+import path from "path";
 import merge from "webpack-merge";
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
 import CompressionPlugin from "compression-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
+import TerserPlugin from "terser-webpack-plugin";
 import common from "../webpack.config";
 
-const src = `${__dirname}/../src`;
-const dist = `${__dirname}/../dist`;
+const src = path.resolve(__dirname, "../src");
+const dist = path.resolve(__dirname, "../dist");
 
 // 不要分割的文件
 common.entry = {
-  content: `${src}/content.ts`,
+  content: path.join(src, "content.ts"),
   "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
   "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
 };
 
 common.output = {
-  path: `${dist}/ext/src`,
+  path: path.join(dist, "ext/src"),
   filename: "[name].js",
   clean: false,
 };
 
-// 取消splitChunks
-common.optimization = {};
+common.optimization = {
+  minimize: true,
+  splitChunks: false,
+  runtimeChunk: false,
+  minimizer: [
+    new TerserPlugin({
+      extractComments: false, // 避免额外产生 .LICENSE.txt
+      terserOptions: {
+        format: {
+          // 输出只用 ASCII，非 ASCII 变成 \uXXXX
+          ascii_only: true,
+        },
+      },
+    }),
+  ],
+};
 
 // 移除插件
 common.plugins = common.plugins!.filter(

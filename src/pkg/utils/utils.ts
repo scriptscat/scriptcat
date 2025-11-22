@@ -17,14 +17,11 @@ export function randomString(e: number) {
   return n;
 }
 
-export function dealSymbol(source: string): string {
-  source = source.replace(/("|\\)/g, "\\$1");
-  source = source.replace(/(\r\n|\n)/g, "\\n");
-  return source;
-}
-
 export function dealScript(source: string): string {
-  return dealSymbol(source);
+  // 双引号会加quote. 其他特殊字符也会转换一下。然后整个文字加双引号表示字串
+  // 例子 `This is a "Apple".\n123\n\r456` => `"This is a \\"Apple\\".\\n123\\n\\r456"`
+  // 兼容旧代码，头尾引号删去。
+  return JSON.stringify(source).slice(1, -1);
 }
 
 export function isFirefox(): boolean {
@@ -222,22 +219,6 @@ export function errorMsg(e: any): string {
     return JSON.stringify(e);
   }
   return "";
-}
-
-export function fixCoding(text: string): string {
-  const toXChar = (char: string) => {
-    const c = char.charCodeAt(0).toString(16);
-    if (c.length <= 2) return `\\x${c.padStart(2, "0")}`;
-    return `\\u${c.padStart(4, "0")}`;
-  };
-
-  return text
-    .replace(/['"][\x00-\x1F]+['"]/g, (match) =>
-      match.replace(/[\x00-\x1F]/g, toXChar)
-    )
-    .replace(/\b[a-z]{4,8}:\s*['"]\[(.)-(.)\]['"]/g, (match, start, end) =>
-      match.replace(`${start}-${end}`, `${toXChar(start)}-${toXChar(end)}`)
-    );
 }
 
 export function blobToBase64(blob: Blob): Promise<string> {

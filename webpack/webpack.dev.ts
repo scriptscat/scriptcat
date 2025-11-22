@@ -1,15 +1,15 @@
 /* eslint-disable import/no-extraneous-dependencies */
+import path from "path";
+import NodePolyfillPlugin from "node-polyfill-webpack-plugin";
 import merge from "webpack-merge";
 import CompressionPlugin from "compression-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
+import TerserPlugin from "terser-webpack-plugin";
 import common from "../webpack.config";
 
-const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
-const path = require("path");
-
-const src = `${__dirname}/../src`;
-const dist = `${__dirname}/../dist`;
-const assets = `${__dirname}/../build/assets`;
+const src = path.resolve(__dirname, "../src");
+const dist = path.resolve(__dirname, "../dist");
+const assets = path.resolve(__dirname, "../build/assets");
 
 common.entry = {
   // @ts-ignore
@@ -21,13 +21,16 @@ common.entry = {
 };
 
 common.output = {
-  path: `${dist}/ext/src`,
+  path: path.join(dist, "ext/src"),
   filename: "[name].js",
   clean: false,
 };
 
-// 取消splitChunks
-common.optimization = {};
+common.optimization = {
+  minimize: false,
+  splitChunks: false,
+  runtimeChunk: false,
+};
 
 export default merge(common, {
   watch: true,

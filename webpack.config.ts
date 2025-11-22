@@ -31,6 +31,21 @@ const config: Configuration = {
     path: `${dist}/ext/src`,
     filename: "[name].js",
     clean: true,
+    // min versions: Chrome 62, Firefox 57, Safari 11.1, Edge 79 (ES2015+)
+    environment: {
+      // The environment supports arrow functions ('() => { ... }').
+      arrowFunction: true,
+      // The environment supports async function and await ('async function () { await ... }').
+      asyncFunction: true,
+      // The environment supports const and let for variable declarations.
+      const: true,
+      // The environment supports destructuring ('{ a, b } = obj').
+      destructuring: true,
+      // The environment supports 'for of' iteration ('for (const x of array) { ... }').
+      forOf: true,
+      // The environment supports template literals.
+      templateLiteral: true,
+    }
   },
   plugins: [
     new HtmlWebpackPlugin({
@@ -161,7 +176,11 @@ const config: Configuration = {
   },
   optimization: {
     minimize: true,
-    minimizer: [new TerserPlugin()],
+    minimizer: [
+      new TerserPlugin({
+        extractComments: false, // 避免额外产生 .LICENSE.txt
+      }),
+    ],
     splitChunks: {
       chunks: "all",
       minSize: 307200,
