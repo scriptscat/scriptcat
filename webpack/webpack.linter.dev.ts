@@ -21,7 +21,7 @@ common.output = {
 };
 
 common.optimization = {
-  minimize: false,
+  minimize: true,
   splitChunks: false,
   runtimeChunk: false,
   minimizer: [
