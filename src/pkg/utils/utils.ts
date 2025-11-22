@@ -17,14 +17,11 @@ export function randomString(e: number) {
   return n;
 }
 
-export function dealSymbol(source: string): string {
-  source = source.replace(/("|\\)/g, "\\$1");
-  source = source.replace(/(\r\n|\n)/g, "\\n");
-  return source;
-}
-
 export function dealScript(source: string): string {
-  return dealSymbol(source);
+  // 双引号会加quote. 其他特殊字符也会转换一下。然后整个文字加双引号表示字串
+  // 例子 `This is a "Apple".\n123\n\r456` => `"This is a \\"Apple\\".\\n123\\n\\r456"`
+  // 兼容旧代码，头尾引号删去。
+  return JSON.stringify(source).slice(1, -1);
 }
 
 export function isFirefox(): boolean {
