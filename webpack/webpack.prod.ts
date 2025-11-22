@@ -2,7 +2,7 @@
 import merge from "webpack-merge";
 import { BundleAnalyzerPlugin } from "webpack-bundle-analyzer";
 import CopyPlugin from "copy-webpack-plugin";
-import common from "../webpack.config";
+import { configCommon as common } from "../webpack.config";
 
 const src = `${__dirname}/../src`;
 const dist = `${__dirname}/../dist`;

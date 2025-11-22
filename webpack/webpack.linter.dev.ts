@@ -3,7 +3,7 @@ import path from "path";
 import NodePolyfillPlugin from "node-polyfill-webpack-plugin";
 import merge from "webpack-merge";
 import TerserPlugin from "terser-webpack-plugin";
-import common from "../webpack.config";
+import { configWebWorker as common } from "../webpack.config";
 
 const src = path.resolve(__dirname, "../src");
 const dist = path.resolve(__dirname, "../dist");
@@ -19,26 +19,6 @@ common.output = {
   filename: "[name].js",
   clean: false,
 };
-
-common.optimization = {
-  minimize: true,
-  splitChunks: false,
-  runtimeChunk: false,
-  minimizer: [
-    new TerserPlugin({
-      extractComments: false, // 避免额外产生 .LICENSE.txt
-      terserOptions: {
-        format: {
-          // 输出只用 ASCII，非 ASCII 变成 \uXXXX
-          ascii_only: true,
-        },
-      },
-    }),
-  ],
-};
-
-// 移除插件
-common.plugins = [];
 
 export default merge(common, {
   watch: true,
