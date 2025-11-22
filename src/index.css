@@ -18,3 +18,18 @@ body[arco-theme='light'] {
     --color-scrollbar-track: #f0f0f0;
     --color-scrollbar-thumb-hover: #8c8c8c;
 }
+
+:root {
+	--sc-zero-1: 0;
+	--sc-zero-2: 0;
+	--sc-zero-3: 0;
+	--sc-zero-4: 0;
+}
+
+/* 自定义 .sc-inset-0 避免打包成 inset: 0 使旧浏览器布局错位 */
+.sc-inset-0 {
+	top: var(--sc-zero-1);
+	left: var(--sc-zero-2);
+	right: var(--sc-zero-3);
+	bottom: var(--sc-zero-4);
+}

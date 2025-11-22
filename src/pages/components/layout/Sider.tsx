@@ -166,7 +166,7 @@ const Sider: React.FC = () => {
           position: "relative",
         }}
       >
-        <div className="uno-absolute uno-inset-0 uno-m-[10px]">
+        <div className="uno-absolute sc-inset-0 uno-m-[10px]">
           <Routes>
             <Route index element={<ScriptList />} />
             <Route path="/script/editor">

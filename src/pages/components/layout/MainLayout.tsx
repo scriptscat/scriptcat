@@ -390,13 +390,13 @@ const MainLayout: React.FC<{
         >
           <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
           <div
+            className="sc-inset-0"
             style={{
               position: "absolute",
               zIndex: 100,
               display: isDragActive ? "flex" : "none",
               justifyContent: "center",
               alignItems: "center",
-              inset: 0,
               margin: "auto",
               color: "grey",
               fontSize: 36,

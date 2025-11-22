@@ -1125,11 +1125,10 @@ function ScriptEditor() {
               }
               return (
                 <div
-                  className="uno-w-full uno-absolute"
+                  className="uno-w-full uno-absolute sc-inset-0"
                   key={`fe_${item.script.uuid}`}
                   style={{
                     display: item.active ? "block" : "none",
-                    inset: 0,
                   }}
                 >
                   <WarpEditor
