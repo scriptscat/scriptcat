@@ -20,6 +20,7 @@ export class WebDAVFileReader implements FileReader {
         resp = await this.client.getFileContents(this.path, {
           format: "text",
         }) as string;
+        break;
       default: {
         const blob = await this.client.getFileContents(this.path, {
           format: "binary",
