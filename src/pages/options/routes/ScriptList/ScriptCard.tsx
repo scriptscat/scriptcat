@@ -32,6 +32,7 @@ import { parseTags } from "@App/app/repo/metadata";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { EnableSwitch, HomeCell, MemoizedAvatar, SourceCell, UpdateTimeCell } from "./components";
 import { useTranslation } from "react-i18next";
+import { type TFunction } from "i18next";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import { FaThList } from "react-icons/fa";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -327,6 +328,36 @@ export const ScriptCardItem = React.memo(
 );
 ScriptCardItem.displayName = "ScriptCard";
 
+interface ScriptSearchFieldProps {
+  t: TFunction<"translation", undefined>;
+  setSearchKeyword: (keyword: string) => void;
+}
+
+export const ScriptSearchField = React.memo(
+  ({ t, setSearchKeyword }: ScriptSearchFieldProps) => {
+    const [searchValue, setSearchValue] = useState<string>("");
+    return (
+      <Input.Search
+        size="small"
+        searchButton
+        style={{ maxWidth: 400 }}
+        placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
+        defaultValue={searchValue}
+        onChange={(value) => {
+          setSearchValue(value);
+        }}
+        onSearch={(value) => {
+          setSearchKeyword(value);
+        }}
+      />
+    );
+  },
+  (prevProps, nextProps) => {
+    return prevProps.t === nextProps.t;
+  }
+);
+ScriptSearchField.displayName = "ScriptSearchField";
+
 interface ScriptCardProps {
   loadingList: boolean;
   scriptList: ScriptLoading[];
@@ -361,7 +392,6 @@ export const ScriptCard = ({
   handleConfig,
   handleRunStop,
 }: ScriptCardProps) => {
-  const [searchValue, setSearchValue] = useState<string>("");
   const { t } = useTranslation();
   const { guideMode } = useAppContext();
 
@@ -417,19 +447,7 @@ export const ScriptCard = ({
       >
         <div className="flex flex-row justify-between items-center" style={{ padding: "8px 0" }}>
           <div className="flex-1">
-            <Input.Search
-              size="small"
-              searchButton
-              style={{ maxWidth: 400 }}
-              placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
-              value={searchValue}
-              onChange={(value) => {
-                setSearchValue(value);
-              }}
-              onSearch={(value) => {
-                setSearchKeyword(value);
-              }}
-            />
+            <ScriptSearchField t={t} setSearchKeyword={setSearchKeyword} />
           </div>
           <Space size={8}>
             <Tooltip content={sidebarOpen ? t("close_sidebar") : t("open_sidebar")}>
