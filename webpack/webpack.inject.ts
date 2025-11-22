@@ -17,21 +17,6 @@ common.output = {
   path: `${dist}`,
   filename: "[name].js",
   clean: false,
-  // min versions: Chrome 62, Firefox 57, Safari 11.1, Edge 79 (ES2015+)
-  environment: {
-    // The environment supports arrow functions ('() => { ... }').
-    arrowFunction: true,
-    // The environment supports async function and await ('async function () { await ... }').
-    asyncFunction: true,
-    // The environment supports const and let for variable declarations.
-    const: true,
-    // The environment supports destructuring ('{ a, b } = obj').
-    destructuring: true,
-    // The environment supports 'for of' iteration ('for (const x of array) { ... }').
-    forOf: true,
-    // The environment supports template literals.
-    templateLiteral: true,
-  }
 };
 
 // 取消splitChunks
