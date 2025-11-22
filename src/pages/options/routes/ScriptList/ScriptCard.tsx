@@ -353,7 +353,7 @@ export const ScriptSearchField = React.memo(
     );
   },
   (prevProps, nextProps) => {
-    return prevProps.t === nextProps.t;
+    return prevProps.t === nextProps.t && prevProps.setSearchKeyword === nextProps.setSearchKeyword;
   }
 );
 ScriptSearchField.displayName = "ScriptSearchField";
