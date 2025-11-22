@@ -335,17 +335,12 @@ interface ScriptSearchFieldProps {
 
 export const ScriptSearchField = React.memo(
   ({ t, setSearchKeyword }: ScriptSearchFieldProps) => {
-    const [searchValue, setSearchValue] = useState<string>("");
     return (
       <Input.Search
         size="small"
         searchButton
         style={{ maxWidth: 400 }}
         placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
-        defaultValue={searchValue}
-        onChange={(value) => {
-          setSearchValue(value);
-        }}
         onSearch={(value) => {
           setSearchKeyword(value);
         }}
