@@ -49,7 +49,7 @@ const Sider: React.FC = () => {
   return (
     <HashRouter>
       <SiderGuide ref={guideRef} />
-      <Layout.Sider className="uno-h-full" collapsed={collapsed} width={170}>
+      <Layout.Sider collapsed={collapsed} width={170}>
         <div className="uno-flex uno-flex-col uno-justify-between uno-h-full">
           <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
             <CustomLink to="/">
@@ -160,23 +160,25 @@ const Sider: React.FC = () => {
         style={{
           borderLeft: "1px solid var(--color-bg-5)",
           overflow: "hidden",
-          padding: 10,
-          height: "100%",
+          padding: 0,
+          height: "auto",
           boxSizing: "border-box",
           position: "relative",
         }}
       >
-        <Routes>
-          <Route index element={<ScriptList />} />
-          <Route path="/script/editor">
-            <Route path=":uuid" element={<ScriptEditor />} />
-            <Route path="" element={<ScriptEditor />} />
-          </Route>
-          <Route path="/subscribe" element={<SubscribeList />} />
-          <Route path="/logger" element={<Logger />} />
-          <Route path="/tools" element={<Tools />} />
-          <Route path="/setting" element={<Setting />} />
-        </Routes>
+        <div className="uno-absolute uno-inset-0 uno-m-[10px]">
+          <Routes>
+            <Route index element={<ScriptList />} />
+            <Route path="/script/editor">
+              <Route path=":uuid" element={<ScriptEditor />} />
+              <Route path="" element={<ScriptEditor />} />
+            </Route>
+            <Route path="/subscribe" element={<SubscribeList />} />
+            <Route path="/logger" element={<Logger />} />
+            <Route path="/tools" element={<Tools />} />
+            <Route path="/setting" element={<Setting />} />
+          </Routes>
+        </div>
       </Layout.Content>
     </HashRouter>
   );

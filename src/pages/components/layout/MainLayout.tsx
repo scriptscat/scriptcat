@@ -201,7 +201,7 @@ const MainLayout: React.FC<{
       locale={arcoLocale(i18n.language)}
     >
       {contextHolder}
-      <Layout>
+      <Layout className={"uno-min-h-screen"}>
         <Layout.Header
           style={{
             height: "50px",
@@ -382,7 +382,7 @@ const MainLayout: React.FC<{
           </Space>
         </Layout.Header>
         <Layout
-          className={`uno-absolute uno-top-50px uno-bottom-0 uno-w-full ${className}`}
+          className={`uno-bottom-0 uno-w-full ${className}`}
           style={{
             background: "var(--color-fill-2)",
           }}

@@ -1118,17 +1118,18 @@ function ScriptEditor() {
               />
             ))}
           </Tabs>
-          <div className="uno-flex uno-flex-grow uno-flex-1">
+          <div className="uno-flex uno-flex-grow uno-flex-1 uno-relative">
             {editors.map((item) => {
               if (item.active) {
                 document.title = `${i18nName(item.script)} - Script Editor`;
               }
               return (
                 <div
-                  className="uno-w-full"
+                  className="uno-w-full uno-absolute"
                   key={`fe_${item.script.uuid}`}
                   style={{
                     display: item.active ? "block" : "none",
+                    inset: 0,
                   }}
                 >
                   <WarpEditor
