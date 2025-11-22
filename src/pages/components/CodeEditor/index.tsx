@@ -42,7 +42,96 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
     }
     let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
     const inlineDiv = document.getElementById(id) as HTMLDivElement;
-    // @ts-ignore
+    const commonEditorOptions = {
+      folding: true,
+      foldingStrategy: "indentation",
+      automaticLayout: true,
+      scrollbar: { alwaysConsumeMouseWheel: false },
+      overviewRulerBorder: false,
+      scrollBeyondLastLine: false,
+
+      glyphMargin: true,
+      unicodeHighlight: {
+        ambiguousCharacters: false,
+      },
+
+      // https://code.visualstudio.com/docs/editing/intellisense
+
+      // Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.
+      acceptSuggestionOnCommitCharacter: true,
+
+      // Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change
+      acceptSuggestionOnEnter: "on",
+
+      // Controls the delay in ms after which quick suggestions will show up.
+      quickSuggestionsDelay: 10,
+
+      // Controls if suggestions should automatically show up when typing trigger characters
+      suggestOnTriggerCharacters: true,
+
+      // Controls if pressing tab inserts the best suggestion and if tab cycles through other suggestions
+      tabCompletion: "off",
+
+      // Controls whether sorting favours words that appear close to the cursor
+      suggest: {
+        localityBonus: true,
+        preview: true,
+      },
+
+      // Controls how suggestions are pre-selected when showing the suggest list
+      suggestSelection: "first",
+
+      // Enable word based suggestions
+      wordBasedSuggestions: "matchingDocuments",
+
+      // Enable parameter hints
+      parameterHints: {
+        enabled: true,
+      },
+
+      // https://qiita.com/H-goto16/items/43802950fc5c112c316b
+      // https://zenn.dev/udonj/articles/ultimate-vscode-customization-2024
+      // https://github.com/is0383kk/VSCode
+
+      quickSuggestions: {
+        other: "inline",
+        comments: true,
+        strings: true,
+      },
+
+      fastScrollSensitivity: 10,
+      smoothScrolling: true,
+      inlineSuggest: {
+        enabled: true,
+      },
+      guides: {
+        indentation: true,
+      },
+      renderLineHighlightOnlyWhenFocus: true,
+      snippetSuggestions: "top",
+
+      cursorBlinking: "phase",
+      cursorSmoothCaretAnimation: "off",
+
+      autoIndent: "advanced",
+      wrappingIndent: "indent",
+      wordSegmenterLocales: ["ja", "zh-CN", "zh-Hant-TW"] as string[],
+
+      renderLineHighlight: "gutter",
+      renderWhitespace: "selection",
+      renderControlCharacters: true,
+      dragAndDrop: false,
+      emptySelectionClipboard: false,
+      copyWithSyntaxHighlighting: false,
+      bracketPairColorization: {
+        enabled: true,
+      },
+      mouseWheelZoom: true,
+      links: true,
+      accessibilitySupport: "off",
+      largeFileOptimizations: true,
+      colorDecorators: true,
+    } as const;
     if (diffCode) {
       edit = editor.createDiffEditor(inlineDiv, {
         hideUnchangedRegions: {
@@ -50,18 +139,9 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
         },
         enableSplitViewResizing: false,
         renderSideBySide: false,
-        folding: true,
-        foldingStrategy: "indentation",
-        automaticLayout: true,
-        scrollbar: { alwaysConsumeMouseWheel: false },
-        overviewRulerBorder: false,
-        scrollBeyondLastLine: false,
         readOnly: true,
         diffWordWrap: "off",
-        glyphMargin: true,
-        unicodeHighlight: {
-          ambiguousCharacters: false,
-        },
+        ...commonEditorOptions,
       });
       edit.setModel({
         original: editor.createModel(diffCode, "javascript"),
@@ -71,17 +151,8 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
       edit = editor.create(inlineDiv, {
         language: "javascript",
         theme: document.body.getAttribute("arco-theme") === "dark" ? "vs-dark" : "vs",
-        folding: true,
-        foldingStrategy: "indentation",
-        automaticLayout: true,
-        scrollbar: { alwaysConsumeMouseWheel: false },
-        overviewRulerBorder: false,
-        scrollBeyondLastLine: false,
         readOnly: !editable,
-        glyphMargin: true,
-        unicodeHighlight: {
-          ambiguousCharacters: false,
-        },
+        ...commonEditorOptions,
       });
       edit.setValue(code);
 
