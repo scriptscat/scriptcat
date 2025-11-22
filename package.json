@@ -28,7 +28,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@emotion/react": "^11.10.4",
     "@emotion/styled": "^11.10.4",
-    "axios": "^1.4.0",
+    "axios": "^1.13.2",
     "core-js": "^3.47.0",
     "cron": "^2.4.4",
     "crx": "^5.0.1",
@@ -50,7 +50,7 @@
     "react-router-dom": "^6.3.0",
     "semver": "^7.7.3",
     "uuid": "^8.3.2",
-    "webdav": "^4.11.0",
+    "webdav": "^5.8.0",
     "yaml": "^2.8.0"
   },
   "devDependencies": {

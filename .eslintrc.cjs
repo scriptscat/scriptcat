@@ -58,6 +58,8 @@ module.exports = {
     "import/no-duplicates": "off",
     "import/prefer-default-export": "off",
     "no-plusplus": "off",
+    "no-continue": "off",
+    "no-return-await": "off",
     "prettier/prettier": "off",
   },
   settings: {
