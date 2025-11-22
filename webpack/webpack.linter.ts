@@ -1,12 +1,12 @@
 /* eslint-disable import/no-extraneous-dependencies */
+import path from "path";
+import NodePolyfillPlugin from "node-polyfill-webpack-plugin";
 import merge from "webpack-merge";
+import TerserPlugin from "terser-webpack-plugin";
 import common from "../webpack.config";
 
-const path = require("path");
-const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
-
-const src = `${__dirname}/../src`;
-const dist = `${__dirname}/../dist`;
+const src = path.resolve(__dirname, "../src");
+const dist = path.resolve(__dirname, "../dist");
 
 // eslint文件
 common.entry = {
@@ -14,13 +14,28 @@ common.entry = {
 };
 
 common.output = {
-  path: `${dist}/ext/src`,
+  globalObject: "self",
+  path: path.join(dist, "ext/src"),
   filename: "[name].js",
   clean: false,
 };
 
-// 取消splitChunks
-common.optimization = {};
+common.optimization = {
+  minimize: true,
+  splitChunks: false,
+  runtimeChunk: false,
+  minimizer: [
+    new TerserPlugin({
+      extractComments: false, // 避免额外产生 .LICENSE.txt
+      terserOptions: {
+        format: {
+          // 输出只用 ASCII，非 ASCII 变成 \uXXXX
+          ascii_only: true,
+        },
+      },
+    }),
+  ],
+};
 
 // 移除插件
 common.plugins = [];
