@@ -14,18 +14,20 @@ export class WebDAVFileReader implements FileReader {
   }
 
   async read(type?: "string" | "blob"): Promise<string | Blob> {
+    let resp: string | Blob;
     switch (type) {
       case "string":
-        return await (this.client.getFileContents(this.path, {
+        resp = await this.client.getFileContents(this.path, {
           format: "text",
-        }) as Promise<string>);
+        }) as string;
       default: {
-        const resp = (await this.client.getFileContents(this.path, {
+        const blob = await this.client.getFileContents(this.path, {
           format: "binary",
-        })) as ArrayBuffer;
-        return new Blob([resp]);
+        }) as ArrayBuffer;
+        resp = new Blob([blob]);
       }
     }
+    return resp;
   }
 }
 
