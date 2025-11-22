@@ -30,11 +30,6 @@ common.optimization = {
   minimize: false,
   splitChunks: false,
   runtimeChunk: false,
-  minimizer: [
-    new TerserPlugin({
-      extractComments: false, // 避免额外产生 .LICENSE.txt
-    }),
-  ],
 };
 
 export default merge(common, {
