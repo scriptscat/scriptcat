@@ -887,7 +887,7 @@ export default class GMApi extends GM_Base {
               retPromiseResolve?.(data.data);
               break;
             case "onprogress":
-              details.onprogress?.(makeCallbackParam({ ...data.data }));
+              details.onprogress?.(makeCallbackParam({ ...data.data, mode: "browser" }));
               retPromiseReject?.(new Error("Timeout ERROR"));
               break;
             case "ontimeout":
@@ -963,7 +963,7 @@ export default class GMApi extends GM_Base {
             // details.onload?.(makeCallbackParam({}))
           },
           onprogress: (e) => {
-            details.onprogress?.(makeCallbackParam({ ...e }));
+            details.onprogress?.(makeCallbackParam({ ...e, mode: "native" }));
           },
           ontimeout: () => {
             details.ontimeout?.(makeCallbackParam({}));
