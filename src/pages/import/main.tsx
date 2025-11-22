@@ -20,7 +20,7 @@ loggerCore.logger().debug("import page start");
 
 const Root = (
   <AppProvider>
-    <MainLayout className="!flex-col !p-[10px] box-border h-auto overflow-auto">
+    <MainLayout className="!uno-flex-col !uno-p-[10px] uno-box-border uno-h-auto uno-overflow-auto">
       <App />
     </MainLayout>
   </AppProvider>

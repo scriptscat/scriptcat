@@ -50,15 +50,15 @@ const FilterGroup = React.memo<FilterGroupProps>(
     }, [items]);
 
     return (
-      <div className="mb-4">
+      <div className="uno-mb-4">
         <div
-          className="flex items-center justify-between px-2 py-1 cursor-pointer rounded transition-all duration-200 hover:bg-fill-2"
+          className="uno-flex uno-items-center uno-justify-between uno-px-2 uno-py-1 uno-cursor-pointer uno-rounded uno-transition-all uno-duration-200 hover:uno-bg-fill-2"
           style={{ color: "var(--color-text-2)" }}
           onClick={() => onToggleCollapse(groupKey)}
         >
-          <span className="text-sm font-medium select-none">{title}</span>
+          <span className="uno-text-sm uno-font-medium uno-select-none">{title}</span>
           <div
-            className="transition-all duration-300 ease-out"
+            className="uno-transition-all uno-duration-300 uno-ease-out"
             style={{
               transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
               transformOrigin: "center",
@@ -73,7 +73,7 @@ const FilterGroup = React.memo<FilterGroupProps>(
           </div>
         </div>
         <div
-          className="overflow-hidden transition-all duration-300 ease-out"
+          className="uno-overflow-hidden uno-transition-all uno-duration-300 uno-ease-out"
           style={{
             height: isCollapsed ? 0 : contentHeight || "auto",
             marginTop: isCollapsed ? 0 : "8px",
@@ -82,15 +82,13 @@ const FilterGroup = React.memo<FilterGroupProps>(
             transitionDelay: isCollapsed ? "0ms" : "50ms",
           }}
         >
-          <div ref={contentRef} className="space-y-1">
+          <div ref={contentRef} className="uno-space-y-1">
             {items.map((item, index) => {
               const isSelected = selectedItem === item.key;
               return (
                 <div
                   key={item.key}
-                  className={`flex items-center justify-between px-3 py-2 rounded cursor-pointer transition-all ease-out ${
-                    !isSelected ? "hover:bg-fill-2" : ""
-                  }`}
+                  className={`uno-flex uno-items-center uno-justify-between uno-px-3 uno-py-2 uno-rounded uno-cursor-pointer uno-transition-all uno-ease-out ${!isSelected ? "hover:uno-bg-fill-2" : ""}`}
                   style={{
                     backgroundColor: isSelected ? "var(--color-primary-light-1)" : "transparent",
                     color: isSelected ? "var(--color-primary-6)" : "var(--color-text-1)",
@@ -104,7 +102,7 @@ const FilterGroup = React.memo<FilterGroupProps>(
                   <Space size={8} style={{ flex: 1, minWidth: 0 }}>
                     {item.icon}
                     <span
-                      className="text-sm"
+                      className="uno-text-sm"
                       style={{
                         display: "inline-block",
                         overflow: "hidden",
@@ -118,7 +116,7 @@ const FilterGroup = React.memo<FilterGroupProps>(
                     </span>
                   </Space>
                   <span
-                    className="text-xs px-2 py-1 rounded"
+                    className="uno-text-xs uno-px-2 uno-py-1 uno-rounded"
                     style={{
                       backgroundColor: isSelected ? "var(--color-primary-light-2)" : "var(--color-fill-3)",
                       color: isSelected ? "var(--color-primary-6)" : "var(--color-text-3)",
@@ -171,7 +169,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = React.memo(
 
     return (
       <div
-        className="w-64"
+        className="uno-w-64"
         style={{
           minWidth: "256px",
           padding: "16px",
@@ -180,7 +178,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = React.memo(
           backgroundColor: "var(--color-bg-2)",
         }}
       >
-        <div className="space-y-4">
+        <div className="uno-space-y-4">
           <FilterGroup
             title={t("script_list.sidebar.status")}
             items={statusItems}

@@ -158,7 +158,7 @@ function Tools() {
             <Drawer
               width={400}
               title={
-                <div className="flex flex-row justify-between w-full gap-10">
+                <div className="uno-flex uno-flex-row uno-justify-between uno-w-full uno-gap-10">
                   <span>{t("backup_list")}</span>
                   <Button
                     type="secondary"
@@ -194,7 +194,7 @@ function Tools() {
                 render={(item: File) => (
                   <List.Item key={`${item.name}_${item.updatetime}`}>
                     <List.Item.Meta title={item.name} description={formatUnixTime(item.updatetime / 1000)} />
-                    <Space className="w-full justify-end">
+                    <Space className="uno-w-full uno-justify-end">
                       <Button
                         type="primary"
                         size="small"

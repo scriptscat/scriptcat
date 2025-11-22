@@ -192,7 +192,7 @@ function LoggerPage() {
                 }}
                 direction="vertical"
               >
-                <div className="text-sm font-medium">{t("labels")}</div>
+                <div className="uno-text-sm uno-font-medium">{t("labels")}</div>
                 <Space>
                   {querys.map((query, index) => (
                     <LogLabel
@@ -230,7 +230,7 @@ function LoggerPage() {
                 }}
                 direction="vertical"
               >
-                <div className="text-sm font-medium">{t("search_regex")}</div>
+                <div className="uno-text-sm uno-font-medium">{t("search_regex")}</div>
                 <Input value={search} onChange={(e) => setSearch(e)} />
               </Space>
             </Space>

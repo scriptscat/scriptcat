@@ -463,7 +463,7 @@ export function useScriptSearch() {
         return {
           key: tag,
           label: tag,
-          icon: <div className={`w-3 h-3 arco-badge-color-${hashColor(tag)} rounded-full`} />,
+          icon: <div className={`uno-w-3 uno-h-3 arco-badge-color-${hashColor(tag)} uno-rounded-full`} />,
           count,
         };
       })
@@ -474,7 +474,7 @@ export function useScriptSearch() {
         return {
           key: source,
           label: source,
-          icon: <div className={`w-3 h-3 arco-badge-color-${hashColor(source)} rounded-full`} />,
+          icon: <div className={`uno-w-3 uno-h-3 arco-badge-color-${hashColor(source)} uno-rounded-full`} />,
           count,
         };
       })

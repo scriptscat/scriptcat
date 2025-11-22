@@ -207,7 +207,7 @@ const MainLayout: React.FC<{
             height: "50px",
             borderBottom: "1px solid var(--color-neutral-3)",
           }}
-          className="flex items-center justify-between px-4"
+          className="uno-flex uno-items-center uno-justify-between uno-px-4"
         >
           <Modal
             title={t("import_link")}
@@ -230,9 +230,9 @@ const MainLayout: React.FC<{
               }}
             />
           </Modal>
-          <div className="flex row items-center">
+          <div className="uno-flex uno-flex-row uno-items-center">
             <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
-            <Typography.Title heading={4} className="!m-0">
+            <Typography.Title heading={4} className="!uno-m-0">
               {"ScriptCat"}
             </Typography.Title>
           </div>
@@ -301,7 +301,7 @@ const MainLayout: React.FC<{
                   style={{
                     color: "var(--color-text-1)",
                   }}
-                  className="!text-size-sm"
+                  className="!uno-text-size-sm"
                 >
                   <RiPlayListAddLine /> {t("create_script")} <IconDown />
                 </Button>
@@ -342,7 +342,7 @@ const MainLayout: React.FC<{
                 style={{
                   color: "var(--color-text-1)",
                 }}
-                className="!text-lg"
+                className="!uno-text-lg"
               />
             </Dropdown>
             {showLanguage && (
@@ -375,14 +375,14 @@ const MainLayout: React.FC<{
                   style={{
                     color: "var(--color-text-1)",
                   }}
-                  className="!text-lg"
+                  className="!uno-text-lg"
                 ></Button>
               </Dropdown>
             )}
           </Space>
         </Layout.Header>
         <Layout
-          className={`absolute top-50px bottom-0 w-full ${className}`}
+          className={`uno-absolute uno-top-50px uno-bottom-0 uno-w-full ${className}`}
           style={{
             background: "var(--color-fill-2)",
           }}

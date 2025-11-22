@@ -39,7 +39,7 @@ export const MemoizedAvatar = React.memo(
         backgroundColor: "unset",
         borderWidth: 1,
       }}
-      className={website ? "cursor-pointer" : "cursor-default"}
+      className={website ? "uno-cursor-pointer" : "uno-cursor-default"}
       {...rest}
     >
       {icon ? <img title={match} src={icon} /> : <TbWorldWww title={match} color="#aaa" size={24} />}

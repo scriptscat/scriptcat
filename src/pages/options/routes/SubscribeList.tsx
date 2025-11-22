@@ -130,7 +130,7 @@ function SubscribeList() {
           setTimeout(() => inputRef.current!.focus(), 1);
         }
       },
-      className: "max-w-[240px]",
+      className: "uno-max-w-[240px]",
       render: (col) => {
         return (
           <Tooltip content={col} position="tl">

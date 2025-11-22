@@ -704,7 +704,7 @@ function ScriptEditor() {
 
   return (
     <div
-      className="h-full flex flex-col"
+      className="uno-h-full uno-flex uno-flex-col"
       style={{
         position: "relative",
         left: -10,
@@ -749,13 +749,13 @@ function ScriptEditor() {
         </>
       )}
       <div
-        className="h-6"
+        className="uno-h-6"
         style={{
           borderBottom: "1px solid var(--color-neutral-3)",
           background: "var(--color-secondary)",
         }}
       >
-        <div className="flex flex-row">
+        <div className="uno-flex uno-flex-row">
           {menu.map((item, index) => {
             if (!item.items) {
               // 没有子菜单
@@ -866,7 +866,7 @@ function ScriptEditor() {
         </div>
       </div>
       <Row
-        className="flex flex-grow flex-1"
+        className="uno-flex uno-flex-grow uno-flex-1"
         style={{
           overflow: "hidden",
         }}
@@ -874,20 +874,20 @@ function ScriptEditor() {
         {!hiddenScriptList && (
           <Col
             span={4}
-            className="h-full"
+            className="uno-h-full"
             style={{
               overflowY: "scroll",
             }}
           >
             <div
-              className="flex flex-col"
+              className="uno-flex uno-flex-col"
               style={{
                 backgroundColor: "var(--color-secondary)",
                 overflow: "hidden",
               }}
             >
               <Button
-                className="text-left"
+                className="uno-text-left"
                 size="mini"
                 style={{
                   color: "var(--color-text-2)",
@@ -905,7 +905,7 @@ function ScriptEditor() {
                   );
                 }}
               >
-                <div className="flex justify-between items-center">
+                <div className="uno-flex uno-justify-between uno-items-center">
                   {t("installed_scripts")}
                   <IconSearch
                     style={{
@@ -915,7 +915,7 @@ function ScriptEditor() {
                 </div>
               </Button>
               {showSearchInput && (
-                <div className="p-2">
+                <div className="uno-p-2">
                   <Input
                     placeholder={t("search_scripts")}
                     allowClear
@@ -934,14 +934,14 @@ function ScriptEditor() {
                 .map((script) => (
                   <div
                     key={`s_${script.uuid}`}
-                    className="relative group"
+                    className="uno-relative group"
                     style={{
                       overflow: "hidden",
                     }}
                   >
                     <Button
                       size="mini"
-                      className="text-left w-full"
+                      className="uno-text-left uno-w-full"
                       style={{
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -980,7 +980,7 @@ function ScriptEditor() {
                         }
                       }}
                     >
-                      <span className="overflow-hidden text-ellipsis">{i18nName(script)}</span>
+                      <span className="uno-overflow-hidden uno-text-ellipsis">{i18nName(script)}</span>
                     </Button>
                     {/* 删除按钮，只在鼠标悬停时显示 */}
                     <Button
@@ -988,7 +988,7 @@ function ScriptEditor() {
                       icon={<IconDelete />}
                       iconOnly
                       size="mini"
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      className="uno-absolute uno-right-1 uno-top-1/2 uno-transform -uno-translate-y-1/2 uno-opacity-0 group-hover:uno-opacity-100 uno-transition-opacity uno-duration-200"
                       style={{
                         width: "20px",
                         height: "20px",
@@ -1028,7 +1028,7 @@ function ScriptEditor() {
             </div>
           </Col>
         )}
-        <Col span={hiddenScriptList ? 24 : 20} className="flex! flex-col h-full">
+        <Col span={hiddenScriptList ? 24 : 20} className="uno-flex! uno-flex-col uno-h-full">
           <Tabs
             editable
             activeTab={activeTab}
@@ -1118,14 +1118,14 @@ function ScriptEditor() {
               />
             ))}
           </Tabs>
-          <div className="flex flex-grow flex-1">
+          <div className="uno-flex uno-flex-grow uno-flex-1">
             {editors.map((item) => {
               if (item.active) {
                 document.title = `${i18nName(item.script)} - Script Editor`;
               }
               return (
                 <div
-                  className="w-full"
+                  className="uno-w-full"
                   key={`fe_${item.script.uuid}`}
                   style={{
                     display: item.active ? "block" : "none",

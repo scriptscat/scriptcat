@@ -4,5 +4,5 @@ export default defineConfig({
   content: {
     filesystem: ["./src/**/*.{html,js,ts,jsx,tsx}"],
   },
-  presets: [presetUno({ dark: "class" })],
+  presets: [presetUno({ dark: "class", prefix: "uno-" })],
 });

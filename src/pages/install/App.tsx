@@ -369,7 +369,7 @@ function App() {
     if (metadataLive.crontab) {
       ret.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
       ret.push(
-        <div key="cronta-nexttime" className="flex flex-row flex-wrap gap-x-2">
+        <div key="cronta-nexttime" className="uno-flex uno-flex-row uno-flex-wrap uno-gap-x-2">
           <Typography.Text>{t("scheduled_script_description_description_expr")}</Typography.Text>
           <Typography.Text code>{metadataLive.crontab[0]}</Typography.Text>
           <Typography.Text>{t("scheduled_script_description_description_next")}</Typography.Text>
@@ -676,7 +676,7 @@ function App() {
 
   if (!hasUUIDorFile) {
     return urlHref ? (
-      <div className="flex justify-center items-center h-screen">
+      <div className="uno-flex uno-justify-center uno-items-center uno-h-screen">
         <Space direction="vertical" align="center">
           <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
           {fetchingState.loadingStatus && (
@@ -689,7 +689,7 @@ function App() {
         </Space>
       </div>
     ) : (
-      <div className="flex justify-center items-center h-screen">
+      <div className="uno-flex uno-justify-center uno-items-center uno-h-screen">
         <Space direction="vertical" align="center">
           <Typography.Title heading={3}>{t("invalid_page")}</Typography.Title>
         </Space>
@@ -698,9 +698,9 @@ function App() {
   }
 
   return (
-    <div id="install-app-container" className="flex flex-col">
-      <div className="flex flex-row gap-x-3 pt-3 pb-3">
-        <div className="grow-1 shrink-1 flex flex-row justify-start items-center">
+    <div id="install-app-container" className="uno-flex uno-flex-col">
+      <div className="uno-flex uno-flex-row uno-gap-x-3 uno-pt-3 uno-pb-3">
+        <div className="uno-grow-1 uno-shrink-1 uno-flex uno-flex-row uno-justify-start uno-items-center">
           {upsertScript?.metadata.icon && (
             <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
               <img src={upsertScript.metadata.icon[0]} alt={upsertScript.name} />
@@ -708,7 +708,7 @@ function App() {
           )}
           {upsertScript && (
             <Tooltip position="tl" content={i18nName(upsertScript)}>
-              <Typography.Text bold className="text-size-lg truncate w-0 grow-1">
+              <Typography.Text bold className="uno-text-size-lg uno-truncate uno-w-0 uno-grow-1">
                 {i18nName(upsertScript)}
               </Typography.Text>
             </Tooltip>
@@ -717,8 +717,8 @@ function App() {
             <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
           </Tooltip>
         </div>
-        <div className="grow-0 shrink-1 flex flex-row flex-wrap gap-x-2 gap-y-1 items-center">
-          <div className="flex flex-row flex-nowrap gap-x-2">
+        <div className="uno-grow-0 uno-shrink-1 uno-flex uno-flex-row uno-flex-wrap uno-gap-x-2 uno-gap-y-1 uno-items-center">
+          <div className="uno-flex uno-flex-row uno-flex-nowrap uno-gap-x-2">
             {oldScriptVersion && (
               <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
                 <Tag bordered>{oldScriptVersion}</Tag>
@@ -734,11 +734,11 @@ function App() {
           </div>
         </div>
       </div>
-      <div className="shrink-1 grow-1 overflow-y-auto pl-4 pr-4 gap-y-2 flex flex-col mb-4">
-        <div className="flex flex-wrap gap-x-3 gap-y-2 items-start">
-          <div className="flex flex-col shrink-1 grow-1 basis-8/12">
-            <div className="grow-1 shrink-0">
-              <div className="flex flex-wrap gap-x-2 gap-y-1 tag-container float-right">
+      <div className="uno-shrink-1 uno-grow-1 uno-overflow-y-auto uno-pl-4 uno-pr-4 uno-gap-y-2 uno-flex uno-flex-col uno-mb-4">
+        <div className="uno-flex uno-flex-wrap uno-gap-x-3 uno-gap-y-2 uno-items-start">
+          <div className="uno-flex uno-flex-col uno-shrink-1 uno-grow-1 uno-basis-8/12">
+            <div className="uno-grow-1 uno-shrink-0">
+              <div className="uno-flex uno-flex-wrap uno-gap-x-2 uno-gap-y-1 tag-container uno-float-right">
                 {(metadataLive.background || metadataLive.crontab) && (
                   <Tooltip color="green" content={t("background_script_tag")}>
                     <Tag bordered color="green">
@@ -792,9 +792,9 @@ function App() {
             </div>
           </div>
           {descriptionParagraph?.length ? (
-            <div className="flex flex-col shrink-0 grow-1">
+            <div className="uno-flex uno-flex-col uno-shrink-0 uno-grow-1">
               <Typography>
-                <Typography.Paragraph blockquote className="pt-2 pb-2">
+                <Typography.Paragraph blockquote className="uno-pt-2 uno-pb-2">
                   {descriptionParagraph}
                 </Typography.Paragraph>
               </Typography>
@@ -802,9 +802,9 @@ function App() {
           ) : (
             <></>
           )}
-          <div className="flex flex-row flex-wrap gap-x-4">
+          <div className="uno-flex uno-flex-row uno-flex-wrap uno-gap-x-4">
             {permissions.map((item) => (
-              <div key={item.label} className="flex flex-col gap-y-2">
+              <div key={item.label} className="uno-flex uno-flex-col uno-gap-y-2">
                 {item.value?.length > 0 ? (
                   <>
                     <Typography.Text bold color={item.color}>
@@ -832,11 +832,11 @@ function App() {
             ))}
           </div>
         </div>
-        <div className="flex flex-row flex-wrap items-center gap-2">
-          <div className="grow-1">
+        <div className="uno-flex uno-flex-row uno-flex-wrap uno-items-center uno-gap-2">
+          <div className="uno-grow-1">
             <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
           </div>
-          <div className="grow-1 shrink-0 text-end">
+          <div className="uno-grow-1 uno-shrink-0 uno-text-end">
             <Space>
               <Button.Group>
                 <Button type="primary" size="small" onClick={handleInstallBasic} disabled={watchFile}>

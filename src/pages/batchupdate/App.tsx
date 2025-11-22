@@ -256,7 +256,7 @@ function App() {
                   title={
                     <span
                       onClick={() => openUpdatePage(item.uuid)}
-                      className="text-clickable text-gray-900 dark:text-gray-100 !hover:text-blue-600 dark:hover:text-blue-400"
+                      className="uno-text-clickable uno-text-gray-900 dark:uno-text-gray-100 !hover:uno-text-blue-600 dark:hover:uno-text-blue-400"
                     >
                       <Typography.Ellipsis rows={1} expandable={false} showTooltip={{ mini: true }}>
                         {item.script?.name}
@@ -285,7 +285,7 @@ function App() {
                     </>
                   }
                 >
-                  <Space className="pb-2">
+                  <Space className="uno-pb-2">
                     <Space direction="vertical">
                       <Text>{t("updatepage.old_version_")}</Text>
                       <Text>{t("updatepage.new_version_")}</Text>
@@ -377,31 +377,31 @@ function App() {
   return (
     <>
       {
-        <div className="mb-2 text-gray-800 dark:text-gray-200">
-          <div className="flex flex-row items-center gap-2">
-            <Typography.Title heading={6} className="!m-0 text-gray-900 dark:text-gray-100">
+        <div className="uno-mb-2 uno-text-gray-800 dark:uno-text-gray-200">
+          <div className="uno-flex uno-flex-row uno-items-center uno-gap-2">
+            <Typography.Title heading={6} className="!uno-m-0 uno-text-gray-900 dark:uno-text-gray-100">
               {t("updatepage.main_header")}
             </Typography.Title>
             <IconSync
               spin={checkUpdateSpin}
               onClick={() => onCheckUpdateClick()}
-              className="cursor-pointer text-gray-700 dark:text-gray-300"
+              className="uno-cursor-pointer uno-text-gray-700 dark:uno-text-gray-300"
             />
           </div>
-          <div className="flex flex-row indent-4">
-            <Typography.Text className="text-gray-700 dark:text-gray-300">{mStatusText}</Typography.Text>
+          <div className="uno-flex uno-flex-row uno-indent-4">
+            <Typography.Text className="uno-text-gray-700 dark:uno-text-gray-300">{mStatusText}</Typography.Text>
           </div>
           {mRecords === null ? (
             <></>
           ) : (
             <>
               {mRecords.site.length === 0 && mRecords.other.length === 0 ? (
-                <div className="flex flex-row indent-4">
-                  <Text className="text-gray-700 dark:text-gray-300">{t("updatepage.status_no_update")}</Text>
+                <div className="uno-flex uno-flex-row uno-indent-4">
+                  <Text className="uno-text-gray-700 dark:uno-text-gray-300">{t("updatepage.status_no_update")}</Text>
                 </div>
               ) : (
-                <div className="flex flex-row indent-4">
-                  <Text className="text-gray-700 dark:text-gray-300">
+                <div className="uno-flex uno-flex-row uno-indent-4">
+                  <Text className="uno-text-gray-700 dark:uno-text-gray-300">
                     {t("updatepage.status_n_update").replace("$0", `${mRecords.site.length + mRecords.other.length}`)}
                   </Text>
                 </div>
@@ -410,15 +410,15 @@ function App() {
                 // <div><Text>{"没有已忽略的更新"}</Text></div>
                 <></>
               ) : (
-                <div className="flex flex-row indent-4">
-                  <Text className="text-gray-700 dark:text-gray-300">
+                <div className="uno-flex uno-flex-row uno-indent-4">
+                  <Text className="uno-text-gray-700 dark:uno-text-gray-300">
                     {t("updatepage.status_n_ignored").replace("$0", `${mRecords.ignored.length}`)}
                   </Text>
                 </div>
               )}
               {mTimeClose >= 0 ? (
-                <div className="flex flex-row indent-4">
-                  <Text className="text-gray-700 dark:text-gray-300">
+                <div className="uno-flex uno-flex-row uno-indent-4">
+                  <Text className="uno-text-gray-700 dark:uno-text-gray-300">
                     {t("updatepage.status_autoclose").replace("$0", `${mTimeClose}`)}
                   </Text>
                 </div>
@@ -439,9 +439,9 @@ function App() {
             <Collapse
               defaultActiveKey={[]}
               className={[
-                "justify-self-center",
+                "uno-justify-self-center",
                 mRecords.site.length === 0 && mRecords.other.length === 0 && mRecords.ignored.length === 0
-                  ? "hidden"
+                  ? "uno-hidden"
                   : "",
               ]}
               style={{ width: "calc(100vw - 64px)" }}
@@ -481,7 +481,7 @@ function App() {
                   <CollapseItem
                     header={`${t("updatepage.header_other_update")}`}
                     name="list-other"
-                    className={[paramSite ? "" : "hidden"]}
+                    className={[paramSite ? "" : "uno-hidden"]}
                     disabled={!mRecords?.other?.length || isDoingTask}
                     extra={
                       mRecords?.other?.length ? (

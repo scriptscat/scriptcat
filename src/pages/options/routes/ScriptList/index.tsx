@@ -75,9 +75,9 @@ function ScriptList() {
         overflowY: "auto",
       }}
     >
-      <div className="flex flex-col">
+      <div className="uno-flex uno-flex-col">
         {/* 主要内容区域 */}
-        <div className="flex flex-row relative">
+        <div className="uno-flex uno-flex-row uno-relative">
           {/* 侧边栏 */}
           <ScriptListSidebar
             open={sidebarOpen}
@@ -87,7 +87,7 @@ function ScriptList() {
           />
 
           {/* 主要表格/卡片区域 */}
-          <div className="flex-1">
+          <div className="uno-flex-1">
             {viewMode === "table" ? (
               <ScriptTable
                 loadingList={loadingList}
