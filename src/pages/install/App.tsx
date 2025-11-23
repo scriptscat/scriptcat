@@ -734,7 +734,7 @@ function App() {
           </div>
         </div>
       </div>
-      <div className="tw-shrink-1 tw-grow-1 tw-overflow-y-auto tw-pl-4 tw-pr-4 tw-gap-y-2 tw-flex tw-flex-col tw-mb-4">
+      <div className="tw-shrink-1 tw-grow-1 tw-overflow-y-auto tw-pl-4 tw-pr-4 tw-gap-y-2 tw-flex tw-flex-col tw-mb-4 tw-h-0">
         <div className="tw-flex tw-flex-wrap tw-gap-x-3 tw-gap-y-2 tw-items-start">
           <div className="tw-flex tw-flex-col tw-shrink-1 tw-grow-1 tw-basis-8/12">
             <div className="tw-grow-1 tw-shrink-0">
@@ -899,6 +899,7 @@ function App() {
         <div id="show-code-container">
           <CodeEditor
             id="show-code"
+            className="sc-inset-0"
             code={scriptCode || undefined}
             diffCode={diffCode === scriptCode ? "" : diffCode || ""}
           />
