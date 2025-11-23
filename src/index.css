@@ -1,5 +1,6 @@
 @unocss preflights;
 @unocss default;
+@unocss;
 
 body {
     scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
