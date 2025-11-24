@@ -561,7 +561,17 @@ export function useScriptSearch() {
         setFilterScriptList(
           filterList.filter((item) => {
             const result = cacheMap.get(item.uuid);
-            return result?.auto;
+            if (!result) return false;
+            switch (searchRequest.type) {
+              case "auto":
+                return result.auto;
+              case "name":
+                return result.name;
+              case "script_code":
+                return result.code;
+              default:
+                return false;
+            }
           })
         );
       });
