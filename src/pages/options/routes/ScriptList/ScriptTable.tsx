@@ -57,10 +57,11 @@ import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "@App/pages/store/features/script";
-import { type TFunction } from "i18next";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
-import { EnableSwitch, HomeCell, MemoizedAvatar, SourceCell, UpdateTimeCell } from "./components";
+import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
+import type { SetSearchRequest } from "./hooks";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 type ListType = ScriptLoading;
 
@@ -114,47 +115,6 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
 );
 
 DraggableContainer.displayName = "DraggableContainer";
-
-const FilterDropdown = React.memo(
-  ({
-    filterKeys,
-    setFilterKeys,
-    confirm,
-    t,
-    inputRef,
-  }: {
-    filterKeys: string;
-    setFilterKeys: (filterKeys: string, callback?: (...args: any[]) => any) => void;
-    confirm: (...args: any[]) => any;
-    t: TFunction<"translation", undefined>;
-    inputRef: React.RefObject<RefInputType>;
-  }) => {
-    const { onSearchChange } = {
-      onSearchChange: (value: string) => {
-        setFilterKeys(value);
-      },
-    };
-    // onSearch 不能使用 useCallback / useMemo
-    const onSearch = () => {
-      confirm(filterKeys);
-    };
-    return (
-      <div className="arco-table-custom-filter flex flex-row gap-2">
-        <Input.Search
-          ref={inputRef}
-          size="small"
-          searchButton
-          style={{ minWidth: 240 }}
-          placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })}
-          defaultValue={filterKeys || ""}
-          onChange={onSearchChange}
-          onSearch={onSearch}
-        />
-      </div>
-    );
-  }
-);
-FilterDropdown.displayName = "FilterDropdown";
 
 function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
   return (node) => {
@@ -460,7 +420,8 @@ interface ScriptTableProps {
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
-  setSearchKeyword: (keyword: string) => void;
+  searchRequest: { keyword: string; type: SearchType };
+  setSearchRequest: SetSearchRequest;
   handleDelete: (item: ScriptLoading) => void;
   handleConfig: (
     item: ScriptLoading,
@@ -479,7 +440,8 @@ export const ScriptTable = ({
   updateScripts,
   setUserConfig,
   setCloudScript,
-  setSearchKeyword,
+  searchRequest,
+  setSearchRequest,
   handleDelete,
   handleConfig,
   handleRunStop,
@@ -532,18 +494,19 @@ export const ScriptTable = ({
           dataIndex: "name",
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
-          filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+          filterDropdown: ({ confirm }: any) => {
             return (
-              <FilterDropdown
-                filterKeys={filterKeys}
-                setFilterKeys={setFilterKeys}
-                confirm={(value) => {
-                  setSearchKeyword(value || "");
-                  confirm();
-                }}
-                t={t}
-                inputRef={inputRef}
-              />
+              <div className="arco-table-custom-filter flex flex-row gap-2">
+                <ScriptSearchField
+                  t={t}
+                  defaultValue={searchRequest}
+                  onSearch={(req) => {
+                    setSearchRequest(req);
+                    confirm();
+                  }}
+                  inputRef={inputRef}
+                />
+              </div>
             );
           },
           onFilterDropdownVisibleChange: (visible) => {
@@ -657,7 +620,8 @@ export const ScriptTable = ({
       t,
       sidebarOpen,
       updateScripts,
-      setSearchKeyword,
+      searchRequest,
+      setSearchRequest,
       navigate,
       setSidebarOpen,
       setViewMode,
@@ -679,30 +643,18 @@ export const ScriptTable = ({
   useEffect(() => {
     if (savedWidths === null) return;
 
-    setNewColumns((nColumns) => {
-      const widths = columns.map((item) => savedWidths[item.key!] ?? item.width);
-      const c = nColumns.length === widths.length ? nColumns : columns;
-      return c.map((item, i) => {
-        const width = widths[i];
-        let dest;
-        if (i === 8) {
-          // 第8列特殊处理，因为可能涉及到操作图的显示
-          dest = item.render === columns[i].render && item.title === columns[i].title ? item : columns[i];
-        } else {
-          dest = item;
+    // 主要只需要处理列宽变化的情况
+    setNewColumns(
+      columns.map((item, i) => {
+        if (savedWidths[item.key!] === undefined) {
+          return columns[i];
         }
-        let m =
-          width === dest.width
-            ? dest
-            : {
-                ...dest,
-                width,
-              };
-        // 处理语言更新
-        if (m.title !== columns[i].title) m = { ...m, title: columns[i].title };
-        return m;
-      });
-    });
+        return {
+          ...columns[i],
+          width: savedWidths[item.key!] ?? item.width,
+        };
+      })
+    );
   }, [savedWidths, columns]);
 
   useEffect(() => {

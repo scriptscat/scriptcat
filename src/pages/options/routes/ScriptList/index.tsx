@@ -27,7 +27,8 @@ function ScriptList() {
     filterItems,
     selectedFilters,
     setSelectedFilters,
-    setSearchKeyword,
+    searchRequest,
+    setSearchRequest,
     sidebarOpen,
     setSidebarOpen,
     handleDelete,
@@ -99,7 +100,8 @@ function ScriptList() {
                 setViewMode={setViewMode}
                 setUserConfig={setUserConfig}
                 setCloudScript={setCloudScript}
-                setSearchKeyword={setSearchKeyword}
+                searchRequest={searchRequest}
+                setSearchRequest={setSearchRequest}
                 handleDelete={handleDelete}
                 handleConfig={handleConfig}
                 handleRunStop={handleRunStop}
@@ -115,7 +117,8 @@ function ScriptList() {
                 setViewMode={setViewMode}
                 setUserConfig={setUserConfig}
                 setCloudScript={setCloudScript}
-                setSearchKeyword={setSearchKeyword}
+                searchRequest={searchRequest}
+                setSearchRequest={setSearchRequest}
                 handleDelete={handleDelete}
                 handleConfig={handleConfig}
                 handleRunStop={handleRunStop}

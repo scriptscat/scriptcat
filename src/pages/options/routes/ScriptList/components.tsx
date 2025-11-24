@@ -1,7 +1,7 @@
 import type { SCRIPT_STATUS } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import { scriptClient, type ScriptLoading } from "@App/pages/store/features/script";
-import { Avatar, Message, Switch, Tag, Tooltip } from "@arco-design/web-react";
+import { Avatar, Input, Message, Select, Space, Switch, Tag, Tooltip } from "@arco-design/web-react";
 import React from "react";
 import Text from "@arco-design/web-react/es/Typography/text";
 import { TbWorldWww } from "react-icons/tb";
@@ -9,6 +9,9 @@ import { semTime } from "@App/pkg/utils/dayjs";
 import { useTranslation } from "react-i18next";
 import { ListHomeRender } from "../utils";
 import { IconEdit, IconLink, IconUserAdd } from "@arco-design/web-react/icon";
+import type { SearchType } from "@App/app/service/service_worker/types";
+import type { TFunction } from "i18next";
+import type { RefInputType } from "@arco-design/web-react/es/Input";
 
 export const EnableSwitch = React.memo(
   ({
@@ -178,3 +181,53 @@ export const UpdateTimeCell = React.memo(({ className, script }: { className?: s
   );
 });
 UpdateTimeCell.displayName = "UpdateTimeCell";
+
+interface ScriptSearchFieldProps {
+  t: TFunction<"translation", undefined>;
+  defaultValue: { keyword: string; type: SearchType };
+  onSearch?: (req: { keyword: string; type: SearchType }) => void;
+  inputRef?: React.RefObject<RefInputType>;
+}
+
+export const ScriptSearchField = React.memo(
+  ({ t, defaultValue, onSearch, inputRef }: ScriptSearchFieldProps) => {
+    const [keyword, setKeyword] = React.useState(defaultValue?.keyword || "");
+    const [type, setType] = React.useState<SearchType>(defaultValue?.type || "auto");
+    return (
+      <Space direction="horizontal">
+        <Select
+          className="flex-1"
+          triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
+          size="small"
+          value={type}
+          onChange={(value) => {
+            setType(value as SearchType);
+            onSearch?.({ keyword, type: value as SearchType });
+          }}
+        >
+          <Select.Option value="auto">{t("auto")}</Select.Option>
+          <Select.Option value="name">{t("name")}</Select.Option>
+          <Select.Option value="script_code">{t("script_code")}</Select.Option>
+        </Select>
+        <Input.Search
+          ref={inputRef}
+          size="small"
+          searchButton
+          style={{ width: 280 }}
+          value={keyword}
+          placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
+          onChange={(value) => {
+            setKeyword(value);
+          }}
+          onSearch={(value) => {
+            onSearch?.({ keyword: value, type });
+          }}
+        />
+      </Space>
+    );
+  },
+  (prevProps, nextProps) => {
+    return prevProps.t === nextProps.t && prevProps.defaultValue === nextProps.defaultValue;
+  }
+);
+ScriptSearchField.displayName = "ScriptSearchField";
