@@ -213,7 +213,7 @@ export const ScriptSearchField = React.memo(
           ref={inputRef}
           size="small"
           searchButton
-          style={{ maxWidth: 400 }}
+          style={{ width: 280 }}
           value={keyword}
           placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
           onChange={(value) => {
