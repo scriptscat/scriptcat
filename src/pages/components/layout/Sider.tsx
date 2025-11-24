@@ -49,8 +49,8 @@ const Sider: React.FC = () => {
   return (
     <HashRouter>
       <SiderGuide ref={guideRef} />
-      <Layout.Sider className="h-full" collapsed={collapsed} width={170}>
-        <div className="flex flex-col justify-between h-full">
+      <Layout.Sider collapsed={collapsed} width={170}>
+        <div className="tw-flex tw-flex-col tw-justify-between tw-h-full">
           <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
             <CustomLink to="/">
               <MenuItem key="/" className="menu-script">
@@ -100,7 +100,7 @@ const Sider: React.FC = () => {
                 key="/external_links"
                 title={
                   <>
-                    <RiLinkM /> <span className="grow">{t("external_links")}</span>
+                    <RiLinkM /> <span className="tw-grow">{t("external_links")}</span>
                   </>
                 }
               >
@@ -160,23 +160,25 @@ const Sider: React.FC = () => {
         style={{
           borderLeft: "1px solid var(--color-bg-5)",
           overflow: "hidden",
-          padding: 10,
-          height: "100%",
+          padding: 0,
+          height: "auto",
           boxSizing: "border-box",
           position: "relative",
         }}
       >
-        <Routes>
-          <Route index element={<ScriptList />} />
-          <Route path="/script/editor">
-            <Route path=":uuid" element={<ScriptEditor />} />
-            <Route path="" element={<ScriptEditor />} />
-          </Route>
-          <Route path="/subscribe" element={<SubscribeList />} />
-          <Route path="/logger" element={<Logger />} />
-          <Route path="/tools" element={<Tools />} />
-          <Route path="/setting" element={<Setting />} />
-        </Routes>
+        <div className="tw-absolute sc-inset-0 tw-m-[10px]">
+          <Routes>
+            <Route index element={<ScriptList />} />
+            <Route path="/script/editor">
+              <Route path=":uuid" element={<ScriptEditor />} />
+              <Route path="" element={<ScriptEditor />} />
+            </Route>
+            <Route path="/subscribe" element={<SubscribeList />} />
+            <Route path="/logger" element={<Logger />} />
+            <Route path="/tools" element={<Tools />} />
+            <Route path="/setting" element={<Setting />} />
+          </Routes>
+        </div>
       </Layout.Content>
     </HashRouter>
   );

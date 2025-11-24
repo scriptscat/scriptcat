@@ -29,7 +29,7 @@ const ScriptListItem = React.memo(
   }) => {
     return (
       <div
-        className="flex flex-row justify-between p-2"
+        className="tw-flex tw-flex-row tw-justify-between tw-p-2"
         key={`script_${index}`}
         style={{
           background: item.error ? "rgb(var(--red-1))" : item.install ? "rgb(var(--arcoblue-1))" : "",
@@ -42,14 +42,14 @@ const ScriptListItem = React.memo(
           <Typography.Title heading={6} style={{ color: "rgb(var(--blue-5))" }}>
             {item.script?.script?.name || item.error || t("unknown")}
           </Typography.Title>
-          <span className="text-sm color-gray-5">{`${t("author")}: ${item.script?.script?.metadata.author?.[0]}`}</span>
-          <span className="text-sm color-gray-5">
+          <span className="tw-text-sm tw-color-gray-5">{`${t("author")}: ${item.script?.script?.metadata.author?.[0]}`}</span>
+          <span className="tw-text-sm tw-color-gray-5">
             {`${t("description")}: ${item.script?.script?.metadata.description?.[0]}`}
           </span>
-          <span className="text-sm color-gray-5">
+          <span className="tw-text-sm tw-color-gray-5">
             {`${t("source")}: ${item.options?.meta.file_url || t("local_creation")}`}
           </span>
-          <span className="text-sm color-gray-5">
+          <span className="tw-text-sm tw-color-gray-5">
             {`${t("operation")}: `}
             {(item.install && (item.script?.oldScript ? t("update") : t("add_new"))) ||
               (item.error
@@ -57,9 +57,9 @@ const ScriptListItem = React.memo(
                 : t("no_operation"))}
           </span>
         </Space>
-        <div className="flex flex-col justify-center" style={{ minWidth: "80px", textAlign: "center" }}>
-          <span className="text-sm color-gray-5">{t("enable_script")}</span>
-          <div className="text-center">
+        <div className="tw-flex tw-flex-col tw-justify-center" style={{ minWidth: "80px", textAlign: "center" }}>
+          <span className="tw-text-sm tw-color-gray-5">{t("enable_script")}</span>
+          <div className="tw-text-center">
             <Switch
               size="small"
               checked={item.script?.script?.status === SCRIPT_STATUS_ENABLE}

@@ -369,7 +369,7 @@ function App() {
     if (metadataLive.crontab) {
       ret.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
       ret.push(
-        <div key="cronta-nexttime" className="flex flex-row flex-wrap gap-x-2">
+        <div key="cronta-nexttime" className="tw-flex tw-flex-row tw-flex-wrap tw-gap-x-2">
           <Typography.Text>{t("scheduled_script_description_description_expr")}</Typography.Text>
           <Typography.Text code>{metadataLive.crontab[0]}</Typography.Text>
           <Typography.Text>{t("scheduled_script_description_description_next")}</Typography.Text>
@@ -676,7 +676,7 @@ function App() {
 
   if (!hasUUIDorFile) {
     return urlHref ? (
-      <div className="flex justify-center items-center h-screen">
+      <div className="tw-flex tw-justify-center tw-items-center tw-h-screen">
         <Space direction="vertical" align="center">
           <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
           {fetchingState.loadingStatus && (
@@ -689,7 +689,7 @@ function App() {
         </Space>
       </div>
     ) : (
-      <div className="flex justify-center items-center h-screen">
+      <div className="tw-flex tw-justify-center tw-items-center tw-h-screen">
         <Space direction="vertical" align="center">
           <Typography.Title heading={3}>{t("invalid_page")}</Typography.Title>
         </Space>
@@ -698,9 +698,9 @@ function App() {
   }
 
   return (
-    <div id="install-app-container" className="flex flex-col">
-      <div className="flex flex-row gap-x-3 pt-3 pb-3">
-        <div className="grow-1 shrink-1 flex flex-row justify-start items-center">
+    <div id="install-app-container" className="tw-flex tw-flex-col">
+      <div className="tw-flex tw-flex-row tw-gap-x-3 tw-pt-3 tw-pb-3">
+        <div className="tw-grow-1 tw-shrink-1 tw-flex tw-flex-row tw-justify-start tw-items-center">
           {upsertScript?.metadata.icon && (
             <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
               <img src={upsertScript.metadata.icon[0]} alt={upsertScript.name} />
@@ -708,7 +708,7 @@ function App() {
           )}
           {upsertScript && (
             <Tooltip position="tl" content={i18nName(upsertScript)}>
-              <Typography.Text bold className="text-size-lg truncate w-0 grow-1">
+              <Typography.Text bold className="tw-text-size-lg tw-truncate tw-w-0 tw-grow-1">
                 {i18nName(upsertScript)}
               </Typography.Text>
             </Tooltip>
@@ -717,8 +717,8 @@ function App() {
             <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
           </Tooltip>
         </div>
-        <div className="grow-0 shrink-1 flex flex-row flex-wrap gap-x-2 gap-y-1 items-center">
-          <div className="flex flex-row flex-nowrap gap-x-2">
+        <div className="tw-grow-0 tw-shrink-1 tw-flex tw-flex-row tw-flex-wrap tw-gap-x-2 tw-gap-y-1 tw-items-center">
+          <div className="tw-flex tw-flex-row tw-flex-nowrap tw-gap-x-2">
             {oldScriptVersion && (
               <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
                 <Tag bordered>{oldScriptVersion}</Tag>
@@ -734,11 +734,11 @@ function App() {
           </div>
         </div>
       </div>
-      <div className="shrink-1 grow-1 overflow-y-auto pl-4 pr-4 gap-y-2 flex flex-col mb-4">
-        <div className="flex flex-wrap gap-x-3 gap-y-2 items-start">
-          <div className="flex flex-col shrink-1 grow-1 basis-8/12">
-            <div className="grow-1 shrink-0">
-              <div className="flex flex-wrap gap-x-2 gap-y-1 tag-container float-right">
+      <div className="tw-shrink-1 tw-grow-1 tw-overflow-y-auto tw-pl-4 tw-pr-4 tw-gap-y-2 tw-flex tw-flex-col tw-mb-4 tw-h-0">
+        <div className="tw-flex tw-flex-wrap tw-gap-x-3 tw-gap-y-2 tw-items-start">
+          <div className="tw-flex tw-flex-col tw-shrink-1 tw-grow-1 tw-basis-8/12">
+            <div className="tw-grow-1 tw-shrink-0">
+              <div className="tw-flex tw-flex-wrap tw-gap-x-2 tw-gap-y-1 tag-container tw-float-right">
                 {(metadataLive.background || metadataLive.crontab) && (
                   <Tooltip color="green" content={t("background_script_tag")}>
                     <Tag bordered color="green">
@@ -792,9 +792,9 @@ function App() {
             </div>
           </div>
           {descriptionParagraph?.length ? (
-            <div className="flex flex-col shrink-0 grow-1">
+            <div className="tw-flex tw-flex-col tw-shrink-0 tw-grow-1">
               <Typography>
-                <Typography.Paragraph blockquote className="pt-2 pb-2">
+                <Typography.Paragraph blockquote className="tw-pt-2 tw-pb-2">
                   {descriptionParagraph}
                 </Typography.Paragraph>
               </Typography>
@@ -802,9 +802,9 @@ function App() {
           ) : (
             <></>
           )}
-          <div className="flex flex-row flex-wrap gap-x-4">
+          <div className="tw-flex tw-flex-row tw-flex-wrap tw-gap-x-4">
             {permissions.map((item) => (
-              <div key={item.label} className="flex flex-col gap-y-2">
+              <div key={item.label} className="tw-flex tw-flex-col tw-gap-y-2">
                 {item.value?.length > 0 ? (
                   <>
                     <Typography.Text bold color={item.color}>
@@ -832,11 +832,11 @@ function App() {
             ))}
           </div>
         </div>
-        <div className="flex flex-row flex-wrap items-center gap-2">
-          <div className="grow-1">
+        <div className="tw-flex tw-flex-row tw-flex-wrap tw-items-center tw-gap-2">
+          <div className="tw-grow-1">
             <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
           </div>
-          <div className="grow-1 shrink-0 text-end">
+          <div className="tw-grow-1 tw-shrink-0 tw-text-end">
             <Space>
               <Button.Group>
                 <Button type="primary" size="small" onClick={handleInstallBasic} disabled={watchFile}>
@@ -899,6 +899,7 @@ function App() {
         <div id="show-code-container">
           <CodeEditor
             id="show-code"
+            className="sc-inset-0"
             code={scriptCode || undefined}
             diffCode={diffCode === scriptCode ? "" : diffCode || ""}
           />
