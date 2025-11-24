@@ -1,16 +1,5 @@
 import React, { useMemo } from "react";
-import {
-  Avatar,
-  Button,
-  Card,
-  Divider,
-  Input,
-  Popconfirm,
-  Space,
-  Tag,
-  Tooltip,
-  Typography,
-} from "@arco-design/web-react";
+import { Avatar, Button, Card, Divider, Popconfirm, Space, Tag, Tooltip, Typography } from "@arco-design/web-react";
 import { Link, useNavigate } from "react-router-dom";
 import { IconClockCircle, IconDragDotVertical } from "@arco-design/web-react/icon";
 import {
@@ -30,9 +19,8 @@ import { hashColor, ScriptIcons } from "../utils";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import { EnableSwitch, HomeCell, MemoizedAvatar, SourceCell, UpdateTimeCell } from "./components";
+import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
 import { useTranslation } from "react-i18next";
-import { type TFunction } from "i18next";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import { FaThList } from "react-icons/fa";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -40,6 +28,8 @@ import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAppContext } from "@App/pages/store/AppContext";
+import type { SetSearchRequest } from "./hooks";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 const { Text } = Typography;
 
@@ -328,31 +318,6 @@ export const ScriptCardItem = React.memo(
 );
 ScriptCardItem.displayName = "ScriptCard";
 
-interface ScriptSearchFieldProps {
-  t: TFunction<"translation", undefined>;
-  setSearchKeyword: (keyword: string) => void;
-}
-
-export const ScriptSearchField = React.memo(
-  ({ t, setSearchKeyword }: ScriptSearchFieldProps) => {
-    return (
-      <Input.Search
-        size="small"
-        searchButton
-        style={{ maxWidth: 400 }}
-        placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
-        onSearch={(value) => {
-          setSearchKeyword(value);
-        }}
-      />
-    );
-  },
-  (prevProps, nextProps) => {
-    return prevProps.t === nextProps.t && prevProps.setSearchKeyword === nextProps.setSearchKeyword;
-  }
-);
-ScriptSearchField.displayName = "ScriptSearchField";
-
 interface ScriptCardProps {
   loadingList: boolean;
   scriptList: ScriptLoading[];
@@ -363,7 +328,8 @@ interface ScriptCardProps {
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
-  setSearchKeyword: (keyword: string) => void;
+  searchRequest: { keyword: string; type: SearchType };
+  setSearchRequest: SetSearchRequest;
   handleDelete: (item: ScriptLoading) => void;
   handleConfig: (
     item: ScriptLoading,
@@ -382,7 +348,8 @@ export const ScriptCard = ({
   updateScripts,
   setUserConfig,
   setCloudScript,
-  setSearchKeyword,
+  searchRequest,
+  setSearchRequest,
   handleDelete,
   handleConfig,
   handleRunStop,
@@ -442,7 +409,13 @@ export const ScriptCard = ({
       >
         <div className="flex flex-row justify-between items-center" style={{ padding: "8px 0" }}>
           <div className="flex-1">
-            <ScriptSearchField t={t} setSearchKeyword={setSearchKeyword} />
+            <ScriptSearchField
+              t={t}
+              defaultValue={searchRequest}
+              onSearch={(req) => {
+                setSearchRequest(req);
+              }}
+            />
           </div>
           <Space size={8}>
             <Tooltip content={sidebarOpen ? t("close_sidebar") : t("open_sidebar")}>

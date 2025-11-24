@@ -28,6 +28,7 @@ import {
 } from "@App/pages/store/features/script";
 import { loadScriptFavicons } from "@App/pages/store/utils";
 import { arrayMove } from "@dnd-kit/sortable";
+import type { Dispatch } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { hashColor } from "../utils";
 import { parseTags } from "@App/app/repo/metadata";
@@ -46,6 +47,7 @@ import { useTranslation } from "react-i18next";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { Message } from "@arco-design/web-react";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 export function useScriptList() {
   const { t } = useTranslation();
@@ -310,6 +312,8 @@ export interface FilterItem {
   count: number;
 }
 
+export type SetSearchRequest = Dispatch<React.SetStateAction<{ keyword: string; type: SearchType }>>;
+
 export function useScriptSearch() {
   const scriptListManager = useScriptList();
   const { t } = useTranslation();
@@ -321,7 +325,10 @@ export function useScriptSearch() {
     tags: "all",
     source: "all",
   });
-  const [searchKeyword, setSearchKeyword] = useState<string>("");
+  const [searchRequest, setSearchRequest] = useState<{ keyword: string; type: SearchType }>({
+    keyword: "",
+    type: "auto",
+  });
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
 
   // 计算数据量
@@ -535,10 +542,10 @@ export function useScriptSearch() {
       }
     }
     const filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    if (searchKeyword !== "") {
+    if (searchRequest.keyword !== "") {
       let mounted = true;
       // 再基于关键词过滤一次
-      requestFilterResult({ value: searchKeyword, type: "auto" }).then((res) => {
+      requestFilterResult({ value: searchRequest.keyword }).then((res) => {
         if (!mounted) return;
         const cacheMap = new Map<string, any>();
         if (res && Array.isArray(res)) {
@@ -564,7 +571,7 @@ export function useScriptSearch() {
     } else {
       setFilterScriptList(filterList);
     }
-  }, [originMap, scriptList, selectedFilters, tagMap, searchKeyword]);
+  }, [originMap, scriptList, selectedFilters, tagMap, searchRequest]);
 
   // 覆盖scriptListManager的排序方法
   // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱
@@ -600,9 +607,8 @@ export function useScriptSearch() {
     filterScriptList,
     selectedFilters,
     setSelectedFilters,
-    keyword: searchKeyword,
-    searchKeyword,
-    setSearchKeyword,
+    searchRequest,
+    setSearchRequest,
     filterItems: {
       statusItems,
       typeItems,
