@@ -507,6 +507,7 @@ export const ScriptTable = ({
                   inputRef={inputRef}
                   defaultValue={filterKeys[0]}
                   onChange={(req) => {
+                    // 神奇的问题 #1023
                     filterKeys[0].type = req.type;
                     filterKeys[0].keyword = req.keyword;
                     requestFilterResult({ value: req.keyword }).then((res) => {
