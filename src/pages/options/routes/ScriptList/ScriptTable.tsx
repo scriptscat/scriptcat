@@ -507,7 +507,8 @@ export const ScriptTable = ({
                   inputRef={inputRef}
                   defaultValue={filterKeys[0]}
                   onChange={(req) => {
-                    filterKeys[0] = req;
+                    filterKeys[0].type = req.type;
+                    filterKeys[0].keyword = req.keyword;
                     requestFilterResult({ value: req.keyword }).then((res) => {
                       filterCache.clear();
                       if (res && Array.isArray(res)) {
@@ -519,7 +520,7 @@ export const ScriptTable = ({
                           });
                         }
                       }
-                      setFilterKeys([req]);
+                      setFilterKeys([...filterKeys]);
                     });
                   }}
                   onSearch={(req) => {
