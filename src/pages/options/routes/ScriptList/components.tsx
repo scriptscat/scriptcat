@@ -216,7 +216,12 @@ export const ScriptSearchField = ({ t, defaultValue, onChange, onSearch, inputRe
         searchButton
         style={{ width: 280 }}
         value={keyword}
-        placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
+        placeholder={
+          t("enter_search_value", {
+            search:
+              type == "auto" ? `${t("name")}/${t("script_code")}` : type === "name" ? t("name") : t("script_code"),
+          })!
+        }
         onChange={(value) => {
           onChange?.({ keyword: value, type });
           setKeyword(value);
