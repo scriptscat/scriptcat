@@ -551,9 +551,9 @@ export function useScriptSearch() {
         if (res && Array.isArray(res)) {
           for (const entry of res) {
             cacheMap.set(entry.uuid, {
-              code: entry.code === true,
-              name: entry.name === true,
-              auto: entry.auto === true,
+              code: entry.code,
+              name: entry.name,
+              auto: entry.auto,
             });
           }
         }

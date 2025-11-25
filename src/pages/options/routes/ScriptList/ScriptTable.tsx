@@ -56,12 +56,16 @@ import { systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "@App/pages/store/features/script";
+import {
+  requestEnableScript,
+  pinToTop,
+  scriptClient,
+  synchronizeClient,
+  requestFilterResult,
+} from "@App/pages/store/features/script";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
-import type { SetSearchRequest } from "./hooks";
-import type { SearchType } from "@App/app/service/service_worker/types";
 
 type ListType = ScriptLoading;
 
@@ -420,8 +424,6 @@ interface ScriptTableProps {
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
-  searchRequest: { keyword: string; type: SearchType };
-  setSearchRequest: SetSearchRequest;
   handleDelete: (item: ScriptLoading) => void;
   handleConfig: (
     item: ScriptLoading,
@@ -440,8 +442,6 @@ export const ScriptTable = ({
   updateScripts,
   setUserConfig,
   setCloudScript,
-  searchRequest,
-  setSearchRequest,
   handleDelete,
   handleConfig,
   handleRunStop,
@@ -454,6 +454,8 @@ export const ScriptTable = ({
   const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
+
+  const filterCache: Map<string, any> = useMemo(() => new Map(), []);
 
   const columns: ColumnProps[] = useMemo(
     () =>
@@ -494,20 +496,55 @@ export const ScriptTable = ({
           dataIndex: "name",
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
-          filterDropdown: ({ confirm }: any) => {
+          filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+            if (!filterKeys?.length) {
+              filterKeys = [{ type: "auto", keyword: "" }];
+            }
             return (
               <div className="arco-table-custom-filter flex flex-row gap-2">
                 <ScriptSearchField
                   t={t}
-                  defaultValue={searchRequest}
+                  inputRef={inputRef}
+                  defaultValue={filterKeys[0]}
+                  onChange={(req) => {
+                    requestFilterResult({ value: req.keyword }).then((res) => {
+                      filterCache.clear();
+                      if (res && Array.isArray(res)) {
+                        for (const entry of res) {
+                          filterCache.set(entry.uuid, {
+                            code: entry.code,
+                            name: entry.name,
+                            auto: entry.auto,
+                          });
+                        }
+                      }
+                      setFilterKeys([{ type: req.type, keyword: req.keyword }]);
+                    });
+                  }}
                   onSearch={(req) => {
-                    setSearchRequest(req);
+                    if (req.bySelect) return;
                     confirm();
                   }}
-                  inputRef={inputRef}
                 />
               </div>
             );
+          },
+          onFilter(value, row) {
+            if (!value || !value.keyword) {
+              return true;
+            }
+            const result = filterCache.get(row.uuid);
+            if (!result) return false;
+            switch (value.type) {
+              case "auto":
+                return result.auto;
+              case "script_code":
+                return result.code;
+              case "name":
+                return result.name;
+              default:
+                return false;
+            }
           },
           onFilterDropdownVisibleChange: (visible) => {
             if (visible) {
@@ -620,8 +657,7 @@ export const ScriptTable = ({
       t,
       sidebarOpen,
       updateScripts,
-      searchRequest,
-      setSearchRequest,
+      filterCache,
       navigate,
       setSidebarOpen,
       setViewMode,
