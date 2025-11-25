@@ -51,7 +51,14 @@ const langs = {
       "early-start":
         "配合 `run-at: document-start` 的声明，使用 `early-start` 可以比网页更快地加载并执行脚本，但存在一定性能问题与 GM API 使用限制。（SC 独有）",
       definition: "ScriptCat 特有功能：一个 `.d.ts` 文件的引用地址，能够自动补全编辑器的提示",
-      antifeature: "与脚本市场有关，不受欢迎的功能需要加上此描述值",
+      // https://bbs.tampermonkey.net.cn/thread-3036-1-1.html#%40antifeature%E8%A7%84%E5%88%99
+      antifeature: `与脚本市场有关，不受欢迎的功能需要加上此描述值
+referral-link：该脚本会修改或重定向到作者的返佣链接
+ads：该脚本会在访问的页面上插入广告
+payment：该脚本需要付费才能够正常使用
+miner：该脚本存在利用用户资源但不为用户产生收益或收益极其微弱的行为
+membership：该脚本需要注册会员/关注公众号才能正常使用
+tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       updateURL: "脚本检查更新的 url",
       downloadURL: "脚本更新的下载地址",
       supportURL: "支持站点、bug 反馈页面",
