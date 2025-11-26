@@ -454,8 +454,6 @@ export const ScriptTable = ({
   const navigate = useNavigate();
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
-  const searchFilterCache: Map<string, any> = useMemo(() => new Map(), []);
-
   class ScriptTableSearchFilter extends SearchFilter {
     filterKeys?: SearchFilterKeyEntry[] = undefined;
     setFilterKeys?: SearchFilterKeysSetter = undefined;
@@ -642,7 +640,6 @@ export const ScriptTable = ({
       t,
       sidebarOpen,
       updateScripts,
-      searchFilterCache,
       navigate,
       setSidebarOpen,
       setViewMode,

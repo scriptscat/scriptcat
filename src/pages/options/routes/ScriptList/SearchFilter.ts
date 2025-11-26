@@ -7,6 +7,7 @@ export type SearchFilterRequest = { type: SearchType; keyword: string }; // 两�
 export type SearchFilterResponse = ScriptCode | undefined;
 export type SearchFilterKeysSetter = (filterKeys: SearchFilterKeyEntry[], callback?: (...args: any[]) => any) => void;
 
+// 静态变数不随重绘重置
 let lastReqType: SearchType | undefined = undefined;
 let lastKeyword: string = "";
 let lastResponse: ScriptCode | undefined = undefined;

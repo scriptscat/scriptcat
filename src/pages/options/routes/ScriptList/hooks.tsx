@@ -326,8 +326,6 @@ export function useScriptSearch() {
     source: "all",
   });
 
-  const searchFilterCache: Map<string, any> = useMemo(() => new Map(), []);
-
   const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({
     keyword: "",
     type: "auto",
@@ -581,7 +579,7 @@ export function useScriptSearch() {
     }
     setFilterScriptList(filterList);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scriptList, filterFuncs, lastFilterQuery]); // searchFilterCache 参考固定不变
+  }, [scriptList, filterFuncs, lastFilterQuery]); // searchFilter 参考固定不变
 
   // 覆盖scriptListManager的排序方法
   // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱
