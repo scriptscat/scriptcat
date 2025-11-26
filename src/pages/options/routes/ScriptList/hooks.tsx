@@ -1,4 +1,4 @@
-import type { Script, ScriptCode, UserConfig } from "@App/app/repo/scripts";
+import type { Script, UserConfig } from "@App/app/repo/scripts";
 import {
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
@@ -20,7 +20,6 @@ import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   fetchScript,
   fetchScriptList,
-  requestFilterResult,
   sortScript,
   requestDeleteScripts,
   requestRunScript,
@@ -48,6 +47,7 @@ import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { Message } from "@arco-design/web-react";
 import type { SearchType } from "@App/app/service/service_worker/types";
+import { SearchFilter, type SearchFilterRequest, type SearchFilterResponse } from "./SearchFilter";
 
 export function useScriptList() {
   const { t } = useTranslation();
@@ -328,8 +328,6 @@ export function useScriptSearch() {
 
   const searchFilterCache: Map<string, any> = useMemo(() => new Map(), []);
 
-  type SearchFilterRequest = { type: SearchType; keyword: string }; // 两个Type日后可能会不同。先分开写。
-  type SearchFilterResponse = ScriptCode | undefined;
   const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({
     keyword: "",
     type: "auto",
@@ -554,27 +552,12 @@ export function useScriptSearch() {
     return filterFuncs;
   }, [originMap, selectedFilters, tagMap]);
 
-  const searchFilter = {
-    requestFilterResult(req: SearchFilterRequest) {
-      requestFilterResult({ value: req.keyword }).then((res) => this.onResponse(req, res));
-    },
-    onResponse(req: SearchFilterRequest, searchRes: SearchFilterResponse) {
-      searchFilterCache.clear();
-      if (searchRes && Array.isArray(searchRes)) {
-        for (const entry of searchRes) {
-          searchFilterCache.set(entry.uuid, {
-            code: entry.code,
-            name: entry.name,
-            auto: entry.auto,
-          });
-        }
-      }
-      setLastFilterQuery({ request: req, response: searchRes });
-    },
-  } as {
-    requestFilterResult: (req: SearchFilterRequest) => Promise<SearchFilterResponse>;
-    onResponse: (req: SearchFilterRequest, resp: SearchFilterResponse) => void;
-  };
+  class HooksSearchFilter extends SearchFilter {
+    onResponse(req: SearchFilterRequest, res: SearchFilterResponse) {
+      setLastFilterQuery({ request: req, response: res });
+    }
+  }
+  const searchFilter = new HooksSearchFilter();
 
   useEffect(() => {
     // 当控制项改变了 searchRequest 时执行
@@ -590,23 +573,10 @@ export function useScriptSearch() {
     // 当 filterFuncs 改变时进行 / Filter结果取得时进行
     // 按 filterFuncs 过滤一次
     let filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    const searchReq = lastFilterQuery?.request; // 当前的Filter的请求资料
-    const searchRes = lastFilterQuery?.response; // 当前的Filter的回应资料
-    if (searchReq && searchRes) {
+    if (lastFilterQuery) {
       // 再基于关键词过滤一次
       filterList = filterList.filter((item) => {
-        const result = searchFilterCache.get(item.uuid);
-        if (!result) return false;
-        switch (searchReq.type) {
-          case "auto":
-            return result.auto;
-          case "name":
-            return result.name;
-          case "script_code":
-            return result.code;
-          default:
-            return false;
-        }
+        return searchFilter.checkByUUID(item.uuid);
       });
     }
     setFilterScriptList(filterList);

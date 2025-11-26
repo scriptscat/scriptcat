@@ -18,7 +18,7 @@ import {
 } from "@arco-design/web-react";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
-import type { Script, ScriptCode, UserConfig } from "@App/app/repo/scripts";
+import type { Script, UserConfig } from "@App/app/repo/scripts";
 import { FaThLarge } from "react-icons/fa";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import {
@@ -55,17 +55,17 @@ import { systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import {
-  requestEnableScript,
-  pinToTop,
-  scriptClient,
-  synchronizeClient,
-  requestFilterResult,
-} from "@App/pages/store/features/script";
+import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "@App/pages/store/features/script";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
-import type { SearchType } from "@App/app/service/service_worker/types";
+import type {
+  SearchFilterKeyEntry,
+  SearchFilterRequest,
+  SearchFilterResponse,
+  SearchFilterKeysSetter,
+} from "./SearchFilter";
+import { SearchFilter } from "./SearchFilter";
 
 type ListType = ScriptLoading;
 
@@ -456,56 +456,24 @@ export const ScriptTable = ({
 
   const searchFilterCache: Map<string, any> = useMemo(() => new Map(), []);
 
-  type SearchFilterKeyEntry = { type: SearchType; keyword: string };
-  type SearchFilterRequest = { type: SearchType; keyword: string }; // 两个Type日后可能会不同。先分开写。
-  type SearchFilterResponse = ScriptCode | undefined;
-  const searchFilter = {
-    filterKeys: undefined,
-    setFilterKeys: undefined,
-    defaultValue: { type: "auto", keyword: "" },
-    requestFilterResult(req: SearchFilterRequest) {
-      requestFilterResult({ value: req.keyword }).then((res) => this.onResponse(req, res));
-    },
-    onResponse(req: SearchFilterRequest, resp: SearchFilterResponse) {
+  class ScriptTableSearchFilter extends SearchFilter {
+    filterKeys?: SearchFilterKeyEntry[] = undefined;
+    setFilterKeys?: SearchFilterKeysSetter = undefined;
+    defaultValue = { type: "auto", keyword: "" };
+    onResponse(req: SearchFilterRequest, _res: SearchFilterResponse) {
       const newFilterKeys = [...(this.filterKeys || [])] as SearchFilterKeyEntry[];
       newFilterKeys[0] = { type: req.type, keyword: req.keyword };
-      searchFilterCache.clear();
-      if (resp && Array.isArray(resp)) {
-        for (const entry of resp) {
-          searchFilterCache.set(entry.uuid, {
-            code: entry.code,
-            name: entry.name,
-            auto: entry.auto,
-          });
-        }
-      }
       this.setFilterKeys?.(newFilterKeys as SearchFilterKeyEntry[]);
-    },
+    }
     onFilter(value: SearchFilterKeyEntry, row: any): boolean {
       if (!value || !value.keyword) {
         return true;
       }
-      const result = searchFilterCache.get(row.uuid);
-      if (!result) return false;
-      switch (value.type) {
-        case "auto":
-          return result.auto;
-        case "script_code":
-          return result.code;
-        case "name":
-          return result.name;
-        default:
-          return false;
-      }
-    },
-  } as {
-    filterKeys?: SearchFilterKeyEntry[];
-    setFilterKeys?: (filterKeys: SearchFilterKeyEntry[], callback?: (...args: any[]) => any) => void;
-    defaultValue: SearchFilterKeyEntry;
-    requestFilterResult: (req: SearchFilterRequest) => Promise<SearchFilterResponse>;
-    onResponse: (req: SearchFilterRequest, resp: SearchFilterResponse) => void;
-    onFilter: (value: SearchFilterKeyEntry, row: any) => boolean;
-  };
+      return this.checkByUUID(row.uuid);
+    }
+  }
+
+  const searchFilter = new ScriptTableSearchFilter();
 
   const columns: ColumnProps[] = useMemo(
     () =>
