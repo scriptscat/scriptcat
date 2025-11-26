@@ -1,4 +1,4 @@
-import type { Script, UserConfig } from "@App/app/repo/scripts";
+import type { Script, ScriptCode, UserConfig } from "@App/app/repo/scripts";
 import {
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
@@ -325,10 +325,19 @@ export function useScriptSearch() {
     tags: "all",
     source: "all",
   });
-  const [searchRequest, setSearchRequest] = useState<{ keyword: string; type: SearchType }>({
+
+  const searchFilterCache: Map<string, any> = useMemo(() => new Map(), []);
+
+  type SearchFilterRequest = { type: SearchType; keyword: string }; // 兩個Type日後可能會不同。先分開寫。
+  type SearchFilterResponse = ScriptCode | undefined;
+  const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({
     keyword: "",
     type: "auto",
   });
+  const [lastFilterQuery, setLastFilterQuery] = useState<{
+    request?: SearchFilterRequest;
+    response?: SearchFilterResponse;
+  }>();
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
 
   // 计算数据量
@@ -485,7 +494,8 @@ export function useScriptSearch() {
     return { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap };
   }, [scriptList, sidebarOpen, t]);
 
-  useEffect(() => {
+  const filterFuncs = useMemo(() => {
+    // 當 originMap, selectedFilters, tagMap 改變時更新
     const filterFuncs: Array<(script: Script) => boolean> = [];
     for (const [groupKey, itemKey] of Object.entries(selectedFilters)) {
       switch (groupKey) {
@@ -541,47 +551,67 @@ export function useScriptSearch() {
           break;
       }
     }
-    const filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    if (searchRequest.keyword !== "") {
-      let mounted = true;
-      // 再基于关键词过滤一次
-      requestFilterResult({ value: searchRequest.keyword }).then((res) => {
-        if (!mounted) return;
-        const cacheMap = new Map<string, any>();
-        if (res && Array.isArray(res)) {
-          for (const entry of res) {
-            cacheMap.set(entry.uuid, {
-              code: entry.code,
-              name: entry.name,
-              auto: entry.auto,
-            });
-          }
-        }
+    return filterFuncs;
+  }, [originMap, selectedFilters, tagMap]);
 
-        setFilterScriptList(
-          filterList.filter((item) => {
-            const result = cacheMap.get(item.uuid);
-            if (!result) return false;
-            switch (searchRequest.type) {
-              case "auto":
-                return result.auto;
-              case "name":
-                return result.name;
-              case "script_code":
-                return result.code;
-              default:
-                return false;
-            }
-          })
-        );
-      });
-      return () => {
-        mounted = false;
-      };
+  const searchFilter = {
+    requestFilterResult(req: SearchFilterRequest) {
+      requestFilterResult({ value: req.keyword }).then((res) => this.onResponse(req, res));
+    },
+    onResponse(req: SearchFilterRequest, searchRes: SearchFilterResponse) {
+      searchFilterCache.clear();
+      if (searchRes && Array.isArray(searchRes)) {
+        for (const entry of searchRes) {
+          searchFilterCache.set(entry.uuid, {
+            code: entry.code,
+            name: entry.name,
+            auto: entry.auto,
+          });
+        }
+      }
+      setLastFilterQuery({ request: req, response: searchRes });
+    },
+  } as {
+    requestFilterResult: (req: SearchFilterRequest) => Promise<SearchFilterResponse>;
+    onResponse: (req: SearchFilterRequest, resp: SearchFilterResponse) => void;
+  };
+
+  useEffect(() => {
+    // 當控制項改變了 searchRequest 時執行
+    if (searchRequest.keyword === "") {
+      setLastFilterQuery(undefined);
     } else {
-      setFilterScriptList(filterList);
+      searchFilter.requestFilterResult(searchRequest);
     }
-  }, [originMap, scriptList, selectedFilters, tagMap, searchRequest]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchRequest, scriptList]); // scriptList 有改動時也重新查一下最新的結果吧
+
+  useEffect(() => {
+    // 當 filterFuncs 改變時進行 / Filter結果取得時進行
+    // 按 filterFuncs 过滤一次
+    let filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
+    const searchReq = lastFilterQuery?.request; // 當前的Filter的請求資料
+    const searchRes = lastFilterQuery?.response; // 當前的Filter的回應資料
+    if (searchReq && searchRes) {
+      // 再基于关键词过滤一次
+      filterList = filterList.filter((item) => {
+        const result = searchFilterCache.get(item.uuid);
+        if (!result) return false;
+        switch (searchReq.type) {
+          case "auto":
+            return result.auto;
+          case "name":
+            return result.name;
+          case "script_code":
+            return result.code;
+          default:
+            return false;
+        }
+      });
+    }
+    setFilterScriptList(filterList);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptList, filterFuncs, lastFilterQuery]); // searchFilterCache 參考固定不變
 
   // 覆盖scriptListManager的排序方法
   // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱

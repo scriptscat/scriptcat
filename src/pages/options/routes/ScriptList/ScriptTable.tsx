@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   Avatar,
   Button,
@@ -18,7 +18,7 @@ import {
 } from "@arco-design/web-react";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
-import type { Script, UserConfig } from "@App/app/repo/scripts";
+import type { Script, ScriptCode, UserConfig } from "@App/app/repo/scripts";
 import { FaThLarge } from "react-icons/fa";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import {
@@ -38,7 +38,6 @@ import {
   RiUploadCloudFill,
 } from "react-icons/ri";
 import { Link, useNavigate } from "react-router-dom";
-import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import Text from "@arco-design/web-react/es/Typography/text";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -66,6 +65,7 @@ import {
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 type ListType = ScriptLoading;
 
@@ -451,11 +451,61 @@ export const ScriptTable = ({
   const [action, setAction] = useState("");
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
-  const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
-  const filterCache: Map<string, any> = useMemo(() => new Map(), []);
+  const searchFilterCache: Map<string, any> = useMemo(() => new Map(), []);
+
+  type SearchFilterEntry = { type: SearchType; keyword: string };
+  type SearchFilterRequest = { type: SearchType; keyword: string }; // 兩個Type日後可能會不同。先分開寫。
+  type SearchFilterResponse = ScriptCode | undefined;
+  const searchFilter = {
+    filterKeys: undefined,
+    setFilterKeys: undefined,
+    defaultValue: { type: "auto", keyword: "" },
+    requestFilterResult(req: SearchFilterRequest) {
+      requestFilterResult({ value: req.keyword }).then((res) => this.onResponse(req, res));
+    },
+    onResponse(req: SearchFilterRequest, resp: SearchFilterResponse) {
+      const newFilterKeys = [...(this.filterKeys || [])] as SearchFilterEntry[];
+      newFilterKeys[0] = { type: req.type, keyword: req.keyword };
+      searchFilterCache.clear();
+      if (resp && Array.isArray(resp)) {
+        for (const entry of resp) {
+          searchFilterCache.set(entry.uuid, {
+            code: entry.code,
+            name: entry.name,
+            auto: entry.auto,
+          });
+        }
+      }
+      this.setFilterKeys?.(newFilterKeys as SearchFilterEntry[]);
+    },
+    onFilter(value: SearchFilterEntry, row: any): boolean {
+      if (!value || !value.keyword) {
+        return true;
+      }
+      const result = searchFilterCache.get(row.uuid);
+      if (!result) return false;
+      switch (value.type) {
+        case "auto":
+          return result.auto;
+        case "script_code":
+          return result.code;
+        case "name":
+          return result.name;
+        default:
+          return false;
+      }
+    },
+  } as {
+    filterKeys?: SearchFilterEntry[];
+    setFilterKeys?: (filterKeys: SearchFilterEntry[], callback?: (...args: any[]) => any) => void;
+    defaultValue: SearchFilterEntry;
+    requestFilterResult: (req: SearchFilterRequest) => Promise<SearchFilterResponse>;
+    onResponse: (req: SearchFilterRequest, resp: SearchFilterResponse) => void;
+    onFilter: (value: SearchFilterEntry, row: any) => boolean;
+  };
 
   const columns: ColumnProps[] = useMemo(
     () =>
@@ -497,32 +547,17 @@ export const ScriptTable = ({
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
           filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
-            if (!filterKeys?.length) {
-              filterKeys = [{ type: "auto", keyword: "" }];
-            }
+            // 重繪時更新React參考
+            searchFilter.filterKeys = filterKeys;
+            searchFilter.setFilterKeys = setFilterKeys;
             return (
               <div className="arco-table-custom-filter flex flex-row gap-2">
                 <ScriptSearchField
                   t={t}
-                  inputRef={inputRef}
-                  defaultValue={filterKeys[0]}
+                  autoFocus
+                  defaultValue={filterKeys?.[0] || searchFilter.defaultValue}
                   onChange={(req) => {
-                    // 神奇的问题 #1023
-                    filterKeys[0].type = req.type;
-                    filterKeys[0].keyword = req.keyword;
-                    requestFilterResult({ value: req.keyword }).then((res) => {
-                      filterCache.clear();
-                      if (res && Array.isArray(res)) {
-                        for (const entry of res) {
-                          filterCache.set(entry.uuid, {
-                            code: entry.code,
-                            name: entry.name,
-                            auto: entry.auto,
-                          });
-                        }
-                      }
-                      setFilterKeys([...filterKeys]);
-                    });
+                    searchFilter.requestFilterResult(req);
                   }}
                   onSearch={(req) => {
                     if (req.bySelect) return;
@@ -532,28 +567,7 @@ export const ScriptTable = ({
               </div>
             );
           },
-          onFilter(value, row) {
-            if (!value || !value.keyword) {
-              return true;
-            }
-            const result = filterCache.get(row.uuid);
-            if (!result) return false;
-            switch (value.type) {
-              case "auto":
-                return result.auto;
-              case "script_code":
-                return result.code;
-              case "name":
-                return result.name;
-              default:
-                return false;
-            }
-          },
-          onFilterDropdownVisibleChange: (visible) => {
-            if (visible) {
-              setTimeout(() => inputRef.current!.focus(), 1);
-            }
-          },
+          onFilter: (value, row) => searchFilter.onFilter(value, row),
           className: "max-w-[240px] min-w-[100px]",
           render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
         },
@@ -660,7 +674,7 @@ export const ScriptTable = ({
       t,
       sidebarOpen,
       updateScripts,
-      filterCache,
+      searchFilterCache,
       navigate,
       setSidebarOpen,
       setViewMode,
