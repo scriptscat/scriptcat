@@ -456,8 +456,8 @@ export const ScriptTable = ({
 
   const searchFilterCache: Map<string, any> = useMemo(() => new Map(), []);
 
-  type SearchFilterEntry = { type: SearchType; keyword: string };
-  type SearchFilterRequest = { type: SearchType; keyword: string }; // 兩個Type日後可能會不同。先分開寫。
+  type SearchFilterKeyEntry = { type: SearchType; keyword: string };
+  type SearchFilterRequest = { type: SearchType; keyword: string }; // 两个Type日后可能会不同。先分开写。
   type SearchFilterResponse = ScriptCode | undefined;
   const searchFilter = {
     filterKeys: undefined,
@@ -467,7 +467,7 @@ export const ScriptTable = ({
       requestFilterResult({ value: req.keyword }).then((res) => this.onResponse(req, res));
     },
     onResponse(req: SearchFilterRequest, resp: SearchFilterResponse) {
-      const newFilterKeys = [...(this.filterKeys || [])] as SearchFilterEntry[];
+      const newFilterKeys = [...(this.filterKeys || [])] as SearchFilterKeyEntry[];
       newFilterKeys[0] = { type: req.type, keyword: req.keyword };
       searchFilterCache.clear();
       if (resp && Array.isArray(resp)) {
@@ -479,9 +479,9 @@ export const ScriptTable = ({
           });
         }
       }
-      this.setFilterKeys?.(newFilterKeys as SearchFilterEntry[]);
+      this.setFilterKeys?.(newFilterKeys as SearchFilterKeyEntry[]);
     },
-    onFilter(value: SearchFilterEntry, row: any): boolean {
+    onFilter(value: SearchFilterKeyEntry, row: any): boolean {
       if (!value || !value.keyword) {
         return true;
       }
@@ -499,12 +499,12 @@ export const ScriptTable = ({
       }
     },
   } as {
-    filterKeys?: SearchFilterEntry[];
-    setFilterKeys?: (filterKeys: SearchFilterEntry[], callback?: (...args: any[]) => any) => void;
-    defaultValue: SearchFilterEntry;
+    filterKeys?: SearchFilterKeyEntry[];
+    setFilterKeys?: (filterKeys: SearchFilterKeyEntry[], callback?: (...args: any[]) => any) => void;
+    defaultValue: SearchFilterKeyEntry;
     requestFilterResult: (req: SearchFilterRequest) => Promise<SearchFilterResponse>;
     onResponse: (req: SearchFilterRequest, resp: SearchFilterResponse) => void;
-    onFilter: (value: SearchFilterEntry, row: any) => boolean;
+    onFilter: (value: SearchFilterKeyEntry, row: any) => boolean;
   };
 
   const columns: ColumnProps[] = useMemo(
@@ -547,7 +547,7 @@ export const ScriptTable = ({
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
           filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
-            // 重繪時更新React參考
+            // 重绘时更新React参考
             searchFilter.filterKeys = filterKeys;
             searchFilter.setFilterKeys = setFilterKeys;
             return (

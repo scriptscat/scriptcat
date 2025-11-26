@@ -328,7 +328,7 @@ export function useScriptSearch() {
 
   const searchFilterCache: Map<string, any> = useMemo(() => new Map(), []);
 
-  type SearchFilterRequest = { type: SearchType; keyword: string }; // 兩個Type日後可能會不同。先分開寫。
+  type SearchFilterRequest = { type: SearchType; keyword: string }; // 两个Type日后可能会不同。先分开写。
   type SearchFilterResponse = ScriptCode | undefined;
   const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({
     keyword: "",
@@ -495,7 +495,7 @@ export function useScriptSearch() {
   }, [scriptList, sidebarOpen, t]);
 
   const filterFuncs = useMemo(() => {
-    // 當 originMap, selectedFilters, tagMap 改變時更新
+    // 当 originMap, selectedFilters, tagMap 改变时更新
     const filterFuncs: Array<(script: Script) => boolean> = [];
     for (const [groupKey, itemKey] of Object.entries(selectedFilters)) {
       switch (groupKey) {
@@ -577,21 +577,21 @@ export function useScriptSearch() {
   };
 
   useEffect(() => {
-    // 當控制項改變了 searchRequest 時執行
+    // 当控制项改变了 searchRequest 时执行
     if (searchRequest.keyword === "") {
       setLastFilterQuery(undefined);
     } else {
       searchFilter.requestFilterResult(searchRequest);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchRequest, scriptList]); // scriptList 有改動時也重新查一下最新的結果吧
+  }, [searchRequest, scriptList]); // scriptList 有改动时也重新查一下最新的结果吧
 
   useEffect(() => {
-    // 當 filterFuncs 改變時進行 / Filter結果取得時進行
+    // 当 filterFuncs 改变时进行 / Filter结果取得时进行
     // 按 filterFuncs 过滤一次
     let filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    const searchReq = lastFilterQuery?.request; // 當前的Filter的請求資料
-    const searchRes = lastFilterQuery?.response; // 當前的Filter的回應資料
+    const searchReq = lastFilterQuery?.request; // 当前的Filter的请求资料
+    const searchRes = lastFilterQuery?.response; // 当前的Filter的回应资料
     if (searchReq && searchRes) {
       // 再基于关键词过滤一次
       filterList = filterList.filter((item) => {
@@ -611,7 +611,7 @@ export function useScriptSearch() {
     }
     setFilterScriptList(filterList);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scriptList, filterFuncs, lastFilterQuery]); // searchFilterCache 參考固定不變
+  }, [scriptList, filterFuncs, lastFilterQuery]); // searchFilterCache 参考固定不变
 
   // 覆盖scriptListManager的排序方法
   // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱
