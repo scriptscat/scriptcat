@@ -11,6 +11,7 @@ import { ListHomeRender } from "../utils";
 import { IconEdit, IconLink, IconUserAdd } from "@arco-design/web-react/icon";
 import type { SearchType } from "@App/app/service/service_worker/types";
 import type { TFunction } from "i18next";
+import type { SearchFilterKeyEntry, SearchFilterRequest } from "./SearchFilter";
 
 export const EnableSwitch = React.memo(
   ({
@@ -183,9 +184,9 @@ UpdateTimeCell.displayName = "UpdateTimeCell";
 
 interface ScriptSearchFieldProps {
   t: TFunction<"translation", undefined>;
-  defaultValue?: { keyword: string; type: SearchType };
-  onChange?: (value: { keyword: string; type: SearchType }) => void;
-  onSearch?: (req: { keyword: string; type: SearchType; bySelect: boolean }) => void;
+  defaultValue?: SearchFilterKeyEntry;
+  onChange?: (req: SearchFilterRequest) => void;
+  onSearch?: (req: SearchFilterRequest) => void;
   autoFocus?: boolean;
 }
 

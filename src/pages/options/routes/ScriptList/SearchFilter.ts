@@ -3,7 +3,7 @@ import type { SearchType } from "@App/app/service/service_worker/types";
 import { requestFilterResult } from "@App/pages/store/features/script";
 
 export type SearchFilterKeyEntry = { type: SearchType; keyword: string };
-export type SearchFilterRequest = { type: SearchType; keyword: string }; // 两个Type日后可能会不同。先分开写。
+export type SearchFilterRequest = { type: SearchType; keyword: string; bySelect?: boolean }; // 两个Type日后可能会不同。先分开写。
 export type SearchFilterResponse = ScriptCode | undefined;
 export type SearchFilterKeysSetter = (filterKeys: SearchFilterKeyEntry[], callback?: (...args: any[]) => any) => void;
 

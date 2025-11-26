@@ -459,9 +459,9 @@ export const ScriptTable = ({
     setFilterKeys?: SearchFilterKeysSetter = undefined;
     defaultValue = { type: "auto", keyword: "" };
     onResponse(req: SearchFilterRequest, _res: SearchFilterResponse) {
-      const newFilterKeys = [...(this.filterKeys || [])] as SearchFilterKeyEntry[];
+      const newFilterKeys = [...(this.filterKeys || [])];
       newFilterKeys[0] = { type: req.type, keyword: req.keyword };
-      this.setFilterKeys?.(newFilterKeys as SearchFilterKeyEntry[]);
+      this.setFilterKeys?.(newFilterKeys);
     }
     onFilter(value: SearchFilterKeyEntry, row: any): boolean {
       if (!value || !value.keyword) {
