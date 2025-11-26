@@ -11,7 +11,6 @@ import { ListHomeRender } from "../utils";
 import { IconEdit, IconLink, IconUserAdd } from "@arco-design/web-react/icon";
 import type { SearchType } from "@App/app/service/service_worker/types";
 import type { TFunction } from "i18next";
-import type { RefInputType } from "@arco-design/web-react/es/Input";
 
 export const EnableSwitch = React.memo(
   ({
@@ -187,10 +186,10 @@ interface ScriptSearchFieldProps {
   defaultValue?: { keyword: string; type: SearchType };
   onChange?: (value: { keyword: string; type: SearchType }) => void;
   onSearch?: (req: { keyword: string; type: SearchType; bySelect: boolean }) => void;
-  inputRef?: React.RefObject<RefInputType>;
+  autoFocus?: boolean;
 }
 
-export const ScriptSearchField = ({ t, defaultValue, onChange, onSearch, inputRef }: ScriptSearchFieldProps) => {
+export const ScriptSearchField = ({ t, defaultValue, onChange, onSearch, autoFocus }: ScriptSearchFieldProps) => {
   const [keyword, setKeyword] = React.useState(defaultValue?.keyword || "");
   const [type, setType] = React.useState<SearchType>(defaultValue?.type || "auto");
   return (
@@ -211,9 +210,9 @@ export const ScriptSearchField = ({ t, defaultValue, onChange, onSearch, inputRe
         <Select.Option value="script_code">{t("script_code")}</Select.Option>
       </Select>
       <Input.Search
-        ref={inputRef}
         size="small"
         searchButton
+        autoFocus={autoFocus}
         style={{ width: 280 }}
         value={keyword}
         placeholder={

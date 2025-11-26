@@ -4,10 +4,9 @@ import { ResourceClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { base64ToBlob } from "@App/pkg/utils/utils";
 import { Button, Drawer, Input, Message, Popconfirm, Space, Table } from "@arco-design/web-react";
-import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconDownload, IconSearch } from "@arco-design/web-react/icon";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 type ResourceListItem = {
@@ -21,7 +20,6 @@ const ScriptResource: React.FC<{
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
   const [data, setData] = useState<ResourceListItem[]>([]);
-  const inputRef = useRef<RefInputType>(null);
   const { t } = useTranslation();
   const resourceClient = new ResourceClient(message);
 
@@ -53,8 +51,8 @@ const ScriptResource: React.FC<{
         return (
           <div className="arco-table-custom-filter">
             <Input.Search
-              ref={inputRef}
               searchButton
+              autoFocus
               placeholder={t("enter_key")!}
               value={filterKeys[0] || ""}
               onChange={(value) => {
@@ -68,11 +66,6 @@ const ScriptResource: React.FC<{
         );
       },
       onFilter: (value, row) => !value || row.key.includes(value),
-      onFilterDropdownVisibleChange: (v) => {
-        if (v) {
-          setTimeout(() => inputRef.current!.focus(), 1);
-        }
-      },
     },
     {
       title: t("type"),
