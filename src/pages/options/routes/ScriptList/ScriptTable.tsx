@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   Avatar,
   Button,
@@ -38,7 +38,6 @@ import {
   RiUploadCloudFill,
 } from "react-icons/ri";
 import { Link, useNavigate } from "react-router-dom";
-import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import Text from "@arco-design/web-react/es/Typography/text";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -60,8 +59,7 @@ import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
-import type { SetSearchRequest } from "./hooks";
-import type { SearchType } from "@App/app/service/service_worker/types";
+import { SearchFilter } from "./SearchFilter";
 
 type ListType = ScriptLoading;
 
@@ -420,8 +418,6 @@ interface ScriptTableProps {
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
-  searchRequest: { keyword: string; type: SearchType };
-  setSearchRequest: SetSearchRequest;
   handleDelete: (item: ScriptLoading) => void;
   handleConfig: (
     item: ScriptLoading,
@@ -440,8 +436,6 @@ export const ScriptTable = ({
   updateScripts,
   setUserConfig,
   setCloudScript,
-  searchRequest,
-  setSearchRequest,
   handleDelete,
   handleConfig,
   handleRunStop,
@@ -451,7 +445,6 @@ export const ScriptTable = ({
   const [action, setAction] = useState("");
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
-  const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
@@ -494,25 +487,30 @@ export const ScriptTable = ({
           dataIndex: "name",
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
-          filterDropdown: ({ confirm }: any) => {
+          filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
             return (
               <div className="arco-table-custom-filter flex flex-row gap-2">
                 <ScriptSearchField
                   t={t}
-                  defaultValue={searchRequest}
+                  autoFocus
+                  defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
+                  onChange={(req) => {
+                    setFilterKeys([{ type: req.type, keyword: req.keyword }]);
+                    SearchFilter.requestFilterResult(req);
+                  }}
                   onSearch={(req) => {
-                    setSearchRequest(req);
+                    if (req.bySelect) return;
                     confirm();
                   }}
-                  inputRef={inputRef}
                 />
               </div>
             );
           },
-          onFilterDropdownVisibleChange: (visible) => {
-            if (visible) {
-              setTimeout(() => inputRef.current!.focus(), 1);
+          onFilter: (value, row) => {
+            if (!value || !value.keyword) {
+              return true;
             }
+            return SearchFilter.checkByUUID(row.uuid);
           },
           className: "max-w-[240px] min-w-[100px]",
           render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
@@ -620,8 +618,6 @@ export const ScriptTable = ({
       t,
       sidebarOpen,
       updateScripts,
-      searchRequest,
-      setSearchRequest,
       navigate,
       setSidebarOpen,
       setViewMode,

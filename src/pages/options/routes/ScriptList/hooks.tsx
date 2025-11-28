@@ -20,7 +20,6 @@ import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   fetchScript,
   fetchScriptList,
-  requestFilterResult,
   sortScript,
   requestDeleteScripts,
   requestRunScript,
@@ -48,6 +47,7 @@ import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { Message } from "@arco-design/web-react";
 import type { SearchType } from "@App/app/service/service_worker/types";
+import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
 
 export function useScriptList() {
   const { t } = useTranslation();
@@ -325,7 +325,8 @@ export function useScriptSearch() {
     tags: "all",
     source: "all",
   });
-  const [searchRequest, setSearchRequest] = useState<{ keyword: string; type: SearchType }>({
+
+  const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({
     keyword: "",
     type: "auto",
   });
@@ -485,7 +486,8 @@ export function useScriptSearch() {
     return { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap };
   }, [scriptList, sidebarOpen, t]);
 
-  useEffect(() => {
+  const filterFuncs = useMemo(() => {
+    // 当 originMap, selectedFilters, tagMap 改变时更新
     const filterFuncs: Array<(script: Script) => boolean> = [];
     for (const [groupKey, itemKey] of Object.entries(selectedFilters)) {
       switch (groupKey) {
@@ -541,47 +543,29 @@ export function useScriptSearch() {
           break;
       }
     }
-    const filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    if (searchRequest.keyword !== "") {
-      let mounted = true;
-      // 再基于关键词过滤一次
-      requestFilterResult({ value: searchRequest.keyword }).then((res) => {
-        if (!mounted) return;
-        const cacheMap = new Map<string, any>();
-        if (res && Array.isArray(res)) {
-          for (const entry of res) {
-            cacheMap.set(entry.uuid, {
-              code: entry.code === true,
-              name: entry.name === true,
-              auto: entry.auto === true,
-            });
-          }
-        }
+    return filterFuncs;
+  }, [originMap, selectedFilters, tagMap]);
 
-        setFilterScriptList(
-          filterList.filter((item) => {
-            const result = cacheMap.get(item.uuid);
-            if (!result) return false;
-            switch (searchRequest.type) {
-              case "auto":
-                return result.auto;
-              case "name":
-                return result.name;
-              case "script_code":
-                return result.code;
-              default:
-                return false;
-            }
-          })
-        );
+  useEffect(() => {
+    // 当 filterFuncs 改变时进行 / Filter结果取得时进行
+    // 按 filterFuncs 过滤一次
+    let filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
+    if (searchRequest.keyword !== "") {
+      // 再基于关键词过滤一次
+      let setLoading = true;
+      SearchFilter.requestFilterResult(searchRequest).then(() => {
+        if (setLoading === false) return;
+        filterList = filterList.filter((item) => {
+          return SearchFilter.checkByUUID(item.uuid);
+        });
+        setFilterScriptList(filterList);
       });
       return () => {
-        mounted = false;
+        setLoading = false;
       };
-    } else {
-      setFilterScriptList(filterList);
     }
-  }, [originMap, scriptList, selectedFilters, tagMap, searchRequest]);
+    setFilterScriptList(filterList);
+  }, [scriptList, filterFuncs, searchRequest]); // searchFilter 参考固定不变
 
   // 覆盖scriptListManager的排序方法
   // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱

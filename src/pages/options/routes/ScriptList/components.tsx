@@ -11,7 +11,7 @@ import { ListHomeRender } from "../utils";
 import { IconEdit, IconLink, IconUserAdd } from "@arco-design/web-react/icon";
 import type { SearchType } from "@App/app/service/service_worker/types";
 import type { TFunction } from "i18next";
-import type { RefInputType } from "@arco-design/web-react/es/Input";
+import type { SearchFilterKeyEntry, SearchFilterRequest } from "./SearchFilter";
 
 export const EnableSwitch = React.memo(
   ({
@@ -184,50 +184,52 @@ UpdateTimeCell.displayName = "UpdateTimeCell";
 
 interface ScriptSearchFieldProps {
   t: TFunction<"translation", undefined>;
-  defaultValue: { keyword: string; type: SearchType };
-  onSearch?: (req: { keyword: string; type: SearchType }) => void;
-  inputRef?: React.RefObject<RefInputType>;
+  defaultValue?: SearchFilterKeyEntry;
+  onChange?: (req: SearchFilterRequest) => void;
+  onSearch?: (req: SearchFilterRequest) => void;
+  autoFocus?: boolean;
 }
 
-export const ScriptSearchField = React.memo(
-  ({ t, defaultValue, onSearch, inputRef }: ScriptSearchFieldProps) => {
-    const [keyword, setKeyword] = React.useState(defaultValue?.keyword || "");
-    const [type, setType] = React.useState<SearchType>(defaultValue?.type || "auto");
-    return (
-      <Space direction="horizontal">
-        <Select
-          className="flex-1"
-          triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
-          size="small"
-          value={type}
-          onChange={(value) => {
-            setType(value as SearchType);
-            onSearch?.({ keyword, type: value as SearchType });
-          }}
-        >
-          <Select.Option value="auto">{t("auto")}</Select.Option>
-          <Select.Option value="name">{t("name")}</Select.Option>
-          <Select.Option value="script_code">{t("script_code")}</Select.Option>
-        </Select>
-        <Input.Search
-          ref={inputRef}
-          size="small"
-          searchButton
-          style={{ width: 280 }}
-          value={keyword}
-          placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
-          onChange={(value) => {
-            setKeyword(value);
-          }}
-          onSearch={(value) => {
-            onSearch?.({ keyword: value, type });
-          }}
-        />
-      </Space>
-    );
-  },
-  (prevProps, nextProps) => {
-    return prevProps.t === nextProps.t && prevProps.defaultValue === nextProps.defaultValue;
-  }
-);
-ScriptSearchField.displayName = "ScriptSearchField";
+export const ScriptSearchField = ({ t, defaultValue, onChange, onSearch, autoFocus }: ScriptSearchFieldProps) => {
+  const [keyword, setKeyword] = React.useState(defaultValue?.keyword || "");
+  const [type, setType] = React.useState<SearchType>(defaultValue?.type || "auto");
+  return (
+    <Space direction="horizontal">
+      <Select
+        className="flex-1"
+        triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
+        size="small"
+        value={type}
+        onChange={(value) => {
+          setType(value as SearchType);
+          onChange?.({ keyword, type: value as SearchType });
+          onSearch?.({ keyword, type: value as SearchType, bySelect: true });
+        }}
+      >
+        <Select.Option value="auto">{t("auto")}</Select.Option>
+        <Select.Option value="name">{t("name")}</Select.Option>
+        <Select.Option value="script_code">{t("script_code")}</Select.Option>
+      </Select>
+      <Input.Search
+        size="small"
+        searchButton
+        autoFocus={autoFocus}
+        style={{ width: 280 }}
+        value={keyword}
+        placeholder={
+          t("enter_search_value", {
+            search:
+              type === "auto" ? `${t("name")}/${t("script_code")}` : type === "name" ? t("name") : t("script_code"),
+          })!
+        }
+        onChange={(value) => {
+          onChange?.({ keyword: value, type });
+          setKeyword(value);
+        }}
+        onSearch={(value) => {
+          onSearch?.({ keyword: value, type, bySelect: false });
+        }}
+      />
+    </Space>
+  );
+};
