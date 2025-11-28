@@ -913,9 +913,9 @@ export class RuntimeService {
     const particularScriptList = await this.getParticularScriptList(options);
     // getContentAndInjectScript依赖loadScriptMatchInfo
     // 需要等getParticularScriptList完成后再执行
-    const { inject: injectScripList, content: contentScriptList } = await this.getContentAndInjectScript(options);
+    const { inject: injectScriptList, content: contentScriptList } = await this.getContentAndInjectScript(options);
 
-    const list: chrome.userScripts.RegisteredUserScript[] = [...particularScriptList, ...injectScripList];
+    const list: chrome.userScripts.RegisteredUserScript[] = [...particularScriptList, ...injectScriptList];
 
     runtimeGlobal.registered = true;
     try {
@@ -940,10 +940,12 @@ export class RuntimeService {
         }
       }
     }
-    try {
-      await chrome.scripting.registerContentScripts(contentScriptList);
-    } catch (e: any) {
-      this.logger.error("register content.js error", Logger.E(e));
+    if (contentScriptList.length > 0) {
+      try {
+        await chrome.scripting.registerContentScripts(contentScriptList);
+      } catch (e: any) {
+        this.logger.error("register content.js error", Logger.E(e));
+      }
     }
   }
 
