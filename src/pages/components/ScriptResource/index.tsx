@@ -143,8 +143,8 @@ const ScriptResource: React.FC<{
       onOk={onOk}
       onCancel={onCancel}
     >
-      <Space className="w-full" direction="vertical">
-        <Space className="!flex justify-end">
+      <Space className="tw-w-full" direction="vertical">
+        <Space className="!tw-flex tw-justify-end">
           <Popconfirm
             focusLock
             title={t("confirm_clear_resource")}

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
@@ -202,6 +202,12 @@ export function useSystemConfig<T extends SystemConfigKey>(key: T) {
       setValue(v);
     }
   }).current;
+  // 监听变更
+  useEffect(() => {
+    return systemConfig.addListener(key, (val) => {
+      setValue(val);
+    });
+  }, [key]);
   return [value as SystemConfigValueType<T>, setValue, submitValue] as const;
 }
 

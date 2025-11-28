@@ -415,6 +415,11 @@ export function cleanFileName(name: string): string {
   return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
 }
 
+export const sourceMapTo = (scriptName: string) => {
+  const url = chrome.runtime.getURL(`/${encodeURI(scriptName)}`);
+  return `\n//# sourceURL=${url}`;
+};
+
 export const stringMatching = (main: string, sub: string): boolean => {
   // If no wildcards, use simple includes check
   if (!sub.includes("*") && !sub.includes("?")) {
@@ -441,4 +446,55 @@ export const stringMatching = (main: string, sub: string): boolean => {
     // Handle invalid regex patterns
     return false;
   }
+};
+
+/**
+ * 将字节数转换为人类可读的格式（B, KB, MB, GB 等）。
+ * @param bytes - 要转换的字节数（number）。
+ * @param decimals - 小数位数，默认为 2。
+ * @returns 格式化的字符串，例如 "1.23 MB"。
+ */
+export const formatBytes = (bytes: number, decimals: number = 2): string => {
+  if (bytes === 0) return "0 B";
+
+  const k = 1024;
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const value = bytes / Math.pow(k, i);
+
+  return `${value.toFixed(decimals)} ${units[i]}`;
+};
+
+// 把编码URL变成使用者可以阅读的格式
+export const prettyUrl = (s: string | undefined | null, baseUrl?: string) => {
+  if (s?.includes("://")) {
+    let u;
+    try {
+      u = baseUrl ? new URL(s, baseUrl) : new URL(s);
+    } catch {
+      // ignored
+    }
+    if (!u) return s;
+    const pathname = u.pathname;
+    if (pathname && pathname.includes("%")) {
+      try {
+        const raw = decodeURI(pathname);
+        if (
+          raw &&
+          raw.length < pathname.length &&
+          !raw.includes("?") &&
+          !raw.includes("#") &&
+          !raw.includes("&") &&
+          !raw.includes("=") &&
+          !raw.includes("%") &&
+          !raw.includes(":")
+        ) {
+          s = s.replace(pathname, raw);
+        }
+      } catch {
+        // ignored
+      }
+    }
+  }
+  return s;
 };

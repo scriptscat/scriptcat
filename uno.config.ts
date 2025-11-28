@@ -1,8 +1,13 @@
-import { defineConfig, presetUno } from "unocss";
+import { defineConfig, presetWind3 } from "unocss";
 
 export default defineConfig({
   content: {
     filesystem: ["./src/**/*.{html,js,ts,jsx,tsx}"],
   },
-  presets: [presetUno({ dark: "class" })],
+  presets: [
+    presetWind3({
+      dark: "class",
+      prefix: "tw-",
+    }),
+  ],
 });
