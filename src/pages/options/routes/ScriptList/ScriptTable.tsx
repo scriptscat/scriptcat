@@ -139,7 +139,7 @@ const FilterDropdown = React.memo(
       confirm(filterKeys);
     };
     return (
-      <div className="arco-table-custom-filter flex flex-row gap-2">
+      <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
         <Input.Search
           ref={inputRef}
           size="small"
@@ -551,7 +551,7 @@ export const ScriptTable = ({
               setTimeout(() => inputRef.current!.focus(), 1);
             }
           },
-          className: "max-w-[240px] min-w-[100px]",
+          className: "tw-max-w-[240px] tw-min-w-[100px]",
           render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
         },
         {
@@ -597,7 +597,7 @@ export const ScriptTable = ({
         },
         {
           title: (
-            <div className="flex flex-row justify-between items-center">
+            <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
               <span>{t("action")}</span>
               <Space size={4}>
                 <Tooltip content={sidebarOpen ? t("open_sidebar") : t("close_sidebar")}>
@@ -785,7 +785,7 @@ export const ScriptTable = ({
       {showAction && (
         <Card>
           <div
-            className="flex flex-row justify-between items-center"
+            className="tw-flex tw-flex-row tw-justify-between tw-items-center"
             style={{
               padding: "8px 6px",
             }}

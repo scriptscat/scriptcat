@@ -32,6 +32,11 @@ export function changeLanguage(lng: string, callback?: Callback): void {
   dayjs.locale(lng.toLocaleLowerCase());
 }
 
+let initLocalesResolve: (value: string) => void;
+export const initLocalesPromise = new Promise<string>((resolve) => {
+  initLocalesResolve = resolve;
+});
+
 export function initLocales(systemConfig: SystemConfig) {
   const uiLanguage = chrome.i18n.getUILanguage();
   const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
@@ -58,20 +63,39 @@ export function initLocales(systemConfig: SystemConfig) {
     localePath = "/en";
   }
 
-  systemConfig.getLanguage().then((lng) => {
-    changeLanguage(lng);
-    if (!lng.startsWith("zh-")) {
-      localePath = "/en";
-    }
-  });
-  systemConfig.addListener("language", (lng) => {
-    changeLanguage(lng);
+  const changeLanguageCallback = (lng: string) => {
     if (!lng.startsWith("zh-")) {
       localePath = "/en";
     } else {
       localePath = "";
     }
+    changeLanguage(lng);
+  };
+
+  systemConfig.getLanguage().then((lng) => {
+    initLocalesResolve(lng);
+    changeLanguageCallback(lng);
   });
+
+  systemConfig.addListener("language", changeLanguageCallback);
+}
+
+export function watchLanguageChange(callback: (lng: string) => void) {
+  // 马上执行一次
+  let registered = false;
+  initLocalesPromise.then(() => {
+    callback(i18n.language);
+
+    // 监听变化
+    i18n.on("languageChanged", callback);
+    registered = true;
+  });
+
+  return () => {
+    if (registered) {
+      i18n.off("languageChanged", callback);
+    }
+  };
 }
 
 export function i18nName(script: { name: string; metadata: SCMetadata }) {

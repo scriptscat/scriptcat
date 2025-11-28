@@ -42,6 +42,7 @@ import {
 } from "./gm_xhr";
 import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
+import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -1157,10 +1158,14 @@ export default class GMApi {
     if (!msgConn) {
       throw new Error("GM_download ERROR: msgConn is undefined");
     }
+    const params = request.params[0];
+    // 如果downloadMode为native则走GM_xmlhttpRequest
+    if (params.downloadMode === "native") {
+      return this.GM_xmlhttpRequest(request satisfies GMApiRequest<[GMSend.XHRDetails?]>, sender);
+    }
     let reqCompleteWith = "";
     let cDownloadId = 0;
     let isConnDisconnected = false;
-    const params = request.params[0];
     // 替换掉windows下文件名的非法字符为 -
     const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
@@ -1259,10 +1264,15 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_setClipboard(request: GMApiRequest<[string, GMTypes.GMClipboardInfo?]>, _sender: IGetSender) {
-    const [data, type] = request.params;
-    const clipboardType = type || "text/plain";
-    await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
+  async GM_setClipboard(request: GMApiRequest<[string, string]>, _sender: IGetSender) {
+    const [data, mimetype] = request.params;
+    if (typeof document === "object" && document?.documentElement) {
+      // FF background script
+      mightPrepareSetClipboard();
+      setClipboard(data, mimetype);
+    } else {
+      await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, mimetype });
+    }
   }
 
   @PermissionVerify.API()

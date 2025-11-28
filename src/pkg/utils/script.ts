@@ -16,45 +16,32 @@ import { nextTime } from "./cron";
 import { parseUserConfig } from "./yaml";
 import { t as i18n_t } from "@App/locales/locales";
 
+const HEADER_BLOCK = /\/\/[ \t]*==User(Script|Subscribe)==([\s\S]+?)\/\/[ \t]*==\/User\1==/m;
+const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/gm;
+
 // 从脚本代码抽出Metadata
 export function parseMetadata(code: string): SCMetadata | null {
-  let issub = false;
-  let regex = /\/\/\s*==UserScript==([\s\S]+?)\/\/\s*==\/UserScript==/m;
-  let header = regex.exec(code);
-  if (!header) {
-    regex = /\/\/\s*==UserSubscribe==([\s\S]+?)\/\/\s*==\/UserSubscribe==/m;
-    header = regex.exec(code);
-    if (!header) {
-      return null;
-    }
-    issub = true;
+  let isSubscribe = false;
+  let headerContent: string;
+  let m: RegExpExecArray | null;
+  if ((m = HEADER_BLOCK.exec(code))) {
+    isSubscribe = m[1] === "Subscribe";
+    headerContent = m[2];
+  } else {
+    return null;
   }
-  regex = /\/\/\s*@(\S+)((.+?)$|$)/gm;
-  const ret = {} as SCMetadata;
-  let meta: RegExpExecArray | null = regex.exec(header[1]);
-  while (meta !== null) {
-    const [key, val] = [meta[1].toLowerCase().trim(), meta[2].trim()];
-    let values = ret[key];
-    if (!values) {
-      values = [];
-    }
+  const metadata: SCMetadata = {} as SCMetadata;
+  META_LINE.lastIndex = 0; // 重置正则表达式的lastIndex（用于复用）
+  while ((m = META_LINE.exec(headerContent)) !== null) {
+    const key = m[1].toLowerCase();
+    const val = m[2]?.trim() ?? "";
+    const values = metadata[key] || (metadata[key] = []);
     values.push(val);
-    ret[key] = values;
-    meta = regex.exec(header[1]);
   }
-  if (ret.name === undefined) {
-    return null;
-  }
-  if (Object.keys(ret).length < 3) {
-    return null;
-  }
-  if (!ret.namespace) {
-    ret.namespace = [""];
-  }
-  if (issub) {
-    ret.usersubscribe = [];
-  }
-  return ret;
+  if (!metadata.name || Object.keys(metadata).length < 3) return null;
+  if (!metadata.namespace) metadata.namespace = [""];
+  if (isSubscribe) metadata.usersubscribe = [];
+  return metadata;
 }
 
 // 从网址取得脚本代码
@@ -92,12 +79,15 @@ export async function prepareScriptByCode(
   if (!metadata) {
     throw new Error(i18n_t("error_metadata_invalid"));
   }
-  if (metadata.name === undefined) {
+  // 不接受空白name
+  if (!metadata.name?.[0]) {
     throw new Error(i18n_t("error_script_name_required"));
   }
-  if (metadata.version === undefined) {
+  // 不接受空白version
+  if (!metadata.version?.[0]) {
     throw new Error(i18n_t("error_script_version_required"));
   }
+  // 可接受空白namespace
   if (metadata.namespace === undefined) {
     throw new Error(i18n_t("error_script_namespace_required"));
   }
