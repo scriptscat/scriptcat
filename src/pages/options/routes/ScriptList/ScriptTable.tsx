@@ -59,12 +59,6 @@ import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
-import type {
-  SearchFilterKeyEntry,
-  SearchFilterRequest,
-  SearchFilterResponse,
-  SearchFilterKeysSetter,
-} from "./SearchFilter";
 import { SearchFilter } from "./SearchFilter";
 
 type ListType = ScriptLoading;
@@ -454,25 +448,6 @@ export const ScriptTable = ({
   const navigate = useNavigate();
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
-  class ScriptTableSearchFilter extends SearchFilter {
-    filterKeys?: SearchFilterKeyEntry[] = undefined;
-    setFilterKeys?: SearchFilterKeysSetter = undefined;
-    defaultValue = { type: "auto", keyword: "" };
-    onResponse(req: SearchFilterRequest, _res: SearchFilterResponse) {
-      const newFilterKeys = [...(this.filterKeys || [])];
-      newFilterKeys[0] = { type: req.type, keyword: req.keyword };
-      this.setFilterKeys?.(newFilterKeys);
-    }
-    onFilter(value: SearchFilterKeyEntry, row: any): boolean {
-      if (!value || !value.keyword) {
-        return true;
-      }
-      return this.checkByUUID(row.uuid);
-    }
-  }
-
-  const searchFilter = new ScriptTableSearchFilter();
-
   const columns: ColumnProps[] = useMemo(
     () =>
       [
@@ -513,17 +488,15 @@ export const ScriptTable = ({
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
           filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
-            // 重绘时更新React参考
-            searchFilter.filterKeys = filterKeys;
-            searchFilter.setFilterKeys = setFilterKeys;
             return (
               <div className="arco-table-custom-filter flex flex-row gap-2">
                 <ScriptSearchField
                   t={t}
                   autoFocus
-                  defaultValue={filterKeys?.[0] || searchFilter.defaultValue}
+                  defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
                   onChange={(req) => {
-                    searchFilter.requestFilterResult(req);
+                    setFilterKeys([{ type: req.type, keyword: req.keyword }]);
+                    SearchFilter.requestFilterResult(req);
                   }}
                   onSearch={(req) => {
                     if (req.bySelect) return;
@@ -533,7 +506,12 @@ export const ScriptTable = ({
               </div>
             );
           },
-          onFilter: (value, row) => searchFilter.onFilter(value, row),
+          onFilter: (value, row) => {
+            if (!value || !value.keyword) {
+              return true;
+            }
+            return SearchFilter.checkByUUID(row.uuid);
+          },
           className: "max-w-[240px] min-w-[100px]",
           render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
         },

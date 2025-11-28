@@ -13,6 +13,8 @@ type ResourceListItem = {
   key: string;
 } & Resource;
 
+const resourceClient = new ResourceClient(message);
+
 const ScriptResource: React.FC<{
   script?: Script;
   visible: boolean;
@@ -21,7 +23,6 @@ const ScriptResource: React.FC<{
 }> = ({ script, visible, onCancel, onOk }) => {
   const [data, setData] = useState<ResourceListItem[]>([]);
   const { t } = useTranslation();
-  const resourceClient = new ResourceClient(message);
 
   useEffect(() => {
     if (!script) {

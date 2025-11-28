@@ -219,7 +219,7 @@ export const ScriptSearchField = ({ t, defaultValue, onChange, onSearch, autoFoc
         placeholder={
           t("enter_search_value", {
             search:
-              type == "auto" ? `${t("name")}/${t("script_code")}` : type === "name" ? t("name") : t("script_code"),
+              type === "auto" ? `${t("name")}/${t("script_code")}` : type === "name" ? t("name") : t("script_code"),
           })!
         }
         onChange={(value) => {

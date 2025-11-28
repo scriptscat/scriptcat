@@ -1,48 +1,39 @@
-import type { ScriptCode } from "@App/app/repo/scripts";
 import type { SearchType } from "@App/app/service/service_worker/types";
 import { requestFilterResult } from "@App/pages/store/features/script";
 
 export type SearchFilterKeyEntry = { type: SearchType; keyword: string };
 export type SearchFilterRequest = { type: SearchType; keyword: string; bySelect?: boolean }; // 两个Type日后可能会不同。先分开写。
-export type SearchFilterResponse = ScriptCode | undefined;
-export type SearchFilterKeysSetter = (filterKeys: SearchFilterKeyEntry[], callback?: (...args: any[]) => any) => void;
 
-// 静态变数不随重绘重置
+// 静态变量不随重绘重置
 let lastReqType: SearchType | undefined = undefined;
 let lastKeyword: string = "";
-let lastResponse: ScriptCode | undefined = undefined;
 type SearchFilterCacheEntry = { code: boolean; name: boolean; auto: boolean };
 const searchFilterCache: Map<string, SearchFilterCacheEntry> = new Map();
 
 export class SearchFilter {
-  constructor() {}
-  requestFilterResult(req: SearchFilterRequest): void {
+  static async requestFilterResult(req: SearchFilterRequest) {
     if (req.keyword === lastKeyword) {
       lastReqType = req.type;
-      this.onResponse(req, lastResponse);
+      return Promise.resolve(this);
     } else {
-      requestFilterResult({ value: req.keyword }).then((res) => {
-        lastReqType = req.type;
-        lastKeyword = req.keyword;
-        lastResponse = res;
-        searchFilterCache.clear();
-        if (res && Array.isArray(res)) {
-          for (const entry of res) {
-            searchFilterCache.set(entry.uuid, {
-              code: entry.code,
-              name: entry.name,
-              auto: entry.auto,
-            });
-          }
+      const res = await requestFilterResult({ value: req.keyword });
+      lastReqType = req.type;
+      lastKeyword = req.keyword;
+      searchFilterCache.clear();
+      if (res && Array.isArray(res)) {
+        for (const entry of res) {
+          searchFilterCache.set(entry.uuid, {
+            code: entry.code,
+            name: entry.name,
+            auto: entry.auto,
+          });
         }
-        this.onResponse(req, res);
-      });
+      }
+      return this;
     }
   }
-  onResponse(_req: SearchFilterRequest, _res: SearchFilterResponse): void {
-    // placeholder
-  }
-  checkByUUID(uuid: string): boolean {
+
+  static checkByUUID(uuid: string): boolean {
     const result = searchFilterCache.get(uuid);
     if (!result) return false;
     switch (lastReqType) {

@@ -47,7 +47,7 @@ import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { Message } from "@arco-design/web-react";
 import type { SearchType } from "@App/app/service/service_worker/types";
-import { SearchFilter, type SearchFilterRequest, type SearchFilterResponse } from "./SearchFilter";
+import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
 
 export function useScriptList() {
   const { t } = useTranslation();
@@ -330,10 +330,6 @@ export function useScriptSearch() {
     keyword: "",
     type: "auto",
   });
-  const [lastFilterQuery, setLastFilterQuery] = useState<{
-    request?: SearchFilterRequest;
-    response?: SearchFilterResponse;
-  }>();
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
 
   // 计算数据量
@@ -550,36 +546,26 @@ export function useScriptSearch() {
     return filterFuncs;
   }, [originMap, selectedFilters, tagMap]);
 
-  class HooksSearchFilter extends SearchFilter {
-    onResponse(req: SearchFilterRequest, res: SearchFilterResponse) {
-      setLastFilterQuery({ request: req, response: res });
-    }
-  }
-  const searchFilter = new HooksSearchFilter();
-
-  useEffect(() => {
-    // 当控制项改变了 searchRequest 时执行
-    if (searchRequest.keyword === "") {
-      setLastFilterQuery(undefined);
-    } else {
-      searchFilter.requestFilterResult(searchRequest);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchRequest, scriptList]); // scriptList 有改动时也重新查一下最新的结果吧
-
   useEffect(() => {
     // 当 filterFuncs 改变时进行 / Filter结果取得时进行
     // 按 filterFuncs 过滤一次
     let filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    if (lastFilterQuery) {
+    if (searchRequest.keyword !== "") {
       // 再基于关键词过滤一次
-      filterList = filterList.filter((item) => {
-        return searchFilter.checkByUUID(item.uuid);
+      let setLoading = true;
+      SearchFilter.requestFilterResult(searchRequest).then(() => {
+        if (setLoading === false) return;
+        filterList = filterList.filter((item) => {
+          return SearchFilter.checkByUUID(item.uuid);
+        });
+        setFilterScriptList(filterList);
       });
+      return () => {
+        setLoading = false;
+      };
     }
     setFilterScriptList(filterList);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scriptList, filterFuncs, lastFilterQuery]); // searchFilter 参考固定不变
+  }, [scriptList, filterFuncs, searchRequest]); // searchFilter 参考固定不变
 
   // 覆盖scriptListManager的排序方法
   // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱
