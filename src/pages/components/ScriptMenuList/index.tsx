@@ -346,7 +346,7 @@ const ScriptMenuList = React.memo(
     currentUrl: string;
     menuExpandNum: number;
   }) => {
-    // metadataRecord 为 undefined 时先等待 Promise 完成，避免绘图两次
+    // extraData 为 undefined 时先等待异步加载完成，避免重复渲染
     const [extraData, setExtraData] = useState<
       | {
           uuids: string;
