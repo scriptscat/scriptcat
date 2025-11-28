@@ -11,7 +11,8 @@ export type SearchFilterKeysSetter = (filterKeys: SearchFilterKeyEntry[], callba
 let lastReqType: SearchType | undefined = undefined;
 let lastKeyword: string = "";
 let lastResponse: ScriptCode | undefined = undefined;
-const searchFilterCache: Map<string, any> = new Map();
+type SearchFilterCacheEntry = { code: boolean; name: boolean; auto: boolean };
+const searchFilterCache: Map<string, SearchFilterCacheEntry> = new Map();
 
 export class SearchFilter {
   constructor() {}
