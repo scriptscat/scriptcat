@@ -54,6 +54,7 @@
     "@eslint/js": "9.38.0",
     "@rspack/cli": "^1.5.8",
     "@rspack/core": "^1.5.8",
+    "@swc/helpers": "^0.5.17",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/chrome": "^0.1.27",
@@ -89,5 +90,10 @@
     "unocss": "66.5.4",
     "vitest": "^3.2.4"
   },
-  "packageManager": "pnpm@10.12.4"
+  "packageManager": "pnpm@10.12.4",
+  "sideEffects": [
+    "**/*.css",
+    "**/*.scss",
+    "**/*.less"
+  ]
 }
