@@ -444,7 +444,7 @@ const ScriptMenuList = React.memo(
           const nameKey = `name:${lang}`;
           for (const entry of res) {
             if (entry) {
-              const m = entry?.metadata;
+              const m = entry.metadata;
               const [icon] = m.icon || m.iconurl || m.icon64 || m.icon64url || [];
               // metadataRecord 的储存量不影响 storage.session 但影响页面的记忆体
               // 按需要可以增加其他 metadata, 例如 @match @include @exclude
