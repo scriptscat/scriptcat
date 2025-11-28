@@ -107,6 +107,8 @@ console.log('Hello World');
 
     const result = parseMetadata(code);
     expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
     expect(result?.description).toEqual([""]);
     expect(result?.author).toEqual([""]);
   });
@@ -133,6 +135,8 @@ console.log('Hello World');
 
     const result = parseMetadata(code);
     expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
     expect(result?.match).toEqual([
       "https://example.org/*",
       "https://test.com/*",
@@ -171,6 +175,8 @@ console.log('Hello World');
 
     const result = parseMetadata(code);
     expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
     expect(result?.match).toEqual([
       "https://example.org/*",
       "https://test.com/*",
@@ -215,6 +221,8 @@ console.log('Hello World');
 
     const result = parseMetadata(code);
     expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
     expect(result?.match).toEqual([
       "https://example.org/*",
       "https://test.com/*",
@@ -259,6 +267,8 @@ console.log('Hello World');
 
     const result = parseMetadata(code);
     expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
     expect(result?.match).toEqual([
       "https://example.org/*",
       "https://test.com/*",
@@ -267,6 +277,231 @@ console.log('Hello World');
     ]);
     expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
     expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("正確解析元数据(換行空白1)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// @match        https://test.com/*
+// @match        https://demo.com/*
+// @version      1.0.0
+// @description  
+// @early-start  
+// @author       
+// @match        https://example.com/*
+// @grant    
+    GM_setValue
+// @grant        GM_getValue
+// ==/UserScript==
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.["early-start"]).toEqual([""]);
+    expect(result?.grant).toEqual(["", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("正確解析元数据(換行空白2)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// @match        https://test.com/*
+//
+@match        https://demo.com/*
+// @version      1.0.0
+// @description  
+// @early-start
+// @author       
+// @match        https://example.com/*
+// @grant        GM_setValue
+// @grant        GM_getValue
+// ==/UserScript==
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.match).toEqual(["https://example.org/*", "https://test.com/*", "https://example.com/*"]);
+    expect(result?.["early-start"]).toEqual([""]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("正確解析元数据(換行空白3)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// match        https://test.com/*
+// match        https://demo.com/*
+// @version      1.0.0
+// @description  
+//
+@early-start       
+// @author
+// @match        https://example.com/*
+// @grant        GM_setValue
+// @grant        GM_getValue
+// ==/UserScript==
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.match).toEqual(["https://example.org/*", "https://example.com/*"]);
+    expect(result?.["early-start"]).toEqual(undefined);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("忽略非元数据的注釋", () => {
+    const code = `
+/*
+Copyright <YEAR> <COPYRIGHT HOLDER>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+// The above is The MIT License.
+// ==UserScript==
+// Ignore me please
+// @name         测试脚本
+//      I am a comment
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// match        https://test.com/*
+// match        https://demo.com/*
+// @version      1.0.0
+// -------------------------------------------------
+// @description  This is Description
+// -------------------------------------------------
+// 不要使用 @early-start
+// @author
+// @match        https://example.com/*
+//
+// @grant        GM_setValue
+// @grant        GM_getValue
+// 
+// This is just a comment.
+// ==/UserScript==
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.match).toEqual(["https://example.org/*", "https://example.com/*"]);
+    expect(result?.["early-start"]).toEqual(undefined);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual(["This is Description"]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("兼容TM: 可不包含空白開首(1)", () => {
+    const code = `
+//==UserScript==
+//@name         测试脚本
+//@namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// @match        https://test.com/*
+// @match        https://demo.com/*
+// @version      1.0.0
+// -------------------------------------------------
+// @description  This is Description
+// -------------------------------------------------
+// 不要使用 @early-start
+// @author
+// @match        https://example.com/*
+//
+// @grant        GM_setValue
+// @grant        GM_getValue
+// 
+// This is just a comment.
+// ==/UserScript==
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.["early-start"]).toEqual(undefined);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual(["This is Description"]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("兼容TM: 可不包含空白開首(2)", () => {
+    const code = `
+//  ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// @match        https://test.com/*
+// @match        https://demo.com/*
+// @version      1.0.0
+// -------------------------------------------------
+// @description  This is Description
+// -------------------------------------------------
+// 不要使用 @early-start
+// @author
+// @match        https://example.com/*
+//
+//@grant        GM_setValue
+//   @grant        GM_getValue
+// 
+//This is just a comment.
+//==/UserScript==
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.["early-start"]).toEqual(undefined);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual(["This is Description"]);
     expect(result?.author).toEqual([""]);
   });
 

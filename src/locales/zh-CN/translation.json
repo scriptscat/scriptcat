@@ -281,7 +281,8 @@
   "script_requires": "脚本引用了下列外部资源",
   "cookie_warning": "请注意，本脚本会申请 Cookie 的操作权限，这是一个危险的权限，请确认脚本的安全性。",
   "scheduled_script_description_title": "这是一个定时脚本，启用后将在特定时间自动运行，并可在面板中手动控制。",
-  "scheduled_script_description_description": "定时任务表达式：{{expression}}，最近一次运行时间：{{time}}",
+  "scheduled_script_description_description_expr": "定时任务表达式：",
+  "scheduled_script_description_description_next": "最近一次运行时间：",
   "background_script_description": "这是一个后台脚本，启用后将在浏览器打开时自动运行一次，并可在面板中手动控制。",
   "install_success": "安装成功",
   "install": {
@@ -321,6 +322,9 @@
     "status_autoclose": "$0 秒后自动关闭",
     "header_other_update": "其他可用更新"
   },
+  "downloading_status_text": "正在下载。已接收 {{bytes}}。",
+  "install_page_loading": "安装页面加载中",
+  "invalid_page": "无效页面",
   "background_script_tag": "这是一个后台脚本",
   "scheduled_script_tag": "这是一个定时脚本",
   "background_script": "后台脚本",

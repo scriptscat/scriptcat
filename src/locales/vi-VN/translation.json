@@ -281,7 +281,8 @@
   "script_requires": "Script yêu cầu các tài nguyên bên ngoài sau",
   "cookie_warning": "Xin lưu ý, script này yêu cầu quyền truy cập cookie, đây là một quyền nguy hiểm. Vui lòng xác minh tính bảo mật của script.",
   "scheduled_script_description_title": "Đây là script hẹn giờ, sẽ tự động chạy vào một thời điểm cụ thể sau khi được bật và có thể được điều khiển thủ công trong bảng điều khiển.",
-  "scheduled_script_description_description": "Biểu thức tác vụ hẹn giờ: {{expression}}, thời gian chạy gần nhất: {{time}}",
+  "scheduled_script_description_description_expr": "Biểu thức tác vụ hẹn giờ:",
+  "scheduled_script_description_description_next": "Thời gian chạy gần nhất:",
   "background_script_description": "Đây là script nền, sẽ tự động chạy một lần khi trình duyệt mở sau khi được bật và có thể được điều khiển thủ công trong bảng điều khiển.",
   "install_success": "Cài đặt thành công",
   "install": {
@@ -321,6 +322,9 @@
     "status_autoclose": "Tự đóng trong $0 giây",
     "header_other_update": "Các bản cập nhật khác"
   },
+  "downloading_status_text": "Đang tải xuống. Đã nhận {{bytes}}.",
+  "install_page_loading": "Đang tải trang cài đặt",
+  "invalid_page": "Trang không hợp lệ",
   "background_script_tag": "Đây là một script nền",
   "scheduled_script_tag": "Đây là một script hẹn giờ",
   "background_script": "Script nền",

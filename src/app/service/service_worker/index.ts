@@ -13,7 +13,7 @@ import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
-import { initLocales, localePath, t } from "@App/locales/locales";
+import { initLocales, initLocalesPromise, localePath, t, watchLanguageChange } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
@@ -178,13 +178,9 @@ export default class ServiceWorkerManager {
       }
     });
 
-    // 监听配置变化
-    systemConfig.addListener("cloud_sync", (value) => {
+    // 云同步
+    systemConfig.watch("cloud_sync", (value) => {
       synchronize.cloudSyncConfigChange(value);
-    });
-    // 启动一次云同步
-    systemConfig.getCloudSync().then((config) => {
-      synchronize.cloudSyncConfigChange(config);
     });
 
     if (process.env.NODE_ENV === "production") {
@@ -194,41 +190,45 @@ export default class ServiceWorkerManager {
           console.error("chrome.runtime.lastError in chrome.runtime.onInstalled:", lastError);
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
-        if (details.reason === "install") {
-          chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
-        } else if (details.reason === "update") {
-          const url = `${DocumentationSite}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
-          getCurrentTab()
-            .then((tab) => {
-              // 检查是否正在播放视频，或者窗口未激活
-              const openInBackground = !tab || tab.audible === true || !tab.active;
-              // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
-              return chrome.tabs.create({
-                url,
-                active: !openInBackground,
-                index: !tab ? undefined : tab.index + 1,
-                windowId: !tab ? undefined : tab.windowId,
+        initLocalesPromise.then(() => {
+          if (details.reason === "install") {
+            chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
+          } else if (details.reason === "update") {
+            const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
+            getCurrentTab()
+              .then((tab) => {
+                // 检查是否正在播放视频，或者窗口未激活
+                const openInBackground = !tab || tab.audible === true || !tab.active;
+                // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
+                return chrome.tabs.create({
+                  url,
+                  active: !openInBackground,
+                  index: !tab ? undefined : tab.index + 1,
+                  windowId: !tab ? undefined : tab.windowId,
+                });
+              })
+              .then((_createdTab) => {
+                // 当新 Tab 成功建立时才执行
+                InfoNotification(
+                  t("ext_update_notification"),
+                  t("ext_update_notification_desc", { version: ExtVersion })
+                );
+              })
+              .catch((e) => {
+                console.error(e);
               });
-            })
-            .then((_createdTab) => {
-              // 当新 Tab 成功建立时才执行
-              InfoNotification(
-                t("ext_update_notification"),
-                t("ext_update_notification_desc", { version: ExtVersion })
-              );
-            })
-            .catch((e) => {
-              console.error(e);
-            });
-        }
+          }
+        });
       });
 
       // 监听扩展卸载事件
-      chrome.runtime.setUninstallURL(`${DocumentationSite}${localePath}/uninstall`, () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.runtime.setUninstallURL:", lastError);
-        }
+      watchLanguageChange(() => {
+        chrome.runtime.setUninstallURL(`${DocumentationSite}${localePath}/uninstall`, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.runtime.setUninstallURL:", lastError);
+          }
+        });
       });
     }
 

@@ -2,6 +2,7 @@ import type { SCMetadata, ScriptRunResource, TScriptInfo } from "@App/app/repo/s
 import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import { DefinedFlags } from "../service_worker/runtime.consts";
+import { sourceMapTo } from "@App/pkg/utils/utils";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -41,16 +42,16 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
 }
 
 export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
-  const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(resource.name)}.user.js`)}`;
-  const preCode = resource.require.map((r) => r.content).join("\n;");
-  const code = [resource.code, sourceURL].join("\n"); // 需要 async 封装, 可top-level await
+  const requireCode = resource.require.map((r) => r.content).join("\n;");
+  const preCode = requireCode; // 不需要 async 封装
+  const code = resource.code; // 需要 async 封装, 可top-level await
   // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
   // this = context: globalThis
   // arguments = [named: Object, scriptName: string]
   // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用于全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
   // 在UserScripts API中，由于执行不是在物件导向里呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
-  return `try {
+  const codeBody = `try {
   with(arguments[0]||this.$){
 ${preCode}
     return (async function(){
@@ -65,6 +66,7 @@ ${code}
       console.error(e);
   }
 }`;
+  return `${codeBody}${sourceMapTo(`${resource.name}.user.js`)}\n`;
 }
 
 // 通过脚本代码编译脚本函数
@@ -163,6 +165,16 @@ export function addStyle(css: string): HTMLStyleElement {
     return document.head.appendChild(dom);
   }
   return document.documentElement.appendChild(dom);
+}
+
+export function addStyleSheet(css: string): CSSStyleSheet {
+  // see https://unarist.hatenablog.com/entry/2020/07/06/012540
+  const sheet = new CSSStyleSheet();
+  // it might return as Promise
+  sheet.replaceSync(css);
+  // adoptedStyleSheets is FrozenArray so it has to be re-assigned.
+  document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
+  return sheet;
 }
 
 export function metadataBlankOrTrue(metadata: SCMetadata, key: string): boolean {
