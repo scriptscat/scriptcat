@@ -1278,7 +1278,19 @@ export default class GMApi extends GM_Base {
   @GMContext.API({})
   GM_setClipboard(data: string, info?: GMTypes.GMClipboardInfo, cb?: () => void) {
     if (this.isInvalidContext()) return;
-    this.sendMessage("GM_setClipboard", [data, info])
+    // 物件参数意义不明。日后再检视特殊处理
+    // 未支持 TM4.19+ application/octet-stream
+    // 参考： https://github.com/Tampermonkey/tampermonkey/issues/1250
+    let mimetype: string | undefined;
+    if (typeof info === "object" && info?.mimetype) {
+      mimetype = info.mimetype;
+    } else {
+      mimetype = (typeof info === "string" ? info : info?.type) || "text/plain";
+      if (mimetype === "text") mimetype = "text/plain";
+      else if (mimetype === "html") mimetype = "text/html";
+    }
+    data = `${data}`; // 强制 string type
+    this.sendMessage("GM_setClipboard", [data, mimetype])
       .then(() => {
         if (typeof cb === "function") {
           cb();
@@ -1294,7 +1306,11 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ depend: ["GM_setClipboard"] })
   ["GM.setClipboard"](data: string, info?: string | { type?: string; mimetype?: string }): Promise<void> {
     if (this.isInvalidContext()) return new Promise<void>(() => {});
-    return this.sendMessage("GM_setClipboard", [data, info]);
+    return new Promise<void>((resolve) => {
+      this.GM_setClipboard(data, info, () => {
+        resolve();
+      });
+    });
   }
 
   @GMContext.API()

@@ -42,6 +42,7 @@ import {
 } from "./gm_xhr";
 import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
+import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -1246,10 +1247,15 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_setClipboard(request: GMApiRequest<[string, GMTypes.GMClipboardInfo?]>, _sender: IGetSender) {
-    const [data, type] = request.params;
-    const clipboardType = type || "text/plain";
-    await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
+  async GM_setClipboard(request: GMApiRequest<[string, string]>, _sender: IGetSender) {
+    const [data, mimetype] = request.params;
+    if (typeof document === "object" && document?.documentElement) {
+      // FF background script
+      mightPrepareSetClipboard();
+      setClipboard(data, mimetype);
+    } else {
+      await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, mimetype });
+    }
   }
 
   @PermissionVerify.API()

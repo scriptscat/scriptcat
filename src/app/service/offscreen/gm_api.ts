@@ -1,5 +1,6 @@
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import type { IGetSender, Group } from "@Packages/message/server";
+import { mightPrepareSetClipboard, setClipboard } from "../service_worker/clipboard";
 
 export default class GMApi {
   constructor(private group: Group) {}
@@ -11,32 +12,12 @@ export default class GMApi {
     bgGmXhr.do();
   }
 
-  textarea: HTMLTextAreaElement = document.createElement("textarea");
-
-  clipboardData: { type?: string; data: string } | undefined;
-
-  async setClipboard({ data, type }: { data: string; type: string }) {
-    this.clipboardData = {
-      type,
-      data,
-    };
-    this.textarea.focus();
-    document.execCommand("copy", false, <any>null);
+  async setClipboard({ data, mimetype }: { data: string; mimetype: string }) {
+    setClipboard(data, mimetype);
   }
 
   init() {
-    this.textarea.style.display = "none";
-    document.documentElement.appendChild(this.textarea);
-    document.addEventListener("copy", (e: ClipboardEvent) => {
-      if (!this.clipboardData || !e.clipboardData) {
-        return;
-      }
-      e.preventDefault();
-      const { type, data } = this.clipboardData;
-      e.clipboardData.setData(type || "text/plain", data);
-      this.clipboardData = undefined;
-    });
-
+    mightPrepareSetClipboard();
     this.group.on("xmlHttpRequest", this.xmlHttpRequest.bind(this));
     this.group.on("setClipboard", this.setClipboard.bind(this));
   }
