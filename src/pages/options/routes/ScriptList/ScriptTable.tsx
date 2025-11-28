@@ -495,8 +495,9 @@ export const ScriptTable = ({
                   autoFocus
                   defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
                   onChange={(req) => {
-                    setFilterKeys([{ type: req.type, keyword: req.keyword }]);
-                    SearchFilter.requestFilterResult(req);
+                    SearchFilter.requestFilterResult(req).then(() => {
+                      setFilterKeys([{ type: req.type, keyword: req.keyword }]);
+                    });
                   }}
                   onSearch={(req) => {
                     if (req.bySelect) return;

@@ -12,14 +12,14 @@ const searchFilterCache: Map<string, SearchFilterCacheEntry> = new Map();
 
 export class SearchFilter {
   static async requestFilterResult(req: SearchFilterRequest) {
-    if (req.keyword === lastKeyword) {
-      lastReqType = req.type;
-      return Promise.resolve(this);
-    } else {
-      const res = await requestFilterResult({ value: req.keyword });
-      lastReqType = req.type;
+    lastReqType = req.type;
+    if (req.keyword !== lastKeyword) {
       lastKeyword = req.keyword;
       searchFilterCache.clear();
+      if (req.keyword === "") {
+        return;
+      }
+      const res = await requestFilterResult({ value: req.keyword });
       if (res && Array.isArray(res)) {
         for (const entry of res) {
           searchFilterCache.set(entry.uuid, {
@@ -29,7 +29,6 @@ export class SearchFilter {
           });
         }
       }
-      return this;
     }
   }
 
