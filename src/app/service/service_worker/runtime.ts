@@ -23,6 +23,7 @@ import {
   getUserConfigStr,
   obtainBlackList,
   isFirefox,
+  sourceMapTo,
 } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
@@ -838,19 +839,10 @@ export class RuntimeService {
     const injectJs = await this.getInjectJsCode();
     if (injectJs) {
       // 构建inject.js的脚本注册信息
-      const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
-      retInject = [
-        {
-          id: "scriptcat-inject",
-          js: [{ code }],
-          matches: ["<all_urls>"],
-          allFrames: true,
-          world: "MAIN",
-          runAt: "document_start",
-          excludeMatches: excludeMatches,
-          excludeGlobs: excludeGlobs,
-        } satisfies chrome.userScripts.RegisteredUserScript,
-      ];
+      retInject = this.compileInjectUserScript(injectJs, messageFlag, {
+        excludeMatches,
+        excludeGlobs,
+      });
     }
     // Note: Chrome does not support file.js?query
     // 注意：Chrome 不支持 file.js?query
@@ -869,9 +861,11 @@ export class RuntimeService {
     } else {
       const contentJs = await this.getContentJsCode();
       if (contentJs) {
+        const codeBody = `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')`;
+        const code = `${codeBody}${sourceMapTo("scriptcat-content.js")}\n`;
         retInject.push({
           id: "scriptcat-content",
-          js: [{ code: `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')` }],
+          js: [{ code }],
           matches: ["<all_urls>"],
           allFrames: true,
           runAt: "document_start",
@@ -1318,6 +1312,28 @@ export class RuntimeService {
       return;
     }
     return await runScript(this.msgSender, res);
+  }
+
+  compileInjectUserScript(
+    injectJs: string,
+    messageFlag: string,
+    { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
+  ) {
+    // 构建inject.js的脚本注册信息
+    const codeBody = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
+    const code = `${codeBody}${sourceMapTo("scriptcat-inject.js")}\n`;
+    const script: chrome.userScripts.RegisteredUserScript = {
+      id: "scriptcat-inject",
+      js: [{ code }],
+      matches: ["<all_urls>"],
+      allFrames: true,
+      world: "MAIN",
+      runAt: "document_start",
+      excludeMatches: excludeMatches,
+      excludeGlobs: excludeGlobs,
+    };
+
+    return [script] as chrome.userScripts.RegisteredUserScript[];
   }
 
   scriptMatchEntry(
