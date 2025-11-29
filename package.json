@@ -1,6 +1,6 @@
 {
   "name": "scriptcat",
-  "version": "0.16.12-beta",
+  "version": "0.16.12",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
   "author": "CodFrm",
   "license": "GPLv3",
