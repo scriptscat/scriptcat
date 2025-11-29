@@ -187,7 +187,7 @@ export default class ServiceWorkerManager {
         if (details.reason === "install") {
           chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
         } else if (details.reason === "update") {
-          const url = `${DocumentationSite}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
+          const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
           getCurrentTab()
             .then((tab) => {
               // 检查是否正在播放视频，或者窗口未激活
