@@ -81,6 +81,7 @@ vi.mock("@App/locales/locales", () => ({
   localePath: "",
   initLocales: vi.fn(),
   changeLanguage: vi.fn(),
+  i18nLang: vi.fn((): string => "en"),
   i18nName: vi.fn((script: any) => script.name),
   i18nDescription: vi.fn((script: any) => script.metadata?.description || ""),
   matchLanguage: () => Promise.resolve(undefined),
