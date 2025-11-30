@@ -1,4 +1,4 @@
-import type { Script, SCRIPT_RUN_STATUS, SCMetadata, ScriptLoadInfo } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_RUN_STATUS, ScriptLoadInfo } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type IGetSender } from "@Packages/message/server";
 
@@ -192,7 +192,9 @@ export type ScriptMenu = {
   enable: boolean; // 脚本是否启用
   updatetime: number; // 脚本更新时间
   hasUserConfig: boolean; // 是否有用户配置
-  metadata: SCMetadata; // 脚本元数据
+  // 不需要完整 metadata。目前在 Popup 未使用 metadata。
+  // 有需要时请把 metadata 里需要的部份抽出 (例如 @match @include @exclude)，避免 chrome.storage.session 储存量过大
+  // metadata: SCMetadata; // 脚本元数据
   runStatus?: SCRIPT_RUN_STATUS; // 脚本运行状态
   runNum: number; // 脚本运行次数
   runNumByIframe: number; // iframe运行次数
