@@ -464,7 +464,7 @@ declare namespace GMTypes {
     pinned?: boolean;
 
     /**
-     * 使用 `window.open` 打开新标签，而不是chrome.tabs.create
+     * 使用 `window.open` 打开新标签，而不是 `chrome.tabs.create`
      * 这在打开一些特殊链接时很有用
      *
      * 相关：Issue #178 #1043
