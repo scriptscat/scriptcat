@@ -464,9 +464,9 @@ declare namespace GMTypes {
     pinned?: boolean;
 
     /**
-     * 打开方式由 `chrome.tabs.create` 改至 `window.open`
-     * 这是用来打开一些特殊链接，例如 `vscode://`, `m3u8dl://`
-     * 其他参数在这打开方式无效
+     * 使用 `window.open` 打开新标签，而不是 `chrome.tabs.create`
+     * 在打开一些特殊协议的链接时很有用，例如 `vscode://`, `m3u8dl://`
+     * 其他参数在这个打开方式下无效
      *
      * 相关：Issue #178 #1043
      * 默认值：false
