@@ -369,3 +369,24 @@ export const stringMatching = (main: string, sub: string): boolean => {
     return false;
   }
 };
+
+export const isSpecialScheme = (url: string) => {
+  const protocolIdx = url.indexOf("://");
+  if (protocolIdx > 0) {
+    const protocol = url.substring(0, protocolIdx);
+    switch (protocol) {
+      case "https":
+      case "http":
+      case "ftp":
+      case "chrome-extension":
+      case "brave":
+      case "vivaldi":
+      case "opera":
+      case "moz-extension":
+        return false;
+      default:
+        return true;
+    }
+  }
+  return false;
+};
