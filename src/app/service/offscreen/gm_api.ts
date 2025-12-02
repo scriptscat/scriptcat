@@ -17,10 +17,6 @@ export const nativePageWindowOpen = async (details: { url: string }) => {
 export default class GMApi {
   constructor(private group: Group) {}
 
-  async windowOpen(details: { url: string }) {
-    return window.open(details.url) !== undefined;
-  }
-
   textarea: HTMLTextAreaElement = document.createElement("textarea");
 
   clipboardData: { type?: string; data: string } | undefined;
