@@ -462,13 +462,29 @@ declare namespace GMTypes {
      * 默认值：false
      */
     pinned?: boolean;
+
+    /**
+     * 使用 `window.open` 打开新标签，而不是chrome.tabs.create
+     * 这在打开一些特殊链接时很有用
+     *
+     * 相关：Issue #178 #1043
+     * 默认值：false
+     */
+    useOpen?: boolean;
   }
 
   type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
 
+  type ReadyState =
+    | 0 // UNSENT
+    | 1 // OPENED
+    | 2 // HEADERS_RECEIVED
+    | 3 // LOADING
+    | 4; // DONE
+
   interface XHRResponse {
     finalUrl?: string;
-    readyState?: 0 | 1 | 2 | 3 | 4;
+    readyState?: ReadyState;
     responseHeaders?: string;
     status?: number;
     statusText?: string;
@@ -557,7 +573,14 @@ declare namespace GMTypes {
     // TM/SC 标准回调
     onload?: Listener<object>;
     onerror?: Listener<DownloadError>;
-    onprogress?: Listener<XHRProgress>;
+    onprogress?: Listener<{
+      done: number;
+      lengthComputable: boolean;
+      loaded: number;
+      position?: number;
+      total: number;
+      totalSize: number;
+    }>;
     ontimeout?: (arg1?: any) => void;
   }
 
