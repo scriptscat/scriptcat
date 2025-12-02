@@ -810,7 +810,7 @@ export class RuntimeService {
         id: "scriptcat-content",
         js: [
           {
-            code: `(function (MessageFlag,UserAgentData) {\n${contentJs}\n})('${messageFlag}', '${this.userAgentData}')`,
+            code: `(function (MessageFlag,UserAgentData) {\n${contentJs}\n})('${messageFlag}', ${JSON.stringify(this.userAgentData)})`,
           },
         ],
         matches: ["<all_urls>"],
@@ -1271,7 +1271,7 @@ export class RuntimeService {
     { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
   ) {
     // 构建inject.js的脚本注册信息
-    const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
+    const code = `(function (MessageFlag,UserAgentData) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(this.userAgentData)})`;
     const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-inject",
       js: [{ code }],
