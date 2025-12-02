@@ -370,10 +370,11 @@ export const stringMatching = (main: string, sub: string): boolean => {
   }
 };
 
-export const isSpecialScheme = (url: string) => {
+export const isSpecialScheme = (url: string, extScheme: string) => {
   const protocolIdx = url.indexOf("://");
   if (protocolIdx > 0) {
-    const protocol = url.substring(0, protocolIdx);
+    const protocol = url.substring(0, protocolIdx).toLowerCase();
+    if (protocol === extScheme) return false;
     switch (protocol) {
       case "https":
       case "http":
