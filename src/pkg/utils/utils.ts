@@ -177,7 +177,7 @@ export async function checkUserScriptsAvailable() {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
-    const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts.getScripts({
+    const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts?.getScripts({
       ids: ["scriptcat-content", "undefined-id-3"],
     });
     // 返回结果不是阵列的话表示API不可使用

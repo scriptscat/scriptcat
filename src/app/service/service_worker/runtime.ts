@@ -269,7 +269,7 @@ export class RuntimeService {
 
     if (registerControl?.userscripts_register_control !== USERSCRIPTS_REGISTER_CONTROL) {
       await Promise.allSettled([
-        chrome.userScripts.unregister(),
+        chrome.userScripts?.unregister(),
         chrome.scripting.unregisterContentScripts(),
         chrome.storage.local.set({ userscripts_register_control: USERSCRIPTS_REGISTER_CONTROL }),
       ]);
@@ -333,8 +333,8 @@ export class RuntimeService {
 
     let registered = false;
     try {
-      const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
-      registered = res.length === 2;
+      const res = await chrome.userScripts?.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
+      registered = res?.length === 2;
     } finally {
       // 考虑 UserScripts API 不可使用等情况
       runtimeGlobal.registered = registered;
@@ -635,7 +635,7 @@ export class RuntimeService {
       // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
       runtimeGlobal.messageFlag = this.generateMessageFlag();
       await Promise.allSettled([
-        chrome.userScripts.unregister(),
+        chrome.userScripts?.unregister(),
         this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag }),
       ]);
     }
@@ -1361,7 +1361,8 @@ export class RuntimeService {
     if (forced ? false : !this.isUserScriptsAvailable || !this.isLoadScripts) {
       return;
     }
-    const result = await chrome.userScripts.getScripts({ ids: uuids });
+    const result = await chrome.userScripts?.getScripts({ ids: uuids });
+    if (!result) return; // 没 userScripts API 权限
     const filteredIds = result.map((entry) => entry.id).filter((id) => !!id);
     if (filteredIds.length > 0) {
       // 修改脚本状态为disable，浏览器取消注册该脚本
