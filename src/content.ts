@@ -4,7 +4,7 @@ import { ExtensionMessage } from "@Packages/message/extension_message";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
-import { ScriptExecutor } from "./app/service/content/script_executor";
+import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
 import { randomMessageFlag } from "./pkg/utils/utils";
 import type { Message } from "@Packages/message/types";
 
@@ -41,5 +41,5 @@ if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
   const runtime = new ContentRuntime(extServer, server, extMsgComm, msgInject, scriptExecutorMsg, scriptExecutor);
   runtime.init();
   // 页面加载，注入脚本
-  runtime.pageLoad(MessageFlag);
+  runtime.pageLoad(MessageFlag, initEnvInfo);
 }
