@@ -476,6 +476,10 @@ declare namespace GMTypes {
 
   type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
 
+  /**
+   * XMLHttpRequest readyState 状态值
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/readyState
+   */
   type ReadyState =
     | 0 // UNSENT
     | 1 // OPENED

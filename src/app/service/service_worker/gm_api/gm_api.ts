@@ -45,8 +45,6 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
 
-let mExtScheme: string | undefined;
-
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
 // 用来生成绝不重复的 MarkerID
@@ -915,7 +913,6 @@ export default class GMApi {
   async GM_openInTab(request: GMApiRequest<[string, GMTypes.SWOpenTabOptions]>, sender: IGetSender) {
     const url = request.params[0];
     const options = request.params[1];
-    if (!mExtScheme) mExtScheme = chrome.runtime.getURL("/").split("://")[0].toLowerCase();
     if (options.useOpen) {
       // 发送给offscreen页面处理 （使用window.open）
       let ok;
