@@ -100,7 +100,7 @@ export class SenderRuntime {
   }
 }
 
-type ApiFunction = (params: any, con: IGetSender) => Promise<any> | void;
+type ApiFunction = (params: any, con: IGetSender) => Promise<any> | any | void;
 type ApiFunctionSync = (params: any, con: IGetSender) => any;
 type MiddlewareFunction = (params: any, con: IGetSender, next: () => Promise<any> | any) => Promise<any> | any;
 
