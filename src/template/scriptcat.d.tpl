@@ -464,9 +464,9 @@ declare namespace GMTypes {
     pinned?: boolean;
 
     /**
-     * 不使用 `chrome.tabs.create`，改用 `window.open` 打开
+     * 打开方式由 `chrome.tabs.create` 改至 `window.open`
      * 这是用来打开一些特殊链接
-     * 其他参数在这模式无效
+     * 其他参数在这打开方式无效
      *
      * 相关：Issue #178 #1043
      * 默认值：false
