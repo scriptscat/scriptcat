@@ -914,6 +914,7 @@ export default class GMApi {
     const url = request.params[0];
     const options = request.params[1];
     if (options.useOpen) {
+      const prevTab = await getCurrentTab();
       // 发送给offscreen页面处理 （使用window.open）
       let ok;
       if (typeof window === "object" && typeof window?.open === "function") {
@@ -927,7 +928,8 @@ export default class GMApi {
       if (ok) {
         // 由于window.open强制在前台打开标签，因此获取状态为 { active:true } 的标签即为新标签
         const tab = await getCurrentTab();
-        return tab?.id;
+        const tabId = tab?.id;
+        if (tabId && tabId !== prevTab?.id) return tabId;
       }
       // 当新tab被浏览器阻止时 window.open() 会返回 null 视为已经关闭
       // 似乎在Firefox中禁止在background页面使用window.open()，强制返回null
