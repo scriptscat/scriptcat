@@ -53,7 +53,7 @@ import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 
 // 避免使用版本号控制导致代码理解混乱
 // 用来清除 UserScript API 里的旧缓存
-const USERSCRIPTS_REGISTER_CONTROL = "0f5b5b01-eef8-4505-9a8e-b2fc416b2f63";
+const USERSCRIPTS_REGISTER_CONTROL = "92292a62-4e81-4dc3-87d0-cb0f0cb9883d";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -808,7 +808,11 @@ export class RuntimeService {
     if (contentJs) {
       retScript.push({
         id: "scriptcat-content",
-        js: [{ code: `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')` }],
+        js: [
+          {
+            code: `(function (MessageFlag,UserAgentData) {\n${contentJs}\n})('${messageFlag}', '${this.userAgentData}')`,
+          },
+        ],
         matches: ["<all_urls>"],
         allFrames: true,
         runAt: "document_start",

@@ -8,7 +8,7 @@ import { InjectRuntime } from "./app/service/content/inject";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
 
-/* global MessageFlag  */
+/* global MessageFlag,UserAgentData */
 
 const msg: Message = new CustomEventMessage(MessageFlag, false);
 
@@ -22,6 +22,14 @@ const server = new Server("inject", msg);
 const scriptExecutor = new ScriptExecutor(msg);
 const runtime = new InjectRuntime(server, msg, scriptExecutor);
 runtime.init();
+
+// 设置环境信息，主要提供给early-start的脚本使用
+runtime.setEnvInfo({
+  userAgentData: UserAgentData,
+  sandboxMode: "raw", // 预留字段，当前固定为 raw
+  isIncognito: false, // inject 环境下无法判断，固定为 false
+});
+
 // 检查early-start的脚本
 scriptExecutor.checkEarlyStartScript("inject", MessageFlag);
 
