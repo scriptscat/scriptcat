@@ -10,7 +10,7 @@ export const nativePageXHR = async (details: GMSend.XHRDetails, sender: IGetSend
 };
 
 // nativePageWindowOpen 不需要绑定 Offscreen.GMApi 的 this，外部可以直接引用
-export const nativePageWindowOpen = async (details: { url: string }) => {
+export const nativePageWindowOpen = (details: { url: string }): boolean => {
   if (!details || !details.url) throw new Error("offscreen window.open: details.url is undefined");
   return !!window.open(details.url);
 };
