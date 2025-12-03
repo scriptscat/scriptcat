@@ -544,7 +544,7 @@
     "enable_failed": "有効化に失敗しました",
     "disable_failed": "無効化に失敗しました",
     "prompt_title": "バックグラウンド実行を有効にしますか？",
-    "prompt_description": "これは{{scriptType}}です。バックグラウンド実行を有効にすると、ブラウザを閉じた後もスクリプトが実行され続けます。",
+    "prompt_description": "これは{{scriptType}}です。バックグラウンド実行を有効にすると、ブラウザを閉じた後もスクリプトの実行が続きます。",
     "enable_now": "今すぐ有効にする",
     "maybe_later": "後で",
     "settings_hint": "このオプションは設定でいつでも変更できます。"
