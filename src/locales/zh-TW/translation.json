@@ -536,5 +536,12 @@
     "subscribe_update": "訂閱 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}"
   },
-  "loading": "加載中..."
+  "loading": "加載中...",
+  "runtime": "運行時",
+  "enable_background": {
+    "title": "啟用後台運行",
+    "description": "啟用後，瀏覽器會延遲關閉縮小到托盤，後台腳本可以持續運行",
+    "enable_faild": "啟用失敗",
+    "disable_faild": "禁用失敗"
+  }
 }

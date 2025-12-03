@@ -536,5 +536,12 @@
     "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
     "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
   },
-  "loading": "Đang tải..."
+  "loading": "Đang tải...",
+  "runtime": "Thời gian chạy",
+  "enable_background": {
+    "title": "Bật chạy nền",
+    "description": "Khi bật, trình duyệt sẽ trì hoãn việc đóng và thu nhỏ vào khay hệ thống, các script nền có thể tiếp tục chạy",
+    "enable_faild": "Bật thất bại",
+    "disable_faild": "Tắt thất bại"
+  }
 }

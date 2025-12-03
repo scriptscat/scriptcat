@@ -536,5 +536,12 @@
     "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
     "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}"
   },
-  "loading": "Wird geladen..."
+  "loading": "Wird geladen...",
+  "runtime": "Laufzeit",
+  "enable_background": {
+    "title": "Hintergrundausführung aktivieren",
+    "description": "Wenn aktiviert, verzögert der Browser das Schließen und minimiert in den Tray, sodass Hintergrundskripte weiterlaufen können",
+    "enable_faild": "Aktivierung fehlgeschlagen",
+    "disable_faild": "Deaktivierung fehlgeschlagen"
+  }
 }

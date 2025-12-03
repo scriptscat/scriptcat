@@ -536,5 +536,12 @@
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
     "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
   },
-  "loading": "Loading..."
+  "loading": "Loading...",
+  "runtime": "Runtime",
+  "enable_background": {
+    "title": "Enable Background Running",
+    "description": "When enabled, the browser will delay closing and minimize to the tray, allowing background scripts to continue running",
+    "enable_faild": "Failed to enable",
+    "disable_faild": "Failed to disable"
+  }
 }

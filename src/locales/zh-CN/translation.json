@@ -536,5 +536,12 @@
     "subscribe_update": "订阅 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增脚本：{{newScripts}}\n删除脚本：{{deletedScripts}}"
   },
-  "loading": "加载中..."
+  "loading": "加载中...",
+  "runtime": "运行时",
+  "enable_background": {
+    "title": "启用后台运行",
+    "description": "启用后，浏览器会延迟关闭缩小到托盘，后台脚本可以持续运行",
+    "enable_faild": "启用失败",
+    "disable_faild": "禁用失败"
+  }
 }
