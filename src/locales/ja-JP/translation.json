@@ -547,6 +547,6 @@
     "prompt_description": "これは{{scriptType}}です。バックグラウンド実行を有効にすると、ブラウザを閉じた後もスクリプトの実行が続きます。",
     "enable_now": "今すぐ有効にする",
     "maybe_later": "後で",
-    "settings_hint": "このオプションは設定でいつでも変更できます。"
+    "settings_hint": "設定ページでいつでも変更できます。"
   }
 }
