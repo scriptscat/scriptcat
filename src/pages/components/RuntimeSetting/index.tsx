@@ -60,12 +60,7 @@ const RuntimeSetting: React.FC = () => {
       <Space direction="vertical" size={20} className={"w-full"}>
         <div className="flex items-center justify-between min-h-9">
           <div className="flex items-center gap-2 flex-1">
-            <Switch
-              onChange={(checked) => {
-                setEnableBackground(checked);
-              }}
-              checked={enableBackground}
-            />
+            <Switch onChange={setEnableBackground} checked={enableBackground} />
             <span
               className="min-w-20 font-medium cursor-pointer"
               onClick={() => {
