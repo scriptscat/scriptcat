@@ -542,6 +542,11 @@
     "title": "啟用後台運行",
     "description": "啟用後，瀏覽器會延遲關閉縮小到托盤，後台腳本可以持續運行",
     "enable_faild": "啟用失敗",
-    "disable_faild": "禁用失敗"
+    "disable_faild": "禁用失敗",
+    "prompt_title": "是否開啟後台運行？",
+    "prompt_description": "此腳本是{{scriptType}}，啟用後台運行功能可以讓腳本在瀏覽器關閉後繼續運行。",
+    "enable_now": "立即啟用",
+    "maybe_later": "暫不啟用",
+    "settings_hint": "你可以隨時在設定中修改此選項。"
   }
 }

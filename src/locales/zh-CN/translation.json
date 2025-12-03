@@ -542,6 +542,11 @@
     "title": "启用后台运行",
     "description": "启用后，浏览器会延迟关闭缩小到托盘，后台脚本可以持续运行",
     "enable_faild": "启用失败",
-    "disable_faild": "禁用失败"
+    "disable_faild": "禁用失败",
+    "prompt_title": "是否开启后台运行？",
+    "prompt_description": "此脚本是{{scriptType}}，启用后台运行功能可以让脚本在浏览器关闭后继续运行。",
+    "enable_now": "立即启用",
+    "maybe_later": "暂不启用",
+    "settings_hint": "你可以随时在设置中修改此选项。"
   }
 }

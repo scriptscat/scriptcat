@@ -5,6 +5,7 @@ import {
   Grid,
   Message,
   Menu,
+  Modal,
   Space,
   Switch,
   Tag,
@@ -57,6 +58,7 @@ function App() {
   const [oldScriptVersion, setOldScriptVersion] = useState<string | null>(null);
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
   const [localFileHandle, setLocalFileHandle] = useState<FileSystemFileHandle | null>(null);
+  const [showBackgroundPrompt, setShowBackgroundPrompt] = useState<boolean>(false);
   const { t } = useTranslation();
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
@@ -82,7 +84,7 @@ function App() {
     return script;
   };
 
-  const initAsync = async () => {
+  const initAsync = async (destructor: { destroyed: boolean }) => {
     try {
       const locationUrl = new URL(window.location.href);
       const uuid = locationUrl.searchParams.get("uuid");
@@ -158,6 +160,11 @@ function App() {
       setIsUpdate(typeof oldVersion === "string");
       setScriptInfo(info);
       setUpsertScript(action);
+
+      // 检查是否需要显示后台运行提示
+      if (!info.userSubscribe && !destructor.destroyed) {
+        setShowBackgroundPrompt(await checkBackgroundPrompt(action as Script));
+      }
     } catch (e: any) {
       Message.error(t("script_info_load_failed") + " " + e.message);
     } finally {
@@ -171,7 +178,11 @@ function App() {
   };
 
   useEffect(() => {
-    initAsync();
+    const destructor = { destroyed: false };
+    initAsync(destructor);
+    return () => {
+      destructor.destroyed = true;
+    };
   }, []);
 
   const [watchFile, setWatchFile] = useState(false);
@@ -291,6 +302,26 @@ function App() {
       setEnable(upsertScript.status === SCRIPT_STATUS_ENABLE);
     }
   }, [upsertScript]);
+
+  // 检查是否需要显示后台运行提示
+  const checkBackgroundPrompt = async (script: Script) => {
+    // 只有后台脚本或定时脚本才提示
+    if (!script.metadata.background && !script.metadata.crontab) {
+      return false;
+    }
+
+    // 检查是否首次安装或更新
+    const hasShown = localStorage.getItem("background_prompt_shown");
+
+    if (hasShown !== "true") {
+      // 检查是否已经有后台权限
+      if (!(await chrome.permissions.contains({ permissions: ["background"] }))) {
+        localStorage.setItem("background_prompt_shown", "true");
+        return true;
+      }
+    }
+    return false;
+  };
 
   const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
     if (!upsertScript) {
@@ -466,6 +497,42 @@ function App() {
 
   return (
     <div id="install-app-container">
+      {/* 后台运行提示对话框 */}
+      <Modal
+        title={t("enable_background.prompt_title")}
+        visible={showBackgroundPrompt}
+        onOk={async () => {
+          try {
+            const granted = await chrome.permissions.request({ permissions: ["background"] });
+            if (granted) {
+              Message.success(t("enable_background.title")!);
+            } else {
+              Message.info(t("enable_background.maybe_later")!);
+            }
+            setShowBackgroundPrompt(false);
+          } catch (e) {
+            console.error(e);
+            Message.error(t("enable_background.enable_faild")!);
+          }
+        }}
+        onCancel={() => {
+          setShowBackgroundPrompt(false);
+        }}
+        okText={t("enable_background.enable_now")}
+        cancelText={t("enable_background.maybe_later")}
+        autoFocus={false}
+        focusLock={true}
+      >
+        <Space direction="vertical" size="medium">
+          <Typography.Text>
+            {t("enable_background.prompt_description", {
+              scriptType: upsertScript?.metadata?.background ? t("background_script") : t("scheduled_script"),
+            })}
+          </Typography.Text>
+          <Typography.Text type="secondary">{t("enable_background.settings_hint")}</Typography.Text>
+        </Space>
+      </Modal>
+
       <Grid.Row className="mb-2" gutter={8}>
         <Grid.Col flex={1} className="flex-col p-8px">
           <Space direction="vertical" className="w-full">
