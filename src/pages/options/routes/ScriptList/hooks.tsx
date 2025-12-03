@@ -518,7 +518,9 @@ export function useScriptSearch() {
               filterFuncs.push((script) => script.type === SCRIPT_TYPE_NORMAL);
               break;
             case SCRIPT_TYPE_BACKGROUND:
-              filterFuncs.push((script) => script.type === SCRIPT_TYPE_BACKGROUND);
+              filterFuncs.push(
+                (script) => script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB
+              );
               break;
             case SCRIPT_TYPE_CRONTAB:
               filterFuncs.push((script) => script.type === SCRIPT_TYPE_CRONTAB);

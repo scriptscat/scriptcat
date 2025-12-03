@@ -21,7 +21,6 @@ function ScriptList() {
   const [cloudScript, setCloudScript] = useState<Script>();
   const {
     loadingList,
-    scriptList,
     filterScriptList,
     scriptListSortOrder,
     updateScripts,
@@ -93,8 +92,7 @@ function ScriptList() {
             {viewMode === "table" ? (
               <ScriptTable
                 loadingList={loadingList}
-                // 表格传入全部脚本，由表格组件处理过滤和排序
-                scriptList={scriptList}
+                scriptList={filterScriptList}
                 scriptListSortOrder={scriptListSortOrder}
                 updateScripts={updateScripts}
                 sidebarOpen={sidebarOpen}
