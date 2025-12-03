@@ -31,6 +31,8 @@ import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/fileha
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 
+const backgroundPromptShownKey = "background_prompt_shown";
+
 type ScriptOrSubscribe = Script | Subscribe;
 
 // Types
@@ -84,7 +86,7 @@ function App() {
     return script;
   };
 
-  const initAsync = async (destructor: { destroyed: boolean }) => {
+  const initAsync = async () => {
     try {
       const locationUrl = new URL(window.location.href);
       const uuid = locationUrl.searchParams.get("uuid");
@@ -162,7 +164,7 @@ function App() {
       setUpsertScript(action);
 
       // 检查是否需要显示后台运行提示
-      if (!info.userSubscribe && !destructor.destroyed) {
+      if (!info.userSubscribe) {
         setShowBackgroundPrompt(await checkBackgroundPrompt(action as Script));
       }
     } catch (e: any) {
@@ -178,11 +180,7 @@ function App() {
   };
 
   useEffect(() => {
-    const destructor = { destroyed: false };
-    initAsync(destructor);
-    return () => {
-      destructor.destroyed = true;
-    };
+    initAsync();
   }, []);
 
   const [watchFile, setWatchFile] = useState(false);
@@ -311,12 +309,11 @@ function App() {
     }
 
     // 检查是否首次安装或更新
-    const hasShown = localStorage.getItem("background_prompt_shown");
+    const hasShown = localStorage.getItem(backgroundPromptShownKey);
 
     if (hasShown !== "true") {
       // 检查是否已经有后台权限
       if (!(await chrome.permissions.contains({ permissions: ["background"] }))) {
-        localStorage.setItem("background_prompt_shown", "true");
         return true;
       }
     }
@@ -510,13 +507,15 @@ function App() {
               Message.info(t("enable_background.maybe_later")!);
             }
             setShowBackgroundPrompt(false);
+            localStorage.setItem(backgroundPromptShownKey, "true");
           } catch (e) {
             console.error(e);
-            Message.error(t("enable_background.enable_faild")!);
+            Message.error(t("enable_background.enable_failed")!);
           }
         }}
         onCancel={() => {
           setShowBackgroundPrompt(false);
+          localStorage.setItem(backgroundPromptShownKey, "true");
         }}
         okText={t("enable_background.enable_now")}
         cancelText={t("enable_background.maybe_later")}

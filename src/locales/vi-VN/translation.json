@@ -541,8 +541,8 @@
   "enable_background": {
     "title": "Bật chạy nền",
     "description": "Khi bật, trình duyệt sẽ trì hoãn việc đóng và thu nhỏ vào khay hệ thống, các script nền có thể tiếp tục chạy",
-    "enable_faild": "Bật thất bại",
-    "disable_faild": "Tắt thất bại",
+    "enable_failed": "Bật thất bại",
+    "disable_failed": "Tắt thất bại",
     "prompt_title": "Bật chạy nền?",
     "prompt_description": "Đây là {{scriptType}}. Bật chạy nền cho phép script tiếp tục chạy sau khi đóng trình duyệt.",
     "enable_now": "Bật ngay",

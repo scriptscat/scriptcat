@@ -38,7 +38,7 @@ const RuntimeSetting: React.FC = () => {
       chrome.permissions.request({ permissions: ["background"] }, (granted) => {
         if (chrome.runtime.lastError) {
           console.error(chrome.runtime.lastError);
-          Message.error(t("enable_background.enable_faild")!);
+          Message.error(t("enable_background.enable_failed")!);
           return;
         }
         setEnableBackgroundState(granted);
@@ -47,7 +47,7 @@ const RuntimeSetting: React.FC = () => {
       chrome.permissions.remove({ permissions: ["background"] }, (removed) => {
         if (chrome.runtime.lastError) {
           console.error(chrome.runtime.lastError);
-          Message.error(t("enable_background.disable_faild")!);
+          Message.error(t("enable_background.disable_failed")!);
           return;
         }
         setEnableBackgroundState(!removed);

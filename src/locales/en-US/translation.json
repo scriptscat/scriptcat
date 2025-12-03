@@ -541,8 +541,8 @@
   "enable_background": {
     "title": "Enable Background Running",
     "description": "When enabled, the browser will delay closing and minimize to the tray, allowing background scripts to continue running",
-    "enable_faild": "Failed to enable",
-    "disable_faild": "Failed to disable",
+    "enable_failed": "Failed to enable",
+    "disable_failed": "Failed to disable",
     "prompt_title": "Enable Background Running?",
     "prompt_description": "This is a {{scriptType}}. Enabling background running allows the script to continue running after the browser is closed.",
     "enable_now": "Enable Now",
