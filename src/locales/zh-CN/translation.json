@@ -540,7 +540,7 @@
   "runtime": "运行时",
   "enable_background": {
     "title": "启用后台运行",
-    "description": "启用后，浏览器会延迟关闭缩小到托盘，后台脚本可以持续运行",
+    "description": "启用后，即使关闭所有窗口，浏览器仍会在后台运行，并最小化到系统托盘，直到您手动退出浏览器。这使后台脚本能够继续运行。",
     "enable_failed": "启用失败",
     "disable_failed": "禁用失败",
     "prompt_title": "是否开启后台运行？",

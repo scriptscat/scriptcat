@@ -540,7 +540,7 @@
   "runtime": "Thời gian chạy",
   "enable_background": {
     "title": "Bật chạy nền",
-    "description": "Khi bật, trình duyệt sẽ trì hoãn việc đóng và thu nhỏ vào khay hệ thống, các script nền có thể tiếp tục chạy",
+    "description": "Khi bật, trình duyệt sẽ tiếp tục chạy trong nền sau khi bạn đóng tất cả các cửa sổ, thu nhỏ xuống khay hệ thống cho đến khi bạn thoát trình duyệt thủ công. Điều này cho phép các script chạy nền tiếp tục hoạt động.",
     "enable_failed": "Bật thất bại",
     "disable_failed": "Tắt thất bại",
     "prompt_title": "Bật chạy nền?",

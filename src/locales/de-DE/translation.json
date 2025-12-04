@@ -540,7 +540,7 @@
   "runtime": "Laufzeit",
   "enable_background": {
     "title": "Hintergrundausführung aktivieren",
-    "description": "Wenn aktiviert, verzögert der Browser das Schließen und minimiert in den Tray, sodass Hintergrundskripte weiterlaufen können",
+    "description": "Wenn aktiviert, bleibt der Browser auch nach dem Schließen aller Fenster im Hintergrund aktiv und minimiert sich in den Tray, bis Sie den Browser manuell beenden. Dadurch können Hintergrundskripte weiterhin ausgeführt werden.",
     "enable_failed": "Aktivierung fehlgeschlagen",
     "disable_failed": "Deaktivierung fehlgeschlagen",
     "prompt_title": "Hintergrundausführung aktivieren?",
