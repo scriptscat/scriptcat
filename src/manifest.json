@@ -34,7 +34,6 @@
     "scripting",
     "downloads",
     "activeTab",
-    "background",
     "webRequest",
     "userScripts",
     "contextMenus",
@@ -45,6 +44,7 @@
     "declarativeNetRequest"
   ],
   "optional_permissions": [
+    "background",
     "userScripts"
   ],
   "host_permissions": [

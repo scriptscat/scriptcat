@@ -3,7 +3,7 @@ import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import prettier from "prettier/standalone";
 import * as babel from "prettier/parser-babel";
 import prettierPluginEstree from "prettier/plugins/estree";
-import GMApiSetting from "@App/pages/components/GMApiSetting";
+import RuntimeSetting from "@App/pages/components/RuntimeSetting";
 import i18n from "i18next";
 import { useTranslation } from "react-i18next";
 import Logger from "@App/app/logger/logger";
@@ -357,7 +357,10 @@ function Setting() {
           </div>
         </Space>
       </Card>
-      <GMApiSetting />
+
+      {/* 运行时设置 */}
+      <RuntimeSetting />
+
       {/* 安全设置 */}
       <Card title={t("security")} bordered={false}>
         <div>

@@ -536,5 +536,17 @@
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
     "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
   },
-  "loading": "Loading..."
+  "loading": "Loading...",
+  "runtime": "Runtime",
+  "enable_background": {
+    "title": "Enable Background Running",
+    "description": "When enabled, the browser stays running in the background after you close all windows, minimizing to the tray until you manually quit Chrome. This allows background scripts to keep running.",
+    "enable_failed": "Failed to enable",
+    "disable_failed": "Failed to disable",
+    "prompt_title": "Enable Background Running?",
+    "prompt_description": "This is a {{scriptType}}. Enabling background running allows the script to continue running after the browser is closed.",
+    "enable_now": "Enable Now",
+    "maybe_later": "Maybe Later",
+    "settings_hint": "You can change this option in settings at any time."
+  }
 }

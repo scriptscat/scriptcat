@@ -536,5 +536,17 @@
     "subscribe_update": "サブスクリプション {{subscribeName}} が更新されました",
     "subscribe_update_desc": "新しいスクリプト: {{newScripts}}\n削除されたスクリプト: {{deletedScripts}}"
   },
-  "loading": "読み込み中..."
+  "loading": "読み込み中...",
+  "runtime": "ランタイム",
+  "enable_background": {
+    "title": "バックグラウンド実行を有効にする",
+    "description": "有効にすると、すべてのウィンドウを閉じた後もブラウザはバックグラウンドで動作し、手動で終了するまでトレイに最小化されます。これにより、バックグラウンドスクリプトの実行が続きます。",
+    "enable_failed": "有効化に失敗しました",
+    "disable_failed": "無効化に失敗しました",
+    "prompt_title": "バックグラウンド実行を有効にしますか？",
+    "prompt_description": "これは{{scriptType}}です。バックグラウンド実行を有効にすると、ブラウザを閉じた後もスクリプトの実行が続きます。",
+    "enable_now": "今すぐ有効にする",
+    "maybe_later": "後で",
+    "settings_hint": "設定ページでいつでも変更できます。"
+  }
 }
