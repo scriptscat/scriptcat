@@ -540,7 +540,7 @@
   "runtime": "Runtime",
   "enable_background": {
     "title": "Enable Background Running",
-    "description": "When enabled, the browser will delay closing and minimize to the tray, allowing background scripts to continue running",
+    "description": "When enabled, the browser will shut down late and minimize to the tray, allowing background scripts to continue running",
     "enable_failed": "Failed to enable",
     "disable_failed": "Failed to disable",
     "prompt_title": "Enable Background Running?",

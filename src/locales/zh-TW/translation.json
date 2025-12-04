@@ -540,7 +540,7 @@
   "runtime": "運行時",
   "enable_background": {
     "title": "啟用背景運行",
-    "description": "啟用後，瀏覽器會延遲關閉縮小到托盤，後台腳本可以持續運行",
+    "description": "啟用後，瀏覽器會延後關閉縮小到托盤，後台腳本可以持續運行",
     "enable_failed": "啟用失敗",
     "disable_failed": "禁用失敗",
     "prompt_title": "是否開啟後台運行？",
