@@ -125,6 +125,7 @@ export class ValueService {
       }
       // 推送到所有加载了本脚本的tab中
       for (const tab of tabs) {
+        if (tab.discarded) continue;
         const tabId = tab.id!;
         this.popup!.getScriptMenu(tabId).then((scriptMenu) => {
           if (scriptMenu.find((item) => item.storageName === storageName)) {
