@@ -81,7 +81,7 @@ ScriptCat は、Tampermonkey の設計思想に基づく強力なユーザース
 #### スクリプトのインストール
 
 1. **スクリプトセンターから取得**： [ScriptCat スクリプトセンター](https://scriptcat.org/ja/search) またはその他のユーザースクリプトセンターへアクセス
-2. **背景スクリプトゾーン**：ユニークな [背景スクリプト](https://scriptcat.org/ja/search?script_type=3) を体験
+2. **バックグラウンドスクリプトセンター**：ユニークな [バックグラウンドスクリプト](https://scriptcat.org/ja/search?script_type=3) を体験
 3. **互換性**：多くの Tampermonkey スクリプトをサポートしており、そのままインストール可能。不具合があれば  
    [issues](https://github.com/scriptscat/scriptcat/issues) にてご報告ください。
 
