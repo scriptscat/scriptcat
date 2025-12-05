@@ -1,5 +1,5 @@
 <p align="right">
-  <a href="./README.md">中文</a> / <a href="./README_EN.md">English</a> / Русский
+  <a href="./README.md">中文</a> <a href="./README_EN.md">English</a> <a href="./README_zh-TW.md">繁體中文</a> <a href="./README_ja.md">日本語</a> <a href="./README_RU.md">Русский</a>
 </p>
 <h1 align="center">
   <img src="./src/assets/logo.png"/><br/>
@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://docs.scriptcat.org/">Документация</a>·
   <a href="https://bbs.tampermonkey.net.cn/">Сообщество (Китайское)</a>·
-  <a href="https://scriptcat.org/search">Хранилище скриптов</a>
+  <a href="https://scriptcat.org/ru/search">Хранилище скриптов</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
@@ -69,11 +69,11 @@ ScriptCat — это мощный менеджер пользовательск�
 
 #### Магазины расширений (рекомендуется)
 
-| Браузер | Ссылка на магазин                                                                                                                                                                                                              | Статус      |
+| Браузер | Ссылка на магазин | Статус |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
 | Chrome  | [Стабильная версия](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) / [Beta](https://chromewebstore.google.com/detail/scriptcat-beta/jaehimmlecjmebpekkipmpmbpfhdacom) | ✅ Доступно |
-| Edge    | [Стабильная версия](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) / [Beta](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)  | ✅ Доступно |
-| Firefox | [Стабильная версия](https://addons.mozilla.org/firefox/addon/scriptcat/) / [Beta](https://addons.mozilla.org/firefox/addon/scriptcat-pre/)                                                                                     | ✅ MV2      |
+| Edge    | [Стабильная версия](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) / [Beta](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ Доступно |
+| Firefox | [Стабильная версия](https://addons.mozilla.org/firefox/addon/scriptcat/) / [Beta](https://addons.mozilla.org/firefox/addon/scriptcat-pre/) | ✅ MV2 |
 
 #### Ручная установка
 
@@ -84,7 +84,7 @@ ScriptCat — это мощный менеджер пользовательск�
 
 #### Установка скриптов
 
-1.  **Получение из хранилища скриптов**: Посетите [Хранилище скриптов ScriptCat](https://scriptcat.org/search) или
+1.  **Получение из хранилища скриптов**: Посетите [Хранилище скриптов ScriptCat](https://scriptcat.org/ru/search) или
     другие маркетплейсы пользовательских скриптов.
 2.  **Раздел фоновых скриптов**: Ознакомьтесь с уникальными
     [фоновыми скриптами](https://scriptcat.org/ru/search?script_type=3).

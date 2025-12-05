@@ -1,5 +1,5 @@
 <p align="right">
-<a href="./README.md">中文</a>  <a href="./README_EN.md">English</a>
+<a href="./README.md">中文</a> <a href="./README_EN.md">English</a> <a href="./README_zh-TW.md">繁體中文</a> <a href="./README_ja.md">日本語</a> <a href="./README_RU.md">Русский</a>
 </p>
 
 <h1 align="center">
@@ -11,8 +11,8 @@ ScriptCat
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">Documentation</a> ·
-<a href="https://bbs.tampermonkey.net.cn/">Community</a> ·
-<a href="https://scriptcat.org/search">Script Hub</a>
+<a href="https://bbs.tampermonkey.net.cn/">Chinese Community</a> ·
+<a href="https://scriptcat.org/en/search">Script Hub</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
@@ -21,7 +21,7 @@ ScriptCat
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/scriptscat/scriptcat.svg?label=version)
 [![Chrome](https://img.shields.io/badge/chrome-success-brightgreen?logo=google%20chrome)](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
 [![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
-[![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
+[![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/en/firefox/addon/scriptcat/)
 [![Crowdin](https://badges.crowdin.net/scriptcat/localized.svg)](https://crowdin.com/project/scriptcat)
 
 ## About ScriptCat
@@ -69,11 +69,11 @@ smooth.
 
 #### Extension Stores (Recommended)
 
-| Browser | Store Link                                                                                                                                                                                                                                            | Status       |
+| Browser | Store Link | Status |
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
 | Chrome  | [Stable Version](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta Version](https://chromewebstore.google.com/detail/scriptcat-beta/jaehimmlecjmebpekkipmpmbpfhdacom) | ✅ Available |
-| Edge    | [Stable Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)                      | ✅ Available |
-| Firefox | [Stable Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)                                                                                             | ✅ MV2       |
+| Edge    | [Stable Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ Available |
+| Firefox | [Stable Version](https://addons.mozilla.org/en/firefox/addon/scriptcat/) [Beta Version](https://addons.mozilla.org/en/firefox/addon/scriptcat-pre/) | ✅ MV2 |
 
 #### Manual Installation
 
@@ -84,8 +84,8 @@ If you cannot access extension stores, download the latest ZIP package from
 
 #### Installing Scripts
 
-1. **Get from Script Markets**: Visit [ScriptCat Script Store](https://scriptcat.org/search) or other userscript markets
-2. **Background Scripts Zone**: Experience unique [Background Scripts](https://scriptcat.org/zh-CN/search?script_type=3)
+1. **Get from Script Markets**: Visit [ScriptCat Script Store](https://scriptcat.org/en/search) or other userscript markets
+2. **Background Scripts Zone**: Experience unique [Background Scripts](https://scriptcat.org/en/search?script_type=3)
 3. **Compatibility**: Supports most Tampermonkey scripts, can be installed directly. If you encounter incompatible
    scripts, please report them to us through [issues](https://github.com/scriptscat/scriptcat/issues).
 
@@ -111,7 +111,7 @@ Join our community to communicate with other users and developers:
 
 - [Telegram](https://t.me/scriptscat)
 - [Discord](https://discord.gg/JF76nHCCM7)
-- [Tampermonkey Chinese Forum](https://bbs.tampermonkey.net.cn/)
+- [Chinese Community](https://bbs.tampermonkey.net.cn/)
 
 ### 🙏 Acknowledgments
 
