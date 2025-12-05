@@ -14,7 +14,8 @@ const msg: Message = new CustomEventMessage(MessageFlag, false);
 
 // 加载logger组件
 const logger = new LoggerCore({
-  writer: new MessageWriter(msg),
+  writer: new MessageWriter(msg, "content/logger"),
+  consoleLevel: "none", // 只让日志在content环境中打印
   labels: { env: "inject", href: window.location.href },
 });
 

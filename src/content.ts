@@ -24,7 +24,7 @@ if (!MessageFlag) {
   const extMsgComm: Message = new ExtensionMessage(false);
   // 初始化日志组件
   const loggerCore = new LoggerCore({
-    writer: new MessageWriter(extMsgComm),
+    writer: new MessageWriter(extMsgComm, "serviceWorker/logger"),
     labels: { env: "content" },
   });
 
