@@ -379,7 +379,7 @@
   "start_guide_content": "Далее мы познакомим вас с основными методами использования ScriptCat",
   "guide_installed_scripts": "Установленные вами скрипты будут отображаться здесь",
   "guide_script_list_title": "Магазин скриптов",
-  "guide_script_list_content": "Скрипты можно устанавливать из <Link href=\"https://scriptcat.org/search\">магазина скриптов</Link>. ScriptCat поддерживает не только пользовательские скрипты, но и <Link href=\"https://docs.scriptcat.org/docs/dev/background/\">фоновые скрипты</Link>",
+  "guide_script_list_content": "Скрипты можно устанавливать из <Link href=\"https://scriptcat.org/ru/search\">магазина скриптов</Link>. ScriptCat поддерживает не только пользовательские скрипты, но и <Link href=\"https://docs.scriptcat.org/docs/dev/background/\">фоновые скрипты</Link>",
   "guide_script_list_enable_title": "Включение скрипта",
   "guide_script_list_enable_content": "Скрипты нужно включить для использования. Скрипты страниц включены по умолчанию при установке, фоновые скрипты выключены по умолчанию",
   "guide_script_list_apply_to_run_status_title": "Применить к и статус выполнения",
