@@ -186,11 +186,11 @@
   "confirm_delete_resource": "Bạn có chắc chắn muốn xóa tài nguyên này không? Tài nguyên này sẽ tải lại vào lần khởi động tiếp theo.",
   "confirm_clear_resource": "Bạn có chắc chắn muốn xóa các tài nguyên này không? Các tài nguyên sẽ tải lại vào lần khởi động tiếp theo.",
   "script_resource": "Tài nguyên script",
-  "permission_value": "Giá trị ủy quyền",
+  "permission_value": "Giá trị quyền",
   "allow": "Cho phép",
   "yes": "Có",
   "no": "Không",
-  "confirm_delete_permission": "Xác nhận xóa ủy quyền này?",
+  "confirm_delete_permission": "Bạn có chắc muốn xóa quyền này không?",
   "basic_info": "Thông tin cơ bản",
   "update_url": "Url cập nhật",
   "permission_management": "Quản lý quyền",
@@ -415,11 +415,9 @@
   "get_backup_dir_url_failed": "Không thể lấy địa chỉ thư mục sao lưu",
   "get_backup_files_failed": "Không thể lấy các bản sao lưu",
   "request_permission": "Yêu cầu quyền",
-  "develop_mode_guide": "Chế độ nhà phát triển chưa được phát hiện. Script của bạn không hoạt động, <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉nhấn để tìm hiểu cách bật</a>.",
-  "allow_user_script_guide": "Cho phép script người dùng chưa được phát hiện. Script của bạn không hoạt động, <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉nhấn để tìm hiểu cách bật</a>",
-  "lower_version_browser_guide": "Phát hiện phiên bản trình duyệt hiện tại quá cũ và script của bạn không thể sử dụng bình thường. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấp vào tôi để tìm hiểu thêm</a>",
-  "enable_script_failed": "Bật script thất bại",
-  "disable_script_failed": "Tắt script thất bại",
+  "develop_mode_guide": "'Chế độ nhà phát triển' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấn để xem cách bật</a>.",
+  "allow_user_script_guide": "'Cho phép tập lệnh người dùng' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấn để xem cách bật</a>",
+  "lower_version_browser_guide": "Trình duyệt của bạn quá cũ, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấn để xem thêm</a>",
   "confirm_leave_page": "Hiện đang ở trạng thái chỉnh sửa. Rời khỏi trang này sẽ làm mất nội dung hiện tại. Bạn có muốn rời đi không?",
   "page_in_blacklist": "Trang hiện tại nằm trong danh sách đen, không thể sử dụng script",
   "baidu_netdisk": "Baidunetdisk",
@@ -548,5 +546,17 @@
     "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
     "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
   },
-  "loading": "Đang tải..."
+  "loading": "Đang tải...",
+  "runtime": "Thời gian chạy",
+  "enable_background": {
+    "title": "Bật chạy nền",
+    "description": "Khi bật, trình duyệt sẽ tiếp tục chạy trong nền sau khi bạn đóng tất cả các cửa sổ, thu nhỏ xuống khay hệ thống cho đến khi bạn thoát trình duyệt thủ công. Điều này cho phép các script chạy nền tiếp tục hoạt động.",
+    "enable_failed": "Bật thất bại",
+    "disable_failed": "Tắt thất bại",
+    "prompt_title": "Bật chạy nền?",
+    "prompt_description": "Đây là {{scriptType}}. Bật chạy nền cho phép script tiếp tục chạy sau khi đóng trình duyệt.",
+    "enable_now": "Bật ngay",
+    "maybe_later": "Để sau",
+    "settings_hint": "Bạn có thể thay đổi tùy chọn này trong cài đặt bất kỳ lúc nào."
+  }
 }

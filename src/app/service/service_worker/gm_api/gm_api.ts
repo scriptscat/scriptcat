@@ -10,7 +10,7 @@ import type { ConfirmParam } from "../permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "../permission_verify";
 import { cacheInstance } from "@App/app/cache";
 import { type RuntimeService } from "../runtime";
-import { getIcon, isFirefox, openInCurrentTab, cleanFileName, makeBlobURL } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox, getCurrentTab, openInCurrentTab, cleanFileName, makeBlobURL } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -43,6 +43,7 @@ import {
 import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
+import { nativePageWindowOpen } from "../../offscreen/gm_api";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -915,6 +916,28 @@ export default class GMApi {
   async GM_openInTab(request: GMApiRequest<[string, GMTypes.SWOpenTabOptions]>, sender: IGetSender) {
     const url = request.params[0];
     const options = request.params[1];
+    if (options.useOpen) {
+      const prevTab = await getCurrentTab();
+      // 发送给offscreen页面处理 （使用window.open）
+      let ok;
+      if (typeof window === "object" && typeof window?.open === "function") {
+        // Firefox Background Page
+        ok = nativePageWindowOpen({ url });
+      } else {
+        ok = await sendMessage(this.msgSender, "offscreen/gmApi/windowOpen", { url });
+      }
+      // 注：一般而言，特殊打开的话没有实际 tab id.
+      // ------------------------------------------
+      if (ok) {
+        // 由于window.open强制在前台打开标签，因此获取状态为 { active:true } 的标签即为新标签
+        const tab = await getCurrentTab();
+        const tabId = tab?.id;
+        if (tabId && tabId !== prevTab?.id) return tabId;
+      }
+      // 当新tab被浏览器阻止时 window.open() 会返回 null 视为已经关闭
+      // 似乎在Firefox中禁止在background页面使用window.open()，强制返回null
+      return false;
+    }
     const getNewTabId = async () => {
       const { tabId, windowId } = sender.getExtMessageSender();
       const active = options.active;
