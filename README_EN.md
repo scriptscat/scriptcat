@@ -11,8 +11,8 @@ ScriptCat
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">Documentation</a> ·
-<a href="https://bbs.tampermonkey.net.cn/">Chinese Community</a> ·
-<a href="https://scriptcat.org/en/search">Script Hub</a>
+<a href="https://discord.gg/JF76nHCCM7">Discord</a> ·
+<a href="https://scriptcat.org/en/search">ScriptCat Scripts</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
@@ -111,7 +111,6 @@ Join our community to communicate with other users and developers:
 
 - [Telegram](https://t.me/scriptscat)
 - [Discord](https://discord.gg/JF76nHCCM7)
-- [Chinese Community](https://bbs.tampermonkey.net.cn/)
 
 ### 🙏 Acknowledgments
 

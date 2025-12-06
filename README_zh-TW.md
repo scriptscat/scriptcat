@@ -11,7 +11,7 @@ ScriptCat
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">文件</a> ·
-<a href="https://bbs.tampermonkey.net.cn/">社群（油猴中文网）</a> ·
+<a href="https://discord.gg/JF76nHCCM7">Discord</a> ·
 <a href="https://scriptcat.org/zh-TW/search">腳本站</a>
 </p>
 
@@ -106,7 +106,6 @@ ScriptCat 是一款基於 Tampermonkey 設計理念的強大使用者腳本管�
 
 - [Telegram](https://t.me/scriptscat)
 - [Discord](https://discord.gg/JF76nHCCM7)
-- [社群（油猴中文网）](https://bbs.tampermonkey.net.cn/)
 
 ### 🙏 致謝
 

@@ -11,8 +11,8 @@ ScriptCat
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">ドキュメント</a> ·
-<a href="https://bbs.tampermonkey.net.cn/">中国語圏のコミュニティ</a> ·
-<a href="https://scriptcat.org/ja/search">スクリプトハブ</a>
+<a href="https://discord.gg/JF76nHCCM7">Discord</a> 
+<a href="https://scriptcat.org/ja/search">ScriptCat Scripts</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
@@ -106,7 +106,6 @@ ScriptCat は、Tampermonkey の設計思想に基づく強力なユーザース
 
 - [Telegram](https://t.me/scriptscat)
 - [Discord](https://discord.gg/JF76nHCCM7)
-- [中国語圏のコミュニティ](https://bbs.tampermonkey.net.cn/)
 
 ### 🙏 謝辞
 
