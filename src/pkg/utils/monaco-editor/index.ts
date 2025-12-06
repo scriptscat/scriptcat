@@ -1,6 +1,7 @@
 import { globalCache, systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
 import { languages } from "monaco-editor";
+import type { editor } from "monaco-editor";
 
 // 注册eslint
 const linterWorker = new Worker("/src/linter.worker.js");
@@ -90,6 +91,87 @@ export default function registerEditor() {
     },
   });
 
+  const findGlobalInsertionInfo = (model: editor.ITextModel) => {
+    const lineCount = model.getLineCount();
+
+    let insertLine = 1; // first non-comment line
+    let globalLine: number | null = null;
+
+    let line = 1;
+    while (line <= lineCount) {
+      const raw = model.getLineContent(line);
+      const text = raw.trim();
+
+      // empty line
+      if (text === "") {
+        line += 1;
+        continue;
+      }
+
+      // single-line comment
+      if (text.startsWith("//")) {
+        line += 1;
+        continue;
+      }
+
+      // block comment
+      if (text.startsWith("/*")) {
+        // check if this is a /* global ... */ comment
+        if (/^\/\*\s*global\b/.test(text)) {
+          globalLine = line;
+        }
+
+        // skip the whole block comment
+        while (line <= lineCount && !model.getLineContent(line).includes("*/")) {
+          line += 1;
+        }
+        line += 1;
+        continue;
+      }
+
+      // first non-comment, non-empty line = insertion point
+      insertLine = line;
+      break;
+    }
+
+    // fallback (file all comments / empty)
+    if (insertLine > lineCount) {
+      insertLine = lineCount + 1;
+    }
+
+    return { insertLine, globalLine };
+  };
+
+  const escapeRegExp = (str: string) => {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  };
+
+  const updateGlobalCommentLine = (oldLine: string, globalName: string) => {
+    // if already present, do nothing
+    const nameRegex = new RegExp("\\b" + escapeRegExp(globalName) + "\\b");
+    if (nameRegex.test(oldLine)) {
+      return oldLine;
+    }
+
+    const endIdx = oldLine.lastIndexOf("*/");
+    if (endIdx === -1) {
+      // weird / malformed, just append
+      return oldLine + ", " + globalName;
+    }
+
+    const before = oldLine.slice(0, endIdx).trimEnd(); // up to before */
+    const after = oldLine.slice(endIdx); // "*/" and whatever after
+
+    // decide separator
+    const needsComma =
+      !/global\s*$/.test(before) && // not just "/* global"
+      !/[, ]$/.test(before); // doesn't already end with , or space
+
+    const sep = needsComma ? ", " : " ";
+
+    return before + sep + globalName + " " + after;
+  };
+
   // 处理quick fix
   languages.registerCodeActionProvider("javascript", {
     provideCodeActions: (model /** ITextModel */, range /** Range */, context /** CodeActionContext */) => {
@@ -99,6 +181,10 @@ export default function registerEditor() {
         // 判断有没有修复方案
         const val = context.markers[i];
         const code = typeof val.code === "string" ? val.code : val.code!.value;
+
+        // =============================
+        // 1) eslint-fix logic
+        // =============================
         const fix = eslintFix.get(
           `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
         );
@@ -121,6 +207,69 @@ export default function registerEditor() {
             isPreferred: true,
           });
         }
+
+        // =============================
+        // 2) /* global XXX */ fix
+        // =============================
+
+        // message format usually like: "'XXX' is not defined.ESLint (no-undef)"
+        if (code === "no-undef") {
+          const message = val.message || "";
+          const match = message.match(/^[^']*'([^']+)'[^']*$/);
+          const globalName = match && match[1];
+
+          if (globalName) {
+            const { insertLine, globalLine } = findGlobalInsertionInfo(model);
+            let textEdit: languages.IWorkspaceTextEdit["textEdit"];
+
+            if (globalLine != null) {
+              // there is already a /* global ... */ line → update it
+              const oldLine = model.getLineContent(globalLine);
+              const newLine = updateGlobalCommentLine(oldLine, globalName);
+
+              textEdit = {
+                range: {
+                  startLineNumber: globalLine,
+                  startColumn: 1,
+                  endLineNumber: globalLine,
+                  endColumn: oldLine.length + 1,
+                },
+                text: newLine,
+              };
+            } else {
+              // no global line yet → insert a new one
+              textEdit = {
+                range: {
+                  startLineNumber: insertLine,
+                  startColumn: 1,
+                  endLineNumber: insertLine,
+                  endColumn: 1,
+                },
+                text: `/* global ${globalName} */\n`,
+              };
+            }
+
+            actions.push(<languages.CodeAction>{
+              title: `将 '${globalName}' 声明为全局变量 (/* global */)`,
+              diagnostics: [val],
+              kind: "quickfix",
+              edit: {
+                edits: [
+                  {
+                    resource: model.uri,
+                    textEdit,
+                    versionId: undefined,
+                  },
+                ],
+              },
+              isPreferred: false,
+            });
+          }
+        }
+
+        // =============================
+        // 3) disable-next-line / disable fixes
+        // =============================
         // 添加eslint-disable-next-line和eslint-disable
         actions.push(<languages.CodeAction>{
           title: `添加 eslint-disable-next-line 注释`,
