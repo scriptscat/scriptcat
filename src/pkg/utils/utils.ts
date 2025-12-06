@@ -82,6 +82,7 @@ export function parseStorageValue(str: string): unknown {
 export async function getCurrentTab(): Promise<chrome.tabs.Tab | undefined> {
   // `tab` will either be a `tabs.Tab` instance or `undefined`.
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true, windowType: "normal" });
+  if (tab?.discarded) return undefined;
   return tab;
 }
 
