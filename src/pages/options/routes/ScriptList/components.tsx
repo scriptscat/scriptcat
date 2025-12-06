@@ -196,7 +196,7 @@ export const ScriptSearchField = ({ t, defaultValue, onChange, onSearch, autoFoc
   return (
     <Space direction="horizontal">
       <Select
-        className="flex-1"
+        className="tw-flex-1"
         triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
         size="small"
         value={type}

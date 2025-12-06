@@ -123,7 +123,7 @@ function SubscribeList() {
         );
       },
       onFilter: (value, row) => !value || row.name.includes(value),
-      className: "max-w-[240px]",
+      className: "tw-max-w-[240px]",
       render: (col) => {
         return (
           <Tooltip content={col} position="tl">
