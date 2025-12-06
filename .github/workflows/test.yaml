@@ -39,8 +39,8 @@ jobs:
 
       - name: Lint
         run: |
-          pnpm run typecheck
-          pnpm run lint:ci
+          pnpm typecheck
+          pnpm lint:ci
 
       - name: Unit Test
         run: |

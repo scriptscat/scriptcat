@@ -5,7 +5,7 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
 import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
-import { randomMessageFlag } from "./pkg/utils/utils";
+import { randomMessageFlag, getUspMessageFlag } from "./pkg/utils/utils";
 import type { Message } from "@Packages/message/types";
 
 // @ts-ignore

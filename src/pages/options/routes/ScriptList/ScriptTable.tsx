@@ -489,7 +489,7 @@ export const ScriptTable = ({
           filterIcon: <IconSearch />,
           filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
             return (
-              <div className="arco-table-custom-filter flex flex-row gap-2">
+              <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
                 <ScriptSearchField
                   t={t}
                   autoFocus
