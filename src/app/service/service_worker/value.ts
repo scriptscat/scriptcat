@@ -101,6 +101,7 @@ export class ValueService {
       await this.valueDAO.save(storageName, valueModel);
       return true;
     });
+
     this.pushValueToTab({
       id,
       entries: encodeMessage([[key, value, oldValue]]),

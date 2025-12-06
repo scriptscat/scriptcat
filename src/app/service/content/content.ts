@@ -5,6 +5,8 @@ import type { MessageSend } from "@Packages/message/types";
 import type { ScriptExecutor } from "./script_executor";
 import { RuntimeClient } from "../service_worker/client";
 import type { GMInfoEnv } from "./types";
+import type { Logger } from "@App/app/repo/logger";
+import LoggerCore from "@App/app/logger/core";
 
 // content页的处理
 export default class ContentRuntime {
@@ -35,6 +37,9 @@ export default class ContentRuntime {
       // 转发给inject和scriptExecutor
       this.scriptExecutor.valueUpdate(data);
       return sendMessage(this.senderToInject, "inject/runtime/valueUpdate", data);
+    });
+    this.server.on("logger", (data: Logger) => {
+      LoggerCore.logger().log(data.level, data.message, data.label);
     });
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.senderToExt);
     forwardMessage(

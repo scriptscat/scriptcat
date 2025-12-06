@@ -90,7 +90,7 @@ export class ScriptExecutor {
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    window.addEventListener(scriptLoadCompleteEvtName, (ev) => {
+    performance.addEventListener(scriptLoadCompleteEvtName, (ev) => {
       const detail = (ev as CustomEvent).detail;
       const scriptFlag = detail?.scriptFlag;
       if (typeof scriptFlag === "string") {
@@ -101,7 +101,7 @@ export class ScriptExecutor {
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
     const ev = new CustomEvent(envLoadCompleteEvtName);
-    window.dispatchEvent(ev);
+    performance.dispatchEvent(ev);
   }
 
   execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {
