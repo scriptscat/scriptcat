@@ -663,7 +663,7 @@ export class RuntimeService {
       // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
       runtimeGlobal.messageFlag = this.generateMessageFlag();
       await Promise.allSettled([
-        chrome.userScripts.unregister(),
+        chrome.userScripts?.unregister(),
         chrome.scripting.unregisterContentScripts(),
         this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag }),
       ]);
