@@ -382,7 +382,7 @@
   "start_guide_content": "Tiếp theo, chúng tôi sẽ giới thiệu cho bạn cách sử dụng cơ bản của scriptcat.",
   "guide_installed_scripts": "Các script bạn đã cài đặt sẽ được hiển thị ở đây.",
   "guide_script_list_title": "Chợ script",
-  "guide_script_list_content": "Bạn có thể cài đặt script từ <Link href=\"https://scriptcat.org/search\">chợ script</Link>. Ngoài việc hỗ trợ script người dùng, scriptcat còn hỗ trợ <Link href=\"https://docs.scriptcat.org/docs/dev/background/\">script nền</Link>.",
+  "guide_script_list_content": "Bạn có thể cài đặt script từ <Link href=\"https://scriptcat.org/en/search\">chợ script</Link>. Ngoài việc hỗ trợ script người dùng, scriptcat còn hỗ trợ <Link href=\"https://docs.scriptcat.org/docs/dev/background/\">script nền</Link>.",
   "guide_script_list_enable_title": "Bật script",
   "guide_script_list_enable_content": "Script cần được bật để sử dụng. Script trang được bật theo mặc định khi cài đặt, trong khi script nền bị tắt theo mặc định.",
   "guide_script_list_apply_to_run_status_title": "Áp dụng cho và trạng thái chạy",
