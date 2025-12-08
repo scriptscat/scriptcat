@@ -18,7 +18,6 @@ import type {
 import { getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
-import { timeoutExecution } from "@App/pkg/utils/timer";
 import { v5 as uuidv5 } from "uuid";
 import { getCombinedMeta } from "./utils";
 
@@ -32,12 +31,6 @@ const runCountMap = new Map<number, string>();
 
 // 以 tabId 为 key 的「脚本数量」快取，供 badge 显示使用。
 const scriptCountMap = new Map<number, string>();
-
-// 已设定过 badge 的 tabId 集合；切换到「不显示数字」时用来清除既有 badge。
-const badgeShownSet = new Set<number>();
-
-// 用于 timeoutExecution 的唯一前缀 key（含随机片段），避免不同 tab 的排程互相覆盖。
-const cIdKey = `(cid_${Math.random()})`;
 
 // uuidv5 的命名空间：用来稳定生成 groupKey，将「相同性质」的 menu 合并显示。
 const groupKeyNS = "43b9b9b1-75b7-4054-801c-1b0ad6b6b07b";
@@ -69,7 +62,6 @@ let contextMenuUpdatePromise = Promise.resolve();
 // 呼叫 API 设置 Badge
 const apiSetBadge = (o: { text: string; tabId: number; backgroundColor?: string; textColor?: string }) => {
   const { text, tabId, backgroundColor, textColor } = o;
-  if (!text) badgeShownSet.delete(tabId);
   chrome.action.setBadgeText({
     text: text,
     tabId: tabId,
@@ -551,14 +543,12 @@ export class PopupService {
     );
   }
 
-  async updateBadgeIcon() {
+  async updateBadgeIcon(tabId: number) {
     // badge 显示数字的策略：
     // - script_count：显示脚本数
     // - run_count：显示执行次数
     // - 其他：不显示数字
     // 如果切换为「不显示数字」模式，需要清空已经显示过的 badge。
-    const tabId = lastActiveTabId;
-    if (!tabId) return;
     const badgeNumberType: string = await this.systemConfig.getBadgeNumberType();
     let map: Map<number, string> | undefined;
     if (badgeNumberType === "script_count") {
@@ -567,29 +557,19 @@ export class PopupService {
       map = runCountMap;
     } else {
       // 不显示数字
-      if (badgeShownSet.has(tabId)) {
-        apiSetBadge({ text: "", tabId });
-      }
       return;
     }
     const text = map.get(tabId);
     if (typeof text !== "string") return;
-    if (!text && !badgeShownSet.has(tabId)) {
+    if (!text) {
       // 没有脚本不用显示 & 没有设置
       return;
     }
-    const backgroundColor = await this.systemConfig.getBadgeBackgroundColor();
-    const textColor = await this.systemConfig.getBadgeTextColor();
-    // 标记此 tab 的 badge 已设定，便于后续在「不显示」模式时进行清理。
-    badgeShownSet.add(tabId);
-    timeoutExecution(
-      `${cIdKey}-tabId#${tabId}`,
-      () => {
-        if (!badgeShownSet.has(tabId)) return;
-        apiSetBadge({ text, tabId, backgroundColor, textColor });
-      },
-      50
-    );
+    const [backgroundColor, textColor] = await Promise.all([
+      this.systemConfig.getBadgeBackgroundColor(),
+      this.systemConfig.getBadgeTextColor(),
+    ]);
+    apiSetBadge({ text, tabId, backgroundColor, textColor });
   }
 
   init() {
@@ -652,8 +632,6 @@ export class PopupService {
           lastActiveTabId = tabId;
           this.genScriptMenu();
         }
-        // 更新Badge显示。
-        this.updateBadgeIcon();
       }
     };
     // 监听页面切换加载菜单
@@ -670,6 +648,33 @@ export class PopupService {
       // 换句话说，subframe 的右键菜单可以执行 mainframe 的选项，反之亦然。
       lastActiveTabId = 0; // 强制呼叫 genScriptMenu()
       doBadgeAndMenuUpdate(activeInfo.tabId);
+    });
+
+    // 处理数量
+    this.systemConfig.addListener("badge_number_type", async (type) => {
+      if (type === "none") {
+        scriptCountMap.forEach((_, tabId) => {
+          apiSetBadge({ text: "", tabId });
+        });
+      } else {
+        // 更新 badge
+        let map: Map<number, string> | undefined;
+        if (type === "script_count") {
+          map = scriptCountMap;
+        } else if (type === "run_count") {
+          map = runCountMap;
+        } else {
+          // 不显示数字
+          return;
+        }
+        const [backgroundColor, textColor] = await Promise.all([
+          this.systemConfig.getBadgeBackgroundColor(),
+          this.systemConfig.getBadgeTextColor(),
+        ]);
+        map.forEach((count, tabId) => {
+          apiSetBadge({ text: count, tabId, backgroundColor, textColor });
+        });
+      }
     });
 
     chrome.webNavigation.onBeforeNavigate.addListener((details) => {
@@ -728,7 +733,7 @@ export class PopupService {
       await this.addScriptRunNumber(o);
       // 设置角标 (chrome.tabs.onActivated 切换后)
       if (o.tabId === lastActiveTabId) {
-        await this.updateBadgeIcon();
+        await this.updateBadgeIcon(o.tabId);
       }
     });
   }
