@@ -1,12 +1,8 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { ExtensionMessage } from "@Packages/message/extension_message";
-import {
-  CustomEventMessage,
-  createPageMessaging,
-  pageAddEventListener,
-  pageDispatchCustomEvent,
-} from "@Packages/message/custom_event_message";
+import { CustomEventMessage, createPageMessaging } from "@Packages/message/custom_event_message";
+import { pageAddEventListener, pageDispatchCustomEvent, pageDispatchEvent } from "@Packages/message/common";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
 import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
@@ -39,7 +35,7 @@ const msgInject = new CustomEventMessage(pageMessaging, true);
 
 // ------------ 監聽 ------------
 
-performance.addEventListener(mainKey, (ev) => {
+pageAddEventListener(mainKey, (ev) => {
   // 注：即使外部執行 "scriptcat-listen-inject", 不知道 inject.ts 的亂數 flag 是不可能截取資料
   if (ev instanceof CustomEvent && typeof ev.detail?.injectFlagEvt === "string") {
     // 必定由 inject.ts 要求
@@ -122,5 +118,5 @@ scriptingMessagingBind = () => {
 };
 
 // ------------ 請求 ------------
-performance.dispatchEvent(new CustomEvent(mainKey));
+pageDispatchEvent(new CustomEvent(mainKey));
 // -----------------------------

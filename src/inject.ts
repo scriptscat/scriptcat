@@ -1,10 +1,7 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
-import {
-  CustomEventMessage,
-  createPageMessaging,
-  pageDispatchCustomEvent,
-} from "@Packages/message/custom_event_message";
+import { CustomEventMessage, createPageMessaging } from "@Packages/message/custom_event_message";
+import { pageAddEventListener, pageDispatchCustomEvent } from "@Packages/message/common";
 import { Server } from "@Packages/message/server";
 import type { TScriptInfo } from "./app/repo/scripts";
 import type { GMInfoEnv } from "./app/service/content/types";
@@ -47,7 +44,7 @@ const injectFlag = randomMessageFlag();
 const injectFlagEvt = injectFlag;
 
 // 用來接收 emitter
-performance.addEventListener(
+pageAddEventListener(
   `${injectFlagEvt}`,
   (ev) => {
     if (ev instanceof CustomEvent && ev.detail?.[`emitterKeyFor${injectFlagEvt}`]) {
@@ -63,7 +60,7 @@ const submitTarget = () => {
 };
 
 if (submitTarget() === true) {
-  performance.addEventListener(mainKey, (ev) => {
+  pageAddEventListener(mainKey, (ev) => {
     if (ev instanceof CustomEvent && !ev.detail) {
       submitTarget();
     }

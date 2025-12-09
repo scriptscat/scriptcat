@@ -1,5 +1,6 @@
 import { randomMessageFlag } from "./pkg/utils/utils";
-import { createPageMessaging, pageDispatchCustomEvent } from "@Packages/message/custom_event_message";
+import { createPageMessaging } from "@Packages/message/custom_event_message";
+import { pageAddEventListener, pageDispatchCustomEvent } from "@Packages/message/common";
 import { uuidv5 } from "./pkg/utils/uuid";
 
 const scriptingMessaging = createPageMessaging("");
@@ -49,7 +50,7 @@ chrome.storage.local.get(["localStorage:scriptInjectMessageFlag"]).then((m) => {
   const injectFlagEvt = injectFlag;
 
   // 用來接收 emitter
-  performance.addEventListener(
+  pageAddEventListener(
     `${injectFlagEvt}`,
     (ev) => {
       if (ev instanceof CustomEvent && ev.detail?.[`emitterKeyFor${injectFlagEvt}`]) {
@@ -72,7 +73,7 @@ chrome.storage.local.get(["localStorage:scriptInjectMessageFlag"]).then((m) => {
   };
 
   if (submitTarget() === true) {
-    performance.addEventListener(mainKey, (ev) => {
+    pageAddEventListener(mainKey, (ev) => {
       if (ev instanceof CustomEvent && !ev.detail) {
         submitTarget();
       }
