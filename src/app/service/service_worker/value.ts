@@ -108,7 +108,6 @@ export class ValueService {
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
     const ret = await stackAsyncTask<number | undefined>(cacheKey, async () => {
       const valueModel: Value | undefined = await this.valueDAO.get(storageName);
-      // await this.valueDAO.save(storageName, valueModel);
       return valueModel?.updatetime;
     });
     return ret || 0;
@@ -254,7 +253,6 @@ export class ValueService {
           uuid,
           storageName,
           sender: valueSender,
-          valueUpdated,
           updatetime,
         } as ValueUpdateDataEncoded);
       }

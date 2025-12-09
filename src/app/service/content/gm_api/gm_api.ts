@@ -191,7 +191,7 @@ class GM_Base implements IGM_Base {
     if (!this.scriptRes) return;
     const scriptRes = this.scriptRes;
     let lastUpdateTime = 0;
-    if (uuid == scriptRes.uuid || storageName === getStorageName(scriptRes)) {
+    if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
       const hold = deferred();
       // 避免立即 emit
       stackAsyncTask("valueUpdateEventListenerEmit", () => hold.promise);
