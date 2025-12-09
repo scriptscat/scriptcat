@@ -151,7 +151,7 @@ export function compilePreInjectScript(
   return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
-  c = typeof cloneInto === "function" ? cloneInto(o, document.defaultView) : o,
+  c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,
   f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c)),
   needWait = f();
   if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
