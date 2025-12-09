@@ -477,11 +477,8 @@ export default function registerEditor() {
     updateLang(res);
   });
 
-  messageQueue.subscribe<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key, value }) => {
-    if (key === "language") {
-      // @ts-ignore
-      updateLang(value);
-    }
+  systemConfig.addListener("language", (lang) => {
+    updateLang(lang);
   });
 
   const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
