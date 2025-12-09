@@ -1,4 +1,3 @@
-/* eslint-disable no-fallthrough */
 import * as path from "path";
 import { defineConfig } from "@rspack/cli";
 import { rspack } from "@rspack/core";
@@ -294,6 +293,7 @@ export default defineConfig({
           switch (tag) {
             case "react-icons":
               if (p.includes("/react-icons/tb")) return undefined;
+            // eslint-disable-next-line no-fallthrough
             case "react-dropzone":
             case "react-dom":
             case "react-i18next":
