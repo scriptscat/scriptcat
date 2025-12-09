@@ -477,7 +477,7 @@ export default function registerEditor() {
     updateLang(res);
   });
 
-  messageQueue.subscribe(SystemConfigChange, ({ key, value }: TKeyValue) => {
+  messageQueue.subscribe<TKeyValue>(SystemConfigChange, ({ key, value }) => {
     if (key === "language") {
       updateLang(value);
     }
