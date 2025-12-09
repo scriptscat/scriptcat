@@ -2,6 +2,9 @@ import { editor, Range } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { globalCache, systemConfig } from "@App/pages/store/global";
 import { LinterWorker } from "@App/pkg/utils/monaco-editor";
+import { fnPlaceHolder } from "@App/pages/store/AppContext";
+
+fnPlaceHolder.setEditorTheme = (theme: string) => editor.setTheme(theme);
 
 type Props = {
   className?: string;

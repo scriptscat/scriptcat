@@ -25,7 +25,7 @@ loggerCore.logger().debug("install page start");
 
 const MyApp = () => (
   <AppProvider>
-    <MainLayout className="!flex-col !px-4 box-border">
+    <MainLayout className="!tw-flex-col !tw-px-4 tw-box-border">
       <App />
     </MainLayout>
   </AppProvider>

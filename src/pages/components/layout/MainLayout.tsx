@@ -201,13 +201,13 @@ const MainLayout: React.FC<{
       locale={arcoLocale(i18n.language)}
     >
       {contextHolder}
-      <Layout>
+      <Layout className={"tw-min-h-screen"}>
         <Layout.Header
           style={{
             height: "50px",
             borderBottom: "1px solid var(--color-neutral-3)",
           }}
-          className="flex items-center justify-between px-4"
+          className="tw-flex tw-items-center tw-justify-between tw-px-4"
         >
           <Modal
             title={t("import_link")}
@@ -230,9 +230,9 @@ const MainLayout: React.FC<{
               }}
             />
           </Modal>
-          <div className="flex row items-center">
+          <div className="tw-flex tw-flex-row tw-items-center">
             <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
-            <Typography.Title heading={4} className="!m-0">
+            <Typography.Title heading={4} className="!tw-m-0">
               {"ScriptCat"}
             </Typography.Title>
           </div>
@@ -301,7 +301,7 @@ const MainLayout: React.FC<{
                   style={{
                     color: "var(--color-text-1)",
                   }}
-                  className="!text-size-sm"
+                  className="!tw-text-size-sm"
                 >
                   <RiPlayListAddLine /> {t("create_script")} <IconDown />
                 </Button>
@@ -342,7 +342,7 @@ const MainLayout: React.FC<{
                 style={{
                   color: "var(--color-text-1)",
                 }}
-                className="!text-lg"
+                className="!tw-text-lg"
               />
             </Dropdown>
             {showLanguage && (
@@ -375,14 +375,14 @@ const MainLayout: React.FC<{
                   style={{
                     color: "var(--color-text-1)",
                   }}
-                  className="!text-lg"
+                  className="!tw-text-lg"
                 ></Button>
               </Dropdown>
             )}
           </Space>
         </Layout.Header>
         <Layout
-          className={`absolute top-50px bottom-0 w-full ${className}`}
+          className={`tw-bottom-0 tw-w-full ${className}`}
           style={{
             background: "var(--color-fill-2)",
           }}
@@ -390,13 +390,13 @@ const MainLayout: React.FC<{
         >
           <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
           <div
+            className="sc-inset-0"
             style={{
               position: "absolute",
               zIndex: 100,
               display: isDragActive ? "flex" : "none",
               justifyContent: "center",
               alignItems: "center",
-              inset: 0,
               margin: "auto",
               color: "grey",
               fontSize: 36,

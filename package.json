@@ -8,7 +8,9 @@
   "scripts": {
     "preinstall": "pnpm dlx only-allow pnpm",
     "test": "vitest --test-timeout=500 --no-coverage --isolate=false --reporter=verbose",
+    "test:ci": "vitest run --test-timeout=500 --no-coverage --isolate=false --reporter=default --reporter.summary=false",
     "coverage": "vitest run --coverage",
+    "coverage:ci": "vitest run --coverage --silent --reporter=default --reporter.default.summary=false",
     "typecheck": "tsc --noEmit",
     "build": "cross-env NODE_ENV=production rspack build",
     "dev": "cross-env NODE_ENV=development rspack",
@@ -16,6 +18,7 @@
     "pack": "node ./scripts/pack.js",
     "format": "prettier --write .",
     "lint": "eslint .",
+    "lint:ci": "eslint . --cache --cache-location .eslintcache",
     "lint-fix": "eslint --fix .",
     "changlog": "node ./scripts/changlog.js",
     "crowdin": "crowdin",
