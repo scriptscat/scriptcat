@@ -2,7 +2,7 @@ import type { Script, ScriptCode, ScriptRunResource, TClientPageLoadInfo } from 
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptMenu, ScriptMenuItem, SearchType, TBatchUpdateListAction } from "./types";
+import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -75,7 +75,7 @@ export class ScriptClient extends Client {
     return this.doThrow("fetchInfo", uuid);
   }
 
-  getFilterResult(req: { type: SearchType; value: string }): Promise<ScriptCode | undefined> {
+  getFilterResult(req: { value: string }): Promise<ScriptCode | undefined> {
     return this.do("getFilterResult", req);
   }
 

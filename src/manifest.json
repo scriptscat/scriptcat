@@ -34,7 +34,6 @@
     "scripting",
     "downloads",
     "activeTab",
-    "background",
     "webRequest",
     "userScripts",
     "contextMenus",
@@ -42,9 +41,11 @@
     "notifications",
     "clipboardWrite",
     "unlimitedStorage",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "webNavigation"
   ],
   "optional_permissions": [
+    "background",
     "userScripts"
   ],
   "host_permissions": [
@@ -54,5 +55,11 @@
     "pages": [
       "src/sandbox.html"
     ]
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["/src/install.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

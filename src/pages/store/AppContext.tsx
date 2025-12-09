@@ -1,5 +1,6 @@
 import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
 import { messageQueue } from "./global";
+
 export const fnPlaceHolder = {
   setEditorTheme: null,
 } as { setEditorTheme: ((theme: string) => void) | null };

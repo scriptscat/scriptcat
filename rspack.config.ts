@@ -71,20 +71,9 @@ export default defineConfig({
   module: {
     rules: [
       {
-        test: /\.css$/,
-        use: [
-          {
-            loader: "postcss-loader",
-            options: {
-              postcssOptions: {
-                plugins: {
-                  autoprefixer: {},
-                },
-              },
-            },
-          },
-        ],
-        type: "css",
+        test: /\.css$/i,
+        type: "css/auto",
+        use: ["postcss-loader"],
       },
       {
         test: /\.(svg|png)$/,

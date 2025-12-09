@@ -5,6 +5,23 @@ import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
 
+// 避免页面载入后改动 EventTarget.prototype 的方法导致消息传递失败
+const pageDispatchEvent = performance.dispatchEvent.bind(performance);
+const pageAddEventListener = performance.addEventListener.bind(performance);
+
+// 避免页面载入后改动全域物件导致消息传递失败
+const MouseEventClone = MouseEvent;
+const CustomEventClone = CustomEvent;
+
+// 避免页面载入后改动 Map.prototype 导致消息传递失败
+const relatedTargetMap = new Map<number, EventTarget>();
+relatedTargetMap.set = Map.prototype.set;
+relatedTargetMap.get = Map.prototype.get;
+relatedTargetMap.delete = Map.prototype.delete;
+
+let relateId = 0;
+const maxInteger = Number.MAX_SAFE_INTEGER;
+
 export class CustomEventPostMessage implements PostMessage {
   constructor(private send: CustomEventMessage) {}
 
@@ -28,10 +45,10 @@ export class CustomEventMessage implements Message {
   ) {
     this.receiveFlag = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}${DefinedFlags.domEvent}`;
     this.sendFlag = `evt${messageFlag}${isContent ? DefinedFlags.injectFlag : DefinedFlags.contentFlag}${DefinedFlags.domEvent}`;
-    window.addEventListener(this.receiveFlag, (event) => {
-      if (event instanceof MouseEvent && event.movementX && event.relatedTarget) {
-        this.relatedTarget.set(event.movementX, event.relatedTarget!);
-      } else if (event instanceof CustomEvent) {
+    pageAddEventListener(this.receiveFlag, (event) => {
+      if (event instanceof MouseEventClone && event.movementX && event.relatedTarget) {
+        relatedTargetMap.set(event.movementX, event.relatedTarget!);
+      } else if (event instanceof CustomEventClone) {
         this.messageHandle(event.detail, new CustomEventPostMessage(this));
       }
     });
@@ -100,10 +117,10 @@ export class CustomEventMessage implements Message {
       }
     }
 
-    const ev = new CustomEvent(this.sendFlag, {
+    const ev = new CustomEventClone(this.sendFlag, {
       detail,
     });
-    window.dispatchEvent(ev);
+    pageDispatchEvent(ev);
   }
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
@@ -146,24 +163,22 @@ export class CustomEventMessage implements Message {
     return ret;
   }
 
-  relateId = 0;
-
   sendRelatedTarget(target: EventTarget): number {
     // 特殊处理relatedTarget，返回id进行关联
     // 先将relatedTarget转换成id发送过去
-    const id = ++this.relateId;
+    const id = (relateId = relateId === maxInteger ? 1 : relateId + 1);
     // 可以使用此种方式交互element
-    const ev = new MouseEvent(this.sendFlag, {
+    const ev = new MouseEventClone(this.sendFlag, {
       movementX: id,
       relatedTarget: target,
     });
-    window.dispatchEvent(ev);
+    pageDispatchEvent(ev);
     return id;
   }
 
   getAndDelRelatedTarget(id: number) {
-    const target = this.relatedTarget.get(id);
-    this.relatedTarget.delete(id);
+    const target = relatedTargetMap.get(id);
+    relatedTargetMap.delete(id);
     return target;
   }
 }

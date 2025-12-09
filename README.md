@@ -1,5 +1,5 @@
 <p align="right">
-<a href="./README.md">中文</a>  <a href="./README_EN.md">English</a> <a href="./README_RU.md">Русский</a>
+<a href="./README.md">中文</a> <a href="./README_EN.md">English</a> <a href="./README_zh-TW.md">繁體中文</a> <a href="./README_ja.md">日本語</a> <a href="./README_RU.md">Русский</a>
 </p>
 
 <h1 align="center">
@@ -11,7 +11,7 @@ ScriptCat
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">文档</a> ·
-<a href="https://bbs.tampermonkey.net.cn/">社区</a> ·
+<a href="https://bbs.tampermonkey.net.cn/">社区（油猴中文网）</a> ·
 <a href="https://scriptcat.org/search">脚本站</a>
 </p>
 
@@ -63,11 +63,11 @@ ScriptCat（脚本猫）是一个功能强大的用户脚本管理器，基于�
 
 #### 扩展商店（推荐）
 
-| 浏览器  | 商店链接                                                                                                                                                                                                                                    | 状态    |
+| 浏览器 | 商店链接 | 状态 |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | Chrome  | [正式版本](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta版本](https://chromewebstore.google.com/detail/scriptcat-beta/jaehimmlecjmebpekkipmpmbpfhdacom) | ✅ 可用 |
-| Edge    | [正式版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)                      | ✅ 可用 |
-| Firefox | [正式版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)                                                                                             | ✅ MV2  |
+| Edge    | [正式版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ 可用 |
+| Firefox | [正式版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/) | ✅ MV2 |
 
 #### 手动安装
 
@@ -102,7 +102,7 @@ ScriptCat（脚本猫）是一个功能强大的用户脚本管理器，基于�
 
 - [Telegram](https://t.me/scriptscat)
 - [Discord](https://discord.gg/JF76nHCCM7)
-- [油猴中文网](https://bbs.tampermonkey.net.cn/)
+- [社区（油猴中文网）](https://bbs.tampermonkey.net.cn/)
 
 ### 🙏 鸣谢
 
