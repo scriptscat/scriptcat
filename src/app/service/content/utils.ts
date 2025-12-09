@@ -151,9 +151,9 @@ export function compilePreInjectScript(
   return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
-  f = () => window.dispatchEvent(new CustomEvent('${evScriptLoad}', o)),
+  f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', o)),
   needWait = f();
-  if (needWait) window.addEventListener('${evEnvLoad}', f, { once: true });
+  if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
 }
 `;
 }
@@ -165,6 +165,16 @@ export function addStyle(css: string): HTMLStyleElement {
     return document.head.appendChild(dom);
   }
   return document.documentElement.appendChild(dom);
+}
+
+export function addStyleSheet(css: string): CSSStyleSheet {
+  // see https://unarist.hatenablog.com/entry/2020/07/06/012540
+  const sheet = new CSSStyleSheet();
+  // it might return as Promise
+  sheet.replaceSync(css);
+  // adoptedStyleSheets is FrozenArray so it has to be re-assigned.
+  document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
+  return sheet;
 }
 
 export function metadataBlankOrTrue(metadata: SCMetadata, key: string): boolean {
