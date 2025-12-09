@@ -53,8 +53,8 @@ If you are not a member of the ScriptCat team, you can first fork this repositor
 ScriptCat's documentation is in a separate repository: [scriptcat.org](https://docs.scriptcat.org), written using [docusaurus](https://docusaurus.io/). There are some [Markdown](https://docusaurus.io/zh-CN/docs/markdown-features) features that can help you. If you need to preview the modified documentation locally, you can use the following commands to install documentation dependencies and start the dev server:
 
 ```bash
-npm install
-npm start
+pnpm install
+pnpm start
 ```
 
 ### Help Us Translate

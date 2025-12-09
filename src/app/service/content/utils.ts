@@ -151,9 +151,9 @@ export function compilePreInjectScript(
   return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
-  f = () => window.dispatchEvent(new CustomEvent('${evScriptLoad}', o)),
+  f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', o)),
   needWait = f();
-  if (needWait) window.addEventListener('${evEnvLoad}', f, { once: true });
+  if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
 }
 `;
 }

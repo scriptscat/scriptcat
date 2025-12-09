@@ -897,12 +897,6 @@ function ScriptEditor() {
                 }}
                 onClick={() => {
                   setShowSearchInput(!showSearchInput);
-                  setTimeout(
-                    () =>
-                      showSearchInput &&
-                      (document.querySelector("#editor_search_scripts_input") as HTMLInputElement)?.focus(),
-                    1
-                  );
                 }}
               >
                 <div className="tw-flex tw-justify-between tw-items-center">
@@ -919,7 +913,8 @@ function ScriptEditor() {
                   <Input
                     placeholder={t("search_scripts")}
                     allowClear
-                    value={searchKeyword}
+                    autoFocus
+                    defaultValue={searchKeyword}
                     onChange={(value) => setSearchKeyword(value)}
                     size="mini"
                     id="editor_search_scripts_input"

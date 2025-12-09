@@ -42,7 +42,6 @@ import {
   BatchUpdateListActionCode,
   type TBatchUpdateListAction,
   UpdateStatusCode,
-  type SearchType,
   type TBatchUpdateRecord,
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
@@ -571,7 +570,7 @@ export class ScriptService {
     return true;
   }
 
-  async getFilterResult(req: { type: SearchType; value: string }) {
+  async getFilterResult(req: { value: string }) {
     const OPTION_CASE_INSENSITIVE = true;
     const scripts = await this.scriptDAO.all();
     const scriptCodes = await Promise.all(
