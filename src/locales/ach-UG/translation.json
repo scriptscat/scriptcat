@@ -281,7 +281,8 @@
   "script_requires": "crwdns8440:0crwdne8440:0",
   "cookie_warning": "crwdns8442:0crwdne8442:0",
   "scheduled_script_description_title": "crwdns8706:0crwdne8706:0",
-  "scheduled_script_description_description": "crwdns8708:0{{expression}}crwdnd8708:0{{time}}crwdne8708:0",
+  "scheduled_script_description_description_expr": "crwdns8708:0",
+  "scheduled_script_description_description_next": "crwdns8708:0",
   "background_script_description": "crwdns8444:0crwdne8444:0",
   "install_success": "crwdns8446:0crwdne8446:0",
   "install": {
@@ -321,6 +322,9 @@
     "status_autoclose": "crwdns12778:0crwdne12778:0",
     "header_other_update": "crwdns12784:0crwdne12784:0"
   },
+  "downloading_status_text": "Downloading. Received {{bytes}}.",
+  "install_page_loading": "Installation page loading",
+  "invalid_page": "Invalid page",
   "background_script_tag": "crwdns8460:0crwdne8460:0",
   "scheduled_script_tag": "crwdns8462:0crwdne8462:0",
   "background_script": "crwdns8464:0crwdne8464:0",
@@ -414,8 +418,6 @@
   "develop_mode_guide": "crwdns8624:0crwdne8624:0",
   "allow_user_script_guide": "crwdns8626:0crwdne8626:0",
   "lower_version_browser_guide": "crwdns8628:0crwdne8628:0",
-  "enable_script_failed": "crwdns8630:0crwdne8630:0",
-  "disable_script_failed": "crwdns8632:0crwdne8632:0",
   "confirm_leave_page": "crwdns8634:0crwdne8634:0",
   "page_in_blacklist": "crwdns8636:0crwdne8636:0",
   "baidu_netdisk": "crwdns8638:0crwdne8638:0",

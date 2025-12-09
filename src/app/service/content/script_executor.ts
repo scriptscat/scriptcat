@@ -3,7 +3,7 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
-import { addStyle, definePropertyListener } from "./utils";
+import { addStyleSheet, definePropertyListener } from "./utils";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 
@@ -14,18 +14,29 @@ export type ExecScriptEntry = {
   scriptFunc: any;
 };
 
+export let initEnvInfo: GMInfoEnv;
+
+try {
+  initEnvInfo = {
+    userAgentData: UserAgentData, // 从全局变量获取
+    sandboxMode: "raw", // 预留字段，当前固定为 raw
+    isIncognito: false, // inject 环境下无法判断，固定为 false
+  };
+} catch {
+  // 如果 UserAgentData 不存在，可能是在非inject/content环境下运行
+  initEnvInfo = {
+    userAgentData: {},
+    sandboxMode: "raw",
+    isIncognito: false,
+  };
+}
+
 // 脚本执行器
 export class ScriptExecutor {
   earlyScriptFlag: Set<string> = new Set();
   execMap: Map<string, ExecScript> = new Map();
 
-  envInfo: GMInfoEnv | undefined;
-
   constructor(private msg: Message) {}
-
-  setEnvInfo(envInfo: GMInfoEnv) {
-    this.envInfo = envInfo;
-  }
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
@@ -44,13 +55,13 @@ export class ScriptExecutor {
     }
   }
 
-  startScripts(scripts: TScriptInfo[]) {
+  startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
     const loadExec = (script: TScriptInfo, scriptFunc: any) => {
       this.execScriptEntry({
         scriptLoadInfo: script,
         scriptFlag: script.flag,
         scriptFunc,
-        envInfo: this.envInfo!,
+        envInfo: envInfo,
       });
     };
     // 监听脚本加载
@@ -61,7 +72,7 @@ export class ScriptExecutor {
         for (const val of this.execMap.values()) {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
-            val.updateEarlyScriptGMInfo(this.envInfo!);
+            val.updateEarlyScriptGMInfo(envInfo);
             return;
           }
         }
@@ -72,34 +83,34 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(env: "content" | "inject", messageFlag: string) {
+  checkEarlyStartScript(env: "content" | "inject", messageFlag: string, envInfo: GMInfoEnv) {
     const isContent = env === "content";
     const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
     const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    window.addEventListener(scriptLoadCompleteEvtName, (ev) => {
+    performance.addEventListener(scriptLoadCompleteEvtName, (ev) => {
       const detail = (ev as CustomEvent).detail;
       const scriptFlag = detail?.scriptFlag;
       if (typeof scriptFlag === "string") {
         ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
-        this.execEarlyScript(scriptFlag, detail.scriptInfo);
+        this.execEarlyScript(scriptFlag, detail.scriptInfo, envInfo);
       }
     });
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
     const ev = new CustomEvent(envLoadCompleteEvtName);
-    window.dispatchEvent(ev);
+    performance.dispatchEvent(ev);
   }
 
-  execEarlyScript(flag: string, scriptInfo: TScriptInfo) {
+  execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {
     const scriptFunc = (window as any)[flag] as ScriptFunc;
     this.execScriptEntry({
       scriptLoadInfo: scriptInfo,
       scriptFunc: scriptFunc,
       scriptFlag: flag,
-      envInfo: {},
+      envInfo: envInfo,
     });
     this.earlyScriptFlag.add(flag);
   }
@@ -116,7 +127,7 @@ export class ScriptExecutor {
       for (const val of metadata["require-css"]) {
         const res = resource[val];
         if (res) {
-          addStyle(res.content);
+          addStyleSheet(res.content);
         }
       }
     }

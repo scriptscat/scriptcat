@@ -4,21 +4,27 @@ import { ExtensionMessage } from "@Packages/message/extension_message";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
-import { ScriptExecutor } from "./app/service/content/script_executor";
-import { randomMessageFlag } from "./pkg/utils/utils";
+import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
+import { randomMessageFlag, getUspMessageFlag } from "./pkg/utils/utils";
 import type { Message } from "@Packages/message/types";
 
-/* global MessageFlag  */
+// @ts-ignore
+const MessageFlag: string | null = (typeof arguments === "object" && arguments?.[0]) || getUspMessageFlag();
 
-if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
-  // Firefox MV3 之类好像没有 chrome.runtime.onMessage.addListener ?
+if (!MessageFlag) {
+  console.error("MessageFlag is unavailable.");
+} else if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
+  // Firefox userScripts.RegisteredUserScript does not provide chrome.runtime.onMessage.addListener
+  // Firefox scripting.RegisteredContentScript does provide chrome.runtime.onMessage.addListener
+  // Firefox 的 userScripts.RegisteredUserScript 不提供 chrome.runtime.onMessage.addListener
+  // Firefox 的 scripting.RegisteredContentScript 提供 chrome.runtime.onMessage.addListener
   console.error("chrome.runtime.onMessage.addListener is not a function");
 } else {
   // 建立与service_worker页面的连接
   const extMsgComm: Message = new ExtensionMessage(false);
   // 初始化日志组件
   const loggerCore = new LoggerCore({
-    writer: new MessageWriter(extMsgComm),
+    writer: new MessageWriter(extMsgComm, "serviceWorker/logger"),
     labels: { env: "content" },
   });
 
@@ -41,5 +47,5 @@ if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
   const runtime = new ContentRuntime(extServer, server, extMsgComm, msgInject, scriptExecutorMsg, scriptExecutor);
   runtime.init();
   // 页面加载，注入脚本
-  runtime.pageLoad(MessageFlag);
+  runtime.pageLoad(MessageFlag, initEnvInfo);
 }
