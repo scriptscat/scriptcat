@@ -34,6 +34,7 @@ export default defineConfig({
     offscreen: `${src}/offscreen.ts`,
     sandbox: `${src}/sandbox.ts`,
     content: `${src}/content.ts`,
+    scripting: `${src}/scripting.ts`,
     inject: `${src}/inject.ts`,
     popup: `${src}/pages/popup/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
