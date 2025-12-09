@@ -16,6 +16,14 @@ const PACK_FIREFOX = false;
 
 // ============================================================================
 
+const createJSZip = () => {
+  const currDate = new Date();
+  const dateWithOffset = new Date(currDate.getTime() - currDate.getTimezoneOffset() * 60000);
+  // replace the default date with dateWithOffset
+  JSZip.defaults.date = dateWithOffset;
+  return new JSZip();
+};
+
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
 if (version.prerelease.length) {
@@ -90,8 +98,8 @@ firefoxManifest.commands = {
   _execute_action: {},
 };
 
-const chrome = new JSZip();
-const firefox = new JSZip();
+const chrome = createJSZip();
+const firefox = createJSZip();
 
 async function addDir(zip, localDir, toDir, filters) {
   const sub = async (localDir, toDir) => {

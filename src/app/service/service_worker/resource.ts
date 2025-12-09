@@ -300,7 +300,8 @@ export class ResourceService {
     if (!data.source) {
       return undefined;
     }
-    const time = Date.now();
+    const now = Date.now();
+    const ts = data.meta.ts || 0;
     let res = await this.resourceDAO.get(data.meta.url);
     if (!res) {
       // 新增资源
@@ -314,12 +315,13 @@ export class ResourceService {
         base64,
         link: {},
         type,
-        createtime: time,
-        updatetime: time,
+        createtime: ts ? Math.min(ts, now) : now,
+        updatetime: ts ? Math.min(ts, now) : now,
       };
+    } else {
+      res.updatetime = now;
     }
     res.link[uuid] = true;
-    res.updatetime = time;
     return await this.resourceDAO.update(data.meta.url, res);
   }
 

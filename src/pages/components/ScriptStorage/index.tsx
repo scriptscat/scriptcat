@@ -1,11 +1,12 @@
 import type { Script } from "@App/app/repo/scripts";
 import { valueClient } from "@App/pages/store/features/script";
+import type { TKeyValuePair } from "@App/pkg/utils/message_value";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 import { valueType } from "@App/pkg/utils/utils";
 import { Button, Drawer, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from "@arco-design/web-react";
-import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconEdit, IconSearch } from "@arco-design/web-react/icon";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 const FormItem = Form.Item;
@@ -23,7 +24,6 @@ const ScriptStorage: React.FC<{
 }> = ({ script, visible, onCancel, onOk }) => {
   const [data, setData] = useState<ValueModel[]>([]);
   const [rawData, setRawData] = useState<{ [key: string]: any }>({});
-  const inputRef = useRef<RefInputType>(null);
   const [currentValue, setCurrentValue] = useState<ValueModel>();
   const [visibleEdit, setVisibleEdit] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
@@ -33,7 +33,7 @@ const ScriptStorage: React.FC<{
 
   // 保存单个键值
   const saveData = (key: string, value: any) => {
-    valueClient.setScriptValue(script!.uuid, key, value);
+    valueClient.setScriptValue({ uuid: script!.uuid, key, value, ts: Date.now() });
     const newRawData = { ...rawData, [key]: value };
     if (value === undefined) {
       delete newRawData[key];
@@ -43,7 +43,11 @@ const ScriptStorage: React.FC<{
 
   // 保存所有键值
   const saveRawData = (newRawValue: { [key: string]: any }) => {
-    valueClient.setScriptValues(script!.uuid, newRawValue);
+    const keyValuePairs = [] as TKeyValuePair[];
+    for (const [key, value] of Object.entries(newRawValue)) {
+      keyValuePairs.push([key, encodeRValue(value)]);
+    }
+    valueClient.setScriptValues({ uuid: script!.uuid, keyValuePairs, isReplace: true, ts: Date.now() });
     updateRawData(newRawValue);
   };
 
@@ -93,8 +97,8 @@ const ScriptStorage: React.FC<{
         return (
           <div className="arco-table-custom-filter">
             <Input.Search
-              ref={inputRef}
               searchButton
+              autoFocus
               placeholder={t("enter_key")!}
               value={filterKeys[0] || ""}
               onChange={(value) => {
@@ -108,11 +112,6 @@ const ScriptStorage: React.FC<{
         );
       },
       onFilter: (value, row) => !value || row.key.includes(value),
-      onFilterDropdownVisibleChange: (v) => {
-        if (v) {
-          setTimeout(() => inputRef.current!.focus(), 1);
-        }
-      },
     },
     {
       title: t("value"),
@@ -242,8 +241,8 @@ const ScriptStorage: React.FC<{
           </Form>
         )}
       </Modal>
-      <Space className="w-full" direction="vertical">
-        <Space className="!flex justify-end">
+      <Space className="tw-w-full" direction="vertical">
+        <Space className="!tw-flex tw-justify-end">
           {isEdit ? (
             <>
               <Button

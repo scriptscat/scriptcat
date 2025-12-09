@@ -1,13 +1,14 @@
-import JSZip from "jszip";
+import { createJSZip } from "@App/pkg/utils/jszip-x";
 import BackupExport from "./export";
 import { parseBackupZipFile } from "./utils";
 import type { BackupData } from "./struct";
 import { describe, expect, it } from "vitest";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 
+const ts0 = Date.now() - 5000;
 describe.concurrent("backup", () => {
   it.concurrent("empty", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     await new BackupExport(fs).export({
       script: [],
@@ -21,7 +22,7 @@ describe.concurrent("backup", () => {
   });
 
   it.concurrent("export and import script - basic", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: [
@@ -70,13 +71,14 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 1,
             data: {
               num: 1,
               str: "data",
               bool: false,
             },
           },
+          lastModificationDate: expect.any(Number),
         },
       ],
       subscribe: [
@@ -97,6 +99,7 @@ describe.concurrent("backup", () => {
               url: "",
             },
           },
+          lastModificationDate: expect.any(Number),
         },
       ],
     } as unknown as BackupData;
@@ -112,7 +115,7 @@ describe.concurrent("backup", () => {
   });
 
   it.concurrent("export and import script - name and version only", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: [
@@ -157,13 +160,14 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 2,
             data: {
               num: 1,
               str: "data",
               bool: false,
             },
           },
+          lastModificationDate: expect.any(Number),
         },
       ],
       subscribe: [],
@@ -180,7 +184,7 @@ describe.concurrent("backup", () => {
   });
 
   it.concurrent("export and import script - 2 scripts", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: [
@@ -225,13 +229,14 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 3,
             data: {
               num: 1,
               str: "data",
               bool: false,
             },
           },
+          lastModificationDate: expect.any(Number),
         },
         {
           code: `// ==UserScript==
@@ -274,9 +279,10 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 4,
             data: {},
           },
+          lastModificationDate: expect.any(Number),
         },
       ],
       subscribe: [],
@@ -293,7 +299,7 @@ describe.concurrent("backup", () => {
   });
 
   it.concurrent("export and import script - 30 scripts + 20 subscribes", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: Array.from({ length: 30 }, (v, i) => {
@@ -338,9 +344,10 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 5,
             data: {},
           },
+          lastModificationDate: expect.any(Number),
         };
       }),
       subscribe: Array.from({ length: 20 }, (v, i) => {
@@ -361,6 +368,7 @@ describe.concurrent("backup", () => {
               url: "",
             },
           },
+          lastModificationDate: expect.any(Number),
         };
       }),
     } as unknown as BackupData;

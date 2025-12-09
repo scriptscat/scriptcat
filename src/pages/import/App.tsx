@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Button, Card, Checkbox, Divider, List, Message, Space, Switch, Typography } from "@arco-design/web-react";
 import { useTranslation } from "react-i18next"; // 导入react-i18next的useTranslation钩子
-import JSZip from "jszip";
+import { loadAsyncJSZip } from "@App/pkg/utils/jszip-x";
 import type { ScriptOptions, ScriptData, SubscribeData } from "@App/pkg/backup/struct";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
@@ -10,6 +10,8 @@ import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { parseBackupZipFile } from "@App/pkg/backup/utils";
 import { scriptClient, synchronizeClient, valueClient } from "../store/features/script";
 import { sleep } from "@App/pkg/utils/utils";
+import type { TKeyValuePair } from "@App/pkg/utils/message_value";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 
 const ScriptListItem = React.memo(
   ({
@@ -27,7 +29,7 @@ const ScriptListItem = React.memo(
   }) => {
     return (
       <div
-        className="flex flex-row justify-between p-2"
+        className="tw-flex tw-flex-row tw-justify-between tw-p-2"
         key={`script_${index}`}
         style={{
           background: item.error ? "rgb(var(--red-1))" : item.install ? "rgb(var(--arcoblue-1))" : "",
@@ -40,14 +42,14 @@ const ScriptListItem = React.memo(
           <Typography.Title heading={6} style={{ color: "rgb(var(--blue-5))" }}>
             {item.script?.script?.name || item.error || t("unknown")}
           </Typography.Title>
-          <span className="text-sm color-gray-5">{`${t("author")}: ${item.script?.script?.metadata.author?.[0]}`}</span>
-          <span className="text-sm color-gray-5">
+          <span className="tw-text-sm tw-color-gray-5">{`${t("author")}: ${item.script?.script?.metadata.author?.[0]}`}</span>
+          <span className="tw-text-sm tw-color-gray-5">
             {`${t("description")}: ${item.script?.script?.metadata.description?.[0]}`}
           </span>
-          <span className="text-sm color-gray-5">
+          <span className="tw-text-sm tw-color-gray-5">
             {`${t("source")}: ${item.options?.meta.file_url || t("local_creation")}`}
           </span>
-          <span className="text-sm color-gray-5">
+          <span className="tw-text-sm tw-color-gray-5">
             {`${t("operation")}: `}
             {(item.install && (item.script?.oldScript ? t("update") : t("add_new"))) ||
               (item.error
@@ -55,9 +57,9 @@ const ScriptListItem = React.memo(
                 : t("no_operation"))}
           </span>
         </Space>
-        <div className="flex flex-col justify-center" style={{ minWidth: "80px", textAlign: "center" }}>
-          <span className="text-sm color-gray-5">{t("enable_script")}</span>
-          <div className="text-center">
+        <div className="tw-flex tw-flex-col tw-justify-center" style={{ minWidth: "80px", textAlign: "center" }}>
+          <span className="tw-text-sm tw-color-gray-5">{t("enable_script")}</span>
+          <div className="tw-text-center">
             <Switch
               size="small"
               checked={item.script?.script?.status === SCRIPT_STATUS_ENABLE}
@@ -91,7 +93,7 @@ function App() {
       const resp = await cacheInstance.get<{ filename: string; url: string }>(cacheKey);
       if (!resp) throw new Error("fetchData failed");
       const filedata = await fetch(resp.url).then((resp) => resp.blob());
-      const zip = await JSZip.loadAsync(filedata);
+      const zip = await loadAsyncJSZip(filedata);
       const backData = await parseBackupZipFile(zip);
       const backDataScript = backData.script as ScriptData[];
 
@@ -167,7 +169,10 @@ function App() {
       if (item.script?.script) {
         if (item.script.script.ignoreVersion) item.script.script.ignoreVersion = "";
       }
-      await scriptClient.install(item.script!.script!, item.code);
+      const scriptDetails = item.script!.script!;
+      const createtime = item.lastModificationDate;
+      const updatetime = item.lastModificationDate;
+      await scriptClient.install({ script: scriptDetails, code: item.code, createtime, updatetime });
       await Promise.all([
         (async () => {
           // 导入资源
@@ -184,12 +189,16 @@ function App() {
         (async () => {
           // 导入数据
           const { data } = item.storage;
+          const ts = item.storage.ts || 0;
           const entries = Object.entries(data);
           if (entries.length === 0) return;
           await sleep(((Math.random() * 600) | 0) + 200);
+          const uuid = item.script!.script.uuid!;
+          const keyValuePairs = [] as TKeyValuePair[];
           for (const [key, value] of entries) {
-            await valueClient.setScriptValue(item.script!.script.uuid!, key, value);
+            keyValuePairs.push([key, encodeRValue(value)]);
           }
+          await valueClient.setScriptValues({ uuid: uuid, keyValuePairs, isReplace: false, ts: ts });
         })(),
       ]);
       setInstallNum((prev) => [prev[0] + 1, prev[1]]);

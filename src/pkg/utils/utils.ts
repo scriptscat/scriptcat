@@ -11,6 +11,59 @@ export function randomMessageFlag(): string {
   return `-${Date.now().toString(36)}.${randNum(8e11, 2e12).toString(36)}`;
 }
 
+let prevNow = 0;
+/**
+ * accumulated "now".
+ * 用 aNow 取得的现在时间能保证严格递增
+ */
+export const aNow = () => {
+  let now = Date.now();
+  if (prevNow >= now) now = prevNow + 0.0009765625; // 2^-10
+  prevNow = now;
+  return now;
+};
+
+export type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (v: T | PromiseLike<T>) => void;
+  reject: (e?: any) => void;
+};
+
+export const deferred = <T = void>(): Deferred<T> => {
+  let resolve!: (v: T | PromiseLike<T>) => void;
+  let reject!: (e?: any) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
+
+export const getUspMessageFlag = () => {
+  const s = new Error().stack;
+  if (s) {
+    const search1 = "content.js?usp_flag=";
+    const len1 = search1.length;
+    const idx1 = s.indexOf(search1);
+    if (idx1 > 0) {
+      const search2 = "&usp_end";
+      const idx2 = s.indexOf(search2, idx1 + len1);
+      if (idx2 > 0) {
+        const param = s.substring(idx1 + len1, idx2);
+        try {
+          // 使用 URLSearchParams 避免字符编码问题
+          const uspString = `usp_flag=${param}`;
+          const usp = new URLSearchParams(uspString);
+          if (usp.size === 1) return usp.get("usp_flag") || null;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }
+  return null;
+};
+
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";
@@ -82,6 +135,7 @@ export function parseStorageValue(str: string): unknown {
 export async function getCurrentTab(): Promise<chrome.tabs.Tab | undefined> {
   // `tab` will either be a `tabs.Tab` instance or `undefined`.
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true, windowType: "normal" });
+  if (tab?.discarded) return undefined;
   return tab;
 }
 
@@ -178,7 +232,7 @@ export async function checkUserScriptsAvailable() {
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
     const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts.getScripts({
-      ids: ["scriptcat-content", "undefined-id-3"],
+      ids: ["scriptcat-inject", "undefined-id-3"],
     });
     // 返回结果不是阵列的话表示API不可使用
     if (ret === undefined || ret === null || typeof ret[Symbol.iterator] !== "function") {
@@ -187,10 +241,10 @@ export async function checkUserScriptsAvailable() {
 
     if (ret[0]) {
       // API内部处理实际给予扩展权限才会有返回Script
-      // 含有 "scriptcat-content" 或 "undefined-id-3"
+      // 含有 "scriptcat-inject" 或 "undefined-id-3"
       return true;
     } else {
-      // 没有 "scriptcat-content" 和 "undefined-id-3"
+      // 没有 "scriptcat-inject" 和 "undefined-id-3"
       // 进行 "undefined-id-3" 的注册反注册测试
       // Chrome MV3 的一部分浏览器（如 Vivaldi ）没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩展权限)
       // 此时会无法注册 (1. register 报错)
@@ -265,6 +319,26 @@ export function getBrowserType() {
   }
   return o;
 }
+
+export const makeBlobURL = <T extends { blob: Blob; persistence: boolean }>(
+  params: T,
+  fallbackFn?: (params: T) => string | Promise<string>
+): Promise<string> | string => {
+  if (typeof URL?.createObjectURL !== "function") {
+    // 在service worker中，透过 offscreen 取得 blob URL
+    if (!fallbackFn) throw new Error("URL.createObjectURL is not supported");
+    return fallbackFn(params);
+  } else {
+    const url = URL.createObjectURL(params.blob);
+    if (!params.persistence) {
+      // 如果不是持久化的，则在1分钟后释放
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60_000);
+    }
+    return url;
+  }
+};
 
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve) => {
@@ -342,6 +416,11 @@ export function cleanFileName(name: string): string {
   return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
 }
 
+export const sourceMapTo = (scriptName: string) => {
+  const url = chrome.runtime.getURL(`/${encodeURI(scriptName)}`);
+  return `\n//# sourceURL=${url}`;
+};
+
 export const stringMatching = (main: string, sub: string): boolean => {
   // If no wildcards, use simple includes check
   if (!sub.includes("*") && !sub.includes("?")) {
@@ -368,4 +447,55 @@ export const stringMatching = (main: string, sub: string): boolean => {
     // Handle invalid regex patterns
     return false;
   }
+};
+
+/**
+ * 将字节数转换为人类可读的格式（B, KB, MB, GB 等）。
+ * @param bytes - 要转换的字节数（number）。
+ * @param decimals - 小数位数，默认为 2。
+ * @returns 格式化的字符串，例如 "1.23 MB"。
+ */
+export const formatBytes = (bytes: number, decimals: number = 2): string => {
+  if (bytes === 0) return "0 B";
+
+  const k = 1024;
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const value = bytes / Math.pow(k, i);
+
+  return `${value.toFixed(decimals)} ${units[i]}`;
+};
+
+// 把编码URL变成使用者可以阅读的格式
+export const prettyUrl = (s: string | undefined | null, baseUrl?: string) => {
+  if (s?.includes("://")) {
+    let u;
+    try {
+      u = baseUrl ? new URL(s, baseUrl) : new URL(s);
+    } catch {
+      // ignored
+    }
+    if (!u) return s;
+    const pathname = u.pathname;
+    if (pathname && pathname.includes("%")) {
+      try {
+        const raw = decodeURI(pathname);
+        if (
+          raw &&
+          raw.length < pathname.length &&
+          !raw.includes("?") &&
+          !raw.includes("#") &&
+          !raw.includes("&") &&
+          !raw.includes("=") &&
+          !raw.includes("%") &&
+          !raw.includes(":")
+        ) {
+          s = s.replace(pathname, raw);
+        }
+      } catch {
+        // ignored
+      }
+    }
+  }
+  return s;
 };

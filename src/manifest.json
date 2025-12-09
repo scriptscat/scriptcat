@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_scriptcat__",
-  "version": "1.2.0.1600",
+  "version": "1.3.0.1100",
   "author": "CodFrm",
   "description": "__MSG_scriptcat_description__",
   "options_ui": {
@@ -34,7 +34,6 @@
     "scripting",
     "downloads",
     "activeTab",
-    "background",
     "webRequest",
     "userScripts",
     "contextMenus",
@@ -42,9 +41,11 @@
     "notifications",
     "clipboardWrite",
     "unlimitedStorage",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "webNavigation"
   ],
   "optional_permissions": [
+    "background",
     "userScripts"
   ],
   "host_permissions": [
@@ -54,5 +55,11 @@
     "pages": [
       "src/sandbox.html"
     ]
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["/src/install.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

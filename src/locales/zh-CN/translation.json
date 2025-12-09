@@ -190,8 +190,7 @@
   "allow": "是否允许",
   "yes": "是",
   "no": "否",
-  "confirm_delete_permission": "确认删除该授权？",
-  "script_setting": "脚本设置",
+  "confirm_delete_permission": "确定要删除此授权吗？",
   "basic_info": "基本信息",
   "update_url": "更新URL",
   "permission_management": "授权管理",
@@ -280,9 +279,10 @@
   "script_runs_in": "脚本将在下面的网站中运行",
   "script_has_full_access_to": "脚本将获得以下地址的完整访问权限",
   "script_requires": "脚本引用了下列外部资源",
-  "cookie_warning": "请注意，本脚本会申请 Cookie 的操作权限，这是一个危险的权限，请确认脚本的安全性。",
+  "cookie_warning": "请注意，本脚本会请求 Cookie 的操作权限，这是一个危险的权限，请确认脚本的安全性。",
   "scheduled_script_description_title": "这是一个定时脚本，启用后将在特定时间自动运行，并可在面板中手动控制。",
-  "scheduled_script_description_description": "定时任务表达式：{{expression}}，最近一次运行时间：{{time}}",
+  "scheduled_script_description_description_expr": "定时任务表达式：",
+  "scheduled_script_description_description_next": "最近一次运行时间：",
   "background_script_description": "这是一个后台脚本，启用后将在浏览器打开时自动运行一次，并可在面板中手动控制。",
   "install_success": "安装成功",
   "install": {
@@ -322,6 +322,9 @@
     "status_autoclose": "$0 秒后自动关闭",
     "header_other_update": "其他可用更新"
   },
+  "downloading_status_text": "正在下载。已接收 {{bytes}}。",
+  "install_page_loading": "安装页面加载中",
+  "invalid_page": "无效页面",
   "background_script_tag": "这是一个后台脚本",
   "scheduled_script_tag": "这是一个定时脚本",
   "background_script": "后台脚本",
@@ -411,12 +414,10 @@
   "export_success": "导出成功",
   "get_backup_dir_url_failed": "获取备份目录地址失败",
   "get_backup_files_failed": "获取备份文件失败",
-  "request_permission": "申请权限",
-  "develop_mode_guide": "检测到当前未开启开发者模式，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解如何开启</a>",
-  "allow_user_script_guide": "检测到当前未开启允许用户脚本，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解如何开启</a>",
-  "lower_version_browser_guide": "检测到当前浏览器版本过低，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解更多</a>",
-  "enable_script_failed": "脚本开启失败",
-  "disable_script_failed": "脚本关闭失败",
+  "request_permission": "请求权限",
+  "develop_mode_guide": "当前未启用“开发者模式”，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点击查看启用方法</a>。",
+  "allow_user_script_guide": "当前未启用“允许运行用户脚本”，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点击查看启用方法</a>",
+  "lower_version_browser_guide": "您的浏览器版本过低，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点击了解更多</a>",
   "confirm_leave_page": "当前正在编辑状态，跳转其它页面将会丢失当前内容，是否跳转？",
   "page_in_blacklist": "当前页面在黑名单中，无法使用脚本",
   "baidu_netdisk": "百度网盘",
@@ -489,10 +490,16 @@
   "enter_search_value": "请输入 {{search}} 进行搜索",
   "script_run_env": {
     "title": "运行环境",
-    "default": "默认",
     "all": "所有标签",
     "normal-tabs": "普通标签",
     "incognito-tabs": "隐身标签"
+  },
+  "script_run_at": {
+    "title": "运行时机"
+  },
+  "script_setting": {
+    "title": "脚本设置",
+    "default": "默认"
   },
   "editor_config": "编辑器配置",
   "editor_config_description": "你可以参考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions进行配置",
@@ -532,11 +539,24 @@
   "error_old_script_code_missing": "旧的脚本代码不存在",
   "error_subscribe_name_required": "订阅名不能为空",
   "error_grant_conflict": "@grant 同时声明了 none 和 GM API",
+  "error_metadata_line_duplicated": "Metadata 中有重复的声明。",
   "notification": {
     "script_sync_delete": "脚本删除同步",
     "script_sync_delete_desc": "脚本 {{scriptName}} 已被删除",
     "subscribe_update": "订阅 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增脚本：{{newScripts}}\n删除脚本：{{deletedScripts}}"
   },
-  "loading": "加载中..."
+  "loading": "加载中...",
+  "runtime": "运行时",
+  "enable_background": {
+    "title": "启用后台运行",
+    "description": "启用后，即使关闭所有窗口，浏览器仍会在后台运行，并最小化到系统托盘，直到您手动退出浏览器。这使后台脚本能够继续运行。",
+    "enable_failed": "启用失败",
+    "disable_failed": "禁用失败",
+    "prompt_title": "是否开启后台运行？",
+    "prompt_description": "此脚本是{{scriptType}}，启用后台运行功能可以让脚本在浏览器关闭后继续运行。",
+    "enable_now": "立即启用",
+    "maybe_later": "暂不启用",
+    "settings_hint": "你可以随时在设置中修改此选项。"
+  }
 }
