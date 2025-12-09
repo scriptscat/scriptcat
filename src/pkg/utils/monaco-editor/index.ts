@@ -1,5 +1,5 @@
 import { globalCache, systemConfig, messageQueue } from "@App/pages/store/global";
-import { SystemConfigChange } from "@App/pkg/config/config";
+import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config";
 import type { TKeyValue } from "@Packages/message/message_queue";
 import EventEmitter from "eventemitter3";
 import { languages } from "monaco-editor";
@@ -477,8 +477,9 @@ export default function registerEditor() {
     updateLang(res);
   });
 
-  messageQueue.subscribe<TKeyValue>(SystemConfigChange, ({ key, value }) => {
+  messageQueue.subscribe<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key, value }) => {
     if (key === "language") {
+      // @ts-ignore
       updateLang(value);
     }
   });
