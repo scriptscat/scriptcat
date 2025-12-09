@@ -24,12 +24,8 @@ export class InjectRuntime {
     });
   }
 
-  setEnvInfo(envInfo: GMInfoEnv) {
-    this.scriptExecutor.setEnvInfo(envInfo);
-  }
-
-  startScripts(injectScriptList: TScriptInfo[]) {
-    this.scriptExecutor.startScripts(injectScriptList);
+  startScripts(injectScriptList: TScriptInfo[], envInfo: GMInfoEnv) {
+    this.scriptExecutor.startScripts(injectScriptList, envInfo);
   }
 
   onInjectPageLoaded() {

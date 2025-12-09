@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Text from "@arco-design/web-react/es/Typography/text";
 import { Button, Card, Input, Message, Popconfirm, Switch, Table, Tag, Tooltip } from "@arco-design/web-react";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
-import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { RiDeleteBin5Fill } from "react-icons/ri";
 import { useTranslation } from "react-i18next"; // 添加了 react-i18next 的引用
@@ -15,7 +14,6 @@ type ListType = Subscribe & { loading?: boolean };
 
 function SubscribeList() {
   const [list, setList] = useState<ListType[]>([]);
-  const inputRef = useRef<RefInputType>(null);
   const { t } = useTranslation(); // 使用 useTranslation hook
 
   const setListEntry = async (index: number, obj: any) => {
@@ -110,8 +108,8 @@ function SubscribeList() {
         return (
           <div className="arco-table-custom-filter">
             <Input.Search
-              ref={inputRef}
               searchButton
+              autoFocus
               placeholder={t("enter_subscribe_name")!}
               value={filterKeys[0] || ""}
               onChange={(value) => {
@@ -125,11 +123,6 @@ function SubscribeList() {
         );
       },
       onFilter: (value, row) => !value || row.name.includes(value),
-      onFilterDropdownVisibleChange: (visible) => {
-        if (visible) {
-          setTimeout(() => inputRef.current!.focus(), 1);
-        }
-      },
       className: "tw-max-w-[240px]",
       render: (col) => {
         return (

@@ -4,7 +4,7 @@ import { ExtensionMessage } from "@Packages/message/extension_message";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
-import { ScriptExecutor } from "./app/service/content/script_executor";
+import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
 import { randomMessageFlag, getUspMessageFlag } from "./pkg/utils/utils";
 import type { Message } from "@Packages/message/types";
 
@@ -24,7 +24,7 @@ if (!MessageFlag) {
   const extMsgComm: Message = new ExtensionMessage(false);
   // 初始化日志组件
   const loggerCore = new LoggerCore({
-    writer: new MessageWriter(extMsgComm),
+    writer: new MessageWriter(extMsgComm, "serviceWorker/logger"),
     labels: { env: "content" },
   });
 
@@ -47,5 +47,5 @@ if (!MessageFlag) {
   const runtime = new ContentRuntime(extServer, server, extMsgComm, msgInject, scriptExecutorMsg, scriptExecutor);
   runtime.init();
   // 页面加载，注入脚本
-  runtime.pageLoad(MessageFlag);
+  runtime.pageLoad(MessageFlag, initEnvInfo);
 }
