@@ -1,6 +1,4 @@
-import { globalCache, systemConfig, messageQueue } from "@App/pages/store/global";
-import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config";
-import type { TKeyValue } from "@Packages/message/message_queue";
+import { globalCache, systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
 import { languages } from "monaco-editor";
 
