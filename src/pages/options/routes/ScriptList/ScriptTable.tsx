@@ -38,7 +38,6 @@ import {
   RiUploadCloudFill,
 } from "react-icons/ri";
 import { Link, useNavigate } from "react-router-dom";
-import Text from "@arco-design/web-react/es/Typography/text";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
@@ -376,7 +375,7 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
           textDecoration: "none",
         }}
       >
-        <Text
+        <Typography.Text
           style={{
             display: "block",
             overflow: "hidden",
@@ -396,7 +395,7 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
               ))}
             </Space>
           )}
-        </Text>
+        </Typography.Text>
       </Link>
     </Tooltip>
   );
