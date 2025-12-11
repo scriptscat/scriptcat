@@ -19,10 +19,6 @@ const contentRandomId = uuidv4();
 
 let scriptingMessagingBind = () => {};
 // ------------ 對象 ------------
-class ImmutableEventTarget extends EventTarget {}
-ImmutableEventTarget.prototype.addEventListener = EventTarget.prototype.addEventListener;
-ImmutableEventTarget.prototype.dispatchEvent = EventTarget.prototype.dispatchEvent;
-ImmutableEventTarget.prototype.removeEventListener = EventTarget.prototype.removeEventListener;
 
 const pageMessaging = createPageMessaging("");
 const scriptExecutorPageMessaging = createPageMessaging(uuidv4());
