@@ -75,7 +75,7 @@ const firefoxManifest = { ...manifest, background: { ...manifest.background } };
 const chromeManifest = { ...manifest, background: { ...manifest.background } };
 
 delete chromeManifest.content_security_policy;
-delete chromeManifest.optional_permissions;
+chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
 
 delete firefoxManifest.background.service_worker;

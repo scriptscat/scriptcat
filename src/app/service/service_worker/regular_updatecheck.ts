@@ -19,8 +19,15 @@ export const initRegularUpdateCheck = async (systemConfig: SystemConfig) => {
     chrome.storage.local.get(["checkupdate_script_lasttime"]),
     systemConfig.getCheckScriptUpdateCycle(), // check_script_update_cycle
   ]);
-  if (updateCycleSecond === 0) return; // no regular update check
   const now = Date.now();
+  if (updateCycleSecond === 0) {
+    // SW启动时，即使停用了更新功能也要设置一下变数值
+    allowRegularUpdateCheck = now + ALLOW_CHECK_DELAY_MS; // 可以触发alarm的更新程序了
+    // 设定更改的话，现时的Alarm需要清除。不判断是否SW启动了，总之就清除一下
+    chrome.alarms.clear("checkScriptUpdate"); // 如没有可以清除的Alarm，Promise会返回false
+    // 不需要检查更新。退出操作
+    return;
+  }
   let when = 0;
   const checkupdate_script_lasttime: number = result.checkupdate_script_lasttime || 0;
   // 有 checkupdate_script_lasttime 而且是单数值（上次的定时更新检查有完成）
@@ -62,6 +69,7 @@ const setCheckupdateScriptLasttime = async (t: number) => {
   }
 };
 
+// 只会由系统Alarm事件呼叫
 export const onRegularUpdateCheckAlarm = async (
   systemConfig: SystemConfig,
   script: ScriptService,
@@ -73,7 +81,13 @@ export const onRegularUpdateCheckAlarm = async (
     chrome.storage.local.get(["checkupdate_script_lasttime"]),
     systemConfig.getCheckScriptUpdateCycle(), // check_script_update_cycle
   ]);
-  if (updateCycleSecond === 0) return null; // no regular update check
+  if (updateCycleSecond === 0) {
+    // 按道理，不会跑到这个条件
+    // Alarm应没有触发才对。无论为何，还是清一下alarm吧
+    chrome.alarms.clear("checkScriptUpdate");
+    // 不需要检查更新。退出操作
+    return null;
+  }
   const checkupdate_script_lasttime: number = result.checkupdate_script_lasttime || 0;
   const targetWhen = checkupdate_script_lasttime + updateCycleSecond * 1000;
   if (targetWhen - ALARM_TRIGGER_WINDOW_MS > now) return null; // 已检查过了（alarm触发了）
