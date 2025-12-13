@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
-import Text from "@arco-design/web-react/es/Typography/text";
-import { Button, Card, Input, Message, Popconfirm, Switch, Table, Tag, Tooltip } from "@arco-design/web-react";
+import {
+  Button,
+  Card,
+  Input,
+  Message,
+  Popconfirm,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "@arco-design/web-react";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
@@ -123,11 +133,11 @@ function SubscribeList() {
         );
       },
       onFilter: (value, row) => !value || row.name.includes(value),
-      className: "max-w-[240px]",
+      className: "tw-max-w-[240px]",
       render: (col) => {
         return (
           <Tooltip content={col} position="tl">
-            <Text
+            <Typography.Text
               style={{
                 display: "block",
                 overflow: "hidden",
@@ -136,7 +146,7 @@ function SubscribeList() {
               }}
             >
               {col}
-            </Text>
+            </Typography.Text>
           </Tooltip>
         );
       },

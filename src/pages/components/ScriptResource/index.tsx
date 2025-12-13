@@ -2,7 +2,7 @@ import type { Resource } from "@App/app/repo/resource";
 import type { Script } from "@App/app/repo/scripts";
 import { ResourceClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
-import { base64ToBlob } from "@App/pkg/utils/utils";
+import { base64ToBlob, makeBlobURL } from "@App/pkg/utils/utils";
 import { Button, Drawer, Input, Message, Popconfirm, Space, Table } from "@arco-design/web-react";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconDownload, IconSearch } from "@arco-design/web-react/icon";
@@ -86,10 +86,7 @@ const ScriptResource: React.FC<{
               type="text"
               icon={<IconDownload />}
               onClick={() => {
-                const url = URL.createObjectURL(base64ToBlob(value.base64));
-                setTimeout(() => {
-                  URL.revokeObjectURL(url);
-                }, 60 * 1000);
+                const url = makeBlobURL({ blob: base64ToBlob(value.base64), persistence: false }) as string;
                 const filename = value.url.split("/").pop();
                 chrome.downloads.download({
                   url,
@@ -140,8 +137,8 @@ const ScriptResource: React.FC<{
       onOk={onOk}
       onCancel={onCancel}
     >
-      <Space className="w-full" direction="vertical">
-        <Space className="!flex justify-end">
+      <Space className="tw-w-full" direction="vertical">
+        <Space className="!tw-flex tw-justify-end">
           <Popconfirm
             focusLock
             title={t("confirm_clear_resource")}

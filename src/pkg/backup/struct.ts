@@ -74,6 +74,7 @@ export type ScriptBackupData = {
   resources: ResourceBackup[];
   // 为了兼容暴力猴而设置的字段
   enabled?: boolean;
+  lastModificationDate?: number;
 };
 
 export type ScriptData = ScriptBackupData & {
@@ -107,6 +108,7 @@ export type SubscribeOptionsFile = {
 export type SubscribeBackupData = {
   source: string;
   options?: SubscribeOptionsFile;
+  lastModificationDate?: number;
 };
 
 export type BackupData = {

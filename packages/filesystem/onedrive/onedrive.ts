@@ -1,5 +1,5 @@
 import { AuthVerify } from "../auth";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { File, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import type FileSystem from "../filesystem";
 import { joinPath } from "../utils";
 import { OneDriveFileReader, OneDriveFileWriter } from "./rw";
@@ -31,11 +31,11 @@ export default class OneDriveFileSystem implements FileSystem {
     return new OneDriveFileSystem(joinPath(this.path, path), this.accessToken);
   }
 
-  async create(path: string): Promise<FileWriter> {
+  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
     return new OneDriveFileWriter(this, joinPath(this.path, path));
   }
 
-  async createDir(dir: string): Promise<void> {
+  async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
     if (dir && dir.startsWith("ScriptCat")) {
       dir = dir.substring(9);
       if (dir.startsWith("/")) {

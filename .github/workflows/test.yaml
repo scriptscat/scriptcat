@@ -38,7 +38,9 @@ jobs:
             eslint-
 
       - name: Lint
-        run: pnpm lint:ci
+        run: |
+          pnpm typecheck
+          pnpm lint:ci
 
       - name: Unit Test
         run: |
