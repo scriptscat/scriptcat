@@ -18,6 +18,7 @@ import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
+import { cacheInstance } from "@App/app/cache";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -172,9 +173,14 @@ export default class ServiceWorkerManager {
     systemConfig.addListener("cloud_sync", (value) => {
       synchronize.cloudSyncConfigChange(value);
     });
-    // 启动一次云同步
-    systemConfig.getCloudSync().then((config) => {
-      synchronize.cloudSyncConfigChange(config);
+
+    // 一些只需启动时运行一次的任务
+    cacheInstance.getOrSet("extension_initialized", () => {
+      // 启动一次云同步
+      systemConfig.getCloudSync().then((config) => {
+        synchronize.cloudSyncConfigChange(config);
+      });
+      return true;
     });
 
     if (process.env.NODE_ENV === "production") {
