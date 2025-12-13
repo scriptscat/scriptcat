@@ -9,6 +9,10 @@ const config = {
   // https://github.com/suren-atoyan/monaco-react/issues/75#issuecomment-1890761086
   allowNonTsExtensions: true,
   allowJs: true,
+  checkJs: true,
+  noUnusedLocals: false,
+  noFallthroughCasesInSwitch: false,
+  noImplicitThis: false,
   strict: true,
 } as languages.typescript.CompilerOptions;
 
