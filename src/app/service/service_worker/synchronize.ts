@@ -603,16 +603,17 @@ export class SynchronizeService {
   cloudSyncConfigChange(value: CloudSyncConfig) {
     if (value.enable) {
       // 开启云同步同步
-      this.buildFileSystem(value).then((fs) => {
+      this.buildFileSystem(value).then(async (fs) => {
+        await this.syncOnce(value, fs);
         // 开启定时器, 一小时一次
         chrome.alarms.get("cloudSync", async (alarm) => {
+          console.log("cloudSync alarm check", alarm);
           const lastError = chrome.runtime.lastError;
           if (lastError) {
             console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
             // 非预期的异常API错误，停止处理
           }
           if (!alarm) {
-            await this.syncOnce(value, fs);
             chrome.alarms.create(
               "cloudSync",
               {
