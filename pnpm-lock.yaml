@@ -95,10 +95,13 @@ importers:
         version: 9.38.0
       '@rspack/cli':
         specifier: ^1.5.8
-        version: 1.6.1(@rspack/core@1.6.1(@swc/helpers@0.5.13))(@types/express@4.17.21)(webpack@5.96.1)
+        version: 1.6.1(@rspack/core@1.6.1(@swc/helpers@0.5.17))(@types/express@4.17.21)(webpack@5.96.1)
       '@rspack/core':
         specifier: ^1.5.8
-        version: 1.6.1(@swc/helpers@0.5.13)
+        version: 1.6.1(@swc/helpers@0.5.17)
+      '@swc/helpers':
+        specifier: ^0.5.17
+        version: 0.5.17
       '@testing-library/jest-dom':
         specifier: ^6.6.3
         version: 6.6.3
@@ -179,7 +182,7 @@ importers:
         version: 8.5.6
       postcss-loader:
         specifier: ^8.2.0
-        version: 8.2.0(@rspack/core@1.6.1(@swc/helpers@0.5.13))(postcss@8.5.6)(typescript@5.9.3)(webpack@5.96.1)
+        version: 8.2.0(@rspack/core@1.6.1(@swc/helpers@0.5.17))(postcss@8.5.6)(typescript@5.9.3)(webpack@5.96.1)
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -1039,8 +1042,8 @@ packages:
     resolution: {integrity: sha512-VynGOEsVw2s8TAlLf/uESfrgfrq2+rcXB1muPJYBWbsm1Oa6r5qVQhjA5ggM6z/coYPrsVMgovl3Ff7Q7OCp1w==}
     engines: {node: '>=16.0.0'}
 
-  '@swc/helpers@0.5.13':
-    resolution: {integrity: sha512-UoKGxQ3r5kYI9dALKJapMmuK+1zWM/H17Z1+iwnNmzcJRnfFuevZs375TA5rW31pu4BS4NoSy1fRsexDXfWn5w==}
+  '@swc/helpers@0.5.17':
+    resolution: {integrity: sha512-5IKx/Y13RsYd+sauPb2x+U/xZikHjolzfuDgTAl/Tdf3Q8rslRvC19NKDLgAJQ6wsqADk10ntlv08nPFw/gO/A==}
 
   '@testing-library/dom@10.4.0':
     resolution: {integrity: sha512-pemlzrSESWbdAloYml3bAJMEfNh1Z7EduzqPKprCH5S341frlpYnUEW0H72dLxa6IsYr+mPno20GiSm+h9dEdQ==}
@@ -4996,11 +4999,11 @@ snapshots:
       '@rspack/binding-win32-ia32-msvc': 1.6.1
       '@rspack/binding-win32-x64-msvc': 1.6.1
 
-  '@rspack/cli@1.6.1(@rspack/core@1.6.1(@swc/helpers@0.5.13))(@types/express@4.17.21)(webpack@5.96.1)':
+  '@rspack/cli@1.6.1(@rspack/core@1.6.1(@swc/helpers@0.5.17))(@types/express@4.17.21)(webpack@5.96.1)':
     dependencies:
       '@discoveryjs/json-ext': 0.5.7
-      '@rspack/core': 1.6.1(@swc/helpers@0.5.13)
-      '@rspack/dev-server': 1.1.4(@rspack/core@1.6.1(@swc/helpers@0.5.13))(@types/express@4.17.21)(webpack@5.96.1)
+      '@rspack/core': 1.6.1(@swc/helpers@0.5.17)
+      '@rspack/dev-server': 1.1.4(@rspack/core@1.6.1(@swc/helpers@0.5.17))(@types/express@4.17.21)(webpack@5.96.1)
       exit-hook: 4.0.0
       webpack-bundle-analyzer: 4.10.2
     transitivePeerDependencies:
@@ -5012,17 +5015,17 @@ snapshots:
       - webpack
       - webpack-cli
 
-  '@rspack/core@1.6.1(@swc/helpers@0.5.13)':
+  '@rspack/core@1.6.1(@swc/helpers@0.5.17)':
     dependencies:
       '@module-federation/runtime-tools': 0.21.2
       '@rspack/binding': 1.6.1
       '@rspack/lite-tapable': 1.0.1
     optionalDependencies:
-      '@swc/helpers': 0.5.13
+      '@swc/helpers': 0.5.17
 
-  '@rspack/dev-server@1.1.4(@rspack/core@1.6.1(@swc/helpers@0.5.13))(@types/express@4.17.21)(webpack@5.96.1)':
+  '@rspack/dev-server@1.1.4(@rspack/core@1.6.1(@swc/helpers@0.5.17))(@types/express@4.17.21)(webpack@5.96.1)':
     dependencies:
-      '@rspack/core': 1.6.1(@swc/helpers@0.5.13)
+      '@rspack/core': 1.6.1(@swc/helpers@0.5.17)
       chokidar: 3.6.0
       http-proxy-middleware: 2.0.9(@types/express@4.17.21)
       p-retry: 6.2.1
@@ -5039,10 +5042,9 @@ snapshots:
 
   '@rspack/lite-tapable@1.0.1': {}
 
-  '@swc/helpers@0.5.13':
+  '@swc/helpers@0.5.17':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@testing-library/dom@10.4.0':
     dependencies:
@@ -7603,14 +7605,14 @@ snapshots:
 
   possible-typed-array-names@1.0.0: {}
 
-  postcss-loader@8.2.0(@rspack/core@1.6.1(@swc/helpers@0.5.13))(postcss@8.5.6)(typescript@5.9.3)(webpack@5.96.1):
+  postcss-loader@8.2.0(@rspack/core@1.6.1(@swc/helpers@0.5.17))(postcss@8.5.6)(typescript@5.9.3)(webpack@5.96.1):
     dependencies:
       cosmiconfig: 9.0.0(typescript@5.9.3)
       jiti: 2.6.1
       postcss: 8.5.6
       semver: 7.7.2
     optionalDependencies:
-      '@rspack/core': 1.6.1(@swc/helpers@0.5.13)
+      '@rspack/core': 1.6.1(@swc/helpers@0.5.17)
       webpack: 5.96.1
     transitivePeerDependencies:
       - typescript
