@@ -301,10 +301,12 @@ export class RuntimeService {
           let compiledResource = await this.compiledResourceDAO.get(uuid);
           if (!compiledResource) {
             const ret = await this.buildAndSaveCompiledResourceFromScript(script, false);
+            if (!ret) return;
             compiledResource = ret?.compiledResource;
           }
           if (!compiledResource?.scriptUrlPatterns) {
-            throw new Error(`No valid scriptUrlPatterns. Script UUID: ${uuid}`);
+            this.logger.error("No compiledResource or scriptUrlPatterns found", { uuid });
+            return;
           }
 
           const { scriptUrlPatterns, originalUrlPatterns } = compiledResource;
