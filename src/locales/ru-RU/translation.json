@@ -187,11 +187,10 @@
   "confirm_clear_resource": "Вы действительно хотите очистить эти ресурсы? При следующем запуске они будут перезагружены",
   "script_resource": "Ресурсы скрипта",
   "permission_value": "Значение разрешения",
-  "allow": "Разрешить ли",
+  "allow": "Разрешить",
   "yes": "Да",
   "no": "Нет",
-  "confirm_delete_permission": "Подтвердить удаление этого разрешения?",
-  "script_setting": "Настройки скрипта",
+  "confirm_delete_permission": "Вы уверены, что хотите удалить это разрешение?",
   "basic_info": "Основная информация",
   "update_url": "URL обновления",
   "permission_management": "Управление разрешениями",
@@ -282,7 +281,8 @@
   "script_requires": "Скрипт ссылается на следующие внешние ресурсы",
   "cookie_warning": "Обратите внимание, что этот скрипт запрашивает разрешения на операции с Cookie. Это опасное разрешение, пожалуйста, убедитесь в безопасности скрипта.",
   "scheduled_script_description_title": "Это запланированный скрипт. После включения он будет автоматически выполняться в определенное время и может управляться вручную с панели.",
-  "scheduled_script_description_description": "Выражение планировщика: {{expression}}, последнее время выполнения: {{time}}",
+  "scheduled_script_description_description_expr": "Выражение планировщика",
+  "scheduled_script_description_description_next": "Последнее время выполнения:",
   "background_script_description": "Это фоновый скрипт. После включения он будет автоматически выполняться один раз при открытии браузера и может управляться вручную с панели.",
   "install_success": "Установка успешна",
   "install": {
@@ -322,6 +322,9 @@
     "status_autoclose": "Автоматическое закрытие через $0 сек.",
     "header_other_update": "Другие доступные обновления"
   },
+  "downloading_status_text": "Загрузка. Получено {{bytes}}.",
+  "install_page_loading": "Загрузка страницы установки",
+  "invalid_page": "Недействительная страница",
   "background_script_tag": "Это фоновый скрипт",
   "scheduled_script_tag": "Это запланированный скрипт",
   "background_script": "Фоновый скрипт",
@@ -379,7 +382,7 @@
   "start_guide_content": "Далее мы познакомим вас с основными методами использования ScriptCat",
   "guide_installed_scripts": "Установленные вами скрипты будут отображаться здесь",
   "guide_script_list_title": "Магазин скриптов",
-  "guide_script_list_content": "Скрипты можно устанавливать из <Link href=\"https://scriptcat.org/search\">магазина скриптов</Link>. ScriptCat поддерживает не только пользовательские скрипты, но и <Link href=\"https://docs.scriptcat.org/docs/dev/background/\">фоновые скрипты</Link>",
+  "guide_script_list_content": "Скрипты можно устанавливать из <Link href=\"https://scriptcat.org/ru/search\">магазина скриптов</Link>. ScriptCat поддерживает не только пользовательские скрипты, но и <Link href=\"https://docs.scriptcat.org/docs/dev/background/\">фоновые скрипты</Link>",
   "guide_script_list_enable_title": "Включение скрипта",
   "guide_script_list_enable_content": "Скрипты нужно включить для использования. Скрипты страниц включены по умолчанию при установке, фоновые скрипты выключены по умолчанию",
   "guide_script_list_apply_to_run_status_title": "Применить к и статус выполнения",
@@ -412,11 +415,9 @@
   "get_backup_dir_url_failed": "Ошибка получения адреса папки резервных копий",
   "get_backup_files_failed": "Ошибка получения файлов резервных копий",
   "request_permission": "Запрос разрешения",
-  "develop_mode_guide": "Обнаружено, что режим разработчика в настоящее время не включен. Ваши скрипты не могут нормально использоваться. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите здесь, чтобы узнать, как включить</a>",
-  "allow_user_script_guide": "Обнаружено, что разрешение пользовательских скриптов в настоящее время не включено. Ваши скрипты не могут нормально использоваться. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите здесь, чтобы узнать, как включить</a>",
-  "lower_version_browser_guide": "Обнаружена слишком низкая версия браузера. Ваши скрипты не могут нормально использоваться. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите здесь, чтобы узнать больше</a>",
-  "enable_script_failed": "Ошибка включения скрипта",
-  "disable_script_failed": "Ошибка отключения скрипта",
+  "develop_mode_guide": "«Режим разработчика» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать, как включить</a>.",
+  "allow_user_script_guide": "«Разрешить пользовательские скрипты» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать, как включить</a>",
+  "lower_version_browser_guide": "Ваш браузер слишком устарел, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать подробнее</a>",
   "confirm_leave_page": "В настоящее время идет редактирование. Переход на другую страницу приведет к потере текущего содержимого. Продолжить переход?",
   "page_in_blacklist": "Текущая страница находится в черном списке, невозможно использовать скрипты",
   "baidu_netdisk": "Baidu Netdisk",
@@ -473,7 +474,7 @@
   "display_right_click_menu_desc": "Показать меню скрипта в контекстном меню браузера",
   "expand_count": "Количество развернутых",
   "auto_collapse_when_exceeds": "Автоматически сворачивать при превышении этого количества",
-  "check_frequency": "Частота проверки",
+  "script_update_check_frequency": "Частота проверки обновления скрипта",
   "script_auto_update_frequency": "Частота автоматической проверки обновлений скриптов",
   "update_options": "Параметры обновления",
   "control_script_update_behavior": "Управление поведением обновления скриптов",
@@ -489,10 +490,16 @@
   "enter_search_value": "Введите {{search}} для поиска",
   "script_run_env": {
     "title": "Среда выполнения",
-    "default": "По умолчанию",
     "all": "Все вкладки",
     "normal-tabs": "Обычные вкладки",
     "incognito-tabs": "Приватные вкладки"
+  },
+  "script_run_at": {
+    "title": "Время выполнения"
+  },
+  "script_setting": {
+    "title": "Настройки скрипта",
+    "default": "По умолчанию"
   },
   "editor_config": "Конфигурация редактора",
   "editor_config_description": "Вы можете настроить compilerOptions, ссылаясь на <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>",
@@ -532,11 +539,24 @@
   "error_old_script_code_missing": "Предыдущий код скрипта не найден",
   "error_subscribe_name_required": "Имя подписки обязательно",
   "error_grant_conflict": "@grant одновременно объявляет 'none' и GM API",
+  "error_metadata_line_duplicated": "В метаданных есть повторяющиеся объявления.",
   "notification": {
     "script_sync_delete": "Синхронизация удаления скрипта",
     "script_sync_delete_desc": "Скрипт {{scriptName}} был удален",
     "subscribe_update": "Подписка {{subscribeName}} была обновлена",
     "subscribe_update_desc": "Новые скрипты: {{newScripts}}\nУдаленные скрипты: {{deletedScripts}}"
   },
-  "loading": "Загрузка..."
+  "loading": "Загрузка...",
+  "runtime": "Время выполнения",
+  "enable_background": {
+    "title": "Включить фоновый режим",
+    "description": "Если включено, браузер продолжит работать в фоновом режиме после закрытия всех окон и будет свернут в трей, пока вы вручную не завершите его работу. Это позволяет фоновым скриптам продолжать выполняться.",
+    "enable_failed": "Не удалось включить",
+    "disable_failed": "Не удалось отключить",
+    "prompt_title": "Включить фоновое выполнение?",
+    "prompt_description": "Это {{scriptType}}. Включение фонового выполнения позволит скрипту продолжать работать после закрытия браузера.",
+    "enable_now": "Включить сейчас",
+    "maybe_later": "Может быть позже",
+    "settings_hint": "Вы можете изменить эту опцию в настройках в любое время."
+  }
 }

@@ -19,5 +19,4 @@ GM_download({
     }, onload(data) {
         console.log("load", data);
     },
-    downloadMethod: "xhr"
 });

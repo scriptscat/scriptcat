@@ -11,6 +11,31 @@ export type RequestResultParams = {
   finalUrl: string;
 };
 
+type BgGMXhrCallbackResult = Record<string, any> & {
+  //
+  readyState: GMTypes.ReadyState;
+  status: number;
+  statusText: string;
+  responseHeaders: string | null;
+  //
+  useFetch: boolean;
+  eventType: string;
+  ok: boolean;
+  contentType: string;
+  error: string | Error | undefined;
+  // progress
+  total?: number;
+  loaded?: number;
+  lengthComputable?: boolean;
+};
+
+type XHRProgressEvents = "progress";
+type XHREvent = ({ type: XHRProgressEvents } & Omit<ProgressEvent<EventTarget>, "type">) | Event;
+
+const isProgressEvent = (e: XHREvent): e is ProgressEvent<EventTarget> & { type: "progress" } => {
+  return e.type === "progress";
+};
+
 /**
  * ## GM_xmlhttpRequest(details)
  *
@@ -187,21 +212,7 @@ export class BgGMXhr {
     });
   }
 
-  callback(
-    result: Record<string, any> & {
-      //
-      readyState: GMTypes.ReadyState;
-      status: number;
-      statusText: string;
-      responseHeaders: string | null;
-      //
-      useFetch: boolean;
-      eventType: string;
-      ok: boolean;
-      contentType: string;
-      error: string | Error | undefined;
-    }
-  ) {
+  callback(result: BgGMXhrCallbackResult) {
     const data = {
       ...result,
       finalUrl: this.resultParams.finalUrl,
@@ -282,11 +293,12 @@ export class BgGMXhr {
 
       let contentType = "";
       let responseHeaders: string | null = null;
-      let finalStateChangeEvent: Event | ProgressEvent<EventTarget> | null = null;
+      let finalStateChangeEvent: XHREvent | null = null;
       let canTriggerFinalStateChangeEvent = false;
-      const callback = (evt: Event | ProgressEvent<EventTarget>, err?: Error | string) => {
+      const callback = (evt: XHREvent, err?: Error | string) => {
         const xhr = baseXHR;
         const eventType = evt.type;
+        const isProgressEvt = isProgressEvent(evt);
 
         if (eventType === "load") {
           canTriggerFinalStateChangeEvent = true;
@@ -316,7 +328,8 @@ export class BgGMXhr {
             }
           }
         }
-        this.callback({
+
+        const result: BgGMXhrCallbackResult = {
           /*
         
         
@@ -353,7 +366,15 @@ export class BgGMXhr {
           responseURL: xhr.responseURL,
           // How to get the error message in native XHR ?
           error: eventType !== "error" ? undefined : (err as Error)?.message || err || "Unknown Error",
-        });
+        } satisfies BgGMXhrCallbackResult;
+
+        if (isProgressEvt) {
+          result.total = evt.total;
+          result.loaded = evt.loaded;
+          result.lengthComputable = evt.lengthComputable;
+        }
+
+        this.callback(result);
 
         evt.type;
       };

@@ -27,7 +27,8 @@ function ScriptList() {
     filterItems,
     selectedFilters,
     setSelectedFilters,
-    setSearchKeyword,
+    searchRequest,
+    setSearchRequest,
     sidebarOpen,
     setSidebarOpen,
     handleDelete,
@@ -75,9 +76,9 @@ function ScriptList() {
         overflowY: "auto",
       }}
     >
-      <div className="flex flex-col">
+      <div className="tw-flex tw-flex-col">
         {/* 主要内容区域 */}
-        <div className="flex flex-row relative">
+        <div className="tw-flex tw-flex-row tw-relative">
           {/* 侧边栏 */}
           <ScriptListSidebar
             open={sidebarOpen}
@@ -87,7 +88,7 @@ function ScriptList() {
           />
 
           {/* 主要表格/卡片区域 */}
-          <div className="flex-1">
+          <div className="tw-flex-1">
             {viewMode === "table" ? (
               <ScriptTable
                 loadingList={loadingList}
@@ -99,7 +100,6 @@ function ScriptList() {
                 setViewMode={setViewMode}
                 setUserConfig={setUserConfig}
                 setCloudScript={setCloudScript}
-                setSearchKeyword={setSearchKeyword}
                 handleDelete={handleDelete}
                 handleConfig={handleConfig}
                 handleRunStop={handleRunStop}
@@ -115,7 +115,8 @@ function ScriptList() {
                 setViewMode={setViewMode}
                 setUserConfig={setUserConfig}
                 setCloudScript={setCloudScript}
-                setSearchKeyword={setSearchKeyword}
+                searchRequest={searchRequest}
+                setSearchRequest={setSearchRequest}
                 handleDelete={handleDelete}
                 handleConfig={handleConfig}
                 handleRunStop={handleRunStop}

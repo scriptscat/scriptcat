@@ -135,7 +135,9 @@ export default class PermissionVerify {
         // 别名相等
         (alias && alias.includes(grantName)) ||
         // 关联包含
-        (link && link.includes(grantName))
+        (link && link.includes(grantName)) ||
+        // 关联包含 (GM.XXXX)
+        (link && link.includes(grantName.replace(".", "_")))
       ) {
         // 需要用户确认
         if (confirm) {

@@ -2,17 +2,18 @@ import type { Resource } from "@App/app/repo/resource";
 import type { Script } from "@App/app/repo/scripts";
 import { ResourceClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
-import { base64ToBlob } from "@App/pkg/utils/utils";
+import { base64ToBlob, makeBlobURL } from "@App/pkg/utils/utils";
 import { Button, Drawer, Input, Message, Popconfirm, Space, Table } from "@arco-design/web-react";
-import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconDownload, IconSearch } from "@arco-design/web-react/icon";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 type ResourceListItem = {
   key: string;
 } & Resource;
+
+const resourceClient = new ResourceClient(message);
 
 const ScriptResource: React.FC<{
   script?: Script;
@@ -21,9 +22,7 @@ const ScriptResource: React.FC<{
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
   const [data, setData] = useState<ResourceListItem[]>([]);
-  const inputRef = useRef<RefInputType>(null);
   const { t } = useTranslation();
-  const resourceClient = new ResourceClient(message);
 
   useEffect(() => {
     if (!script) {
@@ -53,8 +52,8 @@ const ScriptResource: React.FC<{
         return (
           <div className="arco-table-custom-filter">
             <Input.Search
-              ref={inputRef}
               searchButton
+              autoFocus
               placeholder={t("enter_key")!}
               value={filterKeys[0] || ""}
               onChange={(value) => {
@@ -68,11 +67,6 @@ const ScriptResource: React.FC<{
         );
       },
       onFilter: (value, row) => !value || row.key.includes(value),
-      onFilterDropdownVisibleChange: (v) => {
-        if (v) {
-          setTimeout(() => inputRef.current!.focus(), 1);
-        }
-      },
     },
     {
       title: t("type"),
@@ -92,10 +86,7 @@ const ScriptResource: React.FC<{
               type="text"
               icon={<IconDownload />}
               onClick={() => {
-                const url = URL.createObjectURL(base64ToBlob(value.base64));
-                setTimeout(() => {
-                  URL.revokeObjectURL(url);
-                }, 60 * 1000);
+                const url = makeBlobURL({ blob: base64ToBlob(value.base64), persistence: false }) as string;
                 const filename = value.url.split("/").pop();
                 chrome.downloads.download({
                   url,
@@ -146,8 +137,8 @@ const ScriptResource: React.FC<{
       onOk={onOk}
       onCancel={onCancel}
     >
-      <Space className="w-full" direction="vertical">
-        <Space className="!flex justify-end">
+      <Space className="tw-w-full" direction="vertical">
+        <Space className="!tw-flex tw-justify-end">
           <Popconfirm
             focusLock
             title={t("confirm_clear_resource")}

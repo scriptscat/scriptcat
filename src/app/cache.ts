@@ -81,6 +81,19 @@ class ExtCache implements CacheStorage {
     });
   }
 
+  dels(keys: string[]): Promise<void> {
+    return new Promise((resolve) => {
+      chrome.storage.session.remove(keys, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.session.remove:", lastError);
+          // 无视storage API错误，继续执行
+        }
+        resolve();
+      });
+    });
+  }
+
   clear(): Promise<void> {
     return new Promise((resolve) => {
       chrome.storage.session.clear(() => {

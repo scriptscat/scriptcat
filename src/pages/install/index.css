@@ -2,15 +2,6 @@
 	background: var(--vscode-editorGutter-background);
 }
 
-:root {
-  --show-code-height: 100vh;
-	--show-code-height: min(calc(100vh), calc(40vh + 360px));     /* 可設為 400px */ /* 可設為 100vh */
-}
-
-.install-main-layout {
-	min-height: max-content;
-}
-
 #install-app-container {
 	display: flex;
 	flex-direction: column;
@@ -20,26 +11,98 @@
 
 #show-code-container {
 	display: block;
-	height: var(--show-code-height);
-	padding: 16px 0px;
+	height: calc( 100% - 44px );
+	padding: 2px 2px;
 	position: relative;
 	box-sizing: border-box;
 	margin: 0;
 	border: 0;
 	flex-grow: 1;
-  flex-shrink: 0;
-  contain: strict;
+	flex-shrink: 0;
+	contain: strict;
 }
 
-#show-code {
+#show-code { /* 配合 .sc-inset-0 */
 	margin: 0px;
 	padding: 0px;
 	border: 0px;
-	width: 100%;
-	height: 100%;
 	overflow: hidden;
 	border: 1px solid var(--color-neutral-5);
 	box-sizing: border-box;
-	position: relative;
+	position: absolute;
 	background: #071119;
+}
+
+.downloading {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	column-gap: 4px;
+	align-items: center;
+}
+
+.error-message {
+	color: red;
+}
+
+.error-message:empty {
+	display: none;
+}
+
+.error-message::before {
+	content: "ERROR: ";
+}
+
+/* https://css-loaders.com/dots/ */
+.loader {
+	width: 60px;
+	aspect-ratio: 2;
+	--_g: no-repeat radial-gradient(circle closest-side, currentColor 90%, rgba(0,0,0,0));
+	background: var(--_g) 0% 50%, var(--_g) 50% 50%, var(--_g) 100% 50%;
+	background-size: calc(100%/3) 50%;
+	animation: l3 1s infinite linear;
+	transform: scale(0.5);
+}
+
+@keyframes l3 {
+	20% {
+		background-position: 0% 0%, 50% 50%, 100% 50%
+	}
+
+	40% {
+		background-position: 0% 100%, 50% 0%, 100% 50%
+	}
+
+	60% {
+		background-position: 0% 50%, 50% 100%, 100% 0%
+	}
+
+	80% {
+		background-position: 0% 50%, 50% 50%, 100% 100%
+	}
+
+}
+
+.tag-container {
+	inline-size: min-content;
+	align-content: flex-start;
+	justify-items: flex-end;
+	justify-content: flex-end;
+}
+
+.tag-container .arco-tag {
+	flex-grow: 1;
+	text-align: center;
+}
+
+div.permission-entry span.arco-typography {
+	line-height: 1rem;
+	padding: 0;
+	margin: 0;
+}
+
+div.permission-entry {
+	line-height: 1.2rem;
+	padding: 0;
+	margin: 0;
 }

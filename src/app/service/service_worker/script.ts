@@ -26,11 +26,9 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
-import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
-import { DocumentationSite } from "@App/app/const";
 import type {
   TScriptRunStatus,
   TDeleteScript,
@@ -39,21 +37,18 @@ import type {
   TSortedScript,
   TInstallScriptParams,
 } from "../queue";
-import { timeoutExecution } from "@App/pkg/utils/timer";
 import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
 import {
   BatchUpdateListActionCode,
   type TBatchUpdateListAction,
   UpdateStatusCode,
-  type SearchType,
   type TBatchUpdateRecord,
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
+import { initRegularUpdateCheck } from "./regular_updatecheck";
 // import { gzip as pakoGzip } from "pako";
-
-const cIdKey = `(cid_${Math.random()})`;
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -83,13 +78,15 @@ export class ScriptService {
 
   listenerScriptInstall() {
     // 初始化脚本安装监听
-    chrome.webRequest.onBeforeRequest.addListener(
-      (req: chrome.webRequest.OnBeforeRequestDetails) => {
-        // 处理url, 实现安装脚本
-        if (req.method !== "GET") {
-          return undefined;
+    chrome.webNavigation.onBeforeNavigate.addListener(
+      (req: chrome.webNavigation.WebNavigationBaseCallbackDetails) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.webNavigation.onBeforeNavigate:", lastError);
+          return;
         }
-        let targetUrl: string | null = null;
+        // 处理url, 实现安装脚本
+        let targetUrl: string;
         // 判断是否为 file:///*/*.user.js
         if (req.url.startsWith("file://") && req.url.endsWith(".user.js")) {
           targetUrl = req.url;
@@ -100,16 +97,17 @@ export class ScriptService {
             return undefined;
           }
           // 判断是否有url参数
-          if (!reqUrl.hash.includes("url=")) {
+          const idx = reqUrl.hash.indexOf("url=");
+          if (idx < 0) {
             return undefined;
           }
           // 获取url参数
-          targetUrl = reqUrl.hash.split("url=")[1];
+          targetUrl = reqUrl.hash.substring(idx + 4);
         }
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
         logger.debug("install script");
-        this.openInstallPageByUrl(targetUrl, "user")
+        this.openInstallPageByUrl(targetUrl, { source: "user", byWebRequest: true })
           .catch((e) => {
             logger.error("install script error", Logger.E(e));
             // 不再重定向当前url
@@ -152,49 +150,134 @@ export class ScriptService {
           });
       },
       {
-        urls: [
-          `${DocumentationSite}/docs/script_installation/*`,
-          `${DocumentationSite}/en/docs/script_installation/*`,
-          "https://www.tampermonkey.net/script_installation.php*",
-          "file:///*/*.user.js*",
+        url: [
+          { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/docs/script_installation/" },
+          { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/en/docs/script_installation/" },
+          { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
+          { schemes: ["file"], pathSuffix: ".user.js" },
         ],
-        types: ["main_frame"],
       }
     );
+
     // 兼容 chrome 内核 < 128 处理
-    const condition: chrome.declarativeNetRequest.RuleCondition = {
-      regexFilter: "^([^#]+?)\\.user(\\.bg|\\.sub)?\\.js((\\?).*|$)",
-      resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-      requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-    };
     const browserType = getBrowserType();
-    if (browserType.chrome && browserType.chromeVersion >= 128) {
-      condition.excludedResponseHeaders = [
-        {
-          header: "Content-Type",
-          values: ["text/html"],
+    const addResponseHeaders = browserType.chrome && browserType.chromeVersion >= 128;
+    // Chrome 84+
+    const conditions: chrome.declarativeNetRequest.RuleCondition[] = [
+      {
+        regexFilter: "^([^?#]+?\\.user(\\.bg|\\.sub)?\\.js)", // Chrome 84+
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME], // Chrome 84+
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false, // Chrome 84+
+        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(.+?\\.user(\\.bg|\\.sub)?\\.js&response-content-type=application%2Foctet-stream)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["githubusercontent.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?:\\/\\/github.com\\/[^\\s/?#]+\\/[^\\s/?#]+\\/releases/[^\\s/?#]+/download/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://github.com/<user>/<repo>/releases/latest/download/file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?:\\/\\/gitlab\\.com\\/[^\\s/?#]+\\/[^\\s/?#]+\\/-\\/raw\\/[a-z0-9_/.-]+\\/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitlab.com"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(https?:\\/\\/github\\.com\\/[^\\/]+\\/[^\\/]+\\/releases\\/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://github.com/<user>/<repo>/releases/latest/download/file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(https?://github.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z]+/[^?#]+?.user(\\.bg|\\.sub)?.js)",
+        // https://github.com/<user>/<repo>/raw/refs/heads/main/.../file.user.js
+        // https://github.com/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?://gitlab\\.com/[^\\s/?#]+/[^\\s/?#]+/-/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://gitlab.com/<user>/<repo>/-/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitlab.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?://gitea\\.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://gitea.com/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitea.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?://bitbucket\\.org/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://bitbucket.org/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["bitbucket.org"], // Chrome 101+
+      },
+    ];
+    const installPageURL = chrome.runtime.getURL("src/install.html");
+    const rules = conditions.map((condition, idx) => {
+      Object.assign(condition, {
+        excludedTabIds: [chrome.tabs.TAB_ID_NONE],
+      });
+      if (addResponseHeaders) {
+        Object.assign(condition, {
+          responseHeaders: [
+            {
+              header: "Content-Type",
+              values: [
+                "text/javascript*",
+                "application/javascript*",
+                "text/html*",
+                "text/plain*",
+                "application/octet-stream*",
+                "application/force-download*",
+              ],
+            },
+          ],
+        });
+      }
+      return {
+        id: 1000 + idx,
+        priority: 1,
+        action: {
+          type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
+          redirect: {
+            regexSubstitution: `${installPageURL}?url=\\1`,
+          },
         },
-      ];
-    } else {
-      condition.excludedRequestDomains = ["github.com"];
-    }
+        condition: condition,
+      } as chrome.declarativeNetRequest.Rule;
+    });
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
-        removeRuleIds: [1, 2],
-        addRules: [
-          {
-            id: 1,
-            priority: 1,
-            action: {
-              type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
-              redirect: {
-                regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\0`,
-              },
-            },
-            condition: condition,
-          },
-        ],
+        removeRuleIds: [1],
       },
       () => {
         if (chrome.runtime.lastError) {
@@ -205,25 +288,48 @@ export class ScriptService {
         }
       }
     );
+    chrome.declarativeNetRequest.updateSessionRules(
+      {
+        removeRuleIds: [...rules.map((rule) => rule.id)],
+        addRules: rules,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateSessionRules:",
+            chrome.runtime.lastError
+          );
+        }
+      }
+    );
   }
 
-  public async openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
-    const uuid = uuidv4();
+  public async openInstallPageByUrl(
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean }
+  ): Promise<{ success: boolean; msg: string }> {
     try {
-      await this.openUpdateOrInstallPage(uuid, url, source, false);
-      timeoutExecution(
-        `${cIdKey}_cleanup_${uuid}`,
-        () => {
-          // 清理缓存
-          cacheInstance.del(`${CACHE_KEY_SCRIPT_INFO}${uuid}`);
-        },
-        30 * 1000
-      );
-      await openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+      const installPageUrl = await this.getInstallPageUrl(url, options);
+      if (!installPageUrl) throw new Error("getInstallPageUrl failed");
+      await openInCurrentTab(installPageUrl);
       return { success: true, msg: "" };
     } catch (err: any) {
       console.error(err);
       return { success: false, msg: err.message };
+    }
+  }
+
+  public async getInstallPageUrl(
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean }
+  ): Promise<string> {
+    const uuid = uuidv4();
+    try {
+      await this.openUpdateOrInstallPage(uuid, url, options, false);
+      return `/src/install.html?uuid=${uuid}`;
+    } catch (err: any) {
+      console.error(err);
+      return "";
     }
   }
 
@@ -266,9 +372,15 @@ export class ScriptService {
   }
 
   // 安装脚本 / 更新腳本
-  async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
+  async installScript(param: {
+    script: Script;
+    code: string;
+    upsertBy?: InstallSource;
+    createtime?: number;
+    updatetime?: number;
+  }) {
     param.upsertBy = param.upsertBy || "user";
-    const { script, upsertBy } = param;
+    const { script, upsertBy, createtime, updatetime } = param;
     // 删 storage cache
     const compiledResourceUpdatePromise = this.compiledResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
@@ -286,6 +398,12 @@ export class ScriptService {
       script.selfMetadata = oldScript.selfMetadata;
     }
     if (script.ignoreVersion) script.ignoreVersion = "";
+    if (createtime) {
+      script.createtime = createtime;
+    }
+    if (updatetime) {
+      script.updatetime = updatetime;
+    }
     return this.scriptDAO
       .save(script)
       .then(async () => {
@@ -356,8 +474,7 @@ export class ScriptService {
           uuid: script.uuid,
           storageName: getStorageName(script),
           type: script.type,
-          isEarlyStart: isEarlyStartScript(script.metadata),
-        }));
+        })) as TDeleteScript[];
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
@@ -453,7 +570,7 @@ export class ScriptService {
     return true;
   }
 
-  async getFilterResult(req: { type: SearchType; value: string }) {
+  async getFilterResult(req: { value: string }) {
     const OPTION_CASE_INSENSITIVE = true;
     const scripts = await this.scriptDAO.all();
     const scriptCodes = await Promise.all(
@@ -712,7 +829,14 @@ export class ScriptService {
     return script;
   }
 
-  async openUpdateOrInstallPage(uuid: string, url: string, upsertBy: InstallSource, update: boolean, logger?: Logger) {
+  async openUpdateOrInstallPage(
+    uuid: string,
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean },
+    update: boolean,
+    logger?: Logger
+  ) {
+    const upsertBy = options.source;
     const code = await fetchScriptBody(url);
     if (update && (await this.systemConfig.getSilenceUpdateScript())) {
       try {
@@ -736,7 +860,7 @@ export class ScriptService {
     if (!metadata) {
       throw new Error("parse script info failed");
     }
-    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata)];
+    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata), options];
     await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
     return 1;
   }
@@ -752,7 +876,7 @@ export class ScriptService {
     });
     const url = downloadUrl || checkUpdateUrl!;
     try {
-      const ret = await this.openUpdateOrInstallPage(uuid, url, source, true, logger);
+      const ret = await this.openUpdateOrInstallPage(uuid, url, { source }, true, logger);
       if (ret === 2) return; // slience update
       // 打开安装页面
       openInCurrentTab(`/src/install.html?uuid=${uuid}`);
@@ -1143,7 +1267,7 @@ export class ScriptService {
   }
 
   importByUrl(url: string) {
-    return this.openInstallPageByUrl(url, "user");
+    return this.openInstallPageByUrl(url, { source: "user" });
   }
 
   setCheckUpdateUrl({
@@ -1306,21 +1430,6 @@ export class ScriptService {
     this.group.on("openBatchUpdatePage", this.openBatchUpdatePage.bind(this));
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
-    // 定时检查更新, 首次执行为5分钟后，然后每30分钟检查一次
-    chrome.alarms.create(
-      "checkScriptUpdate",
-      {
-        delayInMinutes: 5,
-        periodInMinutes: 30,
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-          // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-          console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
-        }
-      }
-    );
+    initRegularUpdateCheck(this.systemConfig);
   }
 }

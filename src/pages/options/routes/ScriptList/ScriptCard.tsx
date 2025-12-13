@@ -1,16 +1,5 @@
-import React, { useMemo, useState } from "react";
-import {
-  Avatar,
-  Button,
-  Card,
-  Divider,
-  Input,
-  Popconfirm,
-  Space,
-  Tag,
-  Tooltip,
-  Typography,
-} from "@arco-design/web-react";
+import React, { useMemo } from "react";
+import { Avatar, Button, Card, Divider, Popconfirm, Space, Tag, Tooltip, Typography } from "@arco-design/web-react";
 import { Link, useNavigate } from "react-router-dom";
 import { IconClockCircle, IconDragDotVertical } from "@arco-design/web-react/icon";
 import {
@@ -30,7 +19,7 @@ import { hashColor, ScriptIcons } from "../utils";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import { EnableSwitch, HomeCell, MemoizedAvatar, SourceCell, UpdateTimeCell } from "./components";
+import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
 import { useTranslation } from "react-i18next";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import { FaThList } from "react-icons/fa";
@@ -39,6 +28,8 @@ import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAppContext } from "@App/pages/store/AppContext";
+import type { SetSearchRequest } from "./hooks";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 const { Text } = Typography;
 
@@ -128,17 +119,17 @@ export const ScriptCardItem = React.memo(
           boxSizing: "border-box",
         }}
       >
-        <div className="flex flex-col justify-between h-full gap-1">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-row justify-between items-start gap-1">
-              <div className="flex-1 min-w-0">
+        <div className="tw-flex tw-flex-col tw-justify-between tw-h-full tw-gap-1">
+          <div className="tw-flex tw-flex-col tw-gap-3">
+            <div className="tw-flex tw-flex-row tw-justify-between tw-items-start tw-gap-1">
+              <div className="tw-flex-1 tw-min-w-0">
                 <Link
                   to={`/script/editor/${item.uuid}`}
                   style={{
                     textDecoration: "none",
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
                     <ScriptIcons script={item} size={24} />
                     <Text
                       style={{
@@ -189,10 +180,10 @@ export const ScriptCardItem = React.memo(
             </div>
 
             {/* 版本和更新时间 */}
-            <div className="flex flex-row gap-4 text-sm text-gray-500">
+            <div className="tw-flex tw-flex-row tw-gap-4 tw-text-sm tw-text-gray-500">
               {item.metadata.version && (
                 <div>
-                  <span className="font-medium">
+                  <span className="tw-font-medium">
                     {t("version")}
                     {": "}
                   </span>
@@ -200,16 +191,16 @@ export const ScriptCardItem = React.memo(
                 </div>
               )}
               <div className="script-updatetime">
-                <span className="font-medium">
+                <span className="tw-font-medium">
                   {t("last_updated")}
                   {": "}
                 </span>
-                <UpdateTimeCell className="text-sm text-gray-500" script={item} />
+                <UpdateTimeCell className="tw-text-sm tw-text-gray-500" script={item} />
               </div>
             </div>
 
             {/* 运行状态 */}
-            <div className="flex flex-row gap-4">
+            <div className="tw-flex tw-flex-row tw-gap-4">
               {item.type !== SCRIPT_TYPE_NORMAL && (
                 <div>
                   <Tooltip
@@ -234,7 +225,7 @@ export const ScriptCardItem = React.memo(
               <SourceCell item={item} t={t} />
             </div>
 
-            <div className="flex flex-row gap-3 items-center apply_to_run_status">
+            <div className="tw-flex tw-flex-row tw-gap-3 tw-items-center apply_to_run_status">
               {item.type === SCRIPT_TYPE_NORMAL && (
                 <Avatar.Group size={20}>
                   {favoriteMemo.trimmed.map((fav) => (
@@ -248,16 +239,16 @@ export const ScriptCardItem = React.memo(
                       }}
                     />
                   ))}
-                  {favoriteMemo.originalLen > 8 && <span className="text-xs ml-1">{"..."}</span>}
+                  {favoriteMemo.originalLen > 8 && <span className="tw-text-xs tw-ml-1">{"..."}</span>}
                 </Avatar.Group>
               )}
               <HomeCell item={item} />
             </div>
           </div>
           {/* 操作按钮 */}
-          <div className="flex flex-col script-action">
+          <div className="tw-flex tw-flex-col script-action">
             <Divider style={{ margin: "4px 0 14px" }} />
-            <div className="flex flex-row justify-between">
+            <div className="tw-flex tw-flex-row tw-justify-between">
               <div>
                 {item.type !== SCRIPT_TYPE_NORMAL && (
                   <Button
@@ -271,7 +262,7 @@ export const ScriptCardItem = React.memo(
                   </Button>
                 )}
               </div>
-              <div className="flex flex-row justify-between items-center">
+              <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
                 <Space>
                   <Link to={`/script/editor/${item.uuid}`}>
                     <Button type="outline" icon={<RiPencilFill />} size="mini">
@@ -337,7 +328,8 @@ interface ScriptCardProps {
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
-  setSearchKeyword: (keyword: string) => void;
+  searchRequest: { keyword: string; type: SearchType };
+  setSearchRequest: SetSearchRequest;
   handleDelete: (item: ScriptLoading) => void;
   handleConfig: (
     item: ScriptLoading,
@@ -356,12 +348,12 @@ export const ScriptCard = ({
   updateScripts,
   setUserConfig,
   setCloudScript,
-  setSearchKeyword,
+  searchRequest,
+  setSearchRequest,
   handleDelete,
   handleConfig,
   handleRunStop,
 }: ScriptCardProps) => {
-  const [searchValue, setSearchValue] = useState<string>("");
   const { t } = useTranslation();
   const { guideMode } = useAppContext();
 
@@ -415,19 +407,13 @@ export const ScriptCard = ({
           padding: "0 16px",
         }}
       >
-        <div className="flex flex-row justify-between items-center" style={{ padding: "8px 0" }}>
-          <div className="flex-1">
-            <Input.Search
-              size="small"
-              searchButton
-              style={{ maxWidth: 400 }}
-              placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })!}
-              value={searchValue}
-              onChange={(value) => {
-                setSearchValue(value);
-              }}
-              onSearch={(value) => {
-                setSearchKeyword(value);
+        <div className="tw-flex tw-flex-row tw-justify-between tw-items-center" style={{ padding: "8px 0" }}>
+          <div className="tw-flex-1">
+            <ScriptSearchField
+              t={t}
+              defaultValue={searchRequest}
+              onSearch={(req) => {
+                setSearchRequest(req);
               }}
             />
           </div>

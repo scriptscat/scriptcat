@@ -214,7 +214,7 @@ export class FetchXHR {
         let didLoaded = false;
 
         const contentLengthHeader = res.headers.get("content-length");
-        const total = contentLengthHeader ? Number(contentLengthHeader) : 0;
+        const total = contentLengthHeader ? Number(contentLengthHeader) : -1;
         let loaded = 0;
         const firstLoad = () => {
           if (!didLoaded) {

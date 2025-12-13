@@ -14,6 +14,8 @@ import EventEmitter from "eventemitter3";
 import { MessageQueue } from "@Packages/message/message_queue";
 import type { ValueUpdateSender } from "../content/types";
 import { getStorageName } from "@App/pkg/utils/utils";
+import type { TKeyValuePair } from "@App/pkg/utils/message_value";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 
 initTestEnv();
 
@@ -104,7 +106,13 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId-4021", key, value, mockSender);
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-4021",
+      keyValuePairs: [[key, encodeRValue(value)]],
+      valueSender: mockSender,
+      isReplace: false,
+    });
 
     // 验证结果
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
@@ -151,7 +159,13 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId-4022", key, value, mockSender);
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-4022",
+      keyValuePairs: [[key, encodeRValue(value)]],
+      valueSender: mockSender,
+      isReplace: false,
+    });
 
     // 验证结果
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
@@ -207,7 +221,13 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId-4023", key, newValue, mockSender);
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-4023",
+      keyValuePairs: [[key, encodeRValue(newValue)]],
+      valueSender: mockSender,
+      isReplace: false,
+    });
 
     // 验证结果
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
@@ -262,7 +282,13 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId-4024", key, value, mockSender);
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-4024",
+      keyValuePairs: [[key, encodeRValue(value)]],
+      valueSender: mockSender,
+      isReplace: false,
+    });
 
     // 验证结果 - 不应该保存或发送更新
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
@@ -308,7 +334,13 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试 - 设置值为undefined
-    await valueService.setValue(mockScript.uuid, "testId-4025", key, undefined, mockSender);
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-4025",
+      keyValuePairs: [[key, encodeRValue(undefined)]],
+      valueSender: mockSender,
+      isReplace: false,
+    });
 
     // 验证结果
     expect(mockValueDAO.save).toHaveBeenCalled();
@@ -329,8 +361,15 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockScriptDAO.get).mockResolvedValue(undefined);
 
     // 执行测试并验证抛出错误
+    const keyValuePairs1 = [["testKey", encodeRValue("testValue")]] satisfies TKeyValuePair[];
     await expect(
-      valueService.setValue(nonExistentUuid, "testId-4026", "testKey", "testValue", mockSender)
+      valueService.setValues({
+        uuid: nonExistentUuid,
+        id: "testId-4026",
+        keyValuePairs: keyValuePairs1,
+        valueSender: mockSender,
+        isReplace: false,
+      })
     ).rejects.toThrow("script not found");
 
     // 验证不会执行后续操作
@@ -353,11 +392,28 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
     vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+    expect(mockScriptDAO.get).toHaveBeenCalledTimes(0);
+    expect(mockValueDAO.save).toHaveBeenCalledTimes(0);
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(0);
 
     // 并发执行两个setValue操作
+    const keyValuePairs1 = [[key1, encodeRValue(value1)]] satisfies TKeyValuePair[];
+    const keyValuePairs2 = [[key2, encodeRValue(value2)]] satisfies TKeyValuePair[];
     await Promise.all([
-      valueService.setValue(mockScript.uuid, "testId-4041", key1, value1, mockSender),
-      valueService.setValue(mockScript.uuid, "testId-4042", key2, value2, mockSender),
+      valueService.setValues({
+        uuid: mockScript.uuid,
+        id: "testId-4041",
+        keyValuePairs: keyValuePairs1,
+        valueSender: mockSender,
+        isReplace: false,
+      }),
+      valueService.setValues({
+        uuid: mockScript.uuid,
+        id: "testId-4042",
+        keyValuePairs: keyValuePairs2,
+        valueSender: mockSender,
+        isReplace: false,
+      }),
     ]);
 
     // 验证两个操作都被调用

@@ -109,4 +109,26 @@ describe.concurrent("ListenerManager（监听器管理器）", () => {
     lm.execute("solo", 100, "gone");
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it.concurrent("clear()", () => {
+    const lm = new ListenerManager<Handler>();
+    const spyA = vi.fn<Handler>();
+    const spyB = vi.fn<Handler>();
+    const spyC = vi.fn<Handler>();
+    const spyD = vi.fn<Handler>();
+
+    lm.add("k", spyA);
+    lm.add("k", spyB);
+    lm.add("z", spyC);
+    lm.add("k", spyD);
+
+    lm.clear();
+
+    lm.execute("k", 9, "z");
+    lm.execute("z", 1, "z");
+    expect(spyA).not.toHaveBeenCalled();
+    expect(spyB).not.toHaveBeenCalled();
+    expect(spyC).not.toHaveBeenCalled();
+    expect(spyD).not.toHaveBeenCalled();
+  });
 });

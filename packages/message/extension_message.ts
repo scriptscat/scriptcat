@@ -180,7 +180,7 @@ export class ExtensionContentMessageSend implements MessageSend {
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve) => {
-      if (!this.options?.documentId || this.options?.frameId) {
+      if (!this.options?.documentId && !this.options?.frameId) {
         // 发送给指定的tab
         chrome.tabs.sendMessage(this.tabId, data, (resp: T) => {
           const lastError = chrome.runtime.lastError;

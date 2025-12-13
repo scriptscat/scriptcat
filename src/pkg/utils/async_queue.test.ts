@@ -1,21 +1,11 @@
 // async_queue.test.ts
 import { describe, it, expect } from "vitest";
 import { stackAsyncTask } from "./async_queue";
+import { deferred } from "@App/pkg/utils/utils";
 
 /* ==================== 工具函数 ==================== */
 
 const generateKey = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-/** 手动控制的 Promise（用于阻塞） */
-const deferred = <T = void>() => {
-  let resolve!: (v: T | PromiseLike<T>) => void;
-  let reject!: (e?: any) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-};
 
 const nextTick = () => Promise.resolve();
 /** 强制执行所有已入队微任务与 then 链 */

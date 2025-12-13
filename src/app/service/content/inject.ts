@@ -3,19 +3,18 @@ import type { Message } from "@Packages/message/types";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
 import type { ScriptExecutor } from "./script_executor";
-import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
+import type { TScriptInfo } from "@App/app/repo/scripts";
+import type { EmitEventRequest } from "../service_worker/types";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
 
 export class InjectRuntime {
   constructor(
-    private server: Server,
-    private msg: Message,
-    private scriptExecutor: ScriptExecutor
+    private readonly server: Server,
+    private readonly msg: Message,
+    private readonly scriptExecutor: ScriptExecutor
   ) {}
 
-  init(envInfo: GMInfoEnv) {
-    this.scriptExecutor.init(envInfo);
-
+  init() {
     this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
       // 转发给脚本
       this.scriptExecutor.emitEvent(data);
@@ -23,13 +22,15 @@ export class InjectRuntime {
     this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
       this.scriptExecutor.valueUpdate(data);
     });
-
-    // 注入允许外部调用
-    this.externalMessage();
   }
 
-  start(scripts: ScriptLoadInfo[]) {
-    this.scriptExecutor.start(scripts);
+  startScripts(injectScriptList: TScriptInfo[], envInfo: GMInfoEnv) {
+    this.scriptExecutor.startScripts(injectScriptList, envInfo);
+  }
+
+  onInjectPageLoaded() {
+    // 注入允许外部调用
+    this.externalMessage();
   }
 
   externalMessage() {
