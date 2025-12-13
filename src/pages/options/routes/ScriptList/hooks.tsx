@@ -25,7 +25,7 @@ import {
   requestRunScript,
   requestStopScript,
 } from "@App/pages/store/features/script";
-import { loadScriptFavicons } from "@App/pages/store/utils";
+import { loadScriptFavicons } from "@App/pages/store/favicons";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { Dispatch } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -46,6 +46,7 @@ import { useTranslation } from "react-i18next";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { Message } from "@arco-design/web-react";
+import { cacheInstance } from "@App/app/cache";
 import type { SearchType } from "@App/app/service/service_worker/types";
 import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
 
@@ -63,24 +64,27 @@ export function useScriptList() {
       if (!mounted) return;
       setScriptList(list);
       setLoadingList(false);
-      for await (const { chunkResults } of loadScriptFavicons(list)) {
+      cacheInstance.tx("faviconOPFSControl", async () => {
         if (!mounted) return;
-        setScriptList((list) => {
-          const scriptMap = new Map<string, ScriptLoading>();
-          for (const s of list) {
-            scriptMap.set(s.uuid, s);
-          }
-          const altered = new Set();
-          for (const item of chunkResults) {
-            const script = scriptMap.get(item.uuid);
-            if (script) {
-              altered.add(item.uuid);
-              script.favorite = item.fav;
+        for await (const { chunkResults } of loadScriptFavicons(list)) {
+          if (!mounted) return;
+          setScriptList((list) => {
+            const scriptMap = new Map<string, ScriptLoading>();
+            for (const s of list) {
+              scriptMap.set(s.uuid, s);
             }
-          }
-          return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
-        });
-      }
+            const altered = new Set();
+            for (const item of chunkResults) {
+              const script = scriptMap.get(item.uuid);
+              if (script) {
+                altered.add(item.uuid);
+                script.favorite = item.fav;
+              }
+            }
+            return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
+          });
+        }
+      });
     });
     return () => {
       mounted = false;
@@ -467,7 +471,7 @@ export function useScriptSearch() {
         return {
           key: tag,
           label: tag,
-          icon: <div className={`w-3 h-3 arco-badge-color-${hashColor(tag)} rounded-full`} />,
+          icon: <div className={`tw-w-3 tw-h-3 arco-badge-color-${hashColor(tag)} tw-rounded-full`} />,
           count,
         };
       })
@@ -478,7 +482,7 @@ export function useScriptSearch() {
         return {
           key: source,
           label: source,
-          icon: <div className={`w-3 h-3 arco-badge-color-${hashColor(source)} rounded-full`} />,
+          icon: <div className={`tw-w-3 tw-h-3 arco-badge-color-${hashColor(source)} tw-rounded-full`} />,
           count,
         };
       })

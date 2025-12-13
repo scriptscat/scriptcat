@@ -4,6 +4,7 @@ import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import type { ScriptExecutor } from "./script_executor";
 import { RuntimeClient } from "../service_worker/client";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 import type { GMInfoEnv } from "./types";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
@@ -52,10 +53,7 @@ export default class ContentRuntime {
         switch (data.api) {
           case "CAT_createBlobUrl": {
             const file = data.params[0] as File;
-            const url = URL.createObjectURL(file);
-            setTimeout(() => {
-              URL.revokeObjectURL(url);
-            }, 60 * 1000);
+            const url = makeBlobURL({ blob: file, persistence: false }) as string;
             return url;
           }
           case "CAT_fetchBlob": {

@@ -12,13 +12,13 @@ import { isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
-import JSZip from "jszip";
+import { createJSZip } from "@App/pkg/utils/jszip-x";
 import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
 import { createObjectURL } from "../offscreen/client";
 import { type CloudSyncConfig, type SystemConfig } from "@App/pkg/config/config";
 import type { TDeleteScript, TInstallScript, TInstallScriptParams } from "../queue";
-import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
+import { errorMsg, InfoNotification, makeBlobURL } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { type ScriptService } from "./script";
@@ -114,6 +114,15 @@ export class SynchronizeService {
     if (!code) {
       throw new Error(`Script ${script.uuid} code not found`);
     }
+    const lastModificationDate = script.updatetime || script.createtime || undefined;
+    const [values, valueRet] = await this.value.getScriptValueDetails(script);
+    const requires = await this.resource.getResourceByType(script, "require", false);
+    const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
+    const resources = await this.resource.getResourceByType(script, "resource", false);
+    const storage: ValueStorage = {
+      data: { ...values },
+      ts: valueRet?.updatetime || lastModificationDate || Date.now(),
+    };
     const ret = {
       code: code.code,
       options: {
@@ -126,34 +135,19 @@ export class SynchronizeService {
           name: script.name,
           uuid: script.uuid,
           sc_uuid: script.uuid,
-          modified: script.updatetime,
-          file_url: script.downloadUrl,
+          modified: script.updatetime!,
+          file_url: script.downloadUrl!,
           subscribe_url: script.subscribeUrl,
         },
       },
       // storage,
-      requires: [],
-      requiresCss: [],
-      resources: [],
-    } as unknown as ScriptBackupData;
-    const storage: ValueStorage = {
-      data: {},
-      ts: Date.now(),
-    };
-    const values = await this.value.getScriptValue(script);
-    for (const key of Object.keys(values)) {
-      storage.data[key] = values[key];
-    }
+      requires: this.resourceToBackdata(requires),
+      requiresCss: this.resourceToBackdata(requiresCss),
+      resources: this.resourceToBackdata(resources),
+      storage,
+      lastModificationDate,
+    } satisfies ScriptBackupData;
 
-    const requires = await this.resource.getResourceByType(script, "require", false);
-    const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
-    const resources = await this.resource.getResourceByType(script, "resource", false);
-
-    ret.requires = this.resourceToBackdata(requires);
-    ret.requiresCss = this.resourceToBackdata(requiresCss);
-    ret.resources = this.resourceToBackdata(resources);
-
-    ret.storage = storage;
     return ret;
   }
 
@@ -240,11 +234,11 @@ export class SynchronizeService {
 
   // 请求导出文件
   async requestExport(uuids?: string[]) {
-    const zip = new JSZip();
-    const fs = new ZipFileSystem(zip);
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
     await this.backup(fs, uuids);
     // 生成文件,并下载
-    const files = await zip.generateAsync({
+    const zipOutput = await zipFile.generateAsync({
       type: "blob",
       compression: "DEFLATE",
       compressionOptions: {
@@ -252,7 +246,9 @@ export class SynchronizeService {
       },
       comment: "Created by Scriptcat",
     });
-    const url = await createObjectURL(this.msgSender, files);
+    const url = await makeBlobURL({ blob: zipOutput, persistence: false }, (params) =>
+      createObjectURL(this.msgSender, params)
+    );
     chrome.downloads.download({
       url,
       saveAs: true,
@@ -264,8 +260,8 @@ export class SynchronizeService {
   // 备份到云端
   async backupToCloud({ type, params }: { type: FileSystemType; params: any }) {
     // 首先生成zip文件
-    const zip = new JSZip();
-    const fs = new ZipFileSystem(zip);
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
     await this.backup(fs);
     this.logger.info("backup to cloud");
     // 然后创建云端文件系统
@@ -276,7 +272,7 @@ export class SynchronizeService {
       // 云端文件系统写入文件
       const file = await cloudFs.create(`scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`);
       await file.write(
-        await zip.generateAsync({
+        await zipFile.generateAsync({
           type: "blob",
           compression: "DEFLATE",
           compressionOptions: {

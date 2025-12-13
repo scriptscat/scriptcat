@@ -231,7 +231,7 @@ export class SubscribeService {
         if (true === (await this.trySilenceUpdate(code, url))) {
           // slience update
         } else {
-          const si = [false, createScriptInfo(uuid, code, url, source, metadata)];
+          const si = [false, createScriptInfo(uuid, code, url, source, metadata), {}];
           await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
           chrome.tabs.create({
             url: `/src/install.html?uuid=${uuid}`,

@@ -2,7 +2,7 @@ import { type WindowMessage } from "@Packages/message/window_message";
 import type { SCRIPT_RUN_STATUS, ScriptRunResource } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
-import { type VSCodeConnect } from "./vscode-connect";
+import type { VSCodeConnectParam } from "./vscode-connect";
 
 export function preparationSandbox(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/preparationSandbox");
@@ -33,8 +33,8 @@ export function stopScript(msgSender: MessageSend, uuid: string) {
   return sendMessage(msgSender, "offscreen/script/stopScript", uuid);
 }
 
-export function createObjectURL(msgSender: MessageSend, data: Blob, persistence: boolean = false) {
-  return sendMessage(msgSender, "offscreen/createObjectURL", { data, persistence });
+export function createObjectURL(msgSender: MessageSend, params: { blob: Blob; persistence: boolean }) {
+  return sendMessage(msgSender, "offscreen/createObjectURL", params);
 }
 
 export class VscodeConnectClient extends Client {
@@ -42,7 +42,7 @@ export class VscodeConnectClient extends Client {
     super(msgSender, "offscreen/vscodeConnect");
   }
 
-  connect(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
+  connect(params: VSCodeConnectParam): Promise<void> {
     return this.do("connect", params);
   }
 }
