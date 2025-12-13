@@ -1,9 +1,8 @@
 import type { SCRIPT_STATUS } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import { scriptClient, type ScriptLoading } from "@App/pages/store/features/script";
-import { Avatar, Input, Message, Select, Space, Switch, Tag, Tooltip } from "@arco-design/web-react";
+import { Avatar, Input, Message, Select, Space, Switch, Tag, Tooltip, Typography } from "@arco-design/web-react";
 import React from "react";
-import Text from "@arco-design/web-react/es/Typography/text";
 import { TbWorldWww } from "react-icons/tb";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { useTranslation } from "react-i18next";
@@ -168,7 +167,7 @@ export const UpdateTimeCell = React.memo(({ className, script }: { className?: s
 
   return (
     <Tooltip content={t("check_update")} position="tl">
-      <Text
+      <Typography.Text
         className={className}
         style={{
           cursor: "pointer",
@@ -176,7 +175,7 @@ export const UpdateTimeCell = React.memo(({ className, script }: { className?: s
         onClick={handleClick}
       >
         {script.updatetime && semTime(new Date(script.updatetime))}
-      </Text>
+      </Typography.Text>
     </Tooltip>
   );
 });

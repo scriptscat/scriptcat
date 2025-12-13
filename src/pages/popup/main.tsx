@@ -14,7 +14,7 @@ import { AppProvider } from "../store/AppContext.tsx";
 // 初始化日志组件
 const loggerCore = new LoggerCore({
   writer: new MessageWriter(message),
-  labels: { env: "install" },
+  labels: { env: "popup" },
 });
 
 loggerCore.logger().debug("popup page start");
