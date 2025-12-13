@@ -191,7 +191,6 @@
   "yes": "crwdns8258:0crwdne8258:0",
   "no": "crwdns8260:0crwdne8260:0",
   "confirm_delete_permission": "crwdns8262:0crwdne8262:0",
-  "script_setting": "crwdns8264:0crwdne8264:0",
   "basic_info": "crwdns8266:0crwdne8266:0",
   "update_url": "crwdns8268:0crwdne8268:0",
   "permission_management": "crwdns8270:0crwdne8270:0",
@@ -282,7 +281,8 @@
   "script_requires": "crwdns8440:0crwdne8440:0",
   "cookie_warning": "crwdns8442:0crwdne8442:0",
   "scheduled_script_description_title": "crwdns8706:0crwdne8706:0",
-  "scheduled_script_description_description": "crwdns8708:0{{expression}}crwdnd8708:0{{time}}crwdne8708:0",
+  "scheduled_script_description_description_expr": "crwdns8708:0",
+  "scheduled_script_description_description_next": "crwdns8708:0",
   "background_script_description": "crwdns8444:0crwdne8444:0",
   "install_success": "crwdns8446:0crwdne8446:0",
   "install": {
@@ -322,6 +322,9 @@
     "status_autoclose": "crwdns12778:0crwdne12778:0",
     "header_other_update": "crwdns12784:0crwdne12784:0"
   },
+  "downloading_status_text": "Downloading. Received {{bytes}}.",
+  "install_page_loading": "Installation page loading",
+  "invalid_page": "Invalid page",
   "background_script_tag": "crwdns8460:0crwdne8460:0",
   "scheduled_script_tag": "crwdns8462:0crwdne8462:0",
   "background_script": "crwdns8464:0crwdne8464:0",
@@ -384,12 +387,12 @@
   "guide_script_list_enable_content": "crwdns8570:0crwdne8570:0",
   "guide_script_list_apply_to_run_status_title": "crwdns8572:0crwdne8572:0",
   "guide_script_list_apply_to_run_status_content": "crwdns8574:0crwdne8574:0",
-  "guide_script_list_sort_title": "crwdns12858:0crwdne12858:0",
-  "guide_script_list_sort_content": "crwdns12860:0crwdne12860:0",
-  "guide_script_list_update_title": "crwdns12862:0crwdne12862:0",
-  "guide_script_list_update_content": "crwdns12864:0crwdne12864:0",
-  "guide_script_list_action_title": "crwdns12866:0crwdne12866:0",
-  "guide_script_list_action_content": "crwdns12868:0crwdne12868:0",
+  "guide_script_list_sort_title": "crwdns12878:0crwdne12878:0",
+  "guide_script_list_sort_content": "crwdns12880:0crwdne12880:0",
+  "guide_script_list_update_title": "crwdns12882:0crwdne12882:0",
+  "guide_script_list_update_content": "crwdns12884:0crwdne12884:0",
+  "guide_script_list_action_title": "crwdns12886:0crwdne12886:0",
+  "guide_script_list_action_content": "crwdns12888:0crwdne12888:0",
   "guide_tools_title": "crwdns8580:0crwdne8580:0",
   "guide_tools_content": "crwdns8582:0crwdne8582:0",
   "guide_tools_backup_title": "crwdns8584:0crwdne8584:0",
@@ -415,8 +418,6 @@
   "develop_mode_guide": "crwdns8624:0crwdne8624:0",
   "allow_user_script_guide": "crwdns8626:0crwdne8626:0",
   "lower_version_browser_guide": "crwdns8628:0crwdne8628:0",
-  "enable_script_failed": "crwdns8630:0crwdne8630:0",
-  "disable_script_failed": "crwdns8632:0crwdne8632:0",
   "confirm_leave_page": "crwdns8634:0crwdne8634:0",
   "page_in_blacklist": "crwdns8636:0crwdne8636:0",
   "baidu_netdisk": "crwdns8638:0crwdne8638:0",
@@ -489,10 +490,16 @@
   "enter_search_value": "crwdns10806:0{{search}}crwdne10806:0",
   "script_run_env": {
     "title": "crwdns10808:0crwdne10808:0",
-    "default": "crwdns10810:0crwdne10810:0",
     "all": "crwdns10812:0crwdne10812:0",
     "normal-tabs": "crwdns10814:0crwdne10814:0",
     "incognito-tabs": "crwdns10816:0crwdne10816:0"
+  },
+  "script_run_at": {
+    "title": "crwdns12876:0crwdne12876:0"
+  },
+  "script_setting": {
+    "title": "crwdns12890:0crwdne12890:0",
+    "default": "crwdns12892:0crwdne12892:0"
   },
   "editor_config": "crwdns10818:0crwdne10818:0",
   "editor_config_description": "crwdns10820:0crwdne10820:0",

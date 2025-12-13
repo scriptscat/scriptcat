@@ -1,4 +1,4 @@
-import type { TEncodedMessage } from "@App/pkg/utils/message_value";
+import type { REncoded } from "@App/pkg/utils/message_value";
 
 export type ScriptFunc = (named: { [key: string]: any } | undefined, scriptName: string) => any;
 
@@ -12,11 +12,12 @@ export type ValueUpdateSender = {
 /**
  * key, value, oldValue
  */
-export type ValueUpdateDateEntry = [string, any, any];
+export type ValueUpdateDataEntry = [string, any, any];
+export type ValueUpdateDataREntry = [string, REncoded, REncoded];
 
 export type ValueUpdateData = {
   id?: string;
-  entries: ValueUpdateDateEntry[];
+  entries: ValueUpdateDataEntry[];
   uuid: string;
   storageName: string; // 储存name
   sender: ValueUpdateSender;
@@ -24,7 +25,7 @@ export type ValueUpdateData = {
 
 export type ValueUpdateDataEncoded = {
   id?: string;
-  entries: TEncodedMessage<ValueUpdateDateEntry[]>;
+  entries: ValueUpdateDataREntry[];
   uuid: string;
   storageName: string; // 储存name
   sender: ValueUpdateSender;
@@ -47,6 +48,6 @@ export interface ApiValue {
 
 export interface GMInfoEnv {
   userAgentData: typeof GM_info.userAgentData;
-  sandboxMode: typeof GM_info.sandboxMode;
+  sandboxMode: typeof GM_info.sandboxMode; // 目前固定为 "raw"，预留
   isIncognito: typeof GM_info.isIncognito;
 }

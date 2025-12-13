@@ -1,7 +1,6 @@
 import React, { useEffect } from "react";
-import { BackTop, Button, Card, DatePicker, Input, List, Message, Space } from "@arco-design/web-react";
+import { BackTop, Button, Card, DatePicker, Input, List, Message, Space, Typography } from "@arco-design/web-react";
 import dayjs from "dayjs";
-import Text from "@arco-design/web-react/es/Typography/text";
 import type { Logger } from "@App/app/repo/logger";
 import { LoggerDAO } from "@App/app/repo/logger";
 import type { Labels, Query } from "@App/pages/components/LogLabel";
@@ -192,7 +191,7 @@ function LoggerPage() {
                 }}
                 direction="vertical"
               >
-                <div className="text-sm font-medium">{t("labels")}</div>
+                <div className="tw-text-sm tw-font-medium">{t("labels")}</div>
                 <Space>
                   {querys.map((query, index) => (
                     <LogLabel
@@ -230,7 +229,7 @@ function LoggerPage() {
                 }}
                 direction="vertical"
               >
-                <div className="text-sm font-medium">{t("search_regex")}</div>
+                <div className="tw-text-sm tw-font-medium">{t("search_regex")}</div>
                 <Input value={search} onChange={(e) => setSearch(e)} />
               </Space>
             </Space>
@@ -289,12 +288,12 @@ function LoggerPage() {
               boxSizing: "border-box",
             }}
           >
-            <Text>
+            <Typography.Text>
               {formatUnixTime(startTime)} {t("to")} {formatUnixTime(endTime)} {t("total_logs", { length: logs.length })}
               {init === 4
                 ? `, ${t("filtered_logs", { length: queryLogs.length })}`
                 : `, ${t("enter_filter_conditions")}`}
-            </Text>
+            </Typography.Text>
             <List
               style={{
                 height: "100%",

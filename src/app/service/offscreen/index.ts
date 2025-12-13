@@ -8,6 +8,7 @@ import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 // offscreen环境的管理器
 export class OffscreenManager {
@@ -61,15 +62,8 @@ export class OffscreenManager {
     const vsCodeConnect = new VSCodeConnect(this.windowServer, this.extMsgSender);
     vsCodeConnect.init();
 
-    this.windowServer.on("createObjectURL", async (params: { data: Blob; persistence: boolean }) => {
-      const url = URL.createObjectURL(params.data);
-      if (!params.persistence) {
-        // 如果不是持久化的，则在1分钟后释放
-        setTimeout(() => {
-          URL.revokeObjectURL(url);
-        }, 1000 * 60);
-      }
-      return url;
+    this.windowServer.on("createObjectURL", async (params: { blob: Blob; persistence: boolean }) => {
+      return makeBlobURL(params) as string;
     });
   }
 }

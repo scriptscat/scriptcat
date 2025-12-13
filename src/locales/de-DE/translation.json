@@ -186,12 +186,11 @@
   "confirm_delete_resource": "Möchten Sie diese Ressource wirklich löschen? Beim nächsten Start wird diese Ressource neu geladen",
   "confirm_clear_resource": "Möchten Sie wirklich diese Ressourcen bereinigen? Beim nächsten Start werden die Ressourcen neu geladen",
   "script_resource": "Skript-Ressource",
-  "permission_value": "Autorisierungswert",
+  "permission_value": "Berechtigungswert",
   "allow": "Erlauben",
   "yes": "Ja",
   "no": "Nein",
-  "confirm_delete_permission": "Diese Autorisierung löschen bestätigen?",
-  "script_setting": "Skript-Einstellungen",
+  "confirm_delete_permission": "Sind Sie sicher, dass Sie diese Berechtigung löschen möchten?",
   "basic_info": "Grundinformationen",
   "update_url": "Update-URL",
   "permission_management": "Berechtigungsverwaltung",
@@ -282,7 +281,8 @@
   "script_requires": "Skript referenziert die folgenden externen Ressourcen",
   "cookie_warning": "Achtung: Dieses Skript beantragt Cookie-Operationsberechtigung. Dies ist eine gefährliche Berechtigung, bitte stellen Sie die Sicherheit des Skripts sicher.",
   "scheduled_script_description_title": "Dies ist ein geplantes Skript. Wenn aktiviert, wird es zu bestimmten Zeiten automatisch ausgeführt und kann im Panel manuell gesteuert werden.",
-  "scheduled_script_description_description": "Geplante Aufgaben-Ausdruck: {{expression}}, letzte Ausführungszeit: {{time}}",
+  "scheduled_script_description_description_expr": "Geplante Aufgaben-Ausdruck",
+  "scheduled_script_description_description_next": "Letzte Ausführungszeit:",
   "background_script_description": "Dies ist ein Hintergrundskript. Wenn aktiviert, wird es automatisch einmal ausgeführt, wenn der Browser geöffnet wird, und kann im Panel manuell gesteuert werden.",
   "install_success": "Installation erfolgreich",
   "install": {
@@ -322,6 +322,9 @@
     "status_autoclose": "Automatisches Schließen in $0 Sekunden",
     "header_other_update": "Andere verfügbare Updates"
   },
+  "downloading_status_text": "Wird heruntergeladen. {{bytes}} empfangen.",
+  "install_page_loading": "Installationsseite wird geladen",
+  "invalid_page": "Ungültige Seite",
   "background_script_tag": "Dies ist ein Hintergrundskript",
   "scheduled_script_tag": "Dies ist ein geplantes Skript",
   "background_script": "Hintergrundskript",
@@ -379,7 +382,7 @@
   "start_guide_content": "Als nächstes stellen wir Ihnen die grundlegende Verwendung von ScriptCat vor",
   "guide_installed_scripts": "Ihre installierten Skripte werden hier angezeigt",
   "guide_script_list_title": "Skript-Markt",
-  "guide_script_list_content": "Sie können Skripte aus dem <Link href=\"https://scriptcat.org/search\">Skript-Markt</Link> installieren. ScriptCat unterstützt neben Benutzerskripten auch <Link href=\"https://docs.scriptcat.org/en/docs/dev/background/\">Hintergrundskripte</Link>",
+  "guide_script_list_content": "Sie können Skripte aus dem <Link href=\"https://scriptcat.org/de/search\">Skript-Markt</Link> installieren. ScriptCat unterstützt neben Benutzerskripten auch <Link href=\"https://docs.scriptcat.org/en/docs/dev/background/\">Hintergrundskripte</Link>",
   "guide_script_list_enable_title": "Skript-Aktivierung",
   "guide_script_list_enable_content": "Skripte müssen aktiviert werden, um verwendet zu werden. Seitenskripte sind bei der Installation standardmäßig aktiviert, Hintergrundskripte sind bei der Installation standardmäßig deaktiviert",
   "guide_script_list_apply_to_run_status_title": "Anwenden auf und Ausführungsstatus",
@@ -412,11 +415,9 @@
   "get_backup_dir_url_failed": "Backup-Verzeichnis-Adresse abrufen fehlgeschlagen",
   "get_backup_files_failed": "Backup-Dateien abrufen fehlgeschlagen",
   "request_permission": "Beantragen Sie Genehmigungen",
-  "develop_mode_guide": "Es wurde erkannt, dass der Entwicklermodus derzeit nicht aktiviert ist. Ihre Skripte können nicht normal verwendet werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um zu erfahren, wie Sie den Entwicklermodus aktivieren</a>",
-  "allow_user_script_guide": "Es wurde festgestellt, dass Benutzerskripte derzeit nicht aktiviert sind. Ihr Skript kann nicht normal verwendet werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um zu erfahren, wie Sie es aktivieren</a>",
-  "lower_version_browser_guide": "Es wurde festgestellt, dass die aktuelle Browserversion zu niedrig ist und Ihr Skript nicht normal verwendet werden kann. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um mehr zu erfahren</a>",
-  "enable_script_failed": "Skript-Aktivierung fehlgeschlagen",
-  "disable_script_failed": "Skript-Deaktivierung fehlgeschlagen",
+  "develop_mode_guide": "Der 'Entwicklermodus' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um zu erfahren, wie man ihn aktiviert</a>.",
+  "allow_user_script_guide": "'Nutzerskripts zulassen' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um zu erfahren, wie man es aktiviert</a>",
+  "lower_version_browser_guide": "Ihr Browser ist zu veraltet, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um mehr zu erfahren</a>",
   "confirm_leave_page": "Derzeit im Bearbeitungsstatus. Das Navigieren zu anderen Seiten führt zum Verlust des aktuellen Inhalts. Navigieren?",
   "page_in_blacklist": "Die aktuelle Seite ist auf der Blacklist und kann keine Skripte verwenden",
   "baidu_netdisk": "Baidu Netdisk",
@@ -489,10 +490,16 @@
   "enter_search_value": "Bitte geben Sie {{search}} für die Suche ein",
   "script_run_env": {
     "title": "Laufzeitumgebung",
-    "default": "default",
     "all": "Alle Bezeichnungen",
     "normal-tabs": "Normale Tabs",
     "incognito-tabs": "Inkognito-Tabs"
+  },
+  "script_run_at": {
+    "title": "Ausführungszeitpunkt"
+  },
+  "script_setting": {
+    "title": "Skript-Einstellungen",
+    "default": "default"
   },
   "editor_config": "Editor-Konfiguration",
   "editor_config_description": "Sie können sich an den compilerOptions in <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> orientieren, um die Konfiguration vorzunehmen",
@@ -532,11 +539,24 @@
   "error_old_script_code_missing": "Alter Skriptcode nicht gefunden",
   "error_subscribe_name_required": "Abonnementname ist erforderlich",
   "error_grant_conflict": "@grant deklariert sowohl 'none' als auch GM API",
+  "error_metadata_line_duplicated": "In den Metadaten befinden sich doppelte Deklarationen.",
   "notification": {
     "script_sync_delete": "Skript-Löschsynchronisation",
     "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",
     "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
     "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}"
   },
-  "loading": "Wird geladen..."
+  "loading": "Wird geladen...",
+  "runtime": "Laufzeit",
+  "enable_background": {
+    "title": "Hintergrundausführung aktivieren",
+    "description": "Wenn aktiviert, bleibt der Browser auch nach dem Schließen aller Fenster im Hintergrund aktiv und minimiert sich in den Tray, bis Sie den Browser manuell beenden. Dadurch können Hintergrundskripte weiterhin ausgeführt werden.",
+    "enable_failed": "Aktivierung fehlgeschlagen",
+    "disable_failed": "Deaktivierung fehlgeschlagen",
+    "prompt_title": "Hintergrundausführung aktivieren?",
+    "prompt_description": "Dies ist ein {{scriptType}}. Die Aktivierung der Hintergrundausführung ermöglicht es dem Skript, nach dem Schließen des Browsers weiter zu laufen.",
+    "enable_now": "Jetzt aktivieren",
+    "maybe_later": "Vielleicht später",
+    "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern."
+  }
 }

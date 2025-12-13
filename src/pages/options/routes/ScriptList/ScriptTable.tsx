@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   Avatar,
   Button,
@@ -38,8 +38,6 @@ import {
   RiUploadCloudFill,
 } from "react-icons/ri";
 import { Link, useNavigate } from "react-router-dom";
-import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import Text from "@arco-design/web-react/es/Typography/text";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
@@ -57,10 +55,10 @@ import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "@App/pages/store/features/script";
-import { type TFunction } from "i18next";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
-import { EnableSwitch, HomeCell, MemoizedAvatar, SourceCell, UpdateTimeCell } from "./components";
+import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
+import { SearchFilter } from "./SearchFilter";
 
 type ListType = ScriptLoading;
 
@@ -114,47 +112,6 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
 );
 
 DraggableContainer.displayName = "DraggableContainer";
-
-const FilterDropdown = React.memo(
-  ({
-    filterKeys,
-    setFilterKeys,
-    confirm,
-    t,
-    inputRef,
-  }: {
-    filterKeys: string;
-    setFilterKeys: (filterKeys: string, callback?: (...args: any[]) => any) => void;
-    confirm: (...args: any[]) => any;
-    t: TFunction<"translation", undefined>;
-    inputRef: React.RefObject<RefInputType>;
-  }) => {
-    const { onSearchChange } = {
-      onSearchChange: (value: string) => {
-        setFilterKeys(value);
-      },
-    };
-    // onSearch 不能使用 useCallback / useMemo
-    const onSearch = () => {
-      confirm(filterKeys);
-    };
-    return (
-      <div className="arco-table-custom-filter flex flex-row gap-2">
-        <Input.Search
-          ref={inputRef}
-          size="small"
-          searchButton
-          style={{ minWidth: 240 }}
-          placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })}
-          defaultValue={filterKeys || ""}
-          onChange={onSearchChange}
-          onSearch={onSearch}
-        />
-      </div>
-    );
-  }
-);
-FilterDropdown.displayName = "FilterDropdown";
 
 function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
   return (node) => {
@@ -418,7 +375,7 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
           textDecoration: "none",
         }}
       >
-        <Text
+        <Typography.Text
           style={{
             display: "block",
             overflow: "hidden",
@@ -438,7 +395,7 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
               ))}
             </Space>
           )}
-        </Text>
+        </Typography.Text>
       </Link>
     </Tooltip>
   );
@@ -460,7 +417,6 @@ interface ScriptTableProps {
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
-  setSearchKeyword: (keyword: string) => void;
   handleDelete: (item: ScriptLoading) => void;
   handleConfig: (
     item: ScriptLoading,
@@ -479,7 +435,6 @@ export const ScriptTable = ({
   updateScripts,
   setUserConfig,
   setCloudScript,
-  setSearchKeyword,
   handleDelete,
   handleConfig,
   handleRunStop,
@@ -489,7 +444,6 @@ export const ScriptTable = ({
   const [action, setAction] = useState("");
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
-  const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
@@ -534,24 +488,31 @@ export const ScriptTable = ({
           filterIcon: <IconSearch />,
           filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
             return (
-              <FilterDropdown
-                filterKeys={filterKeys}
-                setFilterKeys={setFilterKeys}
-                confirm={(value) => {
-                  setSearchKeyword(value || "");
-                  confirm();
-                }}
-                t={t}
-                inputRef={inputRef}
-              />
+              <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
+                <ScriptSearchField
+                  t={t}
+                  autoFocus
+                  defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
+                  onChange={(req) => {
+                    SearchFilter.requestFilterResult(req).then(() => {
+                      setFilterKeys([{ type: req.type, keyword: req.keyword }]);
+                    });
+                  }}
+                  onSearch={(req) => {
+                    if (req.bySelect) return;
+                    confirm();
+                  }}
+                />
+              </div>
             );
           },
-          onFilterDropdownVisibleChange: (visible) => {
-            if (visible) {
-              setTimeout(() => inputRef.current!.focus(), 1);
+          onFilter: (value, row) => {
+            if (!value || !value.keyword) {
+              return true;
             }
+            return SearchFilter.checkByUUID(row.uuid);
           },
-          className: "max-w-[240px] min-w-[100px]",
+          className: "tw-max-w-[240px] tw-min-w-[100px]",
           render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
         },
         {
@@ -597,7 +558,7 @@ export const ScriptTable = ({
         },
         {
           title: (
-            <div className="flex flex-row justify-between items-center">
+            <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
               <span>{t("action")}</span>
               <Space size={4}>
                 <Tooltip content={sidebarOpen ? t("open_sidebar") : t("close_sidebar")}>
@@ -657,7 +618,6 @@ export const ScriptTable = ({
       t,
       sidebarOpen,
       updateScripts,
-      setSearchKeyword,
       navigate,
       setSidebarOpen,
       setViewMode,
@@ -679,30 +639,18 @@ export const ScriptTable = ({
   useEffect(() => {
     if (savedWidths === null) return;
 
-    setNewColumns((nColumns) => {
-      const widths = columns.map((item) => savedWidths[item.key!] ?? item.width);
-      const c = nColumns.length === widths.length ? nColumns : columns;
-      return c.map((item, i) => {
-        const width = widths[i];
-        let dest;
-        if (i === 8) {
-          // 第8列特殊处理，因为可能涉及到操作图的显示
-          dest = item.render === columns[i].render && item.title === columns[i].title ? item : columns[i];
-        } else {
-          dest = item;
+    // 主要只需要处理列宽变化的情况
+    setNewColumns(
+      columns.map((item, i) => {
+        if (savedWidths[item.key!] === undefined) {
+          return columns[i];
         }
-        let m =
-          width === dest.width
-            ? dest
-            : {
-                ...dest,
-                width,
-              };
-        // 处理语言更新
-        if (m.title !== columns[i].title) m = { ...m, title: columns[i].title };
-        return m;
-      });
-    });
+        return {
+          ...columns[i],
+          width: savedWidths[item.key!] ?? item.width,
+        };
+      })
+    );
   }, [savedWidths, columns]);
 
   useEffect(() => {
@@ -785,7 +733,7 @@ export const ScriptTable = ({
       {showAction && (
         <Card>
           <div
-            className="flex flex-row justify-between items-center"
+            className="tw-flex tw-flex-row tw-justify-between tw-items-center"
             style={{
               padding: "8px 6px",
             }}

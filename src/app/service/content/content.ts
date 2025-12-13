@@ -4,6 +4,10 @@ import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import type { ScriptExecutor } from "./script_executor";
 import { RuntimeClient } from "../service_worker/client";
+import { makeBlobURL } from "@App/pkg/utils/utils";
+import type { GMInfoEnv } from "./types";
+import type { Logger } from "@App/app/repo/logger";
+import LoggerCore from "@App/app/logger/core";
 
 // content页的处理
 export default class ContentRuntime {
@@ -35,6 +39,9 @@ export default class ContentRuntime {
       this.scriptExecutor.valueUpdate(data);
       return sendMessage(this.senderToInject, "inject/runtime/valueUpdate", data);
     });
+    this.server.on("logger", (data: Logger) => {
+      LoggerCore.logger().log(data.level, data.message, data.label);
+    });
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.senderToExt);
     forwardMessage(
       "serviceWorker",
@@ -46,10 +53,7 @@ export default class ContentRuntime {
         switch (data.api) {
           case "CAT_createBlobUrl": {
             const file = data.params[0] as File;
-            const url = URL.createObjectURL(file);
-            setTimeout(() => {
-              URL.revokeObjectURL(url);
-            }, 60 * 1000);
+            const url = makeBlobURL({ blob: file, persistence: false }) as string;
             return url;
           }
           case "CAT_fetchBlob": {
@@ -123,8 +127,8 @@ export default class ContentRuntime {
     );
   }
 
-  pageLoad(messageFlag: string) {
-    this.scriptExecutor.checkEarlyStartScript("content", messageFlag);
+  pageLoad(messageFlag: string, envInfo: GMInfoEnv) {
+    this.scriptExecutor.checkEarlyStartScript("content", messageFlag, envInfo);
     const client = new RuntimeClient(this.senderToExt);
     // 向service_worker请求脚本列表及环境信息
     client.pageLoad().then((o) => {
@@ -138,10 +142,8 @@ export default class ContentRuntime {
       for (const script of contentScriptList) {
         this.contentScriptSet.add(script.uuid);
       }
-      // 监听事件
-      this.scriptExecutor.setEnvInfo(envInfo);
       // 启动脚本
-      this.scriptExecutor.startScripts(contentScriptList);
+      this.scriptExecutor.startScripts(contentScriptList, envInfo);
     });
   }
 }

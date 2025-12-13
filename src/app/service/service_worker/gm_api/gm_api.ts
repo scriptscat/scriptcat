@@ -10,7 +10,7 @@ import type { ConfirmParam } from "../permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "../permission_verify";
 import { cacheInstance } from "@App/app/cache";
 import { type RuntimeService } from "../runtime";
-import { getIcon, isFirefox, openInCurrentTab, cleanFileName } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox, getCurrentTab, openInCurrentTab, cleanFileName, makeBlobURL } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -28,8 +28,7 @@ import type {
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import { BrowserNoSupport, notificationsUpdate } from "../utils";
 import i18n from "@App/locales/locales";
-import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
-import { type TGMKeyValue } from "@App/app/repo/value";
+import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { createObjectURL } from "../../offscreen/client";
 import type { GMXhrStrategy } from "./gm_xhr";
 import {
@@ -43,6 +42,8 @@ import {
 } from "./gm_xhr";
 import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
+import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
+import { nativePageWindowOpen } from "../../offscreen/gm_api";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -418,24 +419,25 @@ export default class GMApi {
       throw new Error("param is failed");
     }
     const [id, key, value] = request.params as [string, string, any];
-    await this.value.setValue(request.script.uuid, id, key, value, {
-      runFlag: request.runFlag,
-      tabId: sender.getSender()?.tab?.id || -1,
-    });
-  }
-
-  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_deleteValues"] })
-  async GM_setValues(request: GMApiRequest<[string, TEncodedMessage<TGMKeyValue>]>, sender: IGetSender) {
-    if (!request.params || request.params.length !== 2) {
-      throw new Error("param is failed");
-    }
-    const [id, valuesNew] = request.params;
-    const values = decodeMessage(valuesNew);
+    const keyValuePairs = [[key, encodeRValue(value)]] as TKeyValuePair[];
     const valueSender = {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,
     };
-    await this.value.setValues(request.script.uuid, id, values, valueSender, false);
+    await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
+  }
+
+  @PermissionVerify.API({ link: ["GM_deleteValues"] })
+  async GM_setValues(request: GMApiRequest<[string, TKeyValuePair[]]>, sender: IGetSender) {
+    if (!request.params || request.params.length !== 2) {
+      throw new Error("param is failed");
+    }
+    const [id, keyValuePairs] = request.params;
+    const valueSender = {
+      runFlag: request.runFlag,
+      tabId: sender.getSender()?.tab?.id || -1,
+    };
+    await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }
 
   @PermissionVerify.API()
@@ -533,7 +535,9 @@ export default class GMApi {
             updatetime: info.updatetime,
           });
           const blob = await r.read("blob");
-          const url = await createObjectURL(this.msgSender, blob, false);
+          const url = await makeBlobURL({ blob, persistence: false }, (params) =>
+            createObjectURL(this.msgSender, params)
+          );
           return { action: "onload", data: url };
         } catch (e: any) {
           return { action: "error", data: { code: 5, error: e.message } };
@@ -912,6 +916,28 @@ export default class GMApi {
   async GM_openInTab(request: GMApiRequest<[string, GMTypes.SWOpenTabOptions]>, sender: IGetSender) {
     const url = request.params[0];
     const options = request.params[1];
+    if (options.useOpen) {
+      const prevTab = await getCurrentTab();
+      // 发送给offscreen页面处理 （使用window.open）
+      let ok;
+      if (typeof window === "object" && typeof window?.open === "function") {
+        // Firefox Background Page
+        ok = nativePageWindowOpen({ url });
+      } else {
+        ok = await sendMessage(this.msgSender, "offscreen/gmApi/windowOpen", { url });
+      }
+      // 注：一般而言，特殊打开的话没有实际 tab id.
+      // ------------------------------------------
+      if (ok) {
+        // 由于window.open强制在前台打开标签，因此获取状态为 { active:true } 的标签即为新标签
+        const tab = await getCurrentTab();
+        const tabId = tab?.id;
+        if (tabId && tabId !== prevTab?.id) return tabId;
+      }
+      // 当新tab被浏览器阻止时 window.open() 会返回 null 视为已经关闭
+      // 似乎在Firefox中禁止在background页面使用window.open()，强制返回null
+      return false;
+    }
     const getNewTabId = async () => {
       const { tabId, windowId } = sender.getExtMessageSender();
       const active = options.active;
@@ -1138,10 +1164,14 @@ export default class GMApi {
     if (!msgConn) {
       throw new Error("GM_download ERROR: msgConn is undefined");
     }
+    const params = request.params[0];
+    // 如果downloadMode为native则走GM_xmlhttpRequest
+    if (params.downloadMode === "native") {
+      return this.GM_xmlhttpRequest(request satisfies GMApiRequest<[GMSend.XHRDetails?]>, sender);
+    }
     let reqCompleteWith = "";
     let cDownloadId = 0;
     let isConnDisconnected = false;
-    const params = request.params[0];
     // 替换掉windows下文件名的非法字符为 -
     const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
@@ -1240,10 +1270,15 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_setClipboard(request: GMApiRequest<[string, GMTypes.GMClipboardInfo?]>, _sender: IGetSender) {
-    const [data, type] = request.params;
-    const clipboardType = type || "text/plain";
-    await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
+  async GM_setClipboard(request: GMApiRequest<[string, string]>, _sender: IGetSender) {
+    const [data, mimetype] = request.params;
+    if (typeof document === "object" && document?.documentElement) {
+      // FF background script
+      mightPrepareSetClipboard();
+      setClipboard(data, mimetype);
+    } else {
+      await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, mimetype });
+    }
   }
 
   @PermissionVerify.API()

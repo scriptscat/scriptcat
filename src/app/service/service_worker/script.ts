@@ -26,11 +26,9 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
-import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
-import { DocumentationSite } from "@App/app/const";
 import type {
   TScriptRunStatus,
   TDeleteScript,
@@ -39,13 +37,11 @@ import type {
   TSortedScript,
   TInstallScriptParams,
 } from "../queue";
-import { timeoutExecution } from "@App/pkg/utils/timer";
 import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
 import {
   BatchUpdateListActionCode,
   type TBatchUpdateListAction,
   UpdateStatusCode,
-  type SearchType,
   type TBatchUpdateRecord,
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
@@ -53,8 +49,6 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
 // import { gzip as pakoGzip } from "pako";
-
-const cIdKey = `(cid_${Math.random()})`;
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -84,13 +78,15 @@ export class ScriptService {
 
   listenerScriptInstall() {
     // 初始化脚本安装监听
-    chrome.webRequest.onBeforeRequest.addListener(
-      (req: chrome.webRequest.OnBeforeRequestDetails) => {
-        // 处理url, 实现安装脚本
-        if (req.method !== "GET") {
-          return undefined;
+    chrome.webNavigation.onBeforeNavigate.addListener(
+      (req: chrome.webNavigation.WebNavigationBaseCallbackDetails) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.webNavigation.onBeforeNavigate:", lastError);
+          return;
         }
-        let targetUrl: string | null = null;
+        // 处理url, 实现安装脚本
+        let targetUrl: string;
         // 判断是否为 file:///*/*.user.js
         if (req.url.startsWith("file://") && req.url.endsWith(".user.js")) {
           targetUrl = req.url;
@@ -101,16 +97,17 @@ export class ScriptService {
             return undefined;
           }
           // 判断是否有url参数
-          if (!reqUrl.hash.includes("url=")) {
+          const idx = reqUrl.hash.indexOf("url=");
+          if (idx < 0) {
             return undefined;
           }
           // 获取url参数
-          targetUrl = reqUrl.hash.split("url=")[1];
+          targetUrl = reqUrl.hash.substring(idx + 4);
         }
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
         logger.debug("install script");
-        this.openInstallPageByUrl(targetUrl, "user")
+        this.openInstallPageByUrl(targetUrl, { source: "user", byWebRequest: true })
           .catch((e) => {
             logger.error("install script error", Logger.E(e));
             // 不再重定向当前url
@@ -153,15 +150,15 @@ export class ScriptService {
           });
       },
       {
-        urls: [
-          `${DocumentationSite}/docs/script_installation/*`,
-          `${DocumentationSite}/en/docs/script_installation/*`,
-          "https://www.tampermonkey.net/script_installation.php*",
-          "file:///*/*.user.js*",
+        url: [
+          { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/docs/script_installation/" },
+          { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/en/docs/script_installation/" },
+          { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
+          { schemes: ["file"], pathSuffix: ".user.js" },
         ],
-        types: ["main_frame"],
       }
     );
+
     // 兼容 chrome 内核 < 128 处理
     const browserType = getBrowserType();
     const addResponseHeaders = browserType.chrome && browserType.chromeVersion >= 128;
@@ -243,6 +240,7 @@ export class ScriptService {
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
     ];
+    const installPageURL = chrome.runtime.getURL("src/install.html");
     const rules = conditions.map((condition, idx) => {
       Object.assign(condition, {
         excludedTabIds: [chrome.tabs.TAB_ID_NONE],
@@ -270,7 +268,7 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
-            regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\1`,
+            regexSubstitution: `${installPageURL}?url=\\1`,
           },
         },
         condition: condition,
@@ -306,23 +304,32 @@ export class ScriptService {
     );
   }
 
-  public async openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
-    const uuid = uuidv4();
+  public async openInstallPageByUrl(
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean }
+  ): Promise<{ success: boolean; msg: string }> {
     try {
-      await this.openUpdateOrInstallPage(uuid, url, source, false);
-      timeoutExecution(
-        `${cIdKey}_cleanup_${uuid}`,
-        () => {
-          // 清理缓存
-          cacheInstance.del(`${CACHE_KEY_SCRIPT_INFO}${uuid}`);
-        },
-        30 * 1000
-      );
-      await openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+      const installPageUrl = await this.getInstallPageUrl(url, options);
+      if (!installPageUrl) throw new Error("getInstallPageUrl failed");
+      await openInCurrentTab(installPageUrl);
       return { success: true, msg: "" };
     } catch (err: any) {
       console.error(err);
       return { success: false, msg: err.message };
+    }
+  }
+
+  public async getInstallPageUrl(
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean }
+  ): Promise<string> {
+    const uuid = uuidv4();
+    try {
+      await this.openUpdateOrInstallPage(uuid, url, options, false);
+      return `/src/install.html?uuid=${uuid}`;
+    } catch (err: any) {
+      console.error(err);
+      return "";
     }
   }
 
@@ -365,9 +372,15 @@ export class ScriptService {
   }
 
   // 安装脚本 / 更新腳本
-  async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
+  async installScript(param: {
+    script: Script;
+    code: string;
+    upsertBy?: InstallSource;
+    createtime?: number;
+    updatetime?: number;
+  }) {
     param.upsertBy = param.upsertBy || "user";
-    const { script, upsertBy } = param;
+    const { script, upsertBy, createtime, updatetime } = param;
     // 删 storage cache
     const compiledResourceUpdatePromise = this.compiledResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
@@ -385,6 +398,12 @@ export class ScriptService {
       script.selfMetadata = oldScript.selfMetadata;
     }
     if (script.ignoreVersion) script.ignoreVersion = "";
+    if (createtime) {
+      script.createtime = createtime;
+    }
+    if (updatetime) {
+      script.updatetime = updatetime;
+    }
     return this.scriptDAO
       .save(script)
       .then(async () => {
@@ -455,8 +474,7 @@ export class ScriptService {
           uuid: script.uuid,
           storageName: getStorageName(script),
           type: script.type,
-          isEarlyStart: isEarlyStartScript(script.metadata),
-        }));
+        })) as TDeleteScript[];
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
@@ -552,7 +570,7 @@ export class ScriptService {
     return true;
   }
 
-  async getFilterResult(req: { type: SearchType; value: string }) {
+  async getFilterResult(req: { value: string }) {
     const OPTION_CASE_INSENSITIVE = true;
     const scripts = await this.scriptDAO.all();
     const scriptCodes = await Promise.all(
@@ -811,7 +829,14 @@ export class ScriptService {
     return script;
   }
 
-  async openUpdateOrInstallPage(uuid: string, url: string, upsertBy: InstallSource, update: boolean, logger?: Logger) {
+  async openUpdateOrInstallPage(
+    uuid: string,
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean },
+    update: boolean,
+    logger?: Logger
+  ) {
+    const upsertBy = options.source;
     const code = await fetchScriptBody(url);
     if (update && (await this.systemConfig.getSilenceUpdateScript())) {
       try {
@@ -835,7 +860,7 @@ export class ScriptService {
     if (!metadata) {
       throw new Error("parse script info failed");
     }
-    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata)];
+    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata), options];
     await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
     return 1;
   }
@@ -851,7 +876,7 @@ export class ScriptService {
     });
     const url = downloadUrl || checkUpdateUrl!;
     try {
-      const ret = await this.openUpdateOrInstallPage(uuid, url, source, true, logger);
+      const ret = await this.openUpdateOrInstallPage(uuid, url, { source }, true, logger);
       if (ret === 2) return; // slience update
       // 打开安装页面
       openInCurrentTab(`/src/install.html?uuid=${uuid}`);
@@ -1242,7 +1267,7 @@ export class ScriptService {
   }
 
   importByUrl(url: string) {
-    return this.openInstallPageByUrl(url, "user");
+    return this.openInstallPageByUrl(url, { source: "user" });
   }
 
   setCheckUpdateUrl({
