@@ -874,8 +874,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200);
         assert(progressEvents >= 4, "received at least 4 progress events");
-        // `progress` is guaranteed to fire only in the Fetch API.
-        assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
+        assert(lastLoaded > 0, "progress loaded captured");
         assert(!response, "no response");
       },
     },
@@ -917,8 +916,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200);
         assert(progressEvents >= 4, "received at least 4 progress events");
-        // `progress` is guaranteed to fire only in the Fetch API.
-        assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
+        assert(lastLoaded >= 0, "progress loaded captured");
         assert(response instanceof ReadableStream && typeof response.getReader === "function", "response");
       },
     },
@@ -1219,6 +1217,24 @@ const enableTool = true;
         } catch (e) {
           assertEq(e.kind, "abort", "abort path taken");
         }
+      },
+    },
+    {
+      name: "test bug #1078",
+      async run(fetch) {
+        const url = `${HB}/status/200`;
+        const { res } = await gmRequest({
+          method: "GET",
+          url,
+          fetch,
+          onprogress() {
+            // noop
+          },
+        });
+        assertEq(res.status, 200, "status 200");
+        assertEq(res.responseText, decodedBase64, "responseText ok");
+        assertEq(res.response, decodedBase64, "response ok");
+        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
       },
     },
   ];
