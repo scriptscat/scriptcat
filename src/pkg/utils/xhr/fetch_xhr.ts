@@ -222,7 +222,8 @@ export class FetchXHR {
             didLoaded = true;
             // Move to LOADING state as soon as we start reading
             this.readyState = FetchXHR.LOADING;
-            this._emitReadyStateChange();
+            // TM 没有 readyState=3 的处理，这里保持一致
+            // this._emitReadyStateChange();
           }
         };
         let streamDecoding = false;
