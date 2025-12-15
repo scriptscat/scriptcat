@@ -1,6 +1,7 @@
 import { globalCache, systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
 import { languages } from "monaco-editor";
+import { findGlobalInsertionInfo, updateGlobalCommentLine } from "./utils";
 
 // 注册eslint
 const linterWorker = new Worker("/src/linter.worker.js");
@@ -517,6 +518,10 @@ export default function registerEditor() {
         // 判断有没有修复方案
         const val = context.markers[i];
         const code = typeof val.code === "string" ? val.code : val.code!.value;
+
+        // =============================
+        // 1) eslint-fix logic
+        // =============================
         const fix = eslintFix.get(
           `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
         );
@@ -539,6 +544,69 @@ export default function registerEditor() {
             isPreferred: true,
           });
         }
+
+        // =============================
+        // 2) /* global XXX */ fix
+        // =============================
+
+        // message format usually like: "'XXX' is not defined.ESLint (no-undef)"
+        if (code === "no-undef") {
+          const message = val.message || "";
+          const match = message.match(/^[^']*'([^']+)'[^']*$/);
+          const globalName = match && match[1];
+
+          if (globalName) {
+            const { insertLine, globalLine } = findGlobalInsertionInfo(model);
+            let textEdit: languages.IWorkspaceTextEdit["textEdit"];
+
+            if (globalLine != null) {
+              // there is already a /* global ... */ line → update it
+              const oldLine = model.getLineContent(globalLine);
+              const newLine = updateGlobalCommentLine(oldLine, globalName);
+
+              textEdit = {
+                range: {
+                  startLineNumber: globalLine,
+                  startColumn: 1,
+                  endLineNumber: globalLine,
+                  endColumn: oldLine.length + 1,
+                },
+                text: newLine,
+              };
+            } else {
+              // no global line yet → insert a new one
+              textEdit = {
+                range: {
+                  startLineNumber: insertLine,
+                  startColumn: 1,
+                  endLineNumber: insertLine,
+                  endColumn: 1,
+                },
+                text: `/* global ${globalName} */\n`,
+              };
+            }
+
+            actions.push(<languages.CodeAction>{
+              title: `将 '${globalName}' 声明为全局变量 (/* global */)`,
+              diagnostics: [val],
+              kind: "quickfix",
+              edit: {
+                edits: [
+                  {
+                    resource: model.uri,
+                    textEdit,
+                    versionId: undefined,
+                  },
+                ],
+              },
+              isPreferred: false,
+            });
+          }
+        }
+
+        // =============================
+        // 3) disable-next-line / disable fixes
+        // =============================
         // 添加eslint-disable-next-line和eslint-disable
         actions.push(<languages.CodeAction>{
           title: multiLang.addEslintDisableNextLine,
