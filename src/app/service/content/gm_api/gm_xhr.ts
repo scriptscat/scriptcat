@@ -175,11 +175,12 @@ export function GM_xmlhttpRequest(
     param.data = dataResolved;
 
     // 处理返回数据
+    const isStreamResponse = responseTypeOriginal === "stream";
     let readerStream: ReadableStream<Uint8Array> | undefined;
     let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
     // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
     // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
-    if (responseTypeOriginal === "stream") {
+    if (isStreamResponse) {
       readerStream = new ReadableStream<Uint8Array>({
         start(ctrl) {
           controller = ctrl;
@@ -232,7 +233,6 @@ export function GM_xmlhttpRequest(
       let responseText: string | undefined | false = "";
       let responseXML: unknown = null;
       let resultType: ChunkResponseCode = ChunkResponseCode.NONE;
-      const isStreamResponse = !!readerStream;
       if (readerStream) {
         response = readerStream;
         responseText = undefined; // 兼容
@@ -550,7 +550,7 @@ export function GM_xmlhttpRequest(
               const curStateAndCode = `${data.readyState}:${data.status}`;
               if (curStateAndCode === lastStateAndCode) return;
               lastStateAndCode = curStateAndCode;
-              if (data.readyState === ReadyStateCode.DONE && resultType === ChunkResponseCode.READABLE_STREAM) {
+              if (isStreamResponse && data.readyState === ReadyStateCode.DONE) {
                 // readable stream 的 controller 可以释放
                 controller = undefined; // GC用
               }
