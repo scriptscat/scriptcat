@@ -324,6 +324,7 @@ export function GM_xmlhttpRequest(
             responseType: responseType as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
             get response() {
               if (response === false) {
+                // 注：isStreamResponse 为 true 时 response 不会为 false
                 switch (responseTypeOriginal) {
                   case "json": {
                     const text = this.responseText;
@@ -368,7 +369,7 @@ export function GM_xmlhttpRequest(
             },
             get responseXML() {
               if (responseXML === false) {
-                // 注：isStreamResponse 為 true 時 responseXML 不會為 false
+                // 注：isStreamResponse 为 true 时 responseXML 不会为 false
                 const text = this.responseText;
                 if (
                   ["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"].includes(
@@ -384,7 +385,7 @@ export function GM_xmlhttpRequest(
             },
             get responseText() {
               if (responseText === false) {
-                // 注：isStreamResponse 為 true 時 responseText 不會為 false
+                // 注：isStreamResponse 为 true 时 responseText 不会为 false
                 if (resultType === ChunkResponseCode.UINT8_ARRAY_BUFFER) {
                   finalResultBuffers ||= concatUint8(resultBuffers);
                   const buf = finalResultBuffers.buffer as ArrayBuffer;
@@ -546,7 +547,7 @@ export function GM_xmlhttpRequest(
               if (curStateAndCode === lastStateAndCode) return;
               lastStateAndCode = curStateAndCode;
               if (data.readyState === ReadyStateCode.DONE && resultType === ChunkResponseCode.READABLE_STREAM) {
-                // readable stream 的 controller 可以釋放
+                // readable stream 的 controller 可以释放
                 controller = undefined; // GC用
               }
               details.onreadystatechange?.(makeXHRCallbackParam?.(data) ?? {});
