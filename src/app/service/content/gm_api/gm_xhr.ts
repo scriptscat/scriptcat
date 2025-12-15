@@ -279,7 +279,7 @@ export function GM_xmlhttpRequest(
           contentType: string;
         } & Record<string, any>
       ) => {
-        if (res.readyState === 4 || reqDone) allowResponse = true;
+        if ((res.readyState === 4 || reqDone) && res.eventType !== "progress") allowResponse = true;
         let resError: Record<string, any> | null = null;
         if (
           (typeof res.error === "string" &&
