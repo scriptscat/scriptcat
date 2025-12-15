@@ -296,6 +296,7 @@ export class BgGMXhr {
       let finalStateChangeEvent: XHREvent | null = null;
       let canTriggerFinalStateChangeEvent = false;
       const callback = (evt: XHREvent, err?: Error | string) => {
+        console.log("GM XHR evt", evt.type, baseXHR);
         const xhr = baseXHR;
         const eventType = evt.type;
         const isProgressEvt = isProgressEvent(evt);

@@ -1220,21 +1220,41 @@ const enableTool = true;
       },
     },
     {
-      name: "test bug #1078",
+      name: "Test bug #1078",
       async run(fetch) {
         const url = `${HB}/status/200`;
         const { res } = await gmRequest({
           method: "GET",
           url,
+          responseType: "json",
           fetch,
-          onprogress() {
-            // noop
+          onprogress() {},
+        });
+        assertEq(res.status, 200, "status 200");
+        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+      },
+    },
+    {
+      name: "Test bug #1080",
+      async run(fetch) {
+        const url = `${HB}/status/200`;
+        let minStatusCode = 2000;
+        const { res } = await gmRequest({
+          method: "GET",
+          url,
+          responseType: "json",
+          fetch,
+          onreadystatechange: (resp) => {
+            minStatusCode = resp.status < minStatusCode ? resp.status : minStatusCode;
           },
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, decodedBase64, "responseText ok");
-        assertEq(res.response, decodedBase64, "response ok");
+        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(minStatusCode, 200, "status 200");
       },
     },
   ];
