@@ -98,6 +98,16 @@ export const urlToDocumentInContentPage = async (a: GMApi, url: string) => {
   return (<CustomEventMessage>a.message).getAndDelRelatedTarget(nodeId) as Document;
 };
 
+const getMimeType = (contentType: string) => {
+  let mime = contentType;
+  const colonIdx = mime.indexOf(";");
+  if (colonIdx > 0) mime = mime.substring(0, colonIdx);
+  mime = mime.trim().toLowerCase();
+  return mime;
+};
+
+const docParseTypes = new Set(["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"]);
+
 export function GM_xmlhttpRequest(
   a: GMApi,
   details: GMTypes.XHRDetails,
@@ -371,15 +381,9 @@ export function GM_xmlhttpRequest(
               if (responseXML === false) {
                 // 注： isStreamResponse 为 true 时 responseXML 不会为 false
                 const text = this.responseText;
-                if (
-                  ["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"].includes(
-                    res.contentType
-                  )
-                ) {
-                  responseXML = new DOMParser().parseFromString(text, res.contentType as DOMParserSupportedType);
-                } else {
-                  responseXML = new DOMParser().parseFromString(text, "text/xml");
-                }
+                const mime = getMimeType(res.contentType);
+                const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
+                responseXML = new DOMParser().parseFromString(text, parseType);
               }
               return responseXML as Document | null;
             },
