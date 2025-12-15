@@ -68,8 +68,9 @@ export class FetchXHR {
     this.method = method.toUpperCase();
     this.url = url;
     this.readyState = FetchXHR.OPENED;
-    // 不需要触发 readyStateChange 事件
-    // this._emitReadyStateChange();
+    // 对齐 TM 的实现：上层不处理 readyState 从 0 到 1 的 onreadystatechange 事件。
+    // 说明：底层核心实现应尽量保持通用性，避免为 TM 引入特殊处理。
+    this._emitReadyStateChange();
   }
 
   setRequestHeader(name: string, value: string) {
@@ -222,8 +223,9 @@ export class FetchXHR {
             didLoaded = true;
             // Move to LOADING state as soon as we start reading
             this.readyState = FetchXHR.LOADING;
-            // TM 没有 readyState=3 的处理，这里保持一致
-            // this._emitReadyStateChange();
+            // 对齐 TM 的实现：上层不处理 readyState 从 2 到 3 的 onreadystatechange 事件。
+            // 说明：底层核心实现应尽量保持通用性，避免为 TM 引入特殊处理。
+            this._emitReadyStateChange();
           }
         };
         let streamDecoding = false;

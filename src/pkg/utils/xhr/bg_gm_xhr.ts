@@ -298,6 +298,10 @@ export class BgGMXhr {
       const callback = (evt: XHREvent, err?: Error | string) => {
         const xhr = baseXHR;
         const eventType = evt.type;
+        // 对齐 TM 的实现：不处理 readyState 从 0 到 1 和 2 到 3 的 onreadystatechange 事件。
+        if (useFetch && eventType === "readystatechange" && (xhr.readyState === 1 || xhr.readyState === 3)) {
+          return;
+        }
         const isProgressEvt = isProgressEvent(evt);
 
         if (eventType === "load") {
@@ -375,8 +379,6 @@ export class BgGMXhr {
         }
 
         this.callback(result);
-
-        evt.type;
       };
       baseXHR.onabort = callback;
       baseXHR.onloadstart = callback;
