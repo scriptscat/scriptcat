@@ -227,6 +227,7 @@ export function GM_xmlhttpRequest(
       let isEmptyResult = true;
       const asyncTaskId = `${Date.now()}:${Math.random()}`;
       let lastStateAndCode = "";
+      let allowResponse = false; // readyState 未达至 4 (DONE) 时，不提供 response, responseText, responseXML
 
       let errorOccur: string | null = null;
       let response: unknown = null;
@@ -234,11 +235,12 @@ export function GM_xmlhttpRequest(
       let responseXML: unknown = null;
       let resultType: ChunkResponseCode = ChunkResponseCode.NONE;
       if (readerStream) {
+        allowResponse = true; // TM 特殊处理。 fetchXhr stream 无视 readyState
         response = readerStream;
         responseText = undefined; // 兼容
         responseXML = undefined; // 兼容
+        readerStream = undefined;
       }
-      readerStream = undefined;
 
       let refCleanup: (() => void) | null = () => {
         // 清掉函数参考，避免各变数参考无法GC
@@ -277,6 +279,7 @@ export function GM_xmlhttpRequest(
           contentType: string;
         } & Record<string, any>
       ) => {
+        if (res.readyState === 4) allowResponse = true;
         let resError: Record<string, any> | null = null;
         if (
           (typeof res.error === "string" &&
@@ -314,7 +317,7 @@ export function GM_xmlhttpRequest(
             ...resError,
           } as GMXHRResponseType;
         } else {
-          retParam = {
+          const retParamBase = {
             DONE: ReadyStateCode.DONE,
             HEADERS_RECEIVED: ReadyStateCode.HEADERS_RECEIVED,
             LOADING: ReadyStateCode.LOADING,
@@ -332,84 +335,92 @@ export function GM_xmlhttpRequest(
             statusText: res.statusText as string,
             responseHeaders: res.responseHeaders as string,
             responseType: responseType as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
-            get response() {
-              if (response === false) {
-                // 注： isStreamResponse 为 true 时 response 不会为 false
-                switch (responseTypeOriginal) {
-                  case "json": {
-                    const text = this.responseText;
-                    let o = undefined;
-                    try {
-                      o = JSON.parse(text);
-                    } catch {
-                      // ignored
-                    }
-                    response = o; // TM兼容 -> o : object | undefined
-                    break;
-                  }
-                  case "document": {
-                    response = this.responseXML;
-                    break;
-                  }
-                  case "arraybuffer": {
-                    finalResultBuffers ||= concatUint8(resultBuffers);
-                    const full = finalResultBuffers;
-                    response = full.buffer; // ArrayBuffer
-                    break;
-                  }
-                  case "blob": {
-                    finalResultBuffers ||= concatUint8(resultBuffers);
-                    const full = finalResultBuffers;
-                    const type = res.contentType || "application/octet-stream";
-                    response = new Blob([full], { type }); // Blob
-                    break;
-                  }
-                  default: {
-                    // text
-                    response = `${this.responseText}`;
-                    break;
-                  }
-                }
-                if (reqDone) {
-                  resultTexts.length = 0;
-                  resultBuffers.length = 0;
-                }
-              }
-              return response as string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array> | null;
-            },
-            get responseXML() {
-              if (responseXML === false) {
-                // 注： isStreamResponse 为 true 时 responseXML 不会为 false
-                const text = this.responseText;
-                const mime = getMimeType(res.contentType);
-                const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
-                responseXML = new DOMParser().parseFromString(text, parseType);
-              }
-              return responseXML as Document | null;
-            },
-            get responseText() {
-              if (responseText === false) {
-                // 注： isStreamResponse 为 true 时 responseText 不会为 false
-                if (resultType === ChunkResponseCode.UINT8_ARRAY_BUFFER) {
-                  finalResultBuffers ||= concatUint8(resultBuffers);
-                  const buf = finalResultBuffers.buffer as ArrayBuffer;
-                  const decoder = new TextDecoder("utf-8");
-                  const text = decoder.decode(buf);
-                  responseText = text;
-                } else {
-                  // resultType === ChunkResponseCode.STRING
-                  if (finalResultText === null) finalResultText = `${resultTexts.join("")}`;
-                  responseText = finalResultText;
-                }
-                if (reqDone) {
-                  resultTexts.length = 0;
-                  resultBuffers.length = 0;
-                }
-              }
-              return responseText as string;
-            },
             toString: () => "[object Object]", // follow TM
           } as GMXHRResponseType;
+          if (allowResponse) {
+            // 依照 TM 的规则：当 readyState 不等于 4 时，回应中不会有 response、responseXML 或 responseText。
+            retParam = {
+              ...retParamBase,
+              get response() {
+                if (response === false) {
+                  // 注： isStreamResponse 为 true 时 response 不会为 false
+                  switch (responseTypeOriginal) {
+                    case "json": {
+                      const text = this.responseText;
+                      let o = undefined;
+                      try {
+                        o = JSON.parse(text);
+                      } catch {
+                        // ignored
+                      }
+                      response = o; // TM兼容 -> o : object | undefined
+                      break;
+                    }
+                    case "document": {
+                      response = this.responseXML;
+                      break;
+                    }
+                    case "arraybuffer": {
+                      finalResultBuffers ||= concatUint8(resultBuffers);
+                      const full = finalResultBuffers;
+                      response = full.buffer; // ArrayBuffer
+                      break;
+                    }
+                    case "blob": {
+                      finalResultBuffers ||= concatUint8(resultBuffers);
+                      const full = finalResultBuffers;
+                      const type = res.contentType || "application/octet-stream";
+                      response = new Blob([full], { type }); // Blob
+                      break;
+                    }
+                    default: {
+                      // text
+                      response = `${this.responseText}`;
+                      break;
+                    }
+                  }
+                  if (reqDone) {
+                    resultTexts.length = 0;
+                    resultBuffers.length = 0;
+                  }
+                }
+                return response as string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array> | null;
+              },
+              get responseXML() {
+                if (responseXML === false) {
+                  // 注： isStreamResponse 为 true 时 responseXML 不会为 false
+                  const text = this.responseText;
+                  const mime = getMimeType(res.contentType);
+                  const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
+                  responseXML = new DOMParser().parseFromString(text, parseType);
+                }
+                return responseXML as Document | null;
+              },
+              get responseText() {
+                if (responseText === false) {
+                  // 注： isStreamResponse 为 true 时 responseText 不会为 false
+                  if (resultType === ChunkResponseCode.UINT8_ARRAY_BUFFER) {
+                    finalResultBuffers ||= concatUint8(resultBuffers);
+                    const buf = finalResultBuffers.buffer as ArrayBuffer;
+                    const decoder = new TextDecoder("utf-8");
+                    const text = decoder.decode(buf);
+                    responseText = text;
+                  } else {
+                    // resultType === ChunkResponseCode.STRING
+                    if (finalResultText === null) finalResultText = `${resultTexts.join("")}`;
+                    responseText = finalResultText;
+                  }
+                  if (reqDone) {
+                    resultTexts.length = 0;
+                    resultBuffers.length = 0;
+                  }
+                }
+                return responseText as string;
+              },
+            };
+          } else {
+            retParam = retParamBase;
+          }
           if (res.error) {
             retParam.error = res.error;
           }
