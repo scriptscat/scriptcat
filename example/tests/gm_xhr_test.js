@@ -1256,7 +1256,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertDeepEq(readyStateList, fetch ? [2, 3] : [1, 2, 3, 4], "status 200");
+        assertDeepEq(readyStateList, fetch ? [2, 4] : [1, 2, 3, 4], "status 200");
       },
     },
   ];
