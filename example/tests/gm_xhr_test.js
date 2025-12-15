@@ -917,7 +917,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200);
         assert(progressEvents >= 4, "received at least 4 progress events");
-         // `progress` is guaranteed to fire only in the Fetch API.
+        // `progress` is guaranteed to fire only in the Fetch API.
         assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
         assert(response instanceof ReadableStream && typeof response.getReader === "function", "response");
       },
