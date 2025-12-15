@@ -68,7 +68,8 @@ export class FetchXHR {
     this.method = method.toUpperCase();
     this.url = url;
     this.readyState = FetchXHR.OPENED;
-    this._emitReadyStateChange();
+    // 不需要触发 readyStateChange 事件
+    // this._emitReadyStateChange();
   }
 
   setRequestHeader(name: string, value: string) {
