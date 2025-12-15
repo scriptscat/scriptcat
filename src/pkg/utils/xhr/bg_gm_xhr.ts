@@ -148,7 +148,7 @@ export class BgGMXhr {
     private msgConn: MessageConnect,
     private strategy?: GMXhrStrategy
   ) {
-    this.taskId = `${Date.now}:${Math.random()}`;
+    this.taskId = `${Date.now()}:${Math.random()}`;
     this.isConnDisconnected = false;
   }
 

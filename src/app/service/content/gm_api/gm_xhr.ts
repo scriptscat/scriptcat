@@ -195,7 +195,7 @@ export function GM_xmlhttpRequest(
       let finalResultBuffers: Uint8Array<ArrayBuffer> | null = null; // 函数参考清掉后，变数会被GC
       let finalResultText: string | null = null; // 函数参考清掉后，变数会被GC
       let isEmptyResult = true;
-      const asyncTaskId = `${Date.now}:${Math.random()}`;
+      const asyncTaskId = `${Date.now()}:${Math.random()}`;
       let lastStateAndCode = "";
 
       let errorOccur: string | null = null;
