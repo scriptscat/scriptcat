@@ -350,7 +350,7 @@ export function GM_xmlhttpRequest(
               return responseXML as Document | null;
             },
             get responseText() {
-              if (responseText === false) {
+              if (responseText === false && res.readyState === 4) {
                 if (resultType === 2) {
                   finalResultBuffers ||= concatUint8(resultBuffers);
                   const buf = finalResultBuffers.buffer as ArrayBuffer;
