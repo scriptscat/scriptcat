@@ -10,7 +10,7 @@ interface PopupWarningsProps {
 
 function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
   const { t } = useTranslation();
-  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(true);
+  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState<boolean | null>(null);
   const [showRequestButton, setShowRequestButton] = useState(false);
   const [permissionReqResult, setPermissionReqResult] = useState("");
 
@@ -25,6 +25,7 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
   }, []);
 
   const warningMessageHTML = useMemo(() => {
+    if (isUserScriptsAvailableState === null) return "";
     // 可使用UserScript的话，不查browserType
     const browserType = !isUserScriptsAvailableState ? getBrowserType() : null;
 
