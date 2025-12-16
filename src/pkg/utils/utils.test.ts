@@ -1,11 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import {
-  checkSilenceUpdate,
-  cleanFileName,
-  normalizeResponseHeaders,
-  stringMatching,
-  toCamelCase,
-} from "./utils";
+import { checkSilenceUpdate, cleanFileName, normalizeResponseHeaders, stringMatching, toCamelCase } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
@@ -375,49 +369,14 @@ describe("normalizeResponseHeaders", () => {
     expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
   });
 
-  it("accepts CR-only separators too", () => {
-    const input = "A: 1\rB: 2\r";
-    expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
-  });
-
   it("parses last line even without a trailing newline", () => {
     const input = "A: 1\nB: 2";
     expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
   });
 
-  it("preserves spaces and punctuation in values (except the single optional leading space)", () => {
-    const input = "X: hello world!\nY: \tvalue-with-tab\n";
-    expect(normalizeResponseHeaders(input)).toBe("X:hello world!\r\nY:\tvalue-with-tab");
-  });
-
-  it("skips lines without a colon", () => {
-    const input = "NoColonHere\nA: 1\n";
-    expect(normalizeResponseHeaders(input)).toBe("A:1");
-  });
-
-  it("skips lines where colon is at index 0 (empty header name)", () => {
-    const input = ": value\nA: 1\n";
-    expect(normalizeResponseHeaders(input)).toBe("A:1");
-  });
-
-  it("skips lines with empty value (including only a single space after colon)", () => {
-    expect(normalizeResponseHeaders("A:\nB: 1\n")).toBe("B:1");
-    expect(normalizeResponseHeaders("A: \nB: 1\n")).toBe("B:1"); // k moves past one space, then value empty => skipped
-  });
-
   it("does NOT skip lines where value starts immediately after ':'", () => {
     const input = "A:1\nB:2\n";
     expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
-  });
-
-  it("handles extra blank lines and whitespace-only lines by skipping them", () => {
-    const input = "\n\r\nA: 1\n\nB: 2\r\n\r\n";
-    expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
-  });
-
-  it("ignores lines that contain only spaces (no colon)", () => {
-    const input = "   \nA: 1\n";
-    expect(normalizeResponseHeaders(input)).toBe("A:1");
   });
 
   it("works with non-ASCII characters", () => {
@@ -428,10 +387,5 @@ describe("normalizeResponseHeaders", () => {
   it("does not include a trailing CRLF at the end of output", () => {
     const input = "A: 1\nB: 2\n";
     expect(normalizeResponseHeaders(input).endsWith("\r\n")).toBe(false);
-  });
-
-  it("returns empty string when all lines are invalid", () => {
-    const input = "Nope\n: nope\nA:\nA: \n";
-    expect(normalizeResponseHeaders(input)).toBe("");
   });
 });

@@ -374,34 +374,19 @@ export const stringMatching = (main: string, sub: string): boolean => {
 
 // TM Xhr Header 兼容处理，原生xhr \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白
 export const normalizeResponseHeaders = (headersString: string) => {
-  if (!headersString) return "";
-  const len = headersString.length;
+  let start = 0;
   let out = "";
-  let start = len; // start position = nil
+  const len = headersString.length;
   let separator = "";
-  for (let i = 0; i <= len; i++) {
-    const char = headersString.charCodeAt(i) || 10;
-    if (char === 10 || char === 13) {
-      if (i > start) {
-        const seg = headersString.substring(start, i); // "key: value"
-        const j = seg.indexOf(":");
-        if (j > 0) {
-          let k = j + 1;
-          if (seg.charCodeAt(k) === 32) k++;
-          if (k < seg.length) {
-            const headerName = seg.substring(0, j); // "key"
-            const headerValue = seg.substring(k); // "value"
-            out += `${separator}${headerName}:${headerValue}`;
-            separator = "\r\n";
-          }
-        }
-      }
-      start = len; // start position = nil
-    } else {
-      if (start === len) {
-        start = i; // set start position
-      }
-    }
+  while (start < len) {
+    const a = headersString.indexOf(":", start + 1);
+    if (a < 0) break;
+    const k = a + 1;
+    let b = headersString.indexOf("\n", k);
+    if (b < 0) b = len;
+    out += `${separator}${headersString.substring(start, a).trim()}:${headersString.substring(k, b).trim()}`;
+    separator = "\r\n";
+    start = b + 1;
   }
   return out;
 };
