@@ -379,8 +379,7 @@ export const nativeResponseHeadersTreatment = (headersString: string) => {
   let start = len; // start position = nil
   let separator = "";
   for (let i = 0; i <= len; i++) {
-    const isEnd = i === len;
-    const char = isEnd ? 10 : headersString.charCodeAt(i);
+    const char = headersString.charCodeAt(i) || 10;
     if (char === 10 || char === 13) {
       if (i > start) {
         const seg = headersString.substring(start, i); // "key: value"
