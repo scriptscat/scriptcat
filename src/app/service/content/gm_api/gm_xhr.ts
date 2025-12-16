@@ -301,7 +301,7 @@ export function GM_xmlhttpRequest(
             statusText: "",
           };
         }
-        const retParamBase = {
+        const responseTypeDef = {
           DONE: ReadyStateCode.DONE,
           HEADERS_RECEIVED: ReadyStateCode.HEADERS_RECEIVED,
           LOADING: ReadyStateCode.LOADING,
@@ -318,12 +318,12 @@ export function GM_xmlhttpRequest(
         let retParam: GMXHRResponseType;
         if (resError) {
           retParam = {
-            ...retParamBase,
+            ...responseTypeDef,
             ...resError,
           } as GMXHRResponseType;
         } else {
-          retParam = {
-            ...retParamBase,
+          const retParamBase = {
+            ...responseTypeDef,
             finalUrl: res.finalUrl as string,
             readyState: res.readyState as ReadyStateCode,
             status: res.status as number,
@@ -334,7 +334,7 @@ export function GM_xmlhttpRequest(
           if (allowResponse) {
             // 依照 TM 的规则：当 readyState 不等于 4 时，回应中不会有 response、responseXML 或 responseText。
             retParam = {
-              ...retParam,
+              ...retParamBase,
               get response() {
                 if (response === false) {
                   // 注： isStreamResponse 为 true 时 response 不会为 false
