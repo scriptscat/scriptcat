@@ -321,7 +321,7 @@ export class BgGMXhr {
         // contentType 和 responseHeaders 只读一次
         contentType = contentType || xhr.getResponseHeader("Content-Type") || "";
         if (contentType && !responseHeaders) {
-          // TM兼容: 原生xhr有/r/n在尾，但TM的GMXhr没有；同时除去冒号后面的空白
+          // TM兼容: 原生xhr有 \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白
           responseHeaders = normalizeResponseHeaders(xhr.getAllResponseHeaders());
         }
         if (!(xhr instanceof FetchXHR)) {
