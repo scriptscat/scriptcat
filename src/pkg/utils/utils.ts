@@ -379,8 +379,8 @@ export const normalizeResponseHeaders = (hs: string) => {
   const len = hs.length;
   let separator = "";
   while (start < len) {
-    const i = hs.indexOf(":", start + 1); // 冒号的位置
-    let j = hs.indexOf("\n", start + 1); // 换行符的位置
+    const i = hs.indexOf(":", start); // 冒号的位置
+    let j = hs.indexOf("\n", start); // 换行符的位置
     if (j < 0) j = len; // 尾行
     if (i < j) {
       const key = hs.substring(start, i).trim(); // i 为 -1 的话 key 也会是空值
