@@ -1,5 +1,11 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { checkSilenceUpdate, cleanFileName, stringMatching, toCamelCase } from "./utils";
+import {
+  checkSilenceUpdate,
+  cleanFileName,
+  nativeResponseHeadersTreatment,
+  stringMatching,
+  toCamelCase,
+} from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
@@ -347,5 +353,85 @@ describe.concurrent("toCamelCase", () => {
   it.concurrent("应当正确处理多下划线配置键", () => {
     expect(toCamelCase("editor_type_definition")).toBe("EditorTypeDefinition");
     expect(toCamelCase("script_list_column_width")).toBe("ScriptListColumnWidth");
+  });
+});
+
+describe("nativeResponseHeadersTreatment", () => {
+  it("returns empty string for empty input", () => {
+    expect(nativeResponseHeadersTreatment("")).toBe("");
+  });
+
+  it("returns empty string for falsy-like empty string (only case possible with string type)", () => {
+    expect(nativeResponseHeadersTreatment(String(""))).toBe("");
+  });
+
+  it("keeps valid header lines and outputs name:value joined with CRLF", () => {
+    const input = "Content-Type: text/plain\nX-Test: abc\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("Content-Type:text/plain\r\nX-Test:abc");
+  });
+
+  it("accepts LF and CRLF line endings", () => {
+    const input = "A: 1\r\nB: 2\r\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("A:1\r\nB:2");
+  });
+
+  it("accepts CR-only separators too", () => {
+    const input = "A: 1\rB: 2\r";
+    expect(nativeResponseHeadersTreatment(input)).toBe("A:1\r\nB:2");
+  });
+
+  it("parses last line even without a trailing newline", () => {
+    const input = "A: 1\nB: 2";
+    expect(nativeResponseHeadersTreatment(input)).toBe("A:1\r\nB:2");
+  });
+
+  it("preserves spaces and punctuation in values (except the single optional leading space)", () => {
+    const input = "X: hello world!\nY: \tvalue-with-tab\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("X:hello world!\r\nY:\tvalue-with-tab");
+  });
+
+  it("skips lines without a colon", () => {
+    const input = "NoColonHere\nA: 1\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("A:1");
+  });
+
+  it("skips lines where colon is at index 0 (empty header name)", () => {
+    const input = ": value\nA: 1\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("A:1");
+  });
+
+  it("skips lines with empty value (including only a single space after colon)", () => {
+    expect(nativeResponseHeadersTreatment("A:\nB: 1\n")).toBe("B:1");
+    expect(nativeResponseHeadersTreatment("A: \nB: 1\n")).toBe("B:1"); // k moves past one space, then value empty => skipped
+  });
+
+  it("does NOT skip lines where value starts immediately after ':'", () => {
+    const input = "A:1\nB:2\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("A:1\r\nB:2");
+  });
+
+  it("handles extra blank lines and whitespace-only lines by skipping them", () => {
+    const input = "\n\r\nA: 1\n\nB: 2\r\n\r\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("A:1\r\nB:2");
+  });
+
+  it("ignores lines that contain only spaces (no colon)", () => {
+    const input = "   \nA: 1\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("A:1");
+  });
+
+  it("works with non-ASCII characters", () => {
+    const input = "X-名前: 値\n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("X-名前:値");
+  });
+
+  it("does not include a trailing CRLF at the end of output", () => {
+    const input = "A: 1\nB: 2\n";
+    expect(nativeResponseHeadersTreatment(input).endsWith("\r\n")).toBe(false);
+  });
+
+  it("returns empty string when all lines are invalid", () => {
+    const input = "Nope\n: nope\nA:\nA: \n";
+    expect(nativeResponseHeadersTreatment(input)).toBe("");
   });
 });

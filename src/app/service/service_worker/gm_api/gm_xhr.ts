@@ -38,13 +38,17 @@ export class SWRequestResultParams {
 
   get responseHeaders() {
     const responsed = headersReceivedMap.get(this.markerID);
-    if (responsed && responsed.responseHeaders) {
-      let s = "";
-      for (const h of responsed.responseHeaders) {
-        s += `${h.name}: ${h.value}\n`;
+    const responseHeaders = responsed ? responsed.responseHeaders : null;
+    if (responseHeaders) {
+      let out = "";
+      let separator = "";
+      for (const h of responseHeaders) {
+        // TM兼容: 使用 \r\n 及不包含空白
+        out += `${separator}${h.name}:${h.value}`;
+        separator = "\r\n";
       }
-      this.resultParamResponseHeader = s;
-      responsed.responseHeaders = null; // 设为 null 避免重复处理
+      this.resultParamResponseHeader = out;
+      responsed!.responseHeaders = null; // 设为 null 避免重复处理
     }
     return this.resultParamResponseHeader;
   }

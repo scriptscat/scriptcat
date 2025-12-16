@@ -371,3 +371,37 @@ export const stringMatching = (main: string, sub: string): boolean => {
     return false;
   }
 };
+
+export const nativeResponseHeadersTreatment = (headersString: string) => {
+  if (!headersString) return "";
+  const len = headersString.length;
+  let out = "";
+  let start = len; // start position = nil
+  let separator = "";
+  for (let i = 0; i <= len; i++) {
+    const isEnd = i === len;
+    const char = isEnd ? 10 : headersString.charCodeAt(i);
+    if (char === 10 || char === 13) {
+      if (i > start) {
+        const seg = headersString.substring(start, i); // "key: value"
+        const j = seg.indexOf(":");
+        if (j > 0) {
+          let k = j + 1;
+          if (seg.charCodeAt(k) === 32) k++;
+          if (k < seg.length) {
+            const headerName = seg.substring(0, j); // "key"
+            const headerValue = seg.substring(k); // "value"
+            out += `${separator}${headerName}:${headerValue}`;
+            separator = "\r\n";
+          }
+        }
+      }
+      start = len; // start position = nil
+    } else {
+      if (start === len) {
+        start = i; // set start position
+      }
+    }
+  }
+  return out;
+};
