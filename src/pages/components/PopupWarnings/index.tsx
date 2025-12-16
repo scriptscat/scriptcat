@@ -10,13 +10,14 @@ interface PopupWarningsProps {
 
 function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
   const { t } = useTranslation();
-  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(false);
+  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(true);
   const [showRequestButton, setShowRequestButton] = useState(false);
   const [permissionReqResult, setPermissionReqResult] = useState("");
 
   const updateIsUserScriptsAvailableState = async () => {
+    const badgeText = await chrome.action.getBadgeText({});
     const flag = await checkUserScriptsAvailable();
-    setIsUserScriptsAvailableState(flag);
+    setIsUserScriptsAvailableState(badgeText !== "!" && flag);
   };
 
   useEffect(() => {

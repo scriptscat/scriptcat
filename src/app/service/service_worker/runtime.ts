@@ -175,7 +175,6 @@ export class RuntimeService {
   }
 
   showNoDeveloperModeWarning() {
-    console.log("Showing developer mode warning");
     // 判断是否首次
     this.localStorageDAO.get("firstShowDeveloperMode").then((res) => {
       if (!res) {
