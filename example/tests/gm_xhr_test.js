@@ -1289,7 +1289,7 @@ const enableTool = true;
       async run(fetch) {
         const resultList = [];
         const url = `https://raw.githubusercontent.com/mdn/content/54fd6eaad3924076e0b546e7eff1f6f466f6139f/.editorconfig?d=${Date.now()}`;
-        await new Promise((resolve) => GM_xmlhttpRequest({
+        await new Promise((resolve, reject) => GM_xmlhttpRequest({
           method: "GET",
           url,
           fetch,
@@ -1303,7 +1303,9 @@ const enableTool = true;
           onloadend: function (response) {
             resultList.push("onloadend " + resPrint(response));
             resolve();
-          }
+          },
+          onerror: () => reject(),
+          ontimeout: () => reject(),
         }));
         if (!fetch) {
           assertDeepEq(resultList, [
@@ -1330,7 +1332,7 @@ const enableTool = true;
         const resultSet = new Set();
         let progressCount = 0;
         const url = `https://raw.githubusercontent.com/dscape/spell/3f1d4dd2a6dfcad65578eadaf29cae1800a1be13/test/resources/big.txt?d=${Date.now()}`;
-        await new Promise((resolve) => GM_xmlhttpRequest({
+        await new Promise((resolve, reject) => GM_xmlhttpRequest({
           method: "GET",
           url,
           fetch,
@@ -1349,7 +1351,9 @@ const enableTool = true;
           onloadend: function (response) {
             resultSet.add("onloadend " + resPrint(response));
             resolve();
-          }
+          },
+          onerror: () => reject(),
+          ontimeout: () => reject(),
         }));
         const resultList = [...resultSet];
         if (!fetch) {
@@ -1382,7 +1386,7 @@ const enableTool = true;
         const resultSet = new Set();
         let progressCount = 0;
         const url = `https://raw.githubusercontent.com/json-iterator/test-data/0bce379832b475a6c21726ce37f971f8d849513b/large-file.json?d=${Date.now()}`;
-        await new Promise((resolve) => GM_xmlhttpRequest({
+        await new Promise((resolve, reject) => GM_xmlhttpRequest({
           method: "GET",
           url,
           fetch,
@@ -1401,7 +1405,9 @@ const enableTool = true;
           onloadend: function (response) {
             resultSet.add("onloadend " + resPrint(response));
             resolve();
-          }
+          },
+          onerror: () => reject(),
+          ontimeout: () => reject(),
         }));
         const resultList = [...resultSet];
         if (!fetch) {
@@ -1441,7 +1447,7 @@ const enableTool = true;
             return new Headers(n)
         }
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ja&dj=1&dt=t&dt=rm&q=%E3%81%8F%E3%82%8B%EF%BC%81%EF%BC%81%0A%E3%81%8F%E3%82%8B%E2%80%A6%0A%E3%81%8D%E3%81%9F%EF%BC%81%EF%BC%81%0Alets+go%0A%E3%81%8F%E3%82%8B%EF%BC%81%0Ayes%21`;
-        await new Promise((resolve) => GM_xmlhttpRequest({
+        await new Promise((resolve, reject) => GM_xmlhttpRequest({
           method: "GET",
           url,
           responseType: "blob",
@@ -1452,7 +1458,9 @@ const enableTool = true;
           },
           onloadend: function (response) {
             resolve();
-          }
+          },
+          onerror: () => reject(),
+          ontimeout: () => reject(),
         }));
         const headers = resultHeaders;
         assertEq(headers.get("content-type"), "application/json; charset=utf-8", "content-type ok");
@@ -1475,7 +1483,7 @@ const enableTool = true;
             return new Headers(n)
         }
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ja&dj=1&dt=t&dt=rm&q=%E3%81%8F%E3%82%8B%EF%BC%81%EF%BC%81%0A%E3%81%8F%E3%82%8B%E2%80%A6%0A%E3%81%8D%E3%81%9F%EF%BC%81%EF%BC%81%0Alets+go%0A%E3%81%8F%E3%82%8B%EF%BC%81%0Ayes%21`;
-        await new Promise((resolve) => GM_xmlhttpRequest({
+        await new Promise((resolve, reject) => GM_xmlhttpRequest({
           method: "GET",
           url,
           responseType: "blob",
@@ -1488,7 +1496,9 @@ const enableTool = true;
           },
           onloadend: function (response) {
             resolve();
-          }
+          },
+          onerror: () => reject(),
+          ontimeout: () => reject(),
         }));
         const headers = resultHeaders;
         assertEq(headers.get("content-type"), "application/json; charset=utf-8", "content-type ok");
