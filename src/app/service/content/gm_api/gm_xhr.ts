@@ -100,8 +100,8 @@ export const urlToDocumentInContentPage = async (a: GMApi, url: string) => {
 
 const getMimeType = (contentType: string) => {
   let mime = contentType;
-  const colonIdx = mime.indexOf(";");
-  if (colonIdx > 0) mime = mime.substring(0, colonIdx);
+  const i = mime.indexOf(";");
+  if (i > 0) mime = mime.substring(0, i);
   mime = mime.trim().toLowerCase();
   return mime;
 };
@@ -203,7 +203,7 @@ export function GM_xmlhttpRequest(
       }
     }
     // const xhrType = param.responseType;
-    const responseType = responseTypeOriginal; // 回传用
+    // const responseType = responseTypeOriginal; // 回传用
 
     // 发送信息
     let connectMessage: Promise<MessageConnect>;
@@ -334,7 +334,7 @@ export function GM_xmlhttpRequest(
             status: res.status as number,
             statusText: res.statusText as string,
             responseHeaders: res.responseHeaders as string,
-            responseType: responseType as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
+            responseType: responseTypeOriginal as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
             toString: () => "[object Object]", // follow TM
           } as GMXHRResponseType;
           if (allowResponse) {
@@ -384,6 +384,9 @@ export function GM_xmlhttpRequest(
                     resultBuffers.length = 0;
                   }
                 }
+                if (responseTypeOriginal === "json" && response === null) {
+                  response = undefined; // TM不使用null，使用undefined
+                }
                 return response as string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array> | null;
               },
               get responseXML() {
@@ -423,9 +426,6 @@ export function GM_xmlhttpRequest(
           }
           if (res.error) {
             retParam.error = res.error;
-          }
-          if (responseType === "json" && retParam.response === null) {
-            response = undefined; // TM不使用null，使用undefined
           }
         }
         if (typeof contentContext !== "undefined") {
