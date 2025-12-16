@@ -372,6 +372,7 @@ export const stringMatching = (main: string, sub: string): boolean => {
   }
 };
 
+// TM Xhr Header 兼容处理，原生xhr \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白
 export const nativeResponseHeadersTreatment = (headersString: string) => {
   if (!headersString) return "";
   const len = headersString.length;
