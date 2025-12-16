@@ -338,6 +338,7 @@ export class RuntimeService {
       const res = await chrome.userScripts?.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
       registered = res?.length === 2;
     } catch (e) {
+      // 该错误为预期内情况，无需记录 debug 日志
       console.error("chrome.userScripts.getScripts error:", e);
     } finally {
       // 考虑 UserScripts API 不可使用等情况
