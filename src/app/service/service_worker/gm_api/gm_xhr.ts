@@ -38,7 +38,7 @@ export class SWRequestResultParams {
 
   get responseHeaders() {
     const responsed = headersReceivedMap.get(this.markerID);
-    const responseHeaders = responsed ? responsed.responseHeaders : null;
+    const responseHeaders = responsed && responsed.responseHeaders;
     if (responseHeaders) {
       let out = "";
       let separator = "";
@@ -48,7 +48,7 @@ export class SWRequestResultParams {
         separator = "\r\n";
       }
       this.resultParamResponseHeader = out;
-      responsed!.responseHeaders = null; // 设为 null 避免重复处理
+      responsed.responseHeaders = null; // 设为 null 避免重复处理
     }
     return this.resultParamResponseHeader;
   }
