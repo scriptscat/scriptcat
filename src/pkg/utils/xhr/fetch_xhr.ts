@@ -158,7 +158,7 @@ export class FetchXHR {
       this.readyState = FetchXHR.HEADERS_RECEIVED;
       this._emitReadyStateChange();
 
-      let responseOverrided: ReadableStream<Uint8Array> | null = null;
+      let responseOverrided: ReadableStream<Uint8Array<ArrayBufferLike>> | null = null;
 
       // Storage buffers for different responseTypes
       // const chunks: Uint8Array<ArrayBufferLike>[] = [];
@@ -274,7 +274,7 @@ export class FetchXHR {
               controller.error("XHR failed");
             }
           };
-          responseOverrided = new ReadableStream<Uint8Array>({
+          responseOverrided = new ReadableStream<Uint8Array<ArrayBufferLike>>({
             start(controller) {
               myController = controller;
             },

@@ -25,6 +25,8 @@ const ReadyStateCode = {
 
 type ReadyStateCode = ValueOf<typeof ReadyStateCode>;
 
+type GMXhrResponseObjectType = ArrayBuffer | Blob | Document | ReadableStream<Uint8Array<ArrayBufferLike>>;
+
 export type ContextType = unknown;
 
 export type GMXHRResponseType = {
@@ -46,9 +48,9 @@ export type GMXHRResponseType = {
   statusText: string;
   responseHeaders: string;
   responseType: "" | "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
-  readonly response: string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array<ArrayBufferLike>> | null;
-  readonly responseXML: Document | null;
-  readonly responseText: string;
+  readonly response?: string | GMXhrResponseObjectType | null | undefined;
+  readonly responseXML?: Document | null;
+  readonly responseText?: string;
   toString: () => string;
   error?: string;
 };
@@ -176,12 +178,12 @@ export function GM_xmlhttpRequest(
 
     // 处理返回数据
     const isStreamResponse = responseTypeOriginal === "stream";
-    let readerStream: ReadableStream<Uint8Array> | undefined;
+    let readerStream: ReadableStream<Uint8Array<ArrayBufferLike>> | undefined;
     let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
     // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
     // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
     if (isStreamResponse) {
-      readerStream = new ReadableStream<Uint8Array>({
+      readerStream = new ReadableStream<Uint8Array<ArrayBufferLike>>({
         start(ctrl) {
           controller = ctrl;
         },
@@ -387,7 +389,7 @@ export function GM_xmlhttpRequest(
                 if (responseTypeOriginal === "json" && response === null) {
                   response = undefined; // TM不使用null，使用undefined
                 }
-                return response as string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array> | null;
+                return response as string | GMXhrResponseObjectType | null | undefined;
               },
               get responseXML() {
                 if (responseXML === false) {

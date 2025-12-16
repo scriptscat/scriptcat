@@ -18,7 +18,7 @@ export class MockRequest implements Request {
   readonly isHistoryNavigation: boolean = false;
   readonly isReloadNavigation: boolean = false;
   // @ts-expect-error
-  readonly body: ReadableStream<Uint8Array> | null;
+  readonly body: ReadableStream<Uint8Array<ArrayBufferLike>> | null;
   #bytes: Uint8Array | null;
 
   constructor(input: RequestInfo | URL, init?: RequestInit) {
@@ -62,7 +62,7 @@ export class MockRequest implements Request {
     }
 
     this.body = this.#bytes
-      ? new ReadableStream<Uint8Array>({
+      ? new ReadableStream<Uint8Array<ArrayBufferLike>>({
           start: (controller) => {
             controller.enqueue(this.#bytes!);
             controller.close();

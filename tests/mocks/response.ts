@@ -19,7 +19,7 @@ export class MockResponse implements Response {
   readonly type: ResponseType = "basic";
   readonly headers: Headers;
   // @ts-expect-error
-  readonly body: ReadableStream<Uint8Array> | null;
+  readonly body: ReadableStream<Uint8Array<ArrayBufferLike>> | null;
   bodyUsed: boolean = false;
   #bytes: Uint8Array;
 
@@ -50,7 +50,7 @@ export class MockResponse implements Response {
     this.url = init?.url ?? "";
 
     this.body = this.#bytes.length
-      ? new ReadableStream<Uint8Array>({
+      ? new ReadableStream<Uint8Array<ArrayBufferLike>>({
           start: (controller) => {
             controller.enqueue(this.#bytes);
             controller.close();
