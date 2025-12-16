@@ -16,8 +16,14 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
 
   const updateIsUserScriptsAvailableState = async () => {
     const badgeText = await chrome.action.getBadgeText({});
-    const flag = await checkUserScriptsAvailable();
-    setIsUserScriptsAvailableState(badgeText !== "!" && flag);
+    let displayState;
+    if (badgeText === "!") {
+      // 要求用户重启扩展/浏览器，会重置badge状态的
+      displayState = false;
+    } else {
+      displayState = await checkUserScriptsAvailable();
+    }
+    setIsUserScriptsAvailableState(displayState);
   };
 
   useEffect(() => {
