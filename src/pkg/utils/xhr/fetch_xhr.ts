@@ -68,6 +68,8 @@ export class FetchXHR {
     this.method = method.toUpperCase();
     this.url = url;
     this.readyState = FetchXHR.OPENED;
+    // 对齐 TM 的实现：上层不处理 readyState 从 0 到 1 的 onreadystatechange 事件。
+    // 说明：底层核心实现应尽量保持通用性，避免为 TM 引入特殊处理。
     this._emitReadyStateChange();
   }
 
@@ -156,7 +158,7 @@ export class FetchXHR {
       this.readyState = FetchXHR.HEADERS_RECEIVED;
       this._emitReadyStateChange();
 
-      let responseOverrided: ReadableStream<Uint8Array> | null = null;
+      let responseOverrided: ReadableStream<Uint8Array<ArrayBufferLike>> | null = null;
 
       // Storage buffers for different responseTypes
       // const chunks: Uint8Array<ArrayBufferLike>[] = [];
@@ -221,6 +223,8 @@ export class FetchXHR {
             didLoaded = true;
             // Move to LOADING state as soon as we start reading
             this.readyState = FetchXHR.LOADING;
+            // 对齐 TM 的实现：上层不处理 readyState 从 2 到 3 的 onreadystatechange 事件。
+            // 说明：底层核心实现应尽量保持通用性，避免为 TM 引入特殊处理。
             this._emitReadyStateChange();
           }
         };
@@ -270,7 +274,7 @@ export class FetchXHR {
               controller.error("XHR failed");
             }
           };
-          responseOverrided = new ReadableStream<Uint8Array>({
+          responseOverrided = new ReadableStream<Uint8Array<ArrayBufferLike>>({
             start(controller) {
               myController = controller;
             },

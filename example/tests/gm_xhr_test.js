@@ -1221,6 +1221,44 @@ const enableTool = true;
         }
       },
     },
+    {
+      name: "Test bug #1078",
+      async run(fetch) {
+        const url = `${HB}/status/200`;
+        const { res } = await gmRequest({
+          method: "GET",
+          url,
+          responseType: "json",
+          fetch,
+          onprogress() {},
+        });
+        assertEq(res.status, 200, "status 200");
+        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+      },
+    },
+    {
+      name: "Test bug #1080",
+      async run(fetch) {
+        const readyStateList = [];
+        const url = `${HB}/status/200`;
+        const { res } = await gmRequest({
+          method: "GET",
+          url,
+          responseType: "json",
+          fetch,
+          onreadystatechange: (resp) => {
+            readyStateList.push(resp.readyState);
+          },
+        });
+        assertEq(res.status, 200, "status 200");
+        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertDeepEq(readyStateList, fetch ? [2, 4] : [1, 2, 3, 4], "status 200");
+      },
+    },
   ];
 
   const tests = [
