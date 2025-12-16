@@ -315,7 +315,7 @@ export function GM_xmlhttpRequest(
           RESPONSE_TYPE_STREAM: "stream",
           toString: () => "[object Object]", // follow TM
         } as GMXHRResponseType;
-        let retParam;
+        let retParam: GMXHRResponseType;
         if (resError) {
           retParam = {
             ...retParamBase,
@@ -342,10 +342,12 @@ export function GM_xmlhttpRequest(
                     case "json": {
                       const text = this.responseText;
                       let o = undefined;
-                      try {
-                        o = JSON.parse(text);
-                      } catch {
-                        // ignored
+                      if (text) {
+                        try {
+                          o = JSON.parse(text);
+                        } catch {
+                          // ignored
+                        }
                       }
                       response = o; // TM兼容 -> o : object | undefined
                       break;
@@ -389,7 +391,9 @@ export function GM_xmlhttpRequest(
                   const text = this.responseText;
                   const mime = getMimeType(res.contentType);
                   const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
-                  responseXML = new DOMParser().parseFromString(text, parseType);
+                  if (text) {
+                    responseXML = new DOMParser().parseFromString(text, parseType);
+                  }
                 }
                 return responseXML as Document | null | undefined;
               },
