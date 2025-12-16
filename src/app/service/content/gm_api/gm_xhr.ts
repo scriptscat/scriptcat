@@ -479,6 +479,11 @@ export function GM_xmlhttpRequest(
             case "reset_chunk_arraybuffer":
             case "reset_chunk_blob":
             case "reset_chunk_buffer": {
+              if (reqDone || isStreamResponse) {
+                // 理论上不应发生，仅作为逻辑控制的保护。
+                console.error("Invalid call of reset_chunk [buf]");
+                break;
+              }
               resultBuffers.length = 0;
               isEmptyResult = true;
               markResponseDirty();
@@ -487,6 +492,11 @@ export function GM_xmlhttpRequest(
             case "reset_chunk_document":
             case "reset_chunk_json":
             case "reset_chunk_text": {
+              if (reqDone || isStreamResponse) {
+                // 理论上不应发生，仅作为逻辑控制的保护。
+                console.error("Invalid call of reset_chunk [str]");
+                break;
+              }
               resultTexts.length = 0;
               isEmptyResult = true;
               markResponseDirty();
@@ -505,6 +515,11 @@ export function GM_xmlhttpRequest(
             case "append_chunk_arraybuffer":
             case "append_chunk_blob":
             case "append_chunk_buffer": {
+              if (reqDone || isStreamResponse) {
+                // 理论上不应发生，仅作为逻辑控制的保护。
+                console.error("Invalid call of append_chunk [buf]");
+                break;
+              }
               const d = msgData.data.chunk as string;
               const u8 = base64ToUint8(d);
               resultBuffers.push(u8);
@@ -516,6 +531,11 @@ export function GM_xmlhttpRequest(
             case "append_chunk_document":
             case "append_chunk_json":
             case "append_chunk_text": {
+              if (reqDone || isStreamResponse) {
+                // 理论上不应发生，仅作为逻辑控制的保护。
+                console.error("Invalid call of append_chunk [str]");
+                break;
+              }
               const d = msgData.data.chunk as string;
               resultTexts.push(d);
               isEmptyResult = false;
