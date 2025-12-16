@@ -38,7 +38,7 @@ export class SWRequestResultParams {
 
   get responseHeaders() {
     const responsed = headersReceivedMap.get(this.markerID);
-    const responseHeaders = responsed && responsed.responseHeaders;
+    const responseHeaders = responsed?.responseHeaders;
     if (responseHeaders) {
       let out = "";
       let separator = "";
