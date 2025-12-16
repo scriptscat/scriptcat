@@ -399,7 +399,7 @@ export class BgGMXhr {
       }
       // "" | "arraybuffer" | "blob" | "document" | "json" | "text"
       if (details.responseType === "json") {
-        // 故意忽略，json -> text，兼容TM
+        // 故意忽略，json -> text，TM兼容
       } else if (details.responseType === "stream") {
         xhrResponseType = baseXHR.responseType = "arraybuffer";
       } else if (details.responseType) {

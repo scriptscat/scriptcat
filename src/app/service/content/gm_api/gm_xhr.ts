@@ -49,8 +49,8 @@ export type GMXHRResponseType = {
   responseHeaders: string;
   responseType: "" | "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
   readonly response?: string | GMXhrResponseObjectType | null | undefined;
-  readonly responseXML?: Document | null;
-  readonly responseText?: string;
+  readonly responseXML?: Document | null | undefined;
+  readonly responseText?: string | undefined;
   toString: () => string;
   error?: string;
 };
@@ -239,8 +239,8 @@ export function GM_xmlhttpRequest(
       if (readerStream) {
         allowResponse = true; // TM 特殊处理。 fetchXhr stream 无视 readyState
         response = readerStream;
-        responseText = undefined; // 兼容
-        responseXML = undefined; // 兼容
+        responseText = undefined; // TM兼容
+        responseXML = undefined; // TM兼容
         readerStream = undefined;
       }
 
@@ -399,7 +399,7 @@ export function GM_xmlhttpRequest(
                   const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
                   responseXML = new DOMParser().parseFromString(text, parseType);
                 }
-                return responseXML as Document | null;
+                return responseXML as Document | null | undefined;
               },
               get responseText() {
                 if (responseText === false) {
@@ -420,7 +420,7 @@ export function GM_xmlhttpRequest(
                     resultBuffers.length = 0;
                   }
                 }
-                return responseText as string;
+                return responseText as string | undefined;
               },
             };
           } else {
