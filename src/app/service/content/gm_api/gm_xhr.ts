@@ -301,48 +301,40 @@ export function GM_xmlhttpRequest(
             statusText: "",
           };
         }
+        const retParamBase = {
+          DONE: ReadyStateCode.DONE,
+          HEADERS_RECEIVED: ReadyStateCode.HEADERS_RECEIVED,
+          LOADING: ReadyStateCode.LOADING,
+          OPENED: ReadyStateCode.OPENED,
+          UNSENT: ReadyStateCode.UNSENT,
+          RESPONSE_TYPE_TEXT: "text",
+          RESPONSE_TYPE_ARRAYBUFFER: "arraybuffer",
+          RESPONSE_TYPE_BLOB: "blob",
+          RESPONSE_TYPE_DOCUMENT: "document",
+          RESPONSE_TYPE_JSON: "json",
+          RESPONSE_TYPE_STREAM: "stream",
+          toString: () => "[object Object]", // follow TM
+        } as GMXHRResponseType;
         let retParam;
         if (resError) {
           retParam = {
-            DONE: ReadyStateCode.DONE,
-            HEADERS_RECEIVED: ReadyStateCode.HEADERS_RECEIVED,
-            LOADING: ReadyStateCode.LOADING,
-            OPENED: ReadyStateCode.OPENED,
-            UNSENT: ReadyStateCode.UNSENT,
-            RESPONSE_TYPE_TEXT: "text",
-            RESPONSE_TYPE_ARRAYBUFFER: "arraybuffer",
-            RESPONSE_TYPE_BLOB: "blob",
-            RESPONSE_TYPE_DOCUMENT: "document",
-            RESPONSE_TYPE_JSON: "json",
-            RESPONSE_TYPE_STREAM: "stream",
-            toString: () => "[object Object]", // follow TM
+            ...retParamBase,
             ...resError,
           } as GMXHRResponseType;
         } else {
-          const retParamBase = {
-            DONE: ReadyStateCode.DONE,
-            HEADERS_RECEIVED: ReadyStateCode.HEADERS_RECEIVED,
-            LOADING: ReadyStateCode.LOADING,
-            OPENED: ReadyStateCode.OPENED,
-            UNSENT: ReadyStateCode.UNSENT,
-            RESPONSE_TYPE_TEXT: "text",
-            RESPONSE_TYPE_ARRAYBUFFER: "arraybuffer",
-            RESPONSE_TYPE_BLOB: "blob",
-            RESPONSE_TYPE_DOCUMENT: "document",
-            RESPONSE_TYPE_JSON: "json",
-            RESPONSE_TYPE_STREAM: "stream",
+          retParam = {
+            ...retParamBase,
             finalUrl: res.finalUrl as string,
             readyState: res.readyState as ReadyStateCode,
             status: res.status as number,
             statusText: res.statusText as string,
             responseHeaders: res.responseHeaders as string,
             responseType: responseTypeOriginal as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
-            toString: () => "[object Object]", // follow TM
-          } as GMXHRResponseType;
+          };
           if (allowResponse) {
             // 依照 TM 的规则：当 readyState 不等于 4 时，回应中不会有 response、responseXML 或 responseText。
             retParam = {
-              ...retParamBase,
+              ...retParam,
               get response() {
                 if (response === false) {
                   // 注： isStreamResponse 为 true 时 response 不会为 false
