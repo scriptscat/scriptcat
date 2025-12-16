@@ -303,6 +303,8 @@ export class FetchXHR {
                 if (done) break;
                 pushBuffer(value);
               }
+            } catch (e) {
+              console.error("streamReader error", e);
             } finally {
               streamReader.releaseLock();
             }
@@ -322,6 +324,8 @@ export class FetchXHR {
               }
               pushBuffer(value);
             }
+          } catch (e) {
+            console.error("streamReader error", e);
           } finally {
             streamReader.releaseLock();
           }
