@@ -112,6 +112,7 @@ beforeEach(() => {
     callback?.(mockTabs);
     return Promise.resolve(mockTabs);
   });
+  vi.spyOn(chrome.action, "getBadgeText").mockImplementation(() => Promise.resolve(""));
 });
 
 afterEach(() => {
