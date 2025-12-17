@@ -98,19 +98,21 @@ export function watchLanguageChange(callback: (lng: string) => void) {
   };
 }
 
+export const i18nLang = (): string => `${i18n?.language?.toLowerCase()}`;
+
 export function i18nName(script: { name: string; metadata: SCMetadata }) {
-  const m = script.metadata[`name:${i18n?.language?.toLowerCase()}`];
+  const m = script.metadata[`name:${i18nLang()}`];
   return m ? m[0] : script.name;
 }
 
 export function i18nDescription(script: { metadata: SCMetadata }) {
-  const m = script.metadata[`description:${i18n?.language?.toLowerCase()}`];
+  const m = script.metadata[`description:${i18nLang()}`];
   return m ? m[0] : script.metadata.description;
 }
 
 // 判断是否是中文用户
 export function isChineseUser() {
-  const language = i18n?.language?.toLowerCase();
+  const language = i18nLang();
   return language.startsWith("zh-");
 }
 
