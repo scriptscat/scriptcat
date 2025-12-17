@@ -37,7 +37,7 @@ describe.concurrent("aNow", () => {
 });
 
 describe.concurrent("nextTime", () => {
-  const date = new Date(1737275107000);
+  const date = new Date(1737275111000);
   // 让程序先执行一下，避免超时问题
   beforeAll(() => {
     nextTime("* * * * *");
@@ -48,11 +48,19 @@ describe.concurrent("nextTime", () => {
   });
   it.sequential("每分钟一次表达式", () => {
     expect(nextTime("once * * * *", date)).toEqual(
-      dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm 每分钟运行一次")
+      dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:00 每分钟运行一次")
+    );
+    expect(nextTime("10 once * * * *", date)).toEqual(
+      dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:10 每分钟运行一次")
     );
   });
   it.sequential("每小时一次表达式", () => {
-    expect(nextTime("* once * * *", date)).toEqual(dayjs(date).add(1, "hour").format("YYYY-MM-DD HH 每小时运行一次"));
+    expect(nextTime("* once * * *", date)).toEqual(
+      dayjs(date).add(1, "hour").format("YYYY-MM-DD HH:00:00 每小时运行一次")
+    );
+    expect(nextTime("10 once * * *", date)).toEqual(
+      dayjs(date).add(1, "hour").format("YYYY-MM-DD HH:10:00 每小时运行一次")
+    );
   });
   it.sequential("每天一次表达式", () => {
     expect(nextTime("* * once * *", date)).toEqual(dayjs(date).add(1, "day").format("YYYY-MM-DD 每天运行一次"));
