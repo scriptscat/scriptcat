@@ -60,7 +60,16 @@ beforeAll(async () => {
           if (request.requestHeaders.getHeader("x-nonce") !== "123456") {
             return request.respond(403, {}, "bad");
           }
-          return request.respond(200, {}, "header");
+          return request.respond(
+            200,
+            {
+              "Content-Type": "text/plain",
+              "X-Custom-Header1": "HeaderValue1",
+              "X-Custom-Header2": "HeaderValue2",
+              "X-Custom-Header3": "HeaderValue3",
+            },
+            "header"
+          );
         case "https://www.example.com/unsafeHeader":
           if (
             request.requestHeaders.getHeader("Origin") !== "https://example.com" ||
@@ -388,6 +397,11 @@ describe.concurrent("GM xmlHttpRequest", () => {
         },
         onload: (resp) => {
           expect(resp.responseText).toBe("header");
+          // responseHeaders 使用 \r\n 进行分割
+          expect(typeof resp.responseHeaders === "string").toBe(true);
+          expect(resp.responseHeaders!.includes("\r\n")).toBe(true);
+          expect(resp.responseHeaders!.replace(/\r\n/g, "").includes("\n")).toBe(false);
+          expect(resp.responseHeaders!.trim() === resp.responseHeaders!).toBe(true);
           resolve();
         },
       });

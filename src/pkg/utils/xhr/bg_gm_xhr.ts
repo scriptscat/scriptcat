@@ -4,6 +4,7 @@ import { chunkUint8, uint8ToBase64 } from "@App/pkg/utils/datatype";
 import type { MessageConnect, TMessageCommAction } from "@Packages/message/types";
 import { dataDecode } from "./xhr_data";
 import { FetchXHR } from "./fetch_xhr";
+import { normalizeResponseHeaders } from "../utils";
 
 export type RequestResultParams = {
   statusCode: number;
@@ -320,7 +321,8 @@ export class BgGMXhr {
         // contentType 和 responseHeaders 只读一次
         contentType = contentType || xhr.getResponseHeader("Content-Type") || "";
         if (contentType && !responseHeaders) {
-          responseHeaders = xhr.getAllResponseHeaders();
+          // TM兼容: 原生xhr有 \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白
+          responseHeaders = normalizeResponseHeaders(xhr.getAllResponseHeaders());
         }
         if (!(xhr instanceof FetchXHR)) {
           const response = xhr.response;

@@ -68,13 +68,13 @@ const enableTool = true;
     if (t === "object") {
       try {
         return x[Symbol.toStringTag] || "object";
-      } catch (e) { }
+      } catch (e) {}
     }
     return t;
   };
 
-  const statusCode = (response)=>{
-    return ((+response.readyState) + ((+response.status) / 1000)).toFixed(3);
+  const statusCode = (response) => {
+    return (+response.readyState + +response.status / 1000).toFixed(3);
   };
 
   const resPrint = (r) => {
@@ -1289,40 +1289,50 @@ const enableTool = true;
       async run(fetch) {
         const resultList = [];
         const url = `https://raw.githubusercontent.com/mdn/content/54fd6eaad3924076e0b546e7eff1f6f466f6139f/.editorconfig?d=${Date.now()}`;
-        await new Promise((resolve, reject) => GM_xmlhttpRequest({
-          method: "GET",
-          url,
-          fetch,
-          nocache: true,
-          onreadystatechange: function (response) {
-            resultList.push("onreadystatechange " + resPrint(response));
-          },
-          onload: function (response) {
-            resultList.push("onload " + resPrint(response));
-          },
-          onloadend: function (response) {
-            resultList.push("onloadend " + resPrint(response));
-            resolve();
-          },
-          onerror: () => reject(),
-          ontimeout: () => reject(),
-        }));
+        await new Promise((resolve, reject) =>
+          GM_xmlhttpRequest({
+            method: "GET",
+            url,
+            fetch,
+            nocache: true,
+            onreadystatechange: function (response) {
+              resultList.push("onreadystatechange " + resPrint(response));
+            },
+            onload: function (response) {
+              resultList.push("onload " + resPrint(response));
+            },
+            onloadend: function (response) {
+              resultList.push("onloadend " + resPrint(response));
+              resolve();
+            },
+            onerror: () => reject(),
+            ontimeout: () => reject(),
+          })
+        );
         if (!fetch) {
-          assertDeepEq(resultList, [
-            "onreadystatechange 1.000;r=missing;t=missing;x=missing",
-            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 3.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 4.200;r=string;t=string;x=XMLDocument",
-            "onload 4.200;r=string;t=string;x=XMLDocument",
-            "onloadend 4.200;r=string;t=string;x=XMLDocument",
-          ], "standard-type GMXhr OK");
+          assertDeepEq(
+            resultList,
+            [
+              "onreadystatechange 1.000;r=missing;t=missing;x=missing",
+              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 3.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 4.200;r=string;t=string;x=XMLDocument",
+              "onload 4.200;r=string;t=string;x=XMLDocument",
+              "onloadend 4.200;r=string;t=string;x=XMLDocument",
+            ],
+            "standard-type GMXhr OK"
+          );
         } else {
-          assertDeepEq(resultList, [
-            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 4.200;r=string;t=string;x=XMLDocument",
-            "onload 4.200;r=string;t=string;x=XMLDocument",
-            "onloadend 4.200;r=string;t=string;x=XMLDocument",
-          ], "fetch-type GMXhr OK");
+          assertDeepEq(
+            resultList,
+            [
+              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 4.200;r=string;t=string;x=XMLDocument",
+              "onload 4.200;r=string;t=string;x=XMLDocument",
+              "onloadend 4.200;r=string;t=string;x=XMLDocument",
+            ],
+            "fetch-type GMXhr OK"
+          );
         }
       },
     },
@@ -1332,51 +1342,61 @@ const enableTool = true;
         const resultSet = new Set();
         let progressCount = 0;
         const url = `https://raw.githubusercontent.com/dscape/spell/3f1d4dd2a6dfcad65578eadaf29cae1800a1be13/test/resources/big.txt?d=${Date.now()}`;
-        await new Promise((resolve, reject) => GM_xmlhttpRequest({
-          method: "GET",
-          url,
-          fetch,
-          nocache: true,
-          responseType: "json",
-          onreadystatechange: function (response) {
-            resultSet.add("onreadystatechange " + resPrint(response));
-          },
-          onprogress: function (response) {
-            resultSet.add("onprogress " + resPrint(response));
-            progressCount++;
-          },
-          onload: function (response) {
-            resultSet.add("onload " + resPrint(response));
-          },
-          onloadend: function (response) {
-            resultSet.add("onloadend " + resPrint(response));
-            resolve();
-          },
-          onerror: () => reject(),
-          ontimeout: () => reject(),
-        }));
+        await new Promise((resolve, reject) =>
+          GM_xmlhttpRequest({
+            method: "GET",
+            url,
+            fetch,
+            nocache: true,
+            responseType: "json",
+            onreadystatechange: function (response) {
+              resultSet.add("onreadystatechange " + resPrint(response));
+            },
+            onprogress: function (response) {
+              resultSet.add("onprogress " + resPrint(response));
+              progressCount++;
+            },
+            onload: function (response) {
+              resultSet.add("onload " + resPrint(response));
+            },
+            onloadend: function (response) {
+              resultSet.add("onloadend " + resPrint(response));
+              resolve();
+            },
+            onerror: () => reject(),
+            ontimeout: () => reject(),
+          })
+        );
         const resultList = [...resultSet];
         if (!fetch) {
           assertEq(progressCount >= 2, true, "progressCount ok");
-          assertDeepEq(resultList, [
-            "onreadystatechange 1.000;r=missing;t=missing;x=missing",
-            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 3.200;r=missing;t=missing;x=missing",
-            "onprogress 3.200;r=missing;t=missing;x=missing",
-            "onprogress 4.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
-            "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
-            "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
-          ], "standard-type GMXhr OK");
+          assertDeepEq(
+            resultList,
+            [
+              "onreadystatechange 1.000;r=missing;t=missing;x=missing",
+              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 3.200;r=missing;t=missing;x=missing",
+              "onprogress 3.200;r=missing;t=missing;x=missing",
+              "onprogress 4.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
+              "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
+              "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
+            ],
+            "standard-type GMXhr OK"
+          );
         } else {
           assertEq(progressCount >= 2, true, "progressCount ok");
-          assertDeepEq(resultList, [
-            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-            "onprogress 3.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
-            "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
-            "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
-          ], "fetch-type GMXhr OK");
+          assertDeepEq(
+            resultList,
+            [
+              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+              "onprogress 3.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
+              "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
+              "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
+            ],
+            "fetch-type GMXhr OK"
+          );
         }
       },
     },
@@ -1386,51 +1406,61 @@ const enableTool = true;
         const resultSet = new Set();
         let progressCount = 0;
         const url = `https://raw.githubusercontent.com/json-iterator/test-data/0bce379832b475a6c21726ce37f971f8d849513b/large-file.json?d=${Date.now()}`;
-        await new Promise((resolve, reject) => GM_xmlhttpRequest({
-          method: "GET",
-          url,
-          fetch,
-          nocache: true,
-          responseType: "json",
-          onreadystatechange: function (response) {
-            resultSet.add("onreadystatechange " + resPrint(response));
-          },
-          onprogress: function (response) {
-            resultSet.add("onprogress " + resPrint(response));
-            progressCount++;
-          },
-          onload: function (response) {
-            resultSet.add("onload " + resPrint(response));
-          },
-          onloadend: function (response) {
-            resultSet.add("onloadend " + resPrint(response));
-            resolve();
-          },
-          onerror: () => reject(),
-          ontimeout: () => reject(),
-        }));
+        await new Promise((resolve, reject) =>
+          GM_xmlhttpRequest({
+            method: "GET",
+            url,
+            fetch,
+            nocache: true,
+            responseType: "json",
+            onreadystatechange: function (response) {
+              resultSet.add("onreadystatechange " + resPrint(response));
+            },
+            onprogress: function (response) {
+              resultSet.add("onprogress " + resPrint(response));
+              progressCount++;
+            },
+            onload: function (response) {
+              resultSet.add("onload " + resPrint(response));
+            },
+            onloadend: function (response) {
+              resultSet.add("onloadend " + resPrint(response));
+              resolve();
+            },
+            onerror: () => reject(),
+            ontimeout: () => reject(),
+          })
+        );
         const resultList = [...resultSet];
         if (!fetch) {
           assertEq(progressCount >= 2, true, "progressCount ok");
-          assertDeepEq(resultList, [
-            "onreadystatechange 1.000;r=missing;t=missing;x=missing",
-            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 3.200;r=missing;t=missing;x=missing",
-            "onprogress 3.200;r=missing;t=missing;x=missing",
-            "onprogress 4.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
-            "onload 4.200;r=object;t=string;x=XMLDocument",
-            "onloadend 4.200;r=object;t=string;x=XMLDocument",
-          ], "standard-type GMXhr OK");
+          assertDeepEq(
+            resultList,
+            [
+              "onreadystatechange 1.000;r=missing;t=missing;x=missing",
+              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 3.200;r=missing;t=missing;x=missing",
+              "onprogress 3.200;r=missing;t=missing;x=missing",
+              "onprogress 4.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
+              "onload 4.200;r=object;t=string;x=XMLDocument",
+              "onloadend 4.200;r=object;t=string;x=XMLDocument",
+            ],
+            "standard-type GMXhr OK"
+          );
         } else {
           assertEq(progressCount >= 2, true, "progressCount ok");
-          assertDeepEq(resultList, [
-            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-            "onprogress 3.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
-            "onload 4.200;r=object;t=string;x=XMLDocument",
-            "onloadend 4.200;r=object;t=string;x=XMLDocument",
-          ], "fetch-type GMXhr OK");
+          assertDeepEq(
+            resultList,
+            [
+              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+              "onprogress 3.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
+              "onload 4.200;r=object;t=string;x=XMLDocument",
+              "onloadend 4.200;r=object;t=string;x=XMLDocument",
+            ],
+            "fetch-type GMXhr OK"
+          );
         }
       },
     },
@@ -1438,73 +1468,107 @@ const enableTool = true;
       name: "response.getAllResponseHeaders() [without headers in request]",
       async run(fetch) {
         let resultHeaders = null;
-        const getHeaders = (e)=>{
-            if (!e) return new Headers;
-            var n = e.split("\r\n").map((function(t) {
-                var e = t.split(":");
-                return [e[0].trim(), e[1].trim()]
-            }));
-            return new Headers(n)
-        }
+        const getHeaders = (e) => {
+          if (!e) return new Headers();
+          var n = e.split("\r\n").map(function (t) {
+            var e = t.split(":");
+            return [e[0].trim(), e[1].trim()];
+          });
+          return new Headers(n);
+        };
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ja&dj=1&dt=t&dt=rm&q=%E3%81%8F%E3%82%8B%EF%BC%81%EF%BC%81%0A%E3%81%8F%E3%82%8B%E2%80%A6%0A%E3%81%8D%E3%81%9F%EF%BC%81%EF%BC%81%0Alets+go%0A%E3%81%8F%E3%82%8B%EF%BC%81%0Ayes%21`;
-        await new Promise((resolve, reject) => GM_xmlhttpRequest({
-          method: "GET",
-          url,
-          responseType: "blob",
-          headers: {},
-          fetch,
-          onload: function (response) {
-            resultHeaders = getHeaders(response.responseHeaders);
-          },
-          onloadend: function (response) {
-            resolve();
-          },
-          onerror: () => reject(),
-          ontimeout: () => reject(),
-        }));
+        await new Promise((resolve, reject) =>
+          GM_xmlhttpRequest({
+            method: "GET",
+            url,
+            responseType: "blob",
+            headers: {},
+            fetch,
+            onload: function (response) {
+              resultHeaders = getHeaders(response.responseHeaders);
+            },
+            onloadend: function (response) {
+              resolve();
+            },
+            onerror: () => reject(),
+            ontimeout: () => reject(),
+          })
+        );
         const headers = resultHeaders;
         assertEq(headers.get("content-type"), "application/json; charset=utf-8", "content-type ok");
-        assertEq(headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD"), 'default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"', "reporting-endpoints ok");
+        assertEq(
+          headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD"),
+          'default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"',
+          "reporting-endpoints ok"
+        );
         assertEq(headers.get("cross-origin-opener-policy"), "same-origin", "cross-origin-opener-policy ok");
         assertEq(headers.get("content-encoding") !== "deflate", true, "content-encoding ok");
       },
     },
-
     {
       name: "response.getAllResponseHeaders() [with headers in request]",
       async run(fetch) {
         let resultHeaders = null;
-        const getHeaders = (e)=>{
-            if (!e) return new Headers;
-            var n = e.split("\r\n").map((function(t) {
-                var e = t.split(":");
-                return [e[0].trim(), e[1].trim()]
-            }));
-            return new Headers(n)
-        }
+        const getHeaders = (e) => {
+          if (!e) return new Headers();
+          var n = e.split("\r\n").map(function (t) {
+            var e = t.split(":");
+            return [e[0].trim(), e[1].trim()];
+          });
+          return new Headers(n);
+        };
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ja&dj=1&dt=t&dt=rm&q=%E3%81%8F%E3%82%8B%EF%BC%81%EF%BC%81%0A%E3%81%8F%E3%82%8B%E2%80%A6%0A%E3%81%8D%E3%81%9F%EF%BC%81%EF%BC%81%0Alets+go%0A%E3%81%8F%E3%82%8B%EF%BC%81%0Ayes%21`;
-        await new Promise((resolve, reject) => GM_xmlhttpRequest({
-          method: "GET",
-          url,
-          responseType: "blob",
-          headers: {
-            "Accept-Encoding": "deflate",
-          },
-          fetch,
-          onload: function (response) {
-            resultHeaders = getHeaders(response.responseHeaders);
-          },
-          onloadend: function (response) {
-            resolve();
-          },
-          onerror: () => reject(),
-          ontimeout: () => reject(),
-        }));
+        await new Promise((resolve, reject) =>
+          GM_xmlhttpRequest({
+            method: "GET",
+            url,
+            responseType: "blob",
+            headers: {
+              "Accept-Encoding": "deflate",
+            },
+            fetch,
+            onload: function (response) {
+              resultHeaders = getHeaders(response.responseHeaders);
+            },
+            onloadend: function (response) {
+              resolve();
+            },
+            onerror: () => reject(),
+            ontimeout: () => reject(),
+          })
+        );
         const headers = resultHeaders;
         assertEq(headers.get("content-type"), "application/json; charset=utf-8", "content-type ok");
-        assertEq(headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD"), 'default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"', "reporting-endpoints ok");
+        assertEq(
+          headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD"),
+          'default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"',
+          "reporting-endpoints ok"
+        );
         assertEq(headers.get("cross-origin-opener-policy"), "same-origin", "cross-origin-opener-policy ok");
-        assertEq((headers.get("content-encoding") === "deflate" || headers.get("content-encoding") === null), true, "content-encoding ok");
+        assertEq(
+          headers.get("content-encoding") === "deflate" || headers.get("content-encoding") === null,
+          true,
+          "content-encoding ok"
+        );
+      },
+    },
+    {
+      name: "Response headers line endings",
+      async run(fetch) {
+        const url = `${HB}/status/200`;
+        const { res } = await gmRequest({
+          method: "GET",
+          url,
+          fetch,
+        });
+        assertEq(res.status, 200, "status 200");
+        assertEq(typeof res.responseHeaders, "string", "responseHeaders is string");
+        assertEq(res.responseHeaders.trim() === res.responseHeaders, true, "no extra space");
+        // Each line should end with \r\n
+        const lines = res.responseHeaders.split("\r\n");
+        for (let i = 0; i < lines.length - 1; i++) {
+          assert(lines[i].length > 0, `header line ${i} present`);
+        }
       },
     },
   ];

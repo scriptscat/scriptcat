@@ -246,7 +246,9 @@ export default class ServiceWorkerManager {
             // 如该网域没有任何有效脚本则忽略
             const domain = newDomain;
             const anyOpened = await script.openBatchUpdatePage({
-              q: domain ? `site=${domain}` : "",
+              // https://github.com/scriptscat/scriptcat/issues/1087
+              // 关于 autoclose，日后再检讨 UI/UX 设计
+              q: domain ? `autoclose=30&site=${domain}` : "autoclose=30",
               dontCheckNow: true,
             });
             if (anyOpened) {
