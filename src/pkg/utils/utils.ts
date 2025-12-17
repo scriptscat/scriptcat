@@ -373,23 +373,16 @@ export const stringMatching = (main: string, sub: string): boolean => {
 };
 
 // TM Xhr Header 兼容处理，原生xhr \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白
-export const normalizeResponseHeaders = (hs: string) => {
-  let start = 0;
+export const normalizeResponseHeaders = (headersString: string) => {
+  if (!headersString) return "";
   let out = "";
-  const len = hs.length;
-  let separator = "";
-  while (start < len) {
-    const i = hs.indexOf(":", start); // 冒号的位置
-    let j = hs.indexOf("\n", start); // 换行符的位置
-    if (j < 0) j = len; // 尾行
-    if (i < j) {
-      const key = hs.substring(start, i).trim(); // i 为 -1 的话 key 也会是空值
-      if (key) {
-        out += `${separator}${key}:${hs.substring(i + 1, j).trim()}`;
-        separator = "\r\n";
-      }
+  headersString.split("\n").forEach((line) => {
+    const j = line.indexOf(":");
+    if (j > 0) {
+      const headerName = line.substring(0, j); // "key"
+      const headerValue = line.substring(j + 1).trim(); // "value"
+      out += `${headerName}:${headerValue}\r\n`;
     }
-    start = j + 1; // 移到下一行
-  }
-  return out;
+  });
+  return out.substring(0, out.length - 2); // 去掉最后的 \r\n
 };
