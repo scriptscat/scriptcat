@@ -15,6 +15,7 @@ import { LoggerDAO } from "@App/app/repo/logger";
 import { switchLight } from "../components/layout/MainLayout";
 import App from "./App";
 import "@App/locales/locales";
+import PopupLayout from "../components/layout/PopupLayout";
 
 migrate();
 // 初始化日志组件
@@ -37,11 +38,7 @@ IoC.registerInstance(SystemConfig, new SystemConfig(con));
 switchLight(localStorage.lightMode || "auto");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <div
-    style={{
-      borderBottom: "1px solid var(--color-neutral-3)",
-    }}
-  >
+  <PopupLayout>
     <App />
-  </div>
+  </PopupLayout>
 );
