@@ -848,6 +848,10 @@ describe.concurrent("urlExclude urlMatch 1", () => {
 
 describe.concurrent("@exclude /REGEX/", () => {
   const url = new UrlMatch<string>();
+  url.addInclude("*://*.dummy1.com/*", "ok1");
+  url.addExclude("*://sub.dummy1.com/*", "ok1");
+  url.addInclude("*://*.dummy2.com/*", "ok2");
+  url.addExclude("*://sub.dummy2.com/*", "ok2");
   url.addInclude("*://*.example.com/*", "ok1");
   url.addExclude("*://sub.example.com/*", "ok1");
   url.addExclude("/h\\d\\.example\\.com/", "ok1");
@@ -866,6 +870,10 @@ describe.concurrent("@exclude /REGEX/", () => {
 
 describe.concurrent("@include /REGEX/", () => {
   const url = new UrlMatch<string>();
+  url.addInclude("*://*.dummy1.com/*", "ok1");
+  url.addExclude("*://sub.dummy1.com/*", "ok1");
+  url.addInclude("*://*.dummy2.com/*", "ok2");
+  url.addExclude("*://sub.dummy2.com/*", "ok2");
   url.addInclude("*://*.example.com/*", "ok1");
   url.addExclude("*://sub.example.com/*", "ok1");
   url.addInclude("/\\.h\\dample\\.com/", "ok1");
