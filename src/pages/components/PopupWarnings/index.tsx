@@ -10,13 +10,20 @@ interface PopupWarningsProps {
 
 function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
   const { t } = useTranslation();
-  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(false);
+  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState<boolean | null>(null);
   const [showRequestButton, setShowRequestButton] = useState(false);
   const [permissionReqResult, setPermissionReqResult] = useState("");
 
   const updateIsUserScriptsAvailableState = async () => {
-    const flag = await checkUserScriptsAvailable();
-    setIsUserScriptsAvailableState(flag);
+    const badgeText = await chrome.action.getBadgeText({});
+    let displayState;
+    if (badgeText === "!") {
+      // 要求用户重启扩展/浏览器，会重置badge状态的
+      displayState = false;
+    } else {
+      displayState = await checkUserScriptsAvailable();
+    }
+    setIsUserScriptsAvailableState(displayState);
   };
 
   useEffect(() => {
@@ -24,6 +31,7 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
   }, []);
 
   const warningMessageHTML = useMemo(() => {
+    if (isUserScriptsAvailableState === null) return "";
     // 可使用UserScript的话，不查browserType
     const browserType = !isUserScriptsAvailableState ? getBrowserType() : null;
 

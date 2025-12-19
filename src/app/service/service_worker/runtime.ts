@@ -339,8 +339,8 @@ export class RuntimeService {
 
     let registered = false;
     try {
-      const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] });
-      registered = res.length === 1;
+      const res = await chrome.userScripts?.getScripts({ ids: ["scriptcat-inject"] });
+      registered = res?.length === 1;
     } finally {
       // 考虑 UserScripts API 不可使用等情况
       runtimeGlobal.registered = registered;

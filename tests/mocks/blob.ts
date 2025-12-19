@@ -17,8 +17,8 @@ class Blob {
   slice(): Blob {
     return new Blob();
   }
-  stream(): ReadableStream<Uint8Array> {
-    return new ReadableStream({
+  stream(): ReadableStream<Uint8Array<ArrayBufferLike>> {
+    return new ReadableStream<Uint8Array<ArrayBufferLike>>({
       start(controller) {
         controller.close();
       },
@@ -100,10 +100,10 @@ export class MockBlob extends BaseBlob {
     return new MockBlob([slicedData], { type: contentType ?? this.#type });
   }
 
-  stream(): ReadableStream<Uint8Array> {
+  stream(): ReadableStream<Uint8Array<ArrayBufferLike>> {
     if (this.#isConsumed) throw new TypeError("Blob stream already consumed");
     this.#isConsumed = true;
-    return new ReadableStream<Uint8Array>({
+    return new ReadableStream<Uint8Array<ArrayBufferLike>>({
       start: (controller) => {
         if (this.#data.length) controller.enqueue(this.#data);
         controller.close();
