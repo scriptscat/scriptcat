@@ -4,8 +4,10 @@ import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener } from "./utils";
-import type { TScriptInfo } from "@App/app/repo/scripts";
+import type { EarlyScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
+import { urlExclude, urlMatch, UrlMatch } from "@App/pkg/utils/match";
+import { RuleType } from "@App/pkg/utils/url_matcher";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
@@ -91,10 +93,33 @@ export class ScriptExecutor {
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
     performance.addEventListener(scriptLoadCompleteEvtName, (ev) => {
-      const detail = (ev as CustomEvent).detail;
+      const detail = (ev as CustomEvent).detail as {
+        scriptFlag: string;
+        scriptInfo: EarlyScriptLoadInfo;
+      };
       const scriptFlag = detail?.scriptFlag;
       if (typeof scriptFlag === "string") {
         ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
+        // 检查是否有 urlPattern，有则执行匹配再决定是否注入
+        if (detail.scriptInfo.scriptUrlPatterns) {
+          // 如果regex都是exclude，那么只需要判断 exclude 即可
+          let isOnlyExclude = true;
+          for (const pattern of detail.scriptInfo.scriptUrlPatterns) {
+            if (pattern.ruleType === RuleType.REGEX_INCLUDE) {
+              isOnlyExclude = false;
+              break;
+            }
+          }
+          let result: boolean;
+          if (isOnlyExclude) {
+            result = !urlExclude(window.location.href, detail.scriptInfo.scriptUrlPatterns); // 是否要排除
+          } else {
+            result = urlMatch(window.location.href, detail.scriptInfo.scriptUrlPatterns); // 是否要注入
+          }
+          if (!result) {
+            return; // 不匹配则不注入
+          }
+        }
         this.execEarlyScript(scriptFlag, detail.scriptInfo, envInfo);
       }
     });

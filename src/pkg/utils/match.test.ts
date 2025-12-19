@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UrlMatch } from "./match";
+import { urlExclude, urlMatch, UrlMatch } from "./match";
 import { v4 as uuidv4 } from "uuid";
 import { extractUrlPatterns } from "./url_matcher";
 
@@ -830,5 +830,18 @@ describe.concurrent("@include * (all)", () => {
     expect(url.urlMatch("http://109.70.80.1:40/#page")).toEqual(["ok1"]);
     expect(url.urlMatch("http://109.70.80.1/?#page")).toEqual(["ok1"]);
     expect(url.urlMatch("http://109.70.80.1:40/?#page")).toEqual(["ok1"]);
+  });
+});
+
+describe.concurrent("urlExclude urlMatch", () => {
+  const url = new UrlMatch<string>();
+  url.addInclude("*://*.example.com/*", "ok1");
+  url.exclude("*://sub.example.com/*", "ok1");
+  it.concurrent("exclude-subdomain", () => {
+    expect(urlExclude("http://www.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+    expect(urlExclude("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+
+    expect(urlMatch("http://www.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+    expect(urlMatch("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
   });
 });

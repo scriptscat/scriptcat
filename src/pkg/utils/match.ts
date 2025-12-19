@@ -18,23 +18,7 @@ export class UrlMatch<T> {
     if (cacheMap.has(url)) return cacheMap.get(url) as T[];
     const s = new Set<T>();
     for (const [uuid, rules] of this.rulesMap.entries()) {
-      let ruleIncluded = false;
-      let ruleExcluded = false;
-      for (const rule of rules) {
-        if (rule.ruleType & RuleTypeBit.INCLUSION) {
-          // include
-          if (!ruleIncluded && isUrlMatch(url, rule)) {
-            ruleIncluded = true;
-          }
-        } else {
-          // exclude
-          if (!ruleExcluded && !isUrlMatch(url, rule)) {
-            ruleExcluded = true;
-            break;
-          }
-        }
-      }
-      if (ruleIncluded && !ruleExcluded) {
+      if (urlMatch(url, rules)) {
         s.add(uuid);
       }
     }
@@ -86,6 +70,47 @@ export class UrlMatch<T> {
       this.sorter = sorter;
     }
   }
+}
+
+export function urlMatch(url: string, rules: URLRuleEntry[]): boolean {
+  let ruleIncluded = false;
+  let ruleExcluded = false;
+  for (const rule of rules) {
+    if (rule.ruleType & RuleTypeBit.INCLUSION) {
+      // include
+      if (!ruleIncluded && isUrlMatch(url, rule)) {
+        ruleIncluded = true;
+      }
+    } else {
+      // exclude
+      if (!ruleExcluded && !isUrlMatch(url, rule)) {
+        ruleExcluded = true;
+        break;
+      }
+    }
+  }
+  if (ruleIncluded && !ruleExcluded) {
+    return true;
+  }
+  return false;
+}
+
+// 是否是被排除的 URL
+export function urlExclude(url: string, rules: URLRuleEntry[]): boolean {
+  let ruleExcluded = false;
+  for (const rule of rules) {
+    if (!(rule.ruleType & RuleTypeBit.INCLUSION)) {
+      // exclude
+      if (!isUrlMatch(url, rule)) {
+        ruleExcluded = true;
+        break;
+      }
+    }
+  }
+  if (ruleExcluded) {
+    return true;
+  }
+  return false;
 }
 
 export const blackListSelfCheck = (blacklist: string[] | null | undefined) => {
