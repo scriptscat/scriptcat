@@ -6,7 +6,7 @@ import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener } from "./utils";
 import type { EarlyScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
-import { urlExclude, urlMatch, UrlMatch } from "@App/pkg/utils/match";
+import { urlExclude, urlMatch } from "@App/pkg/utils/match";
 import { RuleType } from "@App/pkg/utils/url_matcher";
 
 export type ExecScriptEntry = {
