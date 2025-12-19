@@ -412,7 +412,6 @@ describe.concurrent("formatBytes", () => {
     // 自定义小数位数
     expect(formatBytes(1536, 0)).toBe("2 KB");
     expect(formatBytes(1536, 1)).toBe("1.5 KB");
-    
   });
 });
 
