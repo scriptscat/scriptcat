@@ -27,5 +27,6 @@ export const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestIn
     setNetworkRequestCounter(input);
   }
 
+  // @ts-expect-error
   return ret;
 });
