@@ -493,9 +493,9 @@ declare namespace GMTypes {
     responseHeaders?: string;
     status?: number;
     statusText?: string;
-    response?: string | Blob | ArrayBuffer | Document | ReadableStream<Uint8Array> | null;
-    responseText?: string;
-    responseXML?: Document | null;
+    response?: string | Blob | ArrayBuffer | Document | ReadableStream<Uint8Array<ArrayBufferLike>> | null | undefined;
+    responseText?: string | undefined;
+    responseXML?: Document | null | undefined;
     responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "";
   }
 
