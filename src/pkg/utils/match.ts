@@ -74,7 +74,6 @@ export class UrlMatch<T> {
 
 export function urlMatch(url: string, rules: URLRuleEntry[]): boolean {
   let ruleIncluded = false;
-  let ruleExcluded = false;
   for (const rule of rules) {
     if (rule.ruleType & RuleTypeBit.INCLUSION) {
       // include
@@ -83,16 +82,12 @@ export function urlMatch(url: string, rules: URLRuleEntry[]): boolean {
       }
     } else {
       // exclude
-      if (!ruleExcluded && !isUrlMatch(url, rule)) {
-        ruleExcluded = true;
-        break;
+      if (!isUrlMatch(url, rule)) {
+        return false;
       }
     }
   }
-  if (ruleIncluded && !ruleExcluded) {
-    return true;
-  }
-  return false;
+  return ruleIncluded;
 }
 
 // 是否是被排除的 URL

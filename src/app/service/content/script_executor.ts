@@ -105,6 +105,7 @@ export class ScriptExecutor {
           // 如果regex都是exclude，那么只需要判断 exclude 即可
           let isOnlyExclude = true;
           for (const pattern of detail.scriptInfo.scriptUrlPatterns) {
+            // 非Regex类型不会注入匹配信息，只需要判断 REGEX_ 即可
             if (pattern.ruleType === RuleType.REGEX_INCLUDE) {
               isOnlyExclude = false;
               break;
