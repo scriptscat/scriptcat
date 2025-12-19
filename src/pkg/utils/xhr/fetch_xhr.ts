@@ -131,10 +131,12 @@ export class FetchXHR {
         getAllResponseHeaders(): string {
           let ret: string | undefined = this.cache[""];
           if (ret === undefined) {
+            // 对齐 TM 的实现：由上层负责将 getAllResponseHeaders() 的格式对齐
+            // 说明：底层核心实现应尽量保持通用性，避免针对 TM 引入特殊处理。
             ret = "";
-            res.headers.forEach((v, k) => {
+            for (const [k, v] of res.headers) {
               ret += `${k}: ${v}\r\n`;
-            });
+            }
             this.cache[""] = ret;
           }
           return ret;
@@ -301,6 +303,8 @@ export class FetchXHR {
                 if (done) break;
                 pushBuffer(value);
               }
+            } catch (e) {
+              console.error("streamReader error", e);
             } finally {
               streamReader.releaseLock();
             }
@@ -320,6 +324,8 @@ export class FetchXHR {
               }
               pushBuffer(value);
             }
+          } catch (e) {
+            console.error("streamReader error", e);
           } finally {
             streamReader.releaseLock();
           }

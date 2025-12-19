@@ -1,5 +1,13 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { aNow, checkSilenceUpdate, cleanFileName, formatBytes, stringMatching, toCamelCase } from "./utils";
+import {
+  aNow,
+  checkSilenceUpdate,
+  cleanFileName,
+  formatBytes,
+  normalizeResponseHeaders,
+  stringMatching,
+  toCamelCase,
+} from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
@@ -396,5 +404,77 @@ describe.concurrent("formatBytes", () => {
     // 自定义小数位数
     expect(formatBytes(1536, 0)).toBe("2 KB");
     expect(formatBytes(1536, 1)).toBe("1.5 KB");
+    
+  });
+});
+
+describe.concurrent("normalizeResponseHeaders", () => {
+  it.concurrent("returns empty string for empty input", () => {
+    expect(normalizeResponseHeaders("")).toBe("");
+  });
+
+  it.concurrent("returns empty string for falsy-like empty string (only case possible with string type)", () => {
+    expect(normalizeResponseHeaders(String(""))).toBe("");
+  });
+
+  it.concurrent("keeps valid header lines and outputs name:value joined with CRLF", () => {
+    const input = "Content-Type: text/plain\nX-Test: abc\n";
+    expect(normalizeResponseHeaders(input)).toBe("Content-Type:text/plain\r\nX-Test:abc");
+  });
+
+  it.concurrent("accepts LF and CRLF line endings", () => {
+    const input = "A: 1\r\nB: 2\r\n";
+    expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
+  });
+
+  it.concurrent("parses last line even without a trailing newline", () => {
+    const input = "A: 1\nB: 2";
+    expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
+  });
+
+  it.concurrent("does NOT skip lines where value starts immediately after ':'", () => {
+    const input = "A:1\nB:2\n";
+    expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
+  });
+
+  it.concurrent("works with non-ASCII characters", () => {
+    const input = "X-名前: 値\n";
+    expect(normalizeResponseHeaders(input)).toBe("X-名前:値");
+  });
+
+  it.concurrent("does not include a trailing CRLF at the end of output", () => {
+    const input = "A: 1\nB: 2\n";
+    expect(normalizeResponseHeaders(input).endsWith("\r\n")).toBe(false);
+  });
+
+  it.concurrent("standard test", () => {
+    const input = `content-type: text/html; charset=utf-8\r\n
+server: Apache/2.4.41 (Ubuntu)\r\n
+set-cookie: sessionid=abc123; Path=/; HttpOnly\r\n
+cache-control: no-store, no-cache, must-revalidate\r\n
+expires: Thu, 19 Nov 1981 08:52:00 GMT\r\n
+pragma: no-cache\r\n
+x-frame-options: SAMEORIGIN\r\n
+x-content-type-options: nosniff\r\n
+content-security-policy: default-src 'self'\r\n
+access-control-allow-origin: *\r\n`
+      .split(/\s*\r\n\s*/)
+      .join("\r\n");
+
+    const expected = `content-type:text/html; charset=utf-8\r\n
+server:Apache/2.4.41 (Ubuntu)\r\n
+set-cookie:sessionid=abc123; Path=/; HttpOnly\r\n
+cache-control:no-store, no-cache, must-revalidate\r\n
+expires:Thu, 19 Nov 1981 08:52:00 GMT\r\n
+pragma:no-cache\r\n
+x-frame-options:SAMEORIGIN\r\n
+x-content-type-options:nosniff\r\n
+content-security-policy:default-src 'self'\r\n
+access-control-allow-origin:*`
+      .split(/\s*\r\n\s*/)
+      .join("\r\n");
+
+    expect(normalizeResponseHeaders(input)).toBe(expected);
+    expect(normalizeResponseHeaders(expected)).toBe(expected);
   });
 });

@@ -500,3 +500,21 @@ export const prettyUrl = (s: string | undefined | null, baseUrl?: string) => {
   }
   return s;
 };
+
+// TM Xhr Header 兼容处理，原生xhr \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白
+export const normalizeResponseHeaders = (headersString: string) => {
+  if (!headersString) return "";
+  let out = "";
+  let separator = "";
+  const lines = headersString.split("\n");
+  for (const line of lines) {
+    const j = line.indexOf(":");
+    if (j > 0) {
+      const headerName = line.substring(0, j); // "key"
+      const headerValue = line.substring(j + 1).trim(); // "value"
+      out += `${separator}${headerName}:${headerValue}`;
+      separator = "\r\n";
+    }
+  }
+  return out;
+};

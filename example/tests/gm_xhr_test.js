@@ -1259,6 +1259,25 @@ const enableTool = true;
         assertDeepEq(readyStateList, fetch ? [2, 4] : [1, 2, 3, 4], "status 200");
       },
     },
+    {
+      name: "Response headers line endings",
+      async run(fetch) {
+        const url = `${HB}/status/200`;
+        const { res } = await gmRequest({
+          method: "GET",
+          url,
+          fetch,
+        });
+        assertEq(res.status, 200, "status 200");
+        assertEq(typeof res.responseHeaders, "string", "responseHeaders is string");
+        assertEq(res.responseHeaders.trim() === res.responseHeaders, true, "no extra space");
+        // Each line should end with \r\n
+        const lines = res.responseHeaders.split("\r\n");
+        for (let i = 0; i < lines.length - 1; i++) {
+          assert(lines[i].length > 0, `header line ${i} present`);
+        }
+      },
+    },
   ];
 
   const tests = [
