@@ -1129,7 +1129,7 @@ export default class GMApi extends GM_Base {
             if (!isPreventDefault) {
               if (typeof data.url === "string") {
                 window.open(data.url, "_blank");
-                LoggerCore.logger().info("GM_notification open url：" + data.url, {
+                LoggerCore.logger().info("GM_notification open url: " + data.url, {
                   data,
                 });
               }
