@@ -184,6 +184,7 @@ export function parseScriptLoadInfo(script: ScriptRunResource, scriptUrlPatterns
     ...script,
     metadataStr,
     userConfigStr,
+    // 如有 regex, 需要在 runtime 期间对整个 scriptUrlPatterns （包括但不限于 REGEX ）进行测试
     scriptUrlPatterns: hasRegex ? scriptUrlPatterns : null,
   };
 }
