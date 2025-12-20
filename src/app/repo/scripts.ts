@@ -114,10 +114,7 @@ export interface ScriptLoadInfo extends ScriptRunResource {
   userConfigStr: string;
   /** 用户配置对象（可选） */
   userConfig?: UserConfig;
-}
-
-export interface EarlyScriptLoadInfo extends ScriptLoadInfo {
-  scriptUrlPatterns: URLRuleEntry[] | null;
+  scriptUrlPatterns?: URLRuleEntry[];
 }
 
 /**

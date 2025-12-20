@@ -1106,7 +1106,7 @@ export class RuntimeService {
 
     const scriptCodes = {} as Record<string, string>;
     // 更新资源使用了file协议的脚本
-    const scriptsWithUpdatedResources = new Map<string, ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] }>();
+    const scriptsWithUpdatedResources = new Map<string, ScriptLoadInfo>();
     for (const scriptRes of enableScriptList) {
       const uuid = scriptRes.uuid;
       const resourceCheck = resourceChecks[uuid];
@@ -1205,7 +1205,7 @@ export class RuntimeService {
             this.getMessageFlag(),
             scriptRes,
             scriptDAOCode,
-            scriptRes.scriptUrlPatterns
+            scriptRes.scriptUrlPatterns!
           );
           scriptRegisterInfo.js = [
             {

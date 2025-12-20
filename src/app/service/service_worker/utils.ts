@@ -1,5 +1,5 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
-import type { EarlyScriptLoadInfo, SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptMatchInfo } from "./types";
 import {
@@ -169,7 +169,7 @@ export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<st
   return script;
 }
 
-export function parseScriptLoadInfo(script: ScriptRunResource, scriptUrlPatterns: URLRuleEntry[]): EarlyScriptLoadInfo {
+export function parseScriptLoadInfo(script: ScriptRunResource, scriptUrlPatterns: URLRuleEntry[]): ScriptLoadInfo {
   const metadataStr = getMetadataStr(script.code) || "";
   const userConfigStr = getUserConfigStr(script.code) || "";
   // 判断是否有正则表达式类型的 URLPattern
@@ -185,7 +185,7 @@ export function parseScriptLoadInfo(script: ScriptRunResource, scriptUrlPatterns
     metadataStr,
     userConfigStr,
     // 如有 regex, 需要在 runtime 期间对整个 scriptUrlPatterns （包括但不限于 REGEX ）进行测试
-    scriptUrlPatterns: hasRegex ? scriptUrlPatterns : null,
+    scriptUrlPatterns: hasRegex ? scriptUrlPatterns : undefined,
   };
 }
 

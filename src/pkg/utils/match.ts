@@ -85,7 +85,7 @@ export function isUrlIncluded(url: string, rules: URLRuleEntry[]): boolean {
       }
     } else {
       // exclude
-      if (!anyExclusionRule && !isUrlMatch(url, rule)) {
+      if (!isUrlMatch(url, rule)) {
         // 符合 exclusion
         anyExclusionRule = true;
         break;
@@ -110,7 +110,7 @@ export function isUrlExcluded(url: string, rules: URLRuleEntry[]): boolean {
       }
     } else {
       // exclude
-      if (!anyExclusionRule && !isUrlMatch(url, rule)) {
+      if (!isUrlMatch(url, rule)) {
         // 符合 exclusion
         anyExclusionRule = true;
         break;

@@ -4,7 +4,7 @@ import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener } from "./utils";
-import type { EarlyScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
+import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { isUrlExcluded } from "@App/pkg/utils/match";
 
@@ -94,7 +94,7 @@ export class ScriptExecutor {
     performance.addEventListener(scriptLoadCompleteEvtName, (ev) => {
       const detail = (ev as CustomEvent).detail as {
         scriptFlag: string;
-        scriptInfo: EarlyScriptLoadInfo;
+        scriptInfo: ScriptLoadInfo;
       };
       const scriptFlag = detail?.scriptFlag;
       if (typeof scriptFlag === "string") {
