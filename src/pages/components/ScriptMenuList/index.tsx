@@ -329,8 +329,6 @@ type ScriptMenuEntry = ScriptMenu & {
   metadata: SCMetadata;
 };
 
-let scriptDataAsyncCounter = 0;
-
 // Popup 页面使用的脚本/选单清单元件：只负责渲染与互动，状态与持久化交由外部 client 处理。
 const ScriptMenuList = React.memo(
   ({
@@ -350,7 +348,6 @@ const ScriptMenuList = React.memo(
     const [extraData, setExtraData] = useState<
       | {
           uuids: string;
-          lang: string;
           metadata: Record<string, SCMetadata>;
         }
       | undefined
@@ -419,12 +416,11 @@ const ScriptMenuList = React.memo(
 
     // string memo 避免 uuids 以外的改变影响
     const uuids = useMemo(() => script.map((item) => item.uuid).join("\n"), [script]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const lang = useMemo(() => i18nLang(), [t]); // 当 t 改变时，重新检查当前页面语言
 
     // 以 异步方式 取得 metadata 放入 extraData
     // script 或 extraData 的更新时都会再次执行
     useEffect(() => {
+      let isMounted = true;
       if (extraData && extraData.uuids === uuids && extraData.lang === lang) {
         // extraData 已取得
         // 把 getPopupData() 的 scriptMenuList 和 异步结果 的 metadata 合并至 scriptMenuList
@@ -433,10 +429,8 @@ const ScriptMenuList = React.memo(
         updateScriptMenuList(newScriptMenuList);
       } else {
         // 取得 extraData
-        scriptDataAsyncCounter = (scriptDataAsyncCounter % 255) + 1; // 轮出 1 ~ 255
-        const lastCounter = scriptDataAsyncCounter;
         scriptDAO.gets(uuids.split("\n")).then((res) => {
-          if (lastCounter !== scriptDataAsyncCounter) {
+          if (!isMounted) {
             // 由于 state 改变，在结果取得前 useEffect 再次执行，因此需要忽略上次结果
             return;
           }
@@ -454,11 +448,14 @@ const ScriptMenuList = React.memo(
               } satisfies SCMetadata;
             }
           }
-          setExtraData({ uuids, lang, metadata: metadataRecord });
+          setExtraData({ uuids, metadata: metadataRecord });
           // 再次触发 useEffect
         });
       }
-    }, [script, uuids, lang, extraData]);
+      return () => {
+        isMounted = false;
+      };
+    }, [script, uuids, extraData]);
 
     useEffect(() => {
       // 注册菜单快速键（accessKey）：以各分组第一个项目的 accessKey 作为触发条件。
