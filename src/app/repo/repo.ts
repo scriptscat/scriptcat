@@ -204,6 +204,33 @@ export abstract class Repo<T> {
     });
   }
 
+  public getRecord(keys: string[]): Promise<Partial<Record<string, T>>> {
+    keys = keys.map((key) => this.joinKey(key));
+    if (this.useCache) {
+      return loadCache().then((cache) => {
+        const record: Partial<Record<string, T>> = {};
+        for (const key of keys) {
+          if (cache[key]) {
+            record[key] = Object.assign({}, cache[key]);
+          } else {
+            record[key] = cache[key];
+          }
+        }
+        return record;
+      });
+    }
+    return new Promise((resolve) => {
+      chrome.storage.local.get(keys, (result) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+          // 无视storage API错误，继续执行
+        }
+        resolve(result as Partial<Record<string, T>>);
+      });
+    });
+  }
+
   private filter(data: { [key: string]: T }, filters?: (key: string, value: T) => boolean): T[] {
     const ret: T[] = [];
     for (const key in data) {
