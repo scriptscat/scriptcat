@@ -53,7 +53,7 @@ import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 
 // 避免使用版本号控制导致代码理解混乱
 // 用来清除 UserScript API 里的旧缓存
-const USERSCRIPTS_REGISTER_CONTROL = "92292a62-4e81-4dc3-87d0-cb0f0cb9883d";
+const USERSCRIPTS_REGISTER_CONTROL = "a5564f38-d9b3-43d0-8520-3a2950d6a61d";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -666,7 +666,12 @@ export class RuntimeService {
 
     let jsCode = "";
     if (withCode) {
-      const code = compileInjectionCode(this.getMessageFlag(), scriptRes, scriptRes.code);
+      const code = compileInjectionCode(
+        this.getMessageFlag(),
+        scriptRes,
+        scriptRes.code,
+        scriptMatchInfo.scriptUrlPatterns
+      );
       registerScript.js[0].code = jsCode = code;
     }
 
@@ -709,7 +714,7 @@ export class RuntimeService {
     if (earlyScript) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
-      return compileInjectionCode(this.getMessageFlag(), scriptRes, scriptRes.code);
+      return compileInjectionCode(this.getMessageFlag(), scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
     const originalCode = await this.script.scriptCodeDAO.get(result.uuid);
@@ -1032,7 +1037,7 @@ export class RuntimeService {
     // 该网址没有任何脚本匹配，包括排除匹配
     if (!matchingResult.size) return null;
 
-    const enableScriptList = [] as ScriptLoadInfo[];
+    const enableScriptList = [] as (ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] })[];
 
     const uuids = [...matchingResult.keys()];
 
@@ -1196,7 +1201,12 @@ export class RuntimeService {
         const scriptRes = scriptsWithUpdatedResources.get(targetUUID);
         const scriptDAOCode = scriptCodes[targetUUID];
         if (scriptRes && scriptDAOCode) {
-          const scriptInjectCode = compileInjectionCode(this.getMessageFlag(), scriptRes, scriptDAOCode);
+          const scriptInjectCode = compileInjectionCode(
+            this.getMessageFlag(),
+            scriptRes,
+            scriptDAOCode,
+            scriptRes.scriptUrlPatterns!
+          );
           scriptRegisterInfo.js = [
             {
               code: scriptInjectCode,

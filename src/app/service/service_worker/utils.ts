@@ -1,7 +1,7 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
-import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
-import type { ScriptLoadInfo, ScriptMatchInfo } from "./types";
+import type { ScriptMatchInfo } from "./types";
 import {
   compileInjectScript,
   compilePreInjectScript,
@@ -169,22 +169,41 @@ export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<st
   return script;
 }
 
-export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
+export function parseScriptLoadInfo(script: ScriptRunResource, scriptUrlPatterns: URLRuleEntry[]): ScriptLoadInfo {
   const metadataStr = getMetadataStr(script.code) || "";
   const userConfigStr = getUserConfigStr(script.code) || "";
+  // 判断是否有正则表达式类型的 URLPattern
+  let hasRegex = false;
+  for (const pattern of scriptUrlPatterns) {
+    if (pattern.ruleType === RuleType.REGEX_INCLUDE || pattern.ruleType === RuleType.REGEX_EXCLUDE) {
+      hasRegex = true;
+      break;
+    }
+  }
   return {
     ...script,
     metadataStr,
     userConfigStr,
+    // 如有 regex, 需要在 runtime 期间对整个 scriptUrlPatterns （包括但不限于 REGEX ）进行测试
+    scriptUrlPatterns: hasRegex ? scriptUrlPatterns : undefined,
   };
 }
 
-export function compileInjectionCode(messageFlag: string, scriptRes: ScriptRunResource, scriptCode: string) {
+export function compileInjectionCode(
+  messageFlag: string,
+  scriptRes: ScriptRunResource,
+  scriptCode: string,
+  scriptUrlPatterns: URLRuleEntry[]
+): string {
   const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
   let scriptInjectCode;
   scriptCode = compileScriptCode(scriptRes, scriptCode);
   if (preDocumentStartScript) {
-    scriptInjectCode = compilePreInjectScript(messageFlag, parseScriptLoadInfo(scriptRes), scriptCode);
+    scriptInjectCode = compilePreInjectScript(
+      messageFlag,
+      parseScriptLoadInfo(scriptRes, scriptUrlPatterns),
+      scriptCode
+    );
   } else {
     scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
   }
