@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UrlMatch } from "./match";
+import { isUrlExcluded, isUrlIncluded, UrlMatch } from "./match";
 import { v4 as uuidv4 } from "uuid";
 import { extractUrlPatterns } from "./url_matcher";
 
@@ -177,7 +177,7 @@ describe.concurrent("UrlMatch-google", () => {
   url.addMatch("https://example.org/foo/bar.html", "ok4");
   url.addMatch("http://127.0.0.1/*", "ok5");
   url.addMatch("*://mail.google.com/*", "ok6");
-  url.exclude("https://example-2.org/foo/bar.html", "ok1");
+  url.addExclude("https://example-2.org/foo/bar.html", "ok1");
   it.concurrent("match1", () => {
     expect(url.urlMatch("https://www.google.com/")).toEqual(["ok1"]);
     expect(url.urlMatch("https://example.org/foo/bar.html")).toEqual(["ok1", "ok2", "ok4"]);
@@ -386,7 +386,7 @@ describe.concurrent("UrlMatch-exclude", () => {
   it.concurrent("exclue-port", () => {
     const url = new UrlMatch<string>();
     url.addInclude("*://*/*", "ok3");
-    url.exclude("*:5244*", "ok3");
+    url.addExclude("*:5244*", "ok3");
     expect(url.urlMatch("http://test.list.ggnb.top:5244/search")).toEqual([]);
     expect(url.urlMatch("http://test.list.ggnb.top:80/search")).toEqual(["ok3"]);
   });
@@ -704,9 +704,9 @@ describe.concurrent("UrlInclude-1", () => {
     url.clearRules("ok10");
     url.addMatch("*://*.x.com/*", "ok10"); // @match *://*.x.com/*
     expect(url.urlMatch("https://x.com/trump_chinese")).toEqual(["ok10"]); // 与TM一致
-    url.exclude("*://*.x.com/*", "ok10"); // @exclude *://*.x.com/*
+    url.addExclude("*://*.x.com/*", "ok10"); // @exclude *://*.x.com/*
     expect(url.urlMatch("https://x.com/trump_chinese")).toEqual(["ok10"]); // 与TM一致
-    url.exclude("*://*x.com/*", "ok10"); // @exclude *://*x.com/*
+    url.addExclude("*://*x.com/*", "ok10"); // @exclude *://*x.com/*
     expect(url.urlMatch("https://x.com/trump_chinese")).toEqual([]); // 与TM一致
   });
 
@@ -830,5 +830,62 @@ describe.concurrent("@include * (all)", () => {
     expect(url.urlMatch("http://109.70.80.1:40/#page")).toEqual(["ok1"]);
     expect(url.urlMatch("http://109.70.80.1/?#page")).toEqual(["ok1"]);
     expect(url.urlMatch("http://109.70.80.1:40/?#page")).toEqual(["ok1"]);
+  });
+});
+
+describe.concurrent("urlExclude urlMatch 1", () => {
+  const url = new UrlMatch<string>();
+  url.addInclude("*://*.example.com/*", "ok1");
+  url.addExclude("*://sub.example.com/*", "ok1");
+  it.concurrent("exclude-subdomain", () => {
+    expect(isUrlExcluded("http://www.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+    expect(isUrlExcluded("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+
+    expect(isUrlIncluded("http://www.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+    expect(isUrlIncluded("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+  });
+});
+
+describe.concurrent("@exclude /REGEX/", () => {
+  const url = new UrlMatch<string>();
+  url.addInclude("*://*.dummy1.com/*", "ok1");
+  url.addExclude("*://sub.dummy1.com/*", "ok1");
+  url.addInclude("*://*.dummy2.com/*", "ok2");
+  url.addExclude("*://sub.dummy2.com/*", "ok2");
+  url.addInclude("*://*.example.com/*", "ok1");
+  url.addExclude("*://sub.example.com/*", "ok1");
+  url.addExclude("/h\\d\\.example\\.com/", "ok1");
+  it.concurrent("test R1", () => {
+    expect(isUrlExcluded("http://www.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+    expect(isUrlExcluded("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+    expect(isUrlExcluded("http://h7.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+    expect(isUrlExcluded("http://hl.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+
+    expect(isUrlIncluded("http://www.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+    expect(isUrlIncluded("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+    expect(isUrlIncluded("http://h7.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+    expect(isUrlIncluded("http://hl.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+  });
+});
+
+describe.concurrent("@include /REGEX/", () => {
+  const url = new UrlMatch<string>();
+  url.addInclude("*://*.dummy1.com/*", "ok1");
+  url.addExclude("*://sub.dummy1.com/*", "ok1");
+  url.addInclude("*://*.dummy2.com/*", "ok2");
+  url.addExclude("*://sub.dummy2.com/*", "ok2");
+  url.addInclude("*://*.example.com/*", "ok1");
+  url.addExclude("*://sub.example.com/*", "ok1");
+  url.addInclude("/\\.h\\dample\\.com/", "ok1");
+  it.concurrent("test R2", () => {
+    expect(isUrlExcluded("http://www.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+    expect(isUrlExcluded("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+    expect(isUrlExcluded("http://www.h7ample.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+    expect(isUrlExcluded("http://www.hlample.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+
+    expect(isUrlIncluded("http://www.example.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+    expect(isUrlIncluded("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+    expect(isUrlIncluded("http://www.h7ample.com/", url.rulesMap.get("ok1")!)).toEqual(true);
+    expect(isUrlIncluded("http://www.hlample.com/", url.rulesMap.get("ok1")!)).toEqual(false);
   });
 });
