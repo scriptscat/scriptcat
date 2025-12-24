@@ -2,7 +2,7 @@ import type { SCRIPT_STATUS } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import { scriptClient, type ScriptLoading } from "@App/pages/store/features/script";
 import { Avatar, Input, Message, Select, Space, Switch, Tag, Tooltip, Typography } from "@arco-design/web-react";
-import React, { useState } from "react";
+import React from "react";
 import { TbWorldWww } from "react-icons/tb";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { useTranslation } from "react-i18next";
@@ -35,8 +35,6 @@ EnableSwitch.displayName = "EnableSwitch";
 // Memoized Avatar component to prevent unnecessary re-renders
 export const MemoizedAvatar = React.memo(
   ({ match, icon, website, ...rest }: { match: string; icon?: string; website?: string; [key: string]: any }) => {
-    const [imageError, setImageError] = useState(false);
-
     return (
       <Avatar
         shape="square"
@@ -47,11 +45,7 @@ export const MemoizedAvatar = React.memo(
         className={website ? "tw-cursor-pointer" : "tw-cursor-default"}
         {...rest}
       >
-        {icon && !imageError ? (
-          <img title={match} src={icon} onError={() => setImageError(true)} />
-        ) : (
-          <TbWorldWww title={match} color="#aaa" size={24} />
-        )}
+        {icon ? <img title={match} src={icon} /> : <TbWorldWww title={match} color="#aaa" size={24} />}
       </Avatar>
     );
   },
