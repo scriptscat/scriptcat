@@ -1,6 +1,4 @@
 import { type Script, ScriptDAO } from "@App/app/repo/scripts";
-import { cacheInstance } from "@App/app/cache";
-import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
 import { FaviconDAO, type FaviconFile, type FaviconRecord } from "@App/app/repo/favicon";
 import { v5 as uuidv5 } from "uuid";
 import { getFaviconRootFolder } from "@App/app/service/service_worker/utils";
@@ -225,12 +223,6 @@ export const loadFavicon = async (iconUrl: string): Promise<string> => {
   const directoryHandle = await getFaviconRootFolder();
   // 使用url的uuid作为文件名
   const filename = `icon_${uuidv5(iconUrl, uuidv5.URL)}.dat`;
-  try {
-    const sessionBlobUrl = await cacheInstance.get<string>(`${CACHE_KEY_FAVICON}${filename}`);
-    if (sessionBlobUrl) return sessionBlobUrl;
-  } catch {
-    // 即使报错也不影响
-  }
   // 检查文件是否存在
   let fileHandle: FileSystemFileHandle | undefined;
   try {
@@ -251,7 +243,6 @@ export const loadFavicon = async (iconUrl: string): Promise<string> => {
   const opfsRet = { dirs: ["cached_favicons"], filename: filename };
   const file = await getFileFromOPFS(opfsRet);
   const blobUrl = URL.createObjectURL(file);
-  cacheInstance.set(`${CACHE_KEY_FAVICON}${filename}`, blobUrl); // 不用等待。针对SW重启 - blobURL 的生命周期依附于页面
   return blobUrl;
 };
 
