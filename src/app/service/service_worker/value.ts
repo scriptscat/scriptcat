@@ -101,6 +101,7 @@ export class ValueService {
       await this.valueDAO.save(storageName, valueModel);
       return true;
     });
+
     this.pushValueToTab({
       id,
       entries: encodeMessage([[key, value, oldValue]]),
@@ -125,7 +126,8 @@ export class ValueService {
       }
       // 推送到所有加载了本脚本的tab中
       for (const tab of tabs) {
-        const tabId = tab.id!;
+        const tabId = tab.id;
+        if (tab.discarded || !tabId) continue;
         this.popup!.getScriptMenu(tabId).then((scriptMenu) => {
           if (scriptMenu.find((item) => item.storageName === storageName)) {
             this.runtime!.sendMessageToTab(

@@ -37,4 +37,11 @@ export class ListenerManager<T extends (key: string, ...args: any[]) => void> {
     }
     return false;
   }
+
+  public clear(): void {
+    for (const [_key, handlers] of this.listeners) {
+      handlers.clear();
+    }
+    this.listeners.clear();
+  }
 }

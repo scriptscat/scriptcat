@@ -1,5 +1,5 @@
 // 定义一个异步任务函数类型，返回 Promise
-type TStackFn<T> = (...args: any[]) => Promise<T>;
+type TStackFn<T> = (...args: any[]) => Promise<T> | T;
 
 // 链表节点类型，包含任务、Promise 的 resolve/reject、以及下一个节点
 type TNode<T> = {
@@ -73,16 +73,4 @@ export const stackAsyncTask = <T>(key: string, task: TStackFn<T>): Promise<T> =>
       stack.tail = newNode;
     }
   });
-};
-
-/**
- * ⚠️ 仅用于单元测试
- * 清空所有队列
- */
-export const clearStack = () => {
-  for (const key in stacks) {
-    stacks[key].head = null;
-    stacks[key].tail = null;
-    delete stacks[key];
-  }
 };

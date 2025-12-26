@@ -1,15 +1,8 @@
-import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/scripts";
+import type { Script, ScriptCode, ScriptRunResource, TClientPageLoadInfo } from "@App/app/repo/scripts";
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
-import type {
-  InstallSource,
-  ScriptLoadInfo,
-  ScriptMenu,
-  ScriptMenuItem,
-  SearchType,
-  TBatchUpdateListAction,
-} from "./types";
+import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -20,10 +13,9 @@ import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
-import type { GMInfoEnv } from "../content/types";
 import { type SystemService } from "./system";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { ScriptService, TCheckScriptUpdateOption } from "./script";
+import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -74,7 +66,7 @@ export class ScriptClient extends Client {
     return this.doThrow("fetchInfo", uuid);
   }
 
-  getFilterResult(req: { type: SearchType; value: string }): Promise<ScriptCode | undefined> {
+  getFilterResult(req: { value: string }): Promise<ScriptCode | undefined> {
     return this.do("getFilterResult", req);
   }
 
@@ -202,8 +194,8 @@ export class ScriptClient extends Client {
     return this.do<void>("openUpdatePageByUUID", uuid);
   }
 
-  async openBatchUpdatePage(q: string) {
-    return this.do<boolean>("openBatchUpdatePage", q);
+  async openBatchUpdatePage(opts: TOpenBatchUpdatePageOption) {
+    return this.do<boolean>("openBatchUpdatePage", opts);
   }
 
   async checkScriptUpdate(opts: TCheckScriptUpdateOption) {
@@ -256,7 +248,7 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<{ scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }> {
+  pageLoad(): Promise<TClientPageLoadInfo> {
     return this.doThrow("pageLoad");
   }
 

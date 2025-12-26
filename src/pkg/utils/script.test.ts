@@ -1,10 +1,10 @@
-import { describe, test, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import { parseMetadata } from "./script";
 import { getMetadataStr, getUserConfigStr } from "./utils";
 import { parseUserConfig } from "./yaml";
 
-describe("parseMetadata", () => {
-  test("解析标准UserScript元数据", () => {
+describe.concurrent("parseMetadata", () => {
+  it.concurrent("解析标准UserScript元数据", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -30,7 +30,7 @@ console.log('Hello World');
     expect(result?.grant).toEqual(["none"]);
   });
 
-  test("解析@match *", () => {
+  it.concurrent("解析@match *", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -48,7 +48,7 @@ console.log('Hello World');
     expect(result?.match).toEqual(["*://*/*"]);
   });
 
-  test("解析UserSubscribe元数据", () => {
+  it.concurrent("解析UserSubscribe元数据", () => {
     const code = `
 // ==UserSubscribe==
 // @name         测试订阅
@@ -69,7 +69,7 @@ console.log('Hello World');
     expect(result?.usersubscribe).toEqual([]);
   });
 
-  test("解析多个相同键的元数据", () => {
+  it.concurrent("解析多个相同键的元数据", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -91,7 +91,7 @@ console.log('Hello World');
     expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
   });
 
-  test("解析包含空值的元数据", () => {
+  it.concurrent("解析包含空值的元数据", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -111,7 +111,166 @@ console.log('Hello World');
     expect(result?.author).toEqual([""]);
   });
 
-  test("缺少name字段应返回null", () => {
+  it.concurrent("解析元数据(分行1)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// @match        https://test.com/*
+// @match        https://demo.com/*
+// @version      1.0.0
+// @description  
+// @author       
+// @match        https://example.com/*
+// @grant        GM_setValue
+// @grant        GM_getValue
+
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("解析元数据(分行2)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+
+// @namespace    http://tampermonkey.net/
+
+// @match        https://example.org/*
+// @match        https://test.com/*
+
+// @match        https://demo.com/*
+// @version      1.0.0
+// @description  
+
+// @author       
+// @match        https://example.com/*
+// @grant        GM_setValue
+
+// @grant        GM_getValue
+
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("解析元数据(分行3)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+
+
+// @namespace    http://tampermonkey.net/
+
+// @match        https://example.org/*
+// @match        https://test.com/*
+
+
+// @match        https://demo.com/*
+// @version      1.0.0
+// @description  
+
+//
+
+// @author       
+// @match        https://example.com/*
+// @grant        GM_setValue
+
+// @grant        GM_getValue
+//
+
+//
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("解析元数据(分行4)", () => {
+    const code = `
+// ==UserScript==
+// @name       测试脚本
+
+
+// @namespace      http://tampermonkey.net/
+
+// @match          https://example.org/*
+// @match      https://test.com/*
+
+
+// @match          https://demo.com/*
+// @version     1.0.0
+// @description  
+
+//
+
+// @author       
+// @match         https://example.com/*
+// @grant       GM_setValue
+
+// @grant         GM_getValue
+//
+
+//
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("缺少name字段应返回null", () => {
     const code = `
 // ==UserScript==
 // @namespace    http://tampermonkey.net/
@@ -126,7 +285,7 @@ console.log('Hello World');
     expect(result).toBeNull();
   });
 
-  test("元数据字段少于3个应返回null", () => {
+  it.concurrent("元数据字段少于3个应返回null", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -140,7 +299,7 @@ console.log('Hello World');
     expect(result).toBeNull();
   });
 
-  test("没有UserScript或UserSubscribe标签应返回null", () => {
+  it.concurrent("没有UserScript或UserSubscribe标签应返回null", () => {
     const code = `
 console.log('Hello World');
 `;
@@ -149,7 +308,7 @@ console.log('Hello World');
     expect(result).toBeNull();
   });
 
-  test("不完整的UserScript标签应返回null", () => {
+  it.concurrent("不完整的UserScript标签应返回null", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -164,7 +323,7 @@ console.log('Hello World');
     expect(result).toBeNull();
   });
 
-  test("自动添加空namespace", () => {
+  it.concurrent("自动添加空namespace", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -181,7 +340,7 @@ console.log('Hello World');
     expect(result?.namespace).toEqual([""]);
   });
 
-  test("解析键名大小写不敏感", () => {
+  it.concurrent("解析键名大小写不敏感", () => {
     const code = `
 // ==UserScript==
 // @Name         测试脚本
@@ -203,7 +362,7 @@ console.log('Hello World');
     expect(result?.author).toEqual(["测试作者"]);
   });
 
-  test("处理带有额外空格的元数据", () => {
+  it.concurrent("处理带有额外空格的元数据", () => {
     const code = `
 // ==UserScript==
 //   @name           测试脚本   
@@ -224,8 +383,8 @@ console.log('Hello World');
   });
 });
 
-describe("getMetadataStr", () => {
-  test("提取UserScript元数据字符串", () => {
+describe.concurrent("getMetadataStr", () => {
+  it.concurrent("提取UserScript元数据字符串", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -242,13 +401,99 @@ console.log('Hello World');
 // ==/UserScript==`);
   });
 
-  test("没有UserScript标签应返回null", () => {
+  it.concurrent("提取UserScript元数据字符串 (分行1)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @version      1.0.0
+
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = getMetadataStr(code);
+    expect(result).toBe(`// ==UserScript==
+// @name         测试脚本
+// @version      1.0.0
+
+// ==/UserScript==`);
+  });
+
+  it.concurrent("提取UserScript元数据字符串 (分行2)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+
+// @version      1.0.0
+
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = getMetadataStr(code);
+    expect(result).toBe(`// ==UserScript==
+// @name         测试脚本
+
+// @version      1.0.0
+
+// ==/UserScript==`);
+  });
+
+  it.concurrent("提取UserScript元数据字符串 (分行3)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+
+
+// @version      1.0.0
+//
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = getMetadataStr(code);
+    expect(result).toBe(`// ==UserScript==
+// @name         测试脚本
+
+
+// @version      1.0.0
+//
+// ==/UserScript==`);
+  });
+
+  it.concurrent("提取UserScript元数据字符串 (分行4)", () => {
+    const code = `
+// ==UserScript==
+// @name           测试脚本
+
+
+// @version    1.0.0
+//
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = getMetadataStr(code);
+    expect(result).toBe(`// ==UserScript==
+// @name           测试脚本
+
+
+// @version    1.0.0
+//
+// ==/UserScript==`);
+  });
+
+  it.concurrent("没有UserScript标签应返回null", () => {
     const code = `console.log('Hello World');`;
     const result = getMetadataStr(code);
     expect(result).toBeNull();
   });
 
-  test("不完整的UserScript标签应返回null", () => {
+  it.concurrent("不完整的UserScript标签应返回null", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -259,8 +504,8 @@ console.log('Hello World');
   });
 });
 
-describe("getUserConfigStr", () => {
-  test("提取UserConfig配置字符串", () => {
+describe.concurrent("getUserConfigStr", () => {
+  it.concurrent("提取UserConfig配置字符串", () => {
     const code = `
 /* ==UserConfig==
 config:
@@ -279,13 +524,13 @@ config:
 ==/UserConfig== */`);
   });
 
-  test("没有UserConfig标签应返回null", () => {
+  it.concurrent("没有UserConfig标签应返回null", () => {
     const code = `console.log('Hello World');`;
     const result = getUserConfigStr(code);
     expect(result).toBeNull();
   });
 
-  test("不完整的UserConfig标签应返回null", () => {
+  it.concurrent("不完整的UserConfig标签应返回null", () => {
     const code = `
 /* ==UserConfig==
 config:
@@ -297,8 +542,8 @@ config:
   });
 });
 
-describe("parseUserConfig", () => {
-  test("解析单个YAML配置", () => {
+describe.concurrent("parseUserConfig", () => {
+  it.concurrent("解析单个YAML配置", () => {
     const code = `
 /* ==UserConfig==
 group1:
@@ -325,7 +570,7 @@ console.log('Hello World');
     });
   });
 
-  test("解析多个YAML配置（用---分隔）", () => {
+  it.concurrent("解析多个YAML配置（用---分隔）", () => {
     const code = `
 /* ==UserConfig==
 group1:
@@ -358,13 +603,13 @@ console.log('Hello World');
     });
   });
 
-  test("没有UserConfig标签应返回undefined", () => {
+  it.concurrent("没有UserConfig标签应返回undefined", () => {
     const code = `console.log('Hello World');`;
     const result = parseUserConfig(code);
     expect(result).toBeUndefined();
   });
 
-  test("解析空的UserConfig", () => {
+  it.concurrent("解析空的UserConfig", () => {
     const code = `
 /* ==UserConfig==
 ==/UserConfig== */
@@ -376,7 +621,7 @@ console.log('Hello World');
     expect(result).toEqual({ "#options": { sort: [] } });
   });
 
-  test("解析格式错误的YAML应该抛出错误", () => {
+  it.concurrent("解析格式错误的YAML应该抛出错误", () => {
     const code = `
 /* ==UserConfig==
 name: 配置
@@ -389,7 +634,7 @@ console.log('Hello World');
     expect(() => parseUserConfig(code)).toThrow();
   });
 
-  test("不符合分组规范的YAML配置应该抛出错误", () => {
+  it.concurrent("不符合分组规范的YAML配置应该抛出错误", () => {
     const code = `
 /* ==UserConfig==
 name: 测试配置

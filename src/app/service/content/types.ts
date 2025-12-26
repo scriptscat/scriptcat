@@ -1,9 +1,6 @@
 import type { TEncodedMessage } from "@App/pkg/utils/message_value";
-import type { ScriptLoadInfo } from "../service_worker/types";
 
 export type ScriptFunc = (named: { [key: string]: any } | undefined, scriptName: string) => any;
-
-export type PreScriptFunc = { scriptInfo: ScriptLoadInfo; func: ScriptFunc };
 
 // exec_script.ts
 
@@ -50,6 +47,6 @@ export interface ApiValue {
 
 export interface GMInfoEnv {
   userAgentData: typeof GM_info.userAgentData;
-  sandboxMode: typeof GM_info.sandboxMode;
+  sandboxMode: typeof GM_info.sandboxMode; // 目前固定为 "raw"，预留
   isIncognito: typeof GM_info.isIncognito;
 }

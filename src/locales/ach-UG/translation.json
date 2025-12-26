@@ -384,8 +384,12 @@
   "guide_script_list_enable_content": "crwdns8570:0crwdne8570:0",
   "guide_script_list_apply_to_run_status_title": "crwdns8572:0crwdne8572:0",
   "guide_script_list_apply_to_run_status_content": "crwdns8574:0crwdne8574:0",
-  "guide_script_list_sort_title": "crwdns8576:0crwdne8576:0",
-  "guide_script_list_sort_content": "crwdns8578:0crwdne8578:0",
+  "guide_script_list_sort_title": "crwdns12858:0crwdne12858:0",
+  "guide_script_list_sort_content": "crwdns12860:0crwdne12860:0",
+  "guide_script_list_update_title": "crwdns12862:0crwdne12862:0",
+  "guide_script_list_update_content": "crwdns12864:0crwdne12864:0",
+  "guide_script_list_action_title": "crwdns12866:0crwdne12866:0",
+  "guide_script_list_action_content": "crwdns12868:0crwdne12868:0",
   "guide_tools_title": "crwdns8580:0crwdne8580:0",
   "guide_tools_content": "crwdns8582:0crwdne8582:0",
   "guide_tools_backup_title": "crwdns8584:0crwdne8584:0",
@@ -411,8 +415,6 @@
   "develop_mode_guide": "crwdns8624:0crwdne8624:0",
   "allow_user_script_guide": "crwdns8626:0crwdne8626:0",
   "lower_version_browser_guide": "crwdns8628:0crwdne8628:0",
-  "enable_script_failed": "crwdns8630:0crwdne8630:0",
-  "disable_script_failed": "crwdns8632:0crwdne8632:0",
   "confirm_leave_page": "crwdns8634:0crwdne8634:0",
   "page_in_blacklist": "crwdns8636:0crwdne8636:0",
   "baidu_netdisk": "crwdns8638:0crwdne8638:0",
@@ -469,7 +471,7 @@
   "display_right_click_menu_desc": "crwdns8918:0crwdne8918:0",
   "expand_count": "crwdns8896:0crwdne8896:0",
   "auto_collapse_when_exceeds": "crwdns8898:0crwdne8898:0",
-  "check_frequency": "crwdns8900:0crwdne8900:0",
+  "script_update_check_frequency": "crwdns8900:0crwdne8900:0",
   "script_auto_update_frequency": "crwdns8902:0crwdne8902:0",
   "update_options": "crwdns8904:0crwdne8904:0",
   "control_script_update_behavior": "crwdns8906:0crwdne8906:0",
@@ -533,5 +535,6 @@
     "script_sync_delete_desc": "crwdns12852:0{{scriptName}}crwdne12852:0",
     "subscribe_update": "crwdns12854:0{{subscribeName}}crwdne12854:0",
     "subscribe_update_desc": "crwdns12856:0{{newScripts}}crwdnd12856:0{{deletedScripts}}crwdne12856:0"
-  }
+  },
+  "loading": "crwdns12870:0crwdne12870:0"
 }

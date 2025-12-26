@@ -3,7 +3,7 @@ import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import prettier from "prettier/standalone";
 import * as babel from "prettier/parser-babel";
 import prettierPluginEstree from "prettier/plugins/estree";
-import GMApiSetting from "@App/pages/components/GMApiSetting";
+import RuntimeSetting from "@App/pages/components/RuntimeSetting";
 import i18n from "i18next";
 import { useTranslation } from "react-i18next";
 import Logger from "@App/app/logger/logger";
@@ -18,6 +18,7 @@ import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config
 import { type TKeyValue } from "@Packages/message/message_queue";
 import { useEffect, useMemo } from "react";
 import { systemConfig } from "@App/pages/store/global";
+import { initRegularUpdateCheck } from "@App/app/service/service_worker/regular_updatecheck";
 
 function Setting() {
   const { subscribeMessage } = useAppContext();
@@ -308,13 +309,16 @@ function Setting() {
         <Space direction="vertical" size={20} className="w-full">
           <div className="flex items-center justify-between min-h-9">
             <div className="flex items-center gap-4 flex-1">
-              <span className="min-w-20 font-medium">{t("check_frequency")}</span>
+              <span className="min-w-20 font-medium">{t("script_update_check_frequency")}</span>
               <Select
                 value={checkScriptUpdateCycle.toString()}
                 className="w-35 max-w-45"
                 onChange={(value) => {
                   const num = parseInt(value, 10);
                   submitCheckScriptUpdateCycle(num);
+                  Promise.resolve().then(() => {
+                    initRegularUpdateCheck(systemConfig);
+                  });
                 }}
               >
                 <Select.Option value="0">{t("never")}</Select.Option>
@@ -353,7 +357,10 @@ function Setting() {
           </div>
         </Space>
       </Card>
-      <GMApiSetting />
+
+      {/* 运行时设置 */}
+      <RuntimeSetting />
+
       {/* 安全设置 */}
       <Card title={t("security")} bordered={false}>
         <div>

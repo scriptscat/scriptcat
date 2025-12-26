@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import Queue from "@App/pkg/utils/queue";
 import { type TDeleteScript } from "../queue";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
+import type GMApi from "./gm_api/gm_api";
 
 export interface ConfirmParam {
   // 权限名
@@ -34,7 +35,11 @@ export interface UserConfirm {
   type: number; // 1: 允许一次 2: 临时允许全部 3: 临时允许此 4: 永久允许全部 5: 永久允许此
 }
 
-export type ApiParamConfirmFn = (request: GMApiRequest, sender: IGetSender) => Promise<boolean | ConfirmParam>;
+export type ApiParamConfirmFn = (
+  request: GMApiRequest,
+  sender: IGetSender,
+  GMApiInstance: GMApi
+) => Promise<boolean | ConfirmParam>;
 
 export interface ApiParam {
   // 默认提供的函数
@@ -112,7 +117,7 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  async verify<T>(request: GMApiRequest<T>, api: ApiValue, sender: IGetSender): Promise<boolean> {
+  async verify<T>(request: GMApiRequest<T>, api: ApiValue, sender: IGetSender, GMApiInstance: GMApi): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;
@@ -130,14 +135,15 @@ export default class PermissionVerify {
         // 别名相等
         (alias && alias.includes(grantName)) ||
         // 关联包含
-        (link && link.includes(grantName))
+        (link && link.includes(grantName)) ||
+        // 关联包含 (GM.XXXX)
+        (link && link.includes(grantName.replace(".", "_")))
       ) {
         // 需要用户确认
-        let result = true;
         if (confirm) {
-          result = await this.pushConfirmQueue(request, confirm, sender);
+          return await this.pushConfirmQueue(request, confirm, sender, GMApiInstance);
         }
-        return result;
+        return true;
       }
     }
     throw new Error("permission not requested");
@@ -163,9 +169,10 @@ export default class PermissionVerify {
   async pushConfirmQueue<T>(
     request: GMApiRequest<T>,
     confirmFn: ApiParamConfirmFn,
-    sender: IGetSender
+    sender: IGetSender,
+    GMApiInstance: GMApi
   ): Promise<boolean> {
-    const confirm = await confirmFn(request, sender);
+    const confirm = await confirmFn(request, sender, GMApiInstance);
     if (confirm === true) {
       return true;
     }

@@ -1,4 +1,4 @@
-import type { SCMetadata, Script } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, TScriptInfo } from "@App/app/repo/scripts";
 import type { SystemConfigKey } from "../config/config";
 
 export function randNum(a: number, b: number) {
@@ -81,7 +81,9 @@ export function parseStorageValue(str: string): unknown {
 // https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=en#get_the_current_tab
 export async function getCurrentTab(): Promise<chrome.tabs.Tab | undefined> {
   // `tab` will either be a `tabs.Tab` instance or `undefined`.
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true, windowType: "normal" });
+  // 不要使用 windowType: "normal" ，否则在使用应用窗口时获取不到 tab 了
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (tab?.discarded) return undefined;
   return tab;
 }
 
@@ -143,7 +145,7 @@ export function sleep(millis: number) {
   });
 }
 
-export function getStorageName(script: Script): string {
+export function getStorageName(script: Script | TScriptInfo): string {
   const storagename = script.metadata?.storagename;
   return storagename ? storagename[0] : script.uuid;
 }
@@ -177,7 +179,7 @@ export async function checkUserScriptsAvailable() {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
-    const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts.getScripts({
+    const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts?.getScripts({
       ids: ["scriptcat-content", "undefined-id-3"],
     });
     // 返回结果不是阵列的话表示API不可使用
@@ -334,7 +336,7 @@ export const obtainBlackList = (strBlacklist: string | null | undefined) => {
 
 // 将蛇形的 key 转换为驼峰的函数名
 export function toCamelCase(key: SystemConfigKey) {
-  return key.replace(/_([a-z])/g, (g) => g[1].toUpperCase()).replace(/^([a-z])/, (g) => g.toUpperCase());
+  return key.replace(/^[a-z]|_([a-z])/g, (_, c = _) => c.toUpperCase());
 }
 
 export function cleanFileName(name: string): string {
@@ -368,4 +370,19 @@ export const stringMatching = (main: string, sub: string): boolean => {
     // Handle invalid regex patterns
     return false;
   }
+};
+
+// TM Xhr Header 兼容处理，原生xhr \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白
+export const normalizeResponseHeaders = (headersString: string) => {
+  if (!headersString) return "";
+  let out = "";
+  headersString.split("\n").forEach((line) => {
+    const j = line.indexOf(":");
+    if (j > 0) {
+      const headerName = line.substring(0, j); // "key"
+      const headerValue = line.substring(j + 1).trim(); // "value"
+      out += `${headerName}:${headerValue}\r\n`;
+    }
+  });
+  return out.substring(0, out.length - 2); // 去掉最后的 \r\n
 };

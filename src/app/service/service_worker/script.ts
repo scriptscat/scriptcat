@@ -45,12 +45,12 @@ import {
   BatchUpdateListActionCode,
   type TBatchUpdateListAction,
   UpdateStatusCode,
-  type SearchType,
   type TBatchUpdateRecord,
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
+import { initRegularUpdateCheck } from "./regular_updatecheck";
 // import { gzip as pakoGzip } from "pako";
 
 const cIdKey = `(cid_${Math.random()})`;
@@ -58,6 +58,8 @@ const cIdKey = `(cid_${Math.random()})`;
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
 >;
+
+export type TOpenBatchUpdatePageOption = { q: string; dontCheckNow: boolean };
 
 export class ScriptService {
   logger: Logger;
@@ -160,44 +162,142 @@ export class ScriptService {
       }
     );
     // 兼容 chrome 内核 < 128 处理
-    const condition: chrome.declarativeNetRequest.RuleCondition = {
-      regexFilter: "^([^#]+?)\\.user(\\.bg|\\.sub)?\\.js((\\?).*|$)",
-      resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-      requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-    };
     const browserType = getBrowserType();
-    if (browserType.chrome && browserType.chromeVersion >= 128) {
-      condition.excludedResponseHeaders = [
-        {
-          header: "Content-Type",
-          values: ["text/html"],
+    const addResponseHeaders = browserType.chrome && browserType.chromeVersion >= 128;
+    // Chrome 84+
+    const conditions: chrome.declarativeNetRequest.RuleCondition[] = [
+      {
+        regexFilter: "^([^?#]+?\\.user(\\.bg|\\.sub)?\\.js)", // Chrome 84+
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME], // Chrome 84+
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false, // Chrome 84+
+        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(.+?\\.user(\\.bg|\\.sub)?\\.js&response-content-type=application%2Foctet-stream)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["githubusercontent.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?:\\/\\/github.com\\/[^\\s/?#]+\\/[^\\s/?#]+\\/releases/[^\\s/?#]+/download/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://github.com/<user>/<repo>/releases/latest/download/file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?:\\/\\/gitlab\\.com\\/[^\\s/?#]+\\/[^\\s/?#]+\\/-\\/raw\\/[a-z0-9_/.-]+\\/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitlab.com"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(https?:\\/\\/github\\.com\\/[^\\/]+\\/[^\\/]+\\/releases\\/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://github.com/<user>/<repo>/releases/latest/download/file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
+      },
+      {
+        regexFilter: "^(https?://github.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z]+/[^?#]+?.user(\\.bg|\\.sub)?.js)",
+        // https://github.com/<user>/<repo>/raw/refs/heads/main/.../file.user.js
+        // https://github.com/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["github.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?://gitlab\\.com/[^\\s/?#]+/[^\\s/?#]+/-/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://gitlab.com/<user>/<repo>/-/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitlab.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?://gitea\\.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://gitea.com/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["gitea.com"], // Chrome 101+
+      },
+      {
+        regexFilter:
+          "^(https?://bitbucket\\.org/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/[^?#]+?\\.user(\\.bg|\\.sub)?\\.js)",
+        // https://bitbucket.org/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        requestDomains: ["bitbucket.org"], // Chrome 101+
+      },
+    ];
+    const rules = conditions.map((condition, idx) => {
+      Object.assign(condition, {
+        excludedTabIds: [chrome.tabs.TAB_ID_NONE],
+      });
+      if (addResponseHeaders) {
+        Object.assign(condition, {
+          responseHeaders: [
+            {
+              header: "Content-Type",
+              values: [
+                "text/javascript*",
+                "application/javascript*",
+                "text/html*",
+                "text/plain*",
+                "application/octet-stream*",
+                "application/force-download*",
+              ],
+            },
+          ],
+        });
+      }
+      return {
+        id: 1000 + idx,
+        priority: 1,
+        action: {
+          type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
+          redirect: {
+            regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\1`,
+          },
         },
-      ];
-    } else {
-      condition.excludedRequestDomains = ["github.com"];
-    }
+        condition: condition,
+      } as chrome.declarativeNetRequest.Rule;
+    });
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
-        removeRuleIds: [1, 2],
-        addRules: [
-          {
-            id: 1,
-            priority: 1,
-            action: {
-              type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
-              redirect: {
-                regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\0`,
-              },
-            },
-            condition: condition,
-          },
-        ],
+        removeRuleIds: [1],
       },
       () => {
         if (chrome.runtime.lastError) {
           console.error(
             "chrome.runtime.lastError in chrome.declarativeNetRequest.updateDynamicRules:",
+            chrome.runtime.lastError
+          );
+        }
+      }
+    );
+    chrome.declarativeNetRequest.updateSessionRules(
+      {
+        removeRuleIds: [...rules.map((rule) => rule.id)],
+        addRules: rules,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateSessionRules:",
             chrome.runtime.lastError
           );
         }
@@ -451,7 +551,7 @@ export class ScriptService {
     return true;
   }
 
-  async getFilterResult(req: { type: SearchType; value: string }) {
+  async getFilterResult(req: { value: string }) {
     const OPTION_CASE_INSENSITIVE = true;
     const scripts = await this.scriptDAO.all();
     const scriptCodes = await Promise.all(
@@ -759,7 +859,8 @@ export class ScriptService {
     }
   }
 
-  async openBatchUpdatePage(q: string, dontCheckNow: boolean) {
+  async openBatchUpdatePage(opts: TOpenBatchUpdatePageOption) {
+    const { q, dontCheckNow } = opts;
     const p = q ? `?${q}` : "";
     await openInCurrentTab(`/src/batchupdate.html${p}`);
     if (!dontCheckNow) {
@@ -1300,24 +1401,9 @@ export class ScriptService {
     this.group.on("sendUpdatePageOpened", this.sendUpdatePageOpened.bind(this));
     this.group.on("batchUpdateListAction", this.batchUpdateListAction.bind(this));
     this.group.on("openUpdatePageByUUID", this.openUpdatePageByUUID.bind(this));
-    this.group.on("openBatchUpdatePage", (q: string) => this.openBatchUpdatePage(q, false));
+    this.group.on("openBatchUpdatePage", this.openBatchUpdatePage.bind(this));
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
-    // 定时检查更新, 首次执行为5分钟后，然后每30分钟检查一次
-    chrome.alarms.create(
-      "checkScriptUpdate",
-      {
-        delayInMinutes: 5,
-        periodInMinutes: 30,
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-          // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-          console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
-        }
-      }
-    );
+    initRegularUpdateCheck(this.systemConfig);
   }
 }

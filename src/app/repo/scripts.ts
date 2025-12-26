@@ -1,6 +1,8 @@
 import { Repo } from "./repo";
 import type { Resource } from "./resource";
 import type { SCMetadata } from "./metadata";
+import type { GMInfoEnv } from "../service/content/types";
+import type { URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;
@@ -100,6 +102,47 @@ export interface ScriptRunResource extends Script {
   metadata: SCMetadata; // 经自定义覆盖的 Metadata
   originalMetadata: SCMetadata; // 原本的 Metadata （目前只需要 match, include, exclude）
 }
+
+/**
+ * 脚本加载信息。（ service_worker / sandbox / popup 环境用 ）
+ * 包含脚本元数据与用户配置。
+ */
+export interface ScriptLoadInfo extends ScriptRunResource {
+  /** 脚本元数据字符串 */
+  metadataStr: string;
+  /** 用户配置字符串 */
+  userConfigStr: string;
+  /** 用户配置对象（可选） */
+  userConfig?: UserConfig;
+  scriptUrlPatterns?: URLRuleEntry[];
+}
+
+/**
+ * 脚本加载信息。（ Inject / Content 环境用，避免过多不必要资讯公开，减少页面加载资讯储存量 ）
+ * 包含脚本元数据与用户配置。
+ */
+export type TScriptInfo = Override<
+  ScriptLoadInfo,
+  {
+    originalMetadata?: Partial<Record<string, string[]>>;
+    resource: Record<string, { base64?: string; content: string; contentType: string }>;
+    code: "" | string;
+    sort?: number;
+    flag: string;
+    runStatus?: SCRIPT_RUN_STATUS;
+    type?: SCRIPT_TYPE;
+    status?: SCRIPT_STATUS;
+  }
+>;
+
+export type TClientPageLoadInfo =
+  | {
+      ok: true;
+      injectScriptList: TScriptInfo[];
+      contentScriptList: TScriptInfo[];
+      envInfo: GMInfoEnv;
+    }
+  | { ok: false };
 
 export class ScriptDAO extends Repo<Script> {
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();

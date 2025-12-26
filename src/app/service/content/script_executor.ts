@@ -1,29 +1,43 @@
 import type { Message } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
+import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
-import { addStyle, definePropertyListener } from "./utils";
+import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
+import { addStyleSheet, definePropertyListener } from "./utils";
+import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
+import { DefinedFlags } from "../service_worker/runtime.consts";
+import { isUrlExcluded } from "@App/pkg/utils/match";
 
 export type ExecScriptEntry = {
-  scriptLoadInfo: ScriptLoadInfo;
+  scriptLoadInfo: TScriptInfo;
   scriptFlag: string;
   envInfo: any;
   scriptFunc: any;
 };
+
+export let initEnvInfo: GMInfoEnv;
+
+try {
+  initEnvInfo = {
+    userAgentData: UserAgentData, // 从全局变量获取
+    sandboxMode: "raw", // 预留字段，当前固定为 raw
+    isIncognito: false, // inject 环境下无法判断，固定为 false
+  };
+} catch {
+  // 如果 UserAgentData 不存在，可能是在非inject/content环境下运行
+  initEnvInfo = {
+    userAgentData: {},
+    sandboxMode: "raw",
+    isIncognito: false,
+  };
+}
 
 // 脚本执行器
 export class ScriptExecutor {
   earlyScriptFlag: Set<string> = new Set();
   execMap: Map<string, ExecScript> = new Map();
 
-  envInfo: GMInfoEnv | undefined;
-
   constructor(private msg: Message) {}
-
-  init(envInfo: GMInfoEnv) {
-    this.envInfo = envInfo;
-  }
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
@@ -42,13 +56,13 @@ export class ScriptExecutor {
     }
   }
 
-  start(scripts: ScriptLoadInfo[]) {
-    const loadExec = (script: ScriptLoadInfo, scriptFunc: any) => {
+  startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
+    const loadExec = (script: TScriptInfo, scriptFunc: any) => {
       this.execScriptEntry({
         scriptLoadInfo: script,
         scriptFlag: script.flag,
         scriptFunc,
-        envInfo: this.envInfo!,
+        envInfo: envInfo,
       });
     };
     // 监听脚本加载
@@ -59,7 +73,7 @@ export class ScriptExecutor {
         for (const val of this.execMap.values()) {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
-            val.updateEarlyScriptGMInfo(this.envInfo!);
+            val.updateEarlyScriptGMInfo(envInfo);
             return;
           }
         }
@@ -70,32 +84,52 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(env: "content" | "inject", messageFlags: MessageFlags) {
-    const eventNamePrefix = env === "content" ? messageFlags.contentFlag : messageFlags.injectFlag;
+  checkEarlyStartScript(env: "content" | "inject", messageFlag: string, envInfo: GMInfoEnv) {
+    const isContent = env === "content";
+    const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
+    const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+    const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (event) => {
-      if (event instanceof CustomEvent) {
-        if (typeof event.detail.scriptFlag === "string") {
-          event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
-          const scriptFlag = event.detail.scriptFlag;
-          this.execEarlyScript(scriptFlag);
+    performance.addEventListener(scriptLoadCompleteEvtName, (ev) => {
+      const detail = (ev as CustomEvent).detail as {
+        scriptFlag: string;
+        scriptInfo: ScriptLoadInfo;
+      };
+      const scriptFlag = detail?.scriptFlag;
+      if (typeof scriptFlag === "string") {
+        ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
+        // 检查是否有 urlPattern，有则执行匹配再决定是否略过注入
+        if (detail.scriptInfo.scriptUrlPatterns) {
+          // 以 REGEX 情况为例
+          //   "@include /REGEX/" 的情况下，MV3 UserScripts API 基础匹配范围扩大，会比实际需要的广阔，然后在 earlyScript 把不符合 REGEX 的除去
+          //   (All @include = false -> 除去)
+          //   注：如果 @include 混合了 regex 跟 一般的，即使 regex 的 @include 不匹对当前网址，但匹对了一般 @include 也视为有效
+          //       相反如果 @include 混合了 regex 跟 一般的，regex 的 @include 匹对了即可
+          //   "@exclude /REGEX/" 的情况下，MV3 UserScripts API 基础匹配范围不会扩大，然后在 earlyScript 把符合 REGEX 的匹配除去
+          //   (Any @exclude = true -> 除去)
+          // 注：如果一早已被除排，根本不会被 MV3 UserScripts API 注入。所以只考虑排除「多余的匹配」。（略过注入）
+          if (isUrlExcluded(window.location.href, detail.scriptInfo.scriptUrlPatterns)) {
+            // 「多余的匹配」-> 略过注入
+            return;
+          }
         }
+        this.execEarlyScript(scriptFlag, detail.scriptInfo, envInfo);
       }
     });
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
-    const ev = new CustomEvent(eventNamePrefix + messageFlags.envLoadComplete);
-    window.dispatchEvent(ev);
+    const ev = new CustomEvent(envLoadCompleteEvtName);
+    performance.dispatchEvent(ev);
   }
 
-  execEarlyScript(flag: string) {
-    const scriptFunc = (window as any)[flag] as PreScriptFunc;
+  execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {
+    const scriptFunc = (window as any)[flag] as ScriptFunc;
     this.execScriptEntry({
-      scriptLoadInfo: scriptFunc.scriptInfo,
-      scriptFunc: scriptFunc.func,
+      scriptLoadInfo: scriptInfo,
+      scriptFunc: scriptFunc,
       scriptFlag: flag,
-      envInfo: {},
+      envInfo: envInfo,
     });
     this.earlyScriptFlag.add(flag);
   }
@@ -112,7 +146,7 @@ export class ScriptExecutor {
       for (const val of metadata["require-css"]) {
         const res = resource[val];
         if (res) {
-          addStyle(res.content);
+          addStyleSheet(res.content);
         }
       }
     }

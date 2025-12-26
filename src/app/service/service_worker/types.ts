@@ -1,4 +1,4 @@
-import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata, UserConfig } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_RUN_STATUS, SCMetadata, ScriptLoadInfo } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type IGetSender } from "@Packages/message/server";
 
@@ -19,18 +19,7 @@ export interface ScriptMatchInfo extends Script {
   originalUrlPatterns: URLRuleEntry[];
 }
 
-/**
- * 脚本加载信息。
- * 包含脚本元数据与用户配置。
- */
-export interface ScriptLoadInfo extends ScriptRunResource {
-  /** 脚本元数据字符串 */
-  metadataStr: string;
-  /** 用户配置字符串 */
-  userConfigStr: string;
-  /** 用户配置对象（可选） */
-  userConfig?: UserConfig;
-}
+export { ScriptLoadInfo };
 
 /**
  * 用于缓存的脚本匹配信息。
@@ -61,6 +50,7 @@ export type MessageRequest<T = any[]> = {
 
 export type GMApiRequest<T = any> = MessageRequest<T> & {
   script: Script;
+  extraCode?: number; // 用于 confirm 传额外资讯
 };
 
 export type NotificationMessageOption = {
@@ -97,7 +87,7 @@ export type SWScriptMenuItemOption = {
   accessKey?: string; // 菜单快捷键
   autoClose?: boolean; // 默认为 true，false 时点击后不关闭弹出菜单页面
   nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
-  mIndividualKey?: number; // 内部用。用於单独项提供稳定 GroupKey，当多iframe时，相同的菜单项不自动合并
+  mIndividualKey?: number; // 内部用。用于单独项提供稳定 GroupKey，当多iframe时，相同的菜单项不自动合并
   mSeparator?: boolean; // 内部用。true 为分隔线
   /** 可选输入框类型 */
   inputType?: "text" | "number" | "boolean";

@@ -1,16 +1,16 @@
-import { type ScriptRunResource } from "@App/app/repo/scripts";
+import type { TScriptInfo } from "@App/app/repo/scripts";
 import { v4 as uuidv4 } from "uuid";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
-import { GMContextApiGet } from "./gm_context";
-import { createGMBase } from "./gm_api";
-import { protect } from "./gm_context";
+import { GMContextApiGet } from "./gm_api/gm_context";
+import { protect } from "./gm_api/gm_context";
 import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
+import { createGMBase } from "./gm_api/gm_api";
 
 // 构建沙盒上下文
 export const createContext = (
-  scriptRes: ScriptRunResource,
+  scriptRes: TScriptInfo,
   GMInfo: any,
   envPrefix: string,
   message: Message,
@@ -99,15 +99,45 @@ export const createContext = (
 
 const noEval = false;
 
-// 判断是否应该将函数绑定到global
-const shouldFnBind = (f: any) => {
+// 取得原生函数代码表示
+const getNativeCodeSegs = () => {
+  const k = "propertyIsEnumerable"; // 选用 Object.propertyIsEnumerable 取得原生函数代码表示
+  const codeSeg = `${Object[k]}`;
+  const idx1 = codeSeg.indexOf(k);
+  const idx2 = codeSeg.indexOf("()");
+  const idx3 = codeSeg.lastIndexOf("(");
+  if (idx1 > 0 && idx2 > 0 && idx3 === idx2) {
+    return [codeSeg.substring(0, idx1), codeSeg.substring(idx1 + k.length)];
+  }
+  return null;
+};
+
+const ncs = getNativeCodeSegs();
+
+// 判断是否应该将函数绑定到global （原生函数）
+export const shouldFnBind = (f: any) => {
   if (typeof f !== "function") return false;
+  // 函数有 prototype 即为 Class
   if ("prototype" in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
-  // window中的函式，大写开头不用于直接呼叫 （例如NodeFilter)
-  const { name } = f;
+  // 要求函数名字小写字头 能筛选掉 NodeFilter 之类 Interface （ 大写开头不用于直接呼叫 ）
+  // 要求函数名字不包含空白 能筛选掉 已经this绑定函数
+  const { name } = f as typeof Function.prototype;
   if (!name) return false;
   const e = name.charCodeAt(0);
-  return e >= 97 && e <= 122;
+  if (e >= 97 && e <= 122 && !name.includes(" ")) {
+    // 为避免浏览器插件封装了 原生函数，需要进行 toString 测试 （Proxy封装例外）
+    if (ncs?.[1]) {
+      const s = `${f}`;
+      // 广告拦截扩展进行Proxy封装后丢失名字 （Chrome：所有经Proxy封装都会变成无名原生函数）
+      if (s === `${ncs[0]}${name}${ncs[1]}` || s === `${ncs[0]}${ncs[1]}`) {
+        return true;
+      }
+    } else {
+      // 代码错误，全部 bind
+      return true;
+    }
+  }
+  return false;
 };
 
 type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
@@ -145,12 +175,15 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
 
     // 替换 function 的 this 为 实际的 global window
     // 例：父类的 addEventListener
+    // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
+    // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
     if (shouldFnBind(value)) {
       const boundValue = value.bind(global);
       overridedDescs[key] = {
         ...desc,
         value: boundValue,
       };
+      descsCache.add(key); // 必须：子类属性覆盖父类属性
     }
   } else {
     if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
@@ -166,6 +199,7 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
           get: desc?.get?.bind(global),
           set: desc?.set?.bind(global),
         };
+        descsCache.add(key); // 必须：子类属性覆盖父类属性
       }
     }
   }
@@ -176,12 +210,46 @@ descsCache.clear(); // 内存释放
 // OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)
 //  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
 // sharedInitCopy: ScriptCat脚本共通使用
-const sharedInitCopy = Object.create(null, {
-  ...initOwnDescs,
-  ...overridedDescs,
-  // Symbol.toStringTag设置为 Window
-  [Symbol.toStringTag]: { value: "Window", writable: false, enumerable: false, configurable: true },
+
+const USE_PSEUDO_WINDOW = true; // 日后或能设置使 ScriptCat的沙盒 window 能以 name / id 存取页面元素
+
+class PseudoWindow {}
+const PseudoWindowPrototype = PseudoWindow.prototype;
+Object.defineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
+  //@ts-ignore
+  value: global[Symbol.toStringTag],
+  writable: false,
+  enumerable: false,
+  configurable: true,
 });
+Object.defineProperty(PseudoWindowPrototype, "constructor", {
+  value: global.constructor,
+  writable: false,
+  enumerable: false,
+  configurable: true,
+});
+Object.defineProperty(PseudoWindowPrototype, "__proto__", {
+  //@ts-ignore
+  value: global.__proto__,
+  writable: false,
+  enumerable: false,
+  configurable: true,
+});
+
+const sharedInitCopy = USE_PSEUDO_WINDOW
+  ? Object.create(null, {
+      ...Object.getOwnPropertyDescriptors(PseudoWindowPrototype),
+      ...initOwnDescs,
+      ...overridedDescs,
+    })
+  : Object.create(Object.getPrototypeOf(global), {
+      ...initOwnDescs,
+      ...overridedDescs,
+    });
+
+// 把沙盒的 console 和网页的 console 隔离
+const initConsoleDescs = Object.getOwnPropertyDescriptors(console);
+const ConsolePrototype = Object.getPrototypeOf(console);
 
 type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 
@@ -330,6 +398,9 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     // 目前 TM 只支援 null. ScriptCat不需要grant预设启用？
     mySandbox.onurlchange = null;
   }
+
+  // 从网页 console 隔离出来的沙盒 console
+  mySandbox.console = Object.create(ConsolePrototype, initConsoleDescs);
 
   return mySandbox;
 };

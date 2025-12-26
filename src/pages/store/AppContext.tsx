@@ -1,15 +1,21 @@
 import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
 import { messageQueue } from "./global";
-import { editor } from "monaco-editor";
 import { type TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage } from "@App/locales/locales";
 import { SystemConfigChange } from "@App/pkg/config/config";
+
+export const fnPlaceHolder = {
+  setEditorTheme: null,
+} as { setEditorTheme: ((theme: string) => void) | null };
 
 export type ThemeParam = { theme: "auto" | "light" | "dark" };
 export interface AppContextType {
   colorThemeState: "auto" | "light" | "dark";
   updateColorTheme: (theme: "auto" | "light" | "dark") => void;
   subscribeMessage: <T>(topic: string, handler: (msg: T) => void) => () => void;
+  // 指引模式
+  setGuideMode: (mode: boolean) => void;
+  guideMode: boolean;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -46,12 +52,12 @@ const setAppColorTheme = (theme: "light" | "dark" | "auto") => {
     case "dark":
       document.documentElement.classList.add("dark");
       document.body.setAttribute("arco-theme", "dark");
-      editor.setTheme("vs-dark");
+      fnPlaceHolder.setEditorTheme?.("vs-dark");
       break;
     case "light":
       document.documentElement.classList.remove("dark");
       document.body.removeAttribute("arco-theme");
-      editor.setTheme("vs");
+      fnPlaceHolder.setEditorTheme?.("vs");
       break;
   }
 };
@@ -61,6 +67,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     colorThemeInit();
     return localStorage.lightMode || "auto";
   });
+  const [guideMode, setGuideMode] = useState(false);
 
   const subscribeMessage = <T,>(topic: string, handler: (msg: T) => void) => {
     return messageQueue.subscribe<T & { myMessage?: T }>(topic, (data) => {
@@ -98,7 +105,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   return (
-    <AppContext.Provider value={{ colorThemeState, updateColorTheme, subscribeMessage }}>
+    <AppContext.Provider
+      value={{
+        colorThemeState,
+        updateColorTheme,
+        subscribeMessage,
+        setGuideMode,
+        guideMode,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

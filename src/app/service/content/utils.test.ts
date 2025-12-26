@@ -1,40 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { compileScriptCode, compileScript, compileInjectScript, addStyle } from "./utils";
+import { compileScriptCode, compileScript, compileInjectScript, addStyle, addStyleSheet } from "./utils";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 
-// Mock chrome runtime
-const mockChrome = {
-  runtime: {
-    getURL: vi.fn((path: string) => `chrome-extension://test-id${path}`),
-  },
-};
+// 设置 console mock 来避免测试输出污染
+vi.spyOn(console, "error").mockImplementation(() => {});
+vi.spyOn(console, "log").mockImplementation(() => {});
 
-// 设置全局 chrome 对象
-Object.defineProperty(global, "chrome", {
-  value: mockChrome,
-  writable: true,
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("utils", () => {
-  beforeEach(() => {
-    // 重置所有 mock
-    vi.clearAllMocks();
-
-    // 设置 console mock 来避免测试输出污染
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(console, "log").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    // 清理 DOM
-    document.head.innerHTML = "";
-    document.documentElement.innerHTML = "<head></head><body></body>";
-
-    vi.restoreAllMocks();
-  });
-
-  describe("compileScriptCode", () => {
+  describe.concurrent("compileScriptCode", () => {
     const createMockScriptRes = (overrides: Partial<ScriptRunResource> = {}): ScriptRunResource => ({
       uuid: "test-uuid",
       name: "Test Script",
@@ -54,7 +36,7 @@ describe("utils", () => {
       ...overrides,
     });
 
-    it("应该正确编译基本脚本代码", () => {
+    it.concurrent("应该正确编译基本脚本代码", () => {
       const scriptRes = createMockScriptRes({
         name: "Basic Script",
         code: "console.log('hello world');",
@@ -71,7 +53,7 @@ describe("utils", () => {
       expect(result).toContain("return (async function(){");
     });
 
-    it("应该处理自定义脚本代码参数", () => {
+    it.concurrent("应该处理自定义脚本代码参数", () => {
       const scriptRes = createMockScriptRes();
       const customCode = "alert('custom code');";
 
@@ -81,7 +63,7 @@ describe("utils", () => {
       expect(result).not.toContain("console.log('test');");
     });
 
-    it("应该包含 require 资源", () => {
+    it.concurrent("应该包含 require 资源", () => {
       const scriptRes = createMockScriptRes({
         metadata: {
           require: ["https://example.com/lib1.js", "https://example.com/lib2.js"],
@@ -128,7 +110,7 @@ describe("utils", () => {
       expect(result).toContain("// Library 2 content");
     });
 
-    it("应该忽略不存在的 require 资源", () => {
+    it.concurrent("应该忽略不存在的 require 资源", () => {
       const scriptRes = createMockScriptRes({
         metadata: {
           require: ["https://example.com/missing.js", "https://example.com/existing.js"],
@@ -159,7 +141,7 @@ describe("utils", () => {
       expect(result).not.toContain("missing.js");
     });
 
-    it("应该正确处理脚本名称中的特殊字符", () => {
+    it.concurrent("应该正确处理脚本名称中的特殊字符", () => {
       const scriptRes = createMockScriptRes({
         name: "Test Script with 中文 & Special!@#$%^&*() Characters",
       });
@@ -168,12 +150,12 @@ describe("utils", () => {
 
       expect(result).toContain("sourceURL=");
       // 验证 encodeURI 被正确应用
-      expect(mockChrome.runtime.getURL).toHaveBeenCalledWith(
+      expect(chrome.runtime.getURL).toHaveBeenCalledWith(
         "/Test%20Script%20with%20%E4%B8%AD%E6%96%87%20&%20Special!@#$%25%5E&*()%20Characters.user.js"
       );
     });
 
-    it("应该包含错误处理逻辑", () => {
+    it.concurrent("应该包含错误处理逻辑", () => {
       const scriptRes = createMockScriptRes({
         name: "Error Test Script",
       });
@@ -186,7 +168,7 @@ describe("utils", () => {
       expect(result).toContain("e.message && e.stack");
     });
 
-    it("应该处理空的 metadata", () => {
+    it.concurrent("应该处理空的 metadata", () => {
       const scriptRes = createMockScriptRes({
         metadata: {},
       });
@@ -197,7 +179,7 @@ describe("utils", () => {
       expect(result).toContain("try {");
     });
 
-    it("应该处理 undefined require", () => {
+    it.concurrent("应该处理 undefined require", () => {
       const scriptRes = createMockScriptRes({
         metadata: {
           require: undefined,
@@ -212,14 +194,14 @@ describe("utils", () => {
   });
 
   describe("compileScript", () => {
-    it("应该返回一个函数", () => {
+    it.concurrent("应该返回一个函数", () => {
       const code = "return 'test result';";
       const result = compileScript(code);
 
       expect(typeof result).toBe("function");
     });
 
-    it("应该编译并执行简单代码", () => {
+    it.concurrent("应该编译并执行简单代码", () => {
       const code = "return arguments[0].value + arguments[1];";
       const func: ScriptFunc = compileScript(code);
 
@@ -228,7 +210,7 @@ describe("utils", () => {
       expect(result).toBe("10test-script");
     });
 
-    it("应该处理复杂的脚本逻辑", () => {
+    it.concurrent("应该处理复杂的脚本逻辑", () => {
       const code = `
         const named = arguments[0];
         const scriptName = arguments[1];
@@ -246,7 +228,7 @@ describe("utils", () => {
       expect(result2).toBe("fallback");
     });
 
-    it("应该处理异步代码", async () => {
+    it.concurrent("应该处理异步代码", async () => {
       const code = `
         return new Promise(resolve => {
           setTimeout(() => resolve(arguments[0].value * 2), 10);
@@ -259,7 +241,7 @@ describe("utils", () => {
       expect(result).toBe(10);
     });
 
-    it("应该正确处理错误", () => {
+    it.concurrent("应该正确处理错误", () => {
       const code = "throw new Error('Test error');";
       const func: ScriptFunc = compileScript(code);
 
@@ -287,7 +269,7 @@ describe("utils", () => {
       ...overrides,
     });
 
-    it("应该生成基本的注入脚本代码", () => {
+    it.concurrent("应该生成基本的注入脚本代码", () => {
       const script = createMockScript();
       const scriptCode = "console.log('injected');";
 
@@ -296,7 +278,7 @@ describe("utils", () => {
       expect(result).toBe(`window['inject-test-flag'] = function(){console.log('injected');}`);
     });
 
-    it("应该包含自动删除挂载函数的代码", () => {
+    it.concurrent("应该包含自动删除挂载函数的代码", () => {
       const script = createMockScript();
       const scriptCode = "console.log('with auto delete');";
 
@@ -309,7 +291,7 @@ describe("utils", () => {
       );
     });
 
-    it("默认情况下不应该包含自动删除代码", () => {
+    it.concurrent("默认情况下不应该包含自动删除代码", () => {
       const script = createMockScript();
       const scriptCode = "console.log('without auto delete');";
 
@@ -319,7 +301,7 @@ describe("utils", () => {
       expect(result).toBe(`window['inject-test-flag'] = function(){console.log('without auto delete');}`);
     });
 
-    it("应该处理复杂的脚本代码", () => {
+    it.concurrent("应该处理复杂的脚本代码", () => {
       const script = createMockScript({ flag: "complex-flag" });
       const scriptCode = `
         var x = 1;
@@ -335,7 +317,7 @@ describe("utils", () => {
       expect(result).toContain("try{delete window['complex-flag']}catch(e){}");
     });
 
-    it("应该正确转义脚本标志名称", () => {
+    it.concurrent("应该正确转义脚本标志名称", () => {
       const script = createMockScript({ flag: "flag-with-special-chars_123" });
       const scriptCode = "console.log('test');";
 
@@ -346,6 +328,13 @@ describe("utils", () => {
   });
 
   describe("addStyle", () => {
+    afterEach(() => {
+      // 清理 DOM
+      document.head.innerHTML = "";
+      document.body.innerHTML = "";
+      document.documentElement.replaceChildren(document.head, document.body);
+    });
+
     it("应该创建并添加 style 元素到 head", () => {
       const css = "body { background: red; }";
 
@@ -429,6 +418,104 @@ describe("utils", () => {
 
       expect(returnedElement).toBe(queriedElement);
       expect(returnedElement?.textContent).toBe(css);
+    });
+  });
+
+  describe("addStyleSheet", () => {
+    // 简单的 CSSStyleSheet mock，适配 jsdom 环境
+    beforeEach(() => {
+      class MockCSSStyleSheet {
+        cssText = "";
+        replaceSync(css: string) {
+          this.cssText = css;
+        }
+      }
+      vi.stubGlobal("CSSStyleSheet", MockCSSStyleSheet);
+      //@ts-expect-error
+      if (!document.adoptedStyleSheets) document.adoptedStyleSheets = undefined;
+      let adoptedSheets = [] as CSSStyleSheet[];
+      const getSpy = vi.spyOn(document, "adoptedStyleSheets", "get");
+      const setSpy = vi.spyOn(document, "adoptedStyleSheets", "set");
+
+      // FrozenArray
+      getSpy.mockImplementation(() => [...adoptedSheets]);
+      setSpy.mockImplementation((value: CSSStyleSheet[]) => {
+        adoptedSheets = Array.isArray(value) ? [...value] : [];
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks(); // Restores spies + stubGlobal
+      vi.resetAllMocks(); // Clears call history
+    });
+
+    it("应该创建并返回 CSSStyleSheet 实例，并添加到 adoptedStyleSheets", () => {
+      const css = "body { background: red; }";
+
+      const sheet = addStyleSheet(css);
+
+      expect(sheet).toBeInstanceOf(CSSStyleSheet);
+      expect((sheet as any).cssText).toBe(css);
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+      expect(adopted.includes(sheet)).toBe(true);
+    });
+
+    it("应该在已有样式表的基础上追加新的样式表", () => {
+      const existing = new (CSSStyleSheet as any)();
+      (existing as any).replaceSync("html { color: black; }");
+
+      (document as any).adoptedStyleSheets = [existing];
+
+      const css = ".test { color: blue; }";
+      const newSheet = addStyleSheet(css);
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+
+      expect(adopted.length).toBe(2);
+      expect(adopted[0]).toBe(existing);
+      expect(adopted[1]).toBe(newSheet);
+      expect((newSheet as any).cssText).toBe(css);
+    });
+
+    it("应该处理空的 CSS 字符串", () => {
+      const css = "";
+
+      const sheet = addStyleSheet(css);
+
+      expect(sheet).toBeInstanceOf(CSSStyleSheet);
+      expect((sheet as any).cssText).toBe("");
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+      expect(adopted.includes(sheet)).toBe(true);
+    });
+
+    it("应该允许添加多个样式表", () => {
+      const css1 = ".class1 { color: red; }";
+      const css2 = ".class2 { color: blue; }";
+
+      const sheet1 = addStyleSheet(css1);
+      const sheet2 = addStyleSheet(css2);
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+
+      expect(adopted.length).toBe(2);
+      expect(adopted[0]).toBe(sheet1);
+      expect(adopted[1]).toBe(sheet2);
+      expect((sheet1 as any).cssText).toBe(css1);
+      expect((sheet2 as any).cssText).toBe(css2);
+    });
+
+    it("应该返回刚刚添加到 adoptedStyleSheets 末尾的样式表", () => {
+      const css = ".return-test { font-size: 14px; }";
+
+      const returnedSheet = addStyleSheet(css);
+
+      const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
+      const lastSheet = adopted[adopted.length - 1];
+
+      expect(returnedSheet).toBe(lastSheet);
+      expect((returnedSheet as any).cssText).toBe(css);
     });
   });
 });

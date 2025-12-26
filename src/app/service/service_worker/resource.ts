@@ -12,6 +12,7 @@ import { type TDeleteScript } from "../queue";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { isBase64, parseUrlSRI } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { blobToUint8Array } from "@App/pkg/utils/datatype";
 
 export class ResourceService {
   logger: Logger;
@@ -264,7 +265,7 @@ export class ResourceService {
     const data = await resp.blob();
     const [hash, arrayBuffer, base64] = await Promise.all([
       this.calculateHash(data),
-      data.arrayBuffer(),
+      blobToUint8Array(data),
       blobToBase64(data),
     ]);
     const resource: Resource = {

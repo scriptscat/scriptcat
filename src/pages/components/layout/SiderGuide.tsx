@@ -5,6 +5,7 @@ import Joyride from "react-joyride";
 import type { Path } from "react-router-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import CustomTrans from "../CustomTrans";
+import { useAppContext } from "@App/pages/store/AppContext";
 
 const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> = (_props, ref) => {
   const { t } = useTranslation();
@@ -13,8 +14,12 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
   const [run, setRun] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { setGuideMode } = useAppContext();
   useImperativeHandle(ref, () => ({
-    open: () => setRun(true),
+    open: () => {
+      setRun(true);
+      setGuideMode(true);
+    },
   }));
   useEffect(() => {
     // 首次使用时，打开引导
@@ -45,6 +50,9 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       title: t("guide_script_list_title"),
       placement: "auto",
     },
+  ];
+
+  steps.push(
     {
       content: t("guide_script_list_enable_content"),
       target: ".script-enable",
@@ -58,8 +66,21 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
     {
       target: ".script-sort",
       title: t("guide_script_list_sort_title"),
-      content: <CustomTrans i18nKey="guide_script_list_sort_content" />,
+      content: t("guide_script_list_sort_content"),
     },
+    {
+      target: ".script-updatetime",
+      title: t("guide_script_list_update_title"),
+      content: <CustomTrans i18nKey="guide_script_list_update_content" />,
+    },
+    {
+      target: ".script-action",
+      title: t("guide_script_list_action_title"),
+      content: <CustomTrans i18nKey="guide_script_list_action_content" />,
+    }
+  );
+
+  steps.push(
     {
       target: ".menu-tools",
       title: t("guide_tools_title"),
@@ -81,8 +102,8 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       target: ".setting .sync",
       title: t("guide_setting_sync_title"),
       content: t("guide_setting_sync_content"),
-    },
-  ];
+    }
+  );
 
   const gotoNavigate = (go: Partial<Path>) => {
     if (go.pathname !== location.pathname) {
@@ -101,15 +122,16 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
     <Joyride
       callback={(data) => {
         if (data.action === "stop" || data.action === "close" || data.status === "finished") {
+          setGuideMode(false);
           setRun(false);
           setStepIndex(0);
           gotoNavigate(initRoute);
         } else if (data.action === "next" && data.lifecycle === "complete") {
           switch (data.index) {
-            case 5:
+            case 7:
               gotoNavigate({ pathname: "/tools" });
               break;
-            case 7:
+            case 9:
               gotoNavigate({ pathname: "/setting" });
               break;
             default:

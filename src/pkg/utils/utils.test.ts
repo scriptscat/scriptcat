@@ -1,51 +1,64 @@
-import { describe, test, expect, it } from "vitest";
-import { checkSilenceUpdate, cleanFileName, stringMatching } from "./utils";
+import { describe, expect, it, beforeAll } from "vitest";
+import { checkSilenceUpdate, cleanFileName, normalizeResponseHeaders, stringMatching, toCamelCase } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
 
-describe("nextTime", () => {
-  const date = new Date(1737275107000);
-  test("每分钟表达式", () => {
+describe.concurrent("nextTime", () => {
+  const date = new Date(1737275111000);
+  // 让程序先执行一下，避免超时问题
+  beforeAll(() => {
+    nextTime("* * * * *");
+    dayjs(date);
+  });
+  it.sequential("每分钟表达式", () => {
     expect(nextTime("* * * * *", date)).toEqual(dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:00"));
   });
-  test("每分钟一次表达式", () => {
+  it.sequential("每分钟一次表达式", () => {
     expect(nextTime("once * * * *", date)).toEqual(
-      dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm 每分钟运行一次")
+      dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:00 每分钟运行一次")
+    );
+    expect(nextTime("10 once * * * *", date)).toEqual(
+      dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:10 每分钟运行一次")
     );
   });
-  test("每小时一次表达式", () => {
-    expect(nextTime("* once * * *", date)).toEqual(dayjs(date).add(1, "hour").format("YYYY-MM-DD HH 每小时运行一次"));
+  it.sequential("每小时一次表达式", () => {
+    expect(nextTime("* once * * *", date)).toEqual(
+      dayjs(date).add(1, "hour").format("YYYY-MM-DD HH:00:00 每小时运行一次")
+    );
+    expect(nextTime("10 once * * *", date)).toEqual(
+      dayjs(date).add(1, "hour").format("YYYY-MM-DD HH:10:00 每小时运行一次")
+    );
   });
-  test("每天一次表达式", () => {
+  it.sequential("每天一次表达式", () => {
     expect(nextTime("* * once * *", date)).toEqual(dayjs(date).add(1, "day").format("YYYY-MM-DD 每天运行一次"));
   });
-  test("每月一次表达式", () => {
+  it.sequential("每月一次表达式", () => {
     expect(nextTime("* * * once *", date)).toEqual(dayjs(date).add(1, "month").format("YYYY-MM 每月运行一次"));
   });
-  test("每星期一次表达式", () => {
+  it.sequential("每星期一次表达式", () => {
     expect(nextTime("* * * * once", date)).toEqual(dayjs(date).add(1, "week").format("YYYY-MM-DD 每星期运行一次"));
   });
 });
 
-describe("ltever", () => {
-  it("semver", () => {
+describe.concurrent("ltever", () => {
+  it.concurrent("semver", () => {
     expect(ltever("1.0.0", "1.0.1")).toBe(true);
     expect(ltever("1.0.0", "1.0.0")).toBe(true);
     expect(ltever("1.0.1", "1.0.0")).toBe(false);
     expect(ltever("3.2.01", "3.2.1")).toBe(true); // equal
     expect(ltever("3.2.1", "3.2.01")).toBe(true); // equal
   });
-  it("any", () => {
+  it.concurrent("any", () => {
     expect(ltever("1.2.3.4", "1.2.3.4")).toBe(true);
     expect(ltever("1.2.3.4", "1.2.3.5")).toBe(true);
     expect(ltever("1.2.3.4", "1.2.3.3")).toBe(false);
   });
 });
 
-describe("versionCompare", () => {
+describe.concurrent("versionCompare", () => {
   const twoWayTest = (a: string, b: string, c: number) => versionCompare(a, b) === c && versionCompare(b, a) === -c;
-  it("test", () => {
+  it.concurrent("test", () => {
     // 整数版本号
     expect(twoWayTest("0", "1", -1)).toBe(true);
     expect(twoWayTest("1", "3", -1)).toBe(true);
@@ -195,8 +208,8 @@ describe("versionCompare", () => {
   });
 });
 
-describe("checkSilenceUpdate", () => {
-  it("true", () => {
+describe.concurrent("checkSilenceUpdate", () => {
+  it.concurrent("true", () => {
     expect(
       checkSilenceUpdate(
         {
@@ -218,7 +231,7 @@ describe("checkSilenceUpdate", () => {
       )
     ).toBe(true);
   });
-  it("false", () => {
+  it.concurrent("false", () => {
     expect(
       checkSilenceUpdate(
         {
@@ -242,38 +255,38 @@ describe("checkSilenceUpdate", () => {
   });
 });
 
-describe("cleanFileName", () => {
-  it("should replace illegal characters with dashes", () => {
+describe.concurrent("cleanFileName", () => {
+  it.concurrent("should replace illegal characters with dashes", () => {
     expect(cleanFileName("file/name")).toBe("file-name");
     expect(cleanFileName("file\\name")).toBe("file-name");
     expect(cleanFileName("file:name")).toBe("file-name");
     expect(cleanFileName("file*name")).toBe("file-name");
   });
 
-  it("should trim spaces", () => {
+  it.concurrent("should trim spaces", () => {
     expect(cleanFileName("  file  ")).toBe("file");
   });
 
-  it("should handle empty string", () => {
+  it.concurrent("should handle empty string", () => {
     expect(cleanFileName("")).toBe("");
   });
 
-  it("should handle valid filename", () => {
+  it.concurrent("should handle valid filename", () => {
     expect(cleanFileName("valid_file.txt")).toBe("valid_file.txt");
   });
 });
 
-describe("stringMatching", () => {
-  describe("无通配符的情况", () => {
-    it("应该使用 includes 检查", () => {
+describe.concurrent("stringMatching", () => {
+  describe.concurrent("无通配符的情况", () => {
+    it.concurrent("应该使用 includes 检查", () => {
       expect(stringMatching("hello world", "hello")).toBe(true);
       expect(stringMatching("hello world", "world")).toBe(true);
       expect(stringMatching("hello world", "test")).toBe(false);
     });
   });
 
-  describe("星号通配符 (*) - 匹配零个或多个字符", () => {
-    it("go*le search 示例", () => {
+  describe.concurrent("星号通配符 (*) - 匹配零个或多个字符", () => {
+    it.concurrent("go*le search 示例", () => {
       // 基于需求：go*le search 能找到 gole search, google search, goule search, gommarle search
       expect(stringMatching("gole search", "go*le search")).toBe(true);
       expect(stringMatching("google search", "go*le search")).toBe(true);
@@ -282,15 +295,15 @@ describe("stringMatching", () => {
       expect(stringMatching("ga search", "go*le search")).toBe(false);
     });
 
-    it("其他星号匹配场景", () => {
+    it.concurrent("其他星号匹配场景", () => {
       expect(stringMatching("test file", "test*")).toBe(true);
       expect(stringMatching("filename.txt", "*file*")).toBe(true);
       expect(stringMatching("hello", "h*o")).toBe(true);
     });
   });
 
-  describe("问号通配符 (?) - 匹配单个字符", () => {
-    it("goog?e search 示例", () => {
+  describe.concurrent("问号通配符 (?) - 匹配单个字符", () => {
+    it.concurrent("goog?e search 示例", () => {
       // 基于需求：goog?e search 能找到 googae search, googbe search, google search
       expect(stringMatching("googae search", "goog?e search")).toBe(true);
       expect(stringMatching("googbe search", "goog?e search")).toBe(true);
@@ -299,30 +312,119 @@ describe("stringMatching", () => {
       expect(stringMatching("googlle search", "goog?e search")).toBe(false); // 多了一个字符
     });
 
-    it("其他问号匹配场景", () => {
+    it.concurrent("其他问号匹配场景", () => {
       expect(stringMatching("test", "t?st")).toBe(true);
       expect(stringMatching("file.txt", "file.?xt")).toBe(true);
       expect(stringMatching("hello", "h?llo")).toBe(true);
     });
   });
 
-  describe("混合通配符", () => {
-    it("星号和问号组合", () => {
+  describe.concurrent("混合通配符", () => {
+    it.concurrent("星号和问号组合", () => {
       expect(stringMatching("google search result", "go*g?e search*")).toBe(true);
       expect(stringMatching("test file name", "t?st * name")).toBe(true);
     });
   });
 
-  describe("边界情况", () => {
-    it("空字符串和空模式", () => {
+  describe.concurrent("边界情况", () => {
+    it.concurrent("空字符串和空模式", () => {
       expect(stringMatching("", "")).toBe(true);
       expect(stringMatching("test", "")).toBe(true);
       expect(stringMatching("", "test")).toBe(false);
     });
 
-    it("特殊字符", () => {
+    it.concurrent("特殊字符", () => {
       expect(stringMatching("file.txt", "file.*")).toBe(true);
       expect(stringMatching("user@domain.com", "user@*")).toBe(true);
     });
+  });
+});
+
+describe.concurrent("toCamelCase", () => {
+  it.concurrent("应当将蛇形命名转换为驼峰命名", () => {
+    expect(toCamelCase("cloud_sync")).toBe("CloudSync");
+    expect(toCamelCase("cat_file_storage")).toBe("CatFileStorage");
+    expect(toCamelCase("enable_eslint")).toBe("EnableEslint");
+    expect(toCamelCase("eslint_config")).toBe("EslintConfig");
+  });
+
+  it.concurrent("应当正确处理单词配置键", () => {
+    expect(toCamelCase("language")).toBe("Language");
+  });
+
+  it.concurrent("应当正确处理多下划线配置键", () => {
+    expect(toCamelCase("editor_type_definition")).toBe("EditorTypeDefinition");
+    expect(toCamelCase("script_list_column_width")).toBe("ScriptListColumnWidth");
+  });
+});
+
+describe.concurrent("normalizeResponseHeaders", () => {
+  it.concurrent("returns empty string for empty input", () => {
+    expect(normalizeResponseHeaders("")).toBe("");
+  });
+
+  it.concurrent("returns empty string for falsy-like empty string (only case possible with string type)", () => {
+    expect(normalizeResponseHeaders(String(""))).toBe("");
+  });
+
+  it.concurrent("keeps valid header lines and outputs name:value joined with CRLF", () => {
+    const input = "Content-Type: text/plain\nX-Test: abc\n";
+    expect(normalizeResponseHeaders(input)).toBe("Content-Type:text/plain\r\nX-Test:abc");
+  });
+
+  it.concurrent("accepts LF and CRLF line endings", () => {
+    const input = "A: 1\r\nB: 2\r\n";
+    expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
+  });
+
+  it.concurrent("parses last line even without a trailing newline", () => {
+    const input = "A: 1\nB: 2";
+    expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
+  });
+
+  it.concurrent("does NOT skip lines where value starts immediately after ':'", () => {
+    const input = "A:1\nB:2\n";
+    expect(normalizeResponseHeaders(input)).toBe("A:1\r\nB:2");
+  });
+
+  it.concurrent("works with non-ASCII characters", () => {
+    const input = "X-名前: 値\n";
+    expect(normalizeResponseHeaders(input)).toBe("X-名前:値");
+  });
+
+  it.concurrent("does not include a trailing CRLF at the end of output", () => {
+    const input = "A: 1\nB: 2\n";
+    expect(normalizeResponseHeaders(input).endsWith("\r\n")).toBe(false);
+  });
+
+  it.concurrent("standard test", () => {
+    const input = `content-type: text/html; charset=utf-8\r\n
+server: Apache/2.4.41 (Ubuntu)\r\n
+set-cookie: sessionid=abc123; Path=/; HttpOnly\r\n
+cache-control: no-store, no-cache, must-revalidate\r\n
+expires: Thu, 19 Nov 1981 08:52:00 GMT\r\n
+pragma: no-cache\r\n
+x-frame-options: SAMEORIGIN\r\n
+x-content-type-options: nosniff\r\n
+content-security-policy: default-src 'self'\r\n
+access-control-allow-origin: *\r\n`
+      .split(/\s*\r\n\s*/)
+      .join("\r\n");
+
+    const expected = `content-type:text/html; charset=utf-8\r\n
+server:Apache/2.4.41 (Ubuntu)\r\n
+set-cookie:sessionid=abc123; Path=/; HttpOnly\r\n
+cache-control:no-store, no-cache, must-revalidate\r\n
+expires:Thu, 19 Nov 1981 08:52:00 GMT\r\n
+pragma:no-cache\r\n
+x-frame-options:SAMEORIGIN\r\n
+x-content-type-options:nosniff\r\n
+content-security-policy:default-src 'self'\r\n
+access-control-allow-origin:*`
+      .split(/\s*\r\n\s*/)
+      .join("\r\n");
+
+    expect(normalizeResponseHeaders(input)).toBe(expected);
+    expect(normalizeResponseHeaders(expected)).toBe(expected);
   });
 });

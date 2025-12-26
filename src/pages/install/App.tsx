@@ -5,6 +5,7 @@ import {
   Grid,
   Message,
   Menu,
+  Modal,
   Space,
   Switch,
   Tag,
@@ -29,6 +30,8 @@ import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/fi
 import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/filehandle-db";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
+
+const backgroundPromptShownKey = "background_prompt_shown";
 
 type ScriptOrSubscribe = Script | Subscribe;
 
@@ -57,6 +60,7 @@ function App() {
   const [oldScriptVersion, setOldScriptVersion] = useState<string | null>(null);
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
   const [localFileHandle, setLocalFileHandle] = useState<FileSystemFileHandle | null>(null);
+  const [showBackgroundPrompt, setShowBackgroundPrompt] = useState<boolean>(false);
   const { t } = useTranslation();
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
@@ -117,7 +121,7 @@ function App() {
         });
 
         // 刷新 timestamp, 使 10s~15s 后不会被立即清掉
-        // 每五分鐘刷新一次db记录的timestamp，使开啟中的安装页面的fileHandle不会被刷掉
+        // 每五分钟刷新一次db记录的timestamp，使开启中的安装页面的fileHandle不会被刷掉
         intervalExecution(`${cIdKey}liveFileHandle`, () => saveHandle(fid, fileHandle), 5 * 60 * 1000, true);
 
         const code = await file.text();
@@ -158,14 +162,19 @@ function App() {
       setIsUpdate(typeof oldVersion === "string");
       setScriptInfo(info);
       setUpsertScript(action);
+
+      // 检查是否需要显示后台运行提示
+      if (!info.userSubscribe) {
+        setShowBackgroundPrompt(await checkBackgroundPrompt(action as Script));
+      }
     } catch (e: any) {
       Message.error(t("script_info_load_failed") + " " + e.message);
     } finally {
       // fileHandle 保留处理方式（暂定）：
-      // fileHandle 会保留一段足够时间，避免用户重新刷画面，重啟瀏览器等操作后，安装页变得空白一片。
+      // fileHandle 会保留一段足够时间，避免用户重新刷画面，重启浏览器等操作后，安装页变得空白一片。
       // 处理会在所有Tab都载入后（不包含睡眠Tab）进行，因此延迟 10s~15s 让处理有足够时间。
-      // 安装页面关掉后15分鐘为不保留状态，会在安装画面再次打开时（其他脚本安装），进行清除。
-      const delay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免瀏览器重啟时大量Tabs同时执行DB清除
+      // 安装页面关掉后15分钟为不保留状态，会在安装画面再次打开时（其他脚本安装），进行清除。
+      const delay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免浏览器重启时大量Tabs同时执行DB清除
       timeoutExecution(`${cIdKey}cleanupFileHandle`, cleanupOldHandles, delay);
     }
   };
@@ -291,6 +300,25 @@ function App() {
       setEnable(upsertScript.status === SCRIPT_STATUS_ENABLE);
     }
   }, [upsertScript]);
+
+  // 检查是否需要显示后台运行提示
+  const checkBackgroundPrompt = async (script: Script) => {
+    // 只有后台脚本或定时脚本才提示
+    if (!script.metadata.background && !script.metadata.crontab) {
+      return false;
+    }
+
+    // 检查是否首次安装或更新
+    const hasShown = localStorage.getItem(backgroundPromptShownKey);
+
+    if (hasShown !== "true") {
+      // 检查是否已经有后台权限
+      if (!(await chrome.permissions.contains({ permissions: ["background"] }))) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
     if (!upsertScript) {
@@ -452,7 +480,7 @@ function App() {
     }
     // 去除React特性
     const [handle] = [localFileHandle];
-    unmountFileTrack(handle); // 避免重覆追踪
+    unmountFileTrack(handle); // 避免重复追踪
     const uuid = scriptInfo?.uuid;
     const fileName = handle?.name;
     if (!uuid || !fileName) {
@@ -466,6 +494,44 @@ function App() {
 
   return (
     <div id="install-app-container">
+      {/* 后台运行提示对话框 */}
+      <Modal
+        title={t("enable_background.prompt_title")}
+        visible={showBackgroundPrompt}
+        onOk={async () => {
+          try {
+            const granted = await chrome.permissions.request({ permissions: ["background"] });
+            if (granted) {
+              Message.success(t("enable_background.title")!);
+            } else {
+              Message.info(t("enable_background.maybe_later")!);
+            }
+            setShowBackgroundPrompt(false);
+            localStorage.setItem(backgroundPromptShownKey, "true");
+          } catch (e) {
+            console.error(e);
+            Message.error(t("enable_background.enable_failed")!);
+          }
+        }}
+        onCancel={() => {
+          setShowBackgroundPrompt(false);
+          localStorage.setItem(backgroundPromptShownKey, "true");
+        }}
+        okText={t("enable_background.enable_now")}
+        cancelText={t("enable_background.maybe_later")}
+        autoFocus={false}
+        focusLock={true}
+      >
+        <Space direction="vertical" size="medium">
+          <Typography.Text>
+            {t("enable_background.prompt_description", {
+              scriptType: upsertScript?.metadata?.background ? t("background_script") : t("scheduled_script"),
+            })}
+          </Typography.Text>
+          <Typography.Text type="secondary">{t("enable_background.settings_hint")}</Typography.Text>
+        </Space>
+      </Modal>
+
       <Grid.Row className="mb-2" gutter={8}>
         <Grid.Col flex={1} className="flex-col p-8px">
           <Space direction="vertical" className="w-full">

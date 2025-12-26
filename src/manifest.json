@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_scriptcat__",
-  "version": "1.2.0.1500",
+  "version": "1.2.3",
   "author": "CodFrm",
   "description": "__MSG_scriptcat_description__",
   "options_ui": {
@@ -34,7 +34,6 @@
     "scripting",
     "downloads",
     "activeTab",
-    "background",
     "webRequest",
     "userScripts",
     "contextMenus",
@@ -45,6 +44,7 @@
     "declarativeNetRequest"
   ],
   "optional_permissions": [
+    "background",
     "userScripts"
   ],
   "host_permissions": [

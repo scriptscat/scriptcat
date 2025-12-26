@@ -17,9 +17,9 @@ import { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 import PopupWarnings from "../components/PopupWarnings";
-import { popupClient, requestOpenBatchUpdatePage } from "../store/features/script";
+import { popupClient, requestOpenBatchUpdatePage } from "@App/pages/store/features/script";
 import type { ScriptMenu, TPopupScript } from "@App/app/service/service_worker/types";
-import { systemConfig } from "../store/global";
+import { systemConfig } from "@App/pages/store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
 import { getCurrentTab } from "@App/pkg/utils/utils";
 import { useAppContext } from "../store/AppContext";
@@ -58,6 +58,40 @@ function App() {
   const [collapseActiveKey, setCollapseActiveKey] = useState<string[]>(["script"]);
   const { t } = useTranslation();
   const pageTabIdRef = useRef(0);
+
+  // 只随 script 数量和启动状态而改变的state
+  const normalEnables = useMemo(() => {
+    // 返回字串让 React 比对 state 有否改动
+    return scriptList.map((script) => (script.enable ? 1 : 0)).join(",");
+  }, [scriptList]);
+
+  // 只随 script 数量和启动状态而改变的state
+  const backEnables = useMemo(() => {
+    // 返回字串让 React 比对 state 有否改动
+    return backScriptList.map((script) => (script.enable ? 1 : 0)).join(",");
+  }, [backScriptList]);
+
+  const normalScriptCounts = useMemo(() => {
+    // 拆回array
+    const enables = normalEnables.split(",");
+    // 计算已开启了的数量
+    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
+    return {
+      running,
+      total: enables.length, // 总数
+    };
+  }, [normalEnables]);
+
+  const backScriptCounts = useMemo(() => {
+    // 拆回array
+    const enables = backEnables.split(",");
+    // 计算已开启了的数量
+    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
+    return {
+      running,
+      total: enables.length, // 总数
+    };
+  }, [backEnables]);
 
   const urlHost = useMemo(() => {
     let url: URL | undefined;
@@ -287,10 +321,6 @@ function App() {
     return domain;
   };
 
-  const doCheckUpdateInPopupMenu = async () => {
-    const domain = getUrlDomain(currentUrl);
-    await requestOpenBatchUpdatePage(`autoclose=-1${domain ? `&site=${domain}` : ""}`);
-  };
   const handleMenuClick = async (key: string) => {
     switch (key) {
       case "newScript":
@@ -300,7 +330,7 @@ function App() {
         window.open("/src/options.html#/script/editor?target=initial", "_blank");
         break;
       case "checkUpdate":
-        await doCheckUpdateInPopupMenu(); // 在service_worker打开新tab及进行检查。
+        requestOpenBatchUpdatePage(getUrlDomain(currentUrl));
         break;
       case "report_issue": {
         const browserInfo = `${navigator.userAgent}`;
@@ -447,7 +477,7 @@ function App() {
           style={{ maxWidth: 640, maxHeight: 500, overflow: "auto" }}
         >
           <CollapseItem
-            header={t("current_page_scripts")}
+            header={`${t("current_page_scripts")} (${normalScriptCounts.running}/${normalScriptCounts.total})`}
             name="script"
             style={{ padding: "0" }}
             contentStyle={{ padding: "0" }}
@@ -461,7 +491,7 @@ function App() {
           </CollapseItem>
 
           <CollapseItem
-            header={t("enabled_background_scripts")}
+            header={`${t("enabled_background_scripts")} (${backScriptCounts.running}/${backScriptCounts.total})`}
             name="background"
             style={{
               padding: "0",

@@ -32,10 +32,7 @@ export function changeLanguage(lng: string, callback?: Callback): void {
   dayjs.locale(lng.toLocaleLowerCase());
 }
 
-// let cachedSystemConfig: SystemConfig;
-
 export function initLocales(systemConfig: SystemConfig) {
-  // cachedSystemConfig = systemConfig;
   const uiLanguage = chrome.i18n.getUILanguage();
   const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
   i18n.use(initReactI18next).init({
@@ -56,27 +53,40 @@ export function initLocales(systemConfig: SystemConfig) {
     },
   });
 
+  // 先根据默认语言设置路径
+  if (!defaultLanguage.startsWith("zh-")) {
+    localePath = "/en";
+  }
+
   systemConfig.getLanguage().then((lng) => {
     changeLanguage(lng);
     if (!lng.startsWith("zh-")) {
       localePath = "/en";
     }
   });
+  systemConfig.addListener("language", (lng) => {
+    changeLanguage(lng);
+    if (!lng.startsWith("zh-")) {
+      localePath = "/en";
+    } else {
+      localePath = "";
+    }
+  });
 }
 
 export function i18nName(script: { name: string; metadata: SCMetadata }) {
-  const m = script.metadata[`name:${i18n.language.toLowerCase()}`];
+  const m = script.metadata[`name:${i18n?.language?.toLowerCase()}`];
   return m ? m[0] : script.name;
 }
 
 export function i18nDescription(script: { metadata: SCMetadata }) {
-  const m = script.metadata[`description:${i18n.language.toLowerCase()}`];
+  const m = script.metadata[`description:${i18n?.language?.toLowerCase()}`];
   return m ? m[0] : script.metadata.description;
 }
 
 // 判断是否是中文用户
 export function isChineseUser() {
-  const language = i18n.language.toLowerCase();
+  const language = i18n?.language?.toLowerCase();
   return language.startsWith("zh-");
 }
 

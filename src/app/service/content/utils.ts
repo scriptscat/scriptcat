@@ -1,6 +1,7 @@
-import type { SCMetadata, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, ScriptRunResource, TScriptInfo } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
+import { DefinedFlags } from "../service_worker/runtime.consts";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -41,15 +42,15 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
 
 export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(resource.name)}.user.js`)}`;
-  const requireCode = resource.require.map((r) => r.content).join("\n");
-  const preCode = [requireCode].join("\n"); // 不需要 async 封装
+  const requireCode = resource.require.map((r) => r.content).join("\n;");
+  const preCode = requireCode; // 不需要 async 封装
   const code = [resource.code, sourceURL].join("\n"); // 需要 async 封装, 可top-level await
   // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
   // this = context: globalThis
   // arguments = [named: Object, scriptName: string]
-  // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用於全域拦截context
+  // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用于全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
-  // 在UserScripts API中，由於执行不是在物件导向裡呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
+  // 在UserScripts API中，由于执行不是在物件导向里呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
   return `try {
   with(arguments[0]||this.$){
 ${preCode}
@@ -96,31 +97,63 @@ export function compileInjectScriptByFlag(
 }
 
 /**
+ * 脚本加载信息。（Inject/Content环境用，避免过多不必要信息公开，减少页面加载信息存储量）
+ */
+export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
+  // --- 处理 resource ---
+  // 由于不需要 complie code, resource 只用在 GM_getResourceURL 和 GM_getResourceText
+  const resource = {} as Record<string, { base64?: string; content: string; contentType: string }>;
+  if (script.resource) {
+    for (const [url, { base64, content, contentType }] of Object.entries(script.resource || {})) {
+      resource[url] = { base64, content, contentType };
+    }
+  }
+  // --- 处理 resource ---
+  // --- 处理 scriptInfo ---
+  const scriptInfo = { ...script, resource, code: "" } as TScriptInfo;
+  // 删除其他不需要注入的 script 信息
+  delete scriptInfo.originalMetadata;
+  delete scriptInfo.selfMetadata;
+  delete scriptInfo.lastruntime;
+  delete scriptInfo.nextruntime;
+  delete scriptInfo.ignoreVersion; // UserScript 里面不需要知道用户有没有在更新时忽略
+  delete scriptInfo.sort; // UserScript 里面不需要知道用户如何 sort
+  delete scriptInfo.error;
+  delete scriptInfo.subscribeUrl; // UserScript 里面不需要知道用户从何处订阅
+  delete scriptInfo.originDomain; // 脚本来源域名
+  delete scriptInfo.origin; // 脚本来源
+  delete scriptInfo.runStatus; // 前台脚本不用
+  delete scriptInfo.type; // 脚本类型总是普通脚本
+  delete scriptInfo.status; // 脚本状态总是启用
+  // --- 处理 scriptInfo ---
+  return scriptInfo;
+};
+
+/**
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
-  messageFlags: MessageFlags,
+  messageFlag: string,
   script: ScriptLoadInfo,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const eventNamePrefix = isInjectIntoContent(script.metadata) ? messageFlags.contentFlag : messageFlags.injectFlag;
-  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
-  return `window['${script.flag}'] = {
-  scriptInfo: ${JSON.stringify(script)},
-  func: function(){${autoDeleteMountCode}${scriptCode}}
-};
-(() => {
-  const f = () => {
-    const event = new CustomEvent('${eventNamePrefix}${messageFlags.scriptLoadComplete}', 
-    { cancelable: true, detail: { scriptFlag: '${script.flag}' } });
-    return window.dispatchEvent(event);
-  };
-  const noCheckEarlyStartScript = f();
-  if (noCheckEarlyStartScript) {
-    window.addEventListener('${eventNamePrefix}${messageFlags.envLoadComplete}', f, { once: true });
-  }
-})();
+  const eventNamePrefix = `evt${messageFlag}${
+    isInjectIntoContent(script.metadata) ? DefinedFlags.contentFlag : DefinedFlags.injectFlag
+  }`;
+  const flag = `${script.flag}`;
+  const scriptInfo = trimScriptInfo(script);
+  const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
+  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
+  const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
+  const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
+  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
+{
+  let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
+  f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', o)),
+  needWait = f();
+  if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
+}
 `;
 }
 
@@ -131,6 +164,16 @@ export function addStyle(css: string): HTMLStyleElement {
     return document.head.appendChild(dom);
   }
   return document.documentElement.appendChild(dom);
+}
+
+export function addStyleSheet(css: string): CSSStyleSheet {
+  // see https://unarist.hatenablog.com/entry/2020/07/06/012540
+  const sheet = new CSSStyleSheet();
+  // it might return as Promise
+  sheet.replaceSync(css);
+  // adoptedStyleSheets is FrozenArray so it has to be re-assigned.
+  document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
+  return sheet;
 }
 
 export function metadataBlankOrTrue(metadata: SCMetadata, key: string): boolean {

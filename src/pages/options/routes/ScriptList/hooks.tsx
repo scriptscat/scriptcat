@@ -20,7 +20,6 @@ import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   fetchScript,
   fetchScriptList,
-  requestFilterResult,
   sortScript,
   requestDeleteScripts,
   requestRunScript,
@@ -28,6 +27,7 @@ import {
 } from "@App/pages/store/features/script";
 import { loadScriptFavicons } from "@App/pages/store/utils";
 import { arrayMove } from "@dnd-kit/sortable";
+import type { Dispatch } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { hashColor } from "../utils";
 import { parseTags } from "@App/app/repo/metadata";
@@ -46,6 +46,8 @@ import { useTranslation } from "react-i18next";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { Message } from "@arco-design/web-react";
+import type { SearchType } from "@App/app/service/service_worker/types";
+import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
 
 export function useScriptList() {
   const { t } = useTranslation();
@@ -310,6 +312,8 @@ export interface FilterItem {
   count: number;
 }
 
+export type SetSearchRequest = Dispatch<React.SetStateAction<{ keyword: string; type: SearchType }>>;
+
 export function useScriptSearch() {
   const scriptListManager = useScriptList();
   const { t } = useTranslation();
@@ -321,7 +325,11 @@ export function useScriptSearch() {
     tags: "all",
     source: "all",
   });
-  const [searchKeyword, setSearchKeyword] = useState<string>("");
+
+  const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({
+    keyword: "",
+    type: "auto",
+  });
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
 
   // 计算数据量
@@ -478,7 +486,8 @@ export function useScriptSearch() {
     return { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap };
   }, [scriptList, sidebarOpen, t]);
 
-  useEffect(() => {
+  const filterFuncs = useMemo(() => {
+    // 当 originMap, selectedFilters, tagMap 改变时更新
     const filterFuncs: Array<(script: Script) => boolean> = [];
     for (const [groupKey, itemKey] of Object.entries(selectedFilters)) {
       switch (groupKey) {
@@ -509,7 +518,9 @@ export function useScriptSearch() {
               filterFuncs.push((script) => script.type === SCRIPT_TYPE_NORMAL);
               break;
             case SCRIPT_TYPE_BACKGROUND:
-              filterFuncs.push((script) => script.type === SCRIPT_TYPE_BACKGROUND);
+              filterFuncs.push(
+                (script) => script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB
+              );
               break;
             case SCRIPT_TYPE_CRONTAB:
               filterFuncs.push((script) => script.type === SCRIPT_TYPE_CRONTAB);
@@ -534,37 +545,29 @@ export function useScriptSearch() {
           break;
       }
     }
-    const filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    if (searchKeyword !== "") {
-      let mounted = true;
-      // 再基于关键词过滤一次
-      requestFilterResult({ value: searchKeyword, type: "auto" }).then((res) => {
-        if (!mounted) return;
-        const cacheMap = new Map<string, any>();
-        if (res && Array.isArray(res)) {
-          for (const entry of res) {
-            cacheMap.set(entry.uuid, {
-              code: entry.code === true,
-              name: entry.name === true,
-              auto: entry.auto === true,
-            });
-          }
-        }
+    return filterFuncs;
+  }, [originMap, selectedFilters, tagMap]);
 
-        setFilterScriptList(
-          filterList.filter((item) => {
-            const result = cacheMap.get(item.uuid);
-            return result?.auto;
-          })
-        );
+  useEffect(() => {
+    // 当 filterFuncs 改变时进行 / Filter结果取得时进行
+    // 按 filterFuncs 过滤一次
+    let filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
+    if (searchRequest.keyword !== "") {
+      // 再基于关键词过滤一次
+      let setLoading = true;
+      SearchFilter.requestFilterResult(searchRequest).then(() => {
+        if (setLoading === false) return;
+        filterList = filterList.filter((item) => {
+          return SearchFilter.checkByUUID(item.uuid);
+        });
+        setFilterScriptList(filterList);
       });
       return () => {
-        mounted = false;
+        setLoading = false;
       };
-    } else {
-      setFilterScriptList(filterList);
     }
-  }, [originMap, scriptList, selectedFilters, tagMap, searchKeyword]);
+    setFilterScriptList(filterList);
+  }, [scriptList, filterFuncs, searchRequest]); // searchFilter 参考固定不变
 
   // 覆盖scriptListManager的排序方法
   // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱
@@ -600,9 +603,8 @@ export function useScriptSearch() {
     filterScriptList,
     selectedFilters,
     setSelectedFilters,
-    keyword: searchKeyword,
-    searchKeyword,
-    setSearchKeyword,
+    searchRequest,
+    setSearchRequest,
     filterItems: {
       statusItems,
       typeItems,
