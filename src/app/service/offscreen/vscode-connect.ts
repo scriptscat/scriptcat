@@ -46,8 +46,8 @@ export class VSCodeConnect {
       this.clearTimer();
       this.timerId = setTimeout(connectVSCode, 100);
     };
-    const connectVSCode = () => {
-      if (this.ws) return; // 已连接则忽略
+    const connectVSCode: () => Promise<void> = () => {
+      if (this.ws) return Promise.resolve(); // 已连接则忽略
       return new Promise<void>((resolve, reject) => {
         let ws;
         try {
