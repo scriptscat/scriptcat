@@ -41,12 +41,7 @@ const SiderMenu: React.FC<SiderMenuProps> = ({
 
   return (
     <div className="flex flex-col justify-between h-full">
-      <Menu
-        style={{ width: "100%" }}
-        selectedKeys={[menuSelect]}
-        selectable
-        onClickMenuItem={handleMenuClick}
-      >
+      <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
         <CustomLink to="/">
           <MenuItem key="/" className="menu-script">
             <IconCode /> {t("installed_scripts")}
@@ -100,20 +95,12 @@ const SiderMenu: React.FC<SiderMenuProps> = ({
             }
           >
             <Menu.Item key="scriptcat/docs/dev/">
-              <a
-                href={`${DocumentationSite}${localePath}/docs/dev/`}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href={`${DocumentationSite}${localePath}/docs/dev/`} target="_blank" rel="noreferrer">
                 <RiFileCodeLine /> {t("api_docs")}
               </a>
             </Menu.Item>
             <Menu.Item key="scriptcat/docs/learn/">
-              <a
-                href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/"
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/" target="_blank" rel="noreferrer">
                 <RiFileCodeLine /> {t("development_guide")}
               </a>
             </Menu.Item>
@@ -142,11 +129,7 @@ const SiderMenu: React.FC<SiderMenuProps> = ({
             <RiGuideLine /> {t("guide")}
           </Menu.Item>
           <Menu.Item key="scriptcat/docs/use/">
-            <a
-              href={`${DocumentationSite}${localePath}/docs/use/`}
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href={`${DocumentationSite}${localePath}/docs/use/`} target="_blank" rel="noreferrer">
               <RiFileCodeLine /> {t("user_guide")}
             </a>
           </Menu.Item>

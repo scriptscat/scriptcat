@@ -46,7 +46,7 @@ const Sider: React.FC = () => {
       <SiderGuide ref={guideRef} />
       {isMobile ? (
         <>
-           <Drawer
+          <Drawer
             width={240}
             visible={drawerVisible}
             placement="left"
@@ -56,17 +56,12 @@ const Sider: React.FC = () => {
             title={null}
             closable={false}
           >
-             <SiderMenu
-              menuSelect={menuSelect}
-              handleMenuClick={handleMenuClick}
-              guideRef={guideRef}
-              mode="mobile"
-            />
+            <SiderMenu menuSelect={menuSelect} handleMenuClick={handleMenuClick} guideRef={guideRef} mode="mobile" />
           </Drawer>
         </>
       ) : (
         <Layout.Sider className="h-full" collapsed={collapsed} width={170}>
-           <SiderMenu
+          <SiderMenu
             menuSelect={menuSelect}
             handleMenuClick={handleMenuClick}
             guideRef={guideRef}
@@ -91,11 +86,11 @@ const Sider: React.FC = () => {
           <Button
             className="mobile-menu-btn"
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 10,
               left: 10,
               zIndex: 100,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
             }}
             shape="circle"
             type="primary"
