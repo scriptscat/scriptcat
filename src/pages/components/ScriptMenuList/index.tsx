@@ -33,7 +33,7 @@ import type {
   ScriptMenuItemOption,
 } from "@App/app/service/service_worker/types";
 import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/features/script";
-import { i18nLang, i18nName } from "@App/locales/locales";
+import { i18nName } from "@App/locales/locales";
 
 // 用于读取 metadata
 const scriptDAO = new ScriptDAO();
@@ -329,8 +329,6 @@ type ScriptMenuEntry = ScriptMenu & {
   metadata: SCMetadata;
 };
 
-let scriptDataAsyncCounter = 0;
-
 // Popup 页面使用的脚本/选单清单元件：只负责渲染与互动，状态与持久化交由外部 client 处理。
 const ScriptMenuList = React.memo(
   ({
@@ -346,15 +344,6 @@ const ScriptMenuList = React.memo(
     currentUrl: string;
     menuExpandNum: number;
   }) => {
-    // extraData 为 undefined 时先等待异步加载完成，避免重复渲染
-    const [extraData, setExtraData] = useState<
-      | {
-          uuids: string;
-          lang: string;
-          metadata: Record<string, SCMetadata>;
-        }
-      | undefined
-    >(undefined);
     const [scriptMenuList, setScriptMenuList] = useState<ScriptMenuEntry[]>([]);
     const { t } = useTranslation();
 
@@ -417,48 +406,34 @@ const ScriptMenuList = React.memo(
       return url;
     }, [currentUrl]);
 
-    // string memo 避免 uuids 以外的改变影响
-    const uuids = useMemo(() => script.map((item) => item.uuid).join("\n"), [script]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const lang = useMemo(() => i18nLang(), [t]); // 当 t 改变时，重新检查当前页面语言
-
+    const cache = useMemo(() => new Map<string, SCMetadata | undefined>(), []);
     // 以 异步方式 取得 metadata 放入 extraData
     // script 或 extraData 的更新时都会再次执行
     useEffect(() => {
-      if (extraData && extraData.uuids === uuids && extraData.lang === lang) {
-        // extraData 已取得
-        // 把 getPopupData() 的 scriptMenuList 和 异步结果 的 metadata 合并至 scriptMenuList
-        const metadata = extraData.metadata;
-        const newScriptMenuList = script.map((item) => ({ ...item, metadata: metadata[item.uuid] || {} }));
-        updateScriptMenuList(newScriptMenuList);
-      } else {
-        // 取得 extraData
-        scriptDataAsyncCounter = (scriptDataAsyncCounter % 255) + 1; // 轮出 1 ~ 255
-        const lastCounter = scriptDataAsyncCounter;
-        scriptDAO.gets(uuids.split("\n")).then((res) => {
-          if (lastCounter !== scriptDataAsyncCounter) {
-            // 由于 state 改变，在结果取得前 useEffect 再次执行，因此需要忽略上次结果
-            return;
-          }
-          const metadataRecord = {} as Record<string, SCMetadata>;
-          const nameKey = `name:${lang}`;
-          for (const entry of res) {
-            if (entry) {
-              const m = entry.metadata;
-              const [icon] = m.icon || m.iconurl || m.icon64 || m.icon64url || [];
-              // metadataRecord 的储存量不影响 storage.session 但影响页面的记忆体
-              // 按需要可以增加其他 metadata, 例如 @match @include @exclude
-              metadataRecord[entry.uuid] = {
-                icon: [icon], // 只储存单个 icon
-                [nameKey]: [i18nName(entry)], // 只储存 i18n 的 name
-              } satisfies SCMetadata;
+      let isMounted = true;
+      // 先从 cache 读取，避免重复请求相同 uuid 的 metadata
+      Promise.all(
+        script.map(async (item) => {
+          let metadata = cache.get(item.uuid);
+          if (!metadata) {
+            const script = await scriptDAO.get(item.uuid);
+            if (script) {
+              metadata = script.metadata || {};
             }
+            cache.set(item.uuid, metadata);
           }
-          setExtraData({ uuids, lang, metadata: metadataRecord });
-          // 再次触发 useEffect
-        });
-      }
-    }, [script, uuids, lang, extraData]);
+          return { ...item, metadata: metadata || {} };
+        })
+      ).then((newScriptMenuList) => {
+        if (!isMounted) {
+          return;
+        }
+        updateScriptMenuList(newScriptMenuList);
+      });
+      return () => {
+        isMounted = false;
+      };
+    }, [cache, script]);
 
     useEffect(() => {
       // 注册菜单快速键（accessKey）：以各分组第一个项目的 accessKey 作为触发条件。

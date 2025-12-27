@@ -34,19 +34,21 @@ EnableSwitch.displayName = "EnableSwitch";
 
 // Memoized Avatar component to prevent unnecessary re-renders
 export const MemoizedAvatar = React.memo(
-  ({ match, icon, website, ...rest }: { match: string; icon?: string; website?: string; [key: string]: any }) => (
-    <Avatar
-      shape="square"
-      style={{
-        backgroundColor: "unset",
-        borderWidth: 1,
-      }}
-      className={website ? "tw-cursor-pointer" : "tw-cursor-default"}
-      {...rest}
-    >
-      {icon ? <img title={match} src={icon} /> : <TbWorldWww title={match} color="#aaa" size={24} />}
-    </Avatar>
-  ),
+  ({ match, icon, website, ...rest }: { match: string; icon?: string; website?: string; [key: string]: any }) => {
+    return (
+      <Avatar
+        shape="square"
+        style={{
+          backgroundColor: "unset",
+          borderWidth: 0,
+        }}
+        className={website ? "tw-cursor-pointer" : "tw-cursor-default"}
+        {...rest}
+      >
+        {icon ? <img title={match} src={icon} /> : <TbWorldWww title={match} color="#aaa" size={24} />}
+      </Avatar>
+    );
+  },
   (prevProps, nextProps) => {
     return (
       prevProps.match === nextProps.match &&

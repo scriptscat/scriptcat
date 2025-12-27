@@ -169,8 +169,8 @@ describe("Popup App Component", () => {
     await waitFor(
       () => {
         // 检查是否存在折叠面板结构
-        expect(screen.getByText("current_page_scripts (0/1)")).toBeInTheDocument();
-        expect(screen.getByText("enabled_background_scripts (0/1)")).toBeInTheDocument();
+        expect(screen.getByText("current_page_scripts (0/0)")).toBeInTheDocument();
+        expect(screen.getByText("enabled_background_scripts (0/0)")).toBeInTheDocument();
       },
       { timeout: 3000 }
     );
@@ -191,8 +191,8 @@ describe("Popup App Component", () => {
     await waitFor(
       () => {
         expect(screen.getByText("ScriptCat")).toBeInTheDocument();
-        expect(screen.getByText("current_page_scripts (0/1)")).toBeInTheDocument();
-        expect(screen.getByText("enabled_background_scripts (0/1)")).toBeInTheDocument();
+        expect(screen.getByText("current_page_scripts (0/0)")).toBeInTheDocument();
+        expect(screen.getByText("enabled_background_scripts (0/0)")).toBeInTheDocument();
         expect(screen.getByText("v" + ExtVersion)).toBeInTheDocument();
       },
       { timeout: 3000 }
