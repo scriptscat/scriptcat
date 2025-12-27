@@ -1366,12 +1366,16 @@ export class RuntimeService {
     if (forced ? false : !this.isUserScriptsAvailable || !this.isLoadScripts) {
       return;
     }
-    const result = await chrome.userScripts?.getScripts({ ids: uuids });
-    if (!result) return; // 没 userScripts API 权限
-    const filteredIds = result.map((entry) => entry.id).filter((id) => !!id);
-    if (filteredIds.length > 0) {
-      // 修改脚本状态为disable，浏览器取消注册该脚本
-      await chrome.userScripts.unregister({ ids: filteredIds });
+    try {
+      const result = await chrome.userScripts?.getScripts({ ids: uuids });
+      if (!result || typeof result !== "object" || typeof result.length !== "number") return; // 没 userScripts API 权限
+      const filteredIds = result.map((entry) => entry.id).filter((id) => !!id);
+      if (filteredIds.length > 0) {
+        // 修改脚本状态为disable，浏览器取消注册该脚本
+        await chrome.userScripts.unregister({ ids: filteredIds });
+      }
+    } catch (e) {
+      console.error("unregistryPageScripts error:", e);
     }
   }
 }
