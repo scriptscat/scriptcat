@@ -51,10 +51,6 @@ import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 
-// 避免使用版本号控制导致代码理解混乱
-// 用来清除 UserScript API 里的旧缓存
-const USERSCRIPTS_REGISTER_CONTROL = "a5564f38-d9b3-43d0-8520-3a2950d6a61d";
-
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
 const runtimeGlobal = {
@@ -260,20 +256,11 @@ export class RuntimeService {
   }
 
   async waitInit() {
-    const [registerControl, cRuntimeStartFlag, compiledResources, allScripts] = await Promise.all([
-      chrome.storage.local.get("userscripts_register_control"),
+    const [cRuntimeStartFlag, compiledResources, allScripts] = await Promise.all([
       cacheInstance.get<boolean>("runtimeStartFlag"),
       this.compiledResourceDAO.all(),
       this.scriptDAO.all(),
     ]);
-
-    if (registerControl?.userscripts_register_control !== USERSCRIPTS_REGISTER_CONTROL) {
-      await Promise.allSettled([
-        chrome.userScripts?.unregister(),
-        chrome.scripting.unregisterContentScripts(),
-        chrome.storage.local.set({ userscripts_register_control: USERSCRIPTS_REGISTER_CONTROL }),
-      ]);
-    }
 
     const unregisterScriptIds = [] as string[];
     // 没有 CompiledResources 表示这是 没有启用脚本 或 代码有改变需要重新安装。

@@ -179,9 +179,7 @@ export async function checkUserScriptsAvailable() {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
-    const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts?.getScripts({
-      ids: ["scriptcat-content", "undefined-id-3"],
-    });
+    const ret = await chrome.userScripts?.getScripts();
     // 返回结果不是阵列的话表示API不可使用
     if (ret === undefined || ret === null || typeof ret[Symbol.iterator] !== "function") {
       return false;
@@ -196,19 +194,22 @@ export async function checkUserScriptsAvailable() {
       // 进行 "undefined-id-3" 的注册反注册测试
       // Chrome MV3 的一部分浏览器（如 Vivaldi ）没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩展权限)
       // 此时会无法注册 (1. register 报错)
+      // 使用随机id避免并发冲突
+      const randId = Math.random().toString(36).substring(2, 10);
       await chrome.userScripts.register([
         {
-          id: "undefined-id-3",
+          id: `undefined-id-${randId}`,
           js: [{ code: "void 0;" }],
           matches: ["https://not-found.scriptcat.org/"],
           world: "USER_SCRIPT",
         },
       ]);
       // 清掉测试内容 (2. 如没有注入 undefined-id-3 成功，因脚本id不存在 unregister 报错)
-      await chrome.userScripts.unregister({ ids: ["undefined-id-3"] });
+      await chrome.userScripts.unregister({ ids: [`undefined-id-${randId}`] });
       return true;
     }
-  } catch {
+  } catch (e) {
+    console.error("checkUserScriptsAvailable error:", e);
     // Not available.
     return false;
   }
