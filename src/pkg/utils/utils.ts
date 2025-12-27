@@ -39,31 +39,6 @@ export const deferred = <T = void>(): Deferred<T> => {
   return { promise, resolve, reject };
 };
 
-export const getUspMessageFlag = () => {
-  const s = new Error().stack;
-  if (s) {
-    const search1 = "content.js?usp_flag=";
-    const len1 = search1.length;
-    const idx1 = s.indexOf(search1);
-    if (idx1 > 0) {
-      const search2 = "&usp_end";
-      const idx2 = s.indexOf(search2, idx1 + len1);
-      if (idx2 > 0) {
-        const param = s.substring(idx1 + len1, idx2);
-        try {
-          // 使用 URLSearchParams 避免字符编码问题
-          const uspString = `usp_flag=${param}`;
-          const usp = new URLSearchParams(uspString);
-          if (usp.size === 1) return usp.get("usp_flag") || null;
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-  }
-  return null;
-};
-
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";
