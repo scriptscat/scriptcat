@@ -136,6 +136,11 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
                   // 点击了刷新链接
                   chrome.runtime.reload();
                   ev.preventDefault();
+                  try {
+                    window.close(); // 因为 Vivaldi 重启插件时不会关掉 popup
+                  } catch (e) {
+                    console.error(e);
+                  }
                 }}
               >
                 {t("click_to_reload")}
