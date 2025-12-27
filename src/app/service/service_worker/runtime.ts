@@ -18,11 +18,9 @@ import {
 } from "./utils";
 import {
   checkUserScriptsAvailable,
-  randomMessageFlag,
   getMetadataStr,
   getUserConfigStr,
   obtainBlackList,
-  isFirefox,
   sourceMapTo,
 } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
@@ -52,10 +50,11 @@ import type { CompiledResource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 
 // 避免使用版本号控制导致代码理解混乱
 // 用来清除 UserScript API 里的旧缓存
-const USERSCRIPTS_REGISTER_CONTROL = "a5564f38-d9b3-43d0-8520-3a2950d6a61d";
+const USERSCRIPTS_REGISTER_CONTROL = "92292a62-5e81-3dc3-87d0-cb0f0cb9883e";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -137,7 +136,9 @@ export class RuntimeService {
       .get("scriptInjectMessageFlag")
       .then((res) => {
         runtimeGlobal.messageFlag = res?.value || this.generateMessageFlag();
-        return this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag });
+        if (runtimeGlobal.messageFlag !== res?.value) {
+          return this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag });
+        }
       })
       .catch(console.error);
     this.logger = LoggerCore.logger({ component: "runtime" });
@@ -341,6 +342,8 @@ export class RuntimeService {
     try {
       const res = await chrome.userScripts?.getScripts({ ids: ["scriptcat-inject"] });
       registered = res?.length === 1;
+    } catch {
+      // 该错误为预期内情况，无需记录 debug 日志
     } finally {
       // 考虑 UserScripts API 不可使用等情况
       runtimeGlobal.registered = registered;
@@ -668,13 +671,15 @@ export class RuntimeService {
         chrome.userScripts?.unregister(),
         chrome.scripting.unregisterContentScripts(),
         this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag }),
+        chrome.storage.session.set({ unregisterUserscriptsFlag: `${Date.now()}.${Math.random()}` }),
       ]);
     }
   }
 
   // 生成messageFlag
   generateMessageFlag(): string {
-    return randomMessageFlag();
+    // return randomMessageFlag();
+    return uuidv4();
   }
 
   getMessageFlag() {
@@ -853,34 +858,31 @@ export class RuntimeService {
     }
     // Note: Chrome does not support file.js?query
     // 注意：Chrome 不支持 file.js?query
-    if (isFirefox()) {
-      // 使用 URLSearchParams 避免字符编码问题
-      retContent = [
-        {
-          id: "scriptcat-content",
-          js: [`/src/content.js?${new URLSearchParams({ usp_flag: messageFlag })}&usp_end`],
-          matches: ["<all_urls>"],
-          allFrames: true,
-          runAt: "document_start",
-          excludeMatches,
-        } satisfies chrome.scripting.RegisteredContentScript,
-      ];
-    } else {
-      const contentJs = await this.getContentJsCode();
-      if (contentJs) {
-        const codeBody = `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')`;
-        const code = `${codeBody}${sourceMapTo("scriptcat-content.js")}\n`;
-        retInject.push({
-          id: "scriptcat-content",
-          js: [{ code }],
-          matches: ["<all_urls>"],
-          allFrames: true,
-          runAt: "document_start",
-          world: "USER_SCRIPT",
-          excludeMatches,
-          excludeGlobs,
-        } satisfies chrome.userScripts.RegisteredUserScript);
-      }
+    retContent = [
+      {
+        id: "scriptcat-content",
+        js: ["/src/scripting.js"],
+        matches: ["<all_urls>"],
+        allFrames: true,
+        runAt: "document_start",
+        excludeMatches,
+      } satisfies chrome.scripting.RegisteredContentScript,
+    ];
+
+    const contentJs = await this.getContentJsCode();
+    if (contentJs) {
+      const codeBody = `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')`;
+      const code = `${codeBody}${sourceMapTo("scriptcat-content.js")}\n`;
+      retInject.push({
+        id: "scriptcat-content",
+        js: [{ code }],
+        matches: ["<all_urls>"],
+        allFrames: true,
+        runAt: "document_start",
+        world: "USER_SCRIPT",
+        excludeMatches,
+        excludeGlobs,
+      } satisfies chrome.userScripts.RegisteredUserScript);
     }
 
     return { content: retContent, inject: retInject };

@@ -6,6 +6,7 @@ import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
+import { pageDispatchEvent } from "@Packages/message/common";
 import { isUrlExcluded } from "@App/pkg/utils/match";
 
 export type ExecScriptEntry = {
@@ -120,7 +121,7 @@ export class ScriptExecutor {
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
     const ev = new CustomEvent(envLoadCompleteEvtName);
-    performance.dispatchEvent(ev);
+    pageDispatchEvent(ev);
   }
 
   execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {

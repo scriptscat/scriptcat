@@ -1,8 +1,9 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
-import { CustomEventMessage } from "./custom_event_message";
+import { createPageMessaging, CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
 import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 
 let contentMessage: CustomEventMessage;
 let injectMessage: CustomEventMessage;
@@ -12,10 +13,13 @@ let client: CustomEventMessage;
 const nextTick = () => Promise.resolve().then(() => {});
 
 const setupGlobal = () => {
-  const flags = "-test.server";
+  const testFlag = uuidv4();
+  const testPageMessaging = createPageMessaging(testFlag);
   // 创建 content 和 inject 之间的消息通道
-  contentMessage = new CustomEventMessage(flags, true); // content 端
-  injectMessage = new CustomEventMessage(flags, false); // inject 端
+  contentMessage = new CustomEventMessage(testPageMessaging, true); // content 端
+  injectMessage = new CustomEventMessage(testPageMessaging, false); // inject 端
+  contentMessage.bindEmitter();
+  injectMessage.bindEmitter();
 
   // 服务端使用 content 消息
   server = new Server("api", contentMessage);
@@ -33,7 +37,7 @@ const setupGlobal = () => {
     vi.fn().mockImplementation((event: Event) => {
       if (event instanceof CustomEvent) {
         const eventType = event.type;
-        if (eventType.includes("-test.server")) {
+        if (eventType.includes(testFlag)) {
           let targetEventType: string;
           let messageThis: CustomEventMessage;
           let messageThat: CustomEventMessage;

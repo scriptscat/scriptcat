@@ -1,4 +1,4 @@
-import { Client, sendMessage } from "@Packages/message/client";
+import { Client } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
@@ -16,7 +16,7 @@ export default class ContentRuntime {
 
   constructor(
     // 监听来自service_worker的消息
-    private readonly extServer: Server,
+    private readonly extServer: null,
     // 监听来自inject的消息
     private readonly server: Server,
     // 发送给扩展service_worker的通信接口
@@ -29,16 +29,16 @@ export default class ContentRuntime {
   ) {}
 
   init() {
-    this.extServer.on("runtime/emitEvent", (data) => {
-      // 转发给inject和scriptExecutor
-      this.scriptExecutor.emitEvent(data);
-      return sendMessage(this.senderToInject, "inject/runtime/emitEvent", data);
-    });
-    this.extServer.on("runtime/valueUpdate", (data) => {
-      // 转发给inject和scriptExecutor
-      this.scriptExecutor.valueUpdate(data);
-      return sendMessage(this.senderToInject, "inject/runtime/valueUpdate", data);
-    });
+    // this.extServer.on("runtime/emitEvent", (data) => {
+    //   // 转发给inject和scriptExecutor
+    //   this.scriptExecutor.emitEvent(data);
+    //   return sendMessage(this.senderToInject, "inject/runtime/emitEvent", data);
+    // });
+    // this.extServer.on("runtime/valueUpdate", (data) => {
+    //   // 转发给inject和scriptExecutor
+    //   this.scriptExecutor.valueUpdate(data);
+    //   return sendMessage(this.senderToInject, "inject/runtime/valueUpdate", data);
+    // });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
     });
@@ -127,8 +127,8 @@ export default class ContentRuntime {
     );
   }
 
-  pageLoad(messageFlag: string, envInfo: GMInfoEnv) {
-    this.scriptExecutor.checkEarlyStartScript("content", messageFlag, envInfo);
+  pageLoad(envInfo: GMInfoEnv) {
+    this.scriptExecutor.checkEarlyStartScript("content", MessageFlag, envInfo);
     const client = new RuntimeClient(this.senderToExt);
     // 向service_worker请求脚本列表及环境信息
     client.pageLoad().then((o) => {
