@@ -1,5 +1,4 @@
 import {
-  Avatar,
   Button,
   Dropdown,
   Message,
@@ -33,6 +32,7 @@ import { useSearchParams } from "react-router-dom";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
 import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
+import { ScriptIcons } from "../options/routes/utils";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 
@@ -766,11 +766,7 @@ function App() {
       </Modal>
       <div className="tw-flex tw-flex-row tw-gap-x-3 tw-pt-3 tw-pb-3">
         <div className="tw-grow-1 tw-shrink-1 tw-flex tw-flex-row tw-justify-start tw-items-center">
-          {upsertScript?.metadata.icon && (
-            <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
-              <img src={upsertScript.metadata.icon[0]} alt={upsertScript.name} />
-            </Avatar>
-          )}
+          {upsertScript?.metadata.icon && <ScriptIcons script={upsertScript} size={32} />}
           {upsertScript && (
             <Tooltip position="tl" content={i18nName(upsertScript)}>
               <Typography.Text bold className="tw-text-size-lg tw-truncate tw-w-0 tw-grow-1">

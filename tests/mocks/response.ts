@@ -18,7 +18,8 @@ export class MockResponse implements Response {
   readonly redirected: boolean = false;
   readonly type: ResponseType = "basic";
   readonly headers: Headers;
-  readonly body: ReadableStream<Uint8Array<ArrayBuffer>> | null;
+  // @ts-expect-error
+  readonly body: ReadableStream<Uint8Array<ArrayBufferLike>> | null;
   bodyUsed: boolean = false;
   #bytes: Uint8Array;
 
@@ -49,7 +50,7 @@ export class MockResponse implements Response {
     this.url = init?.url ?? "";
 
     this.body = this.#bytes.length
-      ? new ReadableStream<Uint8Array<ArrayBuffer>>({
+      ? new ReadableStream<Uint8Array<ArrayBufferLike>>({
           start: (controller) => {
             const buffer = new ArrayBuffer(this.#bytes.byteLength);
             const view = new Uint8Array(buffer);
@@ -125,6 +126,7 @@ export class MockResponse implements Response {
 
   clone(): Response {
     if (this.bodyUsed) throw new TypeError("Cannot clone: Body already consumed");
+    // @ts-expect-error
     return new MockResponse(this.#bytes.slice(), {
       status: this.status,
       statusText: this.statusText,

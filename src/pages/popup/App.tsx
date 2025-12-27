@@ -59,39 +59,23 @@ function App() {
   const { t } = useTranslation();
   const pageTabIdRef = useRef(0);
 
-  // 只随 script 数量和启动状态而改变的state
-  const normalEnables = useMemo(() => {
-    // 返回字串让 React 比对 state 有否改动
-    return scriptList.map((script) => (script.enable ? 1 : 0)).join(",");
+  const normalScriptCounts = useMemo(() => {
+    // 计算已开启了的数量
+    const running = scriptList.reduce((p, c) => p + (c.enable ? 1 : 0), 0);
+    return {
+      running,
+      total: scriptList.length, // 总数
+    };
   }, [scriptList]);
 
-  // 只随 script 数量和启动状态而改变的state
-  const backEnables = useMemo(() => {
-    // 返回字串让 React 比对 state 有否改动
-    return backScriptList.map((script) => (script.enable ? 1 : 0)).join(",");
-  }, [backScriptList]);
-
-  const normalScriptCounts = useMemo(() => {
-    // 拆回array
-    const enables = normalEnables.split(",");
-    // 计算已开启了的数量
-    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
-    return {
-      running,
-      total: enables.length, // 总数
-    };
-  }, [normalEnables]);
-
   const backScriptCounts = useMemo(() => {
-    // 拆回array
-    const enables = backEnables.split(",");
     // 计算已开启了的数量
-    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
+    const running = backScriptList.reduce((p, c) => p + (c.enable ? 1 : 0), 0);
     return {
       running,
-      total: enables.length, // 总数
+      total: backScriptList.length, // 总数
     };
-  }, [backEnables]);
+  }, [backScriptList]);
 
   const urlHost = useMemo(() => {
     let url: URL | undefined;

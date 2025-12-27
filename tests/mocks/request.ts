@@ -17,7 +17,8 @@ export class MockRequest implements Request {
   readonly destination: RequestDestination = "";
   readonly isHistoryNavigation: boolean = false;
   readonly isReloadNavigation: boolean = false;
-  readonly body: ReadableStream<Uint8Array<ArrayBuffer>> | null;
+  // @ts-expect-error
+  readonly body: ReadableStream<Uint8Array<ArrayBufferLike>> | null;
   #bytes: Uint8Array | null;
 
   constructor(input: RequestInfo | URL, init?: RequestInit) {
@@ -61,7 +62,7 @@ export class MockRequest implements Request {
     }
 
     this.body = this.#bytes
-      ? new ReadableStream<Uint8Array<ArrayBuffer>>({
+      ? new ReadableStream<Uint8Array<ArrayBufferLike>>({
           start: (controller) => {
             const buffer = new ArrayBuffer(this.#bytes!.byteLength);
             const view = new Uint8Array(buffer);
@@ -138,6 +139,7 @@ export class MockRequest implements Request {
 
   clone(): Request {
     if (this.bodyUsed) throw new TypeError("Cannot clone: Body already consumed");
+    // @ts-expect-error
     return new MockRequest(this, {
       method: this.method,
       headers: this.headers,

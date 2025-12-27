@@ -2,6 +2,7 @@ import { Repo } from "./repo";
 import type { Resource } from "./resource";
 import type { SCMetadata } from "./metadata";
 import type { GMInfoEnv } from "../service/content/types";
+import type { URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;
@@ -113,6 +114,7 @@ export interface ScriptLoadInfo extends ScriptRunResource {
   userConfigStr: string;
   /** 用户配置对象（可选） */
   userConfig?: UserConfig;
+  scriptUrlPatterns?: URLRuleEntry[];
 }
 
 /**

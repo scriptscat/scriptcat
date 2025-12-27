@@ -14,7 +14,9 @@ export const scriptToMenu = (script: Script): ScriptMenu => {
     enable: script.status === SCRIPT_STATUS_ENABLE,
     updatetime: script.updatetime || 0,
     hasUserConfig: !!script.config,
-    metadata: script.metadata,
+    // 不需要完整 metadata。目前在 Popup 未使用 metadata。
+    // 有需要时请把 metadata 里需要的部份抽出 (例如 @match @include @exclude)，避免 chrome.storage.session 储存量过大
+    // metadata: script.metadata,
     runStatus: script.runStatus,
     runNum: script.type === SCRIPT_TYPE_NORMAL ? 0 : script.runStatus === SCRIPT_RUN_STATUS_RUNNING ? 1 : 0,
     runNumByIframe: 0,
