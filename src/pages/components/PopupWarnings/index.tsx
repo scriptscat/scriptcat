@@ -47,6 +47,10 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
           : "UNKNOWN"
       : "";
 
+    if (!warningMessageHTML) {
+      return "";
+    }
+
     return `${warningMessageHTML} <a href="#reload" style="color: var(--color-text-1)">👉${t("click_to_reload")}</a>`;
   }, [isUserScriptsAvailableState, t]);
 
