@@ -59,7 +59,7 @@ export class OffscreenManager {
 
     const gmApi = new GMApi(this.windowServer.group("gmApi"));
     gmApi.init();
-    const vsCodeConnect = new VSCodeConnect(this.windowServer, this.extMsgSender);
+    const vsCodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extMsgSender);
     vsCodeConnect.init();
 
     this.windowServer.on("createObjectURL", async (params: { blob: Blob; persistence: boolean }) => {
