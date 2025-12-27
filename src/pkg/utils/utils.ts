@@ -187,7 +187,7 @@ export async function checkUserScriptsAvailable() {
       return false;
     }
 
-    if (ret[0]) {
+    if (ret[0]?.id) {
       // API内部处理实际给予扩展权限才会有返回Script
       // 已有注册脚本
       return true;
