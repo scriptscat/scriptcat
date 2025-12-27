@@ -839,15 +839,10 @@ export class RuntimeService {
     // 判断是否已经注册过
     if (runtimeGlobal.registered) {
       // 异常情况
-      try {
-        // 检查scriptcat-content和scriptcat-inject是否存在
-        const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
-        if (res.length === 2) {
-          return;
-        }
-      } catch (e: any) {
-        // 「res.length === 2」以外 所有其他状况都跑一次 重新注册的流程
-        console.error("registerUserscripts error:", e);
+      // 检查scriptcat-content和scriptcat-inject是否存在
+      const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
+      if (res.length === 2) {
+        return;
       }
       // scriptcat-content/scriptcat-inject不存在的情况
       // 走一次重新注册的流程
