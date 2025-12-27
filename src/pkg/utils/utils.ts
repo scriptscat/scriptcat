@@ -181,8 +181,7 @@ export async function checkUserScriptsAvailable() {
     chrome.userScripts;
     // 没有 chrome.userScripts.getScripts 表示API不可使用
     if (typeof chrome.userScripts?.getScripts !== "function") return false;
-    const scriptId = `undefined-id-${Date.now()}`; // 使用随机id避免并发冲突
-    const ret = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject", scriptId] });
+    const ret = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
     // 返回结果不是阵列的话表示API不可使用
     if (!ret || typeof ret !== "object" || typeof ret.length !== "number") {
       return false;
@@ -193,6 +192,7 @@ export async function checkUserScriptsAvailable() {
       // 已有注册脚本
       return true;
     } else {
+      const scriptId = `undefined-id-${Date.now()}`; // 使用随机id避免并发冲突
       // 没有注册脚本
       // 进行 ${scriptId} 的注册反注册测试
       // Chrome MV3 的一部分浏览器（如 Vivaldi ）没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩展权限)
