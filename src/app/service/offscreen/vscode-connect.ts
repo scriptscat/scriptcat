@@ -101,17 +101,22 @@ export class VSCodeConnect {
             this.logger.debug("connect vscode failed", Logger.E(e)); // 连接错误
             if (!connectOK) {
               // 未触发 open
-              reject(new Error("connect fail"));
+              reject(new Error("connect fail before open"));
             }
             if (reconnect) this.doReconnect();
           }
         },
         close: () => {
           if (this.ws) {
+            const connectOK = this.ws._isConnected; // 已触发 open
             this.clearTimer(); // 已触发 close, 清除30秒超时器
             this.ws.removeEventListeners();
             this.ws = undefined; // error / close / timeout 时清除 this.ws
             this.logger.debug("vscode connection closed"); // VSCode连接已关闭
+            if (!connectOK) {
+              // 未触发 open
+              reject(new Error("connect closed before open"));
+            }
             if (reconnect) this.doReconnect();
           }
         },
