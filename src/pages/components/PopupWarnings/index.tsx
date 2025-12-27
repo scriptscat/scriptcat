@@ -47,11 +47,7 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
           : "UNKNOWN"
       : "";
 
-    if (!warningMessageHTML) {
-      return "";
-    }
-
-    return `${warningMessageHTML} <a href="#reload" style="color: var(--color-text-1)">👉${t("click_to_reload")}</a>`;
+    return warningMessageHTML;
   }, [isUserScriptsAvailableState, t]);
 
   const isEdgeBrowser = useMemo(() => {
@@ -127,19 +123,24 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
         <Alert
           type="warning"
           content={
-            <div
-              onClick={(ev) => {
-                if (ev.target instanceof HTMLAnchorElement && ev.target.getAttribute("href") === "#reload") {
+            <div>
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: warningMessageHTML,
+                }}
+              />
+              <a
+                href="#reload"
+                style={{ color: "var(--color-text-1)" }}
+                onClick={(ev) => {
                   // 点击了刷新链接
                   chrome.runtime.reload();
                   ev.preventDefault();
-                  return;
-                }
-              }}
-              dangerouslySetInnerHTML={{
-                __html: warningMessageHTML,
-              }}
-            />
+                }}
+              >
+                {t("click_to_reload")}
+              </a>
+            </div>
           }
         />
       )}
