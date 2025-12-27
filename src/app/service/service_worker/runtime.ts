@@ -566,6 +566,32 @@ export class RuntimeService {
       if (!this.isUserScriptsAvailable) {
         // 未开启加上警告引导
         this.showNoDeveloperModeWarning();
+        let cid: ReturnType<typeof setInterval> | number;
+        cid = setInterval(async () => {
+          if (!this.isUserScriptsAvailable) {
+            // 注：optional permission 的设计会触发 chrome.permissions.onAdded
+            //     this.isUserScriptsAvailable 自动转为 true, 不需要检测
+            try {
+              const scriptId = `undefined-test-${Date.now()}`;
+              await chrome.userScripts.register([
+                {
+                  id: scriptId,
+                  js: [{ code: "void 0;" }],
+                  matches: ["https://not-found.scriptcat.org/"],
+                  world: "USER_SCRIPT",
+                },
+              ]);
+              await chrome.userScripts.unregister({ ids: [scriptId] });
+            } catch (_e) {
+              // 预期出错，不执行后续
+              return;
+            }
+          }
+          clearInterval(cid);
+          cid = 0;
+          // 主要针对 Allow User Scripts 设计
+          chrome.runtime.reload();
+        }, 500);
       }
 
       // 初始化：加载黑名单
