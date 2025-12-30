@@ -62,7 +62,7 @@ export class SynchronizeService {
 
   scriptCodeDAO = this.scriptDAO.scriptCodeDAO;
 
-  storage: ChromeStorage = new ChromeStorage("sync", true);
+  storage: ChromeStorage = new ChromeStorage("sync", false);
 
   constructor(
     private msgSender: MessageSend,
@@ -340,13 +340,6 @@ export class SynchronizeService {
         [key: string]: string;
       }) || {};
 
-    let scriptcatSync = {
-      version: ExtVersion,
-      status: {
-        scripts: {},
-      },
-    } as ScriptcatSync;
-
     for (const file of list) {
       if (file.name.endsWith(".user.js")) {
         const uuid = file.name.substring(0, file.name.length - 8);
@@ -441,49 +434,61 @@ export class SynchronizeService {
     if (syncConfig.syncStatus) {
       // 判断文件系统是否有脚本猫同步文件
       const file = list.find((file) => file.name === "scriptcat-sync.json");
+      const scriptcatSync = {
+        version: ExtVersion,
+        status: {
+          scripts: {},
+        },
+      } as ScriptcatSync;
+      let cloudStatus: ScriptcatSync["status"]["scripts"] = {};
       if (file) {
         // 如果有,则读取文件内容
-        scriptcatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
+        const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
+        cloudStatus = cloudScriptCatSync.status.scripts;
       }
       const scriptlist = await this.scriptDAO.all();
-      const status = scriptcatSync.status.scripts;
-      scriptlist.forEach(async (script) => {
-        // 判断云端状态是否与本地状态一致
-        if (!status[script.uuid]) {
-          status[script.uuid] = {
-            enable: script.status === SCRIPT_STATUS_ENABLE,
-            sort: script.sort,
-            updatetime: script.updatetime || script.createtime,
-          };
-        } else {
-          // 判断时间
-          if (script.updatetime) {
-            // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
-            if (status[script.uuid].updatetime < script.updatetime) {
-              status[script.uuid].enable = script.status === SCRIPT_STATUS_ENABLE;
-              status[script.uuid].sort = script.sort;
-              status[script.uuid].updatetime = script.updatetime;
-              return;
+      await Promise.allSettled(
+        scriptlist.map(async (script) => {
+          // 判断云端状态是否与本地状态一致
+          if (!cloudStatus[script.uuid]) {
+            scriptcatSync.status.scripts[script.uuid] = {
+              enable: script.status === SCRIPT_STATUS_ENABLE,
+              sort: script.sort,
+              updatetime: script.updatetime || script.createtime,
+            };
+          } else {
+            // 判断时间
+            if (script.updatetime) {
+              // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
+              if (cloudStatus[script.uuid].updatetime < script.updatetime) {
+                scriptcatSync.status.scripts[script.uuid] = {
+                  enable: script.status === SCRIPT_STATUS_ENABLE,
+                  sort: script.sort,
+                  updatetime: script.updatetime || script.createtime,
+                };
+                return;
+              }
+            }
+            // 否则采用云端状态
+            scriptcatSync.status.scripts[script.uuid] = cloudStatus[script.uuid];
+            // 脚本顺序
+            if (cloudStatus[script.uuid].sort !== script.sort) {
+              await this.scriptDAO.update(script.uuid, {
+                sort: cloudStatus[script.uuid].sort,
+                updatetime: Date.now(),
+              });
+            }
+            // 脚本状态
+            if (cloudStatus[script.uuid].enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
+              // 开启脚本
+              await this.script.enableScript({
+                uuid: script.uuid,
+                enable: cloudStatus[script.uuid].enable,
+              });
             }
           }
-          // 否则采用云端状态
-          // 脚本顺序
-          if (status[script.uuid].sort !== script.sort) {
-            await this.scriptDAO.update(script.uuid, {
-              sort: status[script.uuid].sort,
-              updatetime: Date.now(),
-            });
-          }
-          // 脚本状态
-          if (status[script.uuid].enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
-            // 开启脚本
-            this.script.enableScript({
-              uuid: script.uuid,
-              enable: status[script.uuid].enable,
-            });
-          }
-        }
-      });
+        })
+      );
       // 保存脚本猫同步状态
       const syncFile = await fs.create("scriptcat-sync.json");
       await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
