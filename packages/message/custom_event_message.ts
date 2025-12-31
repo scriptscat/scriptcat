@@ -31,7 +31,7 @@ export class CustomEventPostMessage implements PostMessage {
 
 export type PageMessaging = {
   et: string;
-  bindEmitter?: () => void;
+  bindReceiver?: () => void;
   waitReady?: Promise<void>;
   waitReadyResolve?: () => any;
   onReady?: (callback: () => any) => any;
@@ -64,10 +64,10 @@ export class CustomEventMessage implements Message {
 
   constructor(
     private pageMessaging: PageMessaging,
-    protected readonly isContent: boolean
+    protected readonly isInbound: boolean
   ) {
-    this.receiveFlag = `${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}${DefinedFlags.domEvent}`;
-    this.sendFlag = `${isContent ? DefinedFlags.injectFlag : DefinedFlags.contentFlag}${DefinedFlags.domEvent}`;
+    this.receiveFlag = `${isInbound ? DefinedFlags.inboundFlag : DefinedFlags.outboundFlag}${DefinedFlags.domEvent}`;
+    this.sendFlag = `${isInbound ? DefinedFlags.outboundFlag : DefinedFlags.inboundFlag}${DefinedFlags.domEvent}`;
     this.pageMessagingHandler = (event: Event) => {
       if (event instanceof MouseEventClone && event.movementX && event.relatedTarget) {
         relatedTargetMap.set(event.movementX, event.relatedTarget);
@@ -77,10 +77,10 @@ export class CustomEventMessage implements Message {
     };
   }
 
-  bindEmitter() {
-    if (!this.pageMessaging.et) throw new Error("bindEmitter() failed");
+  bindReceiver() {
+    if (!this.pageMessaging.et) throw new Error("bindReceiver() failed");
     const receiveFlag = `evt_${this.pageMessaging.et}_${this.receiveFlag}`;
-    pageRemoveEventListener(receiveFlag, this.pageMessagingHandler); // 避免重覆
+    pageRemoveEventListener(receiveFlag, this.pageMessagingHandler); // 避免重复
     pageAddEventListener(receiveFlag, this.pageMessagingHandler);
   }
 
@@ -139,7 +139,7 @@ export class CustomEventMessage implements Message {
   }
 
   nativeSend(detail: any) {
-    if (!this.pageMessaging.et) throw new Error("inject.js is not ready or destroyed.");
+    if (!this.pageMessaging.et) throw new Error("scripting.js is not ready or destroyed.");
     pageDispatchCustomEvent(`evt_${this.pageMessaging.et}_${this.sendFlag}`, detail);
   }
 
@@ -167,7 +167,7 @@ export class CustomEventMessage implements Message {
   // 与content页的消息通讯实际是同步,此方法不需要经过background
   // 但是请注意中间不要有promise
   syncSendMessage(data: TMessage): TMessage {
-    if (!this.pageMessaging.et) throw new Error("inject.js is not ready or destroyed.");
+    if (!this.pageMessaging.et) throw new Error("scripting.js is not ready or destroyed.");
     const messageId = uuidv4();
     const body: WindowMessageBody<TMessage> = {
       messageId,
@@ -187,7 +187,7 @@ export class CustomEventMessage implements Message {
   }
 
   sendRelatedTarget(target: EventTarget): number {
-    if (!this.pageMessaging.et) throw new Error("inject.js is not ready or destroyed.");
+    if (!this.pageMessaging.et) throw new Error("scripting.js is not ready or destroyed.");
     // 特殊处理relatedTarget，返回id进行关联
     // 先将relatedTarget转换成id发送过去
     const id = (relateId = relateId === maxInteger ? 1 : relateId + 1);

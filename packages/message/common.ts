@@ -1,12 +1,26 @@
+export const ScriptEnvTag = {
+  inject: "it",
+  content: "ct",
+} as const;
+
+export type ScriptEnvTag = ValueOf<typeof ScriptEnvTag>;
+
+export const ScriptEnvType = {
+  inject: 1,
+  content: 2,
+} as const;
+
+export type ScriptEnvType = ValueOf<typeof ScriptEnvType>;
+
 // 避免页面载入后改动全域物件导致消息传递失败
 export const MouseEventClone = MouseEvent;
 export const CustomEventClone = CustomEvent;
-const performanceClone = performance;
+const performanceClone = process.env.VI_TESTING === "true" ? window : performance;
 
 // 避免页面载入后改动 EventTarget.prototype 的方法导致消息传递失败
-export const pageDispatchEvent = performance.dispatchEvent.bind(performance);
-export const pageAddEventListener = performance.addEventListener.bind(performance);
-export const pageRemoveEventListener = performance.removeEventListener.bind(performance);
+export const pageDispatchEvent = performanceClone.dispatchEvent.bind(performanceClone);
+export const pageAddEventListener = performanceClone.addEventListener.bind(performanceClone);
+export const pageRemoveEventListener = performanceClone.removeEventListener.bind(performanceClone);
 const detailClone = typeof cloneInto === "function" ? cloneInto : null;
 export const pageDispatchCustomEvent = (eventType: string, detail: any) => {
   if (detailClone && detail) detail = detailClone(detail, performanceClone);

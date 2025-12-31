@@ -3,6 +3,7 @@ import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { sourceMapTo } from "@App/pkg/utils/utils";
+import { ScriptEnvTag } from "@Packages/message/common";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -139,9 +140,8 @@ export function compilePreInjectScript(
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const eventNamePrefix = `evt${messageFlag}${
-    isInjectIntoContent(script.metadata) ? DefinedFlags.contentFlag : DefinedFlags.injectFlag
-  }`;
+  const scriptEnvTag = isInjectIntoContent(script.metadata) ? ScriptEnvTag.content : ScriptEnvTag.inject;
+  const eventNamePrefix = `evt${messageFlag}.${scriptEnvTag}`;
   const flag = `${script.flag}`;
   const scriptInfo = trimScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;

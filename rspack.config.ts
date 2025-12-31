@@ -19,7 +19,15 @@ const dist = path.join(dirname, "dist");
 const assets = path.join(src, "assets");
 
 // 排除这些文件，不进行分离
-const chunkExcludeSet = new Set(["editor.worker", "ts.worker", "linter.worker", "service_worker", "content", "inject"]);
+const chunkExcludeSet = new Set([
+  "editor.worker",
+  "ts.worker",
+  "linter.worker",
+  "service_worker",
+  "content",
+  "inject",
+  "scripting",
+]);
 
 export default defineConfig({
   ...(isDev
@@ -112,6 +120,9 @@ export default defineConfig({
     ],
   },
   plugins: [
+    new rspack.DefinePlugin({
+      "process.env.VI_TESTING": "false",
+    }),
     new rspack.CopyRspackPlugin({
       patterns: [
         {

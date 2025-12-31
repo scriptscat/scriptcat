@@ -5,8 +5,8 @@ import type { MessageConnect, RuntimeMessageSender } from "./types";
 import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
-let contentMessage: CustomEventMessage;
-let injectMessage: CustomEventMessage;
+let inboundMessage: CustomEventMessage;
+let outboundMessage: CustomEventMessage;
 let server: Server;
 let client: CustomEventMessage;
 
@@ -15,17 +15,17 @@ const nextTick = () => Promise.resolve().then(() => {});
 const setupGlobal = () => {
   const testFlag = uuidv4();
   const testPageMessaging = createPageMessaging(testFlag);
-  // 创建 content 和 inject 之间的消息通道
-  contentMessage = new CustomEventMessage(testPageMessaging, true); // content 端
-  injectMessage = new CustomEventMessage(testPageMessaging, false); // inject 端
-  contentMessage.bindEmitter();
-  injectMessage.bindEmitter();
+  // 创建 scripting 和 inject / content 之间的消息通道
+  inboundMessage = new CustomEventMessage(testPageMessaging, true); // scripting 端
+  outboundMessage = new CustomEventMessage(testPageMessaging, false); // inject / content 端
+  inboundMessage.bindReceiver();
+  outboundMessage.bindReceiver();
 
-  // 服务端使用 content 消息
-  server = new Server("api", contentMessage);
+  // 服务端使用 scripting 消息
+  server = new Server("api", inboundMessage);
 
-  // 客户端使用 inject 消息
-  client = injectMessage;
+  // 客户端使用 inject / content 消息
+  client = outboundMessage;
 
   // 清理 DOM 事件监听器
   vi.stubGlobal("window", Object.create(window));
@@ -42,16 +42,16 @@ const setupGlobal = () => {
           let messageThis: CustomEventMessage;
           let messageThat: CustomEventMessage;
           // 根据事件类型确定目标消息处理器
-          if (eventType.includes(DefinedFlags.contentFlag)) {
+          if (eventType.includes(DefinedFlags.inboundFlag)) {
             // inject -> content
-            targetEventType = eventType.replace(DefinedFlags.contentFlag, DefinedFlags.injectFlag);
-            messageThis = contentMessage;
-            messageThat = injectMessage;
-          } else if (eventType.includes(DefinedFlags.injectFlag)) {
+            targetEventType = eventType.replace(DefinedFlags.inboundFlag, DefinedFlags.outboundFlag);
+            messageThis = inboundMessage;
+            messageThat = outboundMessage;
+          } else if (eventType.includes(DefinedFlags.outboundFlag)) {
             // content -> inject
-            targetEventType = eventType.replace(DefinedFlags.injectFlag, DefinedFlags.contentFlag);
-            messageThis = injectMessage;
-            messageThat = contentMessage;
+            targetEventType = eventType.replace(DefinedFlags.outboundFlag, DefinedFlags.inboundFlag);
+            messageThis = outboundMessage;
+            messageThat = inboundMessage;
           } else {
             throw new Error("test mock failed");
           }
@@ -646,7 +646,7 @@ describe("Server", () => {
     });
 
     it("应该在 enableConnect 为 false 时不处理连接", async () => {
-      const serverWithoutConnect = new Server("api", contentMessage, false);
+      const serverWithoutConnect = new Server("api", inboundMessage, false);
       const mockHandler = vi.fn();
 
       serverWithoutConnect.on("on-noconnect", mockHandler);

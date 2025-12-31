@@ -6,7 +6,7 @@ import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
-import { pageDispatchEvent } from "@Packages/message/common";
+import { pageDispatchEvent, type ScriptEnvTag } from "@Packages/message/common";
 import { isUrlExcluded } from "@App/pkg/utils/match";
 
 export type ExecScriptEntry = {
@@ -85,9 +85,8 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(env: "content" | "inject", messageFlag: string, envInfo: GMInfoEnv) {
-    const isContent = env === "content";
-    const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
+  checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, messageFlag: string, envInfo: GMInfoEnv) {
+    const eventNamePrefix = `evt${messageFlag}.${scriptEnvTag}`;
     const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
@@ -138,7 +137,7 @@ export class ScriptExecutor {
   execScriptEntry(scriptEntry: ExecScriptEntry) {
     const { scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
 
-    const exec = new ExecScript(scriptLoadInfo, "content", this.msg, scriptFunc, envInfo);
+    const exec = new ExecScript(scriptLoadInfo, "scripting", this.msg, scriptFunc, envInfo);
     this.execMap.set(scriptLoadInfo.uuid, exec);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.resource;

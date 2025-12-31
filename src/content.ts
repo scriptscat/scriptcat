@@ -1,118 +1,182 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
-import { ExtensionMessage } from "@Packages/message/extension_message";
 import { CustomEventMessage, createPageMessaging } from "@Packages/message/custom_event_message";
 import { pageAddEventListener, pageDispatchCustomEvent, pageDispatchEvent } from "@Packages/message/common";
-import { Server } from "@Packages/message/server";
-import ContentRuntime from "./app/service/content/content";
+import { ScriptEnvTag } from "@Packages/message/common";
+import { uuidv5 } from "./pkg/utils/uuid";
 import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
-import type { Message } from "@Packages/message/types";
-import { sendMessage } from "@Packages/message/client";
 import type { ValueUpdateDataEncoded } from "./app/service/content/types";
-import { uuidv4, uuidv5 } from "./pkg/utils/uuid";
+import type { TClientPageLoadInfo } from "./app/repo/scripts";
 
 /* global MessageFlag */
 
-const mainKey = uuidv5("scriptcat-listen-inject", MessageFlag);
+// ================================
+// 常量与全局状态
+// ================================
 
-const contentRandomId = uuidv4();
+// 判断当前是否运行在 USER_SCRIPT 环境 (content环境)
+const isContent = typeof chrome.runtime?.sendMessage === "function";
+const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;
 
-let scriptingMessagingBind = () => {};
-// ------------ 對象 ------------
+// 用于通知页面：content executor 已准备好
+const executorEnvReadyKey = uuidv5("scriptcat-executor-ready", MessageFlag);
 
-const pageMessaging = createPageMessaging("");
-const scriptExecutorPageMessaging = createPageMessaging(uuidv4());
+// 页面通信通道（event token 会在握手后设置）
+const scriptingMessaging = createPageMessaging(""); // injectFlagEvt
+const pageMessaging = createPageMessaging(""); // `${injectFlagEvt}_${scriptEnvTag}`
 
-const scriptingMessaging = createPageMessaging("");
+// scripting <-> content 的双向消息桥
+const msg = new CustomEventMessage(pageMessaging, false);
 
-const emitters = new Map<string, string>();
+// 日志系统（仅在 scripting 环境打印）
+const logger = new LoggerCore({
+  writer: new MessageWriter(msg, "scripting/logger"),
+  consoleLevel: "none",
+  labels: { env: "content", href: window.location.href },
+});
 
-const msgInject = new CustomEventMessage(pageMessaging, true);
+// 脚本执行器
+const scriptExecutor = new ScriptExecutor(msg);
 
-// ------------ 監聽 ------------
+// 一次性绑定函数（绑定完成后会被置空）
+let bindScriptingDeliveryOnce: (() => void) | null = null;
 
-pageAddEventListener(mainKey, (ev) => {
-  // 注：即使外部執行 "scriptcat-listen-inject", 不知道 inject.ts 的亂數 flag 是不可能截取資料
-  if (ev instanceof CustomEvent && typeof ev.detail?.injectFlagEvt === "string") {
-    // 必定由 inject.ts 要求
-    ev.preventDefault(); // dispatchEvent 返回 false
-    // 按 inject.ts 要求返回 emitter
-    const { injectFlagEvt, scripting } = ev.detail;
-    let emitter = emitters.get(injectFlagEvt);
-    if (!emitter) {
-      emitters.set(injectFlagEvt, (emitter = uuidv5(injectFlagEvt, contentRandomId)));
-    }
-    if (scripting) {
-      scriptingMessaging.et = emitter;
-      scriptingMessagingBind();
-    } else {
-      pageMessaging.et = emitter;
-      msgInject.bindEmitter();
-    }
-    // 傳送 emitter 給 inject.ts
-    pageDispatchCustomEvent(`${injectFlagEvt}`, {
-      [`emitterKeyFor${injectFlagEvt}`]: emitter,
-    });
+// ================================
+// 工具函数：token 与握手
+// ================================
+
+// 确保 scripting messaging 已就绪
+const requireScriptingToken = (): string => {
+  if (!scriptingMessaging.et) {
+    // scriptingMessaging 尚未准备好或已被销毁
+    throw new Error("scriptingMessaging is not ready or destroyed");
   }
-});
+  return scriptingMessaging.et;
+};
 
-// ------------ 连接 ------------
+// 重置所有页面通信 token（用于反注册脚本）
+const resetMessagingTokens = () => {
+  scriptingMessaging.et = "";
+  pageMessaging.et = "";
+};
 
-// 建立与service_worker页面的连接
-const extMsgComm: Message = new ExtensionMessage(false);
-// 初始化日志组件
-const loggerCore = new LoggerCore({
-  writer: new MessageWriter(extMsgComm, "serviceWorker/logger"),
-  labels: { env: "content" },
-});
+// 根据 injectFlagEvt 设置双方通信 token
+const setMessagingTokens = (injectFlagEvt: string) => {
+  scriptingMessaging.et = injectFlagEvt;
+  pageMessaging.et = `${injectFlagEvt}_${scriptEnvTag}`;
+};
 
-loggerCore.logger().debug("content start");
-
-// 处理scriptExecutor
-const scriptExecutorMsg1 = new CustomEventMessage(scriptExecutorPageMessaging, true);
-scriptExecutorMsg1.bindEmitter();
-const scriptExecutorMsg2 = new CustomEventMessage(scriptExecutorPageMessaging, false);
-scriptExecutorMsg2.bindEmitter();
-const scriptExecutor = new ScriptExecutor(scriptExecutorMsg2);
-
-const server = new Server("content", [msgInject, scriptExecutorMsg1]);
-
-// Opera中没有chrome.runtime.onConnect，并且content也不需要chrome.runtime.onConnect
-// 所以不需要处理连接，设置为false
-// const extServer = new Server("content", extMsgComm, false);
-// scriptExecutor的消息接口
-// 初始化运行环境
-const runtime = new ContentRuntime(null, server, extMsgComm, msgInject, scriptExecutorMsg1, scriptExecutor);
-runtime.init();
-// 页面加载，注入脚本
-runtime.pageLoad(initEnvInfo);
-
-scriptingMessagingBind = () => {
-  if (!scriptingMessaging.et) throw new Error("scriptingMessaging is not ready or destroyed");
-  pageAddEventListener(`evt_${scriptingMessaging.et}_deliveryMessage`, (ev) => {
-    if (ev instanceof CustomEvent) {
-      const { tag, value } = ev.detail;
-      if (tag === "localStorage:scriptInjectMessageFlag") {
-        // 反注册所有脚本时，同时中断网页信息传递
-        pageMessaging.et = "";
-        scriptExecutorPageMessaging.et = "";
-        scriptingMessaging.et = "";
-      } else if (tag === "valueUpdateDelivery") {
-        // const storageName = sendData.storageName;
-        // 转发给inject和scriptExecutor
-        const sendData = value.sendData as ValueUpdateDataEncoded;
-        scriptExecutor.valueUpdate(sendData);
-        sendMessage(msgInject, "inject/runtime/valueUpdate", sendData);
-      } else if (tag === "content/runtime/emitEvent") {
-        const data = value;
-        // 转发给inject和scriptExecutor
-        scriptExecutor.emitEvent(data);
-        sendMessage(msgInject, "inject/runtime/emitEvent", data);
-      }
-    }
+// 通知 scripting 侧：content 已完成初始化
+const acknowledgeScriptingReady = (injectFlagEvt: string) => {
+  pageDispatchCustomEvent(injectFlagEvt, {
+    [`emitterKeyFor${injectFlagEvt}`]: isContent ? 2 : 1,
   });
 };
 
-// ------------ 請求 ------------
-pageDispatchEvent(new CustomEvent(mainKey));
-// -----------------------------
+// ================================
+// 消息分发处理
+// ================================
+
+// 处理 scripting -> content 的消息
+const handleDeliveryMessage = (tag: string, value: any) => {
+  switch (tag) {
+    case "localStorage:scriptInjectMessageFlag": {
+      // 反注册所有脚本时，中断页面通信
+      resetMessagingTokens();
+      return;
+    }
+
+    case "valueUpdateDelivery": {
+      // storage / value 更新同步
+      const sendData = value.sendData as ValueUpdateDataEncoded;
+      scriptExecutor.valueUpdate(sendData);
+      return;
+    }
+
+    case "scripting/runtime/emitEvent": {
+      // scripting 主动触发事件
+      scriptExecutor.emitEvent(value);
+      return;
+    }
+
+    case "pageLoad": {
+      // 页面加载完成，启动匹配的脚本
+      const info = value as TClientPageLoadInfo;
+      if (!info.ok) return;
+
+      const { contentScriptList, envInfo } = info;
+      logger.logger().debug("content start - pageload");
+      scriptExecutor.startScripts(contentScriptList, envInfo);
+      return;
+    }
+
+    default:
+      // 未识别的消息类型直接忽略
+      return;
+  }
+};
+
+// ================================
+// 页面通信绑定与握手
+// ================================
+
+// 监听 scripting 发来的 delivery 消息
+const bindScriptingDeliveryChannel = () => {
+  const token = requireScriptingToken();
+
+  pageAddEventListener(`evt_${token}_deliveryMessage`, (ev) => {
+    if (!(ev instanceof CustomEvent)) return;
+
+    const { tag, value } = ev.detail ?? {};
+    handleDeliveryMessage(tag, value);
+  });
+};
+
+// 建立 scripting <-> content 的握手流程
+const setupHandshake = () => {
+  // 准备一次性绑定函数
+  bindScriptingDeliveryOnce = () => {
+    bindScriptingDeliveryOnce = null;
+    bindScriptingDeliveryChannel();
+  };
+
+  // 等待 scripting 注入完成并发送 injectFlagEvt
+  pageAddEventListener(executorEnvReadyKey, (ev) => {
+    if (!(ev instanceof CustomEvent)) return;
+
+    const injectFlagEvt = ev.detail?.injectFlagEvt;
+
+    // 已初始化 / 参数非法 / 已绑定过 → 忽略
+    if (scriptingMessaging.et || typeof injectFlagEvt !== "string" || !bindScriptingDeliveryOnce) {
+      return;
+    }
+
+    // 接受此次握手
+    ev.preventDefault();
+
+    // 初始化通信 token
+    setMessagingTokens(injectFlagEvt);
+    msg.bindReceiver();
+
+    logger.logger().debug("content start - init");
+
+    // 建立消息监听
+    bindScriptingDeliveryOnce();
+
+    // 回传 ready 信号
+    acknowledgeScriptingReady(injectFlagEvt);
+  });
+};
+
+// ================================
+// 启动流程
+// ================================
+
+// 检查 early-start 脚本
+scriptExecutor.checkEarlyStartScript(scriptEnvTag, MessageFlag, initEnvInfo);
+
+// 建立握手与通信绑定
+setupHandshake();
+
+// 主动触发 ready 事件，请求 scripting 建立连接
+pageDispatchEvent(new CustomEvent(executorEnvReadyKey));

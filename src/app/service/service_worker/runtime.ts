@@ -904,6 +904,7 @@ export class RuntimeService {
       // scriptcat-content/scriptcat-inject不存在的情况
       // 走一次重新注册的流程
       this.logger.warn("registered = true but scriptcat-content/scriptcat-inject not exists, re-register userscripts.");
+      runtimeGlobal.registered = false; // 异常时强制反注册
     }
     // 删除旧注册
     await this.unregisterUserscripts();
@@ -969,7 +970,7 @@ export class RuntimeService {
         documentId: to.documentId,
         frameId: to.frameId,
       }),
-      "content/runtime/" + action,
+      "scripting/runtime/" + action,
       data
     );
   }
@@ -985,7 +986,7 @@ export class RuntimeService {
         documentId: to.documentId,
         frameId: to.frameId,
       }),
-      "content/runtime/emitEvent",
+      "scripting/runtime/emitEvent",
       req
     );
   }
