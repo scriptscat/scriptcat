@@ -66,21 +66,6 @@ const setupDeliveryChannel = () => {
 };
 
 // ================================
-// 页面消息监听（调试用）
-// ================================
-
-// 页面消息监听（TBC）
-const listenPageMessages = () => {
-  const token = requireScriptingToken();
-  pageAddEventListener(`evt_${token}_listen_page`, (ev) => {
-    if (!(ev instanceof CustomEvent)) return;
-    const { tag, value, from } = ev.detail;
-    // 仅打印 (TBC)
-    console.log(tag, value, from);
-  });
-};
-
-// ================================
 // Server 构建与 service_worker 转发
 // ================================
 
@@ -102,13 +87,15 @@ const handleRuntimeGmApi = (
       return fetch(data.params[0]).then((res) => res.blob());
     }
     case "CAT_fetchDocument": {
+      const [url, isContent] = data.params;
       return new Promise((resolve) => {
         const xhr = new XMLHttpRequest();
         xhr.responseType = "document";
-        xhr.open("GET", data.params[0]);
+        xhr.open("GET", url);
         xhr.onload = () => {
-          // TBC
-          const nodeId = (<CustomEventMessage>senderToInject).sendRelatedTarget(xhr.response);
+          // 根据来源选择不同的消息桥（content / inject）
+          const msg = isContent ? senderToContent : senderToInject;
+          const nodeId = msg.sendRelatedTarget(xhr.response);
           resolve(nodeId);
         };
         xhr.send();
@@ -220,9 +207,6 @@ const onMessageFlagReceived = (MessageFlag: string) => {
       // 建立 server：inject/content -> scripting 通道
       const server = new Server("scripting", [scriptExecutorMsgTxIT, scriptExecutorMsgTxCT]);
       prepareServer(server, senderToExt, scriptExecutorMsgTxIT, scriptExecutorMsgTxCT);
-
-      // 页面消息监听（TBC）
-      listenPageMessages();
 
       // 建立向页面投递消息的 delivery 通道
       setupDeliveryChannel();

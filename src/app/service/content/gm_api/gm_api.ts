@@ -481,7 +481,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    return urlToDocumentInContentPage(this, url);
+    return urlToDocumentInContentPage(this, url, isContent);
   }
 
   static _GM_cookie(
