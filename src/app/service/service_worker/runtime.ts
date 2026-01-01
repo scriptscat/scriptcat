@@ -52,10 +52,6 @@ import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
-// 避免使用版本号控制导致代码理解混乱
-// 用来清除 UserScript API 里的旧缓存
-const USERSCRIPTS_REGISTER_CONTROL = "92292a62-5e81-3dc3-87d0-cb0f0cb9883e";
-
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
 const runtimeGlobal = {
@@ -265,20 +261,11 @@ export class RuntimeService {
   }
 
   async waitInit() {
-    const [registerControl, cRuntimeStartFlag, compiledResources, allScripts] = await Promise.all([
-      chrome.storage.local.get("userscripts_register_control"),
+    const [cRuntimeStartFlag, compiledResources, allScripts] = await Promise.all([
       cacheInstance.get<boolean>("runtimeStartFlag"),
       this.compiledResourceDAO.all(),
       this.scriptDAO.all(),
     ]);
-
-    if (registerControl?.userscripts_register_control !== USERSCRIPTS_REGISTER_CONTROL) {
-      await Promise.allSettled([
-        chrome.userScripts?.unregister(),
-        chrome.scripting.unregisterContentScripts(),
-        chrome.storage.local.set({ userscripts_register_control: USERSCRIPTS_REGISTER_CONTROL }),
-      ]);
-    }
 
     const unregisterScriptIds = [] as string[];
     // 没有 CompiledResources 表示这是 没有启用脚本 或 代码有改变需要重新安装。
@@ -590,6 +577,32 @@ export class RuntimeService {
       if (!this.isUserScriptsAvailable) {
         // 未开启加上警告引导
         this.showNoDeveloperModeWarning();
+        let cid: ReturnType<typeof setInterval> | number;
+        cid = setInterval(async () => {
+          if (!this.isUserScriptsAvailable) {
+            // 注：optional permission 的设计会触发 chrome.permissions.onAdded
+            //     this.isUserScriptsAvailable 自动转为 true, 不需要检测
+            try {
+              const scriptId = `undefined-test-${Date.now()}`;
+              await chrome.userScripts.register([
+                {
+                  id: scriptId,
+                  js: [{ code: "void 0;" }],
+                  matches: ["https://not-found.scriptcat.org/"],
+                  world: "USER_SCRIPT",
+                },
+              ]);
+              await chrome.userScripts.unregister({ ids: [scriptId] });
+            } catch (_e) {
+              // 预期出错，不执行后续
+              return;
+            }
+          }
+          clearInterval(cid);
+          cid = 0;
+          // 主要针对 Allow User Scripts 设计
+          chrome.runtime.reload();
+        }, 500);
       }
 
       // 初始化：加载黑名单
@@ -1430,12 +1443,16 @@ export class RuntimeService {
     if (forced ? false : !this.isUserScriptsAvailable || !this.isLoadScripts) {
       return;
     }
-    const result = await chrome.userScripts?.getScripts({ ids: uuids });
-    if (!result) return; // 没 userScripts API 权限
-    const filteredIds = result.map((entry) => entry.id).filter((id) => !!id);
-    if (filteredIds.length > 0) {
-      // 修改脚本状态为disable，浏览器取消注册该脚本
-      await chrome.userScripts.unregister({ ids: filteredIds });
+    try {
+      const result = await chrome.userScripts?.getScripts({ ids: uuids });
+      if (!result || typeof result !== "object" || typeof result.length !== "number") return; // 没 userScripts API 权限
+      const filteredIds = result.map((entry) => entry.id).filter((id) => !!id);
+      if (filteredIds.length > 0) {
+        // 修改脚本状态为disable，浏览器取消注册该脚本
+        await chrome.userScripts.unregister({ ids: filteredIds });
+      }
+    } catch (e) {
+      console.error("unregistryPageScripts error:", e);
     }
   }
 }
