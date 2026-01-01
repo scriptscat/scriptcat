@@ -11,7 +11,8 @@ import type { Message } from "@Packages/message/types";
 import { sendMessage } from "@Packages/message/client";
 import { ExternalWhitelist } from "@App/app/const";
 
-/* global MessageFlag */
+//@ts-ignore
+const MessageFlag = uuidv5(`${performance.timeOrigin}`, process.env.SC_RANDOM_KEY);
 
 // ================================
 // 常量与全局状态

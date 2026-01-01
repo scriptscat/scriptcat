@@ -12,6 +12,9 @@ import { RuntimeClient } from "@App/app/service/service_worker/client";
 import type { Logger } from "@App/app/repo/logger";
 import { MessageDelivery } from "./message-delivery";
 
+//@ts-ignore
+const MessageFlag = uuidv5(`${performance.timeOrigin}`, process.env.SC_RANDOM_KEY);
+
 // ================================
 // 常量与全局状态
 // ================================
@@ -289,11 +292,7 @@ chrome.runtime.onMessage.addListener((message, _sender) => {
 // ================================
 
 // 1) scripting 直接读取 MessageFlag，并开始握手
-// scripting 直接调用 chrome.storage.local API 取得 MessageFlag
-chrome.storage.local.get(["localStorage:scriptInjectMessageFlag"]).then((m) => {
-  const MessageFlag = <string>m["localStorage:scriptInjectMessageFlag"].value;
-  onMessageFlagReceived(MessageFlag);
-});
+onMessageFlagReceived(MessageFlag);
 
 // 2) 向 service_worker 请求脚本列表及环境信息，并下发给 inject/content
 // 向service_worker请求脚本列表及环境信息

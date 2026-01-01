@@ -8,7 +8,8 @@ import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_execut
 import type { ValueUpdateDataEncoded } from "./app/service/content/types";
 import type { TClientPageLoadInfo } from "./app/repo/scripts";
 
-/* global MessageFlag */
+//@ts-ignore
+const MessageFlag = uuidv5(`${performance.timeOrigin}`, process.env.SC_RANDOM_KEY);
 
 // ================================
 // 常量与全局状态

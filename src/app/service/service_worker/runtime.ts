@@ -825,7 +825,6 @@ export class RuntimeService {
     excludeMatches: string[];
     excludeGlobs: string[];
   }) {
-    const messageFlag = runtimeGlobal.messageFlag;
     // 配置脚本运行环境: 注册时前先准备 chrome.runtime 等设定
     // Firefox MV3 只提供 runtime.sendMessage 及 runtime.connect
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts/WorldProperties#messaging
@@ -851,7 +850,7 @@ export class RuntimeService {
     const injectJs = await this.getInjectJsCode();
     if (injectJs) {
       // 构建inject.js的脚本注册信息
-      retInject = this.compileInjectUserScript(injectJs, messageFlag, {
+      retInject = this.compileInjectUserScript(injectJs, {
         excludeMatches,
         excludeGlobs,
       });
@@ -871,7 +870,7 @@ export class RuntimeService {
 
     const contentJs = await this.getContentJsCode();
     if (contentJs) {
-      const codeBody = `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')`;
+      const codeBody = `(function () {\n${contentJs}\n})()`;
       const code = `${codeBody}${sourceMapTo("scriptcat-content.js")}\n`;
       retInject.push({
         id: "scriptcat-content",
@@ -1333,11 +1332,10 @@ export class RuntimeService {
 
   compileInjectUserScript(
     injectJs: string,
-    messageFlag: string,
     { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
   ) {
     // 构建inject.js的脚本注册信息
-    const codeBody = `(function (MessageFlag,UserAgentData) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(this.userAgentData)})`;
+    const codeBody = `(function (UserAgentData) {\n${injectJs}\n})(${JSON.stringify(this.userAgentData)})`;
     const code = `${codeBody}${sourceMapTo("scriptcat-inject.js")}\n`;
     const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-inject",

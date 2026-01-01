@@ -3,6 +3,7 @@ import { defineConfig } from "@rspack/cli";
 import { rspack } from "@rspack/core";
 import { readFileSync } from "fs";
 import { NormalModule } from "@rspack/core";
+import { v4 as uuidv4 } from "uuid";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
@@ -121,7 +122,8 @@ export default defineConfig({
   },
   plugins: [
     new rspack.DefinePlugin({
-      "process.env.VI_TESTING": "false",
+      "process.env.VI_TESTING": "'false'",
+      "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
     }),
     new rspack.CopyRspackPlugin({
       patterns: [

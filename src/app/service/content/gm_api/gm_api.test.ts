@@ -5,7 +5,7 @@ import type { GMInfoEnv, ScriptFunc } from "../types";
 import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {

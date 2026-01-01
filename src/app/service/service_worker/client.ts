@@ -8,7 +8,7 @@ import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";

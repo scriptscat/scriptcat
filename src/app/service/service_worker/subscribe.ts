@@ -13,7 +13,7 @@ import { checkSilenceUpdate, InfoNotification } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import { fetchScriptBody, parseMetadata, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { cacheInstance } from "@App/app/cache";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import i18n, { i18nName } from "@App/locales/locales";
 
