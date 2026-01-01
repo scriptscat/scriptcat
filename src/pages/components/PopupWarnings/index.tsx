@@ -123,11 +123,29 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
         <Alert
           type="warning"
           content={
-            <div
-              dangerouslySetInnerHTML={{
-                __html: warningMessageHTML,
-              }}
-            />
+            <div>
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: warningMessageHTML,
+                }}
+              />
+              <a
+                href="#reload"
+                style={{ color: "var(--color-text-1)" }}
+                onClick={(ev) => {
+                  // 点击了刷新链接
+                  chrome.runtime.reload();
+                  ev.preventDefault();
+                  try {
+                    window.close(); // 因为 Vivaldi 重启插件时不会关掉 popup
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+              >
+                {t("click_to_reload")}
+              </a>
+            </div>
           }
         />
       )}
