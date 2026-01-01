@@ -214,6 +214,20 @@ export default class ServiceWorkerManager {
                 console.error(e);
               });
           }
+          setTimeout(async () => {
+            await runtime.initReady; // 避免初始化未完成
+            // 只考虑 ScriptCat脚本 启用的情景。
+            if (runtime.isLoadScripts) {
+              if (runtime.isUserScriptsAvailable) {
+                // 如果 userScript API 正常，重新注册
+                await runtime.unregisterUserscripts();
+                await runtime.registerUserscripts();
+              } else {
+                // 如果 userScript API 不正常，取消注册
+                await runtime.unregisterUserscripts();
+              }
+            }
+          }, 100);
         }
       });
 
