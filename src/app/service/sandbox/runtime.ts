@@ -281,12 +281,18 @@ export class Runtime {
   // 2009 年第 53 周： 2009/12/28 (Mon) - 2010/01/03 (Sun)
   // 2010 年第 52 周： 2010/12/27 (Mon) - 2011/01/02 (Sun)
   getISOWeek(date: Date): number {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())); // remove the time
-    // Set to nearest Thursday: current date + 4 - current day number (Monday = 1)
+    // 使用传入日期的年月日创建 UTC 日期对象，忽略本地时间部分，避免时区影响
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+
+    // 将日期调整到本周的星期四（ISO 8601 规定：周数以星期四所在周为准）
+    // 计算方式：当前日期 + 4 − 当前星期几（星期一 = 1，星期日 = 7）
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    // Get first day of year
+
+    // 获取该星期四所在年份的第一天（UTC）
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    // Calculate full weeks to nearest Thursday
+
+    // 计算从年初到该星期四的天数差
+    // 再换算为周数，并向上取整，得到 ISO 周数
     return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
   }
 
