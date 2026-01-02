@@ -75,13 +75,13 @@ export class SystemConfig {
   private readonly storage = new ChromeStorage("system", true);
 
   constructor(private mq: IMessageQueue) {
-    this.mq.subscribe<TKeyValue>(SystemConfigChange, ({ key, value }) => {
+    this.mq.subscribe<TKeyValue<any>>(SystemConfigChange, ({ key, value }) => {
       this.cache.set(key, value);
     });
   }
 
-  addListener(key: string, callback: (value: any) => void) {
-    this.mq.subscribe<TKeyValue>(SystemConfigChange, (data) => {
+  addListener<T>(key: string, callback: (value: T) => void) {
+    this.mq.subscribe<TKeyValue<T>>(SystemConfigChange, (data) => {
       if (data.key === key) {
         callback(data.value);
       }
@@ -150,7 +150,7 @@ export class SystemConfig {
       this.storage.set(key, value);
     }
     // 发送消息通知更新
-    this.mq.publish<TKeyValue>(SystemConfigChange, {
+    this.mq.publish<TKeyValue<any>>(SystemConfigChange, {
       key,
       value,
     });
