@@ -21,6 +21,10 @@ import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { decodeRValue } from "@App/pkg/utils/message_value";
 import { extraCronExpr } from "@App/pkg/utils/cron";
 
+const utime_1min = 60 * 1000;
+const utime_1hr = 60 * 60 * 1000;
+const utime_1day = 24 * 60 * 60 * 1000;
+
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
 
@@ -222,35 +226,31 @@ export class Runtime {
     if (oncePos >= 1) {
       return () => {
         // 没有最后一次执行时间表示之前都没执行过,直接执行
-        if (!script.lastruntime) {
-          this.execScript(script);
-          return;
+        if (script.lastruntime) {
+          const now = new Date();
+          const last = new Date(script.lastruntime);
+          // 根据once所在的位置去判断执行
+          const timeDiff = now.getTime() - last.getTime();
+          switch (oncePos) {
+            case 1: // 每分钟
+              if (timeDiff < 2 * utime_1min && last.getMinutes() === now.getMinutes()) return;
+              break;
+            case 2: // 每小时
+              if (timeDiff < 2 * utime_1hr && last.getHours() === now.getHours()) return;
+              break;
+            case 3: // 每天
+              if (timeDiff < 2 * utime_1day && last.getDay() === now.getDay()) return;
+              break;
+            case 4: // 每月
+              if (timeDiff < 62 * utime_1day && last.getMonth() === now.getMonth()) return;
+              break;
+            case 5: // 每周
+              if (timeDiff < 14 * utime_1day && getISOWeek(last) === getISOWeek(now)) return;
+              break;
+            default:
+          }
         }
-        const now = new Date();
-        const last = new Date(script.lastruntime);
-        let flag = false;
-        // 根据once所在的位置去判断执行
-        switch (oncePos) {
-          case 1: // 每分钟
-            flag = last.getMinutes() !== now.getMinutes();
-            break;
-          case 2: // 每小时
-            flag = last.getHours() !== now.getHours();
-            break;
-          case 3: // 每天
-            flag = last.getDay() !== now.getDay();
-            break;
-          case 4: // 每月
-            flag = last.getMonth() !== now.getMonth();
-            break;
-          case 5: // 每周
-            flag = getISOWeek(last) !== getISOWeek(now);
-            break;
-          default:
-        }
-        if (flag) {
-          this.execScript(script);
-        }
+        this.execScript(script);
       };
     }
     return () => {
