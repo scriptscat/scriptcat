@@ -20,6 +20,7 @@ import { CATRetryError } from "../content/exec_warp";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { decodeRValue } from "@App/pkg/utils/message_value";
 import { extraCronExpr } from "@App/pkg/utils/cron";
+import { changeLanguage, initLanguage, t } from "@App/locales/locales";
 
 const utime_1min = 60 * 1000;
 const utime_1hr = 60 * 60 * 1000;
@@ -186,7 +187,7 @@ export class Runtime {
   crontabScript(script: ScriptLoadInfo) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
-      throw new Error(script.name + " - 错误的crontab表达式");
+      throw new Error(script.name + " - " + t("cron_invalid_expr"));
     }
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);
@@ -327,6 +328,10 @@ export class Runtime {
     }
   }
 
+  setSandboxLanguage(lang: string) {
+    changeLanguage(lang);
+  }
+
   init() {
     this.api.on("enableScript", this.enableScript.bind(this));
     this.api.on("disableScript", this.disableScript.bind(this));
@@ -335,5 +340,7 @@ export class Runtime {
 
     this.api.on("runtime/valueUpdate", this.valueUpdate.bind(this));
     this.api.on("runtime/emitEvent", this.emitEvent.bind(this));
+    this.api.on("setSandboxLanguage", this.setSandboxLanguage.bind(this));
+    initLanguage();
   }
 }
