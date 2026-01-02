@@ -93,7 +93,7 @@ export const nextTimeDisplay = (crontab: string, date = new Date()): string => {
  * 解析 cron 表达式，提取 once 信息并转换为标准 cron 表达式。
  *
  * @returns
- * - oncePos  ：once 在 6 位 cron 表达式中的实际位置（不存在则为 -1）
+ * - oncePos ：once 在 6 位 cron 表达式中的实际位置（不存在则为 -1）
  * - cronExpr：用于标准 cron 解析的表达式
  */
 export const extraCronExpr = (
