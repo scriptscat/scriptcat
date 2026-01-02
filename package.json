@@ -30,7 +30,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "cron": "^3.2.1",
+    "cron": "^4.4.0",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.13",
     "dexie": "^4.0.10",
