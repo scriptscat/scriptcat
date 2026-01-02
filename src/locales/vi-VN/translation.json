@@ -280,6 +280,14 @@
   "script_has_full_access_to": "Script sẽ có toàn quyền truy cập vào các url sau",
   "script_requires": "Script yêu cầu các tài nguyên bên ngoài sau",
   "cookie_warning": "Xin lưu ý, script này yêu cầu quyền truy cập cookie, đây là một quyền nguy hiểm. Vui lòng xác minh tính bảo mật của script.",
+  "cron_oncetype": {
+    "minute": "{{next}} (chạy mỗi phút)",
+    "hour": "{{next}} (chạy mỗi giờ)",
+    "day": "{{next}} (chạy mỗi ngày)",
+    "month": "{{next}} (chạy mỗi tháng)",
+    "week": "{{next}} (chạy mỗi tuần)"
+  },
+  "cron_invalid_expr": "Biểu thức cron không hợp lệ",
   "scheduled_script_description_title": "Đây là script hẹn giờ, sẽ tự động chạy vào một thời điểm cụ thể sau khi được bật và có thể được điều khiển thủ công trong bảng điều khiển.",
   "scheduled_script_description_description_expr": "Biểu thức tác vụ hẹn giờ:",
   "scheduled_script_description_description_next": "Thời gian chạy gần nhất:",

@@ -9,9 +9,7 @@ import {
   toCamelCase,
 } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
-import { nextTime } from "./cron";
-import dayjs from "dayjs";
-
+import { nextTimeDisplay, nextTimeInfo } from "./cron";
 describe.concurrent("aNow", () => {
   // aNow >= Date.now();
   it.sequential("aNow is greater than or equal to Date.now()", () => {
@@ -36,40 +34,155 @@ describe.concurrent("aNow", () => {
   });
 });
 
-describe.concurrent("nextTime", () => {
-  const date = new Date(1737275111000);
+describe.concurrent("nextTimeInfo1", () => {
+  const date = new Date("2025-12-17T11:47:17.629"); // 2025-12-17 11:47:17.629 (本地时区)
+
   // 让程序先执行一下，避免超时问题
   beforeAll(() => {
-    nextTime("* * * * *");
-    dayjs(date);
+    nextTimeDisplay("* * * * *");
   });
-  it.sequential("每分钟表达式", () => {
-    expect(nextTime("* * * * *", date)).toEqual(dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:00"));
+
+  it.sequential("标准Cron表达式", () => {
+    // 2025-12-17 11:47:17.629 下一个秒执行点是 2025-12-17 11:48:18
+    // 2025-12-17 11:47:17.629 下一个分钟执行点是 2025-12-17 11:48:00
+    [
+      ["* * * * * *", { next: "2025-12-17 11:47:18", once: "" }],
+      ["* * * * *", { next: "2025-12-17 11:48:00", once: "" }],
+      ["* 1-3,5 * * *", { next: "2025-12-18 01:00:00", once: "" }],
+      ["* 3-8/2 * * *", { next: "2025-12-18 03:00:00", once: "" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
   });
+
   it.sequential("每分钟一次表达式", () => {
-    expect(nextTime("once * * * *", date)).toEqual(
-      dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:00 每分钟运行一次")
-    );
-    expect(nextTime("10 once * * * *", date)).toEqual(
-      dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:10 每分钟运行一次")
-    );
+    // 假设 2025-12-17 11:47:17.629 已运行了，这分钟不再运行
+    // 下一次可以执行的时间是 2025-12-17 11:48:00
+    [
+      ["once * * * *", { next: "2025-12-17 11:48:00", once: "minute" }],
+      ["* once * * * *", { next: "2025-12-17 11:48:00", once: "minute" }],
+      ["45 once * * * *", { next: "2025-12-17 11:48:45", once: "minute" }],
+      ["once 1-3,5 * * *", { next: "2025-12-18 01:00:00", once: "minute" }],
+      ["once 3-8/2 * * *", { next: "2025-12-18 03:00:00", once: "minute" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
   });
+
   it.sequential("每小时一次表达式", () => {
-    expect(nextTime("* once * * *", date)).toEqual(
-      dayjs(date).add(1, "hour").format("YYYY-MM-DD HH:00:00 每小时运行一次")
-    );
-    expect(nextTime("10 once * * *", date)).toEqual(
-      dayjs(date).add(1, "hour").format("YYYY-MM-DD HH:10:00 每小时运行一次")
-    );
+    // 假设 2025-12-17 11:47:17.629 已运行了，这小时不再运行
+    // 下一次可以执行的时间是 2025-12-17 12:00:00
+    [
+      ["* once * * *", { next: "2025-12-17 12:00:00", once: "hour" }],
+      ["* * once * * *", { next: "2025-12-17 12:00:00", once: "hour" }],
+      ["10 once * * *", { next: "2025-12-17 12:10:00", once: "hour" }],
+      ["* 10 once * * *", { next: "2025-12-17 12:10:00", once: "hour" }],
+      ["45 10 once * * *", { next: "2025-12-17 12:10:45", once: "hour" }],
+      ["1-3,5 once * * *", { next: "2025-12-17 12:01:00", once: "hour" }],
+      ["3-8/2 once * * *", { next: "2025-12-17 12:03:00", once: "hour" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
   });
+
   it.sequential("每天一次表达式", () => {
-    expect(nextTime("* * once * *", date)).toEqual(dayjs(date).add(1, "day").format("YYYY-MM-DD 每天运行一次"));
+    // 假设 2025-12-17 11:47:17.629 已运行了，这一天不再运行
+    // 下一次可以执行的时间是 2025-12-18 00:00:00
+    [
+      ["* * once * *", { next: "2025-12-18", once: "day" }],
+      ["* * * once * *", { next: "2025-12-18", once: "day" }],
+      ["45 * * once * *", { next: "2025-12-18", once: "day" }],
+      ["33,44 */7 * once * *", { next: "2025-12-18", once: "day" }],
+      ["* * once * 3,6", { next: "2025-12-20", once: "day" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
   });
+
   it.sequential("每月一次表达式", () => {
-    expect(nextTime("* * * once *", date)).toEqual(dayjs(date).add(1, "month").format("YYYY-MM 每月运行一次"));
+    // 假设 2025-12-17 11:47:17.629 已运行了，这个月份不再运行
+    // 下一次可以执行的时间是 2026-01-01 00:00:00
+    [
+      ["* * * once *", { next: "2026-01", once: "month" }],
+      ["* * * * once *", { next: "2026-01", once: "month" }],
+      ["45 * * * once *", { next: "2026-01", once: "month" }],
+      ["33,44 */7 * * once *", { next: "2026-01", once: "month" }],
+      ["* * * once 3,6", { next: "2026-01", once: "month" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
   });
+
   it.sequential("每星期一次表达式", () => {
-    expect(nextTime("* * * * once", date)).toEqual(dayjs(date).add(1, "week").format("YYYY-MM-DD 每星期运行一次"));
+    // 假设 2025-12-17 11:47:17.629 已运行了，这个星期不再运行
+    // 下一次可以执行的时间是 2025-12-22 00:00:00
+    [
+      ["* * * * once", { next: "2025-12-22", once: "week" }],
+      ["* * * * * once", { next: "2025-12-22", once: "week" }],
+      ["45 * * * * once", { next: "2025-12-22", once: "week" }],
+      ["33,44 */7 * * * once", { next: "2025-12-22", once: "week" }],
+      ["* * 5 * once", { next: "2026-01-05", once: "week" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
+  });
+});
+
+describe.concurrent("nextTimeInfo2", () => {
+  const date = new Date("2025-12-31T23:59:59.999"); // 2025-12-31 23:59:59.999（本地时区）
+
+  // 让程序先执行一下，避免超时问题
+  beforeAll(() => {
+    nextTimeDisplay("* * * * *");
+  });
+
+  it.sequential("标准 Cron 表达式", () => {
+    // 2025-12-31 23:59:59.999 下一秒执行点是 2026-01-01 00:00:00
+    // 下一分钟执行点也是 2026-01-01 00:00:00
+    [
+      ["* * * * * *", { next: "2026-01-01 00:00:00", once: "" }],
+      ["* * * * *", { next: "2026-01-01 00:00:00", once: "" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
+  });
+
+  it.sequential("每分钟一次表达式", () => {
+    // 假设 2025-12-31 23:59:59.999 这一分钟已运行
+    // 下一次可执行时间是 2026-01-01 00:00:00
+    [
+      ["once * * * *", { next: "2026-01-01 00:00:00", once: "minute" }],
+      ["* once * * * *", { next: "2026-01-01 00:00:00", once: "minute" }],
+      ["45 once * * * *", { next: "2026-01-01 00:00:45", once: "minute" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
+  });
+
+  it.sequential("每小时一次表达式", () => {
+    // 假设当前小时已运行
+    // 下一次可执行时间是 2026-01-01 00:00:00
+    [
+      ["* once * * *", { next: "2026-01-01 00:00:00", once: "hour" }],
+      ["* * once * * *", { next: "2026-01-01 00:00:00", once: "hour" }],
+      ["10 once * * *", { next: "2026-01-01 00:10:00", once: "hour" }],
+      ["* 10 once * * *", { next: "2026-01-01 00:10:00", once: "hour" }],
+      ["45 10 once * * *", { next: "2026-01-01 00:10:45", once: "hour" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
+  });
+
+  it.sequential("每天一次表达式", () => {
+    // 假设 2025-12-31 这一天已运行
+    // 下一次可执行时间是 2026-01-01 00:00:00
+    [
+      ["* * once * *", { next: "2026-01-01", once: "day" }],
+      ["* * * once * *", { next: "2026-01-01", once: "day" }],
+      ["45 * * once * *", { next: "2026-01-01", once: "day" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
+  });
+
+  it.sequential("每月一次表达式", () => {
+    // 假设 2025-12 月已运行
+    // 下一次可执行时间是 2026-01-01 00:00:00
+    [
+      ["* * * once *", { next: "2026-01", once: "month" }],
+      ["* * * * once *", { next: "2026-01", once: "month" }],
+      ["45 * * * once *", { next: "2026-01", once: "month" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
+  });
+
+  it.sequential("每星期一次表达式", () => {
+    // 2025-12-31 是星期三
+    // 假设本周已运行，下一周开始是 2026-01-05（周一）
+    [
+      ["* * * * once", { next: "2026-01-05", once: "week" }],
+      ["* * * * * once", { next: "2026-01-05", once: "week" }],
+      ["45 * * * * once", { next: "2026-01-05", once: "week" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
   });
 });
 

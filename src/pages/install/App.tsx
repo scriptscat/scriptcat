@@ -22,7 +22,7 @@ import { i18nDescription, i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import { createScriptInfo, type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import { parseMetadata, prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/script";
-import { nextTime } from "@App/pkg/utils/cron";
+import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient } from "../store/features/script";
 import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/file-tracker";
 import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/filehandle-db";
@@ -382,7 +382,7 @@ function App() {
           <Typography.Text>{t("scheduled_script_description_description_expr")}</Typography.Text>
           <Typography.Text code>{metadataLive.crontab[0]}</Typography.Text>
           <Typography.Text>{t("scheduled_script_description_description_next")}</Typography.Text>
-          <Typography.Text code>{nextTime(metadataLive.crontab[0])}</Typography.Text>
+          <Typography.Text code>{nextTimeDisplay(metadataLive.crontab[0])}</Typography.Text>
         </div>
       );
     } else if (metadataLive.background) {

@@ -280,6 +280,14 @@
   "script_has_full_access_to": "スクリプトは以下のアドレスへの完全なアクセス権限を取得します",
   "script_requires": "スクリプトは以下の外部リソースを参照しています",
   "cookie_warning": "注意：このスクリプトはCookieの操作権限をリクエストします。これは危険な権限ですので、スクリプトの安全性を確認してください。",
+  "cron_oncetype": {
+    "minute": "{{next}}（毎分実行）",
+    "hour": "{{next}}（毎時間実行）",
+    "day": "{{next}}（毎日実行）",
+    "month": "{{next}}（毎月実行）",
+    "week": "{{next}}（毎週実行）"
+  },
+  "cron_invalid_expr": "不正な cron 式です",
   "scheduled_script_description_title": "これはスケジュールスクリプトです。有効にすると特定の時間に自動実行され、手動操作も可能です。",
   "scheduled_script_description_description_expr": "スケジュールタスク表現：",
   "scheduled_script_description_description_next": "最近の実行時間：",

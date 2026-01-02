@@ -14,7 +14,7 @@ import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
 import type { ValueUpdateDataEncoded } from "../content/types";
-import { getStorageName, getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
+import { getStorageName, getMetadataStr, getUserConfigStr, getISOWeek } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
@@ -256,7 +256,7 @@ export class Runtime {
             flag = last.getMonth() !== now.getMonth();
             break;
           case 5: // 每周
-            flag = this.getWeek(last) !== this.getWeek(now);
+            flag = getISOWeek(last) !== getISOWeek(now);
             break;
           default:
         }
@@ -268,17 +268,6 @@ export class Runtime {
     return () => {
       this.execScript(script);
     };
-  }
-
-  // 获取本周是第几周
-  getWeek(date: Date) {
-    const nowDate = new Date(date);
-    const firstDay = new Date(date);
-    firstDay.setMonth(0); // 设置1月
-    firstDay.setDate(1); // 设置1号
-    const diffDays = Math.ceil((nowDate.getTime() - firstDay.getTime()) / (24 * 60 * 60 * 1000));
-    const week = Math.ceil(diffDays / 7);
-    return week === 0 ? 1 : week;
   }
 
   // 停止计时器

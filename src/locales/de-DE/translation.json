@@ -280,6 +280,14 @@
   "script_has_full_access_to": "Skript erhält vollständigen Zugriff auf die folgenden Adressen",
   "script_requires": "Skript referenziert die folgenden externen Ressourcen",
   "cookie_warning": "Achtung: Dieses Skript beantragt Cookie-Operationsberechtigung. Dies ist eine gefährliche Berechtigung, bitte stellen Sie die Sicherheit des Skripts sicher.",
+  "cron_oncetype": {
+    "minute": "{{next}} (jede Minute ausgeführt)",
+    "hour": "{{next}} (jede Stunde ausgeführt)",
+    "day": "{{next}} (jeden Tag ausgeführt)",
+    "month": "{{next}} (jeden Monat ausgeführt)",
+    "week": "{{next}} (jede Woche ausgeführt)"
+  },
+  "cron_invalid_expr": "Ungültiger Cron-Ausdruck",
   "scheduled_script_description_title": "Dies ist ein geplantes Skript. Wenn aktiviert, wird es zu bestimmten Zeiten automatisch ausgeführt und kann im Panel manuell gesteuert werden.",
   "scheduled_script_description_description_expr": "Geplante Aufgaben-Ausdruck",
   "scheduled_script_description_description_next": "Letzte Ausführungszeit:",
