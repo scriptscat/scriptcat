@@ -19,6 +19,7 @@ import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { decodeRValue } from "@App/pkg/utils/message_value";
+import { extraCronExpr } from "@App/pkg/utils/cron";
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
@@ -189,22 +190,9 @@ export class Runtime {
     let flag = false;
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
-      let oncePos = 0;
-      let crontab = val;
-      if (crontab.includes("once")) {
-        const vals = crontab.split(" ");
-        vals.forEach((item, index) => {
-          if (item === "once") {
-            oncePos = index;
-          }
-        });
-        if (vals.length === 5) {
-          oncePos += 1;
-        }
-        crontab = crontab.replace(/once/g, "*");
-      }
+      const { cronExpr, oncePos } = extraCronExpr(val);
       try {
-        const cron = new CronJob(crontab, this.crontabExec(script, oncePos));
+        const cron = new CronJob(cronExpr, this.crontabExec(script, oncePos));
         cron.start();
         cronJobList.push(cron);
       } catch (e) {
@@ -231,7 +219,7 @@ export class Runtime {
   }
 
   crontabExec(script: ScriptLoadInfo, oncePos: number) {
-    if (oncePos) {
+    if (oncePos >= 1) {
       return () => {
         // 没有最后一次执行时间表示之前都没执行过,直接执行
         if (!script.lastruntime) {

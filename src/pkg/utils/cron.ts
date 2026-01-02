@@ -64,13 +64,13 @@ export const nextTimeDisplay = (crontab: string, date = new Date()): string => {
   }
 };
 
-/**
- * 解析 cron 表达式，计算下一次执行时间
- * 支持自定义 once 关键字（表示“在某个周期内只执行一次”）
- */
-export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult => {
+export const extraCronExpr = (
+  crontab: string
+): {
+  oncePos: number;
+  cronExpr: string;
+} => {
   const parts = crontab.trim().split(" ");
-
   /**
    * 兼容 5 位 / 6 位 cron：
    * - 5 位：分 时 日 月 周
@@ -83,25 +83,29 @@ export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult
     throw new Error(t("cron_invalid_expr"));
   }
 
-  /**
-   * once 必须是一个完整字段
-   * 防止类似 "* once123 * * *" 这种误写
-   */
-  const onceIndex = parts.indexOf("once");
-  if (onceIndex === -1 && crontab.includes("once")) {
-    throw new Error(t("cron_invalid_expr"));
+  let oncePos = -1;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.startsWith("once")) {
+      oncePos = i + lenOffset; // once 在 6 位 cron 中的实际位置 （5 位 cron 需要整体向后偏移一位）
+      parts[i] = part.slice(5, -1) || "*";
+      break;
+    }
   }
+  return { cronExpr: parts.join(" "), oncePos };
+};
 
-  /**
-   * once 在 6 位 cron 中的实际位置
-   * （5 位 cron 需要整体向后偏移一位）
-   */
-  const oncePos = onceIndex !== -1 ? onceIndex + lenOffset : -1;
+/**
+ * 解析 cron 表达式，计算下一次执行时间
+ * 支持自定义 once 关键字（表示“在某个周期内只执行一次”）
+ */
+export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult => {
+  const { cronExpr, oncePos } = extraCronExpr(crontab);
 
   let cron: CronTime;
   try {
-    // 将 once 替换为 *，用于标准 cron 解析
-    cron = new CronTime(crontab.replace("once", "*"));
+    // 将 once 替换，用于标准 cron 解析
+    cron = new CronTime(cronExpr);
   } catch {
     /**
      * 不支持多个 once

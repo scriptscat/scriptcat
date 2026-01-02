@@ -53,6 +53,30 @@ describe.concurrent("nextTimeInfo1", () => {
     ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
   });
 
+  it.sequential("once表达式", () => {
+    // 2025-12-17 11:47:17.629 下一个秒执行点是 2025-12-17 11:48:18
+    // 2025-12-17 11:47:17.629 下一个分钟执行点是 2025-12-17 11:48:00
+    [
+      ["once * * * *", { next: "2025-12-17 11:48:00", once: "minute" }],
+      ["* once * * *", { next: "2025-12-17 12:00:00", once: "hour" }],
+      ["* * once * *", { next: "2025-12-18", once: "day" }],
+      ["* * * once *", { next: "2026-01", once: "month" }],
+      ["* * * * once", { next: "2025-12-22", once: "week" }],
+
+      ["once(*) * * * *", { next: "2025-12-17 11:48:00", once: "minute" }],
+      ["* once(*) * * *", { next: "2025-12-17 12:00:00", once: "hour" }],
+      ["* * once(*) * *", { next: "2025-12-18", once: "day" }],
+      ["* * * once(*) *", { next: "2026-01", once: "month" }],
+      ["* * * * once(*)", { next: "2025-12-22", once: "week" }],
+
+      ["once(5-7) * * * *", { next: "2025-12-17 12:05:00", once: "minute" }],
+      ["* once(5-7) * * *", { next: "2025-12-18 05:00:00", once: "hour" }],
+      ["* * once(5-7) * *", { next: "2026-01-05", once: "day" }],
+      ["* * * once(5-7) *", { next: "2026-05", once: "month" }],
+      ["* * * * once(5-7)", { next: "2025-12-26", once: "week" }],
+    ].forEach(([expr, expected]) => expect(nextTimeInfo(expr as string, date)).toEqual(expected));
+  });
+
   it.sequential("每分钟一次表达式", () => {
     // 假设 2025-12-17 11:47:17.629 已运行了，这分钟不再运行
     // 下一次可以执行的时间是 2025-12-17 11:48:00
