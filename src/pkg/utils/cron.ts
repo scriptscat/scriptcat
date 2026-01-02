@@ -49,6 +49,7 @@ import { t } from "@App/locales/locales";
 // 使用 cron 内部的 DateTime<boolean> 构造函数
 // 等价于：import { DateTime } from "luxon"
 const DateTime = new CronTime("* * * * *").sendAt().constructor;
+type LuxonDate = ReturnType<CronTime["sendAt"]>[0];
 
 /**
  * once 在不同 cron 位置上的语义映射表。
@@ -68,8 +69,10 @@ const ONCE_MAP = {
 } as const;
 
 type NextTimeResult = {
-  /** 下一次触发时间（已格式化） */
-  next: string;
+  /** 下一次触发时间 */
+  next: LuxonDate;
+  /** 时间格式 */
+  format: string;
   /** once 类型标识，用于国际化展示 */
   once: string;
 };
@@ -82,7 +85,8 @@ type NextTimeResult = {
  */
 export const nextTimeDisplay = (crontab: string, date = new Date()): string => {
   const res = nextTimeInfo(crontab, date);
-  return res.once ? t(`cron_oncetype.${res.once}`, { next: res.next }) : res.next;
+  const nextTimeFormatted = res.next.toFormat(res.format);
+  return res.once ? t(`cron_oncetype.${res.once}`, { next: nextTimeFormatted }) : nextTimeFormatted;
 };
 
 /**
@@ -153,7 +157,7 @@ export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult
     throw new Error(t("cron_invalid_expr"));
   }
 
-  let luxonDate = (DateTime as any).fromJSDate(date);
+  let luxonDate = (DateTime as any).fromJSDate(date) as LuxonDate;
   let format = "yyyy-MM-dd HH:mm:ss";
   let onceLabel = "";
 
@@ -189,7 +193,8 @@ export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult
   const next = cron.getNextDateFrom(luxonDate);
 
   return {
-    next: next.toFormat(format),
+    next: next,
+    format: format,
     once: onceLabel,
   };
 };

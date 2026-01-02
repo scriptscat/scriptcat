@@ -37,19 +37,23 @@ describe.concurrent("aNow", () => {
 
 const assertNextTimeInfo = (expr: string, date: Date, expected: any) => {
   const actual = nextTimeInfo(expr, date);
+  const result = {
+    next: actual.next.toFormat(actual.format),
+    once: actual.once,
+  };
 
   // 1) 失败时讯息包含 expr / expected / actual
   // 2) 用 soft，方便一次看到多笔失败（可选）
   expect
     .soft(
-      actual,
+      result,
       [
         "",
         "",
         `expr: ${expr}`,
         `date: ${date.toISOString()}`,
         `expected: ${JSON.stringify(expected)}`,
-        `actual:   ${JSON.stringify(actual)}`,
+        `actual:   ${JSON.stringify(result)}`,
         "",
         "",
       ].join("\n")
