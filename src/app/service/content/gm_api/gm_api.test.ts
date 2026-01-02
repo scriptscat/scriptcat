@@ -6,6 +6,7 @@ import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { v4 as uuidv4 } from "uuid";
+import { getStorageName } from "@App/pkg/utils/utils";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -123,10 +124,14 @@ describe.concurrent("GM Api", () => {
     script.value = { test: "ok" };
     script.metadata.grant = ["GM.getValue"];
     script.code = `return GM.getValue("test").then(v=>v+"!");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    const ret = await retPromise;
     expect(ret).toEqual("ok!");
   });
 
@@ -135,10 +140,14 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM_listValues"];
     script.code = `return GM_listValues().join("-");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    const ret = await retPromise;
     expect(ret).toEqual("test1-test2-test3");
   });
 
@@ -151,11 +160,15 @@ describe.concurrent("GM Api", () => {
     script.value.test1 = "40";
     script.metadata.grant = ["GM_listValues"];
     script.code = `return GM_listValues().join("-");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
-    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
+    const retPromise = exec.exec();
+    const ret = await retPromise;
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
 
   it.concurrent("GM.listValues", async () => {
@@ -163,10 +176,14 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    const ret = await retPromise;
     expect(ret).toEqual("test1-test2-test3");
   });
 
@@ -179,11 +196,15 @@ describe.concurrent("GM Api", () => {
     script.value.test1 = "40";
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
-    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
+    const retPromise = exec.exec();
+    const ret = await retPromise;
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
 
   it.concurrent("GM_getValues", async () => {
@@ -212,10 +233,14 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM.getValues"];
     script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v);`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    const ret = await retPromise;
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
     expect(ret.test3).toEqual("67");
@@ -499,7 +524,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             keyValuePairs1,
           ],
@@ -523,7 +548,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             keyValuePairs2,
           ],
@@ -573,7 +598,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             keyValuePairs1,
           ],
@@ -592,7 +617,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValue",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the string payload
             "b",
           ],
@@ -643,7 +668,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             keyValuePairs1,
           ],
@@ -667,7 +692,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the string payload
             keyValuePairs2,
           ],
@@ -702,14 +727,16 @@ describe.concurrent("GM_value", () => {
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
-    exec.valueUpdate({
-      id: "id-1",
-      entries: [["param1", encodeRValue(123), encodeRValue(undefined)]],
-      uuid: script.uuid,
-      storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
-      valueUpdated: true,
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: "id-1",
+        valueChanges: [["param1", encodeRValue(123), encodeRValue(undefined)]],
+        uuid: script.uuid,
+        storageName: script.uuid,
+        sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+        updatetime: Date.now(),
+      },
+    ]);
     const ret = await retPromise;
     expect(ret).toEqual({ name: "param1", oldValue: undefined, newValue: 123, remote: false });
   });
@@ -737,14 +764,16 @@ describe.concurrent("GM_value", () => {
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
-    exec.valueUpdate({
-      id: "id-2",
-      entries: [["param2", encodeRValue(456), encodeRValue(undefined)]],
-      uuid: script.uuid,
-      storageName: "testStorage",
-      sender: { runFlag: "user", tabId: -2 },
-      valueUpdated: true,
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: "id-2",
+        valueChanges: [["param2", encodeRValue(456), encodeRValue(undefined)]],
+        uuid: script.uuid,
+        storageName: "testStorage",
+        sender: { runFlag: "user", tabId: -2 },
+        updatetime: Date.now(),
+      },
+    ]);
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
   });
@@ -772,14 +801,16 @@ describe.concurrent("GM_value", () => {
     expect(id).toBeTypeOf("string");
     expect(id.length).greaterThan(0);
     // 触发valueUpdate
-    exec.valueUpdate({
-      id: id,
-      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
-      uuid: script.uuid,
-      storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
-      valueUpdated: true,
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: id,
+        valueChanges: [["a", encodeRValue(123), encodeRValue(undefined)]],
+        uuid: script.uuid,
+        storageName: script.uuid,
+        sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+        updatetime: Date.now(),
+      },
+    ]);
 
     const ret = await retPromise;
     expect(ret).toEqual(123);

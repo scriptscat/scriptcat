@@ -7,7 +7,8 @@ import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
 import type { IGM_Base } from "./gm_api/gm_api";
-import type { TScriptInfo } from "@App/app/repo/scripts";
+import type { ScriptRunResource, TScriptInfo } from "@App/app/repo/scripts";
+import { getStorageName } from "@App/pkg/utils/utils";
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
@@ -64,8 +65,22 @@ export default class ExecScript {
     this.sandboxContext?.emitEvent(event, eventId, data);
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    this.sandboxContext?.valueUpdate(data);
+  valueUpdate(storageName: string, uuid: string, responses: ValueUpdateDataEncoded[]) {
+    const scriptRes = this.scriptRes;
+    if (scriptRes.uuid === uuid || getStorageName(scriptRes) === storageName) {
+      const context = this.sandboxContext;
+      if (context) {
+        const contextScriptRes = context.scriptRes as ScriptRunResource | null | undefined;
+        if (contextScriptRes) {
+          if (uuid === contextScriptRes.uuid || storageName === getStorageName(contextScriptRes)) {
+            contextScriptRes.value = context.extValueStoreCopy || contextScriptRes.value;
+            const valueStore = contextScriptRes.value;
+            context.valueStoreUpdate(valueStore, responses);
+            context.extValueStoreCopy = { ...valueStore };
+          }
+        }
+      }
+    }
   }
 
   execContext: any;
