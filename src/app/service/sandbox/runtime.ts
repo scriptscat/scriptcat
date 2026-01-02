@@ -256,7 +256,7 @@ export class Runtime {
             flag = last.getMonth() !== now.getMonth();
             break;
           case 5: // 每周
-            flag = this.getWeek(last) !== this.getWeek(now);
+            flag = this.getISOWeek(last) !== this.getISOWeek(now);
             break;
           default:
         }
@@ -271,14 +271,23 @@ export class Runtime {
   }
 
   // 获取本周是第几周
-  getWeek(date: Date) {
-    const nowDate = new Date(date);
-    const firstDay = new Date(date);
-    firstDay.setMonth(0); // 设置1月
-    firstDay.setDate(1); // 设置1号
-    const diffDays = Math.ceil((nowDate.getTime() - firstDay.getTime()) / (24 * 60 * 60 * 1000));
-    const week = Math.ceil(diffDays / 7);
-    return week === 0 ? 1 : week;
+  // 遵循 ISO 8601, 一月四日为Week 1，星期一为新一周
+  // 见 https://en.wikipedia.org/wiki/ISO_week_date
+  // 2004 年第 53 周： 2004/12/27 (Mon) - 2005/01/02 (Sun)
+  // 2005 年第 52 周： 2005/12/26 (Mon) - 2006/01/01 (Sun)
+  // 2006 年第 52 周： 2006/12/25 (Mon) - 2006/12/31 (Sun)
+  // 2007 年第 52 周： 2007/12/24 (Mon) - 2007/12/30 (Sun)
+  // 2008 年第 52 周： 2008/12/22 (Mon) - 2008/12/28 (Sun)
+  // 2009 年第 53 周： 2009/12/28 (Mon) - 2010/01/03 (Sun)
+  // 2010 年第 52 周： 2010/12/27 (Mon) - 2011/01/02 (Sun)
+  getISOWeek(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())); // remove the time
+    // Set to nearest Thursday: current date + 4 - current day number (Monday = 1)
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    // Get first day of year
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    // Calculate full weeks to nearest Thursday
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
   }
 
   // 停止计时器
