@@ -49,7 +49,7 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
-import { nextTime } from "@App/pkg/utils/cron";
+import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
@@ -226,7 +226,7 @@ const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType
   if (item.type === SCRIPT_TYPE_BACKGROUND) {
     tooltip = t("background_script_tooltip");
   } else {
-    tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
+    tooltip = `${t("scheduled_script_tooltip")} ${nextTimeDisplay(item.metadata!.crontab![0])}`;
   }
   return (
     <>

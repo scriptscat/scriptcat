@@ -10,7 +10,7 @@ import {
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
 } from "@App/app/repo/scripts";
-import { disableScript, enableScript, runScript, stopScript } from "../sandbox/client";
+import { disableScript, enableScript, runScript, setSandboxLanguage, stopScript } from "../sandbox/client";
 import { type Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import type { TDeleteScript, TInstallScript, TEnableScript } from "../queue";
@@ -40,6 +40,9 @@ export class ScriptService {
   }
 
   async init() {
+    this.messageQueue.subscribe<string>("setSandboxLanguage", async (lang) => {
+      setSandboxLanguage(this.windowMessage, lang);
+    });
     this.messageQueue.subscribe<TEnableScript[]>("enableScripts", async (data) => {
       for (const { uuid, enable } of data) {
         const script = await this.scriptClient.info(uuid);
