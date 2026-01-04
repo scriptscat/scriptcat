@@ -192,7 +192,7 @@ declare function GM_updateNotification(id: string, details: GMTypes.Notification
 declare function GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): void;
 
 declare function GM_addElement(tag: string, attributes: any): HTMLElement;
-declare function GM_addElement(parentNode: Element, tag: string, attrs: any): HTMLElement;
+declare function GM_addElement(parentNode: Node, tag: string, attrs: any): HTMLElement;
 
 declare function GM_addStyle(css: string): HTMLStyleElement;
 
@@ -266,7 +266,7 @@ declare const GM: {
   unregisterMenuCommand(id: number | string): Promise<void>;
 
   /** 样式注入 */
-  addStyle(css: string): Promise<void>;
+  addStyle(css: string): Promise<HTMLStyleElement>;
 
   /** 通知 */
   notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): Promise<void>;
@@ -279,7 +279,7 @@ declare const GM: {
 
   /** 添加元素 */
   addElement(tag: string, attributes: any): Promise<HTMLElement>;
-  addElement(parentNode: Element, tag: string, attrs: any): Promise<HTMLElement>;
+  addElement(parentNode: Node, tag: string, attrs: any): Promise<HTMLElement>;
 
   /** XMLHttpRequest */
   xmlHttpRequest(details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse>;
