@@ -1037,7 +1037,9 @@ export default class GMApi {
     });
   }
 
-  @PermissionVerify.API({})
+  @PermissionVerify.API({
+    link: ["GM_closeNotification", "GM_updateNotification"],
+  })
   async GM_notification(request: GMApiRequest<[GMTypes.NotificationDetails, string | undefined]>, sender: IGetSender) {
     const details: GMTypes.NotificationDetails = request.params[0];
     const notificationId: string | undefined = request.params[1];
@@ -1123,7 +1125,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    link: ["GM_notification"],
+    link: ["GM_notification", "GM_updateNotification"],
   })
   GM_closeNotification(request: GMApiRequest<[string]>, _sender: IGetSender) {
     const notificationId = request.params[0];
@@ -1135,7 +1137,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    link: ["GM_notification"],
+    link: ["GM_notification", "GM_closeNotification"],
   })
   GM_updateNotification(request: GMApiRequest<[string, GMTypes.NotificationDetails]>, _sender: IGetSender) {
     if (typeof chrome.notifications?.update !== "function") {
