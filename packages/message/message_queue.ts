@@ -2,7 +2,7 @@ import EventEmitter from "eventemitter3";
 import LoggerCore from "@App/app/logger/core";
 import { type TMessage } from "./types";
 
-export type TKeyValue = { key: string; value: string };
+export type TKeyValue<T = string> = { key: string; value: T };
 
 // 中间件函数类型
 type MiddlewareFunction<T = any> = (topic: string, message: T, next: () => void) => void | Promise<void>;
