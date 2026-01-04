@@ -171,11 +171,11 @@ declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHa
 declare function GM_download(details: GMTypes.DownloadDetails<string | Blob | File>): GMTypes.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
-declare function GM_getTab(callback: (obj: object) => void): void;
+declare function GM_getTab(callback: (tab: object) => void): void;
 
-declare function GM_saveTab(obj: object): Promise<void>;
+declare function GM_saveTab(tab: object): Promise<void>;
 
-declare function GM_getTabs(callback: (objs: { [key: number]: object }) => void): void;
+declare function GM_getTabs(callback: (tabs: { [key: number]: object }) => void): void;
 
 declare function GM_notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): void;
 declare function GM_notification(
@@ -290,7 +290,7 @@ declare const GM: {
 
   /** Tab 存储 */
   getTab(): Promise<object>;
-  saveTab(obj: object): Promise<void>;
+  saveTab(tab: object): Promise<void>;
   getTabs(): Promise<{ [key: number]: object }>;
 
   /** 打开新标签页 */
