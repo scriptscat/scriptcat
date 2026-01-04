@@ -171,11 +171,11 @@ declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHa
 declare function GM_download(details: GMTypes.DownloadDetails<string | Blob | File>): GMTypes.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
-declare function GM_getTab(callback: (obj: object) => void): void;
+declare function GM_getTab(callback: (tab: object) => void): void;
 
-declare function GM_saveTab(obj: object): Promise<void>;
+declare function GM_saveTab(tab: object): Promise<void>;
 
-declare function GM_getTabs(callback: (objs: { [key: number]: object }) => void): void;
+declare function GM_getTabs(callback: (tabs: { [key: number]: object }) => void): void;
 
 declare function GM_notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): void;
 declare function GM_notification(
@@ -191,8 +191,12 @@ declare function GM_updateNotification(id: string, details: GMTypes.Notification
 
 declare function GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): void;
 
-declare function GM_addElement(tag: string, attributes: any): HTMLElement;
-declare function GM_addElement(parentNode: Element, tag: string, attrs: any): HTMLElement;
+declare function GM_addElement(tag: string, attributes: Record<string, string | number | boolean>): HTMLElement;
+declare function GM_addElement(
+  parentNode: Node,
+  tag: string,
+  attrs: Record<string, string | number | boolean>
+): HTMLElement;
 
 declare function GM_addStyle(css: string): HTMLStyleElement;
 
@@ -266,7 +270,7 @@ declare const GM: {
   unregisterMenuCommand(id: number | string): Promise<void>;
 
   /** 样式注入 */
-  addStyle(css: string): Promise<void>;
+  addStyle(css: string): Promise<HTMLStyleElement>;
 
   /** 通知 */
   notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): Promise<void>;
@@ -278,8 +282,8 @@ declare const GM: {
   setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): Promise<void>;
 
   /** 添加元素 */
-  addElement(tag: string, attributes: any): Promise<HTMLElement>;
-  addElement(parentNode: Element, tag: string, attrs: any): Promise<HTMLElement>;
+  addElement(tag: string, attributes: Record<string, string | number | boolean>): Promise<HTMLElement>;
+  addElement(parentNode: Node, tag: string, attrs: Record<string, string | number | boolean>): Promise<HTMLElement>;
 
   /** XMLHttpRequest */
   xmlHttpRequest(details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse>;
@@ -290,7 +294,7 @@ declare const GM: {
 
   /** Tab 存储 */
   getTab(): Promise<object>;
-  saveTab(obj: object): Promise<void>;
+  saveTab(tab: object): Promise<void>;
   getTabs(): Promise<{ [key: number]: object }>;
 
   /** 打开新标签页 */
