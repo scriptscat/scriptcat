@@ -7,7 +7,7 @@ import { ValueService } from "./value";
 import { RuntimeService } from "./runtime";
 import { type ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { PopupService } from "./popup";
-import { type CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
+import { SystemConfig } from "@App/pkg/config/config";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
@@ -170,7 +170,7 @@ export default class ServiceWorkerManager {
     });
 
     // 监听配置变化
-    systemConfig.addListener<CloudSyncConfig>("cloud_sync", (value) => {
+    systemConfig.addListener("cloud_sync", (value) => {
       synchronize.cloudSyncConfigChange(value);
     });
 

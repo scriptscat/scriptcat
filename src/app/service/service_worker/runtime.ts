@@ -467,18 +467,18 @@ export class RuntimeService {
     });
 
     if (chrome.extension.inIncognitoContext) {
-      this.systemConfig.addListener<boolean>("enable_script_incognito", async (enable) => {
+      this.systemConfig.addListener("enable_script_incognito", async (enable) => {
         // 隐身窗口不对注册了的脚本进行实际操作
         // 在pageLoad时，根据isLoadScripts进行判断
         this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptNormal());
       });
-      this.systemConfig.addListener<boolean>("enable_script", async (enable) => {
+      this.systemConfig.addListener("enable_script", async (enable) => {
         // 隐身窗口不对注册了的脚本进行实际操作
         // 当主窗口的enable改为false时，isLoadScripts也会更改为false
         this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptIncognito());
       });
     } else {
-      this.systemConfig.addListener<boolean>("enable_script", async (enable) => {
+      this.systemConfig.addListener("enable_script", async (enable) => {
         this.isLoadScripts = enable;
         await this.unregisterUserscripts();
         if (enable) {
@@ -487,7 +487,7 @@ export class RuntimeService {
       });
     }
 
-    this.systemConfig.addListener<string>("blacklist", async (blacklist: string) => {
+    this.systemConfig.addListener("blacklist", async (blacklist: string) => {
       this.blacklist = obtainBlackList(blacklist);
       this.loadBlacklist();
       await this.unregisterUserscripts();

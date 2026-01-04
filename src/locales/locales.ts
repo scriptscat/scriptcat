@@ -64,7 +64,7 @@ export function initLocales(systemConfig: SystemConfig) {
       localePath = "/en";
     }
   });
-  systemConfig.addListener<string>("language", (lng) => {
+  systemConfig.addListener("language", (lng) => {
     changeLanguage(lng);
     if (!lng.startsWith("zh-")) {
       localePath = "/en";

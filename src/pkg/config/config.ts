@@ -80,15 +80,15 @@ export class SystemConfig {
     });
   }
 
-  addListener<T>(key: string, callback: (value: T) => void) {
-    this.mq.subscribe<TKeyValue<T>>(SystemConfigChange, (data) => {
+  addListener<T extends SystemConfigKey>(key: T, callback: (value: SystemConfigValueType<T>) => void) {
+    this.mq.subscribe<TKeyValue<SystemConfigValueType<T>>>(SystemConfigChange, (data) => {
       if (data.key === key) {
         callback(data.value);
       }
     });
   }
 
-  private _get<T extends string | number | boolean | object>(
+  private _get<T extends string | number | boolean | object | undefined>(
     key: SystemConfigKey,
     defaultValue: WithAsyncValue<Exclude<T, undefined>>
   ): Promise<T> {
@@ -106,20 +106,7 @@ export class SystemConfig {
     });
   }
 
-  public get(key: SystemConfigKey | SystemConfigKey[]): Promise<any | any[]> {
-    if (Array.isArray(key)) {
-      const promises = key.map((key) => {
-        const funcName = `get${toCamelCase(key)}`;
-        // @ts-ignore
-        if (typeof this[funcName] === "function") {
-          // @ts-ignore
-          return this[funcName]() as Promise<any>;
-        } else {
-          throw new Error(`Method ${funcName} does not exist on SystemConfig`);
-        }
-      });
-      return Promise.all(promises);
-    }
+  public get<T extends SystemConfigKey>(key: T): Promise<SystemConfigValueType<T>> {
     const funcName = `get${toCamelCase(key)}`;
     // @ts-ignore
     if (typeof this[funcName] === "function") {
@@ -130,7 +117,7 @@ export class SystemConfig {
     }
   }
 
-  public set(key: SystemConfigKey, value: any): void {
+  public set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T>): void {
     const funcName = `set${toCamelCase(key)}`;
     // @ts-ignore
     if (typeof this[funcName] === "function") {
@@ -141,7 +128,7 @@ export class SystemConfig {
     }
   }
 
-  private _set(key: SystemConfigKey, value: any) {
+  private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T>) {
     if (value === undefined) {
       this.cache.delete(key);
       this.storage.remove(key);
@@ -260,7 +247,7 @@ export class SystemConfig {
   }
 
   getCatFileStorage() {
-    return this._get<CATFileStorage>("cat_file_storage", this.defaultCatFileStorage());
+    return this._get<CATFileStorage | undefined>("cat_file_storage", this.defaultCatFileStorage());
   }
 
   setCatFileStorage(data: CATFileStorage | undefined) {
@@ -276,7 +263,7 @@ export class SystemConfig {
   }
 
   getEslintConfig() {
-    return this._get<string>("eslint_config", defaultConfig);
+    return this._get<string | undefined>("eslint_config", defaultConfig);
   }
 
   setEslintConfig(v: string) {
@@ -289,7 +276,7 @@ export class SystemConfig {
   }
 
   getEditorConfig() {
-    return this._get<string>("editor_config", editorDefaultConfig);
+    return this._get<string | undefined>("editor_config", editorDefaultConfig);
   }
 
   setEditorConfig(v: string) {
