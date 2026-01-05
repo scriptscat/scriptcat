@@ -458,11 +458,12 @@ export class SynchronizeService {
         scriptlist.map(async (script) => {
           // 判断云端状态是否与本地状态一致
           const status = cloudStatus[script.uuid];
+          const updatetime = script.updatetime || script.createtime;
           if (!status) {
             scriptcatSync.status.scripts[script.uuid] = {
               enable: script.status === SCRIPT_STATUS_ENABLE,
               sort: script.sort,
-              updatetime: script.updatetime || script.createtime,
+              updatetime: updatetime,
             };
           } else {
             if (updateScript.has(script.uuid)) {
@@ -471,16 +472,14 @@ export class SynchronizeService {
               return;
             }
             // 判断时间
-            if (script.updatetime) {
-              // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
-              if (status.updatetime < script.updatetime) {
-                scriptcatSync.status.scripts[script.uuid] = {
-                  enable: script.status === SCRIPT_STATUS_ENABLE,
-                  sort: script.sort,
-                  updatetime: script.updatetime || script.createtime,
-                };
-                return;
-              }
+            // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
+            if (status.updatetime < updatetime) {
+              scriptcatSync.status.scripts[script.uuid] = {
+                enable: script.status === SCRIPT_STATUS_ENABLE,
+                sort: script.sort,
+                updatetime: updatetime,
+              };
+              return;
             }
             // 否则采用云端状态
             scriptcatSync.status.scripts[script.uuid] = status;
@@ -488,7 +487,6 @@ export class SynchronizeService {
             if (status.sort !== script.sort) {
               await this.scriptDAO.update(script.uuid, {
                 sort: status.sort,
-                updatetime: Date.now(),
               });
             }
             // 脚本状态
