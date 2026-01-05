@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import type { Resource } from "@App/app/repo/resource";
-import { type Script, SCRIPT_STATUS_ENABLE, type ScriptDAO } from "@App/app/repo/scripts";
+import { type Script, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, type ScriptDAO } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
 import type { File } from "@Packages/filesystem/filesystem";
@@ -46,13 +46,15 @@ type ScriptcatSync = {
   version: string; // 脚本猫版本
   status: {
     scripts: {
-      [key: string]: {
-        enable: boolean;
-        sort: number;
-        updatetime: number; // 更新时间
-      };
+      [key: string]: ScriptcatSyncStatus | undefined;
     };
   };
+};
+
+type ScriptcatSyncStatus = {
+  enable: boolean;
+  sort: number;
+  updatetime: number; // 更新时间
 };
 
 type PushScriptParam = TInstallScriptParams;
@@ -367,8 +369,25 @@ export class SynchronizeService {
     scriptList.forEach((script) => {
       scriptMap.set(script.uuid, script);
     });
+
+    // 判断文件系统是否有脚本猫同步文件
+    const file = list.find((file) => file.name === "scriptcat-sync.json");
+    const scriptcatSync = {
+      version: ExtVersion,
+      status: {
+        scripts: {},
+      },
+    } as ScriptcatSync;
+    let cloudStatus: ScriptcatSync["status"]["scripts"] = {};
+    if (file) {
+      // 如果有,则读取文件内容
+      const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
+      cloudStatus = cloudScriptCatSync.status.scripts;
+    }
+
     // 对比脚本列表和文件列表,进行同步
     const result: Promise<void>[] = [];
+    const updateScript: Map<string, boolean> = new Map();
     uuidMap.forEach((file, uuid) => {
       const script = scriptMap.get(uuid);
       if (script) {
@@ -414,14 +433,16 @@ export class SynchronizeService {
           result.push(this.pushScript(fs, script));
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
-          result.push(this.pullScript(fs, file as SyncFiles, script));
+          updateScript.set(uuid, true);
+          result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script));
         }
         scriptMap.delete(uuid);
         return;
       }
       // 如果脚本不存在,且文件存在,则安装脚本
       if (file.script) {
-        result.push(this.pullScript(fs, file as SyncFiles));
+        updateScript.set(uuid, true);
+        result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid]));
       }
     });
     // 上传剩下的脚本
@@ -432,35 +453,27 @@ export class SynchronizeService {
     await Promise.allSettled(result);
     // 同步状态
     if (syncConfig.syncStatus) {
-      // 判断文件系统是否有脚本猫同步文件
-      const file = list.find((file) => file.name === "scriptcat-sync.json");
-      const scriptcatSync = {
-        version: ExtVersion,
-        status: {
-          scripts: {},
-        },
-      } as ScriptcatSync;
-      let cloudStatus: ScriptcatSync["status"]["scripts"] = {};
-      if (file) {
-        // 如果有,则读取文件内容
-        const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
-        cloudStatus = cloudScriptCatSync.status.scripts;
-      }
       const scriptlist = await this.scriptDAO.all();
       await Promise.allSettled(
         scriptlist.map(async (script) => {
           // 判断云端状态是否与本地状态一致
-          if (!cloudStatus[script.uuid]) {
+          const status = cloudStatus[script.uuid];
+          if (!status) {
             scriptcatSync.status.scripts[script.uuid] = {
               enable: script.status === SCRIPT_STATUS_ENABLE,
               sort: script.sort,
               updatetime: script.updatetime || script.createtime,
             };
           } else {
+            if (updateScript.has(script.uuid)) {
+              // 脚本已经更新过了,跳过状态同步
+              scriptcatSync.status.scripts[script.uuid] = status;
+              return;
+            }
             // 判断时间
             if (script.updatetime) {
               // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
-              if (cloudStatus[script.uuid].updatetime < script.updatetime) {
+              if (status.updatetime < script.updatetime) {
                 scriptcatSync.status.scripts[script.uuid] = {
                   enable: script.status === SCRIPT_STATUS_ENABLE,
                   sort: script.sort,
@@ -470,20 +483,20 @@ export class SynchronizeService {
               }
             }
             // 否则采用云端状态
-            scriptcatSync.status.scripts[script.uuid] = cloudStatus[script.uuid];
+            scriptcatSync.status.scripts[script.uuid] = status;
             // 脚本顺序
-            if (cloudStatus[script.uuid].sort !== script.sort) {
+            if (status.sort !== script.sort) {
               await this.scriptDAO.update(script.uuid, {
-                sort: cloudStatus[script.uuid].sort,
+                sort: status.sort,
                 updatetime: Date.now(),
               });
             }
             // 脚本状态
-            if (cloudStatus[script.uuid].enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
+            if (status.enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
               // 开启脚本
               await this.script.enableScript({
                 uuid: script.uuid,
-                enable: cloudStatus[script.uuid].enable,
+                enable: status.enable,
               });
             }
           }
@@ -573,7 +586,7 @@ export class SynchronizeService {
     return;
   }
 
-  async pullScript(fs: FileSystem, file: SyncFiles, existingScript?: Script) {
+  async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {
     const logger = this.logger.with({
       uuid: existingScript?.uuid || "",
       name: existingScript?.name || "",
@@ -593,6 +606,19 @@ export class SynchronizeService {
         existingScript?.uuid || metaObj.uuid
       );
       script.origin = script.origin || metaObj.origin;
+      if (status) {
+        if (existingScript) {
+          if (!existingScript.updatetime || status.updatetime > existingScript.updatetime) {
+            // 如果云端状态的更新时间大于本地状态的更新时间,则采用云端状态
+            script.sort = status.sort;
+            script.status = status.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+          }
+        } else {
+          // 新安装的脚本采用云端状态
+          script.sort = status.sort;
+          script.status = status.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+        }
+      }
       this.script.installScript({
         script,
         code,
@@ -602,7 +628,6 @@ export class SynchronizeService {
     } catch (e) {
       logger.error("pull script error", Logger.E(e));
     }
-    return;
   }
 
   cloudSyncConfigChange(value: CloudSyncConfig) {
