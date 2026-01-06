@@ -26,7 +26,7 @@ return new Promise((resolve, reject) => {
                 reject("伺服器回应错误。");
             }
             else {
-                GM_log(`你可能会相遇的狗狗是\n${resp.response.message}`);
+                GM_log(`你可能会遇到的狗狗是\n${resp.response.message}`);
                 resolve();
             }
         },
