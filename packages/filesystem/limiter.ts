@@ -67,8 +67,10 @@ export default class LimiterFileSystem implements FileSystem {
   }
 
   async openDir(path: string): Promise<FileSystem> {
-    const fs = await this.fs.openDir(path);
-    return new LimiterFileSystem(fs, this.limiter);
+    return this.limiter.execute(async () => {
+      const fs = await this.fs.openDir(path);
+      return new LimiterFileSystem(fs, this.limiter);
+    });
   }
 
   async create(path: string): Promise<FileWriter> {
