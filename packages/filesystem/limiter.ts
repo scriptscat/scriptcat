@@ -74,10 +74,12 @@ export default class LimiterFileSystem implements FileSystem {
   }
 
   async create(path: string): Promise<FileWriter> {
-    const writer = await this.fs.create(path);
-    return {
-      write: (content) => this.limiter.execute(() => writer.write(content)),
-    };
+    return this.limiter.execute(async () => {
+      const writer = await this.fs.create(path);
+      return {
+        write: (content) => this.limiter.execute(() => writer.write(content)),
+      };
+    });
   }
 
   createDir(dir: string): Promise<void> {
