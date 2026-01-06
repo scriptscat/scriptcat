@@ -3,6 +3,7 @@ import { defineConfig } from "@rspack/cli";
 import { rspack } from "@rspack/core";
 import { readFileSync } from "fs";
 import { NormalModule } from "@rspack/core";
+import { v4 as uuidv4 } from "uuid";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
@@ -19,7 +20,15 @@ const dist = path.join(dirname, "dist");
 const assets = path.join(src, "assets");
 
 // 排除这些文件，不进行分离
-const chunkExcludeSet = new Set(["editor.worker", "ts.worker", "linter.worker", "service_worker", "content", "inject"]);
+const chunkExcludeSet = new Set([
+  "editor.worker",
+  "ts.worker",
+  "linter.worker",
+  "service_worker",
+  "content",
+  "inject",
+  "scripting",
+]);
 
 export default defineConfig({
   ...(isDev
@@ -38,6 +47,7 @@ export default defineConfig({
     offscreen: `${src}/offscreen.ts`,
     sandbox: `${src}/sandbox.ts`,
     content: `${src}/content.ts`,
+    scripting: `${src}/scripting.ts`,
     inject: `${src}/inject.ts`,
     popup: `${src}/pages/popup/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
@@ -111,6 +121,10 @@ export default defineConfig({
     ],
   },
   plugins: [
+    new rspack.DefinePlugin({
+      "process.env.VI_TESTING": "'false'",
+      "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
+    }),
     new rspack.CopyRspackPlugin({
       patterns: [
         {

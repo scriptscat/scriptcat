@@ -1,5 +1,5 @@
 import { fetchScriptBody, parseMetadata, prepareScriptByCode } from "@App/pkg/utils/script";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";

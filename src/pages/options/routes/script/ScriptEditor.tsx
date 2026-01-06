@@ -10,7 +10,7 @@ import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
 import backgroundTpl from "@App/template/background.tpl";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import "./index.css";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
