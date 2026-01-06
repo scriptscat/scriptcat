@@ -60,10 +60,12 @@ export default class LimiterFileSystem implements FileSystem {
   }
 
   async open(file: File): Promise<FileReader> {
-    const reader = await this.fs.open(file);
-    return {
-      read: (type) => this.limiter.execute(() => reader.read(type)),
-    };
+    return this.limiter.execute(async () => {
+      const reader = await this.fs.open(file);
+      return {
+        read: (type) => this.limiter.execute(() => reader.read(type)),
+      };
+    });
   }
 
   async openDir(path: string): Promise<FileSystem> {
