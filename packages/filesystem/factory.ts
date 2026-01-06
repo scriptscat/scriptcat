@@ -43,7 +43,8 @@ export default class FileSystemFactory {
       default:
         throw new Error("not found filesystem");
     }
-    return new LimiterFileSystem(fs).verify().then(() => fs);
+    const limitedFs = new LimiterFileSystem(fs);
+    return limitedFs.verify().then(() => limitedFs);
   }
 
   static params(): { [key: string]: FileSystemParams } {
