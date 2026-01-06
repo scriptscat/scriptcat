@@ -23,7 +23,7 @@ return new Promise((resolve, reject) => {
 
         onload(resp) {
             if (typeof resp.response.message !== "string") {
-                reject("伺服器回应错误。");
+                reject("服务器回应错误。");
             }
             else {
                 GM_log(`你可能会遇到的狗狗是\n${resp.response.message}`);
@@ -31,7 +31,7 @@ return new Promise((resolve, reject) => {
             }
         },
         onerror(){
-            reject("伺服器回应错误。");
+            reject("服务器回应错误。");
         }
     });
 });
