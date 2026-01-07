@@ -129,7 +129,7 @@ export default class BaiduFileSystem implements FileSystem {
   async list(): Promise<File[]> {
     const list: File[] = [];
     let start = 0;
-    const limit = 1000;
+    const limit = 200;
 
     while (true) {
       const data = await this.request(
