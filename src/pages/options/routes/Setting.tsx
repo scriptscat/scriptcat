@@ -142,7 +142,7 @@ function Setting() {
       <Card className="sync" title={t("script_sync")} bordered={false}>
         <Space direction="vertical" className={"w-full"}>
           <Space direction="horizontal" className={"w-full"}>
-            <Popover trigger="hover" content={t("sync_delete_desc")}>
+            <div className="flex items-center gap-2">
               <Checkbox
                 checked={cloudSync.syncDelete}
                 onChange={(checked) => {
@@ -151,7 +151,10 @@ function Setting() {
               >
                 {t("sync_delete")}
               </Checkbox>
-            </Popover>
+              <Popover trigger="hover" content={t("sync_delete_desc")}>
+                <IconQuestionCircleFill className="text-gray-400 cursor-help" />
+              </Popover>
+            </div>
             <Checkbox
               checked={cloudSync.syncStatus}
               onChange={(checked) => {
