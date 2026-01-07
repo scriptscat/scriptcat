@@ -95,7 +95,7 @@ function Setting() {
             .then((v) => {
               const type = typeof v;
               if (type === "string" || type === "number" || type === "boolean") {
-                setter(v);
+                setter(v as any);
               }
             });
         }

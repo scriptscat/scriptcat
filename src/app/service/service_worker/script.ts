@@ -414,12 +414,13 @@ export class ScriptService {
   }
 
   async deleteScript(uuid: string) {
-    const logger = this.logger.with({ uuid });
+    let logger = this.logger.with({ uuid });
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
       logger.error("script not found");
       throw new Error("script not found");
     }
+    logger = logger.with({ name: script.name });
     const storageName = getStorageName(script);
     return this.scriptDAO
       .delete(uuid)
