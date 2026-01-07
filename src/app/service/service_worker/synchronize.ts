@@ -449,7 +449,6 @@ export class SynchronizeService {
     await Promise.allSettled(result);
     // 同步状态
     if (syncConfig.syncStatus) {
-      this.logger.info("sync scriptcat-sync.json file");
       const scriptlist = await this.scriptDAO.all();
       await Promise.allSettled(
         scriptlist.map(async (script) => {
