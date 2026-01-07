@@ -1,4 +1,4 @@
-import { Button, Card, Checkbox, ColorPicker, Input, Message, Select, Space } from "@arco-design/web-react";
+import { Button, Card, Checkbox, ColorPicker, Input, Message, Popover, Select, Space } from "@arco-design/web-react";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import prettier from "prettier/standalone";
 import * as babel from "prettier/parser-babel";
@@ -105,6 +105,7 @@ function Setting() {
       for (const unhook of unhooks) unhook();
       unhooks.length = 0;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -141,14 +142,19 @@ function Setting() {
       <Card className="sync" title={t("script_sync")} bordered={false}>
         <Space direction="vertical" className={"w-full"}>
           <Space direction="horizontal" className={"w-full"}>
-            <Checkbox
-              checked={cloudSync.syncDelete}
-              onChange={(checked) => {
-                setCloudSync((cloudSync) => ({ ...cloudSync, syncDelete: checked }));
-              }}
-            >
-              {t("sync_delete")}
-            </Checkbox>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={cloudSync.syncDelete}
+                onChange={(checked) => {
+                  setCloudSync((cloudSync) => ({ ...cloudSync, syncDelete: checked }));
+                }}
+              >
+                {t("sync_delete")}
+              </Checkbox>
+              <Popover trigger="hover" content={t("sync_delete_desc")}>
+                <IconQuestionCircleFill className="text-gray-400 cursor-help" />
+              </Popover>
+            </div>
             <Checkbox
               checked={cloudSync.syncStatus}
               onChange={(checked) => {

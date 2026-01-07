@@ -223,7 +223,7 @@ export class SystemConfig {
   defaultCloudSync(): CloudSyncConfig {
     return {
       enable: false,
-      syncDelete: true,
+      syncDelete: false,
       syncStatus: true,
       filesystem: "webdav",
       params: {},

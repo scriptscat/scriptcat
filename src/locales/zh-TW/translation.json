@@ -29,6 +29,7 @@
   "help_translate": "幫助翻譯",
   "script_sync": "腳本同步",
   "sync_delete": "同步刪除",
+  "sync_delete_desc": "啟用後，腳本刪除時會標記腳本為刪除，其他裝置檢測到刪除狀態後會將腳本刪除；關閉時，會直接刪除本機與雲端的腳本，如果有多台裝置可能出現腳本反覆同步的情況。",
   "enable_script_sync_to": "啟用腳本同步至",
   "save": "儲存",
   "save_as": "另存新檔",
