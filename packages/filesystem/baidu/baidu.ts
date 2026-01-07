@@ -130,8 +130,17 @@ export default class BaiduFileSystem implements FileSystem {
     const list: File[] = [];
     let start = 0;
     const limit = 200;
+    // 防御性：限制最大分页轮询次数，避免在 API 异常返回时出现无限循环
+    const MAX_ITERATIONS = 100;
+    let iterations = 0;
 
     while (true) {
+      if (iterations >= MAX_ITERATIONS) {
+        throw new Error(
+          "BaiduFileSystem.list: exceeded max pagination iterations, possible infinite loop from Baidu API response"
+        );
+      }
+      iterations += 1;
       const data = await this.request(
         `https://pan.baidu.com/rest/2.0/xpan/file?method=list&dir=${encodeURIComponent(
           this.path

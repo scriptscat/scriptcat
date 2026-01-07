@@ -225,7 +225,14 @@ export default class GoogleDriveFileSystem implements FileSystem {
     let pageToken: string | undefined = undefined;
 
     const query = `'${folderId}' in parents and trashed=false`;
+    const MAX_ITERATIONS = 100;
+    let iterations = 0;
+
     while (true) {
+      iterations += 1;
+      if (iterations > MAX_ITERATIONS) {
+        throw new Error("GoogleDrive list pagination exceeded maximum iterations");
+      }
       const url = new URL("https://www.googleapis.com/drive/v3/files");
       url.searchParams.set("q", query);
       url.searchParams.set("fields", "files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime),nextPageToken");

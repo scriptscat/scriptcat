@@ -164,7 +164,7 @@ export default class DropboxFileSystem implements FileSystem {
 
     const list: File[] = [];
 
-    const MAX_ITERATIONS = 1000;
+    const MAX_ITERATIONS = 100;
     let iterationCount = 0;
 
     while (true) {

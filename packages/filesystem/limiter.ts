@@ -49,13 +49,13 @@ export class RateLimiter {
    */
   private async executeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
     // 最多重试 10 次
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i <= 10; i++) {
       try {
         return await fn();
       } catch (error) {
         // 检查错误字符串中是否包含 429
         const errorStr = String(error);
-        if (errorStr.includes("429")) {
+        if (errorStr.includes("429") && i < 10) {
           // 遇到 429 错误且未达到重试上限，采用指数退避策略延迟后继续重试
           const delay = Math.min(2000 * Math.pow(2, i), 60000);
           await new Promise((resolve) => setTimeout(resolve, delay));

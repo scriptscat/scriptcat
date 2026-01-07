@@ -129,7 +129,7 @@ export default class OneDriveFileSystem implements FileSystem {
     const list: File[] = [];
     let nextLink: string | undefined = `https://graph.microsoft.com/v1.0/me/drive/special/approot${path}/children`;
     let iterationCount = 0;
-    const MAX_ITERATIONS = 1000;
+    const MAX_ITERATIONS = 100;
 
     while (nextLink) {
       iterationCount += 1;
