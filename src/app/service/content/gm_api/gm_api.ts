@@ -690,7 +690,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.addElement" })
   GM_addElement(
-    parentNode: EventTarget | string,
+    parentNode: Node | string,
     tagName: string | Record<string, string | number | boolean>,
     attrs: Record<string, string | number | boolean> = {}
   ) {
