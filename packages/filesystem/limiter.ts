@@ -31,7 +31,7 @@ export class RateLimiter {
 
     this.running++;
     try {
-      return await fn();
+      return await this.executeWithRetry(fn);
     } finally {
       this.running--;
       // 执行完成后，从队列中取出下一个等待的操作
@@ -40,6 +40,32 @@ export class RateLimiter {
         next();
       }
     }
+  }
+
+  /**
+   * 执行操作并处理 429 错误重试
+   * @param fn 要执行的操作函数
+   * @returns 操作结果
+   */
+  private async executeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+    // 最多重试 10 次
+    for (let i = 0; i < 10; i++) {
+      try {
+        return await fn();
+      } catch (error) {
+        // 检查错误字符串中是否包含 429
+        const errorStr = String(error);
+        if (errorStr.includes("429")) {
+          // 遇到 429 错误且未达到重试上限，延迟 2 秒后继续重试
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          // 继续下一次循环重试
+          continue;
+        }
+        // 其他错误或达到重试上限，直接抛出
+        throw error;
+      }
+    }
+    throw new Error("Max retries exceeded");
   }
 }
 

@@ -149,7 +149,7 @@ export default class DropboxFileSystem implements FileSystem {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
-    const response = await this.request("https://api.dropboxapi.com/2/files/list_folder", {
+    let response = await this.request("https://api.dropboxapi.com/2/files/list_folder", {
       method: "POST",
       headers: myHeaders,
       body: JSON.stringify({
@@ -157,26 +157,43 @@ export default class DropboxFileSystem implements FileSystem {
       }),
     }).catch((e) => {
       if (e.message.includes("path/not_found")) {
-        return { entries: [] }; // 返回空数组以避免后续错误
+        return { entries: [], has_more: false }; // 返回空数组以避免后续错误
       }
       throw e;
     });
 
     const list: File[] = [];
-    if (response.entries) {
-      for (const item of response.entries) {
-        // 只包含文件，跳过文件夹
-        if (item[".tag"] === "file") {
-          list.push({
-            name: item.name,
-            path: this.path,
-            size: item.size || 0,
-            digest: item.content_hash || "",
-            createtime: new Date(item.client_modified).getTime(),
-            updatetime: new Date(item.server_modified).getTime(),
-          });
+
+    while (true) {
+      if (response.entries) {
+        for (const item of response.entries) {
+          // 只包含文件，跳过文件夹
+          if (item[".tag"] === "file") {
+            list.push({
+              name: item.name,
+              path: this.path,
+              size: item.size || 0,
+              digest: item.content_hash || "",
+              createtime: new Date(item.client_modified).getTime(),
+              updatetime: new Date(item.server_modified).getTime(),
+            });
+          }
         }
       }
+
+      // 检查是否有更多数据
+      if (!response.has_more) {
+        break;
+      }
+
+      // 获取下一页数据
+      response = await this.request("https://api.dropboxapi.com/2/files/list_folder/continue", {
+        method: "POST",
+        headers: myHeaders,
+        body: JSON.stringify({
+          cursor: response.cursor,
+        }),
+      });
     }
 
     return list;
