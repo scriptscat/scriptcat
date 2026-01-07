@@ -56,8 +56,9 @@ export class RateLimiter {
         // 检查错误字符串中是否包含 429
         const errorStr = String(error);
         if (errorStr.includes("429")) {
-          // 遇到 429 错误且未达到重试上限，延迟 2 秒后继续重试
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          // 遇到 429 错误且未达到重试上限，采用指数退避策略延迟后继续重试
+          const delay = Math.min(2000 * Math.pow(2, i), 60000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
           // 继续下一次循环重试
           continue;
         }
