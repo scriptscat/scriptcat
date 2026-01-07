@@ -95,7 +95,7 @@ function Setting() {
             .then((v) => {
               const type = typeof v;
               if (type === "string" || type === "number" || type === "boolean") {
-                setter(v);
+                setter(v as any);
               }
             });
         }
@@ -188,6 +188,7 @@ function Setting() {
                       await FileSystemFactory.create(cloudSync.filesystem, cloudSync.params[cloudSync.filesystem]);
                     } catch (e) {
                       Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
+                      // 删除
                       return;
                     }
                   }

@@ -88,7 +88,7 @@ export class SystemConfig {
     });
   }
 
-  private _get<T extends string | number | boolean | object | undefined>(
+  private _get<T extends string | number | boolean | object>(
     key: SystemConfigKey,
     defaultValue: WithAsyncValue<Exclude<T, undefined>>
   ): Promise<T> {
@@ -247,10 +247,10 @@ export class SystemConfig {
   }
 
   getCatFileStorage() {
-    return this._get<CATFileStorage | undefined>("cat_file_storage", this.defaultCatFileStorage());
+    return this._get<CATFileStorage>("cat_file_storage", this.defaultCatFileStorage());
   }
 
-  setCatFileStorage(data: CATFileStorage | undefined) {
+  setCatFileStorage(data: CATFileStorage) {
     this._set("cat_file_storage", data);
   }
 
@@ -263,12 +263,12 @@ export class SystemConfig {
   }
 
   getEslintConfig() {
-    return this._get<string | undefined>("eslint_config", defaultConfig);
+    return this._get<string>("eslint_config", defaultConfig);
   }
 
   setEslintConfig(v: string) {
     if (v === "") {
-      this._set("eslint_config", undefined);
+      this._set("eslint_config", defaultConfig);
       return;
     }
     JSON.parse(v);
@@ -276,12 +276,12 @@ export class SystemConfig {
   }
 
   getEditorConfig() {
-    return this._get<string | undefined>("editor_config", editorDefaultConfig);
+    return this._get<string>("editor_config", editorDefaultConfig);
   }
 
   setEditorConfig(v: string) {
     if (v === "") {
-      this._set("editor_config", undefined);
+      this._set("editor_config", editorDefaultConfig);
       return;
     }
     JSON.parse(v);
