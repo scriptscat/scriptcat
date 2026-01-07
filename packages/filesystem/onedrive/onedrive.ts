@@ -128,8 +128,14 @@ export default class OneDriveFileSystem implements FileSystem {
 
     const list: File[] = [];
     let nextLink: string | undefined = `https://graph.microsoft.com/v1.0/me/drive/special/approot${path}/children`;
+    let iterationCount = 0;
+    const MAX_ITERATIONS = 1000;
 
     while (nextLink) {
+      iterationCount += 1;
+      if (iterationCount > MAX_ITERATIONS) {
+        throw new Error("OneDrive list pagination exceeded maximum iterations");
+      }
       const data = await this.request(nextLink);
 
       if (data.value) {
