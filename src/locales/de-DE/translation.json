@@ -29,6 +29,7 @@
   "help_translate": "Bei der Übersetzung helfen",
   "script_sync": "Skript-Synchronisation",
   "sync_delete": "Synchronisiertes Löschen",
+  "sync_delete_desc": "Wenn aktiviert, wird das Skript beim Löschen als gelöscht markiert und andere Geräte erkennen diesen Status und löschen das Skript ebenfalls. Wenn deaktiviert, wird das Skript direkt aus dem lokalen und Cloud-Speicher gelöscht, was zu wiederholten Synchronisierungsproblemen führen kann, wenn mehrere Geräte verwendet werden.",
   "enable_script_sync_to": "Skript-Synchronisation aktivieren zu",
   "save": "Speichern",
   "save_as": "Speichern unter",

@@ -29,6 +29,7 @@
   "help_translate": "Giúp chúng tôi dịch",
   "script_sync": "Đồng bộ script",
   "sync_delete": "Đồng bộ xóa",
+  "sync_delete_desc": "Khi bật, khi xóa script sẽ đánh dấu là đã xóa, các thiết bị khác phát hiện trạng thái này sẽ xóa script tương ứng. Khi tắt, sẽ xóa trực tiếp script trên bộ nhớ cục bộ và đám mây, nếu có nhiều thiết bị có thể xảy ra tình trạng đồng bộ lặp lại.",
   "enable_script_sync_to": "Bật đồng bộ script tới",
   "save": "Lưu",
   "save_as": "Lưu thành",
