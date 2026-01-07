@@ -164,7 +164,14 @@ export default class DropboxFileSystem implements FileSystem {
 
     const list: File[] = [];
 
+    const MAX_ITERATIONS = 1000;
+    let iterationCount = 0;
+
     while (true) {
+      iterationCount++;
+      if (iterationCount > MAX_ITERATIONS) {
+        throw new Error("Dropbox list pagination exceeded maximum iterations");
+      }
       if (response.entries) {
         for (const item of response.entries) {
           // 只包含文件，跳过文件夹
