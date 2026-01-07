@@ -128,20 +128,7 @@ export class SystemConfig {
     });
   }
 
-  public get(key: SystemConfigKey | SystemConfigKey[]): Promise<any | any[]> {
-    if (Array.isArray(key)) {
-      const promises = key.map((key) => {
-        const funcName = `get${toCamelCase(key)}`;
-        // @ts-ignore
-        if (typeof this[funcName] === "function") {
-          // @ts-ignore
-          return this[funcName]() as Promise<any>;
-        } else {
-          throw new Error(`Method ${funcName} does not exist on SystemConfig`);
-        }
-      });
-      return Promise.all(promises);
-    }
+  public get<T extends SystemConfigKey>(key: T): Promise<SystemConfigValueType<T>> {
     const funcName = `get${toCamelCase(key)}`;
     // @ts-ignore
     if (typeof this[funcName] === "function") {
@@ -152,7 +139,7 @@ export class SystemConfig {
     }
   }
 
-  public set(key: SystemConfigKey, value: any): void {
+  public set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T>): void {
     const funcName = `set${toCamelCase(key)}`;
     // @ts-ignore
     if (typeof this[funcName] === "function") {
@@ -260,7 +247,7 @@ export class SystemConfig {
   defaultCloudSync(): CloudSyncConfig {
     return {
       enable: false,
-      syncDelete: true,
+      syncDelete: false,
       syncStatus: true,
       filesystem: "webdav",
       params: {},

@@ -29,6 +29,7 @@
   "help_translate": "Help us translate",
   "script_sync": "Script Sync",
   "sync_delete": "Sync Delete",
+  "sync_delete_desc": "When enabled, scripts will be marked as deleted when removed, and other devices will detect this status and delete the script accordingly. When disabled, scripts will be deleted directly from both local and cloud storage, which may cause repeated sync issues if multiple devices are in use.",
   "enable_script_sync_to": "Enable Script Sync to",
   "save": "Save",
   "save_as": "Save as",
