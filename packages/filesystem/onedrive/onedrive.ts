@@ -125,17 +125,35 @@ export default class OneDriveFileSystem implements FileSystem {
     } else {
       path = `:${path}:`;
     }
-    const data = await this.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot${path}/children`);
-    const list: File[] = data.value.map((val: any) => {
-      return {
-        name: val.name,
-        path: this.path,
-        size: val.size,
-        digest: val.eTag,
-        createtime: new Date(val.createdDateTime).getTime(),
-        updatetime: new Date(val.lastModifiedDateTime).getTime(),
-      };
-    });
+
+    const list: File[] = [];
+    let nextLink: string | undefined = `https://graph.microsoft.com/v1.0/me/drive/special/approot${path}/children`;
+    let iterationCount = 0;
+    const MAX_ITERATIONS = 100;
+
+    while (nextLink) {
+      iterationCount += 1;
+      if (iterationCount > MAX_ITERATIONS) {
+        throw new Error("OneDrive list pagination exceeded maximum iterations");
+      }
+      const data = await this.request(nextLink);
+
+      if (data.value) {
+        for (const val of data.value) {
+          list.push({
+            name: val.name,
+            path: this.path,
+            size: val.size,
+            digest: val.eTag,
+            createtime: new Date(val.createdDateTime).getTime(),
+            updatetime: new Date(val.lastModifiedDateTime).getTime(),
+          });
+        }
+      }
+
+      nextLink = data["@odata.nextLink"];
+    }
+
     return list;
   }
 

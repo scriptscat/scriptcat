@@ -274,7 +274,7 @@ export class SystemConfig {
     return this._get<CATFileStorage>("cat_file_storage", this.defaultCatFileStorage());
   }
 
-  setCatFileStorage(data: CATFileStorage | undefined) {
+  setCatFileStorage(data: CATFileStorage) {
     this._set("cat_file_storage", data);
   }
 
@@ -292,7 +292,7 @@ export class SystemConfig {
 
   setEslintConfig(v: string) {
     if (v === "") {
-      this._set("eslint_config", undefined);
+      this._set("eslint_config", defaultConfig);
       return;
     }
     JSON.parse(v);
@@ -305,7 +305,7 @@ export class SystemConfig {
 
   setEditorConfig(v: string) {
     if (v === "") {
-      this._set("editor_config", undefined);
+      this._set("editor_config", editorDefaultConfig);
       return;
     }
     JSON.parse(v);

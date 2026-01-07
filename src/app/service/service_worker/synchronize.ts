@@ -420,8 +420,9 @@ export class SynchronizeService {
         }
         const updatetime = script.updatetime || script.createtime;
         // 对比脚本更新时间和文件更新时间
-        if (updatetime > file.script!.updatetime) {
-          // 如果脚本更新时间大于文件更新时间,则上传文件
+        if (updatetime > file.script!.updatetime || !file.meta) {
+          // 如果脚本更新时间大于文件更新时间
+          // 或者不存在.meta文件,则上传文件
           result.push(this.pushScript(fs, script));
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
@@ -433,6 +434,11 @@ export class SynchronizeService {
       }
       // 如果脚本不存在,且文件存在,则安装脚本
       if (file.script) {
+        if (!file.meta) {
+          // 如果.meta文件不存在，则删除脚本文件，并跳过
+          result.push(fs.delete(file.script.name));
+          return;
+        }
         updateScript.set(uuid, true);
         result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid]));
       }
@@ -537,7 +543,6 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
-        await fs.delete(filename);
         await fs.delete(`${uuid}.meta.json`);
       }
       logger.info("delete success");
