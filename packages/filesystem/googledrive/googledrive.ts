@@ -145,7 +145,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
     // 首先，找到要删除的文件或文件夹
     const fileId = await this.getFileId(fullPath);
     if (!fileId) {
-      throw new Error(`File or directory not found: ${path}`);
+      throw new Error(`File or directory not found: ${fullPath}`);
     }
 
     // 删除文件或文件夹

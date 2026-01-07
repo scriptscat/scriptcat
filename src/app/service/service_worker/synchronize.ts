@@ -394,29 +394,25 @@ export class SynchronizeService {
         // 脚本存在但是文件不存在,则读取.meta.json内容判断是否需要删除脚本
         if (!file.script) {
           result.push(
-            new Promise((resolve) => {
-              const handler = async () => {
-                // 读取meta文件
-                const meta = await fs.open(file.meta!);
-                const metaJson = (await meta.read("string")) as string;
-                const metaObj = JSON.parse(metaJson) as SyncMeta;
-                if (metaObj.isDeleted) {
-                  if (script) {
-                    this.script.deleteScript(script.uuid);
-                    InfoNotification(
-                      i18n.t("notification.script_sync_delete"),
-                      i18n.t("notification.script_sync_delete_desc", { scriptName: i18nName(script) })
-                    );
-                  }
-                  scriptMap.delete(uuid);
-                } else {
-                  // 否则认为是一个无效的.meta文件,进行删除
-                  await fs.delete(file.meta!.path);
+            (async () => {
+              // 读取meta文件
+              const meta = await fs.open(file.meta!);
+              const metaJson = (await meta.read("string")) as string;
+              const metaObj = JSON.parse(metaJson) as SyncMeta;
+              if (metaObj.isDeleted) {
+                if (script) {
+                  this.script.deleteScript(script.uuid);
+                  InfoNotification(
+                    i18n.t("notification.script_sync_delete"),
+                    i18n.t("notification.script_sync_delete_desc", { scriptName: i18nName(script) })
+                  );
                 }
-                resolve();
-              };
-              handler();
-            })
+                scriptMap.delete(uuid);
+              } else {
+                // 否则认为是一个无效的.meta文件,进行删除
+                await fs.delete(file.meta!.name);
+              }
+            })()
           );
           return;
         }
@@ -453,6 +449,7 @@ export class SynchronizeService {
     await Promise.allSettled(result);
     // 同步状态
     if (syncConfig.syncStatus) {
+      this.logger.info("sync scriptcat-sync.json file");
       const scriptlist = await this.scriptDAO.all();
       await Promise.allSettled(
         scriptlist.map(async (script) => {
@@ -503,9 +500,10 @@ export class SynchronizeService {
       // 保存脚本猫同步状态
       const syncFile = await fs.create("scriptcat-sync.json");
       await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
-      this.logger.info("sync scriptcat sync file success");
+      this.logger.info("sync scriptcat-sync.json file success");
     }
     // 重新获取文件列表,保存文件摘要
+    this.logger.info("update file digest");
     await this.updateFileDigest(fs);
     this.logger.info("sync complete");
     return;
