@@ -5,10 +5,10 @@ import chardet from "chardet";
  */
 export const parseCharsetFromContentType = (contentType: string | null): string | null => {
   if (!contentType) return null;
-  
+
   const match = contentType.match(/charset=([^;]+)/i);
   if (match && match[1]) {
-    return match[1].trim().toLowerCase().replace(/['"]/g, '');
+    return match[1].trim().toLowerCase().replace(/['"]/g, "");
   }
   return null;
 };
@@ -25,8 +25,8 @@ export const detectEncoding = (data: Uint8Array, contentType: string | null): st
       // 验证 charset 是否有效
       new TextDecoder(headerCharset);
       return headerCharset;
-    } catch (e) {
-      console.warn(`Invalid charset from Content-Type header: ${headerCharset}`);
+    } catch (e: any) {
+      console.warn(`Invalid charset from Content-Type header: ${headerCharset}, error: ${e.message}`);
     }
   }
 
@@ -34,15 +34,15 @@ export const detectEncoding = (data: Uint8Array, contentType: string | null): st
   const sampleSize = Math.min(data.length, 16 * 1024);
   const sample = data.slice(0, sampleSize);
   const detected = chardet.detect(sample);
-  
+
   if (detected) {
     const encoding = detected.toLowerCase();
     try {
       // 验证检测到的编码是否有效
       new TextDecoder(encoding);
       return encoding;
-    } catch (e) {
-      console.warn(`Invalid charset detected by chardet: ${encoding}`);
+    } catch (e: any) {
+      console.warn(`Invalid charset detected by chardet: ${encoding}, error: ${e.message}`);
     }
   }
 

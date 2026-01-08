@@ -33,7 +33,7 @@ import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
 import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
-import { detectEncoding } from "./encoding";
+import { detectEncoding } from "@App/pkg/utils/encoding";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 

@@ -70,7 +70,7 @@ describe("encoding detection", () => {
       const text = "a".repeat(20 * 1024);
       const textBytes = new TextEncoder().encode(text);
       largeData.set(textBytes.slice(0, largeData.length));
-      
+
       const encoding = detectEncoding(largeData, null);
       // 应该成功检测，说明使用了采样
       expect(["utf-8", "ascii", "windows-1252"]).toContain(encoding);
@@ -79,7 +79,7 @@ describe("encoding detection", () => {
     it("should handle GBK encoded data", () => {
       // GBK 编码的 "你好" (这是一个简化的测试，实际 GBK 编码更复杂)
       // 注意：在浏览器环境中，GBK 编码可能被识别为其他兼容编码
-      const gbkLikeData = new Uint8Array([0xC4, 0xE3, 0xBA, 0xC3]); // "你好" in GBK
+      const gbkLikeData = new Uint8Array([0xc4, 0xe3, 0xba, 0xc3]); // "你好" in GBK
       const encoding = detectEncoding(gbkLikeData, null);
       // chardet 可能识别为 GBK、Shift_JIS 或相关的东亚编码
       expect(encoding).toBeTruthy();
@@ -88,7 +88,7 @@ describe("encoding detection", () => {
 
     it("should handle ISO-8859-1 encoded data", () => {
       // ISO-8859-1 特有字符（扩展 ASCII）
-      const iso88591Data = new Uint8Array([0xE9, 0xE8, 0xE0, 0xE7]); // é è à ç
+      const iso88591Data = new Uint8Array([0xe9, 0xe8, 0xe0, 0xe7]); // é è à ç
       const encoding = detectEncoding(iso88591Data, null);
       expect(encoding).toBeTruthy();
     });
@@ -96,14 +96,14 @@ describe("encoding detection", () => {
     it("should validate detected encoding is supported by TextDecoder", () => {
       const utf8Data = new TextEncoder().encode("test");
       const encoding = detectEncoding(utf8Data, null);
-      
+
       // 确保返回的编码可以被 TextDecoder 使用
       expect(() => new TextDecoder(encoding)).not.toThrow();
     });
 
     it("should prefer Content-Type charset over chardet detection", () => {
       // 即使数据看起来像 GBK，如果 Content-Type 指定了 UTF-8，应该使用 UTF-8
-      const data = new Uint8Array([0xC4, 0xE3, 0xBA, 0xC3]);
+      const data = new Uint8Array([0xc4, 0xe3, 0xba, 0xc3]);
       const encoding = detectEncoding(data, "text/javascript; charset=utf-8");
       expect(encoding).toBe("utf-8");
     });
@@ -128,14 +128,14 @@ describe("encoding detection", () => {
     it("should fallback to utf-8 when chardet detects invalid encoding", () => {
       // 使用 vi.spyOn 来模拟 console.warn
       const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      
+
       const data = new TextEncoder().encode("test");
       const encoding = detectEncoding(data, null);
-      
+
       // 应该成功返回一个有效的编码
       expect(encoding).toBeTruthy();
       expect(() => new TextDecoder(encoding)).not.toThrow();
-      
+
       consoleWarnSpy.mockRestore();
     });
   });
