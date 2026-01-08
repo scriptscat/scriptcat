@@ -32,7 +32,7 @@ export const detectEncoding = (data: Uint8Array, contentType: string | null): st
 
   // 使用 chardet 检测编码，仅检测前16KB以提升性能
   const sampleSize = Math.min(data.length, 16 * 1024);
-  const sample = data.slice(0, sampleSize);
+  const sample = data.subarray(0, sampleSize);
   const detected = chardet.detect(sample);
 
   if (detected) {
