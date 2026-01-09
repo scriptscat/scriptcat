@@ -33,6 +33,7 @@ import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
 import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
+import { detectEncoding } from "@App/pkg/utils/encoding";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 
@@ -102,11 +103,6 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
     onProgress?.({ receivedLength });
   }
 
-  // 检查 Content-Type 中的 charset
-  const contentType = response.headers.get("content-type") || "";
-  const charsetMatch = contentType.match(/charset=([^;]+)/i);
-  const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "utf-8";
-
   // 合并分片（chunks）
   const chunksAll = new Uint8Array(receivedLength);
   let position = 0;
@@ -115,12 +111,18 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
     position += chunk.length;
   }
 
+  // 检测编码：优先使用 Content-Type，回退到 chardet（仅检测前16KB）
+  const contentType = response.headers.get("content-type");
+  const encode = detectEncoding(chunksAll, contentType);
+
   // 使用检测到的 charset 解码
   let code;
   try {
-    code = new TextDecoder(charset).decode(chunksAll);
+    code = new TextDecoder(encode).decode(chunksAll);
   } catch (e: any) {
-    throw new Error(`Failed to decode response with charset ${charset}: ${e.message}`);
+    console.warn(`Failed to decode response with charset ${encode}: ${e.message}`);
+    // 回退到 UTF-8
+    code = new TextDecoder("utf-8").decode(chunksAll);
   }
 
   const metadata = parseMetadata(code);
