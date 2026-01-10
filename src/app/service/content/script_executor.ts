@@ -1,8 +1,7 @@
 import type { Message } from "@Packages/message/types";
-import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ScriptFunc, ValueUpdateSendData } from "./types";
 import { addStyleSheet, definePropertyListener } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
@@ -35,23 +34,23 @@ try {
 // 脚本执行器
 export class ScriptExecutor {
   earlyScriptFlag: Set<string> = new Set();
-  execMap: Map<string, ExecScript> = new Map();
+  execScriptMap: Map<string, ExecScript> = new Map();
 
   constructor(private msg: Message) {}
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
-    const exec = this.execMap.get(data.uuid);
+    const exec = this.execScriptMap.get(data.uuid);
     if (exec) {
       exec.emitEvent(data.event, data.eventId, data.data);
     }
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    const { uuid, storageName } = data;
-    for (const val of this.execMap.values()) {
-      if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
-        val.valueUpdate(data);
+  valueUpdate(sendData: ValueUpdateSendData) {
+    const { storageName, storageChanges } = sendData;
+    for (const [uuid, responses] of Object.entries(storageChanges)) {
+      for (const execScript of this.execScriptMap.values()) {
+        execScript.valueUpdate(storageName, uuid, responses);
       }
     }
   }
@@ -70,7 +69,7 @@ export class ScriptExecutor {
       const flag = script.flag;
       // 如果是EarlyScriptFlag，处理沙盒环境
       if (this.earlyScriptFlag.has(flag)) {
-        for (const val of this.execMap.values()) {
+        for (const val of this.execScriptMap.values()) {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             val.updateEarlyScriptGMInfo(envInfo);
@@ -138,7 +137,7 @@ export class ScriptExecutor {
     const { scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
 
     const exec = new ExecScript(scriptLoadInfo, "content", this.msg, scriptFunc, envInfo);
-    this.execMap.set(scriptLoadInfo.uuid, exec);
+    this.execScriptMap.set(scriptLoadInfo.uuid, exec);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.resource;
     // 注入css
