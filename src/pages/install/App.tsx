@@ -33,7 +33,7 @@ import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
 import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
-import { detectEncoding } from "@App/pkg/utils/encoding";
+import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 
@@ -118,7 +118,7 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   // 使用检测到的 charset 解码
   let code;
   try {
-    code = new TextDecoder(encode).decode(chunksAll);
+    code = bytesDecode(encode, chunksAll);
   } catch (e: any) {
     console.warn(`Failed to decode response with charset ${encode}: ${e.message}`);
     // 回退到 UTF-8
