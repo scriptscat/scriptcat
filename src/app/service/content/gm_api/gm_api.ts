@@ -235,6 +235,9 @@ export default class GMApi extends GM_Base {
     if (!a.scriptRes) return undefined;
     const ret = a.scriptRes.value[key];
     if (ret !== undefined) {
+      if (ret && typeof ret === "object") {
+        return structuredClone(ret);
+      }
       return ret;
     }
     return defaultValue;
@@ -268,7 +271,7 @@ export default class GMApi extends GM_Base {
     }
     // 对object的value进行一次转化
     if (value && typeof value === "object") {
-      value = JSON.parse(JSON.stringify(value));
+      value = structuredClone(value);
     }
     if (value === undefined) {
       delete a.scriptRes.value[key];
@@ -375,7 +378,12 @@ export default class GMApi extends GM_Base {
       for (let index = 0; index < keysOrDefaults.length; index++) {
         const key = keysOrDefaults[index];
         if (key in this.scriptRes.value) {
-          result[key] = this.scriptRes.value[key];
+          // 对object的value进行一次转化
+          let value = this.scriptRes.value[key];
+          if (value && typeof value === "object") {
+            value = structuredClone(value);
+          }
+          result[key] = value;
         }
       }
     } else {

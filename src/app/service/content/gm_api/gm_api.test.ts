@@ -461,6 +461,99 @@ describe.concurrent("GM_value", () => {
     expect(ret).toEqual({ ret1: 123, ret2: 456 });
   });
 
+  it.concurrent("value引用问题 #1141", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_getValues"];
+    script.code = `
+const value1 = {
+    arr: [1],
+    obj: {
+        a: "1"
+    },
+    str: "123",
+}
+GM_setValue("abc", value1);
+
+const value2 = GM_getValue("abc");
+
+value2.arr.push(2);
+value2.obj.b = 2;
+value2.str = "456";
+
+value1.arr.push(3);
+value1.obj.b = 3;
+value1.str = "789"
+
+const value3 = GM_getValue("abc");
+
+const values1 = GM_getValues(["abc"]);
+
+const values2 = GM_getValues({"abc":{}});
+
+values2.abc.arr.push(2);
+values2.abc.obj.b = 2;
+values2.abc.str = "456";
+
+return { value1, value2, value3, values1,values2 };
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+
+    expect(ret).toEqual({
+      value1: {
+        arr: [1, 3],
+        obj: {
+          a: "1",
+          b: 3,
+        },
+        str: "789",
+      },
+      value2: {
+        arr: [1, 2],
+        obj: {
+          a: "1",
+          b: 2,
+        },
+        str: "456",
+      },
+      value3: {
+        arr: [1],
+        obj: {
+          a: "1",
+        },
+        str: "123",
+      },
+      values1: {
+        abc: {
+          arr: [1],
+          obj: {
+            a: "1",
+          },
+          str: "123",
+        },
+      },
+      values2: {
+        abc: {
+          arr: [1, 2],
+          obj: {
+            a: "1",
+            b: 2,
+          },
+          str: "456",
+        },
+      },
+    });
+  });
+
   it.concurrent("GM_setValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues"];
