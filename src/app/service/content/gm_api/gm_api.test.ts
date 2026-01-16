@@ -482,7 +482,7 @@ value2.str = "456";
 
 value1.arr.push(3);
 value1.obj.b = 3;
-value1.str = "789"
+value1.str = "789";
 
 const value3 = GM_getValue("abc");
 
