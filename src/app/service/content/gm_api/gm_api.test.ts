@@ -474,6 +474,14 @@ const value1 = {
 }
 GM_setValue("abc", value1);
 
+const allValues1 = GM_getValues();
+
+allValues1.abc.arr.push(8);
+allValues1.n1 = 5;
+allValues1.n2 = {c: 8};
+delete allValues1.abc.obj.a;
+allValues1.abc.str = "0";
+
 const value2 = GM_getValue("abc");
 
 value2.arr.push(2);
@@ -486,17 +494,17 @@ value1.str = "789";
 
 const value3 = GM_getValue("abc");
 
-const values1 = GM_getValues(["abc"]);
+const values1 = GM_getValues(["abc", "n3"]);
 
-const values2 = GM_getValues({"abc":{}});
+const values2 = GM_getValues({"abc":{}, "n4":{}, "n5":"hi"});
 
 values2.abc.arr.push(2);
 values2.abc.obj.b = 2;
 values2.abc.str = "456";
 
-const allValues = GM_getValues();
+const allValues2 = GM_getValues();
     
-return { value1, value2, value3, values1,values2, allValues };
+return { value1, value2, value3, values1,values2, allValues1, allValues2 };
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -552,8 +560,19 @@ return { value1, value2, value3, values1,values2, allValues };
           },
           str: "456",
         },
+        n4: {},
+        n5: "hi",
       },
-      allValues: {
+      allValues1: {
+        abc: {
+          arr: [1, 8],
+          obj: {},
+          str: "0",
+        },
+        n1: 5,
+        n2: { c: 8 },
+      },
+      allValues2: {
         abc: {
           arr: [1],
           obj: {
