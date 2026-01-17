@@ -269,14 +269,14 @@ export default class GMApi extends GM_Base {
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
-    // 对object的value进行一次转化
-    if (value && typeof value === "object") {
-      value = structuredClone(value);
-    }
     if (value === undefined) {
       delete a.scriptRes.value[key];
       a.sendMessage("GM_setValue", [id, key]);
     } else {
+      // 对object的value进行一次转化
+      if (value && typeof value === "object") {
+        value = structuredClone(value);
+      }
       a.scriptRes.value[key] = value;
       a.sendMessage("GM_setValue", [id, key, value]);
     }
