@@ -494,7 +494,9 @@ values2.abc.arr.push(2);
 values2.abc.obj.b = 2;
 values2.abc.str = "456";
 
-return { value1, value2, value3, values1,values2 };
+const allValues = GM_getValues();
+    
+return { value1, value2, value3, values1,values2, allValues };
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -549,6 +551,15 @@ return { value1, value2, value3, values1,values2 };
             b: 2,
           },
           str: "456",
+        },
+      },
+      allValues: {
+        abc: {
+          arr: [1],
+          obj: {
+            a: "1",
+          },
+          str: "123",
         },
       },
     });
