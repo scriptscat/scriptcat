@@ -503,8 +503,16 @@ values2.abc.obj.b = 2;
 values2.abc.str = "456";
 
 const allValues2 = GM_getValues();
+
+
+const value4 = GM_getValue("abc");
+const value5 = GM_getValue("abc");
+value5.arr[0] = 9;
+GM_setValue("abc", value5);
+
+const value6 = GM_getValue("abc");
     
-return { value1, value2, value3, values1,values2, allValues1, allValues2 };
+return { value1, value2, value3, values1,values2, allValues1, allValues2, value4, value5, value6 };
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -516,7 +524,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2 };
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
 
     expect(ret).toEqual({
       value1: {
@@ -581,6 +589,27 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2 };
           str: "123",
         },
       },
+      value4: {
+        arr: [1],
+        obj: {
+          a: "1",
+        },
+        str: "123",
+      },
+      value5: {
+        arr: [9],
+        obj: {
+          a: "1",
+        },
+        str: "123",
+      },
+      value6: {
+        arr: [9],
+        obj: {
+          a: "1",
+        },
+        str: "123",
+      },
     });
   });
 
@@ -616,7 +645,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2 };
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -642,7 +671,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2 };
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -693,7 +722,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2 };
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -719,7 +748,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2 };
           api: "GM_setValue",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the string payload
             "b",
           ],
@@ -764,7 +793,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2 };
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -790,7 +819,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2 };
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the string payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
