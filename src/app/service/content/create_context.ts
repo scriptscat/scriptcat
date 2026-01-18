@@ -1,5 +1,5 @@
 import type { TScriptInfo } from "@App/app/repo/scripts";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_api/gm_context";

@@ -12,7 +12,7 @@ import {
   Popover,
 } from "@arco-design/web-react";
 import { IconDown } from "@arco-design/web-react/icon";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import CodeEditor from "../components/CodeEditor";
 import { useEffect, useMemo, useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
