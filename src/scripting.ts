@@ -111,9 +111,9 @@ const handleRuntimeGmApi = (
       const msg = isContent ? senderToContent : senderToInject;
 
       // 取回 parentNode（如果存在）
-      let parentNode: EventTarget | undefined;
+      let parentNode: Node | undefined;
       if (parentNodeId) {
-        parentNode = msg.getAndDelRelatedTarget(parentNodeId);
+        parentNode = msg.getAndDelRelatedTarget(parentNodeId) as Node | undefined;
       }
 
       // 创建元素并设置属性
@@ -130,7 +130,7 @@ const handleRuntimeGmApi = (
       if (textContent) el.textContent = textContent;
 
       // 优先挂到 parentNode，否则挂到 head/body/任意节点
-      const node = <Element>parentNode || document.head || document.body || document.querySelector("*");
+      const node = parentNode || document.head || document.body || document.querySelector("*");
       node.appendChild(el);
 
       // 返回节点引用 id，供另一侧再取回
