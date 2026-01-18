@@ -13,7 +13,7 @@ import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
-import type { ValueUpdateDataEncoded } from "../content/types";
+import type { ValueUpdateSendData } from "../content/types";
 import { getStorageName, getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
@@ -23,7 +23,7 @@ import { decodeRValue } from "@App/pkg/utils/message_value";
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
 
-  execScripts: Map<string, ExecScript> = new Map();
+  execScriptMap: Map<string, ExecScript> = new Map();
 
   logger: Logger;
 
@@ -81,7 +81,7 @@ export class Runtime {
   async enableScript(script: ScriptRunResource) {
     // 开启脚本
     // 如果正在运行,先释放
-    if (this.execScripts.has(script.uuid)) {
+    if (this.execScriptMap.has(script.uuid)) {
       await this.disableScript(script.uuid);
     }
     const metadataStr = getMetadataStr(script.code) || "";
@@ -112,7 +112,7 @@ export class Runtime {
     }
     // 移除重试队列
     this.removeRetryList(uuid);
-    if (!this.execScripts.has(uuid)) {
+    if (!this.execScriptMap.has(uuid)) {
       // 没有在运行
       return false;
     }
@@ -123,13 +123,13 @@ export class Runtime {
   // 执行脚本
   async execScript(script: ScriptLoadInfo, execOnce?: boolean) {
     const logger = this.logger.with({ uuid: script.uuid, name: script.name });
-    if (this.execScripts.has(script.uuid)) {
+    if (this.execScriptMap.has(script.uuid)) {
       // 释放掉资源
       // 暂未实现执行完成后立马释放,会在下一次执行时释放
       await this.stopScript(script.uuid);
     }
     const exec = new BgExecScriptWarp(script, this.windowMessage);
-    this.execScripts.set(script.uuid, exec);
+    this.execScriptMap.set(script.uuid, exec);
     proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_RUNNING });
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
     script.lastruntime = Date.now();
@@ -294,19 +294,19 @@ export class Runtime {
   }
 
   async stopScript(uuid: string) {
-    const exec = this.execScripts.get(uuid);
+    const exec = this.execScriptMap.get(uuid);
     if (!exec) {
       proxyUpdateRunStatus(this.windowMessage, { uuid: uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
       return false;
     }
     exec.stop();
-    this.execScripts.delete(uuid);
+    this.execScriptMap.delete(uuid);
     proxyUpdateRunStatus(this.windowMessage, { uuid: uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
     return true;
   }
 
   async runScript(script: ScriptRunResource) {
-    const exec = this.execScripts.get(script.uuid);
+    const exec = this.execScriptMap.get(script.uuid);
     // 如果正在运行,先释放
     if (exec) {
       await this.stopScript(script.uuid);
@@ -323,20 +323,27 @@ export class Runtime {
     return this.execScript(loadScript, true);
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    const dataEntries = data.entries;
-    // 转发给脚本
-    this.execScripts.forEach((val) => {
-      if (val.scriptRes.uuid === data.uuid || getStorageName(val.scriptRes) === data.storageName) {
-        val.valueUpdate(data);
+  valueUpdate(sendData: ValueUpdateSendData) {
+    const { storageName, storageChanges } = sendData;
+    for (const [uuid, responses] of Object.entries(storageChanges)) {
+      // 转发给脚本
+      for (const execScript of this.execScriptMap.values()) {
+        execScript.valueUpdate(storageName, uuid, responses);
       }
-    });
-    // 更新crontabScripts中的脚本值
-    for (const script of this.crontabSripts) {
-      if (script.uuid === data.uuid || getStorageName(script) === data.storageName) {
-        for (const [key, rTyped1, _rTyped2] of dataEntries) {
-          const value = decodeRValue(rTyped1);
-          script.value[key] = value;
+      for (const { valueChanges } of responses) {
+        // 更新crontabScripts中的脚本值
+        for (const script of this.crontabSripts) {
+          if (script.uuid === uuid || getStorageName(script) === storageName) {
+            const valueStore = script.value;
+            for (const [key, rTyped1, _rTyped2] of valueChanges) {
+              const value = decodeRValue(rTyped1);
+              if (value !== undefined) {
+                valueStore[key] = value;
+              } else if (valueStore[key] !== undefined) {
+                delete valueStore[key];
+              }
+            }
+          }
         }
       }
     }
@@ -344,7 +351,7 @@ export class Runtime {
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
-    const exec = this.execScripts.get(data.uuid);
+    const exec = this.execScriptMap.get(data.uuid);
     if (exec) {
       exec.emitEvent(data.event, data.eventId, data.data);
     }

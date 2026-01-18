@@ -427,7 +427,7 @@ export default class GMApi {
     await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }
 
-  @PermissionVerify.API({ link: ["GM_deleteValues"] })
+  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_deleteValues"] })
   async GM_setValues(request: GMApiRequest<[string, TKeyValuePair[]]>, sender: IGetSender) {
     if (!request.params || request.params.length !== 2) {
       throw new Error("param is failed");
