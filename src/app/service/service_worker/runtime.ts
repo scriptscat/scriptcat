@@ -466,7 +466,7 @@ export class RuntimeService {
             // 如果是预加载脚本，需要更新脚本代码重新注册
             // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
             const script = await this.scriptDAO.get(uuid);
-            // 因為從 scriptDAO 取了最新的。所以再確認一下吧。
+            // 因为从 scriptDAO 取了最新的，所以再确认一下吧。
             if (script && script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
               await this.updateResourceOnScriptChange(script);
             }
