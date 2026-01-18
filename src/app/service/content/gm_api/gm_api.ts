@@ -716,7 +716,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.addElement" })
   GM_addElement(
-    parentNode: EventTarget | string,
+    parentNode: Node | string,
     tagName: string | Record<string, string | number | boolean>,
     attrs: Record<string, string | number | boolean> = {}
   ) {
@@ -729,7 +729,7 @@ export default class GMApi extends GM_Base {
       parentNodeId = id;
     } else {
       parentNodeId = null;
-      attrs = tagName as Record<string, string | number | boolean>;
+      attrs = (tagName || {}) as Record<string, string | number | boolean>;
       tagName = parentNode as string;
     }
     if (typeof tagName !== "string") throw new Error("The parameter 'tagName' of GM_addElement shall be a string.");

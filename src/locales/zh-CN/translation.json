@@ -29,6 +29,7 @@
   "help_translate": "协助翻译",
   "script_sync": "脚本同步",
   "sync_delete": "同步删除",
+  "sync_delete_desc": "启用后，脚本删除时，会标记脚本为删除，其他设备检测到删除状态后会将脚本删除；关闭时，会直接删除本地与云端的脚本，如果有多台设备可能出现脚本反复同步的情况。",
   "enable_script_sync_to": "启用脚本同步至",
   "save": "保存",
   "save_as": "另存为",

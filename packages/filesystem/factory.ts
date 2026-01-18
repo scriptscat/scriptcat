@@ -6,6 +6,7 @@ import DropboxFileSystem from "./dropbox/dropbox";
 import WebDAVFileSystem from "./webdav/webdav";
 import ZipFileSystem from "./zip/zip";
 import { t } from "@App/locales/locales";
+import LimiterFileSystem from "./limiter";
 
 export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive" | "dropbox";
 
@@ -42,7 +43,8 @@ export default class FileSystemFactory {
       default:
         throw new Error("not found filesystem");
     }
-    return fs.verify().then(() => fs);
+    const limitedFs = new LimiterFileSystem(fs);
+    return limitedFs.verify().then(() => limitedFs);
   }
 
   static params(): { [key: string]: FileSystemParams } {
