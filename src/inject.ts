@@ -64,7 +64,7 @@ const resetMessagingTokens = () => {
   pageMessaging.clearMessageTag();
 };
 
-// 根据 injectFlagEvt 设置双方通信 token
+// 根据 injectFlagEvt 设置双方通信 token（仅允许调用一次）
 const setMessagingTokens = (injectFlagEvt: string) => {
   scriptingMessaging.setMessageTag(injectFlagEvt);
   pageMessaging.setMessageTag(`${injectFlagEvt}_${scriptEnvTag}`);
@@ -230,7 +230,7 @@ const setupHandshake = () => {
     bindScriptingDeliveryChannel();
   };
 
-  // 等待 scripting 注入完成并发送 injectFlagEvt
+  // 等待 scripting 注入完成并发送 injectFlagEvt （仅调用一次）
   pageAddEventListener(executorEnvReadyKey, (ev) => {
     if (!(ev instanceof CustomEvent)) return;
 

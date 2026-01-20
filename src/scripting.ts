@@ -196,7 +196,7 @@ const onMessageFlagReceived = (MessageFlag: string) => {
 
   const finalizeWhenReady = () => {
     if (readyFlag === 3) {
-      readyFlag = 4;
+      readyFlag = 4; // 确保单次调用限制
 
       // 统一设置 token
       scriptingMessaging.setMessageTag(injectFlagEvt);
