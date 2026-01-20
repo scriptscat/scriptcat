@@ -691,7 +691,6 @@ export class RuntimeService {
 
   // 生成messageFlag
   generateMessageFlag(): string {
-    // return randomMessageFlag();
     return uuidv4();
   }
 
