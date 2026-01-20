@@ -1,8 +1,9 @@
 import React from "react";
-import { Input, Select, Space } from "@arco-design/web-react";
+import { Button, Input, Message, Popconfirm, Select, Space } from "@arco-design/web-react";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
+import { ClearNetDiskToken, type NetDiskType } from "@Packages/filesystem/auth";
 
 const FileSystemParams: React.FC<{
   preNode: React.ReactNode | string;
@@ -21,6 +22,7 @@ const FileSystemParams: React.FC<{
 }) => {
   const fsParams = FileSystemFactory.params();
   const { t } = useTranslation();
+  const actionButtons = [...actionButton];
 
   const fileSystemList: {
     key: FileSystemType;
@@ -47,6 +49,35 @@ const FileSystemParams: React.FC<{
       name: "Dropbox",
     },
   ];
+  const netDiskTypeMap: Partial<Record<FileSystemType, NetDiskType>> = {
+    "baidu-netdsik": "baidu",
+    onedrive: "onedrive",
+    googledrive: "googledrive",
+    dropbox: "dropbox",
+  };
+  const netDiskType = netDiskTypeMap[fileSystemType];
+  const netDiskName = fileSystemList.find((item) => item.key === fileSystemType)?.name;
+
+  if (netDiskType) {
+    actionButtons.push(
+      <Popconfirm
+        key="netdisk-unbind"
+        title={t("netdisk_unbind_confirm", { provider: netDiskName })}
+        onOk={async () => {
+          try {
+            await ClearNetDiskToken(netDiskType);
+            Message.success(t("netdisk_unbind_success", { provider: netDiskName })!);
+          } catch (error) {
+            Message.error(`${t("netdisk_unbind_error", { provider: netDiskName })}: ${String(error)}`);
+          }
+        }}
+      >
+        <Button type="primary" status="danger">
+          {t("netdisk_unbind", { provider: netDiskName })}
+        </Button>
+      </Popconfirm>
+    );
+  }
 
   return (
     <>
@@ -65,7 +96,7 @@ const FileSystemParams: React.FC<{
             </Select.Option>
           ))}
         </Select>
-        {actionButton.map((item) => item)}
+        {actionButtons.map((item) => item)}
       </Space>
       <Space
         style={{
