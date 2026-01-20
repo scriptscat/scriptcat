@@ -145,7 +145,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
     // 首先，找到要删除的文件或文件夹
     const fileId = await this.getFileId(fullPath);
     if (!fileId) {
-      throw new Error(`File or directory not found: ${path}`);
+      throw new Error(`File or directory not found: ${fullPath}`);
     }
 
     // 删除文件或文件夹
@@ -220,23 +220,45 @@ export default class GoogleDriveFileSystem implements FileSystem {
       folderId = foundId;
     }
 
-    // 列出目录内容
-    const query = `'${folderId}' in parents and trashed=false`;
-    const response = await this.request(
-      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime)&spaces=appDataFolder`
-    );
-
+    // 列出目录内容，处理分页
     const list: File[] = [];
-    if (response.files) {
-      for (const item of response.files) {
-        list.push({
-          name: item.name,
-          path: this.path,
-          size: item.size ? parseInt(item.size, 10) : 0,
-          digest: item.md5Checksum || "",
-          createtime: new Date(item.createdTime).getTime(),
-          updatetime: new Date(item.modifiedTime).getTime(),
-        });
+    let pageToken: string | undefined = undefined;
+
+    const query = `'${folderId}' in parents and trashed=false`;
+    const MAX_ITERATIONS = 100;
+    let iterations = 0;
+
+    while (true) {
+      iterations += 1;
+      if (iterations > MAX_ITERATIONS) {
+        throw new Error("GoogleDrive list pagination exceeded maximum iterations");
+      }
+      const url = new URL("https://www.googleapis.com/drive/v3/files");
+      url.searchParams.set("q", query);
+      url.searchParams.set("fields", "files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime),nextPageToken");
+      url.searchParams.set("spaces", "appDataFolder");
+      if (pageToken) {
+        url.searchParams.set("pageToken", pageToken);
+      }
+
+      const response = await this.request(url.toString());
+
+      if (response.files) {
+        for (const item of response.files) {
+          list.push({
+            name: item.name,
+            path: this.path,
+            size: item.size ? parseInt(item.size, 10) : 0,
+            digest: item.md5Checksum || "",
+            createtime: new Date(item.createdTime).getTime(),
+            updatetime: new Date(item.modifiedTime).getTime(),
+          });
+        }
+      }
+
+      pageToken = response.nextPageToken;
+      if (!pageToken) {
+        break;
       }
     }
 

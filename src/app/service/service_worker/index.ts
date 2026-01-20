@@ -194,28 +194,26 @@ export default class ServiceWorkerManager {
           chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
         } else if (details.reason === "update") {
           const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
-          getCurrentTab()
-            .then((tab) => {
-              // 检查是否正在播放视频，或者窗口未激活
-              const openInBackground = !tab || tab.audible === true || !tab.active;
-              // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
-              return chrome.tabs.create({
-                url,
-                active: !openInBackground,
-                index: !tab ? undefined : tab.index + 1,
-                windowId: !tab ? undefined : tab.windowId,
+          // 如果只是修复版本，只弹出通知不打开页面
+          // beta版本还是每次都打开更新页面
+          InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
+          if (ExtVersion.endsWith(".0")) {
+            getCurrentTab()
+              .then((tab) => {
+                // 检查是否正在播放视频，或者窗口未激活
+                const openInBackground = !tab || tab.audible === true || !tab.active;
+                // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
+                return chrome.tabs.create({
+                  url,
+                  active: !openInBackground,
+                  index: !tab ? undefined : tab.index + 1,
+                  windowId: !tab ? undefined : tab.windowId,
+                });
+              })
+              .catch((e) => {
+                console.error(e);
               });
-            })
-            .then((_createdTab) => {
-              // 当新 Tab 成功建立时才执行
-              InfoNotification(
-                t("ext_update_notification"),
-                t("ext_update_notification_desc", { version: ExtVersion })
-              );
-            })
-            .catch((e) => {
-              console.error(e);
-            });
+          }
         }
       });
 

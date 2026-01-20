@@ -76,7 +76,7 @@ export default class ContentRuntime {
           case "GM_addElement": {
             const [parentNodeId, tagName, tmpAttr] = data.params;
             let attr = { ...tmpAttr };
-            let parentNode: EventTarget | undefined;
+            let parentNode: Node | undefined;
             // 判断是不是content脚本发过来的
             let msg: CustomEventMessage;
             if (this.contentScriptSet.has(data.uuid) || this.scriptExecutor.execMap.has(data.uuid)) {
@@ -85,7 +85,7 @@ export default class ContentRuntime {
               msg = this.senderToInject;
             }
             if (parentNodeId) {
-              parentNode = msg.getAndDelRelatedTarget(parentNodeId);
+              parentNode = msg.getAndDelRelatedTarget(parentNodeId) as Node | undefined;
             }
             const el = <Element>document.createElement(tagName);
 
@@ -104,7 +104,7 @@ export default class ContentRuntime {
             if (textContent) {
               el.textContent = textContent;
             }
-            (<Element>parentNode || document.head || document.body || document.querySelector("*")).appendChild(el);
+            (parentNode || document.head || document.body || document.querySelector("*")).appendChild(el);
             const nodeId = msg.sendRelatedTarget(el);
             return nodeId;
           }

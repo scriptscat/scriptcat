@@ -235,6 +235,9 @@ export default class GMApi extends GM_Base {
     if (!a.scriptRes) return undefined;
     const ret = a.scriptRes.value[key];
     if (ret !== undefined) {
+      if (ret && typeof ret === "object") {
+        return structuredClone(ret);
+      }
       return ret;
     }
     return defaultValue;
@@ -266,14 +269,14 @@ export default class GMApi extends GM_Base {
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
-    // 对object的value进行一次转化
-    if (value && typeof value === "object") {
-      value = JSON.parse(JSON.stringify(value));
-    }
     if (value === undefined) {
       delete a.scriptRes.value[key];
       a.sendMessage("GM_setValue", [id, key]);
     } else {
+      // 对object的value进行一次转化
+      if (value && typeof value === "object") {
+        value = structuredClone(value);
+      }
       a.scriptRes.value[key] = value;
       a.sendMessage("GM_setValue", [id, key, value]);
     }
@@ -294,13 +297,13 @@ export default class GMApi extends GM_Base {
     const valueStore = a.scriptRes.value;
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
-      // 对object的value进行一次转化
-      if (value_ && typeof value_ === "object") {
-        value_ = JSON.parse(JSON.stringify(value_));
-      }
       if (value_ === undefined) {
         if (valueStore[key]) delete valueStore[key];
       } else {
+        // 对object的value进行一次转化
+        if (value_ && typeof value_ === "object") {
+          value_ = structuredClone(value_);
+        }
         valueStore[key] = value_;
       }
     }
@@ -366,7 +369,7 @@ export default class GMApi extends GM_Base {
     if (!this.scriptRes) return {};
     if (!keysOrDefaults) {
       // Returns all values
-      return this.scriptRes.value;
+      return structuredClone(this.scriptRes.value);
     }
     const result: TGMKeyValue = {};
     if (Array.isArray(keysOrDefaults)) {
@@ -375,7 +378,12 @@ export default class GMApi extends GM_Base {
       for (let index = 0; index < keysOrDefaults.length; index++) {
         const key = keysOrDefaults[index];
         if (key in this.scriptRes.value) {
-          result[key] = this.scriptRes.value[key];
+          // 对object的value进行一次转化
+          let value = this.scriptRes.value[key];
+          if (value && typeof value === "object") {
+            value = structuredClone(value);
+          }
+          result[key] = value;
         }
       }
     } else {
@@ -690,7 +698,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.addElement" })
   GM_addElement(
-    parentNode: EventTarget | string,
+    parentNode: Node | string,
     tagName: string | Record<string, string | number | boolean>,
     attrs: Record<string, string | number | boolean> = {}
   ) {
@@ -703,7 +711,7 @@ export default class GMApi extends GM_Base {
       parentNodeId = id;
     } else {
       parentNodeId = null;
-      attrs = tagName as Record<string, string | number | boolean>;
+      attrs = (tagName || {}) as Record<string, string | number | boolean>;
       tagName = parentNode as string;
     }
     if (typeof tagName !== "string") throw new Error("The parameter 'tagName' of GM_addElement shall be a string.");

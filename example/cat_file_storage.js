@@ -47,4 +47,4 @@ CAT_fileStorage("upload", {
 				break;
 		}
 	}
-})
+});
