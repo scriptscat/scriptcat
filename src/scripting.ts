@@ -251,7 +251,7 @@ const onMessageFlagReceived = (MessageFlag: string) => {
 // 来自 service_worker 的投递：storage 广播（类似 UDP）
 // ================================
 
-// 接数 service_worker 的 chrome.storage.local 值改变通知 （一对多广播）
+// 接收 service_worker 的 chrome.storage.local 值改变通知 （一对多广播）
 // 类似 UDP 原理，service_worker 不会有任何「等待处理」
 // 由于 changes 会包括新旧值 (Chrome: JSON serialization, Firefox: Structured Clone)
 // 因此需要注意资讯量不要过大导致 onChanged 的触发过慢
