@@ -32,7 +32,6 @@ export class CustomEventPostMessage implements PostMessage {
 export type PageMessaging = {
   et: string;
   bindReceiver?: () => void;
-  waitReadyResolve?: () => any;
   onReady?: (callback: () => any) => any;
   setMessageTag: (tag: string) => void;
   clearMessageTag: () => void;
