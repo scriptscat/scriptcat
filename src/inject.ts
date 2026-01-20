@@ -60,14 +60,14 @@ const requireScriptingToken = (): string => {
 
 // 重置所有页面通信 token（用于反注册脚本）
 const resetMessagingTokens = () => {
-  scriptingMessaging.et = "";
-  pageMessaging.et = "";
+  scriptingMessaging.clearMessageTag();
+  pageMessaging.clearMessageTag();
 };
 
 // 根据 injectFlagEvt 设置双方通信 token
 const setMessagingTokens = (injectFlagEvt: string) => {
-  scriptingMessaging.et = injectFlagEvt;
-  pageMessaging.et = `${injectFlagEvt}_${scriptEnvTag}`;
+  scriptingMessaging.setMessageTag(injectFlagEvt);
+  pageMessaging.setMessageTag(`${injectFlagEvt}_${scriptEnvTag}`);
 };
 
 // 通知 scripting 侧：inject 已完成初始化

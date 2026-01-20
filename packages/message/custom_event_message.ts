@@ -32,22 +32,35 @@ export class CustomEventPostMessage implements PostMessage {
 export type PageMessaging = {
   et: string;
   bindReceiver?: () => void;
-  waitReady?: Promise<void>;
   waitReadyResolve?: () => any;
   onReady?: (callback: () => any) => any;
+  setMessageTag: (tag: string) => void;
+  clearMessageTag: () => void;
 };
 
 export const createPageMessaging = (et: string) => {
   const pageMessaging = { et } as PageMessaging;
-  pageMessaging.waitReady = new Promise<void>((resolve) => {
-    pageMessaging.waitReadyResolve = resolve;
-  });
+  let resolveFn: ((value: void | PromiseLike<void>) => void) | null = null;
+  let promise = et
+    ? null
+    : new Promise<void>((resolve) => {
+        resolveFn = resolve;
+      });
   pageMessaging.onReady = (callback: () => any) => {
     if (pageMessaging.et) {
       callback();
     } else {
-      pageMessaging.waitReady!.then(callback);
+      promise?.then(callback);
     }
+  };
+  pageMessaging.setMessageTag = function (tag: string) {
+    if (this.et) throw new Error("pageMessaging.et has already been set.");
+    this.et = tag;
+    resolveFn?.();
+    promise = null;
+  };
+  pageMessaging.clearMessageTag = function () {
+    this.et = "";
   };
   return pageMessaging;
 };

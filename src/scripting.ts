@@ -199,9 +199,9 @@ const onMessageFlagReceived = (MessageFlag: string) => {
       readyFlag = 4;
 
       // 统一设置 token
-      scriptingMessaging.et = injectFlagEvt;
-      scriptExecutorMsgIT.et = `${injectFlagEvt}_${ScriptEnvTag.inject}`;
-      scriptExecutorMsgCT.et = `${injectFlagEvt}_${ScriptEnvTag.content}`;
+      scriptingMessaging.setMessageTag(injectFlagEvt);
+      scriptExecutorMsgIT.setMessageTag(`${injectFlagEvt}_${ScriptEnvTag.inject}`);
+      scriptExecutorMsgCT.setMessageTag(`${injectFlagEvt}_${ScriptEnvTag.content}`);
 
       // 绑定 receiver（允许 inject/content 发消息给 scripting）
       scriptExecutorMsgTxIT.bindReceiver();
