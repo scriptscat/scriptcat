@@ -88,63 +88,65 @@ const RuntimeSetting: React.FC = () => {
                     {t("use_file_system")}
                   </Typography.Text>
                 }
-                actionButtons={[
-                  <Button
-                    key="save"
-                    type="primary"
-                    onClick={async () => {
-                      try {
-                        await FileSystemFactory.create(fileSystemType, fileSystemParams);
-                      } catch (e) {
-                        Message.error(`${t("account_validation_failed")}: ${e}`);
-                        return;
-                      }
-                      const params = { ...fileSystemParams };
-                      params[fileSystemType] = fileSystemParams;
-                      systemConfig.setCatFileStorage({
-                        status: "success",
-                        filesystem: fileSystemType,
-                        params,
-                      });
-                      setStatus("success");
-                      Message.success(t("save_success")!);
-                    }}
-                  >
-                    {t("save")}
-                  </Button>,
-                  <Button
-                    key="reset"
-                    onClick={() => {
-                      systemConfig.setCatFileStorage({
-                        status: "unset",
-                        filesystem: "webdav",
-                        params: {},
-                      });
-                      setStatus("unset");
-                      setFilesystemParam({});
-                      setFilesystemType("webdav");
-                    }}
-                    type="primary"
-                    status="danger"
-                  >
-                    {t("reset")}
-                  </Button>,
-                  <Button
-                    key="open"
-                    type="secondary"
-                    onClick={async () => {
-                      try {
-                        let fs = await FileSystemFactory.create(fileSystemType, fileSystemParams);
-                        fs = await fs.openDir("ScriptCat/app");
-                        window.open(await fs.getDirUrl(), "_black");
-                      } catch (e) {
-                        Message.error(`${t("account_validation_failed")}: ${e}`);
-                      }
-                    }}
-                  >
-                    {t("open_directory")}
-                  </Button>,
-                ]}
+                actions={
+                  <>
+                    <Button
+                      key="save"
+                      type="primary"
+                      onClick={async () => {
+                        try {
+                          await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                        } catch (e) {
+                          Message.error(`${t("account_validation_failed")}: ${e}`);
+                          return;
+                        }
+                        const params = { ...fileSystemParams };
+                        params[fileSystemType] = fileSystemParams;
+                        systemConfig.setCatFileStorage({
+                          status: "success",
+                          filesystem: fileSystemType,
+                          params,
+                        });
+                        setStatus("success");
+                        Message.success(t("save_success")!);
+                      }}
+                    >
+                      {t("save")}
+                    </Button>
+                    <Button
+                      key="reset"
+                      onClick={() => {
+                        systemConfig.setCatFileStorage({
+                          status: "unset",
+                          filesystem: "webdav",
+                          params: {},
+                        });
+                        setStatus("unset");
+                        setFilesystemParam({});
+                        setFilesystemType("webdav");
+                      }}
+                      type="primary"
+                      status="danger"
+                    >
+                      {t("reset")}
+                    </Button>
+                    <Button
+                      key="open"
+                      type="secondary"
+                      onClick={async () => {
+                        try {
+                          let fs = await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                          fs = await fs.openDir("ScriptCat/app");
+                          window.open(await fs.getDirUrl(), "_black");
+                        } catch (e) {
+                          Message.error(`${t("account_validation_failed")}: ${e}`);
+                        }
+                      }}
+                    >
+                      {t("open_directory")}
+                    </Button>
+                  </>
+                }
                 fileSystemType={fileSystemType}
                 fileSystemParams={fileSystemParams}
                 onChangeFileSystemType={(type) => {

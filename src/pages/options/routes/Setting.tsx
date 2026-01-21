@@ -175,29 +175,31 @@ function Setting() {
                 {t("enable_script_sync_to")}
               </Checkbox>
             }
-            actionButtons={[
-              <Button
-                key="save"
-                type="primary"
-                onClick={async () => {
-                  // Save to the configuration
-                  // Perform validation if enabled
-                  if (cloudSync.enable) {
-                    Message.info(t("cloud_sync_account_verification")!);
-                    try {
-                      await FileSystemFactory.create(cloudSync.filesystem, cloudSync.params[cloudSync.filesystem]);
-                    } catch (e) {
-                      Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
-                      return;
+            actions={
+              <>
+                <Button
+                  key="save"
+                  type="primary"
+                  onClick={async () => {
+                    // Save to the configuration
+                    // Perform validation if enabled
+                    if (cloudSync.enable) {
+                      Message.info(t("cloud_sync_account_verification")!);
+                      try {
+                        await FileSystemFactory.create(cloudSync.filesystem, cloudSync.params[cloudSync.filesystem]);
+                      } catch (e) {
+                        Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
+                        return;
+                      }
                     }
-                  }
-                  submitCloudSync();
-                  Message.success(t("save_success")!);
-                }}
-              >
-                {t("save")}
-              </Button>,
-            ]}
+                    submitCloudSync();
+                    Message.success(t("save_success")!);
+                  }}
+                >
+                  {t("save")}
+                </Button>
+              </>
+            }
             fileSystemType={cloudSync.filesystem}
             fileSystemParams={cloudSync.params[cloudSync.filesystem] || {}}
             onChangeFileSystemType={(type) => {

@@ -9,17 +9,10 @@ const FileSystemParams: React.FC<{
   preNode: React.ReactNode | string;
   onChangeFileSystemType: (type: FileSystemType) => void;
   onChangeFileSystemParams: (params: any) => void;
-  actionButtons: React.ReactNode[];
+  actions: React.ReactNode;
   fileSystemType: FileSystemType;
   fileSystemParams: any;
-}> = ({
-  onChangeFileSystemType,
-  onChangeFileSystemParams,
-  preNode,
-  actionButtons,
-  fileSystemType,
-  fileSystemParams,
-}) => {
+}> = ({ onChangeFileSystemType, onChangeFileSystemParams, preNode, actions, fileSystemType, fileSystemParams }) => {
   const fsParams = FileSystemFactory.params();
   const { t } = useTranslation();
 
@@ -69,7 +62,7 @@ const FileSystemParams: React.FC<{
             </Select.Option>
           ))}
         </Select>
-        {actionButtons}
+        {actions}
         {netDiskType && netDiskName && (
           <Popconfirm
             key="netdisk-unbind"
