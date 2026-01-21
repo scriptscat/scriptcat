@@ -93,7 +93,7 @@ function Tools() {
           </Space>
           <Title heading={6}>{t("cloud")}</Title>
           <FileSystemParams
-            preNode={t("backup_to")}
+            headerContent={t("backup_to")}
             onChangeFileSystemType={(type) => {
               setBackup({ ...backup, filesystem: type });
             }}

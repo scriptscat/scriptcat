@@ -165,7 +165,7 @@ function Setting() {
             </Checkbox>
           </Space>
           <FileSystemParams
-            preNode={
+            headerContent={
               <Checkbox
                 checked={cloudSync.enable}
                 onChange={(checked) => {

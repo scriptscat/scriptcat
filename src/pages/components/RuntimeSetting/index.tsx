@@ -76,7 +76,7 @@ const RuntimeSetting: React.FC = () => {
           <CollapseItem header={t("storage_api")} name="storage">
             <Space direction="vertical">
               <FileSystemParams
-                preNode={
+                headerContent={
                   <Typography.Text>
                     {t("settings")}
                     <Link

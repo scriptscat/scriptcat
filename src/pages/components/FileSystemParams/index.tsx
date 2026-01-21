@@ -6,13 +6,20 @@ import { useTranslation } from "react-i18next";
 import { ClearNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
 
 const FileSystemParams: React.FC<{
-  preNode: React.ReactNode | string;
+  headerContent: React.ReactNode | string;
   onChangeFileSystemType: (type: FileSystemType) => void;
   onChangeFileSystemParams: (params: any) => void;
   actions: React.ReactNode;
   fileSystemType: FileSystemType;
   fileSystemParams: any;
-}> = ({ onChangeFileSystemType, onChangeFileSystemParams, preNode, actions, fileSystemType, fileSystemParams }) => {
+}> = ({
+  onChangeFileSystemType,
+  onChangeFileSystemParams,
+  headerContent,
+  actions,
+  fileSystemType,
+  fileSystemParams,
+}) => {
   const fsParams = FileSystemFactory.params();
   const { t } = useTranslation();
 
@@ -48,7 +55,7 @@ const FileSystemParams: React.FC<{
   return (
     <>
       <Space>
-        {preNode}
+        {headerContent}
         <Select
           value={fileSystemType}
           style={{ width: 120 }}
