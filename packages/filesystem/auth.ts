@@ -2,6 +2,7 @@ import { ExtServer, ExtServerApi } from "@App/app/const";
 import { WarpTokenError } from "./error";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { sleep } from "@App/pkg/utils/utils";
+import type { FileSystemType } from "./factory";
 
 export type NetDiskType = "baidu" | "onedrive" | "googledrive" | "dropbox";
 
@@ -128,12 +129,20 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
   return token.accessToken;
 }
 
+export const netDiskTypeMap: Partial<Record<FileSystemType, NetDiskType>> = {
+  "baidu-netdsik": "baidu",
+  onedrive: "onedrive",
+  googledrive: "googledrive",
+  dropbox: "dropbox",
+};
+
 export async function ClearNetDiskToken(netDiskType: NetDiskType) {
   const localStorageDAO = new LocalStorageDAO();
   const key = `netdisk:token:${netDiskType}`;
   try {
     await localStorageDAO.delete(key);
-  } catch (_) {
+  } catch (error) {
     // ignore
+    console.error("ClearNetDiskToken error:", error);
   }
 }

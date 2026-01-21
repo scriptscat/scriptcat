@@ -3,7 +3,7 @@ import { Button, Input, Message, Popconfirm, Select, Space } from "@arco-design/
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
-import { ClearNetDiskToken, type NetDiskType } from "@Packages/filesystem/auth";
+import { ClearNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
 
 const FileSystemParams: React.FC<{
   preNode: React.ReactNode | string;
@@ -49,16 +49,12 @@ const FileSystemParams: React.FC<{
       name: "Dropbox",
     },
   ];
-  const netDiskTypeMap: Partial<Record<FileSystemType, NetDiskType>> = {
-    "baidu-netdsik": "baidu",
-    onedrive: "onedrive",
-    googledrive: "googledrive",
-    dropbox: "dropbox",
-  };
+
   const netDiskType = netDiskTypeMap[fileSystemType];
-  const netDiskName = fileSystemList.find((item) => item.key === fileSystemType)?.name;
 
   if (netDiskType) {
+    const netDiskName = fileSystemList.find((item) => item.key === fileSystemType)?.name;
+
     actionButtons.push(
       <Popconfirm
         key="netdisk-unbind"
