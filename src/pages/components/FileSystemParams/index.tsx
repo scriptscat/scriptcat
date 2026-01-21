@@ -69,7 +69,7 @@ const FileSystemParams: React.FC<{
             </Select.Option>
           ))}
         </Select>
-        {actionButtons.map((item) => item)}
+        {actionButtons}
         {netDiskType && netDiskName ? (
           <Popconfirm
             key="netdisk-unbind"
