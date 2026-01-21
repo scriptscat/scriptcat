@@ -175,7 +175,7 @@ function Setting() {
                 {t("enable_script_sync_to")}
               </Checkbox>
             }
-            actionButton={[
+            actionButtons={[
               <Button
                 key="save"
                 type="primary"

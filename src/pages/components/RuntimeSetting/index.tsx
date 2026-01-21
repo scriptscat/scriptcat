@@ -88,7 +88,7 @@ const RuntimeSetting: React.FC = () => {
                     {t("use_file_system")}
                   </Typography.Text>
                 }
-                actionButton={[
+                actionButtons={[
                   <Button
                     key="save"
                     type="primary"

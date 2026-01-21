@@ -100,7 +100,7 @@ function Tools() {
             onChangeFileSystemParams={(params) => {
               setBackup({ ...backup, params: { ...backup.params, [backup.filesystem]: params } });
             }}
-            actionButton={[
+            actionButtons={[
               <Button
                 key="backup"
                 type="primary"

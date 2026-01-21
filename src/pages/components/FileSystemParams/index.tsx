@@ -9,20 +9,19 @@ const FileSystemParams: React.FC<{
   preNode: React.ReactNode | string;
   onChangeFileSystemType: (type: FileSystemType) => void;
   onChangeFileSystemParams: (params: any) => void;
-  actionButton: React.ReactNode[];
+  actionButtons: React.ReactNode[];
   fileSystemType: FileSystemType;
   fileSystemParams: any;
 }> = ({
   onChangeFileSystemType,
   onChangeFileSystemParams,
   preNode,
-  actionButton,
+  actionButtons,
   fileSystemType,
   fileSystemParams,
 }) => {
   const fsParams = FileSystemFactory.params();
   const { t } = useTranslation();
-  const actionButtons = [...actionButton];
 
   const fileSystemList: {
     key: FileSystemType;
@@ -51,29 +50,7 @@ const FileSystemParams: React.FC<{
   ];
 
   const netDiskType = netDiskTypeMap[fileSystemType];
-
-  if (netDiskType) {
-    const netDiskName = fileSystemList.find((item) => item.key === fileSystemType)?.name;
-
-    actionButtons.push(
-      <Popconfirm
-        key="netdisk-unbind"
-        title={t("netdisk_unbind_confirm", { provider: netDiskName })}
-        onOk={async () => {
-          try {
-            await ClearNetDiskToken(netDiskType);
-            Message.success(t("netdisk_unbind_success", { provider: netDiskName })!);
-          } catch (error) {
-            Message.error(`${t("netdisk_unbind_error", { provider: netDiskName })}: ${String(error)}`);
-          }
-        }}
-      >
-        <Button type="primary" status="danger">
-          {t("netdisk_unbind", { provider: netDiskName })}
-        </Button>
-      </Popconfirm>
-    );
-  }
+  const netDiskName = netDiskType ? fileSystemList.find((item) => item.key === fileSystemType)?.name : null;
 
   return (
     <>
@@ -93,6 +70,26 @@ const FileSystemParams: React.FC<{
           ))}
         </Select>
         {actionButtons.map((item) => item)}
+        {netDiskType && netDiskName ? (
+          <Popconfirm
+            key="netdisk-unbind"
+            title={t("netdisk_unbind_confirm", { provider: netDiskName })}
+            onOk={async () => {
+              try {
+                await ClearNetDiskToken(netDiskType);
+                Message.success(t("netdisk_unbind_success", { provider: netDiskName })!);
+              } catch (error) {
+                Message.error(`${t("netdisk_unbind_error", { provider: netDiskName })}: ${String(error)}`);
+              }
+            }}
+          >
+            <Button type="primary" status="danger">
+              {t("netdisk_unbind", { provider: netDiskName })}
+            </Button>
+          </Popconfirm>
+        ) : (
+          <></>
+        )}
       </Space>
       <Space
         style={{
