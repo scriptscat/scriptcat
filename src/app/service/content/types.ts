@@ -15,21 +15,18 @@ export type ValueUpdateSender = {
 export type ValueUpdateDataEntry = [string, any, any];
 export type ValueUpdateDataREntry = [string, REncoded, REncoded];
 
-export type ValueUpdateData = {
-  id?: string;
-  entries: ValueUpdateDataEntry[];
-  uuid: string;
-  storageName: string; // 储存name
-  sender: ValueUpdateSender;
-};
-
 export type ValueUpdateDataEncoded = {
   id?: string;
-  entries: ValueUpdateDataREntry[];
+  valueChanges: ValueUpdateDataREntry[];
   uuid: string;
   storageName: string; // 储存name
   sender: ValueUpdateSender;
-  valueUpdated: boolean;
+  updatetime: number;
+};
+
+export type ValueUpdateSendData = {
+  storageName: string;
+  storageChanges: Record<string, ValueUpdateDataEncoded[]>;
 };
 
 // gm_api.ts
