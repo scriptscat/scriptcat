@@ -100,63 +100,60 @@ function Tools() {
               onChangeFileSystemParams={(params) => {
                 setBackup({ ...backup, params: { ...backup.params, [backup.filesystem]: params } });
               }}
-              actions={
-                <>
-                  <Button
-                    key="backup"
-                    type="primary"
-                    loading={loading.cloud}
-                    onClick={() => {
-                      // Store parameters
-                      submitBackup();
-                      setLoading((prev) => ({ ...prev, cloud: true }));
-                      Message.info(t("preparing_backup")!);
-                      synchronizeClient
-                        .backupToCloud(backup.filesystem, backup.params[backup.filesystem])
-                        .then(() => {
-                          Message.success(t("backup_success")!);
-                        })
-                        .catch((e) => {
-                          Message.error(`${t("backup_failed")}: ${e}`);
-                        })
-                        .finally(() => {
-                          setLoading((prev) => ({ ...prev, cloud: false }));
-                        });
-                    }}
-                  >
-                    {t("backup")}
-                  </Button>
-                  <Button
-                    key="list"
-                    type="primary"
-                    loading={loading.cloud}
-                    onClick={async () => {
-                      setLoading((prev) => ({ ...prev, cloud: true }));
-                      try {
-                        let fs = await FileSystemFactory.create(backup.filesystem, backup.params[backup.filesystem]);
-                        fs = await fs.openDir("ScriptCat");
-                        let list = await fs.list();
-                        list.sort((a, b) => b.updatetime - a.updatetime);
-                        // Filter non-zip files
-                        list = list.filter((file) => file.name.endsWith(".zip"));
-                        if (list.length === 0) {
-                          Message.info(t("no_backup_files")!);
-                        } else {
-                          setBackupFileList(list);
-                        }
-                      } catch (e) {
-                        Message.error(`${t("get_backup_files_failed")}: ${e}`);
-                      }
-                      setLoading((prev) => ({ ...prev, cloud: false }));
-                    }}
-                  >
-                    {t("backup_list")}
-                  </Button>
-                </>
-              }
               fileSystemType={backup.filesystem}
               fileSystemParams={backup.params[backup.filesystem] || {}}
-            />
+            >
+              <Button
+                key="backup"
+                type="primary"
+                loading={loading.cloud}
+                onClick={() => {
+                  // Store parameters
+                  submitBackup();
+                  setLoading((prev) => ({ ...prev, cloud: true }));
+                  Message.info(t("preparing_backup")!);
+                  synchronizeClient
+                    .backupToCloud(backup.filesystem, backup.params[backup.filesystem])
+                    .then(() => {
+                      Message.success(t("backup_success")!);
+                    })
+                    .catch((e) => {
+                      Message.error(`${t("backup_failed")}: ${e}`);
+                    })
+                    .finally(() => {
+                      setLoading((prev) => ({ ...prev, cloud: false }));
+                    });
+                }}
+              >
+                {t("backup")}
+              </Button>
+              <Button
+                key="list"
+                type="primary"
+                loading={loading.cloud}
+                onClick={async () => {
+                  setLoading((prev) => ({ ...prev, cloud: true }));
+                  try {
+                    let fs = await FileSystemFactory.create(backup.filesystem, backup.params[backup.filesystem]);
+                    fs = await fs.openDir("ScriptCat");
+                    let list = await fs.list();
+                    list.sort((a, b) => b.updatetime - a.updatetime);
+                    // Filter non-zip files
+                    list = list.filter((file) => file.name.endsWith(".zip"));
+                    if (list.length === 0) {
+                      Message.info(t("no_backup_files")!);
+                    } else {
+                      setBackupFileList(list);
+                    }
+                  } catch (e) {
+                    Message.error(`${t("get_backup_files_failed")}: ${e}`);
+                  }
+                  setLoading((prev) => ({ ...prev, cloud: false }));
+                }}
+              >
+                {t("backup_list")}
+              </Button>
+            </FileSystemParams>
             <Drawer
               width={400}
               title={

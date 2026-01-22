@@ -9,14 +9,14 @@ const FileSystemParams: React.FC<{
   headerContent: React.ReactNode | string;
   onChangeFileSystemType: (type: FileSystemType) => void;
   onChangeFileSystemParams: (params: any) => void;
-  actions: React.ReactNode;
+  children: React.ReactNode;
   fileSystemType: FileSystemType;
   fileSystemParams: any;
 }> = ({
   onChangeFileSystemType,
   onChangeFileSystemParams,
   headerContent,
-  actions,
+  children,
   fileSystemType,
   fileSystemParams,
 }) => {
@@ -69,7 +69,7 @@ const FileSystemParams: React.FC<{
             </Select.Option>
           ))}
         </Select>
-        {actions}
+        {children}
         {netDiskType && netDiskName && (
           <Popconfirm
             key="netdisk-unbind"
