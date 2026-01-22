@@ -237,7 +237,7 @@ const onMessageFlagReceived = (MessageFlag: string) => {
   // 处理“scripting 早于 content/inject 执行”的场景：
   // content/inject 会先发一个 executorEnvReadyKey（detail 为空）来探测 scripting 是否在
   pageAddEventListener(executorEnvReadyKey, (ev) => {
-    if (ev instanceof CustomEvent && !ev.detail) {
+    if (readyFlag < 3 && ev instanceof CustomEvent && !ev.detail) {
       submitTarget();
     }
   });
