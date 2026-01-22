@@ -1,8 +1,13 @@
 import EventEmitter from "eventemitter3";
 import LoggerCore from "@App/app/logger/core";
 import { type TMessage } from "./types";
+import type { SystemConfigKey, SystemConfigValueType } from "@App/pkg/config/config";
 
-export type TKeyValue<T = string> = { key: string; value: T };
+export type TKeyValue<T extends SystemConfigKey> = {
+  key: T;
+  value: SystemConfigValueType<T> | undefined;
+  prev: SystemConfigValueType<T> | undefined;
+};
 
 // 中间件函数类型
 type MiddlewareFunction<T = any> = (topic: string, message: T, next: () => void) => void | Promise<void>;

@@ -192,7 +192,6 @@
   "yes": "Có",
   "no": "Không",
   "confirm_delete_permission": "Bạn có chắc muốn xóa quyền này không?",
-  "script_setting": "Cài đặt script",
   "basic_info": "Thông tin cơ bản",
   "update_url": "Url cập nhật",
   "permission_management": "Quản lý quyền",
@@ -283,7 +282,8 @@
   "script_requires": "Script yêu cầu các tài nguyên bên ngoài sau",
   "cookie_warning": "Xin lưu ý, script này yêu cầu quyền truy cập cookie, đây là một quyền nguy hiểm. Vui lòng xác minh tính bảo mật của script.",
   "scheduled_script_description_title": "Đây là script hẹn giờ, sẽ tự động chạy vào một thời điểm cụ thể sau khi được bật và có thể được điều khiển thủ công trong bảng điều khiển.",
-  "scheduled_script_description_description": "Biểu thức tác vụ hẹn giờ: {{expression}}, thời gian chạy gần nhất: {{time}}",
+  "scheduled_script_description_description_expr": "Biểu thức tác vụ hẹn giờ:",
+  "scheduled_script_description_description_next": "Thời gian chạy gần nhất:",
   "background_script_description": "Đây là script nền, sẽ tự động chạy một lần khi trình duyệt mở sau khi được bật và có thể được điều khiển thủ công trong bảng điều khiển.",
   "install_success": "Cài đặt thành công",
   "install": {
@@ -323,6 +323,9 @@
     "status_autoclose": "Tự đóng trong $0 giây",
     "header_other_update": "Các bản cập nhật khác"
   },
+  "downloading_status_text": "Đang tải xuống. Đã nhận {{bytes}}.",
+  "install_page_loading": "Đang tải trang cài đặt",
+  "invalid_page": "Trang không hợp lệ",
   "background_script_tag": "Đây là một script nền",
   "scheduled_script_tag": "Đây là một script hẹn giờ",
   "background_script": "Script nền",
@@ -493,10 +496,16 @@
   "enter_search_value": "Nhập {{search}} để tìm kiếm",
   "script_run_env": {
     "title": "Môi trường chạy",
-    "default": "Mặc định",
     "all": "Tất cả tab",
     "normal-tabs": "Tab thường",
     "incognito-tabs": "Tab ẩn danh"
+  },
+  "script_run_at": {
+    "title": "Thời điểm chạy"
+  },
+  "script_setting": {
+    "title": "Cài đặt script",
+    "default": "Mặc định"
   },
   "editor_config": "Cấu hình trình soạn thảo",
   "editor_config_description": "Bạn có thể tham khảo compilerOptions trong <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> để cấu hình",
@@ -536,6 +545,7 @@
   "error_old_script_code_missing": "Không tìm thấy mã script cũ",
   "error_subscribe_name_required": "Tên đăng ký là bắt buộc",
   "error_grant_conflict": "@grant khai báo đồng thời 'none' và GM API",
+  "error_metadata_line_duplicated": "Có các khai báo trùng lặp trong metadata.",
   "notification": {
     "script_sync_delete": "Đồng bộ xóa script",
     "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",

@@ -1,8 +1,5 @@
 import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
 import { messageQueue } from "./global";
-import { type TKeyValue } from "@Packages/message/message_queue";
-import { changeLanguage } from "@App/locales/locales";
-import { SystemConfigChange } from "@App/pkg/config/config";
 
 export const fnPlaceHolder = {
   setEditorTheme: null,
@@ -84,15 +81,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setAppColorTheme(theme);
         setColorThemeState(theme);
       },
-      systemConfigChanged({ key, value }: TKeyValue) {
-        if (key === "language") changeLanguage(value);
-      },
     };
 
-    const unhooks = [
-      subscribeMessage<ThemeParam>("onColorThemeUpdated", pageApi.onColorThemeUpdated),
-      subscribeMessage<TKeyValue>(SystemConfigChange, pageApi.systemConfigChanged),
-    ];
+    const unhooks = [subscribeMessage<ThemeParam>("onColorThemeUpdated", pageApi.onColorThemeUpdated)];
     return () => {
       for (const unhook of unhooks) unhook();
       unhooks.length = 0;

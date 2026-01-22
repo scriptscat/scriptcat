@@ -192,7 +192,6 @@
   "yes": "是",
   "no": "否",
   "confirm_delete_permission": "您確定要刪除此權限嗎？",
-  "script_setting": "腳本設定",
   "basic_info": "基本資訊",
   "update_url": "更新URL",
   "permission_management": "權限管理",
@@ -283,7 +282,8 @@
   "script_requires": "腳本引用了以下外部資源",
   "cookie_warning": "請注意，此腳本會要求 Cookie 的操作權限，這是一項危險的權限，請確認腳本的安全性。",
   "scheduled_script_description_title": "這是一個排程腳本，啟用後將在特定時間自動執行，並可在控制面板中手動控制。",
-  "scheduled_script_description_description": "排程任務表達式：{{expression}}，最近一次執行時間：{{time}}",
+  "scheduled_script_description_description_expr": "排程任務表達式：",
+  "scheduled_script_description_description_next": "最近一次執行時間：",
   "background_script_description": "這是一個背景腳本，啟用後將在瀏覽器開啟時自動執行一次，並可在控制面板中手動控制。",
   "install_success": "安裝成功",
   "install": {
@@ -323,6 +323,9 @@
     "status_autoclose": "$0 秒後自動關閉",
     "header_other_update": "其他可用更新"
   },
+  "downloading_status_text": "正在下載。已接收 {{bytes}}。",
+  "install_page_loading": "安裝頁載入中",
+  "invalid_page": "無效頁面",
   "background_script_tag": "這是一個背景腳本",
   "scheduled_script_tag": "這是一個排程腳本",
   "background_script": "背景腳本",
@@ -493,10 +496,16 @@
   "enter_search_value": "請輸入 {{search}} 進行搜尋",
   "script_run_env": {
     "title": "運作環境",
-    "default": "預設",
     "all": "所有標籤",
     "normal-tabs": "普通標籤",
     "incognito-tabs": "隱身標籤"
+  },
+  "script_run_at": {
+    "title": "運行時機"
+  },
+  "script_setting": {
+    "title": "腳本設定",
+    "default": "預設"
   },
   "editor_config": "編輯器設定",
   "editor_config_description": "你可以參考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions進行配置",
@@ -536,6 +545,7 @@
   "error_old_script_code_missing": "舊的腳本程式碼不存在",
   "error_subscribe_name_required": "訂閱名稱不可為空",
   "error_grant_conflict": "@grant 同時宣告了 none 與 GM API",
+  "error_metadata_line_duplicated": "Metadata 裡有重覆的聲明。",
   "notification": {
     "script_sync_delete": "腳本刪除同步",
     "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",

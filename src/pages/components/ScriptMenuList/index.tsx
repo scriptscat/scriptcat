@@ -21,7 +21,8 @@ import {
   IconPlus,
   IconSettings,
 } from "@arco-design/web-react/icon";
-import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
+import type { SCMetadata } from "@App/app/repo/scripts";
+import { SCRIPT_RUN_STATUS_RUNNING, ScriptDAO } from "@App/app/repo/scripts";
 import { RiPlayFill, RiStopFill } from "react-icons/ri";
 import { useTranslation } from "react-i18next";
 import { ScriptIcons } from "@App/pages/options/routes/utils";
@@ -33,6 +34,9 @@ import type {
 } from "@App/app/service/service_worker/types";
 import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import { i18nName } from "@App/locales/locales";
+
+// 用于读取 metadata
+const scriptDAO = new ScriptDAO();
 
 const CollapseItem = Collapse.Item;
 
@@ -89,7 +93,7 @@ const MenuItem = React.memo(({ menuItems, uuid }: MenuItemProps) => {
       }}
     >
       <Button
-        className="text-left"
+        className="tw-text-left"
         type="secondary"
         htmlType="submit"
         icon={<IconMenu />}
@@ -114,8 +118,8 @@ const MenuItem = React.memo(({ menuItems, uuid }: MenuItemProps) => {
 MenuItem.displayName = "MenuItem";
 
 interface CollapseHeaderProps {
-  item: ScriptMenu;
-  onEnableChange: (item: ScriptMenu, checked: boolean) => void;
+  item: ScriptMenuEntry;
+  onEnableChange: (item: ScriptMenuEntry, checked: boolean) => void;
 }
 
 const CollapseHeader = React.memo(
@@ -164,12 +168,12 @@ const CollapseHeader = React.memo(
 CollapseHeader.displayName = "CollapseHeader";
 
 interface ListMenuItemProps {
-  item: ScriptMenu;
+  item: ScriptMenuEntry;
   scriptMenus: GroupScriptMenuItemsProp;
   menuExpandNum: number;
   isBackscript: boolean;
   url: URL | null;
-  onEnableChange: (item: ScriptMenu, checked: boolean) => void;
+  onEnableChange: (item: ScriptMenuEntry, checked: boolean) => void;
   handleDeleteScript: (uuid: string) => void;
 }
 
@@ -177,7 +181,7 @@ const ListMenuItem = React.memo(
   ({ item, scriptMenus, menuExpandNum, isBackscript, url, onEnableChange, handleDeleteScript }: ListMenuItemProps) => {
     const { t } = useTranslation();
     const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
-
+    const [isActive, setIsActive] = useState<boolean>(false);
     const [isExpand, setIsExpand] = useState<boolean>(false);
 
     const handleExpandMenu = () => {
@@ -185,12 +189,16 @@ const ListMenuItem = React.memo(
     };
 
     const visibleMenus = useMemo(() => {
+      // 当menuExpandNum为0时，跟随 isActive 状态显示全部菜单
       const m = scriptMenus?.group || [];
+      if (menuExpandNum === 0 && isActive) {
+        return m;
+      }
       return m.length > menuExpandNum && !isExpand ? m.slice(0, menuExpandNum) : m;
-    }, [scriptMenus?.group, isExpand, menuExpandNum]);
+    }, [scriptMenus?.group, isExpand, menuExpandNum, isActive]);
 
     const shouldShowMore = useMemo(
-      () => scriptMenus?.group?.length > menuExpandNum,
+      () => menuExpandNum > 0 && scriptMenus?.group?.length > menuExpandNum,
       [scriptMenus?.group, menuExpandNum]
     );
 
@@ -201,16 +209,24 @@ const ListMenuItem = React.memo(
     };
 
     return (
-      <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
+      <Collapse
+        activeKey={isActive ? item.uuid : undefined}
+        onChange={(_, keys) => {
+          setIsActive(keys.includes(item.uuid));
+        }}
+        bordered={false}
+        expandIconPosition="right"
+        key={item.uuid}
+      >
         <CollapseItem
           header={<CollapseHeader item={item} onEnableChange={onEnableChange} />}
           name={item.uuid}
           contentStyle={{ padding: "0 0 0 40px" }}
         >
-          <div className="flex flex-col">
+          <div className="tw-flex tw-flex-col">
             {isBackscript && (
               <Button
-                className="text-left"
+                className="tw-text-left"
                 type="secondary"
                 icon={item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? <RiPlayFill /> : <RiStopFill />}
                 onClick={() => {
@@ -226,7 +242,7 @@ const ListMenuItem = React.memo(
               </Button>
             )}
             <Button
-              className="text-left"
+              className="tw-text-left"
               type="secondary"
               icon={<IconEdit />}
               onClick={() => {
@@ -238,7 +254,7 @@ const ListMenuItem = React.memo(
             </Button>
             {url && isEffective !== null && (
               <Button
-                className="text-left"
+                className="tw-text-left"
                 status="warning"
                 type="secondary"
                 icon={!isEffective ? <IconPlus /> : <IconMinus />}
@@ -252,13 +268,13 @@ const ListMenuItem = React.memo(
               icon={<IconDelete />}
               onOk={() => handleDeleteScript(item.uuid)}
             >
-              <Button className="text-left" status="danger" type="secondary" icon={<IconDelete />}>
+              <Button className="tw-text-left" status="danger" type="secondary" icon={<IconDelete />}>
                 {t("delete")}
               </Button>
             </Popconfirm>
           </div>
         </CollapseItem>
-        <div className="arco-collapse-item-content-box flex flex-col" style={{ padding: "0 0 0 40px" }}>
+        <div className="arco-collapse-item-content-box tw-flex tw-flex-col" style={{ padding: "0 0 0 40px" }}>
           {/* 依数量与展开状态决定要显示的分组项（收合时只显示前 menuExpandNum 笔） */}
           {visibleMenus.map(({ uuid, groupKey, menus }) => {
             // 不同脚本之间可能出现相同的 groupKey；为避免 React key 冲突，需加上 uuid 做区分。
@@ -266,7 +282,7 @@ const ListMenuItem = React.memo(
           })}
           {shouldShowMore && (
             <Button
-              className="text-left"
+              className="tw-text-left"
               key="expand"
               type="secondary"
               icon={isExpand ? <IconCaretUp /> : <IconCaretDown />}
@@ -277,7 +293,7 @@ const ListMenuItem = React.memo(
           )}
           {item.hasUserConfig && (
             <Button
-              className="text-left"
+              className="tw-text-left"
               key="config"
               type="secondary"
               icon={<IconSettings />}
@@ -308,6 +324,11 @@ ListMenuItem.displayName = "ListMenuItem";
 
 type TGrouppedMenus = Record<string, GroupScriptMenuItemsProp> & { __length__?: number };
 
+type ScriptMenuEntry = ScriptMenu & {
+  menuUpdated?: number;
+  metadata: SCMetadata;
+};
+
 // Popup 页面使用的脚本/选单清单元件：只负责渲染与互动，状态与持久化交由外部 client 处理。
 const ScriptMenuList = React.memo(
   ({
@@ -323,23 +344,21 @@ const ScriptMenuList = React.memo(
     currentUrl: string;
     menuExpandNum: number;
   }) => {
-    const [list, setList] = useState(
-      [] as (ScriptMenu & {
-        menuUpdated?: number;
-      })[]
-    );
+    const [scriptMenuList, setScriptMenuList] = useState<ScriptMenuEntry[]>([]);
     const { t } = useTranslation();
 
     const [grouppedMenus, setGrouppedMenus] = useState<TGrouppedMenus>({});
 
-    // 依 groupKey 进行聚合：将同语义（mainframe/subframe）命令合并为单一分组以供 UI 呈现。
-    useEffect(() => {
-      const list_ = list;
+    const updateScriptMenuList = (scriptMenuList: ScriptMenuEntry[]) => {
+      setScriptMenuList(scriptMenuList);
+      // 因为 scriptMenuList 的修改只在这处。
+      // 直接在这里呼叫 setGrouppedMenus, 不需要 useEffect
       setGrouppedMenus((prev) => {
+        // 依 groupKey 进行聚合：将同语义（mainframe/subframe）命令合并为单一分组以供 UI 呈现。
         const ret = {} as TGrouppedMenus;
         let changed = false;
         let retLen = 0;
-        for (const { uuid, menus, menuUpdated: m } of list_) {
+        for (const { uuid, menus, menuUpdated: m } of scriptMenuList) {
           retLen++;
           const menuUpdated = m || 0;
           if (prev[uuid]?.menuUpdated === menuUpdated) {
@@ -371,7 +390,7 @@ const ScriptMenuList = React.memo(
         // 若无引用变更则维持原物件以降低重渲染
         return changed ? ret : prev;
       });
-    }, [list]);
+    };
 
     const url = useMemo(() => {
       let url: URL;
@@ -387,8 +406,36 @@ const ScriptMenuList = React.memo(
       return url;
     }, [currentUrl]);
 
+    const cache = useMemo(() => new Map<string, SCMetadata | undefined>(), []);
+    // 以 异步方式 取得 metadata 放入 extraData
+    // script 或 extraData 的更新时都会再次执行
     useEffect(() => {
-      setList(script);
+      let isMounted = true;
+      // 先从 cache 读取，避免重复请求相同 uuid 的 metadata
+      Promise.all(
+        script.map(async (item) => {
+          let metadata = cache.get(item.uuid);
+          if (!metadata) {
+            const script = await scriptDAO.get(item.uuid);
+            if (script) {
+              metadata = script.metadata || {};
+            }
+            cache.set(item.uuid, metadata);
+          }
+          return { ...item, metadata: metadata || {} };
+        })
+      ).then((newScriptMenuList) => {
+        if (!isMounted) {
+          return;
+        }
+        updateScriptMenuList(newScriptMenuList);
+      });
+      return () => {
+        isMounted = false;
+      };
+    }, [cache, script]);
+
+    useEffect(() => {
       // 注册菜单快速键（accessKey）：以各分组第一个项目的 accessKey 作为触发条件。
       const checkItems = new Map();
       for (const [_uuid, menus] of Object.entries(grouppedMenus)) {
@@ -417,7 +464,7 @@ const ScriptMenuList = React.memo(
         checkItems.clear();
         document.removeEventListener("keypress", sharedKeyPressListner);
       };
-    }, [script, grouppedMenus]);
+    }, [grouppedMenus]);
 
     const handleDeleteScript = (uuid: string) => {
       // 本地先行移除列表项（乐观更新）；若删除失败会显示错误讯息。
@@ -426,7 +473,7 @@ const ScriptMenuList = React.memo(
       });
     };
 
-    const onEnableChange = (item: ScriptMenu, checked: boolean) => {
+    const onEnableChange = (item: ScriptMenuEntry, checked: boolean) => {
       scriptClient.enable(item.uuid, checked).catch((err) => {
         Message.error(err);
       });
@@ -434,10 +481,10 @@ const ScriptMenuList = React.memo(
 
     return (
       <>
-        {list.length === 0 ? (
+        {scriptMenuList.length === 0 ? (
           <Empty description={t("no_data")} />
         ) : (
-          list.map((item, _index) => (
+          scriptMenuList.map((item, _index) => (
             <ListMenuItem
               key={`${item.uuid}`}
               url={url}

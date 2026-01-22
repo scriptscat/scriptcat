@@ -19,7 +19,7 @@ import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
-import { decodeMessage, encodeMessage } from "@App/pkg/utils/message_value";
+import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
 import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
@@ -164,8 +164,10 @@ class GM_Base implements IGM_Base {
         }
       }
       if (valueUpdated) {
-        const valueChanges = decodeMessage(entries);
-        for (const [key, value, oldValue] of valueChanges) {
+        const valueChanges = entries;
+        for (const [key, rTyped1, rTyped2] of valueChanges) {
+          const value = decodeRValue(rTyped1);
+          const oldValue = decodeRValue(rTyped2);
           // 触发,并更新值
           if (value === undefined) {
             if (valueStore[key] !== undefined) {
@@ -295,6 +297,7 @@ export default class GMApi extends GM_Base {
       valueChangePromiseMap.set(id, promise);
     }
     const valueStore = a.scriptRes.value;
+    const keyValuePairs = [] as [string, REncoded<unknown>][];
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
       if (value_ === undefined) {
@@ -306,10 +309,10 @@ export default class GMApi extends GM_Base {
         }
         valueStore[key] = value_;
       }
+      // 避免undefined 等空值流失，先进行映射处理
+      keyValuePairs.push([key, encodeRValue(value)]);
     }
-    // 避免undefined 等空值流失，先进行映射处理
-    const valuesNew = encodeMessage(values);
-    a.sendMessage("GM_setValues", [id, valuesNew]);
+    a.sendMessage("GM_setValues", [id, keyValuePairs]);
     return id;
   }
 
@@ -1134,7 +1137,7 @@ export default class GMApi extends GM_Base {
             if (!isPreventDefault) {
               if (typeof data.url === "string") {
                 window.open(data.url, "_blank");
-                LoggerCore.logger().info("GM_notification open url：" + data.url, {
+                LoggerCore.logger().info("GM_notification open url: " + data.url, {
                   data,
                 });
               }
@@ -1283,7 +1286,19 @@ export default class GMApi extends GM_Base {
   @GMContext.API({})
   GM_setClipboard(data: string, info?: GMTypes.GMClipboardInfo, cb?: () => void) {
     if (this.isInvalidContext()) return;
-    this.sendMessage("GM_setClipboard", [data, info])
+    // 物件参数意义不明。日后再检视特殊处理
+    // 未支持 TM4.19+ application/octet-stream
+    // 参考： https://github.com/Tampermonkey/tampermonkey/issues/1250
+    let mimetype: string | undefined;
+    if (typeof info === "object" && info?.mimetype) {
+      mimetype = info.mimetype;
+    } else {
+      mimetype = (typeof info === "string" ? info : info?.type) || "text/plain";
+      if (mimetype === "text") mimetype = "text/plain";
+      else if (mimetype === "html") mimetype = "text/html";
+    }
+    data = `${data}`; // 强制 string type
+    this.sendMessage("GM_setClipboard", [data, mimetype])
       .then(() => {
         if (typeof cb === "function") {
           cb();
@@ -1299,7 +1314,11 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ depend: ["GM_setClipboard"] })
   ["GM.setClipboard"](data: string, info?: string | { type?: string; mimetype?: string }): Promise<void> {
     if (this.isInvalidContext()) return new Promise<void>(() => {});
-    return this.sendMessage("GM_setClipboard", [data, info]);
+    return new Promise<void>((resolve) => {
+      this.GM_setClipboard(data, info, () => {
+        resolve();
+      });
+    });
   }
 
   @GMContext.API()

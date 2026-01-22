@@ -7,6 +7,7 @@ import { matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import { toCamelCase } from "../utils/utils";
+import EventEmitter from "eventemitter3";
 
 export const SystemConfigChange = "systemConfigChange";
 
@@ -74,18 +75,39 @@ export class SystemConfig {
 
   private readonly storage = new ChromeStorage("system", true);
 
+  private EE: EventEmitter<string> = new EventEmitter<string>();
+
   constructor(private mq: IMessageQueue) {
-    this.mq.subscribe<TKeyValue<any>>(SystemConfigChange, ({ key, value }) => {
+    this.mq.subscribe<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key, value, prev }) => {
+      // 更新缓存
       this.cache.set(key, value);
+      // 触发事件
+      this.EE.emit(key, value, prev);
     });
   }
 
-  addListener<T extends SystemConfigKey>(key: T, callback: (value: SystemConfigValueType<T>) => void) {
-    this.mq.subscribe<TKeyValue<SystemConfigValueType<T>>>(SystemConfigChange, (data) => {
-      if (data.key === key) {
-        callback(data.value);
-      }
+  // 添加配置变更监听
+  addListener<T extends SystemConfigKey>(
+    key: T,
+    callback: (value: SystemConfigValueType<T>, prev: SystemConfigValueType<T> | undefined) => void
+  ) {
+    this.EE.on(key, callback);
+    return () => {
+      this.EE.off(key, callback);
+    };
+  }
+
+  // 监听配置变更，会使用设置值立即执行一次回调
+  watch<T extends SystemConfigKey>(
+    key: T,
+    callback: (value: SystemConfigValueType<T>, prev: SystemConfigValueType<T> | undefined) => void
+  ) {
+    // 立即执行一次
+    this.get(key).then((val) => {
+      callback(val, undefined);
     });
+    // 监听变更
+    return this.addListener(key, callback);
   }
 
   private _get<T extends string | number | boolean | object>(
@@ -128,7 +150,8 @@ export class SystemConfig {
     }
   }
 
-  private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T>) {
+  private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
+    const prev = this.cache.get(key);
     if (value === undefined) {
       this.cache.delete(key);
       this.storage.remove(key);
@@ -137,9 +160,10 @@ export class SystemConfig {
       this.storage.set(key, value);
     }
     // 发送消息通知更新
-    this.mq.publish<TKeyValue<any>>(SystemConfigChange, {
+    this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
       key,
       value,
+      prev,
     });
   }
 
@@ -423,7 +447,7 @@ export class SystemConfig {
   }
 
   getBadgeNumberType() {
-    return this._get<"none" | "run_count" | "script_count">("badge_number_type", "run_count");
+    return this._get<"none" | "run_count" | "script_count">("badge_number_type", "script_count");
   }
 
   setBadgeBackgroundColor(color: string) {

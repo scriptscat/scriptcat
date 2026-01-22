@@ -32,6 +32,11 @@ export function changeLanguage(lng: string, callback?: Callback): void {
   dayjs.locale(lng.toLocaleLowerCase());
 }
 
+let initLocalesResolve: (value: string) => void;
+export const initLocalesPromise = new Promise<string>((resolve) => {
+  initLocalesResolve = resolve;
+});
+
 export function initLocales(systemConfig: SystemConfig) {
   const uiLanguage = chrome.i18n.getUILanguage();
   const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
@@ -58,35 +63,68 @@ export function initLocales(systemConfig: SystemConfig) {
     localePath = "/en";
   }
 
-  systemConfig.getLanguage().then((lng) => {
-    changeLanguage(lng);
-    if (!lng.startsWith("zh-")) {
-      localePath = "/en";
-    }
-  });
-  systemConfig.addListener("language", (lng) => {
-    changeLanguage(lng);
+  const changeLanguageCallback = (lng: string) => {
     if (!lng.startsWith("zh-")) {
       localePath = "/en";
     } else {
       localePath = "";
     }
+    changeLanguage(lng);
+  };
+
+  systemConfig.getLanguage().then((lng) => {
+    initLocalesResolve(lng);
+    changeLanguageCallback(lng);
   });
+
+  systemConfig.addListener("language", changeLanguageCallback);
 }
 
+export function watchLanguageChange(callback: (lng: string) => void) {
+  // 马上执行一次
+  let registered = false;
+  initLocalesPromise.then(() => {
+    callback(i18n.language);
+
+    // 监听变化
+    i18n.on("languageChanged", callback);
+    registered = true;
+  });
+
+  return () => {
+    if (registered) {
+      i18n.off("languageChanged", callback);
+    }
+  };
+}
+
+export const i18nLang = (): string => `${i18n?.language?.toLowerCase()}`;
+
 export function i18nName(script: { name: string; metadata: SCMetadata }) {
-  const m = script.metadata[`name:${i18n?.language?.toLowerCase()}`];
+  const lang = i18nLang();
+  let m = script.metadata[`name:${lang}`];
+  if (!m) {
+    // 尝试只用前缀匹配
+    const langPrefix = lang.split("-")[0];
+    m = script.metadata[`name:${langPrefix}`];
+  }
   return m ? m[0] : script.name;
 }
 
 export function i18nDescription(script: { metadata: SCMetadata }) {
-  const m = script.metadata[`description:${i18n?.language?.toLowerCase()}`];
-  return m ? m[0] : script.metadata.description;
+  const lang = i18nLang();
+  let m = script.metadata[`description:${lang}`];
+  if (!m) {
+    // 尝试只用前缀匹配
+    const langPrefix = lang.split("-")[0];
+    m = script.metadata[`description:${langPrefix}`];
+  }
+  return m ? m[0] : script.metadata.description?.[0];
 }
 
 // 判断是否是中文用户
 export function isChineseUser() {
-  const language = i18n?.language?.toLowerCase();
+  const language = i18nLang();
   return language.startsWith("zh-");
 }
 

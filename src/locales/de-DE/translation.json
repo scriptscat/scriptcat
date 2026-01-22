@@ -192,7 +192,6 @@
   "yes": "Ja",
   "no": "Nein",
   "confirm_delete_permission": "Sind Sie sicher, dass Sie diese Berechtigung löschen möchten?",
-  "script_setting": "Skript-Einstellungen",
   "basic_info": "Grundinformationen",
   "update_url": "Update-URL",
   "permission_management": "Berechtigungsverwaltung",
@@ -283,7 +282,8 @@
   "script_requires": "Skript referenziert die folgenden externen Ressourcen",
   "cookie_warning": "Achtung: Dieses Skript beantragt Cookie-Operationsberechtigung. Dies ist eine gefährliche Berechtigung, bitte stellen Sie die Sicherheit des Skripts sicher.",
   "scheduled_script_description_title": "Dies ist ein geplantes Skript. Wenn aktiviert, wird es zu bestimmten Zeiten automatisch ausgeführt und kann im Panel manuell gesteuert werden.",
-  "scheduled_script_description_description": "Geplante Aufgaben-Ausdruck: {{expression}}, letzte Ausführungszeit: {{time}}",
+  "scheduled_script_description_description_expr": "Geplante Aufgaben-Ausdruck",
+  "scheduled_script_description_description_next": "Letzte Ausführungszeit:",
   "background_script_description": "Dies ist ein Hintergrundskript. Wenn aktiviert, wird es automatisch einmal ausgeführt, wenn der Browser geöffnet wird, und kann im Panel manuell gesteuert werden.",
   "install_success": "Installation erfolgreich",
   "install": {
@@ -323,6 +323,9 @@
     "status_autoclose": "Automatisches Schließen in $0 Sekunden",
     "header_other_update": "Andere verfügbare Updates"
   },
+  "downloading_status_text": "Wird heruntergeladen. {{bytes}} empfangen.",
+  "install_page_loading": "Installationsseite wird geladen",
+  "invalid_page": "Ungültige Seite",
   "background_script_tag": "Dies ist ein Hintergrundskript",
   "scheduled_script_tag": "Dies ist ein geplantes Skript",
   "background_script": "Hintergrundskript",
@@ -493,10 +496,16 @@
   "enter_search_value": "Bitte geben Sie {{search}} für die Suche ein",
   "script_run_env": {
     "title": "Laufzeitumgebung",
-    "default": "default",
     "all": "Alle Bezeichnungen",
     "normal-tabs": "Normale Tabs",
     "incognito-tabs": "Inkognito-Tabs"
+  },
+  "script_run_at": {
+    "title": "Ausführungszeitpunkt"
+  },
+  "script_setting": {
+    "title": "Skript-Einstellungen",
+    "default": "default"
   },
   "editor_config": "Editor-Konfiguration",
   "editor_config_description": "Sie können sich an den compilerOptions in <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> orientieren, um die Konfiguration vorzunehmen",
@@ -536,6 +545,7 @@
   "error_old_script_code_missing": "Alter Skriptcode nicht gefunden",
   "error_subscribe_name_required": "Abonnementname ist erforderlich",
   "error_grant_conflict": "@grant deklariert sowohl 'none' als auch GM API",
+  "error_metadata_line_duplicated": "In den Metadaten befinden sich doppelte Deklarationen.",
   "notification": {
     "script_sync_delete": "Skript-Löschsynchronisation",
     "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",

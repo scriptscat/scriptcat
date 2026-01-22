@@ -13,10 +13,11 @@ import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
-import { initLocales, localePath, t } from "@App/locales/locales";
+import { initLocales, initLocalesPromise, localePath, t, watchLanguageChange } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
 
@@ -42,6 +43,8 @@ export default class ServiceWorkerManager {
       this.mq.emit("preparationOffscreen", {});
     });
     this.sender.init();
+
+    const faviconDAO = new FaviconDAO();
 
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
@@ -88,7 +91,14 @@ export default class ServiceWorkerManager {
     synchronize.init();
     const subscribe = new SubscribeService(systemConfig, this.api.group("subscribe"), this.mq, script);
     subscribe.init();
-    const system = new SystemService(systemConfig, this.api.group("system"), this.sender);
+    const system = new SystemService(
+      systemConfig,
+      this.api.group("system"),
+      this.sender,
+      this.mq,
+      scriptDAO,
+      faviconDAO
+    );
     system.init();
 
     const regularScriptUpdateCheck = async () => {
@@ -169,8 +179,8 @@ export default class ServiceWorkerManager {
       }
     });
 
-    // 监听配置变化
-    systemConfig.addListener("cloud_sync", (value) => {
+    // 云同步
+    systemConfig.watch("cloud_sync", (value) => {
       synchronize.cloudSyncConfigChange(value);
     });
 
@@ -190,39 +200,43 @@ export default class ServiceWorkerManager {
           console.error("chrome.runtime.lastError in chrome.runtime.onInstalled:", lastError);
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
-        if (details.reason === "install") {
-          chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
-        } else if (details.reason === "update") {
-          const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
-          // 如果只是修复版本，只弹出通知不打开页面
-          // beta版本还是每次都打开更新页面
-          InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
-          if (ExtVersion.endsWith(".0")) {
-            getCurrentTab()
-              .then((tab) => {
-                // 检查是否正在播放视频，或者窗口未激活
-                const openInBackground = !tab || tab.audible === true || !tab.active;
-                // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
-                return chrome.tabs.create({
-                  url,
-                  active: !openInBackground,
-                  index: !tab ? undefined : tab.index + 1,
-                  windowId: !tab ? undefined : tab.windowId,
+        initLocalesPromise.then(() => {
+          if (details.reason === "install") {
+            chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
+          } else if (details.reason === "update") {
+            const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
+            // 如果只是修复版本，只弹出通知不打开页面
+            // beta版本还是每次都打开更新页面
+            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
+            if (ExtVersion.endsWith(".0")) {
+              getCurrentTab()
+                .then((tab) => {
+                  // 检查是否正在播放视频，或者窗口未激活
+                  const openInBackground = !tab || tab.audible === true || !tab.active;
+                  // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
+                  return chrome.tabs.create({
+                    url,
+                    active: !openInBackground,
+                    index: !tab ? undefined : tab.index + 1,
+                    windowId: !tab ? undefined : tab.windowId,
+                  });
+                })
+                .catch((e) => {
+                  console.error(e);
                 });
-              })
-              .catch((e) => {
-                console.error(e);
-              });
+            }
           }
-        }
-      });
+        });
 
-      // 监听扩展卸载事件
-      chrome.runtime.setUninstallURL(`${DocumentationSite}${localePath}/uninstall`, () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.runtime.setUninstallURL:", lastError);
-        }
+        // 监听扩展卸载事件
+        watchLanguageChange(() => {
+          chrome.runtime.setUninstallURL(`${DocumentationSite}${localePath}/uninstall`, () => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.runtime.setUninstallURL:", lastError);
+            }
+          });
+        });
       });
     }
 

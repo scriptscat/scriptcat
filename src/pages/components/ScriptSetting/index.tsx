@@ -3,7 +3,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Checkbox, Descriptions, Divider, Drawer, Input, InputTag, Message, Select, Tag } from "@arco-design/web-react";
 import type { ReactNode } from "react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Match from "./Match";
 import PermissionManager from "./Permission";
@@ -29,30 +29,93 @@ const ScriptSetting: React.FC<{
   onOk: () => void;
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
-  const scriptDAO = new ScriptDAO();
   const [scriptTags, setScriptTags] = useState<string[]>([]);
   const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
   const [checkUpdate, setCheckUpdate] = useState<boolean>(false);
   const [scriptRunEnv, setScriptRunEnv] = useState<string>("all");
+  const [scriptRunAt, setScriptRunAt] = useState<string>("default");
 
   const { t } = useTranslation();
 
+  const scriptSettingData = useMemo(() => {
+    const ret = [
+      {
+        label: t("script_run_env.title"),
+        value: (
+          <Select
+            value={scriptRunEnv}
+            options={[
+              { label: t("script_setting.default"), value: "default" },
+              { label: t("script_run_env.all"), value: "all" },
+              { label: t("script_run_env.normal-tabs"), value: "normal-tabs" },
+              { label: t("script_run_env.incognito-tabs"), value: "incognito-tabs" },
+            ]}
+            onChange={(value) => {
+              setScriptRunEnv(value);
+              scriptClient.updateMetadata(script.uuid, "run-in", value === "default" ? [] : [value]).then(() => {
+                Message.success(t("update_success"));
+              });
+            }}
+          />
+        ),
+      },
+      {
+        label: t("script_run_at.title"),
+        value: (
+          <Select
+            value={scriptRunAt}
+            options={[
+              { label: t("script_setting.default"), value: "default" },
+              { label: "document-start", value: "document-start" },
+              { label: "document-body", value: "document-body" },
+              { label: "document-end", value: "document-end" },
+              { label: "document-idle", value: "document-idle" },
+              { label: "early-start", value: "early-start" },
+            ]}
+            onChange={(value) => {
+              setScriptRunAt(value);
+              const earlyStart: string[] = [];
+              const runAt: string[] = [];
+              if (value === "early-start") {
+                earlyStart.push("");
+                runAt.push("document-start");
+              } else if (value !== "default") {
+                runAt.push(value);
+              }
+              Promise.all([
+                scriptClient.updateMetadata(script.uuid, "early-start", earlyStart),
+                scriptClient.updateMetadata(script.uuid, "run-at", runAt),
+              ]).then(() => {
+                Message.success(t("update_success"));
+              });
+            }}
+          />
+        ),
+      },
+    ];
+    return ret;
+  }, [script, scriptRunEnv, scriptRunAt, t]);
+
   useEffect(() => {
-    if (script) {
-      scriptDAO.get(script.uuid).then((v) => {
-        if (!v) {
-          return;
-        }
-        setCheckUpdateUrl(v.downloadUrl || "");
-        setCheckUpdate(v.checkUpdate === false ? false : true);
-        let metadata = v.metadata;
-        if (v.selfMetadata) {
-          metadata = getCombinedMeta(metadata, v.selfMetadata);
-        }
-        setScriptRunEnv(metadata["run-in"]?.[0] || "all");
-        setScriptTags(parseTags(metadata) || []);
-      });
-    }
+    const scriptDAO = new ScriptDAO();
+    scriptDAO.get(script.uuid).then((v) => {
+      if (!v) {
+        return;
+      }
+      setCheckUpdateUrl(v.downloadUrl || "");
+      setCheckUpdate(v.checkUpdate === false ? false : true);
+      let metadata = v.metadata;
+      if (v.selfMetadata) {
+        metadata = getCombinedMeta(metadata, v.selfMetadata);
+      }
+      setScriptRunEnv(metadata["run-in"]?.[0] || "default");
+      let runAt = metadata["run-at"]?.[0] || "default";
+      if (runAt === "document-start" && metadata["early-start"] && metadata["early-start"].length > 0) {
+        runAt = "early-start";
+      }
+      setScriptRunAt(runAt);
+      setScriptTags(parseTags(metadata) || []);
+    });
   }, [script]);
 
   return (
@@ -60,7 +123,7 @@ const ScriptSetting: React.FC<{
       width={600}
       title={
         <span>
-          {script?.name} {t("script_setting")}
+          {script.name} {t("script_setting.title")}
         </span>
       }
       autoFocus={false}
@@ -79,11 +142,11 @@ const ScriptSetting: React.FC<{
         data={[
           {
             label: t("last_updated"),
-            value: formatUnixTime((script?.updatetime || script?.createtime || 0) / 1000),
+            value: formatUnixTime((script.updatetime || script.createtime || 0) / 1000),
           },
           {
             label: "UUID",
-            value: script?.uuid,
+            value: script.uuid,
           },
           {
             label: t("tags"),
@@ -97,7 +160,7 @@ const ScriptSetting: React.FC<{
                 onChange={(tags) => {
                   setScriptTags(tags);
                   scriptClient.updateMetadata(script.uuid, "tag", tags).then(() => {
-                    Message.success(t("update_success")!);
+                    Message.success(t("update_success"));
                   });
                 }}
               />
@@ -110,29 +173,8 @@ const ScriptSetting: React.FC<{
       <Divider />
       <Descriptions
         column={1}
-        title={t("script_setting")}
-        data={[
-          {
-            label: t("script_run_env.title"),
-            value: (
-              <Select
-                value={scriptRunEnv}
-                options={[
-                  { label: t("script_run_env.default"), value: "default" },
-                  { label: t("script_run_env.all"), value: "all" },
-                  { label: t("script_run_env.normal-tabs"), value: "normal-tabs" },
-                  { label: t("script_run_env.incognito-tabs"), value: "incognito-tabs" },
-                ]}
-                onChange={(value) => {
-                  setScriptRunEnv(value);
-                  scriptClient.updateMetadata(script.uuid, "run-in", value === "default" ? [] : [value]).then(() => {
-                    Message.success(t("update_success")!);
-                  });
-                }}
-              />
-            ),
-          },
-        ]}
+        title={t("script_setting.title")}
+        data={scriptSettingData}
         style={{ marginBottom: 20 }}
         labelStyle={{ paddingRight: 36 }}
       />
@@ -150,7 +192,7 @@ const ScriptSetting: React.FC<{
                 onChange={(val) => {
                   setCheckUpdate(val);
                   scriptClient.setCheckUpdateUrl(script.uuid, val, checkUpdateUrl).then(() => {
-                    Message.success(t("update_success")!);
+                    Message.success(t("update_success"));
                   });
                 }}
               />
@@ -166,7 +208,7 @@ const ScriptSetting: React.FC<{
                 }}
                 onBlur={() => {
                   scriptClient.setCheckUpdateUrl(script.uuid, checkUpdate, checkUpdateUrl).then(() => {
-                    Message.success(t("update_success")!);
+                    Message.success(t("update_success"));
                   });
                 }}
               />

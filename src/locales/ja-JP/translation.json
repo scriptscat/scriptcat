@@ -192,7 +192,6 @@
   "yes": "はい",
   "no": "いいえ",
   "confirm_delete_permission": "この権限を削除してもよろしいですか？",
-  "script_setting": "スクリプト設定",
   "basic_info": "基本情報",
   "update_url": "URLを更新",
   "permission_management": "権限管理",
@@ -283,7 +282,8 @@
   "script_requires": "スクリプトは以下の外部リソースを参照しています",
   "cookie_warning": "注意：このスクリプトはCookieの操作権限をリクエストします。これは危険な権限ですので、スクリプトの安全性を確認してください。",
   "scheduled_script_description_title": "これはスケジュールスクリプトです。有効にすると特定の時間に自動実行され、手動操作も可能です。",
-  "scheduled_script_description_description": "スケジュールタスク式：{{expression}}、最近の実行時間：{{time}}",
+  "scheduled_script_description_description_expr": "スケジュールタスク表現：",
+  "scheduled_script_description_description_next": "最近の実行時間：",
   "background_script_description": "これはバックグラウンドスクリプトです。有効にするとブラウザを開いたときに自動的に一度実行され、パネルで手動制御できます。",
   "install_success": "インストールに成功しました",
   "install": {
@@ -323,6 +323,9 @@
     "status_autoclose": "$0 秒後に自動的に閉じます",
     "header_other_update": "その他の利用可能な更新"
   },
+  "downloading_status_text": "ダウンロード中。{{bytes}} を受信しました。",
+  "install_page_loading": "インストールページを読み込み中",
+  "invalid_page": "無効なページ",
   "background_script_tag": "これはバックグラウンドスクリプトです",
   "scheduled_script_tag": "これはスケジュールスクリプトです",
   "background_script": "バックグラウンドスクリプト",
@@ -493,10 +496,16 @@
   "enter_search_value": "{{search}}を入力して検索してください",
   "script_run_env": {
     "title": "実行環境",
-    "default": "デフォルト",
     "all": "すべてのタブ",
     "normal-tabs": "通常のタブ",
     "incognito-tabs": "シークレットタブ"
+  },
+  "script_run_at": {
+    "title": "実行タイミング"
+  },
+  "script_setting": {
+    "title": "スクリプト設定",
+    "default": "デフォルト"
   },
   "editor_config": "エディタ設定",
   "editor_config_description": "<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>のcompilerOptionsを参考に設定できます",
@@ -536,6 +545,7 @@
   "error_old_script_code_missing": "既存スクリプトのコードが見つかりません",
   "error_subscribe_name_required": "サブスクライブ名は必須です",
   "error_grant_conflict": "@grant に 'none' と GM API の両方が指定されています",
+  "error_metadata_line_duplicated": "メタデータ内に重複した宣言があります。",
   "notification": {
     "script_sync_delete": "スクリプト同期削除",
     "script_sync_delete_desc": "スクリプト {{scriptName}} が削除されました",

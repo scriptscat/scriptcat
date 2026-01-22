@@ -59,39 +59,23 @@ function App() {
   const { t } = useTranslation();
   const pageTabIdRef = useRef(0);
 
-  // 只随 script 数量和启动状态而改变的state
-  const normalEnables = useMemo(() => {
-    // 返回字串让 React 比对 state 有否改动
-    return scriptList.map((script) => (script.enable ? 1 : 0)).join(",");
+  const normalScriptCounts = useMemo(() => {
+    // 计算已开启了的数量
+    const running = scriptList.reduce((p, c) => p + (c.enable ? 1 : 0), 0);
+    return {
+      running,
+      total: scriptList.length, // 总数
+    };
   }, [scriptList]);
 
-  // 只随 script 数量和启动状态而改变的state
-  const backEnables = useMemo(() => {
-    // 返回字串让 React 比对 state 有否改动
-    return backScriptList.map((script) => (script.enable ? 1 : 0)).join(",");
-  }, [backScriptList]);
-
-  const normalScriptCounts = useMemo(() => {
-    // 拆回array
-    const enables = normalEnables.split(",");
-    // 计算已开启了的数量
-    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
-    return {
-      running,
-      total: enables.length, // 总数
-    };
-  }, [normalEnables]);
-
   const backScriptCounts = useMemo(() => {
-    // 拆回array
-    const enables = backEnables.split(",");
     // 计算已开启了的数量
-    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
+    const running = backScriptList.reduce((p, c) => p + (c.enable ? 1 : 0), 0);
     return {
       running,
-      total: enables.length, // 总数
+      total: backScriptList.length, // 总数
     };
-  }, [backEnables]);
+  }, [backScriptList]);
 
   const urlHost = useMemo(() => {
     let url: URL | undefined;
@@ -287,7 +271,7 @@ function App() {
       for (const unhook of unhooks) unhook();
       unhooks.length = 0;
     };
-  }, []);
+  }, [subscribeMessage]);
 
   const { handleEnableScriptChange, handleSettingsClick, handleNotificationClick } = {
     handleEnableScriptChange: (val: boolean) => {
@@ -386,12 +370,12 @@ function App() {
       <Card
         size="small"
         title={
-          <div className="flex justify-between">
-            <div className="text-xl inline-flex flex-row items-center gap-x-1">
+          <div className="tw-flex tw-justify-between">
+            <div className="tw-text-xl tw-inline-flex tw-flex-row tw-items-center tw-gap-x-1">
               <span>{"ScriptCat"}</span>
             </div>
-            <div className="flex flex-row items-center">
-              <Switch size="small" className="mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
+            <div className="tw-flex tw-flex-row tw-items-center">
+              <Switch size="small" className="tw-mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
               <Button type="text" icon={<IconSettings />} iconOnly onClick={handleSettingsClick} />
               <Badge count={checkUpdate.isRead ? 0 : 1} dot offset={[-8, 6]}>
                 <Button type="text" icon={<IconNotification />} iconOnly onClick={handleNotificationClick} />
@@ -418,37 +402,43 @@ function App() {
                     }}
                     onClickMenuItem={handleMenuClick}
                   >
-                    <Menu.Item key="newScript" className="flex flex-row items-center">
+                    <Menu.Item key="newScript" className="tw-flex tw-flex-row tw-items-center">
                       <IconPlus style={iconStyle} />
                       {t("create_script")}
                     </Menu.Item>
                     <Menu.Item
                       key={`https://scriptcat.org/search?domain=${urlHost}`}
-                      className="flex flex-row items-center"
+                      className="tw-flex tw-flex-row tw-items-center"
                     >
                       <IconSearch style={iconStyle} />
                       {t("get_script")}
                     </Menu.Item>
-                    <Menu.Item key={"checkUpdate"} className="flex flex-row items-center">
+                    <Menu.Item key={"checkUpdate"} className="tw-flex tw-flex-row tw-items-center">
                       <IconSync style={iconStyle} />
                       {t("check_update")}
                     </Menu.Item>
-                    <Menu.Item key="report_issue" className="flex flex-row items-center">
+                    <Menu.Item key="report_issue" className="tw-flex tw-flex-row tw-items-center">
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
-                    <Menu.Item key={`${DocumentationSite}${localePath}`} className="flex flex-row items-center">
+                    <Menu.Item
+                      key={`${DocumentationSite}${localePath}`}
+                      className="tw-flex tw-flex-row tw-items-center"
+                    >
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>
                     <Menu.Item
                       key={isChineseUser() ? "https://bbs.tampermonkey.net.cn/" : Discord}
-                      className="flex flex-row items-center"
+                      className="tw-flex tw-flex-row tw-items-center"
                     >
                       <RiMessage2Line style={iconStyle} />
                       {t("community")}
                     </Menu.Item>
-                    <Menu.Item key="https://github.com/scriptscat/scriptcat" className="flex flex-row items-center">
+                    <Menu.Item
+                      key="https://github.com/scriptscat/scriptcat"
+                      className="tw-flex tw-flex-row tw-items-center"
+                    >
                       <IconGithub style={iconStyle} />
                       {"GitHub"}
                     </Menu.Item>
@@ -508,14 +498,14 @@ function App() {
             />
           </CollapseItem>
         </Collapse>
-        <div className="flex flex-row arco-card-header !h-6">
+        <div className="tw-flex tw-flex-row arco-card-header !tw-h-6">
           {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS ? (
             <Tooltip content={`${t("popup.new_version_available")} (v${checkUpdate.version})`}>
               <span
                 onClick={() => {
                   window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
                 }}
-                className={`text-[12px] font-500 cursor-pointer underline underline-offset-2 text-blue-500 dark:text-blue-400`}
+                className={`tw-text-[12px] tw-font-500 tw-cursor-pointer tw-underline tw-underline-offset-2 tw-text-blue-500 dark:tw-text-blue-400`}
               >{`v${ExtVersion}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 0 ? (
@@ -524,12 +514,12 @@ function App() {
                 onClick={() => {
                   setCheckUpdateStatus(1);
                 }}
-                className="text-[12px] font-500 cursor-pointer hover:underline hover:underline-offset-2"
+                className="tw-text-[12px] tw-font-500 tw-cursor-pointer hover:tw-underline hover:tw-underline-offset-2"
               >{`v${ExtVersion}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 1 ? (
             <Tooltip content={t("checking_for_updates")}>
-              <span className="text-[12px] font-500">{`${t("checking_for_updates")}`}</span>
+              <span className="tw-text-[12px] tw-font-500">{`${t("checking_for_updates")}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 2 ? (
             <Tooltip content={t("latest_version")}>
@@ -537,7 +527,7 @@ function App() {
                 onClick={() => {
                   setCheckUpdateStatus(1);
                 }}
-                className="text-[12px] font-500 cursor-pointer hover:underline hover:underline-offset-2"
+                className="tw-text-[12px] tw-font-500 tw-cursor-pointer hover:tw-underline hover:tw-underline-offset-2"
               >{`${t("latest_version")}`}</span>
             </Tooltip>
           ) : (
