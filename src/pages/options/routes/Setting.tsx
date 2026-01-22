@@ -168,7 +168,7 @@ function Setting() {
             </Checkbox>
           </Space>
           <FileSystemParams
-            preNode={
+            headerContent={
               <Checkbox
                 checked={cloudSync.enable}
                 onChange={(checked) => {
@@ -178,29 +178,6 @@ function Setting() {
                 {t("enable_script_sync_to")}
               </Checkbox>
             }
-            actionButton={[
-              <Button
-                key="save"
-                type="primary"
-                onClick={async () => {
-                  // Save to the configuration
-                  // Perform validation if enabled
-                  if (cloudSync.enable) {
-                    Message.info(t("cloud_sync_account_verification")!);
-                    try {
-                      await FileSystemFactory.create(cloudSync.filesystem, cloudSync.params[cloudSync.filesystem]);
-                    } catch (e) {
-                      Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
-                      return;
-                    }
-                  }
-                  submitCloudSync();
-                  Message.success(t("save_success")!);
-                }}
-              >
-                {t("save")}
-              </Button>,
-            ]}
             fileSystemType={cloudSync.filesystem}
             fileSystemParams={cloudSync.params[cloudSync.filesystem] || {}}
             onChangeFileSystemType={(type) => {
@@ -212,7 +189,29 @@ function Setting() {
                 params: { ...cloudSync.params, [cloudSync.filesystem]: params },
               }));
             }}
-          />
+          >
+            <Button
+              key="save"
+              type="primary"
+              onClick={async () => {
+                // Save to the configuration
+                // Perform validation if enabled
+                if (cloudSync.enable) {
+                  Message.info(t("cloud_sync_account_verification")!);
+                  try {
+                    await FileSystemFactory.create(cloudSync.filesystem, cloudSync.params[cloudSync.filesystem]);
+                  } catch (e) {
+                    Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
+                    return;
+                  }
+                }
+                submitCloudSync();
+                Message.success(t("save_success")!);
+              }}
+            >
+              {t("save")}
+            </Button>
+          </FileSystemParams>
         </Space>
       </Card>
 
