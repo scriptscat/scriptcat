@@ -246,7 +246,7 @@ export default class ServiceWorkerManager {
             const anyOpened = await script.openBatchUpdatePage({
               // https://github.com/scriptscat/scriptcat/issues/1087
               // 关于 autoclose，日后再检讨 UI/UX 设计
-              q: domain ? `autoclose=30&site=${domain}` : "autoclose=30",
+              q: domain ? `autoclose=30000&site=${domain}` : "autoclose=30000",
               dontCheckNow: true,
             });
             if (anyOpened) {
