@@ -90,6 +90,7 @@ export class CustomEventMessage implements Message {
   }
 
   bindReceiver() {
+    console.log("CustomEventMessage bindReceiver", this.pageMessaging.et);
     if (!this.pageMessaging.et) throw new Error("bindReceiver() failed");
     const receiveFlag = `evt_${this.pageMessaging.et}_${this.receiveFlag}`;
     pageRemoveEventListener(receiveFlag, this.pageMessagingHandler); // 避免重复

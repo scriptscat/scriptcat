@@ -2,7 +2,7 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { CustomEventMessage, createPageMessaging } from "@Packages/message/custom_event_message";
 import { pageAddEventListener, pageDispatchCustomEvent } from "@Packages/message/common";
-import { ScriptEnvTag, ScriptEnvType } from "@Packages/message/common";
+import { ScriptEnvTag, ScriptEnvType } from "@Packages/message/consts";
 import { uuidv5 } from "./pkg/utils/uuid";
 import { randomMessageFlag, makeBlobURL } from "@App/pkg/utils/utils";
 import { ExtensionMessage } from "@Packages/message/extension_message";

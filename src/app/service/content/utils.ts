@@ -3,7 +3,7 @@ import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { sourceMapTo } from "@App/pkg/utils/utils";
-import { ScriptEnvTag } from "@Packages/message/common";
+import { ScriptEnvTag } from "@Packages/message/consts";
 
 export type CompileScriptCodeResource = {
   name: string;
