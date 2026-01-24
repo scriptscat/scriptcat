@@ -174,7 +174,7 @@ const setupHandshake = () => {
 // ================================
 
 // 检查 early-start 脚本
-scriptExecutor.checkEarlyStartScript(scriptEnvTag, MessageFlag, initEnvInfo);
+scriptExecutor.checkEarlyStartScript(scriptEnvTag, initEnvInfo);
 
 // 建立握手与通信绑定
 setupHandshake();

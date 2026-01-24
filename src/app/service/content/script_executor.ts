@@ -85,7 +85,7 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, messageFlag: string, envInfo: GMInfoEnv) {
+  checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, envInfo: GMInfoEnv) {
     const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
     const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;

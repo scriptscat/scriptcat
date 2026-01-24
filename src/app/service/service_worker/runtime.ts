@@ -710,12 +710,7 @@ export class RuntimeService {
 
     let jsCode = "";
     if (withCode) {
-      const code = compileInjectionCode(
-        this.getMessageFlag(),
-        scriptRes,
-        scriptRes.code,
-        scriptMatchInfo.scriptUrlPatterns
-      );
+      const code = compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
       registerScript.js[0].code = jsCode = code;
     }
 
@@ -758,7 +753,7 @@ export class RuntimeService {
     if (earlyScript) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
-      return compileInjectionCode(this.getMessageFlag(), scriptRes, scriptRes.code, result.scriptUrlPatterns);
+      return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
     const originalCode = await this.script.scriptCodeDAO.get(result.uuid);
@@ -1264,12 +1259,7 @@ export class RuntimeService {
         const scriptRes = scriptsWithUpdatedResources.get(targetUUID);
         const scriptDAOCode = scriptCodes[targetUUID];
         if (scriptRes && scriptDAOCode) {
-          const scriptInjectCode = compileInjectionCode(
-            this.getMessageFlag(),
-            scriptRes,
-            scriptDAOCode,
-            scriptRes.scriptUrlPatterns!
-          );
+          const scriptInjectCode = compileInjectionCode(scriptRes, scriptDAOCode, scriptRes.scriptUrlPatterns!);
           scriptRegisterInfo.js = [
             {
               code: scriptInjectCode,

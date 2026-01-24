@@ -135,7 +135,6 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
-  messageFlag: string,
   script: ScriptLoadInfo,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
