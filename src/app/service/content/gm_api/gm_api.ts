@@ -37,6 +37,9 @@ export interface GMRequestHandle {
   abort: () => void;
 }
 
+// 判断当前是否运行在 USER_SCRIPT 环境 (content环境)
+const isContent = typeof chrome.runtime?.sendMessage === "function";
+
 const integrity = {}; // 仅防止非法实例化
 
 let valChangeCounterId = 0;
@@ -486,7 +489,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    return urlToDocumentInContentPage(this, url);
+    return urlToDocumentInContentPage(this, url, isContent);
   }
 
   static _GM_cookie(
@@ -724,7 +727,7 @@ export default class GMApi extends GM_Base {
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
-        params: [parentNodeId, tagName, attrs],
+        params: [parentNodeId, tagName, attrs, isContent],
       },
     });
     if (resp.code) {

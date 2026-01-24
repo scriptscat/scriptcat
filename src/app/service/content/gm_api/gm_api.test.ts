@@ -5,7 +5,7 @@ import type { GMInfoEnv, ScriptFunc } from "../types";
 import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -264,7 +264,7 @@ describe.concurrent("GM_menu", () => {
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const retPromise = exec.exec();
 
@@ -278,7 +278,7 @@ describe.concurrent("GM_menu", () => {
 
     expect(mockSendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_registerMenuCommand",
           params: [
@@ -314,7 +314,7 @@ describe.concurrent("GM_menu", () => {
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = exec.exec();
     // 验证 sendMessage 是否被调用
@@ -336,7 +336,7 @@ describe.concurrent("GM_menu", () => {
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const retPromise = exec.exec();
 
@@ -350,7 +350,7 @@ describe.concurrent("GM_menu", () => {
 
     expect(mockSendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_registerMenuCommand",
           params: [
@@ -399,7 +399,7 @@ describe.concurrent("GM_menu", () => {
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual({ id1: "abc", id2: "abc", id3: 1, id4: 2, id5: "3", id6: 3, id7: 3, id8: 4 });
@@ -423,7 +423,7 @@ describe.concurrent("GM_value", () => {
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
@@ -434,7 +434,7 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [expect.any(String), "a", 123],
@@ -448,7 +448,7 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [expect.any(String), "a"],
@@ -629,7 +629,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
@@ -646,7 +646,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
@@ -670,7 +670,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
@@ -704,7 +704,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
@@ -720,7 +720,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
@@ -739,7 +739,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [
@@ -773,7 +773,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
@@ -790,7 +790,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
@@ -814,7 +814,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
@@ -849,7 +849,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
@@ -883,7 +883,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     // remote = true
     const retPromise = exec.exec();
@@ -909,7 +909,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       sendMessage: mockSendMessage,
     } as unknown as Message;
     // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, "scripting", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const retPromise = exec.exec();
 
