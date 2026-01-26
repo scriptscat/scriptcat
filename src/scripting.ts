@@ -1,6 +1,6 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
-import { CustomEventMessage, createPageMessaging } from "@Packages/message/custom_event_message";
+import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { pageAddEventListener, pageDispatchCustomEvent } from "@Packages/message/common";
 import { ScriptEnvTag, ScriptEnvType } from "@Packages/message/consts";
 import { uuidv5 } from "./pkg/utils/uuid";
@@ -12,8 +12,10 @@ import { RuntimeClient } from "@App/app/service/service_worker/client";
 import type { Logger } from "@App/app/repo/logger";
 import { MessageDelivery } from "./message-delivery";
 
-//@ts-ignore
-const MessageFlag = uuidv5(`${performance.timeOrigin}`, process.env.SC_RANDOM_KEY);
+const MessageFlag = process.env.SC_RANDOM_KEY || "scriptcat-default-flag";
+
+// 与 inject/content 协商消息flag
+// 由 content 广播随机后的 flag
 
 // ================================
 // 常量与全局状态
