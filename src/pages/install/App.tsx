@@ -442,6 +442,11 @@ function App() {
     }
   }
 
+  async function onWatchFileError() {
+    // e.g. NotFoundError
+    setWatchFile(false);
+  }
+
   const memoWatchFile = useMemo(() => {
     return `${watchFile}.${scriptInfo?.uuid}.${localFileHandle?.name}`;
   }, [watchFile, scriptInfo, localFileHandle]);
@@ -458,6 +463,7 @@ function App() {
         uuid,
         fileName,
         setCode: onWatchFileCodeChanged,
+        onFileError: onWatchFileError,
       };
       // 进行监听
       startFileTrack(handle, ftInfo);

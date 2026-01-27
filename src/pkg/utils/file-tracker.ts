@@ -5,6 +5,7 @@ export type FTInfo = {
   fileName: string;
   setCode(code: string, hideInfo?: boolean): void;
   lastModified?: number;
+  onFileError(): void;
 };
 
 const getHandleRecord = async (root: FileSystemFileHandle, observer: FileSystemObserverInstance) => {
@@ -20,6 +21,7 @@ const getHandleRecord = async (root: FileSystemFileHandle, observer: FileSystemO
     } catch (e) {
       // 档案改名或删掉时，或会被此捕捉（预期报错）
       console.warn(e);
+      ftInfo.onFileError();
     }
   }
   return { ftInfo: null, file: null };
