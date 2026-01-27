@@ -1,15 +1,26 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
-import { CustomEventMessage, createPageMessaging } from "@Packages/message/custom_event_message";
+import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { pageAddEventListener, pageDispatchCustomEvent, pageDispatchEvent } from "@Packages/message/common";
 import { uuidv5 } from "./pkg/utils/uuid";
 import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
 import type { ValueUpdateDataEncoded } from "./app/service/content/types";
 import type { TClientPageLoadInfo } from "./app/repo/scripts";
 import { ScriptEnvTag } from "@Packages/message/consts";
+import { randomMessageFlag } from "./pkg/utils/utils";
 
-//@ts-ignore
-const MessageFlag = uuidv5(`${performance.timeOrigin}`, process.env.SC_RANDOM_KEY);
+const MessageFlag = process.env.SC_RANDOM_KEY || "scriptcat-default-flag";
+
+const EventFlag = randomMessageFlag();
+
+// 广播通信 flag 给 inject/scripting
+pageDispatchCustomEvent(MessageFlag, { action: MessageFlag, EventFlag });
+
+pageAddEventListener(EventFlag, (ev) => {
+  if (!(ev instanceof CustomEvent)) return;
+
+  if (ev.detail?.action != MessageFlag) return;
+});
 
 // ================================
 // 常量与全局状态
