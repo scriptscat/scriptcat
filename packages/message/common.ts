@@ -24,7 +24,7 @@ export function negotiateEventFlag(messageFlag: string, eventFlag: string, ready
 
   // 监听 inject/scripting 发来的请求 EventFlag 的消息
   let ready = 0;
-  const EventFlagRequestHandler: EventListenerOrEventListenerObject = (ev) => {
+  const EventFlagRequestHandler: EventListener = (ev) => {
     if (!(ev instanceof CustomEvent)) return;
 
     switch (ev.detail?.action) {
@@ -49,7 +49,7 @@ export function negotiateEventFlag(messageFlag: string, eventFlag: string, ready
 // 获取协商后的 EventFlag
 export function getEventFlag(messageFlag: string): string {
   let eventFlag = "";
-  const EventFlagListener: EventListenerOrEventListenerObject = (ev) => {
+  const EventFlagListener: EventListener = (ev) => {
     if (!(ev instanceof CustomEvent)) return;
     if (ev.detail?.action != "broadcastEventFlag") return;
     eventFlag = ev.detail.EventFlag;
