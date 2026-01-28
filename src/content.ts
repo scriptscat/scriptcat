@@ -15,7 +15,10 @@ const EventFlag = randomMessageFlag();
 
 negotiateEventFlag(MessageFlag, EventFlag);
 
-const msg: Message = new CustomEventMessage(`${EventFlag}${ScriptEnvTag.content}`, false);
+const isContent = typeof chrome.runtime?.sendMessage === "function";
+const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;
+
+const msg: Message = new CustomEventMessage(`${EventFlag}${scriptEnvTag}`, false);
 
 // 初始化日志组件
 const logger = new LoggerCore({
@@ -27,5 +30,5 @@ logger.logger().debug("content start");
 
 const server = new Server("content", msg);
 const scriptExecutor = new ScriptExecutor(msg);
-const runtime = new ScriptRuntime(ScriptEnvTag.content, server, msg, scriptExecutor, MessageFlag);
+const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, MessageFlag);
 runtime.init();

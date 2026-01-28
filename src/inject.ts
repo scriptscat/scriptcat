@@ -12,7 +12,10 @@ const MessageFlag = process.env.SC_RANDOM_KEY || "scriptcat-default-flag";
 
 const EventFlag = getEventFlag(MessageFlag);
 
-const msg: Message = new CustomEventMessage(`${EventFlag}${ScriptEnvTag.inject}`, false);
+const isContent = typeof chrome.runtime?.sendMessage === "function";
+const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;
+
+const msg: Message = new CustomEventMessage(`${EventFlag}${scriptEnvTag}`, false);
 
 // 加载logger组件
 const logger = new LoggerCore({
@@ -25,7 +28,7 @@ logger.logger().debug("inject start");
 
 const server = new Server("inject", msg);
 const scriptExecutor = new ScriptExecutor(msg);
-const runtime = new ScriptRuntime(ScriptEnvTag.inject, server, msg, scriptExecutor, MessageFlag);
+const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, MessageFlag);
 runtime.init();
 
 // inject环境，直接判断白名单，注入对外接口
