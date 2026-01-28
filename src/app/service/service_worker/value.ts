@@ -79,7 +79,7 @@ export class ValueService {
   async pushValueToTab<T extends ValueUpdateDataEncoded>(sendData: T) {
     chrome.storage.local.set({
       valueUpdateDelivery: {
-        rId: `${Date.now()}.${Math.random()}`,
+        rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新
         sendData,
       },
     });

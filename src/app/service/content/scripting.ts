@@ -2,18 +2,14 @@ import { Client, sendMessage } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import type { ScriptExecutor } from "./script_executor";
 import { RuntimeClient } from "../service_worker/client";
 import { makeBlobURL } from "@App/pkg/utils/utils";
-import type { GMInfoEnv } from "./types";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
+import type { ValueUpdateDataEncoded } from "./types";
 
-// content页的处理
-export default class ContentRuntime {
-  // 运行在content页面的脚本
-  private readonly contentScriptSet: Set<string> = new Set();
-
+// scripting页的处理
+export default class ScriptingRuntime {
   constructor(
     // 监听来自service_worker的消息
     private readonly extServer: Server,
@@ -21,27 +17,51 @@ export default class ContentRuntime {
     private readonly server: Server,
     // 发送给扩展service_worker的通信接口
     private readonly senderToExt: MessageSend,
+    // 发送给 content的消息接口
+    private readonly senderToContent: CustomEventMessage,
     // 发送给inject的消息接口
-    private readonly senderToInject: CustomEventMessage,
-    // 脚本执行器消息接口
-    private readonly scriptExecutorMsg: CustomEventMessage,
-    private readonly scriptExecutor: ScriptExecutor
+    private readonly senderToInject: CustomEventMessage
   ) {}
+
+  // 广播消息给 content 和 inject
+  broadcastToPage<T = any>(action: string, data?: any): Promise<T | undefined> {
+    return Promise.all([
+      sendMessage(this.senderToContent, "content/" + action, data),
+      sendMessage(this.senderToInject, "inject/" + action, data),
+    ]).then(() => undefined);
+  }
 
   init() {
     this.extServer.on("runtime/emitEvent", (data) => {
-      // 转发给inject和scriptExecutor
-      this.scriptExecutor.emitEvent(data);
-      return sendMessage(this.senderToInject, "inject/runtime/emitEvent", data);
+      // 转发给inject和content
+      return this.broadcastToPage("runtime/emitEvent", data);
     });
     this.extServer.on("runtime/valueUpdate", (data) => {
-      // 转发给inject和scriptExecutor
-      this.scriptExecutor.valueUpdate(data);
-      return sendMessage(this.senderToInject, "inject/runtime/valueUpdate", data);
+      // 转发给inject和content
+      return this.broadcastToPage("runtime/valueUpdate", data);
     });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
     });
+
+    // ================================
+    // 来自 service_worker 的投递：storage 广播（类似 UDP）
+    // ================================
+
+    // 接收 service_worker 的 chrome.storage.local 值改变通知 （一对多广播）
+    // 类似 UDP 原理，service_worker 不会有任何「等待处理」
+    // 由于 changes 会包括新旧值 (Chrome: JSON serialization, Firefox: Structured Clone)
+    // 因此需要注意资讯量不要过大导致 onChanged 的触发过慢
+    chrome.storage.local.onChanged.addListener((changes) => {
+      if (changes["valueUpdateDelivery"]?.newValue) {
+        // 转发给 content 和 inject
+        this.broadcastToPage(
+          "runtime/valueUpdate",
+          changes["valueUpdateDelivery"]?.newValue.sendData as ValueUpdateDataEncoded
+        );
+      }
+    });
+
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.senderToExt);
     forwardMessage(
       "serviceWorker",
@@ -72,16 +92,13 @@ export default class ContentRuntime {
             });
           }
           case "GM_addElement": {
-            const [parentNodeId, tagName, tmpAttr] = data.params;
+            const [parentNodeId, tagName, tmpAttr, isContent] = data.params;
             let attr = { ...tmpAttr };
             let parentNode: Node | undefined;
-            // 判断是不是content脚本发过来的
-            let msg: CustomEventMessage;
-            if (this.contentScriptSet.has(data.uuid) || this.scriptExecutor.execMap.has(data.uuid)) {
-              msg = this.scriptExecutorMsg;
-            } else {
-              msg = this.senderToInject;
-            }
+
+            // 根据来源选择不同的消息桥（content / inject）
+            const msg = isContent ? this.senderToContent : this.senderToInject;
+
             if (parentNodeId) {
               parentNode = msg.getAndDelRelatedTarget(parentNodeId) as Node | undefined;
             }
@@ -127,23 +144,25 @@ export default class ContentRuntime {
     );
   }
 
-  pageLoad(messageFlag: string, envInfo: GMInfoEnv) {
-    this.scriptExecutor.checkEarlyStartScript("content", messageFlag, envInfo);
+  pageLoad() {
     const client = new RuntimeClient(this.senderToExt);
     // 向service_worker请求脚本列表及环境信息
     client.pageLoad().then((o) => {
       if (!o.ok) return;
       const { injectScriptList, contentScriptList, envInfo } = o;
-      // 启动脚本：向 inject页面 发送脚本列表及环境信息
-      const client = new Client(this.senderToInject, "inject");
-      // 根据@inject-into content过滤脚本
-      client.do("pageLoad", { injectScriptList, envInfo });
-      // 处理注入到content环境的脚本
-      for (const script of contentScriptList) {
-        this.contentScriptSet.add(script.uuid);
+
+      // 向页面 发送脚本列表及环境信息
+      if (contentScriptList.length) {
+        const contentClient = new Client(this.senderToContent, "content");
+        // 根据@inject-into content过滤脚本
+        contentClient.do("pageLoad", { scripts: contentScriptList, envInfo });
       }
-      // 启动脚本
-      this.scriptExecutor.startScripts(contentScriptList, envInfo);
+
+      if (injectScriptList.length) {
+        const injectClient = new Client(this.senderToInject, "inject");
+        // 根据@inject-into content过滤脚本
+        injectClient.do("pageLoad", { scripts: injectScriptList, envInfo });
+      }
     });
   }
 }
