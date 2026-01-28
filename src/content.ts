@@ -3,17 +3,15 @@ import MessageWriter from "./app/logger/message_writer";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
-import { randomMessageFlag } from "./pkg/utils/utils";
 import type { Message } from "@Packages/message/types";
 import { negotiateEventFlag } from "@Packages/message/common";
+import { randomMessageFlag } from "./pkg/utils/utils";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 
-const MessageFlag = process.env.SC_RANDOM_KEY || "scriptcat-default-flag";
+const MessageFlag = process.env.SC_RANDOM_KEY;
 
-const EventFlag = randomMessageFlag();
-
-negotiateEventFlag(MessageFlag, EventFlag);
+const EventFlag = negotiateEventFlag(MessageFlag, randomMessageFlag());
 
 const isContent = typeof chrome.runtime?.sendMessage === "function";
 const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;

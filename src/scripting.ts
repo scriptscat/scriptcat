@@ -1,4 +1,3 @@
-import { getEventFlag } from "@Packages/message/common";
 import { ExtensionMessage } from "@Packages/message/extension_message";
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
@@ -7,10 +6,12 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { Server } from "@Packages/message/server";
 import ScriptingRuntime from "./app/service/content/scripting";
+import { negotiateEventFlag } from "@Packages/message/common";
+import { randomMessageFlag } from "./pkg/utils/utils";
 
-const MessageFlag = process.env.SC_RANDOM_KEY || "scriptcat-default-flag";
+const MessageFlag = process.env.SC_RANDOM_KEY;
 
-const EventFlag = getEventFlag(MessageFlag);
+const EventFlag = negotiateEventFlag(MessageFlag, randomMessageFlag());
 
 // 建立与service_worker页面的连接
 const extMsgComm: Message = new ExtensionMessage(false);
