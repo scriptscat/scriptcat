@@ -9,35 +9,19 @@ export type FTInfo = {
 };
 
 const getHandleRecord = async (root: FileSystemFileHandle, observer: FileSystemObserverInstance) => {
-  let matchedFTInfo = null;
   for (const [fileHandle, ftInfo, fileObserver] of handleRecords) {
     if (fileObserver !== observer) continue;
     try {
       const isSame = await root.isSameEntry(fileHandle);
       if (isSame) {
-        matchedFTInfo = ftInfo;
-        break;
+        return ftInfo;
       }
     } catch (e) {
       // 捕捉非预期错误
       console.warn(e);
     }
   }
-  if (matchedFTInfo) {
-    const ftInfo = matchedFTInfo;
-    try {
-      const file = await root.getFile();
-      if (file && file.lastModified > 0) {
-        return { ftInfo, file };
-      }
-    } catch (e) {
-      // 档案改名或删掉时，或会被此捕捉（预期报错）
-      console.warn(e);
-      unmountFileTrack(root);
-      ftInfo.onFileError();
-    }
-  }
-  return { ftInfo: null, file: null };
+  return null;
 };
 
 const callback = async (records: FileSystemChangeRecord[], observer: FileSystemObserverInstance) => {
@@ -46,9 +30,24 @@ const callback = async (records: FileSystemChangeRecord[], observer: FileSystemO
       const { root, type } = record;
       if (!(root instanceof FileSystemFileHandle)) continue;
       // 只要 FileSystemObserver 侦测到档案改变，就试一下找记录和读档
-      const { ftInfo, file } = await getHandleRecord(root, observer);
-      // 如没有记录或读档失败则忽略
-      if (!ftInfo || !file) continue;
+      const ftInfo = await getHandleRecord(root, observer);
+      // 如没有记录则忽略
+      if (!ftInfo) continue;
+      let file: File | null = null;
+      try {
+        const fRead = await root.getFile();
+        if (fRead && fRead.lastModified > 0 && fRead.size > 0) {
+          // 有档案内容读取权限，排除空档案
+          file = fRead;
+        }
+      } catch (e) {
+        // 档案改名或删掉时，或会被此捕捉（预期报错）
+        console.warn(e);
+        unmountFileTrack(root);
+        ftInfo.onFileError();
+      }
+      // 如读档失败则忽略
+      if (!file) continue;
       // 读档成功且有效 （ 文字档考虑 ==UserScript== 等东西，至少应有 30 bytes )
       if (file.size > 30) {
         // 如成功读档但显示为失败，则重新 observe
