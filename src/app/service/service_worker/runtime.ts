@@ -545,7 +545,7 @@ export class RuntimeService {
 
     this.initReady = (async () => {
       // 取得初始值 或 等待各种异步同时进行的初始化 (_1, _2, ...)
-      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2, _3] = await Promise.all([
+      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2] = await Promise.all([
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),

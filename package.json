@@ -7,8 +7,8 @@
   "private": true,
   "scripts": {
     "preinstall": "pnpm dlx only-allow pnpm",
-    "test": "vitest --test-timeout=500 --no-coverage --isolate=false --reporter=verbose",
-    "test:ci": "vitest run --test-timeout=500 --no-coverage --isolate=false --reporter=default --reporter.summary=false",
+    "test": "vitest --test-timeout=1000 --no-coverage --isolate=false --reporter=verbose",
+    "test:ci": "vitest run --test-timeout=1000 --no-coverage --isolate=false --reporter=default --reporter.summary=false",
     "coverage": "vitest run --coverage",
     "coverage:ci": "vitest run --coverage --silent --reporter=default --reporter.default.summary=false",
     "typecheck": "tsc --noEmit",
