@@ -675,10 +675,6 @@ export class RuntimeService {
     }
   }
 
-  getMessageFlag() {
-    return process.env.SC_RANDOM_KEY || "scriptcat-default-flag";
-  }
-
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
     const resources = withCode ? scriptRes.resource : await this.resource.getScriptResources(scriptRes, true);
