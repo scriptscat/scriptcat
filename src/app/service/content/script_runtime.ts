@@ -32,16 +32,11 @@ export class ScriptRuntime {
     });
 
     // 检查early-start的脚本
-    this.scriptExecutor.checkEarlyStartScript(this.scripEnvTag, this.messageFlag, initEnvInfo);
+    this.scriptExecutor.checkEarlyStartScript(this.scripEnvTag, initEnvInfo);
   }
 
   startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
     this.scriptExecutor.startScripts(scripts, envInfo);
-  }
-
-  onInjectPageLoaded() {
-    // 注入允许外部调用
-    this.externalMessage();
   }
 
   externalMessage() {
