@@ -9,11 +9,23 @@ export type FTInfo = {
 };
 
 const getHandleRecord = async (root: FileSystemFileHandle, observer: FileSystemObserverInstance) => {
+  let matchedFTInfo = null;
   for (const [fileHandle, ftInfo, fileObserver] of handleRecords) {
     if (fileObserver !== observer) continue;
     try {
       const isSame = await root.isSameEntry(fileHandle);
-      if (!isSame) continue;
+      if (isSame) {
+        matchedFTInfo = ftInfo;
+        break;
+      }
+    } catch (e) {
+      // 捕捉非预期错误
+      console.warn(e);
+    }
+  }
+  if (matchedFTInfo) {
+    const ftInfo = matchedFTInfo;
+    try {
       const file = await root.getFile();
       if (file && file.lastModified > 0) {
         return { ftInfo, file };
@@ -21,6 +33,7 @@ const getHandleRecord = async (root: FileSystemFileHandle, observer: FileSystemO
     } catch (e) {
       // 档案改名或删掉时，或会被此捕捉（预期报错）
       console.warn(e);
+      unmountFileTrack(root);
       ftInfo.onFileError();
     }
   }
@@ -52,7 +65,7 @@ const callback = async (records: FileSystemChangeRecord[], observer: FileSystemO
       }
     }
   } catch (e) {
-    // 捕捉其他非预期错误
+    // 捕捉非预期错误
     console.warn(e);
   }
 };
@@ -74,6 +87,7 @@ export const unmountFileTrack = async (fileHandle: FileSystemFileHandle) => {
       }
     }
   } catch (e) {
+    // 捕捉非预期错误
     console.warn(e);
   }
   return false;
