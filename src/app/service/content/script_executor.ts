@@ -92,7 +92,7 @@ export class ScriptExecutor {
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    const scriptLoadCompleteHandler: EventListenerOrEventListenerObject = (ev) => {
+    const scriptLoadCompleteHandler: EventListener = (ev) => {
       const detail = (ev as CustomEvent).detail as {
         scriptFlag: string;
         scriptInfo: ScriptLoadInfo;
