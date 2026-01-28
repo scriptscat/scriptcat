@@ -52,7 +52,7 @@ const callback = async (records: FileSystemChangeRecord[], observer: FileSystemO
       }
     }
   } catch (e) {
-    // 捕捉其他非遇期错误
+    // 捕捉其他非预期错误
     console.warn(e);
   }
 };
