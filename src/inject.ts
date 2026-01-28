@@ -28,4 +28,5 @@ const scriptExecutor = new ScriptExecutor(msg);
 const runtime = new ScriptRuntime(ScriptEnvTag.inject, server, msg, scriptExecutor, MessageFlag);
 runtime.init();
 
-runtime.onInjectPageLoaded();
+// inject环境，直接判断白名单，注入对外接口
+runtime.externalMessage();

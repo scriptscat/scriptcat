@@ -135,13 +135,12 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
-  messageFlag: string,
   script: ScriptLoadInfo,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
   const scriptEnvTag = isInjectIntoContent(script.metadata) ? ScriptEnvTag.content : ScriptEnvTag.inject;
-  const eventNamePrefix = `evt${messageFlag}.${scriptEnvTag}`;
+  const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
   const flag = `${script.flag}`;
   const scriptInfo = trimScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;

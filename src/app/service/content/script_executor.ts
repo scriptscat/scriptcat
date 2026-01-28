@@ -6,7 +6,7 @@ import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
-import { pageDispatchEvent } from "@Packages/message/common";
+import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
 import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 
@@ -86,8 +86,8 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, messageFlag: string, envInfo: GMInfoEnv) {
-    const eventNamePrefix = `evt${messageFlag}.${scriptEnvTag}`;
+  checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, envInfo: GMInfoEnv) {
+    const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
     const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
@@ -118,7 +118,7 @@ export class ScriptExecutor {
         this.execEarlyScript(scriptFlag, detail.scriptInfo, envInfo);
       }
     };
-    performance.addEventListener(scriptLoadCompleteEvtName, scriptLoadCompleteHandler);
+    pageAddEventListener(scriptLoadCompleteEvtName, scriptLoadCompleteHandler);
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
     const ev = new CustomEvent(envLoadCompleteEvtName);
