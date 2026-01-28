@@ -48,19 +48,16 @@ const callback = async (records: FileSystemChangeRecord[], observer: FileSystemO
       }
       // 如读档失败则忽略
       if (!file) continue;
-      // 读档成功且有效 （ 文字档考虑 ==UserScript== 等东西，至少应有 30 bytes )
-      if (file.size > 30) {
-        // 如成功读档但显示为失败，则重新 observe
-        if (type === "errored") {
-          observer.observe(root);
-        }
-        // 以 lastModified 判断避免重复更新
-        if (ftInfo.lastModified === file.lastModified) continue;
-        ftInfo.lastModified = file.lastModified;
-        const code = await file.text();
-        if (code && typeof code === "string") {
-          ftInfo.setCode(code, false);
-        }
+      // 如成功读档但显示为失败，则重新 observe
+      if (type === "errored") {
+        observer.observe(root);
+      }
+      // 以 lastModified 判断避免重复更新
+      if (ftInfo.lastModified === file.lastModified) continue;
+      ftInfo.lastModified = file.lastModified;
+      const code = await file.text();
+      if (code && typeof code === "string") {
+        ftInfo.setCode(code, false);
       }
     }
   } catch (e) {
