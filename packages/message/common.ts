@@ -21,7 +21,6 @@ export const pageDispatchCustomEvent = (eventType: string, detail: any) => {
 export function negotiateEventFlag(messageFlag: string, firstEventFlag: string, responsedCountMax: number = 3) {
   const tag = `${messageFlag}_negotiate`;
   let eventFlag = "";
-  // 监听 inject/scripting 发来的请求 EventFlag 的消息
   let responsedCount = 0;
   const EventFlagRequestHandler: EventListener = (ev) => {
     if (!(ev instanceof CustomEvent)) return;
