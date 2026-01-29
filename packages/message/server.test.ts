@@ -265,15 +265,21 @@ describe("Server", () => {
     });
 
     it.concurrent("应该自动为 Group 名称添加斜杠", async () => {
-      const mockHandler = vi.fn().mockResolvedValue("auto slash response");
+      let count = 0;
 
       // 测试不带斜杠的情况
       const group1 = server.group("slash-group1");
-      group1.on("slash-test", mockHandler);
+      group1.on("slash-test", async () => {
+        count += 100;
+        return "auto slash response";
+      });
 
       // 测试带斜杠的情况
       const group2 = server.group("slash-group2/");
-      group2.on("slash-test", mockHandler);
+      group2.on("slash-test", async () => {
+        count += 200;
+        return "auto slash response";
+      });
 
       // 两种方式都应该工作
       const response1 = await client.sendMessage({
@@ -288,7 +294,7 @@ describe("Server", () => {
 
       expect(response1.code).toBe(0);
       expect(response2.code).toBe(0);
-      // expect(mockHandler).toHaveBeenCalledTimes(2);
+      expect(count).toBe(300);
     });
   });
 
