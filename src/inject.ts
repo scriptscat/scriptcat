@@ -8,7 +8,7 @@ import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 
-const MessageFlag = process.env.SC_RANDOM_KEY || "scriptcat-default-flag";
+const MessageFlag = process.env.SC_RANDOM_KEY!;
 
 getEventFlag(MessageFlag, (EventFlag) => {
   console.log("inject EventFlag", EventFlag);

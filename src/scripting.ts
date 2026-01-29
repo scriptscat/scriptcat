@@ -8,7 +8,7 @@ import { Server } from "@Packages/message/server";
 import ScriptingRuntime from "./app/service/content/scripting";
 import { negotiateEventFlag } from "@Packages/message/common";
 
-const MessageFlag = process.env.SC_RANDOM_KEY || "scriptcat-default-flag";
+const MessageFlag = process.env.SC_RANDOM_KEY!;
 
 // 将初始化流程完成后，将EventFlag通知到其他环境
 negotiateEventFlag(MessageFlag, 2, (eventFlag) => {

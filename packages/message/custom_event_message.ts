@@ -45,7 +45,7 @@ export class CustomEventMessage implements Message {
     this.sendFlag = `${messageFlag}${isInbound ? DefinedFlags.outboundFlag : DefinedFlags.inboundFlag}${DefinedFlags.domEvent}`;
     pageAddEventListener(this.receiveFlag, (event: Event) => {
       if (event instanceof MouseEventClone && event.movementX && event.relatedTarget) {
-        relatedTargetMap.set(event.movementX, event.relatedTarget!);
+        relatedTargetMap.set(event.movementX, event.relatedTarget);
       } else if (event instanceof CustomEventClone) {
         this.messageHandle(event.detail, new CustomEventPostMessage(this));
       }
