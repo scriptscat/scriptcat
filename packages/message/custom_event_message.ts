@@ -132,7 +132,7 @@ export class CustomEventMessage implements Message {
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve: ((value: T) => void) | null) => {
-      // this.readyDeferred.promise.then(() => {
+      this.readyDeferred.promise.then(() => {
         const messageId = uuidv4();
         const body: WindowMessageBody<TMessage> = {
           messageId,
@@ -146,7 +146,7 @@ export class CustomEventMessage implements Message {
           resolve = null; // 设为 null 提醒JS引擎可以GC
         });
         this.nativeSend(body);
-      // });
+      });
     });
   }
 
