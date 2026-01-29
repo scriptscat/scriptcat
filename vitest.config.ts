@@ -30,5 +30,6 @@ export default defineConfig({
     env: {
       VI_TESTING: "true",
     },
+    isolate: false,
   },
 });
