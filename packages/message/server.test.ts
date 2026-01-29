@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
-import { createPageMessaging, CustomEventMessage } from "./custom_event_message";
+import { CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
 import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
 import { uuidv4 } from "@App/pkg/utils/uuid";
@@ -14,12 +14,9 @@ const nextTick = () => Promise.resolve().then(() => {});
 
 const setupGlobal = () => {
   const testFlag = uuidv4();
-  const testPageMessaging = createPageMessaging(testFlag);
   // 创建 scripting 和 inject / content 之间的消息通道
-  inboundMessage = new CustomEventMessage(testPageMessaging, true); // scripting 端
-  outboundMessage = new CustomEventMessage(testPageMessaging, false); // inject / content 端
-  inboundMessage.bindReceiver();
-  outboundMessage.bindReceiver();
+  inboundMessage = new CustomEventMessage(testFlag, true); // scripting 端
+  outboundMessage = new CustomEventMessage(testFlag, false); // inject / content 端
 
   // 服务端使用 scripting 消息
   server = new Server("api", inboundMessage);

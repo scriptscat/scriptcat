@@ -685,6 +685,7 @@ export default class GMApi extends GM_Base {
           {
             textContent: css,
           },
+          isContent,
         ],
       },
     });
