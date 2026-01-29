@@ -3,7 +3,8 @@ import { randomMessageFlag } from "@App/pkg/utils/utils";
 // 避免页面载入后改动全域物件导致消息传递失败
 export const MouseEventClone = MouseEvent;
 export const CustomEventClone = CustomEvent;
-const performanceClone = process.env.VI_TESTING === "true" ? window : performance;
+//@ts-ignore
+const performanceClone = process.env.VI_TESTING === "true" ? simulatedEventTarget : performance;
 
 // 避免页面载入后改动 EventTarget.prototype 的方法导致消息传递失败
 export const pageDispatchEvent = performanceClone.dispatchEvent.bind(performanceClone);
