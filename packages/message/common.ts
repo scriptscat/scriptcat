@@ -72,3 +72,18 @@ export function getEventFlag(messageFlag: string, onReady: (eventFlag: string) =
     pageDispatchCustomEvent(messageFlag, { action: "requestEventFlag" });
   }
 }
+
+export const createMouseEvent =
+  process.env.VI_TESTING === "true"
+    ? (type: string, eventInitDict?: MouseEventInit | undefined): MouseEvent => {
+        const ev = new MouseEventClone(type, eventInitDict);
+        eventInitDict = eventInitDict || {};
+        for (const [key, value] of Object.entries(eventInitDict)) {
+          //@ts-ignore
+          if (ev[key] === undefined) ev[key] = value;
+        }
+        return ev;
+      }
+    : (type: string, eventInitDict?: MouseEventInit | undefined): MouseEvent => {
+        return new MouseEventClone(type, eventInitDict);
+      };
