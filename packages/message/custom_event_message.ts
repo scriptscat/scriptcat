@@ -11,7 +11,7 @@ import {
   CustomEventClone,
   createMouseEvent,
 } from "@Packages/message/common";
-import { deferred } from "@App/pkg/utils/utils";
+import { ReadyWrap } from "@App/pkg/utils/ready-wrap";
 
 // 避免页面载入后改动 Map.prototype 导致消息传递失败
 const relatedTargetMap = new Map<number, EventTarget>();
@@ -38,8 +38,7 @@ export class CustomEventMessage implements Message {
 
   // 关联dom目标
   relatedTarget: Map<number, EventTarget> = new Map();
-  readyDeferred = deferred<void>();
-  isReady = false;
+  readyWrap: ReadyWrap = new ReadyWrap();
 
   constructor(
     messageFlag: string,
@@ -47,14 +46,10 @@ export class CustomEventMessage implements Message {
   ) {
     this.receiveFlag = `${messageFlag}${isInbound ? DefinedFlags.inboundFlag : DefinedFlags.outboundFlag}${DefinedFlags.domEvent}`;
     this.sendFlag = `${messageFlag}${isInbound ? DefinedFlags.outboundFlag : DefinedFlags.inboundFlag}${DefinedFlags.domEvent}`;
-    const setReady = () => {
-      this.readyDeferred.resolve();
-      this.isReady = true;
-    };
     pageAddEventListener(this.receiveFlag, (event: Event) => {
       if (event instanceof MouseEventClone && event.movementX === 0 && event.cancelable) {
         event.preventDefault(); // 告知另一端这边已准备好
-        setReady(); // 两端已准备好，则 setReady()
+        this.readyWrap.setReady(); // 两端已准备好，则 setReady()
       } else if (event instanceof MouseEventClone && event.movementX && event.relatedTarget) {
         relatedTargetMap.set(event.movementX, event.relatedTarget);
       } else if (event instanceof CustomEventClone) {
@@ -66,7 +61,7 @@ export class CustomEventMessage implements Message {
       cancelable: true,
     });
     // 如另一端已准备好，则 setReady()
-    if (pageDispatchEvent(ev) === false) setReady();
+    if (pageDispatchEvent(ev) === false) this.readyWrap.setReady();
   }
 
   messageHandle(data: WindowMessageBody, target: PostMessage) {
@@ -110,7 +105,7 @@ export class CustomEventMessage implements Message {
 
   connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
-      this.readyDeferred.promise.then(() => {
+      this.readyWrap.onReady(() => {
         const body: WindowMessageBody<TMessage> = {
           messageId: uuidv4(),
           type: "connect",
@@ -124,13 +119,13 @@ export class CustomEventMessage implements Message {
   }
 
   nativeSend(detail: any) {
-    if (!this.isReady) throw new Error("custom_event_message is not ready.");
+    if (!this.readyWrap.isReady) throw new Error("custom_event_message is not ready.");
     pageDispatchCustomEvent(this.sendFlag, detail);
   }
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve: ((value: T) => void) | null) => {
-      this.readyDeferred.promise.then(() => {
+      this.readyWrap.onReady(() => {
         const messageId = uuidv4();
         const body: WindowMessageBody<TMessage> = {
           messageId,
@@ -152,7 +147,7 @@ export class CustomEventMessage implements Message {
   // 与content页的消息通讯实际是同步,此方法不需要经过background
   // 但是请注意中间不要有promise
   syncSendMessage(data: TMessage): TMessage {
-    if (!this.isReady) throw new Error("custom_event_message is not ready.");
+    if (!this.readyWrap.isReady) throw new Error("custom_event_message is not ready.");
     const messageId = uuidv4();
     const body: WindowMessageBody<TMessage> = {
       messageId,
@@ -172,7 +167,7 @@ export class CustomEventMessage implements Message {
   }
 
   sendRelatedTarget(target: EventTarget): number {
-    if (!this.isReady) throw new Error("custom_event_message is not ready.");
+    if (!this.readyWrap.isReady) throw new Error("custom_event_message is not ready.");
     // 特殊处理relatedTarget，返回id进行关联
     // 先将relatedTarget转换成id发送过去
     const id = (relateId = relateId === maxInteger ? 1 : relateId + 1);
