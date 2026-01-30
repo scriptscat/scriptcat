@@ -8,14 +8,14 @@ import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 
-const MessageFlag = process.env.SC_RANDOM_KEY!;
+const messageFlag = process.env.SC_RANDOM_KEY!;
 
-getEventFlag(MessageFlag, (EventFlag) => {
-  console.log("content EventFlag", EventFlag);
+getEventFlag(messageFlag, (eventFlag: string) => {
+  console.log("content eventFlag", eventFlag);
   const isContent = typeof chrome.runtime?.sendMessage === "function";
   const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;
 
-  const msg: Message = new CustomEventMessage(`${EventFlag}${scriptEnvTag}`, false);
+  const msg: Message = new CustomEventMessage(`${eventFlag}${scriptEnvTag}`, false);
 
   // 初始化日志组件
   const logger = new LoggerCore({
@@ -27,6 +27,6 @@ getEventFlag(MessageFlag, (EventFlag) => {
 
   const server = new Server("content", msg);
   const scriptExecutor = new ScriptExecutor(msg);
-  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, MessageFlag);
+  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, messageFlag);
   runtime.init();
 });

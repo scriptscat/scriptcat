@@ -24,49 +24,49 @@ export const pageDispatchCustomEvent = (eventType: string, detail: any) => {
 export function negotiateEventFlag(messageFlag: string, readyCount: number, onInit: (eventFlag: string) => void): void {
   const eventFlag = randomMessageFlag();
   onInit(eventFlag);
-  // 监听 inject/scripting 发来的请求 EventFlag 的消息
+  // 监听 inject/scripting 发来的请求 eventFlag 的消息
   let ready = 0;
-  const EventFlagRequestHandler: EventListenerOrEventListenerObject = (ev) => {
+  const fnEventFlagRequestHandler: EventListener = (ev: Event) => {
     if (!(ev instanceof CustomEvent)) return;
 
     switch (ev.detail?.action) {
       case "receivedEventFlag":
-        // 对方已收到 EventFlag
+        // 对方已收到 eventFlag
         ready += 1;
         if (ready >= readyCount) {
           // 已收到两个环境的请求，移除监听
-          pageRemoveEventListener(messageFlag, EventFlagRequestHandler);
+          pageRemoveEventListener(messageFlag, fnEventFlagRequestHandler);
         }
         break;
       case "requestEventFlag":
         // 广播通信 flag 给 inject/scripting
-        pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", EventFlag: eventFlag });
+        pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag });
         break;
     }
   };
 
-  pageAddEventListener(messageFlag, EventFlagRequestHandler);
+  pageAddEventListener(messageFlag, fnEventFlagRequestHandler);
 
   // 广播通信 flag 给 inject/scripting
-  pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", EventFlag: eventFlag });
+  pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag });
 }
 
-// 获取协商后的 EventFlag
+// 获取协商后的 eventFlag
 export function getEventFlag(messageFlag: string, onReady: (eventFlag: string) => void) {
   let eventFlag = "";
-  const EventFlagListener: EventListenerOrEventListenerObject = (ev) => {
+  const fnEventFlagListener: EventListener = (ev: Event) => {
     if (!(ev instanceof CustomEvent)) return;
     if (ev.detail?.action != "broadcastEventFlag") return;
-    eventFlag = ev.detail.EventFlag;
-    pageRemoveEventListener(messageFlag, EventFlagListener);
-    // 告知对方已收到 EventFlag
+    eventFlag = ev.detail.eventFlag;
+    pageRemoveEventListener(messageFlag, fnEventFlagListener);
+    // 告知对方已收到 eventFlag
     pageDispatchCustomEvent(messageFlag, { action: "receivedEventFlag" });
     onReady(eventFlag);
   };
 
-  pageAddEventListener(messageFlag, EventFlagListener);
+  pageAddEventListener(messageFlag, fnEventFlagListener);
 
-  // 基于同步机制，判断是否已经收到 EventFlag
+  // 基于同步机制，判断是否已经收到 eventFlag
   // 如果没有收到，则主动请求一次
   if (!eventFlag) {
     pageDispatchCustomEvent(messageFlag, { action: "requestEventFlag" });
