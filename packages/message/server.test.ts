@@ -2,7 +2,6 @@ import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
 import { CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
-import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 let inboundMessage: CustomEventMessage;
@@ -14,57 +13,6 @@ const nextTick = () => Promise.resolve().then(() => {});
 
 const setupGlobal = () => {
   const testFlag = `${uuidv4()}::server.test`;
-
-  //@ts-ignore
-  const window = simulatedEventTarget;
-
-  // 模拟消息传递 - 从 inject 到 content
-  window.dispatchEvent.mockImplementation((event: Event) => {
-    const eventType = event.type;
-    if (eventType.includes(testFlag)) {
-      if (event instanceof MouseEvent && event.movementX === 0) {
-        event.preventDefault(); // 告知另一端这边已准备好
-        //   setReady(); // 两端已准备好，则 setReady()
-        console.log("Simulation: setReady();");
-        return false;
-      } else if (event instanceof MouseEvent && event.movementX && event.relatedTarget) {
-        //   relatedTargetMap.set(event.movementX, event.relatedTarget);
-        console.log("Simulation: relatedTargetMap.set(event.movementX, event.relatedTarget);");
-        return true;
-      }
-      let targetEventType: string;
-      let messageThis: CustomEventMessage;
-      let messageThat: CustomEventMessage;
-      // 根据事件类型确定目标消息处理器
-      if (eventType.includes(DefinedFlags.inboundFlag)) {
-        // inject -> content
-        targetEventType = eventType.replace(DefinedFlags.inboundFlag, DefinedFlags.outboundFlag);
-        messageThis = inboundMessage;
-        messageThat = outboundMessage;
-      } else if (eventType.includes(DefinedFlags.outboundFlag)) {
-        // content -> inject
-        targetEventType = eventType.replace(DefinedFlags.outboundFlag, DefinedFlags.inboundFlag);
-        messageThis = outboundMessage;
-        messageThat = inboundMessage;
-      } else {
-        throw new Error("test mock failed");
-      }
-      nextTick().then(() => {
-        if (event instanceof CustomEvent) {
-          messageThis.messageHandle(event.detail, {
-            postMessage: (data: any) => {
-              // 响应
-              const responseEvent = new CustomEvent(targetEventType, { detail: data });
-              messageThat.messageHandle(responseEvent.detail, {
-                postMessage: vi.fn(),
-              });
-            },
-          });
-        }
-      });
-    }
-    return true;
-  });
 
   // 创建 scripting 和 inject / content 之间的消息通道
   inboundMessage = new CustomEventMessage(testFlag, true); // scripting 端
@@ -675,10 +623,10 @@ describe("Server", () => {
     it.concurrent("应该能够处理空参数", async () => {
       const mockHandler = vi.fn().mockResolvedValue("empty response");
 
-      server.on("on-test-empty", mockHandler);
+      server.on("on-empty", mockHandler);
 
       const response = await client.sendMessage({
-        action: "api/on-test-empty",
+        action: "api/on-empty",
         data: null,
       });
 
