@@ -623,10 +623,10 @@ describe("Server", () => {
     it.concurrent("应该能够处理空参数", async () => {
       const mockHandler = vi.fn().mockResolvedValue("empty response");
 
-      server.on("on-test-empty", mockHandler);
+      server.on("on-empty", mockHandler);
 
       const response = await client.sendMessage({
-        action: "api/on-test-empty",
+        action: "api/on-empty",
         data: null,
       });
 
