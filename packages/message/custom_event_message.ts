@@ -65,8 +65,6 @@ export class CustomEventMessage implements Message {
       movementX: 0,
       cancelable: true,
     });
-    //@ts-ignore
-    if (process.env.VI_TESTING === "true") ev.movementX = 0;
     // 如另一端已准备好，则 setReady()
     if (pageDispatchEvent(ev) === false) setReady();
   }
