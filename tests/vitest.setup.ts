@@ -227,9 +227,3 @@ vi.stubGlobal("define", "特殊关键字不能穿透沙盒");
 if (!URL.createObjectURL) URL.createObjectURL = undefined;
 //@ts-expect-error
 if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
-
-const simulatedEventTarget = Object.create(EventTarget.prototype);
-simulatedEventTarget.addEventListener = vi.fn();
-simulatedEventTarget.removeEventListener = vi.fn();
-simulatedEventTarget.dispatchEvent = vi.fn();
-vi.stubGlobal("simulatedEventTarget", simulatedEventTarget);

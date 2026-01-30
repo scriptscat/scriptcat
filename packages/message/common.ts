@@ -4,7 +4,6 @@ import { randomMessageFlag } from "@App/pkg/utils/utils";
 export const MouseEventClone = MouseEvent;
 export const CustomEventClone = CustomEvent;
 
-//@ts-ignore
 const performanceClone = (process.env.VI_TESTING === "true" ? new EventTarget() : performance) as Performance;
 
 // 避免页面载入后改动 EventTarget.prototype 的方法导致消息传递失败
