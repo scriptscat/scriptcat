@@ -2,7 +2,7 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { CustomEventMessage, createPageMessaging } from "@Packages/message/custom_event_message";
 import { pageAddEventListener, pageDispatchCustomEvent, pageDispatchEvent } from "@Packages/message/common";
-import { ScriptEnvTag } from "@Packages/message/common";
+import { ScriptEnvTag } from "@Packages/message/consts";
 import { uuidv5 } from "./pkg/utils/uuid";
 import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
 import type { ValueUpdateDataEncoded } from "./app/service/content/types";
