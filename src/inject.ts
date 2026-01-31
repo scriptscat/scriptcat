@@ -19,7 +19,7 @@ getEventFlag(messageFlag, (eventFlag: string) => {
   // 加载logger组件
   const logger = new LoggerCore({
     writer: new MessageWriter(msg, "scripting/logger"),
-    consoleLevel: "none", // 只让日志在scripting环境中打印
+    consoleLevel: process.env.NODE_ENV === "development" ? "debug" : "none", // 只让日志在scripting环境中打印
     labels: { env: "inject", href: window.location.href },
   });
 
