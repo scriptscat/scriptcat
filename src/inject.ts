@@ -11,7 +11,6 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
 getEventFlag(messageFlag, (eventFlag: string) => {
-  console.log("inject eventFlag", eventFlag);
   const isContent = typeof chrome.runtime?.sendMessage === "function";
   const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;
 
