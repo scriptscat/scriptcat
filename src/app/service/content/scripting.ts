@@ -81,11 +81,15 @@ export default class ScriptingRuntime {
           }
           case "CAT_fetchDocument": {
             return new Promise((resolve) => {
+              const [url, isContent] = data.params;
               const xhr = new XMLHttpRequest();
               xhr.responseType = "document";
-              xhr.open("GET", data.params[0]);
+              xhr.open("GET", url);
               xhr.onload = () => {
-                const nodeId = (this.senderToInject as CustomEventMessage).sendRelatedTarget(xhr.response);
+                data.params[1];
+                // 根据来源选择不同的消息桥（content / inject）
+                const msg = isContent ? this.senderToContent : this.senderToInject;
+                const nodeId = msg.sendRelatedTarget(xhr.response);
                 resolve(nodeId);
               };
               xhr.send();
