@@ -237,6 +237,7 @@ export enum BrowserType {
   chromeA = 4, // ~ 120
   chromeB = 8, // 121 ~ 137
   chromeC = 16, // 138 ~
+  edgeA = 32, // Edge 144~
 }
 
 export function getBrowserType() {
@@ -260,7 +261,12 @@ export function getBrowserType() {
       if (isChromeBased) {
         const isEdgeBrowser = isEdge();
         const chromeVersion = getBrowserVersion();
-        o.chrome = (isEdgeBrowser ? 2 : 1) | (chromeVersion < 120 ? 4 : chromeVersion < 138 ? 8 : 16);
+        o.chrome |= isEdgeBrowser ? BrowserType.Edge : BrowserType.Chrome;
+        o.chrome |= chromeVersion < 120 ? BrowserType.chromeA : 0; // Chrome 120 以下
+        o.chrome |= chromeVersion < 138 ? BrowserType.chromeB : BrowserType.chromeC; // Chrome 121 ~ 137 / 138 以上
+        if (isEdgeBrowser) {
+          o.chrome |= chromeVersion >= 144 ? BrowserType.edgeA : 0; // Edge 144 以上
+        }
         o.chromeVersion = chromeVersion;
       } else {
         o.unknown = 1;
