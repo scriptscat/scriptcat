@@ -50,7 +50,6 @@ import type { CompiledResource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
-import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -111,7 +110,6 @@ export class RuntimeService {
   sitesLoaded: Set<string> = new Set<string>();
   updateSitesBusy: boolean = false;
 
-  loadingInitFlagsPromise: Promise<any> | undefined;
   loadingInitProcessPromise: Promise<any> | undefined;
   initialCompiledResourcePromise: Promise<any> | undefined;
 
@@ -128,15 +126,6 @@ export class RuntimeService {
     private scriptDAO: ScriptDAO,
     private localStorageDAO: LocalStorageDAO
   ) {
-    this.loadingInitFlagsPromise = this.localStorageDAO
-      .get("scriptInjectMessageFlag")
-      .then((res) => {
-        runtimeGlobal.messageFlag = res?.value || this.generateMessageFlag();
-        if (runtimeGlobal.messageFlag !== res?.value) {
-          return this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag });
-        }
-      })
-      .catch(console.error);
     this.logger = LoggerCore.logger({ component: "runtime" });
 
     // 使用中间件
@@ -556,11 +545,10 @@ export class RuntimeService {
 
     this.initReady = (async () => {
       // 取得初始值 或 等待各种异步同时进行的初始化 (_1, _2, ...)
-      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2, _3] = await Promise.all([
+      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2] = await Promise.all([
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
-        this.loadingInitFlagsPromise, // messageFlag 初始化等待
         this.loadingInitProcessPromise, // 初始化程序等待
         this.initUserAgentData(), // 初始化：userAgentData
       ]);
@@ -679,23 +667,12 @@ export class RuntimeService {
       runtimeGlobal.registered = false;
       // 重置 flag 避免取消注册失败
       // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
-      runtimeGlobal.messageFlag = this.generateMessageFlag();
       await Promise.allSettled([
         chrome.userScripts?.unregister(),
         chrome.scripting.unregisterContentScripts(),
-        this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag }),
         chrome.storage.session.set({ unregisterUserscriptsFlag: `${Date.now()}.${Math.random()}` }),
       ]);
     }
-  }
-
-  // 生成messageFlag
-  generateMessageFlag(): string {
-    return uuidv4();
-  }
-
-  getMessageFlag() {
-    return runtimeGlobal.messageFlag;
   }
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
