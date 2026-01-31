@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from "uuid";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
-import { type VSCodeConnect } from "../offscreen/vscode-connect";
+import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
@@ -400,7 +400,7 @@ export class SystemClient extends Client {
     super(msgSender, "serviceWorker/system");
   }
 
-  connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
+  connectVSCode(params: VSCodeConnectParam): Promise<void> {
     return this.do("connectVSCode", params);
   }
 }
