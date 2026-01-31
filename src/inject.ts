@@ -16,7 +16,7 @@ getEventFlag(messageFlag, (eventFlag: string) => {
 
   const msg: Message = new CustomEventMessage(`${eventFlag}${scriptEnvTag}`, false);
 
-  // 加载logger组件
+  // 初始化日志组件
   const logger = new LoggerCore({
     writer: new MessageWriter(msg, "scripting/logger"),
     consoleLevel: process.env.NODE_ENV === "development" ? "debug" : "none", // 只让日志在scripting环境中打印
