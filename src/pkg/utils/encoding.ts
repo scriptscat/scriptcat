@@ -186,7 +186,7 @@ export const readBlobContent = async (blob: Blob | File | Response, contentType:
     }
   }
 
-  // BOM detection (highest priority)
+  // BOM detection (after Content-Type header)
   const bomEncoding = detectBOM(uint8);
   if (bomEncoding) return bytesDecode(bomEncoding, uint8);
 
