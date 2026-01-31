@@ -63,8 +63,8 @@ export function getEventFlag(messageFlag: string, onReady: (eventFlag: string) =
     onReady(eventFlag);
   };
 
-  pageAddEventListener(messageFlag, fnEventFlagListener);
   // 设置事件，然后对 scripting 请求 flag
+  pageAddEventListener(messageFlag, fnEventFlagListener);
   pageDispatchCustomEvent(messageFlag, { action: "requestEventFlag" });
 }
 
