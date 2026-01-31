@@ -6,7 +6,9 @@ import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
+import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
 import { isUrlExcluded } from "@App/pkg/utils/match";
+import type { ScriptEnvTag } from "@Packages/message/consts";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
@@ -84,14 +86,13 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(env: "content" | "inject", messageFlag: string, envInfo: GMInfoEnv) {
-    const isContent = env === "content";
-    const eventNamePrefix = `evt${messageFlag}${isContent ? DefinedFlags.contentFlag : DefinedFlags.injectFlag}`;
+  checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, envInfo: GMInfoEnv) {
+    const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
     const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    performance.addEventListener(scriptLoadCompleteEvtName, (ev) => {
+    const scriptLoadCompleteHandler: EventListener = (ev: Event) => {
       const detail = (ev as CustomEvent).detail as {
         scriptFlag: string;
         scriptInfo: ScriptLoadInfo;
@@ -116,11 +117,12 @@ export class ScriptExecutor {
         }
         this.execEarlyScript(scriptFlag, detail.scriptInfo, envInfo);
       }
-    });
+    };
+    pageAddEventListener(scriptLoadCompleteEvtName, scriptLoadCompleteHandler);
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
     const ev = new CustomEvent(envLoadCompleteEvtName);
-    performance.dispatchEvent(ev);
+    pageDispatchEvent(ev);
   }
 
   execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {
@@ -137,7 +139,7 @@ export class ScriptExecutor {
   execScriptEntry(scriptEntry: ExecScriptEntry) {
     const { scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
 
-    const exec = new ExecScript(scriptLoadInfo, "content", this.msg, scriptFunc, envInfo);
+    const exec = new ExecScript(scriptLoadInfo, "scripting", this.msg, scriptFunc, envInfo);
     this.execMap.set(scriptLoadInfo.uuid, exec);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.resource;

@@ -1,8 +1,8 @@
 export const DefinedFlags = {
-  // content 环境flag
-  contentFlag: ".ct",
-  // inject 环境flag
-  injectFlag: ".fd",
+  // Server: 回应 outbound (scripting -> content / page)
+  inboundFlag: ".ib",
+  // Client: 发送至 inbound (content / page -> scripting)
+  outboundFlag: ".ob",
   // 脚本加载完成事件
   scriptLoadComplete: ".slc",
   // 环境加载完成事件

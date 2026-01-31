@@ -227,16 +227,3 @@ vi.stubGlobal("define", "特殊关键字不能穿透沙盒");
 if (!URL.createObjectURL) URL.createObjectURL = undefined;
 //@ts-expect-error
 if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
-
-// 测试环境使用 window 代替 performance 作为 EventTarget
-performance.addEventListener = function (type: string, listener: any, options?: any) {
-  return window.addEventListener(type, listener, options);
-};
-
-performance.removeEventListener = function (type: string, listener: any, options?: any) {
-  return window.removeEventListener(type, listener, options);
-};
-
-performance.dispatchEvent = function (event: Event) {
-  return window.dispatchEvent(event);
-};

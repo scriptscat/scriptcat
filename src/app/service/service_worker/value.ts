@@ -77,31 +77,20 @@ export class ValueService {
 
   // 推送值到tab
   async pushValueToTab<T extends ValueUpdateDataEncoded>(sendData: T) {
-    const { storageName } = sendData;
-    chrome.tabs.query({}, (tabs) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
-        // 没有 tabs 资讯，无法发推送到 tabs
-        return;
+    chrome.storage.local.set(
+      {
+        valueUpdateDelivery: {
+          rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 chrome.storage.local.onChanged 必能触发
+          sendData,
+        },
+      },
+      () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.local.set", lastError);
+        }
       }
-      // 推送到所有加载了本脚本的tab中
-      for (const tab of tabs) {
-        const tabId = tab.id;
-        if (tab.discarded || !tabId) continue;
-        this.popup!.getScriptMenu(tabId).then((scriptMenu) => {
-          if (scriptMenu.find((item) => item.storageName === storageName)) {
-            this.runtime!.sendMessageToTab(
-              {
-                tabId,
-              },
-              "valueUpdate",
-              sendData
-            );
-          }
-        });
-      }
-    });
+    );
     // 推送到offscreen中
     this.runtime!.sendMessageToTab(
       {

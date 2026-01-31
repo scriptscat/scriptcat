@@ -29,6 +29,7 @@ export default defineConfig({
     setupFiles: ["./tests/vitest.setup.ts"],
     env: {
       VI_TESTING: "true",
+      SC_RANDOM_KEY: "005a7deb-3a6e-4337-83ea-b9626c02ea38",
     },
   },
 });

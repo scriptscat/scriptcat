@@ -99,7 +99,7 @@
   console.log("\n%c--- GM_log 测试 ---", "color: orange; font-weight: bold;");
 
   await test("GM_log", () => {
-    GM_log("测试日志输出", { type: "test", value: 123 });
+    GM_log("测试日志输出", "info", { type: "test", value: 123 });
     // GM_log本身不返回值,只要不抛出异常就算成功
     assertTrue(true, "GM_log应该能正常输出");
   });

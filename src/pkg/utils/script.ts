@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { SCMetadata, Script, ScriptCode, UserConfig } from "@App/app/repo/scripts";
 import {
   SCRIPT_RUN_STATUS_COMPLETE,
