@@ -667,11 +667,7 @@ export class RuntimeService {
       runtimeGlobal.registered = false;
       // 重置 flag 避免取消注册失败
       // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
-      await Promise.allSettled([
-        chrome.userScripts?.unregister(),
-        chrome.scripting.unregisterContentScripts(),
-        chrome.storage.session.set({ unregisterUserscriptsFlag: `${Date.now()}.${Math.random()}` }),
-      ]);
+      await Promise.allSettled([chrome.userScripts?.unregister(), chrome.scripting.unregisterContentScripts()]);
     }
   }
 
