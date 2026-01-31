@@ -77,12 +77,20 @@ export class ValueService {
 
   // 推送值到tab
   async pushValueToTab<T extends ValueUpdateDataEncoded>(sendData: T) {
-    chrome.storage.local.set({
-      valueUpdateDelivery: {
-        rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 chrome.storage.local.onChanged 必能触发
-        sendData,
+    chrome.storage.local.set(
+      {
+        valueUpdateDelivery: {
+          rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 chrome.storage.local.onChanged 必能触发
+          sendData,
+        },
       },
-    });
+      () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.local.set", lastError);
+        }
+      }
+    );
     // 推送到offscreen中
     this.runtime!.sendMessageToTab(
       {
