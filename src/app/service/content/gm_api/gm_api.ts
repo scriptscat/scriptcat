@@ -38,7 +38,13 @@ export interface GMRequestHandle {
 }
 
 // 判断当前是否运行在 USER_SCRIPT 环境 (content环境)
-const isContent = typeof chrome.runtime?.sendMessage === "function";
+export let isContent = false;
+try {
+  isContent = typeof chrome.runtime?.sendMessage === "function";
+} catch {
+  // firefox环境下访问chrome.runtime会报错
+  isContent = false;
+}
 
 const integrity = {}; // 仅防止非法实例化
 

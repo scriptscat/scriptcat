@@ -7,11 +7,11 @@ import type { Message } from "@Packages/message/types";
 import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
+import { isContent } from "./app/service/content/gm_api/gm_api";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
 getEventFlag(messageFlag, (eventFlag: string) => {
-  const isContent = typeof chrome.runtime?.sendMessage === "function";
   const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;
 
   const msg: Message = new CustomEventMessage(`${eventFlag}${scriptEnvTag}`, false);
