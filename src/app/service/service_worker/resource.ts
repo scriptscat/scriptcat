@@ -282,7 +282,11 @@ export class ResourceService {
     };
     const uint8Array = new Uint8Array(arrayBuffer);
     if (isText(uint8Array)) {
-      resource.content = await readBlobContent(data, contentType);
+      if (type === "require" || type === "require-css") {
+        resource.content = await readBlobContent(data, contentType); // @require和@require-css 是会转换成代码运行的，可以进行解码
+      } else {
+        resource.content = await data.text(); // @resource 应该要保留原汁原味
+      }
     }
     resource.base64 = base64 || "";
     return resource;
