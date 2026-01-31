@@ -1395,12 +1395,12 @@ export default class GMApi extends GM_Base {
       let killConn: (() => any) | null | undefined = undefined;
       let error: any;
       let result: any;
-      let done = false;
+      let state = 0; // 0 = not started; 1 = started; 2 = done
       const onDisconnected = () => {
         killConn = null; // before resolve, set killConn to null
         if (error) {
           reject(error);
-        } else if (!done) {
+        } else if (state !== 2) {
           reject(new Error("GM.runExclusive: Incomplete Action"));
         } else {
           resolve(result);
@@ -1409,17 +1409,18 @@ export default class GMApi extends GM_Base {
         error = null; // GC
       };
       const onStart = async (con: MessageConnect) => {
-        if (killConn === null || done) {
-          // already resolved
+        if (killConn === null || state > 0) {
+          // already resolved (unexpected or by timeout)
           con.disconnect();
           return;
         }
+        state = 1;
         try {
           result = await cb();
         } catch (e) {
           error = e;
         }
-        done = true;
+        state = 2;
         con.sendMessage({
           action: "done",
           data: error ? false : typeof result,
@@ -1428,8 +1429,8 @@ export default class GMApi extends GM_Base {
         onDisconnected(); // in case .disconnect() not working
       };
       this.connect("runExclusive", [key]).then((con) => {
-        if (killConn === null || done) {
-          // already resolved
+        if (killConn === null || state > 0) {
+          // already resolved (unexpected or by timeout)
           con.disconnect();
           return;
         }
@@ -1447,7 +1448,7 @@ export default class GMApi extends GM_Base {
       });
       if (timeout > 0) {
         setTimeout(() => {
-          if (killConn === null || done) return;
+          if (killConn === null || state > 0) return; // 执行开始了就不进行 timeout 操作
           error = new Error("GM.runExclusive: Timeout Error");
           killConn?.();
           onDisconnected(); // in case .disconnect() not working
