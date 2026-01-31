@@ -86,7 +86,6 @@ export default class ScriptingRuntime {
               xhr.responseType = "document";
               xhr.open("GET", url);
               xhr.onload = () => {
-                data.params[1];
                 // 根据来源选择不同的消息桥（content / inject）
                 const msg = isContent ? this.senderToContent : this.senderToInject;
                 const nodeId = msg.sendRelatedTarget(xhr.response);
