@@ -69,7 +69,7 @@ export default class ScriptingRuntime {
       this.server,
       this.senderToExt,
       (data: { api: string; params: any; uuid: string }) => {
-        // 拦截关注的api
+        // 拦截关注的 API，未命中则返回 false 交由默认转发处理
         switch (data.api) {
           case "CAT_createBlobUrl": {
             const file = data.params[0] as File;
@@ -80,8 +80,8 @@ export default class ScriptingRuntime {
             return fetch(data.params[0]).then((res) => res.blob());
           }
           case "CAT_fetchDocument": {
+            const [url, isContent] = data.params;
             return new Promise((resolve) => {
-              const [url, isContent] = data.params;
               const xhr = new XMLHttpRequest();
               xhr.responseType = "document";
               xhr.open("GET", url);
@@ -96,39 +96,39 @@ export default class ScriptingRuntime {
           }
           case "GM_addElement": {
             const [parentNodeId, tagName, tmpAttr, isContent] = data.params;
-            let attr = { ...tmpAttr };
-            let parentNode: Node | undefined;
 
             // 根据来源选择不同的消息桥（content / inject）
             const msg = isContent ? this.senderToContent : this.senderToInject;
 
+            // 取回 parentNode（如果存在）
+            let parentNode: Node | undefined;
             if (parentNodeId) {
               parentNode = msg.getAndDelRelatedTarget(parentNodeId) as Node | undefined;
             }
-            const el = <Element>document.createElement(tagName);
 
+            // 创建元素并设置属性
+            const el = <Element>document.createElement(tagName);
+            const attr = tmpAttr ? { ...tmpAttr } : {};
             let textContent = "";
-            if (attr) {
-              if (attr.textContent) {
-                textContent = attr.textContent;
-                delete attr.textContent;
-              }
-            } else {
-              attr = {};
+            if (attr.textContent) {
+              textContent = attr.textContent;
+              delete attr.textContent;
             }
             for (const key of Object.keys(attr)) {
               el.setAttribute(key, attr[key]);
             }
-            if (textContent) {
-              el.textContent = textContent;
-            }
-            (parentNode || document.head || document.body || document.querySelector("*")).appendChild(el);
+            if (textContent) el.textContent = textContent;
+
+            // 优先挂到 parentNode，否则挂到 head/body/任意节点
+            const node = parentNode || document.head || document.body || document.querySelector("*");
+            node.appendChild(el);
+
+            // 返回节点引用 id，供另一侧再取回
             const nodeId = msg.sendRelatedTarget(el);
             return nodeId;
           }
           case "GM_log":
-            // 拦截GM_log，打印到控制台
-            // 由于某些页面会处理掉console.log，所以丢到这里来打印
+            // 拦截 GM_log：直接打印到控制台（某些页面可能劫持 console.log）
             switch (data.params.length) {
               case 1:
                 console.log(data.params[0]);
