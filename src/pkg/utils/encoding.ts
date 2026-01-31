@@ -164,7 +164,7 @@ function guessByNullPattern(u8: Uint8Array, size = u8.length): string | null {
 /**
  * Reads a Blob or File with reasonably good encoding detection
  * Priority: Content-Type header → BOM → strong UTF-16 heuristics → UTF-8 validation → legacy fallback ("windows-1252")
- * @param {Blob|File|Response} blob
+ * @param blob
  * @returns {Promise<string>}
  */
 export const readBlobContent = async (blob: Blob | File | Response, contentType: string | null): Promise<string> => {
