@@ -24,7 +24,7 @@ export const pageDispatchCustomEvent = (eventType: string, detail: any) => {
 export function negotiateEventFlag(messageFlag: string, readyCount: number, onInit: (eventFlag: string) => void): void {
   const eventFlag = randomMessageFlag();
   onInit(eventFlag);
-  // 监听 inject/scripting 发来的请求 eventFlag 的消息
+  // 监听 inject/content 发来的请求 eventFlag 的消息
   let ready = 0;
   const fnEventFlagRequestHandler: EventListener = (ev: Event) => {
     if (!(ev instanceof CustomEvent)) return;
@@ -39,15 +39,14 @@ export function negotiateEventFlag(messageFlag: string, readyCount: number, onIn
         }
         break;
       case "requestEventFlag":
-        // 广播通信 flag 给 inject/scripting
+        // 广播通信 flag 给 inject/content
         pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag });
         break;
     }
   };
 
+  // 设置事件，然后广播通信 flag 给 inject/content
   pageAddEventListener(messageFlag, fnEventFlagRequestHandler);
-
-  // 广播通信 flag 给 inject/scripting
   pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag });
 }
 
@@ -65,12 +64,8 @@ export function getEventFlag(messageFlag: string, onReady: (eventFlag: string) =
   };
 
   pageAddEventListener(messageFlag, fnEventFlagListener);
-
-  // 基于同步机制，判断是否已经收到 eventFlag
-  // 如果没有收到，则主动请求一次
-  if (!eventFlag) {
-    pageDispatchCustomEvent(messageFlag, { action: "requestEventFlag" });
-  }
+  // 设置事件，然后对 scripting 请求 flag
+  pageDispatchCustomEvent(messageFlag, { action: "requestEventFlag" });
 }
 
 export const createMouseEvent =
