@@ -21,14 +21,14 @@ describe("encoding detection", () => {
       expect(parseCharsetFromContentType("text/javascript; Charset=GBK")).toBe("gbk");
     });
 
-    it("should return null for missing charset", () => {
-      expect(parseCharsetFromContentType("text/javascript")).toBe(null);
-      expect(parseCharsetFromContentType("text/plain; boundary=something")).toBe(null);
+    it("should return empty string for missing charset", () => {
+      expect(parseCharsetFromContentType("text/javascript")).toBe("");
+      expect(parseCharsetFromContentType("text/plain; boundary=something")).toBe("");
     });
 
-    it("should return null for null or empty input", () => {
-      expect(parseCharsetFromContentType(null)).toBe(null);
-      expect(parseCharsetFromContentType("")).toBe(null);
+    it("should return empty string for null or empty input", () => {
+      expect(parseCharsetFromContentType(null)).toBe("");
+      expect(parseCharsetFromContentType("")).toBe("");
     });
 
     it("should handle charset with additional parameters", () => {

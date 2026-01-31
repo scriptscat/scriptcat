@@ -15,6 +15,7 @@ import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { nextTime } from "./cron";
 import { parseUserConfig } from "./yaml";
 import { t as i18n_t } from "@App/locales/locales";
+import { readBlobContent } from "@App/pkg/utils/encoding";
 
 const HEADER_BLOCK = /\/\/[ \t]*==User(Script|Subscribe)==([\s\S]+?)\/\/[ \t]*==\/User\1==/m;
 const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/gm;
@@ -57,8 +58,7 @@ export async function fetchScriptBody(url: string): Promise<string> {
   if (resp.headers.get("content-type")?.includes("text/html")) {
     throw new Error("url is html");
   }
-
-  const body = await resp.text();
+  const body = await readBlobContent(resp, resp.headers.get("content-type"));
   return body;
 }
 
