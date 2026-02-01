@@ -161,7 +161,6 @@ export const ScriptCardItem = React.memo(
       <DraggableEntry record={item}>
         <div>
           <Card
-            key={item.uuid}
             hoverable
             className="script-card"
             bodyStyle={{
