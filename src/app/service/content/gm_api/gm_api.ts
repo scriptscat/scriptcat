@@ -17,6 +17,7 @@ import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
+import { isContent } from "@Packages/message/common";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
@@ -35,15 +36,6 @@ export interface IGM_Base {
 export interface GMRequestHandle {
   /** Abort the ongoing request */
   abort: () => void;
-}
-
-// 判断当前是否运行在 USER_SCRIPT 环境 (content环境)
-export let isContent = false;
-try {
-  isContent = typeof chrome.runtime?.sendMessage === "function";
-} catch {
-  // firefox环境下访问chrome.runtime会报错
-  isContent = false;
 }
 
 const integrity = {}; // 仅防止非法实例化

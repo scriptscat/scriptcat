@@ -4,10 +4,9 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
-import { getEventFlag } from "@Packages/message/common";
+import { getEventFlag, isContent } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
-import { isContent } from "./app/service/content/gm_api/gm_api";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
