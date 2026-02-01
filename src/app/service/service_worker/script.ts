@@ -1,5 +1,5 @@
 import { fetchScriptBody, parseMetadata, prepareScriptByCode } from "@App/pkg/utils/script";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
@@ -434,12 +434,13 @@ export class ScriptService {
   }
 
   async deleteScript(uuid: string) {
-    const logger = this.logger.with({ uuid });
+    let logger = this.logger.with({ uuid });
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
       logger.error("script not found");
       throw new Error("script not found");
     }
+    logger = logger.with({ name: script.name });
     const storageName = getStorageName(script);
     return this.scriptDAO
       .delete(uuid)

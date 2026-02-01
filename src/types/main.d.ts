@@ -28,8 +28,6 @@ interface FileSystemObserverInstance {
   observe(handle: FileSystemFileHandle | FileSystemDirectoryHandle | FileSystemSyncAccessHandle): Promise<void>;
 }
 
-declare const MessageFlag: string;
-
 declare const UserAgentData: typeof GM_info.userAgentData;
 
 // 可以让content与inject环境交换携带dom的对象

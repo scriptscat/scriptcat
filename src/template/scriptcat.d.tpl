@@ -171,11 +171,11 @@ declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHa
 declare function GM_download(details: GMTypes.DownloadDetails<string | Blob | File>): GMTypes.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
-declare function GM_getTab(callback: (obj: object) => void): void;
+declare function GM_getTab(callback: (tab: object) => void): void;
 
-declare function GM_saveTab(obj: object): Promise<void>;
+declare function GM_saveTab(tab: object): Promise<void>;
 
-declare function GM_getTabs(callback: (objs: { [key: number]: object }) => void): void;
+declare function GM_getTabs(callback: (tabs: { [key: number]: object }) => void): void;
 
 declare function GM_notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): void;
 declare function GM_notification(
@@ -191,8 +191,12 @@ declare function GM_updateNotification(id: string, details: GMTypes.Notification
 
 declare function GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): void;
 
-declare function GM_addElement(tag: string, attributes: any): HTMLElement;
-declare function GM_addElement(parentNode: Element, tag: string, attrs: any): HTMLElement;
+declare function GM_addElement(tag: string, attributes: Record<string, string | number | boolean>): HTMLElement;
+declare function GM_addElement(
+  parentNode: Node,
+  tag: string,
+  attrs: Record<string, string | number | boolean>
+): HTMLElement;
 
 declare function GM_addStyle(css: string): HTMLStyleElement;
 
@@ -202,6 +206,105 @@ declare function GM_cookie(
   details: GMTypes.CookieDetails,
   ondone: (cookie: GMTypes.Cookie[], error: unknown | undefined) => void
 ): void;
+ 
+/**
+ * GM.* API (兼容 Greasemonkey4/Tampermonkey 4+ 的 Promise 风格)
+ */
+declare const GM: {
+  /** 脚本信息 */
+  readonly info: typeof GM_info;
+
+  /** 获取一个值 */
+  getValue<T = any>(name: string, defaultValue?: T): Promise<T>;
+
+  /** 获取多个值, 如果keysOrDefaults是一个对象, 则使用对象的值作为默认值 */
+  getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): Promise<{ [key: string]: any }>;
+
+  /** 设置一个值 */
+  setValue(name: string, value: any): Promise<void>;
+
+  /** 设置多个值, values是一个对象, 键为值的名称, 值为值的内容 */
+  setValues(values: { [key: string]: any }): Promise<void>;
+
+  /** 删除一个值 */
+  deleteValue(name: string): Promise<void>;
+
+  /** 删除多个值, names是一个字符串数组 */
+  deleteValues(names: string[]): Promise<void>;
+
+  /** 获取所有已保存值的 key 列表 */
+  listValues(): Promise<string[]>;
+
+  /** 值变更监听 */
+  addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): Promise<number>;
+  removeValueChangeListener(listenerId: number): Promise<void>;
+
+  /** 支持level和label */
+  log(message: string, level?: GMTypes.LoggerLevel, labels?: GMTypes.LoggerLabel): Promise<void>;
+
+  /** 获取资源文本 */
+  getResourceText(name: string): Promise<string | undefined>;
+
+  /** 获取资源URL */
+  getResourceURL(name: string, isBlobUrl?: boolean): Promise<string | undefined>;
+
+  /** 注册菜单 */
+  registerMenuCommand(
+    name: string,
+    listener?: (inputValue?: any) => void,
+    options_or_accessKey?:
+      | {
+          id?: number | string;
+          accessKey?: string; // 菜单快捷键
+          autoClose?: boolean; // 默认为 true
+          title?: string; // 菜单提示
+          // ScriptCat 扩展
+          icon?: string; // 菜单图标
+          // ScriptCat 扩展
+          closeOnClick?: boolean; // 点击菜单后是否关闭, 与autoClose含义相同
+        }
+      | string
+  ): Promise<number | string | undefined>;
+
+  /** 注销菜单 */
+  unregisterMenuCommand(id: number | string): Promise<void>;
+
+  /** 样式注入 */
+  addStyle(css: string): Promise<HTMLStyleElement>;
+
+  /** 通知 */
+  notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): Promise<void>;
+  notification(text: string, title: string, image: string, onclick?: GMTypes.NotificationOnClick): Promise<void>;
+  closeNotification(id: string): Promise<void>;
+  updateNotification(id: string, details: GMTypes.NotificationDetails): Promise<void>;
+
+  /** 设置剪贴板 */
+  setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): Promise<void>;
+
+  /** 添加元素 */
+  addElement(tag: string, attributes: Record<string, string | number | boolean>): Promise<HTMLElement>;
+  addElement(parentNode: Node, tag: string, attrs: Record<string, string | number | boolean>): Promise<HTMLElement>;
+
+  /** XMLHttpRequest */
+  xmlHttpRequest(details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse>;
+
+  /** 下载 */
+  download(details: GMTypes.DownloadDetails<string | Blob | File>): Promise<boolean>;
+  download(url: string, filename: string): Promise<boolean>;
+
+  /** Tab 存储 */
+  getTab(): Promise<object>;
+  saveTab(tab: object): Promise<void>;
+  getTabs(): Promise<{ [key: number]: object }>;
+
+  /** 打开新标签页 */
+  openInTab(url: string, options: GMTypes.OpenTabOptions): Promise<GMTypes.Tab | undefined>;
+  openInTab(url: string, loadInBackground: boolean): Promise<GMTypes.Tab | undefined>;
+  openInTab(url: string): Promise<GMTypes.Tab | undefined>;
+
+  /** Cookie 操作 */
+  cookie(action: GMTypes.CookieAction, details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
+};
 
 /**
  * 设置浏览器代理

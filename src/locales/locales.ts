@@ -106,13 +106,25 @@ export function watchLanguageChange(callback: (lng: string) => void) {
 export const i18nLang = (): string => `${i18n?.language?.toLowerCase()}`;
 
 export function i18nName(script: { name: string; metadata: SCMetadata }) {
-  const m = script.metadata[`name:${i18nLang()}`];
+  const lang = i18nLang();
+  let m = script.metadata[`name:${lang}`];
+  if (!m) {
+    // 尝试只用前缀匹配
+    const langPrefix = lang.split("-")[0];
+    m = script.metadata[`name:${langPrefix}`];
+  }
   return m ? m[0] : script.name;
 }
 
 export function i18nDescription(script: { metadata: SCMetadata }) {
-  const m = script.metadata[`description:${i18nLang()}`];
-  return m ? m[0] : script.metadata.description;
+  const lang = i18nLang();
+  let m = script.metadata[`description:${lang}`];
+  if (!m) {
+    // 尝试只用前缀匹配
+    const langPrefix = lang.split("-")[0];
+    m = script.metadata[`description:${langPrefix}`];
+  }
+  return m ? m[0] : script.metadata.description?.[0];
 }
 
 // 判断是否是中文用户

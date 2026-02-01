@@ -13,6 +13,7 @@ import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { isBase64, parseUrlSRI } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { blobToUint8Array } from "@App/pkg/utils/datatype";
+import { readBlobContent } from "@App/pkg/utils/encoding";
 
 export class ResourceService {
   logger: Logger;
@@ -268,10 +269,11 @@ export class ResourceService {
       blobToUint8Array(data),
       blobToBase64(data),
     ]);
+    const contentType = resp.headers.get("content-type");
     const resource: Resource = {
       url: u.url,
       content: "",
-      contentType: (resp.headers.get("content-type") || "application/octet-stream").split(";")[0],
+      contentType: (contentType || "application/octet-stream").split(";")[0],
       hash: hash,
       base64: "",
       link: {},
@@ -280,7 +282,11 @@ export class ResourceService {
     };
     const uint8Array = new Uint8Array(arrayBuffer);
     if (isText(uint8Array)) {
-      resource.content = await data.text();
+      if (type === "require" || type === "require-css") {
+        resource.content = await readBlobContent(data, contentType); // @require和@require-css 是会转换成代码运行的，可以进行解码
+      } else {
+        resource.content = await data.text(); // @resource 应该要保留原汁原味
+      }
     }
     resource.base64 = base64 || "";
     return resource;

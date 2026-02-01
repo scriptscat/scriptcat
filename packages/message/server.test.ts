@@ -2,71 +2,27 @@ import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
 import { CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
-import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 
-let contentMessage: CustomEventMessage;
-let injectMessage: CustomEventMessage;
+let inboundMessage: CustomEventMessage;
+let outboundMessage: CustomEventMessage;
 let server: Server;
 let client: CustomEventMessage;
 
 const nextTick = () => Promise.resolve().then(() => {});
 
 const setupGlobal = () => {
-  const flags = "-test.server";
-  // 创建 content 和 inject 之间的消息通道
-  contentMessage = new CustomEventMessage(flags, true); // content 端
-  injectMessage = new CustomEventMessage(flags, false); // inject 端
+  const testFlag = `${uuidv4()}::server.test`;
 
-  // 服务端使用 content 消息
-  server = new Server("api", contentMessage);
+  // 创建 scripting 和 inject / content 之间的消息通道
+  inboundMessage = new CustomEventMessage(testFlag, true); // scripting 端
+  outboundMessage = new CustomEventMessage(testFlag, false); // inject / content 端
 
-  // 客户端使用 inject 消息
-  client = injectMessage;
+  // 服务端使用 scripting 消息
+  server = new Server("api", inboundMessage);
 
-  // 清理 DOM 事件监听器
-  vi.stubGlobal("window", Object.create(window));
-  vi.stubGlobal("addEventListener", vi.fn());
-
-  // 模拟消息传递 - 从 inject 到 content
-  vi.stubGlobal(
-    "dispatchEvent",
-    vi.fn().mockImplementation((event: Event) => {
-      if (event instanceof CustomEvent) {
-        const eventType = event.type;
-        if (eventType.includes("-test.server")) {
-          let targetEventType: string;
-          let messageThis: CustomEventMessage;
-          let messageThat: CustomEventMessage;
-          // 根据事件类型确定目标消息处理器
-          if (eventType.includes(DefinedFlags.contentFlag)) {
-            // inject -> content
-            targetEventType = eventType.replace(DefinedFlags.contentFlag, DefinedFlags.injectFlag);
-            messageThis = contentMessage;
-            messageThat = injectMessage;
-          } else if (eventType.includes(DefinedFlags.injectFlag)) {
-            // content -> inject
-            targetEventType = eventType.replace(DefinedFlags.injectFlag, DefinedFlags.contentFlag);
-            messageThis = injectMessage;
-            messageThat = contentMessage;
-          } else {
-            throw new Error("test mock failed");
-          }
-          nextTick().then(() => {
-            messageThis.messageHandle(event.detail, {
-              postMessage: (data: any) => {
-                // 响应
-                const responseEvent = new CustomEvent(targetEventType, { detail: data });
-                messageThat.messageHandle(responseEvent.detail, {
-                  postMessage: vi.fn(),
-                });
-              },
-            });
-          });
-        }
-      }
-      return true;
-    })
-  );
+  // 客户端使用 inject / content 消息
+  client = outboundMessage;
 };
 
 beforeEach(() => {
@@ -257,7 +213,7 @@ describe("Server", () => {
     });
 
     it.concurrent("应该自动为 Group 名称添加斜杠", async () => {
-      const mockHandler = vi.fn().mockResolvedValue("auto slash response");
+      const mockHandler = vi.fn().mockResolvedValue("nested response");
 
       // 测试不带斜杠的情况
       const group1 = server.group("slash-group1");
@@ -642,7 +598,7 @@ describe("Server", () => {
     });
 
     it("应该在 enableConnect 为 false 时不处理连接", async () => {
-      const serverWithoutConnect = new Server("api", contentMessage, false);
+      const serverWithoutConnect = new Server("api", inboundMessage, false);
       const mockHandler = vi.fn();
 
       serverWithoutConnect.on("on-noconnect", mockHandler);

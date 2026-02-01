@@ -17,6 +17,7 @@ import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
+import { isContent } from "@Packages/message/common";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
@@ -237,6 +238,9 @@ export default class GMApi extends GM_Base {
     if (!a.scriptRes) return undefined;
     const ret = a.scriptRes.value[key];
     if (ret !== undefined) {
+      if (ret && typeof ret === "object") {
+        return structuredClone(ret);
+      }
       return ret;
     }
     return defaultValue;
@@ -268,14 +272,14 @@ export default class GMApi extends GM_Base {
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
-    // 对object的value进行一次转化
-    if (value && typeof value === "object") {
-      value = JSON.parse(JSON.stringify(value));
-    }
     if (value === undefined) {
       delete a.scriptRes.value[key];
       a.sendMessage("GM_setValue", [id, key]);
     } else {
+      // 对object的value进行一次转化
+      if (value && typeof value === "object") {
+        value = structuredClone(value);
+      }
       a.scriptRes.value[key] = value;
       a.sendMessage("GM_setValue", [id, key, value]);
     }
@@ -297,13 +301,13 @@ export default class GMApi extends GM_Base {
     const keyValuePairs = [] as [string, REncoded<unknown>][];
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
-      // 对object的value进行一次转化
-      if (value_ && typeof value_ === "object") {
-        value_ = JSON.parse(JSON.stringify(value_));
-      }
       if (value_ === undefined) {
         if (valueStore[key]) delete valueStore[key];
       } else {
+        // 对object的value进行一次转化
+        if (value_ && typeof value_ === "object") {
+          value_ = structuredClone(value_);
+        }
         valueStore[key] = value_;
       }
       // 避免undefined 等空值流失，先进行映射处理
@@ -369,7 +373,7 @@ export default class GMApi extends GM_Base {
     if (!this.scriptRes) return {};
     if (!keysOrDefaults) {
       // Returns all values
-      return this.scriptRes.value;
+      return structuredClone(this.scriptRes.value);
     }
     const result: TGMKeyValue = {};
     if (Array.isArray(keysOrDefaults)) {
@@ -378,7 +382,12 @@ export default class GMApi extends GM_Base {
       for (let index = 0; index < keysOrDefaults.length; index++) {
         const key = keysOrDefaults[index];
         if (key in this.scriptRes.value) {
-          result[key] = this.scriptRes.value[key];
+          // 对object的value进行一次转化
+          let value = this.scriptRes.value[key];
+          if (value && typeof value === "object") {
+            value = structuredClone(value);
+          }
+          result[key] = value;
         }
       }
     } else {
@@ -478,7 +487,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    return urlToDocumentInContentPage(this, url);
+    return urlToDocumentInContentPage(this, url, isContent);
   }
 
   static _GM_cookie(
@@ -682,6 +691,7 @@ export default class GMApi extends GM_Base {
           {
             textContent: css,
           },
+          isContent,
         ],
       },
     });
@@ -693,7 +703,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.addElement" })
   GM_addElement(
-    parentNode: EventTarget | string,
+    parentNode: Node | string,
     tagName: string | Record<string, string | number | boolean>,
     attrs: Record<string, string | number | boolean> = {}
   ) {
@@ -716,7 +726,7 @@ export default class GMApi extends GM_Base {
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
-        params: [parentNodeId, tagName, attrs],
+        params: [parentNodeId, tagName, attrs, isContent],
       },
     });
     if (resp.code) {

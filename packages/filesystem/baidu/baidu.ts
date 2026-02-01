@@ -126,19 +126,38 @@ export default class BaiduFileSystem implements FileSystem {
     });
   }
 
-  list(): Promise<File[]> {
-    return this.request(
-      `https://pan.baidu.com/rest/2.0/xpan/file?method=list&dir=${encodeURIComponent(
-        this.path
-      )}&order=time&access_token=${this.accessToken}`
-    ).then((data) => {
+  async list(): Promise<File[]> {
+    const list: File[] = [];
+    let start = 0;
+    const limit = 200;
+    // 防御性：限制最大分页轮询次数，避免在 API 异常返回时出现无限循环
+    const MAX_ITERATIONS = 100;
+    let iterations = 0;
+
+    while (true) {
+      if (iterations >= MAX_ITERATIONS) {
+        throw new Error(
+          "BaiduFileSystem.list: exceeded max pagination iterations, possible infinite loop from Baidu API response"
+        );
+      }
+      iterations += 1;
+      const data = await this.request(
+        `https://pan.baidu.com/rest/2.0/xpan/file?method=list&dir=${encodeURIComponent(
+          this.path
+        )}&order=time&start=${start}&limit=${limit}&access_token=${this.accessToken}`
+      );
+
       if (data.errno) {
         if (data.errno === -9) {
-          return [];
+          break;
         }
         throw new Error(JSON.stringify(data));
       }
-      const list: File[] = [];
+
+      if (!data.list || data.list.length === 0) {
+        break;
+      }
+
       data.list.forEach((val: any) => {
         list.push({
           fsid: val.fs_id,
@@ -150,8 +169,16 @@ export default class BaiduFileSystem implements FileSystem {
           updatetime: val.server_mtime * 1000,
         });
       });
-      return list;
-    });
+
+      // 如果返回的数据少于limit，说明已经是最后一页
+      if (data.list.length < limit) {
+        break;
+      }
+
+      start += limit;
+    }
+
+    return list;
   }
 
   async getDirUrl(): Promise<string> {

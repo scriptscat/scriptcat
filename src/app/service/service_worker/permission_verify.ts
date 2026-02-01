@@ -7,7 +7,7 @@ import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Api, GMApiRequest } from "./types";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_PERMISSION } from "@App/app/cache_key";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import Queue from "@App/pkg/utils/queue";
 import { type TDeleteScript } from "../queue";
 import { openInCurrentTab } from "@App/pkg/utils/utils";

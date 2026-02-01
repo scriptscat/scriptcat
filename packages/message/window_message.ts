@@ -1,5 +1,5 @@
 import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage } from "./types";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import EventEmitter from "eventemitter3";
 
 // 通过 window.postMessage/onmessage 实现通信
