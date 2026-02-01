@@ -6,6 +6,9 @@ export const CustomEventClone = CustomEvent;
 
 const performanceClone = (process.env.VI_TESTING === "true" ? new EventTarget() : performance) as Performance;
 
+// 判断当前是否运行在 USER_SCRIPT 环境 (content环境)
+export const isContent = typeof chrome === "object" && typeof chrome?.runtime?.sendMessage === "function";
+
 // 避免页面载入后改动 EventTarget.prototype 的方法导致消息传递失败
 export const pageDispatchEvent = performanceClone.dispatchEvent.bind(performanceClone);
 export const pageAddEventListener = performanceClone.addEventListener.bind(performanceClone);
