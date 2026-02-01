@@ -1316,7 +1316,7 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  // ScriptCat 額外API
+  // ScriptCat 额外API
   @GMContext.API({ alias: "GM.closeInTab" })
   public GM_closeInTab(tabid: string) {
     if (this.isInvalidContext()) return;
