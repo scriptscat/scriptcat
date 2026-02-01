@@ -32,7 +32,7 @@ import { type SearchFilterRequest } from "./SearchFilter";
 import type { SearchType } from "@App/app/service/service_worker/types";
 
 type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
-export const SortableDragCtx = createContext<DragCtx>(null);
+const SortableDragCtx = createContext<DragCtx>(null);
 
 function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
   return (node) => {
