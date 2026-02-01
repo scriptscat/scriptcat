@@ -338,8 +338,7 @@ type ScriptMenuEntry = ScriptMenuEntryBase & {
 const cacheMetadata = new Map<string, SCMetadata | undefined>();
 // 使用 WeakMap：当 ScriptMenuEntryBase 替换后，ScriptMenuEntryBase的引用会失去，ScriptMenuEntry能被自动回收。
 const cacheMergedItem = new WeakMap<ScriptMenuEntryBase, ScriptMenuEntry>();
-// 以 异步方式 取得 metadata 放入 extraData
-// script 或 extraData 的更新时都会再次执行
+// scriptList 更新后会合并 从异步取得的 metadata 至 mergedList
 const fetchMergedList = async (item: ScriptMenuEntryBase) => {
   const uuid = item.uuid;
   // 检查 cacheMetadata 有没有记录
