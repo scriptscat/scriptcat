@@ -171,7 +171,7 @@ const DragHandle = () => {
   const sortable = useContext(SortableDragCtx);
 
   const { listeners, setActivatorNodeRef } = sortable || {};
-  const style = { cursor: "move", display: "inline-flex" };
+  const style = { cursor: "move", padding: 6 };
 
   return !setActivatorNodeRef ? (
     <span style={style}>
