@@ -25,6 +25,23 @@ import { synchronizeClient } from "@App/pages/store/features/script";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { migrateToChromeStorage } from "@App/app/migrate";
 import { useSystemConfig } from "./utils";
+import { uuidv4 } from "@App/pkg/utils/uuid";
+import { cacheInstance } from "@App/app/cache";
+import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
+import { makeBlobURL } from "@App/pkg/utils/utils";
+
+const openImportWindow = async (filename: string, file: Blob) => {
+  // 打开导入窗口，用cache实现数据交互
+  const url = makeBlobURL({ blob: file, persistence: true }) as string;
+  const uuid = uuidv4();
+  const cacheKey = `${CACHE_KEY_IMPORT_FILE}${uuid}`;
+  await cacheInstance.set(cacheKey, {
+    filename: filename,
+    url: url,
+  });
+  // 打开导入窗口，用cache实现数据交互
+  window.open(chrome.runtime.getURL(`/src/import.html?uuid=${uuid}`), "_blank");
+};
 
 function Tools() {
   const [modal, contextHolder] = Modal.useModal();
@@ -79,7 +96,7 @@ function Tools() {
                       return;
                     }
                     try {
-                      await synchronizeClient.openImportWindow(file.name, file);
+                      await openImportWindow(file.name, file);
                       Message.success(t("select_import_script")!);
                     } catch (e) {
                       Message.error(`${t("import_error")}: ${e}`);
@@ -210,8 +227,7 @@ function Tools() {
                             Message.error(`${t("pull_failed")}: ${e}`);
                             return;
                           }
-                          synchronizeClient
-                            .openImportWindow(item.name, data)
+                          openImportWindow(item.name, data)
                             .then(() => {
                               Message.success(t("select_import_script")!);
                             })
