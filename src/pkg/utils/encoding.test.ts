@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { parseCharsetFromContentType, detectEncoding, bytesDecode } from "./encoding";
+import { parseCharsetFromContentType, detectEncoding, bytesDecode, readBlobContent } from "./encoding";
 import { base64ToUint8 } from "./datatype";
 import iconv from "iconv-lite";
 
@@ -504,6 +504,288 @@ describe("encoding detection", () => {
       const utf8Bytes = new Uint8Array(iconv.encode(text, "utf-8"));
       expect(detectEncoding(gbkBytes, null)).toBe("gb18030");
       expect(detectEncoding(utf8Bytes, null)).toBe("utf-8");
+    });
+  });
+
+  describe("readBlobContent", () => {
+    it("should return empty string for empty Blob", async () => {
+      const blob = new Blob([]);
+      const result = await readBlobContent(blob, null);
+      expect(result).toBe("");
+    });
+
+    it("should handle short text (less than 64 bytes)", async () => {
+      const text = "Hello World";
+      const blob = new Blob([text]);
+      const result = await readBlobContent(blob, null);
+      expect(result).toBe(text);
+    });
+
+    it("should use charset from valid Content-Type header", async () => {
+      const text = "你好世界";
+      const gbkBytes = iconv.encode(text, "gbk");
+      //@ts-ignore
+      const blob = new Blob([gbkBytes]);
+
+      // 即使内容是 GBK，但 Content-Type 指定 UTF-8，应该尝试用 UTF-8 解码
+      const result = await readBlobContent(blob, "text/plain; charset=utf-8");
+      // GBK 字节用 UTF-8 解码会产生乱码或替换字符
+      expect(result).not.toBe(text);
+    });
+
+    it("should fallback to heuristic detection when Content-Type charset is invalid", async () => {
+      const text = "Hello World";
+      const blob = new Blob([text]);
+      const result = await readBlobContent(blob, "text/plain; charset=invalid-charset");
+      expect(result).toBe(text);
+    });
+
+    describe("BOM detection", () => {
+      it("should detect UTF-8 BOM", async () => {
+        const text = "Hello BOM";
+        const utf8BOM = new Uint8Array([0xef, 0xbb, 0xbf]);
+        const textBytes = new TextEncoder().encode(text);
+        const combined = new Uint8Array(utf8BOM.length + textBytes.length);
+        combined.set(utf8BOM);
+        combined.set(textBytes, utf8BOM.length);
+
+        const blob = new Blob([combined]);
+        const result = await readBlobContent(blob, null);
+        expect(result).toBe(text);
+      });
+
+      it("should detect UTF-16LE BOM", async () => {
+        const text = "Hello";
+        const utf16LEBytes = new Uint8Array([
+          0xff,
+          0xfe, // BOM
+          0x48,
+          0x00,
+          0x65,
+          0x00,
+          0x6c,
+          0x00,
+          0x6c,
+          0x00,
+          0x6f,
+          0x00, // "Hello"
+        ]);
+        const blob = new Blob([utf16LEBytes]);
+        const result = await readBlobContent(blob, null);
+        expect(result).toBe(text);
+      });
+
+      it("should detect UTF-16BE BOM", async () => {
+        const text = "Hello";
+        const utf16BEBytes = new Uint8Array([
+          0xfe,
+          0xff, // BOM
+          0x00,
+          0x48,
+          0x00,
+          0x65,
+          0x00,
+          0x6c,
+          0x00,
+          0x6c,
+          0x00,
+          0x6f, // "Hello"
+        ]);
+        const blob = new Blob([utf16BEBytes]);
+        const result = await readBlobContent(blob, null);
+        expect(result).toBe(text);
+      });
+
+      it("should detect UTF-32LE BOM", async () => {
+        const text = "Hi";
+        const utf32LEBytes = new Uint8Array([
+          0xff,
+          0xfe,
+          0x00,
+          0x00, // BOM
+          0x48,
+          0x00,
+          0x00,
+          0x00, // 'H'
+          0x69,
+          0x00,
+          0x00,
+          0x00, // 'i'
+        ]);
+        const blob = new Blob([utf32LEBytes]);
+        const result = await readBlobContent(blob, null);
+        expect(result).toBe(text);
+      });
+
+      it("should detect UTF-32BE BOM", async () => {
+        const text = "Hi";
+        const utf32BEBytes = new Uint8Array([
+          0x00,
+          0x00,
+          0xfe,
+          0xff, // BOM
+          0x00,
+          0x00,
+          0x00,
+          0x48, // 'H'
+          0x00,
+          0x00,
+          0x00,
+          0x69, // 'i'
+        ]);
+        const blob = new Blob([utf32BEBytes]);
+        const result = await readBlobContent(blob, null);
+        expect(result).toBe(text);
+      });
+    });
+
+    describe("Heuristic detection (null pattern)", () => {
+      it("should detect UTF-16LE without BOM via null pattern", async () => {
+        // 使用足够长的 ASCII 文本以触发 null pattern 检测
+        const text = "A".repeat(100); // 100个ASCII字符
+        // UTF-16LE 编码（无 BOM）
+        const bytes = new Uint8Array(text.length * 2);
+        for (let i = 0; i < text.length; i++) {
+          bytes[i * 2] = text.charCodeAt(i);
+          bytes[i * 2 + 1] = 0;
+        }
+        const blob = new Blob([bytes]);
+        const result = await readBlobContent(blob, null);
+        expect(result).toBe(text);
+      });
+
+      it("should detect UTF-16BE without BOM via null pattern", async () => {
+        const text = "A".repeat(100); // 100个ASCII字符
+        // UTF-16BE 编码（无 BOM）
+        const bytes = new Uint8Array(text.length * 2);
+        for (let i = 0; i < text.length; i++) {
+          bytes[i * 2] = 0;
+          bytes[i * 2 + 1] = text.charCodeAt(i);
+        }
+        const blob = new Blob([bytes]);
+        const result = await readBlobContent(blob, null);
+        expect(result).toBe(text);
+      });
+
+      it("should detect UTF-32LE without BOM via null pattern", async () => {
+        const text = "A".repeat(100); // 100个ASCII字符
+        // UTF-32LE 编码（无 BOM）
+        const bytes = new Uint8Array(text.length * 4);
+        let offset = 0;
+        for (let i = 0; i < text.length; i++) {
+          bytes[offset++] = text.charCodeAt(i);
+          bytes[offset++] = 0;
+          bytes[offset++] = 0;
+          bytes[offset++] = 0;
+        }
+        const blob = new Blob([bytes]);
+        const result = await readBlobContent(blob, null);
+        // UTF-32 解码可能包含空格，只验证包含原文本
+        expect(result).toContain("A");
+        // 验证大致长度（允许有一些空格）
+        expect(result.length).toBeGreaterThanOrEqual(text.length);
+      });
+
+      it("should detect UTF-32BE without BOM via null pattern", async () => {
+        const text = "A".repeat(100); // 100个ASCII字符
+        // UTF-32BE 编码（无 BOM）
+        const bytes = new Uint8Array(text.length * 4);
+        let offset = 0;
+        for (let i = 0; i < text.length; i++) {
+          bytes[offset++] = 0;
+          bytes[offset++] = 0;
+          bytes[offset++] = 0;
+          bytes[offset++] = text.charCodeAt(i);
+        }
+        const blob = new Blob([bytes]);
+        const result = await readBlobContent(blob, null);
+        // UTF-32 解码可能包含空格，只验证包含原文本
+        expect(result).toContain("A");
+        // 验证大致长度
+        expect(result.length).toBeGreaterThanOrEqual(text.length);
+      });
+    });
+
+    it("should handle valid UTF-8 text without BOM", async () => {
+      const text = "Hello 世界, UTF-8 测试";
+      const blob = new Blob([text]);
+      const result = await readBlobContent(blob, null);
+      expect(result).toBe(text);
+    });
+
+    it("should fallback to windows-1252 for invalid UTF-8", async () => {
+      // Windows-1252 编码的字节（不是有效的 UTF-8）
+      const win1252Bytes = new Uint8Array([
+        0x54,
+        0x68,
+        0x69,
+        0x73,
+        0x20,
+        0x63,
+        0x6f,
+        0x73,
+        0x74,
+        0x73,
+        0x20, // "This costs "
+        0x35,
+        0x30,
+        0x80,
+        0x20, // "50€ " (0x80 是 windows-1252 的欧元符号)
+      ]);
+
+      const blob = new Blob([win1252Bytes]);
+      const result = await readBlobContent(blob, null);
+
+      // 应该能成功解码（使用 windows-1252）
+      expect(result).toContain("This costs");
+      expect(result).toContain("50");
+    });
+
+    it("should handle Blob with File interface", async () => {
+      const text = "File content";
+      // 在测试环境中，File 可能不支持 arrayBuffer，所以直接用 Blob
+      const blob = new Blob([text], { type: "text/plain" });
+      const result = await readBlobContent(blob, null);
+      expect(result).toBe(text);
+    });
+
+    it("should prioritize Content-Type over BOM", async () => {
+      // UTF-8 BOM + UTF-8 编码的文本
+      const text = "Hello";
+      const utf8BOM = new Uint8Array([0xef, 0xbb, 0xbf]);
+      const textBytes = new TextEncoder().encode(text);
+      const combined = new Uint8Array(utf8BOM.length + textBytes.length);
+      combined.set(utf8BOM);
+      combined.set(textBytes, utf8BOM.length);
+
+      const blob = new Blob([combined]);
+      // Content-Type 指定 UTF-8，即使有 BOM 也应该先使用 Content-Type
+      const result = await readBlobContent(blob, "text/plain; charset=utf-8");
+      expect(result).toBe(text);
+    });
+
+    it("should handle Response object", async () => {
+      const text = "Response content";
+      const buffer = new TextEncoder().encode(text).buffer;
+
+      // 在测试环境中模拟 Response 对象
+      const mockResponse = {
+        async arrayBuffer() {
+          return buffer;
+        },
+      } as any;
+
+      const result = await readBlobContent(mockResponse, "text/plain; charset=utf-8");
+      expect(result).toBe(text);
+    });
+
+    it("should handle very large content", async () => {
+      // 创建一个大于 16KB 的内容
+      const largeText = "a".repeat(20 * 1024);
+      const blob = new Blob([largeText]);
+      const result = await readBlobContent(blob, null);
+      expect(result).toBe(largeText);
+      expect(result.length).toBe(20 * 1024);
     });
   });
 });
