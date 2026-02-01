@@ -1232,13 +1232,13 @@ export default class GMApi extends GM_Base {
     this["GM.notification"](detail, ondone, image, onclick);
   }
 
-  // ScriptCat 額外API
+  // ScriptCat 额外API
   @GMContext.API({ alias: "GM.closeNotification" })
   public GM_closeNotification(id: string): void {
     this.sendMessage("GM_closeNotification", [id]);
   }
 
-  // ScriptCat 額外API
+  // ScriptCat 额外API
   @GMContext.API({ alias: "GM.updateNotification" })
   public GM_updateNotification(id: string, details: GMTypes.NotificationDetails): void {
     this.sendMessage("GM_updateNotification", [id, details]);
