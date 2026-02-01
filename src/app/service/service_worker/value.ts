@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
-import { type Script, ScriptDAO } from "@App/app/repo/scripts";
+import { type Script, ScriptDAO, type ValueStore } from "@App/app/repo/scripts";
 import { type Value, ValueDAO } from "@App/app/repo/value";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
@@ -117,14 +117,14 @@ export class ValueService {
     }
     // 查询老的值
     const storageName = getStorageName(script);
-    let oldValueRecord: { [key: string]: any } = {};
+    let oldValueRecord: ValueStore = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
     const entries = [] as ValueUpdateDataREntry[];
     const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
       if (!valueModel) {
         const now = Date.now();
-        const dataModel: { [key: string]: any } = {};
+        const dataModel: ValueStore = {};
         for (const [key, rTyped1] of keyValuePairs) {
           const value = decodeRValue(rTyped1);
           if (value !== undefined) {
