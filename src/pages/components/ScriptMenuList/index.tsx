@@ -208,6 +208,8 @@ const ListMenuItem = React.memo(
       });
     };
 
+    console.log("Rendered - " + item.name); // 用于检查垃圾React有否过度更新
+
     return (
       <Collapse
         activeKey={isActive ? item.uuid : undefined}
@@ -324,8 +326,12 @@ ListMenuItem.displayName = "ListMenuItem";
 
 type TGrouppedMenus = Record<string, GroupScriptMenuItemsProp> & { __length__?: number };
 
-type ScriptMenuEntry = ScriptMenu & {
+type ScriptMenuEntryBase = ScriptMenu & {
   menuUpdated?: number;
+};
+
+// ScriptMenuEntryBase 加了 metadata 后变成 ScriptMenuEntry
+type ScriptMenuEntry = ScriptMenuEntryBase & {
   metadata: SCMetadata;
 };
 
@@ -337,9 +343,7 @@ const ScriptMenuList = React.memo(
     currentUrl,
     menuExpandNum,
   }: {
-    script: (ScriptMenu & {
-      menuUpdated?: number;
-    })[];
+    script: ScriptMenuEntryBase[];
     isBackscript: boolean;
     currentUrl: string;
     menuExpandNum: number;
@@ -406,7 +410,9 @@ const ScriptMenuList = React.memo(
       return url;
     }, [currentUrl]);
 
-    const cache = useMemo(() => new Map<string, SCMetadata | undefined>(), []);
+    const cacheMetadata = useMemo(() => new Map<string, SCMetadata | undefined>(), []);
+    // 使用 WeakMap：当 ScriptMenuEntryBase 替换后，ScriptMenuEntryBase的引用会失去，ScriptMenuEntry能被自动回收。
+    const cacheMergedItem = useMemo(() => new WeakMap<ScriptMenuEntryBase, ScriptMenuEntry>(), []);
     // 以 异步方式 取得 metadata 放入 extraData
     // script 或 extraData 的更新时都会再次执行
     useEffect(() => {
@@ -414,15 +420,29 @@ const ScriptMenuList = React.memo(
       // 先从 cache 读取，避免重复请求相同 uuid 的 metadata
       Promise.all(
         script.map(async (item) => {
-          let metadata = cache.get(item.uuid);
+          const uuid = item.uuid;
+          // 检查 cacheMetadata 有没有记录
+          let metadata = cacheMetadata.get(uuid);
           if (!metadata) {
-            const script = await scriptDAO.get(item.uuid);
-            if (script) {
-              metadata = script.metadata || {};
-            }
-            cache.set(item.uuid, metadata);
+            // 如没有记录，对 scriptDAO 发出请求 （通常在首次React元件绘画时进行）
+            const script = await scriptDAO.get(uuid);
+            metadata = script?.metadata || {}; // 即使 scriptDAO 返回失败也 fallback 一个空物件
+            cacheMetadata.set(uuid, metadata);
           }
-          return { ...item, metadata: metadata || {} };
+          // 检查 cacheMergedItem 有没有记录
+          let merged = cacheMergedItem.get(item);
+          if (!merged || merged.uuid !== item.uuid) {
+            // 如没有记录或记录不正确，则重新生成记录 （新物件参考）
+            merged = { ...item, metadata };
+            cacheMergedItem.set(item, merged);
+          }
+          // 如 cacheMergedItem 的记录中的 metadata 跟 (新)metadata 物件参考不一致，则更新 merged
+          if (merged.metadata !== metadata) {
+            // 新物件参考触发 React UI 重绘
+            merged = { ...merged, metadata: metadata };
+            cacheMergedItem.set(item, merged);
+          }
+          return merged;
         })
       ).then((newScriptMenuList) => {
         if (!isMounted) {
@@ -433,7 +453,7 @@ const ScriptMenuList = React.memo(
       return () => {
         isMounted = false;
       };
-    }, [cache, script]);
+    }, [cacheMetadata, script]);
 
     useEffect(() => {
       // 注册菜单快速键（accessKey）：以各分组第一个项目的 accessKey 作为触发条件。

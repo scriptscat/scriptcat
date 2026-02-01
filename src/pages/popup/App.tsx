@@ -59,23 +59,45 @@ function App() {
   const { t } = useTranslation();
   const pageTabIdRef = useRef(0);
 
-  const normalScriptCounts = useMemo(() => {
-    // 计算已开启了的数量
-    const running = scriptList.reduce((p, c) => p + (c.enable ? 1 : 0), 0);
-    return {
-      running,
-      total: scriptList.length, // 总数
-    };
+  // ------------------------------ 重要! 不要隨便更改 ------------------------------
+  // > scriptList 會隨著 (( 任何 )) 子項狀態更新而進行物件參考更新
+  // > (( 必須 )) 把物件參考更新切換成 原始类型（例如字串）
+  // normalEnables: 只随 script 数量和启动状态而改变的state
+  const normalEnables = useMemo(() => {
+    // 返回字串让 React 比对 state 有否改动
+    return scriptList.map((script) => (script.enable ? 1 : 0)).join(",");
   }, [scriptList]);
 
-  const backScriptCounts = useMemo(() => {
+  // backEnables: 只随 script 数量和启动状态而改变的state
+  const backEnables = useMemo(() => {
+    // 返回字串让 React 比对 state 有否改动
+    return backScriptList.map((script) => (script.enable ? 1 : 0)).join(",");
+  }, [backScriptList]);
+  // ------------------------------ 重要! 不要隨便更改 ------------------------------
+
+  // normalScriptCounts 的物件參考只會隨 原始类型（字串）的 normalEnables 狀態更新而重新生成
+  const normalScriptCounts = useMemo(() => {
+    // 拆回array
+    const enables = normalEnables.split(",").filter(Boolean);
     // 计算已开启了的数量
-    const running = backScriptList.reduce((p, c) => p + (c.enable ? 1 : 0), 0);
+    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
     return {
       running,
-      total: backScriptList.length, // 总数
+      total: enables.length, // 总数
     };
-  }, [backScriptList]);
+  }, [normalEnables]);
+
+  // backScriptCounts 的物件參考只會隨 原始类型（字串）的 backEnables 狀態更新而重新生成
+  const backScriptCounts = useMemo(() => {
+    // 拆回array
+    const enables = backEnables.split(",").filter(Boolean);
+    // 计算已开启了的数量
+    const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
+    return {
+      running,
+      total: enables.length, // 总数
+    };
+  }, [backEnables]);
 
   const urlHost = useMemo(() => {
     let url: URL | undefined;
@@ -87,6 +109,36 @@ function App() {
     return url?.hostname ?? "";
   }, [currentUrl]);
 
+  const updateList = (
+    list: ScriptMenu[],
+    update: (item: ScriptMenu) => ScriptMenu | undefined,
+    options:
+      | {
+          sort?: boolean;
+        }
+      | undefined
+  ) => {
+    // 如果更新跟当前 list 的子项无关，则不用更改 list 的物件参考
+    const newList = [];
+    let changed = false;
+    for (let i = 0; i < list.length; i++) {
+      const oldItem = list[i];
+      const newItem = update(oldItem); // 如没有更改，物件参考会保持一致
+      if (newItem !== oldItem) changed = true;
+      if (newItem) {
+        newList.push(newItem);
+      }
+    }
+    if (options?.sort) {
+      newList.sort(scriptListSorter);
+    }
+    if (!changed && list.map((e) => e.uuid).join(",") !== newList.map((e) => e.uuid).join(",")) {
+      // 单一项未有改变，但因为 sort值改变 而改变了次序
+      changed = true;
+    }
+    return changed ? newList : list; // 如子项没任何变化，则返回原list参考
+  };
+
   const { subscribeMessage } = useAppContext();
   useEffect(() => {
     let isMounted = true;
@@ -97,25 +149,9 @@ function App() {
         sort?: boolean;
       }
     ) => {
-      const updateList = (list: ScriptMenu[], update: (item: ScriptMenu) => ScriptMenu | undefined) => {
-        const newList = [];
-        for (let i = 0; i < list.length; i++) {
-          const newItem = update(list[i]);
-          if (newItem) {
-            newList.push(newItem);
-          }
-        }
-        if (options?.sort) {
-          newList.sort(scriptListSorter);
-        }
-        return newList;
-      };
-      setScriptList((prev) => {
-        return updateList(prev, update);
-      });
-      setBackScriptList((prev) => {
-        return updateList(prev, update);
-      });
+      // 当 启用/禁用/菜单改变 时，如有必要则更新 list 参考
+      setScriptList((prev) => updateList(prev, update, options));
+      setBackScriptList((prev) => updateList(prev, update, options));
     };
 
     const unhooks = [
