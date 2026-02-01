@@ -171,13 +171,14 @@ const DragHandle = () => {
   const sortable = useContext(SortableDragCtx);
 
   const { listeners, setActivatorNodeRef } = sortable || {};
+  const style = { cursor: "move", display: "inline-flex" };
 
   return !setActivatorNodeRef ? (
-    <span style={{ cursor: "move", display: "inline-flex" }}>
+    <span style={style}>
       <IconDragDotVertical />
     </span>
   ) : (
-    <span ref={setActivatorNodeRef} {...listeners} style={{ cursor: "move", display: "inline-flex" }}>
+    <span ref={setActivatorNodeRef} {...listeners} style={style}>
       <IconDragDotVertical />
     </span>
   );

@@ -79,13 +79,14 @@ const DragHandle = () => {
   const sortable = useContext(SortableDragCtx);
 
   const { listeners, setActivatorNodeRef } = sortable || {};
+  const style = { cursor: "move", display: "inline-flex", padding: 6 };
 
   return !setActivatorNodeRef ? (
-    <span style={{ cursor: "move", display: "inline-flex" }}>
+    <span style={style}>
       <IconDragDotVertical />
     </span>
   ) : (
-    <span ref={setActivatorNodeRef} {...listeners} style={{ cursor: "move", display: "inline-flex" }}>
+    <span ref={setActivatorNodeRef} {...listeners} style={style}>
       <IconDragDotVertical />
     </span>
   );
@@ -219,7 +220,7 @@ export const ScriptCardItem = React.memo(
                       className="script-sort"
                       role="button"
                       tabIndex={0}
-                      style={{ cursor: "grab", padding: 6, display: "inline-flex", alignItems: "center" }}
+                      style={{ display: "inline-flex", alignItems: "center" }}
                     >
                       <DragHandle />
                     </div>
