@@ -15,7 +15,7 @@ import type {
   ScriptData,
   SubscribeData,
 } from "./struct";
-import type { File } from "@Packages/filesystem/filesystem";
+import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 
 type ViolentmonkeyFile = {
@@ -40,7 +40,7 @@ export default class BackupImport {
     this.logger = LoggerCore.logger({ component: "backupImport" });
   }
 
-  async getFileContent(file: File, toJson: boolean, type?: "string" | "blob"): Promise<string | any> {
+  async getFileContent(file: FileInfo, toJson: boolean, type?: "string" | "blob"): Promise<string | any> {
     const fileReader = await this.fs.open(file);
     const fileContent = await fileReader.read(type);
     if (toJson) return JSON.parse(fileContent);
@@ -175,7 +175,7 @@ export default class BackupImport {
     });
 
     // 处理资源文件的内容
-    let violentmonkeyFile: File | undefined;
+    let violentmonkeyFile: FileInfo | undefined;
     files = await this.dealFile(files, async (file) => {
       if (file.name === "violentmonkey") {
         violentmonkeyFile = file;
@@ -234,8 +234,8 @@ export default class BackupImport {
     };
   }
 
-  async dealFile(files: File[], handler: (file: File) => Promise<boolean>): Promise<File[]> {
-    const newFiles: File[] = [];
+  async dealFile(files: FileInfo[], handler: (file: FileInfo) => Promise<boolean>): Promise<FileInfo[]> {
+    const newFiles: FileInfo[] = [];
     const results = await Promise.all(files.map(handler));
     results.forEach((result, index) => {
       if (!result) {

@@ -1,7 +1,7 @@
 import type { AuthType, FileStat, WebDAVClient } from "webdav";
 import { createClient } from "webdav";
 import type FileSystem from "../filesystem";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";
@@ -39,7 +39,7 @@ export default class WebDAVFileSystem implements FileSystem {
     }
   }
 
-  async open(file: File): Promise<FileReader> {
+  async open(file: FileInfo): Promise<FileReader> {
     return new WebDAVFileReader(this.client, joinPath(file.path, file.name));
   }
 
@@ -67,9 +67,9 @@ export default class WebDAVFileSystem implements FileSystem {
     return this.client.deleteFile(joinPath(this.basePath, path));
   }
 
-  async list(): Promise<File[]> {
+  async list(): Promise<FileInfo[]> {
     const dir = (await this.client.getDirectoryContents(this.basePath)) as FileStat[];
-    const ret: File[] = [];
+    const ret: FileInfo[] = [];
     for (const item of dir) {
       if (item.type !== "file") {
         continue;

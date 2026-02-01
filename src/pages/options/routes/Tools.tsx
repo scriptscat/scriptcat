@@ -19,7 +19,7 @@ import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { useTranslation } from "react-i18next";
 import FileSystemFactory from "@Packages/filesystem/factory";
-import type { File, FileReader } from "@Packages/filesystem/filesystem";
+import type { FileInfo, FileReader } from "@Packages/filesystem/filesystem";
 import { message } from "@App/pages/store/global";
 import { synchronizeClient } from "@App/pages/store/features/script";
 import { SystemClient } from "@App/app/service/service_worker/client";
@@ -30,7 +30,7 @@ function Tools() {
   const [modal, contextHolder] = Modal.useModal();
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
   const fileRef = useRef<HTMLInputElement>(null);
-  const [backupFileList, setBackupFileList] = useState<File[]>([]);
+  const [backupFileList, setBackupFileList] = useState<FileInfo[]>([]);
   const vscodeRef = useRef<RefInputType>(null);
   const { t } = useTranslation();
   const [backup, setBackup, submitBackup] = useSystemConfig("backup");
@@ -191,7 +191,7 @@ function Tools() {
             <List
               bordered={false}
               dataSource={backupFileList}
-              render={(item: File) => (
+              render={(item: FileInfo) => (
                 <List.Item key={`${item.name}_${item.updatetime}`}>
                   <List.Item.Meta title={item.name} description={formatUnixTime(item.updatetime / 1000)} />
                   <Space className="w-full justify-end">

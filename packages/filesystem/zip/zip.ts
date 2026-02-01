@@ -1,5 +1,5 @@
 import type JSZip from "jszip";
-import type { File, FileReader, FileWriter } from "@Packages/filesystem/filesystem";
+import type { FileInfo, FileReader, FileWriter } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import { ZipFileReader, ZipFileWriter } from "./rw";
 
@@ -18,7 +18,7 @@ export default class ZipFileSystem implements FileSystem {
     // do nothing
   }
 
-  async open(info: File): Promise<FileReader> {
+  async open(info: FileInfo): Promise<FileReader> {
     const path = info.name;
     const file = this.zip.file(path);
     if (file) {
@@ -43,8 +43,8 @@ export default class ZipFileSystem implements FileSystem {
     this.zip.remove(path);
   }
 
-  async list(): Promise<File[]> {
-    const files: File[] = [];
+  async list(): Promise<FileInfo[]> {
+    const files: FileInfo[] = [];
     for (const [filename, details] of Object.entries(this.zip.files)) {
       const time = details.date.getTime();
       files.push({

@@ -1,5 +1,5 @@
 import type FileSystem from "./filesystem";
-import type { File, FileReader, FileWriter } from "./filesystem";
+import type { FileInfo, FileReader, FileWriter } from "./filesystem";
 
 /**
  * 速率限制器
@@ -86,7 +86,7 @@ export default class LimiterFileSystem implements FileSystem {
     return this.limiter.execute(() => this.fs.verify());
   }
 
-  async open(file: File): Promise<FileReader> {
+  async open(file: FileInfo): Promise<FileReader> {
     return this.limiter.execute(async () => {
       const reader = await this.fs.open(file);
       return {
@@ -119,7 +119,7 @@ export default class LimiterFileSystem implements FileSystem {
     return this.limiter.execute(() => this.fs.delete(path));
   }
 
-  list(): Promise<File[]> {
+  list(): Promise<FileInfo[]> {
     return this.limiter.execute(() => this.fs.list());
   }
 

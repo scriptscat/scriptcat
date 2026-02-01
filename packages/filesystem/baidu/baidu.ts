@@ -1,6 +1,6 @@
 import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
 
@@ -20,7 +20,7 @@ export default class BaiduFileSystem implements FileSystem {
     return this.list().then();
   }
 
-  async open(file: File): Promise<FileReader> {
+  async open(file: FileInfo): Promise<FileReader> {
     // 获取fsid
     return new BaiduFileReader(this, file);
   }
@@ -126,8 +126,8 @@ export default class BaiduFileSystem implements FileSystem {
     });
   }
 
-  async list(): Promise<File[]> {
-    const list: File[] = [];
+  async list(): Promise<FileInfo[]> {
+    const list: FileInfo[] = [];
     let start = 0;
     const limit = 200;
     // 防御性：限制最大分页轮询次数，避免在 API 异常返回时出现无限循环

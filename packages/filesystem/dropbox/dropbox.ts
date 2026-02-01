@@ -1,6 +1,6 @@
 import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { DropboxFileReader, DropboxFileWriter } from "./rw";
 
@@ -24,7 +24,7 @@ export default class DropboxFileSystem implements FileSystem {
     return this.list().then();
   }
 
-  open(file: File): Promise<FileReader> {
+  open(file: FileInfo): Promise<FileReader> {
     return Promise.resolve(new DropboxFileReader(this, file));
   }
 
@@ -138,7 +138,7 @@ export default class DropboxFileSystem implements FileSystem {
     this.clearRelatedCache(fullPath);
   }
 
-  async list(): Promise<File[]> {
+  async list(): Promise<FileInfo[]> {
     let folderPath = this.path;
 
     // Dropbox API 需要空字符串来表示根目录
@@ -162,7 +162,7 @@ export default class DropboxFileSystem implements FileSystem {
       throw e;
     });
 
-    const list: File[] = [];
+    const list: FileInfo[] = [];
 
     const MAX_ITERATIONS = 100;
     let iterationCount = 0;

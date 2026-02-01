@@ -1,6 +1,6 @@
 import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { GoogleDriveFileReader, GoogleDriveFileWriter } from "./rw";
 
@@ -23,7 +23,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return this.list().then();
   }
 
-  open(file: File): Promise<FileReader> {
+  open(file: FileInfo): Promise<FileReader> {
     return Promise.resolve(new GoogleDriveFileReader(this, file));
   }
 
@@ -208,7 +208,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
 
     return parentId;
   }
-  async list(): Promise<File[]> {
+  async list(): Promise<FileInfo[]> {
     let folderId = "appDataFolder";
 
     // 获取当前目录的ID
@@ -221,7 +221,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
     }
 
     // 列出目录内容，处理分页
-    const list: File[] = [];
+    const list: FileInfo[] = [];
     let pageToken: string | undefined = undefined;
 
     const query = `'${folderId}' in parents and trashed=false`;
