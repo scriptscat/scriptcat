@@ -1319,12 +1319,6 @@ export class RuntimeService {
     return await runScript(this.msgSender, res);
   }
 
-  compileInjectUserScript(
-    injectJs: string,
-    { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
-  ) {
-  }
-
   scriptMatchEntry(
     scriptRes: ScriptRunResource,
     o: {
