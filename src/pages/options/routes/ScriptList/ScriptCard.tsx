@@ -13,7 +13,7 @@ import {
 import type { Script, UserConfig } from "@App/app/repo/scripts";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { requestEnableScript } from "@App/pages/store/features/script";
-import { nextTime } from "@App/pkg/utils/cron";
+import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
@@ -207,7 +207,7 @@ export const ScriptCardItem = React.memo(
                     content={
                       item.type === SCRIPT_TYPE_BACKGROUND
                         ? t("background_script_tooltip")
-                        : `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`
+                        : `${t("scheduled_script_tooltip")} ${nextTimeDisplay(item.metadata!.crontab![0])}`
                     }
                   >
                     <Tag

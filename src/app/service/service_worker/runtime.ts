@@ -447,6 +447,12 @@ export class RuntimeService {
           this.mq.publish<TEnableScript[]>("enableScripts", res);
         }
       });
+      this.systemConfig.getLanguage().then((lng: string) => {
+        this.mq.publish("setSandboxLanguage", lng);
+      });
+      this.systemConfig.addListener("language", (lng) => {
+        this.mq.publish("setSandboxLanguage", lng);
+      });
     });
 
     // 监听脚本值变更

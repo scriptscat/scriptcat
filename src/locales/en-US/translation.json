@@ -281,6 +281,14 @@
   "script_has_full_access_to": "Script will have full access to the following URLs",
   "script_requires": "Script requires the following external resources",
   "cookie_warning": "Please note, this script requests access to Cookie permissions, which is a dangerous permission. Please verify the security of the script.",
+  "cron_oncetype": {
+    "minute": "{{next}} (runs every minute)",
+    "hour": "{{next}} (runs every hour)",
+    "day": "{{next}} (runs every day)",
+    "month": "{{next}} (runs every month)",
+    "week": "{{next}} (runs every week)"
+  },
+  "cron_invalid_expr": "Invalid cron expression",
   "scheduled_script_description_title": "This is a scheduled script, which will automatically run at a specific time once enabled and can be manually controlled in the panel.",
   "scheduled_script_description_description_expr": "Scheduled task expression:",
   "scheduled_script_description_description_next": "Most recent run time:",
