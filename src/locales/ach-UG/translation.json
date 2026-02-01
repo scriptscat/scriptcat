@@ -150,6 +150,7 @@
   "starting_script": "crwdns8176:0crwdne8176:0",
   "starting_updates": "crwdns8178:0crwdne8178:0",
   "script_started": "crwdns8180:0crwdne8180:0",
+  "operation_failed": "Operation failed",
   "batch_operations": "crwdns8182:0crwdne8182:0",
   "export": "crwdns8184:0crwdne8184:0",
   "delete": "crwdns8186:0crwdne8186:0",

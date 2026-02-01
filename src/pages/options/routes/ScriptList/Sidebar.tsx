@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Space } from "@arco-design/web-react";
 import { IconDown } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { FilterItem } from "./hooks";
+import type { FilterItem, TSelectFilter } from "./hooks";
 
 interface SidebarProps {
   /**
@@ -16,7 +16,7 @@ interface SidebarProps {
     sourceItems: FilterItem[];
   };
   selectedFilters: Record<string, string | number>;
-  setSelectedFilters: React.Dispatch<React.SetStateAction<Record<string, string | number>>>;
+  setSelectedFilters: ReactStateSetter<TSelectFilter>;
 }
 
 interface FilterGroupProps {

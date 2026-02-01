@@ -304,12 +304,14 @@ type FavIconResult = {
   }[];
 };
 
+type TFaviconStack = { chunkResults: FavIconResult[]; pendingCount: number };
+
 // 处理favicon加载，以批次方式处理
 export const loadScriptFavicons = async function* (scripts: Script[]) {
-  const stack: any[] = [];
+  const stack: TFaviconStack[] = [];
   const asyncWaiter: { promise?: any; resolve?: any } = {};
   const createPromise = () => {
-    asyncWaiter.promise = new Promise<{ chunkResults: FavIconResult[]; pendingCount: number }>((resolve) => {
+    asyncWaiter.promise = new Promise<TFaviconStack>((resolve) => {
       asyncWaiter.resolve = resolve;
     });
   };
@@ -329,7 +331,7 @@ export const loadScriptFavicons = async function* (scripts: Script[]) {
           const chunkResults: FavIconResult[] = results.slice(0);
           results.length = 0;
           pendingCount -= chunkResults.length;
-          stack.push({ chunkResults, pendingCount } as { chunkResults: FavIconResult[]; pendingCount: number });
+          stack.push({ chunkResults, pendingCount });
           asyncWaiter.resolve();
         });
         waiting = true;
@@ -339,7 +341,7 @@ export const loadScriptFavicons = async function* (scripts: Script[]) {
   while (true) {
     await asyncWaiter.promise;
     while (stack.length) {
-      yield stack.shift();
+      yield stack.shift()!;
     }
     if (pendingCount <= 0) break;
     createPromise();

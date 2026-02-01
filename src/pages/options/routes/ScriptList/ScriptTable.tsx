@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   Avatar,
   Button,
@@ -62,13 +62,13 @@ import { SearchFilter } from "./SearchFilter";
 
 type ListType = ScriptLoading;
 
-type RowCtx = ReturnType<typeof useSortable> | null;
-const SortableRowCtx = createContext<RowCtx>(null);
+type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
+const SortableDragCtx = createContext<DragCtx>(null);
 
 // Create context for DraggableContainer
 interface DraggableContextType {
   sensors: ReturnType<typeof useSensors>;
-  scriptList: ScriptLoading[];
+  sortableIdsString: string;
   scriptListSortOrder: (params: { active: string; over: string }) => void;
 }
 const DraggableContext = createContext<DraggableContextType | null>(null);
@@ -76,21 +76,33 @@ const DraggableContext = createContext<DraggableContextType | null>(null);
 const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   (props, ref) => {
     const context = useContext(DraggableContext);
-    const { sensors, scriptList, scriptListSortOrder } = context || {};
-    // compute once, even if context is null (keeps hook order legal)
-    const sortableIds = useMemo(() => scriptList?.map((s) => ({ id: s.uuid })), [scriptList]);
+    const { sensors, sortableIdsString, scriptListSortOrder } = context || {};
 
-    const { handleDragEnd } = {
-      handleDragEnd: (event: DragEndEvent) => {
+    // compute once, even if context is null (keeps hook order legal)
+
+    // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
+    // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
+    const sortableIds = useMemo(() => sortableIdsString?.split(",").filter(Boolean), [sortableIdsString]);
+
+    const handleDragEnd = useCallback(
+      (event: DragEndEvent) => {
         const { active, over } = event;
-        if (!over) {
-          return;
-        }
-        if (active.id !== over.id) {
-          scriptListSortOrder!({ active: active.id as string, over: over.id as string });
+        if (over && active.id !== over.id) {
+          scriptListSortOrder!({
+            active: `${active.id}`,
+            over: `${over.id}`,
+          });
         }
       },
-    };
+      [scriptListSortOrder]
+    );
+
+    const a11y = useMemo(
+      () => ({
+        container: document.body,
+      }),
+      []
+    );
 
     return !sortableIds?.length ? (
       // render a plain tbody to keep the table structure intact
@@ -98,10 +110,10 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
     ) : (
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToVerticalAxis]}
-        accessibility={{ container: document.body }}
         onDragEnd={handleDragEnd}
+        collisionDetection={closestCenter}
+        accessibility={a11y}
+        modifiers={[restrictToVerticalAxis]}
       >
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           <tbody ref={ref} {...props} />
@@ -125,49 +137,49 @@ function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
   };
 }
 
-const DraggableRow = React.memo(
-  React.forwardRef<HTMLTableRowElement, { record: any; index: any } & React.HTMLAttributes<HTMLTableRowElement>>(
-    ({ record, index: _index, ...rest }, ref) => {
-      const sortable = useSortable({ id: record.uuid });
-      const { setNodeRef, transform, transition } = sortable;
+const DraggableRow = React.forwardRef<
+  HTMLTableRowElement,
+  { record: any; index: any } & React.HTMLAttributes<HTMLTableRowElement>
+>(({ record, index: _index, ...rest }, ref) => {
+  const sortable = useSortable({ id: record.uuid });
+  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef } = sortable;
 
-      const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-      };
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
-      return (
-        <SortableRowCtx.Provider value={sortable}>
-          <tr ref={composeRefs(setNodeRef, ref)} style={style} {...rest} />
-        </SortableRowCtx.Provider>
-      );
-    }
-  )
-);
+  const mergedRef = React.useMemo(() => composeRefs<HTMLTableRowElement>(setNodeRef, ref), [setNodeRef, ref]);
+
+  const ctxValue = useMemo(
+    () => ({
+      listeners: listeners,
+      setActivatorNodeRef: setActivatorNodeRef,
+    }),
+    [listeners, setActivatorNodeRef]
+  );
+
+  return (
+    <SortableDragCtx.Provider value={ctxValue}>
+      <tr ref={mergedRef} style={style} {...rest} />
+    </SortableDragCtx.Provider>
+  );
+});
 DraggableRow.displayName = "DraggableRow";
 
 const DragHandle = () => {
-  const sortable = useContext(SortableRowCtx);
+  const sortable = useContext(SortableDragCtx);
 
-  if (!sortable)
-    return (
-      <IconDragDotVertical
-        style={{
-          cursor: "move",
-        }}
-      />
-    );
+  const { listeners, setActivatorNodeRef } = sortable || {};
 
-  const { listeners, setActivatorNodeRef } = sortable;
-
-  return (
-    <IconDragDotVertical
-      {...listeners}
-      ref={setActivatorNodeRef}
-      style={{
-        cursor: "move",
-      }}
-    />
+  return !setActivatorNodeRef ? (
+    <span style={{ cursor: "move", display: "inline-flex" }}>
+      <IconDragDotVertical />
+    </span>
+  ) : (
+    <span ref={setActivatorNodeRef} {...listeners} style={{ cursor: "move", display: "inline-flex" }}>
+      <IconDragDotVertical />
+    </span>
   );
 };
 
@@ -342,6 +354,7 @@ SortRender.displayName = "SortRender";
 const EnableSwitchCell = React.memo(
   ({ item, updateScripts }: { item: ScriptLoading; updateScripts: any }) => {
     const { uuid } = item;
+    // console.log("Rendered - " + item.name); // 用于检查垃圾React有否过度更新
     return (
       <EnableSwitch
         status={item.status}
@@ -412,7 +425,7 @@ interface ScriptTableProps {
   scriptList: ScriptLoading[];
   scriptListSortOrder: (params: { active: string; over: string }) => void;
   sidebarOpen: boolean;
-  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setSidebarOpen: ReactStateSetter<boolean>;
   setViewMode: (mode: "card" | "table") => void;
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
@@ -425,575 +438,588 @@ interface ScriptTableProps {
   handleRunStop: (item: ScriptLoading) => Promise<void>;
 }
 
-export const ScriptTable = ({
-  loadingList,
-  scriptList,
-  scriptListSortOrder,
-  sidebarOpen,
-  setSidebarOpen,
-  setViewMode,
-  updateScripts,
-  setUserConfig,
-  setCloudScript,
-  handleDelete,
-  handleConfig,
-  handleRunStop,
-}: ScriptTableProps) => {
-  const { t } = useTranslation();
-  const [showAction, setShowAction] = useState(false);
-  const [action, setAction] = useState("");
-  const [select, setSelect] = useState<Script[]>([]);
-  const [selectColumn, setSelectColumn] = useState(0);
-  const navigate = useNavigate();
-  const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
+export const ScriptTable = React.memo(
+  ({
+    loadingList,
+    scriptList,
+    scriptListSortOrder,
+    sidebarOpen,
+    setSidebarOpen,
+    setViewMode,
+    updateScripts,
+    setUserConfig,
+    setCloudScript,
+    handleDelete,
+    handleConfig,
+    handleRunStop,
+  }: ScriptTableProps) => {
+    const { t } = useTranslation();
+    const [showAction, setShowAction] = useState(false);
+    const [action, setAction] = useState("");
+    const [select, setSelect] = useState<Script[]>([]);
+    const [selectColumn, setSelectColumn] = useState(0);
+    const navigate = useNavigate();
+    const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
-  const columns: ColumnProps[] = useMemo(
-    () =>
-      [
-        {
-          title: "#",
-          dataIndex: "sort",
-          width: 60,
-          key: "#",
-          sorter: (a, b) => a.sort - b.sort,
-          render: (col: number) => <SortRender col={col} />,
-        },
-        {
-          key: "title",
-          title: t("enable"),
-          width: t("script_list_enable_width"),
-          dataIndex: "status",
-          className: "script-enable",
-          sorter(a, b) {
-            return a.status - b.status;
+    const columns: ColumnProps[] = useMemo(
+      () =>
+        [
+          {
+            title: "#",
+            dataIndex: "sort",
+            width: 60,
+            key: "#",
+            sorter: (a, b) => a.sort - b.sort,
+            render: (col: number) => <SortRender col={col} />,
           },
-          filters: [
+          {
+            key: "title",
+            title: t("enable"),
+            width: t("script_list_enable_width"),
+            dataIndex: "status",
+            className: "script-enable",
+            sorter(a, b) {
+              return a.status - b.status;
+            },
+            filters: [
+              {
+                text: t("enable"),
+                value: SCRIPT_STATUS_ENABLE,
+              },
+              {
+                text: t("disable"),
+                value: SCRIPT_STATUS_DISABLE,
+              },
+            ],
+            onFilter: (value, row) => row.status === value,
+            render: (col: any, item: ScriptLoading) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
+          },
+          {
+            key: "name",
+            title: t("name"),
+            dataIndex: "name",
+            sorter: (a, b) => a.name.localeCompare(b.name),
+            filterIcon: <IconSearch />,
+            filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+              return (
+                <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
+                  <ScriptSearchField
+                    t={t}
+                    autoFocus
+                    defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
+                    onChange={(req) => {
+                      SearchFilter.requestFilterResult(req).then(() => {
+                        setFilterKeys([{ type: req.type, keyword: req.keyword }]);
+                      });
+                    }}
+                    onSearch={(req) => {
+                      if (req.bySelect) return;
+                      confirm();
+                    }}
+                  />
+                </div>
+              );
+            },
+            onFilter: (value, row) => {
+              if (!value || !value.keyword) {
+                return true;
+              }
+              return SearchFilter.checkByUUID(row.uuid);
+            },
+            className: "tw-max-w-[240px] tw-min-w-[100px]",
+            render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
+          },
+          {
+            title: t("version"),
+            dataIndex: "version",
+            key: "version",
+            width: 120,
+            align: "center",
+            render: (col: any, item: ListType) => <VersionCell item={item} />,
+          },
+          {
+            key: "apply_to_run_status",
+            title: t("apply_to_run_status"),
+            width: t("script_list_apply_to_run_status_width"),
+            className: "apply_to_run_status",
+            render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
+          },
+          {
+            title: t("source"),
+            dataIndex: "origin",
+            key: "origin",
+            width: 100,
+            className: "source_cell",
+            render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
+          },
+          {
+            title: t("home"),
+            dataIndex: "home",
+            align: "center",
+            key: "home",
+            width: 100,
+            render: (col: any, item: ListType) => <HomeCell item={item} />,
+          },
+          {
+            title: t("last_updated"),
+            dataIndex: "updatetime",
+            align: "center",
+            key: "updatetime",
+            className: "script-updatetime",
+            width: t("script_list_last_updated_width"),
+            sorter: (a, b) => a.updatetime - b.updatetime,
+            render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
+          },
+          {
+            title: (
+              <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
+                <span>{t("action")}</span>
+                <Space size={4}>
+                  <Tooltip content={sidebarOpen ? t("open_sidebar") : t("close_sidebar")}>
+                    <Button
+                      icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                      iconOnly
+                      type="text"
+                      size="small"
+                      style={{
+                        color: "var(--color-text-2)",
+                      }}
+                      onClick={() => {
+                        setSidebarOpen((sidebarOpen) => {
+                          const newState = !sidebarOpen;
+                          localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
+                          return newState;
+                        });
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip content={t("switch_to_card_mode")}>
+                    <Button
+                      icon={<FaThLarge />}
+                      iconOnly
+                      type="text"
+                      size="small"
+                      style={{
+                        color: "var(--color-text-2)",
+                      }}
+                      onClick={() => {
+                        localStorage.setItem("script-list-view-mode", "card");
+                        setViewMode("card");
+                      }}
+                    />
+                  </Tooltip>
+                </Space>
+              </div>
+            ),
+            dataIndex: "action",
+            key: "action",
+            className: "script-action",
+            width: 160,
+            render: (col: any, item: ScriptLoading) => (
+              <ActionCell
+                item={item}
+                setUserConfig={setUserConfig}
+                setCloudScript={setCloudScript}
+                t={t}
+                handleDelete={handleDelete}
+                handleConfig={handleConfig}
+                handleRunStop={handleRunStop}
+              />
+            ),
+          },
+        ] as ColumnProps[],
+      [
+        t,
+        sidebarOpen,
+        updateScripts,
+        navigate,
+        setSidebarOpen,
+        setViewMode,
+        setUserConfig,
+        setCloudScript,
+        handleDelete,
+        handleConfig,
+        handleRunStop,
+      ]
+    );
+
+    const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
+
+    const dealColumns = useMemo(() => {
+      const filtered = newColumns.filter((item) => item.width !== -1);
+      return filtered.length === 0 ? columns : filtered;
+    }, [newColumns, columns]);
+
+    useEffect(() => {
+      if (savedWidths === null) return;
+
+      // 主要只需要处理列宽变化的情况
+      setNewColumns(
+        columns.map((item, i) => {
+          if (savedWidths[item.key!] === undefined) {
+            return columns[i];
+          }
+          return {
+            ...columns[i],
+            width: savedWidths[item.key!] ?? item.width,
+          };
+        })
+      );
+    }, [savedWidths, columns]);
+
+    useEffect(() => {
+      systemConfig.getScriptListColumnWidth().then((columnWidth) => {
+        setSavedWidths({ ...columnWidth });
+      });
+    }, []);
+
+    const components: ComponentsProps = useMemo(
+      () => ({
+        header: {
+          operations: ({ selectionNode, expandNode }) => [
             {
-              text: t("enable"),
-              value: SCRIPT_STATUS_ENABLE,
+              node: <th className="script-sort" style={{ borderRadius: 0 }} />,
+              width: 34,
             },
             {
-              text: t("disable"),
-              value: SCRIPT_STATUS_DISABLE,
+              name: "expandNode",
+              node: expandNode,
+            },
+            {
+              name: "selectionNode",
+              node: selectionNode,
             },
           ],
-          onFilter: (value, row) => row.status === value,
-          render: (col: any, item: ScriptLoading) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
         },
-        {
-          key: "name",
-          title: t("name"),
-          dataIndex: "name",
-          sorter: (a, b) => a.name.localeCompare(b.name),
-          filterIcon: <IconSearch />,
-          filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
-            return (
-              <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
-                <ScriptSearchField
-                  t={t}
-                  autoFocus
-                  defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
-                  onChange={(req) => {
-                    SearchFilter.requestFilterResult(req).then(() => {
-                      setFilterKeys([{ type: req.type, keyword: req.keyword }]);
-                    });
-                  }}
-                  onSearch={(req) => {
-                    if (req.bySelect) return;
-                    confirm();
-                  }}
-                />
-              </div>
-            );
-          },
-          onFilter: (value, row) => {
-            if (!value || !value.keyword) {
-              return true;
-            }
-            return SearchFilter.checkByUUID(row.uuid);
-          },
-          className: "tw-max-w-[240px] tw-min-w-[100px]",
-          render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
+        body: {
+          operations: ({ selectionNode, expandNode }) => [
+            {
+              node: (
+                <td>
+                  <div className="arco-table-cell">
+                    <DragHandle />
+                  </div>
+                </td>
+              ),
+              width: 34,
+            },
+            {
+              name: "expandNode",
+              node: expandNode,
+            },
+            {
+              name: "selectionNode",
+              node: selectionNode,
+            },
+          ],
+          tbody: DraggableContainer,
+          row: DraggableRow,
         },
-        {
-          title: t("version"),
-          dataIndex: "version",
-          key: "version",
-          width: 120,
-          align: "center",
-          render: (col: any, item: ListType) => <VersionCell item={item} />,
-        },
-        {
-          key: "apply_to_run_status",
-          title: t("apply_to_run_status"),
-          width: t("script_list_apply_to_run_status_width"),
-          className: "apply_to_run_status",
-          render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
-        },
-        {
-          title: t("source"),
-          dataIndex: "origin",
-          key: "origin",
-          width: 100,
-          className: "source_cell",
-          render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
-        },
-        {
-          title: t("home"),
-          dataIndex: "home",
-          align: "center",
-          key: "home",
-          width: 100,
-          render: (col: any, item: ListType) => <HomeCell item={item} />,
-        },
-        {
-          title: t("last_updated"),
-          dataIndex: "updatetime",
-          align: "center",
-          key: "updatetime",
-          className: "script-updatetime",
-          width: t("script_list_last_updated_width"),
-          sorter: (a, b) => a.updatetime - b.updatetime,
-          render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
-        },
-        {
-          title: (
-            <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
-              <span>{t("action")}</span>
-              <Space size={4}>
-                <Tooltip content={sidebarOpen ? t("open_sidebar") : t("close_sidebar")}>
-                  <Button
-                    icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
-                    iconOnly
-                    type="text"
-                    size="small"
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                    onClick={() => {
-                      setSidebarOpen((sidebarOpen) => {
-                        const newState = !sidebarOpen;
-                        localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
-                        return newState;
-                      });
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip content={t("switch_to_card_mode")}>
-                  <Button
-                    icon={<FaThLarge />}
-                    iconOnly
-                    type="text"
-                    size="small"
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                    onClick={() => {
-                      localStorage.setItem("script-list-view-mode", "card");
-                      setViewMode("card");
-                    }}
-                  />
-                </Tooltip>
-              </Space>
-            </div>
-          ),
-          dataIndex: "action",
-          key: "action",
-          className: "script-action",
-          width: 160,
-          render: (col: any, item: ScriptLoading) => (
-            <ActionCell
-              item={item}
-              setUserConfig={setUserConfig}
-              setCloudScript={setCloudScript}
-              t={t}
-              handleDelete={handleDelete}
-              handleConfig={handleConfig}
-              handleRunStop={handleRunStop}
-            />
-          ),
-        },
-      ] as ColumnProps[],
-    [
-      t,
-      sidebarOpen,
-      updateScripts,
-      navigate,
-      setSidebarOpen,
-      setViewMode,
-      setUserConfig,
-      setCloudScript,
-      handleDelete,
-      handleConfig,
-      handleRunStop,
-    ]
-  );
+      }),
+      []
+    );
 
-  const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
+    const setWidth = (selectColumn: number, width: any) => {
+      setNewColumns((cols) =>
+        cols.map((col, i) => (i === selectColumn && col.width !== width ? { ...col, width } : col))
+      );
+    };
 
-  const dealColumns = useMemo(() => {
-    const filtered = newColumns.filter((item) => item.width !== -1);
-    return filtered.length === 0 ? columns : filtered;
-  }, [newColumns, columns]);
-
-  useEffect(() => {
-    if (savedWidths === null) return;
-
-    // 主要只需要处理列宽变化的情况
-    setNewColumns(
-      columns.map((item, i) => {
-        if (savedWidths[item.key!] === undefined) {
-          return columns[i];
-        }
-        return {
-          ...columns[i],
-          width: savedWidths[item.key!] ?? item.width,
-        };
+    // 处理拖拽排序
+    const sensors = useSensors(
+      useSensor(PointerSensor),
+      useSensor(KeyboardSensor, {
+        coordinateGetter: sortableKeyboardCoordinates,
       })
     );
-  }, [savedWidths, columns]);
 
-  useEffect(() => {
-    systemConfig.getScriptListColumnWidth().then((columnWidth) => {
-      setSavedWidths({ ...columnWidth });
-    });
-  }, []);
+    const sortableIdsString = useMemo(() => scriptList?.map((s) => s.uuid).join(",") || "", [scriptList]);
 
-  const components: ComponentsProps = useMemo(
-    () => ({
-      header: {
-        operations: ({ selectionNode, expandNode }) => [
-          {
-            node: <th className="script-sort" style={{ borderRadius: 0 }} />,
-            width: 34,
-          },
-          {
-            name: "expandNode",
-            node: expandNode,
-          },
-          {
-            name: "selectionNode",
-            node: selectionNode,
-          },
-        ],
-      },
-      body: {
-        operations: ({ selectionNode, expandNode }) => [
-          {
-            node: (
-              <td>
-                <div className="arco-table-cell">
-                  <DragHandle />
-                </div>
-              </td>
-            ),
-            width: 34,
-          },
-          {
-            name: "expandNode",
-            node: expandNode,
-          },
-          {
-            name: "selectionNode",
-            node: selectionNode,
-          },
-        ],
-        tbody: DraggableContainer,
-        row: DraggableRow,
-      },
-    }),
-    []
-  );
-
-  const setWidth = (selectColumn: number, width: any) => {
-    setNewColumns((cols) =>
-      cols.map((col, i) => (i === selectColumn && col.width !== width ? { ...col, width } : col))
+    // Provide context for DraggableContainer
+    const draggableContextValue = useMemo(
+      () => ({
+        sensors,
+        sortableIdsString,
+        scriptListSortOrder,
+      }),
+      [sensors, sortableIdsString, scriptListSortOrder]
     );
-  };
 
-  // 处理拖拽排序
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-  // Provide context for DraggableContainer
-  const draggableContextValue = useMemo(
-    () => ({
-      sensors,
-      scriptList,
-      scriptListSortOrder,
-    }),
-    [sensors, scriptList, scriptListSortOrder]
-  );
-
-  return (
-    <DraggableContext.Provider value={draggableContextValue}>
-      {showAction && (
-        <Card>
-          <div
-            className="tw-flex tw-flex-row tw-justify-between tw-items-center"
-            style={{
-              padding: "8px 6px",
-            }}
-          >
-            <Space direction="horizontal">
-              <Typography.Text>{t("batch_operations") + ":"}</Typography.Text>
-              <Select
-                style={{ minWidth: "100px" }}
-                triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
-                size="mini"
-                value={action}
-                onChange={(value) => {
-                  setAction(value);
-                }}
-              >
-                <Select.Option key={"enable"} value="enable">
-                  {t("enable")}
-                </Select.Option>
-                <Select.Option key={"disable"} value="disable">
-                  {t("disable")}
-                </Select.Option>
-                <Select.Option key={"export"} value="export">
-                  {t("export")}
-                </Select.Option>
-                <Select.Option key={"delete"} value="delete">
-                  {t("delete")}
-                </Select.Option>
-                <Select.Option key={"pin_to_top"} value="pin_to_top">
-                  {t("pin_to_top")}
-                </Select.Option>
-                <Select.Option key={"check_update"} value="check_update">
-                  {t("check_update")}
-                </Select.Option>
-              </Select>
-              <Button
-                type="primary"
-                size="mini"
-                onClick={() => {
-                  const enableAction = (enable: boolean) => {
-                    const uuids = select.map((item) => item.uuid);
-                    updateScripts(uuids, { enableLoading: true });
-                    scriptClient.enables(uuids, enable);
-                  };
-                  switch (action) {
-                    case "enable":
-                      enableAction(true);
-                      break;
-                    case "disable":
-                      enableAction(false);
-                      break;
-                    case "export": {
-                      const sortedSelect = [...select].sort((a, b) => a.sort - b.sort);
-                      const uuids = sortedSelect.map((item) => item.uuid);
-                      Message.loading({
-                        id: "export",
-                        content: t("exporting"),
-                      });
-                      synchronizeClient.export(uuids).then(() => {
-                        Message.success({
-                          id: "export",
-                          content: t("export_success"),
-                          duration: 3000,
-                        });
-                      });
-                      break;
-                    }
-                    case "delete":
-                      if (confirm(t("list.confirm_delete"))) {
-                        const uuids = select.map((item) => item.uuid);
-                        scriptClient.deletes(uuids); // async
-                      }
-                      break;
-                    case "pin_to_top": {
-                      // 将选中的脚本置顶
-                      const sortedSelect = [...select].sort((a, b) => a.sort - b.sort);
-                      const uuids = sortedSelect.map((item) => item.uuid);
-                      pinToTop(uuids).then(() => {
-                        Message.success({
-                          content: t("scripts_pinned_to_top"),
-                          duration: 3000,
-                        });
-                      });
-                      break;
-                    }
-                    // 批量检查更新
-                    case "check_update":
-                      if (confirm(t("list.confirm_update")!)) {
-                        select.forEach((item, index, array) => {
-                          if (!item.checkUpdateUrl) {
-                            return;
-                          }
-                          Message.warning({
-                            id: "checkupdateStart",
-                            content: t("starting_updates"),
-                          });
-                          scriptClient
-                            .requestCheckUpdate(item.uuid)
-                            .then((res) => {
-                              if (res) {
-                                // 需要更新
-                                Message.warning({
-                                  id: "checkupdate",
-                                  content: `${i18nName(item)} ${t("new_version_available")}`,
-                                });
-                              }
-                              if (index === array.length - 1) {
-                                // 当前元素是最后一个
-                                Message.success({
-                                  id: "checkupdateEnd",
-                                  content: t("checked_for_all_selected"),
-                                });
-                              }
-                            })
-                            .catch((e) => {
-                              Message.error({
-                                id: "checkupdate",
-                                content: `${t("update_check_failed")}: ${e.message}`,
-                              });
-                            });
-                        });
-                      }
-                      break;
-                    default:
-                      Message.error(t("unknown_operation")!);
-                      break;
-                  }
-                }}
-              >
-                {t("confirm")}
-              </Button>
-              <Divider type="horizontal" />
-              <Typography.Text>{t("resize_column_width") + ":"}</Typography.Text>
-              <Select
-                style={{ minWidth: "80px" }}
-                triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
-                size="mini"
-                value={selectColumn === 8 ? t("action") : newColumns[selectColumn].title?.toString()}
-                onChange={(val) => {
-                  const index = parseInt(val as string, 10);
-                  setSelectColumn(index);
-                }}
-              >
-                {newColumns.map((column, index) => (
-                  <Select.Option key={index} value={index}>
-                    {index === 8 ? t("action") : column.title}
-                  </Select.Option>
-                ))}
-              </Select>
-              <Dropdown
-                droplist={
-                  <Menu>
-                    <Menu.Item
-                      key="auto"
-                      onClick={() => {
-                        setWidth(selectColumn, 0);
-                      }}
-                    >
-                      {t("auto")}
-                    </Menu.Item>
-                    <Menu.Item
-                      key="hide"
-                      onClick={() => {
-                        setWidth(selectColumn, -1);
-                      }}
-                    >
-                      {t("hide")}
-                    </Menu.Item>
-                    <Menu.Item
-                      key="custom"
-                      onClick={() => {
-                        const width =
-                          (newColumns[selectColumn].width as number) > 0
-                            ? newColumns[selectColumn].width
-                            : columns[selectColumn].width;
-                        setWidth(selectColumn, width);
-                      }}
-                    >
-                      {t("custom")}
-                    </Menu.Item>
-                  </Menu>
-                }
-                position="bl"
-              >
-                <Input
-                  type={newColumns[selectColumn].width === 0 || newColumns[selectColumn].width === -1 ? "" : "number"}
-                  style={{ width: "80px" }}
-                  size="mini"
-                  value={
-                    newColumns[selectColumn].width === 0
-                      ? t("auto")
-                      : newColumns[selectColumn].width === -1
-                        ? t("hide")
-                        : newColumns[selectColumn].width?.toString()
-                  }
-                  step={5}
-                  onChange={(val) => {
-                    const width = parseInt(val, 10);
-                    setWidth(selectColumn, width);
-                  }}
-                />
-              </Dropdown>
-              <Button
-                type="primary"
-                size="mini"
-                onClick={() => {
-                  const newWidth: { [key: string]: number } = {};
-                  for (const column of newColumns) {
-                    newWidth[column.key! as string] = column.width as number;
-                  }
-                  systemConfig.setScriptListColumnWidth(newWidth);
-                }}
-              >
-                {t("save")}
-              </Button>
-              <Button
-                size="mini"
-                onClick={() => {
-                  setNewColumns((cols) => {
-                    return cols.map((col, index) => {
-                      col.width = columns[index].width;
-                      return col;
-                    });
-                  });
-                }}
-              >
-                {t("reset")}
-              </Button>
-            </Space>
-            <Button
-              type="primary"
-              size="mini"
-              onClick={() => {
-                setShowAction(false);
+    return (
+      <DraggableContext.Provider value={draggableContextValue}>
+        {showAction && (
+          <Card>
+            <div
+              className="tw-flex tw-flex-row tw-justify-between tw-items-center"
+              style={{
+                padding: "8px 6px",
               }}
             >
-              {t("close")}
-            </Button>
-          </div>
-        </Card>
-      )}
-      <Table
-        key="script-list-table"
-        className="script-list-table arco-drag-table-container"
-        components={components}
-        rowKey="uuid"
-        tableLayoutFixed
-        columns={dealColumns}
-        data={scriptList}
-        pagination={false}
-        loading={loadingList}
-        rowSelection={{
-          type: "checkbox",
-          onChange(_, selectedRows) {
-            setShowAction(true);
-            setSelect(selectedRows);
-          },
-        }}
-      />
-    </DraggableContext.Provider>
-  );
-};
+              <Space direction="horizontal">
+                <Typography.Text>{t("batch_operations") + ":"}</Typography.Text>
+                <Select
+                  style={{ minWidth: "100px" }}
+                  triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
+                  size="mini"
+                  value={action}
+                  onChange={(value) => {
+                    setAction(value);
+                  }}
+                >
+                  <Select.Option key={"enable"} value="enable">
+                    {t("enable")}
+                  </Select.Option>
+                  <Select.Option key={"disable"} value="disable">
+                    {t("disable")}
+                  </Select.Option>
+                  <Select.Option key={"export"} value="export">
+                    {t("export")}
+                  </Select.Option>
+                  <Select.Option key={"delete"} value="delete">
+                    {t("delete")}
+                  </Select.Option>
+                  <Select.Option key={"pin_to_top"} value="pin_to_top">
+                    {t("pin_to_top")}
+                  </Select.Option>
+                  <Select.Option key={"check_update"} value="check_update">
+                    {t("check_update")}
+                  </Select.Option>
+                </Select>
+                <Button
+                  type="primary"
+                  size="mini"
+                  onClick={() => {
+                    const enableAction = (enable: boolean) => {
+                      const uuids = select.map((item) => item.uuid);
+                      updateScripts(uuids, { enableLoading: true });
+                      scriptClient.enables(uuids, enable);
+                    };
+                    switch (action) {
+                      case "enable":
+                        enableAction(true);
+                        break;
+                      case "disable":
+                        enableAction(false);
+                        break;
+                      case "export": {
+                        const sortedSelect = [...select].sort((a, b) => a.sort - b.sort);
+                        const uuids = sortedSelect.map((item) => item.uuid);
+                        Message.loading({
+                          id: "export",
+                          content: t("exporting"),
+                        });
+                        synchronizeClient.export(uuids).then(() => {
+                          Message.success({
+                            id: "export",
+                            content: t("export_success"),
+                            duration: 3000,
+                          });
+                        });
+                        break;
+                      }
+                      case "delete":
+                        if (confirm(t("list.confirm_delete"))) {
+                          const uuids = select.map((item) => item.uuid);
+                          scriptClient.deletes(uuids); // async
+                        }
+                        break;
+                      case "pin_to_top": {
+                        // 将选中的脚本置顶
+                        const sortedSelect = [...select].sort((a, b) => a.sort - b.sort);
+                        const uuids = sortedSelect.map((item) => item.uuid);
+                        pinToTop(uuids).then(() => {
+                          Message.success({
+                            content: t("scripts_pinned_to_top"),
+                            duration: 3000,
+                          });
+                        });
+                        break;
+                      }
+                      // 批量检查更新
+                      case "check_update":
+                        if (confirm(t("list.confirm_update")!)) {
+                          select.forEach((item, index, array) => {
+                            if (!item.checkUpdateUrl) {
+                              return;
+                            }
+                            Message.warning({
+                              id: "checkupdateStart",
+                              content: t("starting_updates"),
+                            });
+                            scriptClient
+                              .requestCheckUpdate(item.uuid)
+                              .then((res) => {
+                                if (res) {
+                                  // 需要更新
+                                  Message.warning({
+                                    id: "checkupdate",
+                                    content: `${i18nName(item)} ${t("new_version_available")}`,
+                                  });
+                                }
+                                if (index === array.length - 1) {
+                                  // 当前元素是最后一个
+                                  Message.success({
+                                    id: "checkupdateEnd",
+                                    content: t("checked_for_all_selected"),
+                                  });
+                                }
+                              })
+                              .catch((e) => {
+                                Message.error({
+                                  id: "checkupdate",
+                                  content: `${t("update_check_failed")}: ${e.message}`,
+                                });
+                              });
+                          });
+                        }
+                        break;
+                      default:
+                        Message.error(t("unknown_operation")!);
+                        break;
+                    }
+                  }}
+                >
+                  {t("confirm")}
+                </Button>
+                <Divider type="horizontal" />
+                <Typography.Text>{t("resize_column_width") + ":"}</Typography.Text>
+                <Select
+                  style={{ minWidth: "80px" }}
+                  triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
+                  size="mini"
+                  value={selectColumn === 8 ? t("action") : newColumns[selectColumn].title?.toString()}
+                  onChange={(val) => {
+                    const index = parseInt(val as string, 10);
+                    setSelectColumn(index);
+                  }}
+                >
+                  {newColumns.map((column, index) => (
+                    <Select.Option key={index} value={index}>
+                      {index === 8 ? t("action") : column.title}
+                    </Select.Option>
+                  ))}
+                </Select>
+                <Dropdown
+                  droplist={
+                    <Menu>
+                      <Menu.Item
+                        key="auto"
+                        onClick={() => {
+                          setWidth(selectColumn, 0);
+                        }}
+                      >
+                        {t("auto")}
+                      </Menu.Item>
+                      <Menu.Item
+                        key="hide"
+                        onClick={() => {
+                          setWidth(selectColumn, -1);
+                        }}
+                      >
+                        {t("hide")}
+                      </Menu.Item>
+                      <Menu.Item
+                        key="custom"
+                        onClick={() => {
+                          const width =
+                            (newColumns[selectColumn].width as number) > 0
+                              ? newColumns[selectColumn].width
+                              : columns[selectColumn].width;
+                          setWidth(selectColumn, width);
+                        }}
+                      >
+                        {t("custom")}
+                      </Menu.Item>
+                    </Menu>
+                  }
+                  position="bl"
+                >
+                  <Input
+                    type={newColumns[selectColumn].width === 0 || newColumns[selectColumn].width === -1 ? "" : "number"}
+                    style={{ width: "80px" }}
+                    size="mini"
+                    value={
+                      newColumns[selectColumn].width === 0
+                        ? t("auto")
+                        : newColumns[selectColumn].width === -1
+                          ? t("hide")
+                          : newColumns[selectColumn].width?.toString()
+                    }
+                    step={5}
+                    onChange={(val) => {
+                      const width = parseInt(val, 10);
+                      setWidth(selectColumn, width);
+                    }}
+                  />
+                </Dropdown>
+                <Button
+                  type="primary"
+                  size="mini"
+                  onClick={() => {
+                    const newWidth: { [key: string]: number } = {};
+                    for (const column of newColumns) {
+                      newWidth[column.key! as string] = column.width as number;
+                    }
+                    systemConfig.setScriptListColumnWidth(newWidth);
+                  }}
+                >
+                  {t("save")}
+                </Button>
+                <Button
+                  size="mini"
+                  onClick={() => {
+                    setNewColumns((cols) => {
+                      return cols.map((col, index) => {
+                        col.width = columns[index].width;
+                        return col;
+                      });
+                    });
+                  }}
+                >
+                  {t("reset")}
+                </Button>
+              </Space>
+              <Button
+                type="primary"
+                size="mini"
+                onClick={() => {
+                  setShowAction(false);
+                }}
+              >
+                {t("close")}
+              </Button>
+            </div>
+          </Card>
+        )}
+        <Table
+          key="script-list-table"
+          className="script-list-table arco-drag-table-container"
+          components={components}
+          rowKey="uuid"
+          tableLayoutFixed
+          columns={dealColumns}
+          data={scriptList}
+          pagination={false}
+          loading={loadingList}
+          rowSelection={{
+            type: "checkbox",
+            onChange(_, selectedRows) {
+              setShowAction(true);
+              setSelect(selectedRows);
+            },
+          }}
+        />
+      </DraggableContext.Provider>
+    );
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.loadingList === nextProps.loadingList &&
+      prevProps.scriptList === nextProps.scriptList &&
+      prevProps.sidebarOpen === nextProps.sidebarOpen
+    );
+  }
+);
+ScriptTable.displayName = "ScriptTable";
 
 export default ScriptTable;
