@@ -96,7 +96,7 @@ export const nextTimeDisplay = (crontab: string, date = new Date()): string => {
  * - oncePos ：once 在 6 位 cron 表达式中的实际位置（不存在则为 -1）
  * - cronExpr：用于标准 cron 解析的表达式
  */
-export const extraCronExpr = (
+export const extractCronExpr = (
   crontab: string
 ): {
   oncePos: number;
