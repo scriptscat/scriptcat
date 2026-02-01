@@ -19,7 +19,7 @@ import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { decodeRValue } from "@App/pkg/utils/message_value";
-import { extraCronExpr } from "@App/pkg/utils/cron";
+import { extractCronExpr } from "@App/pkg/utils/cron";
 import { changeLanguage, initLanguage, t } from "@App/locales/locales";
 
 const utime_1min = 60 * 1000;
@@ -195,7 +195,7 @@ export class Runtime {
     let flag = false;
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
-      const { cronExpr, oncePos } = extraCronExpr(val);
+      const { cronExpr, oncePos } = extractCronExpr(val);
       try {
         const cron = new CronJob(cronExpr, this.crontabExec(script, oncePos));
         cron.start();

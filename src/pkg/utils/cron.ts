@@ -143,7 +143,7 @@ export const extractCronExpr = (
  * - week  ：每周一次
  */
 export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult => {
-  const { cronExpr, oncePos } = extraCronExpr(crontab);
+  const { cronExpr, oncePos } = extractCronExpr(crontab);
 
   let cron: CronTime;
   try {
