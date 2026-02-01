@@ -208,7 +208,7 @@ const ListMenuItem = React.memo(
       });
     };
 
-    console.log("Rendered - " + item.name); // 用于检查垃圾React有否过度更新
+    // console.log("Rendered - " + item.name); // 用于检查垃圾React有否过度更新
 
     return (
       <Collapse
