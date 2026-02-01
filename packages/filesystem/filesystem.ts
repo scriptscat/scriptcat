@@ -1,4 +1,4 @@
-export interface File {
+export interface FileInfo {
   fsid?: number;
   // 文件名
   name: string;
@@ -32,7 +32,7 @@ export default interface FileSystem {
   // 授权验证
   verify(): Promise<void>;
   // 打开文件
-  open(file: File): Promise<FileReader>;
+  open(file: FileInfo): Promise<FileReader>;
   // 打开目录
   openDir(path: string): Promise<FileSystem>;
   // 创建文件
@@ -42,7 +42,7 @@ export default interface FileSystem {
   // 删除文件
   delete(path: string): Promise<void>;
   // 文件列表
-  list(): Promise<File[]>;
+  list(): Promise<FileInfo[]>;
   // getDirUrl 获取目录的url
   getDirUrl(): Promise<string>;
 }

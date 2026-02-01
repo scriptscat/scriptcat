@@ -4,7 +4,7 @@ import type { Resource } from "@App/app/repo/resource";
 import { type Script, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, type ScriptDAO } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
-import type { File } from "@Packages/filesystem/filesystem";
+import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
@@ -30,8 +30,8 @@ import i18n, { i18nName } from "@App/locales/locales";
 // type SynchronizeTarget = "local";
 
 type SyncFiles = {
-  script: File;
-  meta: File;
+  script: FileInfo;
+  meta: FileInfo;
 };
 
 type SyncMeta = {
@@ -329,13 +329,7 @@ export class SynchronizeService {
     // 获取文件列表
     const list = await fs.list();
     // 根据文件名生成一个map
-    const uuidMap = new Map<
-      string,
-      {
-        script?: File;
-        meta?: File;
-      }
-    >();
+    const uuidMap = new Map<string, Partial<SyncFiles>>();
     // 储存文件摘要,用于检测文件是否有变化
     const fileDigestMap =
       ((await this.storage.get("file_digest")) as {

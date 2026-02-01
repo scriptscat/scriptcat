@@ -1,5 +1,5 @@
 import { AuthVerify } from "../auth";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import type FileSystem from "../filesystem";
 import { joinPath } from "../utils";
 import { OneDriveFileReader, OneDriveFileWriter } from "./rw";
@@ -20,7 +20,7 @@ export default class OneDriveFileSystem implements FileSystem {
     return this.list().then();
   }
 
-  async open(file: File): Promise<FileReader> {
+  async open(file: FileInfo): Promise<FileReader> {
     return new OneDriveFileReader(this, file);
   }
 
@@ -118,7 +118,7 @@ export default class OneDriveFileSystem implements FileSystem {
     return resp;
   }
 
-  async list(): Promise<File[]> {
+  async list(): Promise<FileInfo[]> {
     let { path } = this;
     if (path === "/") {
       path = "";
@@ -126,7 +126,7 @@ export default class OneDriveFileSystem implements FileSystem {
       path = `:${path}:`;
     }
 
-    const list: File[] = [];
+    const list: FileInfo[] = [];
     let nextLink: string | undefined = `https://graph.microsoft.com/v1.0/me/drive/special/approot${path}/children`;
     let iterationCount = 0;
     const MAX_ITERATIONS = 100;
