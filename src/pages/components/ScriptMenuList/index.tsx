@@ -453,7 +453,7 @@ const ScriptMenuList = React.memo(
       return () => {
         isMounted = false;
       };
-    }, [cacheMetadata, script]);
+    }, [script, cacheMetadata, cacheMergedItem]);
 
     useEffect(() => {
       // 注册菜单快速键（accessKey）：以各分组第一个项目的 accessKey 作为触发条件。
