@@ -41,6 +41,32 @@ const scriptListSorter = (a: ScriptMenu, b: ScriptMenu) =>
   b.runNum - a.runNum ||
   b.updatetime - a.updatetime;
 
+type TUpdateEntryFn = (item: ScriptMenu) => ScriptMenu | undefined;
+
+type TUpdateListOption = { sort?: boolean };
+
+const updateList = (list: ScriptMenu[], update: TUpdateEntryFn, options: TUpdateListOption | undefined) => {
+  // 如果更新跟当前 list 的子项无关，则不用更改 list 的物件参考
+  const newList = [];
+  let changed = false;
+  for (let i = 0; i < list.length; i++) {
+    const oldItem = list[i];
+    const newItem = update(oldItem); // 如没有更改，物件参考会保持一致
+    if (newItem !== oldItem) changed = true;
+    if (newItem) {
+      newList.push(newItem);
+    }
+  }
+  if (options?.sort) {
+    newList.sort(scriptListSorter);
+  }
+  if (!changed && list.map((e) => e.uuid).join(",") !== newList.map((e) => e.uuid).join(",")) {
+    // 单一项未有改变，但因为 sort值改变 而改变了次序
+    changed = true;
+  }
+  return changed ? newList : list; // 如子项没任何变化，则返回原list参考
+};
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [scriptList, setScriptList] = useState<(ScriptMenu & { menuUpdated?: number })[]>([]);
@@ -109,46 +135,11 @@ function App() {
     return url?.hostname ?? "";
   }, [currentUrl]);
 
-  const updateList = (
-    list: ScriptMenu[],
-    update: (item: ScriptMenu) => ScriptMenu | undefined,
-    options:
-      | {
-          sort?: boolean;
-        }
-      | undefined
-  ) => {
-    // 如果更新跟当前 list 的子项无关，则不用更改 list 的物件参考
-    const newList = [];
-    let changed = false;
-    for (let i = 0; i < list.length; i++) {
-      const oldItem = list[i];
-      const newItem = update(oldItem); // 如没有更改，物件参考会保持一致
-      if (newItem !== oldItem) changed = true;
-      if (newItem) {
-        newList.push(newItem);
-      }
-    }
-    if (options?.sort) {
-      newList.sort(scriptListSorter);
-    }
-    if (!changed && list.map((e) => e.uuid).join(",") !== newList.map((e) => e.uuid).join(",")) {
-      // 单一项未有改变，但因为 sort值改变 而改变了次序
-      changed = true;
-    }
-    return changed ? newList : list; // 如子项没任何变化，则返回原list参考
-  };
-
   const { subscribeMessage } = useAppContext();
   useEffect(() => {
     let isMounted = true;
 
-    const updateScriptList = (
-      update: (item: ScriptMenu) => ScriptMenu | undefined,
-      options?: {
-        sort?: boolean;
-      }
-    ) => {
+    const updateScriptList = (update: TUpdateEntryFn, options?: TUpdateListOption) => {
       // 当 启用/禁用/菜单改变 时，如有必要则更新 list 参考
       setScriptList((prev) => updateList(prev, update, options));
       setBackScriptList((prev) => updateList(prev, update, options));
