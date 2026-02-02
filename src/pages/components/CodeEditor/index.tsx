@@ -1,7 +1,7 @@
 import { editor, Range } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { globalCache, systemConfig } from "@App/pages/store/global";
-import { LinterWorker } from "@App/pkg/utils/monaco-editor";
+import { LinterWorkerController, registerEditor } from "@App/pkg/utils/monaco-editor";
 import { fnPlaceHolder } from "@App/pages/store/AppContext";
 
 fnPlaceHolder.setEditorTheme = (theme: string) => editor.setTheme(theme);
@@ -14,296 +14,275 @@ type Props = {
   code?: string;
 };
 
-const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCodeEditor | undefined }, Props> = (
-  { id, className, code, diffCode, editable },
-  ref
-) => {
-  const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
-  const [enableEslint, setEnableEslint] = useState(false);
-  const [eslintConfig, setEslintConfig] = useState("");
+type TMarker = {
+  code: { value: any };
+  startLineNumber: any;
+  endLineNumber: any;
+  startColumn: any;
+  endColumn: any;
+  fix: any;
+} & Record<string, any>;
 
-  const div = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => ({
-    editor: monacoEditor,
-  }));
+type TFormattedMakrer = {
+  startLineNumber: number;
+  endLineNumber: number;
+  severity: number;
+} & Record<string, any>;
 
-  useEffect(() => {
-    const loadConfigs = () => {
-      Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(
-        ([eslintConfig, enableEslint]) => {
-          setEslintConfig(eslintConfig);
-          setEnableEslint(enableEslint);
-        }
-      );
-    };
-    loadConfigs();
-  }, []);
+const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | undefined }, Props>(
+  ({ id, className, code, diffCode, editable }, ref) => {
+    const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
+    const [enableEslint, setEnableEslint] = useState(false);
+    const [eslintConfig, setEslintConfig] = useState("");
 
-  useEffect(() => {
-    if (diffCode === undefined || code === undefined || !div.current) {
-      return () => {};
-    }
-    let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
-    const inlineDiv = document.getElementById(id) as HTMLDivElement;
-    const commonEditorOptions = {
-      folding: true,
-      foldingStrategy: "indentation",
-      automaticLayout: true,
-      scrollbar: { alwaysConsumeMouseWheel: false },
-      overviewRulerBorder: false,
-      scrollBeyondLastLine: false,
+    const divRef = useRef<HTMLDivElement>(null);
+    useImperativeHandle(ref, () => ({ editor: monacoEditor }));
 
-      glyphMargin: true,
-      unicodeHighlight: {
-        ambiguousCharacters: false,
-      },
+    // 註冊 monaco 全局環境（只需執行一次）
+    useEffect(() => {
+      registerEditor();
+    }, []);
 
-      // https://code.visualstudio.com/docs/editing/intellisense
+    // 載入 ESLint 設定
+    useEffect(() => {
+      Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(([config, enabled]) => {
+        setEslintConfig(config);
+        setEnableEslint(enabled);
+      });
+    }, []);
 
-      // Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.
-      acceptSuggestionOnCommitCharacter: true,
+    // 建立 monaco 編輯器實例
+    useEffect(() => {
+      if (diffCode === undefined || code === undefined || !divRef.current) return;
 
-      // Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change
-      acceptSuggestionOnEnter: "on",
+      const container = document.getElementById(id) as HTMLDivElement;
+      let edit: editor.IStandaloneCodeEditor | editor.IStandaloneDiffEditor;
 
-      // Controls the delay in ms after which quick suggestions will show up.
-      quickSuggestionsDelay: 10,
+      const commonEditorOptions = {
+        folding: true,
+        foldingStrategy: "indentation",
+        automaticLayout: true,
+        scrollbar: { alwaysConsumeMouseWheel: false },
+        overviewRulerBorder: false,
+        scrollBeyondLastLine: false,
 
-      // Controls if suggestions should automatically show up when typing trigger characters
-      suggestOnTriggerCharacters: true,
+        glyphMargin: true,
+        unicodeHighlight: {
+          ambiguousCharacters: false,
+        },
 
-      // Controls if pressing tab inserts the best suggestion and if tab cycles through other suggestions
-      tabCompletion: "off",
+        // https://code.visualstudio.com/docs/editing/intellisense
 
-      // Controls whether sorting favours words that appear close to the cursor
-      suggest: {
-        localityBonus: true,
-        preview: true,
-      },
+        // Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.
+        acceptSuggestionOnCommitCharacter: true,
 
-      // Controls how suggestions are pre-selected when showing the suggest list
-      suggestSelection: "first",
+        // Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change
+        acceptSuggestionOnEnter: "on",
 
-      // Enable word based suggestions
-      wordBasedSuggestions: "matchingDocuments",
+        // Controls the delay in ms after which quick suggestions will show up.
+        quickSuggestionsDelay: 10,
 
-      // Enable parameter hints
-      parameterHints: {
-        enabled: true,
-      },
+        // Controls if suggestions should automatically show up when typing trigger characters
+        suggestOnTriggerCharacters: true,
 
-      // https://qiita.com/H-goto16/items/43802950fc5c112c316b
-      // https://zenn.dev/udonj/articles/ultimate-vscode-customization-2024
-      // https://github.com/is0383kk/VSCode
+        // Controls if pressing tab inserts the best suggestion and if tab cycles through other suggestions
+        tabCompletion: "off",
 
-      quickSuggestions: {
-        other: "inline",
-        comments: true,
-        strings: true,
-      },
+        // Controls whether sorting favours words that appear close to the cursor
+        suggest: {
+          localityBonus: true,
+          preview: true,
+        },
 
-      fastScrollSensitivity: 10,
-      smoothScrolling: true,
-      inlineSuggest: {
-        enabled: true,
-      },
-      guides: {
-        indentation: true,
-      },
-      renderLineHighlightOnlyWhenFocus: true,
-      snippetSuggestions: "top",
+        // Controls how suggestions are pre-selected when showing the suggest list
+        suggestSelection: "first",
 
-      cursorBlinking: "phase",
-      cursorSmoothCaretAnimation: "off",
+        // Enable word based suggestions
+        wordBasedSuggestions: "matchingDocuments",
 
-      autoIndent: "advanced",
-      wrappingIndent: "indent",
-      wordSegmenterLocales: ["ja", "zh-CN", "zh-Hant-TW"] as string[],
-
-      renderLineHighlight: "gutter",
-      renderWhitespace: "selection",
-      renderControlCharacters: true,
-      dragAndDrop: false,
-      emptySelectionClipboard: false,
-      copyWithSyntaxHighlighting: false,
-      bracketPairColorization: {
-        enabled: true,
-      },
-      mouseWheelZoom: true,
-      links: true,
-      accessibilitySupport: "off",
-      largeFileOptimizations: true,
-      colorDecorators: true,
-    } as const;
-    if (diffCode) {
-      edit = editor.createDiffEditor(inlineDiv, {
-        hideUnchangedRegions: {
+        // Enable parameter hints
+        parameterHints: {
           enabled: true,
         },
-        enableSplitViewResizing: false,
-        renderSideBySide: false,
-        readOnly: true,
-        diffWordWrap: "off",
-        ...commonEditorOptions,
-      });
-      edit.setModel({
-        original: editor.createModel(diffCode, "javascript"),
-        modified: editor.createModel(code, "javascript"),
-      });
-    } else {
-      edit = editor.create(inlineDiv, {
-        language: "javascript",
-        theme: document.body.getAttribute("arco-theme") === "dark" ? "vs-dark" : "vs",
-        readOnly: !editable,
-        ...commonEditorOptions,
-      });
-      edit.setValue(code);
 
-      setEditor(edit);
-    }
-    return () => {
-      // 目前会出现：Uncaught (in promise) Canceled: Canceled
-      // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
-      edit?.dispose();
-    };
-  }, [div, code, diffCode, editable, id]);
+        // https://qiita.com/H-goto16/items/43802950fc5c112c316b
+        // https://zenn.dev/udonj/articles/ultimate-vscode-customization-2024
+        // https://github.com/is0383kk/VSCode
 
-  useEffect(() => {
-    if (!enableEslint) {
-      return () => {};
-    }
-    if (!monacoEditor) {
-      return () => {};
-    }
-    const model = monacoEditor.getModel();
-    if (!model) {
-      return () => {};
-    }
-    let timer: NodeJS.Timeout | null;
-    const lint = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        LinterWorker.sendLinterMessage({
-          code: model.getValue(),
-          id,
-          config: JSON.parse(eslintConfig),
+        quickSuggestions: {
+          other: "inline",
+          comments: true,
+          strings: true,
+        },
+
+        fastScrollSensitivity: 10,
+        smoothScrolling: true,
+        inlineSuggest: {
+          enabled: true,
+        },
+        guides: {
+          indentation: true,
+        },
+        renderLineHighlightOnlyWhenFocus: true,
+        snippetSuggestions: "top",
+
+        cursorBlinking: "phase",
+        cursorSmoothCaretAnimation: "off",
+
+        autoIndent: "advanced",
+        wrappingIndent: "indent",
+        wordSegmenterLocales: ["ja", "zh-CN", "zh-Hant-TW"] as string[],
+
+        renderLineHighlight: "gutter",
+        renderWhitespace: "selection",
+        renderControlCharacters: true,
+        dragAndDrop: false,
+        emptySelectionClipboard: false,
+        copyWithSyntaxHighlighting: false,
+        bracketPairColorization: {
+          enabled: true,
+        },
+        mouseWheelZoom: true,
+        links: true,
+        accessibilitySupport: "off",
+        largeFileOptimizations: true,
+        colorDecorators: true,
+      } as const;
+
+      if (diffCode) {
+        edit = editor.createDiffEditor(container, {
+          hideUnchangedRegions: { enabled: true },
+          enableSplitViewResizing: false,
+          renderSideBySide: false,
+          readOnly: true,
+          diffWordWrap: "off",
+          ...commonEditorOptions,
         });
-      }, 500);
-    };
-    // 加载完成就检测一次
-    lint();
-    model.onDidChangeContent(() => {
-      lint();
-    });
+        edit.setModel({
+          original: editor.createModel(diffCode, "javascript"),
+          modified: editor.createModel(code, "javascript"),
+        });
+      } else {
+        edit = editor.create(container, {
+          language: "javascript",
+          theme: document.body.getAttribute("arco-theme") === "dark" ? "vs-dark" : "vs",
+          readOnly: !editable,
+          ...commonEditorOptions,
+        });
+        edit.setValue(code);
+        setEditor(edit);
+      }
 
-    // 在行号旁显示ESLint错误/警告图标
-    const diffEslint = (
-      makers: {
-        startLineNumber: number;
-        endLineNumber: number;
-        severity: number;
-      }[]
-    ) => {
-      // 定义glyph class
-      const glyphMarginClassList = {
-        4: "icon-warn",
-        8: "icon-error",
+      return () => {
+        // 目前会出现：Uncaught (in promise) Canceled: Canceled
+        // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
+        edit?.dispose();
+      };
+    }, [id, code, diffCode, editable]);
+
+    // ESLint 即時檢查邏輯
+    useEffect(() => {
+      if (!enableEslint || !monacoEditor) return;
+
+      const model = monacoEditor.getModel();
+      if (!model) return;
+
+      let timer: ReturnType<typeof setTimeout> | null = null;
+
+      const lint = () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = null;
+          LinterWorkerController.sendLinterMessage({
+            code: model.getValue(),
+            id,
+            config: JSON.parse(eslintConfig),
+          });
+        }, 500);
+      };
+      // 加载完成就检测一次
+      lint(); // 初次載入即檢查
+      const changeListener = model.onDidChangeContent(lint);
+
+      // 在 glyph margin (行号旁) 顯示EsLint錯誤/警告圖示
+      const showGlyphIcons = (markers: { startLineNumber: number; endLineNumber: number; severity: number }[]) => {
+        const glyphMarginClassList = { 4: "icon-warn", 8: "icon-error" };
+
+        // 清除舊裝飾
+        const oldDecorations = model
+          .getAllDecorations()
+          .filter(
+            (d) =>
+              d.options.glyphMarginClassName &&
+              Object.values(glyphMarginClassList).includes(d.options.glyphMarginClassName!)
+          );
+        monacoEditor.removeDecorations(oldDecorations.map((d) => d.id));
+
+        // (重新)添加新裝飾 - Decorations
+        monacoEditor.createDecorationsCollection(
+          markers.map(({ startLineNumber, endLineNumber, severity }) => ({
+            range: new Range(startLineNumber, 1, endLineNumber, 1),
+            options: {
+              isWholeLine: true,
+              glyphMarginClassName: glyphMarginClassList[severity as 4 | 8],
+              /* 待改进 目前monaco似乎无法满足需求
+              glyphMarginHoverMessage: allMarkers.reduce(
+                (prev: any, next: any) => {
+                  if (
+                    next.startLineNumber === startLineNumber &&
+                    next.endLineNumber === endLineNumber
+                  ) {
+                    prev.push({
+                      value: `${next.message} ESLinter [(${next.code.value})](${next.code.target})`,
+                      isTrusted: true,
+                    });
+                  }
+                  return prev;
+                },
+                []
+              ),
+              */
+            },
+          }))
+        );
       };
 
-      // 先移除所有旧的Decorations
-      const oldDecorations = model
-        .getAllDecorations()
-        .filter(
-          (i) =>
-            i.options.glyphMarginClassName &&
-            Object.values(glyphMarginClassList).includes(i.options.glyphMarginClassName)
-        );
-      monacoEditor.removeDecorations(oldDecorations.map((i) => i.id));
+      const messageHandler = (message: any) => {
+        if (id !== message.id) return;
 
-      /* 待改进 目前似乎monaco无法满足需求
-      // 获取所有ESLint ModelMarkers
-      const allMarkers = editor.getModelMarkers({ owner: "ESLint" });
-      */
+        editor.setModelMarkers(model, "ESLint", message.markers);
 
-      // 再重新添加新的Decorations
-      monacoEditor.createDecorationsCollection(
-        makers.map(({ startLineNumber, endLineNumber, severity }) => ({
-          range: new Range(startLineNumber, 1, endLineNumber, 1),
-          options: {
-            isWholeLine: true,
-            // @ts-ignore
-            glyphMarginClassName: glyphMarginClassList[severity],
-
-            /* 待改进 目前monaco似乎无法满足需求
-            glyphMarginHoverMessage: allMarkers.reduce(
-              (prev: any, next: any) => {
-                if (
-                  next.startLineNumber === startLineNumber &&
-                  next.endLineNumber === endLineNumber
-                ) {
-                  prev.push({
-                    value: `${next.message} ESLinter [(${next.code.value})](${next.code.target})`,
-                    isTrusted: true,
-                  });
-                }
-                return prev;
-              },
-              []
-            ),
-            */
-          },
-        }))
-      );
-    };
-
-    const handler = (message: any) => {
-      if (id !== message.id) {
-        return;
-      }
-      editor.setModelMarkers(model, "ESLint", message.markers);
-      const fix = new Map();
-      // 设置fix
-      message.markers.forEach(
-        (val: {
-          code: { value: any };
-          startLineNumber: any;
-          endLineNumber: any;
-          startColumn: any;
-          endColumn: any;
-          fix: any;
-        }) => {
-          if (val.fix) {
-            fix.set(
-              `${val.code.value}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`,
-              val.fix
-            );
+        // 更新 eslint-fix 快取
+        const fixMap = new Map<string, any>();
+        message.markers.forEach((m: TMarker) => {
+          if (m.fix) {
+            const key = `${m.code.value}|${m.startLineNumber}|${m.endLineNumber}|${m.startColumn}|${m.endColumn}`;
+            fixMap.set(key, m.fix);
           }
-        }
-      );
-      globalCache.set("eslint-fix", fix);
+        });
+        globalCache.set("eslint-fix", fixMap);
 
-      // 在行号旁显示ESLint错误/警告图标
-      const formatMarkers = message.markers.map(
-        ({
-          startLineNumber,
-          endLineNumber,
-          severity,
-        }: {
-          startLineNumber: number;
-          endLineNumber: number;
-          severity: number;
-        }) => ({ startLineNumber, endLineNumber, severity })
-      );
-      diffEslint(formatMarkers);
-    };
-    LinterWorker.hook.addListener("message", handler);
-    return () => {
-      LinterWorker.hook.removeListener("message", handler);
-    };
-  }, [id, monacoEditor, enableEslint, eslintConfig]);
+        // 顯示 glyph 圖示 (在行号旁显示ESLint错误/警告图标)
+        const formatted = message.markers.map((m: TFormattedMakrer) => ({
+          startLineNumber: m.startLineNumber,
+          endLineNumber: m.endLineNumber,
+          severity: m.severity,
+        }));
+        showGlyphIcons(formatted);
+      };
 
-  return <div id={id} className={className} ref={div} />;
-};
+      LinterWorkerController.hookAddListener("message", messageHandler);
 
-export default React.forwardRef(CodeEditor);
+      return () => {
+        changeListener.dispose();
+        LinterWorkerController.hookRemoveListener("message", messageHandler);
+      };
+    }, [monacoEditor, enableEslint, eslintConfig, id]);
+
+    return <div id={id} className={className} ref={divRef} />;
+  }
+);
+
+CodeEditor.displayName = "CodeEditor";
+
+export default CodeEditor;
