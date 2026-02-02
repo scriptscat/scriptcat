@@ -11,8 +11,8 @@ ScriptCat
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">ドキュメント</a> ·
-<a href="https://discord.gg/JF76nHCCM7">Discord</a> 
-<a href="https://scriptcat.org/ja/search">ScriptCat Scripts</a>
+<a href="https://discord.gg/JF76nHCCM7">Discord</a> ·
+<a href="https://scriptcat.org/ja/search">ScriptCat スクリプト</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
