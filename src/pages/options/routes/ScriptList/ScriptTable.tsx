@@ -68,41 +68,20 @@ const SortableDragCtx = createContext<DragCtx>(null);
 // Create context for DraggableContainer
 interface DraggableContextType {
   sensors: ReturnType<typeof useSensors>;
-  sortableIdsString: string;
-  scriptListSortOrder: (params: { active: string; over: string }) => void;
+  sortableIds: string[];
+  handleDragEnd: (event: DragEndEvent) => void;
+  a11y: {
+    container: HTMLElement;
+  };
 }
 const DraggableContext = createContext<DraggableContextType | null>(null);
 
 const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   (props, ref) => {
-    const context = useContext(DraggableContext);
-    const { sensors, sortableIdsString, scriptListSortOrder } = context || {};
+    const ctx = useContext(DraggableContext);
+    const { sensors, sortableIds, handleDragEnd, a11y } = ctx || {};
 
     // compute once, even if context is null (keeps hook order legal)
-
-    // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
-    // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
-    const sortableIds = useMemo(() => sortableIdsString?.split(",").filter(Boolean), [sortableIdsString]);
-
-    const handleDragEnd = useCallback(
-      (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (over && active.id !== over.id) {
-          scriptListSortOrder!({
-            active: `${active.id}`,
-            over: `${over.id}`,
-          });
-        }
-      },
-      [scriptListSortOrder]
-    );
-
-    const a11y = useMemo(
-      () => ({
-        container: document.body,
-      }),
-      []
-    );
 
     return !sortableIds?.length ? (
       // render a plain tbody to keep the table structure intact
@@ -736,14 +715,39 @@ export const ScriptTable = React.memo(
 
     const sortableIdsString = useMemo(() => scriptList?.map((s) => s.uuid).join(",") || "", [scriptList]);
 
+    // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
+    // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
+    const sortableIds = useMemo(() => sortableIdsString?.split(",").filter(Boolean), [sortableIdsString]);
+
+    const handleDragEnd = useCallback(
+      (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+          scriptListSortOrder!({
+            active: `${active.id}`,
+            over: `${over.id}`,
+          });
+        }
+      },
+      [scriptListSortOrder]
+    );
+
+    const a11y = useMemo(
+      () => ({
+        container: document.body,
+      }),
+      []
+    );
+
     // Provide context for DraggableContainer
     const draggableContextValue = useMemo(
       () => ({
         sensors,
-        sortableIdsString,
-        scriptListSortOrder,
+        sortableIds,
+        handleDragEnd,
+        a11y,
       }),
-      [sensors, sortableIdsString, scriptListSortOrder]
+      [sensors, sortableIds, handleDragEnd, a11y]
     );
 
     return (
