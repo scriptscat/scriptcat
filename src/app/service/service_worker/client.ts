@@ -8,16 +8,12 @@ import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
-import { v4 as uuidv4 } from "uuid";
-import { cacheInstance } from "@App/app/cache";
-import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
-import { makeBlobURL } from "@App/pkg/utils/utils";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -115,65 +111,6 @@ export class ScriptClient extends Client {
 
   installByCode(uuid: string, code: string, upsertBy: InstallSource = "user") {
     return this.do("installByCode", { uuid, code, upsertBy });
-  }
-
-  async formatUrl(url: string) {
-    try {
-      const newUrl = new URL(url.replace(/\/$/, ""));
-      const { hostname, pathname } = newUrl;
-      // 判断是否为脚本猫脚本页
-      if (hostname === "scriptcat.org" && /script-show-page\/\d+$/.test(pathname)) {
-        const scriptId = pathname.match(/\d+$/)![0];
-        // 请求脚本信息
-        const scriptInfo = await fetch(`https://scriptcat.org/api/v2/scripts/${scriptId}`)
-          .then((res) => {
-            return res.json();
-          })
-          .then((json) => {
-            return json;
-          });
-        const { code, data, msg } = scriptInfo;
-        if (code !== 0) {
-          // 无脚本访问权限
-          return { success: false, msg };
-        } else {
-          // 返回脚本实际安装地址
-          const scriptName = data.name;
-          return `https://scriptcat.org/scripts/code/${scriptId}/${scriptName}.user.js`;
-        }
-      } else {
-        return url;
-      }
-    } catch {
-      return url;
-    }
-  }
-
-  async importByUrls(urls: string[]) {
-    if (urls.length == 0) {
-      return;
-    }
-    const results = (await Promise.allSettled(
-      urls.map(async (url) => {
-        const formattedResult = await this.formatUrl(url);
-        if (formattedResult instanceof Object) {
-          return await Promise.resolve(formattedResult);
-        } else {
-          return await this.do("importByUrl", formattedResult);
-        }
-      })
-      // this.do 只会resolve 不会reject
-    )) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
-    const stat = { success: 0, fail: 0, msg: [] as string[] };
-    results.forEach(({ value }, index) => {
-      if (value.success) {
-        stat.success++;
-      } else {
-        stat.fail++;
-        stat.msg.push(`#${index + 1}: ${value.msg}`);
-      }
-    });
-    return stat;
   }
 
   setCheckUpdateUrl(uuid: string, checkUpdate: boolean, checkUpdateUrl?: string) {
@@ -348,19 +285,6 @@ export class SynchronizeClient extends Client {
 
   backupToCloud(type: FileSystemType, params: any) {
     return this.do("backupToCloud", { type, params });
-  }
-
-  async openImportWindow(filename: string, file: File | Blob) {
-    // 打开导入窗口，用cache实现数据交互
-    const url = makeBlobURL({ blob: file, persistence: true }) as string;
-    const uuid = uuidv4();
-    const cacheKey = `${CACHE_KEY_IMPORT_FILE}${uuid}`;
-    await cacheInstance.set(cacheKey, {
-      filename: filename,
-      url: url,
-    });
-    // 打开导入窗口，用cache实现数据交互
-    window.open(chrome.runtime.getURL(`/src/import.html?uuid=${uuid}`), "_blank");
   }
 
   importResources(

@@ -93,10 +93,12 @@ export interface ScriptSite {
 
 export type ScriptAndCode = Script & ScriptCode;
 
+export type ValueStore = { [key: string]: any };
+
 // 脚本运行时的资源,包含已经编译好的脚本与脚本需要的资源
 export interface ScriptRunResource extends Script {
   code: string; // 原始代码
-  value: { [key: string]: any };
+  value: ValueStore;
   flag: string;
   resource: { [key: string]: { base64?: string } & Omit<Resource, "base64"> }; // 资源列表,包含脚本需要的资源
   metadata: SCMetadata; // 经自定义覆盖的 Metadata

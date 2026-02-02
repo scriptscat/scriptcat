@@ -169,7 +169,6 @@ export function parseScriptLoadInfo(script: ScriptRunResource, scriptUrlPatterns
 }
 
 export function compileInjectionCode(
-  messageFlag: string,
   scriptRes: ScriptRunResource,
   scriptCode: string,
   scriptUrlPatterns: URLRuleEntry[]
@@ -178,11 +177,7 @@ export function compileInjectionCode(
   let scriptInjectCode;
   scriptCode = compileScriptCode(scriptRes, scriptCode);
   if (preDocumentStartScript) {
-    scriptInjectCode = compilePreInjectScript(
-      messageFlag,
-      parseScriptLoadInfo(scriptRes, scriptUrlPatterns),
-      scriptCode
-    );
+    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
   } else {
     scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
   }

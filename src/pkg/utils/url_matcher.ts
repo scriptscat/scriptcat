@@ -81,6 +81,20 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
           content = "*://*/";
         } else {
           m = /^(\*|[-a-z]+|http\*):\/\/(\*?[^*/:]*)(:[^*/]*)?/.exec(content);
+          if (!m) {
+            // 如不是正确 match pattern, 为了兼容 TM，尝试 fallback 处理
+            // 例如 "// @match www.youtube.com/*"
+            let tu;
+            try {
+              tu = new URL(`undefined-protocol://${content}`); // e.g. "undefined-protocol://example.com/*"
+            } catch (_e) {
+              // 尝试失败则不忽略 （例如 "undefined-protocol://hello-world^^" ）
+            }
+            if (tu?.protocol === "undefined-protocol:" && tu.hostname && tu.pathname) {
+              content = `*://${tu.hostname}${tu.pathname}${tu.search}`;
+              m = /^(\*|[-a-z]+|http\*):\/\/(\*?[^*/:]*)(:[^*/]*)?/.exec(content);
+            }
+          }
           // 若无法匹对，则表示该表达式应为错误match pattern格式，忽略处理。
           if (m) {
             // 特殊处理：自动除去 port (TM的行为是以下完全等价)

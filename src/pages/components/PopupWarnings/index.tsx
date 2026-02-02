@@ -35,17 +35,20 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
     // 可使用UserScript的话，不查browserType
     const browserType = !isUserScriptsAvailableState ? getBrowserType() : null;
 
-    const warningMessageHTML = browserType
-      ? browserType.firefox
-        ? t("develop_mode_guide")
-        : browserType.chrome
-          ? browserType.chrome & BrowserType.chromeA
-            ? t("lower_version_browser_guide")
-            : browserType.chrome & BrowserType.chromeC && browserType.chrome & BrowserType.Chrome
-              ? t("allow_user_script_guide")
-              : t("develop_mode_guide") // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
-          : "UNKNOWN"
-      : "";
+    if (!browserType) return "";
+
+    const browser = browserType.chrome & BrowserType.Edge ? "edge" : "chrome";
+
+    const warningMessageHTML = browserType.firefox
+      ? t("develop_mode_guide", { browser: "firefox" })
+      : browserType.chrome
+        ? browserType.chrome & BrowserType.chromeA
+          ? t("lower_version_browser_guide")
+          : (browserType.chrome & BrowserType.chromeC && browserType.chrome & BrowserType.Chrome) ||
+              browserType.chrome & BrowserType.edgeA
+            ? t("allow_user_script_guide", { browser })
+            : t("develop_mode_guide", { browser }) // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
+        : "UNKNOWN";
 
     return warningMessageHTML;
   }, [isUserScriptsAvailableState, t]);

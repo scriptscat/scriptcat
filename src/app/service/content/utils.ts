@@ -3,6 +3,7 @@ import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { sourceMapTo } from "@App/pkg/utils/utils";
+import { ScriptEnvTag } from "@Packages/message/consts";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -134,14 +135,12 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
-  messageFlag: string,
   script: ScriptLoadInfo,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const eventNamePrefix = `evt${messageFlag}${
-    isInjectIntoContent(script.metadata) ? DefinedFlags.contentFlag : DefinedFlags.injectFlag
-  }`;
+  const scriptEnvTag = isInjectIntoContent(script.metadata) ? ScriptEnvTag.content : ScriptEnvTag.inject;
+  const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
   const flag = `${script.flag}`;
   const scriptInfo = trimScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
@@ -151,7 +150,8 @@ export function compilePreInjectScript(
   return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
-  f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', o)),
+  c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,
+  f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c)),
   needWait = f();
   if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
 }

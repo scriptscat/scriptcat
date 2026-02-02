@@ -1,14 +1,14 @@
 import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import type OneDriveFileSystem from "./onedrive";
 
 export class OneDriveFileReader implements FileReader {
-  file: File;
+  file: FileInfo;
 
   fs: OneDriveFileSystem;
 
-  constructor(fs: OneDriveFileSystem, file: File) {
+  constructor(fs: OneDriveFileSystem, file: FileInfo) {
     this.fs = fs;
     this.file = file;
   }

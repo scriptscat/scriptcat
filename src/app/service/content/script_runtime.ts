@@ -2,16 +2,19 @@ import { type Server } from "@Packages/message/server";
 import type { Message } from "@Packages/message/types";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
-import type { ScriptExecutor } from "./script_executor";
+import { initEnvInfo, type ScriptExecutor } from "./script_executor";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { EmitEventRequest } from "../service_worker/types";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
+import type { ScriptEnvTag } from "@Packages/message/consts";
 
-export class InjectRuntime {
+export class ScriptRuntime {
   constructor(
+    private readonly scripEnvTag: ScriptEnvTag,
     private readonly server: Server,
     private readonly msg: Message,
-    private readonly scriptExecutor: ScriptExecutor
+    private readonly scriptExecutor: ScriptExecutor,
+    private readonly messageFlag: string
   ) {}
 
   init() {
@@ -22,15 +25,18 @@ export class InjectRuntime {
     this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
       this.scriptExecutor.valueUpdate(data);
     });
+
+    this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
+      // 监听事件
+      this.startScripts(data.scripts, data.envInfo);
+    });
+
+    // 检查early-start的脚本
+    this.scriptExecutor.checkEarlyStartScript(this.scripEnvTag, initEnvInfo);
   }
 
-  startScripts(injectScriptList: TScriptInfo[], envInfo: GMInfoEnv) {
-    this.scriptExecutor.startScripts(injectScriptList, envInfo);
-  }
-
-  onInjectPageLoaded() {
-    // 注入允许外部调用
-    this.externalMessage();
+  startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
+    this.scriptExecutor.startScripts(scripts, envInfo);
   }
 
   externalMessage() {

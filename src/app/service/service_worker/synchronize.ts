@@ -4,7 +4,7 @@ import type { Resource } from "@App/app/repo/resource";
 import { type Script, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, type ScriptDAO } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
-import type { File } from "@Packages/filesystem/filesystem";
+import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
@@ -30,8 +30,8 @@ import i18n, { i18nName } from "@App/locales/locales";
 // type SynchronizeTarget = "local";
 
 type SyncFiles = {
-  script: File;
-  meta: File;
+  script: FileInfo;
+  meta: FileInfo;
 };
 
 type SyncMeta = {
@@ -325,13 +325,7 @@ export class SynchronizeService {
     // 获取文件列表
     const list = await fs.list();
     // 根据文件名生成一个map
-    const uuidMap = new Map<
-      string,
-      {
-        script?: File;
-        meta?: File;
-      }
-    >();
+    const uuidMap = new Map<string, Partial<SyncFiles>>();
     // 储存文件摘要,用于检测文件是否有变化
     const fileDigestMap =
       ((await this.storage.get("file_digest")) as {
@@ -384,9 +378,12 @@ export class SynchronizeService {
     // 对比脚本列表和文件列表,进行同步
     const result: Promise<void>[] = [];
     const updateScript: Map<string, boolean> = new Map();
+    // 需要是同步操作，后续上传剩下的脚本
+    // 最后使用 Promise.allSettled 进行等待
     uuidMap.forEach((file, uuid) => {
       const script = scriptMap.get(uuid);
       if (script) {
+        scriptMap.delete(uuid);
         // 脚本存在但是文件不存在,则读取.meta.json内容判断是否需要删除脚本
         if (!file.script) {
           result.push(
@@ -396,17 +393,16 @@ export class SynchronizeService {
               const metaJson = (await meta.read("string")) as string;
               const metaObj = JSON.parse(metaJson) as SyncMeta;
               if (metaObj.isDeleted) {
-                if (script) {
-                  this.script.deleteScript(script.uuid);
-                  InfoNotification(
-                    i18n.t("notification.script_sync_delete"),
-                    i18n.t("notification.script_sync_delete_desc", { scriptName: i18nName(script) })
-                  );
-                }
-                scriptMap.delete(uuid);
+                // 删除脚本
+                this.script.deleteScript(script.uuid, "sync");
+                InfoNotification(
+                  i18n.t("notification.script_sync_delete"),
+                  i18n.t("notification.script_sync_delete_desc", { scriptName: i18nName(script) })
+                );
               } else {
-                // 否则认为是一个无效的.meta文件,进行删除
+                // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name);
+                result.push(this.pushScript(fs, script));
               }
             })()
           );
@@ -414,8 +410,6 @@ export class SynchronizeService {
         }
         // 过滤掉无变动的文件
         if (fileDigestMap[file.script!.name] === file.script!.digest) {
-          // 删除了之后,剩下的就是需要上传的脚本了
-          scriptMap.delete(uuid);
           return;
         }
         const updatetime = script.updatetime || script.createtime;
@@ -429,10 +423,9 @@ export class SynchronizeService {
           updateScript.set(uuid, true);
           result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script));
         }
-        scriptMap.delete(uuid);
         return;
       }
-      // 如果脚本不存在,且文件存在,则安装脚本
+      // 如果脚本不存在，但文件存在，则安装脚本
       if (file.script) {
         if (!file.meta) {
           // 如果.meta文件不存在，则删除脚本文件，并跳过
@@ -681,7 +674,10 @@ export class SynchronizeService {
     const config = await this.systemConfig.getCloudSync();
     if (config.enable) {
       this.buildFileSystem(config).then(async (fs) => {
-        for (const { uuid } of data) {
+        for (const { uuid, deleteBy } of data) {
+          if (deleteBy === "sync") {
+            continue;
+          }
           await this.deleteCloudScript(fs, uuid, config.syncDelete);
         }
       });
