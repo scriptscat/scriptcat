@@ -713,6 +713,7 @@ export const ScriptTable = React.memo(
       })
     );
 
+    // 故意生成一个字串 memo 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
     const sortableIdsString = useMemo(() => scriptList?.map((s) => s.uuid).join(",") || "", [scriptList]);
 
     // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
