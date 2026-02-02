@@ -95,6 +95,7 @@ export default defineConfig({
             loader: "builtin:swc-loader",
             options: {
               jsc: {
+                target: "es2020",
                 externalHelpers: true,
                 parser: {
                   syntax: "typescript",
@@ -108,7 +109,6 @@ export default defineConfig({
                   },
                 },
               },
-              env: { targets },
             },
           },
         ],
