@@ -34,9 +34,73 @@ import i18n, { matchLanguage } from "@App/locales/locales";
 import "./index.css";
 import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
-import type { ScriptClient } from "@App/app/service/service_worker/client";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL } from "@App/pkg/utils/utils";
+
+const formatUrl = async (url: string) => {
+  try {
+    const newUrl = new URL(url.replace(/\/$/, ""));
+    const { hostname, pathname } = newUrl;
+    // 判断是否为脚本猫脚本页
+    if (hostname === "scriptcat.org" && /script-show-page\/\d+$/.test(pathname)) {
+      const scriptId = pathname.match(/\d+$/)![0];
+      // 请求脚本信息
+      const scriptInfo = await fetch(`https://scriptcat.org/api/v2/scripts/${scriptId}`)
+        .then((res) => {
+          return res.json();
+        })
+        .then((json) => {
+          return json;
+        });
+      const { code, data, msg } = scriptInfo;
+      if (code !== 0) {
+        // 无脚本访问权限
+        return { success: false, msg };
+      } else {
+        // 返回脚本实际安装地址
+        const scriptName = data.name;
+        return `https://scriptcat.org/scripts/code/${scriptId}/${scriptName}.user.js`;
+      }
+    } else {
+      return url;
+    }
+  } catch {
+    return url;
+  }
+};
+
+type TImportStat = {
+  success: number;
+  fail: number;
+  msg: string[];
+};
+
+const importByUrls = async (urls: string[]): Promise<TImportStat | undefined> => {
+  if (urls.length == 0) {
+    return;
+  }
+  const results = (await Promise.allSettled(
+    urls.map(async (url) => {
+      const formattedResult = await formatUrl(url);
+      if (formattedResult instanceof Object) {
+        return await Promise.resolve(formattedResult);
+      } else {
+        return await scriptClient.do("importByUrl", formattedResult);
+      }
+    })
+    // this.do 只会resolve 不会reject
+  )) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
+  const stat = { success: 0, fail: 0, msg: [] as string[] };
+  results.forEach(({ value }, index) => {
+    if (value.success) {
+      stat.success++;
+    } else {
+      stat.fail++;
+      stat.msg.push(`#${index + 1}: ${value.msg}`);
+    }
+  });
+  return stat;
+};
 
 const MainLayout: React.FC<{
   children: ReactNode;
@@ -51,7 +115,7 @@ const MainLayout: React.FC<{
   const [showLanguage, setShowLanguage] = useState(false);
   const { t } = useTranslation();
 
-  const showImportResult = (stat: Awaited<ReturnType<ScriptClient["importByUrls"]>>) => {
+  const showImportResult = (stat: TImportStat) => {
     if (!stat) return;
     modal.info!({
       title: t("script_import_result"),
@@ -77,9 +141,9 @@ const MainLayout: React.FC<{
     });
   };
 
-  const importByUrlsLocal = async (urls: string[]) => {
-    const stat = await scriptClient.importByUrls(urls);
-    stat && showImportResult(stat);
+  const importByUrlsLocal = async (urls: string[]): Promise<void> => {
+    const stat = await importByUrls(urls);
+    if (stat) showImportResult(stat);
   };
 
   // 提供一个简单的字串封装（非加密用)
@@ -100,7 +164,7 @@ const MainLayout: React.FC<{
   const onDrop = (acceptedFiles: FileWithPath[]) => {
     // 本地的文件在当前页面处理，打开安装页面，将FileSystemFileHandle传递过去
     // 实现本地文件的监听
-    const stat: Awaited<ReturnType<ScriptClient["importByUrls"]>> = { success: 0, fail: 0, msg: [] };
+    const stat: TImportStat = { success: 0, fail: 0, msg: [] };
     Promise.all(
       acceptedFiles.map(async (aFile) => {
         try {
@@ -189,8 +253,8 @@ const MainLayout: React.FC<{
 
   const handleImport = async () => {
     const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
-    importByUrlsLocal(urls);
-    setImportVisible(false);
+    importByUrlsLocal(urls); // 異步卻不用等候？
+    setImportVisible(false); // 不等待 importByUrlsLocal?
   };
 
   return (

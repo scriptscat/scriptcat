@@ -39,31 +39,6 @@ export const deferred = <T = void>(): Deferred<T> => {
   return { promise, resolve, reject };
 };
 
-export const getUspMessageFlag = () => {
-  const s = new Error().stack;
-  if (s) {
-    const search1 = "content.js?usp_flag=";
-    const len1 = search1.length;
-    const idx1 = s.indexOf(search1);
-    if (idx1 > 0) {
-      const search2 = "&usp_end";
-      const idx2 = s.indexOf(search2, idx1 + len1);
-      if (idx2 > 0) {
-        const param = s.substring(idx1 + len1, idx2);
-        try {
-          // 使用 URLSearchParams 避免字符编码问题
-          const uspString = `usp_flag=${param}`;
-          const usp = new URLSearchParams(uspString);
-          if (usp.size === 1) return usp.get("usp_flag") || null;
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-  }
-  return null;
-};
-
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";
@@ -290,6 +265,7 @@ export enum BrowserType {
   chromeA = 4, // ~ 120
   chromeB = 8, // 121 ~ 137
   chromeC = 16, // 138 ~
+  edgeA = 32, // Edge 144~
 }
 
 export function getBrowserType() {
@@ -313,7 +289,12 @@ export function getBrowserType() {
       if (isChromeBased) {
         const isEdgeBrowser = isEdge();
         const chromeVersion = getBrowserVersion();
-        o.chrome = (isEdgeBrowser ? 2 : 1) | (chromeVersion < 120 ? 4 : chromeVersion < 138 ? 8 : 16);
+        o.chrome |= isEdgeBrowser ? BrowserType.Edge : BrowserType.Chrome;
+        o.chrome |= chromeVersion < 120 ? BrowserType.chromeA : 0; // Chrome 120 以下
+        o.chrome |= chromeVersion < 138 ? BrowserType.chromeB : BrowserType.chromeC; // Chrome 121 ~ 137 / 138 以上
+        if (isEdgeBrowser) {
+          o.chrome |= chromeVersion >= 144 ? BrowserType.edgeA : 0; // Edge 144 以上
+        }
         o.chromeVersion = chromeVersion;
       } else {
         o.unknown = 1;
@@ -516,4 +497,25 @@ export const normalizeResponseHeaders = (headersString: string) => {
     }
   });
   return out.substring(0, out.length - 2); // 去掉最后的 \r\n
+};
+
+// 获取本周是第几周
+// 遵循 ISO 8601, 一月四日为Week 1，星期一为新一周
+// 能应对每年开始和结束（不会因为踏入新一年而重新计算）
+// 见 https://wikipedia.org/wiki/ISO_week_date
+// 中文說明 https://juejin.cn/post/6921245139855736846
+export const getISOWeek = (date: Date): number => {
+  // 使用传入日期的年月日创建 UTC 日期对象，忽略本地时间部分，避免时区影响
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+
+  // 将日期调整到本周的星期四（ISO 8601 规定：周数以星期四所在周为准）
+  // 计算方式：当前日期 + 4 − 当前星期几（星期一 = 1，星期日 = 7）
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+  // 获取该星期四所在年份的第一天（UTC）
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+  // 计算从年初到该星期四的天数差
+  // 再换算为周数，并向上取整，得到 ISO 周数
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 };

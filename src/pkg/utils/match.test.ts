@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isUrlExcluded, isUrlIncluded, UrlMatch } from "./match";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import { extractUrlPatterns } from "./url_matcher";
 
 describe.concurrent("UrlMatch-internal1", () => {

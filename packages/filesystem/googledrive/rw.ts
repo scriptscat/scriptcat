@@ -1,13 +1,13 @@
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import type GoogleDriveFileSystem from "./googledrive";
 
 export class GoogleDriveFileReader implements FileReader {
-  file: File;
+  file: FileInfo;
 
   fs: GoogleDriveFileSystem;
 
-  constructor(fs: GoogleDriveFileSystem, file: File) {
+  constructor(fs: GoogleDriveFileSystem, file: FileInfo) {
     this.fs = fs;
     this.file = file;
   }

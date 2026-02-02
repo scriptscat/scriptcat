@@ -1,51 +1,31 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
-import { ExtensionMessage } from "@Packages/message/extension_message";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
-import ContentRuntime from "./app/service/content/content";
-import { initEnvInfo, ScriptExecutor } from "./app/service/content/script_executor";
-import { randomMessageFlag, getUspMessageFlag } from "./pkg/utils/utils";
+import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
+import { getEventFlag, isContent } from "@Packages/message/common";
+import { ScriptRuntime } from "./app/service/content/script_runtime";
+import { ScriptEnvTag } from "@Packages/message/consts";
 
-// @ts-ignore
-const MessageFlag: string | null = (typeof arguments === "object" && arguments?.[0]) || getUspMessageFlag();
+const messageFlag = process.env.SC_RANDOM_KEY!;
 
-if (!MessageFlag) {
-  console.error("MessageFlag is unavailable.");
-} else if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
-  // Firefox userScripts.RegisteredUserScript does not provide chrome.runtime.onMessage.addListener
-  // Firefox scripting.RegisteredContentScript does provide chrome.runtime.onMessage.addListener
-  // Firefox 的 userScripts.RegisteredUserScript 不提供 chrome.runtime.onMessage.addListener
-  // Firefox 的 scripting.RegisteredContentScript 提供 chrome.runtime.onMessage.addListener
-  console.error("chrome.runtime.onMessage.addListener is not a function");
-} else {
-  // 建立与service_worker页面的连接
-  const extMsgComm: Message = new ExtensionMessage(false);
+getEventFlag(messageFlag, (eventFlag: string) => {
+  const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;
+
+  const msg: Message = new CustomEventMessage(`${eventFlag}${scriptEnvTag}`, false);
+
   // 初始化日志组件
-  const loggerCore = new LoggerCore({
-    writer: new MessageWriter(extMsgComm, "serviceWorker/logger"),
-    labels: { env: "content" },
+  const logger = new LoggerCore({
+    writer: new MessageWriter(msg, "scripting/logger"),
+    consoleLevel: process.env.NODE_ENV === "development" ? "debug" : "none", // 只让日志在scripting环境中打印
+    labels: { env: "content", href: window.location.href },
   });
 
-  loggerCore.logger().debug("content start");
+  logger.logger().debug("content start");
 
-  const msgInject = new CustomEventMessage(MessageFlag, true);
-
-  // 处理scriptExecutor
-  const scriptExecutorFlag = randomMessageFlag();
-  const scriptExecutorMsg = new CustomEventMessage(scriptExecutorFlag, true);
-  const scriptExecutor = new ScriptExecutor(new CustomEventMessage(scriptExecutorFlag, false));
-
-  const server = new Server("content", [msgInject, scriptExecutorMsg]);
-
-  // Opera中没有chrome.runtime.onConnect，并且content也不需要chrome.runtime.onConnect
-  // 所以不需要处理连接，设置为false
-  const extServer = new Server("content", extMsgComm, false);
-  // scriptExecutor的消息接口
-  // 初始化运行环境
-  const runtime = new ContentRuntime(extServer, server, extMsgComm, msgInject, scriptExecutorMsg, scriptExecutor);
+  const server = new Server("content", msg);
+  const scriptExecutor = new ScriptExecutor(msg);
+  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, messageFlag);
   runtime.init();
-  // 页面加载，注入脚本
-  runtime.pageLoad(MessageFlag, initEnvInfo);
-}
+});

@@ -18,11 +18,9 @@ import {
 } from "./utils";
 import {
   checkUserScriptsAvailable,
-  randomMessageFlag,
   getMetadataStr,
   getUserConfigStr,
   obtainBlackList,
-  isFirefox,
   sourceMapTo,
 } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
@@ -112,7 +110,6 @@ export class RuntimeService {
   sitesLoaded: Set<string> = new Set<string>();
   updateSitesBusy: boolean = false;
 
-  loadingInitFlagsPromise: Promise<any> | undefined;
   loadingInitProcessPromise: Promise<any> | undefined;
   initialCompiledResourcePromise: Promise<any> | undefined;
 
@@ -129,13 +126,6 @@ export class RuntimeService {
     private scriptDAO: ScriptDAO,
     private localStorageDAO: LocalStorageDAO
   ) {
-    this.loadingInitFlagsPromise = this.localStorageDAO
-      .get("scriptInjectMessageFlag")
-      .then((res) => {
-        runtimeGlobal.messageFlag = res?.value || this.generateMessageFlag();
-        return this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag });
-      })
-      .catch(console.error);
     this.logger = LoggerCore.logger({ component: "runtime" });
 
     // 使用中间件
@@ -328,6 +318,8 @@ export class RuntimeService {
     try {
       const res = await chrome.userScripts?.getScripts({ ids: ["scriptcat-inject"] });
       registered = res?.length === 1;
+    } catch {
+      // 该错误为预期内情况，无需记录 debug 日志
     } finally {
       // 考虑 UserScripts API 不可使用等情况
       runtimeGlobal.registered = registered;
@@ -455,6 +447,12 @@ export class RuntimeService {
           this.mq.publish<TEnableScript[]>("enableScripts", res);
         }
       });
+      this.systemConfig.getLanguage().then((lng: string) => {
+        this.mq.publish("setSandboxLanguage", lng);
+      });
+      this.systemConfig.addListener("language", (lng) => {
+        this.mq.publish("setSandboxLanguage", lng);
+      });
     });
 
     // 监听脚本值变更
@@ -553,11 +551,10 @@ export class RuntimeService {
 
     this.initReady = (async () => {
       // 取得初始值 或 等待各种异步同时进行的初始化 (_1, _2, ...)
-      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2, _3] = await Promise.all([
+      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2] = await Promise.all([
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
-        this.loadingInitFlagsPromise, // messageFlag 初始化等待
         this.loadingInitProcessPromise, // 初始化程序等待
         this.initUserAgentData(), // 初始化：userAgentData
       ]);
@@ -676,22 +673,8 @@ export class RuntimeService {
       runtimeGlobal.registered = false;
       // 重置 flag 避免取消注册失败
       // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
-      runtimeGlobal.messageFlag = this.generateMessageFlag();
-      await Promise.allSettled([
-        chrome.userScripts?.unregister(),
-        chrome.scripting.unregisterContentScripts(),
-        this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag }),
-      ]);
+      await Promise.allSettled([chrome.userScripts?.unregister(), chrome.scripting.unregisterContentScripts()]);
     }
-  }
-
-  // 生成messageFlag
-  generateMessageFlag(): string {
-    return randomMessageFlag();
-  }
-
-  getMessageFlag() {
-    return runtimeGlobal.messageFlag;
   }
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
@@ -706,12 +689,7 @@ export class RuntimeService {
 
     let jsCode = "";
     if (withCode) {
-      const code = compileInjectionCode(
-        this.getMessageFlag(),
-        scriptRes,
-        scriptRes.code,
-        scriptMatchInfo.scriptUrlPatterns
-      );
+      const code = compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
       registerScript.js[0].code = jsCode = code;
     }
 
@@ -754,7 +732,7 @@ export class RuntimeService {
     if (earlyScript) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
-      return compileInjectionCode(this.getMessageFlag(), scriptRes, scriptRes.code, result.scriptUrlPatterns);
+      return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
     const originalCode = await this.script.scriptCodeDAO.get(result.uuid);
@@ -833,7 +811,6 @@ export class RuntimeService {
     excludeMatches: string[];
     excludeGlobs: string[];
   }) {
-    const messageFlag = runtimeGlobal.messageFlag;
     // 配置脚本运行环境: 注册时前先准备 chrome.runtime 等设定
     // Firefox MV3 只提供 runtime.sendMessage 及 runtime.connect
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts/WorldProperties#messaging
@@ -854,46 +831,57 @@ export class RuntimeService {
     }
 
     let retContent: chrome.scripting.RegisteredContentScript[] = [];
-    let retInject: chrome.userScripts.RegisteredUserScript[] = [];
-    // inject.js
+    const retInject: chrome.userScripts.RegisteredUserScript[] = [];
+
+    // ------ scripting.js ------
+    // Note: Chrome does not support file.js?query
+    // 注意：Chrome 不支持 file.js?query
+    retContent = [
+      {
+        id: "scriptcat-content",
+        js: ["/src/scripting.js"],
+        matches: ["<all_urls>"],
+        allFrames: true,
+        runAt: "document_start",
+        excludeMatches,
+      } satisfies chrome.scripting.RegisteredContentScript,
+    ];
+
+    // ------ inject.js & content.js ------
+    const jsonUAD = JSON.stringify(this.userAgentData);
     const injectJs = await this.getInjectJsCode();
     if (injectJs) {
       // 构建inject.js的脚本注册信息
-      retInject = this.compileInjectUserScript(injectJs, messageFlag, {
+      const codeBody = `(function (UserAgentData) {\n${injectJs}\n})(${jsonUAD})`;
+      const code = `${codeBody}${sourceMapTo("scriptcat-inject.js")}\n`;
+      const script = {
+        id: "scriptcat-inject",
+        js: [{ code }],
+        matches: ["<all_urls>"],
+        allFrames: true,
+        runAt: "document_start",
+        excludeMatches: excludeMatches,
+        excludeGlobs: excludeGlobs,
+        world: "MAIN",
+      } satisfies chrome.userScripts.RegisteredUserScript;
+      retInject.push(script);
+    }
+    const contentJs = await this.getContentJsCode();
+    if (contentJs) {
+      // 构建 content.js 的脚本注册信息
+      const codeBody = `(function (UserAgentData) {\n${contentJs}\n})(${jsonUAD})`;
+      const code = `${codeBody}${sourceMapTo("scriptcat-content.js")}\n`;
+      const script = {
+        id: "scriptcat-content",
+        js: [{ code }],
+        matches: ["<all_urls>"],
+        allFrames: true,
+        runAt: "document_start",
         excludeMatches,
         excludeGlobs,
-      });
-    }
-    // Note: Chrome does not support file.js?query
-    // 注意：Chrome 不支持 file.js?query
-    if (isFirefox()) {
-      // 使用 URLSearchParams 避免字符编码问题
-      retContent = [
-        {
-          id: "scriptcat-content",
-          js: [`/src/content.js?${new URLSearchParams({ usp_flag: messageFlag })}&usp_end`],
-          matches: ["<all_urls>"],
-          allFrames: true,
-          runAt: "document_start",
-          excludeMatches,
-        } satisfies chrome.scripting.RegisteredContentScript,
-      ];
-    } else {
-      const contentJs = await this.getContentJsCode();
-      if (contentJs) {
-        const codeBody = `(function (MessageFlag) {\n${contentJs}\n})('${messageFlag}')`;
-        const code = `${codeBody}${sourceMapTo("scriptcat-content.js")}\n`;
-        retInject.push({
-          id: "scriptcat-content",
-          js: [{ code }],
-          matches: ["<all_urls>"],
-          allFrames: true,
-          runAt: "document_start",
-          world: "USER_SCRIPT",
-          excludeMatches,
-          excludeGlobs,
-        } satisfies chrome.userScripts.RegisteredUserScript);
-      }
+        world: "USER_SCRIPT",
+      } satisfies chrome.userScripts.RegisteredUserScript;
+      retInject.push(script);
     }
 
     return { content: retContent, inject: retInject };
@@ -915,6 +903,7 @@ export class RuntimeService {
       // scriptcat-content/scriptcat-inject不存在的情况
       // 走一次重新注册的流程
       this.logger.warn("registered = true but scriptcat-content/scriptcat-inject not exists, re-register userscripts.");
+      runtimeGlobal.registered = false; // 异常时强制反注册
     }
     // 删除旧注册
     await this.unregisterUserscripts();
@@ -980,7 +969,7 @@ export class RuntimeService {
         documentId: to.documentId,
         frameId: to.frameId,
       }),
-      "content/runtime/" + action,
+      "scripting/runtime/" + action,
       data
     );
   }
@@ -996,7 +985,7 @@ export class RuntimeService {
         documentId: to.documentId,
         frameId: to.frameId,
       }),
-      "content/runtime/emitEvent",
+      "scripting/runtime/emitEvent",
       req
     );
   }
@@ -1263,12 +1252,7 @@ export class RuntimeService {
         const scriptRes = scriptsWithUpdatedResources.get(targetUUID);
         const scriptDAOCode = scriptCodes[targetUUID];
         if (scriptRes && scriptDAOCode) {
-          const scriptInjectCode = compileInjectionCode(
-            this.getMessageFlag(),
-            scriptRes,
-            scriptDAOCode,
-            scriptRes.scriptUrlPatterns!
-          );
+          const scriptInjectCode = compileInjectionCode(scriptRes, scriptDAOCode, scriptRes.scriptUrlPatterns!);
           scriptRegisterInfo.js = [
             {
               code: scriptInjectCode,
@@ -1339,28 +1323,6 @@ export class RuntimeService {
       return;
     }
     return await runScript(this.msgSender, res);
-  }
-
-  compileInjectUserScript(
-    injectJs: string,
-    messageFlag: string,
-    { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
-  ) {
-    // 构建inject.js的脚本注册信息
-    const codeBody = `(function (MessageFlag,UserAgentData) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(this.userAgentData)})`;
-    const code = `${codeBody}${sourceMapTo("scriptcat-inject.js")}\n`;
-    const script: chrome.userScripts.RegisteredUserScript = {
-      id: "scriptcat-inject",
-      js: [{ code }],
-      matches: ["<all_urls>"],
-      allFrames: true,
-      world: "MAIN",
-      runAt: "document_start",
-      excludeMatches: excludeMatches,
-      excludeGlobs: excludeGlobs,
-    };
-
-    return [script] as chrome.userScripts.RegisteredUserScript[];
   }
 
   scriptMatchEntry(

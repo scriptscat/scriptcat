@@ -1,5 +1,5 @@
 import { fetchScriptBody, parseMetadata, prepareScriptByCode } from "@App/pkg/utils/script";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
@@ -433,7 +433,7 @@ export class ScriptService {
       });
   }
 
-  async deleteScript(uuid: string) {
+  async deleteScript(uuid: string, deleteBy?: InstallSource) {
     let logger = this.logger.with({ uuid });
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
@@ -448,7 +448,7 @@ export class ScriptService {
         await this.scriptCodeDAO.delete(uuid);
         await this.compiledResourceDAO.delete(uuid);
         logger.info("delete success");
-        const data = [{ uuid, storageName, type: script.type }] as TDeleteScript[];
+        const data = [{ uuid, storageName, type: script.type, deleteBy }] as TDeleteScript[];
         this.mq.publish("deleteScripts", data);
         return true;
       })

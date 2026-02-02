@@ -1,13 +1,13 @@
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
 import type BaiduFileSystem from "./baidu";
 
 export class BaiduFileReader implements FileReader {
-  file: File;
+  file: FileInfo;
 
   fs: BaiduFileSystem;
 
-  constructor(fs: BaiduFileSystem, file: File) {
+  constructor(fs: BaiduFileSystem, file: FileInfo) {
     this.fs = fs;
     this.file = file;
   }
