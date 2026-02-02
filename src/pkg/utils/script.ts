@@ -12,7 +12,7 @@ import {
 } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
-import { nextTime } from "./cron";
+import { nextTimeDisplay } from "./cron";
 import { parseUserConfig } from "./yaml";
 import { t as i18n_t } from "@App/locales/locales";
 import { readBlobContent } from "@App/pkg/utils/encoding";
@@ -95,7 +95,7 @@ export async function prepareScriptByCode(
   if (metadata.crontab !== undefined) {
     type = SCRIPT_TYPE_CRONTAB;
     try {
-      nextTime(metadata.crontab[0]);
+      nextTimeDisplay(metadata.crontab[0]);
     } catch {
       throw new Error(i18n_t("error_cron_invalid", { expr: metadata.crontab[0] }));
     }

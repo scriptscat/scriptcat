@@ -14,11 +14,17 @@ import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
 import type { ValueUpdateDataEncoded } from "../content/types";
-import { getStorageName, getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
+import { getStorageName, getMetadataStr, getUserConfigStr, getISOWeek } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { decodeRValue } from "@App/pkg/utils/message_value";
+import { extractCronExpr } from "@App/pkg/utils/cron";
+import { changeLanguage, initLanguage, t } from "@App/locales/locales";
+
+const utime_1min = 60 * 1000;
+const utime_1hr = 60 * 60 * 1000;
+const utime_1day = 24 * 60 * 60 * 1000;
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
@@ -181,7 +187,7 @@ export class Runtime {
   crontabScript(script: ScriptLoadInfo) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
-      throw new Error(script.name + " - 错误的crontab表达式");
+      throw new Error(script.name + " - " + t("cron_invalid_expr"));
     }
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);
@@ -189,22 +195,9 @@ export class Runtime {
     let flag = false;
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
-      let oncePos = 0;
-      let crontab = val;
-      if (crontab.includes("once")) {
-        const vals = crontab.split(" ");
-        vals.forEach((item, index) => {
-          if (item === "once") {
-            oncePos = index;
-          }
-        });
-        if (vals.length === 5) {
-          oncePos += 1;
-        }
-        crontab = crontab.replace(/once/g, "*");
-      }
+      const { cronExpr, oncePos } = extractCronExpr(val);
       try {
-        const cron = new CronJob(crontab, this.crontabExec(script, oncePos));
+        const cron = new CronJob(cronExpr, this.crontabExec(script, oncePos));
         cron.start();
         cronJobList.push(cron);
       } catch (e) {
@@ -231,54 +224,39 @@ export class Runtime {
   }
 
   crontabExec(script: ScriptLoadInfo, oncePos: number) {
-    if (oncePos) {
+    if (oncePos >= 1) {
       return () => {
         // 没有最后一次执行时间表示之前都没执行过,直接执行
-        if (!script.lastruntime) {
-          this.execScript(script);
-          return;
+        if (script.lastruntime) {
+          const now = new Date();
+          const last = new Date(script.lastruntime);
+          // 根据once所在的位置去判断执行
+          const timeDiff = now.getTime() - last.getTime();
+          switch (oncePos) {
+            case 1: // 每分钟
+              if (timeDiff < 2 * utime_1min && last.getMinutes() === now.getMinutes()) return;
+              break;
+            case 2: // 每小时
+              if (timeDiff < 2 * utime_1hr && last.getHours() === now.getHours()) return;
+              break;
+            case 3: // 每天
+              if (timeDiff < 2 * utime_1day && last.getDay() === now.getDay()) return;
+              break;
+            case 4: // 每月
+              if (timeDiff < 62 * utime_1day && last.getMonth() === now.getMonth()) return;
+              break;
+            case 5: // 每周
+              if (timeDiff < 14 * utime_1day && getISOWeek(last) === getISOWeek(now)) return;
+              break;
+            default:
+          }
         }
-        const now = new Date();
-        const last = new Date(script.lastruntime);
-        let flag = false;
-        // 根据once所在的位置去判断执行
-        switch (oncePos) {
-          case 1: // 每分钟
-            flag = last.getMinutes() !== now.getMinutes();
-            break;
-          case 2: // 每小时
-            flag = last.getHours() !== now.getHours();
-            break;
-          case 3: // 每天
-            flag = last.getDay() !== now.getDay();
-            break;
-          case 4: // 每月
-            flag = last.getMonth() !== now.getMonth();
-            break;
-          case 5: // 每周
-            flag = this.getWeek(last) !== this.getWeek(now);
-            break;
-          default:
-        }
-        if (flag) {
-          this.execScript(script);
-        }
+        this.execScript(script);
       };
     }
     return () => {
       this.execScript(script);
     };
-  }
-
-  // 获取本周是第几周
-  getWeek(date: Date) {
-    const nowDate = new Date(date);
-    const firstDay = new Date(date);
-    firstDay.setMonth(0); // 设置1月
-    firstDay.setDate(1); // 设置1号
-    const diffDays = Math.ceil((nowDate.getTime() - firstDay.getTime()) / (24 * 60 * 60 * 1000));
-    const week = Math.ceil(diffDays / 7);
-    return week === 0 ? 1 : week;
   }
 
   // 停止计时器
@@ -350,6 +328,10 @@ export class Runtime {
     }
   }
 
+  setSandboxLanguage(lang: string) {
+    changeLanguage(lang);
+  }
+
   init() {
     this.api.on("enableScript", this.enableScript.bind(this));
     this.api.on("disableScript", this.disableScript.bind(this));
@@ -358,5 +340,7 @@ export class Runtime {
 
     this.api.on("runtime/valueUpdate", this.valueUpdate.bind(this));
     this.api.on("runtime/emitEvent", this.emitEvent.bind(this));
+    this.api.on("setSandboxLanguage", this.setSandboxLanguage.bind(this));
+    initLanguage();
   }
 }
