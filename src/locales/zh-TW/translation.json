@@ -281,6 +281,14 @@
   "script_has_full_access_to": "腳本將獲得以下網址的完整存取權限",
   "script_requires": "腳本引用了以下外部資源",
   "cookie_warning": "請注意，此腳本會要求 Cookie 的操作權限，這是一項危險的權限，請確認腳本的安全性。",
+  "cron_oncetype": {
+    "minute": "{{next}} （每分鐘執行一次）",
+    "hour": "{{next}} （每小時執行一次）",
+    "day": "{{next}} （每天執行一次）",
+    "month": "{{next}} （每月執行一次）",
+    "week": "{{next}} （每星期執行一次）"
+  },
+  "cron_invalid_expr": "錯誤的排程表達式",
   "scheduled_script_description_title": "這是一個排程腳本，啟用後將在特定時間自動執行，並可在控制面板中手動控制。",
   "scheduled_script_description_description_expr": "排程任務表達式：",
   "scheduled_script_description_description_next": "最近一次執行時間：",

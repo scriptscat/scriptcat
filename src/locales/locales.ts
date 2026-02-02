@@ -37,12 +37,10 @@ export const initLocalesPromise = new Promise<string>((resolve) => {
   initLocalesResolve = resolve;
 });
 
-export function initLocales(systemConfig: SystemConfig) {
-  const uiLanguage = chrome.i18n.getUILanguage();
-  const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
+export function initLanguage(lng: string = "en-US"): void {
   i18n.use(initReactI18next).init({
     fallbackLng: "en-US",
-    lng: defaultLanguage, // 优先使用localStorage中的语言设置
+    lng: lng, // 优先使用localStorage中的语言设置
     interpolation: {
       escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
     },
@@ -59,9 +57,16 @@ export function initLocales(systemConfig: SystemConfig) {
   });
 
   // 先根据默认语言设置路径
-  if (!defaultLanguage.startsWith("zh-")) {
+  if (!lng.startsWith("zh-")) {
     localePath = "/en";
   }
+}
+
+export function initLocales(systemConfig: SystemConfig) {
+  const uiLanguage = chrome.i18n.getUILanguage();
+  const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
+
+  initLanguage(defaultLanguage);
 
   const changeLanguageCallback = (lng: string) => {
     if (!lng.startsWith("zh-")) {

@@ -498,3 +498,24 @@ export const normalizeResponseHeaders = (headersString: string) => {
   });
   return out.substring(0, out.length - 2); // 去掉最后的 \r\n
 };
+
+// 获取本周是第几周
+// 遵循 ISO 8601, 一月四日为Week 1，星期一为新一周
+// 能应对每年开始和结束（不会因为踏入新一年而重新计算）
+// 见 https://wikipedia.org/wiki/ISO_week_date
+// 中文說明 https://juejin.cn/post/6921245139855736846
+export const getISOWeek = (date: Date): number => {
+  // 使用传入日期的年月日创建 UTC 日期对象，忽略本地时间部分，避免时区影响
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+
+  // 将日期调整到本周的星期四（ISO 8601 规定：周数以星期四所在周为准）
+  // 计算方式：当前日期 + 4 − 当前星期几（星期一 = 1，星期日 = 7）
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+  // 获取该星期四所在年份的第一天（UTC）
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+  // 计算从年初到该星期四的天数差
+  // 再换算为周数，并向上取整，得到 ISO 周数
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+};
