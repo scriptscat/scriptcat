@@ -202,6 +202,59 @@ describe.concurrent("extractUrlPatterns", () => {
     const scriptUrlPatterns = extractUrlPatterns(lines);
     expect(scriptUrlPatterns.length).toEqual(lines.length - 5);
   });
+
+  it.concurrent("@match www.website.com/*", () => {
+    // https://github.com/scriptscat/scriptcat/pull/1165
+    const lines = [
+      "@match www.website1.com/*",
+      "@match www.website2.com/index.html?page=*",
+      "@match www.invalid1.com^/*",
+      "@match website3.com/*",
+      "@match website4.com/index.html?page=*",
+      "@match invalid2^.com/*",
+      "@match *.website5.com/*",
+      "@match *.website6.com/index.html?page=*",
+      "@match *.invalid3^",
+    ];
+    const scriptUrlPatterns = extractUrlPatterns(lines);
+    expect(scriptUrlPatterns.length).toEqual(6);
+    expect(scriptUrlPatterns[0]).toEqual({
+      ruleType: RuleType.MATCH_INCLUDE,
+      ruleContent: scriptUrlPatterns[0].ruleContent,
+      ruleTag: "match",
+      patternString: "*://www.website1.com/*",
+    });
+    expect(scriptUrlPatterns[1]).toEqual({
+      ruleType: RuleType.MATCH_INCLUDE,
+      ruleContent: scriptUrlPatterns[1].ruleContent,
+      ruleTag: "match",
+      patternString: "*://www.website2.com/index.html?page=*",
+    });
+    expect(scriptUrlPatterns[2]).toEqual({
+      ruleType: RuleType.MATCH_INCLUDE,
+      ruleContent: scriptUrlPatterns[2].ruleContent,
+      ruleTag: "match",
+      patternString: "*://website3.com/*",
+    });
+    expect(scriptUrlPatterns[3]).toEqual({
+      ruleType: RuleType.MATCH_INCLUDE,
+      ruleContent: scriptUrlPatterns[3].ruleContent,
+      ruleTag: "match",
+      patternString: "*://website4.com/index.html?page=*",
+    });
+    expect(scriptUrlPatterns[4]).toEqual({
+      ruleType: RuleType.MATCH_INCLUDE,
+      ruleContent: scriptUrlPatterns[4].ruleContent,
+      ruleTag: "match",
+      patternString: "*://*.website5.com/*",
+    });
+    expect(scriptUrlPatterns[5]).toEqual({
+      ruleType: RuleType.MATCH_INCLUDE,
+      ruleContent: scriptUrlPatterns[5].ruleContent,
+      ruleTag: "match",
+      patternString: "*://*.website6.com/index.html?page=*",
+    });
+  });
 });
 
 describe.concurrent("checkUrlMatch-1", () => {

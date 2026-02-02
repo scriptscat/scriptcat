@@ -111,15 +111,16 @@ export function i18nName(script: { name: string; metadata: SCMetadata }) {
   return m ? m[0] : script.name;
 }
 
-export function i18nDescription(script: { metadata: SCMetadata }) {
+export function i18nDescription(script: { metadata: SCMetadata }): string {
+  const metadata = script.metadata;
   const lang = i18nLang();
-  let m = script.metadata[`description:${lang}`];
+  let m = metadata[`description:${lang}`];
   if (!m) {
     // 尝试只用前缀匹配
     const langPrefix = lang.split("-")[0];
-    m = script.metadata[`description:${langPrefix}`];
+    m = metadata[`description:${langPrefix}`];
   }
-  return m ? m[0] : script.metadata.description?.[0];
+  return m ? m[0] : metadata.description?.[0] || "";
 }
 
 // 判断是否是中文用户

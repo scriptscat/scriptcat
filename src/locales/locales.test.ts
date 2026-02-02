@@ -110,7 +110,7 @@ describe.concurrent("i18nDescription", () => {
     expect(result).toBe("Default description");
   });
 
-  it("没有 description 字段时返回 undefined", () => {
+  it("没有 description 字段时返回 空字串", () => {
     i18n.language = "en-US";
 
     const script = {
@@ -118,10 +118,10 @@ describe.concurrent("i18nDescription", () => {
     };
 
     const result = i18nDescription(script);
-    expect(result).toBeUndefined();
+    expect(result).toBe("");
   });
 
-  it("description 字段为空数组时返回 undefined", () => {
+  it("description 字段为空数组时返回 空字串", () => {
     i18n.language = "en-US";
 
     const script = {
@@ -131,6 +131,6 @@ describe.concurrent("i18nDescription", () => {
     };
 
     const result = i18nDescription(script);
-    expect(result).toBeUndefined();
+    expect(result).toBe("");
   });
 });
