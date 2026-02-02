@@ -1,6 +1,6 @@
 import { editor, Range } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
-import { globalCache, systemConfig } from "@App/pages/store/global";
+import { systemConfig } from "@App/pages/store/global";
 import { LinterWorkerController, registerEditor } from "@App/pkg/utils/monaco-editor";
 import { fnPlaceHolder } from "@App/pages/store/AppContext";
 
@@ -253,14 +253,15 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         editor.setModelMarkers(model, "ESLint", message.markers);
 
         // 更新 eslint-fix 快取
-        const fixMap = new Map<string, any>();
-        message.markers.forEach((m: TMarker) => {
-          if (m.fix) {
-            const key = `${m.code.value}|${m.startLineNumber}|${m.endLineNumber}|${m.startColumn}|${m.endColumn}`;
-            fixMap.set(key, m.fix);
-          }
-        });
-        globalCache.set("eslint-fix", fixMap);
+        const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
+        if (eslintFixMap) {
+          message.markers.forEach((m: TMarker) => {
+            if (m.fix) {
+              const key = `${m.code.value}|${m.startLineNumber}|${m.endLineNumber}|${m.startColumn}|${m.endColumn}`;
+              eslintFixMap.set(key, m.fix);
+            }
+          });
+        }
 
         // 顯示 glyph 圖示 (在行号旁显示ESLint错误/警告图标)
         const formatted = message.markers.map((m: TFormattedMakrer) => ({

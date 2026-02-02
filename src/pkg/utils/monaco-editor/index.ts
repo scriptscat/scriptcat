@@ -1,4 +1,4 @@
-import { globalCache, systemConfig } from "@App/pages/store/global";
+import { systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
 import { languages } from "monaco-editor";
 import { findGlobalInsertionInfo, updateGlobalCommentLine } from "./utils";
@@ -89,6 +89,7 @@ export function registerEditor() {
   // SW 重启后仍使用原有的 linterWorker 和 MonacoEnvironment
   Object.assign(window.MonacoEnvironment, {
     myLinterWorker: linterWorker,
+    eslintFixMap: new Map(),
   });
 
   linterWorkerDefered.resolve(linterWorker);
@@ -125,7 +126,7 @@ export function registerEditor() {
   languages.registerCodeActionProvider("javascript", {
     provideCodeActions: (model /** ITextModel */, range /** Range */, context /** CodeActionContext */) => {
       const actions: languages.CodeAction[] = [];
-      const eslintFix = <Map<string, any>>globalCache.get("eslint-fix");
+      const eslintFixMap = <Map<string, any>>(window.MonacoEnvironment as any)?.eslintFixMap;
 
       for (let i = 0; i < context.markers.length; i++) {
         // 判断有没有修复方案
@@ -133,7 +134,7 @@ export function registerEditor() {
         const code = typeof val.code === "string" ? val.code : val.code!.value;
 
         // 1. eslint-fix
-        const fix = eslintFix?.get(
+        const fix = eslintFixMap?.get(
           `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
         );
         if (fix) {
