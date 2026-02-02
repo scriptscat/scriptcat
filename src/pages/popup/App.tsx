@@ -88,13 +88,16 @@ function App() {
   // ------------------------------ 重要! 不要隨便更改 ------------------------------
   // > scriptList 會隨著 (( 任何 )) 子項狀態更新而進行物件參考更新
   // > (( 必須 )) 把物件參考更新切換成 原始类型（例如字串）
+
   // normalEnables: 只随 script 数量和启动状态而改变的state
+  // 故意生成一个字串 memo 避免因 scriptList 的参考频繁改动而导致 normalScriptCounts 的物件参考出现非预期更改。
   const normalEnables = useMemo(() => {
     // 返回字串让 React 比对 state 有否改动
     return scriptList.map((script) => (script.enable ? 1 : 0)).join(",");
   }, [scriptList]);
 
   // backEnables: 只随 script 数量和启动状态而改变的state
+  // 故意生成一个字串 memo 避免因 scriptList 的参考频繁改动而导致 backScriptCounts 的物件参考出现非预期更改。
   const backEnables = useMemo(() => {
     // 返回字串让 React 比对 state 有否改动
     return backScriptList.map((script) => (script.enable ? 1 : 0)).join(",");
