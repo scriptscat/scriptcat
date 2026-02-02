@@ -31,7 +31,7 @@ const pageExecute: Record<string, (data: any) => void> = {};
 function App() {
   const { subscribeMessage } = useAppContext();
 
-  const AUTO_CLOSE_PAGE = 8000; // after 8s, auto close
+  const AUTO_CLOSE_PAGE = 8; // after 8s, auto close
   const getUrlParam = (key: string): string => {
     return (location.search?.includes(`${key}=`) ? new URLSearchParams(location.search).get(`${key}`) : "") || "";
   };
@@ -51,7 +51,7 @@ function App() {
   const [mStatusText, setStatusText] = useState<string>("");
 
   // unit: second
-  const [mTimeClose, setTimeClose] = useState<number>(initialTimeForAutoClosePage / 1000);
+  const [mTimeClose, setTimeClose] = useState<number>(initialTimeForAutoClosePage);
   useEffect(() => {
     if (mTimeClose < 0) return;
     if (mTimeClose === 0) {

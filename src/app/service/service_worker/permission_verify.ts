@@ -117,7 +117,12 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  async verify<T>(request: GMApiRequest<T>, api: ApiValue, sender: IGetSender, GMApiInstance: GMApi): Promise<boolean> {
+  async verify<T extends Array<any>>(
+    request: GMApiRequest<T>,
+    api: ApiValue,
+    sender: IGetSender,
+    GMApiInstance: GMApi
+  ): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;

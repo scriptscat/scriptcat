@@ -37,12 +37,10 @@ export const initLocalesPromise = new Promise<string>((resolve) => {
   initLocalesResolve = resolve;
 });
 
-export function initLocales(systemConfig: SystemConfig) {
-  const uiLanguage = chrome.i18n.getUILanguage();
-  const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
+export function initLanguage(lng: string = "en-US"): void {
   i18n.use(initReactI18next).init({
     fallbackLng: "en-US",
-    lng: defaultLanguage, // 优先使用localStorage中的语言设置
+    lng: lng, // 优先使用localStorage中的语言设置
     interpolation: {
       escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
     },
@@ -59,9 +57,16 @@ export function initLocales(systemConfig: SystemConfig) {
   });
 
   // 先根据默认语言设置路径
-  if (!defaultLanguage.startsWith("zh-")) {
+  if (!lng.startsWith("zh-")) {
     localePath = "/en";
   }
+}
+
+export function initLocales(systemConfig: SystemConfig) {
+  const uiLanguage = chrome.i18n.getUILanguage();
+  const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
+
+  initLanguage(defaultLanguage);
 
   const changeLanguageCallback = (lng: string) => {
     if (!lng.startsWith("zh-")) {
@@ -111,15 +116,16 @@ export function i18nName(script: { name: string; metadata: SCMetadata }) {
   return m ? m[0] : script.name;
 }
 
-export function i18nDescription(script: { metadata: SCMetadata }) {
+export function i18nDescription(script: { metadata: SCMetadata }): string {
+  const metadata = script.metadata;
   const lang = i18nLang();
-  let m = script.metadata[`description:${lang}`];
+  let m = metadata[`description:${lang}`];
   if (!m) {
     // 尝试只用前缀匹配
     const langPrefix = lang.split("-")[0];
-    m = script.metadata[`description:${langPrefix}`];
+    m = metadata[`description:${langPrefix}`];
   }
-  return m ? m[0] : script.metadata.description?.[0];
+  return m ? m[0] : metadata.description?.[0] || "";
 }
 
 // 判断是否是中文用户

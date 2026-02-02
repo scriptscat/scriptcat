@@ -1,13 +1,13 @@
-import type { File, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import type DropboxFileSystem from "./dropbox";
 
 export class DropboxFileReader implements FileReader {
-  file: File;
+  file: FileInfo;
 
   fs: DropboxFileSystem;
 
-  constructor(fs: DropboxFileSystem, file: File) {
+  constructor(fs: DropboxFileSystem, file: FileInfo) {
     this.fs = fs;
     this.file = file;
   }
