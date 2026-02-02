@@ -825,16 +825,9 @@ export class RuntimeService {
     }
 
     let retContent: chrome.scripting.RegisteredContentScript[] = [];
-    let retInject: chrome.userScripts.RegisteredUserScript[] = [];
-    // inject.js
-    const injectJs = await this.getInjectJsCode();
-    if (injectJs) {
-      // 构建inject.js的脚本注册信息
-      retInject = this.compileInjectUserScript(injectJs, {
-        excludeMatches,
-        excludeGlobs,
-      });
-    }
+    const retInject: chrome.userScripts.RegisteredUserScript[] = [];
+
+    // ------ scripting.js ------
     // Note: Chrome does not support file.js?query
     // 注意：Chrome 不支持 file.js?query
     retContent = [
@@ -848,20 +841,41 @@ export class RuntimeService {
       } satisfies chrome.scripting.RegisteredContentScript,
     ];
 
+    // ------ inject.js & content.js ------
+    const jsonUAD = JSON.stringify(this.userAgentData);
+    const injectJs = await this.getInjectJsCode();
+    if (injectJs) {
+      // 构建inject.js的脚本注册信息
+      const codeBody = `(function (UserAgentData) {\n${injectJs}\n})(${jsonUAD})`;
+      const code = `${codeBody}${sourceMapTo("scriptcat-inject.js")}\n`;
+      const script = {
+        id: "scriptcat-inject",
+        js: [{ code }],
+        matches: ["<all_urls>"],
+        allFrames: true,
+        runAt: "document_start",
+        excludeMatches: excludeMatches,
+        excludeGlobs: excludeGlobs,
+        world: "MAIN",
+      } satisfies chrome.userScripts.RegisteredUserScript;
+      retInject.push(script);
+    }
     const contentJs = await this.getContentJsCode();
     if (contentJs) {
-      const codeBody = `(function () {\n${contentJs}\n})()`;
+      // 构建 content.js 的脚本注册信息
+      const codeBody = `(function (UserAgentData) {\n${contentJs}\n})(${jsonUAD})`;
       const code = `${codeBody}${sourceMapTo("scriptcat-content.js")}\n`;
-      retInject.push({
+      const script = {
         id: "scriptcat-content",
         js: [{ code }],
         matches: ["<all_urls>"],
         allFrames: true,
         runAt: "document_start",
-        world: "USER_SCRIPT",
         excludeMatches,
         excludeGlobs,
-      } satisfies chrome.userScripts.RegisteredUserScript);
+        world: "USER_SCRIPT",
+      } satisfies chrome.userScripts.RegisteredUserScript;
+      retInject.push(script);
     }
 
     return { content: retContent, inject: retInject };
@@ -1303,27 +1317,6 @@ export class RuntimeService {
       return;
     }
     return await runScript(this.msgSender, res);
-  }
-
-  compileInjectUserScript(
-    injectJs: string,
-    { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
-  ) {
-    // 构建inject.js的脚本注册信息
-    const codeBody = `(function (UserAgentData) {\n${injectJs}\n})(${JSON.stringify(this.userAgentData)})`;
-    const code = `${codeBody}${sourceMapTo("scriptcat-inject.js")}\n`;
-    const script: chrome.userScripts.RegisteredUserScript = {
-      id: "scriptcat-inject",
-      js: [{ code }],
-      matches: ["<all_urls>"],
-      allFrames: true,
-      world: "MAIN",
-      runAt: "document_start",
-      excludeMatches: excludeMatches,
-      excludeGlobs: excludeGlobs,
-    };
-
-    return [script] as chrome.userScripts.RegisteredUserScript[];
   }
 
   scriptMatchEntry(
