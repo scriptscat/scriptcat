@@ -463,6 +463,34 @@ describe.concurrent("GM_value", () => {
       })
     );
 
+    // 第三次调用：设置值为 Proxy 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [expect.any(String), "proxy-key", {}], // Proxy 会被转换为空对象
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第四次调用：设置值为 window 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [expect.any(String), "window"], // window 会被转换为空对象
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
     expect(ret).toEqual({
       ret1: 123,
       ret2: 456,
@@ -694,6 +722,54 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
               m: expect.objectContaining({
                 a: expect.stringMatching(/^##[\d.]+##undefined$/),
                 c: expect.stringMatching(/^##[\d.]+##undefined$/),
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第三次调用：设置值为 Proxy 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d+$/),
+            // the object payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                "proxy-key": {},
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第四次调用：设置值为 window 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d+$/),
+            // the object payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                window: expect.stringMatching(/^##[\d.]+##undefined$/),
               }),
             }),
           ],
