@@ -14,6 +14,7 @@ import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
   getUserScriptRegister,
+  parseUrlSRI,
   scriptURLPatternResults,
 } from "./utils";
 import {
@@ -679,7 +680,7 @@ export class RuntimeService {
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
-    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResources(scriptRes, true);
+    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResources(scriptRes);
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
@@ -1156,7 +1157,7 @@ export class RuntimeService {
     if (!enableScriptList.length) return null;
 
     const scriptCodes = {} as Record<string, string>;
-    // 更新资源使用了file协议的脚本
+    // 更新资源使用了file协议的脚本 （ 不能在其他地方更新嗎？？ 見 Issue #918 ）
     const scriptsWithUpdatedResources = new Map<string, ScriptLoadInfo>();
     for (const scriptRes of enableScriptList) {
       const uuid = scriptRes.uuid;
@@ -1166,8 +1167,11 @@ export class RuntimeService {
         for (const [url, [sha512, type]] of Object.entries(resourceCheck)) {
           const resourceList = scriptRes.metadata[type];
           if (!resourceList) continue;
-          const updatedResource = await this.resource.updateResource(scriptRes.uuid, url, type);
+          const u = parseUrlSRI(url);
+          const oldResources = await this.resource.getResourceModel(u);
+          const updatedResource = await this.resource.updateResource(scriptRes.uuid, u, type, oldResources);
           if (updatedResource.hash?.sha512 !== sha512) {
+            // ----- 感觉这里是跟 resource.updateResource 内容的更新重复了 -----
             for (const uri of resourceList) {
               /** 资源键名 */
               let resourceKey = uri;
@@ -1197,6 +1201,7 @@ export class RuntimeService {
                 }
               }
             }
+            // ----- 感觉这里是跟 resource.updateResource 内容的更新重复了 -----
           }
         }
         if (resourceUpdated) {
