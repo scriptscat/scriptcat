@@ -309,10 +309,10 @@ export default class GMApi extends GM_Base {
         // 对object的value进行一次转化
         if (value_ && typeof value_ === "object") {
           value_ = customClone(value_);
+          values[key] = value_; // 不建议这样做但先这样吧
         }
         // customClone 可能返回 undefined
         valueStore[key] = value_;
-        values[key] = value_;
       }
     }
     // 避免undefined 等空值流失，先进行映射处理
