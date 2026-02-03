@@ -40,7 +40,8 @@ export default class S3FileSystem implements FileSystem {
     accessKeyId: string,
     secretAccessKey: string,
     endpoint?: string,
-    basePath?: string
+    basePath?: string,
+    usePathStyle: boolean = true   // 默认兼容S3
   ) {
     this.bucket = bucket;
     this.region = region;
@@ -52,11 +53,14 @@ export default class S3FileSystem implements FileSystem {
         accessKeyId,
         secretAccessKey,
       },
-      forcePathStyle: true,
+      // forcePathStyle: true 对 AWS 官方 S3 不是最佳实践（会用 path-style URL，已被逐渐弃用），对 MinIO 等兼容服务则是必须的。硬编码会导致部分用户配置失败。
+      forcePathStyle: usePathStyle,
     };
 
     if (endpoint) {
       config.endpoint = endpoint;
+      // 自动检测：如果 endpoint 包含 amazonaws.com，设为 false。
+      if (endpoint.includes("amazonaws.com")) config.forcePathStyle = false;
     }
 
     this.client = new S3Client(config);
@@ -108,7 +112,7 @@ export default class S3FileSystem implements FileSystem {
    */
   async openDir(path: string): Promise<FileSystem> {
     const newBasePath = joinPath(this.basePath, path);
-    return new S3FileSystem(
+    const fs = new S3FileSystem(
       this.bucket,
       this.region,
       "", // These won't be used since we're reusing the client
@@ -116,6 +120,10 @@ export default class S3FileSystem implements FileSystem {
       undefined,
       newBasePath
     );
+    // openDir 又 new 一个 S3FileSystem，但传了空字符串的 AK/SK，导致逻辑不清晰。
+    // 复用原有 client，只修改 basePath。
+    fs.client = this.client; // 复用 client
+    return fs;
   }
 
   /**

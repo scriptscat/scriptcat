@@ -25,7 +25,7 @@ export class S3FileReader implements FileReader {
    * @returns File content as string or Blob
    * @throws {Error} If file not found or read fails
    */
-  async read(type?: "string" | "blob"): Promise<string | Blob> {
+  async read(type: "string" | "blob" = "blob"): Promise<string | Blob> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucket,
@@ -40,28 +40,27 @@ export class S3FileReader implements FileReader {
 
       // Convert the stream to the requested format
       const chunks: Uint8Array[] = [];
-      const reader = response.Body.transformToWebStream().getReader();
+      const stream = response.Body.transformToWebStream();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
+      if (type === "string") {
+        // Streaming decode to string (省内存)
+        const reader = stream.getReader();
+        const decoder = new TextDecoder();
+        let result = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          result += decoder.decode(value, { stream: true });
+        }
+        // 最后 flush
+        result += decoder.decode();
+        return result;
+
+      } else {
+        // 返回 Blob，避免 JS 层缓冲与拼接，走底层最优路径
+        return new Response(stream).blob();
       }
 
-      const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-      const result = new Uint8Array(totalLength);
-      let offset = 0;
-      for (const chunk of chunks) {
-        result.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      switch (type) {
-        case "string":
-          return new TextDecoder().decode(result);
-        default:
-          return new Blob([result]);
-      }
     } catch (error: any) {
       if (error.name === "NoSuchKey") {
         throw new Error(`File not found: ${this.key}`);
@@ -101,7 +100,8 @@ export class S3FileWriter implements FileWriter {
 
     const metadata: Record<string, string> = {};
     if (this.modifiedDate) {
-      metadata.createtime = this.modifiedDate.toString();
+      // 用 ISO 8601 格式
+      metadata.createtime = new Date(this.modifiedDate).toISOString();  // 规范格式
     }
 
     const command = new PutObjectCommand({
