@@ -491,7 +491,7 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [expect.any(String), "proxy-key", {}], // Proxy 会被转换为空对象
@@ -505,7 +505,7 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       4,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [expect.any(String), "window"], // window 会被转换为空对象
@@ -757,19 +757,14 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                "proxy-key": {},
-              }),
-            }),
+            [["proxy-key", encodeRValue({})]],
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -781,19 +776,19 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       4,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                window: expect.stringMatching(/^##[\d.]+##undefined$/),
-              }),
-            }),
+            [
+              [
+                "window",
+                encodeRValue(undefined), // window 会被转换为 undefined
+              ],
+            ],
           ],
           runFlag: expect.any(String),
           uuid: undefined,

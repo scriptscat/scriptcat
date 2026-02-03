@@ -318,7 +318,7 @@ export default class GMApi extends GM_Base {
         valueStore[key] = value_;
       }
       // 避免undefined 等空值流失，先进行映射处理
-      keyValuePairs.push([key, encodeRValue(value)]);
+      keyValuePairs.push([key, encodeRValue(valueStore[key])]);
     }
     a.sendMessage("GM_setValues", [id, keyValuePairs]);
     return id;
