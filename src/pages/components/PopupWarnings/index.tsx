@@ -46,7 +46,7 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
           ? t("lower_version_browser_guide")
           : (browserType.chrome & BrowserType.chromeC && browserType.chrome & BrowserType.Chrome) ||
               browserType.chrome & BrowserType.edgeA
-            ? t("allow_user_script_guide", { browser })
+            ? t("allow_user_script_guide", { browser }) // Edge 144+ 后使用`允许用户脚本`控制
             : t("develop_mode_guide", { browser }) // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
         : "UNKNOWN";
 
