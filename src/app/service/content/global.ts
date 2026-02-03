@@ -32,5 +32,5 @@ export const customClone = (o: any) => {
 
   // 其他无法克隆的非法对象，例如 window、document 等
   console.error("customClone failed");
-  return {};
+  return undefined;
 };

@@ -416,7 +416,10 @@ describe.concurrent("GM_value", () => {
     // 设置再删除
     GM_setValue("a", undefined);
     let ret2 = GM_getValue("a", 456);
-    return {ret1, ret2};
+    // 设置错误的对象
+    GM_setValue("invalid-key", new Proxy({}, {}));
+    let ret3 = GM_getValue("invalid-key");
+    return {ret1, ret2, ret3};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -428,7 +431,7 @@ describe.concurrent("GM_value", () => {
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendMessage).toHaveBeenCalledTimes(3);
 
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -458,11 +461,16 @@ describe.concurrent("GM_value", () => {
       })
     );
 
-    expect(ret).toEqual({ ret1: 123, ret2: 456 });
+    expect(ret).toEqual({
+      ret1: 123,
+      ret2: 456,
+      ret3: {},
+    });
   });
 
   it.concurrent("value引用问题 #1141", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = {};
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_getValues"];
     script.code = `
 const value1 = {
@@ -622,7 +630,10 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     // 设置再删除
     GM_setValues({"a": undefined, "c": undefined});
     let ret2 = GM_getValues(["a","b","c"]);
-    return {ret1, ret2};
+    // 设置错误的对象
+    GM_setValues({"proxy-key": new Proxy({}, {})});
+    let ret3 = GM_getValues(["proxy-key"]);
+    return {ret1, ret2, ret3};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -634,7 +645,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendMessage).toHaveBeenCalledTimes(3);
 
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -687,7 +698,11 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       })
     );
 
-    expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { b: 456 } });
+    expect(ret).toEqual({
+      ret1: { a: 123, b: 456, c: "789" },
+      ret2: { b: 456 },
+      ret3: { "proxy-key": {} },
+    });
   });
 
   it.concurrent("GM_deleteValue", async () => {
