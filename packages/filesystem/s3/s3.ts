@@ -58,6 +58,12 @@ export default class S3FileSystem implements FileSystem {
     };
 
     if (endpoint) {
+      // AWS SDK v3 要求 endpoint 是完整 URL（带 https://）。缺少协议会导致 InvalidEndpoint 或连接失败。
+      // 自动补全协议（常见兼容做法）
+      let fixedEndpoint = `${endpoint}`.trim();
+      if (!fixedEndpoint.startsWith("http://") && !fixedEndpoint.startsWith("https://")) {
+        fixedEndpoint = `https://${fixedEndpoint}`;
+      }
       config.endpoint = endpoint;
       // 自动检测：如果 endpoint 包含 amazonaws.com，设为 false。
       if (endpoint.includes("amazonaws.com")) config.forcePathStyle = false;
@@ -78,18 +84,27 @@ export default class S3FileSystem implements FileSystem {
       });
       await this.client.send(command);
     } catch (error: any) {
+      if (error.name === "NotFound") {
+        throw new Error("NotFound"); // Bucket 不存在
+      }
       if (
         error.name === "InvalidAccessKeyId" ||
         error.name === "SignatureDoesNotMatch" ||
         error.name === "InvalidClientTokenId"
       ) {
-        throw new WarpTokenError(error);
+        throw new WarpTokenError(error); // AccessKey 或 SecretKey 无效
+      }
+      if (error.name === "AccessDenied") {
+        throw new Error("Access Denied"); // 无权限访问该 Bucket（Access Denied）
+      }
+      if (error.name === "PermanentRedirect") {
+        throw new Error("Access Denied"); // Region 设置错误，请检查 region 是否匹配 Bucket 所在区域
       }
       if (error.name === "NoSuchBucket") {
         throw new Error(`Bucket not found: ${this.bucket}`);
       }
       if (error.message?.includes("getaddrinfo") || error.message?.includes("fetch failed")) {
-        throw new Error("Network connection failed. Please check your internet connection.");
+        throw new Error("Network connection failed. Please check your internet connection."); // 网络连接失败，请检查 endpoint 或网络
       }
       throw error;
     }
@@ -115,10 +130,11 @@ export default class S3FileSystem implements FileSystem {
     const fs = new S3FileSystem(
       this.bucket,
       this.region,
-      "", // These won't be used since we're reusing the client
+      "", // 占位: These won't be used since we're reusing the client
       "",
       undefined,
-      newBasePath
+      newBasePath,
+      true // forcePathStyle 同父
     );
     // openDir 又 new 一个 S3FileSystem，但传了空字符串的 AK/SK，导致逻辑不清晰。
     // 复用原有 client，只修改 basePath。
@@ -187,25 +203,37 @@ export default class S3FileSystem implements FileSystem {
           Prefix: prefix,
           Delimiter: "/",
           ContinuationToken: continuationToken,
+          MaxKeys: 1000,  // ← 每次最多 1000，防滥用
         });
 
         const response = await this.client.send(command);
 
+        // 处理 CommonPrefixes（子目录）
+        // if (response.CommonPrefixes) {
+        //   for (const prefix of response.CommonPrefixes) {
+        //     if (prefix.Prefix && prefix.Prefix !== this.basePath) {
+        //     }
+        //   }
+        // }
+
+        // 处理 Contents（文件）
         if (response.Contents) {
-          for (const object of response.Contents) {
-            if (!object.Key) continue;
+          for (const obj of response.Contents) {
+            if (!obj.Key) continue;
+            if (obj.Key && obj.Key.endsWith("/")) continue; // 跳过目录占位符
+            if (obj.Key === this.basePath.slice(1)) continue; // 跳过 prefix 本身
 
-            // Skip the directory marker itself
-            if (object.Key === prefix || object.Key.endsWith("/")) continue;
+            // const name = obj.Key.substring(prefix.length);
+            const relativeKey = obj.Key.slice(this.basePath.length);
+            if (!relativeKey) continue;
 
-            const name = object.Key.substring(prefix.length);
-            const lastModified = object.LastModified?.getTime() || Date.now();
+            const lastModified = obj.LastModified?.getTime() || Date.now();
 
             files.push({
-              name,
+              name: relativeKey,
               path: this.basePath,
-              size: object.Size || 0,
-              digest: object.ETag?.replace(/"/g, "") || "",
+              size: obj.Size || 0,
+              digest: obj.ETag?.replace(/"/g, "") || "",
               createtime: lastModified,
               updatetime: lastModified,
             });
@@ -214,6 +242,10 @@ export default class S3FileSystem implements FileSystem {
 
         continuationToken = response.NextContinuationToken;
       } while (continuationToken);
+
+      if (files.length > 10000) {
+        console.warn(`Directory listing truncated: >10000 items under ${this.basePath}`);
+      }
 
       return files;
     } catch (error: any) {
