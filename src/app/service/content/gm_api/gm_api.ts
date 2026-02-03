@@ -1,4 +1,4 @@
-import { customClone } from "../global";
+import { customClone, jsonStringify_ } from "../global";
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type {
@@ -466,7 +466,7 @@ export default class GMApi extends GM_Base {
   GM_log(message: string, level: GMTypes.LoggerLevel = "info", ...labels: GMTypes.LoggerLabel[]) {
     if (this.isInvalidContext()) return;
     if (typeof message !== "string") {
-      message = JSON.stringify(message);
+      message = jsonStringify_(message);
     }
     this.sendMessage("GM_log", [message, level, labels]);
   }
