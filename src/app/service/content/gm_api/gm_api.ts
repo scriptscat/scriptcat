@@ -1259,7 +1259,7 @@ export default class GMApi extends GM_Base {
   GM_saveTab(obj: object) {
     if (this.isInvalidContext()) return;
     if (typeof obj === "object") {
-      obj = JSON.parse(JSON.stringify(obj));
+      obj = customClone(obj);
     }
     this.sendMessage("GM_saveTab", [obj]);
   }

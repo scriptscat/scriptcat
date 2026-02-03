@@ -1,3 +1,4 @@
+import { jsonParse_ } from "../global";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type GMApi from "./gm_api";
 import { dataEncode } from "@App/pkg/utils/xhr/xhr_data";
@@ -344,7 +345,7 @@ export function GM_xmlhttpRequest(
                       let o = undefined;
                       if (text) {
                         try {
-                          o = JSON.parse(text);
+                          o = jsonParse_(text);
                         } catch {
                           // ignored
                         }
