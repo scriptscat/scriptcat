@@ -1214,7 +1214,7 @@ export class RuntimeService {
           script.value = value;
         }),
         // 加载resource
-        resource.getScriptResources(script, false).then((resource) => {
+        resource.getScriptResources(script).then((resource) => {
           script.resource = resource;
           for (const name of Object.keys(resource)) {
             const res = script.resource[name];

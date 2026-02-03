@@ -649,7 +649,7 @@ export class ScriptService {
     const ret = buildScriptRunResourceBasic(script);
     return Promise.all([
       this.valueService.getScriptValue(ret),
-      this.resourceService.getScriptResources(ret, true),
+      this.resourceService.getScriptResources(ret),
       this.scriptCodeDAO.get(script.uuid),
     ]).then(([value, resource, code]) => {
       if (!code) {

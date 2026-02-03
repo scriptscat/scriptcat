@@ -15,6 +15,64 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { blobToUint8Array } from "@App/pkg/utils/datatype";
 import { readBlobContent } from "@App/pkg/utils/encoding";
 
+class Semaphore {
+  private running = 0;
+  private readonly queue: Array<() => void> = [];
+
+  constructor(readonly limit: number) {
+    if (limit < 1) throw new Error("limit must be >= 1");
+  }
+
+  async acquire(): Promise<void> {
+    if (this.running < this.limit) {
+      this.running++;
+      return;
+    }
+    await new Promise<void>((resolve) => this.queue.push(resolve));
+    this.running++;
+  }
+
+  release(): void {
+    if (this.running <= 0) {
+      console.warn("Semaphore double release detected");
+      return;
+    }
+    this.running--;
+    this.queue.shift()?.();
+  }
+}
+
+const fetchSemaphore = new Semaphore(5);
+
+type TWithTimeoutNotifyResult<T> = {
+  timeouted: boolean;
+  result: T | undefined;
+  done: boolean;
+  err: undefined | Error;
+};
+const withTimeoutNotify = <T>(promise: Promise<T>, time: number, fn: (res: TWithTimeoutNotifyResult<T>) => any) => {
+  const res: TWithTimeoutNotifyResult<T> = { timeouted: false, result: undefined, done: false, err: undefined };
+  const cid = setTimeout(() => {
+    res.timeouted = true;
+    fn(res);
+  }, time);
+  return promise
+    .then((result: T) => {
+      clearTimeout(cid);
+      res.result = result;
+      res.done = true;
+      fn(res);
+      return res;
+    })
+    .catch((e) => {
+      clearTimeout(cid);
+      res.err = e;
+      res.done = true;
+      fn(res);
+      return res;
+    });
+};
+
 export class ResourceService {
   logger: Logger;
   resourceDAO: ResourceDAO = new ResourceDAO();
@@ -31,7 +89,6 @@ export class ResourceService {
     uuid: string,
     u: TUrlSRIInfo,
     type: ResourceType,
-    loadNow: boolean,
     oldResources: Resource | undefined
   ): Promise<Resource | undefined> {
     if (oldResources) {
@@ -42,15 +99,6 @@ export class ResourceService {
     }
     // 缓存中无资源加载纪录，需要取得资源
     const url = u.originalUrl;
-    if (!loadNow) {
-      // 等一下尝试加载资源（例入 import）
-      // 避免所有资源立即同一时间加载, delay设为 1.2s ~ 2.4s
-      const delay = randNum(1200, 2400);
-      await sleep(delay);
-      const updatedResource = await this.getResourceModel(u);
-      // 如果等候期间有其他程序已生成 resource, 则不用呼叫 updateResource
-      if (updatedResource?.contentType) return updatedResource;
-    }
     try {
       return await this.updateResource(uuid, u, type, undefined);
     } catch (e: any) {
@@ -59,11 +107,11 @@ export class ResourceService {
     return undefined;
   }
 
-  public async getScriptResources(script: Script, load: boolean): Promise<{ [key: string]: Resource }> {
+  public async getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
     const [require, require_css, resource] = await Promise.all([
-      this.getResourceByType(script, "require", load),
-      this.getResourceByType(script, "require-css", load),
-      this.getResourceByType(script, "resource", load),
+      this.getResourceByType(script, "require"),
+      this.getResourceByType(script, "require-css"),
+      this.getResourceByType(script, "resource"),
     ]);
 
     return {
@@ -73,7 +121,7 @@ export class ResourceService {
     };
   }
 
-  async getResourceByType(script: Script, type: ResourceType, load: boolean): Promise<{ [key: string]: Resource }> {
+  async getResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
     if (!script.metadata[type]) {
       return {};
     }
@@ -102,7 +150,7 @@ export class ResourceService {
             const res = await this.updateResource(script.uuid, u, type, oldResources);
             ret[resourceKey] = res;
           } else {
-            const res = await this.getResource(script.uuid, u, type, load, oldResources);
+            const res = await this.getResource(script.uuid, u, type, oldResources);
             if (res) {
               ret[resourceKey] = res;
             }
@@ -269,7 +317,27 @@ export class ResourceService {
 
   async loadByUrl(url: string, type: ResourceType): Promise<Resource> {
     const u = parseUrlSRI(url);
-    const resp = await fetch(u.url);
+
+    await fetchSemaphore.acquire();
+    // Semaphore 锁 - 同期只有五个 fetch 一起执行
+    const delay = randNum(100, 150); // 100~150ms delay before starting fetch
+    await sleep(delay);
+    // 执行 fetch, 若超过 800ms, 不会中止 fetch 但会启动下一个网络连接任务
+    // 这只为了避免等候时间过长，同时又不会有过多网络任务同时发生，使Web伺服器返回错误
+    const { result, err } = await withTimeoutNotify(fetch(u.url), 800, ({ done, timeouted, err }) => {
+      if (timeouted || done || err) {
+        // fetch 成功 或 发生错误 或 timeout 时解锁
+        fetchSemaphore.release();
+      }
+    });
+    // Semaphore 锁已解锁。继续处理 fetch Response 的结果
+
+    if (err) {
+      throw new Error(`resource fetch failed: ${err.message || err}`);
+    }
+
+    const resp = result! as Response;
+
     if (resp.status !== 200) {
       throw new Error(`resource response status not 200: ${resp.status}`);
     }
@@ -342,7 +410,7 @@ export class ResourceService {
   }
 
   requestGetScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return this.getScriptResources(script, false);
+    return this.getScriptResources(script);
   }
 
   init() {
