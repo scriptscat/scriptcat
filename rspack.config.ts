@@ -13,7 +13,8 @@ const isDev = process.env.NODE_ENV === "development";
 const isBeta = version.includes("-");
 
 // Target browsers, see: https://github.com/browserslist/browserslist
-const targets = ["chrome >= 87", "edge >= 88", "firefox >= 78", "safari >= 14"];
+// 依照 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
+const targets = ["chrome >= 120", "edge >= 120", "firefox >= 136"];
 
 const src = path.join(dirname, "src");
 const dist = path.join(dirname, "dist");
@@ -95,7 +96,6 @@ export default defineConfig({
             loader: "builtin:swc-loader",
             options: {
               jsc: {
-                target: "es2020",
                 externalHelpers: true,
                 parser: {
                   syntax: "typescript",
@@ -109,6 +109,7 @@ export default defineConfig({
                   },
                 },
               },
+              env: { targets },
             },
           },
         ],
