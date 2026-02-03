@@ -103,7 +103,7 @@ export class S3FileWriter implements FileWriter {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: this.key,
-      Body: content,
+      Body: content, // API 的 Body 接受 string | Blob | Uint8Array<ArrayBufferLike> | Buffer<ArrayBufferLike> | Readable | ReadableStream<any>
       Metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     });
 
