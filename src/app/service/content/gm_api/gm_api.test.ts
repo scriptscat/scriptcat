@@ -416,7 +416,12 @@ describe.concurrent("GM_value", () => {
     // 设置再删除
     GM_setValue("a", undefined);
     let ret2 = GM_getValue("a", 456);
-    return {ret1, ret2};
+    // 设置错误的对象
+    GM_setValue("proxy-key", new Proxy({}, {}));
+    let ret3 = GM_getValue("proxy-key");
+    GM_setValue("window",window);
+    let ret4 = GM_getValue("window");
+    return {ret1, ret2, ret3, ret4};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -428,7 +433,7 @@ describe.concurrent("GM_value", () => {
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendMessage).toHaveBeenCalledTimes(4);
 
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -458,11 +463,45 @@ describe.concurrent("GM_value", () => {
       })
     );
 
-    expect(ret).toEqual({ ret1: 123, ret2: 456 });
+    // 第三次调用：设置值为 Proxy 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [expect.any(String), "proxy-key", {}], // Proxy 会被转换为空对象
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第四次调用：设置值为 window 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [expect.any(String), "window"], // window 会被转换为空对象
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    expect(ret).toEqual({
+      ret1: 123,
+      ret2: 456,
+      ret3: {},
+      ret4: undefined,
+    });
   });
 
   it.concurrent("value引用问题 #1141", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = {};
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_getValues"];
     script.code = `
 const value1 = {
@@ -622,7 +661,12 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     // 设置再删除
     GM_setValues({"a": undefined, "c": undefined});
     let ret2 = GM_getValues(["a","b","c"]);
-    return {ret1, ret2};
+    // 设置错误的对象
+    GM_setValues({"proxy-key": new Proxy({}, {})});
+    let ret3 = GM_getValues(["proxy-key"]);
+    GM_setValues({"window": window});
+    let ret4 = GM_getValues(["window"]);
+    return {ret1, ret2, ret3, ret4};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -634,7 +678,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendMessage).toHaveBeenCalledTimes(4);
 
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -687,7 +731,60 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       })
     );
 
-    expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { b: 456 } });
+    // 第三次调用：设置值为 Proxy 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d+$/),
+            // the object payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                "proxy-key": {},
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第四次调用：设置值为 window 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d+$/),
+            // the object payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                window: expect.stringMatching(/^##[\d.]+##undefined$/),
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    expect(ret).toEqual({
+      ret1: { a: 123, b: 456, c: "789" },
+      ret2: { b: 456 },
+      ret3: { "proxy-key": {} },
+      ret4: { window: undefined },
+    });
   });
 
   it.concurrent("GM_deleteValue", async () => {
