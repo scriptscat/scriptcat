@@ -1,4 +1,3 @@
-
 // 避免在全局页面环境中，内置处理函数被篡改或重写
 export const structuredClone_ = structuredClone;
 export const jsonStringify_ = JSON.stringify.bind(JSON);
