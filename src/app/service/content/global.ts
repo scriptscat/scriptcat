@@ -1,5 +1,6 @@
 // 避免在全局页面环境中，内置处理函数被篡改或重写
-export const structuredClone_ = structuredClone;
+const unsupportedAPI = () => { throw new Error(); }
+export const structuredClone_ = typeof structuredClone === "function" ? structuredClone : unsupportedAPI;
 export const jsonStringify_ = JSON.stringify.bind(JSON);
 export const jsonParse_ = JSON.parse.bind(JSON);
 
