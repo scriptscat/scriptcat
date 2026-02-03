@@ -417,8 +417,8 @@ describe.concurrent("GM_value", () => {
     GM_setValue("a", undefined);
     let ret2 = GM_getValue("a", 456);
     // 设置错误的对象
-    GM_setValue("invalid-key", new Proxy({}, {}));
-    let ret3 = GM_getValue("invalid-key");
+    GM_setValue("proxy-key", new Proxy({}, {}));
+    let ret3 = GM_getValue("proxy-key");
     return {ret1, ret2, ret3};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
