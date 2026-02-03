@@ -5,7 +5,8 @@ export const jsonStringify_ = JSON.stringify.bind(JSON);
 export const jsonParse_ = JSON.parse.bind(JSON);
 
 export const customClone = (o: any) => {
-  // 非对象类型直接返回（包含 null、undefined、基本类型等）
+  // 非对象类型直接返回（包含 Symbol、undefined、基本类型等）
+  // 接受参数：阵列、物件、null
   if (typeof o !== "object") return o;
 
   try {
