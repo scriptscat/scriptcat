@@ -7,10 +7,10 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
-import { blobToBase64, randNum } from "@App/pkg/utils/utils";
+import { blobToBase64, randNum, sleep } from "@App/pkg/utils/utils";
 import { type TDeleteScript } from "../queue";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
-import { isBase64, parseUrlSRI } from "./utils";
+import { isBase64, parseUrlSRI, type TUrlSRIInfo } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { blobToUint8Array } from "@App/pkg/utils/datatype";
 import { readBlobContent } from "@App/pkg/utils/encoding";
@@ -29,35 +29,32 @@ export class ResourceService {
 
   public async getResource(
     uuid: string,
-    url: string,
+    u: TUrlSRIInfo,
     type: ResourceType,
-    loadNow: boolean
+    loadNow: boolean,
+    oldResources: Resource | undefined
   ): Promise<Resource | undefined> {
-    const res = await this.getResourceModel(url);
-    if (res) {
+    if (oldResources) {
       // 读取过但失败的资源加载也会被放在缓存，避免再加载资源
       // 因此 getResource 时不会再加载资源，直接返回 undefined 表示没有资源
-      if (!res.contentType) return undefined;
-      return res;
+      if (!oldResources.contentType) return undefined;
+      return oldResources;
     }
-    // 缓存中无资源加载纪录
-    if (loadNow) {
-      // 立即尝试加载资源
-      try {
-        return await this.updateResource(uuid, url, type);
-      } catch (e: any) {
-        this.logger.error("load resource error", { url }, Logger.E(e));
-      }
-    } else {
-      // 等一下尝试加载资源 （在后台异步加载）
-      // 先返回 undefined 表示没有资源
+    // 缓存中无资源加载纪录，需要取得资源
+    const url = u.originalUrl;
+    if (!loadNow) {
+      // 等一下尝试加载资源（例入 import）
       // 避免所有资源立即同一时间加载, delay设为 1.2s ~ 2.4s
-      setTimeout(
-        () => {
-          this.updateResource(uuid, url, type);
-        },
-        randNum(1200, 2400)
-      );
+      const delay = randNum(1200, 2400);
+      await sleep(delay);
+      const updatedResource = await this.getResourceModel(u);
+      // 如果等候期间有其他程序已生成 resource, 则不用呼叫 updateResource
+      if (updatedResource?.contentType) return updatedResource;
+    }
+    try {
+      return await this.updateResource(uuid, u, type, undefined);
+    } catch (e: any) {
+      this.logger.error("load resource error", { url }, Logger.E(e));
     }
     return undefined;
   }
@@ -98,12 +95,14 @@ export class ResourceService {
           }
         }
         if (path) {
+          const u = parseUrlSRI(path);
+          const oldResources = await this.getResourceModel(u);
           if (uri.startsWith("file:///")) {
             // 如果是file://协议，则每次请求更新一下文件
-            const res = await this.updateResource(script.uuid, path, type);
+            const res = await this.updateResource(script.uuid, u, type, oldResources);
             ret[resourceKey] = res;
           } else {
-            const res = await this.getResource(script.uuid, path, type, load);
+            const res = await this.getResource(script.uuid, u, type, load, oldResources);
             if (res) {
               ret[resourceKey] = res;
             }
@@ -114,49 +113,53 @@ export class ResourceService {
     return ret;
   }
 
-  updateResourceByType(script: Script, type: ResourceType) {
+  // 只需要等待Promise返回，不理会返回值（失败也可以）
+  updateResourceByType(script: Script, type: ResourceType): Promise<any> | void {
+    const uuid = script.uuid;
     const promises = script.metadata[type]?.map(async (u) => {
+      let url = "";
       if (type === "resource") {
         const split = u.split(/\s+/);
         if (split.length === 2) {
-          return this.checkResource(script.uuid, split[1], "resource");
+          url = split[1];
         }
       } else {
-        return this.checkResource(script.uuid, u, type);
+        url = u;
+      }
+      if (url) {
+        // 检查资源是否存在,如果不存在则重新加载
+        // 如果有旧资源，而没有新资讯，则继续使用旧资源
+        // 只需要等待Promise返回，不理会返回值（失败也可以）
+        const u = parseUrlSRI(url);
+        const oldResources = await this.getResourceModel(u);
+        const updateTime = oldResources?.updatetime;
+        // 资源最后更新是24小时内则不更新
+        if (updateTime && updateTime > Date.now() - 86400_000) return;
+        // 旧资源或没有资源记录，尝试更新
+        try {
+          await this.updateResource(uuid, u, type, oldResources);
+        } catch (e: any) {
+          this.logger.error("check resource failed", { uuid, url }, Logger.E(e));
+        }
       }
     });
-    return promises?.length && Promise.allSettled(promises);
+    if (promises?.length) return Promise.allSettled(promises);
   }
 
-  // 检查资源是否存在,如果不存在则重新加载
-  async checkResource(uuid: string, url: string, type: ResourceType) {
-    let res = await this.getResourceModel(url);
-    const updateTime = res?.updatetime;
-    // 判断1天过期
-    if (updateTime && updateTime > Date.now() - 1000 * 86400) {
-      return res;
-    }
-    try {
-      res = await this.updateResource(uuid, url, type);
-      if (res?.contentType) {
-        return res;
-      }
-    } catch (e: any) {
-      // ignore
-      this.logger.error("check resource failed", { uuid, url }, Logger.E(e));
-    }
-    return undefined;
-  }
-
-  async updateResource(uuid: string, url: string, type: ResourceType) {
+  async updateResource(
+    uuid: string,
+    u: TUrlSRIInfo,
+    type: ResourceType,
+    oldResources: Resource | null | undefined = null
+  ) {
     // 重新加载
-    const u = parseUrlSRI(url);
-    let result = await this.getResourceModel(u.url);
+    if (oldResources === null) oldResources = await this.getResourceModel(u);
+    let result: Resource;
     try {
       const resource = await this.loadByUrl(u.url, type);
       const now = Date.now();
       resource.updatetime = now;
-      if (!result || !result.contentType) {
+      if (!oldResources || !oldResources.contentType) {
         // 资源不存在,保存
         resource.createtime = now;
         resource.link = { [uuid]: true };
@@ -164,19 +167,28 @@ export class ResourceService {
         result = resource;
         this.logger.info("reload new resource success", { url: u.url });
       } else {
-        result.base64 = resource.base64;
-        result.content = resource.content;
-        result.contentType = resource.contentType;
-        result.hash = resource.hash;
-        result.updatetime = resource.updatetime;
-        result.link[uuid] = true;
+        result = {
+          ...oldResources,
+          base64: resource.base64,
+          content: resource.content,
+          contentType: resource.contentType,
+          hash: resource.hash,
+          updatetime: resource.updatetime,
+          link: { ...oldResources.link, [uuid]: true },
+        };
         await this.resourceDAO.update(result.url, result);
         this.logger.info("reload resource success", {
           url: u.url,
         });
       }
+      return result;
     } catch (e) {
-      // 资源错误时保存一个空纪录以防止再度尝试加载
+      // 如果有旧资源，则使用旧资源
+      if (oldResources) {
+        this.logger.error("load resource error - fallback to old resource", { url: u.url }, Logger.E(e));
+        return oldResources;
+      }
+      // 资源错误时（且没有旧资源）保存一个空纪录以防止再度尝试加载
       // this.resourceDAO.save 自身出错的话忽略
       await this.resourceDAO
         .save({
@@ -199,11 +211,9 @@ export class ResourceService {
       this.logger.error("load resource error", { url: u.url }, Logger.E(e));
       throw e;
     }
-    return result;
   }
 
-  async getResourceModel(url: string) {
-    const u = parseUrlSRI(url);
+  async getResourceModel(u: TUrlSRIInfo) {
     const resource = await this.resourceDAO.get(u.url);
     if (resource) {
       // 校验hash
@@ -229,7 +239,7 @@ export class ResourceService {
           }
         }
         if (!flag) {
-          resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${url} due to a SRI error ");`;
+          resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${u.originalUrl} due to a SRI error ");`;
         }
       }
       return resource;
