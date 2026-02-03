@@ -419,7 +419,9 @@ describe.concurrent("GM_value", () => {
     // 设置错误的对象
     GM_setValue("proxy-key", new Proxy({}, {}));
     let ret3 = GM_getValue("proxy-key");
-    return {ret1, ret2, ret3};
+    GM_setValue("window",window);
+    let ret4 = GM_getValue("window");
+    return {ret1, ret2, ret3, ret4};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -431,7 +433,7 @@ describe.concurrent("GM_value", () => {
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(3);
+    expect(mockSendMessage).toHaveBeenCalledTimes(4);
 
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -465,6 +467,7 @@ describe.concurrent("GM_value", () => {
       ret1: 123,
       ret2: 456,
       ret3: {},
+      ret4: undefined,
     });
   });
 
