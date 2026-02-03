@@ -420,6 +420,7 @@ export class ScriptService {
           this.resourceService.updateResourceByType(script, "require-css"),
           this.resourceService.updateResourceByType(script, "resource"),
         ]);
+        // 如果资源不完整，还是要接受安装吗？？？
 
         // 广播一下
         // Runtime 會負責更新 CompiledResource
