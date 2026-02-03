@@ -636,7 +636,9 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     // 设置错误的对象
     GM_setValues({"proxy-key": new Proxy({}, {})});
     let ret3 = GM_getValues(["proxy-key"]);
-    return {ret1, ret2, ret3};
+    GM_setValues({"window": window});
+    let ret4 = GM_getValues(["window"]);
+    return {ret1, ret2, ret3, ret4};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -648,7 +650,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(3);
+    expect(mockSendMessage).toHaveBeenCalledTimes(4);
 
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -705,6 +707,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       ret1: { a: 123, b: 456, c: "789" },
       ret2: { b: 456 },
       ret3: { "proxy-key": {} },
+      ret4: { window: undefined },
     });
   });
 
