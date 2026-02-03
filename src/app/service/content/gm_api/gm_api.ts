@@ -279,11 +279,10 @@ export default class GMApi extends GM_Base {
         value = customClone(value);
       }
       // customClone 可能返回 undefined
+      a.scriptRes.value[key] = value;
       if (value === undefined) {
-        delete a.scriptRes.value[key];
         a.sendMessage("GM_setValue", [id, key]);
       } else {
-        a.scriptRes.value[key] = value;
         a.sendMessage("GM_setValue", [id, key, value]);
       }
     }
