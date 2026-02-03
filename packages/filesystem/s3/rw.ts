@@ -93,7 +93,6 @@ export class S3FileWriter implements FileWriter {
    * @throws {Error} If upload fails
    */
   async write(content: string | Blob): Promise<void> {
-
     const metadata: Record<string, string> = {};
     if (this.modifiedDate) {
       // 用 ISO 8601 格式
