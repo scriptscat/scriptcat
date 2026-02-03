@@ -237,7 +237,7 @@ export default class GMApi extends GM_Base {
     const ret = a.scriptRes.value[key];
     if (ret !== undefined) {
       if (ret && typeof ret === "object") {
-        return customClone(ret);
+        return customClone(ret)!;
       }
       return ret;
     }
@@ -377,7 +377,7 @@ export default class GMApi extends GM_Base {
     if (!this.scriptRes) return {};
     if (!keysOrDefaults) {
       // Returns all values
-      return customClone(this.scriptRes.value);
+      return customClone(this.scriptRes.value)!;
     }
     const result: TGMKeyValue = {};
     if (Array.isArray(keysOrDefaults)) {
@@ -389,7 +389,7 @@ export default class GMApi extends GM_Base {
           // 对object的value进行一次转化
           let value = this.scriptRes.value[key];
           if (value && typeof value === "object") {
-            value = customClone(value);
+            value = customClone(value)!;
           }
           result[key] = value;
         }
