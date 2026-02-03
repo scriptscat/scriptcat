@@ -1,3 +1,4 @@
+import { customClone } from "../global";
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type {
@@ -236,7 +237,7 @@ export default class GMApi extends GM_Base {
     const ret = a.scriptRes.value[key];
     if (ret !== undefined) {
       if (ret && typeof ret === "object") {
-        return structuredClone(ret);
+        return customClone(ret);
       }
       return ret;
     }
@@ -275,7 +276,7 @@ export default class GMApi extends GM_Base {
     } else {
       // 对object的value进行一次转化
       if (value && typeof value === "object") {
-        value = structuredClone(value);
+        value = customClone(value);
       }
       a.scriptRes.value[key] = value;
       a.sendMessage("GM_setValue", [id, key, value]);
@@ -302,7 +303,7 @@ export default class GMApi extends GM_Base {
       } else {
         // 对object的value进行一次转化
         if (value_ && typeof value_ === "object") {
-          value_ = structuredClone(value_);
+          value_ = customClone(value_);
         }
         valueStore[key] = value_;
       }
@@ -369,7 +370,7 @@ export default class GMApi extends GM_Base {
     if (!this.scriptRes) return {};
     if (!keysOrDefaults) {
       // Returns all values
-      return structuredClone(this.scriptRes.value);
+      return customClone(this.scriptRes.value);
     }
     const result: TGMKeyValue = {};
     if (Array.isArray(keysOrDefaults)) {
@@ -381,7 +382,7 @@ export default class GMApi extends GM_Base {
           // 对object的value进行一次转化
           let value = this.scriptRes.value[key];
           if (value && typeof value === "object") {
-            value = structuredClone(value);
+            value = customClone(value);
           }
           result[key] = value;
         }
