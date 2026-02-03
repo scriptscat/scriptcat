@@ -301,6 +301,7 @@ export default class GMApi extends GM_Base {
       valueChangePromiseMap.set(id, promise);
     }
     const valueStore = a.scriptRes.value;
+    const sendingValues = {} as Record<string, any>;
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
       if (value_ === undefined) {
@@ -309,14 +310,14 @@ export default class GMApi extends GM_Base {
         // 对object的value进行一次转化
         if (value_ && typeof value_ === "object") {
           value_ = customClone(value_);
-          values[key] = value_; // 不建议这样做但先这样吧
         }
         // customClone 可能返回 undefined
         valueStore[key] = value_;
       }
+      if (value_ !== undefined) sendingValues[key] = value_;
     }
     // 避免undefined 等空值流失，先进行映射处理
-    const valuesNew = encodeMessage(values);
+    const valuesNew = encodeMessage(sendingValues);
     a.sendMessage("GM_setValues", [id, valuesNew]);
     return id;
   }
