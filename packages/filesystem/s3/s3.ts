@@ -203,7 +203,7 @@ export default class S3FileSystem implements FileSystem {
           Prefix: prefix,
           Delimiter: "/",
           ContinuationToken: continuationToken,
-          MaxKeys: 1000,  // ← 每次最多 1000，防滥用
+          MaxKeys: 1000, // ← 每次最多 1000，防滥用
         });
 
         const response = await this.client.send(command);
