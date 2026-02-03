@@ -5,9 +5,11 @@ import { Runtime } from "./runtime";
 
 // sandbox环境的管理器
 export class SandboxManager {
-  api: Server = new Server("sandbox", this.windowMessage);
+  api: Server;
 
-  constructor(private windowMessage: WindowMessage) {}
+  constructor(private windowMessage: WindowMessage) {
+    this.api = new Server("sandbox", this.windowMessage);
+  }
 
   initManager() {
     const runtime = new Runtime(this.windowMessage, this.api);
