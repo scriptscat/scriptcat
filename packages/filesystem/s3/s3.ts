@@ -41,7 +41,7 @@ export default class S3FileSystem implements FileSystem {
     secretAccessKey: string,
     endpoint?: string,
     basePath?: string,
-    usePathStyle: boolean = true   // 默认兼容S3
+    usePathStyle: boolean = true // 默认兼容S3
   ) {
     this.bucket = bucket;
     this.region = region;

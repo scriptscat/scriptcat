@@ -39,7 +39,6 @@ export class S3FileReader implements FileReader {
       }
 
       // Convert the stream to the requested format
-      const chunks: Uint8Array[] = [];
       const stream = response.Body.transformToWebStream();
 
       if (type === "string") {
@@ -55,12 +54,10 @@ export class S3FileReader implements FileReader {
         // 最后 flush
         result += decoder.decode();
         return result;
-
       } else {
         // 返回 Blob，避免 JS 层缓冲与拼接，走底层最优路径
         return new Response(stream).blob();
       }
-
     } catch (error: any) {
       if (error.name === "NoSuchKey") {
         throw new Error(`File not found: ${this.key}`);
@@ -101,7 +98,7 @@ export class S3FileWriter implements FileWriter {
     const metadata: Record<string, string> = {};
     if (this.modifiedDate) {
       // 用 ISO 8601 格式
-      metadata.createtime = new Date(this.modifiedDate).toISOString();  // 规范格式
+      metadata.createtime = new Date(this.modifiedDate).toISOString(); // 规范格式
     }
 
     const command = new PutObjectCommand({
