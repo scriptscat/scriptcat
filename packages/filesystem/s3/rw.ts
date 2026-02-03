@@ -93,7 +93,6 @@ export class S3FileWriter implements FileWriter {
    * @throws {Error} If upload fails
    */
   async write(content: string | Blob): Promise<void> {
-    const body = content instanceof Blob ? new Uint8Array(await content.arrayBuffer()) : content;
 
     const metadata: Record<string, string> = {};
     if (this.modifiedDate) {
@@ -104,7 +103,7 @@ export class S3FileWriter implements FileWriter {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: this.key,
-      Body: body,
+      Body: content,
       Metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     });
 
