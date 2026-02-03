@@ -1168,8 +1168,17 @@ export class RuntimeService {
           const resourceList = scriptRes.metadata[type];
           if (!resourceList) continue;
           const u = parseUrlSRI(url);
-          const oldResources = await this.resource.getResourceModel(u);
+          if (u.hash) {
+            // 如果有 校验hash 的话，根本不用更新本地资源呀！
+            continue;
+          }
+          // const oldResources = await this.resource.getResourceModel(u);
+          const oldResources = await this.resource.resourceDAO.get(u.url);
           const updatedResource = await this.resource.updateResource(scriptRes.uuid, u, type, oldResources);
+          if (updatedResource === oldResources) {
+            // 如果新旧一样就忽视吧 - 不用更新本地资源
+            continue;
+          }
           if (updatedResource.hash?.sha512 !== sha512) {
             // ----- 感觉这里是跟 resource.updateResource 内容的更新重复了 -----
             for (const uri of resourceList) {
