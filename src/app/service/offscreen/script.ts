@@ -18,9 +18,9 @@ import type { TDeleteScript, TInstallScript, TEnableScript } from "../queue";
 export class ScriptService {
   logger: Logger;
 
-  scriptClient: ScriptClient = new ScriptClient(this.extMsgSender);
-  resourceClient: ResourceClient = new ResourceClient(this.extMsgSender);
-  valueClient: ValueClient = new ValueClient(this.extMsgSender);
+  scriptClient: ScriptClient;
+  resourceClient: ResourceClient;
+  valueClient: ValueClient;
 
   constructor(
     private group: Group,
@@ -29,6 +29,9 @@ export class ScriptService {
     private messageQueue: IMessageQueue
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
+    this.scriptClient = new ScriptClient(this.extMsgSender);
+    this.resourceClient = new ResourceClient(this.extMsgSender);
+    this.valueClient = new ValueClient(this.extMsgSender);
   }
 
   runScript(script: ScriptRunResource) {
