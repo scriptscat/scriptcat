@@ -33,7 +33,17 @@ const envInfo: GMInfoEnv = {
 describe.concurrent("@grant GM", () => {
   it.concurrent("GM_", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_getTabs", "GM_saveTab", "GM_cookie"];
+    script.metadata.grant = [
+      "GM_getValue",
+      "GM_getTab",
+      "GM_getTabs",
+      "GM_saveTab",
+      "GM_cookie",
+      "GM_addElement",
+      "GM_openInTab",
+      "GM_log",
+      "GM_notification",
+    ];
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
@@ -43,14 +53,14 @@ describe.concurrent("@grant GM", () => {
       GM_saveTab: this.GM_saveTab,
       GM_cookie: this.GM_cookie,
       ["GM_cookie.list"]: this.GM_cookie.list,
-      ["GM_addElement"]: this.GM_addElement || function nil(){},
-      ["GM.addElement"]: this["GM.addElement"] || function nil(){},
-      ["GM_openInTab"]: this.GM_openInTab || function nil(){},
-      ["GM.openInTab"]: this.GM.openInTab || function nil(){},
-      ["GM_log"]: this.GM_log || function nil(){},
-      ["GM.log"]: this.GM.log || function nil(){},
-      ["GM_notification"]: this.GM_notification || function nil(){},
-      ["GM.notification"]: this.GM.notification || function nil(){},
+      ["GM_addElement"]: this.GM_addElement,
+      ["GM.addElement"]: this.GM.addElement,
+      ["GM_openInTab"]: this.GM_openInTab,
+      ["GM.openInTab"]: this.GM.openInTab,
+      ["GM_log"]: this.GM_log,
+      ["GM.log"]: this.GM.log,
+      ["GM_notification"]: this.GM_notification,
+      ["GM.notification"]: this.GM.notification,
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -64,19 +74,29 @@ describe.concurrent("@grant GM", () => {
     expect(ret.GM_cookie?.name).toEqual("bound GM_cookie");
     expect(ret["GM_cookie.list"]?.name).toEqual("bound GM_cookie.list");
     // 没有grant应返回 nil
-    expect(ret["GM_addElement"]?.name).toEqual("nil");
-    expect(ret["GM.addElement"]?.name).toEqual("nil");
-    expect(ret["GM_openInTab"]?.name).toEqual("nil");
-    expect(ret["GM.openInTab"]?.name).toEqual("nil");
-    expect(ret["GM_log"]?.name).toEqual("nil");
-    expect(ret["GM.log"]?.name).toEqual("nil");
-    expect(ret["GM_notification"]?.name).toEqual("nil");
-    expect(ret["GM.notification"]?.name).toEqual("nil");
+    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
+    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
   });
 
   it.concurrent("GM.*", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.getTabs", "GM.saveTab", "GM.cookie"];
+    script.metadata.grant = [
+      "GM.getValue",
+      "GM.getTab",
+      "GM.getTabs",
+      "GM.saveTab",
+      "GM.cookie",
+      "GM.addElement",
+      "GM.openInTab",
+      "GM.log",
+      "GM.notification",
+    ];
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
@@ -85,14 +105,14 @@ describe.concurrent("@grant GM", () => {
       ["GM.getTabs"]: GM.getTabs,
       ["GM.saveTab"]: GM.saveTab,
       ["GM.cookie"]: this.GM.cookie,
-      ["GM_addElement"]: this.GM_addElement || function nil(){},
-      ["GM.addElement"]: this["GM.addElement"] || function nil(){},
-      ["GM_openInTab"]: this.GM_openInTab || function nil(){},
-      ["GM.openInTab"]: this.GM.openInTab || function nil(){},
-      ["GM_log"]: this.GM_log || function nil(){},
-      ["GM.log"]: this.GM.log || function nil(){},
-      ["GM_notification"]: this.GM_notification || function nil(){},
-      ["GM.notification"]: this.GM.notification || function nil(){},
+      ["GM_addElement"]: this.GM_addElement,
+      ["GM.addElement"]: this.GM.addElement,
+      ["GM_openInTab"]: this.GM_openInTab,
+      ["GM.openInTab"]: this.GM.openInTab,
+      ["GM_log"]: this.GM_log,
+      ["GM.log"]: this.GM.log,
+      ["GM_notification"]: this.GM_notification,
+      ["GM.notification"]: this.GM.notification,
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -106,14 +126,14 @@ describe.concurrent("@grant GM", () => {
     expect(ret["GM.cookie"]?.name).toEqual("bound GM.cookie");
     expect(ret["GM.cookie"]?.list?.name).toEqual("bound GM.cookie.list");
     // 没有grant应返回 nil
-    expect(ret["GM_addElement"]?.name).toEqual("nil");
-    expect(ret["GM.addElement"]?.name).toEqual("nil");
-    expect(ret["GM_openInTab"]?.name).toEqual("nil");
-    expect(ret["GM.openInTab"]?.name).toEqual("nil");
-    expect(ret["GM_log"]?.name).toEqual("nil");
-    expect(ret["GM.log"]?.name).toEqual("nil");
-    expect(ret["GM_notification"]?.name).toEqual("nil");
-    expect(ret["GM.notification"]?.name).toEqual("nil");
+    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
+    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
   });
 });
 

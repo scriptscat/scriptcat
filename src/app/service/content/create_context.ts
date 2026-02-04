@@ -79,6 +79,12 @@ export const createContext = (
     return true;
   };
   for (const grant of scriptGrants) {
+    // . 与 _ 都需要注入
+    if (grant.includes(".")) {
+      __methodInject__(grant.replace(/\./g, "_"));
+    } else {
+      __methodInject__(grant.replace(/_/g, "."));
+    }
     __methodInject__(grant);
   }
   // 兼容GM.Cookie.*
