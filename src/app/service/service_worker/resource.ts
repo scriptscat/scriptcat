@@ -108,11 +108,7 @@ export class ResourceService {
   }
 
   public async getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    const [require, require_css, resource] = await Promise.all([
-      this.getResourceByType(script, "require"),
-      this.getResourceByType(script, "require-css"),
-      this.getResourceByType(script, "resource"),
-    ]);
+    const [require, require_css, resource] = await this.getResourceByTypes(script, ["require", "require-css", "resource"]);
 
     return {
       ...require,
@@ -121,44 +117,46 @@ export class ResourceService {
     };
   }
 
-  async getResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
-    if (!script.metadata[type]) {
-      return {};
-    }
-    const ret: { [key: string]: Resource } = {};
-    await Promise.allSettled(
-      script.metadata[type].map(async (uri) => {
-        /** 资源键名 */
-        let resourceKey = uri;
-        /** 文件路径 */
-        let path: string | null = uri;
-        if (type === "resource") {
-          // @resource xxx https://...
-          const split = uri.split(/\s+/);
-          if (split.length === 2) {
-            resourceKey = split[0];
-            path = split[1].trim();
-          } else {
-            path = null;
-          }
-        }
-        if (path) {
-          const u = parseUrlSRI(path);
-          const oldResources = await this.getResourceModel(u);
-          if (uri.startsWith("file:///")) {
-            // 如果是file://协议，则每次请求更新一下文件
-            const res = await this.updateResource(script.uuid, u, type, oldResources);
-            ret[resourceKey] = res;
-          } else {
-            const res = await this.getResource(script.uuid, u, type, oldResources);
-            if (res) {
-              ret[resourceKey] = res;
+  public getResourceByTypes(script: Script, types: ResourceType[]): Promise<Record<string, Resource>[]> {
+    const promises = types.map(async (type) => {
+      const ret: Record<string, Resource> = {};
+      if (script.metadata[type]) {
+        await Promise.allSettled(
+          script.metadata[type].map(async (uri) => {
+            /** 资源键名 */
+            let resourceKey = uri;
+            /** 文件路径 */
+            let path: string | null = uri;
+            if (type === "resource") {
+              // @resource xxx https://...
+              const split = uri.split(/\s+/);
+              if (split.length === 2) {
+                resourceKey = split[0];
+                path = split[1].trim();
+              } else {
+                path = null;
+              }
             }
-          }
-        }
-      })
-    );
-    return ret;
+            if (path) {
+              const u = parseUrlSRI(path);
+              const oldResources = await this.getResourceModel(u);
+              if (uri.startsWith("file:///")) {
+                // 如果是file://协议，则每次请求更新一下文件
+                const res = await this.updateResource(script.uuid, u, type, oldResources);
+                ret[resourceKey] = res;
+              } else {
+                const res = await this.getResource(script.uuid, u, type, oldResources);
+                if (res) {
+                  ret[resourceKey] = res;
+                }
+              }
+            }
+          })
+        );
+      }
+      return ret;
+    });
+    return Promise.all(promises);
   }
 
   // 只需要等待Promise返回，不理会返回值（失败也可以）
