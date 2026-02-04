@@ -16,29 +16,27 @@ import { blobToUint8Array } from "@App/pkg/utils/datatype";
 import { readBlobContent } from "@App/pkg/utils/encoding";
 
 class Semaphore {
-  private running = 0;
+  private active = 0;
   private readonly queue: Array<() => void> = [];
 
   constructor(readonly limit: number) {
     if (limit < 1) throw new Error("limit must be >= 1");
   }
 
-  async acquire(): Promise<void> {
-    if (this.running < this.limit) {
-      this.running++;
-      return;
+  async acquire() {
+    if (this.active >= this.limit) {
+      await new Promise<void>((resolve) => this.queue.push(resolve));
     }
-    await new Promise<void>((resolve) => this.queue.push(resolve));
-    this.running++;
+    this.active++;
   }
 
-  release(): void {
-    if (this.running <= 0) {
+  release() {
+    if (this.active > 0) {
+      this.active--;
+      this.queue.shift()?.();
+    } else {
       console.warn("Semaphore double release detected");
-      return;
     }
-    this.running--;
-    this.queue.shift()?.();
   }
 }
 
@@ -319,6 +317,7 @@ export class ResourceService {
   async createResourceByUrlFetch(u: TUrlSRIInfo, type: ResourceType): Promise<Resource> {
     const url = u.url; // 无 URI Integrity Hash
 
+    let released = false;
     await fetchSemaphore.acquire();
     // Semaphore 锁 - 同期只有五个 fetch 一起执行
     const delay = randNum(100, 150); // 100~150ms delay before starting fetch
@@ -328,7 +327,10 @@ export class ResourceService {
     const { result, err } = await withTimeoutNotify(fetch(url), 800, ({ done, timeouted, err }) => {
       if (timeouted || done || err) {
         // fetch 成功 或 发生错误 或 timeout 时解锁
-        fetchSemaphore.release();
+        if (!released) {
+          released = true;
+          fetchSemaphore.release();
+        }
       }
     });
     // Semaphore 锁已解锁。继续处理 fetch Response 的结果
