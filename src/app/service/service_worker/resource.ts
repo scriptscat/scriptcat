@@ -199,10 +199,8 @@ export class ResourceService {
     uuid: string,
     u: TUrlSRIInfo,
     type: ResourceType,
-    oldResources: Resource | null | undefined = null
+    oldResources: Resource | undefined
   ) {
-    // 重新加载
-    if (oldResources === null) oldResources = await this.getResourceModel(u);
     let result: Resource;
     try {
       const resource = await this.createResourceByUrlFetch(u.url, type);
