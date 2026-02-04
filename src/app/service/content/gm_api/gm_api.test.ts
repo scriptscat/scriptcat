@@ -61,6 +61,8 @@ describe.concurrent("@grant GM", () => {
       ["GM.log"]: this.GM.log,
       ["GM_notification"]: this.GM_notification,
       ["GM.notification"]: this.GM.notification,
+      ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
+      ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -73,7 +75,7 @@ describe.concurrent("@grant GM", () => {
     // cookie
     expect(ret.GM_cookie?.name).toEqual("bound GM_cookie");
     expect(ret["GM_cookie.list"]?.name).toEqual("bound GM_cookie.list");
-    // 没有grant应返回 nil
+    // GM_与GM.应该都在
     expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
     expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
     expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
@@ -82,6 +84,9 @@ describe.concurrent("@grant GM", () => {
     expect(ret["GM.log"]?.name).toEqual("bound GM.log");
     expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
     expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    // 没有grant应返回 nil
+    expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
+    expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
   });
 
   it.concurrent("GM.*", async () => {
@@ -113,6 +118,8 @@ describe.concurrent("@grant GM", () => {
       ["GM.log"]: this.GM.log,
       ["GM_notification"]: this.GM_notification,
       ["GM.notification"]: this.GM.notification,
+      ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
+      ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -125,7 +132,7 @@ describe.concurrent("@grant GM", () => {
     // cookie
     expect(ret["GM.cookie"]?.name).toEqual("bound GM.cookie");
     expect(ret["GM.cookie"]?.list?.name).toEqual("bound GM.cookie.list");
-    // 没有grant应返回 nil
+    // GM_与GM.应该都在
     expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
     expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
     expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
@@ -134,6 +141,9 @@ describe.concurrent("@grant GM", () => {
     expect(ret["GM.log"]?.name).toEqual("bound GM.log");
     expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
     expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    // 没有grant应返回 nil
+    expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
+    expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
   });
 });
 
