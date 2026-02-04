@@ -133,25 +133,26 @@ export class ResourceService {
       const ret: Record<string, Resource> = {};
       if (script.metadata[type]) {
         await Promise.allSettled(
-          script.metadata[type].map(async (uri) => {
+          script.metadata[type].map(async (mdValue) => {
             /** 资源键名 */
-            let resourceKey = uri;
+            let resourceKey;
             /** 文件路径 */
-            let path: string | null = uri;
+            let resourcePath: string;
             if (type === "resource") {
               // @resource xxx https://...
-              const split = uri.split(/\s+/);
-              if (split.length === 2) {
-                resourceKey = split[0];
-                path = split[1].trim();
-              } else {
-                path = null;
-              }
+              const split = mdValue.split(/\s+/);
+              if (split.length !== 2) return; // @resource 必须有 key 和 path. "xxx yyy zzz" 也不符合格式要求
+              resourceKey = split[0];
+              resourcePath = split[1].trim();
+            } else {
+              // require / require-css 的话，使用 url 作为 resourceKey
+              resourceKey = mdValue;
+              resourcePath = mdValue;
             }
-            if (path) {
-              const u = parseUrlSRI(path);
+            if (resourcePath) {
+              const u = parseUrlSRI(resourcePath);
               const oldResources = await this.getResourceModel(u);
-              if (uri.startsWith("file:///")) {
+              if (mdValue.startsWith("file:///")) {
                 // 如果是file://协议，则每次请求更新一下文件
                 const res = await this.updateResource(script.uuid, u, type, oldResources);
                 ret[resourceKey] = res;
