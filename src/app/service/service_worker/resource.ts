@@ -85,28 +85,6 @@ export class ResourceService {
     this.resourceDAO.enableCache();
   }
 
-  public async getResource(
-    uuid: string,
-    u: TUrlSRIInfo,
-    type: ResourceType,
-    oldResources: Resource | undefined
-  ): Promise<Resource | undefined> {
-    if (oldResources) {
-      // 读取过但失败的资源加载也会被放在缓存，避免再加载资源
-      // 因此 getResource 时不会再加载资源，直接返回 undefined 表示没有资源
-      if (!oldResources.contentType) return undefined;
-      return oldResources;
-    }
-    // 缓存中无资源加载纪录，需要取得资源
-    const url = u.originalUrl;
-    try {
-      return await this.updateResource(uuid, u, type, undefined);
-    } catch (e: any) {
-      this.logger.error("load resource error", { url }, Logger.E(e));
-    }
-    return undefined;
-  }
-
   public async getScriptResourceValue(script: Script): Promise<{ [key: string]: Resource }> {
     const [require, require_css, resource] = await this.getResourceByTypes(script, ["require", "require-css", "resource"]);
     const ret = {
