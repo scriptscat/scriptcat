@@ -12,15 +12,19 @@ import { makeBlobURL } from "@App/pkg/utils/utils";
 
 // offscreen环境的管理器
 export class OffscreenManager {
-  private windowMessage = new WindowMessage(window, sandbox, true);
+  private windowMessage: WindowMessage;
 
-  private windowServer: Server = new Server("offscreen", this.windowMessage);
+  private windowServer: Server;
 
   private messageQueue = new MessageQueue();
 
-  private serviceWorker = new ServiceWorkerClient(this.extMsgSender);
+  private serviceWorker: ServiceWorkerClient;
 
-  constructor(private extMsgSender: MessageSend) {}
+  constructor(private extMsgSender: MessageSend) {
+    this.windowMessage = new WindowMessage(window, sandbox, true);
+    this.windowServer = new Server("offscreen", this.windowMessage);
+    this.serviceWorker = new ServiceWorkerClient(this.extMsgSender);
+  }
 
   logger(data: Logger) {
     // 发送日志消息
