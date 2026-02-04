@@ -126,7 +126,9 @@ export class SynchronizeService {
     const lastModificationDate = script.updatetime || script.createtime || undefined;
     const [values, valueRet] = await this.value.getScriptValueDetails(script);
     const [requires, requiresCss, resources] = await this.resource.getResourceByTypes(script, [
-      "require", "require-css", "resource"
+      "require",
+      "require-css",
+      "resource",
     ]);
     const storage: ValueStorage = {
       data: { ...values },
