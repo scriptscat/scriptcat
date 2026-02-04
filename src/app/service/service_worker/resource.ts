@@ -131,9 +131,11 @@ export class ResourceService {
   public getResourceByTypes(script: Script, types: ResourceType[]): Promise<Record<string, Resource>[]> {
     const promises = types.map(async (type) => {
       const ret: Record<string, Resource> = {};
-      if (script.metadata[type]) {
+      const metadataEntries = script.metadata[type];
+      const uuid = script.uuid;
+      if (metadataEntries) {
         await Promise.allSettled(
-          script.metadata[type].map(async (mdValue) => {
+          metadataEntries.map(async (mdValue) => {
             /** 资源键名 */
             let resourceKey;
             /** 文件路径 */
@@ -154,10 +156,10 @@ export class ResourceService {
               const oldResources = await this.getResourceModel(u);
               if (resourcePath.startsWith("file:///")) {
                 // 如果是file://协议，则每次请求更新一下文件
-                const res = await this.updateResource(script.uuid, u, type, oldResources);
+                const res = await this.updateResource(uuid, u, type, oldResources);
                 ret[resourceKey] = res;
               } else {
-                const res = await this.getResource(script.uuid, u, type, oldResources);
+                const res = await this.getResource(uuid, u, type, oldResources);
                 if (res) {
                   ret[resourceKey] = res;
                 }
