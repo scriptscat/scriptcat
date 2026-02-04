@@ -79,10 +79,10 @@ export const createContext = (
     return true;
   };
   for (const grant of scriptGrants) {
-    // . 与 _ 都需要注入
-    if (grant.includes(".")) {
+    // GM. 与 GM_ 都需要注入
+    if (grant.includes("GM.")) {
       __methodInject__(grant.replace(/\./g, "_"));
-    } else {
+    } else if (grant.includes("GM_")) {
       __methodInject__(grant.replace(/_/g, "."));
     }
     __methodInject__(grant);
