@@ -154,15 +154,26 @@ export class ResourceService {
             if (resourcePath) {
               const u = parseUrlSRI(resourcePath);
               const oldResources = await this.getResourceModel(u);
-              if (resourcePath.startsWith("file:///")) {
-                // 如果是file://协议，则每次请求更新一下文件
-                const res = await this.updateResource(uuid, u, type, oldResources);
-                ret[resourceKey] = res;
-              } else {
-                const res = await this.getResource(uuid, u, type, oldResources);
-                if (res) {
-                  ret[resourceKey] = res;
+              let freshResource: Resource | undefined = undefined;
+              if (oldResources && !resourcePath.startsWith("file:///")) {
+                // 读取过但失败的资源加载也会被放在缓存，避免再加载资源
+                // 因此 getResource 时不会再加载资源，直接返回 undefined 表示没有资源
+                if (!oldResources.contentType) {
+                  freshResource = undefined;
+                } else {
+                  freshResource = oldResources;
                 }
+              } else {
+                // 1) 如果是file://协议，则每次请求更新一下文件
+                // 2) 缓存中无资源加载纪录，需要取得资源
+                try {
+                  freshResource = await this.updateResource(uuid, u, type, oldResources);
+                } catch (e: any) {
+                  this.logger.error("load resource error", { url: u.originalUrl }, Logger.E(e));
+                }
+              }
+              if (freshResource) {
+                ret[resourceKey] = freshResource;
               }
             }
           })
