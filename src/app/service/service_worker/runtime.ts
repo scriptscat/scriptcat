@@ -1157,7 +1157,7 @@ export class RuntimeService {
     if (!enableScriptList.length) return null;
 
     const scriptCodes = {} as Record<string, string>;
-    // 更新资源使用了file协议的脚本 （ 不能在其他地方更新嗎？？ 見 Issue #918 ）
+    // 更新资源使用了file协议的脚本 （ 不能在其他地方更新吗？？ 见 Issue #918 ）
     const scriptsWithUpdatedResources = new Map<string, ScriptLoadInfo>();
     for (const scriptRes of enableScriptList) {
       const uuid = scriptRes.uuid;

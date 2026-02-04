@@ -150,11 +150,13 @@ export class ResourceService {
                 // 2) 缓存中无资源加载纪录，需要取得资源
                 try {
                   freshResource = await this.updateResource(uuid, u, type, oldResources);
+                  // 没有 oldResources 时，下载资源失败还是会生成一个空 Resource，避免重复尝试失败的下载
                 } catch (e: any) {
                   this.logger.error("load resource error", { url: u.originalUrl }, Logger.E(e));
                 }
               }
               if (freshResource) {
+                // 空资源也储存一下，确保 resourceDAO 的记录和 script 的 resourceValue 记录一致
                 ret[resourceKey] = freshResource;
               }
             }
@@ -187,9 +189,9 @@ export class ResourceService {
           // 只需要等待Promise返回，不理会返回值（失败也可以）
           const u = parseUrlSRI(url);
           const oldResources = await this.getResourceModel(u);
-          // 非空值 url 且 url 不是本地档案 -> 检查最后更新时间
-          if (u.url && !u.url.startsWith("file:///")) {
-            const updateTime = oldResources?.updatetime;
+          // 非空值 url 且 url 不是本地档案 -> 检查最后更新时间 (空资源除外)
+          if (u.url && !u.url.startsWith("file:///") && oldResources?.contentType) {
+            const updateTime = oldResources.updatetime;
             // 资源最后更新是24小时内则不更新
             // 这里是假设 resources 都是 static. 使用者应该加 ?d=xxxx 之类的方式提示SC要更新资源
             if (updateTime && updateTime > Date.now() - 86400_000) return;
@@ -209,43 +211,43 @@ export class ResourceService {
 
   async updateResource(uuid: string, u: TUrlSRIInfo, type: ResourceType, oldResources: Resource | undefined) {
     let result: Resource;
+    let resource: Resource | undefined;
     try {
-      const resource = await this.createResourceByUrlFetch(u, type);
-      const now = Date.now();
-      resource.updatetime = now;
-      if (!oldResources || !oldResources.contentType) {
-        // 资源不存在,保存
-        resource.createtime = now;
-        resource.link = { [uuid]: true };
-        await this.resourceDAO.save(resource);
-        result = resource;
-        this.logger.info("reload new resource success", { url: u.url });
-      } else {
-        result = {
-          ...oldResources,
-          base64: resource.base64,
-          content: resource.content,
-          contentType: resource.contentType,
-          hash: resource.hash,
-          updatetime: resource.updatetime,
-          link: { ...oldResources.link, [uuid]: true },
-        };
-        await this.resourceDAO.update(result.url, result);
-        this.logger.info("reload resource success", {
-          url: u.url,
-        });
-      }
-      return result;
+      resource = await this.createResourceByUrlFetch(u, type);
     } catch (e) {
-      // 如果有旧资源，则使用旧资源
-      if (oldResources) {
-        this.logger.error("load resource error - fallback to old resource", { url: u.url }, Logger.E(e));
-        return oldResources;
-      }
-      // 资源错误时（且没有旧资源）保存一个空纪录以防止再度尝试加载
-      // this.resourceDAO.save 自身出错的话忽略
-      await this.resourceDAO
-        .save({
+      this.logger.error("fetch resource error", { url: u.url }, Logger.E(e));
+    }
+    try {
+      if (resource) {
+        if (!oldResources || !oldResources.contentType) {
+          // 资源不存在,保存
+          resource.link = { [uuid]: true };
+          result = resource;
+          await this.resourceDAO.save(result).catch(console.warn);
+          this.logger.info("reload new resource success", { url: u.url });
+        } else {
+          result = {
+            ...oldResources,
+            base64: resource.base64,
+            content: resource.content,
+            contentType: resource.contentType,
+            hash: resource.hash,
+            updatetime: resource.updatetime,
+            link: { ...oldResources.link, [uuid]: true },
+          };
+          await this.resourceDAO.save(result).catch(console.warn);
+          this.logger.info("reload resource success", {
+            url: u.url,
+          });
+        }
+        return result;
+      } else {
+        // 如果有旧资源，则使用旧资源
+        if (oldResources) return oldResources;
+        // 资源错误时（且没有旧资源）保存一个空纪录以防止再度尝试加载
+        // this.resourceDAO.save 自身出错的话忽略
+        const now = Date.now();
+        result = {
           url: u.url,
           content: "",
           contentType: "",
@@ -259,9 +261,13 @@ export class ResourceService {
           base64: "",
           link: { [uuid]: true },
           type,
-          createtime: Date.now(),
-        })
-        .catch(console.warn);
+          createtime: now,
+          updatetime: now,
+        };
+        await this.resourceDAO.save(result).catch(console.warn);
+        return result; // 下载失败还是回传一下 result
+      }
+    } catch (e) {
       this.logger.error("load resource error", { url: u.url }, Logger.E(e));
       throw e;
     }
@@ -354,25 +360,27 @@ export class ResourceService {
       blobToBase64(data),
     ]);
     const contentType = resp.headers.get("content-type");
-    const resource: Resource = {
-      url: u.url,
-      content: "",
-      contentType: (contentType || "application/octet-stream").split(";")[0],
-      hash: hash,
-      base64: "",
-      link: {},
-      type,
-      createtime: Date.now(),
-    };
+    let content: string = "";
     const uint8Array = new Uint8Array(arrayBuffer);
     if (isText(uint8Array)) {
       if (type === "require" || type === "require-css") {
-        resource.content = await readBlobContent(data, contentType); // @require和@require-css 是会转换成代码运行的，可以进行解码
+        content = await readBlobContent(data, contentType); // @require和@require-css 是会转换成代码运行的，可以进行解码
       } else {
-        resource.content = await data.text(); // @resource 应该要保留原汁原味
+        content = await data.text(); // @resource 应该要保留原汁原味
       }
     }
-    resource.base64 = base64 || "";
+    const now = Date.now();
+    const resource: Resource = {
+      url: u.url,
+      content: content,
+      contentType: (contentType || "application/octet-stream").split(";")[0], // 保证下载成功时必定有 contentType
+      hash: hash,
+      base64: base64 || "",
+      link: {},
+      type,
+      createtime: now,
+      updatetime: now,
+    };
     return resource;
   }
 
