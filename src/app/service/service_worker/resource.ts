@@ -203,7 +203,7 @@ export class ResourceService {
   ) {
     let result: Resource;
     try {
-      const resource = await this.createResourceByUrlFetch(u.url, type);
+      const resource = await this.createResourceByUrlFetch(u, type);
       const now = Date.now();
       resource.updatetime = now;
       if (!oldResources || !oldResources.contentType) {
@@ -314,8 +314,8 @@ export class ResourceService {
     });
   }
 
-  async createResourceByUrlFetch(url: string, type: ResourceType): Promise<Resource> {
-    const u = parseUrlSRI(url);
+  async createResourceByUrlFetch(u: TUrlSRIInfo, type: ResourceType): Promise<Resource> {
+    const url = u.url; // 无 URI Integrity Hash
 
     await fetchSemaphore.acquire();
     // Semaphore 锁 - 同期只有五个 fetch 一起执行
@@ -323,7 +323,7 @@ export class ResourceService {
     await sleep(delay);
     // 执行 fetch, 若超过 800ms, 不会中止 fetch 但会启动下一个网络连接任务
     // 这只为了避免等候时间过长，同时又不会有过多网络任务同时发生，使Web伺服器返回错误
-    const { result, err } = await withTimeoutNotify(fetch(u.url), 800, ({ done, timeouted, err }) => {
+    const { result, err } = await withTimeoutNotify(fetch(url), 800, ({ done, timeouted, err }) => {
       if (timeouted || done || err) {
         // fetch 成功 或 发生错误 或 timeout 时解锁
         fetchSemaphore.release();
