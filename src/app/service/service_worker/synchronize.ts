@@ -1,7 +1,13 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import type { Resource } from "@App/app/repo/resource";
-import { type Script, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, type ScriptDAO } from "@App/app/repo/scripts";
+import {
+  type Script,
+  SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
+  type ScriptDAO,
+  type ScriptCodeDAO,
+} from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
 import type { FileInfo } from "@Packages/filesystem/filesystem";
@@ -62,7 +68,7 @@ type PushScriptParam = TInstallScriptParams;
 export class SynchronizeService {
   logger: Logger;
 
-  scriptCodeDAO = this.scriptDAO.scriptCodeDAO;
+  scriptCodeDAO: ScriptCodeDAO;
 
   storage: ChromeStorage = new ChromeStorage("sync", false);
 
@@ -77,6 +83,7 @@ export class SynchronizeService {
     private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger().with({ service: "synchronize" });
+    this.scriptCodeDAO = this.scriptDAO.scriptCodeDAO;
   }
 
   // 生成备份文件到文件系统
