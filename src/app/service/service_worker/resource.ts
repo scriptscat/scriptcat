@@ -194,7 +194,7 @@ export class ResourceService {
             // 这里是假设 resources 都是 static. 使用者应该加 ?d=xxxx 之类的方式提示SC要更新资源
             if (updateTime && updateTime > Date.now() - 86400_000) return;
           }
-          // 旧资源或没有资源记录，尝试更新
+          // 旧资源或没有资源记录或本地档案，尝试更新
           try {
             await this.updateResource(uuid, u, type, oldResources);
           } catch (e: any) {
