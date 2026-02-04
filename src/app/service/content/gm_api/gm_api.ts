@@ -1110,16 +1110,16 @@ export default class GMApi extends GM_Base {
     return ret;
   }
 
-  @GMContext.API()
-  public async "GM.notification"(
+  static _GM_notification(
+    gmApi: GMApi,
     detail: GMTypes.NotificationDetails | string,
     ondone?: GMTypes.NotificationOnDone | string,
     image?: string,
     onclick?: GMTypes.NotificationOnClick
   ): Promise<void> {
-    if (this.isInvalidContext()) return;
-    const notificationTagMap: Map<string, string> = this.notificationTagMap || (this.notificationTagMap = new Map());
-    this.eventId += 1;
+    if (gmApi.isInvalidContext()) return Promise.resolve();
+    const notificationTagMap: Map<string, string> = gmApi.notificationTagMap || (gmApi.notificationTagMap = new Map());
+    gmApi.eventId += 1;
     let data: GMTypes.NotificationDetails;
     if (typeof detail === "string") {
       data = {};
@@ -1160,8 +1160,8 @@ export default class GMApi extends GM_Base {
     if (typeof data.tag === "string") {
       notificationId = notificationTagMap.get(data.tag);
     }
-    this.sendMessage("GM_notification", [data, notificationId]).then((id) => {
-      if (!this.EE) return;
+    gmApi.sendMessage("GM_notification", [data, notificationId]).then((id) => {
+      if (!gmApi.EE) return;
       if (create) {
         create.apply({ id }, [id]);
       }
@@ -1169,8 +1169,8 @@ export default class GMApi extends GM_Base {
         notificationTagMap.set(data.tag, id);
       }
       let isPreventDefault = false;
-      this.EE.addListener("GM_notification:" + id, (resp: NotificationMessageOption) => {
-        if (!this.EE) return;
+      gmApi.EE.addListener("GM_notification:" + id, (resp: NotificationMessageOption) => {
+        if (!gmApi.EE) return;
         /**
          * 清除保存的通知的tag
          */
@@ -1216,7 +1216,7 @@ export default class GMApi extends GM_Base {
           case "close": {
             done && done.apply({ id }, [resp.params.byUser]);
             clearNotificationIdMap();
-            this.EE.removeAllListeners("GM_notification:" + this.eventId);
+            gmApi.EE.removeAllListeners("GM_notification:" + gmApi.eventId);
             break;
           }
           default:
@@ -1227,18 +1227,27 @@ export default class GMApi extends GM_Base {
         }
       });
     });
+    return Promise.resolve();
   }
 
-  @GMContext.API({
-    depend: ["GM.notification"],
-  })
+  @GMContext.API()
+  public async "GM.notification"(
+    detail: GMTypes.NotificationDetails | string,
+    ondone?: GMTypes.NotificationOnDone | string,
+    image?: string,
+    onclick?: GMTypes.NotificationOnClick
+  ): Promise<void> {
+    return _GM_notification(this, detail, ondone, image, onclick);
+  }
+
+  @GMContext.API()
   public GM_notification(
     detail: GMTypes.NotificationDetails | string,
     ondone?: GMTypes.NotificationOnDone | string,
     image?: string,
     onclick?: GMTypes.NotificationOnClick
   ): void {
-    this["GM.notification"](detail, ondone, image, onclick);
+    _GM_notification(this, detail, ondone, image, onclick);
   }
 
   // ScriptCat 额外API
@@ -1489,4 +1498,4 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download } = GMApi;
+const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download, _GM_notification } = GMApi;
