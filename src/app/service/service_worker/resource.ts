@@ -205,7 +205,7 @@ export class ResourceService {
     if (oldResources === null) oldResources = await this.getResourceModel(u);
     let result: Resource;
     try {
-      const resource = await this.loadByUrl(u.url, type);
+      const resource = await this.createResourceByUrlFetch(u.url, type);
       const now = Date.now();
       resource.updatetime = now;
       if (!oldResources || !oldResources.contentType) {
@@ -316,7 +316,7 @@ export class ResourceService {
     });
   }
 
-  async loadByUrl(url: string, type: ResourceType): Promise<Resource> {
+  async createResourceByUrlFetch(url: string, type: ResourceType): Promise<Resource> {
     const u = parseUrlSRI(url);
 
     await fetchSemaphore.acquire();
