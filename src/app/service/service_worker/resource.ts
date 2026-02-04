@@ -152,7 +152,7 @@ export class ResourceService {
             if (resourcePath) {
               const u = parseUrlSRI(resourcePath);
               const oldResources = await this.getResourceModel(u);
-              if (mdValue.startsWith("file:///")) {
+              if (resourcePath.startsWith("file:///")) {
                 // 如果是file://协议，则每次请求更新一下文件
                 const res = await this.updateResource(script.uuid, u, type, oldResources);
                 ret[resourceKey] = res;
