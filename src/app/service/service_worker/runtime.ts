@@ -680,7 +680,7 @@ export class RuntimeService {
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
-    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResources(scriptRes);
+    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResourceValue(scriptRes);
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
@@ -1228,7 +1228,7 @@ export class RuntimeService {
           script.value = value;
         }),
         // 加载resource
-        resource.getScriptResources(script).then((resource) => {
+        resource.getScriptResourceValue(script).then((resource) => {
           script.resource = resource;
           for (const name of Object.keys(resource)) {
             const res = script.resource[name];

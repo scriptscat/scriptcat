@@ -107,7 +107,7 @@ export class ResourceService {
     return undefined;
   }
 
-  public async getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
+  public async getScriptResourceValue(script: Script): Promise<{ [key: string]: Resource }> {
     const [require, require_css, resource] = await this.getResourceByTypes(script, ["require", "require-css", "resource"]);
     const ret = {
       ...require,
@@ -419,7 +419,7 @@ export class ResourceService {
   }
 
   requestGetScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return this.getScriptResources(script);
+    return this.getScriptResourceValue(script);
   }
 
   init() {
