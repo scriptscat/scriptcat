@@ -189,6 +189,7 @@ export class ResourceService {
           const oldResources = await this.getResourceModel(u);
           const updateTime = oldResources?.updatetime;
           // 资源最后更新是24小时内则不更新
+          // 这里是假设 resources 都是 static. 使用者应该加 ?d=xxxx 之类的方式提示SC要更新资源
           if (updateTime && updateTime > Date.now() - 86400_000) return;
           // 旧资源或没有资源记录，尝试更新
           try {
