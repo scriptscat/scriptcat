@@ -415,9 +415,7 @@ export class ScriptService {
         // Cache更新 & 下载资源
         await Promise.all([
           compiledResourceUpdatePromise,
-          this.resourceService.updateResourceByType(script, "require"),
-          this.resourceService.updateResourceByType(script, "require-css"),
-          this.resourceService.updateResourceByType(script, "resource"),
+          this.resourceService.updateResourceByTypes(script, ["require", "require-css", "resource"]),
         ]);
         // 如果资源不完整，还是要接受安装吗？？？
 

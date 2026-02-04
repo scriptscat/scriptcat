@@ -167,36 +167,40 @@ export class ResourceService {
   }
 
   // 只需要等待Promise返回，不理会返回值（失败也可以）
-  updateResourceByType(script: Script, type: ResourceType): Promise<any> | void {
+  updateResourceByTypes(script: Script, types: ResourceType[]): Promise<any> {
     const uuid = script.uuid;
-    const promises = script.metadata[type]?.map(async (u) => {
-      let url = "";
-      if (type === "resource") {
-        const split = u.split(/\s+/);
-        if (split.length === 2) {
-          url = split[1];
+    const metadata = script.metadata;
+    const promises = types.map((type) => {
+      const promises = metadata[type]?.map(async (u) => {
+        let url = "";
+        if (type === "resource") {
+          const split = u.split(/\s+/);
+          if (split.length === 2) {
+            url = split[1];
+          }
+        } else {
+          url = u;
         }
-      } else {
-        url = u;
-      }
-      if (url) {
-        // 检查资源是否存在,如果不存在则重新加载
-        // 如果有旧资源，而没有新资讯，则继续使用旧资源
-        // 只需要等待Promise返回，不理会返回值（失败也可以）
-        const u = parseUrlSRI(url);
-        const oldResources = await this.getResourceModel(u);
-        const updateTime = oldResources?.updatetime;
-        // 资源最后更新是24小时内则不更新
-        if (updateTime && updateTime > Date.now() - 86400_000) return;
-        // 旧资源或没有资源记录，尝试更新
-        try {
-          await this.updateResource(uuid, u, type, oldResources);
-        } catch (e: any) {
-          this.logger.error("check resource failed", { uuid, url }, Logger.E(e));
+        if (url) {
+          // 检查资源是否存在,如果不存在则重新加载
+          // 如果有旧资源，而没有新资讯，则继续使用旧资源
+          // 只需要等待Promise返回，不理会返回值（失败也可以）
+          const u = parseUrlSRI(url);
+          const oldResources = await this.getResourceModel(u);
+          const updateTime = oldResources?.updatetime;
+          // 资源最后更新是24小时内则不更新
+          if (updateTime && updateTime > Date.now() - 86400_000) return;
+          // 旧资源或没有资源记录，尝试更新
+          try {
+            await this.updateResource(uuid, u, type, oldResources);
+          } catch (e: any) {
+            this.logger.error("check resource failed", { uuid, url }, Logger.E(e));
+          }
         }
-      }
+      });
+      if (promises?.length) return Promise.allSettled(promises);
     });
-    if (promises?.length) return Promise.allSettled(promises);
+    return Promise.all(promises);
   }
 
   async updateResource(uuid: string, u: TUrlSRIInfo, type: ResourceType, oldResources: Resource | undefined) {
