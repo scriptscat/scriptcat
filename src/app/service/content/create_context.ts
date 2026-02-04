@@ -81,9 +81,9 @@ export const createContext = (
   for (const grant of scriptGrants) {
     // GM. 与 GM_ 都需要注入
     __methodInject__(grant);
-    if (grant.includes("GM.")) {
+    if (grant.startsWith("GM.")) {
       __methodInject__(grant.replace("GM.", "GM_"));
-    } else if (grant.includes("GM_")) {
+    } else if (grant.startsWith("GM_")) {
       __methodInject__(grant.replace("GM_", "GM."));
     }
   }
