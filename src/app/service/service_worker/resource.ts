@@ -86,7 +86,11 @@ export class ResourceService {
   }
 
   public async getScriptResourceValue(script: Script): Promise<{ [key: string]: Resource }> {
-    const [require, require_css, resource] = await this.getResourceByTypes(script, ["require", "require-css", "resource"]);
+    const [require, require_css, resource] = await this.getResourceByTypes(script, [
+      "require",
+      "require-css",
+      "resource",
+    ]);
     const ret = {
       ...require,
       ...require_css,
@@ -195,12 +199,7 @@ export class ResourceService {
     if (promises?.length) return Promise.allSettled(promises);
   }
 
-  async updateResource(
-    uuid: string,
-    u: TUrlSRIInfo,
-    type: ResourceType,
-    oldResources: Resource | undefined
-  ) {
+  async updateResource(uuid: string, u: TUrlSRIInfo, type: ResourceType, oldResources: Resource | undefined) {
     let result: Resource;
     try {
       const resource = await this.createResourceByUrlFetch(u, type);
