@@ -80,12 +80,12 @@ export const createContext = (
   };
   for (const grant of scriptGrants) {
     // GM. 与 GM_ 都需要注入
+    __methodInject__(grant);
     if (grant.includes("GM.")) {
       __methodInject__(grant.replace("GM.", "GM_"));
     } else if (grant.includes("GM_")) {
       __methodInject__(grant.replace("GM_", "GM."));
     }
-    __methodInject__(grant);
   }
   // 兼容GM.Cookie.*
   for (const fnKey of Object.keys(grantedAPIs)) {
