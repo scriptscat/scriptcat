@@ -187,10 +187,13 @@ export class ResourceService {
           // 只需要等待Promise返回，不理会返回值（失败也可以）
           const u = parseUrlSRI(url);
           const oldResources = await this.getResourceModel(u);
-          const updateTime = oldResources?.updatetime;
-          // 资源最后更新是24小时内则不更新
-          // 这里是假设 resources 都是 static. 使用者应该加 ?d=xxxx 之类的方式提示SC要更新资源
-          if (updateTime && updateTime > Date.now() - 86400_000) return;
+          // 非空值 url 且 url 不是本地档案 -> 检查最后更新时间
+          if (u.url && !u.url.startsWith("file:///")) {
+            const updateTime = oldResources?.updatetime;
+            // 资源最后更新是24小时内则不更新
+            // 这里是假设 resources 都是 static. 使用者应该加 ?d=xxxx 之类的方式提示SC要更新资源
+            if (updateTime && updateTime > Date.now() - 86400_000) return;
+          }
           // 旧资源或没有资源记录，尝试更新
           try {
             await this.updateResource(uuid, u, type, oldResources);
