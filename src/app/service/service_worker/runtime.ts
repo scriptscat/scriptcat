@@ -1175,8 +1175,9 @@ export class RuntimeService {
           // const oldResources = await this.resource.getResourceModel(u);
           const oldResources = await this.resource.resourceDAO.get(u.url);
           const updatedResource = await this.resource.updateResource(scriptRes.uuid, u, type, oldResources);
-          if (updatedResource === oldResources) {
-            // 如果新旧一样就忽视吧 - 不用更新本地资源
+          if (!updatedResource || !updatedResource.contentType || updatedResource === oldResources) {
+            // updateResource 出错 或 下载失败则忽略
+            // 如果新旧一样也忽视吧 - 不用更新本地资源
             continue;
           }
           if (updatedResource.hash?.sha512 !== sha512) {

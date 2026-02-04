@@ -148,12 +148,8 @@ export class ResourceService {
               } else {
                 // 1) 如果是file://协议，则每次请求更新一下文件
                 // 2) 缓存中无资源加载纪录，需要取得资源
-                try {
-                  freshResource = await this.updateResource(uuid, u, type, oldResources);
-                  // 没有 oldResources 时，下载资源失败还是会生成一个空 Resource，避免重复尝试失败的下载
-                } catch (e: any) {
-                  this.logger.error("load resource error", { url: u.originalUrl }, Logger.E(e));
-                }
+                freshResource = await this.updateResource(uuid, u, type, oldResources);
+                // 没有 oldResources 时，下载资源失败还是会生成一个空 Resource，避免重复尝试失败的下载
               }
               if (freshResource) {
                 // 空资源也储存一下，确保 resourceDAO 的记录和 script 的 resourceValue 记录一致
@@ -197,11 +193,7 @@ export class ResourceService {
             if (updateTime && updateTime > Date.now() - 86400_000) return;
           }
           // 旧资源或没有资源记录或本地档案，尝试更新
-          try {
-            await this.updateResource(uuid, u, type, oldResources);
-          } catch (e: any) {
-            this.logger.error("check resource failed", { uuid, url }, Logger.E(e));
-          }
+          await this.updateResource(uuid, u, type, oldResources);
         }
       });
       if (promises?.length) return Promise.allSettled(promises);
@@ -236,9 +228,7 @@ export class ResourceService {
             link: { ...oldResources.link, [uuid]: true },
           };
           await this.resourceDAO.save(result).catch(console.warn);
-          this.logger.info("reload resource success", {
-            url: u.url,
-          });
+          this.logger.info("reload resource success", { url: u.url });
         }
         return result;
       } else {
@@ -268,8 +258,7 @@ export class ResourceService {
         return result; // 下载失败还是回传一下 result
       }
     } catch (e) {
-      this.logger.error("load resource error", { url: u.url }, Logger.E(e));
-      throw e;
+      this.logger.error("Unexpected error in updateResource", { url: u.url }, Logger.E(e));
     }
   }
 
