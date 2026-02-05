@@ -315,7 +315,7 @@ export class SubscribeService {
     });
 
     for (const subscribe of list) {
-      if (!checkDisable && subscribe.status === SubscribeStatusType.enable) {
+      if (!checkDisable && subscribe.status === SubscribeStatusType.disable) {
         continue;
       }
       this.checkUpdate(subscribe.url, "system");
