@@ -154,7 +154,11 @@ export async function openInCurrentTab(url: string, tabId?: number) {
 }
 
 // 检查订阅规则是否改变,是否能够静默更新
-export function checkSilenceUpdate(oldMeta: SCMetadata, newMeta: SCMetadata, subscribeMetadata?: SCMetadata | undefined): boolean {
+export function checkSilenceUpdate(
+  oldMeta: SCMetadata,
+  newMeta: SCMetadata,
+  subscribeMetadata?: SCMetadata | undefined
+): boolean {
   // 判断connect是否改变
   const oldConnect = new Set<string>(oldMeta.connect || []);
   const newConnect = new Set<string>(newMeta.connect || []);
