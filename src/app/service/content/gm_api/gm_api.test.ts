@@ -33,6 +33,7 @@ const envInfo: GMInfoEnv = {
 describe.concurrent("@grant GM", () => {
   it.concurrent("GM_", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = [
       "GM_getValue",
       "GM_getTab",
@@ -67,23 +68,23 @@ describe.concurrent("@grant GM", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     // getValue
-    expect(ret.GM_getValue?.name).toEqual("bound GM_getValue");
+    expect(ret.GM_getValue?.name).toEqual("GM_getValue");
     // getTab / getTabs / saveTab
-    expect(ret.GM_getTab?.name).toEqual("bound GM_getTab");
-    expect(ret.GM_getTabs?.name).toEqual("bound GM_getTabs");
-    expect(ret.GM_saveTab?.name).toEqual("bound GM_saveTab");
+    expect(ret.GM_getTab?.name).toEqual("GM_getTab");
+    expect(ret.GM_getTabs?.name).toEqual("GM_getTabs");
+    expect(ret.GM_saveTab?.name).toEqual("GM_saveTab");
     // cookie
-    expect(ret.GM_cookie?.name).toEqual("bound GM_cookie");
-    expect(ret["GM_cookie.list"]?.name).toEqual("bound GM_cookie.list");
+    expect(ret.GM_cookie?.name).toEqual("GM_cookie");
+    expect(ret["GM_cookie.list"]?.name).toEqual("GM_cookie.list");
     // GM_与GM.应该都在
-    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
-    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
-    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
-    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
-    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
-    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
-    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
-    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    expect(ret["GM_addElement"]?.name).toEqual("GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("GM_log");
+    expect(ret["GM.log"]?.name).toEqual("GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("GM.notification");
     // 没有grant应返回 nil
     expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
     expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
@@ -91,6 +92,7 @@ describe.concurrent("@grant GM", () => {
 
   it.concurrent("GM.*", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = [
       "GM.getValue",
       "GM.getTab",
@@ -124,23 +126,23 @@ describe.concurrent("@grant GM", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     // getValue
-    expect(ret["GM.getValue"]?.name).toEqual("bound GM.getValue");
+    expect(ret["GM.getValue"]?.name).toEqual("GM.getValue");
     // getTab / getTabs / saveTab
-    expect(ret["GM.getTab"]?.name).toEqual("bound GM.getTab");
-    expect(ret["GM.getTabs"]?.name).toEqual("bound GM.getTabs");
-    expect(ret["GM.saveTab"]?.name).toEqual("bound GM.saveTab");
+    expect(ret["GM.getTab"]?.name).toEqual("GM.getTab");
+    expect(ret["GM.getTabs"]?.name).toEqual("GM.getTabs");
+    expect(ret["GM.saveTab"]?.name).toEqual("GM.saveTab");
     // cookie
-    expect(ret["GM.cookie"]?.name).toEqual("bound GM.cookie");
-    expect(ret["GM.cookie"]?.list?.name).toEqual("bound GM.cookie.list");
+    expect(ret["GM.cookie"]?.name).toEqual("GM.cookie");
+    expect(ret["GM.cookie"]?.list?.name).toEqual("GM.cookie.list");
     // GM_与GM.应该都在
-    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
-    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
-    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
-    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
-    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
-    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
-    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
-    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    expect(ret["GM_addElement"]?.name).toEqual("GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("GM_log");
+    expect(ret["GM.log"]?.name).toEqual("GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("GM.notification");
     // 没有grant应返回 nil
     expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
     expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
@@ -150,6 +152,7 @@ describe.concurrent("@grant GM", () => {
 describe.concurrent("window.*", () => {
   it.concurrent("window.close", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["window.close"];
     script.code = `return window.close;`;
     // @ts-ignore
@@ -164,6 +167,7 @@ describe.concurrent("GM Api", () => {
   it.concurrent("GM_getValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test: "ok" };
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValue"];
     script.code = `return GM_getValue("test");`;
     // @ts-ignore
@@ -175,6 +179,7 @@ describe.concurrent("GM Api", () => {
   it.concurrent("GM.getValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test: "ok" };
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM.getValue"];
     script.code = `return GM.getValue("test").then(v=>v+"!");`;
     // @ts-ignore
@@ -187,6 +192,7 @@ describe.concurrent("GM Api", () => {
   it.concurrent("GM_listValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_listValues"];
     script.code = `return GM_listValues().join("-");`;
     // @ts-ignore
@@ -203,6 +209,7 @@ describe.concurrent("GM Api", () => {
     script.value.test2 = "70";
     script.value.test3 = "75";
     script.value.test1 = "40";
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_listValues"];
     script.code = `return GM_listValues().join("-");`;
     // @ts-ignore
@@ -215,6 +222,7 @@ describe.concurrent("GM Api", () => {
   it.concurrent("GM.listValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
     // @ts-ignore
@@ -231,6 +239,7 @@ describe.concurrent("GM Api", () => {
     script.value.test2 = "70";
     script.value.test3 = "75";
     script.value.test1 = "40";
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
     // @ts-ignore
@@ -243,6 +252,7 @@ describe.concurrent("GM Api", () => {
   it.concurrent("GM_getValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: 45, test3: "67" };
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValues"];
     script.code = `return GM_getValues(["test2", "test3", "test1"]);`;
     // @ts-ignore
@@ -264,6 +274,7 @@ describe.concurrent("GM Api", () => {
   it.concurrent("GM.getValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: 45, test3: "67" };
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM.getValues"];
     script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v);`;
     // @ts-ignore
@@ -309,6 +320,7 @@ describe.concurrent("early-script", () => {
 describe.concurrent("GM_menu", () => {
   it.concurrent("注册菜单", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_registerMenuCommand"];
     script.code = `return new Promise(resolve=>{
       GM_registerMenuCommand("test", ()=>resolve(123));
@@ -357,6 +369,7 @@ describe.concurrent("GM_menu", () => {
 
   it.concurrent("取消注册菜单", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_registerMenuCommand", "GM_unregisterMenuCommand"];
     script.code = `
     let key = GM_registerMenuCommand("test", ()=>key="test");
@@ -380,6 +393,7 @@ describe.concurrent("GM_menu", () => {
 
   it.concurrent("同id菜单，执行最后一个", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_registerMenuCommand"];
     script.code = `return new Promise(resolve=>{
       GM_registerMenuCommand("duplicate-menu-id", ()=>resolve(123),{id: "abc"});
@@ -431,6 +445,7 @@ describe.concurrent("GM_menu", () => {
 
   it.concurrent("id生成逻辑", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_registerMenuCommand"];
     script.code = `
     // 自定义id
@@ -463,6 +478,7 @@ describe.concurrent("GM_menu", () => {
 describe.concurrent("GM_value", () => {
   it.concurrent("GM_setValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValue", "GM_setValue"];
     script.code = `
     GM_setValue("a", 123);
@@ -556,6 +572,7 @@ describe.concurrent("GM_value", () => {
   it.concurrent("value引用问题 #1141", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = {};
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_getValues"];
     script.code = `
 const value1 = {
@@ -708,6 +725,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
   it.concurrent("GM_setValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValues", "GM_setValues"];
     script.code = `
     GM_setValues({"a":123,"b":456,"c":"789"});
@@ -836,6 +854,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
   it.concurrent("GM_deleteValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValues", "GM_setValues", "GM_deleteValue"];
     script.code = `
     GM_setValues({"a":123,"b":456,"c":"789"});
@@ -905,6 +924,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
   it.concurrent("GM_deleteValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValues", "GM_setValues", "GM_deleteValues"];
     script.code = `
     GM_setValues({"a":123,"b":456,"c":"789"});
@@ -980,6 +1000,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
   it.concurrent("GM_addValueChangeListener - remote: false", async () => {
     const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
     script.metadata.storageName = ["testStorage"];
     script.code = `
@@ -1014,6 +1035,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
   it.concurrent("GM_addValueChangeListener - remote: true", async () => {
     const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
     script.metadata.storageName = ["testStorage"];
     script.code = `
@@ -1048,6 +1070,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
   });
   it.concurrent("异步GM.setValue，等待回调", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata = Object.assign({}, script.metadata);
     script.metadata.grant = ["GM.getValue", "GM.setValue"];
     script.code = `await GM.setValue("a", 123); return await GM.getValue("a");`;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
