@@ -15,7 +15,7 @@ import type {
   TEnableScript,
   TSortedScript,
 } from "@App/app/service/queue";
-import { useAppContext } from "@App/pages/store/AppContext";
+import { subscribeMessage } from "@App/pages/store/global";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   fetchScript,
@@ -49,10 +49,10 @@ import { Message } from "@arco-design/web-react";
 import { cacheInstance } from "@App/app/cache";
 import type { SearchType } from "@App/app/service/service_worker/types";
 import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
+import { HookManager } from "@App/pkg/utils/hookManger";
 
 export function useScriptList() {
   const { t } = useTranslation();
-  const { subscribeMessage } = useAppContext();
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(true);
 
@@ -188,18 +188,15 @@ export function useScriptList() {
       },
     };
 
-    const unhooks = [
+    const hookMgr = new HookManager();
+    hookMgr.append(
       subscribeMessage<TScriptRunStatus>("scriptRunStatus", pageApi.scriptRunStatus),
       subscribeMessage<TInstallScript>("installScript", pageApi.installScript),
       subscribeMessage<TDeleteScript[]>("deleteScripts", pageApi.deleteScripts),
       subscribeMessage<TEnableScript[]>("enableScripts", pageApi.enableScripts),
-      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts),
-    ];
-    return () => {
-      for (const unhook of unhooks) unhook();
-      unhooks.length = 0;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts)
+    );
+    return hookMgr.unhook;
   }, []);
 
   const updateScripts = (uuids: string[], data: Partial<Script | ScriptLoading>) => {

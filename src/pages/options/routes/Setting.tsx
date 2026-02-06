@@ -13,16 +13,15 @@ import { blackListSelfCheck } from "@App/pkg/utils/match";
 import { obtainBlackList } from "@App/pkg/utils/utils";
 import CustomTrans from "@App/pages/components/CustomTrans";
 import { useSystemConfig } from "./utils";
-import { useAppContext } from "@App/pages/store/AppContext";
+import { subscribeMessage } from "@App/pages/store/global";
 import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config";
 import { type TKeyValue } from "@Packages/message/message_queue";
 import { useEffect, useMemo } from "react";
 import { systemConfig } from "@App/pages/store/global";
 import { initRegularUpdateCheck } from "@App/app/service/service_worker/regular_updatecheck";
+import { HookManager } from "@App/pkg/utils/hookManger";
 
 function Setting() {
-  const { subscribeMessage } = useAppContext();
-
   const [editorConfig, setEditorConfig, submitEditorConfig] = useSystemConfig("editor_config");
   const [cloudSync, setCloudSync, submitCloudSync] = useSystemConfig("cloud_sync");
   const [language, setLanguage, submitLanguage] = useSystemConfig("language");
@@ -84,7 +83,8 @@ function Setting() {
       script_menu_display_type: setScriptMenuDisplayType,
       editor_type_definition: setEditorTypeDefinition,
     };
-    const unhooks = [
+    const hookMgr = new HookManager();
+    hookMgr.append(
       subscribeMessage<TKeyValue<SystemConfigKey>>(
         SystemConfigChange,
         ({ key, value: _value }: TKeyValue<SystemConfigKey>) => {
@@ -102,12 +102,9 @@ function Setting() {
               });
           }
         }
-      ),
-    ];
-    return () => {
-      for (const unhook of unhooks) unhook();
-      unhooks.length = 0;
-    };
+      )
+    );
+    return hookMgr.unhook;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
