@@ -175,6 +175,7 @@ export function compileInjectionCode(
   scriptCode: string,
   scriptUrlPatterns: URLRuleEntry[]
 ): string {
+  // 注意！ restoreJSCodeFromCompiledResource 跟 compileInjectionCode 的处理是不同的！
   let scriptInjectCode;
   if (isScriptletUnwrap(scriptRes.metadata)) {
     scriptInjectCode = compileScriptletCode(scriptRes, scriptCode);

@@ -31,8 +31,10 @@ import type { CompileScriptCodeResource } from "../content/utils";
 import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
+  compileScriptletCode,
   isEarlyStartScript,
   isInjectIntoContent,
+  isScriptletUnwrap,
   trimScriptInfo,
 } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
@@ -727,9 +729,15 @@ export class RuntimeService {
 
   // 从CompiledResource中还原脚本代码
   async restoreJSCodeFromCompiledResource(script: Script, result: CompiledResource) {
-    const earlyScript = isEarlyStartScript(script.metadata);
+    // 如果是 Scriptlet (unwrap) 脚本，需要另外的处理方式
+    if (isScriptletUnwrap(script.metadata)) {
+      const scriptRes = await this.script.buildScriptRunResource(script);
+      if (!scriptRes) return "";
+      return compileScriptletCode(scriptRes, scriptRes.code);
+    }
+
     // 如果是预加载脚本，需要另外的处理方式
-    if (earlyScript) {
+    if (isEarlyStartScript(script.metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
