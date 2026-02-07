@@ -4,11 +4,15 @@
 // @version      2026-02-07
 // @description  try to take over the world!
 // @author       You
-// @match        https://*/*?test_unwrap
+// @match        https://*/*?test_unwrap*
+// @exclude      /test_\w+_excluded/
 // @grant        GM_setValue
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js#sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK
 // @unwrap
 // ==/UserScript==
+
+// include: https://example.com/?test_unwrap_123
+// exclude: https://example.com/?test_unwrap_excluded
 
 var test_global_injection = "success"; 
 // User can access the variable "test_global_injection" directly in DevTools
