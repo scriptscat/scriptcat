@@ -53,7 +53,7 @@ export class ScriptRuntime {
       const external: External = window.external || (window.external = {} as External);
       const scriptExpose: App.ExternalScriptCat = {
         isInstalled(name: string, namespace: string, callback: (res: App.IsInstalledResponse | undefined) => unknown) {
-          sendMessage<App.IsInstalledResponse>(msg, "content/script/isInstalled", {
+          sendMessage<App.IsInstalledResponse>(msg, "scripting/script/isInstalled", {
             name,
             namespace,
           }).then(callback);
