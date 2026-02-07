@@ -186,6 +186,10 @@ export function isEarlyStartScript(metadata: SCMetadata): boolean {
   return metadataBlankOrTrue(metadata, "early-start") && metadata["run-at"]?.[0] === "document-start";
 }
 
+export function isScriptletUnwrap(metadata: SCMetadata): boolean {
+  return metadataBlankOrTrue(metadata, "unwrap");
+}
+
 export function isInjectIntoContent(metadata: SCMetadata): boolean {
   return metadata["inject-into"]?.[0] === "content";
 }
