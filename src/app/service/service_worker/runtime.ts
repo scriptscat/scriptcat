@@ -733,7 +733,7 @@ export class RuntimeService {
     if (isScriptletUnwrap(script.metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
-      return compileScriptletCode(scriptRes, scriptRes.code);
+      return compileScriptletCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
     // 如果是预加载脚本，需要另外的处理方式

@@ -178,7 +178,7 @@ export function compileInjectionCode(
   // 注意！ restoreJSCodeFromCompiledResource 跟 compileInjectionCode 的处理是不同的！
   let scriptInjectCode;
   if (isScriptletUnwrap(scriptRes.metadata)) {
-    scriptInjectCode = compileScriptletCode(scriptRes, scriptCode);
+    scriptInjectCode = compileScriptletCode(scriptRes, scriptCode, scriptUrlPatterns);
   } else {
     scriptCode = compileScriptCode(scriptRes, scriptCode);
     if (isEarlyStartScript(scriptRes.metadata)) {
