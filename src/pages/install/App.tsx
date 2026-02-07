@@ -200,7 +200,9 @@ function App() {
     await scriptClient.install({ script: newScript, code });
     const metadata = newScript.metadata;
     setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
-    setOldScriptVersion(metadata!.version![0]);
+    const scriptVersion = metadata.version?.[0];
+    const oldScriptVersion = typeof scriptVersion === "string" ? scriptVersion : "N/A";
+    setOldScriptVersion(oldScriptVersion);
     setUpsertScript(newScript);
     setDiffCode(code);
   };
@@ -289,7 +291,8 @@ function App() {
         prepare = await prepareSubscribeByCode(code, url);
         action = prepare.subscribe;
         if (prepare.oldSubscribe) {
-          oldVersion = prepare.oldSubscribe!.metadata!.version![0] || "";
+          const oldSubscribeVersion = prepare.oldSubscribe.metadata.version?.[0];
+          oldVersion = typeof oldSubscribeVersion === "string" ? oldSubscribeVersion : "N/A";
         }
         diffCode = prepare.oldSubscribe?.code;
       } else {
@@ -297,7 +300,8 @@ function App() {
         prepare = await prepareScriptByCode(code, url, knownUUID, false, undefined, paramOptions);
         action = prepare.script;
         if (prepare.oldScript) {
-          oldVersion = prepare.oldScript!.metadata!.version![0] || "";
+          const oldScriptVersion = prepare.oldScript.metadata.version?.[0];
+          oldVersion = typeof oldScriptVersion === "string" ? oldScriptVersion : "N/A";
         }
         diffCode = prepare.oldScriptCode;
       }
@@ -793,7 +797,7 @@ function App() {
                 <Tag bordered>{oldScriptVersion}</Tag>
               </Tooltip>
             )}
-            {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
+            {typeof metadataLive.version?.[0] === "string" && metadataLive.version[0] !== oldScriptVersion && (
               <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
                 <Tag bordered color="red">
                   {metadataLive.version[0]}

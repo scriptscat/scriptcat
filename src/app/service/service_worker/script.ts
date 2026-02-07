@@ -385,7 +385,7 @@ export class ScriptService {
     const logger = this.logger.with({
       name: script.name,
       uuid: script.uuid,
-      version: script.metadata.version![0],
+      version: script.metadata.version?.[0] || "0.0",
       upsertBy,
     });
     let update = false;
@@ -797,15 +797,8 @@ export class ScriptService {
         logger.error("parse metadata failed");
         return false;
       }
-      const newVersion = metadata.version && metadata.version[0];
-      if (!newVersion) {
-        logger.error("parse version failed", { version: metadata.version });
-        return false;
-      }
-      let oldVersion = script.metadata.version && script.metadata.version[0];
-      if (!oldVersion) {
-        oldVersion = "0.0.0";
-      }
+      const newVersion = metadata.version?.[0] || "0.0";
+      const oldVersion = script.metadata.version?.[0] || "0.0";
       // 对比版本大小
       if (ltever(newVersion, oldVersion)) {
         return false;
@@ -896,7 +889,8 @@ export class ScriptService {
   }
 
   shouldIgnoreUpdate(script: Script, newMeta: Partial<Record<string, string[]>> | null) {
-    return script.ignoreVersion === newMeta?.version?.[0];
+    const newVersion = newMeta?.version?.[0];
+    return typeof newVersion === "string" && script.ignoreVersion === newMeta?.version?.[0];
   }
 
   // 用于定时自动检查脚本更新
@@ -1187,11 +1181,15 @@ export class ScriptService {
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
+    // 用於 window.external
+      console.error(1237, name, namespace);
     return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
+      console.log(1238, name, namespace, script);
+      console.error(1239, name, namespace, script);
       if (script) {
         return {
           installed: true,
-          version: script.metadata.version && script.metadata.version[0],
+          version: script.metadata.version?.[0] || "0.0",
         } as App.IsInstalledResponse;
       }
       return { installed: false } as App.IsInstalledResponse;
