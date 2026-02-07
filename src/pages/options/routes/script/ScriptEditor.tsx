@@ -262,9 +262,8 @@ function ScriptEditor() {
             modal.confirm!({
               focusLock: false,
               closable: true,
-              title: "Edit Conflict",
-              content:
-                "This script was edited in another instance. Replacing it will overwrite those changes. Would you like to keep this version instead?",
+              title: t("edit_conflict"),
+              content: t("confirm_override_when_edit_conflict"),
               onOk: () => {
                 resolve("yes");
               },
@@ -275,8 +274,8 @@ function ScriptEditor() {
           });
           setTimeout(e.focus.bind(e), 50);
           if (modalResult === "no") {
-            Message.warning("The script was edited in another instance.");
-            return Promise.reject(new Error("The script was edited in another instance."));
+            Message.warning(t("save_abort_when_edit_conflict"));
+            return Promise.reject(new Error("The script was edited in another instance. Save Aborted."));
           }
         }
 
