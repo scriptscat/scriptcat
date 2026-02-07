@@ -26,6 +26,22 @@ export function getScriptRequire(scriptRes: ScriptRunResource): CompileScriptCod
 }
 
 /**
+ * 构建unwrap脚本运行代码
+ * @see {@link ExecScript}
+ * @param scriptRes
+ * @param scriptCode
+ * @returns
+ */
+export function compileScriptletCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
+  scriptCode = scriptCode ?? scriptRes.code;
+  const requireArray = getScriptRequire(scriptRes);
+  const requireCode = requireArray.map((r) => r.content).join("\n;");
+  // 在window[flag]注册一个空脚本让原本的脚本管理器知道并记录脚本成功执行
+  const codeBody = `${requireCode}\n${scriptCode}\nwindow['${scriptRes.flag}'] = function(){};`;
+  return `${codeBody}${sourceMapTo(`${scriptRes.name}.user.js`)}\n`;
+}
+
+/**
  * 构建脚本运行代码
  * @see {@link ExecScript}
  * @param scriptRes

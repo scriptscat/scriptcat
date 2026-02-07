@@ -1,11 +1,12 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
-import { getMetadataStr, getUserConfigStr, sourceMapTo } from "@App/pkg/utils/utils";
+import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptMatchInfo } from "./types";
 import {
   compileInjectScript,
   compilePreInjectScript,
   compileScriptCode,
+  compileScriptletCode,
   getScriptFlag,
   isEarlyStartScript,
   isInjectIntoContent,
@@ -176,9 +177,7 @@ export function compileInjectionCode(
 ): string {
   let scriptInjectCode;
   if (isScriptletUnwrap(scriptRes.metadata)) {
-    // 在window[flag]注册一个空脚本让原本的脚本管理器知道并记录脚本成功执行
-    const codeBody = `${scriptCode}\nwindow['${scriptRes.flag}'] = function(){};`;
-    scriptInjectCode = `${codeBody}${sourceMapTo(`${scriptRes.name}.user.js`)}\n`;
+    scriptInjectCode = compileScriptletCode(scriptRes, scriptCode);
   } else {
     scriptCode = compileScriptCode(scriptRes, scriptCode);
     if (isEarlyStartScript(scriptRes.metadata)) {
