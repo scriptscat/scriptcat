@@ -16,6 +16,31 @@ const PACK_FIREFOX = false;
 
 // ============================================================================
 
+// --- utils ---
+
+const MAX_CHUNK_SIZE = 3584 * 1024; // 3.5 MiB
+
+function addFileInChunks(zip, filePath, toDir, baseName, maxChunkSize = MAX_CHUNK_SIZE) {
+  const buffer = fs.readFileSync(filePath);
+  let offset = 0;
+
+  const chunks = [];
+  while (offset < buffer.length) {
+    const end = Math.min(offset + maxChunkSize, buffer.length);
+    const chunk = buffer.subarray(offset, end);
+    chunks.push(chunk);
+    offset = end;
+  }
+  const len = chunks.length;
+
+  for (let idx = 0; idx < len; idx += 1) {
+    const chunk = chunks[idx];
+    // e.g. src/ts.worker.js.part0, src/ts.worker.js.part1, ...
+    const chunkPath = `${toDir}${baseName}.part${idx}`;
+    zip.file(chunkPath, chunk);
+  }
+}
+
 const createJSZip = () => {
   const currDate = new Date();
   const dateWithOffset = new Date(currDate.getTime() - currDate.getTimezoneOffset() * 60000);
@@ -23,6 +48,8 @@ const createJSZip = () => {
   JSZip.defaults.date = dateWithOffset;
   return new JSZip();
 };
+
+// --- utils ---
 
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
@@ -80,7 +107,8 @@ delete chromeManifest.background.scripts;
 
 delete firefoxManifest.background.service_worker;
 delete firefoxManifest.sandbox;
-// firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
+// firefoxManifest.content_security_policy 是为了支持动态组合的 ts.worker.js Blob URL
+firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: {
     id: `{${
@@ -128,8 +156,14 @@ await Promise.all([
   addDir(chrome, "./dist/ext", "", ["manifest.json"]),
   addDir(firefox, "./dist/ext", "", ["manifest.json", "ts.worker.js"]),
 ]);
-// 添加ts.worker.js名字为gz
-firefox.file("src/ts.worker.js.gz", await fs.readFile("./dist/ext/src/ts.worker.js", { encoding: "utf8" }));
+
+// Now split ts.worker.js into chunks (<4MB each) for Firefox
+addFileInChunks(
+  firefox,
+  "./dist/ext/src/ts.worker.js", // source file on disk
+  "src/", // folder path inside zip
+  "ts.worker.js" // base name for chunked file
+);
 
 // 导出zip包
 chrome
