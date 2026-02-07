@@ -47,7 +47,7 @@ type TUpdateListOption = { sort?: boolean };
 
 const updateList = (list: ScriptMenu[], update: TUpdateEntryFn, options: TUpdateListOption | undefined) => {
   // 如果更新跟当前 list 的子项无关，则不用更改 list 的物件参考
-  const newList = [];
+  const newList: ScriptMenu[] = [];
   let changed = false;
   for (let i = 0; i < list.length; i++) {
     const oldItem = list[i];
