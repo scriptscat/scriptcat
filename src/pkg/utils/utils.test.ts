@@ -427,7 +427,6 @@ describe.concurrent("checkSilenceUpdate", () => {
 
 describe.concurrent("cleanFileName", () => {
   it.concurrent("should replace illegal characters with dashes", () => {
-    expect(cleanFileName("file/name")).toBe("file-name");
     expect(cleanFileName("file\\name")).toBe("file-name");
     expect(cleanFileName("file:name")).toBe("file-name");
     expect(cleanFileName("file*name")).toBe("file-name");
@@ -443,6 +442,7 @@ describe.concurrent("cleanFileName", () => {
 
   it.concurrent("should handle valid filename", () => {
     expect(cleanFileName("valid_file.txt")).toBe("valid_file.txt");
+    expect(cleanFileName("file/name.txt")).toBe("file/name.txt");
   });
 });
 
