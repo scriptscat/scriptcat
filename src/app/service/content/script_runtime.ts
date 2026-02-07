@@ -77,10 +77,7 @@ export class ScriptRuntime {
           ) => {
             isInstalledTM(name, namespace, (res) => {
               if (res?.installed) callback(res);
-              else
-                isInstalledSC(name, namespace, (res) => {
-                  callback(res);
-                });
+              else isInstalledSC(name, namespace, callback);
             });
           };
         } catch {
