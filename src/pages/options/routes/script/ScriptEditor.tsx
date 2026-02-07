@@ -1,7 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
@@ -31,18 +31,18 @@ type HotKey = {
   id: string;
   title: string;
   hotKey: number;
-  action: (script: Script, codeEditor: editor.IStandaloneCodeEditor) => void;
+  action: (script: Script, codeEditor: editor.ICodeEditor) => void;
 };
 
 const Editor: React.FC<{
   id: string;
-  script: Script;
+  getScript: (uuid: string) => Script | undefined;
   code: string;
   hotKeys: HotKey[];
-  callbackEditor: (e: editor.IStandaloneCodeEditor) => void;
+  callbackEditor: (e: editor.ICodeEditor) => void;
   onChange: (code: string) => void;
   className: string;
-}> = ({ id, script, code, hotKeys, callbackEditor, onChange, className }) => {
+}> = ({ id, getScript, code, hotKeys, callbackEditor, onChange, className }) => {
   const [node, setNode] = useState<{ editor: editor.IStandaloneCodeEditor }>();
   const ref = useCallback<(node: { editor: editor.IStandaloneCodeEditor }) => void>(
     (inlineNode) => {
@@ -59,7 +59,7 @@ const Editor: React.FC<{
     // @ts-ignore
     if (!node.editor.uuid) {
       // @ts-ignore
-      node.editor.uuid = script.uuid;
+      node.editor.uuid = id;
     }
     hotKeys.forEach((item) => {
       node.editor.addAction({
@@ -67,8 +67,10 @@ const Editor: React.FC<{
         label: item.title,
         keybindings: [item.hotKey],
         run(editor) {
-          // @ts-ignore
-          item.action(script, editor);
+          const script = getScript(id);
+          if (script) {
+            item.action(script, editor);
+          }
         },
       });
     });
@@ -83,20 +85,20 @@ const Editor: React.FC<{
 };
 
 const WarpEditor = React.memo(Editor, (prev, next) => {
-  return prev.script.uuid === next.script.uuid;
+  return prev.id === next.id;
 });
 
 type EditorMenu = {
   title: string;
   tooltip?: string;
-  action?: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+  action?: (script: Script, e: editor.ICodeEditor) => void;
   items?: {
     id: string;
     title: string;
     tooltip?: string;
     hotKey?: number;
     hotKeyString?: string;
-    action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+    action: (script: Script, e: editor.ICodeEditor) => void;
   }[];
 };
 
@@ -180,21 +182,30 @@ const popstate = () => {
   return false;
 };
 
+type EditorState = {
+  script: Script;
+  code: string;
+  active: boolean;
+  hotKeys: HotKey[];
+  editor?: editor.ICodeEditor;
+  isChanged: boolean;
+};
+
 function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
   const [modal, contextHolder] = Modal.useModal();
-  const [editors, setEditors] = useState<
-    {
-      script: Script;
-      code: string;
-      active: boolean;
-      hotKeys: HotKey[];
-      editor?: editor.IStandaloneCodeEditor;
-      isChanged: boolean;
-    }[]
-  >([]);
+  const [editors, setEditors] = useState<EditorState[]>([]);
+  const editorStateRef = useRef<EditorState[]>([]); // 取出资料用
+  // getScript 是稳定不变的 state
+  const getScript = useCallback((uuid: string) => {
+    return editorStateRef.current!.find((e) => e.script.uuid === uuid)?.script;
+  }, []);
+  // 更新取出资料用的 editorStateRef
+  useEffect(() => {
+    editorStateRef.current = editors;
+  }, [editors]);
   const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
   const [selectSciptButtonAndTab, setSelectSciptButtonAndTab] = useState<string>("");
@@ -222,12 +233,12 @@ function ScriptEditor() {
     setVisible({ ...visible });
   };
 
-  const save = (existingScript: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
+  const save = (existingScript: Script, e: editor.ICodeEditor): Promise<Script> => {
     // 解析code生成新的script并更新
     const code = e.getValue();
     const targetUUID = existingScript.uuid;
     return prepareScriptByCode(code, existingScript.origin || "", targetUUID, false, scriptDAO, { byEditor: true })
-      .then((prepareScript) => {
+      .then(async (prepareScript) => {
         const { script, oldScript } = prepareScript;
         if (targetUUID) {
           if (existingScript.createtime !== 0) {
@@ -243,11 +254,37 @@ function ScriptEditor() {
           Message.warning(t("script_name_cannot_be_set_to_empty"));
           return Promise.reject(new Error("script name cannot be empty"));
         }
+        const currentEditorUpdateTime = existingScript.updatetime;
+        const latestUpdateTime = oldScript?.updatetime;
+
+        if (currentEditorUpdateTime !== latestUpdateTime) {
+          const modalResult = await new Promise((resolve) => {
+            modal.confirm!({
+              focusLock: false,
+              closable: true,
+              title: "Edit Conflict",
+              content:
+                "This script was edited in another instance. Replacing it will overwrite those changes. Would you like to keep this version instead?",
+              onOk: () => {
+                resolve("yes");
+              },
+              onCancel: () => {
+                resolve("no");
+              },
+            });
+          });
+          setTimeout(e.focus.bind(e), 50);
+          if (modalResult === "no") {
+            Message.warning("The script was edited in another instance.");
+            return Promise.reject(new Error("The script was edited in another instance."));
+          }
+        }
+
         if (script.ignoreVersion) script.ignoreVersion = "";
         return scriptClient
           .install({ script, code })
-          .then((update): Script => {
-            if (!update) {
+          .then((result): Script => {
+            if (!result.update) {
               Message.success(t("create_success_note"));
               // 保存的时候如何左侧没有脚本即新建
               setScriptList((prev) => {
@@ -263,6 +300,7 @@ function ScriptEditor() {
                     ? {
                         ...script,
                         name,
+                        updatetime: result.updatetime || script.updatetime,
                       }
                     : script
                 )
@@ -281,6 +319,7 @@ function ScriptEditor() {
                       script: {
                         ...item.script,
                         name,
+                        updatetime: result.updatetime || item.script.updatetime,
                       },
                     }
                   : item
@@ -299,7 +338,7 @@ function ScriptEditor() {
       });
   };
 
-  const saveAs = (script: Script, e: editor.IStandaloneCodeEditor) => {
+  const saveAs = (script: Script, e: editor.ICodeEditor) => {
     return new Promise<void>((resolve) => {
       chrome.downloads.download(
         {
@@ -1127,8 +1166,8 @@ function ScriptEditor() {
                   <WarpEditor
                     className="script-code-editor"
                     key={`e_${item.script.uuid}`}
-                    id={`e_${item.script.uuid}`}
-                    script={item.script}
+                    id={`${item.script.uuid}`}
+                    getScript={getScript}
                     code={item.code}
                     hotKeys={item.hotKeys}
                     callbackEditor={(e) => {

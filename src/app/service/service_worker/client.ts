@@ -11,7 +11,13 @@ import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
+import type {
+  ScriptService,
+  TCheckScriptUpdateOption,
+  TOpenBatchUpdatePageOption,
+  TScriptInstallParam,
+  TScriptInstallReturn,
+} from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 
@@ -40,15 +46,9 @@ export class ScriptClient extends Client {
     return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean }]>("getInstallInfo", uuid);
   }
 
-  install(params: {
-    script: Script;
-    code: string;
-    upsertBy?: InstallSource;
-    createtime?: number;
-    updatetime?: number;
-  }): Promise<{ update: boolean }> {
+  install(params: TScriptInstallParam): Promise<TScriptInstallReturn> {
     if (!params.upsertBy) params.upsertBy = "user";
-    return this.doThrow("install", { ...params });
+    return this.doThrow("install", { ...params } satisfies TScriptInstallParam);
   }
 
   // delete(uuid: string) {

@@ -55,6 +55,19 @@ export type TCheckScriptUpdateOption = Partial<
 
 export type TOpenBatchUpdatePageOption = { q: string; dontCheckNow: boolean };
 
+export type TScriptInstallParam = {
+  script: Script;
+  code: string;
+  upsertBy?: InstallSource;
+  createtime?: number; // Import 用
+  updatetime?: number; // Import 用
+};
+
+export type TScriptInstallReturn = {
+  update: boolean;
+  updatetime: number | undefined;
+};
+
 export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
@@ -371,13 +384,7 @@ export class ScriptService {
   }
 
   // 安装脚本 / 更新腳本
-  async installScript(param: {
-    script: Script;
-    code: string;
-    upsertBy?: InstallSource;
-    createtime?: number;
-    updatetime?: number;
-  }) {
+  async installScript(param: TScriptInstallParam): Promise<TScriptInstallReturn> {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy, createtime, updatetime } = param;
     // 删 storage cache
@@ -424,7 +431,7 @@ export class ScriptService {
         // Runtime 會負責更新 CompiledResource
         this.publishInstallScript(script, { update, upsertBy });
 
-        return { update };
+        return { update, updatetime: script.updatetime };
       })
       .catch((e: any) => {
         logger.error("install error", Logger.E(e));
