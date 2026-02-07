@@ -255,9 +255,9 @@ function ScriptEditor() {
           return Promise.reject(new Error("script name cannot be empty"));
         }
         const currentEditorUpdateTime = existingScript.updatetime;
-        const latestUpdateTime = oldScript?.updatetime;
+        const latestUpdateTime = oldScript?.updatetime ?? 0;
 
-        if (currentEditorUpdateTime !== latestUpdateTime) {
+        if (currentEditorUpdateTime !== latestUpdateTime && latestUpdateTime > 0) {
           const modalResult = await new Promise((resolve) => {
             modal.confirm!({
               focusLock: false,
