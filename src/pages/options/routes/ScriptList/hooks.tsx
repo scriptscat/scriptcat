@@ -74,16 +74,18 @@ export function useScriptDataManagement() {
         for await (const { chunkResults } of loadScriptFavicons(list)) {
           if (!mounted) return;
           setScriptList((prev) => {
-            const altered = new Set<string>();
+            const favMap = new Map(chunkResults.map((r) => [r.uuid, r]));
+            let changed = false;
             const newList = prev.map((s) => {
-              const item = chunkResults.find((r) => r.uuid === s.uuid);
+              const item = favMap.get(s.uuid);
               if (item && s.favorite !== item.fav) {
-                altered.add(s.uuid);
+                changed = true;
                 return { ...s, favorite: item.fav };
               }
               return s;
             });
-            return altered.size > 0 ? newList : prev;
+            favMap.clear(); // GC
+            return changed ? newList : prev;
           });
         }
       });
