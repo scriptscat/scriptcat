@@ -85,12 +85,10 @@ export const timeoutAbortSignal =
         return AbortSignal.timeout(milis);
       }
     : (milis: number) => {
-        let controller: AbortController | null = new AbortController();
+        const controller: AbortController = new AbortController();
         const signal = controller.signal;
-        setTimeout(() => {
-          controller!.abort(); // 中断请求
-          controller = null;
-        }, milis);
+        // 中断请求
+        setTimeout(controller.abort.bind(controller), milis);
         return signal;
       };
 
