@@ -241,8 +241,8 @@ export class ResourceService {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsArrayBuffer(blob);
-      reader.onloadend = () => {
-        if (!reader.result) {
+      reader.onloadend = function () {
+        if (!this.result) {
           resolve({
             md5: "",
             sha1: "",
@@ -251,7 +251,7 @@ export class ResourceService {
             sha512: "",
           });
         } else {
-          resolve(calculateHashFromArrayBuffer(<ArrayBuffer>reader.result));
+          resolve(calculateHashFromArrayBuffer(<ArrayBuffer>this.result));
         }
       };
     });

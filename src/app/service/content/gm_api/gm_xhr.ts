@@ -71,7 +71,9 @@ export const toBlobURL = (a: GMApi, blob: Blob): Promise<string> | string => {
 export const blobToDataURL = (blob: Blob): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.onerror = reject;
     reader.onabort = reject;
     reader.readAsDataURL(blob);

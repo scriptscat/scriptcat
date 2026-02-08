@@ -327,7 +327,9 @@ export const makeBlobURL = <T extends { blob: Blob; persistence: boolean }>(
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(<string>reader.result);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.readAsDataURL(blob);
   });
 }
@@ -336,7 +338,9 @@ export function blobToBase64(blob: Blob): Promise<string> {
 export function blobToText(blob: Blob): Promise<string | null> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.readAsText(blob);
   });
 }
