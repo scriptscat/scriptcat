@@ -261,6 +261,7 @@ function ScriptEditor() {
           const modalResult = await new Promise((resolve) => {
             modal.confirm!({
               focusLock: false,
+              simple: false,
               closable: true,
               title: t("edit_conflict"),
               content: t("confirm_override_when_edit_conflict"),
