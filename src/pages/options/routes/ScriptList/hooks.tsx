@@ -186,7 +186,7 @@ export function useScriptList() {
           return res;
         });
       },
-    };
+    } as const;
 
     const unhooks = [
       subscribeMessage<TScriptRunStatus>("scriptRunStatus", pageApi.scriptRunStatus),

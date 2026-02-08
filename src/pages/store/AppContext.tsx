@@ -81,7 +81,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setAppColorTheme(theme);
         setColorThemeState(theme);
       },
-    };
+    } as const;
 
     const unhooks = [subscribeMessage<ThemeParam>("onColorThemeUpdated", pageApi.onColorThemeUpdated)];
     return () => {
