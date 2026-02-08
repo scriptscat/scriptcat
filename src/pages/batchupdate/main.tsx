@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import { AppProvider } from "../store/AppContext.tsx";
+import { fixArcoIssues } from "@App/pages/fix.ts";
 import MainLayout from "../components/layout/MainLayout.tsx";
 import LoggerCore from "@App/app/logger/core.ts";
 import { message } from "../store/global.ts";
@@ -26,6 +27,8 @@ const Root = (
     </MainLayout>
   </AppProvider>
 );
+
+fixArcoIssues();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root

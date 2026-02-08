@@ -10,6 +10,7 @@ import "@App/index.css";
 import "./index.css";
 import PopupLayout from "../components/layout/PopupLayout.tsx";
 import { AppProvider } from "../store/AppContext.tsx";
+import { fixArcoIssues } from "@App/pages/fix.ts";
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
@@ -26,6 +27,8 @@ const Root = (
     </PopupLayout>
   </AppProvider>
 );
+
+fixArcoIssues();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
