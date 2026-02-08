@@ -69,9 +69,7 @@ export class MessageQueue implements IMessageQueue {
 
   subscribe<T>(topic: string, handler: (msg: T) => void) {
     this.EE.on(topic, handler);
-    return () => {
-      this.EE.off(topic, handler);
-    };
+    return this.EE.off.bind(this.EE, topic, handler) as () => void;
   }
 
   publish<T>(topic: string, message: NonNullable<T>) {
