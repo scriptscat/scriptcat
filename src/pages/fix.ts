@@ -10,6 +10,7 @@ export const fixArcoIssues = () => {
   const stackedEvents = new Set<Event>();
   const bindInfoMap = new WeakMap<Event, BindInfo>();
   const executorFn = () => {
+    if (!stackedEvents.size) return;
     const events = [...stackedEvents];
     stackedEvents.clear();
     for (const ev of events) {
