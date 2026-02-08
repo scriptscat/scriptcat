@@ -25,6 +25,7 @@ import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/messag
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
 import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
@@ -1491,6 +1492,91 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public CAT_scriptLoaded() {
     return this.loadScriptPromise;
+  }
+
+  @GMContext.API({ alias: "GM_runExclusive" })
+  ["GM.runExclusive"]<T>(lockKey: string, cb: () => T | PromiseLike<T>, timeout: number = -1): Promise<T> {
+    lockKey = `${lockKey}`; // 转化为字串
+    if (!lockKey || !this.scriptRes) {
+      throw new Error("GM.runExclusive: Invalid Calling");
+    }
+    const key = `${getStorageName(this.scriptRes).replace(/:/g, ":_")}::${lockKey.replace(/:/g, ":_")}`;
+
+    const taskAsync = () =>
+      new Promise<T>((resolve, reject) => {
+        let killConn: (() => any) | null | undefined = undefined;
+        let error: any;
+        let result: any;
+        let state = 0; // 0 = not started; 1 = started; 2 = done
+        const onDisconnected = () => {
+          killConn = null; // before resolve, set killConn to null
+          if (error) {
+            reject(error);
+          } else if (state !== 2) {
+            reject(new Error("GM.runExclusive: Incomplete Action"));
+          } else {
+            resolve(result);
+          }
+          result = null; // GC
+          error = null; // GC
+        };
+        const onStart = async (con: MessageConnect) => {
+          if (killConn === null || state > 0) {
+            // already resolved (unexpected or by timeout)
+            con.disconnect();
+            return;
+          }
+          state = 1;
+          try {
+            result = await cb();
+          } catch (e) {
+            error = e;
+          }
+          state = 2;
+          con.sendMessage({
+            action: "done",
+            data: error ? false : typeof result,
+          });
+          con.disconnect();
+          onDisconnected(); // in case .disconnect() not working
+        };
+        this.connect("runExclusive", [key]).then((con) => {
+          if (killConn === null || state > 0) {
+            // already resolved (unexpected or by timeout)
+            con.disconnect();
+            return;
+          }
+          killConn = () => {
+            con.disconnect();
+          };
+          con.onDisconnect(onDisconnected);
+          con.onMessage((msg) => {
+            switch (msg.action) {
+              case "start":
+                onStart(con);
+                break;
+            }
+          });
+        });
+        if (timeout > 0) {
+          setTimeout(() => {
+            if (killConn === null || state > 0) return; // 执行开始了就不进行 timeout 操作
+            error = new Error("GM.runExclusive: Timeout Error");
+            killConn?.();
+            onDisconnected(); // in case .disconnect() not working
+          }, timeout);
+        }
+      });
+
+    return new Promise((resolve, reject) => {
+      stackAsyncTask(`runExclusive::${key}`, async () => {
+        try {
+          resolve(await taskAsync());
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
   }
 }
 
