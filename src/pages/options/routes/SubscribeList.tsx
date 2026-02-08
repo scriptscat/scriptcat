@@ -12,7 +12,7 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import type { Subscribe } from "@App/app/repo/subscribe";
-import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
+import { SubscribeStatusType, SubscribeDAO } from "@App/app/repo/subscribe";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
 import { semTime } from "@App/pkg/utils/dayjs";
@@ -69,18 +69,18 @@ function SubscribeList() {
       filters: [
         {
           text: t("enable"),
-          value: SUBSCRIBE_STATUS_ENABLE,
+          value: SubscribeStatusType.enable,
         },
         {
           text: t("disable"),
-          value: SUBSCRIBE_STATUS_DISABLE,
+          value: SubscribeStatusType.disable,
         },
       ],
       onFilter: (value, row) => row.status === value,
       render: (col, item: ListType, index) => {
         return (
           <Switch
-            checked={item.status === SUBSCRIBE_STATUS_ENABLE}
+            checked={item.status === SubscribeStatusType.enable}
             loading={item.loading}
             disabled={item.loading}
             onChange={(checked) => {
@@ -98,7 +98,7 @@ function SubscribeList() {
                   setListEntry(index, {
                     loading: false,
                     ...(statusChange && {
-                      status: checked ? SUBSCRIBE_STATUS_ENABLE : SUBSCRIBE_STATUS_DISABLE,
+                      status: checked ? SubscribeStatusType.enable : SubscribeStatusType.disable,
                     }),
                   });
                 });

@@ -2,7 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import type { SCMetadata, Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
-import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
+import { SubscribeStatusType, SubscribeDAO } from "@App/app/repo/subscribe";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
@@ -32,13 +32,17 @@ export class SubscribeService {
   }
 
   async install(param: { subscribe: Subscribe }) {
+    // 1）由安装页呼叫，进行 user.sub.js 的安装
+    // 2）静默更新启动状态下，Subscribe 列表自动更新
     const logger = this.logger.with({
       subscribeUrl: param.subscribe.url,
       name: param.subscribe.name,
     });
     try {
-      await this.subscribeDAO.save(param.subscribe);
+      await this.subscribeDAO.save(param.subscribe); // 所谓的安装，仅储存脚本资源。
       logger.info("upsert subscribe success");
+      // 广播后才会根据 subscrbie.scripts 的 url 取得/更新脚本
+      // 注：installSubscribe 的广播是自己和自己对话。（不等待回应）
       this.mq.publish<TInstallSubscribe>("installSubscribe", {
         subscribe: param.subscribe,
       });
@@ -84,85 +88,116 @@ export class SubscribeService {
     }
   }
 
-  // 更新订阅的脚本
+  // 更新订阅的脚本（ installSubscribe ）
+  // 已订阅的脚本则根据 Script脚本 本身的更新逻辑更新，与 Subscribe脚本 的更新无关
   async upsertScript(url: string) {
     const subscribe = await this.subscribeDAO.get(url);
-    if (!subscribe) return;
+    if (!subscribe || !subscribe.metadata.usersubscribe) return; // 有效的 Subscribe 必定有 usersubscribe
     const logger = this.logger.with({
       url: subscribe.url,
       name: subscribe.name,
     });
     // 对比脚本是否有变化
-    const addScript: string[] = [];
-    const removeScript: SubscribeScript[] = [];
-    const scriptUrl = subscribe.metadata.scripturl || [];
-    const scripts = Object.keys(subscribe.scripts);
-    for (const url of scriptUrl) {
+    const addedScripts: string[] = [];
+    const removedScripts: SubscribeScript[] = [];
+    const metaScriptUrlSet = new Set(subscribe.metadata.scripturl || []); // 订阅列表
+    const subscribeScripts = new Set(Object.keys(subscribe.scripts)); // 已关联 uuid 的列表
+    // 注：首次安装时， subscribeScripts 是空的。
+    for (const url of metaScriptUrlSet) {
       // 不存在于已安装的脚本中, 则添加
-      if (!scripts.includes(url)) {
-        addScript.push(url);
+      if (!subscribeScripts.has(url)) {
+        addedScripts.push(url);
       }
     }
-    for (const url of scripts) {
+    for (const url of subscribeScripts) {
       // 不存在于订阅的脚本中, 则删除
-      if (!scriptUrl.includes(url)) {
-        removeScript.push(subscribe.scripts[url]);
+      if (!metaScriptUrlSet.has(url)) {
+        removedScripts.push(subscribe.scripts[url]);
       }
     }
 
-    const notification: string[][] = [[], []];
-    const result: Promise<boolean>[] = [];
-    // 添加脚本
-    addScript.forEach((url) => {
-      result.push(
+    const addedScriptNames: string[] = [];
+    const removedScriptNames: string[] = [];
+    const promises: Promise<void>[] = [];
+    // 添加脚本: 根据 订阅列表 的 Script脚本URLs 进行安装
+    addedScripts.forEach((url) => {
+      promises.push(
         (async () => {
-          const script = await this.scriptService.installByUrl(url, "subscribe", subscribe.url);
-          subscribe.scripts[url] = {
-            url,
-            uuid: script.uuid,
-          };
-          notification[0].push(i18nName(script));
-          return true;
+          // 先找一下已安装的 scripts
+          const existingScript = await this.scriptDAO.find((_key, script) => {
+            return script.downloadUrl === url || script.origin === url;
+          });
+          if (existingScript?.[0]) {
+            // 仅关联至 已安装脚本的 uuid
+            // 注：1）已安装的脚本可能是用户用直接下载方式安装
+            //     2）已安装的脚本可能是用户用其他 Subscribe 安装
+            //     这里的 existingScript 的 subscribeUrl 值不一定是这个 Subscribe 的 url
+            subscribe.scripts[url] = {
+              url,
+              uuid: existingScript[0].uuid,
+            };
+          } else {
+            // 安装Script脚本 ( script.subscribeUrl 会指定为这个 Subscribe. 当移除 Subscribe 时会一并移除 )
+            const script = await this.scriptService.installByUrl(url, "subscribe", subscribe.url);
+            const name = i18nName(script);
+            // 把Script脚本关联至Subscribe
+            subscribe.scripts[url] = {
+              url,
+              uuid: script.uuid,
+            };
+            addedScriptNames.push(name);
+          }
         })().catch((e) => {
           logger.error("install script failed", Logger.E(e));
-          return false;
         })
       );
     });
-    // 删除脚本
-    removeScript.forEach((item) => {
+    // 删除脚本: 根据 subscribeScripts 的 Script脚本UUIDs 进行反安装
+    removedScripts.forEach((item) => {
       // 通过uuid查询脚本id
-      result.push(
+      promises.push(
         (async () => {
-          const script = await this.scriptDAO.findByUUID(item.uuid);
+          // 以 uuid 找出已安装的Script脚本资讯
+          const script = await this.scriptDAO.get(item.uuid);
+          const url = item.url;
           if (script) {
-            notification[1].push(i18nName(script));
-            // 删除脚本
-            this.scriptService.deleteScript(script.uuid);
+            const name = i18nName(script);
+            // 如果不是以 此 Subscribe 安装的话则略过删除 ( 例如其他 Subscribe, 直接Script安装，本地安装，等等 )
+            if (script.subscribeUrl === subscribe.url) {
+              delete subscribe.scripts[url];
+              // 删除脚本
+              await this.scriptService.deleteScript(script.uuid);
+              removedScriptNames.push(name);
+            } else {
+              logger.warn("Subscribe Update: skip deletion", {
+                scriptUUID: script.uuid,
+                scriptUrl: url,
+                scriptName: name,
+              });
+            }
           }
-          return true;
         })().catch((e) => {
           logger.error("delete script failed", Logger.E(e));
-          return false;
         })
       );
     });
 
-    await Promise.allSettled(result);
+    await Promise.allSettled(promises);
 
+    // 把 subscribe.scripts 的新资讯储存到 subscribeDAO
     await this.subscribeDAO.update(subscribe.url, subscribe);
 
     InfoNotification(
       i18n.t("notification.subscribe_update", { subscribeName: subscribe.name }),
       i18n.t("notification.subscribe_update_desc", {
-        newScripts: notification[0].join(","),
-        deletedScripts: notification[1].join(","),
+        newScripts: addedScriptNames.join(","),
+        deletedScripts: removedScriptNames.join(","),
       })
     );
 
-    logger.info("subscribe update", {
-      install: notification[0],
-      update: notification[1],
+    logger.info("subscribe list update", {
+      installed: addedScriptNames,
+      deleted: removedScriptNames,
     });
 
     return true;
@@ -184,9 +219,9 @@ export class SubscribeService {
     });
     try {
       if (delayFn) await delayFn();
-      const code = await fetchScriptBody(url);
-      const metadata = parseMetadata(code);
-      if (!metadata) {
+      const code = await fetchScriptBody(url); // user.sub.js 的 代码
+      const metadata = parseMetadata(code); // user.sub.js 的 metadata = 代码内容分析; metadata.usersubscribe 是 空阵列
+      if (!metadata || !metadata.usersubscribe) {
         logger.error("parse metadata failed");
         return false;
       }
@@ -211,11 +246,17 @@ export class SubscribeService {
   }
 
   // 检查更新
+  /**
+   * @param url Subscribe脚本 的 url
+   * @param source 系统自动检查: "system"; subscribeClient.checkUpdate(subscribe.url) 的时候: "user"
+   * @returns
+   */
   async checkUpdate(url: string, source: InstallSource) {
     const subscribe = await this.subscribeDAO.get(url);
     if (!subscribe) {
       return false;
     }
+    // 先写入更新触发时间
     await this.subscribeDAO.update(url, { checktime: Date.now() });
     const logger = this.logger.with({
       url: subscribe.url,
@@ -254,6 +295,7 @@ export class SubscribeService {
     if (silenceUpdate) {
       try {
         const newSubscribe = await prepareSubscribeByCode(code, url);
+        // 由于 Subscribe 不会含有 @connect, 因此静默更新启动的话， Subscribe 列表本身总是自动更新。
         if (checkSilenceUpdate(newSubscribe.oldSubscribe!.metadata, newSubscribe.subscribe.metadata)) {
           logger.info("silence update subscribe");
           this.install({
@@ -273,7 +315,7 @@ export class SubscribeService {
     });
 
     for (const subscribe of list) {
-      if (!checkDisable && subscribe.status === SUBSCRIBE_STATUS_ENABLE) {
+      if (!checkDisable && subscribe.status === SubscribeStatusType.disable) {
         continue;
       }
       this.checkUpdate(subscribe.url, "system");
@@ -290,7 +332,7 @@ export class SubscribeService {
     });
     try {
       await this.subscribeDAO.update(param.url, {
-        status: param.enable ? SUBSCRIBE_STATUS_ENABLE : SUBSCRIBE_STATUS_DISABLE,
+        status: param.enable ? SubscribeStatusType.enable : SubscribeStatusType.disable,
       });
       logger.info("enable subscribe success");
       return true;

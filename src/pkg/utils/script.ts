@@ -11,7 +11,7 @@ import {
   ScriptDAO,
 } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
-import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
+import { SubscribeStatusType, SubscribeDAO } from "@App/app/repo/subscribe";
 import { nextTimeDisplay } from "./cron";
 import { parseUserConfig } from "./yaml";
 import { t as i18n_t } from "@App/locales/locales";
@@ -41,7 +41,7 @@ export function parseMetadata(code: string): SCMetadata | null {
   }
   if (!metadata.name || Object.keys(metadata).length < 3) return null;
   if (!metadata.namespace) metadata.namespace = [""];
-  if (isSubscribe) metadata.usersubscribe = [];
+  if (isSubscribe) metadata.usersubscribe = []; // 如果是 user.sub.js, 在 metadata 会有一个额外的 usersubscribe
   return metadata;
 }
 
@@ -71,7 +71,7 @@ export async function prepareScriptByCode(
   dao?: ScriptDAO,
   options?: {
     byEditor?: boolean; // 是否通过编辑器导入
-    byWebRequest?: boolean; // 是否通过網頁連結安裝或更新
+    byWebRequest?: boolean; // 是否通过网页连结安装或更新
   }
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
   dao = dao ?? new ScriptDAO();
@@ -219,6 +219,17 @@ export async function prepareSubscribeByCode(
   code: string,
   url: string
 ): Promise<{ subscribe: Subscribe; oldSubscribe?: Subscribe }> {
+  /*
+  // ==UserSubscribe==
+  // @name         xxx
+  // @description  订阅xxx系列脚本
+  // @version      0.1.0
+  // @author       You
+  // @connect      www.baidu.com
+  // @scriptUrl    https://script.tampermonkey.net.cn/48.user.js
+  // @scriptUrl    https://script.tampermonkey.net.cn/49.user.js
+  // ==/UserSubscribe==
+  */
   const dao = new SubscribeDAO();
   const metadata = parseMetadata(code);
   if (!metadata) {
@@ -229,20 +240,21 @@ export async function prepareSubscribeByCode(
   }
   const now = Date.now();
   const subscribe: Subscribe = {
-    url,
+    url, // url of the user.sub.js
     name: metadata.name[0],
     code,
     author: (metadata.author && metadata.author[0]) || "",
     scripts: {},
     metadata: metadata,
-    status: SUBSCRIBE_STATUS_ENABLE,
+    status: SubscribeStatusType.enable,
     createtime: now,
     updatetime: now,
     checktime: now,
   };
-  const old = await dao.findByUrl(url);
+  const old = await dao.get(url); // 已存在 -> 把之前的 scripts, createtime, status 抽出来
   if (old) {
     const { url, scripts, createtime, status } = old;
+    // url 是一样的；Subscribe 不使用 name 和 namespace 判断，仅使用 url 作唯一键
     Object.assign(subscribe, { url, scripts, createtime, status });
   }
   return { subscribe, oldSubscribe: old };
