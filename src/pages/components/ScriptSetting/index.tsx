@@ -94,7 +94,7 @@ const ScriptSetting: React.FC<{
       },
     ];
     return ret;
-  }, [script, scriptRunEnv, scriptRunAt, t]);
+  }, [script.uuid, scriptRunEnv, scriptRunAt, t]);
 
   useEffect(() => {
     const scriptDAO = new ScriptDAO();
