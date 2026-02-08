@@ -240,6 +240,36 @@ function ScriptEditor() {
     return prepareScriptByCode(code, existingScript.origin || "", targetUUID, false, scriptDAO, { byEditor: true })
       .then(async (prepareScript) => {
         const { script, oldScript } = prepareScript;
+        // 新增/更改名字时，有相同名字的脚本的话，提醒一下是否真的储存
+        if (
+          (!oldScript || oldScript.name !== script.name || oldScript.namespace !== script.namespace) &&
+          script.name &&
+          script.namespace
+        ) {
+          const searchResult = await scriptDAO.findByNameAndNamespace(script.name, script.namespace);
+          if (searchResult && searchResult.uuid !== targetUUID) {
+            const modalResult = await new Promise((resolve) => {
+              modal.confirm!({
+                focusLock: false,
+                simple: false,
+                closable: true,
+                title: t("scriptname_conflict"),
+                content: t("confirm_save_when_scriptname_conflict"),
+                onOk: () => {
+                  resolve("yes");
+                },
+                onCancel: () => {
+                  resolve("no");
+                },
+              });
+            });
+            setTimeout(e.focus.bind(e), 50);
+            if (modalResult === "no") {
+              Message.warning(t("save_abort_when_scriptname_conflict"));
+              return Promise.reject(new Error("This script name is already used by another script. Save aborted."));
+            }
+          }
+        }
         if (targetUUID) {
           if (existingScript.createtime !== 0) {
             if (!oldScript || oldScript.uuid !== targetUUID) {
