@@ -13,11 +13,11 @@ export const getEditorWorkerPromise = (): Promise<Worker> => {
 export const getTsWorkerPromise = (): Promise<Worker> => {
   return new Promise((resolve, reject) => {
     fetch(chrome.runtime.getURL(`/src/ts.worker.js.bin`))
-      .then((resp) => (resp.ok ? resp.blob() : null))
+      .then((resp) => (resp.ok ? resp.arrayBuffer() : null))
       .catch(() => null)
-      .then((blob) => {
-        if (blob) {
-          const blobUrl = URL.createObjectURL(new Blob([blob], { type: "text/javascript" }));
+      .then((rawData) => {
+        if (rawData) {
+          const blobUrl = URL.createObjectURL(new Blob([rawData], { type: "text/javascript" }));
           const worker = new Worker(blobUrl, { credentials: "omit", name: "tsWorker", type: "module" });
           resolve(worker);
         } else {
