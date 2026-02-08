@@ -10,17 +10,21 @@ export const getEditorWorkerPromise = () => {
   );
 };
 
-export const getTsWorkerPromise = () => {
-  return fetch(chrome.runtime.getURL(`/src/ts.worker.js.bin`))
-    .then((resp) => (resp.ok ? resp.blob() : null))
-    .catch(() => null)
-    .then(async (blob) => {
-      if (blob) {
-        const blobUrl = URL.createObjectURL(new Blob([blob], { type: "text/javascript" }));
-        return new Worker(blobUrl, { credentials: "omit", name: "tsWorker", type: "module" });
-      }
-      throw new Error("no ts.worker.js");
-    });
+export const getTsWorkerPromise = (): Promise<Worker> => {
+  return new Promise((resolve, reject) => {
+    fetch(chrome.runtime.getURL(`/src/ts.worker.js.bin`))
+      .then((resp) => (resp.ok ? resp.blob() : null))
+      .catch(() => null)
+      .then((blob) => {
+        if (blob) {
+          const blobUrl = URL.createObjectURL(new Blob([blob], { type: "text/javascript" }));
+          const worker = new Worker(blobUrl, { credentials: "omit", name: "tsWorker", type: "module" });
+          resolve(worker);
+        } else {
+          reject(new Error("no ts.worker"));
+        }
+      });
+  });
 };
 
 export const findGlobalInsertionInfo = (model: editor.ITextModel) => {
