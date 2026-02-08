@@ -83,14 +83,11 @@ export async function prepareScriptByCode(
   if (!metadata.name?.[0]) {
     throw new Error(i18n_t("error_script_name_required"));
   }
-  // 不接受空白version
-  if (!metadata.version?.[0]) {
-    throw new Error(i18n_t("error_script_version_required"));
-  }
   // 可接受空白namespace
   if (metadata.namespace === undefined) {
     throw new Error(i18n_t("error_script_namespace_required"));
   }
+  // 可接受空白version
   let type = SCRIPT_TYPE_NORMAL;
   if (metadata.crontab !== undefined) {
     type = SCRIPT_TYPE_CRONTAB;

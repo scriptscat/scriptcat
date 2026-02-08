@@ -181,7 +181,7 @@ export const ScriptCardItem = React.memo(
 
             {/* 版本和更新时间 */}
             <div className="tw-flex tw-flex-row tw-gap-4 tw-text-sm tw-text-gray-500">
-              {item.metadata.version && (
+              {item.metadata.version?.[0] && (
                 <div>
                   <span className="tw-font-medium">
                     {t("version")}
