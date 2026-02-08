@@ -6,9 +6,11 @@ import {
   compileInjectScript,
   compilePreInjectScript,
   compileScriptCode,
+  compileScriptletCode,
   getScriptFlag,
   isEarlyStartScript,
   isInjectIntoContent,
+  isScriptletUnwrap,
 } from "../content/utils";
 import {
   extractUrlPatterns,
@@ -173,13 +175,17 @@ export function compileInjectionCode(
   scriptCode: string,
   scriptUrlPatterns: URLRuleEntry[]
 ): string {
-  const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
+  // 注意！ restoreJSCodeFromCompiledResource 跟 compileInjectionCode 的处理是不同的！
   let scriptInjectCode;
-  scriptCode = compileScriptCode(scriptRes, scriptCode);
-  if (preDocumentStartScript) {
-    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
+  if (isScriptletUnwrap(scriptRes.metadata)) {
+    scriptInjectCode = compileScriptletCode(scriptRes, scriptCode, scriptUrlPatterns);
   } else {
-    scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
+    scriptCode = compileScriptCode(scriptRes, scriptCode);
+    if (isEarlyStartScript(scriptRes.metadata)) {
+      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
+    } else {
+      scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
+    }
   }
   return scriptInjectCode;
 }
