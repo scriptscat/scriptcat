@@ -58,7 +58,7 @@ import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
-import { SearchFilter } from "./SearchFilter";
+import { SearchFilter, type SearchFilterKeyEntry } from "./SearchFilter";
 
 type ListType = ScriptLoading;
 
@@ -76,31 +76,31 @@ interface DraggableContextType {
 }
 const DraggableContext = createContext<DraggableContextType | null>(null);
 
-const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  (props, ref) => {
-    const ctx = useContext(DraggableContext);
-    const { sensors, sortableIds, handleDragEnd, a11y } = ctx || {};
+type DraggableContainerProps = React.HTMLAttributes<HTMLTableSectionElement>;
 
-    // compute once, even if context is null (keeps hook order legal)
+const DraggableContainer = React.forwardRef<HTMLTableSectionElement, DraggableContainerProps>((props, ref) => {
+  const ctx = useContext(DraggableContext);
+  const { sensors, sortableIds, handleDragEnd, a11y } = ctx || {};
 
-    return !sortableIds?.length ? (
-      // render a plain tbody to keep the table structure intact
-      <tbody ref={ref} {...props} />
-    ) : (
-      <DndContext
-        sensors={sensors}
-        onDragEnd={handleDragEnd}
-        collisionDetection={closestCenter}
-        accessibility={a11y}
-        modifiers={[restrictToVerticalAxis]}
-      >
-        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-          <tbody ref={ref} {...props} />
-        </SortableContext>
-      </DndContext>
-    );
-  }
-);
+  // compute once, even if context is null (keeps hook order legal)
+
+  return !sortableIds?.length ? (
+    // render a plain tbody to keep the table structure intact
+    <tbody ref={ref} {...props} />
+  ) : (
+    <DndContext
+      sensors={sensors}
+      onDragEnd={handleDragEnd}
+      collisionDetection={closestCenter}
+      accessibility={a11y}
+      modifiers={[restrictToVerticalAxis]}
+    >
+      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+        <tbody ref={ref} {...props} />
+      </SortableContext>
+    </DndContext>
+  );
+});
 
 DraggableContainer.displayName = "DraggableContainer";
 
@@ -118,7 +118,7 @@ function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
 
 const DraggableRow = React.forwardRef<
   HTMLTableRowElement,
-  { record: any; index: any } & React.HTMLAttributes<HTMLTableRowElement>
+  { record: ScriptLoading; index: number } & React.HTMLAttributes<HTMLTableRowElement>
 >(({ record, index: _index, ...rest }, ref) => {
   const sortable = useSortable({ id: record.uuid });
   const { setNodeRef, transform, transition, listeners, setActivatorNodeRef } = sortable;
@@ -163,81 +163,91 @@ const DragHandle = () => {
   );
 };
 
-const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType; navigate: any; t: any }) => {
-  const { toLogger } = {
-    toLogger: () =>
-      navigate({
-        pathname: "logger",
-        search: `query=${encodeURIComponent(
-          JSON.stringify([
-            { key: "uuid", value: item.uuid },
-            {
-              key: "component",
-              value: "GM_log",
-            },
-          ])
-        )}`,
-      }),
-  };
-
-  const favoriteMemo = useMemo(() => {
-    const fav1 = item.favorite;
-    const fav2 = !fav1
-      ? []
-      : fav1
-          .slice()
-          .sort((a, b) => (a.icon && !b.icon ? -1 : !a.icon && b.icon ? 1 : a.match.localeCompare(b.match)))
-          .slice(0, 4);
-    return {
-      trimmed: fav2,
-      originalLen: fav1?.length ?? 0,
+const ApplyToRunStatusCell = React.memo(
+  ({
+    item,
+    navigate,
+    t,
+  }: {
+    item: ListType;
+    navigate: ReturnType<typeof useNavigate>;
+    t: ReturnType<typeof useTranslation>[0];
+  }) => {
+    const { toLogger } = {
+      toLogger: () =>
+        navigate({
+          pathname: "logger",
+          search: `query=${encodeURIComponent(
+            JSON.stringify([
+              { key: "uuid", value: item.uuid },
+              {
+                key: "component",
+                value: "GM_log",
+              },
+            ])
+          )}`,
+        }),
     };
-  }, [item.favorite]);
 
-  if (item.type === SCRIPT_TYPE_NORMAL) {
+    const favoriteMemo = useMemo(() => {
+      const fav1 = item.favorite;
+      const fav2 = !fav1
+        ? []
+        : fav1
+            .slice()
+            .sort((a, b) => (a.icon && !b.icon ? -1 : !a.icon && b.icon ? 1 : a.match.localeCompare(b.match)))
+            .slice(0, 4);
+      return {
+        trimmed: fav2,
+        originalLen: fav1?.length ?? 0,
+      };
+    }, [item.favorite]);
+
+    if (item.type === SCRIPT_TYPE_NORMAL) {
+      return (
+        <>
+          <Avatar.Group size={20}>
+            {favoriteMemo.trimmed.map((fav) => (
+              <MemoizedAvatar
+                key={`${fav.match}_${fav.icon}_${fav.website}`}
+                {...fav}
+                onClick={() => {
+                  if (fav.website) {
+                    window.open(fav.website, "_blank");
+                  }
+                }}
+              />
+            ))}
+            {favoriteMemo.originalLen > 4 && "..."}
+          </Avatar.Group>
+        </>
+      );
+    }
+    let tooltip = "";
+    if (item.type === SCRIPT_TYPE_BACKGROUND) {
+      tooltip = t("background_script_tooltip");
+    } else {
+      tooltip = `${t("scheduled_script_tooltip")} ${nextTimeDisplay(item.metadata!.crontab![0])}`;
+    }
     return (
       <>
-        <Avatar.Group size={20}>
-          {favoriteMemo.trimmed.map((fav) => (
-            <MemoizedAvatar
-              key={`${fav.match}_${fav.icon}_${fav.website}`}
-              {...fav}
-              onClick={() => {
-                if (fav.website) {
-                  window.open(fav.website, "_blank");
-                }
-              }}
-            />
-          ))}
-          {favoriteMemo.originalLen > 4 && "..."}
-        </Avatar.Group>
+        <Tooltip content={tooltip}>
+          <Tag
+            icon={<IconClockCircle />}
+            color="blue"
+            bordered
+            style={{
+              cursor: "pointer",
+            }}
+            onClick={toLogger}
+          >
+            {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
+          </Tag>
+        </Tooltip>
       </>
     );
   }
-  let tooltip = "";
-  if (item.type === SCRIPT_TYPE_BACKGROUND) {
-    tooltip = t("background_script_tooltip");
-  } else {
-    tooltip = `${t("scheduled_script_tooltip")} ${nextTimeDisplay(item.metadata!.crontab![0])}`;
-  }
-  return (
-    <>
-      <Tooltip content={tooltip}>
-        <Tag
-          icon={<IconClockCircle />}
-          color="blue"
-          bordered
-          style={{
-            cursor: "pointer",
-          }}
-          onClick={toLogger}
-        >
-          {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
-        </Tag>
-      </Tooltip>
-    </>
-  );
-});
+);
 ApplyToRunStatusCell.displayName = "ApplyToRunStatusCell";
 
 const ActionCell = React.memo(
@@ -251,9 +261,9 @@ const ActionCell = React.memo(
     handleRunStop,
   }: {
     item: ScriptLoading;
-    setUserConfig: any;
-    setCloudScript: any;
-    t: any;
+    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
+    setCloudScript: (script: Script) => void;
+    t: ReturnType<typeof useTranslation>[0];
     handleDelete: (item: ScriptLoading) => void;
     handleConfig: (
       item: ScriptLoading,
@@ -307,7 +317,7 @@ const ActionCell = React.memo(
           <Button
             type="text"
             icon={<RiUploadCloudFill />}
-            onClick={() => setCloudScript(item, setCloudScript)}
+            onClick={() => setCloudScript(item)}
             style={{
               color: "var(--color-text-2)",
             }}
@@ -403,7 +413,8 @@ VersionCell.displayName = "VersionCell";
 interface ScriptTableProps {
   loadingList: boolean;
   scriptList: ScriptLoading[];
-  scriptListSortOrder: (params: { active: string; over: string }) => void;
+  scriptListSortOrderMove: (params: { active: string; over: string }) => void;
+  scriptListSortOrderSwap: (params: { active: string; over: string }) => void;
   sidebarOpen: boolean;
   setSidebarOpen: ReactStateSetter<boolean>;
   setViewMode: (mode: "card" | "table") => void;
@@ -422,7 +433,8 @@ export const ScriptTable = React.memo(
   ({
     loadingList,
     scriptList,
-    scriptListSortOrder,
+    scriptListSortOrderMove,
+    // scriptListSortOrderSwap,
     sidebarOpen,
     setSidebarOpen,
     setViewMode,
@@ -472,7 +484,7 @@ export const ScriptTable = React.memo(
               },
             ],
             onFilter: (value, row) => row.status === value,
-            render: (col: any, item: ScriptLoading) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
+            render: (col: any, item: ListType) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
           },
           {
             key: "name",
@@ -480,7 +492,18 @@ export const ScriptTable = React.memo(
             dataIndex: "name",
             sorter: (a, b) => a.name.localeCompare(b.name),
             filterIcon: <IconSearch />,
-            filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+            filterDropdown: ({
+              filterKeys,
+              setFilterKeys,
+              confirm,
+            }: {
+              filterKeys: SearchFilterKeyEntry[] | undefined;
+              setFilterKeys: (
+                filterKeys: SearchFilterKeyEntry[] | undefined,
+                callback?: (...args: any[]) => any | undefined
+              ) => void;
+              confirm: (...args: any[]) => any;
+            }) => {
               return (
                 <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
                   <ScriptSearchField
@@ -595,7 +618,7 @@ export const ScriptTable = React.memo(
             key: "action",
             className: "script-action",
             width: 160,
-            render: (col: any, item: ScriptLoading) => (
+            render: (col: any, item: ListType) => (
               <ActionCell
                 item={item}
                 setUserConfig={setUserConfig}
@@ -699,7 +722,7 @@ export const ScriptTable = React.memo(
       []
     );
 
-    const setWidth = (selectColumn: number, width: any) => {
+    const setWidth = (selectColumn: number, width: string | number | undefined) => {
       setNewColumns((cols) =>
         cols.map((col, i) => (i === selectColumn && col.width !== width ? { ...col, width } : col))
       );
@@ -724,13 +747,13 @@ export const ScriptTable = React.memo(
       (event: DragEndEvent) => {
         const { active, over } = event;
         if (over && active.id !== over.id) {
-          scriptListSortOrder!({
+          scriptListSortOrderMove!({
             active: `${active.id}`,
             over: `${over.id}`,
           });
         }
       },
-      [scriptListSortOrder]
+      [scriptListSortOrderMove]
     );
 
     const a11y = useMemo(

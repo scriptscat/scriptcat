@@ -28,7 +28,6 @@ import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
-import { arrayMove } from "@dnd-kit/sortable";
 import type {
   TScriptRunStatus,
   TDeleteScript,
@@ -1211,58 +1210,93 @@ export class ScriptService {
     return scripts;
   }
 
-  async sortScript({ active, over }: { active: string; over: string }) {
-    const scripts = await this.scriptDAO.all();
-    scripts.sort((a, b) => a.sort - b.sort);
-    let oldIndex = 0;
-    let newIndex = 0;
-    scripts.forEach((item, index) => {
-      if (item.uuid === active) {
-        oldIndex = index;
-      } else if (item.uuid === over) {
-        newIndex = index;
+  async sortScript({ after }: { before: string[]; after: string[] }) {
+    const daoAll = await this.scriptDAO.all();
+    const scripts = daoAll.slice().sort((a, b) => a.sort - b.sort);
+    const sorting = after;
+
+    const sortingObject: Record<
+      string,
+      {
+        obj: Script;
+        order?: number;
       }
-    });
-    const newSort = arrayMove(scripts, oldIndex, newIndex);
-    const updatetime = Date.now();
-    for (let i = 0, l = newSort.length; i < l; i += 1) {
-      const item = newSort[i];
-      if (item.sort !== i) {
-        item.sort = i;
-        await this.scriptDAO.update(item.uuid, { sort: i, updatetime });
+    > = {};
+    for (let i = 0, l = scripts.length; i < l; i += 1) {
+      sortingObject[scripts[i].uuid] = {
+        obj: scripts[i],
+        // order: undefined, // no order change
+      };
+    }
+    for (let i = 0, l = sorting.length; i < l; i += 1) {
+      const entry = sortingObject[sorting[i]];
+      if (entry) {
+        entry.order = i; // set to preferred order
       }
     }
+    const entries = Object.values(sortingObject);
+    //@ts-ignore
+    entries.sort((a, b) => a.order - b.order || 0);
+    const updatetime = Date.now();
+    const newList = await Promise.all(
+      entries.map(async (entry, i) => {
+        const obj = entry.obj;
+        if (obj.sort !== i) {
+          obj.sort = i;
+          await this.scriptDAO.update(obj.uuid, { sort: i, updatetime: obj.updatetime || updatetime });
+        }
+        return obj;
+      })
+    );
+
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
-      newSort.map(({ uuid, sort }) => ({ uuid, sort }))
+      newList.map(({ uuid, sort }) => ({ uuid, sort }))
     );
   }
 
   async pinToTop(uuids: string[]) {
-    const scripts = await this.scriptDAO.all();
-    const m = uuids.length;
-    const oldSorts = new Map<string, number>();
-    for (const script of scripts) {
-      oldSorts.set(script.uuid, script.sort);
-      const idx = uuids.indexOf(script.uuid);
-      if (idx >= 0) {
-        script.sort = idx;
-      } else {
-        script.sort += m;
+    const daoAll = await this.scriptDAO.all();
+    const scripts = daoAll.slice().sort((a, b) => a.sort - b.sort);
+
+    const sortingObject: Record<
+      string,
+      {
+        obj: Script;
+        order?: number;
       }
-    }
-    scripts.sort((a, b) => a.sort - b.sort);
-    const updatetime = Date.now();
+    > = {};
+    const otherOrder = uuids.length;
     for (let i = 0, l = scripts.length; i < l; i += 1) {
-      const item = scripts[i];
-      item.sort = i;
-      if (item.sort !== oldSorts.get(item.uuid)) {
-        await this.scriptDAO.update(item.uuid, { sort: i, updatetime });
+      sortingObject[scripts[i].uuid] = {
+        obj: scripts[i],
+        order: otherOrder, // put after uuids
+      };
+    }
+    for (let i = 0, l = uuids.length; i < l; i += 1) {
+      const entry = sortingObject[uuids[i]];
+      if (entry) {
+        entry.order = i; // overrided by preferred order
       }
     }
+    const entries = Object.values(sortingObject);
+    //@ts-ignore
+    entries.sort((a, b) => a.order - b.order || 0);
+    const updatetime = Date.now();
+    const newList = await Promise.all(
+      entries.map(async (entry, i) => {
+        const obj = entry.obj;
+        if (obj.sort !== i) {
+          obj.sort = i;
+          await this.scriptDAO.update(obj.uuid, { sort: i, updatetime: obj.updatetime || updatetime });
+        }
+        return obj;
+      })
+    );
+
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
-      scripts.map(({ uuid, sort }) => ({ uuid, sort }))
+      newList.map(({ uuid, sort }) => ({ uuid, sort }))
     );
   }
 

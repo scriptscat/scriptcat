@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, memo } from "react";
 import { Card, Message } from "@arco-design/web-react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { arrayMove } from "@dnd-kit/sortable";
+import { arrayMove, arraySwap } from "@dnd-kit/sortable";
 
 // 仓库与常量引用
 import type { Script, UserConfig } from "@App/app/repo/scripts";
@@ -19,7 +19,7 @@ import {
   requestDeleteScripts,
   requestRunScript,
   requestStopScript,
-  sortScript,
+  sortScript as sortScriptDeferred,
 } from "@App/pages/store/features/script";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
@@ -37,10 +37,15 @@ import type { ScriptLoading } from "@App/pages/store/features/script";
 
 import { type TSelectFilter, useScriptDataManagement, useScriptFilters } from "./hooks";
 
+type TableProps = React.ComponentProps<typeof ScriptTable>;
+type CardProps = React.ComponentProps<typeof ScriptCard>;
+
+type SharedProps = TableProps & CardProps;
+
 /**
  * 子组件: 渲染内容区域 (通过 memo 防止 userConfig 变更触发列表重绘)
  */
-const MainContent = memo(({ viewMode, ...props }: any) => {
+const MainContent = memo(({ viewMode, ...props }: { viewMode: "table" | "card" } & SharedProps) => {
   return viewMode === "table" ? <ScriptTable {...props} /> : <ScriptCard {...props} />;
 });
 
@@ -61,10 +66,10 @@ function ScriptList() {
     return window.screen.width < 1280 ? "card" : "table";
   });
   const [selectedFilters, setSelectedFilters] = useState<TSelectFilter>({
-    status: "all",
-    type: "all",
-    tags: "all",
-    source: "all",
+    status: null,
+    type: null,
+    tags: null,
+    source: null,
   });
   const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({ keyword: "", type: "auto" });
 
@@ -144,19 +149,40 @@ function ScriptList() {
     [t, updateScripts]
   );
 
-  const scriptListSortOrder = useCallback(
+  const scriptListSortOrderMove = useCallback(
     ({ active, over }: { active: string; over: string }) => {
       setScriptList((prev) => {
-        const oldIdx = prev.findIndex((s) => s.uuid === active);
-        const newIdx = prev.findIndex((s) => s.uuid === over);
+        const before = prev.map((s) => s.uuid);
+        const oldIdx = before.findIndex((id) => id === active);
+        const newIdx = before.findIndex((id) => id === over);
         if (oldIdx !== -1 && newIdx !== -1) {
           const next = arrayMove(prev, oldIdx, newIdx);
+          const after = next.map((s) => s.uuid);
+          sortScriptDeferred({ before, after });
           next.forEach((s, i) => (s.sort = i));
           return next;
         }
         return prev;
       });
-      sortScript({ active, over });
+    },
+    [setScriptList]
+  );
+
+  const scriptListSortOrderSwap = useCallback(
+    ({ active, over }: { active: string; over: string }) => {
+      setScriptList((prev) => {
+        const before = prev.map((s) => s.uuid);
+        const oldIdx = before.findIndex((id) => id === active);
+        const newIdx = before.findIndex((id) => id === over);
+        if (oldIdx !== -1 && newIdx !== -1) {
+          const next = arraySwap(prev, oldIdx, newIdx);
+          const after = next.map((s) => s.uuid);
+          sortScriptDeferred({ before, after });
+          next.forEach((s, i) => (s.sort = i));
+          return next;
+        }
+        return prev;
+      });
     },
     [setScriptList]
   );
@@ -165,20 +191,20 @@ function ScriptList() {
   useEffect(() => {
     const { status, type, tags, source } = selectedFilters;
     const list = scriptList.filter((s) => {
-      if (status !== "all") {
+      if (status !== null) {
         if (status === SCRIPT_STATUS_ENABLE || status === SCRIPT_STATUS_DISABLE) {
           if (s.status !== status) return false;
         } else if (s.type === SCRIPT_TYPE_NORMAL || s.runStatus !== status) return false;
       }
-      if (type !== "all") {
+      if (type !== null) {
         if (type === SCRIPT_TYPE_NORMAL) {
           if (s.type !== SCRIPT_TYPE_NORMAL) return false;
         } else if (type === SCRIPT_TYPE_BACKGROUND) {
           if (s.type !== SCRIPT_TYPE_BACKGROUND && s.type !== SCRIPT_TYPE_CRONTAB) return false;
         } else if (s.type !== SCRIPT_TYPE_CRONTAB) return false;
       }
-      if (tags !== "all" && !stats.tagMap[tags as string]?.has(s.uuid)) return false;
-      if (source !== "all" && !stats.originMap[source as string]?.has(s.uuid)) return false;
+      if (tags !== null && !stats.tagMap[tags as string]?.has(s.uuid)) return false;
+      if (source !== null && !stats.originMap[source as string]?.has(s.uuid)) return false;
       return true;
     });
 
@@ -226,7 +252,8 @@ function ScriptList() {
               viewMode={viewMode}
               loadingList={loadingList}
               scriptList={filterScriptList}
-              scriptListSortOrder={scriptListSortOrder}
+              scriptListSortOrderMove={scriptListSortOrderMove}
+              scriptListSortOrderSwap={scriptListSortOrderSwap}
               updateScripts={updateScripts}
               sidebarOpen={sidebarOpen}
               setSidebarOpen={setSidebarOpen}

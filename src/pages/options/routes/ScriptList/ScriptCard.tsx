@@ -25,7 +25,7 @@ import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import { FaThList } from "react-icons/fa";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { rectSwappingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAppContext } from "@App/pages/store/AppContext";
 import { type SearchFilterRequest } from "./SearchFilter";
@@ -46,33 +46,38 @@ function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
   };
 }
 
-const DraggableEntry = React.forwardRef<HTMLDivElement, { record: any } & React.HTMLAttributes<HTMLDivElement>>(
-  ({ record, ...rest }, ref) => {
-    const sortable = useSortable({ id: record.uuid });
-    const { setNodeRef, transform, transition, listeners, setActivatorNodeRef } = sortable;
+type DraggableEntryProps = { recordUUID: string } & React.HTMLAttributes<HTMLDivElement>;
 
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
+const DraggableEntry = React.forwardRef<HTMLDivElement, DraggableEntryProps>(({ recordUUID, ...rest }, ref) => {
+  const sortable = useSortable({ id: recordUUID });
+  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging } = sortable;
 
-    const mergedRef = React.useMemo(() => composeRefs<HTMLDivElement>(setNodeRef, ref), [setNodeRef, ref]);
+  const style = {
+    // ScriptCard 移位渉及多个元件上下左右移动，DragEnd时不要使用 dnd-kit 提供的效果
+    transform: CSS.Transform.toString(transform),
+    transition: transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : "auto",
+    transitionDuration: "0ms",
+    transitionDelay: "0ms",
+  };
 
-    const ctxValue = useMemo(
-      () => ({
-        listeners: listeners,
-        setActivatorNodeRef: setActivatorNodeRef,
-      }),
-      [listeners, setActivatorNodeRef]
-    );
+  const mergedRef = React.useMemo(() => composeRefs<HTMLDivElement>(setNodeRef, ref), [setNodeRef, ref]);
 
-    return (
-      <SortableDragCtx.Provider value={ctxValue}>
-        <div ref={mergedRef} style={style} {...rest} />
-      </SortableDragCtx.Provider>
-    );
-  }
-);
+  const ctxValue = useMemo(
+    () => ({
+      listeners: listeners,
+      setActivatorNodeRef: setActivatorNodeRef,
+    }),
+    [listeners, setActivatorNodeRef]
+  );
+
+  return (
+    <SortableDragCtx.Provider value={ctxValue}>
+      <div ref={mergedRef} style={style} {...rest} />
+    </SortableDragCtx.Provider>
+  );
+});
 DraggableEntry.displayName = "DraggableEntry";
 
 const DragHandle = () => {
@@ -159,7 +164,7 @@ export const ScriptCardItem = React.memo(
     // console.log("Rendered - " + item.name); // 用于检查垃圾React有否过度更新
 
     return (
-      <DraggableEntry record={item}>
+      <DraggableEntry recordUUID={item.uuid}>
         <div>
           <Card
             hoverable
@@ -371,7 +376,8 @@ ScriptCardItem.displayName = "ScriptCard";
 interface ScriptCardProps {
   loadingList: boolean;
   scriptList: ScriptLoading[];
-  scriptListSortOrder: (params: { active: string; over: string }) => void;
+  scriptListSortOrderMove: (params: { active: string; over: string }) => void;
+  scriptListSortOrderSwap: (params: { active: string; over: string }) => void;
   sidebarOpen: boolean;
   setSidebarOpen: ReactStateSetter<boolean>;
   setViewMode: (mode: "card" | "table") => void;
@@ -392,7 +398,8 @@ export const ScriptCard = React.memo(
   ({
     loadingList,
     scriptList,
-    scriptListSortOrder,
+    // scriptListSortOrderMove,
+    scriptListSortOrderSwap,
     sidebarOpen,
     setSidebarOpen,
     setViewMode,
@@ -449,13 +456,13 @@ export const ScriptCard = React.memo(
       (event: DragEndEvent) => {
         const { active, over } = event;
         if (over && active.id !== over.id) {
-          scriptListSortOrder({
+          scriptListSortOrderSwap({
             active: `${active.id}`,
             over: `${over.id}`,
           });
         }
       },
-      [scriptListSortOrder]
+      [scriptListSortOrderSwap]
     );
 
     const a11y = useMemo(
@@ -554,7 +561,7 @@ export const ScriptCard = React.memo(
               collisionDetection={closestCenter}
               accessibility={a11y}
             >
-              <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
+              <SortableContext items={sortableIds} strategy={rectSwappingStrategy}>
                 <div
                   className="script-card-grid"
                   style={{

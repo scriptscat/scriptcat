@@ -38,20 +38,25 @@ import type {
   TEnableScript,
   TSortedScript,
 } from "@App/app/service/queue";
+import { type useTranslation } from "react-i18next";
+
+export type TFilterKey = null | string | number;
 
 export interface FilterItem {
-  key: string | number;
+  key: TFilterKey;
   label: string;
   icon: React.ReactNode;
   count: number;
 }
 
 export type TSelectFilter = {
-  status: "all" | string | number;
-  type: "all" | string | number;
-  tags: "all" | string | number;
-  source: "all" | string | number;
+  status: TFilterKey;
+  type: TFilterKey;
+  tags: TFilterKey;
+  source: TFilterKey;
 };
+
+export type TSelectFilterKeys = keyof TSelectFilter;
 
 /**
  * 钩子 1: 管理脚本数据的核心逻辑
@@ -148,16 +153,37 @@ export function useScriptDataManagement() {
           return changed ? newList : list;
         });
       },
-      sortedScripts(data: TSortedScript[]) {
+      sortedScripts(sorting: TSortedScript[]) {
         setScriptList((list) => {
-          const dict = new Map(list.map((s) => [s.uuid, s]));
-          return data
-            .map((d, i) => {
-              const s = dict.get(d.uuid);
-              if (s) s.sort = i;
-              return s;
-            })
-            .filter(Boolean) as ScriptLoading[];
+          const orderChanged = list.map((s) => s.uuid).join(",") !== sorting.map((s) => s.uuid).join(",");
+          if (!orderChanged) return list;
+          const sortingObject: Record<
+            string,
+            {
+              obj: ScriptLoading;
+              order?: number;
+            }
+          > = {};
+          for (let i = 0, l = list.length; i < l; i += 1) {
+            sortingObject[list[i].uuid] = {
+              obj: list[i],
+              // order: undefined, // no order change
+            };
+          }
+          for (let i = 0, l = sorting.length; i < l; i += 1) {
+            const entry = sortingObject[sorting[i].uuid];
+            if (entry) {
+              entry.order = i; // set to preferred order
+            }
+          }
+          const entries = Object.values(sortingObject);
+          //@ts-ignore
+          entries.sort((a, b) => a.order - b.order || 0);
+          return entries.map((entry, i) => {
+            const obj = entry.obj;
+            obj.sort = i;
+            return obj;
+          });
         });
       },
     };
@@ -183,9 +209,9 @@ export function useScriptDataManagement() {
  */
 export function useScriptFilters(
   scriptList: ScriptLoading[],
-  selectedFilters: any,
+  selectedFilters: TSelectFilter,
   searchRequest: SearchFilterRequest,
-  t: any
+  t: ReturnType<typeof useTranslation>[0]
 ) {
   // 核心数据解析与统计
   const stats = useMemo(() => {
@@ -222,7 +248,7 @@ export function useScriptFilters(
   const filterItems = useMemo(() => {
     const { counts, tagMap, originMap } = stats;
     const tagItems = [
-      { key: "all", label: t("script_list.sidebar.all"), icon: <IconTags />, count: Object.keys(tagMap).length },
+      { key: null, label: t("script_list.sidebar.all"), icon: <IconTags />, count: Object.keys(tagMap).length },
       ...Object.keys(tagMap)
         .sort()
         .map((tag) => ({
@@ -233,7 +259,7 @@ export function useScriptFilters(
         })),
     ];
     const sourceItems = [
-      { key: "all", label: t("script_list.sidebar.all"), icon: <IconLink />, count: Object.keys(originMap).length },
+      { key: null, label: t("script_list.sidebar.all"), icon: <IconLink />, count: Object.keys(originMap).length },
       ...Object.keys(originMap)
         .sort()
         .map((src) => ({
@@ -248,7 +274,7 @@ export function useScriptFilters(
       tagItems,
       sourceItems,
       statusItems: [
-        { key: "all", label: t("script_list.sidebar.all"), icon: <IconCode />, count: scriptList.length },
+        { key: null, label: t("script_list.sidebar.all"), icon: <IconCode />, count: scriptList.length },
         {
           key: SCRIPT_STATUS_ENABLE,
           label: t("enable"),
@@ -275,7 +301,7 @@ export function useScriptFilters(
         },
       ],
       typeItems: [
-        { key: "all", label: t("script_list.sidebar.all"), icon: <IconCode />, count: scriptList.length },
+        { key: null, label: t("script_list.sidebar.all"), icon: <IconCode />, count: scriptList.length },
         {
           key: SCRIPT_TYPE_NORMAL,
           label: t("script_list.sidebar.normal_script"),
