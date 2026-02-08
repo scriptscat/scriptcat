@@ -425,7 +425,7 @@ const TitleCell = React.memo(
       <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
         <span>{t("action")}</span>
         <Space size={4}>
-          <Tooltip content={sidebarOpen ? t("open_sidebar") : t("close_sidebar")}>
+          <Tooltip content={sidebarOpen ? t("close_sidebar") : t("open_sidebar")}>
             <Button
               icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
               iconOnly
