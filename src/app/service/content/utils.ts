@@ -11,6 +11,47 @@ export type CompileScriptCodeResource = {
   require: Array<{ url: string; content: string }>;
 };
 
+// 参考了tm的实现
+export const waitBody = (callback: () => void) => {
+  // 只读取一次 document，避免重复访问 getter
+  let doc: Document | null = document;
+
+  // body 已存在，直接执行回调
+  if (doc.body) {
+    try {
+      callback();
+    } catch {
+      // 屏蔽错误，防止脚本报错导致后续脚本无法执行
+    }
+    return;
+  }
+
+  let handler: ((this: Document, ev: Event) => void) | null = function () {
+    // 通常只需等待 body 就绪
+    // 兼容少数页面在加载过程中替换 document 的情况
+    if (this.body || document !== this) {
+      // 确保只清理一次，防止因页面代码骑劫使移除失败后反复触发
+      if (handler !== null) {
+        this.removeEventListener("load", handler, false);
+        this.removeEventListener("DOMNodeInserted", handler, false);
+        this.removeEventListener("DOMContentLoaded", handler, false);
+        handler = null; // 释放引用，便于 GC
+
+        // 兼容 document 被替换时重新执行
+        waitBody(callback);
+      }
+    }
+  };
+
+  // 注意：避免使用 EventListenerObject
+  // 某些页面会 hook 事件 API，导致EventListenerObject的监听器或会失灵
+  doc.addEventListener("load", handler, false);
+  doc.addEventListener("DOMNodeInserted", handler, false);
+  doc.addEventListener("DOMContentLoaded", handler, false);
+
+  doc = null; // 释放引用，便于 GC
+};
+
 // 根据ScriptRunResource获取require的资源
 export function getScriptRequire(scriptRes: ScriptRunResource): CompileScriptCodeResource["require"] {
   const resourceArray = new Array<{ url: string; content: string }>();
