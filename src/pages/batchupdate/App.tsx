@@ -17,8 +17,8 @@ import {
 } from "@App/app/service/service_worker/types";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { IconSync } from "@arco-design/web-react/icon";
-import { useAppContext } from "../store/AppContext";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
+import { subscribeMessage } from "@App/pages/store/global";
 
 const CollapseItem = Collapse.Item;
 const { GridItem } = Grid;
@@ -29,8 +29,6 @@ const { Text } = Typography;
 const pageExecute: Record<string, (data: any) => void> = {};
 
 function App() {
-  const { subscribeMessage } = useAppContext();
-
   const AUTO_CLOSE_PAGE = 8; // after 8s, auto close
   const getUrlParam = (key: string): string => {
     return (location.search?.includes(`${key}=`) ? new URLSearchParams(location.search).get(`${key}`) : "") || "";
