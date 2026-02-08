@@ -1,6 +1,6 @@
 import { Native } from "../global";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
-import type GMApi from "./gm_api";
+import type { GM_Base } from "./gm_api";
 import { dataEncode } from "@App/pkg/utils/xhr/xhr_data";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { base64ToUint8, concatUint8 } from "@App/pkg/utils/datatype";
@@ -58,7 +58,7 @@ export type GMXHRResponseType = {
 
 export type GMXHRResponseTypeWithError = GMXHRResponseType & Required<Pick<GMXHRResponseType, "error">>;
 
-export const toBlobURL = (a: GMApi, blob: Blob): Promise<string> | string => {
+export const toBlobURL = (a: GM_Base, blob: Blob): Promise<string> | string => {
   // content_GMAPI 都应该在前台的内容脚本或真实页面执行。如果没有 typeof URL.createObjectURL 才使用信息传递交给后台
   if (typeof URL.createObjectURL === "function") {
     return URL.createObjectURL(blob);
@@ -95,7 +95,7 @@ export const convObjectToURL = async (object: string | URL | Blob | File | undef
   return url;
 };
 
-export const urlToDocumentInContentPage = async (a: GMApi, url: string, isContent: boolean) => {
+export const urlToDocumentInContentPage = async (a: GM_Base, url: string, isContent: boolean) => {
   // url (e.g. blob url) -> XMLHttpRequest (CONTENT) -> Document (CONTENT)
   const nodeId = await a.sendMessage("CAT_fetchDocument", [url, isContent]);
   return (<CustomEventMessage>a.message).getAndDelRelatedTarget(nodeId) as Document;
@@ -112,7 +112,7 @@ const getMimeType = (contentType: string) => {
 const docParseTypes = new Set(["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"]);
 
 export function GM_xmlhttpRequest(
-  a: GMApi,
+  a: GM_Base,
   details: GMTypes.XHRDetails,
   requirePromise: boolean,
   isDownload: boolean = false
