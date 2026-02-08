@@ -18,7 +18,7 @@ afterEach(() => {
   cleanup();
 });
 
-// 自定义render函数，包装Redux Provider
+// 自定义render函数，包装 Provider
 const customRender = (
   ui: ReactElement,
   { _initialState = {}, ...renderOptions }: { _initialState?: any; store?: any } & Omit<RenderOptions, "wrapper"> = {}
