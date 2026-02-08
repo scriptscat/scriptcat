@@ -52,7 +52,7 @@ export class FetchXHR {
   private body: BodyInit | null = null;
   private controller: AbortController | null = null;
   private timedOut = false;
-  private timeoutId: number | null = null;
+  private timeoutId: ReturnType<typeof setTimeout> | null = null;
   private _responseHeaders: {
     getAllResponseHeaders: () => string;
     getResponseHeader: (name: string) => string | null;
@@ -92,6 +92,13 @@ export class FetchXHR {
     // Not supported by fetch; no-op to keep parity.
   }
 
+  private readonly fetchSendTimeout = () => {
+    if (this.controller && !this.reqDone) {
+      this.timedOut = true;
+      this.controller.abort();
+    }
+  };
+
   async send(body?: BodyInit | null) {
     if (this.readyState !== FetchXHR.OPENED || !this.method || !this.url) {
       throw new Error("Invalid state: call open() first.");
@@ -103,12 +110,7 @@ export class FetchXHR {
 
     // Setup timeout if specified
     if (this.timeout > 0) {
-      this.timeoutId = setTimeout(() => {
-        if (this.controller && !this.reqDone) {
-          this.timedOut = true;
-          this.controller.abort();
-        }
-      }, this.timeout) as unknown as number;
+      this.timeoutId = setTimeout(this.fetchSendTimeout, this.timeout) as ReturnType<typeof setTimeout>;
     }
 
     try {
