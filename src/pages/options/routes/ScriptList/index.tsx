@@ -182,21 +182,18 @@ function ScriptList() {
       return true;
     });
 
-    let searchOrFilter = 0;
+    let enableKeywordSearch = false;
     if (searchRequest.keyword) {
-      searchOrFilter = 1;
+      enableKeywordSearch = true;
       SearchFilter.requestFilterResult(searchRequest).then(() => {
-        if (searchOrFilter === 1) {
-          setFilterScriptList(list.filter((s) => SearchFilter.checkByUUID(s.uuid)));
-        } else {
-          setFilterScriptList(list);
-        }
+        if (!enableKeywordSearch) return; // effect cleanup 了
+        setFilterScriptList(list.filter((s) => SearchFilter.checkByUUID(s.uuid)));
       });
     } else {
       setFilterScriptList(list);
     }
     return () => {
-      searchOrFilter = 0;
+      enableKeywordSearch = false;
     };
   }, [scriptList, selectedFilters, stats, searchRequest]);
 
