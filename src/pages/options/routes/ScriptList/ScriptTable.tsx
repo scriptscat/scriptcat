@@ -668,8 +668,9 @@ export const ScriptTable = React.memo(
       },
     ];
 
+    // 语言改变 或 sidebarOpen 改变时，更新 columns
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    const columns = useMemo(() => columns0, [t]);
+    const columns = useMemo(() => columns0, [t, sidebarOpen]);
 
     const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
 
