@@ -151,6 +151,7 @@
   "starting_script": "Skript wird gestartet...",
   "starting_updates": "Batch-Update wird gestartet...",
   "script_started": "Skript gestartet",
+  "operation_failed": "Vorgang fehlgeschlagen",
   "batch_operations": "Batch-Operationen",
   "export": "Exportieren",
   "delete": "Löschen",

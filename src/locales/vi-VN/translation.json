@@ -151,6 +151,7 @@
   "starting_script": "Đang khởi động script...",
   "starting_updates": "Đang khởi động cập nhật hàng loạt...",
   "script_started": "Script đã khởi động",
+  "operation_failed": "Thao tác thất bại",
   "batch_operations": "Thao tác hàng loạt",
   "export": "Xuất",
   "delete": "Xóa",
