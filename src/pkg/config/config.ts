@@ -92,9 +92,7 @@ export class SystemConfig {
     callback: (value: SystemConfigValueType<T>, prev: SystemConfigValueType<T> | undefined) => void
   ) {
     this.EE.on(key, callback);
-    return () => {
-      this.EE.off(key, callback);
-    };
+    return this.EE.off.bind(this.EE, key, callback) as () => void;
   }
 
   // 监听配置变更，会使用设置值立即执行一次回调

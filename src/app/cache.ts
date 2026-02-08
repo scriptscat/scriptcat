@@ -144,17 +144,19 @@ class Cache extends ExtCache {
     return stackAsyncTask(key, () => {
       let ret: Awaited<ReturnType<CB>>;
       const act = { action: Actions.NONE } as { action?: number; newVal?: T };
+      const set = (newVal: T) => {
+        act.action = Actions.SET;
+        act.newVal = newVal;
+      };
+      const del = () => {
+        act.action = Actions.DEL;
+        act.newVal = undefined;
+      };
       return this.get<T>(key)
         .then((result) => {
           const tx = {
-            set: (newVal: T) => {
-              act.action = Actions.SET;
-              act.newVal = newVal;
-            },
-            del: () => {
-              act.action = Actions.DEL;
-              act.newVal = undefined;
-            },
+            set,
+            del,
           };
           return callback(result, tx);
         })
