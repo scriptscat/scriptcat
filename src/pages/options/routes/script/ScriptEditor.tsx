@@ -76,9 +76,7 @@ const Editor: React.FC<{
       onChange(node.editor.getValue() || "");
     });
     callbackEditor(node.editor);
-    return () => {
-      node.editor.dispose();
-    };
+    return node.editor.dispose.bind(node.editor);
   }, [node?.editor]);
 
   return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;

@@ -876,10 +876,8 @@ export default class GMApi {
             msgConn.sendMessage(msg);
           }
         });
-        msgConn.onDisconnect(() => {
-          // 关闭连接
-          offscreenCon.disconnect();
-        });
+        // 关闭连接
+        msgConn.onDisconnect(offscreenCon.disconnect.bind(offscreenCon));
       }
     } catch (e: any) {
       throw throwErrorFn(`GM_xmlhttpRequest ERROR: ${e?.message || e || "Unknown Error"}`);
