@@ -121,11 +121,10 @@ const DraggableRow = React.forwardRef<
   { record: ScriptLoading; index: number } & React.HTMLAttributes<HTMLTableRowElement>
 >(({ record, index: _index, ...rest }, ref) => {
   const sortable = useSortable({ id: record.uuid });
-  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef } = sortable;
+  const { setNodeRef, transform, listeners, setActivatorNodeRef } = sortable;
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
   };
 
   const mergedRef = React.useMemo(() => composeRefs<HTMLTableRowElement>(setNodeRef, ref), [setNodeRef, ref]);

@@ -50,16 +50,13 @@ type DraggableEntryProps = { recordUUID: string } & React.HTMLAttributes<HTMLDiv
 
 const DraggableEntry = React.forwardRef<HTMLDivElement, DraggableEntryProps>(({ recordUUID, ...rest }, ref) => {
   const sortable = useSortable({ id: recordUUID });
-  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging } = sortable;
+  const { setNodeRef, transform, listeners, setActivatorNodeRef, isDragging } = sortable;
 
   const style = {
     // ScriptCard 移位渉及多个元件上下左右移动，DragEnd时不要使用 dnd-kit 提供的效果
     transform: CSS.Transform.toString(transform),
-    transition: transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : "auto",
-    transitionDuration: "0ms",
-    transitionDelay: "0ms",
   };
 
   const mergedRef = React.useMemo(() => composeRefs<HTMLDivElement>(setNodeRef, ref), [setNodeRef, ref]);
