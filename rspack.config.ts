@@ -62,7 +62,12 @@ export default defineConfig({
   },
   output: {
     path: `${dist}/ext/src`,
-    filename: "[name].js",
+    filename(pathData, _assetInfo) {
+      if (pathData.runtime === "ts.worker") {
+        return "[name].js.bin";
+      }
+      return "[name].js";
+    },
     clean: true,
   },
   resolve: {
@@ -229,6 +234,7 @@ export default defineConfig({
   optimization: {
     minimizer: [
       new rspack.SwcJsMinimizerRspackPlugin({
+        test: /\.[cm]?js(\.bin)?(\?.*)?$/,
         minimizerOptions: {
           minify: !isDev,
           mangle: {
@@ -243,7 +249,7 @@ export default defineConfig({
             passes: 2,
             drop_console: false,
             drop_debugger: !isDev,
-            ecma: 2020,
+            ecma: 2022,
             arrows: true,
             dead_code: true,
             ie8: false,
@@ -261,7 +267,7 @@ export default defineConfig({
           format: {
             comments: false,
             beautify: false,
-            ecma: 2020,
+            ecma: 2022,
           },
         },
       }),

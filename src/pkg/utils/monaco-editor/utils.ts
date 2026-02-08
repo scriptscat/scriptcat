@@ -1,5 +1,28 @@
 import type { editor } from "monaco-editor";
 
+export const getEditorWorkerPromise = () => {
+  return Promise.resolve(
+    new Worker("/src/editor.worker.js", {
+      credentials: "omit",
+      name: "editorWorker",
+      type: "module",
+    })
+  );
+};
+
+export const getTsWorkerPromise = () => {
+  return fetch(chrome.runtime.getURL(`/src/ts.worker.js.bin`))
+    .then((resp) => (resp.ok ? resp.blob() : null))
+    .catch(() => null)
+    .then(async (blob) => {
+      if (blob) {
+        const blobUrl = URL.createObjectURL(new Blob([blob], { type: "text/javascript" }));
+        return new Worker(blobUrl, { credentials: "omit", name: "tsWorker", type: "module" });
+      }
+      throw new Error("no ts.worker.js");
+    });
+};
+
 export const findGlobalInsertionInfo = (model: editor.ITextModel) => {
   const lineCount = model.getLineCount();
 
