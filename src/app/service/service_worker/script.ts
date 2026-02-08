@@ -48,6 +48,7 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { SubscribeDAO } from "@App/app/repo/subscribe";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -58,6 +59,7 @@ export type TOpenBatchUpdatePageOption = { q: string; dontCheckNow: boolean };
 export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
+  subscribeDAO: SubscribeDAO = new SubscribeDAO();
   localStorageDAO: LocalStorageDAO = new LocalStorageDAO();
   compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
   private readonly scriptUpdateCheck;
@@ -841,7 +843,12 @@ export class ScriptService {
     if (update && (await this.systemConfig.getSilenceUpdateScript())) {
       try {
         const { oldScript, script } = await prepareScriptByCode(code, url, uuid);
-        if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
+        let subscribeMetadata: SCMetadata | undefined;
+        if (oldScript?.subscribeUrl && oldScript.origin) {
+          const subscribe = await this.subscribeDAO.get(oldScript.subscribeUrl);
+          subscribeMetadata = subscribe?.metadata;
+        }
+        if (checkSilenceUpdate(oldScript!.metadata, script.metadata, subscribeMetadata)) {
           logger?.info("silence update script");
           await this.installScript({
             script,
