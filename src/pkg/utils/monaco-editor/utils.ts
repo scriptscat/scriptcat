@@ -1,6 +1,6 @@
 import type { editor } from "monaco-editor";
 
-export const getEditorWorkerPromise = () => {
+export const getEditorWorkerPromise = (): Promise<Worker> => {
   return Promise.resolve(
     new Worker("/src/editor.worker.js", {
       credentials: "omit",
