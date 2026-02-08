@@ -773,6 +773,19 @@ export const ScriptTable = React.memo(
       [sensors, sortableIds, handleDragEnd, a11y]
     );
 
+    const handleRowSelectionChange = useCallback((keys: any[], selectedRows: ListType[]) => {
+      setSelect(selectedRows);
+      setShowAction(keys.length > 0);
+    }, []);
+
+    const rowSelection = useMemo(
+      () => ({
+        type: "checkbox" as const,
+        onChange: handleRowSelectionChange,
+      }),
+      [handleRowSelectionChange]
+    );
+
     return (
       <DraggableContext.Provider value={draggableContextValue}>
         {showAction && (
@@ -1029,13 +1042,7 @@ export const ScriptTable = React.memo(
           data={scriptList}
           pagination={false}
           loading={loadingList}
-          rowSelection={{
-            type: "checkbox",
-            onChange(_, selectedRows) {
-              setShowAction(true);
-              setSelect(selectedRows);
-            },
-          }}
+          rowSelection={rowSelection}
         />
       </DraggableContext.Provider>
     );
