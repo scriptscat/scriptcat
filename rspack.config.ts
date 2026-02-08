@@ -141,7 +141,6 @@ export default defineConfig({
             const manifest = JSON.parse(content.toString());
             if (isDev || isBeta) {
               manifest.name = "__MSG_scriptcat_beta__";
-              // manifest.content_security_policy = "script-src 'self' https://cdn.crowdin.com; object-src 'self'";
             }
             return JSON.stringify(manifest);
           },

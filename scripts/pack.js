@@ -74,13 +74,11 @@ execSync("npm run build", { stdio: "inherit" });
 const firefoxManifest = { ...manifest, background: { ...manifest.background } };
 const chromeManifest = { ...manifest, background: { ...manifest.background } };
 
-delete chromeManifest.content_security_policy;
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
 
 delete firefoxManifest.background.service_worker;
 delete firefoxManifest.sandbox;
-// firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: {
     id: `{${
