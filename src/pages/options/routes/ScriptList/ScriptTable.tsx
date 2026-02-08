@@ -259,7 +259,7 @@ const ActionCell = React.memo(
       item: ScriptLoading,
       setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
     ) => void;
-    handleRunStop: (item: ScriptLoading, t: any) => Promise<void>;
+    handleRunStop: (item: ScriptLoading) => Promise<void>;
   }) => {
     return (
       <Button.Group>
@@ -297,7 +297,7 @@ const ActionCell = React.memo(
             type="text"
             icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
             loading={item.actionLoading}
-            onClick={() => handleRunStop(item, t)}
+            onClick={() => handleRunStop(item)}
             style={{
               color: "var(--color-text-2)",
             }}

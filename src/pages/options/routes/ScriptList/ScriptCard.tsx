@@ -102,7 +102,7 @@ interface ScriptCardItemProps {
     item: ScriptLoading,
     setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
   ) => void;
-  handleRunStop: (item: ScriptLoading, t: any) => Promise<void>;
+  handleRunStop: (item: ScriptLoading) => Promise<void>;
 }
 
 export const ScriptCardItem = React.memo(
@@ -304,7 +304,7 @@ export const ScriptCardItem = React.memo(
                         icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
                         loading={item.actionLoading}
                         size="mini"
-                        onClick={() => handleRunStop(item, t)}
+                        onClick={() => handleRunStop(item)}
                       >
                         {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("stop") : t("run")}
                       </Button>
