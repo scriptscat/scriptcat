@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import MainLayout from "../components/layout/MainLayout.tsx";
 import Sider from "../components/layout/Sider.tsx";
 import { AppProvider } from "../store/AppContext.tsx";
+import { fixArcoIssues } from "@App/pages/fix.ts";
 import "@arco-design/web-react/dist/css/arco.css";
 import "@App/locales/locales";
 import "@App/index.css";
@@ -32,6 +33,8 @@ const Root = (
     </MainLayout>
   </AppProvider>
 );
+
+fixArcoIssues();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
