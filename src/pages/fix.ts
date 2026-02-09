@@ -45,7 +45,7 @@ export const fixArcoIssues = () => {
 
   // 使用 postMessage + message 事件来实现 macrotask（比 setTimeout(0) 更可靠且开销较小）
   self.addEventListener("message", (ev) => {
-    if (typeof ev.data === "object" && ev.data?.browserNextTick === "addEventListenerHack") {
+    if (typeof ev.data === "object" && ev.data?.processNextTick === "addEventListenerHack") {
       executorFn();
     }
   });
@@ -69,7 +69,7 @@ export const fixArcoIssues = () => {
         stackedEvents.add(ev);
         bindInfoMap.set(ev, { thisArg: this, listener });
         // 发送 macrotask 讯号，让 executor 在下一个事件循环执行
-        self.postMessage({ browserNextTick: "addEventListenerHack" }, "*");
+        self.postMessage({ processNextTick: "addEventListenerHack" }, "*");
       };
 
       // 用包装后的 handler 注册真正的事件
