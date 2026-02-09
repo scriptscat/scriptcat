@@ -16,10 +16,10 @@ export const fixArcoIssues = () => {
     const events = [...stackedEvents];
     stackedEvents.clear();
     for (const ev of events) {
-      if (ev.defaultPrevented) continue;
       const bi = bindInfoMap.get(ev);
       if (!bi) continue;
       bindInfoMap.delete(ev);
+      if (ev.defaultPrevented) continue;
       try {
         bi.listener.call(bi.thisArg, ev);
       } catch (err) {
