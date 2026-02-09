@@ -40,7 +40,11 @@ export const fixArcoIssues = () => {
     listener: EventListenerOrEventListenerObject,
     options?: boolean | AddEventListenerOptions
   ): void {
-    if ((type === "focusin" || type === "focusout") && typeof listener === "function") {
+    if (
+      (type === "focusin" || type === "focusout") &&
+      typeof listener === "function" &&
+      typeof (options ?? false) === "boolean" // accept capture event or bubble event but exclude the advanced options like "once"
+    ) {
       const handler = (ev: Event) => {
         stackedEvents.add(ev);
         bindInfoMap.set(ev, { thisArg: this, listener });
