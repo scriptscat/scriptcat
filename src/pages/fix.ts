@@ -1,3 +1,5 @@
+// 修复arco中的事件问题 https://github.com/scriptscat/scriptcat/pull/1224/
+
 let actived = false;
 
 export const fixArcoIssues = () => {
