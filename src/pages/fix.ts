@@ -28,6 +28,12 @@ export const fixArcoIssues = () => {
     }
   };
 
+  self.addEventListener("message", (ev) => {
+    if (typeof ev.data === "object" && ev.data?.browserNextTick === "addEventListenerHack") {
+      executorFn();
+    }
+  });
+
   const addEventListenerHack = function <K extends keyof HTMLElementEventMap>(
     this: Element,
     type: K,
@@ -35,10 +41,10 @@ export const fixArcoIssues = () => {
     options?: boolean | AddEventListenerOptions
   ): void {
     if ((type === "focusin" || type === "focusout") && typeof listener === "function") {
-      const handler = (event: Event) => {
-        stackedEvents.add(event);
-        bindInfoMap.set(event, { thisArg: this, listener });
-        requestAnimationFrame(executorFn);
+      const handler = (ev: Event) => {
+        stackedEvents.add(ev);
+        bindInfoMap.set(ev, { thisArg: this, listener });
+        self.postMessage({ browserNextTick: "addEventListenerHack" });
       };
       return originalAddEventListener.call(this, type, handler, options);
     }
