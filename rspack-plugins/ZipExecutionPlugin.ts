@@ -129,14 +129,23 @@ export class ZipExecutionPlugin {
               if (op.type === "Template") {
                 // `content` → `${zzstrs[N]}`
                 if (op.expressions === 0) {
-                  ms.overwrite(op.start - 1, op.end + 1, `${vName}[${op.id}]`);
+                  const c1 = ms.slice(op.start - 2, op.start - 1);
+                  const c2 = ms.slice(op.end + 1, op.end + 2);
+                  const s1 = /[\w"'`]/.test(c1) ? " " : "";
+                  const s2 = /[\w"'`]/.test(c2) ? " " : "";
+                  ms.overwrite(op.start - 1, op.end + 1, `${s1}${vName}[${op.id}]${s2}`);
                 } else if (op.expressions) {
                   throw "not implemented yet";
                   // ms.overwrite(op.start, op.end, `\${${vName}[${op.id}]}`);
                 }
               } else {
                 // "content" or 'content' → zzstrs[N]
-                ms.overwrite(op.start, op.end, ` ${vName}[${op.id}] `);
+                // note: case"123456789" -> case $X[123]
+                const c1 = ms.slice(op.start - 1, op.start);
+                const c2 = ms.slice(op.end, op.end + 1);
+                const s1 = /[\w"'`]/.test(c1) ? " " : "";
+                const s2 = /[\w"'`]/.test(c2) ? " " : "";
+                ms.overwrite(op.start, op.end, `${s1}${vName}[${op.id}]${s2}`);
               }
             }
 
