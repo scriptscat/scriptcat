@@ -136,7 +136,7 @@ export class ZipExecutionPlugin {
                 }
               } else {
                 // "content" or 'content' → zzstrs[N]
-                ms.overwrite(op.start, op.end, `(${vName}[${op.id}])`); // bracket is required. might be some literals are mixed with other expr.
+                ms.overwrite(op.start, op.end, ` ${vName}[${op.id}] `);
               }
             }
 
@@ -144,6 +144,7 @@ export class ZipExecutionPlugin {
             // 5. Compress
             const json = JSON.stringify(extracted);
             const deflated = pako.deflateRaw(Buffer.from(json, "utf8"), { level: 6 });
+            if (!deflated) throw new Error("Pako Compression Failed");
             const base64 = Buffer.from(deflated).toString("base64");
 
             // ──────────────────────────────────────────────────────────────
