@@ -1,32 +1,5 @@
 import type { editor } from "monaco-editor";
 
-export const getEditorWorkerPromise = (): Promise<Worker> => {
-  return Promise.resolve(
-    new Worker("/src/editor.worker.js", {
-      credentials: "omit",
-      name: "editorWorker",
-      type: "module",
-    })
-  );
-};
-
-export const getTsWorkerPromise = (): Promise<Worker> => {
-  return new Promise((resolve, reject) => {
-    fetch(chrome.runtime.getURL(`/src/ts.worker.js.bin`))
-      .then((resp) => (resp.ok ? resp.arrayBuffer() : null))
-      .catch(() => null)
-      .then((rawData) => {
-        if (rawData) {
-          const blobUrl = URL.createObjectURL(new Blob([rawData], { type: "text/javascript" }));
-          const worker = new Worker(blobUrl, { credentials: "omit", name: "tsWorker", type: "module" });
-          resolve(worker);
-        } else {
-          reject(new Error("no ts.worker"));
-        }
-      });
-  });
-};
-
 export const findGlobalInsertionInfo = (model: editor.ITextModel) => {
   const lineCount = model.getLineCount();
 

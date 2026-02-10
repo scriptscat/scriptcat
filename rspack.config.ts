@@ -1,6 +1,7 @@
 import * as path from "path";
 import { defineConfig } from "@rspack/cli";
 import { rspack } from "@rspack/core";
+import { ZipExecutionPlugin } from "./rspack-plugins/ZipExecutionPlugin";
 import { readFileSync } from "fs";
 import { NormalModule } from "@rspack/core";
 import { v4 as uuidv4 } from "uuid";
@@ -62,10 +63,7 @@ export default defineConfig({
   },
   output: {
     path: `${dist}/ext/src`,
-    filename(pathData, _assetInfo) {
-      if (pathData.runtime === "ts.worker") {
-        return "[name].js.bin";
-      }
+    filename(_pathData, _assetInfo) {
       return "[name].js";
     },
     clean: true,
@@ -224,6 +222,7 @@ export default defineConfig({
       minify: true,
       chunks: ["sandbox"],
     }),
+    new ZipExecutionPlugin(),
   ].filter(Boolean),
   experiments: {
     css: true,

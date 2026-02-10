@@ -1,7 +1,7 @@
 import { globalCache, systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
 import { languages } from "monaco-editor";
-import { findGlobalInsertionInfo, getEditorWorkerPromise, getTsWorkerPromise, updateGlobalCommentLine } from "./utils";
+import { findGlobalInsertionInfo, updateGlobalCommentLine } from "./utils";
 
 // 注册eslint
 const linterWorker = new Worker("/src/linter.worker.js");
@@ -455,16 +455,12 @@ type Prompt = (typeof langs)["zh-CN"]["prompt"];
 type LangEntry = (typeof langs)["zh-CN"];
 
 export default function registerEditor() {
-  const editorWorker = getEditorWorkerPromise();
-  const tsWorkerPromise = getTsWorkerPromise();
   window.MonacoEnvironment = {
-    // https://microsoft.github.io/monaco-editor/typedoc/interfaces/Environment.html#getWorker
-    // Returns Worker | Promise<Worker>
-    getWorker(workerId: string, label: string) {
+    getWorkerUrl(moduleId: any, label: any) {
       if (label === "typescript" || label === "javascript") {
-        return tsWorkerPromise;
+        return "/src/ts.worker.js";
       }
-      return editorWorker;
+      return "/src/editor.worker.js";
     },
   };
   function asLangEntry<T extends keyof typeof langs>(key: T) {
