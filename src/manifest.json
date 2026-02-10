@@ -55,9 +55,6 @@
       "src/sandbox.html"
     ]
   },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' blob:; worker-src 'self' blob:;"
-  },
   "web_accessible_resources": [
     {
       "resources": [

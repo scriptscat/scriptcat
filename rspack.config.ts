@@ -63,9 +63,7 @@ export default defineConfig({
   },
   output: {
     path: `${dist}/ext/src`,
-    filename(_pathData, _assetInfo) {
-      return "[name].js";
-    },
+    filename: "[name].js",
     clean: true,
   },
   resolve: {
@@ -232,7 +230,6 @@ export default defineConfig({
   optimization: {
     minimizer: [
       new rspack.SwcJsMinimizerRspackPlugin({
-        test: /\.[cm]?js(\.bin)?(\?.*)?$/,
         minimizerOptions: {
           minify: !isDev,
           mangle: {
