@@ -64,19 +64,21 @@ function saveCacheAndStorage<T>(keyOrItems: string | Record<string, T>, value?: 
   }
 }
 
-function saveStorage<T>(key: string, value: T): Promise<T>;
-function saveStorage<T>(items: Record<string, T>): Promise<void>;
-function saveStorage<T>(keyOrItems: string | Record<string, T>, value?: T): Promise<T | void> {
+function saveStorage<T>(key: string, value: T): Promise<T> {
   return new Promise((resolve) => {
-    const items = typeof keyOrItems === "string" ? { [keyOrItems]: value } : keyOrItems;
-    chrome.storage.local.set(items, () => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
-        // 无视storage API错误，继续执行
+    chrome.storage.local.set(
+      {
+        [key]: value,
+      },
+      () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
+          // 无视storage API错误，继续执行
+        }
+        resolve(value);
       }
-      resolve(value);
-    });
+    );
   });
 }
 
@@ -345,73 +347,67 @@ export abstract class Repo<T> {
     keysOrItems: string[] | Record<string, Partial<T>>,
     val?: Partial<T>
   ): Promise<(T | false)[] | Record<string, T | false>> {
-    let keys: string[];
+    // 1. 输入归一化：统一转为 Record<string, Partial<T>>
+    let items: Record<string, Partial<T>>;
     if (Array.isArray(keysOrItems)) {
-      keys = keysOrItems.map((key) => this.joinKey(key));
-    } else {
-      keys = Object.keys(keysOrItems).map((key) => this.joinKey(key));
-    }
-    if (this.useCache) {
-      return loadCache().then(async (cache) => {
-        if (Array.isArray(keysOrItems)) {
-          const saveRecord: Record<string, T> = {};
-          const result: (T | false)[] = [];
-          keys.forEach((key) => {
-            const data = cache[key] as T;
-            if (data) {
-              // 刻意使用Object.assign修改原有对象，以更新缓存中的数据
-              Object.assign(data, val);
-              saveRecord[key] = data;
-              result.push(data);
-            } else {
-              result.push(false);
-            }
-          });
-          return saveCacheAndStorage(saveRecord).then(() => result);
-        }
-        const saveRecord: Record<string, T> = {};
-        const result: Record<string, T | false> = {};
-        for (const key in keysOrItems) {
-          const cacheKey = this.joinKey(key);
-          const data = cache[cacheKey] as T;
-          if (data) {
-            Object.assign(data, keysOrItems[key]);
-            saveRecord[cacheKey] = data;
-            result[key] = data;
-          } else {
-            result[key] = false;
-          }
-        }
-        return saveCacheAndStorage(saveRecord).then(() => result);
-      });
-    }
-    return getStorageRecord(keys).then((record) => {
-      let result: (T | false)[] | Record<string, T | false>;
-      if (Array.isArray(keysOrItems)) {
-        result = keys.map((key) => {
-          const o = record[key];
-          if (o) {
-            Object.assign(o, val);
-            return o as T;
-          }
-          return false;
-        }) as (T | false)[];
-      } else {
-        result = {};
-        for (const key in keysOrItems) {
-          const recordKey = this.joinKey(key);
-          const o = record[recordKey];
-          if (o) {
-            Object.assign(o, keysOrItems[key]);
-            record[recordKey] = o;
-            result[key] = o;
-          } else {
-            result[key] = false;
-          }
-        }
+      items = {};
+      for (const key of keysOrItems) {
+        items[key] = val!;
       }
-      return saveStorageRecord(record).then(() => result);
+    } else {
+      items = keysOrItems;
+    }
+
+    // 2. 核心逻辑
+    return this._doUpdates(items).then((resultRecord) => {
+      // 3. 结果转换：恢复为调用者期望的类型
+      if (Array.isArray(keysOrItems)) {
+        return keysOrItems.map((key) => resultRecord[key]);
+      }
+      return resultRecord;
     });
+  }
+
+  private async _doUpdates(items: Record<string, Partial<T>>): Promise<Record<string, T | false>> {
+    const keys = Object.keys(items);
+    const joinedKeys = keys.map((key) => this.joinKey(key));
+
+    // 1. 获取数据源
+    let dataSource: Partial<Record<string, any>>;
+    if (this.useCache) {
+      dataSource = await loadCache();
+    } else {
+      dataSource = await getStorageRecord(joinedKeys);
+    }
+
+    // 2. 遍历 items，合并数据，收集结果和已修改条目
+    const result: Record<string, T | false> = {};
+    const saveRecord: Record<string, T> = {};
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const joinedKey = joinedKeys[i];
+      const data = dataSource[joinedKey] as T;
+      if (data) {
+        // 缓存模式下刻意使用Object.assign修改原有对象，以更新缓存中的数据
+        Object.assign(data, items[key]);
+        saveRecord[joinedKey] = data;
+        result[key] = data;
+      } else {
+        result[key] = false;
+      }
+    }
+
+    // 3. 批量写入（只包含已修改的条目）
+    if (Object.keys(saveRecord).length > 0) {
+      if (this.useCache) {
+        await saveCacheAndStorage(saveRecord);
+      } else {
+        await saveStorageRecord(saveRecord);
+      }
+    }
+
+    return result;
   }
 
   all(): Promise<T[]> {
