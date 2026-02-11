@@ -644,9 +644,10 @@ export class RuntimeService {
   }
 
   // 取消脚本注册
-  async unregisterUserscripts() {
+  async unregisterUserscripts(forced: boolean = false) {
     // 检查 registered 避免重复操作增加系统开支
-    if (runtimeGlobal.registered) {
+    // ( registerUserscripts 的环境初始化时必须强制执行 )
+    if (forced || runtimeGlobal.registered) {
       runtimeGlobal.registered = false;
       // 重置 flag 避免取消注册失败
       // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
@@ -873,9 +874,11 @@ export class RuntimeService {
       // scriptcat-content/scriptcat-inject不存在的情况
       // 走一次重新注册的流程
       this.logger.warn("registered = true but scriptcat-content/scriptcat-inject not exists, re-register userscripts.");
+      runtimeGlobal.registered = false; // 异常时强制反注册
     }
-    // 删除旧注册
-    await this.unregisterUserscripts();
+    // runtimeGlobal.registered 已重置为 false
+    // 删除旧注册 (registered已重置为 false。因此必须强制执行)
+    await this.unregisterUserscripts(true);
     // 使注册时重新注入 chrome.runtime
     try {
       await chrome.userScripts.resetWorldConfiguration();
