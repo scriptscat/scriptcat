@@ -65,9 +65,10 @@ const findAvailableVarName = (source: string) => {
 
 const findShortName = (source: string) => {
   // $H
-  const candidates = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    .split("")
-    .map((c) => [c, source.split("$" + c).filter((w, i) => i === 0 || !/[\w$]/.test(w[0])).length] as const);
+  const filterFn = (w: string, i: number) => i === 0 || !/[\w$]/.test(w[0]);
+  const candidates = [..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"].map(
+    (c) => [c, source.split("$" + c).filter(filterFn).length] as const
+  );
   candidates.sort((a, b) => a[1] - b[1]);
   const [candidateChar, _candidatesFreq] = candidates[0];
   const pName = "$" + candidateChar;
@@ -136,9 +137,9 @@ export class ZipExecutionPlugin {
       }
     }
 
-    mapped.forEach(([c, d, q]) => {
+    for (const [c, d, q] of mapped) {
       operations.push({ ...c, d: d, id: q[1], freq: q[0] });
-    });
+    }
 
     // Replace bottom-up (safe offsets)
     operations.sort((a, b) => b.start - a.start);
@@ -225,11 +226,6 @@ export class ZipExecutionPlugin {
 
             let source = asset.source().toString();
 
-            // const ss = this.processFn("switch(e){case\"string_Case1_string\":33;case\"string_Case2_string\":44};\nconst p={s:\"string_Var1_string\",f:`string_Var2_string`,e:\"string_Var3_string\"};");
-            // console.log(21399, ss);
-
-            // await new Promise(r => setTimeout(r, 300000));
-
             const ret = this.processFn(source, filename);
             if (ret === false) continue;
             source = ret.source;
@@ -312,7 +308,7 @@ export class ZipExecutionPlugin {
           }
         } else {
           // Complex Template: extract individual quasis
-          node.quasis.forEach((quasi: any) => {
+          for (const quasi of node.quasis) {
             const val = quasi.value.cooked ?? quasi.value.raw;
             if (val && this.isExtractable(quasi, parent, "Quasi", val)) {
               // Quasis are inside `${}`, usually don't need padding relative to word boundaries
@@ -332,14 +328,14 @@ export class ZipExecutionPlugin {
                 });
               }
             }
-          });
+          }
         }
       }
 
       for (const key of Object.keys(node)) {
         if (["parent", "loc", "range", "start", "end"].includes(key)) continue;
         const child = node[key];
-        if (Array.isArray(child)) child.forEach((c) => walk(c, node));
+        if (Array.isArray(child)) for (const c of child) walk(c, node);
         else if (child && typeof child === "object" && child.type) walk(child, node);
       }
     };
@@ -383,6 +379,9 @@ export class ZipExecutionPlugin {
   }
 
   private normalizeValue(value: string): string {
-    return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (value.includes("\r")) {
+      value = value.replace(/\r\n|\r/g, "\n");
+    }
+    return value;
   }
 }
