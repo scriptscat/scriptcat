@@ -1,48 +1,57 @@
 import type { Compiler, Compilation } from "@rspack/core";
-import pako from "pako";
+import zlib from "zlib";
 
 import * as acorn from "acorn";
 import MagicString from "magic-string";
 
-export function compileDecodeSource(templateCode: string, base64Data: string, vName: string) {
+const trimCode = (code: string) => {
+  return code.trim();
+};
+
+export function compileDecodeSource(templateCode: string, base64Data: string, pName: string) {
+  // ------------------------------------------ inflate-raw ------------------------------------------
+  // lightweight implementation of the DEFLATE decompression algorithm (RFC 1951)
+  // * See https://github.com/js-vanilla/inflate-raw/
+  const inflateRawCode = trimCode(`
+  (()=>{let _=Uint8Array,e=_.fromBase64?.bind(_)??(e=>{let l=atob(e),$=l.length,r=new _($);for(;$--;)r[$]=l.charCodeAt($);return r}),
+  l=l=>{let $=e(l),r=4*$.length;r<32768&&(r=32768);let t=new _(r),a=0,f=e=>{let l=t.length,$=a+e;if($>l){do l=3*l>>>1;while(l<$);let r=new _(l);r.set(t),t=r}},
+  s=new Uint16Array(66400),n=s.subarray(0,32768),u=s.subarray(32768,65536),b=s.subarray(65536,65856),i,o,y=new Int32Array(48),h=0,w=0,g=0,
+  d=()=>{for(;w<16&&g<$.length;)h|=$[g++]<<w,w+=8},c=_=>{d();let e=h&(1<<_)-1;return h>>>=_,w-=_,e},F=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15],
+  k=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258],m=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0],
+  p=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577],
+  v=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13],x=y.subarray(0,16),A=y.subarray(16,32),B=(_,e)=>{let l=x.fill(0),$=0;
+  for(let r=0;r<_.length;r++){let t=_[r];t>0&&(l[t]++,t>$&&($=t))}let a=1<<$,f=e.subarray(0,a),s=A,n=0;for(let u=1;u<=$;u++)s[u]=n,n+=l[u];let i=b;
+  for(let o=0;o<_.length;o++)_[o]>0&&(i[s[_[o]]++]=o);let y=0,h=0;for(let w=1;w<=$;w++){let g=1<<w,d=l[w];for(let c=0;c<d;c++){let F=i[h++],k=w<<9|F;
+  for(let m=y;m<a;m+=g)f[m]=k;let p=1<<w-1;for(;y&p;)y^=p,p>>=1;y^=p}}return f},C=_=>{d();let e=_.length-1,l=_[h&e],$=l>>>9;return h>>>=$,w-=$,511&l},
+  R=new _(320),W=R.subarray(0,19),j=!1,q=0;for(;!q;){let z=c(3);q=1&z;let D=z>>1;if(0===D){h=w=0;let E=$[g++]|$[g++]<<8;g+=2,f(E),t.set($.subarray(g,g+E),a),a+=E,
+  g+=E}else{let G,H;if(1===D){if(!j){j=!0;let I=65856,J=R.subarray(0,288);J.fill(8,0,144),J.fill(9,144,256),J.fill(7,256,280),J.fill(8,280,288),B(J,i=s.subarray(I,I+=512));
+  let K=R.subarray(0,32).fill(5);B(K,o=s.subarray(I,I+=32))}G=i,H=o}else{let L=c(14),M=(31&L)+257,N=(L>>5&31)+1,O=(L>>10&15)+4;W.fill(0);for(let P=0;P<O;P++)W[F[P]]=c(3);
+  let Q=B(W,n),S=M+N,T=R.subarray(0,S).fill(0),U=0;for(;U<S;){let V=C(Q);if(V<16)T[U++]=V;else{let X=0,Y=0;for(16===V?(X=3+c(2),Y=T[U-1]):X=17===V?3+c(3):11+c(7);X--;)T[U++]=Y}}
+  G=B(T.subarray(0,M),n),H=B(T.subarray(M),u)}for(;;){let Z=C(G);if(Z<256)f(1),t[a++]=Z;else if(256===Z)break;else{let __=Z-257,_e=k[__]+c(m[__]),_l=C(H),_$=p[_l]+c(v[_l]);
+  f(_e);let _r=a-_$;if(_e<=8)for(;_e--;)t[a++]=t[_r++];else{let _t=a+_e;for(;a<_t;){let _1=_t-a,_0=a-_r,_3=_1<_0?_1:_0;t.copyWithin(a,_r,_r+_3),a+=_3}}}}}}
+  return new TextDecoder().decode(t.subarray(0,a))};return l})();
+  `);
+  // -------------------------------------------------------------------------------------------------
   return `
-  const $encodedBase64 = "${base64Data}";
-
-  // -------------- See https://github.com/js-vanilla/inflate-raw/ --------------
-
-  const $inflateRaw = (()=>{const t=Uint8Array,r=t.fromBase64?.bind(t)??(r=>{const e=atob(r);let n=e.length;const l=new t(n);for(;n--;)l[n]=e.charCodeAt(n);return l});
-  return e=>{const n=r(e);let l=4*n.length;l<32768&&(l=32768);let s=new t(l),o=0;const a=r=>{let e=s.length;const n=o+r;if(n>e){do{e=3*e>>>1}while(e<n);
-  const r=new t(e);r.set(s),s=r}},c=new Uint16Array(66400),f=c.subarray(0,32768),i=c.subarray(32768,65536),u=c.subarray(65536,65856);let y,b;const h=new Int32Array(48);
-  let w=0,g=0,d=0;const A=()=>{for(;g<16&&d<n.length;)w|=n[d++]<<g,g+=8},U=t=>{A();const r=w&(1<<t)-1;return w>>>=t,g-=t,r},k=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15],
-  m=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258],p=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0],
-  v=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577],
-  x=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13],B=h.subarray(0,16),C=h.subarray(16,32),D=(t,r)=>{const e=B.fill(0);
-  let n=0;for(let r=0;r<t.length;r++){const l=t[r];l>0&&(e[l]++,l>n&&(n=l))}const l=1<<n,s=r.subarray(0,l),o=C;let a=0;for(let t=1;t<=n;t++)o[t]=a,a+=e[t];const c=u;
-  for(let r=0;r<t.length;r++)t[r]>0&&(c[o[t[r]]++]=r);let f=0,i=0;for(let t=1;t<=n;t++){const r=1<<t,n=e[t];for(let e=0;e<n;e++){const e=t<<9|c[i++];
-  for(let t=f;t<l;t+=r)s[t]=e;let n=1<<t-1;for(;f&n;)f^=n,n>>=1;f^=n}}return s},I=t=>{A();const r=t.length-1,e=t[w&r],n=e>>>9;return w>>>=n,g-=n,511&e},R=new t(320),
-  T=R.subarray(0,19);let W=!1,j=0;for(;!j;){const t=U(3);j=1&t;const r=t>>1;if(0===r){w=g=0;const t=n[d++]|n[d++]<<8;d+=2,a(t),s.set(n.subarray(d,d+t),o),o+=t,d+=t}else{
-  let t,e;if(1===r){if(!W){W=!0;let t=65856;const r=R.subarray(0,288);r.fill(8,0,144),r.fill(9,144,256),r.fill(7,256,280),r.fill(8,280,288),y=c.subarray(t,t+=512),D(r,y);
-  const e=R.subarray(0,32).fill(5);b=c.subarray(t,t+=32),D(e,b)}t=y,e=b}else{const r=U(14),n=257+(31&r),l=1+(r>>5&31),s=4+(r>>10&15);T.fill(0);
-  for(let t=0;t<s;t++)T[k[t]]=U(3);const o=D(T,f),a=n+l,c=R.subarray(0,a).fill(0);let u=0;for(;u<a;){const t=I(o);if(t<16)c[u++]=t;else{let r=0,e=0;
-  for(16===t?(r=3+U(2),e=c[u-1]):r=17===t?3+U(3):11+U(7);r--;)c[u++]=e}}t=D(c.subarray(0,n),f),e=D(c.subarray(n),i)}for(;;){const r=I(t);
-  if(r<256)a(1),s[o++]=r;else{if(256===r)break;{const t=r-257;let n=m[t]+U(p[t]);const l=I(e),c=v[l]+U(x[l]);a(n);let f=o-c;if(n<=8)for(;n--;)s[o++]=s[f++];else{
-  const t=o+n;for(;o<t;){const r=t-o,e=o-f,n=r<e?r:e;s.copyWithin(o,f,f+n),o+=n}}}}}}}return(new TextDecoder).decode(s.subarray(0,o))}})();
-
-  // -----------------------------------------------------------------------------
-
-  const $decodedText = $inflateRaw($encodedBase64);
-  const ${vName} = JSON.parse($decodedText);
+  const $b64_ = "${base64Data}";
+  const $inflateRaw_ = ${inflateRawCode};
+  const $text_ = $inflateRaw_($b64_);
+  const ${pName} = JSON.parse($text_);
   ${templateCode}
-`.trim();
+`;
 }
 
 interface Candidate {
-  id: number; // final index in zzstrs[]
-  type: "Template" | "Literal";
+  id: number;
+  d: string;
+  type: "Template" | "Literal" | "Quasi";
   start: number;
   end: number;
-  expressions?: number;
-  value: string; // runtime value (with real \n etc.)
+  value: string;
+  zz: boolean;
+  prefix: string; // store " " or ""
+  suffix: string; // store " " or ""
+  freq?: number;
 }
 
 const findAvailableVarName = (source: string) => {
@@ -50,13 +59,160 @@ const findAvailableVarName = (source: string) => {
   for (let e = 0xc0; e <= 0xff; e++) {
     if (e === 0xd7 || e === 0xf7) continue;
     const c = "$" + String.fromCharCode(e);
-    if (source.includes(c)) continue;
-    return c;
+    if (!source.includes(c)) return c;
   }
   throw new Error("Unable to compress");
 };
 
+const findShortName = (source: string) => {
+  // $H
+  const candidates = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    .split("")
+    .map((c) => [c, source.split("$" + c).filter((w, i) => i === 0 || !/[\w$]/.test(w[0])).length] as const);
+  candidates.sort((a, b) => a[1] - b[1]);
+  const [candidateChar, _candidatesFreq] = candidates[0];
+  const pName = "$" + candidateChar;
+  return pName;
+};
+
 export class ZipExecutionPlugin {
+  processFn(source: string, filename: string = "") {
+    const vName = findAvailableVarName(source);
+    const pName = findShortName(source);
+    source = source.replaceAll(pName, vName);
+
+    // 1. Parse
+    let ast: acorn.Node;
+    try {
+      ast = acorn.parse(source, {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        ranges: true,
+      });
+    } catch (err) {
+      console.warn(`[ZipExec] Parse failed ${filename}:`, (err as Error).message);
+      return false;
+    }
+
+    // 2. Collect candidates (robust walker + context)
+    const candidates = this.collectCandidates(ast, source);
+    if (candidates.length === 0) return false;
+
+    // Normalization & Deduplication
+    const extracted: string[] = [];
+    const operations: Candidate[] = [];
+    const candidatesFreq = new Map<string, [number, number, number]>();
+
+    let mapped = candidates.map((c) => {
+      const d = this.normalizeValue(c.value);
+      if (c.zz) {
+        let q = candidatesFreq.get(d);
+        if (!q) candidatesFreq.set(d, (q = [0, 0, d.length]));
+        q[0] += 1;
+        return [c, d, q] as const;
+      } else {
+        return [c, d, [0, 0, 0]] as const;
+      }
+    });
+
+    mapped = mapped.filter(([c, d, q]) => {
+      if (q[0] === 1) {
+        // for freq === 1, if the size difference is small, replacement will make the compressed coding longer.
+        if (d.length < 14) {
+          q[0] = 0;
+          q[1] = 0;
+          q[2] = 0;
+          c.zz = false;
+        }
+      }
+      return true;
+    });
+
+    const sorted = [...candidatesFreq.entries()].sort((a, b) => b[1][0] - a[1][0]);
+    let i = 0;
+    for (const [d, q] of sorted) {
+      if (q[0] > 0) {
+        q[1] = i++;
+        extracted.push(d);
+      }
+    }
+
+    mapped.forEach(([c, d, q]) => {
+      operations.push({ ...c, d: d, id: q[1], freq: q[0] });
+    });
+
+    // Replace bottom-up (safe offsets)
+    operations.sort((a, b) => b.start - a.start);
+    const ms = new MagicString(source);
+    const usedIds = new Set();
+
+    for (const op of operations) {
+      let doZZ = false;
+      const p = op.type === "Template" ? op.start - 1 : op.start;
+      const q = op.type === "Template" ? op.end + 1 : op.end;
+      if (op.zz) {
+        const freq = op.freq || 0;
+        if (freq === 0) throw new Error("invalid freq");
+        const newValue = `${pName}[${op.id}]`;
+
+        let oldSize;
+
+        let r;
+        if (op.type === "Template") {
+          // Static template: removes backticks
+          // someFn(`1234567`) -> someFn($X[1234])
+          r = `${op.prefix}${newValue}${op.suffix}`;
+          oldSize = op.end - op.start + 2; // opValue = targetString
+        } else if (op.type === "Quasi") {
+          // Quasi: stays inside backticks
+          // someFn(`...${123456789}...`) -> someFn(`...${$X[1234]}...`)
+          r = `\${${newValue}}`;
+          oldSize = op.end - op.start; // opValue = targetString
+        } else {
+          // Literal: removes quotes
+          // someFn("1234567") -> someFn($X[1234])
+          // note: case"12345678" -> case $X[1234]
+          r = `${op.prefix}${newValue}${op.suffix}`;
+          oldSize = op.end - op.start; // opValue = "targetString"
+        }
+
+        const newSize = r.length;
+        if (newSize > oldSize) {
+          //@ts-ignore : ignore empty value
+          extracted[op.id] = 0; // No replacement to $X. Just keep the id in $X
+        } else {
+          doZZ = true;
+          usedIds.add(op.id);
+          ms.overwrite(p, q, r);
+        }
+      }
+      if (!doZZ) {
+        // Handling non-compressed strings (like those with newlines)
+        const old = op.value;
+        if (/[\r\n]/.test(old)) {
+          if (op.type === "Template") {
+            ms.overwrite(op.start - 1, op.end + 1, JSON.stringify(op.d));
+          } else if (op.type === "Quasi" && /^[\r\n\w$.=*,?:!(){}[\]@#%^&*/ '"+-]+$/.test(old)) {
+            ms.overwrite(op.start, op.end, op.d.replace(/\n/g, "\\n"));
+          }
+        }
+      }
+    }
+
+    // Compress
+    const json = JSON.stringify(extracted);
+    // const deflated = pako.deflateRaw(Buffer.from(json, "utf8"), { level: 6 });
+    const deflated = zlib.deflateRawSync(Buffer.from(json, "utf8"), { level: 6 });
+    if (!deflated) throw new Error("Compression Failed");
+    const base64 = Buffer.from(deflated).toString("base64");
+
+    // Wrap
+    const finalSource = compileDecodeSource(ms.toString(), base64, pName);
+    // testing:
+    // const finalSource = `var ${vName}=JSON.parse(new TextDecoder().decode(require('pako').inflateRaw(Buffer.from("${base64}","base64"))));\n${ms.toString()}`;
+
+    return { finalSource, source, extracted, usedIds };
+  }
   apply(compiler: Compiler) {
     compiler.hooks.thisCompilation.tap("ZipExecutionPlugin", (compilation: Compilation) => {
       compilation.hooks.processAssets.tapPromise(
@@ -68,140 +224,119 @@ export class ZipExecutionPlugin {
           for (const [filename, asset] of Object.entries(assets)) {
             if (!filename.includes("ts.worker.js")) continue;
 
-            const source = asset.source().toString();
+            let source = asset.source().toString();
 
-            const vName = findAvailableVarName(source);
+            // const ss = this.processFn("switch(e){case\"string_Case1_string\":33;case\"string_Case2_string\":44};\nconst p={s:\"string_Var1_string\",f:`string_Var2_string`,e:\"string_Var3_string\"};");
+            // console.log(21399, ss);
 
-            // ──────────────────────────────────────────────────────────────
-            // 1. Parse (no regex hacks!)
-            let ast: acorn.Node;
-            try {
-              ast = acorn.parse(source, {
-                ecmaVersion: "latest",
-                sourceType: "module",
-                ranges: true,
-              });
-            } catch (err) {
-              console.warn(`[ZipExec] Parse failed ${filename}:`, (err as Error).message);
-              continue;
-            }
+            // await new Promise(r => setTimeout(r, 300000));
 
-            // ──────────────────────────────────────────────────────────────
-            // 2. Collect candidates (robust walker + context)
-            const candidates = this.collectCandidates(ast);
-
-            if (candidates.length === 0) continue;
-
-            // ──────────────────────────────────────────────────────────────
-            // 3. Normalise values + deduplicate (huge strings are rarely identical, but helps)
-            const extracted: string[] = [];
-            const operations: Candidate[] = [];
-
-            const candidatesFreq = new Map<string, [number, number]>();
-            const mapped = candidates.map((c) => {
-              const d = this.normalizeValue(c.value);
-              let q = candidatesFreq.get(d);
-              if (!q) candidatesFreq.set(d, (q = [0, 0]));
-              q[0] += 1;
-              return [c, d, q] as const;
-            });
-            const sorted = [...candidatesFreq.entries()].sort((a, b) => b[1][0] - a[1][0]);
-            let i = 0;
-            for (const [d, q] of sorted) {
-              q[1] = i++;
-              extracted.push(d);
-            }
-            candidatesFreq.clear();
-
-            mapped.forEach(([c, _d, q]: any) => {
-              const id = q[1] as number;
-              operations.push({ ...c, id });
-            });
-            mapped.length = 0;
-
-            // ──────────────────────────────────────────────────────────────
-            // 4. Replace bottom-up (safe offsets)
-            operations.sort((a, b) => b.start - a.start);
-
-            const ms = new MagicString(source);
-
-            for (const op of operations) {
-              if (op.type === "Template") {
-                // `content` → `${zzstrs[N]}`
-                if (op.expressions === 0) {
-                  const c1 = ms.slice(op.start - 2, op.start - 1);
-                  const c2 = ms.slice(op.end + 1, op.end + 2);
-                  const s1 = /[\w"'`]/.test(c1) ? " " : "";
-                  const s2 = /[\w"'`]/.test(c2) ? " " : "";
-                  ms.overwrite(op.start - 1, op.end + 1, `${s1}${vName}[${op.id}]${s2}`);
-                } else if (op.expressions) {
-                  throw "not implemented yet";
-                  // ms.overwrite(op.start, op.end, `\${${vName}[${op.id}]}`);
-                }
-              } else {
-                // "content" or 'content' → zzstrs[N]
-                // note: case"123456789" -> case $X[123]
-                const c1 = ms.slice(op.start - 1, op.start);
-                const c2 = ms.slice(op.end, op.end + 1);
-                const s1 = /[\w"'`]/.test(c1) ? " " : "";
-                const s2 = /[\w"'`]/.test(c2) ? " " : "";
-                ms.overwrite(op.start, op.end, `${s1}${vName}[${op.id}]${s2}`);
-              }
-            }
-
-            // ──────────────────────────────────────────────────────────────
-            // 5. Compress
-            const json = JSON.stringify(extracted);
-            const deflated = pako.deflateRaw(Buffer.from(json, "utf8"), { level: 6 });
-            if (!deflated) throw new Error("Pako Compression Failed");
-            const base64 = Buffer.from(deflated).toString("base64");
-
-            // ──────────────────────────────────────────────────────────────
-            // 6. Wrap
-            const finalSource = compileDecodeSource(ms.toString(), base64, vName);
+            const ret = this.processFn(source, filename);
+            if (ret === false) continue;
+            source = ret.source;
+            const { finalSource, extracted, usedIds } = ret;
 
             compilation.updateAsset(filename, new compiler.webpack.sources.RawSource(finalSource));
 
-            console.log(`[ZipExecutionPlugin] Processed ${filename}: ${extracted.length} unique strings extracted`);
+            console.debug(`[ZipExecutionPlugin] Processed ${filename}: ${extracted.length} unique strings extracted`);
+            console.debug(`[ZipExecutionPlugin] Replaced ${usedIds.size} extractions`);
           }
         }
       );
     });
   }
 
-  private collectCandidates(ast: acorn.Node): Omit<Candidate, "id">[] {
-    const results: Omit<Candidate, "id">[] = [];
+  private collectCandidates(ast: acorn.Node, source: string): Omit<Candidate, "id" | "d">[] {
+    const results: Omit<Candidate, "id" | "d">[] = [];
+
+    const getPadding = (start: number, end: number) => {
+      //xy"abcd"jk
+      //3 7
+      //s[3-1] = s[2] = "
+      //s[7+1] = s[8] = j
+      const c1 = source[start - 1] || "";
+      const c2 = source[end] || "";
+      const isWord = /[\w$"'`]/;
+      return {
+        prefix: isWord.test(c1) ? " " : "",
+        suffix: isWord.test(c2) ? " " : "",
+      };
+    };
 
     const walk = (node: any, parent: any = null) => {
       if (!node || typeof node !== "object") return;
 
-      if (this.isExtractable(node, parent)) {
-        if (node.type === "Literal" && typeof node.value === "string") {
-          results.push({
-            type: "Literal",
-            start: node.start!,
-            end: node.end!,
-            value: node.value,
-          });
-          return; // no children
+      if (node.type === "Literal" && typeof node.value === "string") {
+        if (this.isExtractable(node, parent, "Literal")) {
+          const { prefix, suffix } = getPadding(node.start, node.end);
+          const oriLen = node.end - node.start; // "targetString"
+          // someFn("123456") -> someFn($X[1234])
+          // note: case"1234567" -> case $X[1234]
+          const isZZ = oriLen >= 8 + prefix.length + suffix.length;
+          if (isZZ) {
+            results.push({
+              type: "Literal",
+              start: node.start,
+              end: node.end,
+              value: node.value,
+              zz: true,
+              prefix,
+              suffix,
+            });
+          }
         }
-
-        // for node.expressions.length > 0, not implemented yet
-        if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
+      } else if (node.type === "TemplateLiteral") {
+        if (node.expressions.length === 0) {
+          // Static Template: treat as one unit
           const quasi = node.quasis[0];
-          const value = quasi.value.cooked ?? quasi.value.raw;
-          results.push({
-            type: "Template",
-            start: quasi.start!,
-            end: quasi.end!,
-            expressions: node.expressions.length,
-            value,
+          const val = quasi.value.cooked ?? quasi.value.raw;
+          if (this.isExtractable(quasi, parent, "Template")) {
+            // Templates overwrite backticks, so peek 1 char further out
+            // someFn(`123456`) -> someFn($X[1234])
+            // node = `Template`
+            // quasi = Template
+            const { prefix, suffix } = getPadding(quasi.start - 1, quasi.end + 1);
+            const oriLen = quasi.end - quasi.start; // targetString
+            const isZZ = oriLen >= 6 + prefix.length + suffix.length;
+            const hasNewline = val.includes("\n") || val.includes("\r");
+            if (isZZ || hasNewline) {
+              results.push({
+                type: "Template",
+                start: quasi.start,
+                end: quasi.end,
+                value: val,
+                zz: isZZ,
+                prefix: isZZ ? prefix : "",
+                suffix: isZZ ? suffix : "",
+              });
+            }
+          }
+        } else {
+          // Complex Template: extract individual quasis
+          node.quasis.forEach((quasi: any) => {
+            const val = quasi.value.cooked ?? quasi.value.raw;
+            if (val && this.isExtractable(quasi, parent, "Quasi", val)) {
+              // Quasis are inside `${}`, usually don't need padding relative to word boundaries
+              // `${...}123456789ab${...}` -> `${...}${$X[1234]}${...}`
+              const oriLen = quasi.end - quasi.start; // `${...}targetString${...}`
+              const isZZ = oriLen >= 11;
+              const hasNewline = val.includes("\n") || val.includes("\r");
+              if (isZZ || hasNewline) {
+                results.push({
+                  type: "Quasi",
+                  start: quasi.start,
+                  end: quasi.end,
+                  value: val,
+                  zz: isZZ,
+                  prefix: "",
+                  suffix: "",
+                });
+              }
+            }
           });
-          return;
         }
       }
 
-      // Safe child traversal
       for (const key of Object.keys(node)) {
         if (["parent", "loc", "range", "start", "end"].includes(key)) continue;
         const child = node[key];
@@ -214,40 +349,33 @@ export class ZipExecutionPlugin {
     return results;
   }
 
-  private isExtractable(node: any, parent: any): boolean {
-    const isLiteral = node.type === "Literal" && typeof node.value === "string";
-    const isTemplate = node.type === "TemplateLiteral";
+  private isExtractable(node: any, parent: any, type: "Literal" | "Template" | "Quasi", overrideVal?: string): boolean {
+    const content = overrideVal ?? (node.type === "Literal" ? node.value : (node.value.cooked ?? ""));
 
-    if (!isLiteral && !isTemplate) return false;
+    // Thresholds: Quasis need more length because they add `${}` (3 chars)
+    // if (type === "Quasi" && content.length < 12) return false;
+    // if (type === "Template" && content.length < 7) return false;
+    // if (type === "Literal" && content.length < 9) return false;
 
-    // Length filter (runtime value)
-    const content = isLiteral ? node.value : (node.quasis[0].value.cooked ?? "");
-    if (isTemplate && node.expressions?.length === 0) {
-      if (content.length < 7) return false; // `1234567` => $S[6789]
-    } else {
-      // isLiteral or isTemplate with node.expressions
-      if (content.length < 9) return false; // "123456789" => ($S[6789])
-    }
+    // ---- Exclusions ----
 
-    // ── Exclusions ─────────────────────────────────────────────────────
     // "use strict"
-    if (parent?.type === "ExpressionStatement" && node.value === "use strict") return false;
+    if (parent?.type === "ExpressionStatement" && content === "use strict") return false;
 
-    // Tagged templates
-    if (parent?.type === "TaggedTemplateExpression" && parent.quasi === node) return false;
+    // Tagged templates but type is not "Quasi"
+    if (parent?.type === "TaggedTemplateExpression" && type !== "Quasi") return false;
 
     // Object keys (non-computed)
     if (parent?.type === "Property" && parent.key === node && !parent.computed) return false;
 
     // Import/export sources
-    if (
+    const isModuleSource =
       parent &&
       (parent.type === "ImportDeclaration" ||
         parent.type === "ExportNamedDeclaration" ||
         parent.type === "ExportAllDeclaration") &&
-      parent.source === node
-    )
-      return false;
+      parent.source === node;
+    if (isModuleSource) return false;
 
     // Dynamic import
     if (parent?.type === "ImportExpression" && parent.source === node) return false;
@@ -256,7 +384,6 @@ export class ZipExecutionPlugin {
   }
 
   private normalizeValue(value: string): string {
-    // Only standardise line endings – never escape anything
-    return value.includes("\r") ? value.replace(/\r\n/g, "\n").replace(/\r/g, "\n") : value;
+    return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   }
 }
