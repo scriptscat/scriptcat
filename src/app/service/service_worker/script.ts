@@ -1217,18 +1217,22 @@ export class ScriptService {
     const sortingMap: Map<string, number> = new Map(after.map((uuid, index) => [uuid, index]));
 
     // 排序 scripts 并更新 sort 字段
+    const batchUpdate: Record<string, Partial<Script>> = {};
+
     const newList = (
       await Promise.all(
         scripts.map(async (script) => {
           const newSort = sortingMap.get(script.uuid);
           if (newSort !== undefined && script.sort !== newSort) {
-            await this.scriptDAO.update(script.uuid, { sort: newSort });
+            batchUpdate[script.uuid] = { sort: newSort };
             script.sort = newSort;
           }
           return script;
         })
       )
     ).sort((a, b) => a.sort - b.sort);
+
+    await this.scriptDAO.updates(batchUpdate);
 
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
@@ -1256,16 +1260,19 @@ export class ScriptService {
       }
     });
 
+    const batchUpdate: Record<string, Partial<Script>> = {};
+
     const newList = await Promise.all(
       scripts.map(async (script, index) => {
         const newSort = index;
         if (script.sort !== newSort) {
-          await this.scriptDAO.update(script.uuid, { sort: newSort });
+          batchUpdate[script.uuid] = { sort: newSort };
           script.sort = newSort;
         }
         return script;
       })
     );
+    await this.scriptDAO.updates(batchUpdate);
 
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
