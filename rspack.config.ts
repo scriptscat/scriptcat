@@ -1,8 +1,6 @@
 import * as path from "path";
-import { defineConfig } from "@rspack/cli";
-import { rspack } from "@rspack/core";
+import { rspack, NormalModule, type Configuration } from "@rspack/core";
 import { readFileSync } from "fs";
-import { NormalModule } from "@rspack/core";
 import { v4 as uuidv4 } from "uuid";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
@@ -31,7 +29,7 @@ const chunkExcludeSet = new Set([
   "scripting",
 ]);
 
-export default defineConfig({
+export default {
   ...(isDev
     ? {
         watch: true,
@@ -42,6 +40,10 @@ export default defineConfig({
         mode: "production",
         devtool: false,
       }),
+  node: {
+    __filename: false, // This disables the warning and the mocking
+    __dirname: false,
+  },
   context: dirname,
   entry: {
     service_worker: `${src}/service_worker.ts`,
@@ -223,7 +225,6 @@ export default defineConfig({
   ].filter(Boolean),
   experiments: {
     css: true,
-    parallelCodeSplitting: true,
     parallelLoader: true,
   },
   optimization: {
@@ -341,4 +342,4 @@ export default defineConfig({
       },
     },
   },
-});
+} satisfies Configuration;
