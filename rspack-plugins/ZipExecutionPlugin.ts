@@ -5,7 +5,7 @@ import * as acorn from "acorn";
 import MagicString from "magic-string";
 
 const trimCode = (code: string) => {
-  return code.trim();
+  return code.replace(/[\r\n]\s+/g, "").trim();
 };
 
 export function compileDecodeSource(templateCode: string, base64Data: string, pName: string) {
@@ -14,22 +14,21 @@ export function compileDecodeSource(templateCode: string, base64Data: string, pN
   // * See https://github.com/js-vanilla/inflate-raw/
   const inflateRawCode = trimCode(`
   (()=>{let _=Uint8Array,e=_.fromBase64?.bind(_)??(e=>{let l=atob(e),$=l.length,r=new _($);for(;$--;)r[$]=l.charCodeAt($);return r}),
-  l=l=>{let $=e(l),r=4*$.length;r<32768&&(r=32768);let t=new _(r),a=0,f=e=>{let l=t.length,$=a+e;if($>l){do l=3*l>>>1;while(l<$);let r=new _(l);r.set(t),t=r}},
-  s=new Uint16Array(66400),n=s.subarray(0,32768),u=s.subarray(32768,65536),b=s.subarray(65536,65856),i,o,y=new Int32Array(48),h=0,w=0,g=0,
-  d=()=>{for(;w<16&&g<$.length;)h|=$[g++]<<w,w+=8},c=_=>{d();let e=h&(1<<_)-1;return h>>>=_,w-=_,e},F=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15],
-  k=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258],m=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0],
-  p=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577],
-  v=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13],x=y.subarray(0,16),A=y.subarray(16,32),B=(_,e)=>{let l=x.fill(0),$=0;
-  for(let r=0;r<_.length;r++){let t=_[r];t>0&&(l[t]++,t>$&&($=t))}let a=1<<$,f=e.subarray(0,a),s=A,n=0;for(let u=1;u<=$;u++)s[u]=n,n+=l[u];let i=b;
-  for(let o=0;o<_.length;o++)_[o]>0&&(i[s[_[o]]++]=o);let y=0,h=0;for(let w=1;w<=$;w++){let g=1<<w,d=l[w];for(let c=0;c<d;c++){let F=i[h++],k=w<<9|F;
-  for(let m=y;m<a;m+=g)f[m]=k;let p=1<<w-1;for(;y&p;)y^=p,p>>=1;y^=p}}return f},C=_=>{d();let e=_.length-1,l=_[h&e],$=l>>>9;return h>>>=$,w-=$,511&l},
-  R=new _(320),W=R.subarray(0,19),j=!1,q=0;for(;!q;){let z=c(3);q=1&z;let D=z>>1;if(0===D){h=w=0;let E=$[g++]|$[g++]<<8;g+=2,f(E),t.set($.subarray(g,g+E),a),a+=E,
-  g+=E}else{let G,H;if(1===D){if(!j){j=!0;let I=65856,J=R.subarray(0,288);J.fill(8,0,144),J.fill(9,144,256),J.fill(7,256,280),J.fill(8,280,288),B(J,i=s.subarray(I,I+=512));
-  let K=R.subarray(0,32).fill(5);B(K,o=s.subarray(I,I+=32))}G=i,H=o}else{let L=c(14),M=(31&L)+257,N=(L>>5&31)+1,O=(L>>10&15)+4;W.fill(0);for(let P=0;P<O;P++)W[F[P]]=c(3);
-  let Q=B(W,n),S=M+N,T=R.subarray(0,S).fill(0),U=0;for(;U<S;){let V=C(Q);if(V<16)T[U++]=V;else{let X=0,Y=0;for(16===V?(X=3+c(2),Y=T[U-1]):X=17===V?3+c(3):11+c(7);X--;)T[U++]=Y}}
-  G=B(T.subarray(0,M),n),H=B(T.subarray(M),u)}for(;;){let Z=C(G);if(Z<256)f(1),t[a++]=Z;else if(256===Z)break;else{let __=Z-257,_e=k[__]+c(m[__]),_l=C(H),_$=p[_l]+c(v[_l]);
-  f(_e);let _r=a-_$;if(_e<=8)for(;_e--;)t[a++]=t[_r++];else{let _t=a+_e;for(;a<_t;){let _1=_t-a,_0=a-_r,_3=_1<_0?_1:_0;t.copyWithin(a,_r,_r+_3),a+=_3}}}}}}
-  return new TextDecoder().decode(t.subarray(0,a))};return l})();
+  l=l=>{let $=e(l),r=4*$.length;r<32768&&(r=32768);let t=new _(r),a=0,f=e=>{let l=t.length,$=a+e;if($>l){do l=3*l>>>1;while(l<$);
+  let r=new _(l);r.set(t),t=r}},s=new Uint16Array(66400),u=s.subarray(0,32768),b=s.subarray(32768,65536),n=s.subarray(65536,65856),i,
+  o,y=new Int32Array(48),h=0,w=0,g=0,d=()=>{for(;w<16&&g<$.length;)h|=$[g++]<<w,w+=8},c=_=>{d();let e=h&(1<<_)-1;return h>>>=_,w-=_,e},
+  F=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15],k=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258],
+  m=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0],v=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577],
+  x=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13],A=y.subarray(0,16),B=y.subarray(16,32),C=(_,e)=>{let l=A.fill(0),$=0;for(let r=0;r<_.length;r++){
+  let t=_[r];t>0&&(l[t]++,t>$&&($=t))}let a=1<<$,f=e.subarray(0,a),s=B,u=0;for(let b=1;b<=$;b++)s[b]=u,u+=l[b];let i=n;for(let o=0;o<_.length;o++)_[o]>0&&(i[s[_[o]]++]=o);
+  let y=0,h=0;for(let w=1;w<=$;w++){let g=1<<w,d=l[w];for(let c=0;c<d;c++){let F=i[h++],k=w<<9|F;for(let m=y;m<a;m+=g)f[m]=k;let v=1<<w-1;for(;y&v;)y^=v,v>>=1;y^=v}}return f},
+  R=_=>{d();let e=_.length-1,l=_[h&e],$=l>>>9;return h>>>=$,w-=$,511&l},j=new _(320),p=j.subarray(0,19),q=!1,z=0;for(;!z;){let D=c(3);z=1&D;let E=D>>1;if(0===E){
+  h=w=0;let G=$[g++]|$[g++]<<8;g+=2,f(G),t.set($.subarray(g,g+G),a),a+=G,g+=G}else{let H,I;if(1===E){if(!q){q=!0;let J=65856,K=j.subarray(0,288);K.fill(8,0,144),K.fill(9,144,256),
+  K.fill(7,256,280),K.fill(8,280,288),C(K,i=s.subarray(J,J+=512));let L=j.subarray(0,32).fill(5);C(L,o=s.subarray(J,J+=32))}H=i,I=o}else{let M=c(14),N=(31&M)+257,O=(M>>5&31)+1,
+  P=(M>>10&15)+4;p.fill(0);for(let Q=0;Q<P;Q++)p[F[Q]]=c(3);let S=C(p,u),T=N+O,U=j.subarray(0,T).fill(0),V=0;for(;V<T;){let W=R(S);if(W<16)U[V++]=W;else{let X=0,Y=0;
+  for(16===W?(X=3+c(2),Y=U[V-1]):X=17===W?3+c(3):11+c(7);X--;)U[V++]=Y}}H=C(U.subarray(0,N),u),I=C(U.subarray(N),b)}for(;;){let Z=R(H);
+  if(Z<256)f(1),t[a++]=Z;else if(256===Z)break;else{let __=Z-257,_e=k[__]+c(m[__]),_l=R(I),_$=v[_l]+c(x[_l]);f(_e);let _r=a-_$;if(1===_$)t.fill(t[_r],a,a+=_e);else for(;_e>0;){
+  let _t=a-_r;_e<_t&&(_t=_e),t.set(t.subarray(_r,_r+_t),a),a+=_t,_e-=_t}}}}}return new TextDecoder().decode(t.subarray(0,a))};return l})();
   `);
   // -------------------------------------------------------------------------------------------------
   return `
