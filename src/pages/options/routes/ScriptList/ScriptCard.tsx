@@ -392,212 +392,211 @@ interface ScriptCardProps {
   handleRunStop: (item: ScriptLoading) => Promise<void>;
 }
 
-export const ScriptCard = React.memo(
-  ({
-    loadingList,
-    scriptList,
-    // scriptListSortOrderMove,
-    scriptListSortOrderSwap,
-    sidebarOpen,
-    setSidebarOpen,
-    setViewMode,
-    updateScripts,
-    setUserConfig,
-    setCloudScript,
-    searchRequest,
-    setSearchRequest,
-    handleDelete,
-    handleConfig,
-    handleRunStop,
-  }: ScriptCardProps) => {
-    const { t } = useTranslation();
-    const { guideMode } = useAppContext();
+const ScriptCard = ({
+  loadingList,
+  scriptList,
+  // scriptListSortOrderMove,
+  scriptListSortOrderSwap,
+  sidebarOpen,
+  setSidebarOpen,
+  setViewMode,
+  updateScripts,
+  setUserConfig,
+  setCloudScript,
+  searchRequest,
+  setSearchRequest,
+  handleDelete,
+  handleConfig,
+  handleRunStop,
+}: ScriptCardProps) => {
+  const { t } = useTranslation();
+  const { guideMode } = useAppContext();
 
-    // 如果是引导模式，且没有脚本，则创建一条演示数据
-    const list = useMemo(
-      () =>
-        guideMode && scriptList.length === 0
-          ? [
-              {
-                uuid: "demo-uuid-1234",
-                name: "Demo Script",
-                namespace: "demo",
-                sort: 0,
-                createtime: Date.now(),
-                checktime: Date.now(),
-                metadata: {},
-                type: SCRIPT_TYPE_NORMAL,
-                favorite: [{ match: "Example", icon: "", website: "https://example.com" }],
-              } as ScriptLoading,
-            ]
-          : scriptList,
-      [guideMode, scriptList]
-    );
-    // Sensors — move them here (or even higher in parent) so they're stable
-    const sensors = useSensors(
-      useSensor(PointerSensor, {
-        activationConstraint: { distance: 3 }, // ← prevents accidental drag on click
-      }),
-      useSensor(KeyboardSensor, {
-        coordinateGetter: sortableKeyboardCoordinates,
-      })
-    );
+  // 如果是引导模式，且没有脚本，则创建一条演示数据
+  const list = useMemo(
+    () =>
+      guideMode && scriptList.length === 0
+        ? [
+            {
+              uuid: "demo-uuid-1234",
+              name: "Demo Script",
+              namespace: "demo",
+              sort: 0,
+              createtime: Date.now(),
+              checktime: Date.now(),
+              metadata: {},
+              type: SCRIPT_TYPE_NORMAL,
+              favorite: [{ match: "Example", icon: "", website: "https://example.com" }],
+            } as ScriptLoading,
+          ]
+        : scriptList,
+    [guideMode, scriptList]
+  );
+  // Sensors — move them here (or even higher in parent) so they're stable
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 3 }, // ← prevents accidental drag on click
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
-    // 故意生成一个字串 memo 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
-    const sortableIdsString = useMemo(() => list?.map((s) => s.uuid).join(",") || "", [list]);
+  // 故意生成一个字串 memo 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
+  const sortableIdsString = useMemo(() => list?.map((s) => s.uuid).join(",") || "", [list]);
 
-    // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
-    // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
-    const sortableIds = useMemo(() => sortableIdsString?.split(",").filter(Boolean), [sortableIdsString]);
+  // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
+  // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
+  const sortableIds = useMemo(() => sortableIdsString?.split(",").filter(Boolean), [sortableIdsString]);
 
-    const handleDragEnd = useCallback(
-      (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (over && active.id !== over.id) {
-          scriptListSortOrderSwap({
-            active: `${active.id}`,
-            over: `${over.id}`,
-          });
-        }
-      },
-      [scriptListSortOrderSwap]
-    );
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+        scriptListSortOrderSwap({
+          active: `${active.id}`,
+          over: `${over.id}`,
+        });
+      }
+    },
+    [scriptListSortOrderSwap]
+  );
 
-    const a11y = useMemo(
-      () => ({
-        container: document.body,
-      }),
-      []
-    );
+  const a11y = useMemo(
+    () => ({
+      container: document.body,
+    }),
+    []
+  );
 
-    return (
-      <>
-        {/* 卡片视图工具栏 */}
-        <Card
-          className="script-list-card"
-          style={{
-            borderWidth: "0 0px 1px 0",
-            padding: "0 16px",
-          }}
-        >
-          <div className="tw-flex tw-flex-row tw-justify-between tw-items-center" style={{ padding: "8px 0" }}>
-            <div className="tw-flex-1">
-              <ScriptSearchField
-                t={t}
-                defaultValue={searchRequest}
-                onSearch={(req) => {
-                  setSearchRequest(req);
+  return (
+    <>
+      {/* 卡片视图工具栏 */}
+      <Card
+        className="script-list-card"
+        style={{
+          borderWidth: "0 0px 1px 0",
+          padding: "0 16px",
+        }}
+      >
+        <div className="tw-flex tw-flex-row tw-justify-between tw-items-center" style={{ padding: "8px 0" }}>
+          <div className="tw-flex-1">
+            <ScriptSearchField
+              t={t}
+              defaultValue={searchRequest}
+              onSearch={(req) => {
+                setSearchRequest(req);
+              }}
+            />
+          </div>
+          <Space size={8}>
+            <Tooltip content={sidebarOpen ? t("close_sidebar") : t("open_sidebar")}>
+              <Button
+                icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                type="text"
+                size="small"
+                style={{
+                  color: "var(--color-text-2)",
+                }}
+                onClick={() => {
+                  setSidebarOpen((sidebarOpen) => {
+                    const newState = !sidebarOpen;
+                    localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
+                    return newState;
+                  });
                 }}
               />
-            </div>
-            <Space size={8}>
-              <Tooltip content={sidebarOpen ? t("close_sidebar") : t("open_sidebar")}>
-                <Button
-                  icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
-                  type="text"
-                  size="small"
-                  style={{
-                    color: "var(--color-text-2)",
-                  }}
-                  onClick={() => {
-                    setSidebarOpen((sidebarOpen) => {
-                      const newState = !sidebarOpen;
-                      localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
-                      return newState;
-                    });
-                  }}
-                />
-              </Tooltip>
-              <Tooltip content={t("switch_to_table_mode")}>
-                <Button
-                  icon={<FaThList />}
-                  type="text"
-                  size="small"
-                  style={{
-                    color: "var(--color-text-2)",
-                  }}
-                  onClick={() => {
-                    setViewMode("table");
-                    localStorage.setItem("script-list-view-mode", "table");
-                  }}
-                />
-              </Tooltip>
-            </Space>
-          </div>
-        </Card>
-        <div
-          style={{
-            padding: "16px",
-          }}
-        >
-          {list.length === 0 ? (
-            loadingList ? (
-              <div
+            </Tooltip>
+            <Tooltip content={t("switch_to_table_mode")}>
+              <Button
+                icon={<FaThList />}
+                type="text"
+                size="small"
                 style={{
-                  textAlign: "center",
-                  padding: "64px 0",
-                  color: "var(--color-text-3)",
+                  color: "var(--color-text-2)",
                 }}
-              >
-                <Typography.Text type="secondary">{t("loading")}</Typography.Text>
-              </div>
-            ) : (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "64px 0",
-                  color: "var(--color-text-3)",
+                onClick={() => {
+                  setViewMode("table");
+                  localStorage.setItem("script-list-view-mode", "table");
                 }}
-              >
-                <Typography.Text type="secondary">{t("no_data")}</Typography.Text>
-              </div>
-            )
-          ) : (
-            <DndContext
-              sensors={sensors}
-              onDragEnd={handleDragEnd}
-              collisionDetection={closestCenter}
-              accessibility={a11y}
-            >
-              <SortableContext items={sortableIds} strategy={rectSwappingStrategy}>
-                <div
-                  className="script-card-grid"
-                  style={{
-                    display: "grid",
-                    gap: "16px",
-                  }}
-                >
-                  {list.map((item) => (
-                    <ScriptCardItem
-                      key={item.uuid}
-                      item={item}
-                      updateScripts={updateScripts}
-                      setUserConfig={setUserConfig}
-                      setCloudScript={setCloudScript}
-                      handleDelete={handleDelete}
-                      handleConfig={handleConfig}
-                      handleRunStop={handleRunStop}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          )}
+              />
+            </Tooltip>
+          </Space>
         </div>
-      </>
-    );
-  },
-  (prevProps, nextProps) => {
-    return (
-      prevProps.loadingList === nextProps.loadingList &&
-      prevProps.scriptList === nextProps.scriptList &&
-      prevProps.sidebarOpen === nextProps.sidebarOpen &&
-      prevProps.searchRequest.keyword === nextProps.searchRequest.keyword &&
-      prevProps.searchRequest.type === nextProps.searchRequest.type
-    );
-  }
-);
+      </Card>
+      <div
+        style={{
+          padding: "16px",
+        }}
+      >
+        {list.length === 0 ? (
+          loadingList ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "64px 0",
+                color: "var(--color-text-3)",
+              }}
+            >
+              <Typography.Text type="secondary">{t("loading")}</Typography.Text>
+            </div>
+          ) : (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "64px 0",
+                color: "var(--color-text-3)",
+              }}
+            >
+              <Typography.Text type="secondary">{t("no_data")}</Typography.Text>
+            </div>
+          )
+        ) : (
+          <DndContext
+            sensors={sensors}
+            onDragEnd={handleDragEnd}
+            collisionDetection={closestCenter}
+            accessibility={a11y}
+          >
+            <SortableContext items={sortableIds} strategy={rectSwappingStrategy}>
+              <div
+                className="script-card-grid"
+                style={{
+                  display: "grid",
+                  gap: "16px",
+                }}
+              >
+                {list.map((item) => (
+                  <ScriptCardItem
+                    key={item.uuid}
+                    item={item}
+                    updateScripts={updateScripts}
+                    setUserConfig={setUserConfig}
+                    setCloudScript={setCloudScript}
+                    handleDelete={handleDelete}
+                    handleConfig={handleConfig}
+                    handleRunStop={handleRunStop}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
+      </div>
+    </>
+  );
+};
 
-ScriptCard.displayName = "ScriptCard";
+const MemoizedScriptCard = React.memo(ScriptCard, (prevProps, nextProps) => {
+  return (
+    prevProps.loadingList === nextProps.loadingList &&
+    prevProps.scriptList === nextProps.scriptList &&
+    prevProps.sidebarOpen === nextProps.sidebarOpen &&
+    prevProps.searchRequest.keyword === nextProps.searchRequest.keyword &&
+    prevProps.searchRequest.type === nextProps.searchRequest.type
+  );
+});
 
-export default ScriptCard;
+MemoizedScriptCard.displayName = "ScriptCard";
+
+export default MemoizedScriptCard;
