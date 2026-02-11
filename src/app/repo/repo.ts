@@ -359,6 +359,7 @@ export abstract class Repo<T> {
           keys.forEach((key) => {
             const data = cache[key] as T;
             if (data) {
+              // 刻意使用Object.assign修改原有对象，以更新缓存中的数据
               Object.assign(data, val);
               saveRecord[key] = data;
               result.push(data);
