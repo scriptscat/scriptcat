@@ -1210,44 +1210,25 @@ export class ScriptService {
     return scripts;
   }
 
+  // 脚本排序，after为排序后的uuid列表
   async sortScript({ after }: { before: string[]; after: string[] }) {
     const daoAll = await this.scriptDAO.all();
-    const scripts = daoAll.slice().sort((a, b) => a.sort - b.sort);
-    const sorting = after;
+    const scripts = daoAll.sort((a, b) => a.sort - b.sort);
+    const sortingMap: Map<string, number> = new Map(after.map((uuid, index) => [uuid, index]));
 
-    const sortingObject: Record<
-      string,
-      {
-        obj: Script;
-        order?: number;
-      }
-    > = {};
-    for (let i = 0, l = scripts.length; i < l; i += 1) {
-      sortingObject[scripts[i].uuid] = {
-        obj: scripts[i],
-        // order: undefined, // no order change
-      };
-    }
-    for (let i = 0, l = sorting.length; i < l; i += 1) {
-      const entry = sortingObject[sorting[i]];
-      if (entry) {
-        entry.order = i; // set to preferred order
-      }
-    }
-    const entries = Object.values(sortingObject);
-    //@ts-ignore
-    entries.sort((a, b) => a.order - b.order || 0);
-    const updatetime = Date.now();
-    const newList = await Promise.all(
-      entries.map(async (entry, i) => {
-        const obj = entry.obj;
-        if (obj.sort !== i) {
-          obj.sort = i;
-          await this.scriptDAO.update(obj.uuid, { sort: i, updatetime: obj.updatetime || updatetime });
-        }
-        return obj;
-      })
-    );
+    // 排序 scripts 并更新 sort 字段
+    const newList = (
+      await Promise.all(
+        scripts.map(async (script) => {
+          const newSort = sortingMap.get(script.uuid);
+          if (newSort !== undefined && script.sort !== newSort) {
+            await this.scriptDAO.update(script.uuid, { sort: newSort });
+            script.sort = newSort;
+          }
+          return script;
+        })
+      )
+    ).sort((a, b) => a.sort - b.sort);
 
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
@@ -1255,42 +1236,34 @@ export class ScriptService {
     );
   }
 
+  // 将指定 uuid 列表的脚本置顶，其他脚本排序不变
   async pinToTop(uuids: string[]) {
     const daoAll = await this.scriptDAO.all();
-    const scripts = daoAll.slice().sort((a, b) => a.sort - b.sort);
+    const sortingMap: Map<string, number> = new Map(uuids.map((uuid, index) => [uuid, index]));
+    // 排序 scripts 并更新 sort 字段
+    const scripts = daoAll.sort((a, b) => {
+      // 将 sortingMap 中有的 uuid 放在前面，其他的放在后面，且保持原有顺序
+      const aIndex = sortingMap.get(a.uuid);
+      const bIndex = sortingMap.get(b.uuid);
+      if (aIndex !== undefined && bIndex !== undefined) {
+        return aIndex - bIndex;
+      } else if (aIndex !== undefined) {
+        return -1;
+      } else if (bIndex !== undefined) {
+        return 1;
+      } else {
+        return a.sort - b.sort;
+      }
+    });
 
-    const sortingObject: Record<
-      string,
-      {
-        obj: Script;
-        order?: number;
-      }
-    > = {};
-    const otherOrder = uuids.length;
-    for (let i = 0, l = scripts.length; i < l; i += 1) {
-      sortingObject[scripts[i].uuid] = {
-        obj: scripts[i],
-        order: otherOrder, // put after uuids
-      };
-    }
-    for (let i = 0, l = uuids.length; i < l; i += 1) {
-      const entry = sortingObject[uuids[i]];
-      if (entry) {
-        entry.order = i; // overrided by preferred order
-      }
-    }
-    const entries = Object.values(sortingObject);
-    //@ts-ignore
-    entries.sort((a, b) => a.order - b.order || 0);
-    const updatetime = Date.now();
     const newList = await Promise.all(
-      entries.map(async (entry, i) => {
-        const obj = entry.obj;
-        if (obj.sort !== i) {
-          obj.sort = i;
-          await this.scriptDAO.update(obj.uuid, { sort: i, updatetime: obj.updatetime || updatetime });
+      scripts.map(async (script, index) => {
+        const newSort = index;
+        if (script.sort !== newSort) {
+          await this.scriptDAO.update(script.uuid, { sort: newSort });
+          script.sort = newSort;
         }
-        return obj;
+        return script;
       })
     );
 
