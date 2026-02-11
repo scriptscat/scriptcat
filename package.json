@@ -41,7 +41,6 @@
     "i18next": "^23.16.4",
     "magic-string": "^0.30.21",
     "monaco-editor": "^0.52.2",
-    "pako": "^2.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.3.8",
