@@ -77,6 +77,8 @@ const chromeManifest = { ...manifest, background: { ...manifest.background } };
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
 
+// Firefox MV3 不支持 "background" permission
+firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
 delete firefoxManifest.background.service_worker;
 delete firefoxManifest.sandbox;
 firefoxManifest.browser_specific_settings = {
