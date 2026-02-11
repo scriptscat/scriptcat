@@ -14,8 +14,8 @@ export const pageDispatchEvent = performanceClone.dispatchEvent.bind(performance
 export const pageAddEventListener = performanceClone.addEventListener.bind(performanceClone);
 export const pageRemoveEventListener = performanceClone.removeEventListener.bind(performanceClone);
 const detailClone = typeof cloneInto === "function" ? cloneInto : null;
-export const pageDispatchCustomEvent = (eventType: string, detail: any) => {
-  if (detailClone && detail) detail = detailClone(detail, performanceClone);
+export const pageDispatchCustomEvent = <T = any>(eventType: string, detail: T) => {
+  if (detailClone && detail) detail = <T>detailClone(detail, performanceClone);
   const ev = new CustomEventClone(eventType, {
     detail,
     cancelable: true,
@@ -85,3 +85,25 @@ export const createMouseEvent =
     : (type: string, eventInitDict?: MouseEventInit | undefined): MouseEvent => {
         return new MouseEventClone(type, eventInitDict);
       };
+
+type TPrimitive = string | number | boolean;
+interface INestedPrimitive {
+  [key: string]: TPrimitive | INestedPrimitive;
+}
+type TNestedPrimitive = TPrimitive | INestedPrimitive;
+
+export const dispatchMyEvent = <T extends Record<string, TNestedPrimitive>>(
+  type: string,
+  eventInitDict: MouseEventInit | Omit<T, "movementX" | "relatedTarget">
+) => {
+  let resFalse;
+  if ("movementX" in eventInitDict) {
+    resFalse = pageDispatchEvent(createMouseEvent(type, eventInitDict));
+  } else {
+    resFalse = pageDispatchCustomEvent(type, eventInitDict);
+  }
+  if (resFalse !== false && eventInitDict.cancelable === true) {
+    // 通讯设置正确的话应不会发生
+    throw new Error("Page Message Error");
+  }
+};

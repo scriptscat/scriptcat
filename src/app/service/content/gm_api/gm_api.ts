@@ -18,13 +18,15 @@ import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
-import { isContent } from "@Packages/message/common";
+import { dispatchMyEvent, isContent } from "@Packages/message/common";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
 import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
+import { DefinedFlags } from "../../service_worker/runtime.consts";
+import { ScriptEnvTag } from "@Packages/message/consts";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
@@ -758,34 +760,120 @@ export default class GMApi extends GM_Base {
   public GM_addElement(
     parentNode: Node | string,
     tagName: string | Record<string, string | number | boolean>,
-    attrs: Record<string, string | number | boolean> = {}
+    attrs: Record<string, string | number | boolean> | Node | null = {},
+    refNode: Node | null = null
   ): Element | undefined {
     if (!this.message || !this.scriptRes) return;
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
-    let parentNodeId: number | null;
+    // 在content脚本执行的话，与直接 DOM 无异
+    // TrustedTypes 限制了对 DOM 的 innerHTML/outerHTML 的操作 (TrustedHTML)
+    // TrustedTypes 限制了对 script 的 innerHTML/outerHTML/textContent/innerText 的操作 (TrustedScript)
+    // CSP 限制了对 appendChild/insertChild/replaceChild/insertAdjacentElement ... 等DOM插入移除操作
+
+    // let parentNodeId: number | null;
+    let sParentNode: Node | null = null;
     if (typeof parentNode !== "string") {
-      const id = (<CustomEventMessage>this.message).sendRelatedTarget(parentNode);
-      parentNodeId = id;
+      sParentNode = parentNode as Node;
+      attrs = (attrs || {}) as Record<string, string | number | boolean>;
     } else {
-      parentNodeId = null;
+      refNode = attrs as Node | null;
       attrs = (tagName || {}) as Record<string, string | number | boolean>;
       tagName = parentNode as string;
     }
-    if (typeof tagName !== "string") throw new Error("The parameter 'tagName' of GM_addElement shall be a string.");
-    if (typeof attrs !== "object") throw new Error("The parameter 'attrs' of GM_addElement shall be an object.");
-    const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: `${this.prefix}/runtime/gmApi`,
-      data: {
-        uuid: this.scriptRes.uuid,
-        api: "GM_addElement",
-        params: [parentNodeId, tagName, attrs, isContent],
-      },
-    });
-    if (resp.code) {
-      throw new Error(resp.message);
+
+    // 决定 parentNode
+    if (!sParentNode) {
+      sParentNode = document.head || document.body || document.documentElement || document.querySelector("*");
+      // MV3 应该都至少有一个元素 (document.documentElement), 这个错误应该不会发生
+      if (!sParentNode) throw new Error("Page Element Error");
     }
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data) as Element;
+
+    refNode = refNode instanceof Node && refNode.parentNode === sParentNode ? refNode : null;
+
+    // 不需要 incremental. 这个值只是在用来作一次性同步处理
+    // 最小值为 1000000000 避免与其他 related Id 操作冲突
+    let randInt = Math.floor(Math.random() * 1147483647 + 1000000000); // 32-bit signed int
+    randInt -= randInt % 100; // 用此方法可以生成不重复的 id
+
+    const id0 = randInt;
+    const id1 = randInt + 1;
+    const id2 = randInt + 2;
+    let id3;
+
+    // 目前未有直接取得 eventFlag 的方法。通过 page/content 的 receiveFlag 反推 eventFlag
+    const eventFlag = (this.message as CustomEventMessage).receiveFlag
+      .split(`${DefinedFlags.outboundFlag}${DefinedFlags.domEvent}`)[0]
+      .slice(0, -2);
+
+    // content 的 receiveFlag
+    const ctReceiveFlag = `${eventFlag}${ScriptEnvTag.content}${DefinedFlags.outboundFlag}${DefinedFlags.domEvent}`;
+
+    let el;
+
+    const isNative = attrs.native === true;
+    if (isNative) {
+      // 直接使用页面的元素生成方法。某些情况例如 Custom Elements 用户可能需要直接在页面环境生成元素
+      // CSP 或 TrustedTypes 目前未有对 document.createElement 做出任何限制。
+      try {
+        el = <Element>Native.createElement.call(document, tagName as string);
+      } catch {
+        // 避免元素生成失败时无法执行。此情况应 fallback
+        console.warn("GM API: Native.createElement failed");
+      }
+    }
+    if (!el) {
+      // 一般情况（非 isNative） 或 元素生成失败 （报错或回传null/undefined）
+      const frag = Native.ownFragment;
+      // 设置 fragment
+      dispatchMyEvent(ctReceiveFlag, { cancelable: true, movementX: id0, relatedTarget: frag });
+      // 执行 createElement 并放入 fragment
+      dispatchMyEvent(ctReceiveFlag, { cancelable: true, createElement: `${tagName}`, id0: id0 });
+      // 从 fragment 取回新增的 Element
+      el = frag.lastChild as Element | null;
+      // 如特殊情况导致无法创建元素，则报错。
+      if (!el) throw new Error("GM API: createElement failed");
+    }
+
+    // 控制传送参数，避免参数出现 non-json-selizable
+    const attrsCT = {} as Record<string, string | number>;
+    for (const [key, value] of Object.entries(attrs)) {
+      if (key === "native") continue;
+      if (typeof value === "string" || typeof value === "number") {
+        // 数字不是标准的 attribute value type, 但常见于实际使用
+        attrsCT[key] = value;
+      } else {
+        // property setter for non attribute (e.g. Function, Symbol, boolean, etc)
+        // Function, Symbol 无法跨环境
+        (el as any)[key] = value;
+      }
+    }
+
+    // 设置 id1 -> el
+    dispatchMyEvent(ctReceiveFlag, { cancelable: true, movementX: id1, relatedTarget: el });
+
+    // 设置 id2 -> parentNode
+    dispatchMyEvent(ctReceiveFlag, { cancelable: true, movementX: id2, relatedTarget: sParentNode });
+
+    // 执行 attrsCT 设置并 appendChild
+
+    if (refNode) {
+      id3 = randInt + 3;
+      // 设置 id3 -> parentNode
+      dispatchMyEvent(ctReceiveFlag, { cancelable: true, movementX: id3, relatedTarget: refNode });
+    }
+
+    dispatchMyEvent(ctReceiveFlag, {
+      cancelable: true,
+      appendOrInsert: true,
+      id1: id1,
+      id2: id2,
+      id3: id3,
+      attrs: attrsCT,
+    });
+
+    // 回传元素
+    return el;
   }
 
   @GMContext.API({ depend: ["GM_addElement"] })

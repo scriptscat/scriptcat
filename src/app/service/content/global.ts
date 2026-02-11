@@ -7,6 +7,8 @@ export const Native = {
   structuredClone: typeof structuredClone === "function" ? structuredClone : unsupportedAPI,
   jsonStringify: JSON.stringify.bind(JSON),
   jsonParse: JSON.parse.bind(JSON),
+  createElement: Document.prototype.createElement,
+  ownFragment: new DocumentFragment(),
 } as const;
 
 export const customClone = (o: any) => {
