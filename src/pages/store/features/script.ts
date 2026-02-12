@@ -85,8 +85,7 @@ export type ScriptLoading = Script & {
 };
 
 export const sortScript = async (data: { before: string[]; after: string[] }) => {
-  return await Promise.resolve().then(() => scriptClient.sortScript(data)); // 先优先让本地更新，避免 subscribe 的更新冲突
-  // return await scriptClient.sortScript(data);
+  return await scriptClient.sortScript(data);
 };
 
 export const pinToTop = async (uuids: string[]) => {

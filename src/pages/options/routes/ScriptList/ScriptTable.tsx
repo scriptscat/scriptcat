@@ -796,16 +796,13 @@ const ScriptTable = ({
     [sensors, sortableIds, handleDragEnd, a11y]
   );
 
-  // handleRowSelectionChange 没有依存也不放进元件，只需要在第一次放进 rowSelection的 memo
-  const handleRowSelectionChange = (keys: any[], selectedRows: ListType[]) => {
-    setSelect(selectedRows);
-    setShowAction(keys.length > 0);
-  };
-
   const rowSelection = useMemo(
     () => ({
       type: "checkbox" as const,
-      onChange: handleRowSelectionChange,
+      onChange: (keys: any[], selectedRows: ListType[]) => {
+        setSelect(selectedRows);
+        setShowAction(keys.length > 0);
+      },
     }),
     []
   );
