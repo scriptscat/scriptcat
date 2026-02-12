@@ -62,7 +62,7 @@ const execEnvInit = (execEnv: GM_Base) => {
 // 暂不考虑 Object.getOwnPropertyNames(GM_Base.prototype) 和 ts-morph 脚本生成
 export class GM_Base implements IGM_Base {
   @GMContext.protected()
-  protected runFlag!: string;
+  public runFlag!: string;
 
   @GMContext.protected()
   public prefix!: string;
@@ -220,6 +220,7 @@ export const createGMApis = (gtx: GM_Base, scriptGrants: Set<string>) => {
     invalid = true;
     gtx.valueChangeListener?.clear();
     gtx.EE?.removeAllListeners();
+    gtx.runFlag = `${gtx.runFlag}(invalid)`; // 防止 runFlag 相关操作
     // 释放记忆
     gtx.message = null;
     gtx.scriptRes = null;
