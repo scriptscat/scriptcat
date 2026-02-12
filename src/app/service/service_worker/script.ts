@@ -394,6 +394,13 @@ export class ScriptService {
       // 执行更新逻辑
       update = true;
       script.selfMetadata = oldScript.selfMetadata;
+      // 如果已安装的脚本是由 Subscribe 安装，即使是手动更新也不会影响跟 Subscribe 关联
+      if (oldScript.subscribeUrl && oldScript.origin) {
+        // origin 和 subscribeUrl 保持不变
+        // @downloadURL @updateURL 随脚本最新代码而更新
+        script.origin = oldScript.origin;
+        script.subscribeUrl = oldScript.subscribeUrl;
+      }
     }
     if (script.ignoreVersion) script.ignoreVersion = "";
     if (createtime) {
