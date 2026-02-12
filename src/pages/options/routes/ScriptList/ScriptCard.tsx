@@ -27,7 +27,6 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { rectSwappingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useAppContext } from "@App/pages/store/AppContext";
 import { type SearchFilterRequest } from "./SearchFilter";
 import type { SearchType } from "@App/app/service/service_worker/types";
 
@@ -410,28 +409,7 @@ const ScriptCard = ({
   handleRunStop,
 }: ScriptCardProps) => {
   const { t } = useTranslation();
-  const { guideMode } = useAppContext();
 
-  // 如果是引导模式，且没有脚本，则创建一条演示数据
-  const list = useMemo(
-    () =>
-      guideMode && scriptList.length === 0
-        ? [
-            {
-              uuid: "demo-uuid-1234",
-              name: "Demo Script",
-              namespace: "demo",
-              sort: 0,
-              createtime: Date.now(),
-              checktime: Date.now(),
-              metadata: {},
-              type: SCRIPT_TYPE_NORMAL,
-              favorite: [{ match: "Example", icon: "", website: "https://example.com" }],
-            } as ScriptLoading,
-          ]
-        : scriptList,
-    [guideMode, scriptList]
-  );
   // Sensors — move them here (or even higher in parent) so they're stable
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -443,7 +421,7 @@ const ScriptCard = ({
   );
 
   // 故意生成一个字串 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
-  const sortableIdsString = list?.map((s) => s.uuid).join(",") || "";
+  const sortableIdsString = scriptList?.map((s) => s.uuid).join(",") || "";
 
   // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
   // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
@@ -529,7 +507,7 @@ const ScriptCard = ({
           padding: "16px",
         }}
       >
-        {list.length === 0 ? (
+        {scriptList.length === 0 ? (
           loadingList ? (
             <div
               style={{
@@ -566,7 +544,7 @@ const ScriptCard = ({
                   gap: "16px",
                 }}
               >
-                {list.map((item) => (
+                {scriptList.map((item) => (
                   <ScriptCardItem
                     key={item.uuid}
                     item={item}
