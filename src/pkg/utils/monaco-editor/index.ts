@@ -11,7 +11,7 @@ interface ILinterWorker extends Worker {
 }
 
 // 注册 eslint worker（全局单例）
-const linterWorkerDefered = deferred<ILinterWorker>();
+const linterWorkerDeferred = deferred<ILinterWorker>();
 const langPromise = systemConfig.getLanguage();
 
 let multiLang = asEditorLangEntry("en-US");
@@ -30,22 +30,22 @@ systemConfig.addListener("language", (lang) => {
 
 export class LinterWorkerController {
   static sendLinterMessage(data: unknown) {
-    linterWorkerDefered.promise.then((linterWorker) => {
+    linterWorkerDeferred.promise.then((linterWorker) => {
       linterWorker.postMessage(data);
     });
   }
   static hookAddListener(event: string, fn: (...args: any[]) => void) {
-    linterWorkerDefered.promise.then((linterWorker) => {
+    linterWorkerDeferred.promise.then((linterWorker) => {
       linterWorker.myLinterHook.addListener(event, fn);
     });
   }
   static hookRemoveListener(event: string, fn: (...args: any[]) => void) {
-    linterWorkerDefered.promise.then((linterWorker) => {
+    linterWorkerDeferred.promise.then((linterWorker) => {
       linterWorker.myLinterHook.removeListener(event, fn);
     });
   }
   static hookEmit(event: string, data: any) {
-    linterWorkerDefered.promise.then((linterWorker) => {
+    linterWorkerDeferred.promise.then((linterWorker) => {
       linterWorker.myLinterHook.emit(event, data);
     });
   }
@@ -65,7 +65,7 @@ export function registerEditor() {
   // 单一Monaco环境（页面）只有一个 linterWorker
   // SW 重启后仍使用原有的 linterWorker 和 MonacoEnvironment
   if ((window.MonacoEnvironment as any)?.myLinterWorker) {
-    linterWorkerDefered.resolve((window.MonacoEnvironment as any)?.myLinterWorker);
+    linterWorkerDeferred.resolve((window.MonacoEnvironment as any)?.myLinterWorker);
     return;
   }
 
@@ -92,7 +92,7 @@ export function registerEditor() {
     eslintFixMap: new Map(),
   });
 
-  linterWorkerDefered.resolve(linterWorker);
+  linterWorkerDeferred.resolve(linterWorker);
 
   const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
 
