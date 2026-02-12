@@ -32,3 +32,5 @@ tailwind.config.js
 
 package-lock.json
 yarn.lock
+
+.claude/settings.local.json

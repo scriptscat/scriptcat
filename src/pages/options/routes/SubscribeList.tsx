@@ -158,7 +158,7 @@ function SubscribeList() {
       align: "center",
       key: "version",
       render(col, item: Subscribe) {
-        return item.metadata.version && item.metadata.version[0];
+        return item.metadata.version?.[0] || "0.0";
       },
     },
     {

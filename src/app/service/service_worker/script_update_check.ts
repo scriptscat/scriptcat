@@ -32,7 +32,8 @@ class ScriptUpdateCheck {
     if (!list) return [] as string[];
     const s = new Set<string>();
     for (const entry of list) {
-      if (entry.script?.ignoreVersion === entry.newMeta?.version?.[0]) continue;
+      const newVersion = entry.newMeta?.version?.[0];
+      if (typeof newVersion === "string" && entry.script?.ignoreVersion === newVersion) continue;
       if (entry.script?.status !== 1) continue;
       if (!entry.script?.checkUpdate) continue;
       if (!entry.sites) continue;
