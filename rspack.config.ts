@@ -1,8 +1,6 @@
 import * as path from "path";
-import { defineConfig } from "@rspack/cli";
-import { rspack } from "@rspack/core";
+import { rspack, NormalModule, type Configuration } from "@rspack/core";
 import { readFileSync } from "fs";
-import { NormalModule } from "@rspack/core";
 import { v4 as uuidv4 } from "uuid";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
@@ -11,6 +9,7 @@ const version = pkg.version;
 const dirname = path.resolve();
 const isDev = process.env.NODE_ENV === "development";
 const isBeta = version.includes("-");
+const isReactTools = process.env.REACT_DEVTOOLS === "true";
 
 // Target browsers, see: https://github.com/browserslist/browserslist
 // 依照 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
@@ -31,7 +30,7 @@ const chunkExcludeSet = new Set([
   "scripting",
 ]);
 
-export default defineConfig({
+export default {
   ...(isDev
     ? {
         watch: true,
@@ -42,6 +41,10 @@ export default defineConfig({
         mode: "production",
         devtool: false,
       }),
+  node: {
+    __filename: false, // This disables the warning and the mocking
+    __dirname: false,
+  },
   context: dirname,
   entry: {
     service_worker: `${src}/service_worker.ts`,
@@ -133,10 +136,14 @@ export default defineConfig({
           to: `${dist}/ext`,
           // 将manifest.json内版本号替换为package.json中版本号
           transform(content: Buffer) {
-            const manifest = JSON.parse(content.toString());
+            const manifest = JSON.parse(content.toString()) as chrome.runtime.ManifestV3;
             if (isDev || isBeta) {
               manifest.name = "__MSG_scriptcat_beta__";
-              // manifest.content_security_policy = "script-src 'self' https://cdn.crowdin.com; object-src 'self'";
+            }
+            if (isReactTools) {
+              manifest.content_security_policy = {
+                extension_pages: "script-src 'self' http://localhost:8097; object-src 'self'",
+              };
             }
             return JSON.stringify(manifest);
           },
@@ -191,6 +198,9 @@ export default defineConfig({
       chunks: ["import"],
     }),
     new rspack.HtmlRspackPlugin({
+      templateParameters: {
+        isReactTools: isReactTools ? "true" : "false",
+      },
       filename: `${dist}/ext/src/options.html`,
       template: `${src}/pages/options.html`,
       inject: "head",
@@ -223,7 +233,6 @@ export default defineConfig({
   ].filter(Boolean),
   experiments: {
     css: true,
-    parallelCodeSplitting: true,
     parallelLoader: true,
   },
   optimization: {
@@ -341,4 +350,4 @@ export default defineConfig({
       },
     },
   },
-});
+} satisfies Configuration;

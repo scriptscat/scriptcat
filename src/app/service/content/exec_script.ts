@@ -74,12 +74,12 @@ export default class ExecScript {
    * @see {@link compileScriptCode}
    * @returns
    */
-  exec() {
+  public readonly exec = () => {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
     this.execContext = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
     return this.scriptFunc.call(this.execContext, this.named, this.scriptRes.name);
-  }
+  };
 
   // 早期启动的脚本，处理GM API
   updateEarlyScriptGMInfo(envInfo: GMInfoEnv) {
