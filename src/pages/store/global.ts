@@ -10,10 +10,10 @@ export const globalCache = new Map<string, any>();
 export const message = new ExtensionMessage();
 export const systemClient = new SystemClient(message);
 
-export const subscribeMessage = <T>(topic: string, handler: (msg: T) => void) => {
+export const subscribeMessage = <T extends object>(topic: string, handler: (msg: T) => void) => {
   return messageQueue.subscribe<T & { myMessage?: T }>(topic, (data) => {
     const message = data?.myMessage || data;
-    if (typeof message === "object") {
+    if (message && typeof message === "object") {
       handler(message as T);
     }
   });
