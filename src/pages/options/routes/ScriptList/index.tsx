@@ -151,7 +151,7 @@ function ScriptList() {
 
   const scriptListSortOrderMove = useCallback(
     ({ active, over }: { active: string; over: string }) => {
-      setScriptList((prev) => {
+      setFilterScriptList((prev) => {
         const before = prev.map((s) => s.uuid);
         const oldIdx = before.findIndex((id) => id === active);
         const newIdx = before.findIndex((id) => id === over);
@@ -165,12 +165,12 @@ function ScriptList() {
         return prev;
       });
     },
-    [setScriptList]
+    [setFilterScriptList]
   );
 
   const scriptListSortOrderSwap = useCallback(
     ({ active, over }: { active: string; over: string }) => {
-      setScriptList((prev) => {
+      setFilterScriptList((prev) => {
         const before = prev.map((s) => s.uuid);
         const oldIdx = before.findIndex((id) => id === active);
         const newIdx = before.findIndex((id) => id === over);
@@ -184,7 +184,7 @@ function ScriptList() {
         return prev;
       });
     },
-    [setScriptList]
+    [setFilterScriptList]
   );
 
   // 6. 执行过滤逻辑
