@@ -134,9 +134,12 @@ export function registerEditor() {
         const code = typeof val.code === "string" ? val.code : val.code!.value;
 
         // 1. eslint-fix
-        const fix = eslintFixMap?.get(
-          `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
-        );
+        // 为避免多个 model / 编辑器实例间的 key 冲突，优先使用包含 model.uri 的作用域 key；
+        // 为保持向后兼容，若找不到则回退到旧的无作用域 key。
+        const baseKey = `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`;
+        const modelKey = model.uri.toString();
+        const scopedKey = `${modelKey}|${baseKey}`;
+        const fix = eslintFixMap?.get(scopedKey) ?? eslintFixMap?.get(baseKey);
         if (fix) {
           actions.push({
             title: multiLang.quickfix.replace("{0}", code),
