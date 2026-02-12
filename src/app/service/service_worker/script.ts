@@ -1133,7 +1133,6 @@ export class ScriptService {
   }
 
   requestCheckUpdate(uuid: string) {
-    // src/pages/options/routes/ScriptList.tsx
     return this.checkUpdateAvailable(uuid).then((script) => {
       if (script) {
         // 如有更新则打开更新画面进行更新
@@ -1142,56 +1141,11 @@ export class ScriptService {
       }
       return false;
     });
-
-    // 没有空值 case
-    /*
-    if (uuid) {
-      return this.checkUpdateAvailable(uuid).then((script) => {
-        if (script) {
-          // 如有更新则打开更新画面进行更新
-          this.openUpdatePage(script, "user");
-          return true;
-        }
-        return false;
-      });
-    } else {
-      // 批量检查更新
-      InfoNotification("检查更新", "正在检查所有的脚本更新");
-      this.scriptDAO
-        .all()
-        .then(async (scripts) => {
-          // 检查是否有更新
-          const results = await this.checkUpdatesAvailable(
-            scripts.map((script) => script.uuid),
-            {
-              MIN_DELAY: 300,
-              MAX_DELAY: 800,
-            }
-          );
-          return Promise.all(
-            scripts.map((script, i) => {
-              const result = results[i];
-              if (result) {
-                // 如有更新则打开更新画面进行更新
-                this.openUpdatePage(script, "user");
-              }
-            })
-          );
-        })
-        .then(() => {
-          InfoNotification("检查更新", "所有脚本检查完成");
-        });
-      return Promise.resolve(true); // 无视检查结果，立即回传true
-    }
-    */
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
     // 用於 window.external
-      console.error(1237, name, namespace);
     return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
-      console.log(1238, name, namespace, script);
-      console.error(1239, name, namespace, script);
       if (script) {
         return {
           installed: true,
