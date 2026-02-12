@@ -420,7 +420,7 @@ const ScriptCard = ({
     })
   );
 
-  // 故意生成一个字串 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
+  // 基于 scriptList 的 uuid 生成稳定字串，避免因 scriptList 引用频繁变动导致 ctx 内部 sortableIds 参考出现非预期更改。
   const sortableIdsString = scriptList?.map((s) => s.uuid).join(",") || "";
 
   // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
