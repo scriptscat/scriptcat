@@ -60,7 +60,7 @@ export const MemoizedAvatar = React.memo(
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
 export const SourceCell = React.memo(
-  ({ item, t }: { item: ScriptLoading; t: any }) => {
+  ({ item, t }: { item: ScriptLoading; t: ReturnType<typeof useTranslation>[0] }) => {
     if (item.subscribeUrl) {
       return (
         <Tooltip
