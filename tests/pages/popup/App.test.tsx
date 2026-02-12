@@ -60,6 +60,7 @@ vi.mock("@App/pages/store/global", () => ({
     error: vi.fn(),
     warning: vi.fn(),
   },
+  subscribeMessage: () => vi.fn(),
 }));
 
 vi.mock("@App/pkg/utils/utils", () => ({
