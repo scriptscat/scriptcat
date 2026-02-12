@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { parseMetadata } from "./script";
+import { parseMetadata, parseScriptFromCode } from "./script";
 import { getMetadataStr, getUserConfigStr } from "./utils";
 import { parseUserConfig } from "./yaml";
+import {
+  SCRIPT_TYPE_NORMAL,
+  SCRIPT_TYPE_CRONTAB,
+  SCRIPT_TYPE_BACKGROUND,
+  SCRIPT_STATUS_DISABLE,
+  SCRIPT_RUN_STATUS_COMPLETE,
+} from "@App/app/repo/scripts";
 
 describe.concurrent("parseMetadata", () => {
   it.concurrent("解析标准UserScript元数据", () => {
@@ -142,7 +149,6 @@ console.log('Hello World');
     expect(result?.description).toEqual([""]);
     expect(result?.author).toEqual([""]);
   });
-
 
   it.concurrent("解析包含空值的元数据(2)", () => {
     const code = `
@@ -970,5 +976,166 @@ console.log('Hello World');
 `;
 
     expect(() => parseUserConfig(code)).toThrow('UserConfig group "name" is not a valid object.');
+  });
+});
+
+describe.concurrent("parseScriptFromCode", () => {
+  const normalCode = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @description  这是一个测试脚本
+// @author       测试作者
+// @match        https://example.com/*
+// @grant        none
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+  it.concurrent("解析普通脚本基本信息", () => {
+    const origin = "https://example.com/test.user.js";
+    const script = parseScriptFromCode(normalCode, origin);
+
+    expect(script.name).toBe("测试脚本");
+    expect(script.namespace).toBe("http://tampermonkey.net/");
+    expect(script.author).toBe("测试作者");
+    expect(script.type).toBe(SCRIPT_TYPE_NORMAL);
+    expect(script.status).toBe(SCRIPT_STATUS_DISABLE);
+    expect(script.runStatus).toBe(SCRIPT_RUN_STATUS_COMPLETE);
+    expect(script.origin).toBe(origin);
+    expect(script.originDomain).toBe("example.com");
+    expect(script.metadata.version).toEqual(["1.0.0"]);
+    expect(script.selfMetadata).toEqual({});
+    expect(script.sort).toBe(-1);
+    expect(script.checkUpdate).toBe(true);
+  });
+
+  it.concurrent("使用指定的uuid", () => {
+    const script = parseScriptFromCode(normalCode, "https://example.com/test.user.js", "custom-uuid-123");
+    expect(script.uuid).toBe("custom-uuid-123");
+  });
+
+  it.concurrent("未指定uuid时自动生成", () => {
+    const script = parseScriptFromCode(normalCode, "https://example.com/test.user.js");
+    expect(script.uuid).toBeTruthy();
+    expect(script.uuid.length).toBeGreaterThan(0);
+  });
+
+  it.concurrent("从origin解析checkUpdateUrl和downloadUrl", () => {
+    const origin = "https://example.com/test.user.js";
+    const script = parseScriptFromCode(normalCode, origin);
+
+    expect(script.checkUpdateUrl).toBe("https://example.com/test.meta.js");
+    expect(script.downloadUrl).toBe(origin);
+  });
+
+  it.concurrent("使用metadata中的updateurl和downloadurl", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @author       test
+// @match        *://*/*
+// @updateURL    https://cdn.example.com/test.meta.js
+// @downloadURL  https://cdn.example.com/test.user.js
+// @grant        none
+// ==/UserScript==
+`;
+    const script = parseScriptFromCode(code, "https://example.com/test.user.js");
+    expect(script.checkUpdateUrl).toBe("https://cdn.example.com/test.meta.js");
+    expect(script.downloadUrl).toBe("https://cdn.example.com/test.user.js");
+  });
+
+  it.concurrent("解析crontab类型脚本", () => {
+    const code = `
+// ==UserScript==
+// @name         定时脚本
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @author       test
+// @crontab      * * * * *
+// @grant        none
+// ==/UserScript==
+`;
+    const script = parseScriptFromCode(code, "https://example.com/test.user.js");
+    expect(script.type).toBe(SCRIPT_TYPE_CRONTAB);
+  });
+
+  it.concurrent("解析background类型脚本", () => {
+    const code = `
+// ==UserScript==
+// @name         后台脚本
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @author       test
+// @background
+// @grant        none
+// ==/UserScript==
+`;
+    const script = parseScriptFromCode(code, "https://example.com/test.user.js");
+    expect(script.type).toBe(SCRIPT_TYPE_BACKGROUND);
+  });
+
+  it.concurrent("非http origin不设置domain", () => {
+    const script = parseScriptFromCode(normalCode, "file:///tmp/test.user.js");
+    expect(script.originDomain).toBe("");
+  });
+
+  it.concurrent("可接受空白namespace", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @version      1.0.0
+// @match        *://*/*
+// @grant        none
+// ==/UserScript==
+`;
+    const script = parseScriptFromCode(code, "https://example.com/test.user.js");
+    expect(script.namespace).toBe("");
+  });
+
+  it.concurrent("可接受空白version", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        *://*/*
+// @grant        none
+// ==/UserScript==
+`;
+    const script = parseScriptFromCode(code, "https://example.com/test.user.js");
+    expect(script.metadata.version).toEqual(undefined);
+  });
+
+  it.concurrent("无效metadata应抛出错误", () => {
+    expect(() => parseScriptFromCode("invalid code", "https://example.com/test.user.js")).toThrow();
+  });
+
+  it.concurrent("空白name应抛出错误", () => {
+    const code = `
+// ==UserScript==
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @match        *://*/*
+// @grant        none
+// ==/UserScript==
+`;
+    expect(() => parseScriptFromCode(code, "https://example.com/test.user.js")).toThrow();
+  });
+
+  it.concurrent("无效crontab表达式应抛出错误", () => {
+    const code = `
+// ==UserScript==
+// @name         定时脚本
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @crontab      invalid_cron
+// @grant        none
+// ==/UserScript==
+`;
+    expect(() => parseScriptFromCode(code, "https://example.com/test.user.js")).toThrow();
   });
 });
