@@ -36,6 +36,7 @@ import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 
 import { type TSelectFilter, useScriptDataManagement, useScriptFilters } from "./hooks";
+import { useAppContext } from "@App/pages/store/AppContext";
 
 type TableProps = React.ComponentProps<typeof ScriptTable>;
 type CardProps = React.ComponentProps<typeof ScriptCard>;
@@ -51,12 +52,28 @@ const MainContent = memo(({ viewMode, ...props }: { viewMode: "table" | "card" }
 
 MainContent.displayName = "MainContent";
 
+// 一条演示数据
+const guideModeScriptList = [
+  {
+    uuid: "demo-uuid-1234",
+    name: "Demo Script",
+    namespace: "demo",
+    sort: 0,
+    createtime: Date.now(),
+    checktime: Date.now(),
+    metadata: {},
+    type: SCRIPT_TYPE_NORMAL,
+    favorite: [{ match: "Example", icon: "", website: "https://example.com" }],
+  } as ScriptLoading,
+];
+
 /**
  * 主组件
  */
 function ScriptList() {
   const { t } = useTranslation();
   const [usp] = useSearchParams();
+  const { guideMode } = useAppContext();
 
   // 1. 基础 UI 状态
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("script-list-sidebar") === "1");
@@ -190,7 +207,11 @@ function ScriptList() {
   // 6. 执行过滤逻辑
   useEffect(() => {
     const { status, type, tags, source } = selectedFilters;
-    const list = scriptList.filter((s) => {
+
+    // 如果是引导模式，且没有脚本，则使用演示数据
+    const targetList = guideMode && scriptList.length === 0 ? guideModeScriptList : scriptList;
+
+    const list = targetList.filter((s) => {
       if (status !== null) {
         if (status === SCRIPT_STATUS_ENABLE || status === SCRIPT_STATUS_DISABLE) {
           if (s.status !== status) return false;
@@ -221,7 +242,7 @@ function ScriptList() {
     return () => {
       enableKeywordSearch = false;
     };
-  }, [scriptList, selectedFilters, stats, searchRequest]);
+  }, [guideMode, scriptList, selectedFilters, stats, searchRequest]);
 
   // 处理 URL 传参打开配置
   useEffect(() => {
