@@ -275,6 +275,10 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
       LinterWorkerController.hookAddListener("message", messageHandler);
 
       return () => {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
         changeListener.dispose();
         LinterWorkerController.hookRemoveListener("message", messageHandler);
       };
