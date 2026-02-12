@@ -896,7 +896,7 @@ export class ScriptService {
 
   shouldIgnoreUpdate(script: Script, newMeta: Partial<Record<string, string[]>> | null) {
     const newVersion = newMeta?.version?.[0];
-    return typeof newVersion === "string" && script.ignoreVersion === newMeta?.version?.[0];
+    return typeof newVersion === "string" && script.ignoreVersion === newVersion;
   }
 
   // 用于定时自动检查脚本更新
