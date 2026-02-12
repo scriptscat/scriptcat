@@ -3,7 +3,7 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
-import { addStyleSheet, definePropertyListener } from "./utils";
+import { addStyleSheet, definePropertyListener, waitBody } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
@@ -132,8 +132,8 @@ export class ScriptExecutor {
   execScriptEntry(scriptEntry: ExecScriptEntry) {
     const { scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
 
-    const exec = new ExecScript(scriptLoadInfo, "scripting", this.msg, scriptFunc, envInfo);
-    this.execScriptMap.set(scriptLoadInfo.uuid, exec);
+    const execScript = new ExecScript(scriptLoadInfo, "scripting", this.msg, scriptFunc, envInfo);
+    this.execScriptMap.set(scriptLoadInfo.uuid, execScript);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.resource;
     // 注入css
@@ -147,32 +147,13 @@ export class ScriptExecutor {
     }
     if (metadata["run-at"] && metadata["run-at"][0] === "document-body") {
       // 等待页面加载完成
-      this.waitBody(() => {
-        exec.exec();
-      });
+      waitBody(execScript.exec);
     } else {
       try {
-        exec.exec();
+        execScript.exec();
       } catch {
         // 屏蔽错误，防止脚本报错导致后续脚本无法执行
       }
     }
-  }
-
-  // 参考了tm的实现
-  waitBody(callback: () => void) {
-    if (document.body) {
-      callback();
-      return;
-    }
-    const listen = () => {
-      document.removeEventListener("load", listen, false);
-      document.removeEventListener("DOMNodeInserted", listen, false);
-      document.removeEventListener("DOMContentLoaded", listen, false);
-      this.waitBody(callback);
-    };
-    document.addEventListener("load", listen, false);
-    document.addEventListener("DOMNodeInserted", listen, false);
-    document.addEventListener("DOMContentLoaded", listen, false);
   }
 }
