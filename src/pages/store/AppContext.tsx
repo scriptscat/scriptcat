@@ -1,6 +1,6 @@
 import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
 import { messageQueue } from "./global";
-import { HookManager } from "@App/pkg/utils/hookManger";
+import { HookManager } from "@App/pkg/utils/hookManager";
 import { subscribeMessage } from "@App/pages/store/global";
 
 export const fnPlaceHolder = {

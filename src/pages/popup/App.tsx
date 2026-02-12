@@ -25,7 +25,7 @@ import { getCurrentTab } from "@App/pkg/utils/utils";
 import { subscribeMessage } from "@App/pages/store/global";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
-import { HookManager } from "@App/pkg/utils/hookManger";
+import { HookManager } from "@App/pkg/utils/hookManager";
 
 const CollapseItem = Collapse.Item;
 

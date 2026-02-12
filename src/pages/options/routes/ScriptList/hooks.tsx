@@ -39,7 +39,7 @@ import type {
 } from "@App/app/service/queue";
 import { type useTranslation } from "react-i18next";
 import { subscribeMessage } from "@App/pages/store/global";
-import { HookManager } from "@App/pkg/utils/hookManger";
+import { HookManager } from "@App/pkg/utils/hookManager";
 
 export type TFilterKey = null | string | number;
 

@@ -19,7 +19,7 @@ import { type TKeyValue } from "@Packages/message/message_queue";
 import { useEffect, useMemo } from "react";
 import { systemConfig } from "@App/pages/store/global";
 import { initRegularUpdateCheck } from "@App/app/service/service_worker/regular_updatecheck";
-import { HookManager } from "@App/pkg/utils/hookManger";
+import { HookManager } from "@App/pkg/utils/hookManager";
 
 function Setting() {
   const [editorConfig, setEditorConfig, submitEditorConfig] = useSystemConfig("editor_config");
