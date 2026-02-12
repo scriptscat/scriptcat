@@ -13,7 +13,6 @@ import { loadScriptFavicons } from "@App/pages/store/favicons";
 import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { cacheInstance } from "@App/app/cache";
-import { useAppContext } from "@App/pages/store/AppContext";
 
 // 组件与工具
 import { type SearchFilterRequest } from "./SearchFilter";
@@ -39,6 +38,8 @@ import type {
   TSortedScript,
 } from "@App/app/service/queue";
 import { type useTranslation } from "react-i18next";
+import { subscribeMessage } from "@App/pages/store/global";
+import { HookManager } from "@App/pkg/utils/hookManager";
 
 export type TFilterKey = null | string | number;
 
@@ -64,7 +65,6 @@ export type TSelectFilterKeys = keyof TSelectFilter;
 export function useScriptDataManagement() {
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(true);
-  const { subscribeMessage } = useAppContext();
 
   // 初始化列表与 Favicon 加载
   useEffect(() => {
@@ -188,18 +188,16 @@ export function useScriptDataManagement() {
       },
     } as const;
 
-    const unhooks = [
+    const hookMgr = new HookManager();
+    hookMgr.append(
       subscribeMessage<TScriptRunStatus>("scriptRunStatus", pageApi.scriptRunStatus),
       subscribeMessage<TInstallScript>("installScript", pageApi.installScript),
       subscribeMessage<TDeleteScript[]>("deleteScripts", pageApi.deleteScripts),
       subscribeMessage<TEnableScript[]>("enableScripts", pageApi.enableScripts),
-      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts),
-    ];
-    return () => {
-      for (const unhook of unhooks) unhook();
-      unhooks.length = 0;
-    };
-  }, [subscribeMessage]);
+      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts)
+    );
+    return hookMgr.unhook;
+  }, []);
 
   return { scriptList, setScriptList, loadingList };
 }
