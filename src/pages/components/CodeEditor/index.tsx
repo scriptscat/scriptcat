@@ -23,7 +23,7 @@ type TMarker = {
   fix: any;
 } & Record<string, any>;
 
-type TFormattedMakrer = {
+type TFormattedMarker = {
   startLineNumber: number;
   endLineNumber: number;
   severity: number;
@@ -264,7 +264,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         }
 
         // 顯示 glyph 圖示 (在行号旁显示ESLint错误/警告图标)
-        const formatted = message.markers.map((m: TFormattedMakrer) => ({
+        const formatted = message.markers.map((m: TFormattedMarker) => ({
           startLineNumber: m.startLineNumber,
           endLineNumber: m.endLineNumber,
           severity: m.severity,
