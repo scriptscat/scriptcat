@@ -846,7 +846,7 @@ export class RuntimeService {
     // 注意：Chrome 不支持 file.js?query
     retContent = [
       {
-        id: "scriptcat-content",
+        id: "scriptcat-scripting",
         js: ["/src/scripting.js"],
         matches: ["<all_urls>"],
         allFrames: true,

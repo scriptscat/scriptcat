@@ -190,15 +190,8 @@ export class SubscribeService {
         logger.error("parse metadata failed");
         return false;
       }
-      const newVersion = metadata.version && metadata.version[0];
-      if (!newVersion) {
-        logger.error("parse version failed", { version: metadata.version });
-        return false;
-      }
-      let oldVersion = subscribe.metadata.version && subscribe.metadata.version[0];
-      if (!oldVersion) {
-        oldVersion = "0.0.0";
-      }
+      const newVersion = metadata.version?.[0] || "0.0";
+      const oldVersion = subscribe.metadata.version?.[0] || "0.0";
       // 对比版本大小
       if (ltever(newVersion, oldVersion)) {
         return false;

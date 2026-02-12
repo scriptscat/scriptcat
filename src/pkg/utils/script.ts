@@ -62,19 +62,8 @@ export async function fetchScriptBody(url: string): Promise<string> {
   return body;
 }
 
-// 通过代码解析出脚本信息 (Script)
-export async function prepareScriptByCode(
-  code: string,
-  origin: string,
-  uuid?: string,
-  override: boolean = false,
-  dao?: ScriptDAO,
-  options?: {
-    byEditor?: boolean; // 是否通过编辑器导入
-    byWebRequest?: boolean; // 是否通过網頁連結安裝或更新
-  }
-): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
-  dao = dao ?? new ScriptDAO();
+// 通过代码解析出脚本基本信息 (不含数据库查询)
+export function parseScriptFromCode(code: string, origin: string, uuid?: string): Script {
   const metadata = parseMetadata(code);
   if (!metadata) {
     throw new Error(i18n_t("error_metadata_invalid"));
@@ -83,14 +72,11 @@ export async function prepareScriptByCode(
   if (!metadata.name?.[0]) {
     throw new Error(i18n_t("error_script_name_required"));
   }
-  // 不接受空白version
-  if (!metadata.version?.[0]) {
-    throw new Error(i18n_t("error_script_version_required"));
-  }
   // 可接受空白namespace
   if (metadata.namespace === undefined) {
     throw new Error(i18n_t("error_script_namespace_required"));
   }
+  // 可接受空白version
   let type = SCRIPT_TYPE_NORMAL;
   if (metadata.crontab !== undefined) {
     type = SCRIPT_TYPE_CRONTAB;
@@ -118,7 +104,7 @@ export async function prepareScriptByCode(
   const newUUID = uuid || uuidv4();
   const config: UserConfig | undefined = parseUserConfig(code);
   const now = Date.now();
-  const script: Script = {
+  return {
     uuid: newUUID,
     name: metadata.name[0],
     author: metadata.author && metadata.author[0],
@@ -139,6 +125,22 @@ export async function prepareScriptByCode(
     updatetime: now,
     checktime: now,
   };
+}
+
+// 通过代码解析出脚本信息 (Script)
+export async function prepareScriptByCode(
+  code: string,
+  origin: string,
+  uuid?: string,
+  override: boolean = false,
+  dao?: ScriptDAO,
+  options?: {
+    byEditor?: boolean; // 是否通过编辑器导入
+    byWebRequest?: boolean; // 是否通过網頁連結安裝或更新
+  }
+): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
+  dao = dao ?? new ScriptDAO();
+  const script = parseScriptFromCode(code, origin, uuid);
   let old: Script | undefined;
   let oldCode: ScriptCode | undefined;
   if (uuid) {
@@ -209,7 +211,7 @@ export async function prepareScriptByCode(
     if (script.type === SCRIPT_TYPE_NORMAL) {
       script.status = SCRIPT_STATUS_ENABLE;
     }
-    script.checktime = now;
+    script.checktime = Date.now();
   }
   return { script, oldScript: old, oldScriptCode: oldCode?.code };
 }
