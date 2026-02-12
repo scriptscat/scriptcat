@@ -19,7 +19,7 @@ import {
   requestDeleteScripts,
   requestRunScript,
   requestStopScript,
-  sortScript as sortScriptDeferred,
+  sortScript,
 } from "@App/pages/store/features/script";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
@@ -158,7 +158,7 @@ function ScriptList() {
         if (oldIdx !== -1 && newIdx !== -1) {
           const next = arrayMove(prev, oldIdx, newIdx);
           const after = next.map((s) => s.uuid);
-          sortScriptDeferred({ before, after });
+          sortScript({ before, after });
           next.forEach((s, i) => (s.sort = i));
           return next;
         }
@@ -177,7 +177,7 @@ function ScriptList() {
         if (oldIdx !== -1 && newIdx !== -1) {
           const next = arraySwap(prev, oldIdx, newIdx);
           const after = next.map((s) => s.uuid);
-          sortScriptDeferred({ before, after });
+          sortScript({ before, after });
           next.forEach((s, i) => (s.sort = i));
           return next;
         }
