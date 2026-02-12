@@ -6,6 +6,7 @@ declare module "@App/app/types.d.ts";
 
 type Override<T, U> = Omit<T, keyof U> & U;
 type ValueOf<T> = T[keyof T];
+type ReactStateSetter<T> = (value: T | ((prev: T) => T)) => void;
 
 declare const sandbox: Window;
 
