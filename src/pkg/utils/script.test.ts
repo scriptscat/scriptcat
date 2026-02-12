@@ -30,6 +30,36 @@ console.log('Hello World');
     expect(result?.grant).toEqual(["none"]);
   });
 
+  it.concurrent("解析最少UserScript元数据", () => {
+    const code = `
+// ==UserScript==
+// @name         GM_addElement test
+// @match        *://*/*
+// @grant        GM_addElement
+// ==/UserScript==
+
+console.log('image insertion begin');
+
+await new Promise((resolve, reject) => {
+    GM_addElement(document.body, 'img', {
+        src: 'https://www.tampermonkey.net/favicon.ico',
+        onload: resolve,
+        onerror: reject
+    });
+
+    console.log('image insertion end');
+});
+
+console.log('image loaded'); // never fired
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["GM_addElement test"]);
+    expect(result?.match).toEqual(["*://*/*"]);
+    expect(result?.grant).toEqual(["GM_addElement"]);
+  });
+
   it.concurrent("解析@match *", () => {
     const code = `
 // ==UserScript==
@@ -91,7 +121,7 @@ console.log('Hello World');
     expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
   });
 
-  it.concurrent("解析包含空值的元数据", () => {
+  it.concurrent("解析包含空值的元数据 (1)", () => {
     const code = `
 // ==UserScript==
 // @name         测试脚本
@@ -111,6 +141,30 @@ console.log('Hello World');
     expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
     expect(result?.description).toEqual([""]);
     expect(result?.author).toEqual([""]);
+  });
+
+
+  it.concurrent("解析包含空值的元数据(2)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @version
+// @description  
+// @author       
+// @match        https://example.com/*
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+    expect(result?.version).toEqual([""]);
   });
 
   it.concurrent("解析元数据(分行1)", () => {
@@ -276,6 +330,41 @@ console.log('Hello World');
       "https://example.com/*",
     ]);
     expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("正確解析元数据(空version)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// @match        https://test.com/*
+// @match        https://demo.com/*
+// @description  
+// @early-start  
+// @author       
+// @match        https://example.com/*
+// @grant    
+    GM_setValue
+// @grant        GM_getValue
+// ==/UserScript==
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.["early-start"]).toEqual([""]);
+    expect(result?.grant).toEqual(["", "GM_getValue"]);
     expect(result?.description).toEqual([""]);
     expect(result?.author).toEqual([""]);
   });
