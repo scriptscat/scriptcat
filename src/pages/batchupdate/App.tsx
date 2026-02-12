@@ -90,7 +90,8 @@ function App() {
           site.push(entry);
           continue;
         }
-        const isIgnored = entry.script.ignoreVersion === entry.newMeta?.version?.[0];
+        const newVersion = entry.newMeta?.version?.[0];
+        const isIgnored = typeof newVersion === "string" && entry.script.ignoreVersion === newVersion;
         const mEntry = {
           ...entry,
         };
@@ -267,12 +268,13 @@ function App() {
                       <Link disabled={isDoingTask} onClick={() => onUpdateClick(item.uuid)}>
                         {t("updatepage.update")}
                       </Link>
-                      {item.script.ignoreVersion !== item.newMeta?.version?.[0] ? (
+                      {typeof item.newMeta?.version?.[0] === "string" &&
+                      item.script.ignoreVersion !== item.newMeta.version[0] ? (
                         <>
                           <Divider type="vertical" />
                           <Link
                             disabled={isDoingTask}
-                            onClick={() => onIgnoreClick(item.uuid, item.newMeta?.version?.[0])}
+                            onClick={() => onIgnoreClick(item.uuid, item.newMeta.version[0])}
                           >
                             {t("updatepage.ignore")}
                           </Link>
