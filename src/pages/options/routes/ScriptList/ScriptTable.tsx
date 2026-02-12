@@ -758,8 +758,8 @@ const ScriptTable = ({
     })
   );
 
-  // 故意生成一个字串 memo 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
-  const sortableIdsString = useMemo(() => scriptList?.map((s) => s.uuid).join(",") || "", [scriptList]);
+  // 故意生成一个字串 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
+  const sortableIdsString = scriptList?.map((s) => s.uuid).join(",") || "";
 
   // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
   // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
@@ -806,7 +806,8 @@ const ScriptTable = ({
       type: "checkbox" as const,
       onChange: handleRowSelectionChange,
     }),
-    [handleRowSelectionChange]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   return (
