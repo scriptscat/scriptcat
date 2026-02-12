@@ -5,11 +5,11 @@ export function calculateMd5(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsArrayBuffer(blob);
-    reader.onloadend = () => {
-      if (!reader.result) {
+    reader.onloadend = function () {
+      if (!this.result) {
         reject(new Error("result is null"));
       } else {
-        const result = calculateMD5FromArrayBuffer(<ArrayBuffer>reader.result);
+        const result = calculateMD5FromArrayBuffer(<ArrayBuffer>this.result);
         resolve(result);
       }
     };
