@@ -475,7 +475,7 @@ function App() {
 
     try {
       if (scriptInfo?.userSubscribe) {
-        await subscribeClient.install(upsertScript as Subscribe);
+        await subscribeClient.install(upsertScript as Subscribe); // 首次安装时，upsertScript 里的 scripts 为空物件
         Message.success(t("subscribe_success")!);
         setBtnText(t("subscribe_success")!);
       } else {

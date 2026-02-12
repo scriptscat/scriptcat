@@ -101,7 +101,7 @@ export type SubscribeMeta = {
 
 export type SubscribeOptionsFile = {
   settings: { enabled: boolean };
-  scripts: { [key: string]: SubscribeScript };
+  scripts: Record<string, SubscribeScript>;
   meta: SubscribeMeta;
 };
 
