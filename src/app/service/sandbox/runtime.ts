@@ -127,7 +127,44 @@ export class Runtime {
   }
 
   // 执行脚本
-  async execScript(script: ScriptLoadInfo, execOnce?: boolean) {
+  async execScript(
+    script: ScriptLoadInfo,
+    opts?: {
+      execOnce?: boolean;
+      cronJobOncePos?: number;
+    }
+  ) {
+    const execOnce = opts?.execOnce ?? false;
+    const cronJobOncePos = opts?.cronJobOncePos ?? 0;
+
+    if (cronJobOncePos >= 1) {
+      // 没有最后一次执行时间表示之前都没执行过,直接执行
+      if (script.lastruntime) {
+        const now = new Date();
+        const last = new Date(script.lastruntime);
+        // 根据once所在的位置去判断执行
+        const timeDiff = now.getTime() - last.getTime();
+        switch (cronJobOncePos) {
+          case 1: // 每分钟
+            if (timeDiff < 2 * utime_1min && last.getMinutes() === now.getMinutes()) return;
+            break;
+          case 2: // 每小时
+            if (timeDiff < 2 * utime_1hr && last.getHours() === now.getHours()) return;
+            break;
+          case 3: // 每天
+            if (timeDiff < 2 * utime_1day && last.getDay() === now.getDay()) return;
+            break;
+          case 4: // 每月
+            if (timeDiff < 62 * utime_1day && last.getMonth() === now.getMonth()) return;
+            break;
+          case 5: // 每周
+            if (timeDiff < 14 * utime_1day && getISOWeek(last) === getISOWeek(now)) return;
+            break;
+          default:
+        }
+      }
+    }
+
     const logger = this.logger.with({ uuid: script.uuid, name: script.name });
     if (this.execScriptMap.has(script.uuid)) {
       // 释放掉资源
@@ -224,39 +261,7 @@ export class Runtime {
   }
 
   crontabExec(script: ScriptLoadInfo, oncePos: number) {
-    if (oncePos >= 1) {
-      return () => {
-        // 没有最后一次执行时间表示之前都没执行过,直接执行
-        if (script.lastruntime) {
-          const now = new Date();
-          const last = new Date(script.lastruntime);
-          // 根据once所在的位置去判断执行
-          const timeDiff = now.getTime() - last.getTime();
-          switch (oncePos) {
-            case 1: // 每分钟
-              if (timeDiff < 2 * utime_1min && last.getMinutes() === now.getMinutes()) return;
-              break;
-            case 2: // 每小时
-              if (timeDiff < 2 * utime_1hr && last.getHours() === now.getHours()) return;
-              break;
-            case 3: // 每天
-              if (timeDiff < 2 * utime_1day && last.getDay() === now.getDay()) return;
-              break;
-            case 4: // 每月
-              if (timeDiff < 62 * utime_1day && last.getMonth() === now.getMonth()) return;
-              break;
-            case 5: // 每周
-              if (timeDiff < 14 * utime_1day && getISOWeek(last) === getISOWeek(now)) return;
-              break;
-            default:
-          }
-        }
-        this.execScript(script);
-      };
-    }
-    return () => {
-      this.execScript(script);
-    };
+    return this.execScript.bind(this, script, { cronJobOncePos: oncePos });
   }
 
   // 停止计时器
@@ -298,7 +303,7 @@ export class Runtime {
       userConfigStr,
       userConfig,
     } as ScriptLoadInfo;
-    return this.execScript(loadScript, true);
+    return this.execScript(loadScript, { execOnce: true });
   }
 
   valueUpdate(data: ValueUpdateDataEncoded) {

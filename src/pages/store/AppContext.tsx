@@ -1,5 +1,7 @@
 import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
 import { messageQueue } from "./global";
+import { HookManager } from "@App/pkg/utils/hookManager";
+import { subscribeMessage } from "@App/pages/store/global";
 
 export const fnPlaceHolder = {
   setEditorTheme: null,
@@ -9,7 +11,6 @@ export type ThemeParam = { theme: "auto" | "light" | "dark" };
 export interface AppContextType {
   colorThemeState: "auto" | "light" | "dark";
   updateColorTheme: (theme: "auto" | "light" | "dark") => void;
-  subscribeMessage: <T>(topic: string, handler: (msg: T) => void) => () => void;
   // 指引模式
   setGuideMode: (mode: boolean) => void;
   guideMode: boolean;
@@ -66,28 +67,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   });
   const [guideMode, setGuideMode] = useState(false);
 
-  const subscribeMessage = <T,>(topic: string, handler: (msg: T) => void) => {
-    return messageQueue.subscribe<T & { myMessage?: T }>(topic, (data) => {
-      const message = data?.myMessage || data;
-      if (typeof message === "object") {
-        handler(message as T);
-      }
-    });
-  };
-
   useEffect(() => {
     const pageApi = {
       onColorThemeUpdated({ theme }: ThemeParam) {
         setAppColorTheme(theme);
         setColorThemeState(theme);
       },
-    };
+    } as const;
 
-    const unhooks = [subscribeMessage<ThemeParam>("onColorThemeUpdated", pageApi.onColorThemeUpdated)];
-    return () => {
-      for (const unhook of unhooks) unhook();
-      unhooks.length = 0;
-    };
+    const hookMgr = new HookManager();
+    hookMgr.append(subscribeMessage<ThemeParam>("onColorThemeUpdated", pageApi.onColorThemeUpdated));
+
+    return hookMgr.unhook;
   }, []);
 
   const updateColorTheme = (theme: "auto" | "light" | "dark") => {
@@ -100,7 +91,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       value={{
         colorThemeState,
         updateColorTheme,
-        subscribeMessage,
         setGuideMode,
         guideMode,
       }}
