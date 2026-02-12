@@ -1,4 +1,4 @@
-import type { Script, UserConfig } from "@App/app/repo/scripts";
+import { useEffect, useMemo, useState } from "react";
 import {
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
@@ -8,30 +8,15 @@ import {
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
 } from "@App/app/repo/scripts";
-import type {
-  TScriptRunStatus,
-  TInstallScript,
-  TDeleteScript,
-  TEnableScript,
-  TSortedScript,
-} from "@App/app/service/queue";
-import { useAppContext } from "@App/pages/store/AppContext";
-import type { ScriptLoading } from "@App/pages/store/features/script";
-import {
-  fetchScript,
-  fetchScriptList,
-  sortScript,
-  requestDeleteScripts,
-  requestRunScript,
-  requestStopScript,
-} from "@App/pages/store/features/script";
+import { fetchScript, fetchScriptList } from "@App/pages/store/features/script";
 import { loadScriptFavicons } from "@App/pages/store/favicons";
-import { arrayMove } from "@dnd-kit/sortable";
-import type { Dispatch } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { hashColor } from "../utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
+import { cacheInstance } from "@App/app/cache";
+
+// 组件与工具
+import { type SearchFilterRequest } from "./SearchFilter";
+import { hashColor } from "../utils";
 import {
   IconCode,
   IconPlayArrow,
@@ -42,21 +27,46 @@ import {
   IconTags,
   IconLink,
 } from "@arco-design/web-react/icon";
-import { useTranslation } from "react-i18next";
-import { ValueClient } from "@App/app/service/service_worker/client";
-import { message } from "@App/pages/store/global";
-import { Message } from "@arco-design/web-react";
-import { cacheInstance } from "@App/app/cache";
-import type { SearchType } from "@App/app/service/service_worker/types";
-import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
 
-export function useScriptList() {
-  const { t } = useTranslation();
-  const { subscribeMessage } = useAppContext();
+// 类型定义
+import type { ScriptLoading } from "@App/pages/store/features/script";
+import type {
+  TScriptRunStatus,
+  TInstallScript,
+  TDeleteScript,
+  TEnableScript,
+  TSortedScript,
+} from "@App/app/service/queue";
+import { type useTranslation } from "react-i18next";
+import { subscribeMessage } from "@App/pages/store/global";
+import { HookManager } from "@App/pkg/utils/hookManager";
+
+export type TFilterKey = null | string | number;
+
+export interface FilterItem {
+  key: TFilterKey;
+  label: string;
+  icon: React.ReactNode;
+  count: number;
+}
+
+export type TSelectFilter = {
+  status: TFilterKey;
+  type: TFilterKey;
+  tags: TFilterKey;
+  source: TFilterKey;
+};
+
+export type TSelectFilterKeys = keyof TSelectFilter;
+
+/**
+ * 钩子 1: 管理脚本数据的核心逻辑
+ */
+export function useScriptDataManagement() {
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(true);
 
-  // 初始化数据
+  // 初始化列表与 Favicon 加载
   useEffect(() => {
     let mounted = true;
     setLoadingList(true);
@@ -68,20 +78,19 @@ export function useScriptList() {
         if (!mounted) return;
         for await (const { chunkResults } of loadScriptFavicons(list)) {
           if (!mounted) return;
-          setScriptList((list) => {
-            const scriptMap = new Map<string, ScriptLoading>();
-            for (const s of list) {
-              scriptMap.set(s.uuid, s);
-            }
-            const altered = new Set();
-            for (const item of chunkResults) {
-              const script = scriptMap.get(item.uuid);
-              if (script) {
-                altered.add(item.uuid);
-                script.favorite = item.fav;
+          setScriptList((prev) => {
+            const favMap = new Map(chunkResults.map((r) => [r.uuid, r]));
+            let changed = false;
+            const newList = prev.map((s) => {
+              const item = favMap.get(s.uuid);
+              if (item && s.favorite !== item.fav) {
+                changed = true;
+                return { ...s, favorite: item.fav };
               }
-            }
-            return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
+              return s;
+            });
+            favMap.clear(); // GC
+            return changed ? newList : prev;
           });
         }
       });
@@ -91,531 +100,227 @@ export function useScriptList() {
     };
   }, []);
 
-  // 监听事件
+  // 监听后台消息更新状态
   useEffect(() => {
     const pageApi = {
       scriptRunStatus(data: TScriptRunStatus) {
-        const { uuid, runStatus } = data;
-        setScriptList((list: ScriptLoading[]) => {
-          const index = list.findIndex((s) => s.uuid === uuid);
-          if (index === -1) return list;
-
+        setScriptList((list) => {
+          const index = list.findIndex((s) => s.uuid === data.uuid);
+          if (index === -1 || list[index].runStatus === data.runStatus) return list;
           const newList = [...list];
-          newList[index] = { ...list[index], runStatus };
+          newList[index] = { ...list[index], runStatus: data.runStatus };
           return newList;
         });
       },
-
-      async installScript(message: TInstallScript) {
-        const installedScript = await fetchScript(message.script.uuid);
+      async installScript(msg: TInstallScript) {
+        const installedScript = await fetchScript(msg.script.uuid);
         if (!installedScript) return;
-        const installedScriptUUID = installedScript.uuid;
-        if (!installedScriptUUID) return;
-
-        setScriptList((list: ScriptLoading[]) => {
-          const existingIndex = list.findIndex((s) => s.uuid === installedScriptUUID);
-          if (existingIndex !== -1) {
+        setScriptList((list) => {
+          const idx = list.findIndex((s) => s.uuid === installedScript.uuid);
+          if (idx !== -1) {
             const newList = [...list];
-            newList[existingIndex] = { ...list[existingIndex], ...installedScript };
+            newList[idx] = { ...newList[idx], ...installedScript };
             return newList;
           }
-
-          // 放到第一
           const res = [{ ...installedScript }, ...list];
-          for (let i = 0, l = res.length; i < l; i++) {
-            res[i].sort = i;
-          }
+          res.forEach((s, i) => (s.sort = i));
           return res;
         });
       },
-
       deleteScripts(data: TDeleteScript[]) {
-        const uuids = data.map(({ uuid }) => uuid);
-        const set = new Set(uuids);
-        setScriptList((list: ScriptLoading[]) => {
+        const set = new Set(data.map((d) => d.uuid));
+        setScriptList((list) => {
           const res = list.filter((s) => !set.has(s.uuid));
-          for (let i = 0, l = res.length; i < l; i++) {
-            res[i].sort = i;
-          }
+          if (res.length === list.length) return list;
+          res.forEach((s, i) => (s.sort = i));
           return res;
         });
       },
-
       enableScripts(data: TEnableScript[]) {
-        const map = new Map();
-        for (const { uuid, enable } of data) {
-          map.set(uuid, enable);
-        }
-
-        setScriptList((list: ScriptLoading[]) => {
-          let hasChanges = false;
-          const newList = list.map((script) => {
-            if (map.has(script.uuid)) {
-              hasChanges = true;
-              const enable = map.get(script.uuid);
-              return {
-                ...script,
-                enableLoading: false,
-                status: enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
-              };
+        const map = new Map(data.map((d) => [d.uuid, d.enable]));
+        setScriptList((list) => {
+          let changed = false;
+          const newList = list.map((s) => {
+            if (map.has(s.uuid)) {
+              const nextStatus = map.get(s.uuid) ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+              if (s.status !== nextStatus || s.enableLoading) {
+                changed = true;
+                return { ...s, status: nextStatus, enableLoading: false };
+              }
             }
-            return script;
+            return s;
           });
-
-          return hasChanges ? newList : list;
+          return changed ? newList : list;
         });
       },
-
-      sortedScripts(data: TSortedScript[]) {
-        setScriptList((list: ScriptLoading[]) => {
-          const listEntries = new Map<string, ScriptLoading>();
-          for (const item of list) {
-            listEntries.set(item.uuid, item);
+      sortedScripts(sorting: TSortedScript[]) {
+        setScriptList((list) => {
+          const orderChanged = list.map((s) => s.uuid).join(",") !== sorting.map((s) => s.uuid).join(",");
+          if (!orderChanged) return list;
+          const sortingObject: Record<
+            string,
+            {
+              obj: ScriptLoading;
+              order?: number;
+            }
+          > = {};
+          for (let i = 0, l = list.length; i < l; i += 1) {
+            sortingObject[list[i].uuid] = {
+              obj: list[i],
+              // order: undefined, // no order change
+            };
           }
-          let j = 0;
-          const res = new Array(data.length);
-          for (const { uuid } of data) {
-            const item = listEntries.get(uuid);
-            if (item) {
-              res[j] = item;
-              item.sort = j;
-              j++;
+          for (let i = 0, l = sorting.length; i < l; i += 1) {
+            const entry = sortingObject[sorting[i].uuid];
+            if (entry) {
+              entry.order = i; // set to preferred order
             }
           }
-          res.length = j;
-          return res;
+          const entries = Object.values(sortingObject);
+          //@ts-ignore
+          entries.sort((a, b) => a.order - b.order || 0);
+          return entries.map((entry, i) => {
+            const obj = entry.obj;
+            obj.sort = i;
+            return obj;
+          });
         });
       },
-    };
+    } as const;
 
-    const unhooks = [
+    const hookMgr = new HookManager();
+    hookMgr.append(
       subscribeMessage<TScriptRunStatus>("scriptRunStatus", pageApi.scriptRunStatus),
       subscribeMessage<TInstallScript>("installScript", pageApi.installScript),
       subscribeMessage<TDeleteScript[]>("deleteScripts", pageApi.deleteScripts),
       subscribeMessage<TEnableScript[]>("enableScripts", pageApi.enableScripts),
-      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts),
-    ];
-    return () => {
-      for (const unhook of unhooks) unhook();
-      unhooks.length = 0;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts)
+    );
+    return hookMgr.unhook;
   }, []);
 
-  const updateScripts = (uuids: string[], data: Partial<Script | ScriptLoading>) => {
-    const set = new Set(uuids);
-    setScriptList((list) => {
-      let hasChanges = false;
-      const newList = list.map((script) => {
-        if (set.has(script.uuid)) {
-          hasChanges = true;
-          return { ...script, ...data };
-        }
-        return script;
-      });
-
-      return hasChanges ? newList : list;
-    });
-  };
-
-  const scriptListSortOrder = ({ active, over }: { active: string; over: string }) => {
-    setScriptList((scripts) => {
-      let oldIndex = -1;
-      let newIndex = -1;
-      scripts.forEach((item, index) => {
-        if (item.uuid === active) {
-          oldIndex = index;
-        } else if (item.uuid === over) {
-          newIndex = index;
-        }
-      });
-      if (oldIndex >= 0 && newIndex >= 0) {
-        const newItems = arrayMove(scripts, oldIndex, newIndex);
-        for (let i = 0, l = newItems.length; i < l; i += 1) {
-          if (newItems[i].sort !== i) {
-            newItems[i].sort = i;
-          }
-        }
-        return newItems;
-      } else {
-        return scripts;
-      }
-    });
-    sortScript({ active, over });
-  };
-
-  // 删除脚本操作
-  const handleDelete = (item: ScriptLoading) => {
-    const { uuid } = item;
-    updateScripts([uuid], { actionLoading: true });
-    requestDeleteScripts([uuid]);
-  };
-
-  // 配置脚本操作
-  const handleConfig = (
-    item: ScriptLoading,
-    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
-  ) => {
-    new ValueClient(message).getScriptValue(item).then((newValues) => {
-      setUserConfig({
-        userConfig: { ...item.config! },
-        script: item,
-        values: newValues,
-      });
-    });
-  };
-
-  // 运行/停止脚本操作
-  const handleRunStop = async (item: ScriptLoading) => {
-    if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-      Message.loading({
-        id: "script-stop",
-        content: t("stopping_script"),
-      });
-      updateScripts([item.uuid], { actionLoading: true });
-      await requestStopScript(item.uuid);
-      updateScripts([item.uuid], { actionLoading: false });
-      Message.success({
-        id: "script-stop",
-        content: t("script_stopped"),
-        duration: 3000,
-      });
-    } else {
-      Message.loading({
-        id: "script-run",
-        content: t("starting_script"),
-      });
-      updateScripts([item.uuid], { actionLoading: true });
-      await requestRunScript(item.uuid);
-      updateScripts([item.uuid], { actionLoading: false });
-      Message.success({
-        id: "script-run",
-        content: t("script_started"),
-        duration: 3000,
-      });
-    }
-  };
-
-  return {
-    loadingList,
-    scriptList,
-    setScriptList,
-    updateScripts,
-    scriptListSortOrder,
-    // 操作函数
-    handleDelete,
-    handleConfig,
-    handleRunStop,
-  };
+  return { scriptList, setScriptList, loadingList };
 }
 
-export interface FilterItem {
-  key: string | number;
-  label: string;
-  icon: React.ReactNode;
-  count: number;
-}
+/**
+ * 钩子 2: 管理统计与过滤逻辑
+ */
+export function useScriptFilters(
+  scriptList: ScriptLoading[],
+  selectedFilters: TSelectFilter,
+  searchRequest: SearchFilterRequest,
+  t: ReturnType<typeof useTranslation>[0]
+) {
+  // 核心数据解析与统计
+  const stats = useMemo(() => {
+    const tagMap: Record<string, Set<string>> = {};
+    const originMap: Record<string, Set<string>> = {};
+    const counts = { enable: 0, disable: 0, running: 0, stopped: 0, normal: 0, background: 0, crontab: 0 };
 
-export type SetSearchRequest = Dispatch<React.SetStateAction<{ keyword: string; type: SearchType }>>;
-
-export function useScriptSearch() {
-  const scriptListManager = useScriptList();
-  const { t } = useTranslation();
-  const { scriptList } = scriptListManager;
-  const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
-  const [selectedFilters, setSelectedFilters] = useState<Record<string, string | number>>({
-    status: "all",
-    type: "all",
-    tags: "all",
-    source: "all",
-  });
-
-  const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({
-    keyword: "",
-    type: "auto",
-  });
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
-
-  // 计算数据量
-  const { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap } = useMemo(() => {
-    // 侧边栏关闭时不计算
-    if (!sidebarOpen) {
-      return { statusItems: [], typeItems: [], tagItems: [], sourceItems: [], tagMap: {}, originMap: {} };
-    }
-    // 状态过滤选项
-    const statusItems: FilterItem[] = [
-      {
-        key: "all",
-        label: t("script_list.sidebar.all"),
-        icon: <IconCode style={{ fontSize: 14 }} />,
-        count: scriptList.length,
-      },
-      {
-        key: SCRIPT_STATUS_ENABLE,
-        label: t("enable"),
-        icon: <IconPlayArrow style={{ fontSize: 14, color: "#52c41a" }} />,
-        count: 0,
-      },
-      {
-        key: SCRIPT_STATUS_DISABLE,
-        label: t("disable"),
-        icon: <IconPause style={{ fontSize: 14, color: "#ff4d4f" }} />,
-        count: 0,
-      },
-      {
-        key: SCRIPT_RUN_STATUS_RUNNING,
-        label: t("running"),
-        icon: <IconPlayArrow style={{ fontSize: 14, color: "#1890ff" }} />,
-        count: 0,
-      },
-      {
-        key: SCRIPT_RUN_STATUS_COMPLETE,
-        label: t("script_list.sidebar.stopped"),
-        icon: <IconStop style={{ fontSize: 14, color: "#8c8c8c" }} />,
-        count: 0,
-      },
-    ];
-    // 类型过滤选项
-    const typeItems: FilterItem[] = [
-      {
-        key: "all",
-        label: t("script_list.sidebar.all"),
-        icon: <IconCode style={{ fontSize: 14 }} />,
-        count: scriptList.length,
-      },
-      {
-        key: SCRIPT_TYPE_NORMAL,
-        label: t("script_list.sidebar.normal_script"),
-        icon: <IconCode style={{ fontSize: 14, color: "#1890ff" }} />,
-        count: 0,
-      },
-      {
-        key: SCRIPT_TYPE_BACKGROUND,
-        label: t("background_script"),
-        icon: <IconDesktop style={{ fontSize: 14, color: "#722ed1" }} />,
-        count: 0,
-      },
-      {
-        key: SCRIPT_TYPE_CRONTAB,
-        label: t("scheduled_script"),
-        icon: <IconClockCircle style={{ fontSize: 14, color: "#fa8c16" }} />,
-        count: 0,
-      },
-    ];
-
-    // 标签过滤选项
-    const tagItems: FilterItem[] = [
-      {
-        key: "all",
-        label: t("script_list.sidebar.all"),
-        icon: <IconTags style={{ fontSize: 14 }} />,
-        count: scriptList.length,
-      },
-    ];
-
-    // 安装来源过滤选项
-    const sourceItems: FilterItem[] = [
-      {
-        key: "all",
-        label: t("script_list.sidebar.all"),
-        icon: <IconLink style={{ fontSize: 14 }} />,
-        count: scriptList.length,
-      },
-    ];
-
-    const tagMap = {} as Record<string, Set<string>>;
-    const originMap = {} as Record<string, Set<string>>;
-
-    for (const script of scriptList) {
-      // 状态统计
-      if (script.status === SCRIPT_STATUS_ENABLE) {
-        statusItems[1].count++;
-      } else {
-        statusItems[2].count++;
+    for (const s of scriptList) {
+      if (s.status === SCRIPT_STATUS_ENABLE) counts.enable++;
+      else counts.disable++;
+      if (s.type !== SCRIPT_TYPE_NORMAL) {
+        if (s.runStatus === SCRIPT_RUN_STATUS_RUNNING) counts.running++;
+        else counts.stopped++;
       }
-      if (script.type === SCRIPT_TYPE_NORMAL) {
-        typeItems[1].count++;
-      } else {
-        if (script.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-          statusItems[3].count++;
-        } else {
-          statusItems[4].count++;
-        }
-        typeItems[2].count++;
-        if (script.type === SCRIPT_TYPE_CRONTAB) {
-          typeItems[3].count++;
-        }
+      if (s.type === SCRIPT_TYPE_NORMAL) counts.normal++;
+      else {
+        counts.background++;
+        if (s.type === SCRIPT_TYPE_CRONTAB) counts.crontab++;
       }
-      // 标签统计
-      let metadata = script.metadata;
-      if (script.selfMetadata) {
-        metadata = getCombinedMeta(metadata, script.selfMetadata);
+      const meta = s.selfMetadata ? getCombinedMeta(s.metadata, s.selfMetadata) : s.metadata;
+      for (const tag of parseTags(meta)) {
+        if (!tagMap[tag]) tagMap[tag] = new Set();
+        tagMap[tag].add(s.uuid);
       }
-      if (metadata.tag) {
-        const tags = parseTags(metadata);
-        for (const tag of tags) {
-          const tagMapSet = tagMap[tag] || (tagMap[tag] = new Set());
-          tagMapSet.add(script.uuid);
-        }
-      }
-      // 来源统计
-      if (script.originDomain) {
-        const originMapSet = originMap[script.originDomain] || (originMap[script.originDomain] = new Set());
-        originMapSet.add(script.uuid);
+      if (s.originDomain) {
+        if (!originMap[s.originDomain]) originMap[s.originDomain] = new Set();
+        originMap[s.originDomain].add(s.uuid);
       }
     }
-    tagItems.push(
-      ...Object.keys(tagMap).map((tag) => {
-        // 标签过滤选项
-        const count = tagMap[tag]?.size || 0;
-        return {
+    return { tagMap, originMap, counts };
+  }, [scriptList]);
+
+  // 构建 Sidebar UI 项
+  const filterItems = useMemo(() => {
+    const { counts, tagMap, originMap } = stats;
+    const tagItems = [
+      { key: null, label: t("script_list.sidebar.all"), icon: <IconTags />, count: Object.keys(tagMap).length },
+      ...Object.keys(tagMap)
+        .sort()
+        .map((tag) => ({
           key: tag,
           label: tag,
+          count: tagMap[tag].size,
           icon: <div className={`tw-w-3 tw-h-3 arco-badge-color-${hashColor(tag)} tw-rounded-full`} />,
-          count,
-        };
-      })
-    );
-    sourceItems.push(
-      ...Object.keys(originMap).map((source) => {
-        const count = originMap[source]?.size || 0;
-        return {
-          key: source,
-          label: source,
-          icon: <div className={`tw-w-3 tw-h-3 arco-badge-color-${hashColor(source)} tw-rounded-full`} />,
-          count,
-        };
-      })
-    );
-    return { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap };
-  }, [scriptList, sidebarOpen, t]);
+        })),
+    ];
+    const sourceItems = [
+      { key: null, label: t("script_list.sidebar.all"), icon: <IconLink />, count: Object.keys(originMap).length },
+      ...Object.keys(originMap)
+        .sort()
+        .map((src) => ({
+          key: src,
+          label: src,
+          count: originMap[src].size,
+          icon: <div className={`tw-w-3 tw-h-3 arco-badge-color-${hashColor(src)} tw-rounded-full`} />,
+        })),
+    ];
 
-  const filterFuncs = useMemo(() => {
-    // 当 originMap, selectedFilters, tagMap 改变时更新
-    const filterFuncs: Array<(script: Script) => boolean> = [];
-    for (const [groupKey, itemKey] of Object.entries(selectedFilters)) {
-      switch (groupKey) {
-        case "status":
-          switch (itemKey) {
-            case "all":
-              break;
-            case SCRIPT_STATUS_ENABLE:
-            case SCRIPT_STATUS_DISABLE:
-              filterFuncs.push((script) => script.status === itemKey);
-              break;
-            case SCRIPT_RUN_STATUS_RUNNING:
-            case SCRIPT_RUN_STATUS_COMPLETE:
-              filterFuncs.push((script) => {
-                if (script.type === SCRIPT_TYPE_NORMAL) {
-                  return false;
-                }
-                return script.runStatus === itemKey;
-              });
-              break;
-          }
-          break;
-        case "type":
-          switch (itemKey) {
-            case "all":
-              break;
-            case SCRIPT_TYPE_NORMAL:
-              filterFuncs.push((script) => script.type === SCRIPT_TYPE_NORMAL);
-              break;
-            case SCRIPT_TYPE_BACKGROUND:
-              filterFuncs.push(
-                (script) => script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB
-              );
-              break;
-            case SCRIPT_TYPE_CRONTAB:
-              filterFuncs.push((script) => script.type === SCRIPT_TYPE_CRONTAB);
-              break;
-          }
-          break;
-        case "tags":
-          if (itemKey !== "all") {
-            const scriptSet = tagMap[itemKey as string];
-            if (scriptSet) {
-              filterFuncs.push((script) => scriptSet.has(script.uuid));
-            }
-          }
-          break;
-        case "source":
-          if (itemKey !== "all") {
-            const scriptSet = originMap[itemKey as string];
-            if (scriptSet) {
-              filterFuncs.push((script) => scriptSet.has(script.uuid));
-            }
-          }
-          break;
-      }
-    }
-    return filterFuncs;
-  }, [originMap, selectedFilters, tagMap]);
-
-  useEffect(() => {
-    // 当 filterFuncs 改变时进行 / Filter结果取得时进行
-    // 按 filterFuncs 过滤一次
-    let filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    if (searchRequest.keyword !== "") {
-      // 再基于关键词过滤一次
-      let setLoading = true;
-      SearchFilter.requestFilterResult(searchRequest).then(() => {
-        if (setLoading === false) return;
-        filterList = filterList.filter((item) => {
-          return SearchFilter.checkByUUID(item.uuid);
-        });
-        setFilterScriptList(filterList);
-      });
-      return () => {
-        setLoading = false;
-      };
-    }
-    setFilterScriptList(filterList);
-  }, [scriptList, filterFuncs, searchRequest]); // searchFilter 参考固定不变
-
-  // 覆盖scriptListManager的排序方法
-  // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱
-  const scriptListSortOrder = ({ active, over }: { active: string; over: string }) => {
-    setFilterScriptList((scripts) => {
-      let oldIndex = -1;
-      let newIndex = -1;
-      scripts.forEach((item, index) => {
-        if (item.uuid === active) {
-          oldIndex = index;
-        } else if (item.uuid === over) {
-          newIndex = index;
-        }
-      });
-      if (oldIndex >= 0 && newIndex >= 0) {
-        const newItems = arrayMove(scripts, oldIndex, newIndex);
-        for (let i = 0, l = newItems.length; i < l; i += 1) {
-          if (newItems[i].sort !== i) {
-            newItems[i].sort = i;
-          }
-        }
-        return newItems;
-      } else {
-        return scripts;
-      }
-    });
-    scriptListManager.scriptListSortOrder!({ active, over });
-  };
-
-  return {
-    ...scriptListManager,
-    scriptListSortOrder,
-    filterScriptList,
-    selectedFilters,
-    setSelectedFilters,
-    searchRequest,
-    setSearchRequest,
-    filterItems: {
-      statusItems,
-      typeItems,
+    return {
       tagItems,
       sourceItems,
-    },
-    sidebarOpen,
-    setSidebarOpen,
-  };
+      statusItems: [
+        { key: null, label: t("script_list.sidebar.all"), icon: <IconCode />, count: scriptList.length },
+        {
+          key: SCRIPT_STATUS_ENABLE,
+          label: t("enable"),
+          icon: <IconPlayArrow style={{ color: "#52c41a" }} />,
+          count: counts.enable,
+        },
+        {
+          key: SCRIPT_STATUS_DISABLE,
+          label: t("disable"),
+          icon: <IconPause style={{ color: "#ff4d4f" }} />,
+          count: counts.disable,
+        },
+        {
+          key: SCRIPT_RUN_STATUS_RUNNING,
+          label: t("running"),
+          icon: <IconPlayArrow style={{ color: "#1890ff" }} />,
+          count: counts.running,
+        },
+        {
+          key: SCRIPT_RUN_STATUS_COMPLETE,
+          label: t("script_list.sidebar.stopped"),
+          icon: <IconStop style={{ color: "#8c8c8c" }} />,
+          count: counts.stopped,
+        },
+      ],
+      typeItems: [
+        { key: null, label: t("script_list.sidebar.all"), icon: <IconCode />, count: scriptList.length },
+        {
+          key: SCRIPT_TYPE_NORMAL,
+          label: t("script_list.sidebar.normal_script"),
+          icon: <IconCode style={{ color: "#1890ff" }} />,
+          count: counts.normal,
+        },
+        {
+          key: SCRIPT_TYPE_BACKGROUND,
+          label: t("background_script"),
+          icon: <IconDesktop style={{ color: "#722ed1" }} />,
+          count: counts.background,
+        },
+        {
+          key: SCRIPT_TYPE_CRONTAB,
+          label: t("scheduled_script"),
+          icon: <IconClockCircle style={{ color: "#fa8c16" }} />,
+          count: counts.crontab,
+        },
+      ],
+    };
+  }, [stats, scriptList.length, t]);
+
+  return { stats, filterItems };
 }
