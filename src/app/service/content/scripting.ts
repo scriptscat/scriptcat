@@ -94,39 +94,6 @@ export default class ScriptingRuntime {
               xhr.send();
             });
           }
-          case "GM_addElement": {
-            // const [parentNodeId, nodeId, tmpAttr, isContent] = data.params;
-            // // 根据来源选择不同的消息桥（content / inject）
-            // const msg = isContent ? this.senderToContent : this.senderToInject;
-            // // 取回 parentNode（如果存在）
-            // let parentNode: Node | undefined;
-            // if (parentNodeId) {
-            //   parentNode = msg.getAndDelRelatedTarget(parentNodeId) as Node | undefined;
-            // }
-            // const node = msg.getAndDelRelatedTarget(nodeId) as Element | undefined;
-            // if (!node || !parentNode) return 0;
-            // // 创建元素并设置属性
-            // // const el = <Element>document.createElement(tagName);
-            // const attr = tmpAttr ? { ...tmpAttr } : {};
-            // let textContent = "";
-            // if (attr.textContent) {
-            //   textContent = attr.textContent;
-            //   delete attr.textContent;
-            // }
-            // for (const key of Object.keys(attr)) {
-            //   node.setAttribute(key, attr[key]);
-            // }
-            // if (textContent) node.textContent = textContent;
-            // parentNode?.appendChild(node);
-            // // 优先挂到 parentNode，否则挂到 head/body/任意节点
-            // // const node = parentNode || document.head || document.body || document.querySelector("*");
-            // // node.appendChild(el);
-            // // 返回节点引用 id，供另一侧再取回
-            // // const nodeId = msg.sendRelatedTarget(el);
-            // // return nodeId;
-            // return 100;
-            break;
-          }
           case "GM_log":
             // 拦截 GM_log：直接打印到控制台（某些页面可能劫持 console.log）
             switch (data.params.length) {
