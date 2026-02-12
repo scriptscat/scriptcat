@@ -4,6 +4,7 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { sourceMapTo } from "@App/pkg/utils/utils";
 import { ScriptEnvTag } from "@Packages/message/consts";
+import { embeddedPatternCheckerString, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -64,6 +65,28 @@ export function getScriptRequire(scriptRes: ScriptRunResource): CompileScriptCod
     }
   }
   return resourceArray;
+}
+
+/**
+ * 构建unwrap脚本运行代码
+ * @see {@link ExecScript}
+ * @param scriptRes
+ * @param scriptCode
+ * @returns
+ */
+export function compileScriptletCode(
+  scriptRes: ScriptRunResource,
+  scriptCode: string,
+  scriptUrlPatterns: URLRuleEntry[]
+): string {
+  scriptCode = scriptCode ?? scriptRes.code;
+  const requireArray = getScriptRequire(scriptRes);
+  const requireCode = requireArray.map((r) => r.content).join("\n;");
+  // 在window[flag]注册一个空脚本让原本的脚本管理器知道并记录脚本成功执行
+  const reducedPatterns = scriptUrlPatterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+  const urlCondition = embeddedPatternCheckerString("location.href", JSON.stringify(reducedPatterns));
+  const codeBody = `if(${urlCondition}){\n${requireCode}\n${scriptCode}\nwindow['${scriptRes.flag}']=function(){};\n}`;
+  return `${codeBody}${sourceMapTo(`${scriptRes.name}.user.js`)}\n`;
 }
 
 /**
@@ -225,6 +248,10 @@ export function metadataBlankOrTrue(metadata: SCMetadata, key: string): boolean 
 
 export function isEarlyStartScript(metadata: SCMetadata): boolean {
   return metadataBlankOrTrue(metadata, "early-start") && metadata["run-at"]?.[0] === "document-start";
+}
+
+export function isScriptletUnwrap(metadata: SCMetadata): boolean {
+  return metadataBlankOrTrue(metadata, "unwrap");
 }
 
 export function isInjectIntoContent(metadata: SCMetadata): boolean {
