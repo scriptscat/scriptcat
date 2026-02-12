@@ -83,7 +83,7 @@ function Setting() {
       badge_text_color: setBadgeTextColor,
       script_menu_display_type: setScriptMenuDisplayType,
       editor_type_definition: setEditorTypeDefinition,
-    };
+    } as const;
     const unhooks = [
       subscribeMessage<TKeyValue<SystemConfigKey>>(
         SystemConfigChange,
