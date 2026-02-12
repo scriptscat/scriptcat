@@ -151,6 +151,7 @@
   "starting_script": "正在啟動腳本...",
   "starting_updates": "正在批次更新...",
   "script_started": "腳本已啟動",
+  "operation_failed": "操作失敗",
   "batch_operations": "批次操作",
   "export": "匯出",
   "delete": "刪除",

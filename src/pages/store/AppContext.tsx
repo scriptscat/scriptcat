@@ -73,7 +73,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setAppColorTheme(theme);
         setColorThemeState(theme);
       },
-    };
+    } as const;
 
     const hookMgr = new HookManager();
     hookMgr.append(subscribeMessage<ThemeParam>("onColorThemeUpdated", pageApi.onColorThemeUpdated));
