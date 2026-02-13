@@ -34,7 +34,7 @@ import { cacheInstance } from "@App/app/cache";
 import { formatBytes } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
 import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
-import { toEncodedURL, prettyUrl } from "@App/pkg/utils/url-utils";
+import { prettyUrl } from "@App/pkg/utils/url-utils";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 
@@ -55,48 +55,6 @@ const closeWindow = (shouldGoBack: boolean) => {
   } else {
     window.close();
   }
-};
-
-const getCandidateUrls = (targetUrlHref: string) => {
-  const encodedUrl = toEncodedURL(targetUrlHref);
-  const inputU = new URL(encodedUrl);
-  const extraCandidateUrls = new Set<string>();
-  extraCandidateUrls.add(inputU.href);
-
-  const hostname = inputU.hostname;
-  // 兼容 .greasyfork.org, cn-greasyfork.org
-  const hostText = `.${hostname}`.replace(/\W/g, ".");
-  const isGreasyFork = hostText.endsWith(".greasyfork.org");
-  const isSleazyFork = hostText.endsWith(".sleazyfork.org");
-
-  if (isGreasyFork || isSleazyFork) {
-    // example:
-    // CASE 1
-    // raw 'https://update.greasyfork.org/scripts/550295/100%解锁CSDN文库vip文章阅读限制.user.js'
-    // encoded 'https://update.greasyfork.org/scripts/550295/100%25%E8%A7%A3%E9%94%81CSDN%E6%96%87%E5%BA%93vip%E6%96%87%E7%AB%A0%E9%98%85%E8%AF%BB%E9%99%90%E5%88%B6.user.js'
-    // correct 'https://update.greasyfork.org/scripts/550295/100%25%E8%A7%A3%E9%94%81CSDN%E6%96%87%E5%BA%93vip%E6%96%87%E7%AB%A0%E9%98%85%E8%AF%BB%E9%99%90%E5%88%B6.user.js'
-    // CASE 2
-    // raw 'https://update.greasyfork.org/scripts/519037/Nexus No Wait ++.user.js'
-    // encoded 'https://update.greasyfork.org/scripts/519037/Nexus%20No%20Wait%20++.user.js'
-    // correct 'https://update.greasyfork.org/scripts/519037/Nexus%20No%20Wait%20%2B%2B.user.js'
-    try {
-      const encodedPathname = inputU.pathname;
-      const lastSlashIndex = encodedPathname.lastIndexOf("/");
-      const basePath = encodedPathname.substring(0, lastSlashIndex);
-      const fileName = encodedPathname.substring(lastSlashIndex + 1);
-      const reEncodedFileName = encodeURIComponent(decodeURI(fileName));
-      if (reEncodedFileName !== fileName) {
-        const reEncodedPathName = `${basePath}/${reEncodedFileName}`;
-        const reEncodedUrl = `${inputU.origin}${reEncodedPathName}${inputU.search}${inputU.hash}`;
-        extraCandidateUrls.add(reEncodedUrl);
-      }
-    } catch (e) {
-      // can skip if it cannot be converted using decodeURI
-      console.warn(e); // just a warning for debug purpose.
-    }
-  }
-
-  return [...extraCandidateUrls];
 };
 
 const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any }) => {
@@ -702,44 +660,24 @@ function App() {
 
   const targetUrlHref = useMemo(() => {
     if (!hasValidSourceParam) {
-      /**
-       * 逻辑说明：
-       * 在 chrome.declarativeNetRequest 规则中，我们使用 `<,\1,>` 作为占位符引导 API 进行参数填充。
-       * 由于不同浏览器版本或配置对 URL 参数的自动编码（Auto-encoding）策略不一致，
-       * 我们通过检测该占位符的“被编码状态”来逆推浏览器采用了哪种编码方式。
-       */
-      let m;
       let url;
       try {
-        // 场景 1：URL 完全未编码。直接匹配原始特征符号 "<", ">" 和 ","
-        if ((m = /\burl=(<,.+,>)(&|$)/.exec(location.search)?.[1])) {
-          url = m; // 未被编码，取原始值。
-        }
-        // 场景 2：URL 经过了部分编码（类似 encodeURI）。逗号 "," 未被编码，但尖括号被转义为 %3C, %3E
-        else if ((m = /\burl=(%3C,.+,%3E)(&|$)/.exec(location.search)?.[1])) {
-          url = decodeURI(m);
-        }
-        // 场景 3：URL 经过了完全编码（类似 encodeURIComponent）。逗号也被转义为 %2C
-        else if ((m = /\burl=(%3C%2C.+%2C%3E)(&|$)/.exec(location.search)?.[1])) {
-          url = decodeURIComponent(m);
-        }
+        // 取url=之后的所有内容
+        url = location.search.match(/\?url=([^&]+)/)?.[1] || "";
       } catch {
         // ignored
       }
-      // 如果正则匹配/标准解码失败，回退到标准的 searchParams 获取方式 （浏览器会自行理解和解码不规范的编码）
-      if (!url) url = searchParams.get("url") || ""; // fallback
-      // 移除人工注入的特征锚点 <, ,>，提取真实的 URL 内容
-      url = url.replace(/^<,(.+),>$/, "$1"); // 去掉 <, ,>
-      if (url) {
-        try {
-          const urlObject = new URL(url);
-          // 验证解析后的 URL 是否具备核心要素，确保安全性与合法性
-          if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
-            return url;
-          }
-        } catch {
-          // ignored
+      if (!url) {
+        return "";
+      }
+      try {
+        const urlObject = new URL(url);
+        // 验证解析后的 URL 是否具备核心要素，确保安全性与合法性
+        if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
+          return url;
         }
+      } catch {
+        // ignored
       }
     }
     return "";
@@ -751,39 +689,21 @@ function App() {
     errorStatusText: "",
   });
 
-  const loadURLAsync = async (candidateUrls: string[]) => {
-    // 1. 定义获取单个脚本的内部逻辑，负责处理进度条与单次错误
-    const fetchValidScript = async () => {
-      let firstError: unknown;
-      for (const url of candidateUrls) {
-        try {
-          const result = await fetchScriptBody(url, {
-            onProgress: (info: { receivedLength: number }) => {
-              setFetchingState((prev) => ({
-                ...prev,
-                loadingStatusText: t("downloading_status_text", { bytes: formatBytes(info.receivedLength) }),
-              }));
-            },
-          });
-          if (result.code && result.metadata) {
-            return { result, url }; // 找到有效的立即返回
-          }
-        } catch (e) {
-          if (!firstError) firstError = e;
-        }
-      }
-      // 如果循环结束都没成功，抛出第一个捕获到的错误或预设错误
-      throw firstError || new Error(t("install_page_load_failed"));
-    };
-
+  const loadURLAsync = async (urlHref: string) => {
     try {
       // 2. 执行获取
-      const { result, url } = await fetchValidScript();
-      const { code, metadata } = result;
+      const { code, metadata } = await fetchScriptBody(urlHref, {
+        onProgress: (info: { receivedLength: number }) => {
+          setFetchingState((prev) => ({
+            ...prev,
+            loadingStatusText: t("downloading_status_text", { bytes: `${formatBytes(info.receivedLength)}` }),
+          }));
+        },
+      });
 
       // 3. 处理数据与缓存
       const uuid = uuidv4();
-      const scriptData = [false, createScriptInfo(uuid, code, url, "user", metadata)];
+      const scriptData = [false, createScriptInfo(uuid, code, urlHref, "user", metadata)];
 
       await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, scriptData);
 
@@ -806,19 +726,10 @@ function App() {
     }
   };
 
-  const handleUrlChangeAndFetch = (targetUrlHref: string) => {
-    setFetchingState((prev) => ({
-      ...prev,
-      loadingStatusText: t("install_page_please_wait"),
-    }));
-    const candidateUrls = getCandidateUrls(targetUrlHref);
-    loadURLAsync(candidateUrls);
-  };
-
   // 有 url 的话下载内容
   useEffect(() => {
-    if (targetUrlHref) handleUrlChangeAndFetch(targetUrlHref);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!targetUrlHref) return;
+    loadURLAsync(targetUrlHref);
   }, [targetUrlHref]);
 
   if (!hasValidSourceParam) {
