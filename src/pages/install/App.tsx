@@ -31,9 +31,10 @@ import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
-import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
+import { formatBytes } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
 import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
+import { toEncodedURL, prettyUrl } from "@App/pkg/utils/url-utils";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 
@@ -48,12 +49,54 @@ interface PermissionItem {
 
 type Permission = PermissionItem[];
 
-const closeWindow = (doBackwards: boolean) => {
-  if (doBackwards) {
+const closeWindow = (shouldGoBack: boolean) => {
+  if (shouldGoBack) {
     history.go(-1);
   } else {
     window.close();
   }
+};
+
+const getCandidateUrls = (targetUrlHref: string) => {
+  const encodedUrl = toEncodedURL(targetUrlHref);
+  const inputU = new URL(encodedUrl);
+  const extraCandidateUrls = new Set<string>();
+  extraCandidateUrls.add(inputU.href);
+
+  const hostname = inputU.hostname;
+  // 兼容 .greasyfork.org, cn-greasyfork.org
+  const hostText = `.${hostname}`.replace(/\W/g, ".");
+  const isGreasyFork = hostText.endsWith(".greasyfork.org");
+  const isSleazyFork = hostText.endsWith(".sleazyfork.org");
+
+  if (isGreasyFork || isSleazyFork) {
+    // example:
+    // CASE 1
+    // raw 'https://update.greasyfork.org/scripts/550295/100%解锁CSDN文库vip文章阅读限制.user.js'
+    // encoded 'https://update.greasyfork.org/scripts/550295/100%25%E8%A7%A3%E9%94%81CSDN%E6%96%87%E5%BA%93vip%E6%96%87%E7%AB%A0%E9%98%85%E8%AF%BB%E9%99%90%E5%88%B6.user.js'
+    // correct 'https://update.greasyfork.org/scripts/550295/100%25%E8%A7%A3%E9%94%81CSDN%E6%96%87%E5%BA%93vip%E6%96%87%E7%AB%A0%E9%98%85%E8%AF%BB%E9%99%90%E5%88%B6.user.js'
+    // CASE 2
+    // raw 'https://update.greasyfork.org/scripts/519037/Nexus No Wait ++.user.js'
+    // encoded 'https://update.greasyfork.org/scripts/519037/Nexus%20No%20Wait%20++.user.js'
+    // correct 'https://update.greasyfork.org/scripts/519037/Nexus%20No%20Wait%20%2B%2B.user.js'
+    try {
+      const encodedPathname = inputU.pathname;
+      const lastSlashIndex = encodedPathname.lastIndexOf("/");
+      const basePath = encodedPathname.substring(0, lastSlashIndex);
+      const fileName = encodedPathname.substring(lastSlashIndex + 1);
+      const reEncodedFileName = encodeURIComponent(decodeURI(fileName));
+      if (reEncodedFileName !== fileName) {
+        const reEncodedPathName = `${basePath}/${reEncodedFileName}`;
+        const reEncodedUrl = `${inputU.origin}${reEncodedPathName}${inputU.search}${inputU.hash}`;
+        extraCandidateUrls.add(reEncodedUrl);
+      }
+    } catch (e) {
+      // can skip if it cannot be converted using decodeURI
+      console.warn(e); // just a warning for debug purpose.
+    }
+  }
+
+  return [...extraCandidateUrls];
 };
 
 const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any }) => {
@@ -72,7 +115,7 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
       "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1",
       Origin: origin,
     },
-    referrer: origin + "/",
+    referrer: `${origin}/`,
   });
 
   if (!response.ok) {
@@ -133,43 +176,43 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   return { code, metadata };
 };
 
-const cleanupStaleInstallInfo = (uuid: string) => {
+const cleanupStaleInstallInfo = (scriptUuid: string) => {
   // 页面打开时不清除当前uuid，每30秒更新一次记录
-  const f = () => {
+  const updateKeepAlive = () => {
     cacheInstance.tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
       val = val || {};
-      val[uuid] = Date.now();
+      val[scriptUuid] = Date.now();
       tx.set(val);
     });
   };
-  f();
-  setInterval(f, 30_000);
+  updateKeepAlive();
+  setInterval(updateKeepAlive, 30_000);
 
   // 页面打开后清除旧记录
   const delay = Math.floor(5000 * Math.random()) + 10000; // 使用随机时间避免浏览器重启时大量Tabs同时执行清除
   timeoutExecution(
-    `${cIdKey}cleanupStaleInstallInfo`,
+    `${componentInstanceId}cleanupStaleInstallInfo`,
     () => {
       cacheInstance
         .tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
           const now = Date.now();
-          const keeps = new Set<string>();
-          const out: Record<string, number> = {};
+          const activeKeepKeys = new Set<string>();
+          const updatedRegistry: Record<string, number> = {};
           for (const [k, ts] of Object.entries(val ?? {})) {
             if (ts > 0 && now - ts < 60_000) {
-              keeps.add(`${CACHE_KEY_SCRIPT_INFO}${k}`);
-              out[k] = ts;
+              activeKeepKeys.add(`${CACHE_KEY_SCRIPT_INFO}${k}`);
+              updatedRegistry[k] = ts;
             }
           }
-          tx.set(out);
-          return keeps;
+          tx.set(updatedRegistry);
+          return activeKeepKeys;
         })
         .then(async (keeps) => {
-          const list = await cacheInstance.list();
-          const filtered = list.filter((key) => key.startsWith(CACHE_KEY_SCRIPT_INFO) && !keeps.has(key));
-          if (filtered.length) {
+          const allCacheKeys = await cacheInstance.list();
+          const keysToPurge = allCacheKeys.filter((key) => key.startsWith(CACHE_KEY_SCRIPT_INFO) && !keeps.has(key));
+          if (keysToPurge.length) {
             // 清理缓存
-            cacheInstance.dels(filtered);
+            cacheInstance.dels(keysToPurge);
           }
         });
     },
@@ -177,34 +220,34 @@ const cleanupStaleInstallInfo = (uuid: string) => {
   );
 };
 
-const cIdKey = `(cid_${Math.random()})`;
+const componentInstanceId = `(cid_${Math.random()})`;
 
 function App() {
-  const [enable, setEnable] = useState<boolean>(false);
-  const [btnText, setBtnText] = useState<string>("");
-  const [scriptCode, setScriptCode] = useState<string>("");
-  const [scriptInfo, setScriptInfo] = useState<ScriptInfo>();
-  const [upsertScript, setUpsertScript] = useState<ScriptOrSubscribe | undefined>(undefined);
-  const [diffCode, setDiffCode] = useState<string>();
-  const [oldScriptVersion, setOldScriptVersion] = useState<string | null>(null);
-  const [isUpdate, setIsUpdate] = useState<boolean>(false);
+  const [isScriptEnabled, setIsScriptEnabled] = useState<boolean>(false);
+  const [installButtonText, setInstallButtonText] = useState<string>("");
+  const [currentScriptCode, setCurrentScriptCode] = useState<string>("");
+  const [scriptInstallConfig, setScriptInstallConfig] = useState<ScriptInfo>();
+  const [pendingScript, setPendingScript] = useState<ScriptOrSubscribe | undefined>(undefined);
+  const [diffBaseCode, setDiffBaseCode] = useState<string>();
+  const [installedVersion, setInstalledVersion] = useState<string | null>(null);
+  const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false);
   const [localFileHandle, setLocalFileHandle] = useState<FileSystemFileHandle | null>(null);
   const [showBackgroundPrompt, setShowBackgroundPrompt] = useState<boolean>(false);
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [loaded, setLoaded] = useState<boolean>(false);
-  const [doBackwards, setDoBackwards] = useState<boolean>(false);
+  const [isPageLoaded, setIsPageLoaded] = useState<boolean>(false);
+  const [shouldNavigateBack, setShouldNavigateBack] = useState<boolean>(false);
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
     if (newScript.ignoreVersion) newScript.ignoreVersion = "";
     await scriptClient.install({ script: newScript, code });
     const metadata = newScript.metadata;
-    setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
+    setScriptInstallConfig((prev) => (prev ? { ...prev, code, metadata } : prev));
     const scriptVersion = metadata.version?.[0];
-    const oldScriptVersion = typeof scriptVersion === "string" ? scriptVersion : "N/A";
-    setOldScriptVersion(oldScriptVersion);
-    setUpsertScript(newScript);
-    setDiffCode(code);
+    const versionStr = typeof scriptVersion === "string" ? scriptVersion : "N/A";
+    setInstalledVersion(versionStr);
+    setPendingScript(newScript);
+    setDiffBaseCode(code);
   };
 
   const getUpdatedNewScript = async (uuid: string, code: string) => {
@@ -220,11 +263,11 @@ function App() {
     return script;
   };
 
-  const initAsync = async () => {
+  const initializeInstallation = async () => {
     try {
       const uuid = searchParams.get("uuid");
       const fid = searchParams.get("file");
-      let info: ScriptInfo | undefined;
+      let installInfo: ScriptInfo | undefined;
       let isKnownUpdate: boolean = false;
 
       // 如果没有 uuid 和 file，跳过初始化逻辑
@@ -233,18 +276,18 @@ function App() {
       }
 
       if (window.history.length > 1) {
-        setDoBackwards(true);
+        setShouldNavigateBack(true);
       }
-      setLoaded(true);
+      setIsPageLoaded(true);
 
       let paramOptions = {};
       if (uuid) {
-        const cachedInfo = await scriptClient.getInstallInfo(uuid);
+        const cachedData = await scriptClient.getInstallInfo(uuid);
         cleanupStaleInstallInfo(uuid);
-        if (cachedInfo?.[0]) isKnownUpdate = true;
-        info = cachedInfo?.[1] || undefined;
-        paramOptions = cachedInfo?.[2] || {};
-        if (!info) {
+        if (cachedData?.[0]) isKnownUpdate = true;
+        installInfo = cachedData?.[1] || undefined;
+        paramOptions = cachedData?.[2] || {};
+        if (!installInfo) {
           throw new Error("fetch script info failed");
         }
       } else {
@@ -269,136 +312,139 @@ function App() {
 
         // 刷新 timestamp, 使 10s~15s 后不会被立即清掉
         // 每五分钟刷新一次db记录的timestamp，使开启中的安装页面的fileHandle不会被刷掉
-        intervalExecution(`${cIdKey}liveFileHandle`, () => saveHandle(fid, fileHandle), 5 * 60 * 1000, true);
+        const key = `${componentInstanceId}liveFileHandle`;
+        intervalExecution(key, () => saveHandle(fid, fileHandle), 5 * 60 * 1000, true);
 
         const code = await file.text();
         const metadata = parseMetadata(code);
         if (!metadata) {
           throw new Error("parse script info failed");
         }
-        info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
+        installInfo = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
       }
 
-      let prepare:
+      let preparationResult:
         | { script: Script; oldScript?: Script; oldScriptCode?: string }
         | { subscribe: Subscribe; oldSubscribe?: Subscribe };
-      let action: Script | Subscribe;
+      let finalActionObject: Script | Subscribe;
 
-      const { code, url } = info;
-      let oldVersion: string | undefined = undefined;
-      let diffCode: string | undefined = undefined;
-      if (info.userSubscribe) {
-        prepare = await prepareSubscribeByCode(code, url);
-        action = prepare.subscribe;
-        if (prepare.oldSubscribe) {
-          const oldSubscribeVersion = prepare.oldSubscribe.metadata.version?.[0];
-          oldVersion = typeof oldSubscribeVersion === "string" ? oldSubscribeVersion : "N/A";
+      const { code, url } = installInfo;
+      let oldVersionStr: string | undefined = undefined;
+      let baseDiffCode: string | undefined = undefined;
+      if (installInfo.userSubscribe) {
+        preparationResult = await prepareSubscribeByCode(code, url);
+        finalActionObject = preparationResult.subscribe;
+        if (preparationResult.oldSubscribe) {
+          const oldSubscribeVersion = preparationResult.oldSubscribe.metadata.version?.[0];
+          oldVersionStr = typeof oldSubscribeVersion === "string" ? oldSubscribeVersion : "N/A";
         }
-        diffCode = prepare.oldSubscribe?.code;
+        baseDiffCode = preparationResult.oldSubscribe?.code;
       } else {
-        const knownUUID = isKnownUpdate ? info.uuid : undefined;
-        prepare = await prepareScriptByCode(code, url, knownUUID, false, undefined, paramOptions);
-        action = prepare.script;
-        if (prepare.oldScript) {
-          const oldScriptVersion = prepare.oldScript.metadata.version?.[0];
-          oldVersion = typeof oldScriptVersion === "string" ? oldScriptVersion : "N/A";
+        const knownUUID = isKnownUpdate ? installInfo.uuid : undefined;
+        preparationResult = await prepareScriptByCode(code, url, knownUUID, false, undefined, paramOptions);
+        finalActionObject = preparationResult.script;
+        if (preparationResult.oldScript) {
+          const oldScriptVersion = preparationResult.oldScript.metadata.version?.[0];
+          oldVersionStr = typeof oldScriptVersion === "string" ? oldScriptVersion : "N/A";
         }
-        diffCode = prepare.oldScriptCode;
+        baseDiffCode = preparationResult.oldScriptCode;
       }
-      setScriptCode(code);
-      setDiffCode(diffCode);
-      setOldScriptVersion(typeof oldVersion === "string" ? oldVersion : null);
-      setIsUpdate(typeof oldVersion === "string");
-      setScriptInfo(info);
-      setUpsertScript(action);
+      setCurrentScriptCode(code);
+      setDiffBaseCode(baseDiffCode);
+      setInstalledVersion(typeof oldVersionStr === "string" ? oldVersionStr : null);
+      setIsUpdateMode(typeof oldVersionStr === "string");
+      setScriptInstallConfig(installInfo);
+      setPendingScript(finalActionObject);
 
       // 检查是否需要显示后台运行提示
-      if (!info.userSubscribe) {
-        setShowBackgroundPrompt(await checkBackgroundPrompt(action as Script));
+      if (!installInfo.userSubscribe) {
+        setShowBackgroundPrompt(await checkBackgroundPrompt(finalActionObject as Script));
       }
     } catch (e: any) {
-      Message.error(t("script_info_load_failed") + " " + e.message);
+      Message.error(`${t("script_info_load_failed")} ${e?.message ?? e}`);
     } finally {
       // fileHandle 保留处理方式（暂定）：
       // fileHandle 会保留一段足够时间，避免用户重新刷画面，重启浏览器等操作后，安装页变得空白一片。
       // 处理会在所有Tab都载入后（不包含睡眠Tab）进行，因此延迟 10s~15s 让处理有足够时间。
       // 安装页面关掉后15分钟为不保留状态，会在安装画面再次打开时（其他脚本安装），进行清除。
-      const delay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免浏览器重启时大量Tabs同时执行DB清除
-      timeoutExecution(`${cIdKey}cleanupFileHandle`, cleanupOldHandles, delay);
+      const randomDelay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免浏览器重启时大量Tabs同时执行DB清除
+      timeoutExecution(`${componentInstanceId}cleanupFileHandle`, cleanupOldHandles, randomDelay);
     }
   };
 
+  // 有 file 或 uuid 时加载安装画面
   useEffect(() => {
-    !loaded && initAsync();
-  }, [searchParams, loaded]);
+    !isPageLoaded && initializeInstallation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get("uuid"), searchParams.get("file"), isPageLoaded]);
 
-  const [watchFile, setWatchFile] = useState(false);
-  const metadataLive = useMemo(() => (scriptInfo?.metadata || {}) as SCMetadata, [scriptInfo]);
+  const [isFileWatchingEnabled, setIsFileWatchingEnabled] = useState(false);
+  const liveMetadata = useMemo(() => (scriptInstallConfig?.metadata || {}) as SCMetadata, [scriptInstallConfig]);
 
-  const permissions = useMemo(() => {
+  const scriptPermissions = useMemo(() => {
     const permissions: Permission = [];
 
-    if (!scriptInfo) return permissions;
+    if (!scriptInstallConfig) return permissions;
 
-    if (scriptInfo.userSubscribe) {
+    if (scriptInstallConfig.userSubscribe) {
       permissions.push({
         label: t("subscribe_install_label"),
         color: "#ff0000",
-        value: metadataLive.scripturl!,
+        value: liveMetadata.scripturl!,
       });
     }
 
-    if (metadataLive.match) {
-      permissions.push({ label: t("script_runs_in"), value: metadataLive.match });
+    if (liveMetadata.match) {
+      permissions.push({ label: t("script_runs_in"), value: liveMetadata.match });
     }
 
-    if (metadataLive.connect) {
+    if (liveMetadata.connect) {
       permissions.push({
         label: t("script_has_full_access_to"),
         color: "#F9925A",
-        value: metadataLive.connect,
+        value: liveMetadata.connect,
       });
     }
 
-    if (metadataLive.require) {
-      permissions.push({ label: t("script_requires"), value: metadataLive.require });
+    if (liveMetadata.require) {
+      permissions.push({ label: t("script_requires"), value: liveMetadata.require });
     }
 
     return permissions;
-  }, [scriptInfo, metadataLive, t]);
+  }, [scriptInstallConfig, liveMetadata, t]);
 
-  const descriptionParagraph = useMemo(() => {
-    const ret: JSX.Element[] = [];
+  const descriptionParagraphs = useMemo(() => {
+    const elements: JSX.Element[] = [];
 
-    if (!scriptInfo) return ret;
+    if (!scriptInstallConfig) return elements;
 
-    const isCookie = metadataLive.grant?.some((val) => val === "GM_cookie");
-    if (isCookie) {
-      ret.push(
+    const hasCookieGrant = liveMetadata.grant?.some((val) => val === "GM_cookie");
+    if (hasCookieGrant) {
+      elements.push(
         <Typography.Text type="error" key="cookie">
           {t("cookie_warning")}
         </Typography.Text>
       );
     }
 
-    if (metadataLive.crontab) {
-      ret.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
-      ret.push(
+    if (liveMetadata.crontab) {
+      elements.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
+      elements.push(
         <div key="cronta-nexttime" className="tw-flex tw-flex-row tw-flex-wrap tw-gap-x-2">
           <Typography.Text>{t("scheduled_script_description_description_expr")}</Typography.Text>
-          <Typography.Text code>{metadataLive.crontab[0]}</Typography.Text>
+          <Typography.Text code>{liveMetadata.crontab[0]}</Typography.Text>
           <Typography.Text>{t("scheduled_script_description_description_next")}</Typography.Text>
-          <Typography.Text code>{nextTimeDisplay(metadataLive.crontab[0])}</Typography.Text>
+          <Typography.Text code>{nextTimeDisplay(liveMetadata.crontab[0])}</Typography.Text>
         </div>
       );
-    } else if (metadataLive.background) {
-      ret.push(<Typography.Text key="background">{t("background_script_description")}</Typography.Text>);
+    } else if (liveMetadata.background) {
+      elements.push(<Typography.Text key="background">{t("background_script_description")}</Typography.Text>);
     }
 
-    return ret;
-  }, [scriptInfo, metadataLive, t]);
+    return elements;
+  }, [scriptInstallConfig, liveMetadata, t]);
 
-  const antifeatures: { [key: string]: { color: string; title: string; description: string } } = {
+  const antifeatureRegistry: { [key: string]: { color: string; title: string; description: string } } = {
     "referral-link": {
       color: "purple",
       title: t("antifeature_referral_link_title"),
@@ -433,22 +479,22 @@ function App() {
 
   // 更新按钮文案和页面标题
   useEffect(() => {
-    if (scriptInfo?.userSubscribe) {
-      setBtnText(isUpdate ? t("update_subscribe")! : t("install_subscribe"));
+    if (scriptInstallConfig?.userSubscribe) {
+      setInstallButtonText(isUpdateMode ? t("update_subscribe")! : t("install_subscribe"));
     } else {
-      setBtnText(isUpdate ? t("update_script")! : t("install_script"));
+      setInstallButtonText(isUpdateMode ? t("update_script")! : t("install_script"));
     }
-    if (upsertScript) {
-      document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript!)} - ScriptCat`;
+    if (pendingScript) {
+      document.title = `${!isUpdateMode ? t("install_script") : t("update_script")} - ${i18nName(pendingScript!)} - ScriptCat`;
     }
-  }, [isUpdate, scriptInfo, upsertScript, t]);
+  }, [isUpdateMode, scriptInstallConfig, pendingScript, t]);
 
   // 设置脚本状态
   useEffect(() => {
-    if (upsertScript) {
-      setEnable(upsertScript.status === SCRIPT_STATUS_ENABLE);
+    if (pendingScript) {
+      setIsScriptEnabled(pendingScript.status === SCRIPT_STATUS_ENABLE);
     }
-  }, [upsertScript]);
+  }, [pendingScript]);
 
   // 检查是否需要显示后台运行提示
   const checkBackgroundPrompt = async (script: Script) => {
@@ -469,8 +515,8 @@ function App() {
     return false;
   };
 
-  const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
-    if (!upsertScript) {
+  const executeInstallation = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
+    if (!pendingScript) {
       Message.error(t("script_info_load_failed")!);
       return;
     }
@@ -478,57 +524,57 @@ function App() {
     const { closeAfterInstall: shouldClose = true, noMoreUpdates: disableUpdates = false } = options;
 
     try {
-      if (scriptInfo?.userSubscribe) {
-        await subscribeClient.install(upsertScript as Subscribe);
+      if (scriptInstallConfig?.userSubscribe) {
+        await subscribeClient.install(pendingScript as Subscribe);
         Message.success(t("subscribe_success")!);
-        setBtnText(t("subscribe_success")!);
+        setInstallButtonText(t("subscribe_success")!);
       } else {
         // 如果选择不再检查更新，可以在这里设置脚本的更新配置
-        if (disableUpdates && upsertScript) {
+        if (disableUpdates && pendingScript) {
           // 这里可以设置脚本禁用自动更新的逻辑
-          (upsertScript as Script).checkUpdate = false;
+          (pendingScript as Script).checkUpdate = false;
         }
         // 故意只安装或执行，不改变显示内容
-        await scriptClient.install({ script: upsertScript as Script, code: scriptCode });
-        if (isUpdate) {
+        await scriptClient.install({ script: pendingScript as Script, code: currentScriptCode });
+        if (isUpdateMode) {
           Message.success(t("install.update_success")!);
-          setBtnText(t("install.update_success")!);
+          setInstallButtonText(t("install.update_success")!);
         } else {
           // 如果选择不再检查更新，可以在这里设置脚本的更新配置
-          if (disableUpdates && upsertScript) {
+          if (disableUpdates && pendingScript) {
             // 这里可以设置脚本禁用自动更新的逻辑
-            (upsertScript as Script).checkUpdate = false;
+            (pendingScript as Script).checkUpdate = false;
           }
-          if ((upsertScript as Script).ignoreVersion) (upsertScript as Script).ignoreVersion = "";
+          if ((pendingScript as Script).ignoreVersion) (pendingScript as Script).ignoreVersion = "";
           // 故意只安装或执行，不改变显示内容
-          await scriptClient.install({ script: upsertScript as Script, code: scriptCode });
-          if (isUpdate) {
+          await scriptClient.install({ script: pendingScript as Script, code: currentScriptCode });
+          if (isUpdateMode) {
             Message.success(t("install.update_success")!);
-            setBtnText(t("install.update_success")!);
+            setInstallButtonText(t("install.update_success")!);
           } else {
             Message.success(t("install_success")!);
-            setBtnText(t("install_success")!);
+            setInstallButtonText(t("install_success")!);
           }
         }
       }
 
       if (shouldClose) {
         setTimeout(() => {
-          closeWindow(doBackwards);
+          closeWindow(shouldNavigateBack);
         }, 500);
       }
     } catch (e) {
-      const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
+      const errorMessage = scriptInstallConfig?.userSubscribe ? t("subscribe_failed") : t("install_failed");
       Message.error(`${errorMessage}: ${e}`);
     }
   };
 
-  const handleClose = (options?: { noMoreUpdates: boolean }) => {
+  const handlePageClose = (options?: { noMoreUpdates: boolean }) => {
     const { noMoreUpdates = false } = options || {};
-    if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
-      scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
+    if (noMoreUpdates && scriptInstallConfig && !scriptInstallConfig.userSubscribe) {
+      scriptClient.setCheckUpdateUrl(scriptInstallConfig.uuid, false);
     }
-    closeWindow(doBackwards);
+    closeWindow(shouldNavigateBack);
   };
 
   const {
@@ -538,45 +584,45 @@ function App() {
     handleStatusChange,
     handleCloseBasic,
     handleCloseNoMoreUpdates,
-    setWatchFileClick,
+    toggleFileWatch,
   } = {
-    handleInstallBasic: () => handleInstall(),
-    handleInstallCloseAfterInstall: () => handleInstall({ closeAfterInstall: false }),
-    handleInstallNoMoreUpdates: () => handleInstall({ noMoreUpdates: true }),
+    handleInstallBasic: () => executeInstallation(),
+    handleInstallCloseAfterInstall: () => executeInstallation({ closeAfterInstall: false }),
+    handleInstallNoMoreUpdates: () => executeInstallation({ noMoreUpdates: true }),
     handleStatusChange: (checked: boolean) => {
-      setUpsertScript((script) => {
+      setPendingScript((script) => {
         if (!script) {
           return script;
         }
         script.status = checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
-        setEnable(checked);
+        setIsScriptEnabled(checked);
         return script;
       });
     },
-    handleCloseBasic: () => handleClose(),
-    handleCloseNoMoreUpdates: () => handleClose({ noMoreUpdates: true }),
-    setWatchFileClick: () => {
-      setWatchFile((prev) => !prev);
+    handleCloseBasic: () => handlePageClose(),
+    handleCloseNoMoreUpdates: () => handlePageClose({ noMoreUpdates: true }),
+    toggleFileWatch: () => {
+      setIsFileWatchingEnabled((prev) => !prev);
     },
   };
 
   const fileWatchMessageId = `id_${Math.random()}`;
 
   async function onWatchFileCodeChanged(this: FTInfo, code: string, hideInfo: boolean = false) {
-    if (this.uuid !== scriptInfo?.uuid) return;
+    if (this.uuid !== scriptInstallConfig?.uuid) return;
     if (this.fileName !== localFileHandle?.name) return;
-    setScriptCode(code);
-    const uuid = (upsertScript as Script)?.uuid;
+    setCurrentScriptCode(code);
+    const uuid = (pendingScript as Script)?.uuid;
     if (!uuid) {
       throw new Error("uuid is undefined");
     }
     try {
       const newScript = await getUpdatedNewScript(uuid, code);
       await installOrUpdateScript(newScript, code);
-    } catch (e) {
+    } catch (e: any) {
       Message.error({
         id: fileWatchMessageId,
-        content: t("install_failed") + ": " + e,
+        content: `${t("install_failed")}: ${e?.message ?? e}`,
       });
       return;
     }
@@ -593,21 +639,19 @@ function App() {
 
   async function onWatchFileError() {
     // e.g. NotFoundError
-    setWatchFile(false);
+    setIsFileWatchingEnabled(false);
   }
 
-  const memoWatchFile = useMemo(() => {
-    return `${watchFile}.${scriptInfo?.uuid}.${localFileHandle?.name}`;
-  }, [watchFile, scriptInfo, localFileHandle]);
+  const watchFileStateIdentifier = `${isFileWatchingEnabled}.${scriptInstallConfig?.uuid}.${localFileHandle?.name}`;
 
   const setupWatchFile = async (uuid: string, fileName: string, handle: FileSystemFileHandle) => {
     try {
       // 如没有安装纪录，将进行安装。
       // 如已经安装，在FileSystemObserver检查更改前，先进行更新。
-      const code = `${scriptCode}`;
-      await installOrUpdateScript(upsertScript as Script, code);
+      const code = `${currentScriptCode}`;
+      await installOrUpdateScript(pendingScript as Script, code);
       // setScriptCode(`${code}`);
-      setDiffCode(`${code}`);
+      setDiffBaseCode(`${code}`);
       const ftInfo: FTInfo = {
         uuid,
         fileName,
@@ -629,14 +673,14 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (!watchFile || !localFileHandle) {
+  const handleFileWatchChange = () => {
+    if (!isFileWatchingEnabled || !localFileHandle) {
       return;
     }
     // 去除React特性
     const [handle] = [localFileHandle];
     unmountFileTrack(handle); // 避免重复追踪
-    const uuid = scriptInfo?.uuid;
+    const uuid = scriptInstallConfig?.uuid;
     const fileName = handle?.name;
     if (!uuid || !fileName) {
       return;
@@ -645,52 +689,105 @@ function App() {
     return () => {
       unmountFileTrack(handle);
     };
-  }, [memoWatchFile]);
+  };
+
+  // 当 watch file 启用时，用于追踪本地 file 更新
+  useEffect(() => {
+    handleFileWatchChange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchFileStateIdentifier]);
 
   // 检查是否有 uuid 或 file
-  const hasUUIDorFile = useMemo(() => {
-    return !!(searchParams.get("uuid") || searchParams.get("file"));
-  }, [searchParams]);
+  const hasValidSourceParam = !!(searchParams.get("uuid") || searchParams.get("file"));
 
-  const urlHref = useMemo(() => {
-    try {
-      if (!hasUUIDorFile) {
-        const url = searchParams.get("url");
-        if (url) {
+  const targetUrlHref = useMemo(() => {
+    if (!hasValidSourceParam) {
+      /**
+       * 逻辑说明：
+       * 在 chrome.declarativeNetRequest 规则中，我们使用 `<,\1,>` 作为占位符引导 API 进行参数填充。
+       * 由于不同浏览器版本或配置对 URL 参数的自动编码（Auto-encoding）策略不一致，
+       * 我们通过检测该占位符的“被编码状态”来逆推浏览器采用了哪种编码方式。
+       */
+      let m;
+      let url;
+      try {
+        // 场景 1：URL 完全未编码。直接匹配原始特征符号 "<", ">" 和 ","
+        if ((m = /\burl=(<,.+,>)(&|$)/.exec(location.search)?.[1])) {
+          url = m; // 未被编码，取原始值。
+        }
+        // 场景 2：URL 经过了部分编码（类似 encodeURI）。逗号 "," 未被编码，但尖括号被转义为 %3C, %3E
+        else if ((m = /\burl=(%3C,.+,%3E)(&|$)/.exec(location.search)?.[1])) {
+          url = decodeURI(m);
+        }
+        // 场景 3：URL 经过了完全编码（类似 encodeURIComponent）。逗号也被转义为 %2C
+        else if ((m = /\burl=(%3C%2C.+%2C%3E)(&|$)/.exec(location.search)?.[1])) {
+          url = decodeURIComponent(m);
+        }
+      } catch {
+        // ignored
+      }
+      // 如果正则匹配/标准解码失败，回退到标准的 searchParams 获取方式 （浏览器会自行理解和解码不规范的编码）
+      if (!url) url = searchParams.get("url") || ""; // fallback
+      // 移除人工注入的特征锚点 <, ,>，提取真实的 URL 内容
+      url = url.replace(/^<,(.+),>$/, "$1"); // 去掉 <, ,>
+      if (url) {
+        try {
           const urlObject = new URL(url);
+          // 验证解析后的 URL 是否具备核心要素，确保安全性与合法性
           if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
-            return urlObject.href;
+            return url;
           }
+        } catch {
+          // ignored
         }
       }
-    } catch {
-      // ignored
     }
     return "";
-  }, [hasUUIDorFile, searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasValidSourceParam, searchParams.get("url")]);
 
   const [fetchingState, setFetchingState] = useState({
-    loadingStatus: "",
-    errorStatus: "",
+    loadingStatusText: "",
+    errorStatusText: "",
   });
 
-  const loadURLAsync = async (urlHref: string) => {
-    try {
-      const { code, metadata } = await fetchScriptBody(urlHref, {
-        onProgress: (info: { receivedLength: number }) => {
-          setFetchingState((prev) => ({
-            ...prev,
-            loadingStatus: t("downloading_status_text", { bytes: `${formatBytes(info.receivedLength)}` }),
-          }));
-        },
-      });
-      const update = false;
-      const uuid = uuidv4();
-      const url = urlHref;
-      const upsertBy = "user";
+  const loadURLAsync = async (candidateUrls: string[]) => {
+    // 1. 定义获取单个脚本的内部逻辑，负责处理进度条与单次错误
+    const fetchValidScript = async () => {
+      let firstError: unknown;
+      for (const url of candidateUrls) {
+        try {
+          const result = await fetchScriptBody(url, {
+            onProgress: (info: { receivedLength: number }) => {
+              setFetchingState((prev) => ({
+                ...prev,
+                loadingStatusText: t("downloading_status_text", { bytes: formatBytes(info.receivedLength) }),
+              }));
+            },
+          });
+          if (result.code && result.metadata) {
+            return { result, url }; // 找到有效的立即返回
+          }
+        } catch (e) {
+          if (!firstError) firstError = e;
+        }
+      }
+      // 如果循环结束都没成功，抛出第一个捕获到的错误或预设错误
+      throw firstError || new Error(t("install_page_load_failed"));
+    };
 
-      const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata)];
-      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+    try {
+      // 2. 执行获取
+      const { result, url } = await fetchValidScript();
+      const { code, metadata } = result;
+
+      // 3. 处理数据与缓存
+      const uuid = uuidv4();
+      const scriptData = [false, createScriptInfo(uuid, code, url, "user", metadata)];
+
+      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, scriptData);
+
+      // 4. 更新导向
       setSearchParams(
         (prev) => {
           prev.delete("url");
@@ -700,32 +797,49 @@ function App() {
         { replace: true }
       );
     } catch (err: any) {
-      const errMessage = `${err.message || err}`;
+      // 5. 统一错误处理
       setFetchingState((prev) => ({
         ...prev,
-        loadingStatus: "",
-        errorStatus: errMessage,
+        loadingStatusText: "",
+        errorStatusText: String(err?.message || err),
       }));
     }
   };
 
-  useEffect(() => {
-    if (!urlHref) return;
-    loadURLAsync(urlHref);
-  }, [urlHref]);
+  const handleUrlChangeAndFetch = (targetUrlHref: string) => {
+    setFetchingState((prev) => ({
+      ...prev,
+      loadingStatusText: t("install_page_please_wait"),
+    }));
+    const candidateUrls = getCandidateUrls(targetUrlHref);
+    loadURLAsync(candidateUrls);
+  };
 
-  if (!hasUUIDorFile) {
-    return urlHref ? (
+  // 有 url 的话下载内容
+  useEffect(() => {
+    if (targetUrlHref) handleUrlChangeAndFetch(targetUrlHref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetUrlHref]);
+
+  if (!hasValidSourceParam) {
+    return targetUrlHref ? (
       <div className="tw-flex tw-justify-center tw-items-center tw-h-screen">
         <Space direction="vertical" align="center">
-          <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
-          {fetchingState.loadingStatus && (
-            <div className="downloading">
-              <Typography.Text>{fetchingState.loadingStatus}</Typography.Text>
-              <div className="loader"></div>
-            </div>
+          {fetchingState.loadingStatusText && (
+            <>
+              <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
+              <div className="downloading">
+                <Typography.Text>{fetchingState.loadingStatusText}</Typography.Text>
+                <div className="loader"></div>
+              </div>
+            </>
           )}
-          {fetchingState.errorStatus && <div className="error-message">{fetchingState.errorStatus}</div>}
+          {fetchingState.errorStatusText && (
+            <>
+              <Typography.Title heading={3}>{t("install_page_load_failed")}</Typography.Title>
+              <div className="error-message">{fetchingState.errorStatusText}</div>
+            </>
+          )}
         </Space>
       </div>
     ) : (
@@ -770,7 +884,7 @@ function App() {
         <Space direction="vertical" size="medium">
           <Typography.Text>
             {t("enable_background.prompt_description", {
-              scriptType: upsertScript?.metadata?.background ? t("background_script") : t("scheduled_script"),
+              scriptType: pendingScript?.metadata?.background ? t("background_script") : t("scheduled_script"),
             })}
           </Typography.Text>
           <Typography.Text type="secondary">{t("enable_background.settings_hint")}</Typography.Text>
@@ -778,29 +892,31 @@ function App() {
       </Modal>
       <div className="tw-flex tw-flex-row tw-gap-x-3 tw-pt-3 tw-pb-3">
         <div className="tw-grow-1 tw-shrink-1 tw-flex tw-flex-row tw-justify-start tw-items-center">
-          {upsertScript?.metadata.icon && <ScriptIcons script={upsertScript} size={32} />}
-          {upsertScript && (
-            <Tooltip position="tl" content={i18nName(upsertScript)}>
+          {pendingScript?.metadata.icon && <ScriptIcons script={pendingScript} size={32} />}
+          {pendingScript && (
+            <Tooltip position="tl" content={i18nName(pendingScript)}>
               <Typography.Text bold className="tw-text-size-lg tw-truncate tw-w-0 tw-grow-1">
-                {i18nName(upsertScript)}
+                {i18nName(pendingScript)}
               </Typography.Text>
             </Tooltip>
           )}
-          <Tooltip content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}>
-            <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
+          <Tooltip
+            content={scriptInstallConfig?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
+          >
+            <Switch style={{ marginLeft: "8px" }} checked={isScriptEnabled} onChange={handleStatusChange} />
           </Tooltip>
         </div>
         <div className="tw-grow-0 tw-shrink-1 tw-flex tw-flex-row tw-flex-wrap tw-gap-x-2 tw-gap-y-1 tw-items-center">
           <div className="tw-flex tw-flex-row tw-flex-nowrap tw-gap-x-2">
-            {oldScriptVersion && (
-              <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
-                <Tag bordered>{oldScriptVersion}</Tag>
+            {installedVersion && (
+              <Tooltip content={`${t("current_version")}: v${installedVersion}`}>
+                <Tag bordered>{installedVersion}</Tag>
               </Tooltip>
             )}
-            {typeof metadataLive.version?.[0] === "string" && metadataLive.version[0] !== oldScriptVersion && (
-              <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
+            {typeof liveMetadata.version?.[0] === "string" && liveMetadata.version[0] !== installedVersion && (
+              <Tooltip color="red" content={`${t("update_version")}: v${liveMetadata.version[0]}`}>
                 <Tag bordered color="red">
-                  {metadataLive.version[0]}
+                  {liveMetadata.version[0]}
                 </Tag>
               </Tooltip>
             )}
@@ -812,28 +928,31 @@ function App() {
           <div className="tw-flex tw-flex-col tw-shrink-1 tw-grow-1 tw-basis-8/12">
             <div className="tw-grow-1 tw-shrink-0">
               <div className="tw-flex tw-flex-wrap tw-gap-x-2 tw-gap-y-1 tag-container tw-float-right">
-                {(metadataLive.background || metadataLive.crontab) && (
+                {(liveMetadata.background || liveMetadata.crontab) && (
                   <Tooltip color="green" content={t("background_script_tag")}>
                     <Tag bordered color="green">
                       {t("background_script")}
                     </Tag>
                   </Tooltip>
                 )}
-                {metadataLive.crontab && (
+                {liveMetadata.crontab && (
                   <Tooltip color="green" content={t("scheduled_script_tag")}>
                     <Tag bordered color="green">
                       {t("scheduled_script")}
                     </Tag>
                   </Tooltip>
                 )}
-                {metadataLive.antifeature?.length &&
-                  metadataLive.antifeature.map((antifeature) => {
+                {liveMetadata.antifeature?.length &&
+                  liveMetadata.antifeature.map((antifeature) => {
                     const item = antifeature.split(" ")[0];
                     return (
-                      antifeatures[item] && (
-                        <Tooltip color={antifeatures[item].color} content={antifeatures[item].description}>
-                          <Tag bordered color={antifeatures[item].color}>
-                            {antifeatures[item].title}
+                      antifeatureRegistry[item] && (
+                        <Tooltip
+                          color={antifeatureRegistry[item].color}
+                          content={antifeatureRegistry[item].description}
+                        >
+                          <Tag bordered color={antifeatureRegistry[item].color}>
+                            {antifeatureRegistry[item].title}
                           </Tag>
                         </Tooltip>
                       )
@@ -842,10 +961,10 @@ function App() {
               </div>
               <div>
                 <div>
-                  <Typography.Text bold>{upsertScript && i18nDescription(upsertScript!)}</Typography.Text>
+                  <Typography.Text bold>{pendingScript && i18nDescription(pendingScript!)}</Typography.Text>
                 </div>
                 <div>
-                  <Typography.Text bold>{`${t("author")}: ${metadataLive.author}`}</Typography.Text>
+                  <Typography.Text bold>{`${t("author")}: ${liveMetadata.author}`}</Typography.Text>
                 </div>
                 <div>
                   <Typography.Text
@@ -858,17 +977,17 @@ function App() {
                       overflowY: "auto",
                     }}
                   >
-                    {`${t("source")}: ${prettyUrl(scriptInfo?.url)}`}
+                    {`${t("source")}: ${prettyUrl(scriptInstallConfig?.url)}`}
                   </Typography.Text>
                 </div>
               </div>
             </div>
           </div>
-          {descriptionParagraph?.length ? (
+          {descriptionParagraphs?.length ? (
             <div className="tw-flex tw-flex-col tw-shrink-0 tw-grow-1">
               <Typography>
                 <Typography.Paragraph blockquote className="tw-pt-2 tw-pb-2">
-                  {descriptionParagraph}
+                  {descriptionParagraphs}
                 </Typography.Paragraph>
               </Typography>
             </div>
@@ -876,7 +995,7 @@ function App() {
             <></>
           )}
           <div className="tw-flex tw-flex-row tw-flex-wrap tw-gap-x-4">
-            {permissions.map((item) => (
+            {scriptPermissions.map((item) => (
               <div key={item.label} className="tw-flex tw-flex-col tw-gap-y-2">
                 {item.value?.length > 0 ? (
                   <>
@@ -912,36 +1031,36 @@ function App() {
           <div className="tw-grow-1 tw-shrink-0 tw-text-end">
             <Space>
               <Button.Group>
-                <Button type="primary" size="small" onClick={handleInstallBasic} disabled={watchFile}>
-                  {btnText}
+                <Button type="primary" size="small" onClick={handleInstallBasic} disabled={isFileWatchingEnabled}>
+                  {installButtonText}
                 </Button>
                 <Dropdown
                   droplist={
                     <Menu>
                       <Menu.Item key="install-no-close" onClick={handleInstallCloseAfterInstall}>
-                        {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
+                        {isUpdateMode ? t("update_script_no_close") : t("install_script_no_close")}
                       </Menu.Item>
-                      {!scriptInfo?.userSubscribe && (
+                      {!scriptInstallConfig?.userSubscribe && (
                         <Menu.Item key="install-no-updates" onClick={handleInstallNoMoreUpdates}>
-                          {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
+                          {isUpdateMode ? t("update_script_no_more_update") : t("install_script_no_more_update")}
                         </Menu.Item>
                       )}
                     </Menu>
                   }
                   position="bottom"
-                  disabled={watchFile}
+                  disabled={isFileWatchingEnabled}
                 >
-                  <Button type="primary" size="small" icon={<IconDown />} disabled={watchFile} />
+                  <Button type="primary" size="small" icon={<IconDown />} disabled={isFileWatchingEnabled} />
                 </Dropdown>
               </Button.Group>
               {localFileHandle && (
                 <Popover content={t("watch_file_description")}>
-                  <Button type="secondary" size="small" onClick={setWatchFileClick}>
-                    {watchFile ? t("stop_watch_file") : t("watch_file")}
+                  <Button type="secondary" size="small" onClick={toggleFileWatch}>
+                    {isFileWatchingEnabled ? t("stop_watch_file") : t("watch_file")}
                   </Button>
                 </Popover>
               )}
-              {isUpdate ? (
+              {isUpdateMode ? (
                 <Button.Group>
                   <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
                     {t("close")}
@@ -949,7 +1068,7 @@ function App() {
                   <Dropdown
                     droplist={
                       <Menu>
-                        {!scriptInfo?.userSubscribe && (
+                        {!scriptInstallConfig?.userSubscribe && (
                           <Menu.Item key="install-no-updates" onClick={handleCloseNoMoreUpdates}>
                             {t("close_update_script_no_more_update")}
                           </Menu.Item>
@@ -973,8 +1092,8 @@ function App() {
           <CodeEditor
             id="show-code"
             className="sc-inset-0"
-            code={scriptCode || undefined}
-            diffCode={diffCode === scriptCode ? "" : diffCode || ""}
+            code={currentScriptCode || undefined}
+            diffCode={diffBaseCode === currentScriptCode ? "" : diffBaseCode || ""}
           />
         </div>
       </div>

@@ -266,7 +266,15 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
-            regexSubstitution: `${installPageURL}?url=\\1`,
+            /**
+             * 核心设计：
+             * 使用 `<,\1,>` 作为特征锚点注入到重定向 URL 中。
+             * 1. 引导格式化：利用 \1 提取正则捕获组内容。
+             * 2. 编码探测：通过包裹特殊的定界符（尖括号和逗号），在目标页面解析时，
+             * 可以通过检测这些字符是否被转义（如变为 %3C, %2C）来精准判定
+             * 浏览器底层触发的是哪种 URL 编码策略（Raw / encodeURI / encodeURIComponent）。
+             */
+            regexSubstitution: `${installPageURL}?url=<,\\1,>`,
           },
         },
         condition: condition,
