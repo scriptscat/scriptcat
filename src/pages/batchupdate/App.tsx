@@ -17,8 +17,8 @@ import {
 } from "@App/app/service/service_worker/types";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { IconSync } from "@arco-design/web-react/icon";
-import { useAppContext } from "../store/AppContext";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
+import { subscribeMessage } from "@App/pages/store/global";
 
 const CollapseItem = Collapse.Item;
 const { GridItem } = Grid;
@@ -29,8 +29,6 @@ const { Text } = Typography;
 const pageExecute: Record<string, (data: any) => void> = {};
 
 function App() {
-  const { subscribeMessage } = useAppContext();
-
   const AUTO_CLOSE_PAGE = 8; // after 8s, auto close
   const getUrlParam = (key: string): string => {
     return (location.search?.includes(`${key}=`) ? new URLSearchParams(location.search).get(`${key}`) : "") || "";
@@ -92,7 +90,8 @@ function App() {
           site.push(entry);
           continue;
         }
-        const isIgnored = entry.script.ignoreVersion === entry.newMeta?.version?.[0];
+        const newVersion = entry.newMeta?.version?.[0];
+        const isIgnored = typeof newVersion === "string" && entry.script.ignoreVersion === newVersion;
         const mEntry = {
           ...entry,
         };
@@ -269,12 +268,13 @@ function App() {
                       <Link disabled={isDoingTask} onClick={() => onUpdateClick(item.uuid)}>
                         {t("updatepage.update")}
                       </Link>
-                      {item.script.ignoreVersion !== item.newMeta?.version?.[0] ? (
+                      {typeof item.newMeta?.version?.[0] === "string" &&
+                      item.script.ignoreVersion !== item.newMeta.version[0] ? (
                         <>
                           <Divider type="vertical" />
                           <Link
                             disabled={isDoingTask}
-                            onClick={() => onIgnoreClick(item.uuid, item.newMeta?.version?.[0])}
+                            onClick={() => onIgnoreClick(item.uuid, item.newMeta.version[0])}
                           >
                             {t("updatepage.ignore")}
                           </Link>

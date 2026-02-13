@@ -33,7 +33,17 @@ const envInfo: GMInfoEnv = {
 describe.concurrent("@grant GM", () => {
   it.concurrent("GM_", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_getTabs", "GM_saveTab", "GM_cookie"];
+    script.metadata.grant = [
+      "GM_getValue",
+      "GM_getTab",
+      "GM_getTabs",
+      "GM_saveTab",
+      "GM_cookie",
+      "GM_addElement",
+      "GM_openInTab",
+      "GM_log",
+      "GM_notification",
+    ];
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
@@ -43,14 +53,16 @@ describe.concurrent("@grant GM", () => {
       GM_saveTab: this.GM_saveTab,
       GM_cookie: this.GM_cookie,
       ["GM_cookie.list"]: this.GM_cookie.list,
-      ["GM_addElement"]: this.GM_addElement || function nil(){},
-      ["GM.addElement"]: this["GM.addElement"] || function nil(){},
-      ["GM_openInTab"]: this.GM_openInTab || function nil(){},
-      ["GM.openInTab"]: this.GM.openInTab || function nil(){},
-      ["GM_log"]: this.GM_log || function nil(){},
-      ["GM.log"]: this.GM.log || function nil(){},
-      ["GM_notification"]: this.GM_notification || function nil(){},
-      ["GM.notification"]: this.GM.notification || function nil(){},
+      ["GM_addElement"]: this.GM_addElement,
+      ["GM.addElement"]: this.GM.addElement,
+      ["GM_openInTab"]: this.GM_openInTab,
+      ["GM.openInTab"]: this.GM.openInTab,
+      ["GM_log"]: this.GM_log,
+      ["GM.log"]: this.GM.log,
+      ["GM_notification"]: this.GM_notification,
+      ["GM.notification"]: this.GM.notification,
+      ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
+      ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -63,20 +75,33 @@ describe.concurrent("@grant GM", () => {
     // cookie
     expect(ret.GM_cookie?.name).toEqual("bound GM_cookie");
     expect(ret["GM_cookie.list"]?.name).toEqual("bound GM_cookie.list");
+    // GM_与GM.应该都在
+    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
+    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
     // 没有grant应返回 nil
-    expect(ret["GM_addElement"]?.name).toEqual("nil");
-    expect(ret["GM.addElement"]?.name).toEqual("nil");
-    expect(ret["GM_openInTab"]?.name).toEqual("nil");
-    expect(ret["GM.openInTab"]?.name).toEqual("nil");
-    expect(ret["GM_log"]?.name).toEqual("nil");
-    expect(ret["GM.log"]?.name).toEqual("nil");
-    expect(ret["GM_notification"]?.name).toEqual("nil");
-    expect(ret["GM.notification"]?.name).toEqual("nil");
+    expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
+    expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
   });
 
   it.concurrent("GM.*", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.getTabs", "GM.saveTab", "GM.cookie"];
+    script.metadata.grant = [
+      "GM.getValue",
+      "GM.getTab",
+      "GM.getTabs",
+      "GM.saveTab",
+      "GM.cookie",
+      "GM.addElement",
+      "GM.openInTab",
+      "GM.log",
+      "GM.notification",
+    ];
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
@@ -85,14 +110,16 @@ describe.concurrent("@grant GM", () => {
       ["GM.getTabs"]: GM.getTabs,
       ["GM.saveTab"]: GM.saveTab,
       ["GM.cookie"]: this.GM.cookie,
-      ["GM_addElement"]: this.GM_addElement || function nil(){},
-      ["GM.addElement"]: this["GM.addElement"] || function nil(){},
-      ["GM_openInTab"]: this.GM_openInTab || function nil(){},
-      ["GM.openInTab"]: this.GM.openInTab || function nil(){},
-      ["GM_log"]: this.GM_log || function nil(){},
-      ["GM.log"]: this.GM.log || function nil(){},
-      ["GM_notification"]: this.GM_notification || function nil(){},
-      ["GM.notification"]: this.GM.notification || function nil(){},
+      ["GM_addElement"]: this.GM_addElement,
+      ["GM.addElement"]: this.GM.addElement,
+      ["GM_openInTab"]: this.GM_openInTab,
+      ["GM.openInTab"]: this.GM.openInTab,
+      ["GM_log"]: this.GM_log,
+      ["GM.log"]: this.GM.log,
+      ["GM_notification"]: this.GM_notification,
+      ["GM.notification"]: this.GM.notification,
+      ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
+      ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -105,15 +132,18 @@ describe.concurrent("@grant GM", () => {
     // cookie
     expect(ret["GM.cookie"]?.name).toEqual("bound GM.cookie");
     expect(ret["GM.cookie"]?.list?.name).toEqual("bound GM.cookie.list");
+    // GM_与GM.应该都在
+    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
+    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
     // 没有grant应返回 nil
-    expect(ret["GM_addElement"]?.name).toEqual("nil");
-    expect(ret["GM.addElement"]?.name).toEqual("nil");
-    expect(ret["GM_openInTab"]?.name).toEqual("nil");
-    expect(ret["GM.openInTab"]?.name).toEqual("nil");
-    expect(ret["GM_log"]?.name).toEqual("nil");
-    expect(ret["GM.log"]?.name).toEqual("nil");
-    expect(ret["GM_notification"]?.name).toEqual("nil");
-    expect(ret["GM.notification"]?.name).toEqual("nil");
+    expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
+    expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
   });
 });
 
@@ -440,7 +470,12 @@ describe.concurrent("GM_value", () => {
     // 设置再删除
     GM_setValue("a", undefined);
     let ret2 = GM_getValue("a", 456);
-    return {ret1, ret2};
+    // 设置错误的对象
+    GM_setValue("proxy-key", new Proxy({}, {}));
+    let ret3 = GM_getValue("proxy-key");
+    GM_setValue("window",window);
+    let ret4 = GM_getValue("window");
+    return {ret1, ret2, ret3, ret4};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -452,7 +487,7 @@ describe.concurrent("GM_value", () => {
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendMessage).toHaveBeenCalledTimes(4);
 
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -482,11 +517,45 @@ describe.concurrent("GM_value", () => {
       })
     );
 
-    expect(ret).toEqual({ ret1: 123, ret2: 456 });
+    // 第三次调用：设置值为 Proxy 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        action: "scripting/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [expect.any(String), "proxy-key", {}], // Proxy 会被转换为空对象
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第四次调用：设置值为 window 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        action: "scripting/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [expect.any(String), "window"], // window 会被转换为空对象
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    expect(ret).toEqual({
+      ret1: 123,
+      ret2: 456,
+      ret3: {},
+      ret4: undefined,
+    });
   });
 
   it.concurrent("value引用问题 #1141", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = {};
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_getValues"];
     script.code = `
 const value1 = {
@@ -646,7 +715,12 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     // 设置再删除
     GM_setValues({"a": undefined, "c": undefined});
     let ret2 = GM_getValues(["a","b","c"]);
-    return {ret1, ret2};
+    // 设置错误的对象
+    GM_setValues({"proxy-key": new Proxy({}, {})});
+    let ret3 = GM_getValues(["proxy-key"]);
+    GM_setValues({"window": window});
+    let ret4 = GM_getValues(["window"]);
+    return {ret1, ret2, ret3, ret4};
     `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const mockMessage = {
@@ -658,7 +732,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendMessage).toHaveBeenCalledTimes(4);
 
     const keyValuePairs1 = [
       ["a", encodeRValue(123)],
@@ -709,7 +783,55 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       })
     );
 
-    expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { b: 456 } });
+    // 第三次调用：设置值为 Proxy 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        action: "scripting/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d+$/),
+            // the object payload
+            [["proxy-key", encodeRValue({})]],
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第四次调用：设置值为 window 对象（应失败）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        action: "scripting/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d+$/),
+            // the object payload
+            [
+              [
+                "window",
+                encodeRValue(undefined), // window 会被转换为 undefined
+              ],
+            ],
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    expect(ret).toEqual({
+      ret1: { a: 123, b: 456, c: "789" },
+      ret2: { b: 456 },
+      ret3: { "proxy-key": {} },
+      ret4: { window: undefined },
+    });
   });
 
   it.concurrent("GM_deleteValue", async () => {

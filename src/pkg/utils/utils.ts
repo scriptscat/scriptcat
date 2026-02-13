@@ -327,7 +327,9 @@ export const makeBlobURL = <T extends { blob: Blob; persistence: boolean }>(
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(<string>reader.result);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.readAsDataURL(blob);
   });
 }
@@ -336,7 +338,9 @@ export function blobToBase64(blob: Blob): Promise<string> {
 export function blobToText(blob: Blob): Promise<string | null> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.readAsText(blob);
   });
 }
@@ -396,8 +400,14 @@ export function toCamelCase(key: SystemConfigKey) {
 }
 
 export function cleanFileName(name: string): string {
-  // eslint-disable-next-line no-control-regex, no-useless-escape
-  return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
+  // https://github.com/Tampermonkey/tampermonkey/issues/2413
+  // https://developer.chrome.com/docs/extensions/reference/api/downloads#type-DownloadOptions
+  // A file path relative to the Downloads directory to contain the downloaded file, possibly containing subdirectories.
+  // Absolute paths, empty paths, and paths containing back-references ".." will cause an error.
+  let n = name;
+  // eslint-disable-next-line no-control-regex
+  n = n.replace(/[\x00-\x1F\\:*?"<>|]+/g, "-");
+  return n.replace(/\.\.+/g, "-").trim();
 }
 
 export const sourceMapTo = (scriptName: string) => {

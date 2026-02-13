@@ -1,3 +1,4 @@
+import { Native } from "../global";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type GMApi from "./gm_api";
 import { dataEncode } from "@App/pkg/utils/xhr/xhr_data";
@@ -70,7 +71,9 @@ export const toBlobURL = (a: GMApi, blob: Blob): Promise<string> | string => {
 export const blobToDataURL = (blob: Blob): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.onerror = reject;
     reader.onabort = reject;
     reader.readAsDataURL(blob);
@@ -344,7 +347,7 @@ export function GM_xmlhttpRequest(
                       let o = undefined;
                       if (text) {
                         try {
-                          o = JSON.parse(text);
+                          o = Native.jsonParse(text);
                         } catch {
                           // ignored
                         }

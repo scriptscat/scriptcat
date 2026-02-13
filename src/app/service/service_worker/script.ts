@@ -28,7 +28,6 @@ import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
-import { arrayMove } from "@dnd-kit/sortable";
 import type {
   TScriptRunStatus,
   TDeleteScript,
@@ -48,7 +47,6 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
-// import { gzip as pakoGzip } from "pako";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -386,7 +384,7 @@ export class ScriptService {
     const logger = this.logger.with({
       name: script.name,
       uuid: script.uuid,
-      version: script.metadata.version![0],
+      version: script.metadata.version?.[0] || "0.0",
       upsertBy,
     });
     let update = false;
@@ -396,6 +394,13 @@ export class ScriptService {
       // 执行更新逻辑
       update = true;
       script.selfMetadata = oldScript.selfMetadata;
+      // 如果已安装的脚本是由 Subscribe 安装，即使是手动更新也不会影响跟 Subscribe 关联
+      if (oldScript.subscribeUrl && oldScript.origin) {
+        // origin 和 subscribeUrl 保持不变
+        // @downloadURL @updateURL 随脚本最新代码而更新
+        script.origin = oldScript.origin;
+        script.subscribeUrl = oldScript.subscribeUrl;
+      }
     }
     if (script.ignoreVersion) script.ignoreVersion = "";
     if (createtime) {
@@ -798,15 +803,8 @@ export class ScriptService {
         logger.error("parse metadata failed");
         return false;
       }
-      const newVersion = metadata.version && metadata.version[0];
-      if (!newVersion) {
-        logger.error("parse version failed", { version: metadata.version });
-        return false;
-      }
-      let oldVersion = script.metadata.version && script.metadata.version[0];
-      if (!oldVersion) {
-        oldVersion = "0.0.0";
-      }
+      const newVersion = metadata.version?.[0] || "0.0";
+      const oldVersion = script.metadata.version?.[0] || "0.0";
       // 对比版本大小
       if (ltever(newVersion, oldVersion)) {
         return false;
@@ -897,7 +895,8 @@ export class ScriptService {
   }
 
   shouldIgnoreUpdate(script: Script, newMeta: Partial<Record<string, string[]>> | null) {
-    return script.ignoreVersion === newMeta?.version?.[0];
+    const newVersion = newMeta?.version?.[0];
+    return typeof newVersion === "string" && script.ignoreVersion === newVersion;
   }
 
   // 用于定时自动检查脚本更新
@@ -1134,7 +1133,6 @@ export class ScriptService {
   }
 
   requestCheckUpdate(uuid: string) {
-    // src/pages/options/routes/ScriptList.tsx
     return this.checkUpdateAvailable(uuid).then((script) => {
       if (script) {
         // 如有更新则打开更新画面进行更新
@@ -1143,56 +1141,15 @@ export class ScriptService {
       }
       return false;
     });
-
-    // 没有空值 case
-    /*
-    if (uuid) {
-      return this.checkUpdateAvailable(uuid).then((script) => {
-        if (script) {
-          // 如有更新则打开更新画面进行更新
-          this.openUpdatePage(script, "user");
-          return true;
-        }
-        return false;
-      });
-    } else {
-      // 批量检查更新
-      InfoNotification("检查更新", "正在检查所有的脚本更新");
-      this.scriptDAO
-        .all()
-        .then(async (scripts) => {
-          // 检查是否有更新
-          const results = await this.checkUpdatesAvailable(
-            scripts.map((script) => script.uuid),
-            {
-              MIN_DELAY: 300,
-              MAX_DELAY: 800,
-            }
-          );
-          return Promise.all(
-            scripts.map((script, i) => {
-              const result = results[i];
-              if (result) {
-                // 如有更新则打开更新画面进行更新
-                this.openUpdatePage(script, "user");
-              }
-            })
-          );
-        })
-        .then(() => {
-          InfoNotification("检查更新", "所有脚本检查完成");
-        });
-      return Promise.resolve(true); // 无视检查结果，立即回传true
-    }
-    */
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
+    // 用於 window.external
     return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
       if (script) {
         return {
           installed: true,
-          version: script.metadata.version && script.metadata.version[0],
+          version: script.metadata.version?.[0] || "0.0",
         } as App.IsInstalledResponse;
       }
       return { installed: false } as App.IsInstalledResponse;
@@ -1212,58 +1169,73 @@ export class ScriptService {
     return scripts;
   }
 
-  async sortScript({ active, over }: { active: string; over: string }) {
-    const scripts = await this.scriptDAO.all();
-    scripts.sort((a, b) => a.sort - b.sort);
-    let oldIndex = 0;
-    let newIndex = 0;
-    scripts.forEach((item, index) => {
-      if (item.uuid === active) {
-        oldIndex = index;
-      } else if (item.uuid === over) {
-        newIndex = index;
-      }
-    });
-    const newSort = arrayMove(scripts, oldIndex, newIndex);
-    const updatetime = Date.now();
-    for (let i = 0, l = newSort.length; i < l; i += 1) {
-      const item = newSort[i];
-      if (item.sort !== i) {
-        item.sort = i;
-        await this.scriptDAO.update(item.uuid, { sort: i, updatetime });
-      }
-    }
+  // 脚本排序，after为排序后的uuid列表
+  async sortScript({ after }: { before: string[]; after: string[] }) {
+    const daoAll = await this.scriptDAO.all();
+    const scripts = daoAll.sort((a, b) => a.sort - b.sort);
+    const sortingMap: Map<string, number> = new Map(after.map((uuid, index) => [uuid, index]));
+
+    // 排序 scripts 并更新 sort 字段
+    const batchUpdate: Record<string, Partial<Script>> = {};
+
+    const newList = (
+      await Promise.all(
+        scripts.map(async (script) => {
+          const newSort = sortingMap.get(script.uuid);
+          if (newSort !== undefined && script.sort !== newSort) {
+            batchUpdate[script.uuid] = { sort: newSort };
+            script.sort = newSort;
+          }
+          return script;
+        })
+      )
+    ).sort((a, b) => a.sort - b.sort);
+
+    await this.scriptDAO.updates(batchUpdate);
+
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
-      newSort.map(({ uuid, sort }) => ({ uuid, sort }))
+      newList.map(({ uuid, sort }) => ({ uuid, sort }))
     );
   }
 
+  // 将指定 uuid 列表的脚本置顶，其他脚本排序不变
   async pinToTop(uuids: string[]) {
-    const scripts = await this.scriptDAO.all();
-    const m = uuids.length;
-    const oldSorts = new Map<string, number>();
-    for (const script of scripts) {
-      oldSorts.set(script.uuid, script.sort);
-      const idx = uuids.indexOf(script.uuid);
-      if (idx >= 0) {
-        script.sort = idx;
+    const daoAll = await this.scriptDAO.all();
+    const sortingMap: Map<string, number> = new Map(uuids.map((uuid, index) => [uuid, index]));
+    // 排序 scripts 并更新 sort 字段
+    const scripts = daoAll.sort((a, b) => {
+      // 将 sortingMap 中有的 uuid 放在前面，其他的放在后面，且保持原有顺序
+      const aIndex = sortingMap.get(a.uuid);
+      const bIndex = sortingMap.get(b.uuid);
+      if (aIndex !== undefined && bIndex !== undefined) {
+        return aIndex - bIndex;
+      } else if (aIndex !== undefined) {
+        return -1;
+      } else if (bIndex !== undefined) {
+        return 1;
       } else {
-        script.sort += m;
+        return a.sort - b.sort;
       }
-    }
-    scripts.sort((a, b) => a.sort - b.sort);
-    const updatetime = Date.now();
-    for (let i = 0, l = scripts.length; i < l; i += 1) {
-      const item = scripts[i];
-      item.sort = i;
-      if (item.sort !== oldSorts.get(item.uuid)) {
-        await this.scriptDAO.update(item.uuid, { sort: i, updatetime });
-      }
-    }
+    });
+
+    const batchUpdate: Record<string, Partial<Script>> = {};
+
+    const newList = await Promise.all(
+      scripts.map(async (script, index) => {
+        const newSort = index;
+        if (script.sort !== newSort) {
+          batchUpdate[script.uuid] = { sort: newSort };
+          script.sort = newSort;
+        }
+        return script;
+      })
+    );
+    await this.scriptDAO.updates(batchUpdate);
+
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
-      scripts.map(({ uuid, sort }) => ({ uuid, sort }))
+      newList.map(({ uuid, sort }) => ({ uuid, sort }))
     );
   }
 
