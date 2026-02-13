@@ -334,7 +334,9 @@
     "header_other_update": "Andere verfügbare Updates"
   },
   "downloading_status_text": "Wird heruntergeladen. {{bytes}} empfangen.",
+  "install_page_please_wait": "Bitte warten Sie",
   "install_page_loading": "Installationsseite wird geladen",
+  "install_page_load_failed": "Installationsseite konnte nicht geladen werden",
   "invalid_page": "Ungültige Seite",
   "background_script_tag": "Dies ist ein Hintergrundskript",
   "scheduled_script_tag": "Dies ist ein geplantes Skript",
