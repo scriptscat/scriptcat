@@ -1,3 +1,5 @@
+import { decode as punycodeDecode } from "punycode";
+
 const urlSplit = (url: string) => {
   let s = url.split(/(:?\/{2,3}|:?\\{2,3}|[\\/?#])/g);
   const i = s.indexOf("?");
@@ -78,79 +80,17 @@ export const toEncodedURL = (inputUrl: string) => {
   }
 };
 
-/**
- * Decodes Punycode (RFC 3492)
- * Fixed: logic for _adapt and _basicToDigit to match RFC specifications.
- */
-const Punycode = {
-  BASE: 36,
-  TMIN: 1,
-  TMAX: 26,
-  SKEW: 38,
-  DAMP: 700,
-  INITIAL_BIAS: 72,
-  INITIAL_N: 128,
+function domainPunycodeDecode(s: string): string {
+  if (!s.startsWith("xn--")) return s;
 
-  decode(input: string) {
-    // Punycode is case-insensitive; handle labels individually
-    const string = input.toLowerCase().startsWith("xn--") ? input.slice(4) : input;
-
-    let n: number = this.INITIAL_N;
-    let i = 0;
-    let bias: number = this.INITIAL_BIAS;
-    const output: number[] = [];
-
-    const lastDelimiter = string.lastIndexOf("-");
-    if (lastDelimiter > 0) {
-      for (let j = 0; j < lastDelimiter; j++) {
-        output.push(string.charCodeAt(j));
-      }
-    }
-
-    let pos = lastDelimiter >= 0 ? lastDelimiter + 1 : 0;
-    while (pos < string.length) {
-      const oldI = i;
-      let w = 1;
-
-      for (let k = this.BASE; ; k += this.BASE) {
-        const digit = this._basicToDigit(string.charCodeAt(pos++));
-        i += digit * w;
-        const t = k <= bias ? this.TMIN : k >= bias + this.TMAX ? this.TMAX : k - bias;
-        if (digit < t) break;
-        w *= this.BASE - t;
-      }
-
-      const h = output.length + 1;
-      bias = this._adapt(i - oldI, h, oldI === 0);
-      n += Math.floor(i / h);
-      i %= h;
-
-      output.splice(i++, 0, n);
-    }
-
-    return String.fromCodePoint(...output);
-  },
-
-  _basicToDigit(code: number) {
-    if (code >= 48 && code <= 57) return code - 22; // 0-9 -> 26-35
-    if (code >= 65 && code <= 90) return code - 65; // A-Z -> 0-25
-    if (code >= 97 && code <= 122) return code - 97; // a-z -> 0-25
-    return this.BASE;
-  },
-
-  _adapt(delta: number, numPoints: number, firstTime: boolean) {
-    delta = firstTime ? Math.floor(delta / this.DAMP) : delta >> 1;
-    delta += Math.floor(delta / numPoints);
-    let k = 0;
-    const d = this.BASE - this.TMIN;
-    const threshold = Math.floor((d * this.TMAX) / 2);
-    while (delta > threshold) {
-      delta = Math.floor(delta / d);
-      k += this.BASE;
-    }
-    return k + Math.floor(((d + 1) * delta) / (delta + this.SKEW));
-  },
-} as const;
+  try {
+    // 截取 "xn--" 前缀后进行解码
+    const punycodePart = s.slice(4);
+    return punycodeDecode(punycodePart);
+  } catch {
+    return s;
+  }
+}
 
 /**
  * Converts a machine-encoded URL into a human-readable format.
@@ -185,7 +125,7 @@ export const prettyUrl = (s: string | undefined | null, baseUrl?: string): strin
     const protocol = u.protocol ? `${u.protocol}//` : "";
     const host = u.hostname
       .split(".")
-      .map((p) => (p.startsWith("xn--") ? Punycode.decode(p) : p))
+      .map((p) => domainPunycodeDecode(p))
       .join(".");
     const port = u.port ? `:${u.port}` : "";
 
