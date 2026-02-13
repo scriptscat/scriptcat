@@ -64,7 +64,7 @@ export default class S3FileSystem implements FileSystem {
       if (!fixedEndpoint.startsWith("http://") && !fixedEndpoint.startsWith("https://")) {
         fixedEndpoint = `https://${fixedEndpoint}`;
       }
-      config.endpoint = endpoint;
+      config.endpoint = fixedEndpoint;
       // 自动检测：如果 endpoint 包含 amazonaws.com，设为 false。
       if (endpoint.includes("amazonaws.com")) config.forcePathStyle = false;
     }

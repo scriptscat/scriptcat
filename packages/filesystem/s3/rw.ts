@@ -38,25 +38,15 @@ export class S3FileReader implements FileReader {
         throw new Error("Empty response body from S3");
       }
 
-      // Convert the stream to the requested format
-      const stream = response.Body.transformToWebStream();
-
       if (type === "string") {
-        // Streaming decode to string (省内存)
-        const reader = stream.getReader();
-        const decoder = new TextDecoder();
-        let result = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          result += decoder.decode(value, { stream: true });
-        }
-        // 最后 flush
-        result += decoder.decode();
-        return result;
+        // Built-in v3 helper
+        const text = await response.Body.transformToString();
+        return text;
       } else {
-        // 返回 Blob，避免 JS 层缓冲与拼接，走底层最优路径
-        return new Response(stream).blob();
+        // Or transformToByteArray()
+        const stream = response.Body.transformToWebStream();
+        const blob = await new Response(stream).blob();
+        return blob;
       }
     } catch (error: any) {
       if (error.name === "NoSuchKey") {
