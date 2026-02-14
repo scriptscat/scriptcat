@@ -648,7 +648,8 @@ function App() {
   }, [memoWatchFile]);
 
   // 检查是否有 uuid 或 file
-  const hasValidSourceParam = !searchParams.get("url") && !!(searchParams.get("uuid") || searchParams.get("file"));
+  const searchParamUrl = searchParams.get("url");
+  const hasValidSourceParam = !searchParamUrl && !!(searchParams.get("uuid") || searchParams.get("file"));
 
   const urlHref = useMemo(() => {
     if (!hasValidSourceParam) {
@@ -657,13 +658,16 @@ function App() {
 
       try {
         if ((m = /\burl=___,(.+),___(.*)$/.exec(location.search))) {
-          // without component encoding (Chrome's current spec)
+          // without component encoding (Chrome's current MV3 spec)
           // "/src/install.html?url=___,https://update.greasyfork.org/scripts/1234/ABC%20DEF%20GHK%20%2B%2B.user.js,___?a=12&b=34"
           rawUrl = `${m[1]}${m[2]}`;
         } else if ((m = /\burl=___%2C(.+)%2C___(.*)$/.exec(location.search))) {
-          // double encoding (browser auto encode)
+          // double encoding (auto encoded by browser's MV3 spec)
           // "/src/install.html?url=___%2Chttps%3A%2F%2Fupdate.greasyfork.org%2Fscripts%2F1234%2FABC%2520DEF%2520GHK%2520%252B%252B.user.js%3Fa%3D12%26b%3D34%2C___"
           rawUrl = decodeURIComponent(`${m[1]}${m[2]}`);
+        } else {
+          // 用户直接在网址栏输入
+          rawUrl = searchParamUrl;
         }
         if (rawUrl) {
           const urlObject = new URL(rawUrl);
@@ -678,7 +682,18 @@ function App() {
     }
     return "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasValidSourceParam, searchParams.get("url")]);
+  }, [hasValidSourceParam, searchParamUrl]);
+
+  useEffect(() => {
+    if (urlHref) {
+      setSearchParams(
+        (prev) => {
+          return prev.get("url") !== urlHref ? new URLSearchParams(`?url=${urlHref}`) : prev;
+        },
+        { replace: true }
+      );
+    }
+  }, [setSearchParams, urlHref]);
 
   const [fetchingState, setFetchingState] = useState({
     loadingStatus: "",
