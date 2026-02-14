@@ -452,7 +452,7 @@ const MainLayout: React.FC<{
           style={{
             background: "var(--color-fill-2)",
           }}
-          {...getRootProps({ onBlur: undefined, onFocus: undefined })}
+          {...getRootProps({})}
         >
           <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
           <div
