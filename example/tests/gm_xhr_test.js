@@ -1660,6 +1660,11 @@ const enableTool = true;
     } catch {
       return "Object.assign failed";
     }
+    // accept null / "" / undefined for normal/failed/fetch_normal/fetch_failed XHR
+    // non-empty text (still primitive) can be also accepted. (common in xhr error case)
+    if (typeof (z.response ?? "") !== "string") return "non-primitive response value exposed";
+    if (typeof (z.responseText ?? "") !== "string") return "non-primitive responseText value exposed";
+    if (typeof (z.responseXML ?? "") !== "string") return "non-primitive responseXML value exposed";
     try {
       oD = JSON.stringify(o);
     } catch {
