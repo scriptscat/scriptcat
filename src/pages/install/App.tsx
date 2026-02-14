@@ -700,29 +700,21 @@ function App() {
     errorStatus: "",
   });
 
-  const loadURLAsync = async (candidateUrls: string[]) => {
+  const loadURLAsync = async (url: string) => {
     // 1. 定义获取单个脚本的内部逻辑，负责处理进度条与单次错误
     const fetchValidScript = async () => {
-      let firstError: unknown;
-      for (const url of candidateUrls) {
-        try {
-          const result = await fetchScriptBody(url, {
-            onProgress: (info: { receivedLength: number }) => {
-              setFetchingState((prev) => ({
-                ...prev,
-                loadingStatus: t("downloading_status_text", { bytes: formatBytes(info.receivedLength) }),
-              }));
-            },
-          });
-          if (result.code && result.metadata) {
-            return { result, url } as const; // 找到有效的立即返回
-          }
-        } catch (e) {
-          if (!firstError) firstError = e;
-        }
+      const result = await fetchScriptBody(url, {
+        onProgress: (info: { receivedLength: number }) => {
+          setFetchingState((prev) => ({
+            ...prev,
+            loadingStatus: t("downloading_status_text", { bytes: formatBytes(info.receivedLength) }),
+          }));
+        },
+      });
+      if (result.code && result.metadata) {
+        return { result, url } as const; // 找到有效的立即返回
       }
-      // 如果循环结束都没成功，抛出第一个捕获到的错误或预设错误
-      throw firstError || new Error(t("install_page_load_failed"));
+      throw new Error(t("install_page_load_failed"));
     };
 
     try {
@@ -753,7 +745,7 @@ function App() {
       ...prev,
       loadingStatus: t("install_page_please_wait"),
     }));
-    loadURLAsync([targetUrlHref]);
+    loadURLAsync(targetUrlHref);
   };
 
   // 有 url 的话下载内容
