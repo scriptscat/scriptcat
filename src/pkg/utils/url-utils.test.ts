@@ -37,8 +37,8 @@ describe.concurrent("prettyUrl", () => {
       expect(prettyUrl("https://site.com/hello%20world")).toBe("https://site.com/hello world");
     });
 
-    it.concurrent("should NOT decode if it.concurrent introduces reserved URL delimiters like ? or #", () => {
-      // If %3F (?) is decoded inside the path, it.concurrent breaks the URL structure
+    it.concurrent("should NOT decode if it introduces reserved URL delimiters like ? or #", () => {
+      // If %3F (?) is decoded inside the path, it breaks the URL structure
       const input = "https://example.com/path%3Fquery";
       expect(prettyUrl(input)).toBe(input);
     });
@@ -61,7 +61,7 @@ describe.concurrent("prettyUrl", () => {
       expect(prettyUrl(undefined)).toBe("");
     });
 
-    it.concurrent("should return the original string if it.concurrent is not a valid URL", () => {
+    it.concurrent("should return the original string if it is not a valid URL", () => {
       const invalid = "not-a-url-at-all";
       expect(prettyUrl(invalid)).toBe(invalid);
     });
