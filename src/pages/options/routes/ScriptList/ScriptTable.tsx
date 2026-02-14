@@ -534,24 +534,24 @@ const ScriptTable = ({
   const navigate = useNavigate();
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
-  const columns0: ColumnProps<ListType>[] = [
-    {
-      title: "#",
-      dataIndex: "sort",
-      width: 60,
-      key: "#",
-      sorter: useCallback((a: ListType, b: ListType) => a.sort - b.sort, []),
-      render: useCallback((col: number) => <SortRender col={col} />, []),
-    },
-    {
-      key: "title",
-      title: t("enable"),
-      width: t("script_list_enable_width"),
-      dataIndex: "status",
-      className: "script-enable",
-      sorter: useCallback((a: ListType, b: ListType) => a.status - b.status, []),
-      filters: useMemo(
-        () => [
+  const columns: ColumnProps<ListType>[] = useMemo(
+    () => [
+      {
+        title: "#",
+        dataIndex: "sort",
+        width: 60,
+        key: "#",
+        sorter: (a: ListType, b: ListType) => a.sort - b.sort,
+        render: (col: number) => <SortRender col={col} />,
+      },
+      {
+        key: "title",
+        title: t("enable"),
+        width: t("script_list_enable_width"),
+        dataIndex: "status",
+        className: "script-enable",
+        sorter: (a: ListType, b: ListType) => a.status - b.status,
+        filters: [
           {
             text: t("enable"),
             value: SCRIPT_STATUS_ENABLE,
@@ -561,88 +561,79 @@ const ScriptTable = ({
             value: SCRIPT_STATUS_DISABLE,
           },
         ],
-        [t]
-      ),
-      onFilter: useCallback((value: any, row: any) => row.status === value, []),
-      render: useCallback(
-        (col: any, item: ListType) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
-        [updateScripts]
-      ),
-    },
-    {
-      key: "name",
-      title: t("name"),
-      dataIndex: "name",
-      sorter: useCallback((a: ListType, b: ListType) => a.name.localeCompare(b.name), []),
-      filterIcon: <IconSearch />,
-      filterDropdown: useCallback(({ filterKeys, setFilterKeys, confirm }: any) => {
-        // setFilterKeys, confirm 会不断改变参考但又不影响元件绘画。用 filterDropdownFunctions 把它们抽出 React绘图
-        filterDropdownFunctions.setFilterKeys = setFilterKeys;
-        filterDropdownFunctions.confirm = confirm;
-        return <ScriptFilterNode filterKeys={filterKeys as SearchFilterKeyEntry[] | undefined} />;
-      }, []),
-      onFilter: useCallback((value: any, row: any) => {
-        if (!value || !value.keyword) {
-          return true;
-        }
-        return SearchFilter.checkByUUID(row.uuid);
-      }, []),
-      className: "tw-max-w-[240px] tw-min-w-[100px]",
-      render: useCallback((col: string, item: ListType) => <NameCell col={col} item={item} />, []),
-    },
-    {
-      title: t("version"),
-      dataIndex: "version",
-      key: "version",
-      width: 120,
-      align: "center",
-      render: useCallback((col: any, item: ListType) => <VersionCell item={item} />, []),
-    },
-    {
-      key: "apply_to_run_status",
-      dataIndex: "apply_to_run_status",
-      title: t("apply_to_run_status"),
-      width: t("script_list_apply_to_run_status_width"),
-      className: "apply_to_run_status",
-      render: useCallback(
-        (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
-        [navigate, t]
-      ),
-    },
-    {
-      title: t("source"),
-      dataIndex: "origin",
-      key: "origin",
-      width: 100,
-      className: "source_cell",
-      render: useCallback((col: any, item: ListType) => <SourceCell item={item} t={t} />, [t]),
-    },
-    {
-      title: t("home"),
-      dataIndex: "home",
-      align: "center",
-      key: "home",
-      width: 100,
-      render: useCallback((col: any, item: ListType) => <HomeCell item={item} />, []),
-    },
-    {
-      title: t("last_updated"),
-      dataIndex: "updatetime",
-      align: "center",
-      key: "updatetime",
-      className: "script-updatetime",
-      width: t("script_list_last_updated_width"),
-      sorter: useCallback((a: ListType, b: ListType) => a.updatetime! - b.updatetime!, []),
-      render: useCallback((col: number, script: ListType) => <UpdateTimeCell script={script} />, []),
-    },
-    {
-      title: <TitleCell sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} setViewMode={setViewMode} t={t} />,
-      dataIndex: "action",
-      key: "action",
-      className: "script-action",
-      width: 160,
-      render: useCallback(
-        (col: any, item: ListType) => (
+        onFilter: (value: any, row: any) => row.status === value,
+        render: (col: any, item: ListType) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
+      },
+      {
+        key: "name",
+        title: t("name"),
+        dataIndex: "name",
+        sorter: (a: ListType, b: ListType) => a.name.localeCompare(b.name),
+        filterIcon: <IconSearch />,
+        filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+          // setFilterKeys, confirm 会不断改变参考但又不影响元件绘画。用 filterDropdownFunctions 把它们抽出 React绘图
+          filterDropdownFunctions.setFilterKeys = setFilterKeys;
+          filterDropdownFunctions.confirm = confirm;
+          return <ScriptFilterNode filterKeys={filterKeys as SearchFilterKeyEntry[] | undefined} />;
+        },
+        onFilter: (value: any, row: any) => {
+          if (!value || !value.keyword) {
+            return true;
+          }
+          return SearchFilter.checkByUUID(row.uuid);
+        },
+        className: "tw-max-w-[240px] tw-min-w-[100px]",
+        render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
+      },
+      {
+        title: t("version"),
+        dataIndex: "version",
+        key: "version",
+        width: 120,
+        align: "center",
+        render: (col: any, item: ListType) => <VersionCell item={item} />,
+      },
+      {
+        key: "apply_to_run_status",
+        dataIndex: "apply_to_run_status",
+        title: t("apply_to_run_status"),
+        width: t("script_list_apply_to_run_status_width"),
+        className: "apply_to_run_status",
+        render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
+      },
+      {
+        title: t("source"),
+        dataIndex: "origin",
+        key: "origin",
+        width: 100,
+        className: "source_cell",
+        render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
+      },
+      {
+        title: t("home"),
+        dataIndex: "home",
+        align: "center",
+        key: "home",
+        width: 100,
+        render: (col: any, item: ListType) => <HomeCell item={item} />,
+      },
+      {
+        title: t("last_updated"),
+        dataIndex: "updatetime",
+        align: "center",
+        key: "updatetime",
+        className: "script-updatetime",
+        width: t("script_list_last_updated_width"),
+        sorter: (a: ListType, b: ListType) => a.updatetime! - b.updatetime!,
+        render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
+      },
+      {
+        title: <TitleCell sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} setViewMode={setViewMode} t={t} />,
+        dataIndex: "action",
+        key: "action",
+        className: "script-action",
+        width: 160,
+        render: (col: any, item: ListType) => (
           <ActionCell
             item={item}
             setUserConfig={setUserConfig}
@@ -653,14 +644,22 @@ const ScriptTable = ({
             handleRunStop={handleRunStop}
           />
         ),
-        [handleConfig, handleDelete, handleRunStop, setCloudScript, setUserConfig, t]
-      ),
-    },
-  ];
-
-  // 语言改变 或 sidebarOpen 改变时，更新 columns
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const columns = useMemo(() => columns0, [t, sidebarOpen]);
+      },
+    ],
+    [
+      handleConfig,
+      handleDelete,
+      handleRunStop,
+      navigate,
+      setCloudScript,
+      setSidebarOpen,
+      setUserConfig,
+      setViewMode,
+      sidebarOpen,
+      t,
+      updateScripts,
+    ]
+  );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
 
