@@ -23,7 +23,7 @@ import {
   IconSunFill,
 } from "@arco-design/web-react/icon";
 import type { ReactNode } from "react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppContext } from "@App/pages/store/AppContext";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
@@ -36,6 +36,8 @@ import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL } from "@App/pkg/utils/utils";
+
+// --- 工具函数移出组件外，避免每次 Render 重新定义 ---
 
 const formatUrl = async (url: string) => {
   try {
@@ -67,6 +69,21 @@ const formatUrl = async (url: string) => {
   } catch {
     return url;
   }
+};
+
+// 提供一个简单的字串封装（非加密用)
+const simpleDigestMessage = async (message: string) => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  return crypto.subtle.digest("SHA-1", data as BufferSource).then((hashBuffer) => {
+    const hashArray = new Uint8Array(hashBuffer);
+    let hex = "";
+    for (let i = 0; i < hashArray.length; i++) {
+      const byte = hashArray[i];
+      hex += `${byte < 16 ? "0" : ""}${byte.toString(16)}`;
+    }
+    return hex;
+  });
 };
 
 type TImportStat = {
@@ -101,6 +118,31 @@ const importByUrls = async (urls: string[]): Promise<TImportStat | undefined> =>
   });
   return stat;
 };
+
+// --- 子组件：提取拖拽遮罩以优化性能 ---
+const DropzoneOverlay: React.FC<{ active: boolean; text: string }> = React.memo(({ active, text }) => {
+  if (!active) return null;
+  return (
+    <div
+      className="sc-inset-0"
+      style={{
+        position: "absolute",
+        zIndex: 100,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        color: "grey",
+        fontSize: 36,
+        backdropFilter: "blur(4px)",
+        background: "var(--color-fill-2)",
+        opacity: 0.8,
+      }}
+    >
+      {text}
+    </div>
+  );
+});
+DropzoneOverlay.displayName = "DropzoneOverlay";
 
 const MainLayout: React.FC<{
   children: ReactNode;
@@ -146,21 +188,6 @@ const MainLayout: React.FC<{
     if (stat) showImportResult(stat);
   };
 
-  // 提供一个简单的字串封装（非加密用)
-  function simpleDigestMessage(message: string) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(message);
-    return crypto.subtle.digest("SHA-1", data as BufferSource).then((hashBuffer) => {
-      const hashArray = new Uint8Array(hashBuffer);
-      let hex = "";
-      for (let i = 0; i < hashArray.length; i++) {
-        const byte = hashArray[i];
-        hex += `${byte < 16 ? "0" : ""}${byte.toString(16)}`;
-      }
-      return hex;
-    });
-  }
-
   const onDrop = (acceptedFiles: FileWithPath[]) => {
     // 本地的文件在当前页面处理，打开安装页面，将FileSystemFileHandle传递过去
     // 实现本地文件的监听
@@ -178,7 +205,7 @@ const MainLayout: React.FC<{
             } else if (aFile instanceof File) {
               // 清理 import-local files 避免同文件不再触发onChange
               (document.getElementById("import-local") as HTMLInputElement).value = "";
-              const blob = new Blob([aFile], { type: "application/javascript" });
+              const blob = new Blob([aFile], { type: "text/javascript" });
               const url = makeBlobURL({ blob, persistence: false }) as string; // 生成一个临时的URL
               const result = await scriptClient.importByUrl(url);
               if (result.success) {
@@ -223,24 +250,28 @@ const MainLayout: React.FC<{
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { "application/javascript": [".js"] },
+    accept: { "text/javascript": [".js"] },
     onDrop,
+    noClick: true,
+    noKeyboard: true,
   });
 
-  const languageList: { key: string; title: string }[] = [];
-  for (const key of Object.keys(i18n.store.data)) {
-    if (key === "ach-UG") {
-      continue;
-    }
-    languageList.push({
-      key,
-      title: i18n.store.data[key].title as string,
-    });
-  }
-  languageList.push({
-    key: "help",
-    title: t("help_translate"),
-  });
+  // 当dragzone使用时，在<body>加入.dragzone-active,控制CSS行为
+  // 只改CSS，不要改动React元件的任何状态，否则会触发重绘计算
+  useEffect(() => {
+    document.body.classList.toggle("dragzone-active", isDragActive);
+  }, [isDragActive]);
+
+  // 使用 useMemo 缓存语言列表，避免每次重绘都执行循环，然后生成新的参考
+  const languageList = useMemo(() => {
+    const list = Object.keys(i18n.store.data)
+      .filter((key) => key !== "ach-UG")
+      .map((key) => ({
+        key,
+        title: i18n.store.data[key].title as string,
+      }));
+    return [...list, { key: "help", title: t("help_translate") }];
+  }, [t]);
 
   useEffect(() => {
     // 当没有匹配语言时显示语言按钮
@@ -253,7 +284,7 @@ const MainLayout: React.FC<{
 
   const handleImport = async () => {
     const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
-    importByUrlsLocal(urls); // 異步卻不用等候？
+    importByUrlsLocal(urls); // 异步却不用等候？
     setImportVisible(false); // 不等待 importByUrlsLocal?
   };
 
@@ -332,7 +363,7 @@ const MainLayout: React.FC<{
                               types: [
                                 {
                                   description: "JavaScript",
-                                  accept: { "application/javascript": [".js"] },
+                                  accept: { "text/javascript": [".js"] },
                                 },
                               ],
                             })
@@ -447,30 +478,12 @@ const MainLayout: React.FC<{
         </Layout.Header>
         <Layout
           className={`tw-bottom-0 tw-w-full ${className}`}
-          style={{
-            background: "var(--color-fill-2)",
-          }}
-          {...getRootProps({ onClick: (e) => e.stopPropagation() })}
+          style={{ background: "var(--color-fill-2)" }}
+          {...getRootProps({})}
         >
           <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
-          <div
-            className="sc-inset-0"
-            style={{
-              position: "absolute",
-              zIndex: 100,
-              display: isDragActive ? "flex" : "none",
-              justifyContent: "center",
-              alignItems: "center",
-              margin: "auto",
-              color: "grey",
-              fontSize: 36,
-              width: "100%",
-              height: "100%",
-              backdropFilter: "blur(4px)",
-            }}
-          >
-            {t("drag_script_here_to_upload")}
-          </div>
+          {/* 性能关键：抽离遮罩组件，只有 active 变化时此小组件重绘 */}
+          <DropzoneOverlay active={isDragActive} text={t("drag_script_here_to_upload")} />
           {children}
         </Layout>
       </Layout>
