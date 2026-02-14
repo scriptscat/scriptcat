@@ -256,10 +256,10 @@ const MainLayout: React.FC<{
     noKeyboard: true,
   });
 
-  // 当dragzone使用时，在<html>加入.dragzone-active,控制CSS行为
+  // 当dragzone使用时，在<body>加入.dragzone-active,控制CSS行为
   // 只改CSS，不要改动React元件的任何状态，否则会触发重绘计算
   useEffect(() => {
-    document.documentElement.classList.toggle("dragzone-active", isDragActive);
+    document.body.classList.toggle("dragzone-active", isDragActive);
   }, [isDragActive]);
 
   // 使用 useMemo 缓存语言列表，避免每次重绘都执行循环，然后生成新的参考
