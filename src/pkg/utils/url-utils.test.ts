@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { prettyUrl } from "./url-utils"; // Update with your actual file path
+import { prettyUrl } from "./url-utils";
 
 describe.concurrent("prettyUrl", () => {
   describe.concurrent("Domain / Punycode Handling", () => {
