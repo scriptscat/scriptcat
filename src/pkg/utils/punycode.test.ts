@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decodePunycode } from "./punycode"; // Update with your actual file path
+import { decodePunycode } from "./punycode";
 
 const getPunycode = (x: string) => {
   return new URL(`http://${x}.io`).hostname.slice(0, -3);
