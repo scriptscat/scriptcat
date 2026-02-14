@@ -35,7 +35,14 @@ export const prettyUrl = (s: string | undefined | null, baseUrl?: string): strin
     const protocol = u.protocol ? `${u.protocol}//` : "";
     const host = u.hostname
       .split(".")
-      .map((p) => (p.startsWith("xn--") ? decodePunycode(p) : p))
+      .map((p) => {
+        try {
+          return p.startsWith("xn--") ? decodePunycode(p) : p;
+        } catch {
+          // punycode 解码失败时回退到原始 label，避免整个 prettyUrl 失败
+          return p;
+        }
+      })
       .join(".");
     const port = u.port ? `:${u.port}` : "";
 
