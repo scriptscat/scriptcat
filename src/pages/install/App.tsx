@@ -659,11 +659,11 @@ function App() {
       try {
         if ((m = /\burl=([\w-]*[:\\/].+)$/.exec(location.search))) {
           // without component encoding (Chrome's current MV3 spec)
-          // "/src/install.html?url=___,https://update.greasyfork.org/scripts/1234/ABC%20DEF%20GHK%20%2B%2B.user.js,___?a=12&b=34"
+          // "/src/install.html?url=https://update.greasyfork.org/scripts/1234/ABC%20DEF%20GHK%20%2B%2B.user.js?a=12&b=34"
           rawUrl = m[1];
         } else if ((m = /\burl=([\w-]*%.+)$/.exec(location.search))) {
           // double encoding (auto encoded by browser's MV3 spec)
-          // "/src/install.html?url=___%2Chttps%3A%2F%2Fupdate.greasyfork.org%2Fscripts%2F1234%2FABC%2520DEF%2520GHK%2520%252B%252B.user.js%3Fa%3D12%26b%3D34%2C___"
+          // "/src/install.html?url=https%3A%2F%2Fupdate.greasyfork.org%2Fscripts%2F1234%2FABC%2520DEF%2520GHK%2520%252B%252B.user.js%3Fa%3D12%26b%3D34"
           rawUrl = decodeURIComponent(m[1]);
         } else {
           // 用户直接在网址栏输入
