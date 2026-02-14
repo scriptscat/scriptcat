@@ -224,13 +224,13 @@ function App() {
     try {
       const uuid = searchParams.get("uuid");
       const fid = searchParams.get("file");
-      let info: ScriptInfo | undefined;
-      let isKnownUpdate: boolean = false;
 
-      // 如果没有 uuid 和 file，跳过初始化逻辑
-      if (!uuid && !fid) {
+      // 如果有 url 或 没有 uuid 和 file，跳过初始化逻辑
+      if (searchParams.get("url") || (!uuid && !fid)) {
         return;
       }
+      let info: ScriptInfo | undefined;
+      let isKnownUpdate: boolean = false;
 
       if (window.history.length > 1) {
         setDoBackwards(true);
@@ -648,44 +648,28 @@ function App() {
   }, [memoWatchFile]);
 
   // 检查是否有 uuid 或 file
-  const hasValidSourceParam = !!(searchParams.get("uuid") || searchParams.get("file"));
+  const hasValidSourceParam = !searchParams.get("url") && !!(searchParams.get("uuid") || searchParams.get("file"));
 
   const urlHref = useMemo(() => {
     if (!hasValidSourceParam) {
-      /**
-       * 逻辑说明：
-       * 在 chrome.declarativeNetRequest 规则中，我们使用 `<,\1,>` 作为占位符引导 API 进行参数填充。
-       * 由于不同浏览器版本或配置对 URL 参数的自动编码（Auto-encoding）策略不一致，
-       * 我们通过检测该占位符的“被编码状态”来逆推浏览器采用了哪种编码方式。
-       */
       let m;
-      let url;
-      try {
-        // 场景 1：URL 完全未编码。直接匹配原始特征符号 "<", ">" 和 ","
-        if ((m = /\burl=(<,.+,>)(&|$)/.exec(location.search)?.[1])) {
-          url = m; // 未被编码，取原始值。
-        }
-        // 场景 2：URL 经过了部分编码（类似 encodeURI）。逗号 "," 未被编码，但尖括号被转义为 %3C, %3E
-        else if ((m = /\burl=(%3C,.+,%3E)(&|$)/.exec(location.search)?.[1])) {
-          url = decodeURI(m);
-        }
-        // 场景 3：URL 经过了完全编码（类似 encodeURIComponent）。逗号也被转义为 %2C
-        else if ((m = /\burl=(%3C%2C.+%2C%3E)(&|$)/.exec(location.search)?.[1])) {
-          url = decodeURIComponent(m);
-        }
-      } catch {
-        // ignored
+      let rawUrl;
+      if ((m = /\burl=___,(.+),___(.*)$/.exec(location.search))) {
+        // without component encoding (Chrome's current spec)
+        // "/src/install.html?url=___,https://update.greasyfork.org/scripts/1234/ABC%20DEF%20GHK%20%2B%2B.user.js,___?a=12&b=34"
+        rawUrl = `${m[1]}${m[2]}`;
+      } else if ((m = /\burl=___%2C(.+)%2C___(.*)$/.exec(location.search))) {
+        // double encoding (browser auto encode)
+        // "/src/install.html?url=___%2Chttps%3A%2F%2Fupdate.greasyfork.org%2Fscripts%2F1234%2FABC%2520DEF%2520GHK%2520%252B%252B.user.js%3Fa%3D12%26b%3D34%2C___"
+        rawUrl = decodeURIComponent(`${m[1]}${m[2]}`);
       }
-      // 如果正则匹配/标准解码失败，回退到标准的 searchParams 获取方式 （浏览器会自行理解和解码不规范的编码）
-      if (!url) url = searchParams.get("url") || ""; // fallback
-      // 移除人工注入的特征锚点 <, ,>，提取真实的 URL 内容
-      url = url.replace(/^<,(.+),>$/, "$1"); // 去掉 <, ,>
-      if (url) {
+
+      if (rawUrl) {
         try {
-          const urlObject = new URL(url);
+          const urlObject = new URL(rawUrl);
           // 验证解析后的 URL 是否具备核心要素，确保安全性与合法性
           if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
-            return url;
+            return rawUrl;
           }
         } catch {
           // ignored
@@ -701,35 +685,6 @@ function App() {
     errorStatus: "",
   });
 
-  const getCandidateUrls = (targetUrlHref: string) => {
-    const inputU = new URL(targetUrlHref);
-    const extraCandidateUrls = new Set<string>();
-    extraCandidateUrls.add(inputU.href);
-
-    const isGreasyForkOrSleazyFork = /[.-](greasyfork|sleazyfork)\.org$/.test(inputU.hostname);
-
-    if (isGreasyForkOrSleazyFork) {
-      // example:
-      // CASE 1
-      // raw 'https://update.greasyfork.org/scripts/550295/100%解锁CSDN文库vip文章阅读限制.user.js'
-      // encoded 'https://update.greasyfork.org/scripts/550295/100%25%E8%A7%A3%E9%94%81CSDN%E6%96%87%E5%BA%93vip%E6%96%87%E7%AB%A0%E9%98%85%E8%AF%BB%E9%99%90%E5%88%B6.user.js'
-      // correct 'https://update.greasyfork.org/scripts/550295/100%25%E8%A7%A3%E9%94%81CSDN%E6%96%87%E5%BA%93vip%E6%96%87%E7%AB%A0%E9%98%85%E8%AF%BB%E9%99%90%E5%88%B6.user.js'
-      // CASE 2
-      // raw 'https://update.greasyfork.org/scripts/519037/Nexus No Wait ++.user.js'
-      // encoded 'https://update.greasyfork.org/scripts/519037/Nexus%20No%20Wait%20++.user.js'
-      // correct 'https://update.greasyfork.org/scripts/519037/Nexus%20No%20Wait%20%2B%2B.user.js'
-      try {
-        const url = targetUrlHref.replace(/([^/]+\.js)/, encodeURIComponent);
-        extraCandidateUrls.add(new URL(url).href);
-      } catch (e) {
-        // can skip if it cannot be converted using decodeURI
-        console.warn(e); // just a warning for debug purpose.
-      }
-    }
-
-    return [...extraCandidateUrls];
-  };
-
   const loadURLAsync = async (candidateUrls: string[]) => {
     // 1. 定义获取单个脚本的内部逻辑，负责处理进度条与单次错误
     const fetchValidScript = async () => {
@@ -740,12 +695,12 @@ function App() {
             onProgress: (info: { receivedLength: number }) => {
               setFetchingState((prev) => ({
                 ...prev,
-                loadingStatusText: t("downloading_status_text", { bytes: formatBytes(info.receivedLength) }),
+                loadingStatus: t("downloading_status_text", { bytes: formatBytes(info.receivedLength) }),
               }));
             },
           });
           if (result.code && result.metadata) {
-            return { result, url }; // 找到有效的立即返回
+            return { result, url } as const; // 找到有效的立即返回
           }
         } catch (e) {
           if (!firstError) firstError = e;
@@ -767,20 +722,13 @@ function App() {
       await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, scriptData);
 
       // 4. 更新导向
-      setSearchParams(
-        (prev) => {
-          prev.delete("url");
-          prev.set("uuid", uuid);
-          return prev;
-        },
-        { replace: true }
-      );
+      setSearchParams(new URLSearchParams(`?uuid=${uuid}`), { replace: true });
     } catch (err: any) {
       // 5. 统一错误处理
       setFetchingState((prev) => ({
         ...prev,
-        loadingStatusText: "",
-        errorStatusText: String(err?.message || err),
+        loadingStatus: "",
+        errorStatus: `${err?.message || err}`,
       }));
     }
   };
@@ -788,10 +736,9 @@ function App() {
   const handleUrlChangeAndFetch = (targetUrlHref: string) => {
     setFetchingState((prev) => ({
       ...prev,
-      loadingStatusText: t("install_page_please_wait"),
+      loadingStatus: t("install_page_please_wait"),
     }));
-    const candidateUrls = getCandidateUrls(targetUrlHref);
-    loadURLAsync(candidateUrls);
+    loadURLAsync([targetUrlHref]);
   };
 
   // 有 url 的话下载内容
@@ -804,14 +751,21 @@ function App() {
     return urlHref ? (
       <div className="tw-flex tw-justify-center tw-items-center tw-h-screen">
         <Space direction="vertical" align="center">
-          <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
           {fetchingState.loadingStatus && (
-            <div className="downloading">
-              <Typography.Text>{fetchingState.loadingStatus}</Typography.Text>
-              <div className="loader"></div>
-            </div>
+            <>
+              <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
+              <div className="downloading">
+                <Typography.Text>{fetchingState.loadingStatus}</Typography.Text>
+                <div className="loader"></div>
+              </div>
+            </>
           )}
-          {fetchingState.errorStatus && <div className="error-message">{fetchingState.errorStatus}</div>}
+          {fetchingState.errorStatus && (
+            <>
+              <Typography.Title heading={3}>{t("install_page_load_failed")}</Typography.Title>
+              <div className="error-message">{fetchingState.errorStatus}</div>
+            </>
+          )}
         </Space>
       </div>
     ) : (
