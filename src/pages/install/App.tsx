@@ -654,26 +654,26 @@ function App() {
     if (!hasValidSourceParam) {
       let m;
       let rawUrl;
-      if ((m = /\burl=___,(.+),___(.*)$/.exec(location.search))) {
-        // without component encoding (Chrome's current spec)
-        // "/src/install.html?url=___,https://update.greasyfork.org/scripts/1234/ABC%20DEF%20GHK%20%2B%2B.user.js,___?a=12&b=34"
-        rawUrl = `${m[1]}${m[2]}`;
-      } else if ((m = /\burl=___%2C(.+)%2C___(.*)$/.exec(location.search))) {
-        // double encoding (browser auto encode)
-        // "/src/install.html?url=___%2Chttps%3A%2F%2Fupdate.greasyfork.org%2Fscripts%2F1234%2FABC%2520DEF%2520GHK%2520%252B%252B.user.js%3Fa%3D12%26b%3D34%2C___"
-        rawUrl = decodeURIComponent(`${m[1]}${m[2]}`);
-      }
 
-      if (rawUrl) {
-        try {
+      try {
+        if ((m = /\burl=___,(.+),___(.*)$/.exec(location.search))) {
+          // without component encoding (Chrome's current spec)
+          // "/src/install.html?url=___,https://update.greasyfork.org/scripts/1234/ABC%20DEF%20GHK%20%2B%2B.user.js,___?a=12&b=34"
+          rawUrl = `${m[1]}${m[2]}`;
+        } else if ((m = /\burl=___%2C(.+)%2C___(.*)$/.exec(location.search))) {
+          // double encoding (browser auto encode)
+          // "/src/install.html?url=___%2Chttps%3A%2F%2Fupdate.greasyfork.org%2Fscripts%2F1234%2FABC%2520DEF%2520GHK%2520%252B%252B.user.js%3Fa%3D12%26b%3D34%2C___"
+          rawUrl = decodeURIComponent(`${m[1]}${m[2]}`);
+        }
+        if (rawUrl) {
           const urlObject = new URL(rawUrl);
           // 验证解析后的 URL 是否具备核心要素，确保安全性与合法性
           if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
             return rawUrl;
           }
-        } catch {
-          // ignored
         }
+      } catch {
+        // ignored
       }
     }
     return "";
