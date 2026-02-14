@@ -532,7 +532,6 @@ const ScriptTable = ({
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const navigate = useNavigate();
-  const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
   const columns: ColumnProps<ListType>[] = useMemo(
     () => [
@@ -661,35 +660,52 @@ const ScriptTable = ({
     ]
   );
 
-  const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
+  // 1. Only store the width overrides, initialized from your saved settings
+  const [manualWidths, setManualWidths] = useState<Record<string, number>>({});
+  // 2. Local state for the input field to make typing "instant"
+  const [inputBuffer, setInputBuffer] = useState<string>("");
+  const [typing, setTyping] = useState<boolean>(false);
 
-  const dealColumns = useMemo(() => {
-    const filtered = newColumns.filter((item) => item.width !== -1);
-    return filtered.length === 0 ? columns : filtered;
-  }, [newColumns, columns]);
-
+  // 3. Update the buffer when the selected column changes
   useEffect(() => {
-    if (savedWidths === null) return;
+    const activeCol = columns[selectColumn];
+    if (!activeCol) return; // Safety check
 
-    // 主要只需要处理列宽变化的情况
-    setNewColumns(
-      columns.map((item, i) => {
-        if (savedWidths[item.key!] === undefined) {
-          return columns[i];
-        }
-        return {
-          ...columns[i],
-          width: savedWidths[item.key!] ?? item.width,
-        };
-      })
-    );
-  }, [savedWidths, columns]);
+    // 1. Get width from manual overrides
+    // 2. Or get width from the column definition
+    // 3. Or fallback to 0 (or your preferred default) to avoid undefined
+    const currentWidth = manualWidths[activeCol.key as string] ?? activeCol.width ?? 0;
+    setTyping(false);
+    setInputBuffer(currentWidth.toString());
+  }, [selectColumn, manualWidths, columns]);
 
+  // 4. Optimized setWidth using the Column Key
+  const setWidthByKey = (key: string, width: number) => {
+    setManualWidths((prev) => {
+      return prev[key] === width ? prev : { ...prev, [key]: width };
+    });
+  };
+  // 2. Load initial widths once
   useEffect(() => {
-    systemConfig.getScriptListColumnWidth().then((columnWidth) => {
-      setSavedWidths({ ...columnWidth });
+    systemConfig.getScriptListColumnWidth().then((saved) => {
+      if (saved) setManualWidths(saved);
     });
   }, []);
+
+  // 3. MERGE logic: This is the high-performance "Source of Truth"
+  const dealColumns = useMemo(() => {
+    return columns
+      .map((col) => {
+        const customWidth = manualWidths[col.key as string];
+        return {
+          ...col,
+          // If customWidth is undefined, use default.
+          // 0 = Auto, -1 = Hidden
+          width: customWidth !== undefined ? customWidth : col.width,
+        };
+      })
+      .filter((col) => col.width !== -1); // Remove hidden columns
+  }, [columns, manualWidths]);
 
   const components0: ComponentsProps = {
     header: {
@@ -742,12 +758,6 @@ const ScriptTable = ({
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const components = useMemo(() => components0, []);
-
-  const setWidth = (selectColumn: number, width: string | number | undefined) => {
-    setNewColumns((cols) =>
-      cols.map((col, i) => (i === selectColumn && col.width !== width ? { ...col, width } : col))
-    );
-  };
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -805,6 +815,9 @@ const ScriptTable = ({
     }),
     []
   );
+
+  const currentActiveWidth = manualWidths[columns[selectColumn].key as string] ?? columns[selectColumn].width;
+  const isSpecialWidth = currentActiveWidth === 0 || currentActiveWidth === -1;
 
   return (
     <DraggableContext.Provider value={draggableContextValue}>
@@ -945,48 +958,36 @@ const ScriptTable = ({
               <Divider type="horizontal" />
               <Typography.Text>{t("resize_column_width") + ":"}</Typography.Text>
               <Select
-                style={{ minWidth: "80px" }}
+                style={{ minWidth: "120px" }}
                 triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
                 size="mini"
-                value={selectColumn === 8 ? t("action") : newColumns[selectColumn].title?.toString()}
+                // Use the base 'columns' for the source of truth
+                value={selectColumn}
                 onChange={(val) => {
-                  const index = parseInt(val as string, 10);
-                  setSelectColumn(index);
+                  setSelectColumn(val as number);
                 }}
               >
-                {newColumns.map((column, index) => (
+                {columns.map((column, index) => (
                   <Select.Option key={index} value={index}>
-                    {index === 8 ? t("action") : column.title}
+                    {column.key === "action" ? t("action") : (column.title as string)}
                   </Select.Option>
                 ))}
               </Select>
               <Dropdown
                 droplist={
                   <Menu>
-                    <Menu.Item
-                      key="auto"
-                      onClick={() => {
-                        setWidth(selectColumn, 0);
-                      }}
-                    >
+                    <Menu.Item key="auto" onClick={() => setWidthByKey(columns[selectColumn].key as string, 0)}>
                       {t("auto")}
                     </Menu.Item>
-                    <Menu.Item
-                      key="hide"
-                      onClick={() => {
-                        setWidth(selectColumn, -1);
-                      }}
-                    >
+                    <Menu.Item key="hide" onClick={() => setWidthByKey(columns[selectColumn].key as string, -1)}>
                       {t("hide")}
                     </Menu.Item>
                     <Menu.Item
                       key="custom"
                       onClick={() => {
-                        const width =
-                          (newColumns[selectColumn].width as number) > 0
-                            ? newColumns[selectColumn].width
-                            : columns[selectColumn].width;
-                        setWidth(selectColumn, width);
+                        // If current is auto/hide, reset to base width; otherwise keep it
+                        const baseWidth = columns[selectColumn].width as number;
+                        setWidthByKey(columns[selectColumn].key as string, baseWidth);
                       }}
                     >
                       {t("custom")}
@@ -996,45 +997,64 @@ const ScriptTable = ({
                 position="bl"
               >
                 <Input
-                  type={newColumns[selectColumn].width === 0 || newColumns[selectColumn].width === -1 ? "" : "number"}
+                  type={isSpecialWidth ? "text" : "number"}
                   style={{ width: "80px" }}
                   size="mini"
+                  // Display "auto" or "hide" if the buffer matches those values
                   value={
-                    newColumns[selectColumn].width === 0
-                      ? t("auto")
-                      : newColumns[selectColumn].width === -1
-                        ? t("hide")
-                        : newColumns[selectColumn].width?.toString()
+                    typing
+                      ? inputBuffer
+                      : inputBuffer === "0"
+                        ? t("auto")
+                        : inputBuffer === "-1"
+                          ? t("hide")
+                          : inputBuffer
                   }
                   step={5}
+                  min={isSpecialWidth ? undefined : 5}
+                  onInput={() => {
+                    setTyping(true);
+                  }}
                   onChange={(val) => {
-                    const width = parseInt(val, 10);
-                    setWidth(selectColumn, width);
+                    // 數值輸入忽略 -1 和 0
+                    setInputBuffer(val);
+                  }}
+                  onPointerUp={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
+                  }}
+                  // Trigger the heavy table re-render only when finished
+                  onBlur={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
+                  }}
+                  onPressEnter={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
                   }}
                 />
               </Dropdown>
+
               <Button
                 type="primary"
                 size="mini"
                 onClick={() => {
-                  const newWidth: { [key: string]: number } = {};
-                  for (const column of newColumns) {
-                    newWidth[column.key! as string] = column.width as number;
-                  }
-                  systemConfig.setScriptListColumnWidth(newWidth);
+                  systemConfig.setScriptListColumnWidth(manualWidths);
+                  Message.success(t("save_success"));
                 }}
               >
                 {t("save")}
               </Button>
+
               <Button
                 size="mini"
                 onClick={() => {
-                  setNewColumns((cols) => {
-                    return cols.map((col, index) => {
-                      col.width = columns[index].width;
-                      return col;
-                    });
-                  });
+                  // Resetting is now instant: just clear the overrides
+                  setManualWidths({});
+                  Message.info(t("reset_success"));
                 }}
               >
                 {t("reset")}
