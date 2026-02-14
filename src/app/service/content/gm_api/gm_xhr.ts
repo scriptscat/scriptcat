@@ -303,6 +303,117 @@ export function GM_xmlhttpRequest(
       }
     };
 
+    const makeRetTemp = (contentType: string) => {
+      return {
+        getResponse() {
+          if (response === false) {
+            // 注： isStreamResponse 为 true 时 response 不会为 false
+            switch (responseTypeOriginal) {
+              case "json": {
+                const text = this.getResponseText();
+                let o = undefined;
+                if (text) {
+                  try {
+                    o = Native.jsonParse(text);
+                  } catch {
+                    // ignored
+                  }
+                }
+                response = o; // TM兼容 -> o : object | undefined
+                break;
+              }
+              case "document": {
+                response = this.getResponseXML();
+                break;
+              }
+              case "arraybuffer": {
+                finalResultBuffers ||= concatUint8(resultBuffers);
+                const full = finalResultBuffers;
+                response = full.buffer; // ArrayBuffer
+                break;
+              }
+              case "blob": {
+                finalResultBuffers ||= concatUint8(resultBuffers);
+                const full = finalResultBuffers;
+                const type = contentType || "application/octet-stream";
+                response = new Blob([full], { type }); // Blob
+                break;
+              }
+              default: {
+                // text
+                response = `${this.getResponseText()}`;
+                break;
+              }
+            }
+            if (reqDone) {
+              resultTexts.length = 0;
+              resultBuffers.length = 0;
+            }
+          }
+          if (responseTypeOriginal === "json" && response === null) {
+            response = undefined; // TM不使用null，使用undefined
+          }
+          return response as string | GMXhrResponseObjectType | null | undefined;
+        },
+        getResponseXML() {
+          if (responseXML === false) {
+            // 注： isStreamResponse 为 true 时 responseXML 不会为 false
+            const text = this.getResponseText();
+            const mime = getMimeType(contentType);
+            const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
+            if (text) {
+              try {
+                responseXML = new DOMParser().parseFromString(text, parseType);
+              } catch (e) {
+                // 对齐 TM 处理。Trusted Type Policy受限制时返回 null
+                responseXML = null;
+                console.error(e);
+              }
+            }
+          }
+          return responseXML as Document | null | undefined;
+        },
+        getResponseText() {
+          if (responseText === false) {
+            // 注： isStreamResponse 为 true 时 responseText 不会为 false
+            if (resultType === ChunkResponseCode.UINT8_ARRAY_BUFFER) {
+              finalResultBuffers ||= concatUint8(resultBuffers);
+              const buf = finalResultBuffers.buffer as ArrayBuffer;
+              const decoder = new TextDecoder("utf-8");
+              const text = decoder.decode(buf);
+              responseText = text;
+            } else {
+              // resultType === ChunkResponseCode.STRING
+              if (finalResultText === null) finalResultText = `${resultTexts.join("")}`;
+              responseText = finalResultText;
+            }
+            if (reqDone) {
+              resultTexts.length = 0;
+              resultBuffers.length = 0;
+            }
+          }
+          return responseText as string | undefined;
+        },
+      };
+    };
+
+    const makeResponseRet = (retParam: GMXHRResponseType, addGetters: boolean, contentType: string) => {
+      let descriptors: ReturnType<typeof Object.getOwnPropertyDescriptors<GMXHRResponseType>> = {
+        ...Object.getOwnPropertyDescriptors(retParam),
+      };
+      if (!addGetters) return Object.create(null, descriptors);
+      descriptors = {
+        ...descriptors,
+        ...xhrResponseGetters,
+      };
+      // 对齐 TM, res.constructor = undefined, res.__proto__ = undefined
+      const retParamObject: GMXHRResponseType = Object.create(null, descriptors);
+      // 外部没引用 retParamObject 时，retTemp 会被自动GC
+      const retTemp = makeRetTemp(contentType);
+      retStateFnMap.set(retParamObject, retTemp);
+      return retParamObject;
+    };
+
     const makeXHRCallbackParam_ = (
       res: {
         //
@@ -373,12 +484,8 @@ export function GM_xmlhttpRequest(
         if (allowResponse) {
           // 依照 TM 的规则：当 readyState 不等于 4 时，回应中不会有 response、responseXML 或 responseText。
           addGetters = true;
-          retParam = {
-            ...retParamBase,
-          };
-        } else {
-          retParam = retParamBase;
         }
+        retParam = retParamBase;
         if (res.error) {
           retParam.error = res.error;
         }
@@ -387,112 +494,7 @@ export function GM_xmlhttpRequest(
         retParam.context = contentContext;
       }
 
-      let descriptors: ReturnType<typeof Object.getOwnPropertyDescriptors<GMXHRResponseType>> = {
-        ...Object.getOwnPropertyDescriptors(retParam),
-      };
-      let retTemp: RetStateFnRecord | null = null;
-      if (addGetters) {
-        // 外部没引用 retParamObject 时，retTemp 会被自动GC
-        retTemp = {
-          getResponse() {
-            if (response === false) {
-              // 注： isStreamResponse 为 true 时 response 不会为 false
-              switch (responseTypeOriginal) {
-                case "json": {
-                  const text = this.getResponseText();
-                  let o = undefined;
-                  if (text) {
-                    try {
-                      o = Native.jsonParse(text);
-                    } catch {
-                      // ignored
-                    }
-                  }
-                  response = o; // TM兼容 -> o : object | undefined
-                  break;
-                }
-                case "document": {
-                  response = this.getResponseXML();
-                  break;
-                }
-                case "arraybuffer": {
-                  finalResultBuffers ||= concatUint8(resultBuffers);
-                  const full = finalResultBuffers;
-                  response = full.buffer; // ArrayBuffer
-                  break;
-                }
-                case "blob": {
-                  finalResultBuffers ||= concatUint8(resultBuffers);
-                  const full = finalResultBuffers;
-                  const type = res.contentType || "application/octet-stream";
-                  response = new Blob([full], { type }); // Blob
-                  break;
-                }
-                default: {
-                  // text
-                  response = `${this.getResponseText()}`;
-                  break;
-                }
-              }
-              if (reqDone) {
-                resultTexts.length = 0;
-                resultBuffers.length = 0;
-              }
-            }
-            if (responseTypeOriginal === "json" && response === null) {
-              response = undefined; // TM不使用null，使用undefined
-            }
-            return response as string | GMXhrResponseObjectType | null | undefined;
-          },
-          getResponseXML() {
-            if (responseXML === false) {
-              // 注： isStreamResponse 为 true 时 responseXML 不会为 false
-              const text = this.getResponseText();
-              const mime = getMimeType(res.contentType);
-              const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
-              if (text) {
-                try {
-                  responseXML = new DOMParser().parseFromString(text, parseType);
-                } catch (e) {
-                  // 对齐 TM 处理。Trusted Type Policy受限制时返回 null
-                  responseXML = null;
-                  console.error(e);
-                }
-              }
-            }
-            return responseXML as Document | null | undefined;
-          },
-          getResponseText() {
-            if (responseText === false) {
-              // 注： isStreamResponse 为 true 时 responseText 不会为 false
-              if (resultType === ChunkResponseCode.UINT8_ARRAY_BUFFER) {
-                finalResultBuffers ||= concatUint8(resultBuffers);
-                const buf = finalResultBuffers.buffer as ArrayBuffer;
-                const decoder = new TextDecoder("utf-8");
-                const text = decoder.decode(buf);
-                responseText = text;
-              } else {
-                // resultType === ChunkResponseCode.STRING
-                if (finalResultText === null) finalResultText = `${resultTexts.join("")}`;
-                responseText = finalResultText;
-              }
-              if (reqDone) {
-                resultTexts.length = 0;
-                resultBuffers.length = 0;
-              }
-            }
-            return responseText as string | undefined;
-          },
-        };
-        descriptors = {
-          ...descriptors,
-          ...xhrResponseGetters,
-        };
-      }
-      // 对齐 TM, res.constructor = undefined, res.__proto__ = undefined
-      const retParamObject: GMXHRResponseType = Object.create(null, descriptors);
-      if (retTemp) retStateFnMap.set(retParamObject, retTemp);
-      return retParamObject;
+      return makeResponseRet(retParam, addGetters, res.contentType);
     };
     let makeXHRCallbackParam: typeof makeXHRCallbackParam_ | null = makeXHRCallbackParam_;
     doAbort = (data: any) => {
