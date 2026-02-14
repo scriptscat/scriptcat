@@ -225,6 +225,8 @@ const MainLayout: React.FC<{
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "application/javascript": [".js"] },
     onDrop,
+    noClick: true,
+    noKeyboard: true,
   });
 
   const languageList: { key: string; title: string }[] = [];
@@ -450,7 +452,7 @@ const MainLayout: React.FC<{
           style={{
             background: "var(--color-fill-2)",
           }}
-          {...getRootProps({ onClick: (e) => e.stopPropagation() })}
+          {...getRootProps({ onBlur: undefined, onFocus: undefined })}
         >
           <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
           <div
