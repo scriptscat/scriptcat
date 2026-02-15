@@ -2,6 +2,8 @@ import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessa
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import EventEmitter from "eventemitter3";
 
+const listenerMgr = new EventEmitter<string, any>(); // 单一管理器
+
 // 通过 window.postMessage/onmessage 实现通信
 
 export interface PostMessage {
@@ -121,19 +123,41 @@ export class WindowMessage implements Message {
 }
 
 export class WindowMessageConnect implements MessageConnect {
+  private readonly listenerId = `${uuidv4()}`; // 使用 uuidv4 确保唯一
+  private target: PostMessage | null;
+  private isSelfDisconnected = false;
+
   constructor(
     private messageId: string,
-    private EE: EventEmitter<string, any>,
-    private target: PostMessage
+    EE: EventEmitter<string, any>,
+    target: PostMessage
   ) {
-    this.onDisconnect(() => {
-      // 移除所有监听
-      this.EE.removeAllListeners("connectMessage:" + this.messageId);
-      this.EE.removeAllListeners("disconnect:" + this.messageId);
-    });
+    this.target = target; // 强引用
+    const handler = (msg: TMessage) => {
+      listenerMgr.emit(`onMessage:${this.listenerId}`, msg);
+    };
+    const cleanup = () => {
+      if (this.target) {
+        this.target = null;
+        listenerMgr.removeAllListeners(`cleanup:${this.listenerId}`);
+        EE.removeAllListeners("connectMessage:" + this.messageId); // 模拟 con.onMessage.removeListener
+        EE.removeAllListeners("disconnect:" + this.messageId); // 模拟 con.onDisconnect.removeListener
+        listenerMgr.emit(`onDisconnect:${this.listenerId}`, this.isSelfDisconnected);
+        listenerMgr.removeAllListeners(`onDisconnect:${this.listenerId}`);
+        listenerMgr.removeAllListeners(`onMessage:${this.listenerId}`);
+      }
+    };
+    EE.addListener(`connectMessage:${this.messageId}`, handler); // 模拟 con.onMessage.addListener
+    EE.addListener(`disconnect:${this.messageId}`, cleanup); // 模拟 con.onDisconnect.addListener
+    listenerMgr.once(`cleanup:${this.listenerId}`, cleanup);
   }
 
   sendMessage(data: TMessage) {
+    if (!this.target) {
+      console.error("Attempted to sendMessage on a disconnected Target.");
+      // 無法 sendMessage 不应该屏蔽错误
+      throw new Error("Attempted to sendMessage on a disconnected Target.");
+    }
     const body: WindowMessageBody<TMessage> = {
       messageId: this.messageId,
       type: "connectMessage",
@@ -143,20 +167,38 @@ export class WindowMessageConnect implements MessageConnect {
   }
 
   onMessage(callback: (data: TMessage) => void) {
-    this.EE.addListener(`connectMessage:${this.messageId}`, callback);
+    if (!this.target) {
+      console.error("onMessage Invalid Target");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onMessage Invalid Target");
+    }
+    listenerMgr.addListener(`onMessage:${this.listenerId}`, callback);
   }
 
   disconnect() {
+    if (!this.target) {
+      console.warn("Attempted to disconnect on a disconnected Target.");
+      // 重复 disconnect() 不应该屏蔽错误
+      throw new Error("Attempted to disconnect on a disconnected Target.");
+    }
+    this.isSelfDisconnected = true;
     const body: WindowMessageBody<TMessage> = {
       messageId: this.messageId,
       type: "disconnect",
       data: null,
     };
     this.target.postMessage(body);
+    // Note: .disconnect() will NOT automatically trigger the 'cleanup' listener
+    listenerMgr.emit(`cleanup:${this.listenerId}`);
   }
 
-  onDisconnect(callback: () => void) {
-    this.EE.addListener(`disconnect:${this.messageId}`, callback);
+  onDisconnect(callback: (isSelfDisconnected: boolean) => void) {
+    if (!this.target) {
+      console.error("onDisconnect Invalid Target");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onDisconnect Invalid Target");
+    }
+    listenerMgr.once(`onDisconnect:${this.listenerId}`, callback);
   }
 }
 
