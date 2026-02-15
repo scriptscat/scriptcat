@@ -86,7 +86,7 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
 const addTryCatch = (code: string) =>
   `
       try {
-        __FUNCTION_BODY__
+        {{functionBody}}
       } catch (e) {
         if (e.message && e.stack) {
             console.error("ERROR: Execution of script '" + arguments[1] + "' failed! " + e.message);
@@ -99,7 +99,7 @@ const addTryCatch = (code: string) =>
     .trim()
     .replace(/[\r\n]/g, "")
     .replace(/\s+/g, " ")
-    .replace(/\s*__FUNCTION_BODY__\s*/, `\n${code}\n`);
+    .replace("{{functionBody}}", () => code);
 
 export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
   const requireCode = resource.require.map((r) => r.content).join("\n;");
