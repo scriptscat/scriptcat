@@ -31,9 +31,10 @@ import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
-import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
+import { formatBytes } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
 import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
+import { prettyUrl } from "@App/pkg/utils/url-utils";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 
