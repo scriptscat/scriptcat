@@ -186,7 +186,7 @@ export class ExtensionMessageConnect implements MessageConnect {
     if (!this.con) {
       console.error("onMessage Invalid Port");
       // 無法監聽的話不应该屏蔽错误
-      throw new Error("onMessage Invalid Target");
+      throw new Error("onMessage Invalid Port");
     }
     listenerMgr.addListener(`onMessage:${this.listenerId}`, callback);
   }
@@ -207,7 +207,7 @@ export class ExtensionMessageConnect implements MessageConnect {
     if (!this.con) {
       console.error("onDisconnect Invalid Port");
       // 無法監聽的話不应该屏蔽错误
-      throw new Error("onDisconnect Invalid Target");
+      throw new Error("onDisconnect Invalid Port");
     }
     listenerMgr.once(`onDisconnect:${this.listenerId}`, callback);
   }

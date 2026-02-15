@@ -154,9 +154,9 @@ export class WindowMessageConnect implements MessageConnect {
 
   sendMessage(data: TMessage) {
     if (!this.target) {
-      console.error("Attempted to sendMessage on a disconnected port.");
+      console.error("Attempted to sendMessage on a disconnected Target.");
       // 無法 sendMessage 不应该屏蔽错误
-      throw new Error("Attempted to sendMessage on a disconnected port.");
+      throw new Error("Attempted to sendMessage on a disconnected Target.");
     }
     const body: WindowMessageBody<TMessage> = {
       messageId: this.messageId,
@@ -177,9 +177,9 @@ export class WindowMessageConnect implements MessageConnect {
 
   disconnect() {
     if (!this.target) {
-      console.warn("Attempted to disconnect on a disconnected port.");
+      console.warn("Attempted to disconnect on a disconnected Target.");
       // 重复 disconnect() 不应该屏蔽错误
-      throw new Error("Attempted to disconnect on a disconnected port.");
+      throw new Error("Attempted to disconnect on a disconnected Target.");
     }
     this.isSelfDisconnected = true;
     const body: WindowMessageBody<TMessage> = {
