@@ -334,7 +334,9 @@
     "header_other_update": "Các bản cập nhật khác"
   },
   "downloading_status_text": "Đang tải xuống. Đã nhận {{bytes}}.",
+  "install_page_please_wait": "Vui lòng chờ",
   "install_page_loading": "Đang tải trang cài đặt",
+  "install_page_load_failed": "Tải trang cài đặt thất bại",
   "invalid_page": "Trang không hợp lệ",
   "background_script_tag": "Đây là một script nền",
   "scheduled_script_tag": "Đây là một script hẹn giờ",

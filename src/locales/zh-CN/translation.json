@@ -334,7 +334,9 @@
     "header_other_update": "其他可用更新"
   },
   "downloading_status_text": "正在下载。已接收 {{bytes}}。",
+  "install_page_please_wait": "请稍等",
   "install_page_loading": "安装页面加载中",
+  "install_page_load_failed": "安装页面加载失败",
   "invalid_page": "无效页面",
   "background_script_tag": "这是一个后台脚本",
   "scheduled_script_tag": "这是一个定时脚本",
