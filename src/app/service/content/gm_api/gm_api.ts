@@ -859,7 +859,7 @@ export default class GMApi extends GM_Base {
 
     if (refNode) {
       id3 = randInt + 3;
-      // 设置 id3 -> parentNode
+      // 设置 id3 -> refNode
       dispatchMyEvent(ctReceiveFlag, { cancelable: true, movementX: id3, relatedTarget: refNode });
     }
 
