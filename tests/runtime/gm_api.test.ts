@@ -1,10 +1,25 @@
 import { type Script, ScriptDAO, type ScriptRunResource } from "@App/app/repo/scripts";
-import GMApi from "@App/app/service/content/gm_api/gm_api";
+import { createGMBase, createGMApis } from "@App/app/service/content/gm_api/gm_api";
 import { randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it, vi, vitest } from "vitest";
 import { addTestPermission, initTestGMApi } from "@Tests/utils";
 import { mockNetwork } from "@Tests/mocks/network";
 import { setMockNetworkResponse } from "@Tests/mocks/response";
+import { ListenerManager } from "@App/app/service/content/listener_manager";
+import EventEmitter from "eventemitter3";
+import type { Message } from "@Packages/message/types";
+
+const createTestGMBase = (prefix: string, message: Message | undefined, scriptRes: ScriptRunResource | undefined) => {
+  return createGMBase({
+    prefix,
+    message,
+    scriptRes,
+    valueChangeListener: new ListenerManager<GMTypes.ValueChangeListener>(),
+    EE: new EventEmitter<string, any>(),
+    notificationTagMap: new Map(),
+    eventId: 0,
+  });
+};
 
 const customXhrResponseMap = new Map<
   string,
@@ -135,9 +150,12 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
 
   addTestPermission(script.uuid);
   await new ScriptDAO().save(script);
-  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
-    uuid: script.uuid,
-  });
+  const gmApi = createGMApis(
+    createTestGMBase("serviceWorker", msg, <ScriptRunResource>{
+      uuid: script.uuid,
+    }),
+    new Set(["GM_xmlhttpRequest"])
+  ) as Required<Pick<ReturnType<typeof createGMApis>, "GM_xmlhttpRequest">>;
   it.concurrent("test GM xhr - plain text", async () => {
     const testUrl = "https://mock-xmlhttprequest-plain.test/";
     customXhrResponseMap.set(testUrl, {
@@ -341,9 +359,12 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
 
 describe.concurrent("GM xmlHttpRequest", () => {
   const msg = initTestGMApi();
-  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
-    uuid: script.uuid,
-  });
+  const gmApi = createGMApis(
+    createTestGMBase("serviceWorker", msg, <ScriptRunResource>{
+      uuid: script.uuid,
+    }),
+    new Set(["GM_xmlhttpRequest"])
+  ) as Required<Pick<ReturnType<typeof createGMApis>, "GM_xmlhttpRequest">>;
   it.concurrent("get", () => {
     return new Promise<void>((resolve) => {
       gmApi.GM_xmlhttpRequest({
@@ -424,9 +445,12 @@ describe.concurrent("GM xmlHttpRequest", () => {
 
 describe("GM download", () => {
   const msg = initTestGMApi();
-  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
-    uuid: script.uuid,
-  });
+  const gmApi = createGMApis(
+    createTestGMBase("serviceWorker", msg, <ScriptRunResource>{
+      uuid: script.uuid,
+    }),
+    new Set(["GM_download"])
+  ) as Required<Pick<ReturnType<typeof createGMApis>, "GM_download">>;
   it("simple download", async () => {
     const testUrl = "https://download.test/";
     const originalBlob = new Blob(["download content"], { type: "text/plain" });
