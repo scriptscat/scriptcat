@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_xmlhttpRequest Exhaustive Test Harness v3
 // @namespace    tm-gmxhr-test
-// @version      1.2.1
+// @version      1.2.3
 // @description  Comprehensive in-page tests for GM_xmlhttpRequest: normal, abnormal, and edge cases with clear pass/fail output.
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
@@ -120,7 +120,7 @@ const enableTool = true;
           gap: "8px",
         },
       },
-      h("div", { style: { fontWeight: "600" } }, "GM_xmlhttpRequest Test Harness"),
+      h("div", { style: { fontWeight: "600" } }, "GM_xmlhttpRequest Test Harness", h("br"), `${GM.info?.version}`),
       h("div", { id: "counts", style: { marginLeft: "auto", opacity: 0.8 } }, "…"),
       h("button", { id: "start", style: btn() }, "Run"),
       h("button", { id: "clear", style: btn() }, "Clear")
@@ -133,7 +133,7 @@ const enableTool = true;
     ),
     h(
       "details",
-      { id: "queueWrap", open: true, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
+      { id: "queueWrap", open: false, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
       h("summary", {}, "Pending tests"),
       h(
         "div",
@@ -273,6 +273,7 @@ const enableTool = true;
         assertEq(res.responseText, decodedBase64, "responseText ok");
         assertEq(res.response, decodedBase64, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -289,6 +290,7 @@ const enableTool = true;
         assertEq(res.responseText, decodedBase64, "responseText ok");
         assertEq(res.response, decodedBase64, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -305,6 +307,7 @@ const enableTool = true;
         assertEq(res.responseText, decodedBase64, "responseText ok");
         assertEq(res.response, decodedBase64, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
 
@@ -322,6 +325,7 @@ const enableTool = true;
         assertEq(res.responseText, decodedBase64, "responseText ok");
         assertEq(res.response, undefined, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -338,6 +342,7 @@ const enableTool = true;
         assertEq(res.responseText, decodedBase64, "responseText ok");
         assertEq(res.response instanceof XMLDocument, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -354,6 +359,7 @@ const enableTool = true;
         assertEq(res.responseText, undefined, "responseText ok");
         assertEq(res.response instanceof ReadableStream, true, "response ok");
         assertEq(res.responseXML, undefined, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -370,6 +376,7 @@ const enableTool = true;
         assertEq(res.responseText, decodedBase64, "responseText ok");
         assertEq(res.response instanceof ArrayBuffer, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -386,6 +393,7 @@ const enableTool = true;
         assertEq(res.responseText, decodedBase64, "responseText ok");
         assertEq(res.response instanceof Blob, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -401,6 +409,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -417,6 +426,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -433,6 +443,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -449,6 +460,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -465,6 +477,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(res.response instanceof XMLDocument, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -481,6 +494,7 @@ const enableTool = true;
         assertEq(res.responseText, undefined, "responseText ok");
         assertEq(res.response instanceof ReadableStream, true, "response ok");
         assertEq(res.responseXML, undefined, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -497,6 +511,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(res.response instanceof ArrayBuffer, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -513,6 +528,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(res.response instanceof Blob, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -528,6 +544,7 @@ const enableTool = true;
         assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
         assertEq(res.response, res.responseText, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -544,6 +561,7 @@ const enableTool = true;
         assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
         assertEq(res.response, res.responseText, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -560,6 +578,7 @@ const enableTool = true;
         assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
         assertEq(res.response, res.responseText, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -576,6 +595,7 @@ const enableTool = true;
         assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
         assertEq(res.response, undefined, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -592,6 +612,7 @@ const enableTool = true;
         assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
         assertEq(res.response instanceof XMLDocument, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -608,6 +629,7 @@ const enableTool = true;
         assertEq(res.responseText, undefined, "responseText ok");
         assertEq(res.response instanceof ReadableStream, true, "response ok");
         assertEq(res.responseXML, undefined, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -624,6 +646,7 @@ const enableTool = true;
         assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
         assertEq(res.response instanceof ArrayBuffer, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -640,6 +663,7 @@ const enableTool = true;
         assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
         assertEq(res.response instanceof Blob, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -659,6 +683,7 @@ const enableTool = true;
         const hdrs = body.headers || {};
         assertEq(hdrs["X-Custom"] || hdrs["x-custom"], "Hello", "custom header echo");
         assertEq(res.finalUrl, url, "finalUrl matches");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -673,6 +698,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200, "status after redirect is 200");
         assertEq(res.finalUrl, target, "finalUrl is redirected target");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -688,6 +714,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200, "status after redirect is 200");
         assertEq(res.finalUrl, target, "finalUrl is redirected target");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -713,6 +740,7 @@ const enableTool = true;
           assertEq(e?.res?.status, 408, "statusCode ok");
           assertEq(!e?.res?.finalUrl, true, "!finalUrl ok");
           assertEq(e?.res?.responseHeaders, "", "responseHeaders ok");
+          assertEq(objectProps(e?.res), "ok", "Object Props OK");
         }
       },
     },
@@ -734,6 +762,7 @@ const enableTool = true;
         assertEq(res?.status, 301, "status is 301");
         assertEq(res?.finalUrl, url, "finalUrl is original url");
         assertEq(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "", true, "responseHeaders ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -751,6 +780,7 @@ const enableTool = true;
         assertEq(res.status, 200);
         assertEq((body.form || {}).a, "1", "form a");
         assertEq((body.form || {}).b, "two", "form b");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -767,6 +797,7 @@ const enableTool = true;
         const body = JSON.parse(res.responseText);
         assertEq(res.status, 200);
         assertDeepEq(body.json, payload, "JSON echo matches");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -783,6 +814,7 @@ const enableTool = true;
         const body = JSON.parse(res.responseText);
         assertEq(res.status, 200);
         assert(body.data && body.data.length > 0, "server received some data");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -803,6 +835,7 @@ const enableTool = true;
         assert(res.response instanceof ArrayBuffer, "arraybuffer present");
         assertEq(res.response.byteLength, size, "byte length matches");
         assert(progressCounter >= 1, "progressCounter >= 1");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -825,6 +858,7 @@ const enableTool = true;
         const buf = await res.response.arrayBuffer();
         assertEq(buf.byteLength, size, "byte length matches");
         assert(progressCounter >= 1, "progressCounter >= 1");
+        assertEq(objectProps(res), "ok", "Object Props OK");
         // Do not assert image MIME; httpbun returns octet-stream here.
       },
     },
@@ -841,6 +875,7 @@ const enableTool = true;
         assertEq(res.status, 200);
         assert(res.response && typeof res.response === "object", "parsed JSON object");
         assert(res.response.origin, "has JSON fields");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -854,6 +889,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200);
         assert(typeof res.responseText === "string" && res.responseText.length > 0, "responseText available");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -902,6 +938,7 @@ const enableTool = true;
         // `progress` is guaranteed to fire only in the Fetch API.
         assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
         assert(!response, "no response");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -945,6 +982,7 @@ const enableTool = true;
         // `progress` is guaranteed to fire only in the Fetch API.
         assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
         assert(response instanceof ReadableStream && typeof response.getReader === "function", "response");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -958,6 +996,7 @@ const enableTool = true;
         assertEq(res.status, 200);
         assert((res.responseText || "")?.length > 0, "body for HEAD");
         assert(typeof res.responseHeaders === "string", "response headers present");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -971,6 +1010,7 @@ const enableTool = true;
         assertEq(res.status, 200);
         assertEq(res.responseText || "", "", "no body for HEAD");
         assert(typeof res.responseHeaders === "string", "response headers present");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -983,6 +1023,7 @@ const enableTool = true;
         });
         // httpbun commonly returns 200 for OPTIONS
         assert(res.status === 200 || res.status === 204, "200/204 on OPTIONS");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -996,6 +1037,7 @@ const enableTool = true;
         assertEq(res.status, 200);
         const body = JSON.parse(res.responseText);
         assertEq(body.method, "DELETE", "server saw DELETE");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1022,6 +1064,7 @@ const enableTool = true;
         const body = JSON.parse(res.responseText);
         const cookieABC = body.cookies.abc;
         assertEq(cookieABC, "123", "cookie abc=123");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1037,6 +1080,7 @@ const enableTool = true;
         const body = JSON.parse(res.responseText);
         const cookies = body.headers.Cookie || body.headers.cookie;
         assert(!`${cookies}`.includes("abc=123"), "no Cookie header when anonymous");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1051,6 +1095,7 @@ const enableTool = true;
         const body = JSON.parse(res.responseText);
         const cookies = body.headers.Cookie || body.headers.cookie;
         assert(`${cookies}`.includes("abc=123"), "Cookie header");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1090,6 +1135,7 @@ const enableTool = true;
         const body = JSON.parse(res.responseText);
         const cookies = body.headers.Cookie || body.headers.cookie;
         assert(!cookies, "no Cookie header when anonymous");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1120,6 +1166,7 @@ const enableTool = true;
         const body = JSON.parse(res.responseText);
         assertEq(body.authenticated, true, "authenticated true");
         assertEq(body.user, "user", "user echoed");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1131,6 +1178,7 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 418, "418 I'm a teapot");
+        assertEq(objectProps(res), "ok", "Object Props OK");
         // Still triggers onload, not onerror
       },
     },
@@ -1144,6 +1192,7 @@ const enableTool = true;
           fetch,
         });
         assert([200, 405].includes(res.status), "200 or 405 depending on server handling");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1173,6 +1222,7 @@ const enableTool = true;
             true,
             "Refused to connect to ..."
           );
+          assertEq(objectProps(e.res), "ok", "Object Props OK");
         }
       },
     },
@@ -1202,6 +1252,7 @@ const enableTool = true;
             true,
             "Refused to connect to ..."
           );
+          assertEq(objectProps(e.res), "ok", "Object Props OK");
         }
       },
     },
@@ -1222,6 +1273,7 @@ const enableTool = true;
           assertEq(e.res.responseXML, undefined, "responseXML undefined");
           assertEq(e.res.responseHeaders, "", 'responseHeaders ""');
           assertEq(e.res.readyState, 4, "readyState 4");
+          assertEq(objectProps(e.res), "ok", "Object Props OK");
         }
       },
     },
@@ -1261,6 +1313,7 @@ const enableTool = true;
         assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
         assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1282,6 +1335,7 @@ const enableTool = true;
         assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertDeepEq(readyStateList, fetch ? [2, 4] : [1, 2, 3, 4], "status 200");
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
     {
@@ -1569,6 +1623,7 @@ const enableTool = true;
         for (let i = 0; i < lines.length - 1; i++) {
           assert(lines[i].length > 0, `header line ${i} present`);
         }
+        assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
   ];
@@ -1596,6 +1651,32 @@ const enableTool = true;
     const lines = (headersStr || "").split(/\r?\n/);
     const line = lines.find((l) => l.toLowerCase().startsWith(key.toLowerCase() + ":"));
     return line ? line.split(":").slice(1).join(":").trim() : "";
+  }
+  function objectProps(o) {
+    if (!o || typeof o !== "object") return "not an object";
+    let z, oD, zD;
+    try {
+      z = Object.assign({}, o);
+    } catch {
+      return "Object.assign failed";
+    }
+    // accept null / "" / undefined for normal/failed/fetch_normal/fetch_failed XHR
+    // non-empty text (still primitive) can be also accepted. (common in xhr error case)
+    if (typeof (z.response ?? "") !== "string") return "non-primitive response value exposed";
+    if (typeof (z.responseText ?? "") !== "string") return "non-primitive responseText value exposed";
+    if (typeof (z.responseXML ?? "") !== "string") return "non-primitive responseXML value exposed";
+    try {
+      oD = JSON.stringify(o);
+    } catch {
+      return "JSON.stringify failed";
+    }
+    try {
+      zD = JSON.stringify(z);
+    } catch {
+      return "JSON.stringify failed";
+    }
+    if (oD !== zD) return "Object Props Failed";
+    return "ok";
   }
 
   // ---------- Runner ----------
