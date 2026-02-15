@@ -51,8 +51,6 @@ export default class S3FileSystem implements FileSystem {
 
   bucket: string;
 
-  region: string = "";
-
   basePath: string = "/";
 
   constructor(bucket: string, client: S3Client, basePath?: string);
@@ -78,11 +76,10 @@ export default class S3FileSystem implements FileSystem {
       this.basePath = accessKeyIdOrBasePath || "/";
       return;
     }
-    this.region = regionOrClient || "us-east-1";
     this.basePath = basePath || "/";
 
     const config: S3ClientConfig = {
-      region: this.region,
+      region: regionOrClient || "us-east-1",
       credentials: {
         accessKeyId: accessKeyIdOrBasePath!,
         secretAccessKey: secretAccessKey!,
@@ -267,6 +264,6 @@ export default class S3FileSystem implements FileSystem {
       const url = this.client.getEndpointUrl();
       return `${url}/${this.bucket}/${prefix}`;
     }
-    return `https://s3.console.aws.amazon.com/s3/buckets/${this.bucket}?prefix=${encodeURIComponent(prefix)}&region=${this.region}`;
+    return `https://s3.console.aws.amazon.com/s3/buckets/${this.bucket}?prefix=${encodeURIComponent(prefix)}&region=${this.client.getRegion()}`;
   }
 }
