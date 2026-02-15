@@ -33,49 +33,42 @@ import type { SearchType } from "@App/app/service/service_worker/types";
 type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
 const SortableDragCtx = createContext<DragCtx>(null);
 
-function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
-  return (node) => {
-    for (const ref of refs) {
-      if (typeof ref === "function") {
-        ref(node);
-      } else if (ref) {
-        (ref as React.MutableRefObject<T | null>).current = node;
-      }
-    }
-  };
-}
+type DraggableEntryProps = {
+  recordUUID: string;
+  children: React.ReactElement;
+};
 
-type DraggableEntryProps = { recordUUID: string } & React.HTMLAttributes<HTMLDivElement>;
-
-const DraggableEntry = React.forwardRef<HTMLDivElement, DraggableEntryProps>(({ recordUUID, ...rest }, ref) => {
-  const sortable = useSortable({ id: recordUUID });
-  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging } = sortable;
+const DraggableEntry = ({ recordUUID, children }: DraggableEntryProps) => {
+  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging, attributes } = useSortable({
+    id: recordUUID,
+  });
 
   const style = {
-    // ScriptCard 移位渉及多个元件上下左右移动，DragEnd时不要使用 dnd-kit 提供的效果
+    ...children.props.style, // Merge existing styles
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : "auto",
   };
 
-  const mergedRef = React.useMemo(() => composeRefs<HTMLDivElement>(setNodeRef, ref), [setNodeRef, ref]);
-
   const ctxValue = useMemo(
     () => ({
-      listeners: listeners,
-      setActivatorNodeRef: setActivatorNodeRef,
+      listeners,
+      setActivatorNodeRef,
     }),
     [listeners, setActivatorNodeRef]
   );
 
   return (
     <SortableDragCtx.Provider value={ctxValue}>
-      <div ref={mergedRef} style={style} {...rest} />
+      {React.cloneElement(children, {
+        ref: setNodeRef,
+        style,
+        ...attributes,
+      })}
     </SortableDragCtx.Provider>
   );
-});
-DraggableEntry.displayName = "DraggableEntry";
+};
 
 const DragHandle = () => {
   const sortable = useContext(SortableDragCtx);
@@ -162,205 +155,203 @@ export const ScriptCardItem = React.memo(
 
     return (
       <DraggableEntry recordUUID={item.uuid}>
-        <div>
-          <Card
-            hoverable
-            className="script-card"
-            bodyStyle={{
-              height: "100%",
-              boxSizing: "border-box",
-            }}
-          >
-            <div className="tw-flex tw-flex-col tw-justify-between tw-h-full tw-gap-1">
-              <div className="tw-flex tw-flex-col tw-gap-3">
-                <div className="tw-flex tw-flex-row tw-justify-between tw-items-start tw-gap-1">
-                  <div className="tw-flex-1 tw-min-w-0">
-                    <Link
-                      to={`/script/editor/${item.uuid}`}
-                      style={{
-                        textDecoration: "none",
-                      }}
-                    >
-                      <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
-                        <ScriptIcons script={item} size={24} />
-                        <Typography.Text
-                          style={{
-                            fontSize: "16px",
-                            fontWeight: 500,
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                          title={i18nName(item)}
-                        >
-                          {i18nName(item)}
-                        </Typography.Text>
-                      </div>
-                    </Link>
-                    {tags.length > 0 && (
-                      <Space wrap>
-                        {tags.map((tag) => (
-                          <Tag key={tag} color={hashColor(tag)} size="small">
-                            {tag}
-                          </Tag>
-                        ))}
-                      </Space>
-                    )}
-                  </div>
-                  <div className="script-enable" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <EnableSwitch
-                      status={item.status}
-                      enableLoading={item.enableLoading}
-                      onChange={(checked: boolean) => {
-                        updateScripts([item.uuid], { enableLoading: true });
-                        requestEnableScript({ uuid: item.uuid, enable: checked });
-                      }}
-                    />
-                    <div
-                      className="script-sort"
-                      role="button"
-                      tabIndex={0}
-                      style={{ display: "inline-flex", alignItems: "center" }}
-                    >
-                      <DragHandle />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 版本和更新时间 */}
-                <div className="tw-flex tw-flex-row tw-gap-4 tw-text-sm tw-text-gray-500">
-                  {item.metadata.version?.[0] && (
-                    <div>
-                      <span className="tw-font-medium">
-                        {t("version")}
-                        {": "}
-                      </span>
-                      <span>{item.metadata.version[0]}</span>
-                    </div>
-                  )}
-                  <div className="script-updatetime">
-                    <span className="tw-font-medium">
-                      {t("last_updated")}
-                      {": "}
-                    </span>
-                    <UpdateTimeCell className="tw-text-sm tw-text-gray-500" script={item} />
-                  </div>
-                </div>
-
-                {/* 运行状态 */}
-                <div className="tw-flex tw-flex-row tw-gap-4">
-                  {item.type !== SCRIPT_TYPE_NORMAL && (
-                    <div>
-                      <Tooltip
-                        content={
-                          item.type === SCRIPT_TYPE_BACKGROUND
-                            ? t("background_script_tooltip")
-                            : `${t("scheduled_script_tooltip")} ${nextTimeDisplay(item.metadata!.crontab![0])}`
-                        }
+        <Card
+          hoverable
+          className="script-card"
+          bodyStyle={{
+            height: "100%",
+            boxSizing: "border-box",
+          }}
+        >
+          <div className="tw-flex tw-flex-col tw-justify-between tw-h-full tw-gap-1">
+            <div className="tw-flex tw-flex-col tw-gap-3">
+              <div className="tw-flex tw-flex-row tw-justify-between tw-items-start tw-gap-1">
+                <div className="tw-flex-1 tw-min-w-0">
+                  <Link
+                    to={`/script/editor/${item.uuid}`}
+                    style={{
+                      textDecoration: "none",
+                    }}
+                  >
+                    <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
+                      <ScriptIcons script={item} size={24} />
+                      <Typography.Text
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: 500,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                        title={i18nName(item)}
                       >
-                        <Tag
-                          icon={<IconClockCircle />}
-                          color="blue"
-                          bordered
-                          style={{ cursor: "pointer" }}
-                          onClick={toLogger}
-                        >
-                          {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
-                        </Tag>
-                      </Tooltip>
+                        {i18nName(item)}
+                      </Typography.Text>
                     </div>
-                  )}
-                  <SourceCell item={item} t={t} />
-                </div>
-
-                <div className="tw-flex tw-flex-row tw-gap-3 tw-items-center apply_to_run_status">
-                  {item.type === SCRIPT_TYPE_NORMAL && (
-                    <Avatar.Group size={20}>
-                      {favoriteMemo.trimmed.map((fav) => (
-                        <MemoizedAvatar
-                          key={`${fav.match}_${fav.icon}_${fav.website}`}
-                          {...fav}
-                          onClick={() => {
-                            if (fav.website) {
-                              window.open(fav.website, "_blank");
-                            }
-                          }}
-                        />
+                  </Link>
+                  {tags.length > 0 && (
+                    <Space wrap>
+                      {tags.map((tag) => (
+                        <Tag key={tag} color={hashColor(tag)} size="small">
+                          {tag}
+                        </Tag>
                       ))}
-                      {favoriteMemo.originalLen > 8 && <span className="tw-text-xs tw-ml-1">{"..."}</span>}
-                    </Avatar.Group>
+                    </Space>
                   )}
-                  <HomeCell item={item} />
+                </div>
+                <div className="script-enable" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <EnableSwitch
+                    status={item.status}
+                    enableLoading={item.enableLoading}
+                    onChange={(checked: boolean) => {
+                      updateScripts([item.uuid], { enableLoading: true });
+                      requestEnableScript({ uuid: item.uuid, enable: checked });
+                    }}
+                  />
+                  <div
+                    className="script-sort"
+                    role="button"
+                    tabIndex={0}
+                    style={{ display: "inline-flex", alignItems: "center" }}
+                  >
+                    <DragHandle />
+                  </div>
                 </div>
               </div>
-              {/* 操作按钮 */}
-              <div className="tw-flex tw-flex-col script-action">
-                <Divider style={{ margin: "4px 0 14px" }} />
-                <div className="tw-flex tw-flex-row tw-justify-between">
+
+              {/* 版本和更新时间 */}
+              <div className="tw-flex tw-flex-row tw-gap-4 tw-text-sm tw-text-gray-500">
+                {item.metadata.version?.[0] && (
                   <div>
-                    {item.type !== SCRIPT_TYPE_NORMAL && (
+                    <span className="tw-font-medium">
+                      {t("version")}
+                      {": "}
+                    </span>
+                    <span>{item.metadata.version[0]}</span>
+                  </div>
+                )}
+                <div className="script-updatetime">
+                  <span className="tw-font-medium">
+                    {t("last_updated")}
+                    {": "}
+                  </span>
+                  <UpdateTimeCell className="tw-text-sm tw-text-gray-500" script={item} />
+                </div>
+              </div>
+
+              {/* 运行状态 */}
+              <div className="tw-flex tw-flex-row tw-gap-4">
+                {item.type !== SCRIPT_TYPE_NORMAL && (
+                  <div>
+                    <Tooltip
+                      content={
+                        item.type === SCRIPT_TYPE_BACKGROUND
+                          ? t("background_script_tooltip")
+                          : `${t("scheduled_script_tooltip")} ${nextTimeDisplay(item.metadata!.crontab![0])}`
+                      }
+                    >
+                      <Tag
+                        icon={<IconClockCircle />}
+                        color="blue"
+                        bordered
+                        style={{ cursor: "pointer" }}
+                        onClick={toLogger}
+                      >
+                        {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
+                      </Tag>
+                    </Tooltip>
+                  </div>
+                )}
+                <SourceCell item={item} t={t} />
+              </div>
+
+              <div className="tw-flex tw-flex-row tw-gap-3 tw-items-center apply_to_run_status">
+                {item.type === SCRIPT_TYPE_NORMAL && (
+                  <Avatar.Group size={20}>
+                    {favoriteMemo.trimmed.map((fav) => (
+                      <MemoizedAvatar
+                        key={`${fav.match}_${fav.icon}_${fav.website}`}
+                        {...fav}
+                        onClick={() => {
+                          if (fav.website) {
+                            window.open(fav.website, "_blank");
+                          }
+                        }}
+                      />
+                    ))}
+                    {favoriteMemo.originalLen > 8 && <span className="tw-text-xs tw-ml-1">{"..."}</span>}
+                  </Avatar.Group>
+                )}
+                <HomeCell item={item} />
+              </div>
+            </div>
+            {/* 操作按钮 */}
+            <div className="tw-flex tw-flex-col script-action">
+              <Divider style={{ margin: "4px 0 14px" }} />
+              <div className="tw-flex tw-flex-row tw-justify-between">
+                <div>
+                  {item.type !== SCRIPT_TYPE_NORMAL && (
+                    <Button
+                      type="outline"
+                      icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
+                      loading={item.actionLoading}
+                      size="mini"
+                      onClick={() => handleRunStop(item)}
+                    >
+                      {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("stop") : t("run")}
+                    </Button>
+                  )}
+                </div>
+                <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
+                  <Space>
+                    <Link to={`/script/editor/${item.uuid}`}>
+                      <Button type="outline" icon={<RiPencilFill />} size="mini">
+                        {t("edit")}
+                      </Button>
+                    </Link>
+                    {item.config && (
                       <Button
                         type="outline"
-                        icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
-                        loading={item.actionLoading}
+                        icon={<RiSettings3Fill />}
                         size="mini"
-                        onClick={() => handleRunStop(item)}
+                        onClick={() => handleConfig(item, setUserConfig)}
                       >
-                        {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("stop") : t("run")}
+                        {t("config")}
                       </Button>
                     )}
-                  </div>
-                  <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
-                    <Space>
-                      <Link to={`/script/editor/${item.uuid}`}>
-                        <Button type="outline" icon={<RiPencilFill />} size="mini">
-                          {t("edit")}
-                        </Button>
-                      </Link>
-                      {item.config && (
-                        <Button
-                          type="outline"
-                          icon={<RiSettings3Fill />}
-                          size="mini"
-                          onClick={() => handleConfig(item, setUserConfig)}
-                        >
-                          {t("config")}
-                        </Button>
-                      )}
-                      {item.metadata.cloudcat && (
-                        <Button
-                          type="outline"
-                          icon={<RiUploadCloudFill />}
-                          size="mini"
-                          onClick={() => setCloudScript(item)}
-                        >
-                          {t("cloud")}
-                        </Button>
-                      )}
-                      <Popconfirm
-                        title={t("confirm_delete_script")}
-                        icon={<RiDeleteBin5Fill />}
-                        onOk={() => handleDelete(item)}
+                    {item.metadata.cloudcat && (
+                      <Button
+                        type="outline"
+                        icon={<RiUploadCloudFill />}
+                        size="mini"
+                        onClick={() => setCloudScript(item)}
                       >
-                        <Button
-                          type="outline"
-                          status="danger"
-                          icon={<RiDeleteBin5Fill />}
-                          loading={item.actionLoading}
-                          size="mini"
-                        >
-                          {t("delete")}
-                        </Button>
-                      </Popconfirm>
-                    </Space>
-                  </div>
+                        {t("cloud")}
+                      </Button>
+                    )}
+                    <Popconfirm
+                      title={t("confirm_delete_script")}
+                      icon={<RiDeleteBin5Fill />}
+                      onOk={() => handleDelete(item)}
+                    >
+                      <Button
+                        type="outline"
+                        status="danger"
+                        icon={<RiDeleteBin5Fill />}
+                        loading={item.actionLoading}
+                        size="mini"
+                      >
+                        {t("delete")}
+                      </Button>
+                    </Popconfirm>
+                  </Space>
                 </div>
               </div>
             </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
       </DraggableEntry>
     );
   },
