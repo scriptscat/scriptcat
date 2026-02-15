@@ -47,10 +47,34 @@ export class CustomEventMessage implements Message {
     this.receiveFlag = `${messageFlag}${isInbound ? DefinedFlags.inboundFlag : DefinedFlags.outboundFlag}${DefinedFlags.domEvent}`;
     this.sendFlag = `${messageFlag}${isInbound ? DefinedFlags.outboundFlag : DefinedFlags.inboundFlag}${DefinedFlags.domEvent}`;
     pageAddEventListener(this.receiveFlag, (event: Event) => {
-      if (event instanceof MouseEventClone && event.movementX === 0 && event.cancelable) {
+      if (event instanceof CustomEventClone && event.detail?.appendOrInsert === true) {
+        const id1 = event.detail?.id1 as number;
+        const id2 = event.detail?.id2 as number;
+        const id3 = event.detail?.id3 as number | undefined | null;
+        const el = <Element>this.getAndDelRelatedTarget(id1);
+        const parent = <Node>this.getAndDelRelatedTarget(id2);
+        const refNode = id3 ? <Node>this.getAndDelRelatedTarget(id3) : null;
+        const attrs = (event.detail?.attrs ?? {}) as Record<string, string | number>;
+        const props = new Set(["textContent", "innerHTML", "innerText", "outerHTML", "className", "value"] as const);
+        for (const [key, value] of Object.entries(attrs)) {
+          if (props.has(key as any)) (el as any)[key] = value;
+          else el.setAttribute(key, value as string);
+        }
+        refNode ? parent.insertBefore(el, refNode) : parent.appendChild(el);
+        event.preventDefault();
+      } else if (event instanceof CustomEventClone && typeof event.detail?.createElement === "string") {
+        const id0 = event.detail?.id0 as number;
+        const frag = <DocumentFragment>this.getAndDelRelatedTarget(id0);
+        if (!(frag instanceof DocumentFragment)) {
+          throw new Error("Unexpected Error in createElement");
+        }
+        frag.appendChild(document.createElement(event.detail.createElement as string));
+        event.preventDefault();
+      } else if (event instanceof MouseEventClone && event.movementX === 0 && event.cancelable) {
         event.preventDefault(); // 告知另一端这边已准备好
         this.readyWrap.setReady(); // 两端已准备好，则 setReady()
       } else if (event instanceof MouseEventClone && event.movementX && event.relatedTarget) {
+        if (event.cancelable) event.preventDefault(); // 告知另一端
         relatedTargetMap.set(event.movementX, event.relatedTarget);
       } else if (event instanceof CustomEventClone) {
         this.messageHandle(event.detail, new CustomEventPostMessage(this));

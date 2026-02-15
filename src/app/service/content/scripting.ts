@@ -95,39 +95,6 @@ export default class ScriptingRuntime {
               xhr.send();
             });
           }
-          case "GM_addElement": {
-            const [parentNodeId, tagName, tmpAttr, isContent] = data.params;
-
-            // 根据来源选择不同的消息桥（content / inject）
-            const msg = isContent ? this.senderToContent : this.senderToInject;
-
-            // 取回 parentNode（如果存在）
-            let parentNode: Node | undefined;
-            if (parentNodeId) {
-              parentNode = msg.getAndDelRelatedTarget(parentNodeId) as Node | undefined;
-            }
-
-            // 创建元素并设置属性
-            const el = <Element>document.createElement(tagName);
-            const attr = tmpAttr ? { ...tmpAttr } : {};
-            let textContent = "";
-            if (attr.textContent) {
-              textContent = attr.textContent;
-              delete attr.textContent;
-            }
-            for (const key of Object.keys(attr)) {
-              el.setAttribute(key, attr[key]);
-            }
-            if (textContent) el.textContent = textContent;
-
-            // 优先挂到 parentNode，否则挂到 head/body/任意节点
-            const node = parentNode || document.head || document.body || document.querySelector("*");
-            node.appendChild(el);
-
-            // 返回节点引用 id，供另一侧再取回
-            const nodeId = msg.sendRelatedTarget(el);
-            return nodeId;
-          }
           case "GM_log":
             // 拦截 GM_log：直接打印到控制台（某些页面可能劫持 console.log）
             switch (data.params.length) {
