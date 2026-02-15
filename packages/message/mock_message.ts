@@ -20,7 +20,7 @@ export class MockMessageConnect implements MessageConnect {
   }
 
   onDisconnect(callback: (isSelfDisconnected: boolean) => void) {
-    this.EE.on("disconnect", callback);
+    this.EE.once("disconnect", callback);
   }
 }
 
