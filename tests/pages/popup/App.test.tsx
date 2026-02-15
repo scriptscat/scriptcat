@@ -72,10 +72,15 @@ vi.mock("@App/pkg/utils/utils", () => ({
     title: "Example",
   }),
   BrowserType: {
-    Chrome: "chrome",
-    Firefox: "firefox",
-    Edge: "edge",
+    Edge: 2,
+    Chrome: 1,
+    noUserScriptsAPI: 64,
+    guardedByDeveloperMode: 128,
+    guardedByAllowScript: 256,
+    Mouse: 1,
+    Touch: 2,
   },
+  isPermissionOk: vi.fn(async (_s: string) => true),
 }));
 
 vi.mock("@App/locales/locales", () => ({

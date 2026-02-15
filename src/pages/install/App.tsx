@@ -31,7 +31,7 @@ import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
-import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
+import { formatBytes, isPermissionOk, prettyUrl } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
 import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
 
@@ -462,9 +462,8 @@ function App() {
 
     if (hasShown !== "true") {
       // 检查是否已经有后台权限
-      if (!(await chrome.permissions.contains({ permissions: ["background"] }))) {
-        return true;
-      }
+      const permission = await isPermissionOk("background");
+      if (permission === false) return true; // optional permission "background" 需要显示后台运行提示
     }
     return false;
   };

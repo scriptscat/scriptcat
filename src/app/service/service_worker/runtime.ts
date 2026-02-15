@@ -23,6 +23,7 @@ import {
   obtainBlackList,
   sourceMapTo,
 } from "@App/pkg/utils/utils";
+import { BrowserType, getBrowserInstalledVersion, getBrowserType, isPermissionOk } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
@@ -162,22 +163,8 @@ export class RuntimeService {
     }
   }
 
-  showNoDeveloperModeWarning() {
-    // 判断是否首次
-    this.localStorageDAO.get("firstShowDeveloperMode").then((res) => {
-      if (!res) {
-        this.localStorageDAO.save({
-          key: "firstShowDeveloperMode",
-          value: true,
-        });
-        // 打开页面
-        initLocalesPromise.then(() => {
-          chrome.tabs.create({
-            url: `${DocumentationSite}${localePath}/docs/use/open-dev/`,
-          });
-        });
-      }
-    });
+  async showUserscriptActivationGuide() {
+    const storageKey = "firstShowDeveloperMode";
     chrome.action.setBadgeBackgroundColor({
       color: "#ff8c00",
     });
@@ -206,6 +193,35 @@ export class RuntimeService {
         });
       }
     });
+
+    const currentInstalledBrowser = getBrowserInstalledVersion();
+    const lastInstalledBrowser = (await this.localStorageDAO.get(storageKey))?.value as string | boolean | undefined;
+    // 判断是否安装后的首次，或是浏览器升级后的首次
+    if (currentInstalledBrowser === lastInstalledBrowser) return; // 非首次则不弹出页面
+
+    const savePromise = this.localStorageDAO.save({
+      key: storageKey,
+      value: currentInstalledBrowser,
+    });
+    await Promise.allSettled([initLocalesPromise, this.initReady, savePromise]); // 等一下语言加载和 isUserScriptsAvailable 检查之类的
+
+    const userscript_enabled: boolean = this.isUserScriptsAvailable;
+    const permission = await isPermissionOk("userScripts");
+    const browserType = getBrowserType();
+    const guard =
+      browserType.chrome & BrowserType.guardedByDeveloperMode
+        ? "developerMode"
+        : browserType.chrome & BrowserType.guardedByAllowScript
+          ? "allowScript"
+          : "none";
+
+    // 打开页面
+    const path = `${DocumentationSite}${localePath}/docs/use/open-dev/`;
+    let search = `?userscript_enabled=${userscript_enabled}&userscript_permission=${permission}&userscript_guard=${guard}`;
+    if (browserType.chrome & BrowserType.Edge) search += "&browser=edge";
+    else if (browserType.chrome & BrowserType.Chrome) search += "&browser=chrome";
+    const hash = `${guard === "developerMode" ? "#enable-developer-mode" : guard === "allowScript" ? "#allow-user-scripts" : ""}`;
+    chrome.tabs.create({ url: `${path}${search}${hash}` });
   }
 
   async getInjectJsCode() {
@@ -570,7 +586,7 @@ export class RuntimeService {
       // 检查是否开启了开发者模式
       if (!this.isUserScriptsAvailable) {
         // 未开启加上警告引导
-        this.showNoDeveloperModeWarning();
+        this.showUserscriptActivationGuide();
         let cid: ReturnType<typeof setInterval> | number;
         cid = setInterval(async () => {
           if (!this.isUserScriptsAvailable) {
