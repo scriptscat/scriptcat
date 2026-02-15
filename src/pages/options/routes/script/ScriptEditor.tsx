@@ -1116,7 +1116,7 @@ function ScriptEditor() {
                   style={{
                     color: "var(--color-text-2)",
                   }}
-                  icon={hiddenScriptList ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                  icon={!hiddenScriptList ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
                   onClick={() => {
                     const newValue = !hiddenScriptList;
                     localStorage.setItem("hiddenEditorScriptList", String(newValue));
