@@ -1,3 +1,4 @@
+import { XMLParser } from "fast-xml-parser";
 import { S3Client, S3Error } from "./client";
 import type { S3ClientConfig } from "./client";
 import type FileSystem from "../filesystem";
@@ -19,22 +20,26 @@ interface ListObjectsV2Result {
   nextContinuationToken?: string;
 }
 
+const xmlParser = new XMLParser({
+  // 不将单个元素包装成数组，后续手动处理
+  isArray: (name) => name === "Contents",
+});
+
 /** 从 ListObjectsV2 XML 响应中解析对象列表 */
 function parseListObjectsV2(xml: string): ListObjectsV2Result {
-  const contents: ListObjectsV2Result["contents"] = [];
-  const contentsRegex = /<Contents>([\s\S]*?)<\/Contents>/g;
-  let match;
-  while ((match = contentsRegex.exec(xml)) !== null) {
-    const block = match[1];
-    const key = block.match(/<Key>([\s\S]*?)<\/Key>/)?.[1] || "";
-    const lastModified = block.match(/<LastModified>([\s\S]*?)<\/LastModified>/)?.[1] || "";
-    const etag = block.match(/<ETag>([\s\S]*?)<\/ETag>/)?.[1] || "";
-    const size = parseInt(block.match(/<Size>([\s\S]*?)<\/Size>/)?.[1] || "0", 10);
-    contents.push({ key, lastModified, etag, size });
-  }
+  const parsed = xmlParser.parse(xml);
+  const result = parsed.ListBucketResult || parsed;
 
-  const isTruncated = /<IsTruncated>true<\/IsTruncated>/.test(xml);
-  const nextToken = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)?.[1];
+  const rawContents: any[] = result.Contents || [];
+  const contents: ListObjectsV2Result["contents"] = rawContents.map((obj: any) => ({
+    key: String(obj.Key || ""),
+    lastModified: String(obj.LastModified || ""),
+    etag: String(obj.ETag || ""),
+    size: Number(obj.Size) || 0,
+  }));
+
+  const isTruncated = result.IsTruncated === true || result.IsTruncated === "true";
+  const nextToken = result.NextContinuationToken ? String(result.NextContinuationToken) : undefined;
 
   return { contents, isTruncated, nextContinuationToken: nextToken };
 }

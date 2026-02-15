@@ -4,6 +4,8 @@
  * 不依赖 @aws-sdk/client-s3
  */
 
+import { XMLParser } from "fast-xml-parser";
+
 export interface S3ClientConfig {
   region: string;
   credentials: {
@@ -107,10 +109,11 @@ async function parseS3Error(response: Response): Promise<S3Error> {
   try {
     const text = await response.text();
     if (text) {
-      const codeMatch = text.match(/<Code>(.*?)<\/Code>/);
-      const messageMatch = text.match(/<Message>(.*?)<\/Message>/);
-      if (codeMatch) {
-        return new S3Error(codeMatch[1], messageMatch?.[1] || response.statusText, response.status);
+      const parser = new XMLParser();
+      const parsed = parser.parse(text);
+      const error = parsed.Error;
+      if (error?.Code) {
+        return new S3Error(String(error.Code), String(error.Message || response.statusText), response.status);
       }
     }
   } catch {
