@@ -170,7 +170,7 @@ export class ExtensionMessageConnect implements MessageConnect {
     };
     con.onMessage.addListener(handler);
     con.onDisconnect.addListener(cleanup);
-    listenerMgr.once(`cleanup:${this.listenerId}`, handler);
+    listenerMgr.once(`cleanup:${this.listenerId}`, cleanup);
   }
 
   sendMessage(data: TMessage) {

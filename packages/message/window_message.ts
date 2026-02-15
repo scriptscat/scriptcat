@@ -149,7 +149,7 @@ export class WindowMessageConnect implements MessageConnect {
     };
     EE.addListener(`connectMessage:${this.messageId}`, handler); // 模拟 con.onMessage.addListener
     EE.addListener(`disconnect:${this.messageId}`, cleanup); // 模拟 con.onDisconnect.addListener
-    listenerMgr.once(`cleanup:${this.listenerId}`, handler);
+    listenerMgr.once(`cleanup:${this.listenerId}`, cleanup);
   }
 
   sendMessage(data: TMessage) {
