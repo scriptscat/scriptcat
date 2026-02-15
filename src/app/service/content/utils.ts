@@ -83,6 +83,24 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
   });
 }
 
+const addTryCatch = (code: string) =>
+  `
+      try {
+        {{functionBody}}
+      } catch (e) {
+        if (e.message && e.stack) {
+            console.error("ERROR: Execution of script '" + arguments[1] + "' failed! " + e.message);
+            console.log(e.stack);
+        } else {
+            console.error(e);
+        }
+      }
+  `
+    .trim()
+    .replace(/[\r\n]/g, "")
+    .replace(/\s+/g, " ")
+    .replace("{{functionBody}}", () => code);
+
 export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
   const requireCode = resource.require.map((r) => r.content).join("\n;");
   const preCode = requireCode; // 不需要 async 封装
@@ -93,21 +111,17 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用于全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
   // 在UserScripts API中，由于执行不是在物件导向里呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
-  const codeBody = `try {
-  with(arguments[0]||this.$){
-${preCode}
-    return (async function(){
-${code}
-    }).call(this);
-  }
-} catch (e) {
-  if (e.message && e.stack) {
-      console.error("ERROR: Execution of script '" + arguments[1] + "' failed! " + e.message);
-      console.log(e.stack);
-  } else {
-      console.error(e);
-  }
-}`;
+
+  const joinedCode = [
+    "with(arguments[0]||this.$){",
+    `${preCode}`,
+    "return(async function(){",
+    `${code}`,
+    "}).call(this);}",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const codeBody = addTryCatch(joinedCode);
   return `${codeBody}${sourceMapTo(`${resource.name}.user.js`)}\n`;
 }
 

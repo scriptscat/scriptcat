@@ -391,7 +391,7 @@ export class ScriptService {
     const logger = this.logger.with({
       name: script.name,
       uuid: script.uuid,
-      version: script.metadata.version![0],
+      version: script.metadata.version?.[0] || "0.0",
       upsertBy,
     });
     let update = false;
@@ -810,15 +810,8 @@ export class ScriptService {
         logger.error("parse metadata failed");
         return false;
       }
-      const newVersion = metadata.version && metadata.version[0];
-      if (!newVersion) {
-        logger.error("parse version failed", { version: metadata.version });
-        return false;
-      }
-      let oldVersion = script.metadata.version && script.metadata.version[0];
-      if (!oldVersion) {
-        oldVersion = "0.0.0";
-      }
+      const newVersion = metadata.version?.[0] || "0.0";
+      const oldVersion = script.metadata.version?.[0] || "0.0";
       // 对比版本大小
       if (ltever(newVersion, oldVersion)) {
         return false;
@@ -909,7 +902,8 @@ export class ScriptService {
   }
 
   shouldIgnoreUpdate(script: Script, newMeta: Partial<Record<string, string[]>> | null) {
-    return script.ignoreVersion === newMeta?.version?.[0];
+    const newVersion = newMeta?.version?.[0];
+    return typeof newVersion === "string" && script.ignoreVersion === newVersion;
   }
 
   // 用于定时自动检查脚本更新
@@ -1146,7 +1140,6 @@ export class ScriptService {
   }
 
   requestCheckUpdate(uuid: string) {
-    // src/pages/options/routes/ScriptList.tsx
     return this.checkUpdateAvailable(uuid).then((script) => {
       if (script) {
         // 如有更新则打开更新画面进行更新
@@ -1155,56 +1148,15 @@ export class ScriptService {
       }
       return false;
     });
-
-    // 没有空值 case
-    /*
-    if (uuid) {
-      return this.checkUpdateAvailable(uuid).then((script) => {
-        if (script) {
-          // 如有更新则打开更新画面进行更新
-          this.openUpdatePage(script, "user");
-          return true;
-        }
-        return false;
-      });
-    } else {
-      // 批量检查更新
-      InfoNotification("检查更新", "正在检查所有的脚本更新");
-      this.scriptDAO
-        .all()
-        .then(async (scripts) => {
-          // 检查是否有更新
-          const results = await this.checkUpdatesAvailable(
-            scripts.map((script) => script.uuid),
-            {
-              MIN_DELAY: 300,
-              MAX_DELAY: 800,
-            }
-          );
-          return Promise.all(
-            scripts.map((script, i) => {
-              const result = results[i];
-              if (result) {
-                // 如有更新则打开更新画面进行更新
-                this.openUpdatePage(script, "user");
-              }
-            })
-          );
-        })
-        .then(() => {
-          InfoNotification("检查更新", "所有脚本检查完成");
-        });
-      return Promise.resolve(true); // 无视检查结果，立即回传true
-    }
-    */
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
+    // 用於 window.external
     return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
       if (script) {
         return {
           installed: true,
-          version: script.metadata.version && script.metadata.version[0],
+          version: script.metadata.version?.[0] || "0.0",
         } as App.IsInstalledResponse;
       }
       return { installed: false } as App.IsInstalledResponse;

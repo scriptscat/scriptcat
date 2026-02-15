@@ -325,8 +325,10 @@
     "header_other_update": "crwdns12784:0crwdne12784:0"
   },
   "downloading_status_text": "Downloading. Received {{bytes}}.",
-  "install_page_loading": "Installation page loading",
-  "invalid_page": "Invalid page",
+  "install_page_please_wait": "Please wait",
+  "install_page_loading": "Loading Installation Page",
+  "install_page_load_failed": "Failed to Load Installation Page",
+  "invalid_page": "Invalid Page",
   "background_script_tag": "crwdns8460:0crwdne8460:0",
   "scheduled_script_tag": "crwdns8462:0crwdne8462:0",
   "background_script": "crwdns8464:0crwdne8464:0",

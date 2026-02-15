@@ -396,7 +396,7 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
 NameCell.displayName = "NameCell";
 
 const VersionCell = React.memo(({ item }: { item: ListType }) => {
-  return item.metadata.version && item.metadata.version[0];
+  return item.metadata.version?.[0] || "0.0";
 });
 VersionCell.displayName = "VersionCell";
 

@@ -31,9 +31,10 @@ import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
-import { formatBytes, prettyUrl } from "@App/pkg/utils/utils";
+import { formatBytes } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
 import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
+import { prettyUrl } from "@App/pkg/utils/url-utils";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 
@@ -200,7 +201,9 @@ function App() {
     await scriptClient.install({ script: newScript, code });
     const metadata = newScript.metadata;
     setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
-    setOldScriptVersion(metadata!.version![0]);
+    const scriptVersion = metadata.version?.[0];
+    const oldScriptVersion = typeof scriptVersion === "string" ? scriptVersion : "N/A";
+    setOldScriptVersion(oldScriptVersion);
     setUpsertScript(newScript);
     setDiffCode(code);
   };
@@ -222,13 +225,13 @@ function App() {
     try {
       const uuid = searchParams.get("uuid");
       const fid = searchParams.get("file");
-      let info: ScriptInfo | undefined;
-      let isKnownUpdate: boolean = false;
 
-      // 如果没有 uuid 和 file，跳过初始化逻辑
-      if (!uuid && !fid) {
+      // 如果有 url 或 没有 uuid 和 file，跳过初始化逻辑
+      if (searchParams.get("url") || (!uuid && !fid)) {
         return;
       }
+      let info: ScriptInfo | undefined;
+      let isKnownUpdate: boolean = false;
 
       if (window.history.length > 1) {
         setDoBackwards(true);
@@ -289,7 +292,8 @@ function App() {
         prepare = await prepareSubscribeByCode(code, url);
         action = prepare.subscribe;
         if (prepare.oldSubscribe) {
-          oldVersion = prepare.oldSubscribe!.metadata!.version![0] || "";
+          const oldSubscribeVersion = prepare.oldSubscribe.metadata.version?.[0];
+          oldVersion = typeof oldSubscribeVersion === "string" ? oldSubscribeVersion : "N/A";
         }
         diffCode = prepare.oldSubscribe?.code;
       } else {
@@ -297,7 +301,8 @@ function App() {
         prepare = await prepareScriptByCode(code, url, knownUUID, false, undefined, paramOptions);
         action = prepare.script;
         if (prepare.oldScript) {
-          oldVersion = prepare.oldScript!.metadata!.version![0] || "";
+          const oldScriptVersion = prepare.oldScript.metadata.version?.[0];
+          oldVersion = typeof oldScriptVersion === "string" ? oldScriptVersion : "N/A";
         }
         diffCode = prepare.oldScriptCode;
       }
@@ -644,84 +649,107 @@ function App() {
   }, [memoWatchFile]);
 
   // 检查是否有 uuid 或 file
-  const hasUUIDorFile = useMemo(() => {
-    return !!(searchParams.get("uuid") || searchParams.get("file"));
-  }, [searchParams]);
+  const searchParamUrl = searchParams.get("url");
+  const hasValidSourceParam = !searchParamUrl && !!(searchParams.get("uuid") || searchParams.get("file"));
 
   const urlHref = useMemo(() => {
-    try {
-      if (!hasUUIDorFile) {
-        const url = searchParams.get("url");
-        if (url) {
-          const urlObject = new URL(url);
+    if (!hasValidSourceParam) {
+      let rawUrl;
+      try {
+        // 取url=之后的所有内容
+        rawUrl = location.search.match(/\?url=([^&]+)/)?.[1] || "";
+        if (rawUrl) {
+          const urlObject = new URL(rawUrl);
+          // 验证解析后的 URL 是否具备核心要素，确保安全性与合法性
           if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
-            return urlObject.href;
+            return rawUrl;
           }
         }
+      } catch {
+        // ignored
       }
-    } catch {
-      // ignored
     }
     return "";
-  }, [hasUUIDorFile, searchParams]);
+  }, [hasValidSourceParam]);
 
   const [fetchingState, setFetchingState] = useState({
     loadingStatus: "",
     errorStatus: "",
   });
 
-  const loadURLAsync = async (urlHref: string) => {
-    try {
-      const { code, metadata } = await fetchScriptBody(urlHref, {
+  const loadURLAsync = async (url: string) => {
+    // 1. 定义获取单个脚本的内部逻辑，负责处理进度条与单次错误
+    const fetchValidScript = async () => {
+      const result = await fetchScriptBody(url, {
         onProgress: (info: { receivedLength: number }) => {
           setFetchingState((prev) => ({
             ...prev,
-            loadingStatus: t("downloading_status_text", { bytes: `${formatBytes(info.receivedLength)}` }),
+            loadingStatus: t("downloading_status_text", { bytes: formatBytes(info.receivedLength) }),
           }));
         },
       });
-      const update = false;
-      const uuid = uuidv4();
-      const url = urlHref;
-      const upsertBy = "user";
+      if (result.code && result.metadata) {
+        return { result, url } as const; // 找到有效的立即返回
+      }
+      throw new Error(t("install_page_load_failed"));
+    };
 
-      const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata)];
-      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
-      setSearchParams(
-        (prev) => {
-          prev.delete("url");
-          prev.set("uuid", uuid);
-          return prev;
-        },
-        { replace: true }
-      );
+    try {
+      // 2. 执行获取
+      const { result, url } = await fetchValidScript();
+      const { code, metadata } = result;
+
+      // 3. 处理数据与缓存
+      const uuid = uuidv4();
+      const scriptData = [false, createScriptInfo(uuid, code, url, "user", metadata)];
+
+      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, scriptData);
+
+      // 4. 更新导向
+      setSearchParams(new URLSearchParams(`?uuid=${uuid}`), { replace: true });
     } catch (err: any) {
-      const errMessage = `${err.message || err}`;
+      // 5. 统一错误处理
       setFetchingState((prev) => ({
         ...prev,
         loadingStatus: "",
-        errorStatus: errMessage,
+        errorStatus: `${err?.message || err}`,
       }));
     }
   };
 
+  const handleUrlChangeAndFetch = (targetUrlHref: string) => {
+    setFetchingState((prev) => ({
+      ...prev,
+      loadingStatus: t("install_page_please_wait"),
+    }));
+    loadURLAsync(targetUrlHref);
+  };
+
+  // 有 url 的话下载内容
   useEffect(() => {
-    if (!urlHref) return;
-    loadURLAsync(urlHref);
+    if (urlHref) handleUrlChangeAndFetch(urlHref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlHref]);
 
-  if (!hasUUIDorFile) {
+  if (!hasValidSourceParam) {
     return urlHref ? (
       <div className="tw-flex tw-justify-center tw-items-center tw-h-screen">
         <Space direction="vertical" align="center">
-          <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
           {fetchingState.loadingStatus && (
-            <div className="downloading">
-              <Typography.Text>{fetchingState.loadingStatus}</Typography.Text>
-              <div className="loader"></div>
-            </div>
+            <>
+              <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
+              <div className="downloading">
+                <Typography.Text>{fetchingState.loadingStatus}</Typography.Text>
+                <div className="loader"></div>
+              </div>
+            </>
           )}
-          {fetchingState.errorStatus && <div className="error-message">{fetchingState.errorStatus}</div>}
+          {fetchingState.errorStatus && (
+            <>
+              <Typography.Title heading={3}>{t("install_page_load_failed")}</Typography.Title>
+              <div className="error-message">{fetchingState.errorStatus}</div>
+            </>
+          )}
         </Space>
       </div>
     ) : (
@@ -793,7 +821,7 @@ function App() {
                 <Tag bordered>{oldScriptVersion}</Tag>
               </Tooltip>
             )}
-            {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
+            {typeof metadataLive.version?.[0] === "string" && metadataLive.version[0] !== oldScriptVersion && (
               <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
                 <Tag bordered color="red">
                   {metadataLive.version[0]}

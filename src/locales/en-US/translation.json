@@ -334,8 +334,10 @@
     "header_other_update": "Other available updates"
   },
   "downloading_status_text": "Downloading. Received {{bytes}}.",
-  "install_page_loading": "Installation page loading",
-  "invalid_page": "Invalid page",
+  "install_page_please_wait": "Please wait",
+  "install_page_loading": "Loading Installation Page",
+  "install_page_load_failed": "Failed to Load Installation Page",
+  "invalid_page": "Invalid Page",
   "background_script_tag": "This is a Background Script",
   "scheduled_script_tag": "This is a Scheduled Script",
   "background_script": "Background Script",
