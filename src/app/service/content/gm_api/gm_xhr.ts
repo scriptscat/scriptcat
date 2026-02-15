@@ -361,7 +361,7 @@ export function GM_xmlhttpRequest(
             const text = this.getResponseText();
             const mime = getMimeType(contentType);
             const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
-            if (text) {
+            if (text !== undefined) {
               try {
                 responseXML = new DOMParser().parseFromString(text, parseType);
               } catch (e) {
@@ -369,6 +369,8 @@ export function GM_xmlhttpRequest(
                 responseXML = null;
                 console.error(e);
               }
+            } else {
+              responseXML = undefined;
             }
           }
           return responseXML as Document | null | undefined;
