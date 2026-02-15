@@ -530,8 +530,6 @@
   "editor_config_format_error": "エディタ設定のフォーマットエラー",
   "editor_type_definition_reset": "エディタ型定義がリセットされました",
   "editor_type_definition_saved": "エディタ型定義が保存されました",
-  "layout": "レイアウト",
-  "hide_script_list": "スクリプトリストを非表示",
   "script_list": {
     "sidebar": {
       "stopped": "停止済み",
@@ -576,5 +574,9 @@
     "enable_now": "今すぐ有効にする",
     "maybe_later": "後で",
     "settings_hint": "設定ページでいつでも変更できます。"
+  },
+  "editor": {
+    "show_script_list": "スクリプトリストを表示",
+    "hide_script_list": "スクリプトリストを非表示"
   }
 }

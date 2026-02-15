@@ -530,8 +530,6 @@
   "editor_config_format_error": "編輯器配置格式錯誤",
   "editor_type_definition_reset": "編輯器類型定義已重設",
   "editor_type_definition_saved": "編輯器類型定義已儲存",
-  "layout": "佈局",
-  "hide_script_list": "隱藏腳本列表",
   "script_list": {
     "sidebar": {
       "stopped": "停止",
@@ -576,5 +574,9 @@
     "enable_now": "立即啟用",
     "maybe_later": "暫不啟用",
     "settings_hint": "你可以隨時在設定中修改此選項。"
+  },
+  "editor": {
+    "show_script_list": "顯示腳本列表",
+    "hide_script_list": "隱藏腳本列表"
   }
 }
