@@ -39,6 +39,7 @@
   "cloud_sync_account_verification": "crwdns7954:0crwdne7954:0",
   "cloud_sync_verification_failed": "crwdns7956:0crwdne7956:0",
   "save_success": "crwdns7958:0crwdne7958:0",
+  "reset_success": "Reset successfully",
   "update": "crwdns7960:0crwdne7960:0",
   "check_update": "crwdns7962:0crwdne7962:0",
   "script_subscription_check_interval": "crwdns7964:0crwdne7964:0",

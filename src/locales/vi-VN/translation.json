@@ -40,6 +40,7 @@
   "cloud_sync_account_verification": "Đang xác minh tài khoản đồng bộ đám mây...",
   "cloud_sync_verification_failed": "Xác minh tài khoản đồng bộ đám mây thất bại",
   "save_success": "Lưu thành công",
+  "reset_success": "Đặt lại thành công",
   "update": "Cập nhật",
   "check_update": "Kiểm tra cập nhật",
   "script_subscription_check_interval": "Khoảng thời gian kiểm tra cập nhật script/đăng ký",

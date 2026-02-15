@@ -40,6 +40,7 @@
   "cloud_sync_account_verification": "雲端同步帳號資訊驗證中...",
   "cloud_sync_verification_failed": "雲端同步帳號資訊驗證失敗",
   "save_success": "儲存成功",
+  "reset_success": "重設成功",
   "update": "更新",
   "check_update": "檢查更新",
   "script_subscription_check_interval": "腳本/訂閱檢查更新間隔",

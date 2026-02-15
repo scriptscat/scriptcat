@@ -40,6 +40,7 @@
   "cloud_sync_account_verification": "Cloud-Sync-Kontoinformationen werden überprüft...",
   "cloud_sync_verification_failed": "Cloud-Sync-Kontoinformationen-Überprüfung fehlgeschlagen",
   "save_success": "Erfolgreich gespeichert",
+  "reset_success": "Erfolgreich zurückgesetzt",
   "update": "Aktualisieren",
   "check_update": "Nach Updates suchen",
   "script_subscription_check_interval": "Skript-/Abonnement-Update-Überprüfungsintervall",

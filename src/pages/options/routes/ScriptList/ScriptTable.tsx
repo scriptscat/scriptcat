@@ -532,26 +532,25 @@ const ScriptTable = ({
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const navigate = useNavigate();
-  const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
-  const columns0: ColumnProps<ListType>[] = [
-    {
-      title: "#",
-      dataIndex: "sort",
-      width: 60,
-      key: "#",
-      sorter: useCallback((a: ListType, b: ListType) => a.sort - b.sort, []),
-      render: useCallback((col: number) => <SortRender col={col} />, []),
-    },
-    {
-      key: "title",
-      title: t("enable"),
-      width: t("script_list_enable_width"),
-      dataIndex: "status",
-      className: "script-enable",
-      sorter: useCallback((a: ListType, b: ListType) => a.status - b.status, []),
-      filters: useMemo(
-        () => [
+  const columns: ColumnProps<ListType>[] = useMemo(
+    () => [
+      {
+        title: "#",
+        dataIndex: "sort",
+        width: 60,
+        key: "#",
+        sorter: (a: ListType, b: ListType) => a.sort - b.sort,
+        render: (col: number) => <SortRender col={col} />,
+      },
+      {
+        key: "title",
+        title: t("enable"),
+        width: t("script_list_enable_width"),
+        dataIndex: "status",
+        className: "script-enable",
+        sorter: (a: ListType, b: ListType) => a.status - b.status,
+        filters: [
           {
             text: t("enable"),
             value: SCRIPT_STATUS_ENABLE,
@@ -561,88 +560,79 @@ const ScriptTable = ({
             value: SCRIPT_STATUS_DISABLE,
           },
         ],
-        [t]
-      ),
-      onFilter: useCallback((value: any, row: any) => row.status === value, []),
-      render: useCallback(
-        (col: any, item: ListType) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
-        [updateScripts]
-      ),
-    },
-    {
-      key: "name",
-      title: t("name"),
-      dataIndex: "name",
-      sorter: useCallback((a: ListType, b: ListType) => a.name.localeCompare(b.name), []),
-      filterIcon: <IconSearch />,
-      filterDropdown: useCallback(({ filterKeys, setFilterKeys, confirm }: any) => {
-        // setFilterKeys, confirm 会不断改变参考但又不影响元件绘画。用 filterDropdownFunctions 把它们抽出 React绘图
-        filterDropdownFunctions.setFilterKeys = setFilterKeys;
-        filterDropdownFunctions.confirm = confirm;
-        return <ScriptFilterNode filterKeys={filterKeys as SearchFilterKeyEntry[] | undefined} />;
-      }, []),
-      onFilter: useCallback((value: any, row: any) => {
-        if (!value || !value.keyword) {
-          return true;
-        }
-        return SearchFilter.checkByUUID(row.uuid);
-      }, []),
-      className: "tw-max-w-[240px] tw-min-w-[100px]",
-      render: useCallback((col: string, item: ListType) => <NameCell col={col} item={item} />, []),
-    },
-    {
-      title: t("version"),
-      dataIndex: "version",
-      key: "version",
-      width: 120,
-      align: "center",
-      render: useCallback((col: any, item: ListType) => <VersionCell item={item} />, []),
-    },
-    {
-      key: "apply_to_run_status",
-      dataIndex: "apply_to_run_status",
-      title: t("apply_to_run_status"),
-      width: t("script_list_apply_to_run_status_width"),
-      className: "apply_to_run_status",
-      render: useCallback(
-        (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
-        [navigate, t]
-      ),
-    },
-    {
-      title: t("source"),
-      dataIndex: "origin",
-      key: "origin",
-      width: 100,
-      className: "source_cell",
-      render: useCallback((col: any, item: ListType) => <SourceCell item={item} t={t} />, [t]),
-    },
-    {
-      title: t("home"),
-      dataIndex: "home",
-      align: "center",
-      key: "home",
-      width: 100,
-      render: useCallback((col: any, item: ListType) => <HomeCell item={item} />, []),
-    },
-    {
-      title: t("last_updated"),
-      dataIndex: "updatetime",
-      align: "center",
-      key: "updatetime",
-      className: "script-updatetime",
-      width: t("script_list_last_updated_width"),
-      sorter: useCallback((a: ListType, b: ListType) => a.updatetime! - b.updatetime!, []),
-      render: useCallback((col: number, script: ListType) => <UpdateTimeCell script={script} />, []),
-    },
-    {
-      title: <TitleCell sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} setViewMode={setViewMode} t={t} />,
-      dataIndex: "action",
-      key: "action",
-      className: "script-action",
-      width: 160,
-      render: useCallback(
-        (col: any, item: ListType) => (
+        onFilter: (value: any, row: any) => row.status === value,
+        render: (col: any, item: ListType) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
+      },
+      {
+        key: "name",
+        title: t("name"),
+        dataIndex: "name",
+        sorter: (a: ListType, b: ListType) => a.name.localeCompare(b.name),
+        filterIcon: <IconSearch />,
+        filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+          // setFilterKeys, confirm 会不断改变参考但又不影响元件绘画。用 filterDropdownFunctions 把它们抽出 React绘图
+          filterDropdownFunctions.setFilterKeys = setFilterKeys;
+          filterDropdownFunctions.confirm = confirm;
+          return <ScriptFilterNode filterKeys={filterKeys as SearchFilterKeyEntry[] | undefined} />;
+        },
+        onFilter: (value: any, row: any) => {
+          if (!value || !value.keyword) {
+            return true;
+          }
+          return SearchFilter.checkByUUID(row.uuid);
+        },
+        className: "tw-max-w-[240px] tw-min-w-[100px]",
+        render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
+      },
+      {
+        title: t("version"),
+        dataIndex: "version",
+        key: "version",
+        width: 120,
+        align: "center",
+        render: (col: any, item: ListType) => <VersionCell item={item} />,
+      },
+      {
+        key: "apply_to_run_status",
+        dataIndex: "apply_to_run_status",
+        title: t("apply_to_run_status"),
+        width: t("script_list_apply_to_run_status_width"),
+        className: "apply_to_run_status",
+        render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
+      },
+      {
+        title: t("source"),
+        dataIndex: "origin",
+        key: "origin",
+        width: 100,
+        className: "source_cell",
+        render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
+      },
+      {
+        title: t("home"),
+        dataIndex: "home",
+        align: "center",
+        key: "home",
+        width: 100,
+        render: (col: any, item: ListType) => <HomeCell item={item} />,
+      },
+      {
+        title: t("last_updated"),
+        dataIndex: "updatetime",
+        align: "center",
+        key: "updatetime",
+        className: "script-updatetime",
+        width: t("script_list_last_updated_width"),
+        sorter: (a: ListType, b: ListType) => a.updatetime! - b.updatetime!,
+        render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
+      },
+      {
+        title: <TitleCell sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} setViewMode={setViewMode} t={t} />,
+        dataIndex: "action",
+        key: "action",
+        className: "script-action",
+        width: 160,
+        render: (col: any, item: ListType) => (
           <ActionCell
             item={item}
             setUserConfig={setUserConfig}
@@ -653,44 +643,69 @@ const ScriptTable = ({
             handleRunStop={handleRunStop}
           />
         ),
-        [handleConfig, handleDelete, handleRunStop, setCloudScript, setUserConfig, t]
-      ),
-    },
-  ];
+      },
+    ],
+    [
+      handleConfig,
+      handleDelete,
+      handleRunStop,
+      navigate,
+      setCloudScript,
+      setSidebarOpen,
+      setUserConfig,
+      setViewMode,
+      sidebarOpen,
+      t,
+      updateScripts,
+    ]
+  );
 
-  // 语言改变 或 sidebarOpen 改变时，更新 columns
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const columns = useMemo(() => columns0, [t, sidebarOpen]);
+  // 1. Only store the width overrides, initialized from your saved settings
+  const [manualWidths, setManualWidths] = useState<Record<string, number>>({});
+  // 2. Local state for the input field to make typing "instant"
+  const [inputBuffer, setInputBuffer] = useState<string>("");
+  const [typing, setTyping] = useState<boolean>(false);
 
-  const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
-
-  const dealColumns = useMemo(() => {
-    const filtered = newColumns.filter((item) => item.width !== -1);
-    return filtered.length === 0 ? columns : filtered;
-  }, [newColumns, columns]);
-
+  // 3. Update the buffer when the selected column changes
   useEffect(() => {
-    if (savedWidths === null) return;
+    const activeCol = columns[selectColumn];
+    if (!activeCol) return; // Safety check
 
-    // 主要只需要处理列宽变化的情况
-    setNewColumns(
-      columns.map((item, i) => {
-        if (savedWidths[item.key!] === undefined) {
-          return columns[i];
-        }
-        return {
-          ...columns[i],
-          width: savedWidths[item.key!] ?? item.width,
-        };
-      })
-    );
-  }, [savedWidths, columns]);
+    // 1. Get width from manual overrides
+    // 2. Or get width from the column definition
+    // 3. Or fallback to 0 (or your preferred default) to avoid undefined
+    const currentWidth = manualWidths[activeCol.key as string] ?? activeCol.width ?? 0;
+    setTyping(false);
+    setInputBuffer(currentWidth.toString());
+  }, [selectColumn, manualWidths, columns]);
 
+  // 4. Optimized setWidth using the Column Key
+  const setWidthByKey = (key: string, width: number) => {
+    setManualWidths((prev) => {
+      return prev[key] === width ? prev : { ...prev, [key]: width };
+    });
+  };
+  // 2. Load initial widths once
   useEffect(() => {
-    systemConfig.getScriptListColumnWidth().then((columnWidth) => {
-      setSavedWidths({ ...columnWidth });
+    systemConfig.getScriptListColumnWidth().then((saved) => {
+      if (saved) setManualWidths(saved);
     });
   }, []);
+
+  // 3. MERGE logic: This is the high-performance "Source of Truth"
+  const dealColumns = useMemo(() => {
+    return columns
+      .map((col) => {
+        const customWidth = manualWidths[col.key as string];
+        return {
+          ...col,
+          // If customWidth is undefined, use default.
+          // 0 = Auto, -1 = Hidden
+          width: customWidth !== undefined ? customWidth : col.width,
+        };
+      })
+      .filter((col) => col.width !== -1); // Remove hidden columns
+  }, [columns, manualWidths]);
 
   const components0: ComponentsProps = {
     header: {
@@ -743,12 +758,6 @@ const ScriptTable = ({
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const components = useMemo(() => components0, []);
-
-  const setWidth = (selectColumn: number, width: string | number | undefined) => {
-    setNewColumns((cols) =>
-      cols.map((col, i) => (i === selectColumn && col.width !== width ? { ...col, width } : col))
-    );
-  };
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -806,6 +815,9 @@ const ScriptTable = ({
     }),
     []
   );
+
+  const currentActiveWidth = manualWidths[columns[selectColumn].key as string] ?? columns[selectColumn].width;
+  const isSpecialWidth = currentActiveWidth === 0 || currentActiveWidth === -1;
 
   return (
     <DraggableContext.Provider value={draggableContextValue}>
@@ -946,48 +958,36 @@ const ScriptTable = ({
               <Divider type="horizontal" />
               <Typography.Text>{t("resize_column_width") + ":"}</Typography.Text>
               <Select
-                style={{ minWidth: "80px" }}
+                style={{ minWidth: "120px" }}
                 triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
                 size="mini"
-                value={selectColumn === 8 ? t("action") : newColumns[selectColumn].title?.toString()}
+                // Use the base 'columns' for the source of truth
+                value={selectColumn}
                 onChange={(val) => {
-                  const index = parseInt(val as string, 10);
-                  setSelectColumn(index);
+                  setSelectColumn(val as number);
                 }}
               >
-                {newColumns.map((column, index) => (
+                {columns.map((column, index) => (
                   <Select.Option key={index} value={index}>
-                    {index === 8 ? t("action") : column.title}
+                    {column.key === "action" ? t("action") : (column.title as string)}
                   </Select.Option>
                 ))}
               </Select>
               <Dropdown
                 droplist={
                   <Menu>
-                    <Menu.Item
-                      key="auto"
-                      onClick={() => {
-                        setWidth(selectColumn, 0);
-                      }}
-                    >
+                    <Menu.Item key="auto" onClick={() => setWidthByKey(columns[selectColumn].key as string, 0)}>
                       {t("auto")}
                     </Menu.Item>
-                    <Menu.Item
-                      key="hide"
-                      onClick={() => {
-                        setWidth(selectColumn, -1);
-                      }}
-                    >
+                    <Menu.Item key="hide" onClick={() => setWidthByKey(columns[selectColumn].key as string, -1)}>
                       {t("hide")}
                     </Menu.Item>
                     <Menu.Item
                       key="custom"
                       onClick={() => {
-                        const width =
-                          (newColumns[selectColumn].width as number) > 0
-                            ? newColumns[selectColumn].width
-                            : columns[selectColumn].width;
-                        setWidth(selectColumn, width);
+                        // If current is auto/hide, reset to base width; otherwise keep it
+                        const baseWidth = columns[selectColumn].width as number;
+                        setWidthByKey(columns[selectColumn].key as string, baseWidth);
                       }}
                     >
                       {t("custom")}
@@ -997,45 +997,64 @@ const ScriptTable = ({
                 position="bl"
               >
                 <Input
-                  type={newColumns[selectColumn].width === 0 || newColumns[selectColumn].width === -1 ? "" : "number"}
+                  type={isSpecialWidth ? "text" : "number"}
                   style={{ width: "80px" }}
                   size="mini"
+                  // Display "auto" or "hide" if the buffer matches those values
                   value={
-                    newColumns[selectColumn].width === 0
-                      ? t("auto")
-                      : newColumns[selectColumn].width === -1
-                        ? t("hide")
-                        : newColumns[selectColumn].width?.toString()
+                    typing
+                      ? inputBuffer
+                      : inputBuffer === "0"
+                        ? t("auto")
+                        : inputBuffer === "-1"
+                          ? t("hide")
+                          : inputBuffer
                   }
                   step={5}
+                  min={isSpecialWidth ? undefined : 5}
+                  onInput={() => {
+                    setTyping(true);
+                  }}
                   onChange={(val) => {
-                    const width = parseInt(val, 10);
-                    setWidth(selectColumn, width);
+                    // 數值輸入忽略 -1 和 0
+                    setInputBuffer(val);
+                  }}
+                  onPointerUp={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
+                  }}
+                  // Trigger the heavy table re-render only when finished
+                  onBlur={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
+                  }}
+                  onPressEnter={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
                   }}
                 />
               </Dropdown>
+
               <Button
                 type="primary"
                 size="mini"
                 onClick={() => {
-                  const newWidth: { [key: string]: number } = {};
-                  for (const column of newColumns) {
-                    newWidth[column.key! as string] = column.width as number;
-                  }
-                  systemConfig.setScriptListColumnWidth(newWidth);
+                  systemConfig.setScriptListColumnWidth(manualWidths);
+                  Message.success(t("save_success"));
                 }}
               >
                 {t("save")}
               </Button>
+
               <Button
                 size="mini"
                 onClick={() => {
-                  setNewColumns((cols) => {
-                    return cols.map((col, index) => {
-                      col.width = columns[index].width;
-                      return col;
-                    });
-                  });
+                  // Resetting is now instant: just clear the overrides
+                  setManualWidths({});
+                  Message.info(t("reset_success"));
                 }}
               >
                 {t("reset")}
