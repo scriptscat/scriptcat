@@ -880,10 +880,11 @@ export default class GMApi extends GM_Base {
   public "GM.addElement"(
     parentNode: Node | string,
     tagName: string | Record<string, string | number | boolean>,
-    attrs: Record<string, string | number | boolean> = {}
+    attrs: Record<string, string | number | boolean> | Node | null = {},
+    refNode: Node | null = null
   ): Promise<Element | undefined> {
     return new Promise<Element | undefined>((resolve) => {
-      const ret = this.GM_addElement(parentNode, tagName, attrs);
+      const ret = this.GM_addElement(parentNode, tagName, attrs, refNode);
       resolve(ret);
     });
   }
