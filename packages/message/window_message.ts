@@ -138,13 +138,13 @@ export class WindowMessageConnect implements MessageConnect {
     };
     const cleanup = () => {
       if (this.target) {
+        this.target = null;
         listenerMgr.removeAllListeners(`cleanup:${this.listenerId}`);
         EE.removeAllListeners("connectMessage:" + this.messageId); // 模拟 con.onMessage.removeListener
         EE.removeAllListeners("disconnect:" + this.messageId); // 模拟 con.onDisconnect.removeListener
         listenerMgr.emit(`onDisconnect:${this.listenerId}`, this.isSelfDisconnected);
         listenerMgr.removeAllListeners(`onDisconnect:${this.listenerId}`);
         listenerMgr.removeAllListeners(`onMessage:${this.listenerId}`);
-        this.target = null;
       }
     };
     EE.addListener(`connectMessage:${this.messageId}`, handler); // 模拟 con.onMessage.addListener

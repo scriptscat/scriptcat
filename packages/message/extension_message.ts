@@ -159,13 +159,13 @@ export class ExtensionMessageConnect implements MessageConnect {
     };
     const cleanup = (con: chrome.runtime.Port) => {
       if (this.con) {
+        this.con = null;
         listenerMgr.removeAllListeners(`cleanup:${this.listenerId}`);
         con.onMessage.removeListener(handler);
         con.onDisconnect.removeListener(cleanup);
         listenerMgr.emit(`onDisconnect:${this.listenerId}`, this.isSelfDisconnected);
         listenerMgr.removeAllListeners(`onDisconnect:${this.listenerId}`);
         listenerMgr.removeAllListeners(`onMessage:${this.listenerId}`);
-        this.con = null;
       }
     };
     con.onMessage.addListener(handler);
