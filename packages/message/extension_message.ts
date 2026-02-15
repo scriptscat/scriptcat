@@ -176,7 +176,8 @@ export class ExtensionMessageConnect implements MessageConnect {
   sendMessage(data: TMessage) {
     if (!this.con) {
       console.warn("Attempted to sendMessage on a disconnected port.");
-      return;
+      // 無法 sendMessage 不应该屏蔽错误
+      throw new Error("Attempted to sendMessage on a disconnected port.");
     }
     this.con?.postMessage(data);
   }
@@ -184,6 +185,8 @@ export class ExtensionMessageConnect implements MessageConnect {
   onMessage(callback: (data: TMessage) => void) {
     if (!this.con) {
       console.error("onMessage Invalid Port");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onMessage Invalid Target");
     }
     listenerMgr.addListener(`onMessage:${this.listenerId}`, callback);
   }
@@ -191,7 +194,8 @@ export class ExtensionMessageConnect implements MessageConnect {
   disconnect() {
     if (!this.con) {
       console.warn("Attempted to disconnect on a disconnected port.");
-      return;
+      // 重复 disconnect() 不应该屏蔽错误
+      throw new Error("Attempted to disconnect on a disconnected port.");
     }
     this.isSelfDisconnected = true;
     this.con?.disconnect();
@@ -202,6 +206,8 @@ export class ExtensionMessageConnect implements MessageConnect {
   onDisconnect(callback: (isSelfDisconnected: boolean) => void) {
     if (!this.con) {
       console.error("onDisconnect Invalid Port");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onDisconnect Invalid Target");
     }
     listenerMgr.once(`onDisconnect:${this.listenerId}`, callback);
   }

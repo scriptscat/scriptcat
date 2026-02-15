@@ -154,8 +154,9 @@ export class WindowMessageConnect implements MessageConnect {
 
   sendMessage(data: TMessage) {
     if (!this.target) {
-      console.warn("Attempted to sendMessage on a disconnected port.");
-      return;
+      console.error("Attempted to sendMessage on a disconnected port.");
+      // 無法 sendMessage 不应该屏蔽错误
+      throw new Error("Attempted to sendMessage on a disconnected port.");
     }
     const body: WindowMessageBody<TMessage> = {
       messageId: this.messageId,
@@ -168,6 +169,8 @@ export class WindowMessageConnect implements MessageConnect {
   onMessage(callback: (data: TMessage) => void) {
     if (!this.target) {
       console.error("onMessage Invalid Target");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onMessage Invalid Target");
     }
     listenerMgr.addListener(`onMessage:${this.listenerId}`, callback);
   }
@@ -175,7 +178,8 @@ export class WindowMessageConnect implements MessageConnect {
   disconnect() {
     if (!this.target) {
       console.warn("Attempted to disconnect on a disconnected port.");
-      return;
+      // 重复 disconnect() 不应该屏蔽错误
+      throw new Error("Attempted to disconnect on a disconnected port.");
     }
     this.isSelfDisconnected = true;
     const body: WindowMessageBody<TMessage> = {
@@ -191,6 +195,8 @@ export class WindowMessageConnect implements MessageConnect {
   onDisconnect(callback: (isSelfDisconnected: boolean) => void) {
     if (!this.target) {
       console.error("onDisconnect Invalid Target");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onDisconnect Invalid Target");
     }
     listenerMgr.once(`onDisconnect:${this.listenerId}`, callback);
   }
