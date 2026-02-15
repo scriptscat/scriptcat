@@ -99,7 +99,7 @@ const addTryCatch = (code: string) =>
     .trim()
     .replace(/[\r\n]/g, "")
     .replace(/\s+/g, " ")
-    .replace(/\s+__FUNCTION_BODY__\s+/, `\n${code}\n`);
+    .replace(/\s*__FUNCTION_BODY__\s*/, `\n${code}\n`);
 
 export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
   const requireCode = resource.require.map((r) => r.content).join("\n;");
