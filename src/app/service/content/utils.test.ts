@@ -50,7 +50,7 @@ describe("utils", () => {
       expect(result).toContain("try {");
       expect(result).toContain("} catch (e) {");
       expect(result).toContain("with(arguments[0]||this.$)");
-      expect(result).toContain("return (async function(){");
+      expect(result).toContain("return(async function(){");
     });
 
     it.concurrent("应该处理自定义脚本代码参数", () => {
