@@ -7,6 +7,8 @@ export const Native = {
   structuredClone: typeof structuredClone === "function" ? structuredClone : unsupportedAPI,
   jsonStringify: JSON.stringify.bind(JSON),
   jsonParse: JSON.parse.bind(JSON),
+  objectCreate: Object.create.bind(Object),
+  objectGetOwnPropertyDescriptors: Object.getOwnPropertyDescriptors.bind(Object),
 } as const;
 
 export const customClone = (o: any) => {

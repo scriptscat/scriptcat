@@ -401,15 +401,15 @@ export function GM_xmlhttpRequest(
 
     const makeResponseRet = (retParam: GMXHRResponseType, addGetters: boolean, contentType: string) => {
       let descriptors: ReturnType<typeof Object.getOwnPropertyDescriptors<GMXHRResponseType>> = {
-        ...Object.getOwnPropertyDescriptors(retParam),
+        ...Native.objectGetOwnPropertyDescriptors(retParam),
       };
-      if (!addGetters) return Object.create(null, descriptors);
+      if (!addGetters) return Native.objectCreate(null, descriptors);
       descriptors = {
         ...descriptors,
         ...xhrResponseGetters,
       };
       // 对齐 TM, res.constructor = undefined, res.__proto__ = undefined
-      const retParamObject: GMXHRResponseType = Object.create(null, descriptors);
+      const retParamObject: GMXHRResponseType = Native.objectCreate(null, descriptors);
       // 外部没引用 retParamObject 时，retTemp 会被自动GC
       const retTemp = makeRetTemp(contentType);
       retStateFnMap.set(retParamObject, retTemp);
