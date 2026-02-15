@@ -40,8 +40,8 @@ export const deferred = <T = void>(): Deferred<T> => {
 };
 
 export function isFirefox() {
-  //@ts-ignore
-  return typeof mozInnerScreenX !== "undefined";
+  // @ts-ignore. For both Page & Worker
+  return typeof mozInnerScreenX !== "undefined" || typeof navigator.mozGetUserMedia === "function";
 }
 
 export function InfoNotification(title: string, msg: string) {
@@ -256,17 +256,25 @@ export function getBrowserVersion(): number {
 
 // 判断是否为Edge浏览器
 export function isEdge(): boolean {
-  return navigator.userAgent.includes("Edg/");
+  return (
+    // @ts-ignore; For Extension (Page/Worker), we can check UserSubscriptionState (hidden feature in Edge)
+    typeof chrome.runtime.UserSubscriptionState === "object" ||
+    // Fallback to userAgent check
+    navigator.userAgent.includes("Edg/")
+  );
 }
 
-export enum BrowserType {
-  Edge = 2,
-  Chrome = 1,
-  chromeA = 4, // ~ 120
-  chromeB = 8, // 121 ~ 137
-  chromeC = 16, // 138 ~
-  edgeA = 32, // Edge 144~
-}
+export const BrowserType = {
+  Edge: 2,
+  Chrome: 1,
+  noUserScriptsAPI: 64,
+  guardedByDeveloperMode: 128,
+  guardedByAllowScript: 256,
+  Mouse: 1, // Desktop, Laptop. Tablet ??
+  Touch: 2, // Touchscreen Laptop, Mobile, Tablet
+} as const;
+
+export type BrowserType = ValueOf<typeof BrowserType>;
 
 export function getBrowserType() {
   const o = {
@@ -275,25 +283,40 @@ export function getBrowserType() {
     chrome: 0, // Chrome, Chromium, Brave, Edge
     unknown: 0,
     chromeVersion: 0,
+    device: 0,
   };
   if (isFirefox()) {
+    // Firefox, Zen
     o.firefox = 1;
   } else {
     //@ts-ignore
     const isWebkitBased = typeof webkitIndexedDB === "object";
     if (isWebkitBased) {
+      // Safari, Orion
       o.webkit = 1;
     } else {
-      //@ts-ignore
-      const isChromeBased = typeof webkitRequestAnimationFrame === "function";
+      const isChromeBased =
+        typeof requestAnimationFrame === "function"
+          ? // @ts-ignore. For Page only
+            typeof webkitRequestAnimationFrame === "function"
+          : // @ts-ignore. Available in Worker (Chrome 74+ Edge 79+)
+            typeof BackgroundFetchRecord === "function";
       if (isChromeBased) {
         const isEdgeBrowser = isEdge();
         const chromeVersion = getBrowserVersion();
         o.chrome |= isEdgeBrowser ? BrowserType.Edge : BrowserType.Chrome;
-        o.chrome |= chromeVersion < 120 ? BrowserType.chromeA : 0; // Chrome 120 以下
-        o.chrome |= chromeVersion < 138 ? BrowserType.chromeB : BrowserType.chromeC; // Chrome 121 ~ 137 / 138 以上
-        if (isEdgeBrowser) {
-          o.chrome |= chromeVersion >= 144 ? BrowserType.edgeA : 0; // Edge 144 以上
+        // 由小至大
+        if (chromeVersion < 120) {
+          o.chrome |= BrowserType.noUserScriptsAPI;
+        } else {
+          // 120+
+          if (isEdgeBrowser ? chromeVersion < 144 : chromeVersion < 138) {
+            o.chrome |= BrowserType.guardedByDeveloperMode;
+          } else {
+            // Edge 144+ / Chrome 138+
+            o.chrome |= BrowserType.guardedByAllowScript;
+            // 如日后再变化，在这里再加条件式
+          }
         }
         o.chromeVersion = chromeVersion;
       } else {
@@ -301,8 +324,35 @@ export function getBrowserType() {
       }
     }
   }
+  // BrowserType.Mouse 未能在 Worker 使用
+  o.device |= typeof matchMedia === "function" && !matchMedia("(hover: none)").matches ? BrowserType.Mouse : 0;
+  o.device |= navigator.maxTouchPoints > 0 ? BrowserType.Touch : 0;
   return o;
 }
+
+export const isPermissionOk = async (
+  manifestPermission: chrome.runtime.ManifestOptionalPermissions & chrome.runtime.ManifestPermissions
+): Promise<boolean | null> => {
+  // 兼容 Firefox - 避免因为检查 permission 时，该permission不存在于 optional permission 而报错
+  const manifest = chrome.runtime.getManifest();
+  if (manifest.optional_permissions?.includes(manifestPermission)) {
+    try {
+      return await chrome.permissions.contains({ permissions: [manifestPermission] });
+    } catch {
+      // ignored
+    }
+  } else if (manifest.permissions?.includes(manifestPermission)) {
+    // mainfest 而列明有该permission, 不用检查
+    return true;
+  }
+  return null;
+};
+
+export const getBrowserInstalledVersion = () => {
+  // unique for each browser update.
+  // Usage: Detect whether the browser is upgraded.
+  return btoa([...navigator.userAgent.matchAll(/[\d._]+/g)].map((e) => e[0]).join(";"));
+};
 
 export const makeBlobURL = <T extends { blob: Blob; persistence: boolean }>(
   params: T,
@@ -513,7 +563,7 @@ export const normalizeResponseHeaders = (headersString: string) => {
 // 遵循 ISO 8601, 一月四日为Week 1，星期一为新一周
 // 能应对每年开始和结束（不会因为踏入新一年而重新计算）
 // 见 https://wikipedia.org/wiki/ISO_week_date
-// 中文說明 https://juejin.cn/post/6921245139855736846
+// 中文说明 https://juejin.cn/post/6921245139855736846
 export const getISOWeek = (date: Date): number => {
   // 使用传入日期的年月日创建 UTC 日期对象，忽略本地时间部分，避免时区影响
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
