@@ -65,7 +65,7 @@ export class CustomEventMessage implements Message {
       } else if (event instanceof CustomEventClone && typeof event.detail?.createElement === "string") {
         const id0 = event.detail?.id0 as number;
         const frag = <DocumentFragment>this.getAndDelRelatedTarget(id0);
-        frag.appendChild(document.createElement(event.detail?.createElement));
+        frag.appendChild(document.createElement(event.detail.createElement as string));
         event.preventDefault();
       } else if (event instanceof MouseEventClone && event.movementX === 0 && event.cancelable) {
         event.preventDefault(); // 告知另一端这边已准备好
