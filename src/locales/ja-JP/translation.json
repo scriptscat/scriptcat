@@ -334,7 +334,9 @@
     "header_other_update": "その他の利用可能な更新"
   },
   "downloading_status_text": "ダウンロード中。{{bytes}} を受信しました。",
+  "install_page_please_wait": "しばらくお待ちください",
   "install_page_loading": "インストールページを読み込み中",
+  "install_page_load_failed": "インストールページの読み込みに失敗しました",
   "invalid_page": "無効なページ",
   "background_script_tag": "これはバックグラウンドスクリプトです",
   "scheduled_script_tag": "これはスケジュールスクリプトです",

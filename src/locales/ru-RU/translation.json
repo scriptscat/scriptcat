@@ -334,7 +334,9 @@
     "header_other_update": "Другие доступные обновления"
   },
   "downloading_status_text": "Загрузка. Получено {{bytes}}.",
+  "install_page_please_wait": "Пожалуйста, подождите",
   "install_page_loading": "Загрузка страницы установки",
+  "install_page_load_failed": "Не удалось загрузить страницу установки",
   "invalid_page": "Недействительная страница",
   "background_script_tag": "Это фоновый скрипт",
   "scheduled_script_tag": "Это запланированный скрипт",
