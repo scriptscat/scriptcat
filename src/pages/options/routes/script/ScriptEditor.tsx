@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
-import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
+import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Space, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 import { makeBlobURL } from "@App/pkg/utils/utils";
+import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 
 const { Row, Col } = Grid;
 
@@ -205,12 +206,15 @@ function ScriptEditor() {
   }>();
   const [pageInit, setPageInit] = useState<boolean>(false);
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
-  const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(false);
+  const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(() => {
+    return localStorage.getItem("hiddenEditorScriptList") === "true";
+  });
 
   const pageUrlParams = useParams();
   const [pageUrlSearchParams, setPageUrlSearchParams] = useSearchParams();
 
   const { t } = useTranslation();
+
   const scriptDAO = new ScriptDAO();
   const scriptCodeDAO = new ScriptCodeDAO();
 
@@ -409,18 +413,6 @@ function ScriptEditor() {
           action(script) {
             setShow("scriptResource", true);
             setCurrentScript(script);
-          },
-        },
-      ],
-    },
-    {
-      title: t("layout"),
-      items: [
-        {
-          id: "hideScriptList",
-          title: (hiddenScriptList ? "✓ " : "") + t("hide_script_list"),
-          action() {
-            setHiddenScriptList(!hiddenScriptList);
           },
         },
       ],
@@ -1022,95 +1014,118 @@ function ScriptEditor() {
           </Col>
         )}
         <Col span={hiddenScriptList ? 24 : 20} className="tw-flex! tw-flex-col tw-h-full">
-          <Tabs
-            editable
-            activeTab={activeTab}
-            className="edit-tabs"
-            type="card-gutter"
-            style={{
-              overflow: "inherit",
-            }}
-            onChange={(index: string) => {
-              setEditors((prev) =>
-                prev.map((editor, i) =>
-                  `${i}` === index
-                    ? {
-                        ...editor,
-                        active:
-                          (setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
-                          true),
-                      }
-                    : {
-                        ...editor,
-                        active: false,
-                      }
-                )
-              );
-            }}
-            onAddTab={() => {
-              const template = pageUrlSearchParams.get("template") || "";
-              emptyScript(template || "", hotKeys, "blank").then((e) => {
-                setEditors((prev) => {
-                  prev.forEach((item) => {
-                    item.active = false;
+          <div className="tw-flex tw-flex-row tw-w-full tw-justify-between">
+            <Tabs
+              editable
+              activeTab={activeTab}
+              className="edit-tabs"
+              type="card-gutter"
+              style={{
+                overflow: "hidden",
+              }}
+              onChange={(index: string) => {
+                setEditors((prev) =>
+                  prev.map((editor, i) =>
+                    `${i}` === index
+                      ? {
+                          ...editor,
+                          active:
+                            (setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
+                            true),
+                        }
+                      : {
+                          ...editor,
+                          active: false,
+                        }
+                  )
+                );
+              }}
+              onAddTab={() => {
+                const template = pageUrlSearchParams.get("template") || "";
+                emptyScript(template || "", hotKeys, "blank").then((e) => {
+                  setEditors((prev) => {
+                    prev.forEach((item) => {
+                      item.active = false;
+                    });
+                    setSelectSciptButtonAndTab(e.script.uuid);
+                    return [...prev, e];
                   });
-                  setSelectSciptButtonAndTab(e.script.uuid);
-                  return [...prev, e];
                 });
-              });
-            }}
-            onDeleteTab={(index: string) => {
-              const i = parseInt(index, 10);
-              const targetUuid = editors[i]?.script.uuid;
-              if (targetUuid) {
-                handleDeleteEditor(targetUuid, true);
-              }
-            }}
-          >
-            {editors.map((e, index) => (
-              <TabPane
-                destroyOnHide
-                key={index!.toString()}
-                title={
-                  <Dropdown
-                    trigger="contextMenu"
-                    position="bl"
-                    droplist={
-                      <Menu
-                        onClickMenuItem={(key) => {
-                          setRightOperationTab({
-                            ...rightOperationTab,
-                            key,
-                            uuid: e.script.uuid,
-                            selectSciptButtonAndTab,
-                          });
+              }}
+              onDeleteTab={(index: string) => {
+                const i = parseInt(index, 10);
+                const targetUuid = editors[i]?.script.uuid;
+                if (targetUuid) {
+                  handleDeleteEditor(targetUuid, true);
+                }
+              }}
+            >
+              {editors.map((e, index) => (
+                <TabPane
+                  destroyOnHide
+                  key={index!.toString()}
+                  title={
+                    <Dropdown
+                      trigger="contextMenu"
+                      position="bl"
+                      droplist={
+                        <Menu
+                          onClickMenuItem={(key) => {
+                            setRightOperationTab({
+                              ...rightOperationTab,
+                              key,
+                              uuid: e.script.uuid,
+                              selectSciptButtonAndTab,
+                            });
+                          }}
+                        >
+                          <Menu.Item key="1">{t("close_current_tab")}</Menu.Item>
+                          <Menu.Item key="2">{t("close_other_tabs")}</Menu.Item>
+                          <Menu.Item key="3">{t("close_left_tabs")}</Menu.Item>
+                          <Menu.Item key="4">{t("close_right_tabs")}</Menu.Item>
+                        </Menu>
+                      }
+                    >
+                      <span
+                        style={{
+                          color: e.isChanged
+                            ? "rgb(var(--orange-5))"
+                            : e.script.uuid === selectSciptButtonAndTab
+                              ? "rgb(var(--green-7))"
+                              : e.active
+                                ? "rgb(var(--green-7))"
+                                : "var(--color-text-1)",
                         }}
                       >
-                        <Menu.Item key="1">{t("close_current_tab")}</Menu.Item>
-                        <Menu.Item key="2">{t("close_other_tabs")}</Menu.Item>
-                        <Menu.Item key="3">{t("close_left_tabs")}</Menu.Item>
-                        <Menu.Item key="4">{t("close_right_tabs")}</Menu.Item>
-                      </Menu>
-                    }
-                  >
-                    <span
-                      style={{
-                        color: e.isChanged
-                          ? "rgb(var(--orange-5))"
-                          : e.script.uuid === selectSciptButtonAndTab
-                            ? "rgb(var(--green-7))"
-                            : e.active
-                              ? "rgb(var(--green-7))"
-                              : "var(--color-text-1)",
-                      }}
-                    >
-                      {e.script.name}
-                    </span>
-                  </Dropdown>
-                }
-              />
-            ))}
-          </Tabs>
+                        {e.script.name}
+                      </span>
+                    </Dropdown>
+                  }
+                />
+              ))}
+            </Tabs>
+            <Space>
+              <Tooltip
+                content={hiddenScriptList ? t("editor.show_script_list") : t("editor.hide_script_list")}
+                position="bottom"
+              >
+                <Button
+                  iconOnly
+                  type="text"
+                  size="small"
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                  icon={hiddenScriptList ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                  onClick={() => {
+                    const newValue = !hiddenScriptList;
+                    localStorage.setItem("hiddenEditorScriptList", String(newValue));
+                    setHiddenScriptList(newValue);
+                  }}
+                />
+              </Tooltip>
+            </Space>
+          </div>
           <div className="tw-flex tw-flex-grow tw-flex-1 tw-relative">
             {editors.map((item) => {
               if (item.active) {
