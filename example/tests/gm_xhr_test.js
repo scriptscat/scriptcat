@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_xmlhttpRequest Exhaustive Test Harness v3
 // @namespace    tm-gmxhr-test
-// @version      1.2.2
+// @version      1.2.3
 // @description  Comprehensive in-page tests for GM_xmlhttpRequest: normal, abnormal, and edge cases with clear pass/fail output.
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
@@ -120,7 +120,7 @@ const enableTool = true;
           gap: "8px",
         },
       },
-      h("div", { style: { fontWeight: "600" } }, "GM_xmlhttpRequest Test Harness"),
+      h("div", { style: { fontWeight: "600" } }, "GM_xmlhttpRequest Test Harness", h("br"), `${GM.info?.version}`),
       h("div", { id: "counts", style: { marginLeft: "auto", opacity: 0.8 } }, "…"),
       h("button", { id: "start", style: btn() }, "Run"),
       h("button", { id: "clear", style: btn() }, "Clear")
@@ -133,7 +133,7 @@ const enableTool = true;
     ),
     h(
       "details",
-      { id: "queueWrap", open: true, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
+      { id: "queueWrap", open: false, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
       h("summary", {}, "Pending tests"),
       h(
         "div",
