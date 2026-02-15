@@ -1,71 +1,102 @@
-import {
-  S3Client,
-  HeadBucketCommand,
-  ListObjectsV2Command,
-  DeleteObjectCommand,
-  type S3ClientConfig,
-} from "@aws-sdk/client-s3";
+import { S3Client, S3Error } from "./client";
+import type { S3ClientConfig } from "./client";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { S3FileReader, S3FileWriter } from "./rw";
 import { WarpTokenError } from "../error";
 
+// ---- ListObjectsV2 XML 解析 ----
+
+interface ListObjectsV2Result {
+  contents: Array<{
+    key: string;
+    lastModified: string;
+    etag: string;
+    size: number;
+  }>;
+  isTruncated: boolean;
+  nextContinuationToken?: string;
+}
+
+/** 从 ListObjectsV2 XML 响应中解析对象列表 */
+function parseListObjectsV2(xml: string): ListObjectsV2Result {
+  const contents: ListObjectsV2Result["contents"] = [];
+  const contentsRegex = /<Contents>([\s\S]*?)<\/Contents>/g;
+  let match;
+  while ((match = contentsRegex.exec(xml)) !== null) {
+    const block = match[1];
+    const key = block.match(/<Key>([\s\S]*?)<\/Key>/)?.[1] || "";
+    const lastModified = block.match(/<LastModified>([\s\S]*?)<\/LastModified>/)?.[1] || "";
+    const etag = block.match(/<ETag>([\s\S]*?)<\/ETag>/)?.[1] || "";
+    const size = parseInt(block.match(/<Size>([\s\S]*?)<\/Size>/)?.[1] || "0", 10);
+    contents.push({ key, lastModified, etag, size });
+  }
+
+  const isTruncated = /<IsTruncated>true<\/IsTruncated>/.test(xml);
+  const nextToken = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)?.[1];
+
+  return { contents, isTruncated, nextContinuationToken: nextToken };
+}
+
+// ---- S3 文件系统 ----
+
 /**
- * Amazon S3 implementation of the FileSystem interface.
- * Supports AWS S3 and S3-compatible services (MinIO, Wasabi, etc.).
+ * Amazon S3 文件系统实现
+ * 支持 AWS S3 及兼容服务（MinIO、Wasabi 等）
+ * 使用原生 fetch + AWS Signature V4 签名，不依赖 @aws-sdk/client-s3
  */
 export default class S3FileSystem implements FileSystem {
   client: S3Client;
 
   bucket: string;
 
-  region: string;
+  region: string = "";
 
   basePath: string = "/";
 
-  /**
-   * Creates a new S3FileSystem instance.
-   *
-   * @param bucket - S3 bucket name
-   * @param region - AWS region (e.g., "us-east-1")
-   * @param accessKeyId - AWS access key ID
-   * @param secretAccessKey - AWS secret access key
-   * @param endpoint - Optional custom endpoint for S3-compatible services
-   * @param basePath - Optional base path for directory scoping
-   */
+  constructor(bucket: string, client: S3Client, basePath?: string);
   constructor(
     bucket: string,
     region: string,
     accessKeyId: string,
     secretAccessKey: string,
     endpoint?: string,
-    basePath?: string,
-    usePathStyle: boolean = true // 默认兼容S3
+    basePath?: string
+  );
+  constructor(
+    bucket: string,
+    regionOrClient: string | S3Client,
+    accessKeyIdOrBasePath?: string,
+    secretAccessKey?: string,
+    endpoint?: string,
+    basePath?: string
   ) {
     this.bucket = bucket;
-    this.region = region;
+    if (regionOrClient instanceof S3Client) {
+      this.client = regionOrClient;
+      this.basePath = accessKeyIdOrBasePath || "/";
+      return;
+    }
+    this.region = regionOrClient || "us-east-1";
     this.basePath = basePath || "/";
 
     const config: S3ClientConfig = {
-      region,
+      region: this.region,
       credentials: {
-        accessKeyId,
-        secretAccessKey,
+        accessKeyId: accessKeyIdOrBasePath!,
+        secretAccessKey: secretAccessKey!,
       },
-      // forcePathStyle: true 对 AWS 官方 S3 不是最佳实践（会用 path-style URL，已被逐渐弃用），对 MinIO 等兼容服务则是必须的。硬编码会导致部分用户配置失败。
-      forcePathStyle: usePathStyle,
+      forcePathStyle: true, // 强制路径式访问，兼容大多数 S3 服务
     };
 
     if (endpoint) {
-      // AWS SDK v3 要求 endpoint 是完整 URL（带 https://）。缺少协议会导致 InvalidEndpoint 或连接失败。
-      // 自动补全协议（常见兼容做法）
       let fixedEndpoint = `${endpoint}`.trim();
       if (!fixedEndpoint.startsWith("http://") && !fixedEndpoint.startsWith("https://")) {
         fixedEndpoint = `https://${fixedEndpoint}`;
       }
       config.endpoint = fixedEndpoint;
-      // 自动检测：如果 endpoint 包含 amazonaws.com，设为 false。
+      // amazonaws.com 域名使用虚拟主机风格
       if (endpoint.includes("amazonaws.com")) config.forcePathStyle = false;
     }
 
@@ -73,112 +104,88 @@ export default class S3FileSystem implements FileSystem {
   }
 
   /**
-   * Verifies bucket access and credentials.
-   * @throws {WarpTokenError} If authentication fails
-   * @throws {Error} If bucket not found or network error
+   * 验证 Bucket 访问权限和凭证
+   * @throws {WarpTokenError} 认证失败
+   * @throws {Error} Bucket 不存在或网络错误
    */
   async verify(): Promise<void> {
     try {
-      const command = new HeadBucketCommand({
-        Bucket: this.bucket,
-      });
-      await this.client.send(command);
+      await this.client.request("HEAD", this.bucket);
     } catch (error: any) {
-      if (error.name === "NotFound") {
-        throw new Error("NotFound"); // Bucket 不存在
-      }
-      if (
-        error.name === "InvalidAccessKeyId" ||
-        error.name === "SignatureDoesNotMatch" ||
-        error.name === "InvalidClientTokenId"
-      ) {
-        throw new WarpTokenError(error); // AccessKey 或 SecretKey 无效
-      }
-      if (error.name === "AccessDenied") {
-        throw new Error("Access Denied"); // 无权限访问该 Bucket（Access Denied）
-      }
-      if (error.name === "PermanentRedirect") {
-        throw new Error("Access Denied"); // Region 设置错误，请检查 region 是否匹配 Bucket 所在区域
-      }
-      if (error.name === "NoSuchBucket") {
-        throw new Error(`Bucket not found: ${this.bucket}`);
+      if (error instanceof S3Error) {
+        if (error.code === "NotFound" || error.code === "NoSuchBucket" || error.statusCode === 404) {
+          throw new Error("NotFound");
+        }
+        if (
+          error.code === "InvalidAccessKeyId" ||
+          error.code === "SignatureDoesNotMatch" ||
+          error.code === "InvalidClientTokenId"
+        ) {
+          throw new WarpTokenError(error);
+        }
+        if (
+          error.code === "AccessDenied" ||
+          error.code === "PermanentRedirect" ||
+          error.statusCode === 403 ||
+          error.statusCode === 301
+        ) {
+          throw new Error("Access Denied");
+        }
       }
       if (error.message?.includes("getaddrinfo") || error.message?.includes("fetch failed")) {
-        throw new Error("Network connection failed. Please check your internet connection."); // 网络连接失败，请检查 endpoint 或网络
+        throw new Error("Network connection failed. Please check your internet connection.");
       }
       throw error;
     }
   }
 
   /**
-   * Opens a file for reading.
-   * @param file - File information
-   * @returns FileReader instance for reading file content
+   * 打开文件用于读取
+   * @param file 文件信息
+   * @returns 文件读取器
    */
   async open(file: FileInfo): Promise<FileReader> {
-    const key = joinPath(file.path, file.name).substring(1); // Remove leading /
+    const key = joinPath(file.path, file.name).substring(1); // 去除前导 /
     return new S3FileReader(this.client, this.bucket, key);
   }
 
   /**
-   * Opens a directory (returns a new FileSystem scoped to that directory).
-   * @param path - Directory path relative to current basePath
-   * @returns New S3FileSystem instance scoped to the directory
+   * 打开子目录（返回新的 S3FileSystem 实例）
+   * @param path 相对于当前 basePath 的目录路径
+   * @returns 新的 S3FileSystem 实例
    */
   async openDir(path: string): Promise<FileSystem> {
-    const newBasePath = joinPath(this.basePath, path);
-    const fs = new S3FileSystem(
-      this.bucket,
-      this.region,
-      "", // 占位: These won't be used since we're reusing the client
-      "",
-      undefined,
-      newBasePath,
-      true // forcePathStyle 同父
-    );
-    // openDir 又 new 一个 S3FileSystem，但传了空字符串的 AK/SK，导致逻辑不清晰。
-    // 复用原有 client，只修改 basePath。
-    fs.client = this.client; // 复用 client
-    return fs;
+    return new S3FileSystem(this.bucket, this.client, joinPath(this.basePath, path));
   }
 
   /**
-   * Creates a file for writing.
-   * @param path - File path relative to current basePath
-   * @param opts - Optional file creation options (modifiedDate)
-   * @returns FileWriter instance for writing file content
+   * 创建文件用于写入
+   * @param path 相对于当前 basePath 的文件路径
+   * @param opts 可选的文件创建选项
+   * @returns 文件写入器
    */
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
-    const key = joinPath(this.basePath, path).substring(1); // Remove leading /
-    return new S3FileWriter(this.client, this.bucket, key, opts?.modifiedDate);
+    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts?.modifiedDate);
   }
 
   /**
-   * Creates a directory (no-op for S3, directories are implicit).
-   * @param _path - Directory path (unused)
-   * @param _opts - Optional creation options (unused)
+   * 创建目录（S3 中目录是隐式的，无需操作）
    */
   async createDir(_path: string, _opts?: FileCreateOptions): Promise<void> {
-    // No-op: S3 doesn't require explicit directory creation
     return Promise.resolve();
   }
 
   /**
-   * Deletes a file from S3.
-   * This operation is idempotent - deleting a non-existent file succeeds.
-   * @param path - File path relative to current basePath
+   * 删除文件
+   * 此操作幂等——删除不存在的文件也会成功
+   * @param path 相对于当前 basePath 的文件路径
    */
   async delete(path: string): Promise<void> {
     try {
-      const key = joinPath(this.basePath, path).substring(1); // Remove leading /
-      const command = new DeleteObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      });
-      await this.client.send(command);
+      await this.client.request("DELETE", this.bucket, joinPath(this.basePath, path).substring(1));
     } catch (error: any) {
-      // S3 delete is idempotent - if the key doesn't exist, it succeeds
-      if (error.name === "NoSuchKey") {
+      // S3 delete 是幂等的，key 不存在时也视为成功
+      if (error instanceof S3Error && error.code === "NoSuchKey") {
         return;
       }
       throw error;
@@ -186,61 +193,54 @@ export default class S3FileSystem implements FileSystem {
   }
 
   /**
-   * Lists files in the current directory.
-   * Handles pagination automatically for large directories.
-   * @returns Array of FileInfo objects for files in current directory
-   * @throws {Error} If permission denied or other S3 error
+   * 列出当前目录下的文件
+   * 自动处理分页
+   * @returns 文件信息数组
    */
   async list(): Promise<FileInfo[]> {
-    const prefix = this.basePath === "/" ? "" : this.basePath.substring(1);
+    let prefix = this.basePath === "/" ? "" : this.basePath.substring(1);
+    // 确保 prefix 以 / 结尾（除了根目录），这样才能正确列出目录下的文件
+    if (prefix && !prefix.endsWith("/")) {
+      prefix += "/";
+    }
     const files: FileInfo[] = [];
     let continuationToken: string | undefined;
 
     try {
       do {
-        const command = new ListObjectsV2Command({
-          Bucket: this.bucket,
-          Prefix: prefix,
-          Delimiter: "/",
-          ContinuationToken: continuationToken,
-          MaxKeys: 1000, // ← 每次最多 1000，防滥用
-        });
+        const queryParams: Record<string, string> = {
+          "list-type": "2",
+          delimiter: "/",
+          "max-keys": "1000",
+        };
+        if (prefix) queryParams["prefix"] = prefix;
+        if (continuationToken) queryParams["continuation-token"] = continuationToken;
 
-        const response = await this.client.send(command);
+        const response = await this.client.request("GET", this.bucket, undefined, { queryParams });
+        const xml = await response.text();
+        const result = parseListObjectsV2(xml);
 
-        // 处理 CommonPrefixes（子目录）
-        // if (response.CommonPrefixes) {
-        //   for (const prefix of response.CommonPrefixes) {
-        //     if (prefix.Prefix && prefix.Prefix !== this.basePath) {
-        //     }
-        //   }
-        // }
+        for (const obj of result.contents) {
+          if (!obj.key) continue;
+          if (obj.key.endsWith("/")) continue; // 跳过目录占位符
+          if (prefix && obj.key === prefix) continue; // 跳过 prefix 本身
 
-        // 处理 Contents（文件）
-        if (response.Contents) {
-          for (const obj of response.Contents) {
-            if (!obj.Key) continue;
-            if (obj.Key && obj.Key.endsWith("/")) continue; // 跳过目录占位符
-            if (obj.Key === this.basePath.slice(1)) continue; // 跳过 prefix 本身
+          const relativeKey = prefix ? obj.key.slice(prefix.length) : obj.key;
+          if (!relativeKey) continue;
 
-            // const name = obj.Key.substring(prefix.length);
-            const relativeKey = obj.Key.slice(this.basePath.length);
-            if (!relativeKey) continue;
+          const lastModified = new Date(obj.lastModified).getTime() || Date.now();
 
-            const lastModified = obj.LastModified?.getTime() || Date.now();
-
-            files.push({
-              name: relativeKey,
-              path: this.basePath,
-              size: obj.Size || 0,
-              digest: obj.ETag?.replace(/"/g, "") || "",
-              createtime: lastModified,
-              updatetime: lastModified,
-            });
-          }
+          files.push({
+            name: relativeKey,
+            path: this.basePath,
+            size: obj.size || 0,
+            digest: obj.etag?.replace(/"/g, "") || "",
+            createtime: lastModified,
+            updatetime: lastModified,
+          });
         }
 
-        continuationToken = response.NextContinuationToken;
+        continuationToken = result.nextContinuationToken;
       } while (continuationToken);
 
       if (files.length > 10000) {
@@ -249,7 +249,7 @@ export default class S3FileSystem implements FileSystem {
 
       return files;
     } catch (error: any) {
-      if (error.name === "AccessDenied") {
+      if (error instanceof S3Error && error.code === "AccessDenied") {
         throw new Error(`Permission denied. Check your IAM permissions for bucket: ${this.bucket}`);
       }
       throw error;
@@ -257,11 +257,16 @@ export default class S3FileSystem implements FileSystem {
   }
 
   /**
-   * Gets the S3 console URL for the current directory.
-   * @returns URL to S3 console for this bucket/prefix
+   * 获取当前目录的 URL
+   * 自定义 endpoint 返回 endpoint + bucket/prefix 路径
+   * AWS S3 返回控制台 URL
    */
   async getDirUrl(): Promise<string> {
     const prefix = this.basePath === "/" ? "" : this.basePath.substring(1);
+    if (this.client.hasCustomEndpoint()) {
+      const url = this.client.getEndpointUrl();
+      return `${url}/${this.bucket}/${prefix}`;
+    }
     return `https://s3.console.aws.amazon.com/s3/buckets/${this.bucket}?prefix=${encodeURIComponent(prefix)}&region=${this.region}`;
   }
 }

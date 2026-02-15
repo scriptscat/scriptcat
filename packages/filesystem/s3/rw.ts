@@ -1,10 +1,9 @@
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import type { S3Client } from "@aws-sdk/client-s3";
+import type { S3Client } from "./client";
 import type { FileReader, FileWriter } from "../filesystem";
 
 /**
- * FileReader implementation for Amazon S3.
- * Downloads and reads file content from S3.
+ * S3 文件读取器
+ * 通过 GET 请求下载 S3 对象
  */
 export class S3FileReader implements FileReader {
   client: S3Client;
@@ -20,46 +19,23 @@ export class S3FileReader implements FileReader {
   }
 
   /**
-   * Reads file content from S3.
-   * @param type - Output format: "string" for text, "blob" for binary (default)
-   * @returns File content as string or Blob
-   * @throws {Error} If file not found or read fails
+   * 读取文件内容
+   * @param type 输出格式："string" 为文本，"blob" 为二进制（默认）
+   * @returns 文件内容
+   * @throws {S3Error} 文件不存在或读取失败
    */
   async read(type: "string" | "blob" = "blob"): Promise<string | Blob> {
-    try {
-      const command = new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: this.key,
-      });
-
-      const response = await this.client.send(command);
-
-      if (!response.Body) {
-        throw new Error("Empty response body from S3");
-      }
-
-      if (type === "string") {
-        // Built-in v3 helper
-        const text = await response.Body.transformToString();
-        return text;
-      } else {
-        // Or transformToByteArray()
-        const stream = response.Body.transformToWebStream();
-        const blob = await new Response(stream).blob();
-        return blob;
-      }
-    } catch (error: any) {
-      if (error.name === "NoSuchKey") {
-        throw new Error(`File not found: ${this.key}`);
-      }
-      throw error;
+    const response = await this.client.request("GET", this.bucket, this.key);
+    if (type === "string") {
+      return response.text();
     }
+    return response.blob();
   }
 }
 
 /**
- * FileWriter implementation for Amazon S3.
- * Uploads file content to S3 with optional metadata.
+ * S3 文件写入器
+ * 通过 PUT 请求上传内容到 S3
  */
 export class S3FileWriter implements FileWriter {
   client: S3Client;
@@ -78,24 +54,24 @@ export class S3FileWriter implements FileWriter {
   }
 
   /**
-   * Writes content to S3.
-   * @param content - File content as string or Blob
-   * @throws {Error} If upload fails
+   * 写入文件内容
+   * @param content 文件内容（字符串或 Blob）
+   * @throws {S3Error} 上传失败
    */
   async write(content: string | Blob): Promise<void> {
-    const metadata: Record<string, string> = {};
+    const body = content instanceof Blob ? new Uint8Array(await content.arrayBuffer()) : content;
+
+    const headers: Record<string, string> = {
+      "content-type": "application/octet-stream",
+    };
     if (this.modifiedDate) {
-      // 用 ISO 8601 格式
-      metadata.createtime = new Date(this.modifiedDate).toISOString(); // 规范格式
+      // 通过自定义元数据保存创建时间（ISO 8601 格式）
+      headers["x-amz-meta-createtime"] = new Date(this.modifiedDate).toISOString();
     }
 
-    const command = new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: this.key,
-      Body: content, // API 的 Body 接受 string | Blob | Uint8Array<ArrayBufferLike> | Buffer<ArrayBufferLike> | Readable | ReadableStream<any>
-      Metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+    await this.client.request("PUT", this.bucket, this.key, {
+      body: typeof body === "string" ? body : body,
+      headers,
     });
-
-    await this.client.send(command);
   }
 }
