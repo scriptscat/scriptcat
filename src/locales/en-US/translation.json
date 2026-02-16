@@ -530,8 +530,6 @@
   "editor_config_format_error": "Editor Configuration Format Error",
   "editor_type_definition_reset": "Editor Type Definition Reset",
   "editor_type_definition_saved": "Editor Type Definition Saved",
-  "layout": "Layout",
-  "hide_script_list": "Hide Script List",
   "script_list": {
     "sidebar": {
       "stopped": "Stopped",
@@ -576,5 +574,9 @@
     "enable_now": "Enable Now",
     "maybe_later": "Maybe Later",
     "settings_hint": "You can change this option in settings at any time."
+  },
+  "editor": {
+    "show_script_list": "Show Script List",
+    "hide_script_list": "Hide Script List"
   }
 }

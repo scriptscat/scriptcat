@@ -530,8 +530,6 @@
   "editor_config_format_error": "Editor-Konfiguration Formatfehler",
   "editor_type_definition_reset": "Editor-Typdefinitionen wurden zurückgesetzt",
   "editor_type_definition_saved": "Editor-Typdefinitionen wurden gespeichert",
-  "layout": "Layout",
-  "hide_script_list": "Skriptliste ausblenden",
   "script_list": {
     "sidebar": {
       "stopped": "Gestoppt",
@@ -576,5 +574,9 @@
     "enable_now": "Jetzt aktivieren",
     "maybe_later": "Vielleicht später",
     "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern."
+  },
+  "editor": {
+    "show_script_list": "Skriptliste anzeigen",
+    "hide_script_list": "Skriptliste ausblenden"
   }
 }

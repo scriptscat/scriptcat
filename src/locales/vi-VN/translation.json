@@ -530,8 +530,6 @@
   "editor_config_format_error": "Lỗi định dạng cấu hình trình soạn thảo",
   "editor_type_definition_reset": "Định nghĩa kiểu trình soạn thảo đã được đặt lại",
   "editor_type_definition_saved": "Định nghĩa kiểu trình soạn thảo đã được lưu",
-  "layout": "Bố cục",
-  "hide_script_list": "Ẩn danh sách script",
   "script_list": {
     "sidebar": {
       "stopped": "Đã dừng",
@@ -576,5 +574,9 @@
     "enable_now": "Bật ngay",
     "maybe_later": "Để sau",
     "settings_hint": "Bạn có thể thay đổi tùy chọn này trong cài đặt bất kỳ lúc nào."
+  },
+  "editor": {
+    "show_script_list": "Hiển thị danh sách script",
+    "hide_script_list": "Ẩn danh sách script"
   }
 }

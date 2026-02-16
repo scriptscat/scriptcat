@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
-import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
+import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Space, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 import { makeBlobURL } from "@App/pkg/utils/utils";
+import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 
 const { Row, Col } = Grid;
 
@@ -224,7 +225,9 @@ function ScriptEditor() {
     selectSciptButtonAndTab: string;
   }>();
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
-  const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(false);
+  const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(() => {
+    return localStorage.getItem("hiddenEditorScriptList") === "true";
+  });
 
   const pageUrlParams = useParams();
   const [pageUrlSearchParams, _] = useSearchParams();
@@ -478,18 +481,6 @@ function ScriptEditor() {
           action(script) {
             setShow("scriptResource", true);
             setCurrentScript(script);
-          },
-        },
-      ],
-    },
-    {
-      title: t("layout"),
-      items: [
-        {
-          id: "hideScriptList",
-          title: (hiddenScriptList ? "✓ " : "") + t("hide_script_list"),
-          action() {
-            setHiddenScriptList(!hiddenScriptList);
           },
         },
       ],
@@ -986,73 +977,96 @@ function ScriptEditor() {
           </Col>
         )}
         <Col span={hiddenScriptList ? 24 : 20} className="tw-flex! tw-flex-col tw-h-full">
-          <Tabs
-            editable
-            activeTab={selectedScript}
-            className="edit-tabs"
-            type="card-gutter"
-            style={{
-              overflow: "inherit",
-            }}
-            onChange={(uuid) => {
-              // rightTabOperation 时会发生多次 onChange
-              // 只取最后一个
-              clearTimeout(cid);
-              cid = setTimeout(() => {
-                if (editorFindIndex(uuid) >= 0) {
-                  openScript(uuid);
-                }
-              }, 1);
-            }}
-            onAddTab={() => openScript(undefined, templateVal.current || undefined, undefined)} // 不传参数即为新建
-            onDeleteTab={(uuid) => {
-              handleDeleteEditor(uuid, true);
-            }}
-          >
-            {editors.map((e, _index) => (
-              <TabPane
-                destroyOnHide
-                key={e.script.uuid}
-                title={
-                  <Dropdown
-                    trigger="contextMenu"
-                    position="bl"
-                    droplist={
-                      <Menu
-                        onClickMenuItem={(key) => {
-                          setRightOperationTab({
-                            ...rightOperationTab,
-                            key,
-                            uuid: e.script.uuid,
-                            selectSciptButtonAndTab: selectedScript,
-                          });
+          <div className="tw-flex tw-flex-row tw-w-full tw-justify-between">
+            <Tabs
+              editable
+              activeTab={selectedScript}
+              className="edit-tabs"
+              type="card-gutter"
+              style={{
+                overflow: "hidden",
+              }}
+              onChange={(uuid) => {
+                // rightTabOperation 时会发生多次 onChange
+                // 只取最后一个
+                clearTimeout(cid);
+                cid = setTimeout(() => {
+                  if (editorFindIndex(uuid) >= 0) {
+                    openScript(uuid);
+                  }
+                }, 1);
+              }}
+              onAddTab={() => openScript(undefined, templateVal.current || undefined, undefined)} // 不传参数即为新建
+              onDeleteTab={(uuid) => {
+                handleDeleteEditor(uuid, true);
+              }}
+            >
+              {editors.map((e, _index) => (
+                <TabPane
+                  destroyOnHide
+                  key={e.script.uuid}
+                  title={
+                    <Dropdown
+                      trigger="contextMenu"
+                      position="bl"
+                      droplist={
+                        <Menu
+                          onClickMenuItem={(key) => {
+                            setRightOperationTab({
+                              ...rightOperationTab,
+                              key,
+                              uuid: e.script.uuid,
+                              selectSciptButtonAndTab: selectedScript,
+                            });
+                          }}
+                        >
+                          <Menu.Item key="1">{t("close_current_tab")}</Menu.Item>
+                          <Menu.Item key="2">{t("close_other_tabs")}</Menu.Item>
+                          <Menu.Item key="3">{t("close_left_tabs")}</Menu.Item>
+                          <Menu.Item key="4">{t("close_right_tabs")}</Menu.Item>
+                        </Menu>
+                      }
+                    >
+                      <span
+                        style={{
+                          color: e.isChanged
+                            ? "rgb(var(--orange-5))"
+                            : e.script.uuid === selectedScript
+                              ? "rgb(var(--green-7))"
+                              : e.active
+                                ? "rgb(var(--green-7))"
+                                : "var(--color-text-1)",
                         }}
                       >
-                        <Menu.Item key="1">{t("close_current_tab")}</Menu.Item>
-                        <Menu.Item key="2">{t("close_other_tabs")}</Menu.Item>
-                        <Menu.Item key="3">{t("close_left_tabs")}</Menu.Item>
-                        <Menu.Item key="4">{t("close_right_tabs")}</Menu.Item>
-                      </Menu>
-                    }
-                  >
-                    <span
-                      style={{
-                        color: e.isChanged
-                          ? "rgb(var(--orange-5))"
-                          : e.script.uuid === selectedScript
-                            ? "rgb(var(--green-7))"
-                            : e.active
-                              ? "rgb(var(--green-7))"
-                              : "var(--color-text-1)",
-                      }}
-                    >
-                      {e.script.name}
-                    </span>
-                  </Dropdown>
-                }
-              />
-            ))}
-          </Tabs>
+                        {e.script.name}
+                      </span>
+                    </Dropdown>
+                  }
+                />
+              ))}
+            </Tabs>
+            <Space>
+              <Tooltip
+                content={hiddenScriptList ? t("editor.show_script_list") : t("editor.hide_script_list")}
+                position="bottom"
+              >
+                <Button
+                  iconOnly
+                  type="text"
+                  size="small"
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                  icon={!hiddenScriptList ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                  onClick={() => {
+                    const newValue = !hiddenScriptList;
+                    localStorage.setItem("hiddenEditorScriptList", String(newValue));
+                    setHiddenScriptList(newValue);
+                  }}
+                />
+              </Tooltip>
+            </Space>
+          </div>
           <div className="tw-flex tw-flex-grow tw-flex-1 tw-relative">
             {editors.map((item) => {
               if (item.active) {

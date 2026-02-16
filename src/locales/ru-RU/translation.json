@@ -530,8 +530,6 @@
   "editor_config_format_error": "Ошибка формата конфигурации редактора",
   "editor_type_definition_reset": "Определения типов редактора сброшены",
   "editor_type_definition_saved": "Определения типов редактора сохранены",
-  "layout": "Макет",
-  "hide_script_list": "Скрыть список скриптов",
   "script_list": {
     "sidebar": {
       "stopped": "Остановлено",
@@ -576,5 +574,9 @@
     "enable_now": "Включить сейчас",
     "maybe_later": "Может быть позже",
     "settings_hint": "Вы можете изменить эту опцию в настройках в любое время."
+  },
+  "editor": {
+    "show_script_list": "Показать список скриптов",
+    "hide_script_list": "Скрыть список скриптов"
   }
 }
