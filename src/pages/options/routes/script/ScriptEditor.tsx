@@ -207,8 +207,14 @@ function ScriptEditor() {
   editorsRef.current = editors;
   // The function identity is now permanent (empty dependency array)
   const getScript = useCallback((uuid: string) => {
-    return editorsRef.current!.find((e) => e.script.uuid === uuid)?.script;
+    return editorsRef.current.find((e) => e.script.uuid === uuid)?.script;
   }, []);
+  const editorFindIndex = (uuid: string) => {
+    return editorsRef.current.findIndex((e) => e.script.uuid === uuid);
+  };
+  const editorFindItem = (uuid: string) => {
+    return editorsRef.current.find((e) => e.script.uuid === uuid);
+  };
   const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
   const [selectedScript, setSelectSciptButtonAndTab] = useState<string>("");
@@ -230,7 +236,7 @@ function ScriptEditor() {
   const openScript = useCallback(
     async (uuid?: string, template?: string, target?: string) => {
       const insertEditor = (e: EditorState) => {
-        let insertIdx = editorsRef.current.findIndex((e) => e.script.uuid === selectedScript);
+        let insertIdx = editorFindIndex(selectedScript);
         insertIdx = insertIdx >= 0 ? insertIdx + 1 : editorsRef.current.length;
         setEditors((prev) => {
           const ret = prev.map((e) => ({ ...e, active: false }));
@@ -241,7 +247,7 @@ function ScriptEditor() {
 
       if (uuid) {
         // 如果已在编辑器中，直接激活
-        const existIndex = editorsRef.current.findIndex((e) => e.script.uuid === uuid);
+        const existIndex = editorFindIndex(uuid);
         if (existIndex !== -1) {
           setEditors((prev) => prev.map((e, i) => ({ ...e, active: i === existIndex })));
           setSelectSciptButtonAndTab(uuid);
@@ -527,7 +533,7 @@ function ScriptEditor() {
     if (canLoadScript) {
       const uuid = pageUrlParams.uuid;
       if (uuid === selectedScript) return;
-      if (!uuid || editorsRef.current.find((e) => e.script.uuid === uuid) || scriptList.find((v) => v.uuid === uuid)) {
+      if (!uuid || editorFindItem(uuid) || scriptList.find((v) => v.uuid === uuid)) {
         const template = templateVal.current;
         const target = targetVal.current;
         openScript(uuid || undefined, template || undefined, target || undefined);
@@ -593,10 +599,10 @@ function ScriptEditor() {
     if (!rightOperationTab) return;
 
     setEditors((prev) => {
-      let newList = [...prev];
-      const idx = newList.findIndex((e) => e.script.uuid === rightOperationTab.uuid);
+      const idx = editorFindIndex(rightOperationTab.uuid);
       if (idx === -1) return prev;
 
+      let newList = [...prev];
       switch (rightOperationTab.key) {
         case "1":
           newList = newList.filter((e) => e.script.uuid !== rightOperationTab.uuid);
@@ -625,7 +631,7 @@ function ScriptEditor() {
   // 通用的编辑器删除处理函数
   const handleDeleteEditor = async (targetUuid: string, needConfirm: boolean = false) => {
     const editors = editorsRef.current!;
-    const targetIndex = editors.findIndex((e) => e.script.uuid === targetUuid);
+    const targetIndex = editorFindIndex(targetUuid);
     if (targetIndex === -1) return;
     const targetEditor = editors[targetIndex];
 
@@ -674,7 +680,7 @@ function ScriptEditor() {
 
   const handleEditorChange = (uuid: string, newCode: string) => {
     const editors = editorsRef.current;
-    const targetIndex = editors.findIndex((v) => v.script.uuid === uuid);
+    const targetIndex = editorFindIndex(uuid);
     if (targetIndex < 0) return;
     const targetEditor = editors[targetIndex];
     const isChanged = targetEditor.code !== newCode;
@@ -912,7 +918,7 @@ function ScriptEditor() {
               )}
               {filteredScriptList.map((script) => {
                 const scriptListScript = scriptList.find((v) => v.uuid === script.uuid);
-                const editor = editorsRef.current.find((e) => e.script.uuid === script.uuid);
+                const editor = editorFindItem(script.uuid);
                 const colorRGB = !editor ? "173,173,173" : editor.isChanged ? "230,155,31" : "199,199,199";
                 const alpha = scriptListScript?.status === 2 ? 0.8 : 1.0;
                 const colorRGBA = `rgba(${colorRGB},${alpha})`;
@@ -997,7 +1003,7 @@ function ScriptEditor() {
               // 只取最后一个
               clearTimeout(cid);
               cid = setTimeout(() => {
-                if (editorsRef.current.findIndex((e) => e.script.uuid === uuid) >= 0) {
+                if (editorFindIndex(uuid) >= 0) {
                   openScript(uuid);
                 }
               }, 1);
