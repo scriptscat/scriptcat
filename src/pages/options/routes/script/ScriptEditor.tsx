@@ -220,6 +220,12 @@ function ScriptEditor() {
   const editorFindItem = (uuid: string) => {
     return editorsRef.current.find((e) => e.script.uuid === uuid);
   };
+  const delayedEditorFocus = (editor: editor.ICodeEditor | null | undefined, delayMs: number = 100) => {
+    editor = !editor ? editorsRef.current.find((e) => e.active && e.script.uuid === selectedScript)?.editor : editor;
+    if (editor) {
+      setTimeout(editor.focus.bind(editor), delayMs);
+    }
+  };
   const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
   const [selectedScript, setSelectSciptButtonAndTab] = useState<string>("");
@@ -665,11 +671,7 @@ function ScriptEditor() {
     if (pageUrlParams.uuid !== selectedScript) {
       navigate(`/script/editor/${selectedScript}`, { replace: true });
     }
-    const activeEditor = editorsRef.current.find((e) => e.active);
-    if (activeEditor && activeEditor.script.uuid === selectedScript && activeEditor.editor) {
-      const editor = activeEditor.editor;
-      setTimeout(() => editor.focus(), 100);
-    }
+    delayedEditorFocus(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedScript]); // 只在activeTab变化时执行
 
@@ -956,6 +958,9 @@ function ScriptEditor() {
                         modal.confirm!({
                           title: t("confirm_delete_script"),
                           content: t("confirm_delete_script_content", { name: i18nName(script) }),
+                          focusLock: false,
+                          simple: false,
+                          closable: true,
                           onOk: () => {
                             scriptClient
                               .deletes([script.uuid])
@@ -971,6 +976,9 @@ function ScriptEditor() {
                                 LoggerCore.logger(Logger.E(err)).debug("delete script error");
                                 Message.error(`${t("delete_failed")}: ${err}`);
                               });
+                          },
+                          onCancel: () => {
+                            delayedEditorFocus(null);
                           },
                         });
                       }}
@@ -1098,13 +1106,12 @@ function ScriptEditor() {
                           v.script.uuid === item.script.uuid
                             ? {
                                 ...v,
-                                editor:
-                                  (v.active && setTimeout(() => e.focus(), 100), // 编辑器实例创建后立即聚焦一次
-                                  e),
+                                editor: e,
                               }
                             : v
                         )
                       );
+                      delayedEditorFocus(e); // 编辑器实例创建后立即聚焦一次
                     }}
                     onChange={(code) => handleEditorChange(item.script.uuid, code)}
                   />
