@@ -915,7 +915,7 @@ function ScriptEditor() {
                 const colorRGBA = `rgba(${colorRGB},${alpha})`;
                 const delBtnRGBA = `rgba(173,173,173,${alpha})`;
                 return (
-                  <div key={`s_${script.uuid}`} className="tw-relative tw-group" style={{ overflow: "hidden" }}>
+                  <div key={`s_${script.uuid}`} className="tw-relative tw-group">
                     <Button
                       size="mini"
                       className="tw-text-left tw-w-full"
@@ -948,6 +948,7 @@ function ScriptEditor() {
                         background: "transparent",
                         color: `${delBtnRGBA}`,
                         boxShadow: "none",
+                        position: "absolute",
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
