@@ -625,7 +625,7 @@ function ScriptEditor() {
 
   // 通用的编辑器删除处理函数
   const handleDeleteEditor = async (targetUuid: string, needConfirm: boolean = false) => {
-    const editors = editorsRef.current!;
+    const editors = editorsRef.current;
     const targetIndex = editorFindIndex(targetUuid);
     if (targetIndex === -1) return;
     const targetEditor = editors[targetIndex];
