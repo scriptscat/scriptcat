@@ -14,7 +14,8 @@ const CustomLink: React.FC<{
 
   const click = () => {
     if (window.onbeforeunload) {
-      if (confirm(t("confirm_leave_page"))) {
+      // 目前仅用于 ScriptEditor 编辑内容修改提示
+      if (confirm(t("script_modified_leave_confirm"))) {
         nav({
           pathname: to,
           search,

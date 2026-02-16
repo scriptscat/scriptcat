@@ -175,7 +175,11 @@ type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
 let cid: ReturnType<typeof setTimeout>;
 
-const popstate = () => {
+const popstate: EventListener = (e: Event) => {
+  if (!e.isTrusted) return;
+  if (location.href.startsWith(chrome.runtime.getURL("/src/options.html#/script/editor"))) {
+    return;
+  }
   if (confirm(i18n.t("script_modified_leave_confirm"))) {
     window.history.back();
     window.removeEventListener("popstate", popstate);
