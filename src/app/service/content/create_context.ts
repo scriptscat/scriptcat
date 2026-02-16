@@ -2,11 +2,10 @@ import type { TScriptInfo } from "@App/app/repo/scripts";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
-import { GMContextApiGet } from "./gm_api/gm_context";
 import { protect } from "./gm_api/gm_context";
 import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
-import { createGMBase } from "./gm_api/gm_api";
+import { createGMBase, createGMApis } from "./gm_api/gm_api";
 
 // 构建沙盒上下文
 export const createContext = (
@@ -27,8 +26,7 @@ export const createContext = (
       loadScriptResolve = resolve;
     });
   }
-  let invalid = false;
-  const context = createGMBase({
+  const gtx = createGMBase({
     prefix: envPrefix,
     message,
     scriptRes,
@@ -41,57 +39,22 @@ export const createContext = (
     window: {
       // onurlchange: null,
     },
-    grantSet: new Set(),
     loadScriptPromise,
     loadScriptResolve,
-    setInvalidContext() {
-      if (invalid) return;
-      invalid = true;
-      this.valueChangeListener.clear();
-      this.EE.removeAllListeners();
-      this.runFlag = `${uuidv4()}(invalid)`; // 更改 uuid 防止 runFlag 相关操作
-      // 释放记忆
-      this.message = null;
-      this.scriptRes = null;
-      this.valueChangeListener = null;
-      this.EE = null;
-    },
-    isInvalidContext() {
-      return invalid;
-    },
   });
+  const gmApis = createGMApis(gtx, scriptGrants);
   const grantedAPIs: { [key: string]: any } = {};
-  const __methodInject__ = (grant: string): boolean => {
-    const grantSet: Set<string> = context.grantSet;
-    const s = GMContextApiGet(grant);
-    if (!s) return false; // @grant 的定义未实现，略过 (返回 false 表示 @grant 不存在)
-    if (grantSet.has(grant)) return true; // 重复的@grant，略过 (返回 true 表示 @grant 存在)
-    grantSet.add(grant);
-    for (const { fnKey, api, param } of s) {
-      grantedAPIs[fnKey] = api.bind(context);
-      const depend = param?.depend;
-      if (depend) {
-        for (const grant of depend) {
-          __methodInject__(grant);
-        }
-      }
-    }
-    return true;
-  };
-  for (const grant of scriptGrants) {
-    // GM. 与 GM_ 都需要注入
-    __methodInject__(grant);
-    if (grant.startsWith("GM.")) {
-      __methodInject__(grant.replace("GM.", "GM_"));
-    } else if (grant.startsWith("GM_")) {
-      __methodInject__(grant.replace("GM_", "GM."));
-    }
+
+  for (const [key, value] of Object.entries(gmApis)) {
+    (gmApis as any)[key] = undefined; // 释放不需要的函数
+    if (key[0] === "_" || typeof value !== "function") continue;
+    grantedAPIs[key] = value;
   }
   // 兼容GM.Cookie.*
   for (const fnKey of Object.keys(grantedAPIs)) {
     const fnKeyArray = fnKey.split(".");
     const m = fnKeyArray.length;
-    let g = context;
+    let g = gtx;
     let s = "";
     for (let i = 0; i < m; i++) {
       const part = fnKeyArray[i];
@@ -99,8 +62,8 @@ export const createContext = (
       g = g[part] || (g[part] = grantedAPIs[s] || {});
     }
   }
-  context.unsafeWindow = window;
-  return context;
+  gtx.unsafeWindow = window;
+  return gtx;
 };
 
 const noEval = false;
