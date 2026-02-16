@@ -651,7 +651,7 @@ function ScriptEditor() {
 
     setEditors((prev) => {
       // 删除目标编辑器
-      const filtered = prev.filter((_, index) => index !== targetIndex);
+      const filtered = prev.filter((e) => e.script.uuid !== targetUuid);
       // 如果删除的是当前激活的编辑器，需要激活其他编辑器
       if (targetEditor.active && prev.length > 0) {
         // 如果删除的是最后一个，激活前一个
@@ -679,15 +679,11 @@ function ScriptEditor() {
   }, [selectedScript]); // 只在activeTab变化时执行
 
   const handleEditorChange = (uuid: string, newCode: string) => {
-    const editors = editorsRef.current;
-    const targetIndex = editorFindIndex(uuid);
-    if (targetIndex < 0) return;
-    const targetEditor = editors[targetIndex];
+    const targetEditor = editorFindItem(uuid);
+    if (!targetEditor) return;
     const isChanged = targetEditor.code !== newCode;
     if (targetEditor.isChanged === isChanged) return;
-    const ret = [...editors];
-    ret[targetIndex] = { ...targetEditor, isChanged: isChanged };
-    setEditors(ret);
+    setEditors((prev) => prev.map((e) => (e.script.uuid !== uuid ? e : { ...e, isChanged: isChanged })));
   };
 
   const filteredScriptList = useMemo(() => {
