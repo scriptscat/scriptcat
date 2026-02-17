@@ -325,8 +325,10 @@
     "header_other_update": "crwdns12784:0crwdne12784:0"
   },
   "downloading_status_text": "Downloading. Received {{bytes}}.",
-  "install_page_loading": "Installation page loading",
-  "invalid_page": "Invalid page",
+  "install_page_please_wait": "Please wait",
+  "install_page_loading": "Loading Installation Page",
+  "install_page_load_failed": "Failed to Load Installation Page",
+  "invalid_page": "Invalid Page",
   "background_script_tag": "crwdns8460:0crwdne8460:0",
   "scheduled_script_tag": "crwdns8462:0crwdne8462:0",
   "background_script": "crwdns8464:0crwdne8464:0",
@@ -514,8 +516,6 @@
   "editor_config_format_error": "crwdns10834:0crwdne10834:0",
   "editor_type_definition_reset": "crwdns10836:0crwdne10836:0",
   "editor_type_definition_saved": "crwdns10838:0crwdne10838:0",
-  "layout": "crwdns12780:0crwdne12780:0",
-  "hide_script_list": "crwdns12782:0crwdne12782:0",
   "script_list": {
     "sidebar": {
       "stopped": "crwdns12794:0crwdne12794:0",
@@ -547,5 +547,9 @@
     "subscribe_update": "crwdns12854:0{{subscribeName}}crwdne12854:0",
     "subscribe_update_desc": "crwdns12856:0{{newScripts}}crwdnd12856:0{{deletedScripts}}crwdne12856:0"
   },
-  "loading": "crwdns12870:0crwdne12870:0"
+  "loading": "crwdns12870:0crwdne12870:0",
+  "editor": {
+    "show_script_list": "Show Script List",
+    "hide_script_list": "Hide Script List"
+  }
 }

@@ -334,7 +334,9 @@
     "header_other_update": "Andere verfügbare Updates"
   },
   "downloading_status_text": "Wird heruntergeladen. {{bytes}} empfangen.",
+  "install_page_please_wait": "Bitte warten Sie",
   "install_page_loading": "Installationsseite wird geladen",
+  "install_page_load_failed": "Installationsseite konnte nicht geladen werden",
   "invalid_page": "Ungültige Seite",
   "background_script_tag": "Dies ist ein Hintergrundskript",
   "scheduled_script_tag": "Dies ist ein geplantes Skript",
@@ -528,8 +530,6 @@
   "editor_config_format_error": "Editor-Konfiguration Formatfehler",
   "editor_type_definition_reset": "Editor-Typdefinitionen wurden zurückgesetzt",
   "editor_type_definition_saved": "Editor-Typdefinitionen wurden gespeichert",
-  "layout": "Layout",
-  "hide_script_list": "Skriptliste ausblenden",
   "script_list": {
     "sidebar": {
       "stopped": "Gestoppt",
@@ -574,5 +574,9 @@
     "enable_now": "Jetzt aktivieren",
     "maybe_later": "Vielleicht später",
     "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern."
+  },
+  "editor": {
+    "show_script_list": "Skriptliste anzeigen",
+    "hide_script_list": "Skriptliste ausblenden"
   }
 }

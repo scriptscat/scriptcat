@@ -294,6 +294,20 @@ const MainLayout: React.FC<{
         return <Empty description={t("no_data")} />;
       }}
       locale={arcoLocale(i18n.language)}
+      componentConfig={{
+        Select: {
+          getPopupContainer: (node) => {
+            return node;
+          },
+        },
+      }}
+      getPopupContainer={(node) => {
+        let p = node.parentNode as Element;
+        p = (p.closest("button")?.parentNode as Element) || p; // 確保 ancestor 沒有 button 元素
+        p = (p.closest("span")?.parentNode as Element) || p; // 確保 ancestor 沒有 span 元素
+        p = (p.closest("aside")?.parentNode as Element) || p; // 確保 ancestor 沒有 aside 元素
+        return p;
+      }}
     >
       {contextHolder}
       <Layout className={"tw-min-h-screen"}>
