@@ -1333,6 +1333,7 @@ export default class GMApi {
               });
               // 关闭通知
               chrome.notifications.clear(notificationId);
+              cacheInstance.del(`notification:${notificationId}:options`);
             }
           } else if (event === "close") {
             // 删除缓存
