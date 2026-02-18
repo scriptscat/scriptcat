@@ -16,6 +16,13 @@ export class ScriptRuntime {
     private readonly messageFlag: string
   ) {}
 
+  // content环境的特殊初始化
+  contentInit() {
+    this.server.on("runtime/gmApi", (data: EmitEventRequest) => {
+      console.log("gmApi", data);
+    });
+  }
+
   init() {
     this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
       // 转发给脚本

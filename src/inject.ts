@@ -25,7 +25,10 @@ getEventFlag(messageFlag, (eventFlag: string) => {
   logger.logger().debug("inject start");
 
   const server = new Server("inject", msg);
-  const scriptExecutor = new ScriptExecutor(msg);
+  const scriptExecutor = new ScriptExecutor(
+    msg,
+    new CustomEventMessage(`${ScriptEnvTag.content}${scriptEnvTag}`, true)
+  );
   const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, messageFlag);
   runtime.init();
 

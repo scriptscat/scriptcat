@@ -69,6 +69,9 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected message?: Message | null;
 
+  @GMContext.protected()
+  protected contentMsg!: Message;
+
   // Extension Context 无效时释放 scriptRes
   @GMContext.protected()
   protected scriptRes?: ScriptRunResource | null;

@@ -25,7 +25,8 @@ getEventFlag(messageFlag, (eventFlag: string) => {
   logger.logger().debug("content start");
 
   const server = new Server("content", msg);
-  const scriptExecutor = new ScriptExecutor(msg);
+  const scriptExecutor = new ScriptExecutor(msg, new CustomEventMessage(`${ScriptEnvTag.inject}${scriptEnvTag}`, true));
   const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, messageFlag);
+  runtime.contentInit();
   runtime.init();
 });

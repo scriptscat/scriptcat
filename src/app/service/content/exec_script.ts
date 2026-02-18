@@ -27,6 +27,7 @@ export default class ExecScript {
     scriptRes: TScriptInfo,
     envPrefix: "scripting" | "offscreen",
     message: Message,
+    contentMsg: Message,
     code: string | ScriptFunc,
     envInfo: GMInfoEnv,
     globalInjection?: { [key: string]: any } // 主要是全域API. @grant none 时无效
@@ -52,7 +53,7 @@ export default class ExecScript {
       this.named = { GM: { info: GM_info }, GM_info };
     } else {
       // 构建脚本GM上下文
-      this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, grantSet);
+      this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, contentMsg, grantSet);
       if (globalInjection) {
         Object.assign(this.sandboxContext, globalInjection);
       }
