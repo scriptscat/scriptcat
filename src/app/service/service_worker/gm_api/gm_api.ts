@@ -713,6 +713,15 @@ export default class GMApi {
         }
         // @connect 没有匹配，但有列明 @connect 的话，则自动拒绝
         if (request.script.metadata.connect?.find((e) => !!e)) {
+          // 查询数据库权限记录，如果之前用户允许过该域名，则放行，否则拒绝
+          const ret = await GMApiInstance.permissionVerify.queryPermission(request, {
+            permission: "cors",
+            permissionValue: url.hostname,
+            wildcard: true,
+          });
+          if (ret && ret.allow) {
+            return true;
+          }
           request.extraCode = xhrExtraCode.DOMAIN_NOT_INCLUDED;
           return false;
         }
