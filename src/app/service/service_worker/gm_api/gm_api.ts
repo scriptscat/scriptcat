@@ -277,7 +277,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    confirm: async (request: GMApiRequest<[string, GMTypes.CookieDetails]>, sender: IGetSender) => {
+    confirm: async (request: GMApiRequest<[string, GMTypes.CookieDetails]>, sender: IGetSender, gmApi: GMApi) => {
       if (request.params[0] === "store") {
         return true;
       }
@@ -293,6 +293,14 @@ export default class GMApi {
         url.hostname = detail.domain || "";
       }
       if (getConnectMatched(request.script.metadata.connect, url, sender) === ConnectMatch.NONE) {
+        // 检查是否配置了权限
+        const ret = await gmApi.permissionVerify.queryPermission(request, {
+          permission: "cookie",
+          permissionValue: url.host,
+        });
+        if (ret && ret.allow) {
+          return true;
+        }
         throw new Error("hostname must be in the definition of connect");
       }
       const metadata: { [key: string]: string } = {};
