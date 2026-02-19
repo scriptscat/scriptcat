@@ -186,6 +186,10 @@ export default class PermissionVerify {
     });
   }
 
+  buildCacheKey(request: GMApiRequest, confirm: ConfirmParam) {
+    return `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
+  }
+
   async queryPermission<T>(
     request: GMApiRequest<T>,
     confirm: {
@@ -194,7 +198,7 @@ export default class PermissionVerify {
       wildcard?: boolean;
     }
   ): Promise<Permission | undefined> {
-    const cacheKey = `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
+    const cacheKey = this.buildCacheKey(request, confirm);
     // 从数据库中查询是否有此权限
     return await cacheInstance.getOrSet(cacheKey, async () => {
       let model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, confirm.permissionValue || "");
@@ -249,7 +253,7 @@ export default class PermissionVerify {
     }
     // 临时 放入缓存
     if (userConfirm.type >= 2) {
-      const cacheKey = `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
+      const cacheKey = this.buildCacheKey(request, confirm);
       cacheInstance.set(cacheKey, model);
     }
     // 总是 放入数据库
