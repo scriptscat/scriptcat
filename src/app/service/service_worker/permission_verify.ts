@@ -28,6 +28,8 @@ export interface ConfirmParam {
   wildcard?: boolean;
   // 权限内容
   permissionContent?: string;
+  // 直接拒绝，如果为true，则不弹出确认窗口，直接拒绝权限
+  directDeny?: boolean;
 }
 
 export interface UserConfirm {
@@ -219,6 +221,9 @@ export default class PermissionVerify {
         return true;
       }
       // 权限拒绝
+      throw new Error("permission denied");
+    }
+    if (confirm.directDeny) {
       throw new Error("permission denied");
     }
     // 没有权限,则弹出页面让用户进行确认

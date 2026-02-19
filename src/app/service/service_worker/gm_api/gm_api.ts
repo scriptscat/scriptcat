@@ -65,12 +65,6 @@ const generateUniqueMarkerID = () => {
   return `MARKER::${u1}${u2}`;
 };
 
-const enum xhrExtraCode {
-  INVALID_URL = 0x20,
-  DOMAIN_NOT_INCLUDED = 0x30,
-  DOMAIN_IN_BLACKLIST = 0x40,
-}
-
 type OnBeforeSendHeadersOptions = `${chrome.webRequest.OnBeforeSendHeadersOptions}`;
 type OnHeadersReceivedOptions = `${chrome.webRequest.OnHeadersReceivedOptions}`;
 
@@ -689,18 +683,37 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    confirm: async (request: GMApiRequest<[GMSend.XHRDetails]>, sender: IGetSender, GMApiInstance: GMApi) => {
-      const config = <GMSend.XHRDetails>request.params[0];
+    confirm: async (request: GMApiRequest<[GMSend.XHRDetails?]>, sender: IGetSender, GMApiInstance: GMApi) => {
+      const msgConn = sender.getConnect();
+      if (!msgConn) {
+        throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
+      }
+      const throwErrorFn = (error: string) => {
+        msgConn.sendMessage({
+          action: "onerror",
+          data: {
+            status: 0,
+            responseHeaders: "",
+            error: `${error}`,
+            readyState: 4, // ERROR. DONE.
+          },
+        });
+        return new Error(`${error}`);
+      };
+      const details = request.params[0];
+      if (!details) {
+        throw throwErrorFn("param is failed");
+      }
       let url;
       try {
-        url = new URL(config.url);
+        url = new URL(details.url);
       } catch {
-        request.extraCode = xhrExtraCode.INVALID_URL;
-        return false;
+        const msg = `Refused to connect to "${details.url}": The url is invalid`;
+        throw throwErrorFn(msg);
       }
       if (GMApiInstance.gmExternalDependencies.isBlacklistNetwork(url)) {
-        request.extraCode = xhrExtraCode.DOMAIN_IN_BLACKLIST;
-        return false;
+        const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
+        throw throwErrorFn(msg);
       }
       const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
       if (connectMatched === ConnectMatch.ALL) {
@@ -722,15 +735,15 @@ export default class GMApi {
           if (ret && ret.allow) {
             return true;
           }
-          request.extraCode = xhrExtraCode.DOMAIN_NOT_INCLUDED;
-          return false;
+          const msg = `Refused to connect to "${details.url}": This domain is not a part of the @connect list`;
+          throw throwErrorFn(msg);
         }
         // 其他情况：要询问用户
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
       metadata[i18next.t("request_domain")] = url.hostname;
-      metadata[i18next.t("request_url")] = config.url;
+      metadata[i18next.t("request_url")] = details.url;
 
       return {
         permission: "cors",
@@ -744,14 +757,12 @@ export default class GMApi {
     },
     alias: ["GM.xmlHttpRequest"],
   })
-  async GM_xmlhttpRequest(request: GMApiRequest<[GMSend.XHRDetails?]>, sender: IGetSender) {
+  async GM_xmlhttpRequest(request: GMApiRequest<[GMSend.XHRDetails]>, sender: IGetSender) {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("GM_xmlhttpRequest ERROR: sender is not MessageConnect");
     }
-    const msgConn = sender.getConnect();
-    if (!msgConn) {
-      throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
-    }
+    const msgConn = sender.getConnect()!;
+
     let isConnDisconnected = false;
     msgConn.onDisconnect(() => {
       isConnDisconnected = true;
@@ -779,24 +790,7 @@ export default class GMApi {
     };
 
     const details = request.params[0];
-    if (!details) {
-      throw throwErrorFn("param is failed");
-    }
 
-    if (request.extraCode === xhrExtraCode.INVALID_URL) {
-      const msg = `Refused to connect to "${details.url}": The url is invalid`;
-      throw throwErrorFn(msg);
-    }
-    if (request.extraCode === xhrExtraCode.DOMAIN_NOT_INCLUDED) {
-      // 'Refused to connect to "https://nonexistent-domain-abcxyz.test/": This domain is not a part of the @connect list'
-      const msg = `Refused to connect to "${details.url}": This domain is not a part of the @connect list`;
-      throw throwErrorFn(msg);
-    }
-    if (request.extraCode === xhrExtraCode.DOMAIN_IN_BLACKLIST) {
-      // 'Refused to connect to "https://example.org/": URL is blacklisted'
-      const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
-      throw throwErrorFn(msg);
-    }
     try {
       /*
         There are TM-specific parameters:
