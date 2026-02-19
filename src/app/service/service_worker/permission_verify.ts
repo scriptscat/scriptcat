@@ -186,7 +186,13 @@ export default class PermissionVerify {
     });
   }
 
-  buildCacheKey(request: GMApiRequest, confirm: ConfirmParam) {
+  buildCacheKey(
+    request: GMApiRequest,
+    confirm: {
+      permission: string;
+      permissionValue?: string;
+    }
+  ) {
     return `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
   }
 
