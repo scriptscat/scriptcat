@@ -702,11 +702,11 @@ export default class GMApi {
           data: {
             status: 0,
             responseHeaders: "",
-            error: `${error}`,
+            error: error,
             readyState: 4, // ERROR. DONE.
           },
         });
-        return new Error(`${error}`);
+        return new Error(error);
       };
       const details = request.params[0];
       if (!details) {
@@ -781,21 +781,6 @@ export default class GMApi {
     const markerID = generateUniqueMarkerID();
 
     const resultParam = new SWRequestResultParams(markerID);
-
-    const throwErrorFn = (error: string) => {
-      if (!isConnDisconnected) {
-        msgConn.sendMessage({
-          action: "onerror",
-          data: {
-            status: resultParam.statusCode,
-            responseHeaders: resultParam.responseHeaders,
-            error: `${error}`,
-            readyState: 4, // ERROR. DONE.
-          },
-        });
-      }
-      return new Error(`${error}`);
-    };
 
     const details = request.params[0];
 
@@ -890,7 +875,19 @@ export default class GMApi {
         msgConn.onDisconnect(offscreenCon.disconnect.bind(offscreenCon));
       }
     } catch (e: any) {
-      throw throwErrorFn(`GM_xmlhttpRequest ERROR: ${e?.message || e || "Unknown Error"}`);
+      const errorMsg = `GM_xmlhttpRequest ERROR: ${e?.message || e || "Unknown Error"}`;
+      if (!isConnDisconnected) {
+        msgConn.sendMessage({
+          action: "onerror",
+          data: {
+            status: resultParam.statusCode,
+            responseHeaders: resultParam.responseHeaders,
+            error: errorMsg,
+            readyState: 4, // ERROR. DONE.
+          },
+        });
+      }
+      throw new Error(errorMsg);
     }
   }
 
