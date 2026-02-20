@@ -10,6 +10,7 @@ import {
   getBrowserType,
   getStorageName,
   openInCurrentTab,
+  sleep,
   stringMatching,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
@@ -764,17 +765,33 @@ export class ScriptService {
         setTimeout(resolve, Math.round(MIN_DELAY + ((++i / n + Math.random()) / 2) * (MAX_DELAY - MIN_DELAY)))
       );
 
-    return Promise.all(
-      (uuids as string[]).map(async (uuid, _idx) => {
-        const script = scripts[_idx];
-        const res =
-          !script || script.uuid !== uuid || !checkScripts.includes(script)
-            ? false
-            : await this._checkUpdateAvailable(script, delayFn);
-        if (!res) return false;
-        return res;
-      })
-    );
+    const results = new Map<
+      string,
+      | false
+      | {
+          updateAvailable: true;
+          code: string;
+          metadata: Partial<Record<string, string[]>>;
+        }
+    >();
+
+    await Promise.race([
+      sleep(300_000), // 5 minutes
+      Promise.allSettled(
+        (uuids as string[]).map(async (uuid, _idx) => {
+          results.set(uuid, false); // 確保次序
+          const script = scripts[_idx];
+          const res =
+            !script || script.uuid !== uuid || !checkScripts.includes(script)
+              ? false
+              : await this._checkUpdateAvailable(script, delayFn);
+          if (!res) return false;
+          results.set(uuid, res);
+          return res;
+        })
+      ),
+    ]);
+    return [...results.values()];
   }
 
   async _checkUpdateAvailable(
