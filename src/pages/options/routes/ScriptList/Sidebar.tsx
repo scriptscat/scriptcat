@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Space } from "@arco-design/web-react";
 import { IconDown } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { FilterItem } from "./hooks";
+import type { FilterItem, TFilterKey, TSelectFilter, TSelectFilterKeys } from "./hooks";
 
 interface SidebarProps {
   /**
@@ -15,18 +15,18 @@ interface SidebarProps {
     tagItems: FilterItem[];
     sourceItems: FilterItem[];
   };
-  selectedFilters: Record<string, string | number>;
-  setSelectedFilters: React.Dispatch<React.SetStateAction<Record<string, string | number>>>;
+  selectedFilters: TSelectFilter;
+  setSelectedFilters: ReactStateSetter<TSelectFilter>;
 }
 
 interface FilterGroupProps {
   title: string;
   items: FilterItem[];
-  groupKey: string;
-  collapsedGroups: Set<string>;
-  selectedFilters: Record<string, string | number>;
-  onFilterClick: (groupKey: string, itemKey: string | number) => void;
-  onToggleCollapse: (groupKey: string) => void;
+  groupKey: TSelectFilterKeys;
+  collapsedGroups: Set<TSelectFilterKeys>;
+  selectedFilters: TSelectFilter;
+  onFilterClick: (groupKey: TSelectFilterKeys, itemKey: TFilterKey) => void;
+  onToggleCollapse: (groupKey: TSelectFilterKeys) => void;
 }
 
 /**
@@ -145,17 +145,17 @@ FilterGroup.displayName = "FilterGroup";
 const ScriptListSidebar: React.FC<SidebarProps> = React.memo(
   ({ open, filterItems, selectedFilters, setSelectedFilters }) => {
     const { t } = useTranslation();
-    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<TSelectFilterKeys>>(new Set());
     const { statusItems, typeItems, tagItems, sourceItems } = filterItems;
 
-    const handleFilterClick = (groupKey: string, itemKey: string | number) => {
+    const handleFilterClick = (groupKey: TSelectFilterKeys, itemKey: TFilterKey) => {
       setSelectedFilters((prev) => ({
         ...prev,
         [groupKey]: itemKey,
       }));
     };
 
-    const toggleGroupCollapse = (groupKey: string) => {
+    const toggleGroupCollapse = (groupKey: TSelectFilterKeys) => {
       setCollapsedGroups((prev) => {
         const next = new Set(prev);
         next.has(groupKey) ? next.delete(groupKey) : next.add(groupKey);

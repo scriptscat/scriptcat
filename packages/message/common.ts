@@ -14,8 +14,8 @@ export const pageDispatchEvent = performanceClone.dispatchEvent.bind(performance
 export const pageAddEventListener = performanceClone.addEventListener.bind(performanceClone);
 export const pageRemoveEventListener = performanceClone.removeEventListener.bind(performanceClone);
 const detailClone = typeof cloneInto === "function" ? cloneInto : null;
-export const pageDispatchCustomEvent = (eventType: string, detail: any) => {
-  if (detailClone && detail) detail = detailClone(detail, performanceClone);
+export const pageDispatchCustomEvent = <T = any>(eventType: string, detail: T) => {
+  if (detailClone && detail) detail = <T>detailClone(detail, performanceClone);
   const ev = new CustomEventClone(eventType, {
     detail,
     cancelable: true,

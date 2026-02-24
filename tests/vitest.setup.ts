@@ -15,6 +15,41 @@ chromeMock.runtime.getURL = vi.fn().mockImplementation((path: string) => {
   return `chrome-extension://${chrome.runtime.id}${path}`;
 });
 
+// ---- 修正 vitest 4.x.x 错误的 adoptedStyleSheets ----
+let fixAdoptedStyleSheets = false;
+if (!document.adoptedStyleSheets) fixAdoptedStyleSheets = true;
+else {
+  try {
+    document.adoptedStyleSheets = document.adoptedStyleSheets.concat([]);
+  } catch {
+    fixAdoptedStyleSheets = true;
+  }
+}
+if (fixAdoptedStyleSheets) {
+  //@ts-ignore
+  delete document.adoptedStyleSheets;
+  //@ts-ignore
+  delete Document.prototype.adoptedStyleSheets;
+
+  const map = new WeakMap<any, any>();
+  Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      let res = map.get(this);
+      if (!res) {
+        map.set(this, (res = []));
+      }
+      return res;
+    },
+    set(v) {
+      map.set(this, Object.freeze([...v])); // 模拟初版的 adoptedStyleSheets 无法 .push
+      return true;
+    },
+  });
+}
+// ---- --------------------------------------------- ----
+
 const isPrimitive = (x: any) => x !== Object(x);
 
 // Window.prototype[Symbol.toStringTag] = "Window"

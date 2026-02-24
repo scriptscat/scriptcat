@@ -5,10 +5,11 @@ import OneDriveFileSystem from "./onedrive/onedrive";
 import DropboxFileSystem from "./dropbox/dropbox";
 import WebDAVFileSystem from "./webdav/webdav";
 import ZipFileSystem from "./zip/zip";
+import S3FileSystem from "./s3/s3";
 import { t } from "@App/locales/locales";
 import LimiterFileSystem from "./limiter";
 
-export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive" | "dropbox";
+export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive" | "dropbox" | "s3";
 
 export type FileSystemParams = {
   [key: string]: {
@@ -40,6 +41,15 @@ export default class FileSystemFactory {
       case "dropbox":
         fs = new DropboxFileSystem();
         break;
+      case "s3":
+        fs = new S3FileSystem(
+          params.bucket,
+          params.region,
+          params.accessKeyId,
+          params.secretAccessKey,
+          params.endpoint
+        );
+        break;
       default:
         throw new Error("not found filesystem");
     }
@@ -63,6 +73,13 @@ export default class FileSystemFactory {
       onedrive: {},
       googledrive: {},
       dropbox: {},
+      s3: {
+        bucket: { title: t("s3_bucket_name") },
+        region: { title: t("s3_region") },
+        accessKeyId: { title: t("s3_access_key_id") },
+        secretAccessKey: { title: t("s3_secret_access_key"), type: "password" },
+        endpoint: { title: t("s3_custom_endpoint") },
+      },
     };
   }
 

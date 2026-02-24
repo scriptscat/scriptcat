@@ -26,6 +26,7 @@ import type {
   GMApiRequest,
 } from "../types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
+import type { NotificationOptionCache } from "../utils";
 import { BrowserNoSupport, notificationsUpdate } from "../utils";
 import i18n from "@App/locales/locales";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
@@ -1320,6 +1321,25 @@ export default class GMApi {
             params,
           } as NotificationMessageOption,
         });
+      } else {
+        // 从缓存中检查是不是有选项
+        const options = await cacheInstance.get<NotificationOptionCache>(`notification:${notificationId}:options`);
+        if (options) {
+          if (event === "click") {
+            if (options.url) {
+              // 打开链接
+              chrome.tabs.create({
+                url: options.url,
+              });
+              // 关闭通知
+              chrome.notifications.clear(notificationId);
+              cacheInstance.del(`notification:${notificationId}:options`);
+            }
+          } else if (event === "close") {
+            // 删除缓存
+            cacheInstance.del(`notification:${notificationId}:options`);
+          }
+        }
       }
     };
     chrome.notifications.onClosed.addListener((notificationId, byUser) => {

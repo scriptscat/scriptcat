@@ -97,8 +97,8 @@ export class ScriptClient extends Client {
     return this.do("requestCheckUpdate", uuid);
   }
 
-  sortScript(active: string, over: string) {
-    return this.do("sortScript", { active, over });
+  sortScript(data: { before: string[]; after: string[] }) {
+    return this.do("sortScript", data);
   }
 
   pinToTop(uuids: string[]) {
