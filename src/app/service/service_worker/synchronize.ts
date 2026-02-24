@@ -24,7 +24,7 @@ import { type ResourceService } from "./resource";
 import { createObjectURL } from "../offscreen/client";
 import { type CloudSyncConfig, type SystemConfig } from "@App/pkg/config/config";
 import type { TDeleteScript, TInstallScript, TInstallScriptParams } from "../queue";
-import { errorMsg, InfoNotification, makeBlobURL } from "@App/pkg/utils/utils";
+import { errorMsg, makeBlobURL } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { type ScriptService } from "./script";
@@ -32,6 +32,7 @@ import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { ExtVersion } from "@App/app/const";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import i18n, { i18nName } from "@App/locales/locales";
+import { InfoNotification } from "./utils";
 
 // type SynchronizeTarget = "local";
 
