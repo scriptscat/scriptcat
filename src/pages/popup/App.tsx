@@ -22,9 +22,10 @@ import type { ScriptMenu, TPopupScript } from "@App/app/service/service_worker/t
 import { systemConfig } from "@App/pages/store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
 import { getCurrentTab } from "@App/pkg/utils/utils";
-import { useAppContext } from "../store/AppContext";
+import { subscribeMessage } from "@App/pages/store/global";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
+import { HookManager } from "@App/pkg/utils/hookManager";
 
 const CollapseItem = Collapse.Item;
 
@@ -138,9 +139,8 @@ function App() {
     return url?.hostname ?? "";
   }, [currentUrl]);
 
-  const { subscribeMessage } = useAppContext();
   useEffect(() => {
-    let isMounted = true;
+    const hookMgr = new HookManager();
 
     const updateScriptList = (update: TUpdateEntryFn, options?: TUpdateListOption) => {
       // 当 启用/禁用/菜单改变 时，如有必要则更新 list 参考
@@ -148,7 +148,7 @@ function App() {
       setBackScriptList((prev) => updateList(prev, update, options));
     };
 
-    const unhooks = [
+    hookMgr.append(
       // 订阅脚本啟用状态变更（enableScripts），即时更新对应项目的 enable。
       subscribeMessage<TEnableScript[]>("enableScripts", (data) => {
         updateScriptList((item) => {
@@ -196,7 +196,7 @@ function App() {
           });
           if (!url) return;
           popupClient.getPopupData({ url, tabId }).then((resp) => {
-            if (!isMounted) return;
+            if (!hookMgr.isMounted) return;
 
             // 响应健全性检查：必须包含 scriptList，否则忽略此次更新
             if (!resp || !resp.scriptList) {
@@ -225,8 +225,8 @@ function App() {
             );
           });
         }
-      }),
-    ];
+      })
+    );
 
     const onCurrentUrlUpdated = (url: string, tabId: number) => {
       pageTabIdRef.current = tabId;
@@ -234,7 +234,7 @@ function App() {
       popupClient
         .getPopupData({ url, tabId })
         .then((resp) => {
-          if (!isMounted) return;
+          if (!hookMgr.isMounted) return;
 
           // 确保响应有效
           if (!resp || !resp.scriptList) {
@@ -255,14 +255,14 @@ function App() {
         })
         .catch((error) => {
           console.error("Failed to get popup data:", error);
-          if (!isMounted) return;
+          if (!hookMgr.isMounted) return;
           // 设为安全预设，避免 UI 因错误状态而崩溃
           setScriptList([]);
           setBackScriptList([]);
           setIsBlacklist(false);
         })
         .finally(() => {
-          if (!isMounted) return;
+          if (!hookMgr.isMounted) return;
           setLoading(false);
         });
     };
@@ -272,7 +272,7 @@ function App() {
         systemConfig.getEnableScript(),
         systemConfig.getCheckUpdate(),
       ]);
-      if (!isMounted) return;
+      if (!hookMgr.isMounted) return;
       setIsEnableScript(isEnableScript);
       setCheckUpdate(checkUpdate);
     };
@@ -280,7 +280,7 @@ function App() {
       // 仅在挂载时读取一次页签信息；不绑定 currentUrl 以避免重复查询
       try {
         const tab = await getCurrentTab();
-        if (!isMounted || !tab) return;
+        if (!hookMgr.isMounted || !tab) return;
         const newUrl = tab.url || "";
         setCurrentUrl((prev) => {
           if (newUrl !== prev) {
@@ -296,12 +296,8 @@ function App() {
 
     checkScriptEnableAndUpdate();
     queryTabInfo();
-    return () => {
-      isMounted = false;
-      for (const unhook of unhooks) unhook();
-      unhooks.length = 0;
-    };
-  }, [subscribeMessage]);
+    return hookMgr.unhook;
+  }, []);
 
   const { handleEnableScriptChange, handleSettingsClick, handleNotificationClick } = {
     handleEnableScriptChange: (val: boolean) => {

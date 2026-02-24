@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   Avatar,
   Button,
@@ -58,120 +58,106 @@ import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
-import { SearchFilter } from "./SearchFilter";
+import { SearchFilter, type SearchFilterKeyEntry } from "./SearchFilter";
 
 type ListType = ScriptLoading;
 
-type RowCtx = ReturnType<typeof useSortable> | null;
-const SortableRowCtx = createContext<RowCtx>(null);
+type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
+const SortableDragCtx = createContext<DragCtx>(null);
 
 // Create context for DraggableContainer
 interface DraggableContextType {
   sensors: ReturnType<typeof useSensors>;
-  scriptList: ScriptLoading[];
-  scriptListSortOrder: (params: { active: string; over: string }) => void;
+  sortableIds: string[];
+  handleDragEnd: (event: DragEndEvent) => void;
+  a11y: {
+    container: HTMLElement;
+  };
 }
 const DraggableContext = createContext<DraggableContextType | null>(null);
 
-const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  (props, ref) => {
-    const context = useContext(DraggableContext);
-    const { sensors, scriptList, scriptListSortOrder } = context || {};
-    // compute once, even if context is null (keeps hook order legal)
-    const sortableIds = useMemo(() => scriptList?.map((s) => ({ id: s.uuid })), [scriptList]);
+type DraggableContainerProps = React.HTMLAttributes<HTMLTableSectionElement>;
 
-    const { handleDragEnd } = {
-      handleDragEnd: (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over) {
-          return;
-        }
-        if (active.id !== over.id) {
-          scriptListSortOrder!({ active: active.id as string, over: over.id as string });
-        }
-      },
-    };
+const DraggableContainer = React.forwardRef<HTMLTableSectionElement, DraggableContainerProps>((props, ref) => {
+  const ctx = useContext(DraggableContext);
+  const { sensors, sortableIds, handleDragEnd, a11y } = ctx || {};
 
-    return !sortableIds?.length ? (
-      // render a plain tbody to keep the table structure intact
-      <tbody ref={ref} {...props} />
-    ) : (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToVerticalAxis]}
-        accessibility={{ container: document.body }}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-          <tbody ref={ref} {...props} />
-        </SortableContext>
-      </DndContext>
-    );
-  }
-);
+  // compute once, even if context is null (keeps hook order legal)
+
+  return !sortableIds?.length ? (
+    // render a plain tbody to keep the table structure intact
+    <tbody ref={ref} {...props} />
+  ) : (
+    <DndContext
+      sensors={sensors}
+      onDragEnd={handleDragEnd}
+      collisionDetection={closestCenter}
+      accessibility={a11y}
+      modifiers={[restrictToVerticalAxis]}
+    >
+      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+        <tbody ref={ref} {...props} />
+      </SortableContext>
+    </DndContext>
+  );
+});
 
 DraggableContainer.displayName = "DraggableContainer";
 
-function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
-  return (node) => {
-    for (const ref of refs) {
-      if (typeof ref === "function") {
-        ref(node);
-      } else if (ref) {
-        (ref as React.MutableRefObject<T | null>).current = node;
-      }
-    }
+const DraggableRow = ({
+  record,
+  index: _index,
+  ...rest
+}: { record: ScriptLoading; index: number } & React.HTMLAttributes<HTMLTableRowElement>) => {
+  const sortable = useSortable({ id: record.uuid });
+  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef } = sortable;
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
   };
-}
 
-const DraggableRow = React.memo(
-  React.forwardRef<HTMLTableRowElement, { record: any; index: any } & React.HTMLAttributes<HTMLTableRowElement>>(
-    ({ record, index: _index, ...rest }, ref) => {
-      const sortable = useSortable({ id: record.uuid });
-      const { setNodeRef, transform, transition } = sortable;
-
-      const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-      };
-
-      return (
-        <SortableRowCtx.Provider value={sortable}>
-          <tr ref={composeRefs(setNodeRef, ref)} style={style} {...rest} />
-        </SortableRowCtx.Provider>
-      );
-    }
-  )
-);
-DraggableRow.displayName = "DraggableRow";
-
-const DragHandle = () => {
-  const sortable = useContext(SortableRowCtx);
-
-  if (!sortable)
-    return (
-      <IconDragDotVertical
-        style={{
-          cursor: "move",
-        }}
-      />
-    );
-
-  const { listeners, setActivatorNodeRef } = sortable;
+  const ctxValue = useMemo(
+    () => ({
+      listeners: listeners,
+      setActivatorNodeRef: setActivatorNodeRef,
+    }),
+    [listeners, setActivatorNodeRef]
+  );
 
   return (
-    <IconDragDotVertical
-      {...listeners}
-      ref={setActivatorNodeRef}
-      style={{
-        cursor: "move",
-      }}
-    />
+    <SortableDragCtx.Provider value={ctxValue}>
+      <tr ref={setNodeRef} style={style} {...rest} />
+    </SortableDragCtx.Provider>
   );
 };
 
-const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType; navigate: any; t: any }) => {
+DraggableRow.displayName = "DraggableRow";
+
+const DragHandle = () => {
+  const sortable = useContext(SortableDragCtx);
+
+  const { listeners, setActivatorNodeRef } = sortable || {};
+  const style = { cursor: "move", padding: 6 };
+
+  return !setActivatorNodeRef ? (
+    <span style={style}>
+      <IconDragDotVertical />
+    </span>
+  ) : (
+    <span ref={setActivatorNodeRef} {...listeners} style={style}>
+      <IconDragDotVertical />
+    </span>
+  );
+};
+
+type ApplyToRunStatusCellProps = {
+  item: ListType;
+  navigate: ReturnType<typeof useNavigate>;
+  t: ReturnType<typeof useTranslation>[0];
+};
+
+const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: ApplyToRunStatusCellProps) => {
   const { toLogger } = {
     toLogger: () =>
       navigate({
@@ -248,27 +234,21 @@ const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType
 });
 ApplyToRunStatusCell.displayName = "ApplyToRunStatusCell";
 
+type ActionCellProps = {
+  item: ScriptLoading;
+  setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
+  setCloudScript: (script: Script) => void;
+  t: ReturnType<typeof useTranslation>[0];
+  handleDelete: (item: ScriptLoading) => void;
+  handleConfig: (
+    item: ScriptLoading,
+    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
+  ) => void;
+  handleRunStop: (item: ScriptLoading) => Promise<void>;
+};
+
 const ActionCell = React.memo(
-  ({
-    item,
-    setUserConfig,
-    setCloudScript,
-    t,
-    handleDelete,
-    handleConfig,
-    handleRunStop,
-  }: {
-    item: ScriptLoading;
-    setUserConfig: any;
-    setCloudScript: any;
-    t: any;
-    handleDelete: (item: ScriptLoading) => void;
-    handleConfig: (
-      item: ScriptLoading,
-      setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
-    ) => void;
-    handleRunStop: (item: ScriptLoading, t: any) => Promise<void>;
-  }) => {
+  ({ item, setUserConfig, setCloudScript, t, handleDelete, handleConfig, handleRunStop }: ActionCellProps) => {
     return (
       <Button.Group>
         <Link to={`/script/editor/${item.uuid}`}>
@@ -305,7 +285,7 @@ const ActionCell = React.memo(
             type="text"
             icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
             loading={item.actionLoading}
-            onClick={() => handleRunStop(item, t)}
+            onClick={() => handleRunStop(item)}
             style={{
               color: "var(--color-text-2)",
             }}
@@ -315,7 +295,7 @@ const ActionCell = React.memo(
           <Button
             type="text"
             icon={<RiUploadCloudFill />}
-            onClick={() => setCloudScript(item, setCloudScript)}
+            onClick={() => setCloudScript(item)}
             style={{
               color: "var(--color-text-2)",
             }}
@@ -342,6 +322,7 @@ SortRender.displayName = "SortRender";
 const EnableSwitchCell = React.memo(
   ({ item, updateScripts }: { item: ScriptLoading; updateScripts: any }) => {
     const { uuid } = item;
+    // console.log("Rendered - " + item.name); // 用于检查垃圾React有否过度更新
     return (
       <EnableSwitch
         status={item.status}
@@ -403,16 +384,109 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
 NameCell.displayName = "NameCell";
 
 const VersionCell = React.memo(({ item }: { item: ListType }) => {
-  return item.metadata.version && item.metadata.version[0];
+  return item.metadata.version?.[0] || "0.0";
 });
 VersionCell.displayName = "VersionCell";
+
+const TitleCell = React.memo(
+  ({
+    sidebarOpen,
+    setSidebarOpen,
+    setViewMode,
+    t,
+  }: {
+    sidebarOpen: boolean;
+    setSidebarOpen: ReactStateSetter<boolean>;
+    setViewMode: (mode: "card" | "table") => void;
+    t: ReturnType<typeof useTranslation>[0];
+  }) => {
+    return (
+      <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
+        <span>{t("action")}</span>
+        <Space size={4}>
+          <Tooltip content={sidebarOpen ? t("close_sidebar") : t("open_sidebar")}>
+            <Button
+              icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+              iconOnly
+              type="text"
+              size="small"
+              style={{
+                color: "var(--color-text-2)",
+              }}
+              onClick={() => {
+                setSidebarOpen((sidebarOpen) => {
+                  const newState = !sidebarOpen;
+                  localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
+                  return newState;
+                });
+              }}
+            />
+          </Tooltip>
+          <Tooltip content={t("switch_to_card_mode")}>
+            <Button
+              icon={<FaThLarge />}
+              iconOnly
+              type="text"
+              size="small"
+              style={{
+                color: "var(--color-text-2)",
+              }}
+              onClick={() => {
+                localStorage.setItem("script-list-view-mode", "card");
+                setViewMode("card");
+              }}
+            />
+          </Tooltip>
+        </Space>
+      </div>
+    );
+  }
+);
+TitleCell.displayName = "TitleCell";
+
+type FilterProps = {
+  filterKeys: SearchFilterKeyEntry[] | undefined;
+};
+
+const filterDropdownFunctions: {
+  setFilterKeys?: (filterKeys: SearchFilterKeyEntry[] | undefined, callback?: (...args: any[]) => any) => void;
+  confirm?: (...args: any[]) => any;
+} = {};
+
+export const ScriptFilterNode = React.memo(
+  function ScriptFilterNode({ filterKeys }: FilterProps) {
+    const { t } = useTranslation();
+    return (
+      <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
+        <ScriptSearchField
+          t={t}
+          autoFocus
+          defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
+          onChange={(req) => {
+            SearchFilter.requestFilterResult(req).then(() => {
+              filterDropdownFunctions.setFilterKeys!([{ type: req.type, keyword: req.keyword }]);
+            });
+          }}
+          onSearch={(req) => {
+            if (req.bySelect) return;
+            filterDropdownFunctions.confirm!();
+          }}
+        />
+      </div>
+    );
+  },
+  (prev, next) => {
+    return prev.filterKeys?.[0] === next.filterKeys?.[0];
+  }
+);
 
 interface ScriptTableProps {
   loadingList: boolean;
   scriptList: ScriptLoading[];
-  scriptListSortOrder: (params: { active: string; over: string }) => void;
+  scriptListSortOrderMove: (params: { active: string; over: string }) => void;
+  scriptListSortOrderSwap: (params: { active: string; over: string }) => void;
   sidebarOpen: boolean;
-  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setSidebarOpen: ReactStateSetter<boolean>;
   setViewMode: (mode: "card" | "table") => void;
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
@@ -425,10 +499,11 @@ interface ScriptTableProps {
   handleRunStop: (item: ScriptLoading) => Promise<void>;
 }
 
-export const ScriptTable = ({
+const ScriptTable = ({
   loadingList,
   scriptList,
-  scriptListSortOrder,
+  scriptListSortOrderMove,
+  // scriptListSortOrderSwap,
   sidebarOpen,
   setSidebarOpen,
   setViewMode,
@@ -445,224 +520,191 @@ export const ScriptTable = ({
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const navigate = useNavigate();
-  const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
 
-  const columns: ColumnProps[] = useMemo(
-    () =>
-      [
-        {
-          title: "#",
-          dataIndex: "sort",
-          width: 60,
-          key: "#",
-          sorter: (a, b) => a.sort - b.sort,
-          render: (col: number) => <SortRender col={col} />,
-        },
-        {
-          key: "title",
-          title: t("enable"),
-          width: t("script_list_enable_width"),
-          dataIndex: "status",
-          className: "script-enable",
-          sorter(a, b) {
-            return a.status - b.status;
+  const columns: ColumnProps<ListType>[] = useMemo(
+    () => [
+      {
+        title: "#",
+        dataIndex: "sort",
+        width: 60,
+        key: "#",
+        sorter: (a: ListType, b: ListType) => a.sort - b.sort,
+        render: (col: number) => <SortRender col={col} />,
+      },
+      {
+        key: "title",
+        title: t("enable"),
+        width: t("script_list_enable_width"),
+        dataIndex: "status",
+        className: "script-enable",
+        sorter: (a: ListType, b: ListType) => a.status - b.status,
+        filters: [
+          {
+            text: t("enable"),
+            value: SCRIPT_STATUS_ENABLE,
           },
-          filters: [
-            {
-              text: t("enable"),
-              value: SCRIPT_STATUS_ENABLE,
-            },
-            {
-              text: t("disable"),
-              value: SCRIPT_STATUS_DISABLE,
-            },
-          ],
-          onFilter: (value, row) => row.status === value,
-          render: (col: any, item: ScriptLoading) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
-        },
-        {
-          key: "name",
-          title: t("name"),
-          dataIndex: "name",
-          sorter: (a, b) => a.name.localeCompare(b.name),
-          filterIcon: <IconSearch />,
-          filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
-            return (
-              <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
-                <ScriptSearchField
-                  t={t}
-                  autoFocus
-                  defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
-                  onChange={(req) => {
-                    SearchFilter.requestFilterResult(req).then(() => {
-                      setFilterKeys([{ type: req.type, keyword: req.keyword }]);
-                    });
-                  }}
-                  onSearch={(req) => {
-                    if (req.bySelect) return;
-                    confirm();
-                  }}
-                />
-              </div>
-            );
+          {
+            text: t("disable"),
+            value: SCRIPT_STATUS_DISABLE,
           },
-          onFilter: (value, row) => {
-            if (!value || !value.keyword) {
-              return true;
-            }
-            return SearchFilter.checkByUUID(row.uuid);
-          },
-          className: "tw-max-w-[240px] tw-min-w-[100px]",
-          render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
+        ],
+        onFilter: (value: any, row: any) => row.status === value,
+        render: (col: any, item: ListType) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
+      },
+      {
+        key: "name",
+        title: t("name"),
+        dataIndex: "name",
+        sorter: (a: ListType, b: ListType) => a.name.localeCompare(b.name),
+        filterIcon: <IconSearch />,
+        filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+          // setFilterKeys, confirm 会不断改变参考但又不影响元件绘画。用 filterDropdownFunctions 把它们抽出 React绘图
+          filterDropdownFunctions.setFilterKeys = setFilterKeys;
+          filterDropdownFunctions.confirm = confirm;
+          return <ScriptFilterNode filterKeys={filterKeys as SearchFilterKeyEntry[] | undefined} />;
         },
-        {
-          title: t("version"),
-          dataIndex: "version",
-          key: "version",
-          width: 120,
-          align: "center",
-          render: (col: any, item: ListType) => <VersionCell item={item} />,
+        onFilter: (value: any, row: any) => {
+          if (!value || !value.keyword) {
+            return true;
+          }
+          return SearchFilter.checkByUUID(row.uuid);
         },
-        {
-          key: "apply_to_run_status",
-          title: t("apply_to_run_status"),
-          width: t("script_list_apply_to_run_status_width"),
-          className: "apply_to_run_status",
-          render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
-        },
-        {
-          title: t("source"),
-          dataIndex: "origin",
-          key: "origin",
-          width: 100,
-          className: "source_cell",
-          render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
-        },
-        {
-          title: t("home"),
-          dataIndex: "home",
-          align: "center",
-          key: "home",
-          width: 100,
-          render: (col: any, item: ListType) => <HomeCell item={item} />,
-        },
-        {
-          title: t("last_updated"),
-          dataIndex: "updatetime",
-          align: "center",
-          key: "updatetime",
-          className: "script-updatetime",
-          width: t("script_list_last_updated_width"),
-          sorter: (a, b) => a.updatetime - b.updatetime,
-          render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
-        },
-        {
-          title: (
-            <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
-              <span>{t("action")}</span>
-              <Space size={4}>
-                <Tooltip content={sidebarOpen ? t("open_sidebar") : t("close_sidebar")}>
-                  <Button
-                    icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
-                    iconOnly
-                    type="text"
-                    size="small"
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                    onClick={() => {
-                      setSidebarOpen((sidebarOpen) => {
-                        const newState = !sidebarOpen;
-                        localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
-                        return newState;
-                      });
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip content={t("switch_to_card_mode")}>
-                  <Button
-                    icon={<FaThLarge />}
-                    iconOnly
-                    type="text"
-                    size="small"
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                    onClick={() => {
-                      localStorage.setItem("script-list-view-mode", "card");
-                      setViewMode("card");
-                    }}
-                  />
-                </Tooltip>
-              </Space>
-            </div>
-          ),
-          dataIndex: "action",
-          key: "action",
-          className: "script-action",
-          width: 160,
-          render: (col: any, item: ScriptLoading) => (
-            <ActionCell
-              item={item}
-              setUserConfig={setUserConfig}
-              setCloudScript={setCloudScript}
-              t={t}
-              handleDelete={handleDelete}
-              handleConfig={handleConfig}
-              handleRunStop={handleRunStop}
-            />
-          ),
-        },
-      ] as ColumnProps[],
+        className: "tw-max-w-[240px] tw-min-w-[100px]",
+        render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
+      },
+      {
+        title: t("version"),
+        dataIndex: "version",
+        key: "version",
+        width: 120,
+        align: "center",
+        render: (col: any, item: ListType) => <VersionCell item={item} />,
+      },
+      {
+        key: "apply_to_run_status",
+        dataIndex: "apply_to_run_status",
+        title: t("apply_to_run_status"),
+        width: t("script_list_apply_to_run_status_width"),
+        className: "apply_to_run_status",
+        render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
+      },
+      {
+        title: t("source"),
+        dataIndex: "origin",
+        key: "origin",
+        width: 100,
+        className: "source_cell",
+        render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
+      },
+      {
+        title: t("home"),
+        dataIndex: "home",
+        align: "center",
+        key: "home",
+        width: 100,
+        render: (col: any, item: ListType) => <HomeCell item={item} />,
+      },
+      {
+        title: t("last_updated"),
+        dataIndex: "updatetime",
+        align: "center",
+        key: "updatetime",
+        className: "script-updatetime",
+        width: t("script_list_last_updated_width"),
+        sorter: (a: ListType, b: ListType) => a.updatetime! - b.updatetime!,
+        render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
+      },
+      {
+        title: <TitleCell sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} setViewMode={setViewMode} t={t} />,
+        dataIndex: "action",
+        key: "action",
+        className: "script-action",
+        width: 160,
+        render: (col: any, item: ListType) => (
+          <ActionCell
+            item={item}
+            setUserConfig={setUserConfig}
+            setCloudScript={setCloudScript}
+            t={t}
+            handleDelete={handleDelete}
+            handleConfig={handleConfig}
+            handleRunStop={handleRunStop}
+          />
+        ),
+      },
+    ],
     [
-      t,
-      sidebarOpen,
-      updateScripts,
-      navigate,
-      setSidebarOpen,
-      setViewMode,
-      setUserConfig,
-      setCloudScript,
-      handleDelete,
       handleConfig,
+      handleDelete,
       handleRunStop,
+      navigate,
+      setCloudScript,
+      setSidebarOpen,
+      setUserConfig,
+      setViewMode,
+      sidebarOpen,
+      t,
+      updateScripts,
     ]
   );
 
-  const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
+  // 1. Only store the width overrides, initialized from your saved settings
+  const [manualWidths, setManualWidths] = useState<Record<string, number>>({});
+  // 2. Local state for the input field to make typing "instant"
+  const [inputBuffer, setInputBuffer] = useState<string>("");
+  const [typing, setTyping] = useState<boolean>(false);
 
-  const dealColumns = useMemo(() => {
-    const filtered = newColumns.filter((item) => item.width !== -1);
-    return filtered.length === 0 ? columns : filtered;
-  }, [newColumns, columns]);
-
+  // 3. Update the buffer when the selected column changes
   useEffect(() => {
-    if (savedWidths === null) return;
+    const activeCol = columns[selectColumn];
+    if (!activeCol) return; // Safety check
 
-    // 主要只需要处理列宽变化的情况
-    setNewColumns(
-      columns.map((item, i) => {
-        if (savedWidths[item.key!] === undefined) {
-          return columns[i];
-        }
-        return {
-          ...columns[i],
-          width: savedWidths[item.key!] ?? item.width,
-        };
-      })
-    );
-  }, [savedWidths, columns]);
+    // 1. Get width from manual overrides
+    // 2. Or get width from the column definition
+    // 3. Or fallback to 0 (or your preferred default) to avoid undefined
+    const currentWidth = manualWidths[activeCol.key as string] ?? activeCol.width ?? 0;
+    setTyping(false);
+    setInputBuffer(currentWidth.toString());
+  }, [selectColumn, manualWidths, columns]);
 
+  // 4. Optimized setWidth using the Column Key
+  const setWidthByKey = (key: string, width: number) => {
+    setManualWidths((prev) => {
+      return prev[key] === width ? prev : { ...prev, [key]: width };
+    });
+  };
+  // 2. Load initial widths once
   useEffect(() => {
-    systemConfig.getScriptListColumnWidth().then((columnWidth) => {
-      setSavedWidths({ ...columnWidth });
+    systemConfig.getScriptListColumnWidth().then((saved) => {
+      if (saved) setManualWidths(saved);
     });
   }, []);
+
+  // 3. MERGE logic: This is the high-performance "Source of Truth"
+  const dealColumns = useMemo(() => {
+    return columns
+      .map((col) => {
+        const customWidth = manualWidths[col.key as string];
+        return {
+          ...col,
+          // If customWidth is undefined, use default.
+          // 0 = Auto, -1 = Hidden
+          width: customWidth !== undefined ? customWidth : col.width,
+        };
+      })
+      .filter((col) => col.width !== -1); // Remove hidden columns
+  }, [columns, manualWidths]);
 
   const components: ComponentsProps = useMemo(
     () => ({
       header: {
-        operations: ({ selectionNode, expandNode }) => [
+        operations: ({
+          selectionNode,
+          expandNode,
+        }: {
+          selectionNode?: React.ReactNode;
+          expandNode?: React.ReactNode;
+        }) => [
           {
             node: <th className="script-sort" style={{ borderRadius: 0 }} />,
             width: 34,
@@ -678,7 +720,13 @@ export const ScriptTable = ({
         ],
       },
       body: {
-        operations: ({ selectionNode, expandNode }) => [
+        operations: ({
+          selectionNode,
+          expandNode,
+        }: {
+          selectionNode?: React.ReactNode;
+          expandNode?: React.ReactNode;
+        }) => [
           {
             node: (
               <td>
@@ -705,12 +753,6 @@ export const ScriptTable = ({
     []
   );
 
-  const setWidth = (selectColumn: number, width: any) => {
-    setNewColumns((cols) =>
-      cols.map((col, i) => (i === selectColumn && col.width !== width ? { ...col, width } : col))
-    );
-  };
-
   // 处理拖拽排序
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -718,15 +760,58 @@ export const ScriptTable = ({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // 故意生成一个字串 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
+  const sortableIdsString = scriptList?.map((s) => s.uuid).join(",") || "";
+
+  // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
+  // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
+  const sortableIds = useMemo(() => sortableIdsString?.split(",").filter(Boolean), [sortableIdsString]);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+        scriptListSortOrderMove!({
+          active: `${active.id}`,
+          over: `${over.id}`,
+        });
+      }
+    },
+    [scriptListSortOrderMove]
+  );
+
+  const a11y = useMemo(
+    () => ({
+      container: document.body,
+    }),
+    []
+  );
+
   // Provide context for DraggableContainer
   const draggableContextValue = useMemo(
     () => ({
       sensors,
-      scriptList,
-      scriptListSortOrder,
+      sortableIds,
+      handleDragEnd,
+      a11y,
     }),
-    [sensors, scriptList, scriptListSortOrder]
+    [sensors, sortableIds, handleDragEnd, a11y]
   );
+
+  const rowSelection = useMemo(
+    () => ({
+      type: "checkbox" as const,
+      onChange: (keys: any[], selectedRows: ListType[]) => {
+        setSelect(selectedRows);
+        setShowAction(keys.length > 0);
+      },
+    }),
+    []
+  );
+
+  const currentActiveWidth = manualWidths[columns[selectColumn].key as string] ?? columns[selectColumn].width;
+  const isSpecialWidth = currentActiveWidth === 0 || currentActiveWidth === -1;
 
   return (
     <DraggableContext.Provider value={draggableContextValue}>
@@ -867,48 +952,36 @@ export const ScriptTable = ({
               <Divider type="horizontal" />
               <Typography.Text>{t("resize_column_width") + ":"}</Typography.Text>
               <Select
-                style={{ minWidth: "80px" }}
+                style={{ minWidth: "120px" }}
                 triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
                 size="mini"
-                value={selectColumn === 8 ? t("action") : newColumns[selectColumn].title?.toString()}
+                // Use the base 'columns' for the source of truth
+                value={selectColumn}
                 onChange={(val) => {
-                  const index = parseInt(val as string, 10);
-                  setSelectColumn(index);
+                  setSelectColumn(val as number);
                 }}
               >
-                {newColumns.map((column, index) => (
+                {columns.map((column, index) => (
                   <Select.Option key={index} value={index}>
-                    {index === 8 ? t("action") : column.title}
+                    {column.key === "action" ? t("action") : (column.title as string)}
                   </Select.Option>
                 ))}
               </Select>
               <Dropdown
                 droplist={
                   <Menu>
-                    <Menu.Item
-                      key="auto"
-                      onClick={() => {
-                        setWidth(selectColumn, 0);
-                      }}
-                    >
+                    <Menu.Item key="auto" onClick={() => setWidthByKey(columns[selectColumn].key as string, 0)}>
                       {t("auto")}
                     </Menu.Item>
-                    <Menu.Item
-                      key="hide"
-                      onClick={() => {
-                        setWidth(selectColumn, -1);
-                      }}
-                    >
+                    <Menu.Item key="hide" onClick={() => setWidthByKey(columns[selectColumn].key as string, -1)}>
                       {t("hide")}
                     </Menu.Item>
                     <Menu.Item
                       key="custom"
                       onClick={() => {
-                        const width =
-                          (newColumns[selectColumn].width as number) > 0
-                            ? newColumns[selectColumn].width
-                            : columns[selectColumn].width;
-                        setWidth(selectColumn, width);
+                        // If current is auto/hide, reset to base width; otherwise keep it
+                        const baseWidth = columns[selectColumn].width as number;
+                        setWidthByKey(columns[selectColumn].key as string, baseWidth);
                       }}
                     >
                       {t("custom")}
@@ -918,45 +991,64 @@ export const ScriptTable = ({
                 position="bl"
               >
                 <Input
-                  type={newColumns[selectColumn].width === 0 || newColumns[selectColumn].width === -1 ? "" : "number"}
+                  type={isSpecialWidth ? "text" : "number"}
                   style={{ width: "80px" }}
                   size="mini"
+                  // Display "auto" or "hide" if the buffer matches those values
                   value={
-                    newColumns[selectColumn].width === 0
-                      ? t("auto")
-                      : newColumns[selectColumn].width === -1
-                        ? t("hide")
-                        : newColumns[selectColumn].width?.toString()
+                    typing
+                      ? inputBuffer
+                      : inputBuffer === "0"
+                        ? t("auto")
+                        : inputBuffer === "-1"
+                          ? t("hide")
+                          : inputBuffer
                   }
                   step={5}
+                  min={isSpecialWidth ? undefined : 5}
+                  onInput={() => {
+                    setTyping(true);
+                  }}
                   onChange={(val) => {
-                    const width = parseInt(val, 10);
-                    setWidth(selectColumn, width);
+                    // 數值輸入忽略 -1 和 0
+                    setInputBuffer(val);
+                  }}
+                  onPointerUp={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
+                  }}
+                  // Trigger the heavy table re-render only when finished
+                  onBlur={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
+                  }}
+                  onPressEnter={() => {
+                    setTyping(false);
+                    const width = parseInt(inputBuffer, 10);
+                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
                   }}
                 />
               </Dropdown>
+
               <Button
                 type="primary"
                 size="mini"
                 onClick={() => {
-                  const newWidth: { [key: string]: number } = {};
-                  for (const column of newColumns) {
-                    newWidth[column.key! as string] = column.width as number;
-                  }
-                  systemConfig.setScriptListColumnWidth(newWidth);
+                  systemConfig.setScriptListColumnWidth(manualWidths);
+                  Message.success(t("save_success"));
                 }}
               >
                 {t("save")}
               </Button>
+
               <Button
                 size="mini"
                 onClick={() => {
-                  setNewColumns((cols) => {
-                    return cols.map((col, index) => {
-                      col.width = columns[index].width;
-                      return col;
-                    });
-                  });
+                  // Resetting is now instant: just clear the overrides
+                  setManualWidths({});
+                  Message.info(t("reset_success"));
                 }}
               >
                 {t("reset")}
@@ -984,16 +1076,20 @@ export const ScriptTable = ({
         data={scriptList}
         pagination={false}
         loading={loadingList}
-        rowSelection={{
-          type: "checkbox",
-          onChange(_, selectedRows) {
-            setShowAction(true);
-            setSelect(selectedRows);
-          },
-        }}
+        rowSelection={rowSelection}
       />
     </DraggableContext.Provider>
   );
 };
 
-export default ScriptTable;
+export const MemoizedScriptTable = React.memo(ScriptTable, (prevProps, nextProps) => {
+  return (
+    prevProps.loadingList === nextProps.loadingList &&
+    prevProps.scriptList === nextProps.scriptList &&
+    prevProps.sidebarOpen === nextProps.sidebarOpen
+  );
+});
+
+MemoizedScriptTable.displayName = "ScriptTable";
+
+export default MemoizedScriptTable;

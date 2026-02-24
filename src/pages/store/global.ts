@@ -10,4 +10,13 @@ export const globalCache = new Map<string, any>();
 export const message = new ExtensionMessage();
 export const systemClient = new SystemClient(message);
 
+export const subscribeMessage = <T extends object>(topic: string, handler: (msg: T) => void) => {
+  return messageQueue.subscribe<T & { myMessage?: T }>(topic, (data) => {
+    const payload = data?.myMessage || data;
+    if (typeof payload === "object") {
+      handler(payload as T);
+    }
+  });
+};
+
 initLocales(systemConfig);

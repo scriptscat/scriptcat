@@ -25,22 +25,43 @@ export function loadCache(): Promise<Partial<Record<string, any>>> {
   return loadCachePromise;
 }
 
-function saveCacheAndStorage<T>(key: string, value: T): Promise<T> {
-  return Promise.all([
-    loadCache().then((cache) => {
-      cache[key] = value;
-    }),
-    new Promise<void>((resolve) => {
-      chrome.storage.local.set({ [key]: value }, () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
-          // 无视storage API错误，继续执行
-        }
-        resolve();
-      });
-    }),
-  ]).then(() => value);
+function saveCacheAndStorage<T>(key: string, value: T): Promise<T>;
+function saveCacheAndStorage<T>(items: Record<string, T>): Promise<void>;
+function saveCacheAndStorage<T>(keyOrItems: string | Record<string, T>, value?: T): Promise<T | void> {
+  if (typeof keyOrItems === "string") {
+    return Promise.all([
+      loadCache().then((cache) => {
+        cache[keyOrItems] = value;
+      }),
+      new Promise<void>((resolve) => {
+        chrome.storage.local.set({ [keyOrItems]: value }, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
+            // 无视storage API错误，继续执行
+          }
+          resolve();
+        });
+      }),
+    ]).then(() => value);
+  } else {
+    const items = keyOrItems;
+    return Promise.all([
+      loadCache().then((cache) => {
+        Object.assign(cache, items);
+      }),
+      new Promise<void>((resolve) => {
+        chrome.storage.local.set(items, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
+            // 无视storage API错误，继续执行
+          }
+          resolve();
+        });
+      }),
+    ]).then(() => undefined);
+  }
 }
 
 function saveStorage<T>(key: string, value: T): Promise<T> {
@@ -320,33 +341,73 @@ export abstract class Repo<T> {
     });
   }
 
-  updates(keys: string[], val: Partial<T>): Promise<(T | false)[]> {
-    keys = keys.map((key) => this.joinKey(key));
-    if (this.useCache) {
-      return loadCache().then((cache) =>
-        Promise.all(
-          keys.map((key) => {
-            const data = cache[key] as T;
-            if (data) {
-              Object.assign(data, val);
-              return saveCacheAndStorage(key, data) as Promise<T>;
-            }
-            return false;
-          })
-        )
-      );
+  updates(keys: string[], val: Partial<T>): Promise<(T | false)[]>;
+  updates(items: Record<string, Partial<T>>): Promise<Record<string, T | false>>;
+  updates(
+    keysOrItems: string[] | Record<string, Partial<T>>,
+    val?: Partial<T>
+  ): Promise<(T | false)[] | Record<string, T | false>> {
+    // 1. 输入归一化：统一转为 Record<string, Partial<T>>
+    let items: Record<string, Partial<T>>;
+    if (Array.isArray(keysOrItems)) {
+      items = {};
+      for (const key of keysOrItems) {
+        items[key] = val!;
+      }
+    } else {
+      items = keysOrItems;
     }
-    return getStorageRecord(keys).then((record) => {
-      const result = keys.map((key) => {
-        const o = record[key];
-        if (o) {
-          Object.assign(o, val);
-          return o as T;
-        }
-        return false;
-      });
-      return saveStorageRecord(record).then(() => result);
+
+    // 2. 核心逻辑
+    return this._doUpdates(items).then((resultRecord) => {
+      // 3. 结果转换：恢复为调用者期望的类型
+      if (Array.isArray(keysOrItems)) {
+        return keysOrItems.map((key) => resultRecord[key]);
+      }
+      return resultRecord;
     });
+  }
+
+  private async _doUpdates(items: Record<string, Partial<T>>): Promise<Record<string, T | false>> {
+    const keys = Object.keys(items);
+    const joinedKeys = keys.map((key) => this.joinKey(key));
+
+    // 1. 获取数据源
+    let dataSource: Partial<Record<string, any>>;
+    if (this.useCache) {
+      dataSource = await loadCache();
+    } else {
+      dataSource = await getStorageRecord(joinedKeys);
+    }
+
+    // 2. 遍历 items，合并数据，收集结果和已修改条目
+    const result: Record<string, T | false> = {};
+    const saveRecord: Record<string, T> = {};
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const joinedKey = joinedKeys[i];
+      const data = dataSource[joinedKey] as T;
+      if (data) {
+        // 缓存模式下刻意使用Object.assign修改原有对象，以更新缓存中的数据
+        Object.assign(data, items[key]);
+        saveRecord[joinedKey] = data;
+        result[key] = data;
+      } else {
+        result[key] = false;
+      }
+    }
+
+    // 3. 批量写入（只包含已修改的条目）
+    if (Object.keys(saveRecord).length > 0) {
+      if (this.useCache) {
+        await saveCacheAndStorage(saveRecord);
+      } else {
+        await saveStorageRecord(saveRecord);
+      }
+    }
+
+    return result;
   }
 
   all(): Promise<T[]> {

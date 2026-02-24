@@ -197,7 +197,7 @@ describe("MessageQueueGroup", () => {
   });
 
   describe("发布方法测试", () => {
-    it.concurrent("publish 方法应该使用 chrome.runtime.sendMessage", () => {
+    it("publish 方法应该使用 chrome.runtime.sendMessage", () => {
       const group = messageQueue.group("api-sendChromeMessage");
 
       const sendSpy = vi.spyOn(chrome.runtime, "sendMessage");
@@ -210,10 +210,10 @@ describe("MessageQueueGroup", () => {
       });
     });
 
-    it.concurrent("emit 方法应该只在本地发布", () => {
+    it("emit 方法应该只在本地发布", () => {
       const group = messageQueue.group("api-emitLocal");
       const handler = vi.fn();
-      const sendSpy = vi.spyOn(chrome.runtime, "sendMessage");
+      const sendSpy = vi.spyOn(chrome.runtime, "sendMessage"); // 不能 concurrent
       group.subscribe("test-emitLocal", handler);
       group.emit("test-emitLocal", { data: "test-emitLocal" });
       expect(handler).toHaveBeenCalledWith({ data: "test-emitLocal" });

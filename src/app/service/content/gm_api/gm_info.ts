@@ -34,7 +34,7 @@ export function evaluateGMInfo(envInfo: GMInfoEnv, script: TScriptInfo) {
       // TODO: 更多完整的信息(为了兼容Tampermonkey,后续待定)
       name: script.name,
       namespace: script.namespace,
-      version: script.metadata.version?.[0],
+      version: script.metadata.version?.[0] || "0.0",
       author: script.author,
       lastModified: script.updatetime,
       downloadURL: script.downloadUrl || null,

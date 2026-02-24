@@ -25,12 +25,16 @@ export default class ExecScript {
 
   constructor(
     scriptRes: TScriptInfo,
-    envPrefix: "scripting" | "offscreen",
-    message: Message,
-    code: string | ScriptFunc,
-    envInfo: GMInfoEnv,
-    globalInjection?: { [key: string]: any } // 主要是全域API. @grant none 时无效
+    options: {
+      envPrefix: string;
+      message: Message;
+      contentMsg: Message;
+      code: string | ScriptFunc;
+      envInfo: GMInfoEnv;
+      globalInjection?: { [key: string]: any }; // 主要是全域API. @grant none 时无效
+    }
   ) {
+    const { envPrefix, message, contentMsg, code, envInfo, globalInjection } = options;
     this.scriptRes = scriptRes;
     this.logger = LoggerCore.getInstance().logger({
       component: "exec",
@@ -52,7 +56,7 @@ export default class ExecScript {
       this.named = { GM: { info: GM_info }, GM_info };
     } else {
       // 构建脚本GM上下文
-      this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, grantSet);
+      this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, contentMsg, grantSet);
       if (globalInjection) {
         Object.assign(this.sandboxContext, globalInjection);
       }
@@ -74,12 +78,12 @@ export default class ExecScript {
    * @see {@link compileScriptCode}
    * @returns
    */
-  exec() {
+  public readonly exec = () => {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
     this.execContext = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
     return this.scriptFunc.call(this.execContext, this.named, this.scriptRes.name);
-  }
+  };
 
   // 早期启动的脚本，处理GM API
   updateEarlyScriptGMInfo(envInfo: GMInfoEnv) {

@@ -9,13 +9,14 @@ import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
 import { createScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type TInstallSubscribe } from "../queue";
-import { checkSilenceUpdate, InfoNotification } from "@App/pkg/utils/utils";
+import { checkSilenceUpdate } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import { fetchScriptBody, parseMetadata, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { cacheInstance } from "@App/app/cache";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import i18n, { i18nName } from "@App/locales/locales";
+import { InfoNotification } from "./utils";
 
 export class SubscribeService {
   logger: Logger;
@@ -190,15 +191,8 @@ export class SubscribeService {
         logger.error("parse metadata failed");
         return false;
       }
-      const newVersion = metadata.version && metadata.version[0];
-      if (!newVersion) {
-        logger.error("parse version failed", { version: metadata.version });
-        return false;
-      }
-      let oldVersion = subscribe.metadata.version && subscribe.metadata.version[0];
-      if (!oldVersion) {
-        oldVersion = "0.0.0";
-      }
+      const newVersion = metadata.version?.[0] || "0.0";
+      const oldVersion = subscribe.metadata.version?.[0] || "0.0";
       // 对比版本大小
       if (ltever(newVersion, oldVersion)) {
         return false;

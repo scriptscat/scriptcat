@@ -34,7 +34,7 @@ declare namespace App {
   export type IsInstalledResponse =
     | {
         installed: true;
-        version: string | undefined;
+        version: string;
       }
     | {
         installed: false;

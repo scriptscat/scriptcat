@@ -21,7 +21,8 @@
   "logs": "紀錄",
   "tools": "工具",
   "settings": "設定",
-  "hide_sidebar": "摺疊側邊欄",
+  "hide_main_sidebar": "摺疊側邊欄",
+  "show_main_sidebar": "展開側邊欄",
   "guide": "新手指南",
   "helpcenter": "幫助中心",
   "general": "通用",
@@ -39,6 +40,7 @@
   "cloud_sync_account_verification": "雲端同步帳號資訊驗證中...",
   "cloud_sync_verification_failed": "雲端同步帳號資訊驗證失敗",
   "save_success": "儲存成功",
+  "reset_success": "重設成功",
   "update": "更新",
   "check_update": "檢查更新",
   "script_subscription_check_interval": "腳本/訂閱檢查更新間隔",
@@ -151,6 +153,7 @@
   "starting_script": "正在啟動腳本...",
   "starting_updates": "正在批次更新...",
   "script_started": "腳本已啟動",
+  "operation_failed": "操作失敗",
   "batch_operations": "批次操作",
   "export": "匯出",
   "delete": "刪除",
@@ -332,7 +335,9 @@
     "header_other_update": "其他可用更新"
   },
   "downloading_status_text": "正在下載。已接收 {{bytes}}。",
-  "install_page_loading": "安裝頁載入中",
+  "install_page_please_wait": "請稍等",
+  "install_page_loading": "安裝頁面載入中",
+  "install_page_load_failed": "安裝頁面載入失敗",
   "invalid_page": "無效頁面",
   "background_script_tag": "這是一個背景腳本",
   "scheduled_script_tag": "這是一個排程腳本",
@@ -382,6 +387,11 @@
   "url": "網址",
   "username": "使用者名稱",
   "password": "密碼",
+  "s3_bucket_name": "儲存貯體名稱",
+  "s3_region": "區域",
+  "s3_access_key_id": "存取金鑰 ID",
+  "s3_secret_access_key": "私密存取金鑰",
+  "s3_custom_endpoint": "自訂端點（選用）",
   "skip": "跳過",
   "next": "下一步",
   "next_with_progress": "下一步（第 {step} 步 / 共 {steps} 步）",
@@ -526,8 +536,6 @@
   "editor_config_format_error": "編輯器配置格式錯誤",
   "editor_type_definition_reset": "編輯器類型定義已重設",
   "editor_type_definition_saved": "編輯器類型定義已儲存",
-  "layout": "佈局",
-  "hide_script_list": "隱藏腳本列表",
   "script_list": {
     "sidebar": {
       "stopped": "停止",
@@ -572,5 +580,9 @@
     "enable_now": "立即啟用",
     "maybe_later": "暫不啟用",
     "settings_hint": "你可以隨時在設定中修改此選項。"
+  },
+  "editor": {
+    "show_script_list": "顯示腳本列表",
+    "hide_script_list": "隱藏腳本列表"
   }
 }
