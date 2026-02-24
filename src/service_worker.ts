@@ -8,9 +8,11 @@ import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import migrate, { migrateChromeStorage } from "./app/migrate";
 import { cleanInvalidKeys } from "./app/repo/resource";
+import { keepEventPageRunning } from "./persistent";
 
 migrate();
 migrateChromeStorage();
+keepEventPageRunning();
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
 
