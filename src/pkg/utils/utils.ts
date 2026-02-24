@@ -44,15 +44,6 @@ export function isFirefox() {
   return typeof mozInnerScreenX !== "undefined";
 }
 
-export function InfoNotification(title: string, msg: string) {
-  chrome.notifications.create({
-    type: "basic",
-    title,
-    message: msg,
-    iconUrl: chrome.runtime.getURL("assets/logo.png"),
-  });
-}
-
 export function valueType(val: unknown) {
   switch (typeof val) {
     case "string":
@@ -458,40 +449,6 @@ export const formatBytes = (bytes: number, decimals: number = 2): string => {
   const value = bytes / Math.pow(k, i);
 
   return `${value.toFixed(decimals)} ${units[i]}`;
-};
-
-// 把编码URL变成使用者可以阅读的格式
-export const prettyUrl = (s: string | undefined | null, baseUrl?: string) => {
-  if (s?.includes("://")) {
-    let u;
-    try {
-      u = baseUrl ? new URL(s, baseUrl) : new URL(s);
-    } catch {
-      // ignored
-    }
-    if (!u) return s;
-    const pathname = u.pathname;
-    if (pathname && pathname.includes("%")) {
-      try {
-        const raw = decodeURI(pathname);
-        if (
-          raw &&
-          raw.length < pathname.length &&
-          !raw.includes("?") &&
-          !raw.includes("#") &&
-          !raw.includes("&") &&
-          !raw.includes("=") &&
-          !raw.includes("%") &&
-          !raw.includes(":")
-        ) {
-          s = s.replace(pathname, raw);
-        }
-      } catch {
-        // ignored
-      }
-    }
-  }
-  return s;
 };
 
 // TM Xhr Header 兼容处理，原生xhr \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白

@@ -32,7 +32,10 @@ export class ScriptExecutor {
   earlyScriptFlag: Set<string> = new Set();
   execScriptMap: Map<string, ExecScript> = new Map();
 
-  constructor(private msg: Message) {}
+  constructor(
+    private msg: Message,
+    private contentMsg: Message // 用于 content <-> content/inject 通讯
+  ) {}
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
@@ -132,7 +135,13 @@ export class ScriptExecutor {
   execScriptEntry(scriptEntry: ExecScriptEntry) {
     const { scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
 
-    const execScript = new ExecScript(scriptLoadInfo, "scripting", this.msg, scriptFunc, envInfo);
+    const execScript = new ExecScript(scriptLoadInfo, {
+      envPrefix: "scripting",
+      message: this.msg,
+      contentMsg: this.contentMsg,
+      code: scriptFunc,
+      envInfo,
+    });
     this.execScriptMap.set(scriptLoadInfo.uuid, execScript);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.resource;
