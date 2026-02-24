@@ -917,8 +917,7 @@ export class RuntimeService {
       this.logger.warn("registered = true but scriptcat-content/scriptcat-inject not exists, re-register userscripts.");
       runtimeGlobal.registerState = RuntimeRegisterCode.UNSET; // 异常时强制反注册
     }
-    // runtimeGlobal.registered 已重置为 false
-    // 删除旧注册 (registered已重置为 false。因此必须强制执行)
+    // 删除旧注册
     await this.unregisterUserscripts();
     // 使注册时重新注入 chrome.runtime
     try {
