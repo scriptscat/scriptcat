@@ -7,6 +7,9 @@ let scriptDAO: ScriptDAO | null = null;
 let faviconDAO: FaviconDAO | null = null;
 const loadFaviconPromises = new Map<string, any>(); // 关联 iconUrl 和 blobUrl
 
+const FETCH_SERVICE_URL = "https://ext.scriptcat.org/api/v1/open/favicons";
+const FETCH_ICON_SIZE = 64;
+
 /**
  * 从URL模式中提取域名
  */
@@ -122,7 +125,7 @@ export async function fetchIconByDomain(domain: string): Promise<string> {
   if (!sDomain || sDomain.length > 253) {
     throw new Error("invalid domain name");
   }
-  return `https://scriptcat.org/api/v2/open/favicons?domain=${encodeURIComponent(sDomain)}&sz=64`;
+  return `${FETCH_SERVICE_URL}?domain=${encodeURIComponent(sDomain)}&sz=${FETCH_ICON_SIZE}`;
 }
 
 // 获取脚本的favicon
