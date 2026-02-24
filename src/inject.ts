@@ -25,8 +25,8 @@ getEventFlag(messageFlag, (eventFlag: string) => {
   logger.logger().debug("inject start");
 
   const server = new Server("inject", msg);
-  const scriptExecutor = new ScriptExecutor(msg);
-  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, messageFlag);
+  const scriptExecutor = new ScriptExecutor(msg, new CustomEventMessage(`${eventFlag}${ScriptEnvTag.content}`, true));
+  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor);
   runtime.init();
 
   // inject环境，直接判断白名单，注入对外接口

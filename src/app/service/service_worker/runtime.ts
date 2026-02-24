@@ -53,9 +53,20 @@ import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
+const RuntimeRegisterCode = {
+  UNSET: 0,
+  REGISTER_DONE: 1,
+  UNREGISTER_DONE: 2,
+} as const;
+
+type RuntimeRegisterCode = ValueOf<typeof RuntimeRegisterCode>;
+
 const runtimeGlobal = {
-  registered: false,
+  registerState: RuntimeRegisterCode.UNSET,
   messageFlag: "PENDING",
+} as {
+  registerState: RuntimeRegisterCode;
+  messageFlag: string;
 };
 
 export type TTabInfo = {
@@ -314,15 +325,15 @@ export class RuntimeService {
       await cacheInstance.set<boolean>("runtimeStartFlag", true);
     }
 
-    let registered = false;
+    let count = 0;
     try {
       const res = await chrome.userScripts?.getScripts({ ids: ["scriptcat-inject"] });
-      registered = res?.length === 1;
+      count = res?.length;
     } catch {
       // 该错误为预期内情况，无需记录 debug 日志
     } finally {
       // 考虑 UserScripts API 不可使用等情况
-      runtimeGlobal.registered = registered;
+      runtimeGlobal.registerState = count === 1 ? RuntimeRegisterCode.REGISTER_DONE : RuntimeRegisterCode.UNSET;
     }
   }
 
@@ -669,8 +680,9 @@ export class RuntimeService {
   // 取消脚本注册
   async unregisterUserscripts() {
     // 检查 registered 避免重复操作增加系统开支
-    if (runtimeGlobal.registered) {
-      runtimeGlobal.registered = false;
+    // 已成功注册(true)或是未知有无注册(null)的情况下执行
+    if (runtimeGlobal.registerState !== RuntimeRegisterCode.UNREGISTER_DONE) {
+      runtimeGlobal.registerState = RuntimeRegisterCode.UNREGISTER_DONE;
       // 重置 flag 避免取消注册失败
       // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
       await Promise.allSettled([chrome.userScripts?.unregister(), chrome.scripting.unregisterContentScripts()]);
@@ -893,7 +905,7 @@ export class RuntimeService {
     if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
 
     // 判断是否已经注册过
-    if (runtimeGlobal.registered) {
+    if (runtimeGlobal.registerState === RuntimeRegisterCode.REGISTER_DONE) {
       // 异常情况
       // 检查scriptcat-content和scriptcat-inject是否存在
       const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] });
@@ -903,7 +915,7 @@ export class RuntimeService {
       // scriptcat-content/scriptcat-inject不存在的情况
       // 走一次重新注册的流程
       this.logger.warn("registered = true but scriptcat-content/scriptcat-inject not exists, re-register userscripts.");
-      runtimeGlobal.registered = false; // 异常时强制反注册
+      runtimeGlobal.registerState = RuntimeRegisterCode.UNSET; // 异常时强制反注册
     }
     // 删除旧注册
     await this.unregisterUserscripts();
@@ -926,7 +938,7 @@ export class RuntimeService {
 
     const list: chrome.userScripts.RegisteredUserScript[] = [...particularScriptList, ...injectScriptList];
 
-    runtimeGlobal.registered = true;
+    let failed = false;
     try {
       await chrome.userScripts.register(list);
     } catch (e: any) {
@@ -941,6 +953,7 @@ export class RuntimeService {
             try {
               await chrome.userScripts.update([script]);
             } catch (e) {
+              failed = true;
               this.logger.error("update error", Logger.E(e));
             }
           } else {
@@ -953,9 +966,11 @@ export class RuntimeService {
       try {
         await chrome.scripting.registerContentScripts(contentScriptList);
       } catch (e: any) {
+        failed = true;
         this.logger.error("register content.js error", Logger.E(e));
       }
     }
+    runtimeGlobal.registerState = failed ? RuntimeRegisterCode.UNSET : RuntimeRegisterCode.REGISTER_DONE;
   }
 
   // 给指定tab发送消息

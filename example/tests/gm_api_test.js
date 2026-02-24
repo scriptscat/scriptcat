@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM API 完整测试
 // @namespace    https://docs.scriptcat.org/
-// @version      1.0.0
+// @version      1.1.0
 // @description  全面测试ScriptCat的所有GM API功能
 // @author       ScriptCat
 // @match        https://content-security-policy.com/
@@ -234,7 +234,7 @@
   });
 
   // ============ GM_addElement 测试 ============
-  test("GM_addElement - 创建元素", () => {
+  await testAsync("GM_addElement - 创建元素", async () => {
     assert("function", typeof GM_addElement, "GM_addElement 应该是函数");
 
     const div = GM_addElement("div", {
@@ -244,8 +244,39 @@
     assert(true, div && div.tagName === "DIV", "应该返回 div 元素");
     console.log("添加的元素:", div);
 
+    // 创建脚本元素测试
+    const script = GM_addElement("script", {
+      textContent: 'window.foo = "bar";',
+    });
+    assert(true, script && script.tagName === "SCRIPT", "应该返回 script 元素");
+    assert("bar", unsafeWindow.foo, "脚本内容应该执行，unsafeWindow.foo 应该是 'bar'");
+    console.log("添加的脚本元素:", script);
+
+    document.querySelector(".container").insertBefore(script, document.querySelector(".masthead"));
+
+    // onload 和 onerror 测试 - 插入图片元素
+    let img;
+    await new Promise((resolve, reject) => {
+      img = GM_addElement(document.body, "img", {
+        src: "https://www.tampermonkey.net/favicon.ico",
+        onload: () => {
+          console.log("图片加载成功");
+          resolve();
+        },
+        onerror: (error) => {
+          reject(new Error("图片加载失败: " + error));
+        },
+      });
+    });
+    assert(true, img && img.tagName === "IMG", "应该返回 img 元素");
+    console.log("添加的图片元素:", img);
+
     // 3秒后移除
-    setTimeout(() => div.remove(), 3000);
+    setTimeout(() => {
+      script.remove();
+      div.remove();
+      img.remove();
+    }, 3000);
   });
 
   // ============ GM_getResourceText/URL 测试 ============
