@@ -14,6 +14,7 @@ export const createContext = (
   GMInfo: any,
   envPrefix: string,
   message: Message,
+  contentMsg: Message,
   scriptGrants: Set<string>
 ) => {
   // 按照GMApi构建
@@ -31,6 +32,7 @@ export const createContext = (
   const context = createGMBase({
     prefix: envPrefix,
     message,
+    contentMsg,
     scriptRes,
     valueChangeListener,
     EE,
