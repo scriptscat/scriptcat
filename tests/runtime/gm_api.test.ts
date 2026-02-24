@@ -135,7 +135,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
 
   addTestPermission(script.uuid);
   await new ScriptDAO().save(script);
-  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
+  const gmApi = new GMApi("serviceWorker", msg, undefined as any, <ScriptRunResource>{
     uuid: script.uuid,
   });
   it.concurrent("test GM xhr - plain text", async () => {
@@ -341,7 +341,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
 
 describe.concurrent("GM xmlHttpRequest", () => {
   const msg = initTestGMApi();
-  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
+  const gmApi = new GMApi("serviceWorker", msg, undefined as any, <ScriptRunResource>{
     uuid: script.uuid,
   });
   it.concurrent("get", () => {
@@ -424,7 +424,7 @@ describe.concurrent("GM xmlHttpRequest", () => {
 
 describe("GM download", () => {
   const msg = initTestGMApi();
-  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
+  const gmApi = new GMApi("serviceWorker", msg, undefined as any, <ScriptRunResource>{
     uuid: script.uuid,
   });
   it("simple download", async () => {

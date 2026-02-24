@@ -47,6 +47,10 @@ const FileSystemParams: React.FC<{
       key: "dropbox",
       name: "Dropbox",
     },
+    {
+      key: "s3",
+      name: "Amazon S3",
+    },
   ];
 
   const netDiskType = netDiskTypeMap[fileSystemType];

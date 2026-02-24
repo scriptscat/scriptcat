@@ -14,12 +14,13 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { initLocales, initLocalesPromise, localePath, t, watchLanguageChange } from "@App/locales/locales";
-import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
+import { getCurrentTab } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
+import { InfoNotification } from "./utils";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -207,7 +208,9 @@ export default class ServiceWorkerManager {
             const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
             // 如果只是修复版本，只弹出通知不打开页面
             // beta版本还是每次都打开更新页面
-            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
+            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }), {
+              url,
+            });
             if (ExtVersion.endsWith(".0")) {
               getCurrentTab()
                 .then((tab) => {
