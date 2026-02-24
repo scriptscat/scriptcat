@@ -39,7 +39,8 @@
   "debug": "Debug",
   "cloud_sync_account_verification": "Cloud Sync Account Verification in Progress...",
   "cloud_sync_verification_failed": "Cloud Sync Account Verification Failed",
-  "save_success": "Save Successful",
+  "save_success": "Saved successfully",
+  "reset_success": "Reset successfully",
   "update": "Update",
   "check_update": "Check Update",
   "script_subscription_check_interval": "Script/Subscription Update Check Interval",
@@ -334,8 +335,10 @@
     "header_other_update": "Other available updates"
   },
   "downloading_status_text": "Downloading. Received {{bytes}}.",
-  "install_page_loading": "Installation page loading",
-  "invalid_page": "Invalid page",
+  "install_page_please_wait": "Please wait",
+  "install_page_loading": "Loading Installation Page",
+  "install_page_load_failed": "Failed to Load Installation Page",
+  "invalid_page": "Invalid Page",
   "background_script_tag": "This is a Background Script",
   "scheduled_script_tag": "This is a Scheduled Script",
   "background_script": "Background Script",
@@ -384,6 +387,11 @@
   "url": "URL",
   "username": "Username",
   "password": "Password",
+  "s3_bucket_name": "Bucket Name",
+  "s3_region": "Region",
+  "s3_access_key_id": "Access Key ID",
+  "s3_secret_access_key": "Secret Access Key",
+  "s3_custom_endpoint": "Custom Endpoint (Optional)",
   "skip": "Skip",
   "next": "Next",
   "next_with_progress": "Next (Step {step} of {steps})",
@@ -528,8 +536,6 @@
   "editor_config_format_error": "Editor Configuration Format Error",
   "editor_type_definition_reset": "Editor Type Definition Reset",
   "editor_type_definition_saved": "Editor Type Definition Saved",
-  "layout": "Layout",
-  "hide_script_list": "Hide Script List",
   "script_list": {
     "sidebar": {
       "stopped": "Stopped",
@@ -574,5 +580,9 @@
     "enable_now": "Enable Now",
     "maybe_later": "Maybe Later",
     "settings_hint": "You can change this option in settings at any time."
+  },
+  "editor": {
+    "show_script_list": "Show Script List",
+    "hide_script_list": "Hide Script List"
   }
 }
