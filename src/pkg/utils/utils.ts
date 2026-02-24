@@ -44,15 +44,6 @@ export function isFirefox() {
   return typeof mozInnerScreenX !== "undefined";
 }
 
-export function InfoNotification(title: string, msg: string) {
-  chrome.notifications.create({
-    type: "basic",
-    title,
-    message: msg,
-    iconUrl: chrome.runtime.getURL("assets/logo.png"),
-  });
-}
-
 export function valueType(val: unknown) {
   switch (typeof val) {
     case "string":
