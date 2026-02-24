@@ -257,7 +257,12 @@ function ScriptEditor() {
         const currentEditorUpdateTime = existingScript.updatetime;
         const latestUpdateTime = oldScript?.updatetime ?? 0;
 
-        if (currentEditorUpdateTime !== latestUpdateTime && latestUpdateTime > 0) {
+        if (
+          currentEditorUpdateTime !== latestUpdateTime &&
+          latestUpdateTime > 0 &&
+          script.uuid === existingScript.uuid &&
+          script.uuid === oldScript?.uuid
+        ) {
           const modalResult = await new Promise((resolve) => {
             modal.confirm!({
               focusLock: false,
