@@ -653,24 +653,22 @@ function App() {
   const hasValidSourceParam = !searchParamUrl && !!(searchParams.get("uuid") || searchParams.get("file"));
 
   const urlHref = useMemo(() => {
-    if (!hasValidSourceParam) {
-      let rawUrl;
+    if (searchParamUrl) {
       try {
         // 取url=之后的所有内容
-        rawUrl = location.search.match(/\?url=([^&]+)/)?.[1] || "";
-        if (rawUrl) {
-          const urlObject = new URL(rawUrl);
-          // 验证解析后的 URL 是否具备核心要素，确保安全性与合法性
-          if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
-            return rawUrl;
-          }
+        const idx = location.search.indexOf("url=");
+        const rawUrl = idx !== -1 ? location.search.slice(idx + 4) : searchParamUrl;
+        const urlObject = new URL(rawUrl);
+        // 验证解析后的 URL 是否具备核心要素，确保安全性与合法性
+        if (urlObject.protocol && urlObject.hostname && urlObject.pathname) {
+          return rawUrl;
         }
       } catch {
         // ignored
       }
     }
     return "";
-  }, [hasValidSourceParam]);
+  }, [searchParamUrl]);
 
   const [fetchingState, setFetchingState] = useState({
     loadingStatus: "",

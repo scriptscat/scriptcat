@@ -39,6 +39,7 @@
   "cloud_sync_account_verification": "crwdns7954:0crwdne7954:0",
   "cloud_sync_verification_failed": "crwdns7956:0crwdne7956:0",
   "save_success": "crwdns7958:0crwdne7958:0",
+  "reset_success": "Reset successfully",
   "update": "crwdns7960:0crwdne7960:0",
   "check_update": "crwdns7962:0crwdne7962:0",
   "script_subscription_check_interval": "crwdns7964:0crwdne7964:0",
@@ -377,6 +378,11 @@
   "url": "crwdns8544:0crwdne8544:0",
   "username": "crwdns8546:0crwdne8546:0",
   "password": "crwdns8548:0crwdne8548:0",
+  "s3_bucket_name": "Bucket Name",
+  "s3_region": "Region",
+  "s3_access_key_id": "Access Key ID",
+  "s3_secret_access_key": "Secret Access Key",
+  "s3_custom_endpoint": "Custom Endpoint (Optional)",
   "skip": "crwdns8550:0crwdne8550:0",
   "next": "crwdns8552:0crwdne8552:0",
   "next_with_progress": "crwdns8920:0{step}crwdnd8920:0{steps}crwdne8920:0",
@@ -519,8 +525,6 @@
   "editor_config_format_error": "crwdns10834:0crwdne10834:0",
   "editor_type_definition_reset": "crwdns10836:0crwdne10836:0",
   "editor_type_definition_saved": "crwdns10838:0crwdne10838:0",
-  "layout": "crwdns12780:0crwdne12780:0",
-  "hide_script_list": "crwdns12782:0crwdne12782:0",
   "script_list": {
     "sidebar": {
       "stopped": "crwdns12794:0crwdne12794:0",
@@ -552,5 +556,9 @@
     "subscribe_update": "crwdns12854:0{{subscribeName}}crwdne12854:0",
     "subscribe_update_desc": "crwdns12856:0{{newScripts}}crwdnd12856:0{{deletedScripts}}crwdne12856:0"
   },
-  "loading": "crwdns12870:0crwdne12870:0"
+  "loading": "crwdns12870:0crwdne12870:0",
+  "editor": {
+    "show_script_list": "Show Script List",
+    "hide_script_list": "Hide Script List"
+  }
 }

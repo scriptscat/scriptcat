@@ -22,9 +22,36 @@
  * 2. 元素标签名
  * 3. 属性对象
  */
-const el = GM_addElement(document.querySelector('.BorderGrid-cell'), "img", {
-    src: "https://bbs.tampermonkey.net.cn/uc_server/avatar.php?uid=4&size=small&ts=1"
+
+// ------------- 基础用法 ----------------
+
+const el = GM_addElement(document.querySelector(".BorderGrid-cell"), "img", {
+  src: "https://bbs.tampermonkey.net.cn/uc_server/avatar.php?uid=4&size=small&ts=1",
 });
 
 // 打印创建出来的 DOM 元素
 console.log(el);
+
+// ------------- 基础用法 - textContent ----------------
+
+const span3 = GM_addElement("span", {
+  textContent: "Hello",
+});
+
+console.log(`span text: ${span3.textContent}`);
+
+// ------------- 基础用法 - onload & onerror ----------------
+
+new Promise((resolve, reject) => {
+  img = GM_addElement(document.body, "img", {
+    src: "https://www.tampermonkey.net/favicon.ico",
+    onload: resolve,
+    onerror: reject,
+  });
+})
+  .then(() => {
+    console.log("img insert ok");
+  })
+  .catch(() => {
+    console.log("img insert failed");
+  });

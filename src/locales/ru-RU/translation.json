@@ -39,7 +39,8 @@
   "debug": "Отладка",
   "cloud_sync_account_verification": "Проверка учетной записи облачной синхронизации...",
   "cloud_sync_verification_failed": "Ошибка проверки учетной записи облачной синхронизации",
-  "save_success": "Успешно сохранено",
+  "save_success": "Сохранено успешно",
+  "reset_success": "Сброс выполнен успешно",
   "update": "Обновить",
   "check_update": "Проверить обновления",
   "script_subscription_check_interval": "Интервал проверки обновлений скриптов/подписок",
@@ -386,6 +387,11 @@
   "url": "URL",
   "username": "Имя пользователя",
   "password": "Пароль",
+  "s3_bucket_name": "Имя корзины",
+  "s3_region": "Регион",
+  "s3_access_key_id": "Идентификатор ключа доступа",
+  "s3_secret_access_key": "Секретный ключ доступа",
+  "s3_custom_endpoint": "Пользовательская конечная точка (необязательно)",
   "skip": "Пропустить",
   "next": "Далее",
   "next_with_progress": "Следующий шаг (шаг {step} из {steps})",
@@ -533,8 +539,6 @@
   "editor_config_format_error": "Ошибка формата конфигурации редактора",
   "editor_type_definition_reset": "Определения типов редактора сброшены",
   "editor_type_definition_saved": "Определения типов редактора сохранены",
-  "layout": "Макет",
-  "hide_script_list": "Скрыть список скриптов",
   "script_list": {
     "sidebar": {
       "stopped": "Остановлено",
@@ -579,5 +583,9 @@
     "enable_now": "Включить сейчас",
     "maybe_later": "Может быть позже",
     "settings_hint": "Вы можете изменить эту опцию в настройках в любое время."
+  },
+  "editor": {
+    "show_script_list": "Показать список скриптов",
+    "hide_script_list": "Скрыть список скриптов"
   }
 }
