@@ -73,7 +73,14 @@ export class BgExecScriptWarp extends ExecScript {
       },
       isIncognito: false,
     };
-    super(scriptRes, "offscreen", message, scriptRes.code, envInfo, thisContext);
+    super(scriptRes, {
+      envPrefix: "offscreen",
+      message: message,
+      contentMsg: message,
+      code: scriptRes.code,
+      envInfo,
+      globalInjection: thisContext,
+    });
     this.setTimeout = setTimeout;
     this.setInterval = setInterval;
   }
