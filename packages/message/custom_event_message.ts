@@ -51,6 +51,7 @@ export class CustomEventMessage implements Message {
         event.preventDefault(); // 告知另一端这边已准备好
         this.readyWrap.setReady(); // 两端已准备好，则 setReady()
       } else if (event instanceof MouseEventClone && event.movementX && event.relatedTarget) {
+        if (event.cancelable) event.preventDefault(); // 告知另一端
         relatedTargetMap.set(event.movementX, event.relatedTarget);
       } else if (event instanceof CustomEventClone) {
         this.messageHandle(event.detail, new CustomEventPostMessage(this));
