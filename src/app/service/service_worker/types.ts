@@ -50,7 +50,6 @@ export type MessageRequest<T = any[]> = {
 
 export type GMApiRequest<T = any> = MessageRequest<T> & {
   script: Script;
-  extraCode?: number; // 用于 confirm 传额外资讯
 };
 
 export type NotificationMessageOption = {
