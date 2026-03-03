@@ -106,9 +106,13 @@ export class ScriptExecutor {
           //   "@exclude /REGEX/" 的情况下，MV3 UserScripts API 基础匹配范围不会扩大，然后在 earlyScript 把符合 REGEX 的匹配除去
           //   (Any @exclude = true -> 除去)
           // 注：如果一早已被除排，根本不会被 MV3 UserScripts API 注入。所以只考虑排除「多余的匹配」。（略过注入）
-          if (isUrlExcluded(window.location.href, detail.scriptInfo.scriptUrlPatterns)) {
-            // 「多余的匹配」-> 略过注入
-            return;
+          try {
+            if (isUrlExcluded(window.location.href, detail.scriptInfo.scriptUrlPatterns)) {
+              // 「多余的匹配」-> 略过注入
+              return;
+            }
+          } catch (e) {
+            console.warn("Unexpected match error", e);
           }
         }
         this.execEarlyScript(scriptFlag, detail.scriptInfo, envInfo);
