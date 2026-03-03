@@ -21,7 +21,6 @@ import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
 import { InfoNotification } from "./utils";
-import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
