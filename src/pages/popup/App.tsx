@@ -1,4 +1,5 @@
 import { Discord, DocumentationSite, ExtVersion, ExtServer } from "@App/app/const";
+import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch, Tooltip } from "@arco-design/web-react";
 import {
   IconBook,
@@ -482,7 +483,7 @@ function App() {
         <Alert
           style={{ display: showAlert ? "flex" : "none" }}
           type="info"
-          content={<div dangerouslySetInnerHTML={{ __html: checkUpdate.notice || "" }} />}
+          content={<div dangerouslySetInnerHTML={{ __html: sanitizeHTML(checkUpdate.notice || "") }} />}
         />
         <Collapse
           bordered={false}
