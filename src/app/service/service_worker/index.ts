@@ -116,7 +116,7 @@ export default class ServiceWorkerManager {
         .then((resp: { data: { [key: string]: any; notice: string; version: string } }) => {
           const data = resp.data;
           systemConfig
-            .getCheckUpdate({ sanitizeHTML })
+            .getCheckUpdate()
             .then((items) => {
               const isRead = items.notice !== data.notice ? false : items.isRead;
               systemConfig.setCheckUpdate({ ...data, isRead: isRead });
