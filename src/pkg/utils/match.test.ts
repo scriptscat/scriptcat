@@ -889,3 +889,13 @@ describe.concurrent("@include /REGEX/", () => {
     expect(isUrlIncluded("http://www.hlample.com/", url.rulesMap.get("ok1")!)).toEqual(false);
   });
 });
+
+describe.concurrent("invalid or unsupported glob #1271", () => {
+  const url = new UrlMatch<string>();
+  url.addInclude("*://*?*", "ok1");
+  url.addInclude("*://*?page*", "ok2");
+  it.concurrent("include *://*?*", () => {
+    expect(url.urlMatch("http://www.example.com/?a=1")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://www.example.com/?page=1")).toEqual(["ok1", "ok2"]);
+  });
+});
