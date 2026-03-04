@@ -18,8 +18,12 @@ export class UrlMatch<T> {
     if (cacheMap.has(url)) return cacheMap.get(url) as T[];
     const res: T[] = [];
     for (const [uuid, rules] of this.rulesMap) {
-      if (isUrlIncluded(url, rules)) {
-        res.push(uuid);
+      try {
+        if (isUrlIncluded(url, rules)) {
+          res.push(uuid);
+        }
+      } catch (e) {
+        console.warn("Unexpected match error", e);
       }
     }
     const sorter = this.sorter;
