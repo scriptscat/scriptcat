@@ -271,9 +271,12 @@ function App() {
     const checkScriptEnableAndUpdate = async () => {
       const [isEnableScript, checkUpdate] = await Promise.all([
         systemConfig.getEnableScript(),
-        systemConfig.getCheckUpdate({ sanitizeHTML }),
+        systemConfig.getCheckUpdate(),
       ]);
       if (!hookMgr.isMounted) return;
+      if (typeof checkUpdate.notice === "string") {
+        checkUpdate.notice = sanitizeHTML(checkUpdate.notice);
+      }
       setIsEnableScript(isEnableScript);
       setCheckUpdate(checkUpdate);
     };
