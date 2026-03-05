@@ -173,8 +173,6 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
-let cid: ReturnType<typeof setTimeout>;
-
 const popstate: EventListener = (e: Event) => {
   if (!e.isTrusted) return;
   if (location.href.startsWith(chrome.runtime.getURL("/src/options.html#/script/editor"))) {
@@ -234,6 +232,7 @@ function ScriptEditor() {
     uuid: string;
     selectSciptButtonAndTab: string;
   }>();
+  const cidRef = useRef<ReturnType<typeof setTimeout>>();
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
   const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(() => {
     return localStorage.getItem("hiddenEditorScriptList") === "true";
@@ -507,7 +506,7 @@ function ScriptEditor() {
 
   // 根据菜单生产快捷键
   const hotKeys = useRef<HotKey[]>([]);
-  hotKeys.current.length = 0;
+  hotKeys.current = [];
   menu.forEach((item) => {
     item.items?.forEach((menuItem) => {
       if (menuItem.hotKey) {
@@ -524,7 +523,7 @@ function ScriptEditor() {
   const templateVal = useRef(pageUrlSearchParams.get("template"));
   const targetVal = useRef(pageUrlSearchParams.get("target"));
 
-  // 袑始化 & 网址改变
+  // 初始化 & 网址改变
   useEffect(() => {
     const template = pageUrlSearchParams.get("template");
     const target = pageUrlSearchParams.get("target");
@@ -651,13 +650,17 @@ function ScriptEditor() {
     }
 
     setEditors((prev) => {
+      // 在回调中重新计算 index，避免 confirm/await 期间状态变化导致的竞态问题
+      const currentIndex = prev.findIndex((e) => e.script.uuid === targetUuid);
+      if (currentIndex === -1) return prev;
+      const currentEditor = prev[currentIndex];
       // 删除目标编辑器
       const filtered = prev.filter((e) => e.script.uuid !== targetUuid);
       // 如果删除的是当前激活的编辑器，需要激活其他编辑器
-      if (targetEditor.active && prev.length > 0) {
+      if (currentEditor.active && filtered.length > 0) {
         // 如果删除的是最后一个，激活前一个
         // 否则激活下一个（原来的下一个现在在同样的位置）
-        const nextActiveIndex = targetIndex >= filtered.length ? filtered.length - 1 : targetIndex;
+        const nextActiveIndex = currentIndex >= filtered.length ? filtered.length - 1 : currentIndex;
         filtered[nextActiveIndex] = { ...filtered[nextActiveIndex], active: true };
         setSelectSciptButtonAndTab(filtered[nextActiveIndex].script.uuid);
       }
@@ -910,10 +913,9 @@ function ScriptEditor() {
                 </div>
               )}
               {filteredScriptList.map((script) => {
-                const scriptListScript = scriptList.find((v) => v.uuid === script.uuid);
                 const editor = editorFindItem(script.uuid);
                 const colorRGB = !editor ? "173,173,173" : editor.isChanged ? "230,155,31" : "199,199,199";
-                const alpha = scriptListScript?.status === 2 ? 0.8 : 1.0;
+                const alpha = script.status === 2 ? 0.8 : 1.0;
                 const colorRGBA = `rgba(${colorRGB},${alpha})`;
                 const delBtnRGBA = `rgba(173,173,173,${alpha})`;
                 return (
@@ -950,7 +952,6 @@ function ScriptEditor() {
                         background: "transparent",
                         color: `${delBtnRGBA}`,
                         boxShadow: "none",
-                        position: "absolute",
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1002,8 +1003,8 @@ function ScriptEditor() {
               onChange={(uuid) => {
                 // rightTabOperation 时会发生多次 onChange
                 // 只取最后一个
-                clearTimeout(cid);
-                cid = setTimeout(() => {
+                clearTimeout(cidRef.current);
+                cidRef.current = setTimeout(() => {
                   if (editorFindIndex(uuid) >= 0) {
                     openScript(uuid);
                   }
