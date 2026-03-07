@@ -5,6 +5,7 @@ import FileSystemParams from "../FileSystemParams";
 import { systemConfig } from "@App/pages/store/global";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
+import { isFirefox } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -24,34 +25,42 @@ const RuntimeSetting: React.FC = () => {
       setFilesystemType(res.filesystem);
       setFilesystemParam(res.params[res.filesystem] || {});
     });
-    chrome.permissions.contains({ permissions: ["background"] }, (result) => {
-      if (chrome.runtime.lastError) {
-        console.error(chrome.runtime.lastError);
-        return;
-      }
-      setEnableBackgroundState(result);
-    });
+    if (isFirefox()) {
+      // no background permission
+    } else {
+      chrome.permissions.contains({ permissions: ["background"] }, (result) => {
+        if (chrome.runtime.lastError) {
+          console.error(chrome.runtime.lastError);
+          return;
+        }
+        setEnableBackgroundState(result);
+      });
+    }
   }, []);
 
   const setEnableBackground = (enable: boolean) => {
-    if (enable) {
-      chrome.permissions.request({ permissions: ["background"] }, (granted) => {
-        if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
-          Message.error(t("enable_background.enable_failed")!);
-          return;
-        }
-        setEnableBackgroundState(granted);
-      });
+    if (isFirefox()) {
+      // no background permission
     } else {
-      chrome.permissions.remove({ permissions: ["background"] }, (removed) => {
-        if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
-          Message.error(t("enable_background.disable_failed")!);
-          return;
-        }
-        setEnableBackgroundState(!removed);
-      });
+      if (enable) {
+        chrome.permissions.request({ permissions: ["background"] }, (granted) => {
+          if (chrome.runtime.lastError) {
+            console.error(chrome.runtime.lastError);
+            Message.error(t("enable_background.enable_failed")!);
+            return;
+          }
+          setEnableBackgroundState(granted);
+        });
+      } else {
+        chrome.permissions.remove({ permissions: ["background"] }, (removed) => {
+          if (chrome.runtime.lastError) {
+            console.error(chrome.runtime.lastError);
+            Message.error(t("enable_background.disable_failed")!);
+            return;
+          }
+          setEnableBackgroundState(!removed);
+        });
+      }
     }
   };
 
@@ -59,17 +68,19 @@ const RuntimeSetting: React.FC = () => {
     <Card title={t("runtime")} bordered={false}>
       <Space direction="vertical" size={20} className={"tw-w-full"}>
         <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
-          <div className="tw-flex tw-items-center tw-gap-2 tw-flex-1">
-            <Switch onChange={setEnableBackground} checked={enableBackground} />
-            <span
-              className="tw-min-w-20 tw-font-medium tw-cursor-pointer"
-              onClick={() => {
-                setEnableBackground(!enableBackground);
-              }}
-            >
-              {t("enable_background.title")}
-            </span>
-          </div>
+          {!isFirefox() && (
+            <div className="tw-flex tw-items-center tw-gap-2 tw-flex-1">
+              <Switch onChange={setEnableBackground} checked={enableBackground} />
+              <span
+                className="tw-min-w-20 tw-font-medium tw-cursor-pointer"
+                onClick={() => {
+                  setEnableBackground(!enableBackground);
+                }}
+              >
+                {t("enable_background.title")}
+              </span>
+            </div>
+          )}
           <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("enable_background.description")}</span>
         </div>
         <Collapse bordered={false} defaultActiveKey={["storage"]}>

@@ -1,5 +1,6 @@
 import * as path from "path";
 import { rspack, NormalModule, type Configuration } from "@rspack/core";
+import { ZipExecutionPlugin } from "./rspack-plugins/ZipExecutionPlugin";
 import { readFileSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 
@@ -230,6 +231,7 @@ export default {
       minify: true,
       chunks: ["sandbox"],
     }),
+    new ZipExecutionPlugin(),
   ].filter(Boolean),
   experiments: {
     css: true,
@@ -252,7 +254,7 @@ export default {
             passes: 2,
             drop_console: false,
             drop_debugger: !isDev,
-            ecma: 2020,
+            ecma: 2022,
             arrows: true,
             dead_code: true,
             ie8: false,
@@ -270,7 +272,7 @@ export default {
           format: {
             comments: false,
             beautify: false,
-            ecma: 2020,
+            ecma: 2022,
           },
         },
       }),
