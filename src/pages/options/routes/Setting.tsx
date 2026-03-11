@@ -334,8 +334,8 @@ function Setting() {
                 }}
               >
                 <Select.Option value="scriptcat">{t("favicon_service_scriptcat")}</Select.Option>
-                <Select.Option value="local">{t("favicon_service_local")}</Select.Option>
                 <Select.Option value="google">{t("favicon_service_google")}</Select.Option>
+                <Select.Option value="local">{t("favicon_service_local")}</Select.Option>
               </Select>
             </div>
             <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("favicon_service_desc")}</span>
