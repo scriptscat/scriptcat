@@ -526,7 +526,11 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    const isContentEnv = (this.message as CustomEventMessage).envTag === ScriptEnvTag.content;
+    // 上下文已失效时直接返回，避免访问已释放的 message 造成异常
+    if (this.isInvalidContext()) return undefined;
+
+    const message = this.message as CustomEventMessage | null;
+    const isContentEnv = !!message && message.envTag === ScriptEnvTag.content;
     return urlToDocumentInContentPage(this, url, isContentEnv);
   }
 
