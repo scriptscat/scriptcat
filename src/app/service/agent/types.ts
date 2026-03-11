@@ -48,7 +48,7 @@ export type ChatStreamEvent =
 export type ChatRequest = {
   conversationId: string;
   modelId: string;
-  messages: Array<{ role: MessageRole; content: string; toolCallId?: string }>;
+  messages: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }>;
   tools?: ToolDefinition[];
 };
 

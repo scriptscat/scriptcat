@@ -15,6 +15,7 @@ export function buildAnthropicRequest(
   const otherMessages = request.messages.filter((m) => m.role !== "system");
 
   // Anthropic 格式：tool 角色消息需要转换为 tool_result content block
+  // assistant 消息带 toolCalls 时需要转换为 tool_use content blocks
   const messages = otherMessages.map((m) => {
     if (m.role === "tool" && m.toolCallId) {
       return {
@@ -27,6 +28,22 @@ export function buildAnthropicRequest(
           },
         ],
       };
+    }
+    // assistant 消息带 tool_calls 时，转换为 content blocks 格式
+    if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
+      const content: Array<Record<string, unknown>> = [];
+      if (m.content) {
+        content.push({ type: "text", text: m.content });
+      }
+      for (const tc of m.toolCalls) {
+        content.push({
+          type: "tool_use",
+          id: tc.id,
+          name: tc.name,
+          input: tc.arguments ? JSON.parse(tc.arguments) : {},
+        });
+      }
+      return { role: "assistant" as const, content };
     }
     return { role: m.role, content: m.content };
   });

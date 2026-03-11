@@ -11,6 +11,34 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// 将 tool 角色消息的结果合并到 assistant 消息的 toolCalls 中，并过滤掉 tool/system 消息
+function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
+  // 建立 toolCallId → tool 消息内容 的映射
+  const toolResultMap = new Map<string, string>();
+  for (const msg of messages) {
+    if (msg.role === "tool" && msg.toolCallId) {
+      toolResultMap.set(msg.toolCallId, msg.content);
+    }
+  }
+
+  // 合并 tool 结果到 assistant 的 toolCalls，并过滤不需要展示的消息
+  return messages
+    .filter((msg) => msg.role === "user" || msg.role === "assistant")
+    .map((msg) => {
+      if (msg.role === "assistant" && msg.toolCalls && toolResultMap.size > 0) {
+        const updatedToolCalls = msg.toolCalls.map((tc) => {
+          const result = toolResultMap.get(tc.id);
+          if (result !== undefined) {
+            return { ...tc, result, status: (tc.status || "completed") as typeof tc.status };
+          }
+          return tc;
+        });
+        return { ...msg, toolCalls: updatedToolCalls };
+      }
+      return msg;
+    });
+}
+
 export default function ChatArea({
   conversationId,
   models,
@@ -152,7 +180,7 @@ export default function ChatArea({
               <Empty description={t("agent_chat_input_placeholder")} />
             </div>
           ) : (
-            messages.map((msg) => (
+            mergeToolResults(messages).map((msg) => (
               <MessageItem
                 key={msg.id}
                 message={msg}

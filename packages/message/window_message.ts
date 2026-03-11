@@ -90,7 +90,9 @@ export class WindowMessage implements Message {
         data,
       };
       this.target.postMessage(body, "*");
-      resolve(new WindowMessageConnect(body.messageId, this.EE, this.target));
+      // 使用 WindowPostMessage 包装，确保后续 sendMessage 也带 "*" targetOrigin
+      // 否则沙箱（origin: null）→ offscreen（origin: chrome-extension://）的消息会被丢弃
+      resolve(new WindowMessageConnect(body.messageId, this.EE, new WindowPostMessage(this.target)));
     });
   }
 

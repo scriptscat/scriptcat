@@ -12,6 +12,7 @@ import type {
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
 import type { ScriptToolCallback } from "@App/app/service/agent/tool_registry";
 
@@ -96,7 +97,7 @@ export class AgentService {
   private async createConversation(params: Extract<ConversationApiRequest, { action: "create" }>) {
     const model = await this.getModel(params.options.model);
     const conv: Conversation = {
-      id: params.options.id || `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+      id: params.options.id || uuidv4(),
       title: "New Chat",
       modelId: model.id,
       system: params.options.system,
@@ -157,7 +158,7 @@ export class AgentService {
         // 持久化 assistant 消息（含 tool calls）
         if (conversationId) {
           await this.repo.appendMessage({
-            id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+            id: uuidv4(),
             conversationId,
             role: "assistant",
             content: result.content,
@@ -166,8 +167,8 @@ export class AgentService {
           });
         }
 
-        // 将 assistant 消息加入上下文
-        messages.push({ role: "assistant", content: result.content || "" });
+        // 将 assistant 消息加入上下文（带 toolCalls，供 provider 构建 tool_calls 字段）
+        messages.push({ role: "assistant", content: result.content || "", toolCalls: result.toolCalls });
 
         // 通过 ToolRegistry 执行工具（内置工具直接执行，脚本工具回调 Sandbox）
         const toolResults = await this.toolRegistry.execute(result.toolCalls, scriptToolCallback);
@@ -178,7 +179,7 @@ export class AgentService {
           // 持久化 tool 结果消息
           if (conversationId) {
             await this.repo.appendMessage({
-              id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+              id: uuidv4(),
               conversationId,
               role: "tool",
               content: tr.result,
@@ -195,7 +196,7 @@ export class AgentService {
       // 没有 tool calls，对话结束
       if (conversationId) {
         await this.repo.appendMessage({
-          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+          id: uuidv4(),
           conversationId,
           role: "assistant",
           content: result.content,
@@ -291,7 +292,7 @@ export class AgentService {
 
       // 持久化用户消息
       await this.repo.appendMessage({
-        id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+        id: uuidv4(),
         conversationId: params.conversationId,
         role: "user",
         content: params.message,
@@ -370,8 +371,11 @@ export class AgentService {
 
     return new Promise((resolve, reject) => {
       const onEvent = (event: ChatStreamEvent) => {
-        // 转发事件给调用方（UI 或 Sandbox 都可以看到流式输出）
-        sendEvent(event);
+        // 只转发流式内容事件，done 和 error 由 callLLMWithToolLoop 统一管理
+        // 避免在 tool calling 循环中提前发送 done 导致客户端过早 resolve
+        if (event.type !== "done" && event.type !== "error") {
+          sendEvent(event);
+        }
 
         switch (event.type) {
           case "content_delta":

@@ -19,6 +19,14 @@ export function buildOpenAIRequest(config: AgentModelConfig, request: ChatReques
     if (m.toolCallId) {
       msg.tool_call_id = m.toolCallId;
     }
+    // assistant 消息带 tool_calls 时，转换为 OpenAI 格式
+    if (m.toolCalls && m.toolCalls.length > 0) {
+      msg.tool_calls = m.toolCalls.map((tc) => ({
+        id: tc.id,
+        type: "function",
+        function: { name: tc.name, arguments: tc.arguments },
+      }));
+    }
     return msg;
   });
 
