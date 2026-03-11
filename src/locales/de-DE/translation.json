@@ -581,6 +581,11 @@
     "maybe_later": "Vielleicht später",
     "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern."
   },
+  "favicon_service": "Favicon-Dienst",
+  "favicon_service_desc": "Dienst zum Abrufen von Website-Symbolen auswählen",
+  "favicon_service_scriptcat": "ScriptCat",
+  "favicon_service_local": "Lokal abrufen",
+  "favicon_service_google": "Google",
   "editor": {
     "show_script_list": "Skriptliste anzeigen",
     "hide_script_list": "Skriptliste ausblenden"

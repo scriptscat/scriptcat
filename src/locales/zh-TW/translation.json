@@ -581,6 +581,11 @@
     "maybe_later": "暫不啟用",
     "settings_hint": "你可以隨時在設定中修改此選項。"
   },
+  "favicon_service": "圖示服務",
+  "favicon_service_desc": "選擇取得網站圖示的服務",
+  "favicon_service_scriptcat": "ScriptCat",
+  "favicon_service_local": "本地取得",
+  "favicon_service_google": "Google",
   "editor": {
     "show_script_list": "顯示腳本列表",
     "hide_script_list": "隱藏腳本列表"
