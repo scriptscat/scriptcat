@@ -65,11 +65,11 @@ ScriptCat は、Tampermonkey の設計思想に基づく強力なユーザース
 
 #### 拡張ストア（推奨）
 
-| ブラウザ | ストアリンク | ステータス |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| Chrome   | [安定版](https://chromewebstore.google.com/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta 版](https://chromewebstore.google.com/detail/scriptcat-beta/jaehimmlecjmebpekkipmpmbpfhdacom) | ✅ 利用可能 |
+| ブラウザ | ストアリンク                                                                                                                                                                                                        | ステータス  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Chrome   | [安定版](https://chromewebstore.google.com/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta 版](https://chromewebstore.google.com/detail/scriptcat-beta/jaehimmlecjmebpekkipmpmbpfhdacom)                   | ✅ 利用可能 |
 | Edge     | [安定版](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta 版](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ 利用可能 |
-| Firefox  | [安定版](https://addons.mozilla.org/ja/firefox/addon/scriptcat/) [Beta 版](https://addons.mozilla.org/ja/firefox/addon/scriptcat-pre/) | ✅ MV2 |
+| Firefox  | [安定版](https://addons.mozilla.org/ja/firefox/addon/scriptcat/) [Beta 版](https://addons.mozilla.org/ja/firefox/addon/scriptcat-pre/)                                                                              | ✅ MV2      |
 
 #### 手動インストール
 
@@ -80,8 +80,10 @@ ScriptCat は、Tampermonkey の設計思想に基づく強力なユーザース
 
 #### スクリプトのインストール
 
-1. **スクリプトセンターから取得**： [ScriptCat スクリプトセンター](https://scriptcat.org/ja/search) またはその他のユーザースクリプトセンターへアクセス
-2. **バックグラウンドスクリプトセンター**：ユニークな [バックグラウンドスクリプト](https://scriptcat.org/ja/search?script_type=3) を体験
+1. **スクリプトセンターから取得**： [ScriptCat スクリプトセンター](https://scriptcat.org/ja/search)
+   またはその他のユーザースクリプトセンターへアクセス
+2. **バックグラウンドスクリプトセンター**：ユニークな
+   [バックグラウンドスクリプト](https://scriptcat.org/ja/search?script_type=3) を体験
 3. **互換性**：多くの Tampermonkey スクリプトをサポートしており、そのままインストール可能。不具合があれば  
    [issues](https://github.com/scriptscat/scriptcat/issues) にてご報告ください。
 

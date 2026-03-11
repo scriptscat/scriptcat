@@ -8,8 +8,8 @@
 // @require      file:///Users/codfrm/Desktop/test.js
 // ==/UserScript==
 
-(function() {
-    'use strict';
+(function () {
+  "use strict";
 
-    // Your code here...
+  // Your code here...
 })();

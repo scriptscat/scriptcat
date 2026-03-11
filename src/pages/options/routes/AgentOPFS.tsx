@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Breadcrumb,
-  Button,
-  Card,
-  Empty,
-  Message,
-  Modal,
-  Space,
-  Table,
-} from "@arco-design/web-react";
+import { Breadcrumb, Button, Card, Empty, Message, Modal, Space, Table } from "@arco-design/web-react";
 import { IconDelete, IconEye, IconFolder, IconFile } from "@arco-design/web-react/icon";
 
 interface FileEntry {

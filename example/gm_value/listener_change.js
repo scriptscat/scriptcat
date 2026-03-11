@@ -13,11 +13,11 @@
 // ==/UserScript==
 
 GM_addValueChangeListener("test_set", function (name, oldval, newval, remote) {
-    console.log("test_set change", name, oldval, newval, remote);
+  console.log("test_set change", name, oldval, newval, remote);
 });
 
 setInterval(() => {
-    console.log("test_set: ", GM_getValue("test_set"));
-    console.log("value list:", GM_listValues());
-    GM_setValue("test_set", Date.now());
+  console.log("test_set: ", GM_getValue("test_set"));
+  console.log("value list:", GM_listValues());
+  GM_setValue("test_set", Date.now());
 }, 2000);

@@ -10,9 +10,7 @@
   },
   "background": {
     "service_worker": "src/service_worker.js",
-    "scripts": [
-      "src/service_worker.js"
-    ]
+    "scripts": ["src/service_worker.js"]
   },
   "incognito": "split",
   "action": {
@@ -43,26 +41,15 @@
     "unlimitedStorage",
     "declarativeNetRequest"
   ],
-  "optional_permissions": [
-    "background",
-    "userScripts"
-  ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "optional_permissions": ["background", "userScripts"],
+  "host_permissions": ["<all_urls>"],
   "sandbox": {
-    "pages": [
-      "src/sandbox.html"
-    ]
+    "pages": ["src/sandbox.html"]
   },
   "web_accessible_resources": [
     {
-      "resources": [
-        "/src/install.html"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
+      "resources": ["/src/install.html"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

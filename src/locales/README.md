@@ -25,8 +25,8 @@ for example:
 
 ### Help Us Translate
 
-[Crowdin](https://crowdin.com/project/scriptcat)
-is an online localization platform that helps us manage translations. If you're interested in helping us translate ScriptCat, you can find the project on Crowdin and start contributing.
+[Crowdin](https://crowdin.com/project/scriptcat) is an online localization platform that helps us manage translations.
+If you're interested in helping us translate ScriptCat, you can find the project on Crowdin and start contributing.
 
 - `src/locales` is the translation file directory for the [extension](https://github.com/scriptscat/scriptcat)
 

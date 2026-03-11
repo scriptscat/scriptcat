@@ -31,7 +31,12 @@ export function useConversations() {
   }, []);
 
   useEffect(() => {
-    loadConversations();
+    loadConversations().then((list) => {
+      // 进入页面时，如果有会话且未选中，则自动选中第一个
+      if (list.length > 0) {
+        setActiveId((prev) => prev || list[0].id);
+      }
+    });
   }, [loadConversations]);
 
   // 创建新会话

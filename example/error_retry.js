@@ -9,10 +9,10 @@
 // ==/UserScript==
 
 return new Promise((resolve, reject) => {
-	// Your code here...
-	GM_notification({
-		title: "retry",
-		text: "10秒后重试"
-	});
-	reject(new CATRetryError("xxx错误", 10));
+  // Your code here...
+  GM_notification({
+    title: "retry",
+    text: "10秒后重试",
+  });
+  reject(new CATRetryError("xxx错误", 10));
 });

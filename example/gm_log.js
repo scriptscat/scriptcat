@@ -19,5 +19,5 @@
  * 3. 附加标签信息
  */
 GM_log("log message", "info", {
-  component: "example"
+  component: "example",
 });

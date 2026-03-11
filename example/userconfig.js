@@ -91,7 +91,7 @@ setInterval(() => {
   // GM_info新方法读取UserConfig，可直接关联读取缺省值，无需额外修改
   console.log(userConfig["group1.configA"]);
   console.log(userConfig["group1.configG"]);
-}, 5000)
+}, 5000);
 
 // 打开用户配置
 CAT_userConfig();

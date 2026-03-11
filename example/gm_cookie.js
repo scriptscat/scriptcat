@@ -16,56 +16,73 @@
  * set / list / delete Cookie
  * 每个新域名首次使用都需要用户授权
  */
-GM_cookie("set", {
+GM_cookie(
+  "set",
+  {
     url: "http://example.com/cookie",
     name: "cookie1",
-    value: "value"
-}, () => {
-
-    GM_cookie("set", {
+    value: "value",
+  },
+  () => {
+    GM_cookie(
+      "set",
+      {
         url: "http://www.example.com/",
         domain: ".example.com",
         path: "/path",
         name: "cookie2",
-        value: "path"
-    }, () => {
-
+        value: "path",
+      },
+      () => {
         // 按 domain 查询 cookie
-        GM_cookie("list", {
-            domain: "example.com"
-        }, (cookies) => {
+        GM_cookie(
+          "list",
+          {
+            domain: "example.com",
+          },
+          (cookies) => {
             console.log("domain", cookies);
-        });
+          }
+        );
 
         // 按 url 查询 cookie
-        GM_cookie("list", {
+        GM_cookie(
+          "list",
+          {
             url: "http://example.com/cookie",
-        }, (cookies) => {
+          },
+          (cookies) => {
             console.log("url", cookies);
-        });
+          }
+        );
 
         // 删除 cookie
-        GM_cookie("delete", {
+        GM_cookie(
+          "delete",
+          {
             url: "http://www.example.com/path",
-            name: "cookie2"
-        }, () => {
-
-            GM_cookie("list", {
-                domain: "example.com"
-            }, (cookies) => {
+            name: "cookie2",
+          },
+          () => {
+            GM_cookie(
+              "list",
+              {
+                domain: "example.com",
+              },
+              (cookies) => {
                 console.log("delete", cookies);
-            });
-
-        });
-    });
-});
+              }
+            );
+          }
+        );
+      }
+    );
+  }
+);
 
 /**
  * GM.cookie（Promise / async 风格）
  * ----------------
  * ScriptCat / 新版 TM 推荐写法
  */
-console.log(
-  "async GM.cookie.list",
-  await GM.cookie.list({ domain: "example.com" })
-);
+console.log("async GM.cookie.list", await GM.cookie.list({ domain: "example.com" }));

@@ -30,8 +30,8 @@ GM_saveTab({ test: "save" });
  *
  * 回调函数会接收到保存的数据对象
  */
-GM_getTab(data => {
-    console.log(data);
+GM_getTab((data) => {
+  console.log(data);
 });
 
 /**
@@ -46,6 +46,6 @@ GM_getTab(data => {
  *   ...
  * }
  */
-GM_getTabs(data => {
-    console.log(data);
+GM_getTabs((data) => {
+  console.log(data);
 });
