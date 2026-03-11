@@ -45,6 +45,11 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
+import type { AgentService } from "../agent";
+// 导入 Agent API 以触发装饰器注册
+// 注意：不能使用 import "./gm_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
+import GMAgentApi from "./gm_agent";
+void GMAgentApi;
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -237,9 +242,11 @@ export default class GMApi {
 
   scriptDAO: ScriptDAO = new ScriptDAO();
 
+  agentService?: AgentService;
+
   constructor(
     private systemConfig: SystemConfig,
-    private permissionVerify: PermissionVerify,
+    public permissionVerify: PermissionVerify,
     private group: Group,
     private msgSender: MessageSend,
     private mq: IMessageQueue,
@@ -247,6 +254,10 @@ export default class GMApi {
     private gmExternalDependencies: IGMExternalDependencies
   ) {
     this.logger = LoggerCore.logger().with({ service: "runtime/gm_api" });
+  }
+
+  setAgentService(agentService: AgentService) {
+    this.agentService = agentService;
   }
 
   // PermissionVerify.API

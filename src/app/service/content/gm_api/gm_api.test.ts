@@ -1208,3 +1208,27 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(ret).toEqual(123);
   });
 });
+
+describe("@grant CAT.agent.conversation", () => {
+  it("CAT.agent.conversation 应该在沙盒中可访问", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["CAT.agent.conversation", "GM_log"];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    script.code = `return {
+      CAT: typeof CAT,
+      create: typeof CAT.agent.conversation.create,
+      get: typeof CAT.agent.conversation.get,
+    }`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret.CAT).toEqual("object");
+    expect(ret.create).toEqual("function");
+    expect(ret.get).toEqual("function");
+  });
+});

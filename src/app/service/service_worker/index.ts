@@ -105,6 +105,12 @@ export default class ServiceWorkerManager {
     const agent = new AgentService(systemConfig, this.api.group("agent"));
     agent.init();
 
+    // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道
+    const gmApi = runtime.getGMApi();
+    if (gmApi) {
+      gmApi.setAgentService(agent);
+    }
+
     const regularScriptUpdateCheck = async () => {
       const res = await onRegularUpdateCheckAlarm(systemConfig, script, subscribe);
       if (!res?.ok) return;

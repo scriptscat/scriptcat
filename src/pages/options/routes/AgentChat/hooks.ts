@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Conversation, ChatMessage, ChatStreamEvent, MessageRole } from "@App/app/service/agent/types";
+import type {
+  Conversation,
+  ChatMessage,
+  ChatStreamEvent,
+  MessageRole,
+  ToolDefinition,
+} from "@App/app/service/agent/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { message as extensionMessage } from "@App/pages/store/global";
 import { connect } from "@Packages/message/client";
@@ -125,7 +131,8 @@ export function useStreamingChat() {
       modelId: string,
       allMessages: Array<{ role: MessageRole; content: string }>,
       onEvent: (event: ChatStreamEvent) => void,
-      onDone: () => void
+      onDone: () => void,
+      tools?: ToolDefinition[]
     ) => {
       setIsStreaming(true);
       abortedRef.current = false;
@@ -135,6 +142,7 @@ export function useStreamingChat() {
           conversationId,
           modelId,
           messages: allMessages,
+          tools,
         });
 
         connRef.current = conn;

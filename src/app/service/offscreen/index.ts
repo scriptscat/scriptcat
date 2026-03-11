@@ -60,7 +60,6 @@ export class OffscreenManager {
     // 转发valueUpdate与emitEvent
     forwardMessage("sandbox", "runtime/valueUpdate", this.windowServer, this.windowMessage);
     forwardMessage("sandbox", "runtime/emitEvent", this.windowServer, this.windowMessage);
-
     const gmApi = new GMApi(this.windowServer.group("gmApi"));
     gmApi.init();
     const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extMsgSender);

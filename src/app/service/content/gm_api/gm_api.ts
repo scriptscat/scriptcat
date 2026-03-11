@@ -24,7 +24,10 @@ import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/messag
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
 import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
-import { ScriptEnvTag } from "@Packages/message/consts";
+// 导入 CAT Agent API 以触发装饰器注册
+// 注意：不能使用 import "./cat_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
+import CATAgentApi from "./cat_agent";
+void CATAgentApi;
 
 // 内部函数呼叫定义
 export interface IGM_Base {

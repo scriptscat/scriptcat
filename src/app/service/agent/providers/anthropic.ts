@@ -14,18 +14,41 @@ export function buildAnthropicRequest(
   const systemMessages = request.messages.filter((m) => m.role === "system");
   const otherMessages = request.messages.filter((m) => m.role !== "system");
 
+  // Anthropic 格式：tool 角色消息需要转换为 tool_result content block
+  const messages = otherMessages.map((m) => {
+    if (m.role === "tool" && m.toolCallId) {
+      return {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: m.toolCallId,
+            content: m.content,
+          },
+        ],
+      };
+    }
+    return { role: m.role, content: m.content };
+  });
+
   const body: Record<string, unknown> = {
     model: config.model,
     max_tokens: 8192,
-    messages: otherMessages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
+    messages,
     stream: true,
   };
 
   if (systemMessages.length > 0) {
     body.system = systemMessages.map((m) => m.content).join("\n\n");
+  }
+
+  // 添加工具定义
+  if (request.tools && request.tools.length > 0) {
+    body.tools = request.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.parameters,
+    }));
   }
 
   const headers: Record<string, string> = {

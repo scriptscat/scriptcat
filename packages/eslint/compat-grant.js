@@ -7,6 +7,7 @@ const compatMap = {
   CAT_registerMenuInput: [{ type: "scriptcat", versionConstraint: ">=0.17.0-beta.2" }],
   CAT_unregisterMenuInput: [{ type: "scriptcat", versionConstraint: ">=0.17.0-beta.2" }],
   CAT_scriptLoaded: [{ type: "scriptcat", versionConstraint: ">=1.1.0-beta" }],
+  "CAT.agent.conversation": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   ...compat_grant.compatMap,
 };
 

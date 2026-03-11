@@ -746,3 +746,78 @@ declare namespace GMTypes {
 
   type GMClipboardInfo = string | { type?: string; mimetype?: string };
 }
+
+// ---- CAT.agent.conversation API ----
+
+declare namespace CATAgent {
+  interface ToolDefinition {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+    handler: (args: Record<string, unknown>) => Promise<unknown>;
+  }
+
+  interface ConversationCreateOptions {
+    id?: string;
+    system?: string;
+    model?: string;
+    maxIterations?: number;
+  }
+
+  interface ChatOptions {
+    tools?: ToolDefinition[];
+  }
+
+  interface ToolCallInfo {
+    id: string;
+    name: string;
+    arguments: string;
+    result?: string;
+  }
+
+  interface ChatReply {
+    content: string;
+    thinking?: string;
+    toolCalls?: ToolCallInfo[];
+    usage?: { inputTokens: number; outputTokens: number };
+  }
+
+  interface StreamChunk {
+    type: "content_delta" | "thinking_delta" | "tool_call" | "done" | "error";
+    content?: string;
+    toolCall?: ToolCallInfo;
+    usage?: { inputTokens: number; outputTokens: number };
+    error?: string;
+  }
+
+  interface ChatMessage {
+    id: string;
+    conversationId: string;
+    role: "user" | "assistant" | "system" | "tool";
+    content: string;
+    toolCalls?: ToolCallInfo[];
+    toolCallId?: string;
+    createdAt: number;
+  }
+
+  interface ConversationInstance {
+    readonly id: string;
+    readonly title: string;
+    readonly modelId: string;
+    chat(content: string, options?: ChatOptions): Promise<ChatReply>;
+    chatStream(content: string, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>>;
+    getMessages(): Promise<ChatMessage[]>;
+    save(): Promise<void>;
+  }
+
+  interface ConversationAPI {
+    create(options?: ConversationCreateOptions): Promise<ConversationInstance>;
+    get(id: string): Promise<ConversationInstance | null>;
+  }
+}
+
+declare const CAT: {
+  agent: {
+    conversation: CATAgent.ConversationAPI;
+  };
+};

@@ -14,22 +14,39 @@ export function buildOpenAIRequest(config: AgentModelConfig, request: ChatReques
     headers["Authorization"] = `Bearer ${config.apiKey}`;
   }
 
-  const body = JSON.stringify({
+  const messages = request.messages.map((m) => {
+    const msg: Record<string, unknown> = { role: m.role, content: m.content };
+    if (m.toolCallId) {
+      msg.tool_call_id = m.toolCallId;
+    }
+    return msg;
+  });
+
+  const body: Record<string, unknown> = {
     model: config.model,
-    messages: request.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
+    messages,
     stream: true,
     stream_options: { include_usage: true },
-  });
+  };
+
+  // 添加工具定义
+  if (request.tools && request.tools.length > 0) {
+    body.tools = request.tools.map((t) => ({
+      type: "function",
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      },
+    }));
+  }
 
   return {
     url,
     init: {
       method: "POST",
       headers,
-      body,
+      body: JSON.stringify(body),
     },
   };
 }
