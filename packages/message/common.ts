@@ -6,6 +6,11 @@ export const CustomEventClone = CustomEvent;
 
 const performanceClone = (process.env.VI_TESTING === "true" ? new EventTarget() : performance) as Performance;
 
+export let isContent: boolean = false;
+export const setIsContent = () => {
+  isContent = true;
+};
+
 // 避免页面载入后改动 EventTarget.prototype 的方法导致消息传递失败
 export const pageDispatchEvent = performanceClone.dispatchEvent.bind(performanceClone);
 export const pageAddEventListener = performanceClone.addEventListener.bind(performanceClone);

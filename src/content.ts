@@ -4,9 +4,15 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
-import { getEventFlag } from "@Packages/message/common";
+import { getEventFlag, setIsContent } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
+
+if (typeof chrome === "object" && typeof chrome?.runtime?.sendMessage === "function") {
+  setIsContent();
+} else {
+  console.error("chrome.runtime.sendMessage is not a function in content.js");
+}
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 

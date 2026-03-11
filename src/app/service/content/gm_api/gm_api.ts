@@ -18,7 +18,7 @@ import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
-import { ScriptEnvTag } from "@Packages/message/consts";
+import { isContent } from "@Packages/message/common";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
@@ -526,12 +526,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    // 上下文已失效时直接返回，避免访问已释放的 message 造成异常
-    if (this.isInvalidContext()) return undefined;
-
-    const message = this.message as CustomEventMessage | null;
-    const isContentEnv = !!message && message.envTag === ScriptEnvTag.content;
-    return urlToDocumentInContentPage(this, url, isContentEnv);
+    return urlToDocumentInContentPage(this, url, isContent);
   }
 
   static _GM_cookie(
