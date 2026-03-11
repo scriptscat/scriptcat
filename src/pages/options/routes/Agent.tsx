@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Card, Space, Typography } from "@arco-design/web-react";
 import AgentProvider from "./AgentProvider";
 import AgentChat from "./AgentChat";
+import AgentOPFS from "./AgentOPFS";
 
 function ComingSoon() {
   const { t } = useTranslation();
@@ -22,6 +23,7 @@ function Agent() {
       <Route path="/provider" element={<AgentProvider />} />
       <Route path="/mcp" element={<ComingSoon />} />
       <Route path="/skills" element={<ComingSoon />} />
+      <Route path="/opfs" element={<AgentOPFS />} />
       <Route path="*" element={<AgentChat />} />
     </Routes>
   );

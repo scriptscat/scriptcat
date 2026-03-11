@@ -10,13 +10,10 @@
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
-// 示例 1: 单工具 - 天气查询
+// 示例 1: 单工具 - 天气查询（在 create 时注册工具）
 async function weatherAssistant() {
   const conv = await CAT.agent.conversation.create({
     system: "你是一个天气助手，当用户询问天气时使用 get_weather 工具获取信息。",
-  });
-
-  const reply = await conv.chat("北京今天天气怎么样？", {
     tools: [
       {
         name: "get_weather",
@@ -47,6 +44,9 @@ async function weatherAssistant() {
     ],
   });
 
+  // 工具已在 create 时注册，chat 时无需再传
+  const reply = await conv.chat("北京今天天气怎么样？");
+
   // LLM 会根据工具返回的结果生成自然语言回复
   GM_log("最终回复: " + reply.content);
 
@@ -58,52 +58,51 @@ async function weatherAssistant() {
   }
 }
 
-// 示例 2: 多工具协作 - 计算器助手
+// 示例 2: 多工具协作 - 计算器助手（在 create 时注册工具）
 async function calculatorAssistant() {
   const conv = await CAT.agent.conversation.create({
     system: "你是一个计算助手。使用提供的工具来完成数学运算，不要自己心算。",
     maxIterations: 10, // 最大工具调用循环次数
+    tools: [
+      {
+        name: "add",
+        description: "计算两个数的和",
+        parameters: {
+          type: "object",
+          properties: {
+            a: { type: "number", description: "第一个数" },
+            b: { type: "number", description: "第二个数" },
+          },
+          required: ["a", "b"],
+        },
+        handler: async (args) => {
+          const result = args.a + args.b;
+          GM_log(`add(${args.a}, ${args.b}) = ${result}`);
+          return result;
+        },
+      },
+      {
+        name: "multiply",
+        description: "计算两个数的乘积",
+        parameters: {
+          type: "object",
+          properties: {
+            a: { type: "number", description: "第一个数" },
+            b: { type: "number", description: "第二个数" },
+          },
+          required: ["a", "b"],
+        },
+        handler: async (args) => {
+          const result = args.a * args.b;
+          GM_log(`multiply(${args.a}, ${args.b}) = ${result}`);
+          return result;
+        },
+      },
+    ],
   });
 
-  const tools = [
-    {
-      name: "add",
-      description: "计算两个数的和",
-      parameters: {
-        type: "object",
-        properties: {
-          a: { type: "number", description: "第一个数" },
-          b: { type: "number", description: "第二个数" },
-        },
-        required: ["a", "b"],
-      },
-      handler: async (args) => {
-        const result = args.a + args.b;
-        GM_log(`add(${args.a}, ${args.b}) = ${result}`);
-        return result;
-      },
-    },
-    {
-      name: "multiply",
-      description: "计算两个数的乘积",
-      parameters: {
-        type: "object",
-        properties: {
-          a: { type: "number", description: "第一个数" },
-          b: { type: "number", description: "第二个数" },
-        },
-        required: ["a", "b"],
-      },
-      handler: async (args) => {
-        const result = args.a * args.b;
-        GM_log(`multiply(${args.a}, ${args.b}) = ${result}`);
-        return result;
-      },
-    },
-  ];
-
-  // LLM 可能会多次调用工具来完成复杂计算
-  const reply = await conv.chat("计算 (3 + 5) * 7 的结果", { tools });
+  // 工具已在 create 时注册，多次 chat 都能使用
+  const reply = await conv.chat("计算 (3 + 5) * 7 的结果");
   GM_log("计算结果回复: " + reply.content);
 }
 

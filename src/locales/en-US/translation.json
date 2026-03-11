@@ -628,5 +628,18 @@
   "agent_chat_streaming": "Generating...",
   "agent_permission_title": "The script is requesting to use Agent conversation",
   "agent_permission_describe": "This script requests Agent conversation access, which will consume API tokens. Only grant access to trusted scripts.",
-  "agent_permission_content": "Agent Conversation"
+  "agent_permission_content": "Agent Conversation",
+  "agent_opfs": "OPFS",
+  "agent_opfs_title": "OPFS File Browser",
+  "agent_opfs_empty": "Empty directory",
+  "agent_opfs_name": "Name",
+  "agent_opfs_size": "Size",
+  "agent_opfs_type": "Type",
+  "agent_opfs_modified": "Last Modified",
+  "agent_opfs_delete_confirm": "Are you sure to delete?",
+  "agent_opfs_delete_success": "Deleted",
+  "agent_opfs_file": "File",
+  "agent_opfs_directory": "Directory",
+  "agent_opfs_preview": "Preview",
+  "agent_opfs_root": "Root"
 }

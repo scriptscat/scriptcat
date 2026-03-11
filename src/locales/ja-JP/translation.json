@@ -625,5 +625,21 @@
   "agent_chat_copy": "コピー",
   "agent_chat_copy_success": "コピーしました",
   "agent_chat_regenerate": "再生成",
-  "agent_chat_streaming": "生成中..."
+  "agent_chat_streaming": "生成中...",
+  "agent_permission_title": "スクリプトが Agent 会話の使用をリクエストしています",
+  "agent_permission_describe": "このスクリプトは Agent 会話機能の使用をリクエストしており、API トークンを消費します。信頼できるスクリプトにのみ許可してください。",
+  "agent_permission_content": "Agent 会話",
+  "agent_opfs": "OPFS",
+  "agent_opfs_title": "OPFS ファイルブラウザ",
+  "agent_opfs_empty": "空のディレクトリ",
+  "agent_opfs_name": "名前",
+  "agent_opfs_size": "サイズ",
+  "agent_opfs_type": "種類",
+  "agent_opfs_modified": "最終更新",
+  "agent_opfs_delete_confirm": "削除してよろしいですか？",
+  "agent_opfs_delete_success": "削除しました",
+  "agent_opfs_file": "ファイル",
+  "agent_opfs_directory": "ディレクトリ",
+  "agent_opfs_preview": "プレビュー",
+  "agent_opfs_root": "ルート"
 }

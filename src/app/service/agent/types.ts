@@ -67,6 +67,7 @@ export type ConversationCreateOptions = {
   system?: string;
   model?: string; // modelId，不传则使用默认模型
   maxIterations?: number; // tool calling 最大循环次数，默认 20
+  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
 };
 
 // conv.chat() 的参数

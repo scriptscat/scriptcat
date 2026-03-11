@@ -625,5 +625,21 @@
   "agent_chat_copy": "Copy",
   "agent_chat_copy_success": "Copied",
   "agent_chat_regenerate": "Regenerate",
-  "agent_chat_streaming": "Generating..."
+  "agent_chat_streaming": "Generating...",
+  "agent_permission_title": "Das Skript fordert die Verwendung des Agent-Gesprächs an",
+  "agent_permission_describe": "Dieses Skript fordert Zugang zur Agent-Gesprächsfunktion an, was API-Token verbraucht. Erlauben Sie nur vertrauenswürdigen Skripten.",
+  "agent_permission_content": "Agent-Gespräch",
+  "agent_opfs": "OPFS",
+  "agent_opfs_title": "OPFS Dateibrowser",
+  "agent_opfs_empty": "Leeres Verzeichnis",
+  "agent_opfs_name": "Name",
+  "agent_opfs_size": "Größe",
+  "agent_opfs_type": "Typ",
+  "agent_opfs_modified": "Zuletzt geändert",
+  "agent_opfs_delete_confirm": "Sind Sie sicher, dass Sie löschen möchten?",
+  "agent_opfs_delete_success": "Gelöscht",
+  "agent_opfs_file": "Datei",
+  "agent_opfs_directory": "Verzeichnis",
+  "agent_opfs_preview": "Vorschau",
+  "agent_opfs_root": "Stammverzeichnis"
 }

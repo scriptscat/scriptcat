@@ -625,5 +625,21 @@
   "agent_chat_copy": "Copy",
   "agent_chat_copy_success": "Copied",
   "agent_chat_regenerate": "Regenerate",
-  "agent_chat_streaming": "Generating..."
+  "agent_chat_streaming": "Generating...",
+  "agent_permission_title": "Скрипт запрашивает использование Agent разговора",
+  "agent_permission_describe": "Этот скрипт запрашивает доступ к функции Agent разговора, что будет потреблять API токены. Разрешайте только доверенным скриптам.",
+  "agent_permission_content": "Agent разговор",
+  "agent_opfs": "OPFS",
+  "agent_opfs_title": "Файловый браузер OPFS",
+  "agent_opfs_empty": "Пустая директория",
+  "agent_opfs_name": "Имя",
+  "agent_opfs_size": "Размер",
+  "agent_opfs_type": "Тип",
+  "agent_opfs_modified": "Последнее изменение",
+  "agent_opfs_delete_confirm": "Вы уверены, что хотите удалить?",
+  "agent_opfs_delete_success": "Удалено",
+  "agent_opfs_file": "Файл",
+  "agent_opfs_directory": "Директория",
+  "agent_opfs_preview": "Предпросмотр",
+  "agent_opfs_root": "Корень"
 }

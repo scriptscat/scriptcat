@@ -625,5 +625,21 @@
   "agent_chat_copy": "Copy",
   "agent_chat_copy_success": "Copied",
   "agent_chat_regenerate": "Regenerate",
-  "agent_chat_streaming": "Generating..."
+  "agent_chat_streaming": "Generating...",
+  "agent_permission_title": "Script yêu cầu sử dụng cuộc trò chuyện Agent",
+  "agent_permission_describe": "Script này yêu cầu quyền truy cập chức năng cuộc trò chuyện Agent, sẽ tiêu thụ API token. Chỉ cấp quyền cho các script đáng tin cậy.",
+  "agent_permission_content": "Cuộc trò chuyện Agent",
+  "agent_opfs": "OPFS",
+  "agent_opfs_title": "Trình duyệt tệp OPFS",
+  "agent_opfs_empty": "Thư mục trống",
+  "agent_opfs_name": "Tên",
+  "agent_opfs_size": "Kích thước",
+  "agent_opfs_type": "Loại",
+  "agent_opfs_modified": "Sửa đổi lần cuối",
+  "agent_opfs_delete_confirm": "Bạn có chắc chắn muốn xóa không?",
+  "agent_opfs_delete_success": "Đã xóa",
+  "agent_opfs_file": "Tệp",
+  "agent_opfs_directory": "Thư mục",
+  "agent_opfs_preview": "Xem trước",
+  "agent_opfs_root": "Gốc"
 }

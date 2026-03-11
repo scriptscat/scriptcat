@@ -16,14 +16,23 @@ import type {
 // 对话实例，暴露给用户脚本
 class ConversationInstance {
   private toolHandlers: Map<string, (args: Record<string, unknown>) => Promise<unknown>> = new Map();
+  private toolDefs: ToolDefinition[] = [];
 
   constructor(
     private conv: Conversation,
     private gmSendMessage: (api: string, params: any[]) => Promise<any>,
     private gmConnect: (api: string, params: any[]) => Promise<MessageConnect>,
     private scriptUuid: string,
-    private maxIterations: number
-  ) {}
+    private maxIterations: number,
+    initialTools?: ConversationCreateOptions["tools"]
+  ) {
+    if (initialTools) {
+      for (const tool of initialTools) {
+        this.toolHandlers.set(tool.name, tool.handler);
+        this.toolDefs.push({ name: tool.name, description: tool.description, parameters: tool.parameters });
+      }
+    }
+  }
 
   get id() {
     return this.conv.id;
@@ -39,27 +48,7 @@ class ConversationInstance {
 
   // 发送消息并获取回复（内置 tool calling 循环）
   async chat(content: string, options?: ChatOptions): Promise<ChatReply> {
-    // 收集工具定义和 handler
-    const toolDefs: ToolDefinition[] = [];
-    const handlers = new Map<string, (args: Record<string, unknown>) => Promise<unknown>>();
-
-    if (options?.tools) {
-      for (const tool of options.tools) {
-        toolDefs.push({
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        });
-        handlers.set(tool.name, tool.handler);
-      }
-    }
-
-    // 合并之前注册的 handlers
-    for (const [name, handler] of this.toolHandlers) {
-      if (!handlers.has(name)) {
-        handlers.set(name, handler);
-      }
-    }
+    const { toolDefs, handlers } = this.mergeTools(options?.tools);
 
     // 通过 GM API connect 建立流式连接
     const conn = await this.gmConnect("CAT_agentConversationChat", [
@@ -77,25 +66,7 @@ class ConversationInstance {
 
   // 流式发送消息
   async chatStream(content: string, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>> {
-    const toolDefs: ToolDefinition[] = [];
-    const handlers = new Map<string, (args: Record<string, unknown>) => Promise<unknown>>();
-
-    if (options?.tools) {
-      for (const tool of options.tools) {
-        toolDefs.push({
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        });
-        handlers.set(tool.name, tool.handler);
-      }
-    }
-
-    for (const [name, handler] of this.toolHandlers) {
-      if (!handlers.has(name)) {
-        handlers.set(name, handler);
-      }
-    }
+    const { toolDefs, handlers } = this.mergeTools(options?.tools);
 
     const conn = await this.gmConnect("CAT_agentConversationChat", [
       {
@@ -108,6 +79,24 @@ class ConversationInstance {
     ]);
 
     return this.processStream(conn, handlers);
+  }
+
+  // 合并实例级别和调用级别的工具定义
+  private mergeTools(callTools?: ChatOptions["tools"]) {
+    const toolDefs: ToolDefinition[] = [...this.toolDefs];
+    const handlers = new Map(this.toolHandlers);
+
+    if (callTools) {
+      for (const tool of callTools) {
+        // 调用级别的工具覆盖实例级别的同名工具
+        if (!handlers.has(tool.name)) {
+          toolDefs.push({ name: tool.name, description: tool.description, parameters: tool.parameters });
+        }
+        handlers.set(tool.name, tool.handler);
+      }
+    }
+
+    return { toolDefs, handlers };
   }
 
   // 获取对话历史
@@ -320,10 +309,12 @@ export default class CATAgentApi {
   @GMContext.API({ follow: "CAT.agent.conversation" })
   public "CAT.agent.conversation.create"(options: ConversationCreateOptions = {}): Promise<ConversationInstance> {
     return (async () => {
+      // tools 含 handler 函数，不发送到服务端
+      const { tools, ...serverOptions } = options;
       const conv = (await this.sendMessage("CAT_agentConversation", [
         {
           action: "create",
-          options,
+          options: serverOptions,
           scriptUuid: this.scriptRes?.uuid || "",
         } as ConversationApiRequest,
       ])) as Conversation;
@@ -333,7 +324,8 @@ export default class CATAgentApi {
         this.sendMessage.bind(this),
         this.connect.bind(this),
         this.scriptRes?.uuid || "",
-        options.maxIterations || 20
+        options.maxIterations || 20,
+        tools
       );
     })();
   }

@@ -99,6 +99,9 @@ const Sider: React.FC = () => {
               <CustomLink to="/agent/skills">
                 <MenuItem key="/agent/skills">{t("agent_skills")}</MenuItem>
               </CustomLink>
+              <CustomLink to="/agent/opfs">
+                <MenuItem key="/agent/opfs">{t("agent_opfs")}</MenuItem>
+              </CustomLink>
             </Menu.SubMenu>
             <CustomLink to="/logger">
               <MenuItem key="/logger">
