@@ -311,36 +311,34 @@ function Setting() {
           </div>
 
           {/* Favicon 服务 */}
-          <div>
-            <div className="tw-text-sm tw-font-medium tw-mb-3">{t("favicon_service")}</div>
-            <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
-              <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
-                <Select
-                  value={faviconService}
-                  className="tw-w-40 tw-max-w-50"
-                  onChange={async (value) => {
-                    submitFaviconService(value);
-                    // 清除 favicon 缓存
-                    try {
-                      const faviconDAO = new FaviconDAO();
-                      const allFavicons = await faviconDAO.find();
-                      await Promise.all(allFavicons.map((f) => faviconDAO.delete(f.uuid)));
-                      // 清除 OPFS 缓存：删除并重建目录
-                      const opfsRoot = await navigator.storage.getDirectory();
-                      await opfsRoot.removeEntry("cached_favicons", { recursive: true }).catch(() => {});
-                    } catch {
-                      // 忽略清除缓存的错误
-                    }
-                    Message.success(t("save_success")!);
-                  }}
-                >
-                  <Select.Option value="scriptcat">{t("favicon_service_scriptcat")}</Select.Option>
-                  <Select.Option value="local">{t("favicon_service_local")}</Select.Option>
-                  <Select.Option value="google">{t("favicon_service_google")}</Select.Option>
-                </Select>
-              </div>
-              <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("favicon_service_desc")}</span>
+          <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+            <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
+              <span className="tw-min-w-20">{t("favicon_service")}</span>
+              <Select
+                value={faviconService}
+                className="tw-w-40 tw-max-w-50"
+                onChange={async (value) => {
+                  submitFaviconService(value);
+                  // 清除 favicon 缓存
+                  try {
+                    const faviconDAO = new FaviconDAO();
+                    const allFavicons = await faviconDAO.find();
+                    await Promise.all(allFavicons.map((f) => faviconDAO.delete(f.uuid)));
+                    // 清除 OPFS 缓存：删除并重建目录
+                    const opfsRoot = await navigator.storage.getDirectory();
+                    await opfsRoot.removeEntry("cached_favicons", { recursive: true }).catch(() => {});
+                  } catch {
+                    // 忽略清除缓存的错误
+                  }
+                  Message.success(t("save_success")!);
+                }}
+              >
+                <Select.Option value="scriptcat">{t("favicon_service_scriptcat")}</Select.Option>
+                <Select.Option value="local">{t("favicon_service_local")}</Select.Option>
+                <Select.Option value="google">{t("favicon_service_google")}</Select.Option>
+              </Select>
             </div>
+            <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("favicon_service_desc")}</span>
           </div>
         </Space>
       </Card>
