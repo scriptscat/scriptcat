@@ -18,7 +18,7 @@ import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
-import { isContent } from "@Packages/message/common";
+import { ScriptEnvTag } from "@Packages/message/consts";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
@@ -526,7 +526,8 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    return urlToDocumentInContentPage(this, url, isContent);
+    const isContentEnv = (this.message as CustomEventMessage).envTag === ScriptEnvTag.content;
+    return urlToDocumentInContentPage(this, url, isContentEnv);
   }
 
   static _GM_cookie(
