@@ -188,6 +188,14 @@ export async function updatePersistedMessage(message: ChatMessage): Promise<void
   await repo.updateMessage(message);
 }
 
+// 批量删除持久化消息
+export async function deleteMessages(conversationId: string, messageIds: string[]): Promise<void> {
+  const messages = await repo.getMessages(conversationId);
+  const idSet = new Set(messageIds);
+  const filtered = messages.filter((m) => !idSet.has(m.id));
+  await repo.saveMessages(conversationId, filtered);
+}
+
 // 根据第一条用户消息自动生成会话标题
 export async function autoTitleConversation(conversationId: string, firstUserMessage: string): Promise<void> {
   const title = firstUserMessage.slice(0, 30) + (firstUserMessage.length > 30 ? "..." : "");

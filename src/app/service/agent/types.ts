@@ -32,6 +32,10 @@ export type ChatMessage = {
   toolCallId?: string;
   error?: string;
   modelId?: string;
+  usage?: { inputTokens: number; outputTokens: number };
+  durationMs?: number;
+  firstTokenMs?: number;
+  parentId?: string;
   createdAt: number;
 };
 
@@ -41,7 +45,7 @@ export type ChatStreamEvent =
   | { type: "thinking_delta"; delta: string }
   | { type: "tool_call_start"; toolCall: Omit<ToolCall, "result"> }
   | { type: "tool_call_delta"; id: string; delta: string }
-  | { type: "done"; usage?: { inputTokens: number; outputTokens: number } }
+  | { type: "done"; usage?: { inputTokens: number; outputTokens: number }; durationMs?: number }
   | { type: "error"; message: string };
 
 // UI -> Service Worker 的聊天请求
@@ -91,6 +95,41 @@ export type StreamChunk = {
   usage?: { inputTokens: number; outputTokens: number };
   error?: string;
 };
+
+// ---- CATTool 类型 ----
+
+export type CATToolParam = {
+  name: string;
+  type: "string" | "number" | "boolean";
+  required: boolean;
+  description: string;
+  enum?: string[];
+};
+
+export type CATToolMetadata = {
+  name: string;
+  description: string;
+  params: CATToolParam[];
+  grants: string[];
+};
+
+// OPFS 中存储的 CATTool 记录
+export type CATToolRecord = {
+  name: string;
+  description: string;
+  params: CATToolParam[];
+  grants: string[];
+  code: string; // 完整代码（含元数据头）
+  installedAt: number;
+  updatedAt: number;
+};
+
+// CAT.agent.tools API 请求
+export type CATToolApiRequest =
+  | { action: "install"; code: string; scriptUuid: string }
+  | { action: "remove"; name: string; scriptUuid: string }
+  | { action: "list"; scriptUuid: string }
+  | { action: "call"; name: string; params: Record<string, unknown>; scriptUuid: string };
 
 // Sandbox -> Service Worker 的 conversation API 请求
 export type ConversationApiRequest =

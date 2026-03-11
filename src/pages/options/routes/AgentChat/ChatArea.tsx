@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Empty } from "@arco-design/web-react";
+import { Message as ArcoMessage } from "@arco-design/web-react";
+import { IconRobot } from "@arco-design/web-react/icon";
 import type { AgentModelConfig } from "@App/pkg/config/config";
 import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
-import MessageItem from "./MessageItem";
+import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
-import { useMessages, useStreamingChat, persistMessage, autoTitleConversation } from "./hooks";
+import { useMessages, useStreamingChat, persistMessage, deleteMessages, autoTitleConversation } from "./hooks";
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -39,6 +40,48 @@ function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
     });
 }
 
+// 将消息按角色分组：连续的 assistant 消息合并为一组
+type MessageGroup = { type: "user"; message: ChatMessage } | { type: "assistant"; messages: ChatMessage[] };
+
+function groupMessages(messages: ChatMessage[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      groups.push({ type: "user", message: msg });
+    } else {
+      // assistant 消息，尝试合并到上一个 assistant 组
+      const last = groups[groups.length - 1];
+      if (last && last.type === "assistant") {
+        last.messages.push(msg);
+      } else {
+        groups.push({ type: "assistant", messages: [msg] });
+      }
+    }
+  }
+  return groups;
+}
+
+// 欢迎界面
+function WelcomeScreen({ hasConversation }: { hasConversation: boolean }) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-h-full tw-py-20 tw-select-none">
+      <div className="tw-w-16 tw-h-16 tw-rounded-2xl tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-1))] tw-to-[rgb(var(--arcoblue-2))] tw-flex tw-items-center tw-justify-center tw-mb-5 tw-shadow-sm">
+        <IconRobot style={{ fontSize: 32, color: "rgb(var(--arcoblue-6))" }} />
+      </div>
+      <h2 className="tw-text-lg tw-font-semibold tw-text-[var(--color-text-1)] tw-mb-2 tw-mt-0">
+        {hasConversation ? t("agent_chat_input_placeholder") : t("agent_chat_no_conversations")}
+      </h2>
+      <p className="tw-text-sm tw-text-[var(--color-text-3)] tw-mb-6 tw-mt-0">
+        {hasConversation
+          ? t("agent_chat_welcome_hint") || "Ask me anything about your scripts"
+          : t("agent_chat_welcome_start") || "Create a conversation to get started"}
+      </p>
+    </div>
+  );
+}
+
 export default function ChatArea({
   conversationId,
   models,
@@ -57,6 +100,10 @@ export default function ChatArea({
   const { isStreaming, sendMessage, stopGeneration } = useStreamingChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMsgRef = useRef<ChatMessage | null>(null);
+  // 计时相关
+  const sendStartTimeRef = useRef<number>(0);
+  const firstTokenRecordedRef = useRef<boolean>(false);
+  const firstTokenMsRef = useRef<number | undefined>(undefined);
 
   // 自动滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -67,8 +114,14 @@ export default function ChatArea({
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  const handleSend = async (content: string) => {
+  // 发送消息（支持指定 content 和可选的已有消息列表用于重新回答）
+  const handleSend = async (content: string, existingMessages?: ChatMessage[]) => {
     if (!conversationId || !selectedModelId) return;
+
+    // 记录发送开始时间
+    sendStartTimeRef.current = Date.now();
+    firstTokenRecordedRef.current = false;
+    firstTokenMsRef.current = undefined;
 
     // 添加用户消息
     const userMsg: ChatMessage = {
@@ -91,10 +144,11 @@ export default function ChatArea({
     };
     streamingMsgRef.current = assistantMsg;
 
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    const baseMessages = existingMessages ?? messages;
+    setMessages([...baseMessages, userMsg, assistantMsg]);
 
     // 自动设置标题（仅首条消息时）
-    const isFirstMessage = messages.length === 0;
+    const isFirstMessage = baseMessages.length === 0;
     if (isFirstMessage) {
       autoTitleConversation(conversationId, content).then(() => {
         onConversationTitleChange?.();
@@ -102,7 +156,7 @@ export default function ChatArea({
     }
 
     // 构造发送给 AI 的消息列表
-    const allMsgs = [...messages, userMsg].map((m) => ({
+    const allMsgs = [...baseMessages, userMsg].map((m) => ({
       role: m.role,
       content: m.content,
     }));
@@ -117,6 +171,11 @@ export default function ChatArea({
 
         switch (event.type) {
           case "content_delta":
+            // 记录首 token 延迟
+            if (!firstTokenRecordedRef.current) {
+              firstTokenRecordedRef.current = true;
+              firstTokenMsRef.current = Date.now() - sendStartTimeRef.current;
+            }
             msg.content += event.delta;
             break;
           case "thinking_delta":
@@ -137,7 +196,10 @@ export default function ChatArea({
             msg.error = event.message;
             break;
           case "done":
-            // 完成
+            // 写入元数据
+            if (event.usage) msg.usage = event.usage;
+            if (event.durationMs != null) msg.durationMs = event.durationMs;
+            if (firstTokenMsRef.current != null) msg.firstTokenMs = firstTokenMsRef.current;
             break;
         }
 
@@ -164,29 +226,120 @@ export default function ChatArea({
     );
   };
 
+  // 复制消息组的文本内容到剪贴板
+  const handleCopy = useCallback(
+    (groupMessages: ChatMessage[]) => {
+      const text = groupMessages
+        .map((m) => m.content)
+        .filter(Boolean)
+        .join("\n\n");
+      navigator.clipboard.writeText(text).then(() => {
+        ArcoMessage.success(t("agent_chat_copy_success"));
+      });
+    },
+    [t]
+  );
+
+  // 重新回答：删除当前 assistant 消息组，用上一条用户消息重新请求
+  const handleRegenerate = useCallback(
+    async (groups: MessageGroup[], groupIndex: number) => {
+      if (isStreaming) return;
+
+      // 找到对应的 assistant 组
+      const group = groups[groupIndex];
+      if (group.type !== "assistant") return;
+
+      // 找到前面的用户消息
+      let userMessage: ChatMessage | null = null;
+      for (let i = groupIndex - 1; i >= 0; i--) {
+        if (groups[i].type === "user") {
+          userMessage = (groups[i] as { type: "user"; message: ChatMessage }).message;
+          break;
+        }
+      }
+      if (!userMessage) return;
+
+      // 收集需要删除的消息 ID（assistant 组 + 关联的 tool 消息）
+      const idsToDelete = group.messages.map((m) => m.id);
+      // 同时删除用户消息（会重新创建）
+      idsToDelete.push(userMessage.id);
+
+      // 从持久化存储中删除
+      await deleteMessages(conversationId, idsToDelete);
+
+      // 重建消息列表（不包含被删除的消息）
+      const idSet = new Set(idsToDelete);
+      const remainingMessages = messages.filter((m) => !idSet.has(m.id));
+      setMessages(remainingMessages);
+
+      // 用原来的用户消息内容重新请求
+      await handleSend(userMessage.content, remainingMessages);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [conversationId, isStreaming, messages, setMessages]
+  );
+
+  // 删除整轮对话（用户消息 + assistant 消息组）
+  const handleDeleteRound = useCallback(
+    async (groups: MessageGroup[], groupIndex: number) => {
+      if (isStreaming) return;
+
+      const group = groups[groupIndex];
+      if (group.type !== "assistant") return;
+
+      const idsToDelete: string[] = group.messages.map((m) => m.id);
+
+      // 找到前面的用户消息
+      for (let i = groupIndex - 1; i >= 0; i--) {
+        if (groups[i].type === "user") {
+          idsToDelete.push((groups[i] as { type: "user"; message: ChatMessage }).message.id);
+          break;
+        }
+      }
+
+      // 从持久化存储中删除（这里要删除原始消息，包括 tool 角色消息）
+      // 先根据 assistant 消息的 toolCalls 找出关联的 tool 消息
+      const allToolCallIds = group.messages.flatMap((m) => m.toolCalls?.map((tc) => tc.id) || []);
+      const originalToolMsgIds = messages
+        .filter((m) => m.role === "tool" && m.toolCallId && allToolCallIds.includes(m.toolCallId))
+        .map((m) => m.id);
+      idsToDelete.push(...originalToolMsgIds);
+
+      await deleteMessages(conversationId, idsToDelete);
+      loadMessages();
+    },
+    [conversationId, isStreaming, messages, loadMessages]
+  );
+
   const noModel = models.length === 0;
+  const showWelcome = !conversationId || (messages.length === 0 && !isStreaming);
+  const mergedMessages = mergeToolResults(messages);
+  const messageGroups = groupMessages(mergedMessages);
 
   return (
-    <div className="tw-flex tw-flex-col tw-flex-1 tw-min-w-0 tw-h-full">
+    <div className="tw-flex tw-flex-col tw-flex-1 tw-min-w-0 tw-h-full tw-bg-[var(--color-bg-1)]">
       {/* 消息列表 */}
-      <div className="tw-flex-1 tw-overflow-y-auto tw-px-4">
+      <div className="tw-flex-1 tw-overflow-y-auto tw-px-4 agent-chat-scroll">
         <div className="tw-max-w-3xl tw-mx-auto">
-          {!conversationId ? (
-            <div className="tw-flex tw-items-center tw-justify-center tw-h-full tw-py-20">
-              <Empty description={t("agent_chat_no_conversations")} />
-            </div>
-          ) : messages.length === 0 && !isStreaming ? (
-            <div className="tw-flex tw-items-center tw-justify-center tw-h-full tw-py-20">
-              <Empty description={t("agent_chat_input_placeholder")} />
-            </div>
+          {showWelcome ? (
+            <WelcomeScreen hasConversation={!!conversationId} />
           ) : (
-            mergeToolResults(messages).map((msg) => (
-              <MessageItem
-                key={msg.id}
-                message={msg}
-                isStreaming={isStreaming && msg.id === streamingMsgRef.current?.id}
-              />
-            ))
+            messageGroups.map((group, groupIndex) =>
+              group.type === "user" ? (
+                <UserMessageItem key={group.message.id} message={group.message} />
+              ) : (
+                <AssistantMessageGroup
+                  key={group.messages[0].id}
+                  messages={group.messages}
+                  streamingId={isStreaming ? streamingMsgRef.current?.id : undefined}
+                  isStreaming={isStreaming}
+                  streamStartTime={sendStartTimeRef.current || undefined}
+                  onCopy={() => handleCopy(group.messages)}
+                  onRegenerate={() => handleRegenerate(messageGroups, groupIndex)}
+                  onDelete={() => handleDeleteRound(messageGroups, groupIndex)}
+                />
+              )
+            )
           )}
           <div ref={messagesEndRef} />
         </div>

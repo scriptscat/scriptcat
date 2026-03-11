@@ -1,5 +1,6 @@
 import type { Group, IGetSender } from "@Packages/message/server";
 import { GetSenderType } from "@Packages/message/server";
+import type { MessageSend } from "@Packages/message/types";
 import type { SystemConfig, AgentModelConfig } from "@App/pkg/config/config";
 import type {
   ChatRequest,
@@ -8,21 +9,28 @@ import type {
   Conversation,
   ToolCall,
   ToolDefinition,
+  CATToolApiRequest,
+  CATToolRecord,
 } from "@App/app/service/agent/types";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { CATToolRepo } from "@App/app/repo/cattool_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
 import type { ScriptToolCallback } from "@App/app/service/agent/tool_registry";
+import { parseCATToolMetadata, catToolToToolDefinition } from "@App/pkg/utils/cattool";
+import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
 
 export class AgentService {
   private repo = new AgentChatRepo();
+  private catToolRepo = new CATToolRepo();
   private toolRegistry = new ToolRegistry();
 
   constructor(
     private systemConfig: SystemConfig,
-    private group: Group
+    private group: Group,
+    private sender: MessageSend
   ) {}
 
   init() {
@@ -32,11 +40,95 @@ export class AgentService {
     this.group.on("conversation", this.handleConversation.bind(this));
     // Sandbox 流式聊天（通过 connect）
     this.group.on("conversationChat", this.handleConversationChat.bind(this));
+    // 加载已安装的 CATTools
+    this.loadCATTools();
   }
 
   // 获取工具注册表（供外部注册内置工具）
   getToolRegistry(): ToolRegistry {
     return this.toolRegistry;
+  }
+
+  // 从 OPFS 加载所有 CATTool 并注册到 ToolRegistry
+  private async loadCATTools() {
+    try {
+      const tools = await this.catToolRepo.listTools();
+      for (const tool of tools) {
+        const def = catToolToToolDefinition({
+          name: tool.name,
+          description: tool.description,
+          params: tool.params,
+          grants: tool.grants,
+        });
+        this.toolRegistry.registerBuiltin(def, new CATToolExecutor(tool, this.sender));
+      }
+    } catch {
+      // OPFS 可能在 SW 环境不可用，静默忽略
+    }
+  }
+
+  // 安装 CATTool
+  async installCATTool(code: string): Promise<CATToolRecord> {
+    const metadata = parseCATToolMetadata(code);
+    if (!metadata) {
+      throw new Error("Invalid CATTool: missing or malformed ==CATTool== header");
+    }
+
+    const now = Date.now();
+    const existing = await this.catToolRepo.getTool(metadata.name);
+    const record: CATToolRecord = {
+      name: metadata.name,
+      description: metadata.description,
+      params: metadata.params,
+      grants: metadata.grants,
+      code,
+      installedAt: existing?.installedAt || now,
+      updatedAt: now,
+    };
+
+    await this.catToolRepo.saveTool(record);
+
+    // 注册/更新到 ToolRegistry
+    const def = catToolToToolDefinition(metadata);
+    this.toolRegistry.unregisterBuiltin(metadata.name);
+    this.toolRegistry.registerBuiltin(def, new CATToolExecutor(record, this.sender));
+
+    return record;
+  }
+
+  // 卸载 CATTool
+  async removeCATTool(name: string): Promise<boolean> {
+    const removed = await this.catToolRepo.removeTool(name);
+    if (removed) {
+      this.toolRegistry.unregisterBuiltin(name);
+    }
+    return removed;
+  }
+
+  // 直接调用 CATTool
+  async callCATTool(name: string, params: Record<string, unknown>): Promise<unknown> {
+    const tool = await this.catToolRepo.getTool(name);
+    if (!tool) {
+      throw new Error(`CATTool "${name}" not found`);
+    }
+    const executor = new CATToolExecutor(tool, this.sender);
+    return executor.execute(params);
+  }
+
+  // 处理 CAT.agent.tools API 请求
+  async handleToolsApi(request: CATToolApiRequest): Promise<unknown> {
+    switch (request.action) {
+      case "install":
+        return this.installCATTool(request.code);
+      case "remove":
+        return this.removeCATTool(request.name);
+      case "list":
+        return this.catToolRepo.listTools();
+      case "call":
+        return this.callCATTool(request.name, request.params);
+      default:
+        throw new Error(`Unknown tools action: ${(request as any).action}`);
+    }
   }
 
   // 获取模型配置
@@ -131,6 +223,7 @@ export class AgentService {
     // 合并内置工具和脚本工具定义
     const allToolDefs = this.toolRegistry.getDefinitions(tools);
 
+    const startTime = Date.now();
     let iterations = 0;
     const totalUsage = { inputTokens: 0, outputTokens: 0 };
 
@@ -205,7 +298,7 @@ export class AgentService {
       }
 
       // 发送 done 事件
-      sendEvent({ type: "done", usage: totalUsage });
+      sendEvent({ type: "done", usage: totalUsage, durationMs: Date.now() - startTime });
       return;
     }
 
