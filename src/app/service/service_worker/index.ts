@@ -21,6 +21,7 @@ import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
 import { InfoNotification } from "./utils";
+import { AgentService } from "./agent";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -101,6 +102,8 @@ export default class ServiceWorkerManager {
       faviconDAO
     );
     system.init();
+    const agent = new AgentService(systemConfig, this.api.group("agent"));
+    agent.init();
 
     const regularScriptUpdateCheck = async () => {
       const res = await onRegularUpdateCheckAlarm(systemConfig, script, subscribe);

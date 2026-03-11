@@ -1,0 +1,118 @@
+import type { ChatStreamEvent, ChatRequest } from "../types";
+import type { AgentModelConfig } from "@App/pkg/config/config";
+import { SSEParser } from "../sse_parser";
+
+// 构造 OpenAI 兼容格式的请求
+export function buildOpenAIRequest(config: AgentModelConfig, request: ChatRequest): { url: string; init: RequestInit } {
+  const baseUrl = config.apiBaseUrl || "https://api.openai.com/v1";
+  const url = `${baseUrl}/chat/completions`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (config.apiKey) {
+    headers["Authorization"] = `Bearer ${config.apiKey}`;
+  }
+
+  const body = JSON.stringify({
+    model: config.model,
+    messages: request.messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
+    stream: true,
+    stream_options: { include_usage: true },
+  });
+
+  return {
+    url,
+    init: {
+      method: "POST",
+      headers,
+      body,
+    },
+  };
+}
+
+// 解析 OpenAI SSE 流，生成 ChatStreamEvent
+export function parseOpenAIStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  onEvent: (event: ChatStreamEvent) => void,
+  signal: AbortSignal
+): Promise<void> {
+  const parser = new SSEParser();
+  const decoder = new TextDecoder();
+
+  return (async () => {
+    try {
+      while (!signal.aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const events = parser.parse(chunk);
+
+        for (const sseEvent of events) {
+          if (sseEvent.data === "[DONE]") {
+            onEvent({ type: "done" });
+            return;
+          }
+
+          try {
+            const json = JSON.parse(sseEvent.data);
+
+            // 处理 usage（最后一个 chunk）
+            if (json.usage) {
+              onEvent({
+                type: "done",
+                usage: {
+                  inputTokens: json.usage.prompt_tokens || 0,
+                  outputTokens: json.usage.completion_tokens || 0,
+                },
+              });
+              return;
+            }
+
+            const choice = json.choices?.[0];
+            if (!choice) continue;
+
+            const delta = choice.delta;
+            if (!delta) continue;
+
+            // 内容增量
+            if (delta.content) {
+              onEvent({ type: "content_delta", delta: delta.content });
+            }
+
+            // 工具调用
+            if (delta.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                if (tc.function?.name) {
+                  onEvent({
+                    type: "tool_call_start",
+                    toolCall: {
+                      id: tc.id || `tc_${Date.now()}`,
+                      name: tc.function.name,
+                      arguments: tc.function.arguments || "",
+                    },
+                  });
+                } else if (tc.function?.arguments) {
+                  onEvent({
+                    type: "tool_call_delta",
+                    id: tc.id || "",
+                    delta: tc.function.arguments,
+                  });
+                }
+              }
+            }
+          } catch {
+            // 解析失败忽略
+          }
+        }
+      }
+    } catch (e: any) {
+      if (signal.aborted) return;
+      onEvent({ type: "error", message: e.message || "Stream read error" });
+    }
+  })();
+}

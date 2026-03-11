@@ -19,6 +19,20 @@ export type CloudSyncConfig = {
   params: { [key: string]: any };
 };
 
+export type AgentModelConfig = {
+  id: string; // 唯一标识
+  name: string; // 用户自定义名称（如 "GPT-4o", "Claude Sonnet"）
+  provider: "openai" | "anthropic";
+  apiBaseUrl: string;
+  apiKey: string;
+  model: string;
+};
+
+export type AgentConfig = {
+  models: AgentModelConfig[];
+  defaultModelId: string; // 指向 models 中某个 id
+};
+
 export type CATFileStorage = {
   filesystem: FileSystemType;
   params: { [key: string]: any };
@@ -274,6 +288,21 @@ export class SystemConfig {
 
   setCatFileStorage(data: CATFileStorage) {
     this._set("cat_file_storage", data);
+  }
+
+  defaultAgentConfig(): AgentConfig {
+    return {
+      models: [],
+      defaultModelId: "",
+    };
+  }
+
+  getAgentConfig() {
+    return this._get<AgentConfig>("agent_config", this.defaultAgentConfig());
+  }
+
+  setAgentConfig(data: AgentConfig) {
+    this._set("agent_config", data);
   }
 
   getEnableEslint() {
