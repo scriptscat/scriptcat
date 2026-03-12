@@ -8,14 +8,20 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 // CATTool UUID 前缀，用于在 GM API 请求中识别 CATTool
 export const CATTOOL_UUID_PREFIX = "cattool-";
 
-// 全局的 CATTool UUID → 工具名 映射，供 GM API 查询 grants 时使用
+// 全局的 CATTool UUID → 工具信息映射，供 GM API 权限验证时使用
+// 直接携带 grants，避免运行时再查 repo（skill 的 CATTool 不在 catToolRepo 中）
 // 注意：此 Map 在 SW 重启后会丢失，但 CATTool 执行是单次 request-response，
-// SW 重启会同时中断消息通道，所以 UUID 映射丢失不会导致额外问题
-const cattoolUuidMap = new Map<string, string>();
+// SW 重启会同时中断消息通道，所以映射丢失不会导致额外问题
+const cattoolUuidMap = new Map<string, { name: string; grants: string[] }>();
 
 // 根据 CATTool UUID 获取工具名
 export function getCATToolNameByUuid(uuid: string): string {
-  return cattoolUuidMap.get(uuid) || "";
+  return cattoolUuidMap.get(uuid)?.name || "";
+}
+
+// 根据 CATTool UUID 直接获取 grants（用于 GM API 权限验证）
+export function getCATToolGrantsByUuid(uuid: string): string[] {
+  return cattoolUuidMap.get(uuid)?.grants || [];
 }
 
 // CATTool 执行器，通过 Offscreen -> Sandbox 执行 CATTool 脚本
@@ -45,7 +51,7 @@ export class CATToolExecutor implements ToolExecutor {
 
     // 在 service worker 端生成 UUID 并注册映射
     const uuid = CATTOOL_UUID_PREFIX + uuidv4();
-    cattoolUuidMap.set(uuid, this.record.name);
+    cattoolUuidMap.set(uuid, { name: this.record.name, grants: this.record.grants });
 
     const code = getCATToolBody(this.record.code);
     try {

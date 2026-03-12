@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { CATToolExecutor, getCATToolNameByUuid, CATTOOL_UUID_PREFIX } from "./cattool_executor";
+import {
+  CATToolExecutor,
+  getCATToolNameByUuid,
+  getCATToolGrantsByUuid,
+  CATTOOL_UUID_PREFIX,
+} from "./cattool_executor";
 import type { CATToolRecord } from "./types";
 
 function createRecord(params: CATToolRecord["params"] = [], overrides?: Partial<CATToolRecord>): CATToolRecord {
@@ -231,6 +236,49 @@ describe("getCATToolNameByUuid", () => {
 
   it("空字符串应返回空字符串", () => {
     expect(getCATToolNameByUuid("")).toBe("");
+  });
+});
+
+describe("getCATToolGrantsByUuid", () => {
+  it("未注册的 UUID 应返回空数组", () => {
+    expect(getCATToolGrantsByUuid("cattool-unknown-uuid")).toEqual([]);
+  });
+
+  it("执行期间应能通过 UUID 获取 grants", async () => {
+    let capturedUuid = "";
+    const sender = {
+      sendMessage: vi.fn().mockImplementation((msg: any) => {
+        capturedUuid = msg.data.uuid;
+        // 执行期间应能获取 grants
+        expect(getCATToolGrantsByUuid(msg.data.uuid)).toEqual(["CAT.agent.dom", "GM.xmlHttpRequest"]);
+        return Promise.resolve({ data: "result" });
+      }),
+    } as any;
+
+    const record = createRecord([], {
+      grants: ["CAT.agent.dom", "GM.xmlHttpRequest"],
+    });
+    const executor = new CATToolExecutor(record, sender);
+    await executor.execute({});
+
+    // 执行完成后应清理
+    expect(getCATToolGrantsByUuid(capturedUuid)).toEqual([]);
+  });
+
+  it("执行失败时也应清理 grants 映射", async () => {
+    let capturedUuid = "";
+    const sender = {
+      sendMessage: vi.fn().mockImplementation((msg: any) => {
+        capturedUuid = msg.data.uuid;
+        return Promise.reject(new Error("执行失败"));
+      }),
+    } as any;
+
+    const record = createRecord([], { grants: ["CAT.agent.dom"] });
+    const executor = new CATToolExecutor(record, sender);
+
+    await expect(executor.execute({})).rejects.toThrow("执行失败");
+    expect(getCATToolGrantsByUuid(capturedUuid)).toEqual([]);
   });
 });
 

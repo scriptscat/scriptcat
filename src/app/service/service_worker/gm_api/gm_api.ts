@@ -28,7 +28,7 @@ import type {
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
 import { BrowserNoSupport, notificationsUpdate } from "../utils";
-import { getCATToolNameByUuid, CATTOOL_UUID_PREFIX } from "@App/app/service/agent/cattool_executor";
+import { getCATToolGrantsByUuid, CATTOOL_UUID_PREFIX } from "@App/app/service/agent/cattool_executor";
 import i18n from "@App/locales/locales";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { createObjectURL } from "../../offscreen/client";
@@ -290,14 +290,8 @@ export default class GMApi {
     let script;
     if (data.uuid.startsWith(CATTOOL_UUID_PREFIX)) {
       // CATTool GM API 调用：构造虚拟 Script 对象（CATTool 不在 ScriptDAO 中）
-      const toolName = getCATToolNameByUuid(data.uuid);
-      // 从 AgentService 获取 CATTool 的 grants
-      let grants: string[] = [];
-      if (this.agentService) {
-        grants = await this.agentService.getCATToolGrants(toolName);
-      } else {
-        console.warn("AgentService not initialized, CATTool GM API grants will be empty");
-      }
+      // 直接从 UUID map 获取 grants，避免查 repo（skill 的 CATTool 不在 catToolRepo 中）
+      const grants = getCATToolGrantsByUuid(data.uuid);
       script = {
         uuid: data.uuid,
         name: data.uuid,
