@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { ToolRegistry } from "./tool_registry";
 import { registerDomTools } from "./dom_tools";
 import type { AgentDomService } from "@App/app/service/service_worker/agent_dom";
+import type { AgentChatRepo } from "@App/app/repo/agent_chat";
+
+vi.mock("@App/pkg/utils/uuid", () => ({
+  uuidv4: vi.fn(() => "mock-att-uuid"),
+}));
 
 describe("registerDomTools", () => {
   it("应注册所有 8 个 DOM 工具到 ToolRegistry", () => {
@@ -113,5 +118,60 @@ describe("registerDomTools", () => {
       maxLength: undefined,
       viewportOnly: undefined,
     });
+  });
+
+  it("dom_screenshot 应返回 ToolResultWithAttachments 格式", async () => {
+    const registry = new ToolRegistry();
+    const mockRepo = {
+      saveAttachment: vi.fn().mockResolvedValue(5000),
+    } as unknown as AgentChatRepo;
+    registry.setChatRepo(mockRepo);
+
+    const dataUrl = "data:image/jpeg;base64,/9j/4AAQSkZJRgAB";
+    const mockService = {
+      screenshot: vi.fn().mockResolvedValue(dataUrl),
+    } as unknown as AgentDomService;
+
+    registerDomTools(registry, mockService);
+
+    const results = await registry.execute([
+      { id: "tc5", name: "dom_screenshot", arguments: JSON.stringify({ quality: 90 }) },
+    ]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].result).toBe("Screenshot captured successfully.");
+    expect(results[0].attachments).toHaveLength(1);
+
+    const att = results[0].attachments![0];
+    expect(att.type).toBe("image");
+    expect(att.name).toBe("screenshot.jpg");
+    expect(att.mimeType).toBe("image/jpeg");
+    expect(att.size).toBe(5000);
+
+    // 验证保存到 OPFS 的数据是完整的 data URL
+    expect(mockRepo.saveAttachment).toHaveBeenCalledWith("mock-att-uuid", dataUrl);
+  });
+
+  it("dom_screenshot PNG 格式应正确识别", async () => {
+    const registry = new ToolRegistry();
+    const mockRepo = {
+      saveAttachment: vi.fn().mockResolvedValue(3000),
+    } as unknown as AgentChatRepo;
+    registry.setChatRepo(mockRepo);
+
+    const dataUrl = "data:image/png;base64,iVBORw0KGgo";
+    const mockService = {
+      screenshot: vi.fn().mockResolvedValue(dataUrl),
+    } as unknown as AgentDomService;
+
+    registerDomTools(registry, mockService);
+
+    const results = await registry.execute([
+      { id: "tc6", name: "dom_screenshot", arguments: "{}" },
+    ]);
+
+    const att = results[0].attachments![0];
+    expect(att.mimeType).toBe("image/png");
+    expect(att.name).toBe("screenshot.png");
   });
 });

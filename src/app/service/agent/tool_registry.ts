@@ -1,4 +1,6 @@
-import type { ToolCall, ToolDefinition } from "./types";
+import type { Attachment, ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
+import type { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 
 // 工具执行器接口
 export interface ToolExecutor {
@@ -8,9 +10,29 @@ export interface ToolExecutor {
 // 脚本工具回调类型：将 tool calls 发送到 Sandbox 执行
 export type ScriptToolCallback = (toolCalls: ToolCall[]) => Promise<Array<{ id: string; result: string }>>;
 
+// 工具执行结果（可能含附件）
+export type ToolExecuteResult = {
+  id: string;
+  result: string;
+  attachments?: Attachment[];
+};
+
+// 判断返回值是否是带附件的结构化结果
+function isToolResultWithAttachments(value: unknown): value is ToolResultWithAttachments {
+  if (typeof value !== "object" || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return typeof obj.content === "string" && Array.isArray(obj.attachments);
+}
+
 // 工具注册表，管理内置工具和脚本工具的统一执行
 export class ToolRegistry {
   private builtinTools = new Map<string, { definition: ToolDefinition; executor: ToolExecutor }>();
+  private chatRepo?: AgentChatRepo;
+
+  // 注入 AgentChatRepo 用于保存附件
+  setChatRepo(repo: AgentChatRepo): void {
+    this.chatRepo = repo;
+  }
 
   // 注册内置工具（由 SW 直接执行）
   registerBuiltin(definition: ToolDefinition, executor: ToolExecutor): void {
@@ -38,7 +60,7 @@ export class ToolRegistry {
   async execute(
     toolCalls: ToolCall[],
     scriptCallback?: ScriptToolCallback | null
-  ): Promise<Array<{ id: string; result: string }>> {
+  ): Promise<ToolExecuteResult[]> {
     const builtinCalls: ToolCall[] = [];
     const scriptCalls: ToolCall[] = [];
 
@@ -50,7 +72,7 @@ export class ToolRegistry {
       }
     }
 
-    const results: Array<{ id: string; result: string }> = [];
+    const results: ToolExecuteResult[] = [];
 
     // 执行内置工具
     for (const tc of builtinCalls) {
@@ -60,8 +82,15 @@ export class ToolRegistry {
         if (tc.arguments) {
           args = JSON.parse(tc.arguments);
         }
-        const result = await tool.executor.execute(args);
-        results.push({ id: tc.id, result: typeof result === "string" ? result : JSON.stringify(result) });
+        const rawResult = await tool.executor.execute(args);
+
+        // 检查是否带附件
+        if (isToolResultWithAttachments(rawResult)) {
+          const attachments = await this.saveAttachments(rawResult.attachments);
+          results.push({ id: tc.id, result: rawResult.content, attachments });
+        } else {
+          results.push({ id: tc.id, result: typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult) });
+        }
       } catch (e: any) {
         results.push({ id: tc.id, result: JSON.stringify({ error: e.message || "Tool execution failed" }) });
       }
@@ -71,7 +100,20 @@ export class ToolRegistry {
     if (scriptCalls.length > 0) {
       if (scriptCallback) {
         const scriptResults = await scriptCallback(scriptCalls);
-        results.push(...scriptResults);
+        // 脚本工具也可能返回带附件的结构化结果
+        for (const sr of scriptResults) {
+          try {
+            const parsed = JSON.parse(sr.result);
+            if (isToolResultWithAttachments(parsed)) {
+              const attachments = await this.saveAttachments(parsed.attachments);
+              results.push({ id: sr.id, result: parsed.content, attachments });
+              continue;
+            }
+          } catch {
+            // 不是 JSON 或不是结构化结果，按原始字符串处理
+          }
+          results.push({ id: sr.id, result: sr.result });
+        }
       } else {
         // 没有脚本回调，返回错误
         for (const tc of scriptCalls) {
@@ -81,5 +123,24 @@ export class ToolRegistry {
     }
 
     return results;
+  }
+
+  // 保存附件数据到 OPFS，返回 Attachment 元数据
+  private async saveAttachments(attachmentDataList: ToolResultWithAttachments["attachments"]): Promise<Attachment[]> {
+    if (!this.chatRepo || attachmentDataList.length === 0) return [];
+
+    const attachments: Attachment[] = [];
+    for (const ad of attachmentDataList) {
+      const id = uuidv4();
+      const size = await this.chatRepo.saveAttachment(id, ad.data);
+      attachments.push({
+        id,
+        type: ad.type,
+        name: ad.name,
+        mimeType: ad.mimeType,
+        size,
+      });
+    }
+    return attachments;
   }
 }

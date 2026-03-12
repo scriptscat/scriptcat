@@ -10,11 +10,33 @@ export type Conversation = {
 
 export type MessageRole = "user" | "assistant" | "system" | "tool";
 
+export type Attachment = {
+  id: string;
+  type: "image" | "file";
+  name: string; // 文件名
+  mimeType: string; // "image/jpeg", "application/zip" 等
+  size?: number; // 字节数
+  // 数据不内联存储，通过 id 从 OPFS 加载
+};
+
+export type AttachmentData = {
+  type: "image" | "file";
+  name: string;
+  mimeType: string;
+  data: string | Blob; // base64/data URL 或 Blob
+};
+
+export type ToolResultWithAttachments = {
+  content: string; // 文本结果（发给 LLM）
+  attachments: AttachmentData[]; // 附件数据（仅存储+展示）
+};
+
 export type ToolCall = {
   id: string;
   name: string;
   arguments: string;
   result?: string;
+  attachments?: Attachment[];
   status?: "pending" | "running" | "completed" | "error";
 };
 
@@ -46,7 +68,7 @@ export type ChatStreamEvent =
   | { type: "thinking_delta"; delta: string }
   | { type: "tool_call_start"; toolCall: Omit<ToolCall, "result"> }
   | { type: "tool_call_delta"; id: string; delta: string }
-  | { type: "tool_call_complete"; id: string; result: string }
+  | { type: "tool_call_complete"; id: string; result: string; attachments?: Attachment[] }
   | { type: "new_message" }
   | { type: "done"; usage?: { inputTokens: number; outputTokens: number }; durationMs?: number }
   | { type: "error"; message: string };

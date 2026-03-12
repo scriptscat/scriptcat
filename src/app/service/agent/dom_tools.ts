@@ -1,6 +1,6 @@
 // DOM 工具定义和注册，将 AgentDomService 的操作封装为 Agent 内置工具
 
-import type { ToolDefinition } from "./types";
+import type { ToolDefinition, ToolResultWithAttachments } from "./types";
 import type { ToolExecutor } from "./tool_registry";
 import type { ToolRegistry } from "./tool_registry";
 import type { AgentDomService } from "@App/app/service/service_worker/agent_dom";
@@ -97,13 +97,26 @@ export function registerDomTools(registry: ToolRegistry, domService: AgentDomSer
           },
         },
       },
-      executor: new DomToolExecutor((args) =>
-        domService.screenshot({
+      executor: new DomToolExecutor(async (args): Promise<ToolResultWithAttachments> => {
+        const dataUrl = await domService.screenshot({
           tabId: args.tabId as number | undefined,
           quality: args.quality as number | undefined,
           fullPage: args.fullPage as boolean | undefined,
-        })
-      ),
+        });
+        const match = dataUrl.match(/^data:(image\/\w+);base64,/);
+        const mimeType = match ? match[1] : "image/jpeg";
+        return {
+          content: "Screenshot captured successfully.",
+          attachments: [
+            {
+              type: "image",
+              name: "screenshot." + (mimeType === "image/png" ? "png" : "jpg"),
+              mimeType,
+              data: dataUrl,
+            },
+          ],
+        };
+      }),
     },
     {
       definition: {

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { ToolRegistry } from "./tool_registry";
 import type { ToolExecutor } from "./tool_registry";
-import type { ToolCall, ToolDefinition } from "./types";
+import type { ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
+import type { AgentChatRepo } from "@App/app/repo/agent_chat";
+
+vi.mock("@App/pkg/utils/uuid", () => ({
+  uuidv4: vi.fn(() => "mock-uuid-" + Math.random().toString(36).slice(2, 8)),
+}));
 
 // 创建一个简单的 mock executor
 function createExecutor(fn: (args: Record<string, unknown>) => Promise<unknown>): ToolExecutor {
@@ -208,6 +213,232 @@ describe("ToolRegistry", () => {
 
       const parsed = JSON.parse(results[0].result);
       expect(parsed.error).toBeDefined();
+    });
+  });
+
+  describe("附件处理", () => {
+    function createMockChatRepo() {
+      return {
+        saveAttachment: vi.fn().mockResolvedValue(1024),
+        getAttachment: vi.fn().mockResolvedValue(null),
+        deleteAttachment: vi.fn().mockResolvedValue(undefined),
+        deleteAttachments: vi.fn().mockResolvedValue(undefined),
+      } as unknown as AgentChatRepo;
+    }
+
+    it("内置工具返回 ToolResultWithAttachments 时应提取附件并保存", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      const structuredResult: ToolResultWithAttachments = {
+        content: "Screenshot captured.",
+        attachments: [
+          { type: "image", name: "screenshot.jpg", mimeType: "image/jpeg", data: "data:image/jpeg;base64,/9j/abc" },
+        ],
+      };
+      const executor = createExecutor(async () => structuredResult);
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
+
+      // 文本结果只包含 content
+      expect(results[0].result).toBe("Screenshot captured.");
+      // 附件元数据
+      expect(results[0].attachments).toHaveLength(1);
+      expect(results[0].attachments![0].type).toBe("image");
+      expect(results[0].attachments![0].name).toBe("screenshot.jpg");
+      expect(results[0].attachments![0].mimeType).toBe("image/jpeg");
+      expect(results[0].attachments![0].size).toBe(1024);
+      expect(results[0].attachments![0].id).toMatch(/^mock-uuid-/);
+      // 验证 chatRepo.saveAttachment 被调用
+      expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
+      expect(mockRepo.saveAttachment).toHaveBeenCalledWith(
+        expect.stringMatching(/^mock-uuid-/),
+        "data:image/jpeg;base64,/9j/abc"
+      );
+    });
+
+    it("内置工具返回 ToolResultWithAttachments 含多个附件时应全部保存", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      const structuredResult: ToolResultWithAttachments = {
+        content: "Files generated.",
+        attachments: [
+          { type: "image", name: "img1.png", mimeType: "image/png", data: "data:image/png;base64,abc" },
+          { type: "file", name: "report.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", data: "base64data" },
+        ],
+      };
+      const executor = createExecutor(async () => structuredResult);
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
+
+      expect(results[0].attachments).toHaveLength(2);
+      expect(results[0].attachments![0].name).toBe("img1.png");
+      expect(results[0].attachments![1].name).toBe("report.xlsx");
+      expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(2);
+    });
+
+    it("内置工具返回 Blob 附件时应正确保存", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      const blob = new Blob(["hello"], { type: "text/plain" });
+      const structuredResult: ToolResultWithAttachments = {
+        content: "File created.",
+        attachments: [
+          { type: "file", name: "data.txt", mimeType: "text/plain", data: blob as unknown as string },
+        ],
+      };
+      const executor = createExecutor(async () => structuredResult);
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
+
+      expect(results[0].attachments).toHaveLength(1);
+      expect(mockRepo.saveAttachment).toHaveBeenCalledWith(expect.any(String), blob);
+    });
+
+    it("内置工具返回普通值时不应产生附件", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      const executor = createExecutor(async () => "plain result");
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
+
+      expect(results[0].result).toBe("plain result");
+      expect(results[0].attachments).toBeUndefined();
+      expect(mockRepo.saveAttachment).not.toHaveBeenCalled();
+    });
+
+    it("内置工具返回对象（非附件格式）时不应产生附件", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      // 有 content 但没有 attachments 数组
+      const executor = createExecutor(async () => ({ content: "hello", other: 42 }));
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
+
+      expect(results[0].result).toBe('{"content":"hello","other":42}');
+      expect(results[0].attachments).toBeUndefined();
+    });
+
+    it("无 chatRepo 时应返回空附件列表", async () => {
+      const registry = new ToolRegistry();
+      // 不调用 setChatRepo
+
+      const structuredResult: ToolResultWithAttachments = {
+        content: "Screenshot captured.",
+        attachments: [
+          { type: "image", name: "screenshot.jpg", mimeType: "image/jpeg", data: "data:image/jpeg;base64,abc" },
+        ],
+      };
+      const executor = createExecutor(async () => structuredResult);
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
+
+      expect(results[0].result).toBe("Screenshot captured.");
+      // 无 chatRepo 时附件为空数组
+      expect(results[0].attachments).toEqual([]);
+    });
+
+    it("脚本工具返回结构化附件结果时应提取附件", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      const structuredResult: ToolResultWithAttachments = {
+        content: "CATTool generated file.",
+        attachments: [
+          { type: "file", name: "output.zip", mimeType: "application/zip", data: "base64zipdata" },
+        ],
+      };
+
+      const scriptCallback = vi.fn().mockResolvedValue([
+        { id: "tc_1", result: JSON.stringify(structuredResult) },
+      ]);
+
+      const results = await registry.execute(
+        [{ id: "tc_1", name: "script_tool", arguments: "{}" }],
+        scriptCallback
+      );
+
+      expect(results[0].result).toBe("CATTool generated file.");
+      expect(results[0].attachments).toHaveLength(1);
+      expect(results[0].attachments![0].name).toBe("output.zip");
+      expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
+    });
+
+    it("脚本工具返回普通 JSON 时不应产生附件", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      const scriptCallback = vi.fn().mockResolvedValue([
+        { id: "tc_1", result: JSON.stringify({ data: "hello" }) },
+      ]);
+
+      const results = await registry.execute(
+        [{ id: "tc_1", name: "script_tool", arguments: "{}" }],
+        scriptCallback
+      );
+
+      expect(results[0].result).toBe('{"data":"hello"}');
+      expect(results[0].attachments).toBeUndefined();
+    });
+
+    it("脚本工具返回非 JSON 字符串时不应产生附件", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      const scriptCallback = vi.fn().mockResolvedValue([
+        { id: "tc_1", result: "plain text result" },
+      ]);
+
+      const results = await registry.execute(
+        [{ id: "tc_1", name: "script_tool", arguments: "{}" }],
+        scriptCallback
+      );
+
+      expect(results[0].result).toBe("plain text result");
+      expect(results[0].attachments).toBeUndefined();
+    });
+
+    it("isToolResultWithAttachments 边界值判断", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+
+      // null
+      const exec1 = createExecutor(async () => null);
+      registry.registerBuiltin(weatherDef, exec1);
+      const r1 = await registry.execute([{ id: "t1", name: "get_weather", arguments: "{}" }]);
+      expect(r1[0].result).toBe("null");
+      expect(r1[0].attachments).toBeUndefined();
+
+      // content 是数字而不是字符串
+      const exec2 = createExecutor(async () => ({ content: 123, attachments: [] }));
+      registry.registerBuiltin(weatherDef, exec2);
+      const r2 = await registry.execute([{ id: "t2", name: "get_weather", arguments: "{}" }]);
+      expect(r2[0].attachments).toBeUndefined();
+
+      // attachments 不是数组
+      const exec3 = createExecutor(async () => ({ content: "ok", attachments: "not-array" }));
+      registry.registerBuiltin(weatherDef, exec3);
+      const r3 = await registry.execute([{ id: "t3", name: "get_weather", arguments: "{}" }]);
+      expect(r3[0].attachments).toBeUndefined();
     });
   });
 });

@@ -30,6 +30,7 @@ function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
         const updatedToolCalls = msg.toolCalls.map((tc) => {
           const result = toolResultMap.get(tc.id);
           if (result !== undefined) {
+            // 保留已有的 attachments（从持久化数据加载）
             return { ...tc, result, status: (tc.status || "completed") as typeof tc.status };
           }
           return tc;
@@ -194,12 +195,13 @@ export default function ChatArea({
             if (tc) {
               tc.status = "completed";
               tc.result = event.result;
+              tc.attachments = event.attachments;
             }
             break;
           }
           case "new_message": {
-            // 工具执行完成后开始新一轮 LLM 调用，创建新的 assistant 消息占位
-            const newMsg: ChatMessage = {
+            // Tool loop 新一轮：创建新 assistant 消息占位
+            const newAssistantMsg: ChatMessage = {
               id: genId(),
               conversationId,
               role: "assistant",
@@ -207,9 +209,9 @@ export default function ChatArea({
               modelId: selectedModelId,
               createtime: Date.now(),
             };
-            streamingMsgRef.current = newMsg;
-            setMessages((prev) => [...prev, newMsg]);
-            return; // 已经更新了 messages，直接返回避免下方重复 setMessages
+            streamingMsgRef.current = newAssistantMsg;
+            setMessages((prev) => [...prev, newAssistantMsg]);
+            break;
           }
           case "error":
             msg.error = event.message;

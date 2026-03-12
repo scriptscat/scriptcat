@@ -3,10 +3,12 @@ import { OPFSRepo } from "./opfs_repo";
 
 const CONVERSATIONS_FILE = "conversations.json";
 const MESSAGES_DIR = "data";
+const ATTACHMENTS_DIR = "attachments";
 
 // 目录结构：agents/conversations/
-//            agents/conversations/conversations.json  - 会话列表
-//            agents/conversations/data/{id}.json      - 每个会话的消息
+//            agents/conversations/conversations.json       - 会话列表
+//            agents/conversations/data/{id}.json           - 每个会话的消息
+//            agents/conversations/attachments/{id}         - 附件二进制数据
 export class AgentChatRepo extends OPFSRepo {
   constructor() {
     super("conversations");
@@ -29,8 +31,26 @@ export class AgentChatRepo extends OPFSRepo {
     await this.writeJsonFile(CONVERSATIONS_FILE, conversations);
   }
 
-  // 删除会话及其消息
+  // 删除会话及其消息和附件
   async deleteConversation(id: string): Promise<void> {
+    // 清理会话关联的附件
+    const messages = await this.getMessages(id);
+    const attachmentIds: string[] = [];
+    for (const msg of messages) {
+      if (msg.toolCalls) {
+        for (const tc of msg.toolCalls) {
+          if (tc.attachments) {
+            for (const att of tc.attachments) {
+              attachmentIds.push(att.id);
+            }
+          }
+        }
+      }
+    }
+    if (attachmentIds.length > 0) {
+      await this.deleteAttachments(attachmentIds);
+    }
+
     const conversations = await this.readJsonFile<Conversation[]>(CONVERSATIONS_FILE, []);
     const filtered = conversations.filter((c) => c.id !== id);
     await this.writeJsonFile(CONVERSATIONS_FILE, filtered);
@@ -68,5 +88,70 @@ export class AgentChatRepo extends OPFSRepo {
   async saveMessages(conversationId: string, messages: ChatMessage[]): Promise<void> {
     const messagesDir = await this.getChildDir(MESSAGES_DIR);
     await this.writeJsonFile(`${conversationId}.json`, messages, messagesDir);
+  }
+
+  // ---- 附件存储 ----
+
+  // 保存附件数据（支持 base64/data URL 字符串或 Blob）
+  async saveAttachment(id: string, data: string | Blob): Promise<number> {
+    const dir = await this.getChildDir(ATTACHMENTS_DIR);
+    const fileHandle = await dir.getFileHandle(id, { create: true });
+    const writable = await fileHandle.createWritable();
+
+    let size: number;
+    if (data instanceof Blob) {
+      await writable.write(data);
+      size = data.size;
+    } else {
+      // 字符串数据（base64/data URL），按原始二进制存储
+      const binary = this.dataUrlToBlob(data);
+      await writable.write(binary);
+      size = binary.size;
+    }
+
+    await writable.close();
+    return size;
+  }
+
+  // 读取附件数据为 Blob
+  async getAttachment(id: string): Promise<Blob | null> {
+    try {
+      const dir = await this.getChildDir(ATTACHMENTS_DIR);
+      const fileHandle = await dir.getFileHandle(id);
+      return await fileHandle.getFile();
+    } catch {
+      return null;
+    }
+  }
+
+  // 删除单个附件
+  async deleteAttachment(id: string): Promise<void> {
+    const dir = await this.getChildDir(ATTACHMENTS_DIR);
+    await this.deleteFile(id, dir);
+  }
+
+  // 删除会话关联的所有附件（需传入附件 ID 列表）
+  async deleteAttachments(ids: string[]): Promise<void> {
+    const dir = await this.getChildDir(ATTACHMENTS_DIR);
+    for (const id of ids) {
+      await this.deleteFile(id, dir);
+    }
+  }
+
+  // 将 data URL 或纯 base64 转换为 Blob
+  private dataUrlToBlob(data: string): Blob {
+    // 匹配 data URL 格式
+    const match = data.match(/^data:([^;]+);base64,(.+)$/s);
+    if (match) {
+      const byteString = atob(match[2]);
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      return new Blob([ab], { type: match[1] });
+    }
+    // 纯文本存储
+    return new Blob([data], { type: "application/octet-stream" });
   }
 }

@@ -68,6 +68,8 @@ export class AgentService {
   ) {}
 
   init() {
+    // 注入 chatRepo 到 ToolRegistry 用于保存附件
+    this.toolRegistry.setChatRepo(this.repo);
     // 初始化 MCP Service
     this.mcpService = new MCPService(this.toolRegistry);
     this.mcpService.init();
@@ -743,10 +745,19 @@ export class AgentService {
         const toolResults = await this.toolRegistry.execute(result.toolCalls, scriptToolCallback);
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
+        // 收集需要回写附件的 toolCall ID → Attachment[]
+        const attachmentUpdates = new Map<string, import("@App/app/service/agent/types").Attachment[]>();
+
         for (const tr of toolResults) {
+          // LLM 上下文只包含文本结果，不含附件
           messages.push({ role: "tool", content: tr.result, toolCallId: tr.id });
-          // 通知 UI 工具执行完成
-          sendEvent({ type: "tool_call_complete", id: tr.id, result: tr.result });
+          // 通知 UI 工具执行完成（含附件元数据）
+          sendEvent({ type: "tool_call_complete", id: tr.id, result: tr.result, attachments: tr.attachments });
+
+          if (tr.attachments?.length) {
+            attachmentUpdates.set(tr.id, tr.attachments);
+          }
+
           // 持久化 tool 结果消息
           if (conversationId) {
             await this.repo.appendMessage({
@@ -757,6 +768,36 @@ export class AgentService {
               toolCallId: tr.id,
               createtime: Date.now(),
             });
+          }
+        }
+
+        // 回写附件元数据到 assistant 消息的 toolCalls（内存 + 持久化）
+        if (attachmentUpdates.size > 0) {
+          // 找到最近的 assistant 消息（刚推入的倒数第 toolResults.length + 1 位）
+          const assistantMsg = messages.find(
+            (m) => m.role === "assistant" && m.toolCalls?.some((tc) => attachmentUpdates.has(tc.id))
+          );
+          if (assistantMsg?.toolCalls) {
+            for (const tc of assistantMsg.toolCalls) {
+              const atts = attachmentUpdates.get(tc.id);
+              if (atts) tc.attachments = atts;
+            }
+            // 更新持久化的 assistant 消息
+            if (conversationId) {
+              const allMessages = await this.repo.getMessages(conversationId);
+              // 找到最后一条有匹配 toolCall 的 assistant 消息
+              for (let i = allMessages.length - 1; i >= 0; i--) {
+                const msg = allMessages[i];
+                if (msg.role === "assistant" && msg.toolCalls?.some((tc) => attachmentUpdates.has(tc.id))) {
+                  for (const tc of msg.toolCalls!) {
+                    const atts = attachmentUpdates.get(tc.id);
+                    if (atts) tc.attachments = atts;
+                  }
+                  await this.repo.saveMessages(conversationId, allMessages);
+                  break;
+                }
+              }
+            }
           }
         }
 
