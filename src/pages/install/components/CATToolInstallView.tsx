@@ -12,7 +12,14 @@ interface CATToolInstallViewProps {
   isUpdate?: boolean;
 }
 
-function CATToolInstallView({ metadata, scriptCode, onInstall, onClose, sourceScriptName, isUpdate }: CATToolInstallViewProps) {
+function CATToolInstallView({
+  metadata,
+  scriptCode,
+  onInstall,
+  onClose,
+  sourceScriptName,
+  isUpdate,
+}: CATToolInstallViewProps) {
   const { t } = useTranslation();
 
   return (
@@ -20,7 +27,7 @@ function CATToolInstallView({ metadata, scriptCode, onInstall, onClose, sourceSc
       <div className="tw-flex tw-flex-row tw-gap-x-3 tw-pt-3 tw-pb-3">
         <div className="tw-grow-1 tw-shrink-1 tw-flex tw-flex-row tw-justify-start tw-items-center">
           <Tag bordered color="arcoblue" style={{ marginRight: "8px" }}>
-            CATTool
+            {"CATTool"}
           </Tag>
           <Typography.Text bold className="tw-text-size-lg tw-truncate tw-w-0 tw-grow-1">
             {metadata.name}
@@ -38,7 +45,7 @@ function CATToolInstallView({ metadata, scriptCode, onInstall, onClose, sourceSc
             {sourceScriptName && (
               <div className="tw-mb-1">
                 <Typography.Text type="secondary">
-                  {t("cattool_source_script")}: {sourceScriptName}
+                  {`${t("cattool_source_script")}: ${sourceScriptName}`}
                 </Typography.Text>
               </div>
             )}
@@ -49,7 +56,7 @@ function CATToolInstallView({ metadata, scriptCode, onInstall, onClose, sourceSc
             )}
             {metadata.params.length > 0 && (
               <div className="tw-mt-2">
-                <Typography.Text bold>{t("cattool_parameters")}:</Typography.Text>
+                <Typography.Text bold>{`${t("cattool_parameters")}:`}</Typography.Text>
                 <div className="tw-mt-1 tw-flex tw-flex-col tw-gap-y-1">
                   {metadata.params.map((param) => (
                     <div key={param.name} className="tw-flex tw-flex-row tw-gap-x-2 tw-items-center">
@@ -72,7 +79,7 @@ function CATToolInstallView({ metadata, scriptCode, onInstall, onClose, sourceSc
             )}
             {metadata.grants.length > 0 && (
               <div className="tw-mt-2">
-                <Typography.Text bold>{t("cattool_permissions")}:</Typography.Text>
+                <Typography.Text bold>{`${t("cattool_permissions")}:`}</Typography.Text>
                 <div className="tw-mt-1 tw-flex tw-flex-row tw-flex-wrap tw-gap-1">
                   {metadata.grants.map((grant) => (
                     <Tag key={grant} bordered size="small" color="orangered">

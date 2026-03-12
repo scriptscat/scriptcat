@@ -19,7 +19,7 @@ export class CATToolRepo extends OPFSRepo {
   // 当前仅用于兼容旧数据的迁移清理，新数据使用 UUID 作为文件名
   static sanitizeName(name: string): string {
     // 移除路径分隔符和 OPFS 不允许的字符
-    return name.replace(/[\/\\:*?"<>|.]/g, "_");
+    return name.replace(/[/\\:*?"<>|.]/g, "_");
   }
 
   // 使用 UUID 作为 data 文件名，完全避免碰撞

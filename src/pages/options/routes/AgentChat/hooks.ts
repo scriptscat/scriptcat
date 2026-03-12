@@ -43,6 +43,7 @@ export function useConversations() {
         setActiveId(list[0].id);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadConversations]);
 
   // 创建新会话
