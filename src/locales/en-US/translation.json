@@ -626,6 +626,8 @@
   "agent_skills_fetch_failed": "Fetch failed",
   "agent_skills_add_script": "Add Script",
   "agent_skills_add_reference": "Add Reference",
+  "agent_skills_install_zip": "Upload ZIP",
+  "agent_skills_install_zip_hint": "Click to select a .zip file",
   "agent_skills_prompt": "Prompt",
   "agent_skills_installed_at": "Installed at",
   "agent_chat_new": "New Chat",
@@ -683,5 +685,9 @@
   "agent_mcp_name_url_required": "Name and URL are required",
   "agent_mcp_optional": "optional",
   "agent_mcp_custom_headers": "Custom Headers",
-  "agent_mcp_enabled": "Enabled"
+  "agent_mcp_enabled": "Enabled",
+  "chrome_permission_title": "Permission Required",
+  "chrome_permission_debugger_desc": "Debugger permission is required for trusted DOM operations (simulating real user input).",
+  "chrome_permission_grant": "Grant Permission",
+  "chrome_permission_deny": "Deny"
 }

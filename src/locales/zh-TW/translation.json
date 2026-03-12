@@ -626,6 +626,8 @@
   "agent_skills_fetch_failed": "取得失敗",
   "agent_skills_add_script": "新增腳本",
   "agent_skills_add_reference": "新增參考資料",
+  "agent_skills_install_zip": "上傳 ZIP",
+  "agent_skills_install_zip_hint": "點擊選擇 .zip 檔案",
   "agent_skills_prompt": "提示詞",
   "agent_skills_installed_at": "安裝時間",
   "agent_chat_new": "新建會話",

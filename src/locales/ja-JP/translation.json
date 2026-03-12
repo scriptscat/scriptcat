@@ -626,6 +626,8 @@
   "agent_skills_fetch_failed": "取得に失敗しました",
   "agent_skills_add_script": "スクリプトを追加",
   "agent_skills_add_reference": "参考資料を追加",
+  "agent_skills_install_zip": "ZIP アップロード",
+  "agent_skills_install_zip_hint": "クリックして .zip ファイルを選択",
   "agent_skills_prompt": "プロンプト",
   "agent_skills_installed_at": "インストール日時",
   "agent_chat_new": "新しいチャット",

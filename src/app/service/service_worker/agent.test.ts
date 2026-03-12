@@ -341,8 +341,18 @@ describe("AgentService Skill 系统", () => {
     it('"auto" 加载全部 skill 摘要', () => {
       const { service } = createTestService();
 
-      const skill1 = makeSkillRecord({ name: "price-monitor", description: "监控商品价格", toolNames: ["price-check"], prompt: "Monitor prices." });
-      const skill2 = makeSkillRecord({ name: "translator", description: "翻译助手", referenceNames: ["glossary"], prompt: "Translate text." });
+      const skill1 = makeSkillRecord({
+        name: "price-monitor",
+        description: "监控商品价格",
+        toolNames: ["price-check"],
+        prompt: "Monitor prices.",
+      });
+      const skill2 = makeSkillRecord({
+        name: "translator",
+        description: "翻译助手",
+        referenceNames: ["glossary"],
+        prompt: "Translate text.",
+      });
       (service as any).skillCache.set("price-monitor", skill1);
       (service as any).skillCache.set("translator", skill2);
 
@@ -494,9 +504,9 @@ describe("AgentService Skill 系统", () => {
       const result = (service as any).resolveSkills("auto");
       const execTool = result.metaTools.find((t: any) => t.definition.name === "execute_skill_tool");
 
-      await expect(
-        execTool.executor.execute({ skill_name: "some-skill", tool_name: "missing-tool" })
-      ).rejects.toThrow('Tool "missing-tool" not found in skill "some-skill"');
+      await expect(execTool.executor.execute({ skill_name: "some-skill", tool_name: "missing-tool" })).rejects.toThrow(
+        'Tool "missing-tool" not found in skill "some-skill"'
+      );
     });
   });
 
@@ -659,9 +669,9 @@ description: Has invalid script
 ---
 Some prompt.`;
 
-      await expect(
-        service.installSkill(skillMd, [{ name: "bad-tool", code: "not a cattool" }])
-      ).rejects.toThrow("Invalid CATTool script");
+      await expect(service.installSkill(skillMd, [{ name: "bad-tool", code: "not a cattool" }])).rejects.toThrow(
+        "Invalid CATTool script"
+      );
     });
   });
 
@@ -687,6 +697,88 @@ Some prompt.`;
       const result = await service.removeSkill("non-existent");
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe("installSkill 从 ZIP 解析结果安装", () => {
+    it("应正确安装 parseSkillZip 返回的完整结构", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      // 模拟 parseSkillZip 的输出结构
+      const zipResult = {
+        skillMd: `---
+name: taobao-helper
+description: 淘宝购物助手
+---
+你是一个淘宝购物助手。`,
+        scripts: [{ name: "taobao_extract.js", code: VALID_CATTOOL_CODE }],
+        references: [
+          { name: "api_docs.md", content: "# API Docs\n淘宝接口文档" },
+          { name: "guide.txt", content: "使用指南" },
+        ],
+      };
+
+      const record = await service.installSkill(zipResult.skillMd, zipResult.scripts, zipResult.references);
+
+      expect(record.name).toBe("taobao-helper");
+      expect(record.description).toBe("淘宝购物助手");
+      expect(record.prompt).toBe("你是一个淘宝购物助手。");
+      expect(record.toolNames).toEqual(["test-tool"]); // CATTool 名称从 metadata 中解析
+      expect(record.referenceNames).toEqual(["api_docs.md", "guide.txt"]);
+
+      // 验证 saveSkill 调用参数
+      expect(mockSkillRepo.saveSkill).toHaveBeenCalledTimes(1);
+      const [savedRecord, savedScripts, savedRefs] = mockSkillRepo.saveSkill.mock.calls[0];
+      expect(savedRecord.name).toBe("taobao-helper");
+      expect(savedScripts).toHaveLength(1);
+      expect(savedScripts[0].name).toBe("test-tool");
+      expect(savedRefs).toHaveLength(2);
+      expect(savedRefs[0].name).toBe("api_docs.md");
+      expect(savedRefs[1].content).toBe("使用指南");
+
+      // 验证 skillCache 更新
+      expect((service as any).skillCache.has("taobao-helper")).toBe(true);
+    });
+
+    it("ZIP 结果中多个脚本应全部安装", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      const anotherToolCode = `// ==CATTool==
+// @name another-tool
+// @description Another tool
+// @param {string} query - Search query
+// ==/CATTool==
+return query;`;
+
+      const record = await service.installSkill(
+        `---\nname: multi-tool\ndescription: Multi tools skill\n---\nMulti tool prompt.`,
+        [
+          { name: "tool1.js", code: VALID_CATTOOL_CODE },
+          { name: "tool2.js", code: anotherToolCode },
+        ],
+        []
+      );
+
+      expect(record.toolNames).toHaveLength(2);
+      expect(record.toolNames).toContain("test-tool");
+      expect(record.toolNames).toContain("another-tool");
+
+      const savedScripts = mockSkillRepo.saveSkill.mock.calls[0][1];
+      expect(savedScripts).toHaveLength(2);
+    });
+
+    it("ZIP 结果无脚本无参考资料时应正常安装", async () => {
+      const { service } = createTestService();
+
+      const record = await service.installSkill(
+        `---\nname: simple-zip\ndescription: Simple\n---\nSimple prompt.`,
+        [],
+        []
+      );
+
+      expect(record.name).toBe("simple-zip");
+      expect(record.toolNames).toEqual([]);
+      expect(record.referenceNames).toEqual([]);
     });
   });
 });

@@ -11,12 +11,12 @@ import {
   Tag,
   Typography,
 } from "@arco-design/web-react";
-import { IconDelete, IconEye, IconPlus } from "@arco-design/web-react/icon";
+import { IconDelete, IconEye, IconPlus, IconUpload } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkillSummary, SkillRecord, SkillReference, CATToolRecord } from "@App/app/service/agent/types";
 import { SkillRepo } from "@App/app/repo/skill_repo";
-import { parseSkillMd } from "@App/pkg/utils/skill";
+import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
 import { agentClient } from "@App/pages/store/features/script";
 
 const skillRepo = new SkillRepo();
@@ -234,6 +234,9 @@ function InstallSkillModal({
   const [skillMdContent, setSkillMdContent] = useState("");
   const [scripts, setScripts] = useState<Array<{ name: string; code: string }>>([]);
   const [references, setReferences] = useState<Array<{ name: string; content: string }>>([]);
+  const [zipParsing, setZipParsing] = useState(false);
+  const [zipFileName, setZipFileName] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetState = () => {
     setUrl("");
@@ -243,6 +246,10 @@ function InstallSkillModal({
     setScripts([]);
     setReferences([]);
     setActiveTab("url");
+    setZipFileName("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleFetchUrl = async () => {
@@ -280,6 +287,35 @@ function InstallSkillModal({
       description: parsed.metadata.description,
       prompt: parsed.prompt,
     });
+  };
+
+  const handleZipFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setZipParsing(true);
+    setZipFileName(file.name);
+    try {
+      const buffer = await file.arrayBuffer();
+      const result = await parseSkillZip(buffer);
+      // 解析 SKILL.md 并填充预览
+      const parsed = parseSkillMd(result.skillMd);
+      if (!parsed) {
+        Message.error("Invalid SKILL.md format in ZIP");
+        return;
+      }
+      setSkillMdContent(result.skillMd);
+      setScripts(result.scripts);
+      setReferences(result.references);
+      setPreview({
+        name: parsed.metadata.name,
+        description: parsed.metadata.description,
+        prompt: parsed.prompt,
+      });
+    } catch (err: any) {
+      Message.error(err.message || String(err));
+    } finally {
+      setZipParsing(false);
+    }
   };
 
   const handleInstall = async () => {
@@ -352,6 +388,29 @@ function InstallSkillModal({
               </div>
             </div>
           </Tabs.TabPane>
+          <Tabs.TabPane key="zip" title={t("agent_skills_install_zip")}>
+            <div className="tw-mt-3 tw-flex tw-flex-col tw-items-center tw-gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip"
+                onChange={handleZipFile}
+                style={{ display: "none" }}
+              />
+              <div
+                className="tw-w-full tw-border tw-border-dashed tw-border-[var(--color-border-2)] tw-rounded-lg tw-p-8 tw-flex tw-flex-col tw-items-center tw-gap-2 tw-cursor-pointer hover:tw-border-[rgb(var(--arcoblue-6))] tw-transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <IconUpload style={{ fontSize: 32, color: "var(--color-text-3)" }} />
+                {zipFileName ? (
+                  <Typography.Text>{zipFileName}</Typography.Text>
+                ) : (
+                  <Typography.Text type="secondary">{t("agent_skills_install_zip_hint")}</Typography.Text>
+                )}
+              </div>
+              {zipParsing && <Typography.Text type="secondary">Parsing...</Typography.Text>}
+            </div>
+          </Tabs.TabPane>
         </Tabs>
 
         {/* Preview */}
@@ -365,6 +424,21 @@ function InstallSkillModal({
             <Typography.Text className="tw-text-xs tw-block" style={{ fontFamily: "monospace" }}>
               {preview.prompt.length > 200 ? preview.prompt.slice(0, 200) + "..." : preview.prompt}
             </Typography.Text>
+            {/* ZIP 解析后显示 scripts/references 数量 */}
+            {(scripts.length > 0 || references.length > 0) && (
+              <div className="tw-flex tw-gap-2 tw-mt-2">
+                {scripts.length > 0 && (
+                  <Tag size="small" color="arcoblue">
+                    {t("agent_skills_tools")}: {scripts.length}
+                  </Tag>
+                )}
+                {references.length > 0 && (
+                  <Tag size="small" color="green">
+                    {t("agent_skills_references")}: {references.length}
+                  </Tag>
+                )}
+              </div>
+            )}
           </Card>
         )}
 

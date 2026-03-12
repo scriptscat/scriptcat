@@ -626,6 +626,8 @@
   "agent_skills_fetch_failed": "获取失败",
   "agent_skills_add_script": "添加脚本",
   "agent_skills_add_reference": "添加参考资料",
+  "agent_skills_install_zip": "上传 ZIP",
+  "agent_skills_install_zip_hint": "点击选择 .zip 文件",
   "agent_skills_prompt": "提示词",
   "agent_skills_installed_at": "安装时间",
   "agent_chat_new": "新建会话",
@@ -683,5 +685,9 @@
   "agent_mcp_name_url_required": "名称和 URL 不能为空",
   "agent_mcp_optional": "可选",
   "agent_mcp_custom_headers": "自定义请求头",
-  "agent_mcp_enabled": "启用"
+  "agent_mcp_enabled": "启用",
+  "chrome_permission_title": "需要权限",
+  "chrome_permission_debugger_desc": "调试器权限用于可信 DOM 操作（模拟真实用户输入）。",
+  "chrome_permission_grant": "授予权限",
+  "chrome_permission_deny": "拒绝"
 }
