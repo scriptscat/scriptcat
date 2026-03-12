@@ -49,6 +49,50 @@ export async function openEditorPage(
   return page;
 }
 
+/** Install a script by injecting code into the Monaco editor and saving */
+export async function installScriptByCode(
+  context: BrowserContext,
+  extensionId: string,
+  code: string
+): Promise<void> {
+  const page = await openEditorPage(context, extensionId);
+  // Wait for Monaco editor to be ready
+  await page.locator(".monaco-editor").waitFor({ timeout: 30_000 });
+  await page.locator(".view-lines").waitFor({ timeout: 15_000 });
+  // Click into editor to ensure focus
+  await page.locator(".monaco-editor .view-lines").click();
+  await page.waitForTimeout(500);
+  // Select all existing content and replace via clipboard
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.waitForTimeout(500);
+  await page.evaluate((text) => navigator.clipboard.writeText(text), code);
+  await page.keyboard.press("ControlOrMeta+v");
+  await page.waitForTimeout(2000);
+  // Save
+  await page.keyboard.press("ControlOrMeta+s");
+  // Wait for save: try arco-message first, then verify via script list
+  const saved = await page
+    .locator(".arco-message")
+    .first()
+    .waitFor({ timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!saved) {
+    // For scripts with @require/@resource, the message may not appear.
+    // Verify save by checking the script list on the options page.
+    const listPage = await openOptionsPage(context, extensionId);
+    await listPage.waitForTimeout(2_000);
+    const emptyState = listPage.locator(".arco-empty");
+    // Wait until at least one script appears (no empty state)
+    for (let i = 0; i < 30; i++) {
+      if ((await emptyState.count()) === 0) break;
+      await listPage.waitForTimeout(1_000);
+    }
+    await listPage.close();
+  }
+  await page.close();
+}
+
 /** A sample userscript for testing */
 export const sampleUserScript = `// ==UserScript==
 // @name         E2E Test Script
