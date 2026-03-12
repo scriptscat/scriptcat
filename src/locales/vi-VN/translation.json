@@ -653,5 +653,8 @@
   "agent_opfs_file": "Tệp",
   "agent_opfs_directory": "Thư mục",
   "agent_opfs_preview": "Xem trước",
-  "agent_opfs_root": "Gốc"
+  "agent_opfs_root": "Gốc",
+  "agent_dom_permission_title": "Script yêu cầu quyền thao tác DOM",
+  "agent_dom_permission_describe": "Script này yêu cầu khả năng đọc và thao tác DOM trang web (nhấp chuột, điền biểu mẫu, điều hướng, chụp ảnh màn hình, v.v.). Chỉ cấp quyền cho các script đáng tin cậy.",
+  "agent_dom_permission_content": "Agent DOM thao tác"
 }

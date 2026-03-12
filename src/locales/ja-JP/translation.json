@@ -653,5 +653,8 @@
   "agent_opfs_file": "ファイル",
   "agent_opfs_directory": "ディレクトリ",
   "agent_opfs_preview": "プレビュー",
-  "agent_opfs_root": "ルート"
+  "agent_opfs_root": "ルート",
+  "agent_dom_permission_title": "スクリプトが DOM 操作アクセスをリクエストしています",
+  "agent_dom_permission_describe": "このスクリプトはウェブページの DOM を読み取り操作する能力（クリック、フォーム入力、ナビゲーション、スクリーンショットなど）をリクエストしています。信頼できるスクリプトにのみ許可してください。",
+  "agent_dom_permission_content": "Agent DOM 操作"
 }

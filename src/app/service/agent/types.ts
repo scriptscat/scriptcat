@@ -151,6 +151,140 @@ export type CATToolApiRequest =
   | { action: "list"; scriptUuid: string }
   | { action: "call"; name: string; params: Record<string, unknown>; scriptUuid: string };
 
+// ---- CAT.agent.dom 类型 ----
+
+export type TabInfo = {
+  tabId: number;
+  url: string;
+  title: string;
+  active: boolean;
+  windowId: number;
+  discarded: boolean;
+};
+
+export type ActionResult = {
+  success: boolean;
+  navigated?: boolean;
+  url?: string;
+  newTab?: { tabId: number; url: string };
+  dialog?: { type: "alert" | "confirm" | "prompt"; message: string };
+};
+
+export type InteractableElement = {
+  selector: string;
+  tag: string;
+  text: string;
+  role?: string;
+  type?: string;
+  visible: boolean;
+};
+
+export type FormField = {
+  selector: string;
+  name: string;
+  type: string;
+  value?: string;
+  placeholder?: string;
+  options?: string[];
+  required: boolean;
+};
+
+export type FormInfo = {
+  selector: string;
+  action?: string;
+  fields: FormField[];
+};
+
+export type LinkInfo = {
+  selector: string;
+  text: string;
+  href: string;
+};
+
+export type SectionInfo = {
+  selector: string;
+  summary: string;
+  elementCount: number;
+};
+
+export type PageContent = {
+  title: string;
+  url: string;
+  content?: string;
+  sections?: SectionInfo[];
+  interactable: InteractableElement[];
+  forms: FormInfo[];
+  links: LinkInfo[];
+  truncated?: boolean;
+  totalLength?: number;
+};
+
+export type ReadPageOptions = {
+  tabId?: number;
+  selector?: string;
+  mode?: "summary" | "detail";
+  maxLength?: number;
+  viewportOnly?: boolean;
+};
+
+export type DomActionOptions = {
+  tabId?: number;
+  trusted?: boolean;
+};
+
+export type WaitForOptions = {
+  tabId?: number;
+  timeout?: number;
+};
+
+export type ScreenshotOptions = {
+  tabId?: number;
+  quality?: number;
+  fullPage?: boolean;
+};
+
+export type NavigateOptions = {
+  tabId?: number;
+  waitUntil?: boolean;
+  timeout?: number;
+};
+
+export type ScrollDirection = "up" | "down" | "top" | "bottom";
+
+export type ScrollOptions = {
+  tabId?: number;
+  selector?: string;
+};
+
+export type ScrollResult = {
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+  atBottom: boolean;
+};
+
+export type NavigateResult = {
+  tabId: number;
+  url: string;
+  title: string;
+};
+
+export type WaitForResult = {
+  found: boolean;
+  element?: InteractableElement;
+};
+
+// GM API 请求类型
+export type DomApiRequest =
+  | { action: "listTabs"; scriptUuid: string }
+  | { action: "navigate"; url: string; options?: NavigateOptions; scriptUuid: string }
+  | { action: "readPage"; options?: ReadPageOptions; scriptUuid: string }
+  | { action: "screenshot"; options?: ScreenshotOptions; scriptUuid: string }
+  | { action: "click"; selector: string; options?: DomActionOptions; scriptUuid: string }
+  | { action: "fill"; selector: string; value: string; options?: DomActionOptions; scriptUuid: string }
+  | { action: "scroll"; direction: ScrollDirection; options?: ScrollOptions; scriptUuid: string }
+  | { action: "waitFor"; selector: string; options?: WaitForOptions; scriptUuid: string };
+
 // Sandbox -> Service Worker 的 conversation API 请求
 export type ConversationApiRequest =
   | { action: "create"; options: ConversationCreateOptions; scriptUuid: string }

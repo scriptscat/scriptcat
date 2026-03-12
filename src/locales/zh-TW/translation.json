@@ -653,5 +653,8 @@
   "agent_opfs_file": "檔案",
   "agent_opfs_directory": "目錄",
   "agent_opfs_preview": "預覽",
-  "agent_opfs_root": "根目錄"
+  "agent_opfs_root": "根目錄",
+  "agent_dom_permission_title": "腳本請求 DOM 操作權限",
+  "agent_dom_permission_describe": "此腳本請求讀取和操作網頁 DOM 的能力（點擊、填寫表單、導航、截圖等）。請僅對可信腳本授權。",
+  "agent_dom_permission_content": "Agent DOM 操作"
 }

@@ -843,9 +843,146 @@ declare namespace CATAgentTools {
   }
 }
 
+// ---- CAT.agent.dom API ----
+
+declare namespace CATAgentDom {
+  interface TabInfo {
+    tabId: number;
+    url: string;
+    title: string;
+    active: boolean;
+    windowId: number;
+    discarded: boolean;
+  }
+
+  interface ActionResult {
+    success: boolean;
+    navigated?: boolean;
+    url?: string;
+    newTab?: { tabId: number; url: string };
+    dialog?: { type: "alert" | "confirm" | "prompt"; message: string };
+  }
+
+  interface InteractableElement {
+    selector: string;
+    tag: string;
+    text: string;
+    role?: string;
+    type?: string;
+    visible: boolean;
+  }
+
+  interface FormField {
+    selector: string;
+    name: string;
+    type: string;
+    value?: string;
+    placeholder?: string;
+    options?: string[];
+    required: boolean;
+  }
+
+  interface FormInfo {
+    selector: string;
+    action?: string;
+    fields: FormField[];
+  }
+
+  interface LinkInfo {
+    selector: string;
+    text: string;
+    href: string;
+  }
+
+  interface SectionInfo {
+    selector: string;
+    summary: string;
+    elementCount: number;
+  }
+
+  interface PageContent {
+    title: string;
+    url: string;
+    content?: string;
+    sections?: SectionInfo[];
+    interactable: InteractableElement[];
+    forms: FormInfo[];
+    links: LinkInfo[];
+    truncated?: boolean;
+    totalLength?: number;
+  }
+
+  interface ReadPageOptions {
+    tabId?: number;
+    selector?: string;
+    mode?: "summary" | "detail";
+    maxLength?: number;
+    viewportOnly?: boolean;
+  }
+
+  interface DomActionOptions {
+    tabId?: number;
+    trusted?: boolean;
+  }
+
+  interface ScreenshotOptions {
+    tabId?: number;
+    quality?: number;
+    fullPage?: boolean;
+  }
+
+  interface NavigateOptions {
+    tabId?: number;
+    waitUntil?: boolean;
+    timeout?: number;
+  }
+
+  type ScrollDirection = "up" | "down" | "top" | "bottom";
+
+  interface ScrollOptions {
+    tabId?: number;
+    selector?: string;
+  }
+
+  interface ScrollResult {
+    scrollTop: number;
+    scrollHeight: number;
+    clientHeight: number;
+    atBottom: boolean;
+  }
+
+  interface NavigateResult {
+    tabId: number;
+    url: string;
+    title: string;
+  }
+
+  interface WaitForOptions {
+    tabId?: number;
+    timeout?: number;
+  }
+
+  interface WaitForResult {
+    found: boolean;
+    element?: InteractableElement;
+  }
+
+  interface DomAPI {
+    listTabs(): Promise<TabInfo[]>;
+    navigate(url: string, options?: NavigateOptions): Promise<NavigateResult>;
+    readPage(options?: ReadPageOptions): Promise<PageContent>;
+    screenshot(options?: ScreenshotOptions): Promise<string>;
+    click(selector: string, options?: DomActionOptions): Promise<ActionResult>;
+    fill(selector: string, value: string, options?: DomActionOptions): Promise<ActionResult>;
+    scroll(direction: ScrollDirection, options?: ScrollOptions): Promise<ScrollResult>;
+    waitFor(selector: string, options?: WaitForOptions): Promise<WaitForResult>;
+  }
+}
+
 declare const CAT: {
   agent: {
     conversation: CATAgent.ConversationAPI;
     tools: CATAgentTools.ToolsAPI;
+    dom: CATAgentDom.DomAPI;
   };
 };

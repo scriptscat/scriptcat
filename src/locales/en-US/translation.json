@@ -653,5 +653,8 @@
   "agent_opfs_file": "File",
   "agent_opfs_directory": "Directory",
   "agent_opfs_preview": "Preview",
-  "agent_opfs_root": "Root"
+  "agent_opfs_root": "Root",
+  "agent_dom_permission_title": "The script is requesting DOM operation access",
+  "agent_dom_permission_describe": "This script requests the ability to read and manipulate web page DOM (click, fill forms, navigate, screenshot, etc.). Only grant access to trusted scripts.",
+  "agent_dom_permission_content": "Agent DOM Operations"
 }

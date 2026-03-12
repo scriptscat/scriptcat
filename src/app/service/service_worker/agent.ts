@@ -13,6 +13,7 @@ import type {
   ToolDefinition,
   CATToolApiRequest,
   CATToolRecord,
+  DomApiRequest,
 } from "@App/app/service/agent/types";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
@@ -26,6 +27,8 @@ import { parseCATToolMetadata, catToolToToolDefinition } from "@App/pkg/utils/ca
 import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
 import { CACHE_KEY_CATTOOL_INSTALL } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
+import { AgentDomService } from "./agent_dom";
+import { registerDomTools } from "@App/app/service/agent/dom_tools";
 
 // 安装超时时间：5 分钟
 const CATTOOL_INSTALL_TIMEOUT = 5 * 60 * 1000;
@@ -47,6 +50,7 @@ export class AgentService {
   >();
 
   private modelRepo = new AgentModelRepo();
+  private domService = new AgentDomService();
 
   constructor(
     private group: Group,
@@ -54,6 +58,8 @@ export class AgentService {
   ) {}
 
   init() {
+    // 注册 DOM 工具到 ToolRegistry
+    registerDomTools(this.toolRegistry, this.domService);
     // Sandbox conversation API
     this.group.on("conversation", this.handleConversation.bind(this));
     // 流式聊天（UI 和 Sandbox 共用）
@@ -274,6 +280,11 @@ export class AgentService {
       default:
         throw new Error(`Unknown tools action: ${(request as any).action}`);
     }
+  }
+
+  // 处理 CAT.agent.dom API 请求
+  async handleDomApi(request: DomApiRequest): Promise<unknown> {
+    return this.domService.handleDomApi(request);
   }
 
   // 获取模型配置

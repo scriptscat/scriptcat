@@ -41,7 +41,7 @@
     "unlimitedStorage",
     "declarativeNetRequest"
   ],
-  "optional_permissions": ["background", "userScripts"],
+  "optional_permissions": ["background", "userScripts", "debugger"],
   "host_permissions": ["<all_urls>"],
   "sandbox": {
     "pages": ["src/sandbox.html"]

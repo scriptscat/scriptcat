@@ -653,5 +653,8 @@
   "agent_opfs_file": "Datei",
   "agent_opfs_directory": "Verzeichnis",
   "agent_opfs_preview": "Vorschau",
-  "agent_opfs_root": "Stammverzeichnis"
+  "agent_opfs_root": "Stammverzeichnis",
+  "agent_dom_permission_title": "Das Skript fordert DOM-Zugriff an",
+  "agent_dom_permission_describe": "Dieses Skript fordert die Fähigkeit an, das DOM der Webseite zu lesen und zu manipulieren (Klicken, Formulare ausfüllen, Navigation, Screenshot usw.). Erlauben Sie nur vertrauenswürdigen Skripten.",
+  "agent_dom_permission_content": "Agent DOM-Operationen"
 }

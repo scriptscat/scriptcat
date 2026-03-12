@@ -653,5 +653,8 @@
   "agent_opfs_file": "文件",
   "agent_opfs_directory": "目录",
   "agent_opfs_preview": "预览",
-  "agent_opfs_root": "根目录"
+  "agent_opfs_root": "根目录",
+  "agent_dom_permission_title": "脚本请求 DOM 操作权限",
+  "agent_dom_permission_describe": "此脚本请求读取和操作网页 DOM 的能力（点击、填写表单、导航、截图等）。请仅对可信脚本授权。",
+  "agent_dom_permission_content": "Agent DOM 操作"
 }

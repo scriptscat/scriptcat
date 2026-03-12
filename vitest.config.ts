@@ -28,6 +28,7 @@ export default defineConfig({
     exclude: ["e2e/**", "node_modules/**", ".claude/**"],
     // List setup file
     setupFiles: ["./tests/vitest.setup.ts"],
+    exclude: ["**/node_modules/**", "**/.claude/**"],
     env: {
       VI_TESTING: "true",
       SC_RANDOM_KEY: "005a7deb-3a6e-4337-83ea-b9626c02ea38",

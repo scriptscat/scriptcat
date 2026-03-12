@@ -653,5 +653,8 @@
   "agent_opfs_file": "Файл",
   "agent_opfs_directory": "Директория",
   "agent_opfs_preview": "Предпросмотр",
-  "agent_opfs_root": "Корень"
+  "agent_opfs_root": "Корень",
+  "agent_dom_permission_title": "Скрипт запрашивает доступ к операциям DOM",
+  "agent_dom_permission_describe": "Этот скрипт запрашивает возможность читать и управлять DOM веб-страницы (клик, заполнение форм, навигация, скриншот и т.д.). Разрешайте только доверенным скриптам.",
+  "agent_dom_permission_content": "Agent DOM операции"
 }
