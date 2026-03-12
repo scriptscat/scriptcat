@@ -44,10 +44,7 @@ test.describe("Popup Page", () => {
     await expect(settingsBtn).toBeVisible();
 
     // Click the settings button - it should open a new page
-    const [newPage] = await Promise.all([
-      context.waitForEvent("page"),
-      settingsBtn.click(),
-    ]);
+    const [newPage] = await Promise.all([context.waitForEvent("page"), settingsBtn.click()]);
 
     // The new page should be the options page
     await expect(newPage).toHaveURL(/options\.html/);

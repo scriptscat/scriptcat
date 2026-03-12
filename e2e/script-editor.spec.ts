@@ -43,10 +43,7 @@ test.describe("Script Editor", () => {
     await expect(successMsg.first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test("should show newly created script in the list after saving", async ({
-    context,
-    extensionId,
-  }) => {
+  test("should show newly created script in the list after saving", async ({ context, extensionId }) => {
     // First create a script via the editor
     const editorPage = await openEditorPage(context, extensionId);
 

@@ -40,7 +40,6 @@ const test = base.extend<{
       headless: false,
       args: ["--headless=new", ...chromeArgs],
     });
-    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -54,7 +53,6 @@ const test = base.extend<{
     await initPage.waitForLoadState("domcontentloaded");
     await initPage.evaluate(() => localStorage.setItem("firstUse", "false"));
     await initPage.close();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(extensionId);
   },
 });

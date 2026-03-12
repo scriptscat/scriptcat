@@ -5,10 +5,7 @@ import { openEditorPage, openOptionsPage } from "./utils";
 /**
  * Helper: create a script via the editor, then open the options page.
  */
-async function createScriptAndGoToList(
-  context: BrowserContext,
-  extensionId: string
-): Promise<Page> {
+async function createScriptAndGoToList(context: BrowserContext, extensionId: string): Promise<Page> {
   const editorPage = await openEditorPage(context, extensionId);
 
   // Wait for Monaco editor
@@ -72,9 +69,7 @@ test.describe("Script Management", () => {
     const page = await createScriptAndGoToList(context, extensionId);
 
     // Right-click on a script row to get context menu
-    const scriptRow = page
-      .locator(".arco-table-row, .arco-card-body .arco-list-item, [class*='script']")
-      .first();
+    const scriptRow = page.locator(".arco-table-row, .arco-card-body .arco-list-item, [class*='script']").first();
     if (await scriptRow.isVisible()) {
       await scriptRow.click({ button: "right" });
       await page.waitForTimeout(500);

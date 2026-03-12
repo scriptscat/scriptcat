@@ -20,34 +20,47 @@ test.describe("Options Page", () => {
     await expect(page.locator(".arco-menu").first()).toBeVisible();
 
     // Click "Subscribe" / "订阅" menu item and verify route change
-    await page.locator(".arco-menu-item").filter({ hasText: /subscribe|订阅/ }).first().click();
+    await page
+      .locator(".arco-menu-item")
+      .filter({ hasText: /subscribe|订阅/i })
+      .first()
+      .click();
     await expect(page).toHaveURL(/.*#\/subscribe/);
 
     // Click "Logs" / "日志" menu item
-    await page.locator(".arco-menu-item").filter({ hasText: /log|日志/ }).first().click();
+    await page
+      .locator(".arco-menu-item")
+      .filter({ hasText: /log|日志/i })
+      .first()
+      .click();
     await expect(page).toHaveURL(/.*#\/logger/);
 
     // Click "Tools" / "工具" menu item
-    await page.locator(".arco-menu-item").filter({ hasText: /tool|工具/ }).first().click();
+    await page
+      .locator(".arco-menu-item")
+      .filter({ hasText: /tool|工具/i })
+      .first()
+      .click();
     await expect(page).toHaveURL(/.*#\/tools/);
 
     // Click "Settings" / "设置" menu item
-    await page.locator(".arco-menu-item").filter({ hasText: /setting|设置/ }).first().click();
+    await page
+      .locator(".arco-menu-item")
+      .filter({ hasText: /setting|设置/i })
+      .first()
+      .click();
     await expect(page).toHaveURL(/.*#\/setting/);
 
     // Navigate back to script list (home) - click the first menu item
     await page
       .locator(".arco-menu-item")
-      .filter({ hasText: /installed.*script|已安装脚本/ })
+      .filter({ hasText: /installed.*script|已安装脚本/i })
       .first()
       .click();
     await expect(page).toHaveURL(/.*#\//);
   });
 
-  test("should show theme switch dropdown with light/dark/auto options", async ({
-    context,
-    extensionId,
-  }) => {
+  test("should show theme switch dropdown with light/dark/auto options", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
 
     // Find the theme toggle button in the action-tools area (icon-only button)

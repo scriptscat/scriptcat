@@ -13,10 +13,7 @@ test.describe("Install Page", () => {
     await expect(page).toHaveTitle(/Install.*ScriptCat|ScriptCat/i);
   });
 
-  test("should display script metadata when loading a script", async ({
-    context,
-    extensionId,
-  }) => {
+  test("should display script metadata when loading a script", async ({ context, extensionId }) => {
     const page = await openInstallPage(context, extensionId, testScriptUrl);
 
     // Wait for the script to be fetched and metadata to be displayed
