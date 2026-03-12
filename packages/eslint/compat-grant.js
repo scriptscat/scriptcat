@@ -10,7 +10,6 @@ const compatMap = {
   "CAT.agent.conversation": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   "CAT.agent.tools": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   "CAT.agent.skills": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
-  "CAT.agent.mcp": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   ...compat_grant.compatMap,
 };
 

@@ -1325,36 +1325,3 @@ describe("@grant CAT.agent.dom", () => {
   });
 });
 
-describe("@grant CAT.agent.mcp", () => {
-  it("CAT.agent.mcp 所有方法应该在沙盒中可访问", async () => {
-    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["CAT.agent.mcp"];
-    const exec = new ExecScript(script, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    script.code = `return {
-      CAT: typeof CAT,
-      listServers: typeof CAT.agent.mcp.listServers,
-      getServer: typeof CAT.agent.mcp.getServer,
-      addServer: typeof CAT.agent.mcp.addServer,
-      updateServer: typeof CAT.agent.mcp.updateServer,
-      removeServer: typeof CAT.agent.mcp.removeServer,
-      listTools: typeof CAT.agent.mcp.listTools,
-      testConnection: typeof CAT.agent.mcp.testConnection,
-    }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
-    expect(ret.CAT).toEqual("object");
-    expect(ret.listServers).toEqual("function");
-    expect(ret.getServer).toEqual("function");
-    expect(ret.addServer).toEqual("function");
-    expect(ret.updateServer).toEqual("function");
-    expect(ret.removeServer).toEqual("function");
-    expect(ret.listTools).toEqual("function");
-    expect(ret.testConnection).toEqual("function");
-  });
-});

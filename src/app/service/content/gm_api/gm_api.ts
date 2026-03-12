@@ -32,8 +32,6 @@ import CATAgentToolsApi from "./cat_agent_tools";
 void CATAgentToolsApi;
 import CATAgentSkillsApi from "./cat_agent_skills";
 void CATAgentSkillsApi;
-import CATAgentMcpApi from "./cat_agent_mcp";
-void CATAgentMcpApi;
 import CATAgentDomApi from "./cat_agent_dom";
 void CATAgentDomApi;
 
