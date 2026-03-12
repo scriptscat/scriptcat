@@ -83,33 +83,29 @@ function ChromePermissionRequest({ permission, uuid }: { permission: string; uui
   );
 }
 
-function App() {
-  const params = new URLSearchParams(location.search);
-  const mode = params.get("mode");
-  const uuid = params.get("uuid");
-  const permission = params.get("permission");
-
-  // chrome_permission 模式走独立组件
-  if (mode === "chrome_permission" && uuid && permission) {
-    return <ChromePermissionRequest permission={permission} uuid={uuid} />;
-  }
-
+// 权限确认组件（默认模式）
+function PermissionConfirmRequest({ uuid }: { uuid: string }) {
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
   const [likeNum, setLikeNum] = React.useState(0);
   const [second, setSecond] = React.useState(30);
 
   const { t } = useTranslation();
 
-  if (second === 0) {
-    window.close();
-  }
-
-  setTimeout(() => {
-    setSecond(second - 1);
-  }, 1000);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecond((s) => {
+        if (s <= 1) {
+          clearInterval(timer);
+          window.close();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
-    if (!uuid) return;
     window.addEventListener("beforeunload", () => {
       permissionClient.confirm(uuid, {
         allow: false,
@@ -127,11 +123,10 @@ function App() {
       .catch((e: any) => {
         Message.error(e.message || t("get_confirm_error"));
       });
-  }, []);
+  }, [uuid, t]);
 
   const handleConfirm = (allow: boolean, type: number) => {
     return async () => {
-      if (!uuid) return;
       try {
         await permissionClient.confirm(uuid, {
           allow,
@@ -229,6 +224,23 @@ function App() {
       </Space>
     </div>
   );
+}
+
+function App() {
+  const params = new URLSearchParams(location.search);
+  const mode = params.get("mode");
+  const uuid = params.get("uuid");
+  const permission = params.get("permission");
+
+  if (mode === "chrome_permission" && uuid && permission) {
+    return <ChromePermissionRequest permission={permission} uuid={uuid} />;
+  }
+
+  if (uuid) {
+    return <PermissionConfirmRequest uuid={uuid} />;
+  }
+
+  return null;
 }
 
 export default App;

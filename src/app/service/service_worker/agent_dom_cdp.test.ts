@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ensureDebuggerPermission } from "./agent_dom_cdp";
-
-// mock openInCurrentTab
-vi.mock("@App/pkg/utils/utils", () => ({
-  openInCurrentTab: vi.fn(),
-}));
-
-import { openInCurrentTab } from "@App/pkg/utils/utils";
+import * as utils from "@App/pkg/utils/utils";
 
 // mock chrome.permissions
 const mockPermissionsContains = vi.fn();
@@ -25,9 +19,13 @@ const mockOnMessage = {
 // mock crypto.randomUUID
 const MOCK_UUID = "test-uuid-1234";
 
+let openInCurrentTabSpy: ReturnType<typeof vi.spyOn>;
+
 beforeEach(() => {
   vi.clearAllMocks();
   messageListeners = [];
+
+  openInCurrentTabSpy = vi.spyOn(utils, "openInCurrentTab").mockResolvedValue(undefined as any);
 
   (chrome as any).permissions = {
     contains: mockPermissionsContains,
@@ -40,6 +38,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  openInCurrentTabSpy.mockRestore();
   vi.restoreAllMocks();
 });
 
@@ -53,7 +52,7 @@ describe("ensureDebuggerPermission", () => {
     await ensureDebuggerPermission();
 
     expect(mockPermissionsContains).toHaveBeenCalledWith({ permissions: ["debugger"] });
-    expect(openInCurrentTab).not.toHaveBeenCalled();
+    expect(openInCurrentTabSpy).not.toHaveBeenCalled();
     expect(mockOnMessage.addListener).not.toHaveBeenCalled();
   });
 
@@ -66,7 +65,7 @@ describe("ensureDebuggerPermission", () => {
     await flushMicrotasks();
 
     // 验证打开了确认页面
-    expect(openInCurrentTab).toHaveBeenCalledWith(
+    expect(openInCurrentTabSpy).toHaveBeenCalledWith(
       `src/confirm.html?mode=chrome_permission&permission=debugger&uuid=${MOCK_UUID}`
     );
     // 验证注册了消息监听
@@ -103,6 +102,10 @@ describe("ensureDebuggerPermission", () => {
     mockPermissionsContains.mockResolvedValue(false);
 
     const promise = ensureDebuggerPermission();
+
+    // 先附加 catch 避免 unhandled rejection
+    const caught = promise.catch((e: Error) => e);
+
     await vi.advanceTimersByTimeAsync(0); // flush microtasks
 
     expect(messageListeners).toHaveLength(1);
@@ -110,7 +113,9 @@ describe("ensureDebuggerPermission", () => {
     // 快进 60 秒
     await vi.advanceTimersByTimeAsync(60000);
 
-    await expect(promise).rejects.toThrow("Permission request timed out");
+    const error = await caught;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Permission request timed out");
     expect(mockOnMessage.removeListener).toHaveBeenCalled();
 
     vi.useRealTimers();

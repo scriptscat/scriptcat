@@ -1232,3 +1232,129 @@ describe("@grant CAT.agent.conversation", () => {
     expect(ret.get).toEqual("function");
   });
 });
+
+describe("@grant CAT.agent.dom", () => {
+  it("CAT.agent.dom 所有方法应该在沙盒中可访问", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["CAT.agent.dom"];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    script.code = `return {
+      CAT: typeof CAT,
+      agent: typeof CAT.agent,
+      dom: typeof CAT.agent.dom,
+      listTabs: typeof CAT.agent.dom.listTabs,
+      navigate: typeof CAT.agent.dom.navigate,
+      readPage: typeof CAT.agent.dom.readPage,
+      screenshot: typeof CAT.agent.dom.screenshot,
+      click: typeof CAT.agent.dom.click,
+      fill: typeof CAT.agent.dom.fill,
+      scroll: typeof CAT.agent.dom.scroll,
+      waitFor: typeof CAT.agent.dom.waitFor,
+    }`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret.CAT).toEqual("object");
+    expect(ret.agent).toEqual("object");
+    expect(ret.dom).toEqual("object");
+    expect(ret.listTabs).toEqual("function");
+    expect(ret.navigate).toEqual("function");
+    expect(ret.readPage).toEqual("function");
+    expect(ret.screenshot).toEqual("function");
+    expect(ret.click).toEqual("function");
+    expect(ret.fill).toEqual("function");
+    expect(ret.scroll).toEqual("function");
+    expect(ret.waitFor).toEqual("function");
+  });
+
+  it("CAT.agent.dom.readPage 应通过 sendMessage 发送正确参数", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.uuid = "test-uuid";
+    script.metadata.grant = ["CAT.agent.dom"];
+    const mockSendMessage = vi.fn().mockResolvedValue({ data: { title: "Test", url: "https://example.com" } });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "offscreen",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    script.code = `return CAT.agent.dom.readPage({ tabId: 1, mode: "summary", maxLength: 2000 });`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual({ title: "Test", url: "https://example.com" });
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "offscreen/runtime/gmApi",
+        data: expect.objectContaining({
+          api: "CAT_agentDom",
+          params: [
+            expect.objectContaining({
+              action: "readPage",
+              options: { tabId: 1, mode: "summary", maxLength: 2000 },
+              scriptUuid: "test-uuid",
+            }),
+          ],
+        }),
+      })
+    );
+  });
+
+  it("未 grant CAT.agent.dom 时方法不可用", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_log"];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    script.code = `return { hasCat: typeof CAT !== "undefined" && CAT?.agent?.dom?.readPage !== undefined }`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret.hasCat).toEqual(false);
+  });
+});
+
+describe("@grant CAT.agent.mcp", () => {
+  it("CAT.agent.mcp 所有方法应该在沙盒中可访问", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["CAT.agent.mcp"];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    script.code = `return {
+      CAT: typeof CAT,
+      listServers: typeof CAT.agent.mcp.listServers,
+      getServer: typeof CAT.agent.mcp.getServer,
+      addServer: typeof CAT.agent.mcp.addServer,
+      updateServer: typeof CAT.agent.mcp.updateServer,
+      removeServer: typeof CAT.agent.mcp.removeServer,
+      listTools: typeof CAT.agent.mcp.listTools,
+      testConnection: typeof CAT.agent.mcp.testConnection,
+    }`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret.CAT).toEqual("object");
+    expect(ret.listServers).toEqual("function");
+    expect(ret.getServer).toEqual("function");
+    expect(ret.addServer).toEqual("function");
+    expect(ret.updateServer).toEqual("function");
+    expect(ret.removeServer).toEqual("function");
+    expect(ret.listTools).toEqual("function");
+    expect(ret.testConnection).toEqual("function");
+  });
+});

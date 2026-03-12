@@ -1,7 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
-import React from "react";
-
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -16,6 +14,8 @@ vi.mock("@App/pages/store/features/script", () => ({
   },
 }));
 
+import App from "@App/pages/confirm/App";
+
 // mock chrome.permissions.request 和 chrome.runtime.sendMessage
 const mockPermissionsRequest = vi.fn();
 const mockSendMessage = vi.fn();
@@ -28,6 +28,13 @@ beforeEach(() => {
     request: mockPermissionsRequest,
   };
   (chrome.runtime as any).sendMessage = mockSendMessage;
+
+  // 模拟 location.search
+  Object.defineProperty(window, "location", {
+    value: { search: "", href: "https://ext/confirm.html" },
+    writable: true,
+    configurable: true,
+  });
 });
 
 afterEach(() => {
@@ -35,23 +42,18 @@ afterEach(() => {
   cleanup();
 });
 
-// 动态 import 以便 mock 生效
-async function renderApp(search: string) {
-  // 模拟 location.search
+function renderApp(search: string) {
   Object.defineProperty(window, "location", {
     value: { search, href: `https://ext/confirm.html${search}` },
     writable: true,
     configurable: true,
   });
-
-  // 每次重新 import 确保使用最新的 location
-  const { default: App } = await import("@App/pages/confirm/App");
   return render(<App />);
 }
 
 describe("ChromePermissionRequest", () => {
   it("应显示权限请求 UI", async () => {
-    await renderApp("?mode=chrome_permission&permission=debugger&uuid=test-uuid");
+    renderApp("?mode=chrome_permission&permission=debugger&uuid=test-uuid");
 
     expect(screen.getByText("chrome_permission_title")).toBeInTheDocument();
     expect(screen.getByText("chrome_permission_debugger_desc")).toBeInTheDocument();
@@ -65,7 +67,7 @@ describe("ChromePermissionRequest", () => {
     const closeSpy = vi.fn();
     window.close = closeSpy;
 
-    await renderApp("?mode=chrome_permission&permission=debugger&uuid=grant-uuid");
+    renderApp("?mode=chrome_permission&permission=debugger&uuid=grant-uuid");
 
     const grantBtn = screen.getByText("chrome_permission_grant");
     await act(async () => {
@@ -86,7 +88,7 @@ describe("ChromePermissionRequest", () => {
     mockPermissionsRequest.mockResolvedValue(false);
     window.close = vi.fn();
 
-    await renderApp("?mode=chrome_permission&permission=debugger&uuid=reject-uuid");
+    renderApp("?mode=chrome_permission&permission=debugger&uuid=reject-uuid");
 
     const grantBtn = screen.getByText("chrome_permission_grant");
     await act(async () => {
@@ -103,7 +105,7 @@ describe("ChromePermissionRequest", () => {
   it("点击 Deny 应发送拒绝消息", async () => {
     window.close = vi.fn();
 
-    await renderApp("?mode=chrome_permission&permission=debugger&uuid=deny-uuid");
+    renderApp("?mode=chrome_permission&permission=debugger&uuid=deny-uuid");
 
     // deny 按钮文字包含倒计时
     const denyBtn = screen.getByText("chrome_permission_deny (30)");
@@ -122,7 +124,7 @@ describe("ChromePermissionRequest", () => {
     const closeSpy = vi.fn();
     window.close = closeSpy;
 
-    await renderApp("?mode=chrome_permission&permission=debugger&uuid=timeout-uuid");
+    renderApp("?mode=chrome_permission&permission=debugger&uuid=timeout-uuid");
 
     // 快进 30 秒
     await act(async () => {
@@ -137,7 +139,7 @@ describe("ChromePermissionRequest", () => {
   });
 
   it("倒计时数字应递减", async () => {
-    await renderApp("?mode=chrome_permission&permission=debugger&uuid=tick-uuid");
+    renderApp("?mode=chrome_permission&permission=debugger&uuid=tick-uuid");
 
     expect(screen.getByText("chrome_permission_deny (30)")).toBeInTheDocument();
 
@@ -158,7 +160,7 @@ describe("ChromePermissionRequest", () => {
     mockPermissionsRequest.mockResolvedValue(true);
     window.close = vi.fn();
 
-    await renderApp("?mode=chrome_permission&permission=debugger&uuid=dup-uuid");
+    renderApp("?mode=chrome_permission&permission=debugger&uuid=dup-uuid");
 
     // 点击 Grant
     const grantBtn = screen.getByText("chrome_permission_grant");
