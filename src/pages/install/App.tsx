@@ -2,11 +2,27 @@ import { Space, Typography } from "@arco-design/web-react";
 import { useTranslation } from "react-i18next";
 import { useInstallData } from "./hooks";
 import CATToolInstallView from "./components/CATToolInstallView";
+import SkillInstallView from "./components/SkillInstallView";
 import ScriptInstallView from "./components/ScriptInstallView";
 
 function App() {
   const data = useInstallData();
   const { t } = useTranslation();
+
+  // Skill ZIP 安装
+  if (data.skillPreview) {
+    return (
+      <SkillInstallView
+        metadata={data.skillPreview.metadata}
+        prompt={data.skillPreview.prompt}
+        scripts={data.skillPreview.scripts}
+        references={data.skillPreview.references}
+        isUpdate={data.skillPreview.isUpdate}
+        onInstall={data.handleSkillInstall}
+        onClose={data.handleSkillCancel}
+      />
+    );
+  }
 
   // CATTool 安装
   if (data.cattoolMetadata && data.scriptInfo?.cattool) {

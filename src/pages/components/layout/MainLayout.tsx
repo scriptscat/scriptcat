@@ -27,7 +27,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppContext } from "@App/pages/store/AppContext";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
-import { scriptClient } from "@App/pages/store/features/script";
+import { scriptClient, agentClient } from "@App/pages/store/features/script";
 import { useDropzone, type FileWithPath } from "react-dropzone";
 import { systemConfig } from "@App/pages/store/global";
 import i18n, { matchLanguage } from "@App/locales/locales";
@@ -189,6 +189,20 @@ const MainLayout: React.FC<{
     if (stat) showImportResult(stat);
   };
 
+  // 处理 ZIP 文件的 Skill 安装
+  const handleZipSkillInstall = async (file: File) => {
+    const buffer = await file.arrayBuffer();
+    // ArrayBuffer → base64（chrome.runtime 消息不支持直接传 ArrayBuffer）
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+    const uuid = await agentClient.prepareSkillInstall(base64);
+    window.open(`/src/install.html?skill=${uuid}`, "_blank");
+  };
+
   const onDrop = (acceptedFiles: FileWithPath[]) => {
     // 本地的文件在当前页面处理，打开安装页面，将FileSystemFileHandle传递过去
     // 实现本地文件的监听
@@ -196,6 +210,12 @@ const MainLayout: React.FC<{
     Promise.all(
       acceptedFiles.map(async (aFile) => {
         try {
+          // ZIP 文件走 Skill 安装流程
+          if (aFile.name.endsWith(".zip")) {
+            await handleZipSkillInstall(aFile);
+            stat.success++;
+            return;
+          }
           // 解析看看是不是一个标准的script文件
           // 如果是，则打开安装页面
           let fileHandle = aFile.handle;
@@ -259,7 +279,7 @@ const MainLayout: React.FC<{
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { "text/javascript": [".js"] },
+    accept: { "text/javascript": [".js"], "application/zip": [".zip"] },
     onDrop,
     noClick: true,
     noKeyboard: true,

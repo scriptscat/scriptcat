@@ -5,3 +5,4 @@ export const CACHE_KEY_FAVICON = "favicon:";
 export const CACHE_KEY_SET_VALUE = "setValue:";
 export const CACHE_KEY_PERMISSION = "permission:";
 export const CACHE_KEY_CATTOOL_INSTALL = "cattoolInstall:"; // CATTool 待安装代码缓存
+export const CACHE_KEY_SKILL_INSTALL = "skillInstall:"; // Skill ZIP 待安装数据缓存

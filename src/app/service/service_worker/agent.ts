@@ -28,9 +28,9 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
 import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/tool_registry";
 import { parseCATToolMetadata, catToolToToolDefinition, prefixToolDefinition } from "@App/pkg/utils/cattool";
-import { parseSkillMd } from "@App/pkg/utils/skill";
+import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
 import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
-import { CACHE_KEY_CATTOOL_INSTALL } from "@App/app/cache_key";
+import { CACHE_KEY_CATTOOL_INSTALL, CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
 import { AgentDomService } from "./agent_dom";
 import { MCPService } from "./agent_mcp";
@@ -93,6 +93,11 @@ export class AgentService {
       }) => this.installSkill(params.skillMd, params.scripts, params.references)
     );
     this.group.on("removeSkill", (name: string) => this.removeSkill(name));
+    // Skill ZIP 安装页面相关消息
+    this.group.on("prepareSkillInstall", (zipBase64: string) => this.prepareSkillInstall(zipBase64));
+    this.group.on("getSkillInstallData", (uuid: string) => this.getSkillInstallData(uuid));
+    this.group.on("completeSkillInstall", (uuid: string) => this.completeSkillInstall(uuid));
+    this.group.on("cancelSkillInstall", (uuid: string) => this.cancelSkillInstall(uuid));
     // 加载已安装的 CATTools
     this.loadCATTools();
     // 加载已安装的 Skills
@@ -387,6 +392,64 @@ export class AgentService {
       this.skillCache.delete(name);
     }
     return removed;
+  }
+
+  // 缓存 Skill ZIP 数据，返回 uuid，供安装页面获取
+  async prepareSkillInstall(zipBase64: string): Promise<string> {
+    const uuid = uuidv4();
+    await cacheInstance.set(CACHE_KEY_SKILL_INSTALL + uuid, zipBase64);
+    return uuid;
+  }
+
+  // 获取缓存的 Skill ZIP 数据并解析
+  async getSkillInstallData(uuid: string): Promise<{
+    skillMd: string;
+    metadata: { name: string; description: string };
+    prompt: string;
+    scripts: Array<{ name: string; code: string }>;
+    references: Array<{ name: string; content: string }>;
+    isUpdate: boolean;
+  }> {
+    const zipBase64 = await cacheInstance.get<string>(CACHE_KEY_SKILL_INSTALL + uuid);
+    if (!zipBase64) {
+      throw new Error("Skill install data not found or expired");
+    }
+    // base64 → ArrayBuffer
+    const binaryStr = atob(zipBase64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    const buffer = bytes.buffer;
+
+    const result = await parseSkillZip(buffer);
+    const parsed = parseSkillMd(result.skillMd);
+    if (!parsed) {
+      throw new Error("Invalid SKILL.md format in ZIP");
+    }
+    // 检查是否为更新
+    const existing = await this.skillRepo.getSkill(parsed.metadata.name);
+    return {
+      skillMd: result.skillMd,
+      metadata: parsed.metadata,
+      prompt: parsed.prompt,
+      scripts: result.scripts,
+      references: result.references,
+      isUpdate: !!existing,
+    };
+  }
+
+  // Skill 安装页面确认安装
+  async completeSkillInstall(uuid: string): Promise<SkillRecord> {
+    const data = await this.getSkillInstallData(uuid);
+    const record = await this.installSkill(data.skillMd, data.scripts, data.references);
+    await cacheInstance.del(CACHE_KEY_SKILL_INSTALL + uuid);
+    return record;
+  }
+
+  // Skill 安装页面取消
+  async cancelSkillInstall(uuid: string): Promise<void> {
+    await cacheInstance.del(CACHE_KEY_SKILL_INSTALL + uuid);
   }
 
   // 处理 CAT.agent.skills API 请求

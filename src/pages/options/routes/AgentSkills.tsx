@@ -7,16 +7,14 @@ import {
   Modal,
   Popconfirm,
   Space,
-  Tabs,
   Tag,
   Typography,
 } from "@arco-design/web-react";
-import { IconDelete, IconEye, IconPlus, IconUpload } from "@arco-design/web-react/icon";
+import { IconDelete, IconEye, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkillSummary, SkillRecord, SkillReference, CATToolRecord } from "@App/app/service/agent/types";
 import { SkillRepo } from "@App/app/repo/skill_repo";
-import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
 import { agentClient } from "@App/pages/store/features/script";
 
 const skillRepo = new SkillRepo();
@@ -212,338 +210,6 @@ function SkillDetailModal({
   );
 }
 
-// ---- Install Modal ----
-
-function InstallSkillModal({
-  visible,
-  onClose,
-  onInstalled,
-  t,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onInstalled: () => void;
-  t: (key: string) => string;
-}) {
-  const [activeTab, setActiveTab] = useState("url");
-  const [url, setUrl] = useState("");
-  const [pasteContent, setPasteContent] = useState("");
-  const [fetching, setFetching] = useState(false);
-  const [installing, setInstalling] = useState(false);
-  const [preview, setPreview] = useState<{ name: string; description: string; prompt: string } | null>(null);
-  const [skillMdContent, setSkillMdContent] = useState("");
-  const [scripts, setScripts] = useState<Array<{ name: string; code: string }>>([]);
-  const [references, setReferences] = useState<Array<{ name: string; content: string }>>([]);
-  const [zipParsing, setZipParsing] = useState(false);
-  const [zipFileName, setZipFileName] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const resetState = () => {
-    setUrl("");
-    setPasteContent("");
-    setPreview(null);
-    setSkillMdContent("");
-    setScripts([]);
-    setReferences([]);
-    setActiveTab("url");
-    setZipFileName("");
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const handleFetchUrl = async () => {
-    if (!url.trim()) return;
-    setFetching(true);
-    try {
-      const resp = await fetch(url.trim());
-      if (!resp.ok) {
-        Message.error(`${t("agent_skills_fetch_failed")}: ${resp.status}`);
-        return;
-      }
-      const text = await resp.text();
-      parseAndPreview(text);
-    } catch (e: any) {
-      Message.error(`${t("agent_skills_fetch_failed")}: ${e.message || e}`);
-    } finally {
-      setFetching(false);
-    }
-  };
-
-  const handlePastePreview = () => {
-    if (!pasteContent.trim()) return;
-    parseAndPreview(pasteContent.trim());
-  };
-
-  const parseAndPreview = (content: string) => {
-    const parsed = parseSkillMd(content);
-    if (!parsed) {
-      Message.error("Invalid SKILL.md format");
-      return;
-    }
-    setSkillMdContent(content);
-    setPreview({
-      name: parsed.metadata.name,
-      description: parsed.metadata.description,
-      prompt: parsed.prompt,
-    });
-  };
-
-  const handleZipFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setZipParsing(true);
-    setZipFileName(file.name);
-    try {
-      const buffer = await file.arrayBuffer();
-      const result = await parseSkillZip(buffer);
-      // 解析 SKILL.md 并填充预览
-      const parsed = parseSkillMd(result.skillMd);
-      if (!parsed) {
-        Message.error("Invalid SKILL.md format in ZIP");
-        return;
-      }
-      setSkillMdContent(result.skillMd);
-      setScripts(result.scripts);
-      setReferences(result.references);
-      setPreview({
-        name: parsed.metadata.name,
-        description: parsed.metadata.description,
-        prompt: parsed.prompt,
-      });
-    } catch (err: any) {
-      Message.error(err.message || String(err));
-    } finally {
-      setZipParsing(false);
-    }
-  };
-
-  const handleInstall = async () => {
-    if (!skillMdContent) return;
-    setInstalling(true);
-    try {
-      await agentClient.installSkill({
-        skillMd: skillMdContent,
-        scripts: scripts.filter((s) => s.name && s.code),
-        references: references.filter((r) => r.name && r.content),
-      });
-      Message.success(t("agent_skills_install_success"));
-      onInstalled();
-      onClose();
-      resetState();
-    } catch (e: any) {
-      Message.error(e.message || String(e));
-    } finally {
-      setInstalling(false);
-    }
-  };
-
-  const handleClose = () => {
-    onClose();
-    resetState();
-  };
-
-  return (
-    <Modal
-      title={t("agent_skills_install")}
-      visible={visible}
-      onOk={handleInstall}
-      onCancel={handleClose}
-      okButtonProps={{ disabled: !preview }}
-      confirmLoading={installing}
-      autoFocus={false}
-      focusLock
-      unmountOnExit
-      style={{ width: 640 }}
-    >
-      <Space direction="vertical" size={16} className="tw-w-full">
-        <Tabs activeTab={activeTab} onChange={setActiveTab}>
-          <Tabs.TabPane key="url" title={t("agent_skills_install_url")}>
-            <div className="tw-flex tw-gap-2 tw-mt-3">
-              <Input
-                className="tw-flex-1"
-                value={url}
-                onChange={setUrl}
-                placeholder="https://example.com/skill.md"
-                onPressEnter={handleFetchUrl}
-              />
-              <Button type="primary" loading={fetching} onClick={handleFetchUrl}>
-                {t("agent_skills_install_url")}
-              </Button>
-            </div>
-          </Tabs.TabPane>
-          <Tabs.TabPane key="paste" title={t("agent_skills_install_paste")}>
-            <div className="tw-mt-3">
-              <Input.TextArea
-                value={pasteContent}
-                onChange={setPasteContent}
-                placeholder={"---\nname: my-skill\ndescription: ...\n---\nYour prompt here..."}
-                autoSize={{ minRows: 6, maxRows: 12 }}
-                style={{ fontFamily: "monospace", fontSize: 13 }}
-              />
-              <div className="tw-mt-2 tw-flex tw-justify-end">
-                <Button type="outline" onClick={handlePastePreview}>
-                  Preview
-                </Button>
-              </div>
-            </div>
-          </Tabs.TabPane>
-          <Tabs.TabPane key="zip" title={t("agent_skills_install_zip")}>
-            <div className="tw-mt-3 tw-flex tw-flex-col tw-items-center tw-gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip"
-                onChange={handleZipFile}
-                style={{ display: "none" }}
-              />
-              <div
-                className="tw-w-full tw-border tw-border-dashed tw-border-[var(--color-border-2)] tw-rounded-lg tw-p-8 tw-flex tw-flex-col tw-items-center tw-gap-2 tw-cursor-pointer hover:tw-border-[rgb(var(--arcoblue-6))] tw-transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <IconUpload style={{ fontSize: 32, color: "var(--color-text-3)" }} />
-                {zipFileName ? (
-                  <Typography.Text>{zipFileName}</Typography.Text>
-                ) : (
-                  <Typography.Text type="secondary">{t("agent_skills_install_zip_hint")}</Typography.Text>
-                )}
-              </div>
-              {zipParsing && <Typography.Text type="secondary">Parsing...</Typography.Text>}
-            </div>
-          </Tabs.TabPane>
-        </Tabs>
-
-        {/* Preview */}
-        {preview && (
-          <Card size="small" title={preview.name}>
-            {preview.description && (
-              <Typography.Text type="secondary" className="tw-block tw-mb-2">
-                {preview.description}
-              </Typography.Text>
-            )}
-            <Typography.Text className="tw-text-xs tw-block" style={{ fontFamily: "monospace" }}>
-              {preview.prompt.length > 200 ? preview.prompt.slice(0, 200) + "..." : preview.prompt}
-            </Typography.Text>
-            {/* ZIP 解析后显示 scripts/references 数量 */}
-            {(scripts.length > 0 || references.length > 0) && (
-              <div className="tw-flex tw-gap-2 tw-mt-2">
-                {scripts.length > 0 && (
-                  <Tag size="small" color="arcoblue">
-                    {t("agent_skills_tools")}: {scripts.length}
-                  </Tag>
-                )}
-                {references.length > 0 && (
-                  <Tag size="small" color="green">
-                    {t("agent_skills_references")}: {references.length}
-                  </Tag>
-                )}
-              </div>
-            )}
-          </Card>
-        )}
-
-        {/* Optional scripts */}
-        <div>
-          <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-            <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-2)]">
-              {t("agent_skills_add_script")}
-            </span>
-            <Button
-              size="mini"
-              type="text"
-              icon={<IconPlus />}
-              onClick={() => setScripts([...scripts, { name: "", code: "" }])}
-            />
-          </div>
-          {scripts.map((s, i) => (
-            <div key={i} className="tw-mb-2 tw-p-3 tw-rounded-lg tw-bg-[var(--color-fill-1)]">
-              <Input
-                size="small"
-                className="tw-mb-2"
-                placeholder="Tool name"
-                value={s.name}
-                onChange={(v) => {
-                  const next = [...scripts];
-                  next[i] = { ...next[i], name: v };
-                  setScripts(next);
-                }}
-              />
-              <Input.TextArea
-                value={s.code}
-                onChange={(v) => {
-                  const next = [...scripts];
-                  next[i] = { ...next[i], code: v };
-                  setScripts(next);
-                }}
-                autoSize={{ minRows: 3, maxRows: 8 }}
-                style={{ fontFamily: "monospace", fontSize: 12 }}
-              />
-              <div className="tw-flex tw-justify-end tw-mt-1">
-                <Button
-                  size="mini"
-                  type="text"
-                  status="danger"
-                  icon={<IconDelete />}
-                  onClick={() => setScripts(scripts.filter((_, j) => j !== i))}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Optional references */}
-        <div>
-          <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-            <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-2)]">
-              {t("agent_skills_add_reference")}
-            </span>
-            <Button
-              size="mini"
-              type="text"
-              icon={<IconPlus />}
-              onClick={() => setReferences([...references, { name: "", content: "" }])}
-            />
-          </div>
-          {references.map((r, i) => (
-            <div key={i} className="tw-mb-2 tw-p-3 tw-rounded-lg tw-bg-[var(--color-fill-1)]">
-              <Input
-                size="small"
-                className="tw-mb-2"
-                placeholder="Reference name"
-                value={r.name}
-                onChange={(v) => {
-                  const next = [...references];
-                  next[i] = { ...next[i], name: v };
-                  setReferences(next);
-                }}
-              />
-              <Input.TextArea
-                value={r.content}
-                onChange={(v) => {
-                  const next = [...references];
-                  next[i] = { ...next[i], content: v };
-                  setReferences(next);
-                }}
-                autoSize={{ minRows: 3, maxRows: 8 }}
-                style={{ fontFamily: "monospace", fontSize: 12 }}
-              />
-              <div className="tw-flex tw-justify-end tw-mt-1">
-                <Button
-                  size="mini"
-                  type="text"
-                  status="danger"
-                  icon={<IconDelete />}
-                  onClick={() => setReferences(references.filter((_, j) => j !== i))}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Space>
-    </Modal>
-  );
-}
-
 // ---- Main Page ----
 
 function AgentSkills() {
@@ -551,7 +217,7 @@ function AgentSkills() {
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [detailVisible, setDetailVisible] = useState(false);
   const [detailSkill, setDetailSkill] = useState<SkillRecord | null>(null);
-  const [installVisible, setInstallVisible] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSkills = useCallback(async () => {
     const list = await skillRepo.listSkills();
@@ -575,15 +241,48 @@ function AgentSkills() {
     loadSkills();
   };
 
+  // 选择 ZIP 文件后走安装页面流程
+  const handleZipFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      const uuid = await agentClient.prepareSkillInstall(base64);
+      window.open(`/src/install.html?skill=${uuid}`, "_blank");
+    } catch (err: any) {
+      Message.error(err.message || String(err));
+    } finally {
+      // 清空 input 以便再次选择相同文件
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   return (
     <Space className="tw-w-full tw-h-full tw-overflow-auto tw-relative" direction="vertical">
       <Card
         title={t("agent_skills_title")}
         bordered={false}
         extra={
-          <Button type="primary" icon={<IconPlus />} onClick={() => setInstallVisible(true)}>
-            {t("agent_skills_add")}
-          </Button>
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip"
+              onChange={handleZipFileSelect}
+              style={{ display: "none" }}
+            />
+            <Button type="primary" icon={<IconPlus />} onClick={() => fileInputRef.current?.click()}>
+              {t("agent_skills_add")}
+            </Button>
+          </>
         }
       >
         {skills.length === 0 ? (
@@ -610,13 +309,6 @@ function AgentSkills() {
         skill={detailSkill}
         onClose={() => setDetailVisible(false)}
         onSaved={loadSkills}
-        t={t}
-      />
-
-      <InstallSkillModal
-        visible={installVisible}
-        onClose={() => setInstallVisible(false)}
-        onInstalled={loadSkills}
         t={t}
       />
     </Space>

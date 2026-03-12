@@ -361,4 +361,27 @@ export class AgentClient extends Client {
   removeSkill(name: string): Promise<unknown> {
     return this.do("removeSkill", name);
   }
+
+  prepareSkillInstall(zipBase64: string): Promise<string> {
+    return this.doThrow("prepareSkillInstall", zipBase64);
+  }
+
+  getSkillInstallData(uuid: string): Promise<{
+    skillMd: string;
+    metadata: { name: string; description: string };
+    prompt: string;
+    scripts: Array<{ name: string; code: string }>;
+    references: Array<{ name: string; content: string }>;
+    isUpdate: boolean;
+  }> {
+    return this.doThrow("getSkillInstallData", uuid);
+  }
+
+  completeSkillInstall(uuid: string): Promise<unknown> {
+    return this.doThrow("completeSkillInstall", uuid);
+  }
+
+  cancelSkillInstall(uuid: string): Promise<void> {
+    return this.do("cancelSkillInstall", uuid);
+  }
 }

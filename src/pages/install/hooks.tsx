@@ -51,6 +51,16 @@ export function useInstallData() {
   const [cattoolIsUpdate, setCattoolIsUpdate] = useState(false);
   const [watchFile, setWatchFile] = useState(false);
 
+  // Skill 安装相关状态
+  const skillInstallUuid = searchParams.get("skill");
+  const [skillPreview, setSkillPreview] = useState<{
+    metadata: { name: string; description: string };
+    prompt: string;
+    scripts: Array<{ name: string; code: string }>;
+    references: Array<{ name: string; content: string }>;
+    isUpdate: boolean;
+  } | null>(null);
+
   const installOrUpdateScript = async (newScript: Script, code: string) => {
     if (newScript.ignoreVersion) newScript.ignoreVersion = "";
     await scriptClient.install({ script: newScript, code });
@@ -131,6 +141,41 @@ export function useInstallData() {
   const handleCATToolApiCancel = () => {
     if (!cattoolInstallUuid) return;
     agentClient.cancelCATToolInstall(cattoolInstallUuid);
+    closeWindow(doBackwards);
+  };
+
+  // Skill ZIP 安装：从缓存加载并解析
+  const initSkillFromCache = async (uuid: string) => {
+    try {
+      setLoaded(true);
+      if (window.history.length > 1) {
+        setDoBackwards(true);
+      }
+      const data = await agentClient.getSkillInstallData(uuid);
+      setSkillPreview(data);
+    } catch (e: any) {
+      Message.error(t("script_info_load_failed") + " " + e.message);
+    }
+  };
+
+  // Skill 安装确认
+  const handleSkillInstall = async () => {
+    if (!skillInstallUuid) return;
+    try {
+      await agentClient.completeSkillInstall(skillInstallUuid);
+      Message.success(t("install_success")!);
+      setTimeout(() => {
+        closeWindow(doBackwards);
+      }, 500);
+    } catch (e) {
+      Message.error(`${t("install_failed")}: ${e}`);
+    }
+  };
+
+  // Skill 安装取消
+  const handleSkillCancel = () => {
+    if (!skillInstallUuid) return;
+    agentClient.cancelSkillInstall(skillInstallUuid);
     closeWindow(doBackwards);
   };
 
@@ -257,7 +302,9 @@ export function useInstallData() {
 
   useEffect(() => {
     if (loaded) return;
-    if (cattoolInstallUuid) {
+    if (skillInstallUuid) {
+      initSkillFromCache(skillInstallUuid);
+    } else if (cattoolInstallUuid) {
       initCATToolFromApi(cattoolInstallUuid);
     } else {
       initAsync();
@@ -364,6 +411,10 @@ export function useInstallData() {
 
   // 更新按钮文案和页面标题
   useEffect(() => {
+    if (skillPreview) {
+      document.title = `${t("install_script")} - ${skillPreview.metadata.name} - ScriptCat`;
+      return;
+    }
     if (scriptInfo?.cattool && cattoolMetadata) {
       document.title = `${t("install_script")} - ${cattoolMetadata.name} - ScriptCat`;
       return;
@@ -554,7 +605,7 @@ export function useInstallData() {
   // 检查是否有 uuid 或 file
   const searchParamUrl = searchParams.get("url");
   const hasValidSourceParam =
-    !searchParamUrl && !!(searchParams.get("uuid") || searchParams.get("file") || cattoolInstallUuid);
+    !searchParamUrl && !!(searchParams.get("uuid") || searchParams.get("file") || cattoolInstallUuid || skillInstallUuid);
 
   const urlHref = useMemo(() => {
     if (searchParamUrl) {
@@ -667,6 +718,11 @@ export function useInstallData() {
     handleCATToolApiCancel,
     cattoolInstallUuid,
     setWatchFileClick,
+    // Skill 安装
+    skillPreview,
+    skillInstallUuid,
+    handleSkillInstall,
+    handleSkillCancel,
     // i18n
     t,
   };
