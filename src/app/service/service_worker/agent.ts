@@ -34,11 +34,9 @@ export class AgentService {
   ) {}
 
   init() {
-    // UI 聊天（通过 connect 建立流式聊天）
-    this.group.on("chat", this.handleChat.bind(this));
     // Sandbox conversation API
     this.group.on("conversation", this.handleConversation.bind(this));
-    // Sandbox 流式聊天（通过 connect）
+    // 流式聊天（UI 和 Sandbox 共用）
     this.group.on("conversationChat", this.handleConversationChat.bind(this));
     // 通过 install page 安装 CATTool
     this.group.on("installCATTool", (code: string) => this.installCATTool(code));
@@ -84,8 +82,8 @@ export class AgentService {
       params: metadata.params,
       grants: metadata.grants,
       code,
-      installedAt: existing?.installedAt || now,
-      updatedAt: now,
+      installtime: existing?.installtime || now,
+      updatetime: now,
     };
 
     await this.catToolRepo.saveTool(record);
@@ -198,8 +196,8 @@ export class AgentService {
       title: "New Chat",
       modelId: model.id,
       system: params.options.system,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createtime: Date.now(),
+      updatetime: Date.now(),
     };
     await this.repo.saveConversation(conv);
     return conv;
@@ -261,7 +259,7 @@ export class AgentService {
             role: "assistant",
             content: result.content,
             toolCalls: result.toolCalls,
-            createdAt: Date.now(),
+            createtime: Date.now(),
           });
         }
 
@@ -282,7 +280,7 @@ export class AgentService {
               role: "tool",
               content: tr.result,
               toolCallId: tr.id,
-              createdAt: Date.now(),
+              createtime: Date.now(),
             });
           }
         }
@@ -298,7 +296,7 @@ export class AgentService {
           conversationId,
           role: "assistant",
           content: result.content,
-          createdAt: Date.now(),
+          createtime: Date.now(),
         });
       }
 
@@ -311,14 +309,15 @@ export class AgentService {
     sendEvent({ type: "error", message: `Tool calling loop exceeded maximum iterations (${maxIterations})` });
   }
 
-  // 处理 Sandbox 的流式 conversation chat（通过 connect）
+  // 统一的流式 conversation chat（UI 和脚本 API 共用）
   private async handleConversationChat(
     params: {
       conversationId: string;
       message: string;
       tools?: ToolDefinition[];
       maxIterations?: number;
-      scriptUuid: string;
+      scriptUuid?: string;
+      modelId?: string;
     },
     sender: IGetSender
   ) {
@@ -366,6 +365,14 @@ export class AgentService {
         sendEvent({ type: "error", message: "Conversation not found" });
         return;
       }
+
+      // UI 传入 modelId 时覆盖 conversation 的 modelId
+      if (params.modelId && params.modelId !== conv.modelId) {
+        conv.modelId = params.modelId;
+        conv.updatetime = Date.now();
+        await this.repo.saveConversation(conv);
+      }
+
       const model = await this.getModel(conv.modelId);
 
       // 加载历史消息
@@ -399,13 +406,13 @@ export class AgentService {
         conversationId: params.conversationId,
         role: "user",
         content: params.message,
-        createdAt: Date.now(),
+        createtime: Date.now(),
       });
 
       // 更新对话标题（如果是第一条消息）
       if (existingMessages.length === 0 && conv.title === "New Chat") {
         conv.title = params.message.slice(0, 30) + (params.message.length > 30 ? "..." : "");
-        conv.updatedAt = Date.now();
+        conv.updatetime = Date.now();
         await this.repo.saveConversation(conv);
       }
 
@@ -511,56 +518,5 @@ export class AgentService {
 
       parseStream(reader, onEvent, signal).catch(reject);
     });
-  }
-
-  // UI 聊天流式处理（现在也走统一的 tool calling 循环）
-  private async handleChat(params: ChatRequest, sender: IGetSender) {
-    if (!sender.isType(GetSenderType.CONNECT)) {
-      throw new Error("AI chat requires connect mode");
-    }
-    const msgConn = sender.getConnect()!;
-
-    // 获取模型配置
-    const agentConfig = await this.systemConfig.getAgentConfig();
-    const model = agentConfig.models.find((m: AgentModelConfig) => m.id === params.modelId);
-    if (!model) {
-      msgConn.sendMessage({
-        action: "event",
-        data: { type: "error", message: "Model not found" } as ChatStreamEvent,
-      });
-      msgConn.disconnect();
-      return;
-    }
-
-    const abortController = new AbortController();
-    let isDisconnected = false;
-
-    msgConn.onDisconnect(() => {
-      isDisconnected = true;
-      abortController.abort();
-    });
-
-    const sendEvent = (event: ChatStreamEvent) => {
-      if (!isDisconnected) {
-        msgConn.sendMessage({ action: "event", data: event });
-      }
-    };
-
-    try {
-      // UI 场景：使用统一的 tool calling 循环，scriptToolCallback 为 null（只执行内置工具）
-      await this.callLLMWithToolLoop({
-        model,
-        messages: [...params.messages],
-        tools: params.tools,
-        maxIterations: 20,
-        sendEvent,
-        signal: abortController.signal,
-        scriptToolCallback: null,
-        // UI 场景不由 SW 持久化消息（由 hooks 自行管理）
-      });
-    } catch (e: any) {
-      if (abortController.signal.aborted) return;
-      sendEvent({ type: "error", message: e.message || "Unknown error" });
-    }
   }
 }

@@ -3,8 +3,8 @@ export type Conversation = {
   title: string;
   modelId: string;
   system?: string;
-  createdAt: number;
-  updatedAt: number;
+  createtime: number;
+  updatetime: number;
 };
 
 export type MessageRole = "user" | "assistant" | "system" | "tool";
@@ -36,7 +36,7 @@ export type ChatMessage = {
   durationMs?: number;
   firstTokenMs?: number;
   parentId?: string;
-  createdAt: number;
+  createtime: number;
 };
 
 // Service Worker -> UI/Sandbox 的流式事件（通过 MessageConnect 的 sendMessage 传输）
@@ -120,8 +120,8 @@ export type CATToolRecord = {
   params: CATToolParam[];
   grants: string[];
   code: string; // 完整代码（含元数据头）
-  installedAt: number;
-  updatedAt: number;
+  installtime: number;
+  updatetime: number;
 };
 
 // CAT.agent.tools API 请求

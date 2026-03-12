@@ -35,7 +35,9 @@ export default class CATAgentToolsApi {
   @GMContext.API({ follow: "CAT.agent.tools" })
   public "CAT.agent.tools.list"(): Promise<unknown> {
     const ctx = this as unknown as GMBaseContext;
-    return ctx.sendMessage("CAT_agentTools", [{ action: "list", scriptUuid: ctx.scriptRes?.uuid || "" } as CATToolApiRequest]);
+    return ctx.sendMessage("CAT_agentTools", [
+      { action: "list", scriptUuid: ctx.scriptRes?.uuid || "" } as CATToolApiRequest,
+    ]);
   }
 
   @GMContext.API({ follow: "CAT.agent.tools" })

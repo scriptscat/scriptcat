@@ -868,7 +868,11 @@ export class ScriptService {
     // 检测是否为 CATTool
     const cattoolMeta = parseCATToolMetadata(code);
     if (cattoolMeta) {
-      const si = [false, { uuid, code, url, source: upsertBy, metadata: {}, userSubscribe: false, cattool: true } as ScriptInfo, options];
+      const si = [
+        false,
+        { uuid, code, url, source: upsertBy, metadata: {}, userSubscribe: false, cattool: true } as ScriptInfo,
+        options,
+      ];
       await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
       return 1;
     }

@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  Conversation,
-  ChatMessage,
-  ChatStreamEvent,
-  MessageRole,
-  ToolCall,
-  ToolDefinition,
-} from "@App/app/service/agent/types";
+import type { Conversation, ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { message as extensionMessage } from "@App/pages/store/global";
 import { connect } from "@Packages/message/client";
@@ -47,8 +40,8 @@ export function useConversations() {
         id: genId(),
         title: "New Chat",
         modelId,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createtime: Date.now(),
+        updatetime: Date.now(),
       };
       await repo.saveConversation(conv);
       const list = await loadConversations();
@@ -77,7 +70,7 @@ export function useConversations() {
       const conv = list.find((c) => c.id === id);
       if (conv) {
         conv.title = title;
-        conv.updatedAt = Date.now();
+        conv.updatetime = Date.now();
         await repo.saveConversation(conv);
         await loadConversations();
       }
@@ -134,21 +127,19 @@ export function useStreamingChat() {
   const sendMessage = useCallback(
     async (
       conversationId: string,
-      modelId: string,
-      allMessages: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }>,
+      message: string,
       onEvent: (event: ChatStreamEvent) => void,
       onDone: () => void,
-      tools?: ToolDefinition[]
+      modelId?: string
     ) => {
       setIsStreaming(true);
       abortedRef.current = false;
 
       try {
-        const conn = await connect(extensionMessage, "serviceWorker/agent/chat", {
+        const conn = await connect(extensionMessage, "serviceWorker/agent/conversationChat", {
           conversationId,
+          message,
           modelId,
-          messages: allMessages,
-          tools,
         });
 
         connRef.current = conn;
@@ -180,15 +171,6 @@ export function useStreamingChat() {
   return { isStreaming, sendMessage, stopGeneration };
 }
 
-// 持久化消息的辅助函数
-export async function persistMessage(message: ChatMessage): Promise<void> {
-  await repo.appendMessage(message);
-}
-
-export async function updatePersistedMessage(message: ChatMessage): Promise<void> {
-  await repo.updateMessage(message);
-}
-
 // 批量删除持久化消息
 export async function deleteMessages(conversationId: string, messageIds: string[]): Promise<void> {
   const messages = await repo.getMessages(conversationId);
@@ -200,16 +182,4 @@ export async function deleteMessages(conversationId: string, messageIds: string[
 // 清空对话消息
 export async function clearMessages(conversationId: string): Promise<void> {
   await repo.saveMessages(conversationId, []);
-}
-
-// 根据第一条用户消息自动生成会话标题
-export async function autoTitleConversation(conversationId: string, firstUserMessage: string): Promise<void> {
-  const title = firstUserMessage.slice(0, 30) + (firstUserMessage.length > 30 ? "..." : "");
-  const conversations = await repo.listConversations();
-  const conv = conversations.find((c) => c.id === conversationId);
-  if (conv && conv.title === "New Chat") {
-    conv.title = title;
-    conv.updatedAt = Date.now();
-    await repo.saveConversation(conv);
-  }
 }

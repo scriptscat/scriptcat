@@ -56,15 +56,7 @@ function LiveTimer({ startTime }: { startTime: number }) {
 }
 
 // 操作按钮
-function ActionButton({
-  tooltip,
-  onClick,
-  children,
-}: {
-  tooltip: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
+function ActionButton({ tooltip, onClick, children }: { tooltip: string; onClick: () => void; children: ReactNode }) {
   return (
     <Tooltip content={tooltip} mini>
       <button
@@ -107,8 +99,7 @@ export default function MessageToolbar({
       metaParts.push(
         <span key="tokens">
           <span style={{ color: "rgb(var(--green-5))" }}>{"↑"}</span>
-          {formatTokens(usage.inputTokens)}{" "}
-          <span style={{ color: "rgb(var(--red-5))" }}>{"↓"}</span>
+          {formatTokens(usage.inputTokens)} <span style={{ color: "rgb(var(--red-5))" }}>{"↓"}</span>
           {formatTokens(usage.outputTokens)}
         </span>
       );

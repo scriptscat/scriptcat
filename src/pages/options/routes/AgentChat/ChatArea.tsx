@@ -6,7 +6,7 @@ import type { AgentModelConfig } from "@App/pkg/config/config";
 import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
-import { useMessages, useStreamingChat, persistMessage, deleteMessages, autoTitleConversation, clearMessages } from "./hooks";
+import { useMessages, useStreamingChat, deleteMessages, clearMessages } from "./hooks";
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -130,50 +130,32 @@ export default function ChatArea({
     firstTokenRecordedRef.current = false;
     firstTokenMsRef.current = undefined;
 
-    // 添加用户消息
+    // 乐观 UI 更新：添加用户消息和助手消息占位
     const userMsg: ChatMessage = {
       id: genId(),
       conversationId,
       role: "user",
       content,
-      createdAt: Date.now(),
+      createtime: Date.now(),
     };
-    await persistMessage(userMsg);
 
-    // 创建助手消息占位
     const assistantMsg: ChatMessage = {
       id: genId(),
       conversationId,
       role: "assistant",
       content: "",
       modelId: selectedModelId,
-      createdAt: Date.now(),
+      createtime: Date.now(),
     };
     streamingMsgRef.current = assistantMsg;
 
     const baseMessages = existingMessages ?? messages;
     setMessages([...baseMessages, userMsg, assistantMsg]);
 
-    // 自动设置标题（仅首条消息时）
-    const isFirstMessage = baseMessages.length === 0;
-    if (isFirstMessage) {
-      autoTitleConversation(conversationId, content).then(() => {
-        onConversationTitleChange?.();
-      });
-    }
-
-    // 构造发送给 AI 的消息列表
-    const allMsgs = [...baseMessages, userMsg].map((m) => ({
-      role: m.role,
-      content: m.content,
-      toolCallId: m.toolCallId,
-      toolCalls: m.toolCalls,
-    }));
-
+    // SW 负责持久化和自动标题，UI 只需传 conversationId + message + modelId
     sendMessage(
       conversationId,
-      selectedModelId,
-      allMsgs,
+      content,
       (event: ChatStreamEvent) => {
         const msg = streamingMsgRef.current;
         if (!msg) return;
@@ -223,15 +205,13 @@ export default function ChatArea({
         });
       },
       async () => {
-        // 流结束，持久化助手消息
-        const msg = streamingMsgRef.current;
-        if (msg) {
-          await persistMessage(msg);
-          streamingMsgRef.current = null;
-        }
-        // 重新加载确保一致性
-        loadMessages();
-      }
+        streamingMsgRef.current = null;
+        // 重新加载 SW 持久化的消息，确保一致性
+        await loadMessages();
+        // 通知标题可能已变更（SW 自动标题）
+        onConversationTitleChange?.();
+      },
+      selectedModelId
     );
   };
 

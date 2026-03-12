@@ -10,13 +10,13 @@
 
 ## 示例说明
 
-| 文件                      | 说明                                       | 关键 API                          |
-| ------------------------- | ------------------------------------------ | --------------------------------- |
-| `basic_chat.js`           | 创建对话、发送消息、查看 Token 用量        | `create()`, `chat()`              |
-| `multi_turn.js`           | 多轮对话自动携带上下文；通过固定 ID 恢复   | `chat()`, `get()`, `getMessages()`|
-| `streaming.js`            | 流式接收生成内容，支持思考过程和工具调用   | `chatStream()`, `for await...of`  |
-| `tool_calling.js`         | 注册自定义工具，LLM 自动调用并返回结果     | `tools` 参数, `handler`           |
-| `webpage_summarizer.js`   | 实用案例：提取页面内容 + Agent 总结        | 页面脚本 + `GM_registerMenuCommand` |
+| 文件                    | 说明                                     | 关键 API                            |
+| ----------------------- | ---------------------------------------- | ----------------------------------- |
+| `basic_chat.js`         | 创建对话、发送消息、查看 Token 用量      | `create()`, `chat()`                |
+| `multi_turn.js`         | 多轮对话自动携带上下文；通过固定 ID 恢复 | `chat()`, `get()`, `getMessages()`  |
+| `streaming.js`          | 流式接收生成内容，支持思考过程和工具调用 | `chatStream()`, `for await...of`    |
+| `tool_calling.js`       | 注册自定义工具，LLM 自动调用并返回结果   | `tools` 参数, `handler`             |
+| `webpage_summarizer.js` | 实用案例：提取页面内容 + Agent 总结      | 页面脚本 + `GM_registerMenuCommand` |
 
 ## 快速开始
 
@@ -51,13 +51,13 @@ console.log(reply.content);
 
 ### 流式事件类型
 
-| 事件类型         | 说明                            |
-| ---------------- | ------------------------------- |
-| `content_delta`  | 文本片段，拼接为完整回复        |
-| `thinking_delta` | 模型思考过程（部分模型支持）    |
-| `tool_call`      | 工具调用通知                    |
-| `done`           | 流式完成，包含 usage 信息       |
-| `error`          | 错误信息                        |
+| 事件类型         | 说明                         |
+| ---------------- | ---------------------------- |
+| `content_delta`  | 文本片段，拼接为完整回复     |
+| `thinking_delta` | 模型思考过程（部分模型支持） |
+| `tool_call`      | 工具调用通知                 |
+| `done`           | 流式完成，包含 usage 信息    |
+| `error`          | 错误信息                     |
 
 ## Tool Calling
 
