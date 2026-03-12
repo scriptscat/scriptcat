@@ -997,10 +997,7 @@ describe("handleConversationChat skill 动态工具清理", () => {
     expect(registry.getDefinitions().find((d: any) => d.name === "load_skill")).toBeUndefined();
     expect(registry.getDefinitions().find((d: any) => d.name === "test-skill__my-tool")).toBeUndefined();
 
-    await (service as any).handleConversationChat(
-      { conversationId: "conv-1", message: "test" },
-      sender
-    );
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "test" }, sender);
 
     // 对话后 meta-tools 应已清理
     expect(registry.getDefinitions().find((d: any) => d.name === "load_skill")).toBeUndefined();

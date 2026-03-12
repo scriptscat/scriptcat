@@ -605,7 +605,8 @@ export function useInstallData() {
   // 检查是否有 uuid 或 file
   const searchParamUrl = searchParams.get("url");
   const hasValidSourceParam =
-    !searchParamUrl && !!(searchParams.get("uuid") || searchParams.get("file") || cattoolInstallUuid || skillInstallUuid);
+    !searchParamUrl &&
+    !!(searchParams.get("uuid") || searchParams.get("file") || cattoolInstallUuid || skillInstallUuid);
 
   const urlHref = useMemo(() => {
     if (searchParamUrl) {

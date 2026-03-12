@@ -90,10 +90,7 @@ function SkillInstallView({
                   {scripts.map((script) => {
                     const toolMeta = parseCATToolMetadata(script.code);
                     return (
-                      <div
-                        key={script.name}
-                        className="tw-p-3 tw-rounded-lg tw-bg-[var(--color-fill-1)]"
-                      >
+                      <div key={script.name} className="tw-p-3 tw-rounded-lg tw-bg-[var(--color-fill-1)]">
                         <div className="tw-flex tw-items-center tw-gap-2 tw-mb-1">
                           <Tag bordered size="small" color="arcoblue">
                             {toolMeta?.name || script.name}

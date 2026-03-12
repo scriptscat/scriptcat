@@ -1254,13 +1254,9 @@ describe("callLLMWithToolLoop", () => {
     );
 
     // 第一轮：LLM 调用 load_skill
-    fetchSpy.mockResolvedValueOnce(
-      buildSSEResponse(makeToolCallSSE("call_1", "load_skill", '{"skill_name":"test"}'))
-    );
+    fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeToolCallSSE("call_1", "load_skill", '{"skill_name":"test"}')));
     // 第二轮：LLM 调用 dynamic_tool（动态注册的）
-    fetchSpy.mockResolvedValueOnce(
-      buildSSEResponse(makeToolCallSSE("call_2", "dynamic_tool", '{}'))
-    );
+    fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeToolCallSSE("call_2", "dynamic_tool", "{}")));
     // 第三轮：纯文本结束
     fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("完成")));
 

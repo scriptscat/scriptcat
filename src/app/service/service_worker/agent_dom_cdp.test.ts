@@ -75,11 +75,7 @@ describe("ensureDebuggerPermission", () => {
 
     // 模拟用户授权
     const sendResponse = vi.fn();
-    messageListeners[0](
-      { type: "chrome_permission_result", uuid: MOCK_UUID, granted: true },
-      {},
-      sendResponse
-    );
+    messageListeners[0]({ type: "chrome_permission_result", uuid: MOCK_UUID, granted: true }, {}, sendResponse);
 
     await promise;
 
@@ -96,11 +92,7 @@ describe("ensureDebuggerPermission", () => {
 
     // 模拟用户拒绝
     const sendResponse = vi.fn();
-    messageListeners[0](
-      { type: "chrome_permission_result", uuid: MOCK_UUID, granted: false },
-      {},
-      sendResponse
-    );
+    messageListeners[0]({ type: "chrome_permission_result", uuid: MOCK_UUID, granted: false }, {}, sendResponse);
 
     await expect(promise).rejects.toThrow("Debugger permission denied by user");
     expect(mockOnMessage.removeListener).toHaveBeenCalled();
@@ -132,21 +124,13 @@ describe("ensureDebuggerPermission", () => {
 
     // 发送不匹配的消息（错误的 type）
     const sendResponse1 = vi.fn();
-    const result1 = messageListeners[0](
-      { type: "other_message", uuid: MOCK_UUID },
-      {},
-      sendResponse1
-    );
+    const result1 = messageListeners[0]({ type: "other_message", uuid: MOCK_UUID }, {}, sendResponse1);
     expect(result1).toBeUndefined();
     expect(sendResponse1).not.toHaveBeenCalled();
 
     // 发送不匹配的消息（错误的 uuid）
     const sendResponse2 = vi.fn();
-    const result2 = messageListeners[0](
-      { type: "chrome_permission_result", uuid: "wrong-uuid" },
-      {},
-      sendResponse2
-    );
+    const result2 = messageListeners[0]({ type: "chrome_permission_result", uuid: "wrong-uuid" }, {}, sendResponse2);
     expect(result2).toBeUndefined();
     expect(sendResponse2).not.toHaveBeenCalled();
 
@@ -155,11 +139,7 @@ describe("ensureDebuggerPermission", () => {
 
     // 最终发送正确的消息来 resolve promise
     const sendResponse3 = vi.fn();
-    messageListeners[0](
-      { type: "chrome_permission_result", uuid: MOCK_UUID, granted: true },
-      {},
-      sendResponse3
-    );
+    messageListeners[0]({ type: "chrome_permission_result", uuid: MOCK_UUID, granted: true }, {}, sendResponse3);
 
     await promise;
   });
