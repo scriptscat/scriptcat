@@ -220,6 +220,84 @@
   font-weight: 600;
 }
 
+/* 暗色模式代码高亮 (github-dark) */
+body[arco-theme="dark"] .ai-markdown-body .hljs {
+  color: #c9d1d9;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-doctag,
+body[arco-theme="dark"] .ai-markdown-body .hljs-keyword,
+body[arco-theme="dark"] .ai-markdown-body .hljs-meta .hljs-keyword,
+body[arco-theme="dark"] .ai-markdown-body .hljs-template-tag,
+body[arco-theme="dark"] .ai-markdown-body .hljs-template-variable,
+body[arco-theme="dark"] .ai-markdown-body .hljs-type,
+body[arco-theme="dark"] .ai-markdown-body .hljs-variable.language_ {
+  color: #ff7b72;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-title,
+body[arco-theme="dark"] .ai-markdown-body .hljs-title.class_,
+body[arco-theme="dark"] .ai-markdown-body .hljs-title.class_.inherited__,
+body[arco-theme="dark"] .ai-markdown-body .hljs-title.function_ {
+  color: #d2a8ff;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-attr,
+body[arco-theme="dark"] .ai-markdown-body .hljs-attribute,
+body[arco-theme="dark"] .ai-markdown-body .hljs-literal,
+body[arco-theme="dark"] .ai-markdown-body .hljs-meta,
+body[arco-theme="dark"] .ai-markdown-body .hljs-number,
+body[arco-theme="dark"] .ai-markdown-body .hljs-operator,
+body[arco-theme="dark"] .ai-markdown-body .hljs-variable,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-attr,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-class,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-id {
+  color: #79c0ff;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-regexp,
+body[arco-theme="dark"] .ai-markdown-body .hljs-string,
+body[arco-theme="dark"] .ai-markdown-body .hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-built_in,
+body[arco-theme="dark"] .ai-markdown-body .hljs-symbol {
+  color: #ffa657;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-comment,
+body[arco-theme="dark"] .ai-markdown-body .hljs-code,
+body[arco-theme="dark"] .ai-markdown-body .hljs-formula {
+  color: #8b949e;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-name,
+body[arco-theme="dark"] .ai-markdown-body .hljs-quote,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-tag,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-pseudo {
+  color: #7ee787;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-subst {
+  color: #c9d1d9;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-section {
+  color: #1f6feb;
+  font-weight: bold;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-bullet {
+  color: #f2cc60;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-emphasis {
+  color: #c9d1d9;
+  font-style: italic;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-strong {
+  color: #c9d1d9;
+  font-weight: bold;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-addition {
+  color: #aff5b4;
+  background-color: #033a16;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-deletion {
+  color: #ffdcd7;
+  background-color: #67060c;
+}
+
 /* 侧边栏会话列表 */
 .agent-conversation-item {
   position: relative;

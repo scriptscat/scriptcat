@@ -1,13 +1,24 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { useRef, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tooltip } from "@arco-design/web-react";
 import { IconCopy, IconCheck } from "@arco-design/web-react/icon";
 import "highlight.js/styles/github.css";
 
-function CodeBlock({ children, className }: { children: string; className?: string }) {
+// 从 React 节点树中递归提取纯文本，用于复制功能
+function extractText(node: ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return extractText(node.props.children);
+  }
+  return "";
+}
+
+function CodeBlock({ children, className }: { children: ReactNode; className?: string }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -15,7 +26,7 @@ function CodeBlock({ children, className }: { children: string; className?: stri
   const language = className?.replace("hljs language-", "").replace("language-", "") || "";
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(children).then(() => {
+    navigator.clipboard.writeText(extractText(children)).then(() => {
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setCopied(false), 2000);
@@ -54,18 +65,17 @@ export default function MarkdownRenderer({ content }: { content: string }) {
           },
           code({ className, children, ...props }) {
             const isInline = !className;
-            const text = String(children).replace(/\n$/, "");
             if (isInline) {
               return (
                 <code
                   className="tw-px-1.5 tw-py-0.5 tw-rounded tw-bg-[var(--color-fill-2)] tw-text-[rgb(var(--arcoblue-6))] tw-text-[0.9em]"
                   {...props}
                 >
-                  {text}
+                  {children}
                 </code>
               );
             }
-            return <CodeBlock className={className}>{text}</CodeBlock>;
+            return <CodeBlock className={className}>{children}</CodeBlock>;
           },
         }}
       >
