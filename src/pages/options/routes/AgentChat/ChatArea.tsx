@@ -6,7 +6,7 @@ import type { AgentModelConfig } from "@App/pkg/config/config";
 import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
-import { useMessages, useStreamingChat, persistMessage, deleteMessages, autoTitleConversation } from "./hooks";
+import { useMessages, useStreamingChat, persistMessage, deleteMessages, autoTitleConversation, clearMessages } from "./hooks";
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -118,6 +118,13 @@ export default function ChatArea({
   const handleSend = async (content: string, existingMessages?: ChatMessage[]) => {
     if (!conversationId || !selectedModelId) return;
 
+    // 处理 /new 命令：清空对话上下文
+    if (content.trim() === "/new") {
+      await clearMessages(conversationId);
+      setMessages([]);
+      return;
+    }
+
     // 记录发送开始时间
     sendStartTimeRef.current = Date.now();
     firstTokenRecordedRef.current = false;
@@ -159,6 +166,8 @@ export default function ChatArea({
     const allMsgs = [...baseMessages, userMsg].map((m) => ({
       role: m.role,
       content: m.content,
+      toolCallId: m.toolCallId,
+      toolCalls: m.toolCalls,
     }));
 
     sendMessage(

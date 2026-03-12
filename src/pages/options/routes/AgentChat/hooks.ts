@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ChatStreamEvent,
   MessageRole,
+  ToolCall,
   ToolDefinition,
 } from "@App/app/service/agent/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
@@ -134,7 +135,7 @@ export function useStreamingChat() {
     async (
       conversationId: string,
       modelId: string,
-      allMessages: Array<{ role: MessageRole; content: string }>,
+      allMessages: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }>,
       onEvent: (event: ChatStreamEvent) => void,
       onDone: () => void,
       tools?: ToolDefinition[]
@@ -194,6 +195,11 @@ export async function deleteMessages(conversationId: string, messageIds: string[
   const idSet = new Set(messageIds);
   const filtered = messages.filter((m) => !idSet.has(m.id));
   await repo.saveMessages(conversationId, filtered);
+}
+
+// 清空对话消息
+export async function clearMessages(conversationId: string): Promise<void> {
+  await repo.saveMessages(conversationId, []);
 }
 
 // 根据第一条用户消息自动生成会话标题

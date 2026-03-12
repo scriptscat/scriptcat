@@ -111,6 +111,17 @@ class ConversationInstance {
     return messages || [];
   }
 
+  // 清空对话消息历史
+  async clear(): Promise<void> {
+    await this.gmSendMessage("CAT_agentConversation", [
+      {
+        action: "clearMessages",
+        conversationId: this.conv.id,
+        scriptUuid: this.scriptUuid,
+      } as ConversationApiRequest,
+    ]);
+  }
+
   // 持久化对话
   async save(): Promise<void> {
     await this.gmSendMessage("CAT_agentConversation", [

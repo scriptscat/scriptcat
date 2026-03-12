@@ -86,6 +86,15 @@ export function parseOpenAIStream(
           try {
             const json = JSON.parse(sseEvent.data);
 
+            // 处理 API 错误响应
+            if (json.error) {
+              onEvent({
+                type: "error",
+                message: json.error.message || JSON.stringify(json.error),
+              });
+              return;
+            }
+
             // 处理 usage（最后一个 chunk）
             if (json.usage) {
               onEvent({

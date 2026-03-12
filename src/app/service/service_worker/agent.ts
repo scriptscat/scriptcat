@@ -183,6 +183,9 @@ export class AgentService {
       case "save":
         // 对话已经在 chat 过程中持久化，这里确保元数据也保存
         return true;
+      case "clearMessages":
+        await this.repo.saveMessages(params.conversationId, []);
+        return true;
       default:
         throw new Error(`Unknown conversation action: ${(params as any).action}`);
     }
@@ -379,7 +382,12 @@ export class AgentService {
       // 添加历史消息（跳过 system）
       for (const msg of existingMessages) {
         if (msg.role === "system") continue;
-        messages.push({ role: msg.role, content: msg.content, toolCallId: msg.toolCallId });
+        messages.push({
+          role: msg.role,
+          content: msg.content,
+          toolCallId: msg.toolCallId,
+          toolCalls: msg.toolCalls,
+        });
       }
 
       // 添加新用户消息

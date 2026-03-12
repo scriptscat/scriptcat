@@ -143,4 +143,5 @@ export type ConversationApiRequest =
       scriptUuid: string;
     }
   | { action: "getMessages"; conversationId: string; scriptUuid: string }
-  | { action: "save"; conversationId: string; scriptUuid: string };
+  | { action: "save"; conversationId: string; scriptUuid: string }
+  | { action: "clearMessages"; conversationId: string; scriptUuid: string };
