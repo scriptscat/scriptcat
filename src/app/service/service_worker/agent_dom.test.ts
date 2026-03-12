@@ -309,9 +309,9 @@ describe("AgentDomService", () => {
     });
 
     it("应对未知 action 抛出错误", async () => {
-      await expect(
-        service.handleDomApi({ action: "unknown" as any, scriptUuid: "test" })
-      ).rejects.toThrow("Unknown DOM action");
+      await expect(service.handleDomApi({ action: "unknown" as any, scriptUuid: "test" })).rejects.toThrow(
+        "Unknown DOM action"
+      );
     });
   });
 

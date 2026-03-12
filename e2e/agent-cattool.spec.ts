@@ -1,10 +1,5 @@
 import { expect } from "@playwright/test";
-import {
-  test,
-  makeTextSSE,
-  makeToolCallSSE,
-  runAgentTestScript,
-} from "./agent-fixtures";
+import { test, makeTextSSE, makeToolCallSSE, runAgentTestScript } from "./agent-fixtures";
 
 const TARGET_URL = "https://content-security-policy.com/";
 
@@ -21,10 +16,7 @@ return "你好，" + args.name + "！";
 test.describe("Agent CATTool API", () => {
   test.setTimeout(300_000);
 
-  test("install, list, call, and remove CATTool", async ({
-    context,
-    extensionId,
-  }) => {
+  test("install, list, call, and remove CATTool", async ({ context, extensionId }) => {
     const escapedToolCode = JSON.stringify(HELLO_TOOL_CODE);
 
     const code = `// ==UserScript==
@@ -75,13 +67,7 @@ test.describe("Agent CATTool API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(
-      context,
-      extensionId,
-      code,
-      TARGET_URL,
-      60_000
-    );
+    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[cattool-management] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[cattool-management] logs:", logs.join("\n"));
@@ -89,11 +75,7 @@ test.describe("Agent CATTool API", () => {
     expect(passed, "No test results found").toBeGreaterThan(0);
   });
 
-  test("CATTool + conversation integration", async ({
-    context,
-    extensionId,
-    mockLLMResponse,
-  }) => {
+  test("CATTool + conversation integration", async ({ context, extensionId, mockLLMResponse }) => {
     let callCount = 0;
     mockLLMResponse(() => {
       callCount++;
@@ -162,13 +144,7 @@ test.describe("Agent CATTool API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(
-      context,
-      extensionId,
-      code,
-      TARGET_URL,
-      60_000
-    );
+    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[cattool-conversation] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[cattool-conversation] logs:", logs.join("\n"));

@@ -101,7 +101,9 @@ export class MCPClient {
     }));
   }
 
-  async readResource(uri: string): Promise<{ contents: Array<{ uri: string; text?: string; blob?: string; mimeType?: string }> }> {
+  async readResource(
+    uri: string
+  ): Promise<{ contents: Array<{ uri: string; text?: string; blob?: string; mimeType?: string }> }> {
     this.ensureInitialized();
     return (await this.sendRequest("resources/read", { uri })) as {
       contents: Array<{ uri: string; text?: string; blob?: string; mimeType?: string }>;

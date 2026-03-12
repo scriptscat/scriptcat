@@ -41,9 +41,7 @@ vi.mock("@App/app/service/agent/mcp_client", () => {
         ];
       }
       async listResources() {
-        return [
-          { serverId: "test-server", uri: "file:///test.md", name: "test", mimeType: "text/markdown" },
-        ];
+        return [{ serverId: "test-server", uri: "file:///test.md", name: "test", mimeType: "text/markdown" }];
       }
       async listPrompts() {
         return [{ serverId: "test-server", name: "summarize", description: "Summarize text" }];
@@ -200,9 +198,9 @@ describe("MCPService", () => {
 
   describe("handleMCPApi - unknown action", () => {
     it("应抛出错误", async () => {
-      await expect(
-        service.handleMCPApi({ action: "unknown" as any, scriptUuid: "test" })
-      ).rejects.toThrow("Unknown MCP action");
+      await expect(service.handleMCPApi({ action: "unknown" as any, scriptUuid: "test" })).rejects.toThrow(
+        "Unknown MCP action"
+      );
     });
   });
 });

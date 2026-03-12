@@ -189,6 +189,28 @@ export default function ChatArea({
               lastTc.arguments += event.delta;
             }
             break;
+          case "tool_call_complete": {
+            const tc = msg.toolCalls?.find((t) => t.id === event.id);
+            if (tc) {
+              tc.status = "completed";
+              tc.result = event.result;
+            }
+            break;
+          }
+          case "new_message": {
+            // 工具执行完成后开始新一轮 LLM 调用，创建新的 assistant 消息占位
+            const newMsg: ChatMessage = {
+              id: genId(),
+              conversationId,
+              role: "assistant",
+              content: "",
+              modelId: selectedModelId,
+              createtime: Date.now(),
+            };
+            streamingMsgRef.current = newMsg;
+            setMessages((prev) => [...prev, newMsg]);
+            return; // 已经更新了 messages，直接返回避免下方重复 setMessages
+          }
           case "error":
             msg.error = event.message;
             break;

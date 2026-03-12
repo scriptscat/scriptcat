@@ -32,9 +32,7 @@ describe("registerDomTools", () => {
 
     registerDomTools(registry, mockService);
 
-    const results = await registry.execute([
-      { id: "tc1", name: "dom_list_tabs", arguments: "{}" },
-    ]);
+    const results = await registry.execute([{ id: "tc1", name: "dom_list_tabs", arguments: "{}" }]);
 
     expect(results).toHaveLength(1);
     expect(results[0].id).toBe("tc1");

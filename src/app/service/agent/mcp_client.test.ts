@@ -95,9 +95,7 @@ describe("MCPClient", () => {
       const client = new MCPClient(createConfig());
 
       // initialize
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
       await client.initialize();
 
@@ -130,9 +128,7 @@ describe("MCPClient", () => {
   describe("callTool", () => {
     async function initClient(): Promise<MCPClient> {
       const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
       await client.initialize();
       return client;
@@ -190,9 +186,7 @@ describe("MCPClient", () => {
   describe("listResources / readResource", () => {
     async function initClient(): Promise<MCPClient> {
       const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
       await client.initialize();
       return client;
@@ -203,9 +197,7 @@ describe("MCPClient", () => {
 
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
-          resources: [
-            { uri: "file:///docs/readme.md", name: "README", mimeType: "text/markdown" },
-          ],
+          resources: [{ uri: "file:///docs/readme.md", name: "README", mimeType: "text/markdown" }],
         })
       );
 
@@ -233,9 +225,7 @@ describe("MCPClient", () => {
   describe("listPrompts / getPrompt", () => {
     async function initClient(): Promise<MCPClient> {
       const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
       await client.initialize();
       return client;
@@ -267,9 +257,7 @@ describe("MCPClient", () => {
 
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
-          messages: [
-            { role: "user", content: { type: "text", text: "Summarize: hello world" } },
-          ],
+          messages: [{ role: "user", content: { type: "text", text: "Summarize: hello world" } }],
         })
       );
 
@@ -285,10 +273,7 @@ describe("MCPClient", () => {
 
       // initialize 返回 session id
       mockFetch.mockResolvedValueOnce(
-        jsonResponse(
-          { protocolVersion: "2025-03-26", capabilities: {} },
-          { "Mcp-Session-Id": "session-123" }
-        )
+        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }, { "Mcp-Session-Id": "session-123" })
       );
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
       await client.initialize();
@@ -317,9 +302,7 @@ describe("MCPClient", () => {
     it("应设置 Bearer token", async () => {
       const client = new MCPClient(createConfig({ apiKey: "sk-test-key" }));
 
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
       await client.initialize();
 
@@ -328,13 +311,9 @@ describe("MCPClient", () => {
     });
 
     it("应设置自定义 headers", async () => {
-      const client = new MCPClient(
-        createConfig({ headers: { "X-Custom": "custom-value" } })
-      );
+      const client = new MCPClient(createConfig({ headers: { "X-Custom": "custom-value" } }));
 
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
       await client.initialize();
 
@@ -347,9 +326,7 @@ describe("MCPClient", () => {
     it("close 后应标记为未初始化", async () => {
       const client = new MCPClient(createConfig());
 
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
       await client.initialize();
 

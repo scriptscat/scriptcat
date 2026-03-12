@@ -94,9 +94,7 @@ export class MCPService {
   }
 
   // 测试连接：初始化 + listTools
-  async testConnection(
-    id: string
-  ): Promise<{ tools: number; resources: number; prompts: number }> {
+  async testConnection(id: string): Promise<{ tools: number; resources: number; prompts: number }> {
     const config = await this.repo.getServer(id);
     if (!config) {
       throw new Error(`MCP server "${id}" not found`);

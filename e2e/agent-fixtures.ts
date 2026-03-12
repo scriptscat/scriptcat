@@ -16,9 +16,7 @@ function makeTextSSE(content: string): string {
 }
 
 /** OpenAI-compatible SSE response for tool_calls */
-function makeToolCallSSE(
-  toolCalls: Array<{ id: string; name: string; arguments: string }>
-): string {
+function makeToolCallSSE(toolCalls: Array<{ id: string; name: string; arguments: string }>): string {
   const lines: string[] = [];
   for (const tc of toolCalls) {
     // First chunk: tool call start with name
@@ -68,10 +66,7 @@ function makeToolCallSSE(
   return lines.join("\n\n");
 }
 
-export type MockLLMHandler = (body: {
-  messages: any[];
-  tools?: any[];
-}) => string;
+export type MockLLMHandler = (body: { messages: any[]; tools?: any[] }) => string;
 
 export type AgentFixtures = {
   context: BrowserContext;
@@ -86,10 +81,7 @@ export const test = base.extend<AgentFixtures>({
   context: async ({}, use) => {
     const pathToExtension = path.resolve(__dirname, "../dist/ext");
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-agent-"));
-    const chromeArgs = [
-      `--disable-extensions-except=${pathToExtension}`,
-      `--load-extension=${pathToExtension}`,
-    ];
+    const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
 
     // Phase 1: Enable user scripts permission
     const ctx1 = await chromium.launchPersistentContext(userDataDir, {

@@ -1,21 +1,12 @@
 import { expect } from "@playwright/test";
-import {
-  test,
-  makeTextSSE,
-  makeToolCallSSE,
-  runAgentTestScript,
-} from "./agent-fixtures";
+import { test, makeTextSSE, makeToolCallSSE, runAgentTestScript } from "./agent-fixtures";
 
 const TARGET_URL = "https://content-security-policy.com/";
 
 test.describe("Agent Conversation API", () => {
   test.setTimeout(300_000);
 
-  test("basic chat — send message and receive text reply", async ({
-    context,
-    extensionId,
-    mockLLMResponse,
-  }) => {
+  test("basic chat — send message and receive text reply", async ({ context, extensionId, mockLLMResponse }) => {
     mockLLMResponse(() => makeTextSSE("1+1等于2。"));
 
     const code = `// ==UserScript==
@@ -55,13 +46,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(
-      context,
-      extensionId,
-      code,
-      TARGET_URL,
-      60_000
-    );
+    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-basic-chat] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-basic-chat] logs:", logs.join("\n"));
@@ -69,11 +54,7 @@ test.describe("Agent Conversation API", () => {
     expect(passed, "No test results found").toBeGreaterThan(0);
   });
 
-  test("tool calling — script-defined tools are invoked", async ({
-    context,
-    extensionId,
-    mockLLMResponse,
-  }) => {
+  test("tool calling — script-defined tools are invoked", async ({ context, extensionId, mockLLMResponse }) => {
     let callCount = 0;
     mockLLMResponse(() => {
       callCount++;
@@ -149,13 +130,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(
-      context,
-      extensionId,
-      code,
-      TARGET_URL,
-      60_000
-    );
+    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-tool-calling] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-tool-calling] logs:", logs.join("\n"));
@@ -163,11 +138,7 @@ test.describe("Agent Conversation API", () => {
     expect(passed, "No test results found").toBeGreaterThan(0);
   });
 
-  test("multi-turn conversation — context is preserved", async ({
-    context,
-    extensionId,
-    mockLLMResponse,
-  }) => {
+  test("multi-turn conversation — context is preserved", async ({ context, extensionId, mockLLMResponse }) => {
     let requestCount = 0;
     let lastMessages: any[] = [];
 
@@ -218,13 +189,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(
-      context,
-      extensionId,
-      code,
-      TARGET_URL,
-      60_000
-    );
+    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-multi-turn] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-multi-turn] logs:", logs.join("\n"));
@@ -233,9 +198,6 @@ test.describe("Agent Conversation API", () => {
     // Verify the mock received multiple requests (context was sent)
     expect(requestCount, "Should have made 2 LLM requests").toBe(2);
     // The second request should contain history messages
-    expect(
-      lastMessages.length,
-      "Second request should include conversation history"
-    ).toBeGreaterThan(2);
+    expect(lastMessages.length, "Second request should include conversation history").toBeGreaterThan(2);
   });
 });

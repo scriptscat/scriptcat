@@ -33,9 +33,13 @@ export default class CATAgentMcpApi {
   }
 
   @GMContext.API({ follow: "CAT.agent.mcp" })
-  public "CAT.agent.mcp.addServer"(
-    config: { name: string; url: string; apiKey?: string; headers?: Record<string, string>; enabled: boolean }
-  ): Promise<unknown> {
+  public "CAT.agent.mcp.addServer"(config: {
+    name: string;
+    url: string;
+    apiKey?: string;
+    headers?: Record<string, string>;
+    enabled: boolean;
+  }): Promise<unknown> {
     const ctx = this as unknown as GMBaseContext;
     return ctx.sendMessage("CAT_agentMcp", [
       { action: "addServer", config, scriptUuid: ctx.scriptRes?.uuid || "" } as MCPApiRequest,
