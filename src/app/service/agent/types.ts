@@ -3,6 +3,7 @@ export type Conversation = {
   title: string;
   modelId: string;
   system?: string;
+  skills?: "auto" | string[];
   createtime: number;
   updatetime: number;
 };
@@ -85,6 +86,7 @@ export type ConversationCreateOptions = {
   system?: string;
   model?: string; // modelId，不传则使用默认模型
   maxIterations?: number; // tool calling 最大循环次数，默认 20
+  skills?: "auto" | string[]; // 加载的 Skill，"auto" 加载全部，数组指定名称
   tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
   commands?: Record<string, CommandHandler>; // 自定义命令处理器，以 / 开头
 };
@@ -112,6 +114,48 @@ export type StreamChunk = {
   error?: string;
   command?: boolean; // 标识该 chunk 来自命令处理
 };
+
+// ---- Skill 类型 ----
+
+// Skill 摘要（registry.json 中）
+export type SkillSummary = {
+  name: string;
+  description: string;
+  toolNames: string[]; // 随 Skill 打包的 CATTool 名称（scripts/ 目录下）
+  referenceNames: string[]; // 参考资料名称（references/ 目录下）
+  installtime: number;
+  updatetime: number;
+};
+
+// SKILL.md frontmatter 解析结果
+export type SkillMetadata = {
+  name: string;
+  description: string;
+};
+
+// 完整 Skill 记录
+export type SkillRecord = SkillSummary & {
+  prompt: string; // SKILL.md body（去 frontmatter 后的 markdown）
+};
+
+// Skill 参考资料
+export type SkillReference = {
+  name: string;
+  content: string;
+};
+
+// CAT.agent.skills API 请求
+export type SkillApiRequest =
+  | { action: "list"; scriptUuid: string }
+  | { action: "get"; name: string; scriptUuid: string }
+  | {
+      action: "install";
+      skillMd: string;
+      scripts?: Array<{ name: string; code: string }>;
+      references?: Array<{ name: string; content: string }>;
+      scriptUuid: string;
+    }
+  | { action: "remove"; name: string; scriptUuid: string };
 
 // ---- CATTool 类型 ----
 

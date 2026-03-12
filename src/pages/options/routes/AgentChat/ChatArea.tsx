@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Message as ArcoMessage } from "@arco-design/web-react";
 import { IconRobot } from "@arco-design/web-react/icon";
-import type { AgentModelConfig } from "@App/app/service/agent/types";
+import type { AgentModelConfig, SkillSummary } from "@App/app/service/agent/types";
 import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
@@ -88,12 +88,18 @@ export default function ChatArea({
   selectedModelId,
   onModelChange,
   onConversationTitleChange,
+  skills,
+  selectedSkills,
+  onSkillsChange,
 }: {
   conversationId: string;
   models: AgentModelConfig[];
   selectedModelId: string;
   onModelChange: (id: string) => void;
   onConversationTitleChange?: () => void;
+  skills?: SkillSummary[];
+  selectedSkills?: "auto" | string[];
+  onSkillsChange?: (skills: "auto" | string[]) => void;
 }) {
   const { t } = useTranslation();
   const { messages, setMessages, loadMessages } = useMessages(conversationId);
@@ -343,6 +349,9 @@ export default function ChatArea({
         onStop={stopGeneration}
         isStreaming={isStreaming}
         disabled={noModel || !conversationId}
+        skills={skills}
+        selectedSkills={selectedSkills}
+        onSkillsChange={onSkillsChange}
       />
       {noModel && (
         <div className="tw-text-center tw-text-xs tw-text-[var(--color-text-3)] tw-pb-2">

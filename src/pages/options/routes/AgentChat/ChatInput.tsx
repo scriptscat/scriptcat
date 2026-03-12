@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Select } from "@arco-design/web-react";
 import { IconSend, IconPause } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { AgentModelConfig } from "@App/app/service/agent/types";
+import type { AgentModelConfig, SkillSummary } from "@App/app/service/agent/types";
 
 export default function ChatInput({
   models,
@@ -12,6 +12,9 @@ export default function ChatInput({
   onStop,
   isStreaming,
   disabled,
+  skills,
+  selectedSkills,
+  onSkillsChange,
 }: {
   models: AgentModelConfig[];
   selectedModelId: string;
@@ -20,6 +23,9 @@ export default function ChatInput({
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;
+  skills?: SkillSummary[];
+  selectedSkills?: "auto" | string[];
+  onSkillsChange?: (skills: "auto" | string[]) => void;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
@@ -85,6 +91,39 @@ export default function ChatInput({
                   </Select.Option>
                 ))}
               </Select>
+              {skills && skills.length > 0 && onSkillsChange && (
+                <Select
+                  size="mini"
+                  mode="multiple"
+                  value={selectedSkills === "auto" ? ["__auto__"] : selectedSkills || []}
+                  onChange={(val: string[]) => {
+                    const wasAuto = selectedSkills === "auto";
+                    if (!wasAuto && val.includes("__auto__")) {
+                      // 切换到 auto 模式
+                      onSkillsChange("auto");
+                    } else if (wasAuto && val.length > 1) {
+                      // 从 auto 模式选择了具体 skill，取消 auto
+                      onSkillsChange(val.filter((v) => v !== "__auto__"));
+                    } else {
+                      onSkillsChange(val.filter((v) => v !== "__auto__"));
+                    }
+                  }}
+                  triggerProps={{ autoAlignPopupWidth: false }}
+                  className="!tw-w-auto !tw-min-w-[80px] !tw-max-w-[200px]"
+                  bordered={false}
+                  placeholder="Skills"
+                  allowClear
+                >
+                  <Select.Option key="__auto__" value="__auto__">
+                    {"Auto (all)"}
+                  </Select.Option>
+                  {skills.map((s) => (
+                    <Select.Option key={s.name} value={s.name}>
+                      {s.name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              )}
               <span className="tw-text-xs tw-text-[var(--color-text-4)] tw-hidden sm:tw-inline">
                 {"Shift+Enter"} {t("agent_chat_newline")}
               </span>

@@ -75,6 +75,16 @@ export class OPFSRepo {
     }
   }
 
+  // 递归删除子目录
+  protected async removeDirectory(name: string, dir?: FileSystemDirectoryHandle): Promise<void> {
+    try {
+      const targetDir = dir || (await this.getDir());
+      await targetDir.removeEntry(name, { recursive: true });
+    } catch {
+      // 目录不存在则忽略
+    }
+  }
+
   // 列出目录下所有文件名
   protected async listFiles(dir?: FileSystemDirectoryHandle): Promise<string[]> {
     const targetDir = dir || (await this.getDir());

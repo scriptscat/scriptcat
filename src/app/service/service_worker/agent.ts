@@ -13,17 +13,20 @@ import type {
   ToolDefinition,
   CATToolApiRequest,
   CATToolRecord,
-  DomApiRequest,
+  SkillApiRequest,
+  SkillRecord,
 } from "@App/app/service/agent/types";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { AgentModelRepo } from "@App/app/repo/agent_model";
 import { CATToolRepo } from "@App/app/repo/cattool_repo";
+import { SkillRepo } from "@App/app/repo/skill_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
-import type { ScriptToolCallback } from "@App/app/service/agent/tool_registry";
+import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/tool_registry";
 import { parseCATToolMetadata, catToolToToolDefinition } from "@App/pkg/utils/cattool";
+import { parseSkillMd } from "@App/pkg/utils/skill";
 import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
 import { CACHE_KEY_CATTOOL_INSTALL } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
@@ -36,7 +39,10 @@ const CATTOOL_INSTALL_TIMEOUT = 5 * 60 * 1000;
 export class AgentService {
   private repo = new AgentChatRepo();
   private catToolRepo = new CATToolRepo();
+  private skillRepo = new SkillRepo();
   private toolRegistry = new ToolRegistry();
+  // 已加载的 Skill 缓存
+  private skillCache = new Map<string, SkillRecord>();
   // 待确认的 CATTool 安装请求
   private pendingInstalls = new Map<
     string,
@@ -72,6 +78,8 @@ export class AgentService {
     this.group.on("cancelCATToolInstall", (uuid: string) => this.cancelCATToolInstall(uuid));
     // 加载已安装的 CATTools
     this.loadCATTools();
+    // 加载已安装的 Skills
+    this.loadSkills();
   }
 
   // 获取工具注册表（供外部注册内置工具）
@@ -282,9 +290,255 @@ export class AgentService {
     }
   }
 
-  // 处理 CAT.agent.dom API 请求
-  async handleDomApi(request: DomApiRequest): Promise<unknown> {
-    return this.domService.handleDomApi(request);
+  // ---- Skill 管理 ----
+
+  // 从 OPFS 加载所有 Skill 到缓存
+  private async loadSkills() {
+    try {
+      const summaries = await this.skillRepo.listSkills();
+      for (const summary of summaries) {
+        const record = await this.skillRepo.getSkill(summary.name);
+        if (record) {
+          this.skillCache.set(record.name, record);
+        }
+      }
+    } catch {
+      // OPFS 可能不可用，静默忽略
+    }
+  }
+
+  // 安装 Skill
+  async installSkill(
+    skillMd: string,
+    scripts?: Array<{ name: string; code: string }>,
+    references?: Array<{ name: string; content: string }>
+  ): Promise<SkillRecord> {
+    const parsed = parseSkillMd(skillMd);
+    if (!parsed) {
+      throw new Error("Invalid SKILL.md: missing or malformed frontmatter");
+    }
+
+    // 解析 CATTool 脚本
+    const toolRecords: CATToolRecord[] = [];
+    const toolNames: string[] = [];
+    if (scripts) {
+      for (const script of scripts) {
+        const metadata = parseCATToolMetadata(script.code);
+        if (!metadata) {
+          throw new Error(`Invalid CATTool script "${script.name}": missing ==CATTool== header`);
+        }
+        toolNames.push(metadata.name);
+        const now = Date.now();
+        toolRecords.push({
+          id: uuidv4(),
+          name: metadata.name,
+          description: metadata.description,
+          params: metadata.params,
+          grants: metadata.grants,
+          code: script.code,
+          installtime: now,
+          updatetime: now,
+        });
+      }
+    }
+
+    const referenceNames = references?.map((r) => r.name) || [];
+
+    const now = Date.now();
+    const existing = await this.skillRepo.getSkill(parsed.metadata.name);
+    const record: SkillRecord = {
+      name: parsed.metadata.name,
+      description: parsed.metadata.description,
+      toolNames,
+      referenceNames,
+      prompt: parsed.prompt,
+      installtime: existing?.installtime || now,
+      updatetime: now,
+    };
+
+    const skillRefs = references?.map((r) => ({ name: r.name, content: r.content }));
+    await this.skillRepo.saveSkill(record, toolRecords, skillRefs);
+    this.skillCache.set(record.name, record);
+
+    return record;
+  }
+
+  // 卸载 Skill
+  async removeSkill(name: string): Promise<boolean> {
+    const removed = await this.skillRepo.removeSkill(name);
+    if (removed) {
+      this.skillCache.delete(name);
+    }
+    return removed;
+  }
+
+  // 处理 CAT.agent.skills API 请求
+  async handleSkillsApi(request: SkillApiRequest): Promise<unknown> {
+    switch (request.action) {
+      case "list":
+        return this.skillRepo.listSkills();
+      case "get":
+        return this.skillRepo.getSkill(request.name);
+      case "install":
+        return this.installSkill(request.skillMd, request.scripts, request.references);
+      case "remove":
+        return this.removeSkill(request.name);
+      default:
+        throw new Error(`Unknown skills action: ${(request as any).action}`);
+    }
+  }
+
+  // 解析对话关联的 skills，返回 system prompt 附加内容和 meta-tool 定义
+  private async resolveSkills(skills?: "auto" | string[]): Promise<{
+    promptSuffix: string;
+    metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>;
+  }> {
+    if (!skills) {
+      return { promptSuffix: "", metaTools: [] };
+    }
+
+    // 确定要加载的 skill 列表
+    let skillRecords: SkillRecord[];
+    if (skills === "auto") {
+      skillRecords = Array.from(this.skillCache.values());
+    } else {
+      skillRecords = skills.map((name) => this.skillCache.get(name)).filter((r): r is SkillRecord => r != null);
+    }
+
+    if (skillRecords.length === 0) {
+      return { promptSuffix: "", metaTools: [] };
+    }
+
+    // 构建 prompt 后缀
+    const promptParts: string[] = ["\n\n---\n\n# Active Skills\n"];
+
+    // 收集所有 skill 的工具信息
+    const allToolInfos: Array<{ skillName: string; tool: CATToolRecord }> = [];
+    // 收集所有 skill 的参考资料信息
+    const allRefInfos: Array<{ skillName: string; refName: string }> = [];
+
+    for (const skill of skillRecords) {
+      promptParts.push(`## Skill: ${skill.name}\n`);
+      if (skill.description) {
+        promptParts.push(`${skill.description}\n`);
+      }
+      promptParts.push(`\n${skill.prompt}\n`);
+
+      // 加载工具信息
+      if (skill.toolNames.length > 0) {
+        const toolRecords = await this.skillRepo.getSkillScripts(skill.name);
+        for (const tool of toolRecords) {
+          allToolInfos.push({ skillName: skill.name, tool });
+        }
+      }
+
+      // 参考资料信息
+      if (skill.referenceNames.length > 0) {
+        for (const refName of skill.referenceNames) {
+          allRefInfos.push({ skillName: skill.name, refName });
+        }
+      }
+    }
+
+    // 添加工具信息到 prompt
+    if (allToolInfos.length > 0) {
+      promptParts.push("\n## Available Skill Tools\n");
+      promptParts.push(
+        "Use the `execute_skill_tool` tool to call these. Pass the tool name and arguments as JSON.\n\n"
+      );
+      for (const { skillName, tool } of allToolInfos) {
+        const def = catToolToToolDefinition({
+          name: tool.name,
+          description: tool.description,
+          params: tool.params,
+          grants: tool.grants,
+        });
+        promptParts.push(`### ${tool.name} (from skill: ${skillName})\n`);
+        promptParts.push(`${tool.description}\n`);
+        if (tool.params.length > 0) {
+          promptParts.push(`Parameters: ${JSON.stringify(def.parameters)}\n`);
+        }
+        promptParts.push("");
+      }
+    }
+
+    // 添加参考资料信息到 prompt
+    if (allRefInfos.length > 0) {
+      promptParts.push("\n## Available References\n");
+      promptParts.push(
+        "Use the `read_reference` tool to read these reference documents when you need more context.\n\n"
+      );
+      for (const { skillName, refName } of allRefInfos) {
+        promptParts.push(`- **${refName}** (from skill: ${skillName})\n`);
+      }
+    }
+
+    // 构建 meta-tools
+    const metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> = [];
+
+    if (allToolInfos.length > 0) {
+      const toolInfoMap = new Map(allToolInfos.map((t) => [t.tool.name, t]));
+      metaTools.push({
+        definition: {
+          name: "execute_skill_tool",
+          description:
+            "Execute a skill tool by name. See the 'Available Skill Tools' section in the system prompt for available tools and their parameters.",
+          parameters: {
+            type: "object",
+            properties: {
+              tool_name: { type: "string", description: "Name of the tool to execute" },
+              arguments: {
+                type: "object",
+                description: "Arguments to pass to the tool, as specified in the tool's parameter schema",
+              },
+            },
+            required: ["tool_name"],
+          },
+        },
+        executor: {
+          execute: async (args: Record<string, unknown>) => {
+            const toolName = args.tool_name as string;
+            const toolArgs = (args.arguments as Record<string, unknown>) || {};
+            const info = toolInfoMap.get(toolName);
+            if (!info) {
+              throw new Error(`Skill tool "${toolName}" not found`);
+            }
+            const executor = new CATToolExecutor(info.tool, this.sender);
+            return executor.execute(toolArgs);
+          },
+        },
+      });
+    }
+
+    if (allRefInfos.length > 0) {
+      metaTools.push({
+        definition: {
+          name: "read_reference",
+          description: "Read a reference document from a skill. See 'Available References' in the system prompt.",
+          parameters: {
+            type: "object",
+            properties: {
+              skill_name: { type: "string", description: "Name of the skill that owns the reference" },
+              reference_name: { type: "string", description: "Name of the reference document to read" },
+            },
+            required: ["skill_name", "reference_name"],
+          },
+        },
+        executor: {
+          execute: async (args: Record<string, unknown>) => {
+            const skillName = args.skill_name as string;
+            const refName = args.reference_name as string;
+            const ref = await this.skillRepo.getReference(skillName, refName);
+            if (!ref) {
+              throw new Error(`Reference "${refName}" not found in skill "${skillName}"`);
+            }
+            return ref.content;
+          },
+        },
+      });
+    }
+
+    return { promptSuffix: promptParts.join("\n"), metaTools };
   }
 
   // 获取模型配置
@@ -357,6 +611,7 @@ export class AgentService {
       title: "New Chat",
       modelId: model.id,
       system: params.options.system,
+      skills: params.options.skills,
       createtime: Date.now(),
       updatetime: Date.now(),
     };
@@ -536,15 +791,26 @@ export class AgentService {
 
       const model = await this.getModel(conv.modelId);
 
+      // 解析 Skills（注入 prompt + 注册 meta-tools）
+      const { promptSuffix, metaTools } = await this.resolveSkills(conv.skills);
+
+      // 临时注册 skill meta-tools（对话结束后清理）
+      const registeredMetaToolNames: string[] = [];
+      for (const mt of metaTools) {
+        this.toolRegistry.registerBuiltin(mt.definition, mt.executor);
+        registeredMetaToolNames.push(mt.definition.name);
+      }
+
       // 加载历史消息
       const existingMessages = await this.repo.getMessages(params.conversationId);
 
       // 构建消息列表
       const messages: ChatRequest["messages"] = [];
 
-      // 添加 system 消息
-      if (conv.system) {
-        messages.push({ role: "system", content: conv.system });
+      // 添加 system 消息（拼接 skill prompt）
+      const systemContent = (conv.system || "") + promptSuffix;
+      if (systemContent) {
+        messages.push({ role: "system", content: systemContent });
       }
 
       // 添加历史消息（跳过 system）
@@ -577,17 +843,24 @@ export class AgentService {
         await this.repo.saveConversation(conv);
       }
 
-      // 使用统一的 tool calling 循环
-      await this.callLLMWithToolLoop({
-        model,
-        messages,
-        tools: params.tools,
-        maxIterations: params.maxIterations || 20,
-        sendEvent,
-        signal: abortController.signal,
-        scriptToolCallback: params.tools && params.tools.length > 0 ? scriptToolCallback : null,
-        conversationId: params.conversationId,
-      });
+      try {
+        // 使用统一的 tool calling 循环
+        await this.callLLMWithToolLoop({
+          model,
+          messages,
+          tools: params.tools,
+          maxIterations: params.maxIterations || 20,
+          sendEvent,
+          signal: abortController.signal,
+          scriptToolCallback: params.tools && params.tools.length > 0 ? scriptToolCallback : null,
+          conversationId: params.conversationId,
+        });
+      } finally {
+        // 清理临时注册的 meta-tools
+        for (const name of registeredMetaToolNames) {
+          this.toolRegistry.unregisterBuiltin(name);
+        }
+      }
     } catch (e: any) {
       if (abortController.signal.aborted) return;
       sendEvent({ type: "error", message: e.message || "Unknown error" });

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { Conversation, ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
+import type { Conversation, ChatMessage, ChatStreamEvent, SkillSummary } from "@App/app/service/agent/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { SkillRepo } from "@App/app/repo/skill_repo";
 import { message as extensionMessage } from "@App/pages/store/global";
 import { connect } from "@Packages/message/client";
 import type { MessageConnect } from "@Packages/message/types";
 
 const repo = new AgentChatRepo();
+const skillRepo = new SkillRepo();
 
 // 生成唯一 ID
 function genId(): string {
@@ -48,11 +50,12 @@ export function useConversations() {
 
   // 创建新会话
   const createConversation = useCallback(
-    async (modelId: string) => {
+    async (modelId: string, skills?: "auto" | string[]) => {
       const conv: Conversation = {
         id: genId(),
         title: "New Chat",
         modelId,
+        skills,
         createtime: Date.now(),
         updatetime: Date.now(),
       };
@@ -195,4 +198,24 @@ export async function deleteMessages(conversationId: string, messageIds: string[
 // 清空对话消息
 export async function clearMessages(conversationId: string): Promise<void> {
   await repo.saveMessages(conversationId, []);
+}
+
+// Skill 列表 hook
+export function useSkills() {
+  const [skills, setSkills] = useState<SkillSummary[]>([]);
+
+  const loadSkills = useCallback(async () => {
+    try {
+      const list = await skillRepo.listSkills();
+      setSkills(list);
+    } catch {
+      setSkills([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSkills();
+  }, [loadSkills]);
+
+  return { skills, loadSkills };
 }
