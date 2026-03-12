@@ -2,15 +2,38 @@
 // 通过 chrome.debugger API 实现真实用户输入模拟（isTrusted=true）
 
 import type { ActionResult, ScreenshotOptions } from "@App/app/service/agent/types";
+import { openInCurrentTab } from "@App/pkg/utils/utils";
 
 // 确保 debugger 权限已授予
+// chrome.permissions.request 不能在 Service Worker 中调用（需要用户手势），
+// 所以打开 confirm 页面让用户在有手势的上下文中授权
 export async function ensureDebuggerPermission(): Promise<void> {
   const granted = await chrome.permissions.contains({ permissions: ["debugger"] });
   if (granted) return;
-  const result = await chrome.permissions.request({ permissions: ["debugger"] });
-  if (!result) {
-    throw new Error("Debugger permission is required for trusted mode. Please grant the permission and try again.");
-  }
+
+  return new Promise<void>((resolve, reject) => {
+    const uuid = crypto.randomUUID();
+    const timeout = setTimeout(() => {
+      chrome.runtime.onMessage.removeListener(listener);
+      reject(new Error("Permission request timed out"));
+    }, 60000);
+
+    const listener = (msg: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+      if (msg.type === "chrome_permission_result" && msg.uuid === uuid) {
+        clearTimeout(timeout);
+        chrome.runtime.onMessage.removeListener(listener);
+        if (msg.granted) {
+          resolve();
+        } else {
+          reject(new Error("Debugger permission denied by user"));
+        }
+        sendResponse(true);
+        return true;
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    openInCurrentTab(`src/confirm.html?mode=chrome_permission&permission=debugger&uuid=${uuid}`);
+  });
 }
 
 // 生命周期管理：attach → 执行 → detach
