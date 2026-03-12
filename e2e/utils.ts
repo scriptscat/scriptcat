@@ -1,10 +1,7 @@
 import type { BrowserContext, Page } from "@playwright/test";
 
 /** Open the options page and wait for it to load */
-export async function openOptionsPage(
-  context: BrowserContext,
-  extensionId: string
-): Promise<Page> {
+export async function openOptionsPage(context: BrowserContext, extensionId: string): Promise<Page> {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/src/options.html`);
   await page.waitForLoadState("domcontentloaded");
@@ -12,10 +9,7 @@ export async function openOptionsPage(
 }
 
 /** Open the popup page and wait for it to load */
-export async function openPopupPage(
-  context: BrowserContext,
-  extensionId: string
-): Promise<Page> {
+export async function openPopupPage(context: BrowserContext, extensionId: string): Promise<Page> {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/src/popup.html`);
   await page.waitForLoadState("domcontentloaded");
@@ -23,25 +17,15 @@ export async function openPopupPage(
 }
 
 /** Open the install page with a script URL parameter */
-export async function openInstallPage(
-  context: BrowserContext,
-  extensionId: string,
-  scriptUrl: string
-): Promise<Page> {
+export async function openInstallPage(context: BrowserContext, extensionId: string, scriptUrl: string): Promise<Page> {
   const page = await context.newPage();
-  await page.goto(
-    `chrome-extension://${extensionId}/src/install.html?url=${encodeURIComponent(scriptUrl)}`
-  );
+  await page.goto(`chrome-extension://${extensionId}/src/install.html?url=${encodeURIComponent(scriptUrl)}`);
   await page.waitForLoadState("domcontentloaded");
   return page;
 }
 
 /** Open the script editor page */
-export async function openEditorPage(
-  context: BrowserContext,
-  extensionId: string,
-  params?: string
-): Promise<Page> {
+export async function openEditorPage(context: BrowserContext, extensionId: string, params?: string): Promise<Page> {
   const page = await context.newPage();
   const hash = params ? `#/script/editor?${params}` : "#/script/editor";
   await page.goto(`chrome-extension://${extensionId}/src/options.html${hash}`);
@@ -50,11 +34,7 @@ export async function openEditorPage(
 }
 
 /** Install a script by injecting code into the Monaco editor and saving */
-export async function installScriptByCode(
-  context: BrowserContext,
-  extensionId: string,
-  code: string
-): Promise<void> {
+export async function installScriptByCode(context: BrowserContext, extensionId: string, code: string): Promise<void> {
   const page = await openEditorPage(context, extensionId);
   // Wait for Monaco editor to be ready
   await page.locator(".monaco-editor").waitFor({ timeout: 30_000 });

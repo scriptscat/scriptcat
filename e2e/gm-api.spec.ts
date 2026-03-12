@@ -1,12 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import {
-  test as base,
-  expect,
-  chromium,
-  type BrowserContext,
-} from "@playwright/test";
+import { test as base, expect, chromium, type BrowserContext } from "@playwright/test";
 import { installScriptByCode } from "./utils";
 
 const test = base.extend<{
@@ -17,15 +12,12 @@ const test = base.extend<{
   context: async ({}, use) => {
     const pathToExtension = path.resolve(__dirname, "../dist/ext");
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-ext-"));
-    const chromeArgs = [
-      `--disable-extensions-except=${pathToExtension}`,
-      `--load-extension=${pathToExtension}`,
-    ];
+    const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
 
     // Phase 1: Enable user scripts permission
     const ctx1 = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
-      args: chromeArgs,
+      args: ["--headless=new", ...chromeArgs],
     });
     let [bg] = ctx1.serviceWorkers();
     if (!bg) bg = await ctx1.waitForEvent("serviceworker");
@@ -48,6 +40,7 @@ const test = base.extend<{
       headless: false,
       args: ["--headless=new", ...chromeArgs],
     });
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -61,6 +54,7 @@ const test = base.extend<{
     await initPage.waitForLoadState("domcontentloaded");
     await initPage.evaluate(() => localStorage.setItem("firstUse", "false"));
     await initPage.close();
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(extensionId);
   },
 });
@@ -68,14 +62,8 @@ const test = base.extend<{
 /** Strip SRI hashes and replace slow CDN with faster alternative */
 function patchScriptCode(code: string): string {
   return code
-    .replace(
-      /^(\/\/\s*@(?:require|resource)\s+.*?)#sha(?:256|384|512)[=-][^\s]+/gm,
-      "$1"
-    )
-    .replace(
-      /https:\/\/cdn\.jsdelivr\.net\/npm\//g,
-      "https://unpkg.com/"
-    );
+    .replace(/^(\/\/\s*@(?:require|resource)\s+.*?)#sha(?:256|384|512)[=-][^\s]+/gm, "$1")
+    .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\//g, "https://unpkg.com/");
 }
 
 /**
@@ -121,10 +109,7 @@ async function runTestScript(
   targetUrl: string,
   timeoutMs: number
 ): Promise<{ passed: number; failed: number; logs: string[] }> {
-  let code = fs.readFileSync(
-    path.join(__dirname, `../example/tests/${scriptFile}`),
-    "utf-8"
-  );
+  let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
 
   await installScriptByCode(context, extensionId, code);
@@ -163,17 +148,8 @@ test.describe("GM API", () => {
   // Two-phase launch + script install + network fetches + permission dialogs
   test.setTimeout(300_000);
 
-  test("GM_ sync API tests (gm_api_test.js)", async ({
-    context,
-    extensionId,
-  }) => {
-    const { passed, failed, logs } = await runTestScript(
-      context,
-      extensionId,
-      "gm_api_test.js",
-      TARGET_URL,
-      90_000
-    );
+  test("GM_ sync API tests (gm_api_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(context, extensionId, "gm_api_test.js", TARGET_URL, 90_000);
 
     console.log(`[gm_api_test] passed=${passed}, failed=${failed}`);
     if (failed !== 0) {
@@ -183,10 +159,7 @@ test.describe("GM API", () => {
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
-  test("GM.* async API tests (gm_api_async_test.js)", async ({
-    context,
-    extensionId,
-  }) => {
+  test("GM.* async API tests (gm_api_async_test.js)", async ({ context, extensionId }) => {
     const { passed, failed, logs } = await runTestScript(
       context,
       extensionId,
@@ -203,10 +176,7 @@ test.describe("GM API", () => {
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
-  test("Content inject tests (inject_content_test.js)", async ({
-    context,
-    extensionId,
-  }) => {
+  test("Content inject tests (inject_content_test.js)", async ({ context, extensionId }) => {
     const { passed, failed, logs } = await runTestScript(
       context,
       extensionId,
