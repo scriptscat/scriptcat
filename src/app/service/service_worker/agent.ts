@@ -389,10 +389,11 @@ export class AgentService {
   }
 
   // 解析对话关联的 skills，返回 system prompt 附加内容和 meta-tool 定义
-  private async resolveSkills(skills?: "auto" | string[]): Promise<{
+  // 三层渐进加载：1) system prompt 只注入摘要 2) load_skill 按需加载完整提示词 3) execute_skill_tool/read_reference 按需执行
+  private resolveSkills(skills?: "auto" | string[]): {
     promptSuffix: string;
     metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>;
-  }> {
+  } {
     if (!skills) {
       return { promptSuffix: "", metaTools: [] };
     }
@@ -409,112 +410,101 @@ export class AgentService {
       return { promptSuffix: "", metaTools: [] };
     }
 
-    // 构建 prompt 后缀
-    const promptParts: string[] = ["\n\n---\n\n# Active Skills\n"];
+    // 构建 prompt 后缀：只包含 name + description 摘要
+    const promptParts: string[] = [
+      "\n\n---\n\n# Available Skills\n",
+      "Below are installed skills. Use `load_skill` to read the full prompt when a skill is relevant.\n",
+    ];
 
-    // 收集所有 skill 的工具信息
-    const allToolInfos: Array<{ skillName: string; tool: CATToolRecord }> = [];
-    // 收集所有 skill 的参考资料信息
-    const allRefInfos: Array<{ skillName: string; refName: string }> = [];
+    // 检查是否有任何工具或参考资料
+    let hasTools = false;
+    let hasReferences = false;
 
     for (const skill of skillRecords) {
-      promptParts.push(`## Skill: ${skill.name}\n`);
-      if (skill.description) {
-        promptParts.push(`${skill.description}\n`);
-      }
-      promptParts.push(`\n${skill.prompt}\n`);
-
-      // 加载工具信息
-      if (skill.toolNames.length > 0) {
-        const toolRecords = await this.skillRepo.getSkillScripts(skill.name);
-        for (const tool of toolRecords) {
-          allToolInfos.push({ skillName: skill.name, tool });
-        }
-      }
-
-      // 参考资料信息
-      if (skill.referenceNames.length > 0) {
-        for (const refName of skill.referenceNames) {
-          allRefInfos.push({ skillName: skill.name, refName });
-        }
-      }
+      promptParts.push(`- **${skill.name}**: ${skill.description || "(no description)"}`);
+      if (skill.toolNames.length > 0) hasTools = true;
+      if (skill.referenceNames.length > 0) hasReferences = true;
     }
 
-    // 添加工具信息到 prompt
-    if (allToolInfos.length > 0) {
-      promptParts.push("\n## Available Skill Tools\n");
-      promptParts.push(
-        "Use the `execute_skill_tool` tool to call these. Pass the tool name and arguments as JSON.\n\n"
-      );
-      for (const { skillName, tool } of allToolInfos) {
-        const def = catToolToToolDefinition({
-          name: tool.name,
-          description: tool.description,
-          params: tool.params,
-          grants: tool.grants,
-        });
-        promptParts.push(`### ${tool.name} (from skill: ${skillName})\n`);
-        promptParts.push(`${tool.description}\n`);
-        if (tool.params.length > 0) {
-          promptParts.push(`Parameters: ${JSON.stringify(def.parameters)}\n`);
-        }
-        promptParts.push("");
-      }
-    }
-
-    // 添加参考资料信息到 prompt
-    if (allRefInfos.length > 0) {
-      promptParts.push("\n## Available References\n");
-      promptParts.push(
-        "Use the `read_reference` tool to read these reference documents when you need more context.\n\n"
-      );
-      for (const { skillName, refName } of allRefInfos) {
-        promptParts.push(`- **${refName}** (from skill: ${skillName})\n`);
-      }
-    }
+    promptParts.push(
+      "\nWhen a skill is loaded, you can use `execute_skill_tool` to run its tools and `read_reference` to read its reference documents."
+    );
 
     // 构建 meta-tools
     const metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> = [];
 
-    if (allToolInfos.length > 0) {
-      const toolInfoMap = new Map(allToolInfos.map((t) => [t.tool.name, t]));
+    // load_skill — 始终注册
+    metaTools.push({
+      definition: {
+        name: "load_skill",
+        description:
+          "Load the full prompt of a skill by name. Use this to get detailed instructions before using a skill.",
+        parameters: {
+          type: "object",
+          properties: {
+            skill_name: { type: "string", description: "Name of the skill to load" },
+          },
+          required: ["skill_name"],
+        },
+      },
+      executor: {
+        execute: async (args: Record<string, unknown>) => {
+          const skillName = args.skill_name as string;
+          const record = this.skillCache.get(skillName);
+          if (!record) {
+            throw new Error(`Skill "${skillName}" not found`);
+          }
+          return record.prompt;
+        },
+      },
+    });
+
+    // execute_skill_tool — 有工具时才注册
+    if (hasTools) {
       metaTools.push({
         definition: {
           name: "execute_skill_tool",
           description:
-            "Execute a skill tool by name. See the 'Available Skill Tools' section in the system prompt for available tools and their parameters.",
+            "Execute a tool from a specific skill. Load the skill first with `load_skill` to see available tools and their parameters.",
           parameters: {
             type: "object",
             properties: {
+              skill_name: { type: "string", description: "Name of the skill that owns the tool" },
               tool_name: { type: "string", description: "Name of the tool to execute" },
               arguments: {
                 type: "object",
                 description: "Arguments to pass to the tool, as specified in the tool's parameter schema",
               },
             },
-            required: ["tool_name"],
+            required: ["skill_name", "tool_name"],
           },
         },
         executor: {
           execute: async (args: Record<string, unknown>) => {
+            const skillName = args.skill_name as string;
             const toolName = args.tool_name as string;
             const toolArgs = (args.arguments as Record<string, unknown>) || {};
-            const info = toolInfoMap.get(toolName);
-            if (!info) {
-              throw new Error(`Skill tool "${toolName}" not found`);
+
+            // 按需从 OPFS 加载 skill 的 CATTool 脚本
+            const toolRecords = await this.skillRepo.getSkillScripts(skillName);
+            const tool = toolRecords.find((t) => t.name === toolName);
+            if (!tool) {
+              throw new Error(`Tool "${toolName}" not found in skill "${skillName}"`);
             }
-            const executor = new CATToolExecutor(info.tool, this.sender);
+            const executor = new CATToolExecutor(tool, this.sender);
             return executor.execute(toolArgs);
           },
         },
       });
     }
 
-    if (allRefInfos.length > 0) {
+    // read_reference — 有参考资料时才注册
+    if (hasReferences) {
       metaTools.push({
         definition: {
           name: "read_reference",
-          description: "Read a reference document from a skill. See 'Available References' in the system prompt.",
+          description:
+            "Read a reference document from a skill. Load the skill first with `load_skill` to see available references.",
           parameters: {
             type: "object",
             properties: {
@@ -792,7 +782,7 @@ export class AgentService {
       const model = await this.getModel(conv.modelId);
 
       // 解析 Skills（注入 prompt + 注册 meta-tools）
-      const { promptSuffix, metaTools } = await this.resolveSkills(conv.skills);
+      const { promptSuffix, metaTools } = this.resolveSkills(conv.skills);
 
       // 临时注册 skill meta-tools（对话结束后清理）
       const registeredMetaToolNames: string[] = [];
