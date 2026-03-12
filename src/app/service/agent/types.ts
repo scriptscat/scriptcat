@@ -89,6 +89,7 @@ export type ConversationCreateOptions = {
   skills?: "auto" | string[]; // 加载的 Skill，"auto" 加载全部，数组指定名称
   tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
   commands?: Record<string, CommandHandler>; // 自定义命令处理器，以 / 开头
+  ephemeral?: boolean; // 临时会话：不持久化、不加载内置资源、工具由脚本提供
 };
 
 // conv.chat() 的参数
@@ -339,6 +340,11 @@ export type ConversationApiRequest =
       message: string;
       tools?: ToolDefinition[];
       scriptUuid: string;
+      // ephemeral 会话专用字段
+      ephemeral?: boolean;
+      messages?: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }>;
+      system?: string;
+      modelId?: string;
     }
   | { action: "getMessages"; conversationId: string; scriptUuid: string }
   | { action: "save"; conversationId: string; scriptUuid: string }

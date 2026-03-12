@@ -13,6 +13,8 @@ import type {
   ToolDefinition,
   CATToolApiRequest,
   CATToolRecord,
+  DomApiRequest,
+  MCPApiRequest,
   SkillApiRequest,
   SkillRecord,
 } from "@App/app/service/agent/types";
@@ -568,6 +570,11 @@ export class AgentService {
       tools?: ToolDefinition[];
       maxIterations?: number;
       scriptUuid: string;
+      // ephemeral 会话专用字段
+      ephemeral?: boolean;
+      messages?: ChatRequest["messages"];
+      system?: string;
+      modelId?: string;
     },
     sender: IGetSender
   ) {
@@ -626,11 +633,13 @@ export class AgentService {
     scriptToolCallback: ScriptToolCallback | null;
     // 对话 ID，用于持久化消息（可选，UI 场景由 hooks 自行持久化）
     conversationId?: string;
+    // 跳过内置工具，仅使用传入的 tools（ephemeral 模式）
+    skipBuiltinTools?: boolean;
   }): Promise<void> {
     const { model, messages, tools, maxIterations, sendEvent, signal, scriptToolCallback, conversationId } = params;
 
     // 合并内置工具和脚本工具定义
-    const allToolDefs = this.toolRegistry.getDefinitions(tools);
+    const allToolDefs = params.skipBuiltinTools ? (tools || []) : this.toolRegistry.getDefinitions(tools);
 
     const startTime = Date.now();
     let iterations = 0;
@@ -724,6 +733,10 @@ export class AgentService {
       maxIterations?: number;
       scriptUuid?: string;
       modelId?: string;
+      // ephemeral 会话专用字段
+      ephemeral?: boolean;
+      messages?: ChatRequest["messages"];
+      system?: string;
     },
     sender: IGetSender
   ) {
@@ -765,6 +778,43 @@ export class AgentService {
     };
 
     try {
+      // ephemeral 模式：无状态处理，不从 repo 加载/持久化
+      if (params.ephemeral) {
+        const model = await this.getModel(params.modelId);
+
+        // 使用脚本传入的完整消息历史
+        const messages: ChatRequest["messages"] = [];
+
+        // 添加 system prompt
+        if (params.system) {
+          messages.push({ role: "system", content: params.system });
+        }
+
+        // 添加脚本端维护的消息历史（已含最新 user message）
+        if (params.messages) {
+          for (const msg of params.messages) {
+            messages.push({
+              role: msg.role,
+              content: msg.content,
+              toolCallId: msg.toolCallId,
+              toolCalls: msg.toolCalls,
+            });
+          }
+        }
+
+        await this.callLLMWithToolLoop({
+          model,
+          messages,
+          tools: params.tools,
+          maxIterations: params.maxIterations || 20,
+          sendEvent,
+          signal: abortController.signal,
+          scriptToolCallback: params.tools && params.tools.length > 0 ? scriptToolCallback : null,
+          skipBuiltinTools: true,
+        });
+        return;
+      }
+
       // 获取对话和模型
       const conv = await this.getConversation(params.conversationId);
       if (!conv) {

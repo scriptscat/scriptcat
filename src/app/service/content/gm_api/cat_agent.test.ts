@@ -3,13 +3,14 @@ import { ConversationInstance } from "./cat_agent";
 import type { Conversation, StreamChunk } from "@App/app/service/agent/types";
 import type { MessageConnect } from "@Packages/message/types";
 
-function mockConversation(): Conversation {
+function mockConversation(overrides?: Partial<Conversation>): Conversation {
   return {
     id: "test-conv-id",
     title: "Test",
     modelId: "gpt-4",
     createtime: Date.now(),
     updatetime: Date.now(),
+    ...overrides,
   };
 }
 
@@ -163,5 +164,195 @@ describe("ConversationInstance 命令机制", () => {
     await instance.chat("/reset");
 
     expect(handler).toHaveBeenCalledWith("", instance);
+  });
+});
+
+// ---- Ephemeral 会话测试 ----
+
+function createEphemeralInstance(options?: {
+  system?: string;
+  tools?: Array<{
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+    handler: (args: Record<string, unknown>) => Promise<unknown>;
+  }>;
+}) {
+  const gmSendMessage = vi.fn().mockResolvedValue(undefined);
+  const gmConnect = vi.fn().mockResolvedValue(mockConnect());
+
+  const instance = new ConversationInstance(
+    mockConversation({ modelId: "test-model" }),
+    gmSendMessage,
+    gmConnect,
+    "test-script-uuid",
+    20,
+    options?.tools,
+    undefined, // commands
+    true, // ephemeral
+    options?.system
+  );
+
+  return { instance, gmSendMessage, gmConnect };
+}
+
+describe("ConversationInstance ephemeral 模式", () => {
+  it("chat 时传递 ephemeral 参数给 SW", async () => {
+    const { instance, gmConnect } = createEphemeralInstance({ system: "你是助手" });
+
+    await instance.chat("你好");
+
+    expect(gmConnect).toHaveBeenCalledTimes(1);
+    const connectParams = gmConnect.mock.calls[0][1][0];
+    expect(connectParams.ephemeral).toBe(true);
+    expect(connectParams.system).toBe("你是助手");
+    expect(connectParams.modelId).toBe("test-model");
+    // messages 应包含 user message
+    expect(connectParams.messages).toEqual(expect.arrayContaining([{ role: "user", content: "你好" }]));
+  });
+
+  it("chat 后 assistant 消息追加到内存历史", async () => {
+    const { instance } = createEphemeralInstance();
+
+    await instance.chat("你好");
+
+    const messages = await instance.getMessages();
+    // 应有 user + assistant
+    expect(messages.length).toBeGreaterThanOrEqual(2);
+    expect(messages[0].role).toBe("user");
+    expect(messages[0].content).toBe("你好");
+    // 最后一条应是 assistant
+    const lastMsg = messages[messages.length - 1];
+    expect(lastMsg.role).toBe("assistant");
+    expect(lastMsg.content).toBe("LLM reply");
+  });
+
+  it("多轮对话正确累积消息历史", async () => {
+    const { instance, gmConnect } = createEphemeralInstance();
+
+    await instance.chat("第一条");
+    await instance.chat("第二条");
+
+    // 第二次 connect 时 messages 应包含前一轮的历史
+    const secondCallParams = gmConnect.mock.calls[1][1][0];
+    const msgs = secondCallParams.messages;
+    // 包含：user("第一条") + assistant("LLM reply") + assistant("LLM reply")(final) + user("第二条")
+    expect(msgs.length).toBeGreaterThanOrEqual(3);
+    expect(msgs[0]).toEqual({ role: "user", content: "第一条" });
+    // 最后一条在 messages 数组中是 user("第二条")，因为 user message 在 connect 前追加
+    // assistant 回复在 processChat 之后才追加，所以第二次 connect 时的 messages 最后一条是 user
+    const userMsgs = msgs.filter((m: any) => m.role === "user");
+    expect(userMsgs).toHaveLength(2);
+    expect(userMsgs[0].content).toBe("第一条");
+    expect(userMsgs[1].content).toBe("第二条");
+    // 应有第一轮的 assistant 回复
+    const assistantMsgs = msgs.filter((m: any) => m.role === "assistant");
+    expect(assistantMsgs.length).toBeGreaterThanOrEqual(1);
+    expect(assistantMsgs[0].content).toBe("LLM reply");
+  });
+
+  it("getMessages 返回内存历史（不调用 SW）", async () => {
+    const { instance, gmSendMessage } = createEphemeralInstance();
+
+    await instance.chat("测试");
+
+    const messages = await instance.getMessages();
+    // 不应调用 SW 的 getMessages
+    expect(gmSendMessage).not.toHaveBeenCalledWith(
+      "CAT_agentConversation",
+      expect.arrayContaining([expect.objectContaining({ action: "getMessages" })])
+    );
+    // 消息应包含 conversationId 和 id
+    expect(messages[0].conversationId).toBe("test-conv-id");
+    expect(messages[0].id).toMatch(/^ephemeral-/);
+  });
+
+  it("clear 清空内存历史（不调用 SW）", async () => {
+    const { instance, gmSendMessage } = createEphemeralInstance();
+
+    await instance.chat("测试");
+    expect((await instance.getMessages()).length).toBeGreaterThan(0);
+
+    await instance.clear();
+
+    const messages = await instance.getMessages();
+    expect(messages).toHaveLength(0);
+    // 不应调用 SW 的 clearMessages
+    expect(gmSendMessage).not.toHaveBeenCalledWith(
+      "CAT_agentConversation",
+      expect.arrayContaining([expect.objectContaining({ action: "clearMessages" })])
+    );
+  });
+
+  it("chatStream ephemeral 传递正确参数", async () => {
+    const { instance, gmConnect } = createEphemeralInstance({ system: "系统提示" });
+
+    const stream = await instance.chatStream("流式测试");
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+
+    expect(gmConnect).toHaveBeenCalledTimes(1);
+    const connectParams = gmConnect.mock.calls[0][1][0];
+    expect(connectParams.ephemeral).toBe(true);
+    expect(connectParams.system).toBe("系统提示");
+    expect(connectParams.messages).toEqual(expect.arrayContaining([{ role: "user", content: "流式测试" }]));
+
+    // 流应正常完成
+    expect(chunks.some((c) => c.type === "done")).toBe(true);
+  });
+
+  it("chatStream ephemeral 收集 assistant 消息到内存历史", async () => {
+    const { instance } = createEphemeralInstance();
+
+    const stream = await instance.chatStream("你好");
+    // 消费完 stream
+    for await (const _chunk of stream) {
+      // drain
+    }
+
+    const messages = await instance.getMessages();
+    expect(messages.length).toBeGreaterThanOrEqual(2);
+    expect(messages[0].role).toBe("user");
+    const lastMsg = messages[messages.length - 1];
+    expect(lastMsg.role).toBe("assistant");
+    expect(lastMsg.content).toBe("LLM reply");
+  });
+
+  it("ephemeral 模式下 /new 命令清空内存历史", async () => {
+    const { instance, gmSendMessage } = createEphemeralInstance();
+
+    await instance.chat("消息1");
+    expect((await instance.getMessages()).length).toBeGreaterThan(0);
+
+    const result = await instance.chat("/new");
+    expect(result.command).toBe(true);
+
+    const messages = await instance.getMessages();
+    expect(messages).toHaveLength(0);
+    // ephemeral 的 clear 不调用 SW
+    expect(gmSendMessage).not.toHaveBeenCalled();
+  });
+
+  it("ephemeral 模式带自定义工具时传递 tools", async () => {
+    const handler = vi.fn().mockResolvedValue({ result: "ok" });
+    const { instance, gmConnect } = createEphemeralInstance({
+      tools: [
+        {
+          name: "my_tool",
+          description: "自定义工具",
+          parameters: { type: "object", properties: {} },
+          handler,
+        },
+      ],
+    });
+
+    await instance.chat("使用工具");
+
+    const connectParams = gmConnect.mock.calls[0][1][0];
+    expect(connectParams.tools).toBeDefined();
+    expect(connectParams.tools).toHaveLength(1);
+    expect(connectParams.tools[0].name).toBe("my_tool");
   });
 });

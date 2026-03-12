@@ -1,4 +1,5 @@
 import GMContext from "./gm_context";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { MessageConnect } from "@Packages/message/types";
 import type {
   ChatReply,
@@ -12,6 +13,7 @@ import type {
   ToolCall,
   ToolDefinition,
   ChatMessage,
+  MessageRole,
 } from "@App/app/service/agent/types";
 
 // 对话实例，暴露给用户脚本
@@ -20,6 +22,10 @@ export class ConversationInstance {
   private toolHandlers: Map<string, (args: Record<string, unknown>) => Promise<unknown>> = new Map();
   private toolDefs: ToolDefinition[] = [];
   private commandHandlers: Map<string, CommandHandler> = new Map();
+  private ephemeral: boolean;
+  private systemPrompt?: string;
+  private messageHistory: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }> =
+    [];
 
   constructor(
     private conv: Conversation,
@@ -28,8 +34,12 @@ export class ConversationInstance {
     private scriptUuid: string,
     private maxIterations: number,
     initialTools?: ConversationCreateOptions["tools"],
-    commands?: Record<string, CommandHandler>
+    commands?: Record<string, CommandHandler>,
+    ephemeral?: boolean,
+    system?: string
   ) {
+    this.ephemeral = ephemeral || false;
+    this.systemPrompt = system;
     if (initialTools) {
       for (const tool of initialTools) {
         this.toolHandlers.set(tool.name, tool.handler);
@@ -71,18 +81,45 @@ export class ConversationInstance {
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
 
-    // 通过 GM API connect 建立流式连接
-    const conn = await this.gmConnect("CAT_agentConversationChat", [
-      {
-        conversationId: this.conv.id,
-        message: content,
-        tools: toolDefs.length > 0 ? toolDefs : undefined,
-        maxIterations: this.maxIterations,
-        scriptUuid: this.scriptUuid,
-      },
-    ]);
+    // ephemeral 模式：追加 user message 到内存历史
+    if (this.ephemeral) {
+      this.messageHistory.push({ role: "user", content });
+    }
 
-    return this.processChat(conn, handlers);
+    // 通过 GM API connect 建立流式连接
+    const connectParams: Record<string, unknown> = {
+      conversationId: this.conv.id,
+      message: content,
+      tools: toolDefs.length > 0 ? toolDefs : undefined,
+      maxIterations: this.maxIterations,
+      scriptUuid: this.scriptUuid,
+    };
+
+    if (this.ephemeral) {
+      connectParams.ephemeral = true;
+      connectParams.messages = this.messageHistory;
+      connectParams.system = this.systemPrompt;
+      connectParams.modelId = this.conv.modelId;
+    }
+
+    const conn = await this.gmConnect("CAT_agentConversationChat", [connectParams]);
+
+    const reply = await this.processChat(conn, handlers);
+
+    // ephemeral 模式：收集 assistant 响应到内存历史
+    if (this.ephemeral) {
+      if (reply.toolCalls && reply.toolCalls.length > 0) {
+        this.messageHistory.push({ role: "assistant", content: reply.content, toolCalls: reply.toolCalls });
+        for (const tc of reply.toolCalls) {
+          if (tc.result !== undefined) {
+            this.messageHistory.push({ role: "tool", content: tc.result, toolCallId: tc.id });
+          }
+        }
+      }
+      this.messageHistory.push({ role: "assistant", content: reply.content });
+    }
+
+    return reply;
   }
 
   // 流式发送消息
@@ -111,15 +148,32 @@ export class ConversationInstance {
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
 
-    const conn = await this.gmConnect("CAT_agentConversationChat", [
-      {
-        conversationId: this.conv.id,
-        message: content,
-        tools: toolDefs.length > 0 ? toolDefs : undefined,
-        maxIterations: this.maxIterations,
-        scriptUuid: this.scriptUuid,
-      },
-    ]);
+    // ephemeral 模式：追加 user message 到内存历史
+    if (this.ephemeral) {
+      this.messageHistory.push({ role: "user", content });
+    }
+
+    const connectParams: Record<string, unknown> = {
+      conversationId: this.conv.id,
+      message: content,
+      tools: toolDefs.length > 0 ? toolDefs : undefined,
+      maxIterations: this.maxIterations,
+      scriptUuid: this.scriptUuid,
+    };
+
+    if (this.ephemeral) {
+      connectParams.ephemeral = true;
+      connectParams.messages = this.messageHistory;
+      connectParams.system = this.systemPrompt;
+      connectParams.modelId = this.conv.modelId;
+    }
+
+    const conn = await this.gmConnect("CAT_agentConversationChat", [connectParams]);
+
+    // ephemeral 模式：包装 stream 以收集 assistant 消息到内存历史
+    if (this.ephemeral) {
+      return this.processStreamEphemeral(conn, handlers);
+    }
 
     return this.processStream(conn, handlers);
   }
@@ -165,6 +219,18 @@ export class ConversationInstance {
 
   // 获取对话历史
   async getMessages(): Promise<ChatMessage[]> {
+    if (this.ephemeral) {
+      // ephemeral 模式：从内存历史转换为 ChatMessage 格式
+      return this.messageHistory.map((msg, idx) => ({
+        id: `ephemeral-${idx}`,
+        conversationId: this.conv.id,
+        role: msg.role,
+        content: msg.content,
+        toolCallId: msg.toolCallId,
+        toolCalls: msg.toolCalls,
+        createtime: Date.now(),
+      }));
+    }
     const messages = await this.gmSendMessage("CAT_agentConversation", [
       {
         action: "getMessages",
@@ -177,6 +243,10 @@ export class ConversationInstance {
 
   // 清空对话消息历史
   async clear(): Promise<void> {
+    if (this.ephemeral) {
+      this.messageHistory = [];
+      return;
+    }
     await this.gmSendMessage("CAT_agentConversation", [
       {
         action: "clearMessages",
@@ -337,6 +407,52 @@ export class ConversationInstance {
     };
   }
 
+  // 处理 ephemeral 流式 chat 的响应（收集 assistant 消息到内存历史）
+  private processStreamEphemeral(
+    conn: MessageConnect,
+    handlers: Map<string, (args: Record<string, unknown>) => Promise<unknown>>
+  ): AsyncIterable<StreamChunk> {
+    const inner = this.processStream(conn, handlers);
+    const messageHistory = this.messageHistory;
+    let content = "";
+    const toolCalls: ToolCall[] = [];
+
+    return {
+      [Symbol.asyncIterator]() {
+        const iter = inner[Symbol.asyncIterator]();
+        return {
+          async next(): Promise<IteratorResult<StreamChunk>> {
+            const result = await iter.next();
+            if (result.done) {
+              // 流结束时，追加 assistant 消息到历史
+              if (content || toolCalls.length > 0) {
+                messageHistory.push({
+                  role: "assistant",
+                  content,
+                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+                });
+              }
+              return result;
+            }
+
+            const chunk = result.value;
+            switch (chunk.type) {
+              case "content_delta":
+                content += chunk.content || "";
+                break;
+              case "tool_call":
+                if (chunk.toolCall) {
+                  toolCalls.push(chunk.toolCall);
+                }
+                break;
+            }
+            return result;
+          },
+        };
+      },
+    };
+  }
+
   // 执行用户定义的 tool handlers
   private async executeTools(
     toolCalls: ToolCall[],
@@ -388,7 +504,9 @@ function buildInstance(
     ctx.scriptRes?.uuid || "",
     options?.maxIterations || 20,
     options?.tools,
-    options?.commands
+    options?.commands,
+    options?.ephemeral,
+    options?.system
   );
 }
 
@@ -409,7 +527,20 @@ export default class CATAgentApi {
   @GMContext.API({ follow: "CAT.agent.conversation" })
   public "CAT.agent.conversation.create"(options: ConversationCreateOptions = {}): Promise<ConversationInstance> {
     return (async () => {
-      const { tools: _tools, ...serverOptions } = options;
+      if (options.ephemeral) {
+        // ephemeral 模式：不发请求到 SW，直接在脚本端构造
+        const conv: Conversation = {
+          id: options.id || uuidv4(),
+          title: "New Chat",
+          modelId: options.model || "",
+          system: options.system,
+          createtime: Date.now(),
+          updatetime: Date.now(),
+        };
+        return buildInstance(this as unknown as GMBaseContext, conv, options);
+      }
+
+      const { tools: _tools, ephemeral: _ephemeral, ...serverOptions } = options;
       const conv = (await this.sendMessage("CAT_agentConversation", [
         { action: "create", options: serverOptions, scriptUuid: this.scriptRes?.uuid || "" } as ConversationApiRequest,
       ])) as Conversation;

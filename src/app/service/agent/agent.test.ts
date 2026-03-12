@@ -1148,4 +1148,296 @@ describe("callLLMWithToolLoop", () => {
     expect(events.find((e) => e.type === "done")).toBeDefined();
     callLLMSpy.mockRestore();
   });
+
+  it("skipBuiltinTools 时仅使用传入的 tools", async () => {
+    const { service, toolRegistry } = createTestService();
+    const events: ChatStreamEvent[] = [];
+
+    // 注册一个内置工具
+    const builtinExecutor: ToolExecutor = {
+      execute: vi.fn().mockResolvedValue("builtin_result"),
+    };
+    toolRegistry.registerBuiltin(
+      { name: "builtin_tool", description: "内置工具", parameters: { type: "object", properties: {} } },
+      builtinExecutor
+    );
+
+    fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("hello")));
+
+    // 用 skipBuiltinTools 调用，传入一个脚本工具
+    const scriptTools: ToolDefinition[] = [
+      { name: "script_tool", description: "脚本工具", parameters: { type: "object", properties: {} } },
+    ];
+
+    // mock callLLM 来检查传入的 tools
+    let capturedTools: ToolDefinition[] | undefined;
+    const callLLMSpy = vi.spyOn(service as any, "callLLM").mockImplementation(
+      async (_model: any, params: any, sendEvent: any) => {
+        capturedTools = params.tools;
+        sendEvent({ type: "done" });
+        return { content: "ok", usage: { inputTokens: 5, outputTokens: 3 } };
+      }
+    );
+
+    await (service as any).callLLMWithToolLoop({
+      model: openaiConfig,
+      messages: [{ role: "user", content: "test" }],
+      tools: scriptTools,
+      maxIterations: 5,
+      sendEvent: (e: ChatStreamEvent) => events.push(e),
+      signal: new AbortController().signal,
+      scriptToolCallback: null,
+      skipBuiltinTools: true,
+    });
+
+    // 传给 callLLM 的 tools 应只有脚本工具，不含内置工具
+    expect(capturedTools).toHaveLength(1);
+    expect(capturedTools![0].name).toBe("script_tool");
+
+    callLLMSpy.mockRestore();
+  });
+
+  it("skipBuiltinTools 无 tools 传入时 allToolDefs 为空", async () => {
+    const { service, toolRegistry } = createTestService();
+    const events: ChatStreamEvent[] = [];
+
+    // 注册内置工具
+    toolRegistry.registerBuiltin(
+      { name: "builtin_tool", description: "内置工具", parameters: { type: "object", properties: {} } },
+      { execute: vi.fn().mockResolvedValue("result") }
+    );
+
+    let capturedTools: ToolDefinition[] | undefined;
+    const callLLMSpy = vi.spyOn(service as any, "callLLM").mockImplementation(
+      async (_model: any, params: any, sendEvent: any) => {
+        capturedTools = params.tools;
+        sendEvent({ type: "done" });
+        return { content: "ok", usage: { inputTokens: 5, outputTokens: 3 } };
+      }
+    );
+
+    await (service as any).callLLMWithToolLoop({
+      model: openaiConfig,
+      messages: [{ role: "user", content: "test" }],
+      // 不传 tools
+      maxIterations: 5,
+      sendEvent: (e: ChatStreamEvent) => events.push(e),
+      signal: new AbortController().signal,
+      scriptToolCallback: null,
+      skipBuiltinTools: true,
+    });
+
+    // 不应有任何工具
+    expect(capturedTools).toBeUndefined();
+
+    callLLMSpy.mockRestore();
+  });
+});
+
+// ---- handleConversationChat ephemeral 测试 ----
+
+describe("handleConversationChat ephemeral 模式", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  // 辅助：创建 mock sender（connect 模式）
+  function createMockSender() {
+    const sentMessages: any[] = [];
+    let onMessageCb: ((msg: any) => void) | null = null;
+    let onDisconnectCb: (() => void) | null = null;
+
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: (cb: (msg: any) => void) => {
+        onMessageCb = cb;
+      },
+      onDisconnect: (cb: () => void) => {
+        onDisconnectCb = cb;
+      },
+      disconnect: () => {},
+    };
+
+    const sender = {
+      isType: (type: any) => type === 1, // GetSenderType.CONNECT = 1
+      getConnect: () => mockConn,
+    };
+
+    return { sender, sentMessages, mockConn, getOnMessage: () => onMessageCb, getOnDisconnect: () => onDisconnectCb };
+  }
+
+  it("ephemeral 模式不加载会话、不持久化", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    fetchSpy.mockResolvedValueOnce(
+      buildSSEResponse(makeTextSSE("ephemeral reply", { prompt_tokens: 10, completion_tokens: 5 }))
+    );
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "eph-conv-1",
+        message: "hello",
+        ephemeral: true,
+        modelId: "test-openai",
+        messages: [{ role: "user", content: "hello" }],
+        system: "你是助手",
+        scriptUuid: "test-uuid",
+      },
+      sender
+    );
+
+    // 不应调用 repo 的 getMessages 或 listConversations（不加载会话）
+    expect(mockRepo.getMessages).not.toHaveBeenCalled();
+    expect(mockRepo.listConversations).not.toHaveBeenCalled();
+    // 不应调用 appendMessage（不持久化）
+    expect(mockRepo.appendMessage).not.toHaveBeenCalled();
+    // 不应调用 saveConversation
+    expect(mockRepo.saveConversation).not.toHaveBeenCalled();
+  });
+
+  it("ephemeral 模式使用传入的 messages 和 system", async () => {
+    const { service } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    fetchSpy.mockResolvedValueOnce(
+      buildSSEResponse(makeTextSSE("回复", { prompt_tokens: 10, completion_tokens: 5 }))
+    );
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "eph-conv-2",
+        message: "你好",
+        ephemeral: true,
+        modelId: "test-openai",
+        messages: [
+          { role: "user", content: "上一条" },
+          { role: "assistant", content: "上次回复" },
+          { role: "user", content: "你好" },
+        ],
+        system: "系统提示",
+        scriptUuid: "test-uuid",
+      },
+      sender
+    );
+
+    // 应该发送了 fetch 请求
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // 检查 fetch 请求体中的消息
+    const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+    // 应包含 system + 3 条消息
+    expect(fetchBody.messages.length).toBeGreaterThanOrEqual(4);
+    // 第一条应是 system
+    expect(fetchBody.messages[0]).toMatchObject({ role: "system", content: "系统提示" });
+
+    // 应该发送了 done 事件
+    const doneMsg = sentMessages.find((m) => m.action === "event" && m.data.type === "done");
+    expect(doneMsg).toBeDefined();
+  });
+
+  it("ephemeral 模式使用 skipBuiltinTools", async () => {
+    const { service, toolRegistry } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    // 注册内置工具
+    toolRegistry.registerBuiltin(
+      { name: "dom_read_page", description: "读取页面", parameters: { type: "object", properties: {} } },
+      { execute: vi.fn().mockResolvedValue("page content") }
+    );
+
+    fetchSpy.mockResolvedValueOnce(
+      buildSSEResponse(makeTextSSE("ok", { prompt_tokens: 5, completion_tokens: 3 }))
+    );
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "eph-conv-3",
+        message: "test",
+        ephemeral: true,
+        modelId: "test-openai",
+        messages: [{ role: "user", content: "test" }],
+        scriptUuid: "test-uuid",
+      },
+      sender
+    );
+
+    // fetch 请求体中不应包含内置工具
+    const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+    expect(fetchBody.tools).toBeUndefined();
+
+    // 应正常完成
+    const doneMsg = sentMessages.find((m) => m.action === "event" && m.data.type === "done");
+    expect(doneMsg).toBeDefined();
+  });
+
+  it("ephemeral 模式带脚本工具时 tools 传入 callLLMWithToolLoop", async () => {
+    const { service } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    // mock callLLMWithToolLoop 来验证参数
+    let capturedParams: any;
+    const loopSpy = vi.spyOn(service as any, "callLLMWithToolLoop").mockImplementation(async (params: any) => {
+      capturedParams = params;
+      params.sendEvent({ type: "done", usage: { inputTokens: 5, outputTokens: 3 } });
+    });
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "eph-conv-4",
+        message: "test",
+        ephemeral: true,
+        modelId: "test-openai",
+        messages: [{ role: "user", content: "test" }],
+        tools: [{ name: "my_script_tool", description: "脚本工具", parameters: {} }],
+        scriptUuid: "test-uuid",
+      },
+      sender
+    );
+
+    // 验证 callLLMWithToolLoop 收到正确参数
+    expect(capturedParams.skipBuiltinTools).toBe(true);
+    expect(capturedParams.tools).toHaveLength(1);
+    expect(capturedParams.tools[0].name).toBe("my_script_tool");
+    expect(capturedParams.scriptToolCallback).not.toBeNull();
+    // 不应有 conversationId（ephemeral 不持久化）
+    expect(capturedParams.conversationId).toBeUndefined();
+
+    // 应发送 done 事件
+    expect(sentMessages.some((m) => m.action === "event" && m.data.type === "done")).toBe(true);
+
+    loopSpy.mockRestore();
+  });
+
+  it("ephemeral 模式无 system 时不添加 system 消息", async () => {
+    const { service } = createTestService();
+    const { sender } = createMockSender();
+
+    fetchSpy.mockResolvedValueOnce(
+      buildSSEResponse(makeTextSSE("ok", { prompt_tokens: 5, completion_tokens: 3 }))
+    );
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "eph-conv-5",
+        message: "test",
+        ephemeral: true,
+        modelId: "test-openai",
+        messages: [{ role: "user", content: "test" }],
+        // 无 system
+        scriptUuid: "test-uuid",
+      },
+      sender
+    );
+
+    const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+    // 不应有 system 消息
+    expect(fetchBody.messages.every((m: any) => m.role !== "system")).toBe(true);
+  });
 });
