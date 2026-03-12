@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Select } from "@arco-design/web-react";
 import { IconSend, IconPause } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { AgentModelConfig } from "@App/pkg/config/config";
+import type { AgentModelConfig } from "@App/app/service/agent/types";
 
 export default function ChatInput({
   models,

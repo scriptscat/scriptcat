@@ -1,5 +1,5 @@
 import type { ChatStreamEvent, ChatRequest } from "../types";
-import type { AgentModelConfig } from "@App/pkg/config/config";
+import type { AgentModelConfig } from "../types";
 import { SSEParser } from "../sse_parser";
 
 // 构造 OpenAI 兼容格式的请求

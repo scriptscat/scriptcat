@@ -640,6 +640,7 @@
   "cattool_parameters": "参数",
   "cattool_permissions": "权限",
   "cattool_required": "必填",
+  "cattool_source_script": "由脚本安装",
   "agent_opfs": "OPFS",
   "agent_opfs_title": "OPFS 文件浏览器",
   "agent_opfs_empty": "空目录",

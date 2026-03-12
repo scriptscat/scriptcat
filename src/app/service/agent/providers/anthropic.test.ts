@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildAnthropicRequest, parseAnthropicStream } from "./anthropic";
-import type { AgentModelConfig } from "@App/pkg/config/config";
+import type { AgentModelConfig } from "../types";
 import type { ChatRequest, ChatStreamEvent } from "../types";
 
 const config: AgentModelConfig = {

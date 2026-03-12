@@ -406,7 +406,10 @@ export function cleanFileName(name: string): string {
 }
 
 export const sourceMapTo = (scriptName: string) => {
-  const url = chrome.runtime.getURL(`/${encodeURI(scriptName)}`);
+  // sandbox 环境中 chrome.runtime 不可用，使用脚本名作为 sourceURL
+  const url = chrome.runtime?.getURL
+    ? chrome.runtime.getURL(`/${encodeURI(scriptName)}`)
+    : encodeURI(scriptName);
   return `\n//# sourceURL=${url}`;
 };
 

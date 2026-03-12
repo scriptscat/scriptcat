@@ -1,15 +1,25 @@
-import { useCallback, useState } from "react";
-import { useSystemConfig } from "../utils";
+import { useCallback, useEffect, useState } from "react";
 import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
 import { useConversations } from "./hooks";
+import type { AgentModelConfig } from "@App/app/service/agent/types";
+import { AgentModelRepo } from "@App/app/repo/agent_model";
 import "./styles.css";
 
-export default function AgentChat() {
-  const [agentConfig] = useSystemConfig("agent_config");
+const agentModelRepo = new AgentModelRepo();
 
-  const models = agentConfig?.models || [];
-  const defaultModelId = agentConfig?.defaultModelId || models[0]?.id || "";
+export default function AgentChat() {
+  const [models, setModels] = useState<AgentModelConfig[]>([]);
+  const [defaultModelId, setDefaultModelId] = useState("");
+
+  useEffect(() => {
+    Promise.all([agentModelRepo.listModels(), agentModelRepo.getDefaultModelId()]).then(
+      ([modelList, defId]) => {
+        setModels(modelList);
+        setDefaultModelId(defId || modelList[0]?.id || "");
+      }
+    );
+  }, []);
 
   const {
     conversations,

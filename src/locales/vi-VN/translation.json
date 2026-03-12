@@ -640,6 +640,7 @@
   "cattool_parameters": "Tham số",
   "cattool_permissions": "Quyền",
   "cattool_required": "bắt buộc",
+  "cattool_source_script": "Được cài đặt bởi script",
   "agent_opfs": "OPFS",
   "agent_opfs_title": "Trình duyệt tệp OPFS",
   "agent_opfs_empty": "Thư mục trống",

@@ -640,6 +640,7 @@
   "cattool_parameters": "パラメータ",
   "cattool_permissions": "権限",
   "cattool_required": "必須",
+  "cattool_source_script": "スクリプトからインストール",
   "agent_opfs": "OPFS",
   "agent_opfs_title": "OPFS ファイルブラウザ",
   "agent_opfs_empty": "空のディレクトリ",

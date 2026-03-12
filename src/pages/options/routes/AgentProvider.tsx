@@ -14,9 +14,12 @@ import {
 } from "@arco-design/web-react";
 import { IconCheck, IconDelete, IconEdit, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import { useSystemConfig } from "./utils";
-import { useState } from "react";
-import type { AgentModelConfig } from "@App/pkg/config/config";
+import { useCallback, useEffect, useState } from "react";
+import type { AgentModelConfig } from "@App/app/service/agent/types";
+import { AgentModelRepo } from "@App/app/repo/agent_model";
+import { uuidv4 } from "@App/pkg/utils/uuid";
+
+const agentModelRepo = new AgentModelRepo();
 
 const emptyModel: AgentModelConfig = {
   id: "",
@@ -135,16 +138,28 @@ function ModelCard({
 }
 
 function AgentProvider() {
-  const [agentConfig, , submitAgentConfig] = useSystemConfig("agent_config");
   const { t } = useTranslation();
+  const [models, setModels] = useState<AgentModelConfig[]>([]);
+  const [defaultModelId, setDefaultModelId] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [editingModel, setEditingModel] = useState<AgentModelConfig>({ ...emptyModel });
   const [isEditing, setIsEditing] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
 
-  const models = agentConfig?.models || [];
-  const defaultModelId = agentConfig?.defaultModelId || "";
+  // 从 Repo 加载数据
+  const loadData = useCallback(async () => {
+    const [modelList, defId] = await Promise.all([
+      agentModelRepo.listModels(),
+      agentModelRepo.getDefaultModelId(),
+    ]);
+    setModels(modelList);
+    setDefaultModelId(defId);
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleAdd = () => {
     setEditingModel({ ...emptyModel });
@@ -160,34 +175,37 @@ function AgentProvider() {
     setModalVisible(true);
   };
 
-  const handleDelete = (id: string) => {
-    const newModels = models.filter((m) => m.id !== id);
-    const newDefaultId = defaultModelId === id ? newModels[0]?.id || "" : defaultModelId;
-    submitAgentConfig({ models: newModels, defaultModelId: newDefaultId });
+  const handleDelete = async (id: string) => {
+    await agentModelRepo.removeModel(id);
+    if (defaultModelId === id) {
+      const remaining = models.filter((m) => m.id !== id);
+      await agentModelRepo.setDefaultModelId(remaining[0]?.id || "");
+    }
+    loadData();
   };
 
-  const handleSetDefault = (id: string) => {
-    submitAgentConfig({ ...agentConfig, defaultModelId: id });
+  const handleSetDefault = async (id: string) => {
+    await agentModelRepo.setDefaultModelId(id);
+    loadData();
   };
 
-  const handleModalOk = () => {
+  const handleModalOk = async () => {
     if (!editingModel.name || !editingModel.model) {
       Message.error(t("agent_model_name") + " / " + t("agent_provider_model") + " required");
       return;
     }
-    let newModels: AgentModelConfig[];
     if (isEditing) {
-      newModels = models.map((m) => (m.id === editingModel.id ? editingModel : m));
+      await agentModelRepo.saveModel(editingModel);
     } else {
-      const newModel = { ...editingModel, id: Date.now().toString(36) };
-      newModels = [...models, newModel];
+      const newModel = { ...editingModel, id: uuidv4() };
+      await agentModelRepo.saveModel(newModel);
+      // 如果是第一个模型，自动设为默认
+      if (models.length === 0) {
+        await agentModelRepo.setDefaultModelId(newModel.id);
+      }
     }
-    const newDefaultId =
-      agentConfig?.defaultModelId && newModels.some((m) => m.id === agentConfig.defaultModelId)
-        ? agentConfig.defaultModelId
-        : newModels[0]?.id || "";
-    submitAgentConfig({ models: newModels, defaultModelId: newDefaultId });
     setModalVisible(false);
+    loadData();
   };
 
   const buildProviderRequest = (m: AgentModelConfig) => {

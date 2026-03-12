@@ -337,4 +337,16 @@ export class AgentClient extends Client {
   installCATTool(code: string): Promise<unknown> {
     return this.do("installCATTool", code);
   }
+
+  getCATToolInstallCode(uuid: string): Promise<{ code: string; scriptName?: string; isUpdate?: boolean }> {
+    return this.doThrow("getCATToolInstallCode", uuid);
+  }
+
+  completeCATToolInstall(uuid: string): Promise<void> {
+    return this.do("completeCATToolInstall", uuid);
+  }
+
+  cancelCATToolInstall(uuid: string): Promise<void> {
+    return this.do("cancelCATToolInstall", uuid);
+  }
 }

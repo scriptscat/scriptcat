@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Message as ArcoMessage } from "@arco-design/web-react";
 import { IconRobot } from "@arco-design/web-react/icon";
-import type { AgentModelConfig } from "@App/pkg/config/config";
+import type { AgentModelConfig } from "@App/app/service/agent/types";
 import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";

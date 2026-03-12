@@ -8,9 +8,11 @@ interface CATToolInstallViewProps {
   scriptCode: string;
   onInstall: () => void;
   onClose: () => void;
+  sourceScriptName?: string;
+  isUpdate?: boolean;
 }
 
-function CATToolInstallView({ metadata, scriptCode, onInstall, onClose }: CATToolInstallViewProps) {
+function CATToolInstallView({ metadata, scriptCode, onInstall, onClose, sourceScriptName, isUpdate }: CATToolInstallViewProps) {
   const { t } = useTranslation();
 
   return (
@@ -23,11 +25,23 @@ function CATToolInstallView({ metadata, scriptCode, onInstall, onClose }: CATToo
           <Typography.Text bold className="tw-text-size-lg tw-truncate tw-w-0 tw-grow-1">
             {metadata.name}
           </Typography.Text>
+          {isUpdate && (
+            <Tag bordered color="green" style={{ marginLeft: "8px" }}>
+              {t("update")}
+            </Tag>
+          )}
         </div>
       </div>
       <div className="tw-shrink-1 tw-grow-1 tw-overflow-y-auto tw-pl-4 tw-pr-4 tw-gap-y-2 tw-flex tw-flex-col tw-mb-4 tw-h-0">
         <div className="tw-flex tw-flex-wrap tw-gap-x-3 tw-gap-y-2 tw-items-start">
           <div className="tw-flex tw-flex-col tw-shrink-1 tw-grow-1 tw-basis-8/12">
+            {sourceScriptName && (
+              <div className="tw-mb-1">
+                <Typography.Text type="secondary">
+                  {t("cattool_source_script")}: {sourceScriptName}
+                </Typography.Text>
+              </div>
+            )}
             {metadata.description && (
               <div>
                 <Typography.Text bold>{metadata.description}</Typography.Text>
@@ -77,7 +91,7 @@ function CATToolInstallView({ metadata, scriptCode, onInstall, onClose }: CATToo
           <div className="tw-grow-1 tw-shrink-0 tw-text-end">
             <Space>
               <Button type="primary" size="small" onClick={onInstall}>
-                {t("install_script")}
+                {isUpdate ? t("update_script") : t("install_script")}
               </Button>
               <Button type="primary" status="danger" size="small" onClick={onClose}>
                 {t("close")}
@@ -86,7 +100,7 @@ function CATToolInstallView({ metadata, scriptCode, onInstall, onClose }: CATToo
           </div>
         </div>
         <div id="show-code-container">
-          <CodeEditor id="show-code" className="sc-inset-0" code={scriptCode || undefined} />
+          <CodeEditor id="show-code" className="sc-inset-0" code={scriptCode || undefined} diffCode="" />
         </div>
       </div>
     </div>

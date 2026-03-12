@@ -47,6 +47,8 @@ export function useInstallData() {
   const [loaded, setLoaded] = useState<boolean>(false);
   const [doBackwards, setDoBackwards] = useState<boolean>(false);
   const [cattoolMetadata, setCattoolMetadata] = useState<CATToolMetadata | null>(null);
+  const [cattoolSourceScriptName, setCattoolSourceScriptName] = useState<string | undefined>(undefined);
+  const [cattoolIsUpdate, setCattoolIsUpdate] = useState(false);
   const [watchFile, setWatchFile] = useState(false);
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
@@ -85,6 +87,51 @@ export function useInstallData() {
       }
     }
     return false;
+  };
+
+  // CATTool 通过 GM API 安装的 UUID（由 AgentService 缓存）
+  const cattoolInstallUuid = searchParams.get("cattool");
+
+  const initCATToolFromApi = async (cattoolUuid: string) => {
+    try {
+      setLoaded(true);
+      const { code, scriptName, isUpdate: isExistingUpdate } = await agentClient.getCATToolInstallCode(cattoolUuid);
+      const toolMeta = parseCATToolMetadata(code);
+      if (!toolMeta) {
+        throw new Error("Invalid CATTool: missing or malformed ==CATTool== header");
+      }
+      setCattoolMetadata(toolMeta);
+      setScriptCode(code);
+      setCattoolSourceScriptName(scriptName);
+      setCattoolIsUpdate(!!isExistingUpdate);
+      // 创建一个最小 ScriptInfo 用于页面展示
+      const info = createScriptInfo(cattoolUuid, code, "", "user", {} as SCMetadata);
+      info.cattool = true;
+      setScriptInfo(info);
+    } catch (e: any) {
+      Message.error(t("script_info_load_failed") + " " + e.message);
+    }
+  };
+
+  // CATTool API 安装：点击安装后通知 AgentService
+  const handleCATToolApiInstall = async () => {
+    if (!cattoolInstallUuid) return;
+    try {
+      await agentClient.completeCATToolInstall(cattoolInstallUuid);
+      Message.success(t("install_success")!);
+      setTimeout(() => {
+        closeWindow(doBackwards);
+      }, 500);
+    } catch (e) {
+      Message.error(`${t("install_failed")}: ${e}`);
+    }
+  };
+
+  // CATTool API 安装：用户点击关闭时通知取消
+  const handleCATToolApiCancel = () => {
+    if (!cattoolInstallUuid) return;
+    agentClient.cancelCATToolInstall(cattoolInstallUuid);
+    closeWindow(doBackwards);
   };
 
   const initAsync = async () => {
@@ -139,9 +186,16 @@ export function useInstallData() {
         const code = await file.text();
         const metadata = parseMetadata(code);
         if (!metadata) {
-          throw new Error("parse script info failed");
+          // 非 UserScript，尝试作为 CATTool 处理
+          const cattoolMeta = parseCATToolMetadata(code);
+          if (!cattoolMeta) {
+            throw new Error("parse script info failed");
+          }
+          info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", {} as SCMetadata);
+          info.cattool = true;
+        } else {
+          info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
         }
-        info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
       }
 
       // CATTool 安装：只需解析元数据并展示
@@ -202,7 +256,12 @@ export function useInstallData() {
   };
 
   useEffect(() => {
-    !loaded && initAsync();
+    if (loaded) return;
+    if (cattoolInstallUuid) {
+      initCATToolFromApi(cattoolInstallUuid);
+    } else {
+      initAsync();
+    }
   }, [searchParams, loaded]);
 
   const metadataLive = useMemo(() => (scriptInfo?.metadata || {}) as SCMetadata, [scriptInfo]);
@@ -494,7 +553,8 @@ export function useInstallData() {
 
   // 检查是否有 uuid 或 file
   const searchParamUrl = searchParams.get("url");
-  const hasValidSourceParam = !searchParamUrl && !!(searchParams.get("uuid") || searchParams.get("file"));
+  const hasValidSourceParam =
+    !searchParamUrl && !!(searchParams.get("uuid") || searchParams.get("file") || cattoolInstallUuid);
 
   const urlHref = useMemo(() => {
     if (searchParamUrl) {
@@ -585,6 +645,8 @@ export function useInstallData() {
     showBackgroundPrompt,
     setShowBackgroundPrompt,
     cattoolMetadata,
+    cattoolSourceScriptName,
+    cattoolIsUpdate,
     watchFile,
     metadataLive,
     permissions,
@@ -601,6 +663,9 @@ export function useInstallData() {
     handleCloseBasic,
     handleCloseNoMoreUpdates,
     handleCATToolInstall,
+    handleCATToolApiInstall,
+    handleCATToolApiCancel,
+    cattoolInstallUuid,
     setWatchFileClick,
     // i18n
     t,

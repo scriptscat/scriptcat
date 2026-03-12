@@ -56,6 +56,17 @@ export type ChatRequest = {
   tools?: ToolDefinition[];
 };
 
+// ---- Agent 模型配置 ----
+
+export type AgentModelConfig = {
+  id: string; // 唯一标识
+  name: string; // 用户自定义名称（如 "GPT-4o", "Claude Sonnet"）
+  provider: "openai" | "anthropic";
+  apiBaseUrl: string;
+  apiKey: string;
+  model: string;
+};
+
 // ---- CAT.agent.conversation 用户脚本 API 类型 ----
 
 // 工具定义（用户脚本传入的格式）
@@ -121,11 +132,14 @@ export type CATToolMetadata = {
 
 // OPFS 中存储的 CATTool 记录
 export type CATToolRecord = {
+  id: string; // UUID，用于 OPFS data 文件名，避免 name 转文件名时的碰撞
   name: string;
   description: string;
   params: CATToolParam[];
   grants: string[];
   code: string; // 完整代码（含元数据头）
+  sourceScriptUuid?: string; // 安装来源脚本的 UUID
+  sourceScriptName?: string; // 安装来源脚本的名称
   installtime: number;
   updatetime: number;
 };

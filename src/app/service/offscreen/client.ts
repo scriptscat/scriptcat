@@ -40,7 +40,7 @@ export function createObjectURL(msgSender: MessageSend, params: { blob: Blob; pe
 // 执行 CATTool
 export function executeCATTool(
   msgSender: MessageSend,
-  params: { code: string; args: Record<string, unknown>; grants: string[]; name: string }
+  params: { uuid: string; code: string; args: Record<string, unknown>; grants: string[]; name: string }
 ) {
   return sendMessage(msgSender, "offscreen/executeCATTool", params);
 }

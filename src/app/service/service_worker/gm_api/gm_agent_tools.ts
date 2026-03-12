@@ -36,7 +36,7 @@ class GMAgentToolsApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleToolsApi(request.params[0]);
+    return this.agentService.handleToolsApi(request.params[0], request.script);
   }
 }
 

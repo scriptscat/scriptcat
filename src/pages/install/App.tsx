@@ -10,12 +10,17 @@ function App() {
 
   // CATTool 安装
   if (data.cattoolMetadata && data.scriptInfo?.cattool) {
+    // 通过 GM API 安装（有 cattoolInstallUuid）使用 API 回调，否则用普通安装
+    const onInstall = data.cattoolInstallUuid ? data.handleCATToolApiInstall : data.handleCATToolInstall;
+    const onClose = data.cattoolInstallUuid ? data.handleCATToolApiCancel : data.handleCloseBasic;
     return (
       <CATToolInstallView
         metadata={data.cattoolMetadata}
         scriptCode={data.scriptCode}
-        onInstall={data.handleCATToolInstall}
-        onClose={data.handleCloseBasic}
+        onInstall={onInstall}
+        onClose={onClose}
+        sourceScriptName={data.cattoolSourceScriptName}
+        isUpdate={data.cattoolIsUpdate}
       />
     );
   }

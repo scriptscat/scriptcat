@@ -33,7 +33,8 @@ import { systemConfig } from "@App/pages/store/global";
 import i18n, { matchLanguage } from "@App/locales/locales";
 import "./index.css";
 import { arcoLocale } from "@App/locales/arco";
-import { prepareScriptByCode } from "@App/pkg/utils/script";
+import { prepareScriptByCode, parseMetadata } from "@App/pkg/utils/script";
+import { parseCATToolMetadata } from "@App/pkg/utils/cattool";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 
@@ -223,9 +224,17 @@ const MainLayout: React.FC<{
           if (!file.name || !file.size) {
             throw new Error("No Read Access Right for File");
           }
-          // 先检查内容，后弹出安装页面
+          // 先检查内容，后弹出安装页面（支持 UserScript 和 CATTool）
           const checkOk = await Promise.allSettled([
-            file.text().then((code) => prepareScriptByCode(code, `file:///*resp-check*/${file.name}`)),
+            file.text().then((code) => {
+              // 先尝试 UserScript 解析
+              const metadata = parseMetadata(code);
+              if (metadata) return prepareScriptByCode(code, `file:///*resp-check*/${file.name}`);
+              // 再尝试 CATTool 解析
+              const cattoolMeta = parseCATToolMetadata(code);
+              if (cattoolMeta) return { script: {} as any };
+              throw new Error("not a valid UserScript or CATTool");
+            }),
             simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),
           ]);
           if (checkOk[0].status === "rejected" || !checkOk[0].value || checkOk[1].status === "rejected") {

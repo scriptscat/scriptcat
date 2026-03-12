@@ -640,6 +640,7 @@
   "cattool_parameters": "參數",
   "cattool_permissions": "權限",
   "cattool_required": "必填",
+  "cattool_source_script": "由腳本安裝",
   "agent_opfs": "OPFS",
   "agent_opfs_title": "OPFS 檔案瀏覽器",
   "agent_opfs_empty": "空目錄",

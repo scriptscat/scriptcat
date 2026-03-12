@@ -640,6 +640,7 @@
   "cattool_parameters": "Параметры",
   "cattool_permissions": "Разрешения",
   "cattool_required": "обязательно",
+  "cattool_source_script": "Установлено скриптом",
   "agent_opfs": "OPFS",
   "agent_opfs_title": "Файловый браузер OPFS",
   "agent_opfs_empty": "Пустая директория",

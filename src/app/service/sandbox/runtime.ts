@@ -353,12 +353,13 @@ export class Runtime {
 
   // 执行 CATTool：构建最小化脚本上下文，注入 args，执行并返回结果
   async executeCATTool(params: {
+    uuid: string;
     code: string;
     args: Record<string, unknown>;
     grants: string[];
     name: string;
   }): Promise<unknown> {
-    const uuid = `cattool-${params.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const uuid = params.uuid;
     const metadata: any = {
       grant: params.grants,
     };

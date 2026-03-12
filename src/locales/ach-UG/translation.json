@@ -613,6 +613,7 @@
   "cattool_parameters": "Parameters",
   "cattool_permissions": "Permissions",
   "cattool_required": "required",
+  "cattool_source_script": "Installed by script",
   "agent_opfs": "OPFS",
   "agent_opfs_title": "OPFS File Browser",
   "agent_opfs_empty": "Empty directory",

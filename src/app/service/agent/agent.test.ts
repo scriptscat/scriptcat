@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SSEParser } from "./sse_parser";
 import { buildOpenAIRequest, parseOpenAIStream } from "./providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "./providers/anthropic";
-import type { AgentModelConfig } from "@App/pkg/config/config";
+import type { AgentModelConfig } from "./types";
 import type { ChatRequest, ChatStreamEvent, ToolDefinition } from "./types";
 import { AgentService } from "@App/app/service/service_worker/agent";
 import type { ToolRegistry } from "./tool_registry";
@@ -632,20 +632,23 @@ function createTestService() {
     saveMessages: vi.fn().mockResolvedValue(undefined),
   };
 
-  const mockSystemConfig = {
-    getAgentConfig: vi.fn().mockResolvedValue({
-      defaultModelId: "test-openai",
-      models: [openaiConfig],
-    }),
-  } as any;
-
   const mockGroup = {
     on: vi.fn(),
   } as any;
 
   const mockSender = {} as any;
 
-  const service = new AgentService(mockSystemConfig as any, mockGroup, mockSender);
+  const service = new AgentService(mockGroup, mockSender);
+
+  // 替换 modelRepo（避免 chrome.storage 调用）
+  (service as any).modelRepo = {
+    listModels: vi.fn().mockResolvedValue([openaiConfig]),
+    getModel: vi.fn().mockImplementation((id: string) => {
+      if (id === "test-openai") return Promise.resolve(openaiConfig);
+      return Promise.resolve(undefined);
+    }),
+    getDefaultModelId: vi.fn().mockResolvedValue("test-openai"),
+  };
 
   // 替换 repo 和 catToolRepo（避免 OPFS 调用）
   (service as any).repo = mockRepo;

@@ -1,7 +1,9 @@
 import type { Group, IGetSender } from "@Packages/message/server";
 import { GetSenderType } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import type { SystemConfig, AgentModelConfig } from "@App/pkg/config/config";
+import type { AgentModelConfig } from "@App/app/service/agent/types";
+import type { Script } from "@App/app/repo/scripts";
+import { i18nName } from "@App/locales/locales";
 import type {
   ChatRequest,
   ChatStreamEvent,
@@ -15,20 +17,38 @@ import type {
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { AgentModelRepo } from "@App/app/repo/agent_model";
 import { CATToolRepo } from "@App/app/repo/cattool_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
 import type { ScriptToolCallback } from "@App/app/service/agent/tool_registry";
 import { parseCATToolMetadata, catToolToToolDefinition } from "@App/pkg/utils/cattool";
 import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
+import { CACHE_KEY_CATTOOL_INSTALL } from "@App/app/cache_key";
+import { cacheInstance } from "@App/app/cache";
+
+// 安装超时时间：5 分钟
+const CATTOOL_INSTALL_TIMEOUT = 5 * 60 * 1000;
 
 export class AgentService {
   private repo = new AgentChatRepo();
   private catToolRepo = new CATToolRepo();
   private toolRegistry = new ToolRegistry();
+  // 待确认的 CATTool 安装请求
+  private pendingInstalls = new Map<
+    string,
+    {
+      resolve: (record: CATToolRecord) => void;
+      reject: (error: Error) => void;
+      tabId: number;
+      timer: ReturnType<typeof setTimeout>;
+      onTabRemoved: (tabId: number) => void;
+    }
+  >();
+
+  private modelRepo = new AgentModelRepo();
 
   constructor(
-    private systemConfig: SystemConfig,
     private group: Group,
     private sender: MessageSend
   ) {}
@@ -38,8 +58,12 @@ export class AgentService {
     this.group.on("conversation", this.handleConversation.bind(this));
     // 流式聊天（UI 和 Sandbox 共用）
     this.group.on("conversationChat", this.handleConversationChat.bind(this));
-    // 通过 install page 安装 CATTool
+    // 通过 install page 安装 CATTool（文件/URL 安装，无来源脚本）
     this.group.on("installCATTool", (code: string) => this.installCATTool(code));
+    // CATTool 安装页面相关消息
+    this.group.on("getCATToolInstallCode", (uuid: string) => this.getCATToolInstallCode(uuid));
+    this.group.on("completeCATToolInstall", (uuid: string) => this.completeCATToolInstall(uuid));
+    this.group.on("cancelCATToolInstall", (uuid: string) => this.cancelCATToolInstall(uuid));
     // 加载已安装的 CATTools
     this.loadCATTools();
   }
@@ -52,8 +76,11 @@ export class AgentService {
   // 从 OPFS 加载所有 CATTool 并注册到 ToolRegistry
   private async loadCATTools() {
     try {
-      const tools = await this.catToolRepo.listTools();
-      for (const tool of tools) {
+      const summaries = await this.catToolRepo.listTools();
+      for (const summary of summaries) {
+        // 读取完整记录（含 code），CATToolExecutor 需要 code 执行
+        const tool = await this.catToolRepo.getTool(summary.name);
+        if (!tool) continue;
         const def = catToolToToolDefinition({
           name: tool.name,
           description: tool.description,
@@ -68,7 +95,7 @@ export class AgentService {
   }
 
   // 安装 CATTool
-  async installCATTool(code: string): Promise<CATToolRecord> {
+  async installCATTool(code: string, sourceScriptUuid?: string, sourceScriptName?: string): Promise<CATToolRecord> {
     const metadata = parseCATToolMetadata(code);
     if (!metadata) {
       throw new Error("Invalid CATTool: missing or malformed ==CATTool== header");
@@ -77,11 +104,14 @@ export class AgentService {
     const now = Date.now();
     const existing = await this.catToolRepo.getTool(metadata.name);
     const record: CATToolRecord = {
+      id: existing?.id || uuidv4(),
       name: metadata.name,
       description: metadata.description,
       params: metadata.params,
       grants: metadata.grants,
       code,
+      sourceScriptUuid: sourceScriptUuid || existing?.sourceScriptUuid,
+      sourceScriptName: sourceScriptName || existing?.sourceScriptName,
       installtime: existing?.installtime || now,
       updatetime: now,
     };
@@ -105,6 +135,12 @@ export class AgentService {
     return removed;
   }
 
+  // 根据名称获取 CATTool 的 grants（供 GM API 权限验证使用）
+  async getCATToolGrants(name: string): Promise<string[]> {
+    const tool = await this.catToolRepo.getTool(name);
+    return tool?.grants || [];
+  }
+
   // 直接调用 CATTool
   async callCATTool(name: string, params: Record<string, unknown>): Promise<unknown> {
     const tool = await this.catToolRepo.getTool(name);
@@ -115,11 +151,120 @@ export class AgentService {
     return executor.execute(params);
   }
 
+  // 打开安装页面让用户确认安装 CATTool
+  async openCATToolInstallPage(code: string, scriptUuid?: string, scriptName?: string): Promise<CATToolRecord> {
+    const uuid = uuidv4();
+    // 缓存代码和来源信息到 session storage
+    await cacheInstance.set(CACHE_KEY_CATTOOL_INSTALL + uuid, { code, scriptUuid, scriptName });
+    // 打开安装页面
+    const tab = await chrome.tabs.create({
+      url: `/src/install.html?cattool=${uuid}`,
+    });
+    if (!tab.id) {
+      await cacheInstance.del(CACHE_KEY_CATTOOL_INSTALL + uuid);
+      throw new Error("Failed to create install tab");
+    }
+    const tabId = tab.id;
+
+    return new Promise<CATToolRecord>((resolve, reject) => {
+      // 超时处理
+      const timer = setTimeout(() => {
+        this.cleanupPendingInstall(uuid);
+        reject(new Error("CATTool install timed out"));
+      }, CATTOOL_INSTALL_TIMEOUT);
+
+      // 监听 tab 关闭作为取消的 fallback
+      const onTabRemoved = (removedTabId: number) => {
+        if (removedTabId === tabId && this.pendingInstalls.has(uuid)) {
+          this.cleanupPendingInstall(uuid);
+          reject(new Error("CATTool install cancelled by user"));
+        }
+      };
+      chrome.tabs.onRemoved.addListener(onTabRemoved);
+
+      this.pendingInstalls.set(uuid, { resolve, reject, tabId, timer, onTabRemoved });
+    });
+  }
+
+  // 供安装页面获取缓存的 CATTool 安装信息
+  async getCATToolInstallCode(uuid: string): Promise<{
+    code: string;
+    scriptName?: string;
+    isUpdate?: boolean;
+  }> {
+    const cached = await cacheInstance.get<{ code: string; scriptUuid?: string; scriptName?: string }>(
+      CACHE_KEY_CATTOOL_INSTALL + uuid
+    );
+    if (!cached) {
+      throw new Error("CATTool install code not found or expired");
+    }
+    // 检查同名工具是否已存在
+    const metadata = parseCATToolMetadata(cached.code);
+    let isUpdate = false;
+    if (metadata) {
+      const existing = await this.catToolRepo.getTool(metadata.name);
+      if (existing) {
+        isUpdate = true;
+      }
+    }
+    return {
+      code: cached.code,
+      scriptName: cached.scriptName,
+      isUpdate,
+    };
+  }
+
+  // 安装页面通知安装完成
+  async completeCATToolInstall(uuid: string): Promise<void> {
+    const pending = this.pendingInstalls.get(uuid);
+    if (!pending) {
+      return;
+    }
+    try {
+      const cached = await cacheInstance.get<{ code: string; scriptUuid?: string; scriptName?: string }>(
+        CACHE_KEY_CATTOOL_INSTALL + uuid
+      );
+      if (!cached) {
+        throw new Error("CATTool install code not found or expired");
+      }
+      const record = await this.installCATTool(cached.code, cached.scriptUuid, cached.scriptName);
+      pending.resolve(record);
+    } catch (e: any) {
+      pending.reject(e);
+    } finally {
+      this.cleanupPendingInstall(uuid);
+    }
+  }
+
+  // 安装页面通知取消
+  async cancelCATToolInstall(uuid: string): Promise<void> {
+    const pending = this.pendingInstalls.get(uuid);
+    if (!pending) {
+      return;
+    }
+    try {
+      pending.reject(new Error("CATTool install cancelled by user"));
+    } finally {
+      await this.cleanupPendingInstall(uuid);
+    }
+  }
+
+  // 清理待确认安装的状态
+  private async cleanupPendingInstall(uuid: string) {
+    const pending = this.pendingInstalls.get(uuid);
+    if (pending) {
+      clearTimeout(pending.timer);
+      chrome.tabs.onRemoved.removeListener(pending.onTabRemoved);
+      this.pendingInstalls.delete(uuid);
+    }
+    await cacheInstance.del(CACHE_KEY_CATTOOL_INSTALL + uuid);
+  }
+
   // 处理 CAT.agent.tools API 请求
-  async handleToolsApi(request: CATToolApiRequest): Promise<unknown> {
+  async handleToolsApi(request: CATToolApiRequest, script?: Script): Promise<unknown> {
     switch (request.action) {
       case "install":
-        return this.installCATTool(request.code);
+        return this.openCATToolInstallPage(request.code, script?.uuid, script ? i18nName(script) : undefined);
       case "remove":
         return this.removeCATTool(request.name);
       case "list":
@@ -133,16 +278,21 @@ export class AgentService {
 
   // 获取模型配置
   private async getModel(modelId?: string): Promise<AgentModelConfig> {
-    const agentConfig = await this.systemConfig.getAgentConfig();
     let model: AgentModelConfig | undefined;
     if (modelId) {
-      model = agentConfig.models.find((m: AgentModelConfig) => m.id === modelId);
+      model = await this.modelRepo.getModel(modelId);
     }
-    if (!model && agentConfig.defaultModelId) {
-      model = agentConfig.models.find((m: AgentModelConfig) => m.id === agentConfig.defaultModelId);
+    if (!model) {
+      const defaultId = await this.modelRepo.getDefaultModelId();
+      if (defaultId) {
+        model = await this.modelRepo.getModel(defaultId);
+      }
     }
-    if (!model && agentConfig.models.length > 0) {
-      model = agentConfig.models[0];
+    if (!model) {
+      const models = await this.modelRepo.listModels();
+      if (models.length > 0) {
+        model = models[0];
+      }
     }
     if (!model) {
       throw new Error("No model configured. Please configure a model in Agent settings.");

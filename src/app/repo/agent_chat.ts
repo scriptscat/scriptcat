@@ -2,11 +2,11 @@ import type { Conversation, ChatMessage } from "@App/app/service/agent/types";
 import { OPFSRepo } from "./opfs_repo";
 
 const CONVERSATIONS_FILE = "conversations.json";
-const MESSAGES_DIR = "messages";
+const MESSAGES_DIR = "data";
 
 // 目录结构：agents/conversations/
 //            agents/conversations/conversations.json  - 会话列表
-//            agents/conversations/messages/{id}.json   - 每个会话的消息
+//            agents/conversations/data/{id}.json      - 每个会话的消息
 export class AgentChatRepo extends OPFSRepo {
   constructor() {
     super("conversations");

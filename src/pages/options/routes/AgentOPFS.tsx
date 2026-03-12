@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Breadcrumb, Button, Card, Empty, Message, Modal, Space, Table } from "@arco-design/web-react";
-import { IconDelete, IconEye, IconFolder, IconFile } from "@arco-design/web-react/icon";
+import { IconDelete, IconFolder, IconFile } from "@arco-design/web-react/icon";
 
 interface FileEntry {
   name: string;
@@ -54,7 +54,7 @@ function AgentOPFS() {
           }
           items.push(entry);
         }
-        // 目录排前面，然后按名称排序
+        // 目录排前面，同类型按名称排序
         items.sort((a, b) => {
           if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
           return a.name.localeCompare(b.name);
@@ -131,8 +131,8 @@ function AgentOPFS() {
       dataIndex: "name",
       render: (name: string, record: FileEntry) => (
         <span
-          style={{ cursor: record.kind === "directory" ? "pointer" : "default" }}
-          onClick={() => record.kind === "directory" && enterDirectory(name)}
+          style={{ cursor: "pointer" }}
+          onClick={() => (record.kind === "directory" ? enterDirectory(name) : previewFile(name))}
         >
           {record.kind === "directory" ? <IconFolder className="tw-mr-1" /> : <IconFile className="tw-mr-1" />}
           {name}
@@ -149,23 +149,31 @@ function AgentOPFS() {
       title: t("agent_opfs_size"),
       dataIndex: "size",
       width: 120,
+      sorter: (a: FileEntry, b: FileEntry) => {
+        // 目录始终排在最前面
+        if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
+        return (a.size ?? 0) - (b.size ?? 0);
+      },
       render: (size?: number) => (size !== undefined ? formatSize(size) : "-"),
     },
     {
       title: t("agent_opfs_modified"),
       dataIndex: "lastModified",
       width: 180,
+      defaultSortOrder: "descend" as const,
+      sorter: (a: FileEntry, b: FileEntry) => {
+        // 目录始终排在最前面
+        if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
+        return (a.lastModified ?? 0) - (b.lastModified ?? 0);
+      },
       render: (ts?: number) => (ts ? new Date(ts).toLocaleString() : "-"),
     },
     {
       title: "",
       dataIndex: "actions",
-      width: 100,
+      width: 80,
       render: (_: unknown, record: FileEntry) => (
         <Space>
-          {record.kind === "file" && (
-            <Button type="text" icon={<IconEye />} size="small" onClick={() => previewFile(record.name)} />
-          )}
           <Button
             type="text"
             status="danger"
