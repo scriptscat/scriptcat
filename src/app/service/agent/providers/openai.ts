@@ -95,7 +95,45 @@ export function parseOpenAIStream(
               return;
             }
 
-            // 处理 usage（最后一个 chunk）
+            const choice = json.choices?.[0];
+            if (choice) {
+              const delta = choice.delta;
+              if (delta) {
+                // 思考过程增量（reasoning_content 兼容 deepseek / openai o-series）
+                if (delta.reasoning_content) {
+                  onEvent({ type: "thinking_delta", delta: delta.reasoning_content });
+                }
+
+                // 内容增量
+                if (delta.content) {
+                  onEvent({ type: "content_delta", delta: delta.content });
+                }
+
+                // 工具调用
+                if (delta.tool_calls) {
+                  for (const tc of delta.tool_calls) {
+                    if (tc.function?.name) {
+                      onEvent({
+                        type: "tool_call_start",
+                        toolCall: {
+                          id: tc.id || `tc_${Date.now()}`,
+                          name: tc.function.name,
+                          arguments: tc.function.arguments || "",
+                        },
+                      });
+                    } else if (tc.function?.arguments) {
+                      onEvent({
+                        type: "tool_call_delta",
+                        id: tc.id || "",
+                        delta: tc.function.arguments,
+                      });
+                    }
+                  }
+                }
+              }
+            }
+
+            // 处理 usage（最后一个 chunk，必须在 choices 之后处理，避免丢失 tool_call 数据）
             if (json.usage) {
               onEvent({
                 type: "done",
@@ -105,39 +143,6 @@ export function parseOpenAIStream(
                 },
               });
               return;
-            }
-
-            const choice = json.choices?.[0];
-            if (!choice) continue;
-
-            const delta = choice.delta;
-            if (!delta) continue;
-
-            // 内容增量
-            if (delta.content) {
-              onEvent({ type: "content_delta", delta: delta.content });
-            }
-
-            // 工具调用
-            if (delta.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                if (tc.function?.name) {
-                  onEvent({
-                    type: "tool_call_start",
-                    toolCall: {
-                      id: tc.id || `tc_${Date.now()}`,
-                      name: tc.function.name,
-                      arguments: tc.function.arguments || "",
-                    },
-                  });
-                } else if (tc.function?.arguments) {
-                  onEvent({
-                    type: "tool_call_delta",
-                    id: tc.id || "",
-                    delta: tc.function.arguments,
-                  });
-                }
-              }
             }
           } catch {
             // 解析失败忽略

@@ -271,4 +271,115 @@ describe("parseOpenAIStream", () => {
 
     expect(events).toHaveLength(0);
   });
+
+  it("应正确解析 reasoning_content 为 thinking_delta 事件", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"role":"assistant","content":null,"reasoning_content":"让我思考"}}]}\n\n',
+      'data: {"choices":[{"delta":{"reasoning_content":"一下这个问题"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"这是答案"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toHaveLength(4);
+    expect(events[0]).toEqual({ type: "thinking_delta", delta: "让我思考" });
+    expect(events[1]).toEqual({ type: "thinking_delta", delta: "一下这个问题" });
+    expect(events[2]).toEqual({ type: "content_delta", delta: "这是答案" });
+    expect(events[3]).toEqual({ type: "done" });
+  });
+
+  it("reasoning_content 和 content 同时存在时应同时发出两个事件", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"reasoning_content":"思考中","content":"回答"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toHaveLength(3);
+    expect(events[0]).toEqual({ type: "thinking_delta", delta: "思考中" });
+    expect(events[1]).toEqual({ type: "content_delta", delta: "回答" });
+  });
+
+  it("最后一个 chunk 同时包含 usage 和 choices 时应先处理 choices 再处理 usage", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","function":{"name":"search","arguments":""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"{\\"q\\":\\"test\\"}"}}]}}]}\n\n',
+      // 最后一个 chunk 同时包含 choices（finish_reason）和 usage
+      'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":20}}\n\n',
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    // tool_call_start, tool_call_delta, done(with usage)
+    expect(events).toHaveLength(3);
+    expect(events[0].type).toBe("tool_call_start");
+    expect(events[1].type).toBe("tool_call_delta");
+    expect(events[2].type).toBe("done");
+    if (events[2].type === "done") {
+      expect(events[2].usage).toEqual({ inputTokens: 100, outputTokens: 20 });
+    }
+  });
+
+  it("最后一个 chunk 同时包含 usage 和 tool_call 增量时不应丢失 tool_call 数据", async () => {
+    // 模拟实际场景：最后一个 chunk 携带 tool_call arguments 增量 + usage
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","function":{"name":"dom_read_page","arguments":"{\\"tabId\\":123"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":",\\"mode\\":\\"summary\\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":40010,"completion_tokens":154}}\n\n',
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toHaveLength(3);
+    expect(events[0].type).toBe("tool_call_start");
+    if (events[0].type === "tool_call_start") {
+      expect(events[0].toolCall.name).toBe("dom_read_page");
+      expect(events[0].toolCall.arguments).toBe('{"tabId":123');
+    }
+    // 关键：最后的 tool_call_delta 不应被 usage 检查吞掉
+    expect(events[1].type).toBe("tool_call_delta");
+    if (events[1].type === "tool_call_delta") {
+      expect(events[1].delta).toBe(',"mode":"summary"}');
+    }
+    expect(events[2].type).toBe("done");
+    if (events[2].type === "done") {
+      expect(events[2].usage).toEqual({ inputTokens: 40010, outputTokens: 154 });
+    }
+  });
+
+  it("reasoning_content 后跟 tool_calls 应都正确解析", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"role":"assistant","content":null,"reasoning_content":"分析页面"}}]}\n\n',
+      'data: {"choices":[{"delta":{"reasoning_content":"结构"}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","function":{"name":"dom_read_page","arguments":"{\\"selector\\":\\".item\\"}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":500,"completion_tokens":50}}\n\n',
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toHaveLength(4);
+    expect(events[0]).toEqual({ type: "thinking_delta", delta: "分析页面" });
+    expect(events[1]).toEqual({ type: "thinking_delta", delta: "结构" });
+    expect(events[2].type).toBe("tool_call_start");
+    expect(events[3].type).toBe("done");
+    if (events[3].type === "done") {
+      expect(events[3].usage).toEqual({ inputTokens: 500, outputTokens: 50 });
+    }
+  });
 });

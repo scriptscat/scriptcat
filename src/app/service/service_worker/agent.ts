@@ -678,6 +678,7 @@ export class AgentService {
             conversationId,
             role: "assistant",
             content: result.content,
+            thinking: result.thinking ? { content: result.thinking } : undefined,
             toolCalls: result.toolCalls,
             createtime: Date.now(),
           });
@@ -716,6 +717,7 @@ export class AgentService {
           conversationId,
           role: "assistant",
           content: result.content,
+          thinking: result.thinking ? { content: result.thinking } : undefined,
           createtime: Date.now(),
         });
       }
@@ -918,7 +920,7 @@ export class AgentService {
     params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[] },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
-  ): Promise<{ content: string; toolCalls?: ToolCall[]; usage?: { inputTokens: number; outputTokens: number } }> {
+  ): Promise<{ content: string; thinking?: string; toolCalls?: ToolCall[]; usage?: { inputTokens: number; outputTokens: number } }> {
     const chatRequest: ChatRequest = {
       conversationId: "",
       modelId: model.id,
@@ -954,6 +956,7 @@ export class AgentService {
 
     // 收集响应
     let content = "";
+    let thinking = "";
     const toolCalls: ToolCall[] = [];
     let currentToolCall: ToolCall | null = null;
     let usage: { inputTokens: number; outputTokens: number } | undefined;
@@ -969,6 +972,9 @@ export class AgentService {
         switch (event.type) {
           case "content_delta":
             content += event.delta;
+            break;
+          case "thinking_delta":
+            thinking += event.delta;
             break;
           case "tool_call_start":
             currentToolCall = { ...event.toolCall, arguments: event.toolCall.arguments || "" };
@@ -987,7 +993,12 @@ export class AgentService {
             if (event.usage) {
               usage = event.usage;
             }
-            resolve({ content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined, usage });
+            resolve({
+              content,
+              thinking: thinking || undefined,
+              toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+              usage,
+            });
             break;
           case "error":
             reject(new Error(event.message));
