@@ -64,7 +64,9 @@ function ModelCard({
   const theme = providerTheme[model.provider] || providerTheme.openai;
   // 遮蔽 API Key，只显示前4位和后4位
   const maskedKey =
-    model.apiKey.length > 8 ? `${model.apiKey.slice(0, 4)}${"*".repeat(8)}${model.apiKey.slice(-4)}` : "****";
+    model.apiKey && model.apiKey.length > 8
+      ? `${model.apiKey.slice(0, 4)}${"*".repeat(8)}${model.apiKey.slice(-4)}`
+      : "****";
 
   return (
     <div

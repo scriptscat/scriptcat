@@ -9,9 +9,11 @@ export class AgentModelRepo extends Repo<AgentModelConfig> {
     super("agent_model:");
   }
 
-  // 获取所有模型
+  // 获取所有模型（排除 __default__ 这个存储默认模型 ID 的 key）
   async listModels(): Promise<AgentModelConfig[]> {
-    return this.find();
+    return this.find(
+      (key) => key !== `${this.prefix}__default__`
+    );
   }
 
   // 获取指定模型
