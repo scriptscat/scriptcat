@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCATToolMetadata, catToolToToolDefinition, getCATToolBody } from "./cattool";
+import { parseCATToolMetadata, catToolToToolDefinition, getCATToolBody, prefixToolDefinition } from "./cattool";
 
 describe("parseCATToolMetadata", () => {
   it("应正确解析完整的 CATTool 元数据", () => {
@@ -270,6 +270,49 @@ describe("catToolToToolDefinition", () => {
 
     const props = (def.parameters as any).properties;
     expect(props.color.enum).toEqual(["red", "green", "blue"]);
+  });
+});
+
+describe("prefixToolDefinition", () => {
+  it("应给工具名添加前缀", () => {
+    const def = catToolToToolDefinition({
+      name: "price-check",
+      description: "查询价格",
+      params: [{ name: "url", type: "string", required: true, description: "目标URL" }],
+      grants: [],
+    });
+
+    const prefixed = prefixToolDefinition("taobao", def);
+
+    expect(prefixed.name).toBe("taobao__price-check");
+    expect(prefixed.description).toBe("查询价格");
+    expect(prefixed.parameters).toEqual(def.parameters);
+  });
+
+  it("不应修改原始 ToolDefinition", () => {
+    const def = catToolToToolDefinition({
+      name: "my-tool",
+      description: "测试",
+      params: [],
+      grants: [],
+    });
+
+    prefixToolDefinition("skill-a", def);
+
+    // 原始对象不变
+    expect(def.name).toBe("my-tool");
+  });
+
+  it("双下划线分隔应避免命名冲突", () => {
+    const def1 = catToolToToolDefinition({ name: "extract", description: "A", params: [], grants: [] });
+    const def2 = catToolToToolDefinition({ name: "extract", description: "B", params: [], grants: [] });
+
+    const p1 = prefixToolDefinition("skill-a", def1);
+    const p2 = prefixToolDefinition("skill-b", def2);
+
+    expect(p1.name).toBe("skill-a__extract");
+    expect(p2.name).toBe("skill-b__extract");
+    expect(p1.name).not.toBe(p2.name);
   });
 });
 

@@ -27,7 +27,7 @@ import { SkillRepo } from "@App/app/repo/skill_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
 import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/tool_registry";
-import { parseCATToolMetadata, catToolToToolDefinition } from "@App/pkg/utils/cattool";
+import { parseCATToolMetadata, catToolToToolDefinition, prefixToolDefinition } from "@App/pkg/utils/cattool";
 import { parseSkillMd } from "@App/pkg/utils/skill";
 import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
 import { CACHE_KEY_CATTOOL_INSTALL } from "@App/app/cache_key";
@@ -406,13 +406,15 @@ export class AgentService {
   }
 
   // 解析对话关联的 skills，返回 system prompt 附加内容和 meta-tool 定义
-  // 三层渐进加载：1) system prompt 只注入摘要 2) load_skill 按需加载完整提示词 3) execute_skill_tool/read_reference 按需执行
+  // 两层渐进加载：1) system prompt 只注入摘要 2) load_skill 按需加载完整提示词并动态注册 CATTool
   private resolveSkills(skills?: "auto" | string[]): {
     promptSuffix: string;
     metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>;
+    // load_skill 动态注册的工具名引用，对话结束后需清理
+    dynamicToolNames: string[];
   } {
     if (!skills) {
-      return { promptSuffix: "", metaTools: [] };
+      return { promptSuffix: "", metaTools: [], dynamicToolNames: [] };
     }
 
     // 确定要加载的 skill 列表
@@ -424,7 +426,7 @@ export class AgentService {
     }
 
     if (skillRecords.length === 0) {
-      return { promptSuffix: "", metaTools: [] };
+      return { promptSuffix: "", metaTools: [], dynamicToolNames: [] };
     }
 
     // 构建 prompt 后缀：只包含 name + description 摘要
@@ -433,29 +435,30 @@ export class AgentService {
       "Below are installed skills. Use `load_skill` to read the full prompt when a skill is relevant.\n",
     ];
 
-    // 检查是否有任何工具或参考资料
-    let hasTools = false;
+    // 检查是否有任何参考资料
     let hasReferences = false;
 
     for (const skill of skillRecords) {
       promptParts.push(`- **${skill.name}**: ${skill.description || "(no description)"}`);
-      if (skill.toolNames.length > 0) hasTools = true;
       if (skill.referenceNames.length > 0) hasReferences = true;
     }
 
     promptParts.push(
-      "\nWhen a skill is loaded, you can use `execute_skill_tool` to run its tools and `read_reference` to read its reference documents."
+      "\nWhen a skill is loaded, its tools become available as independent tools and you can use `read_reference` to read its reference documents."
     );
 
     // 构建 meta-tools
     const metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> = [];
+
+    // load_skill 动态注册的工具名，对话结束后需清理
+    const dynamicToolNames: string[] = [];
 
     // load_skill — 始终注册
     metaTools.push({
       definition: {
         name: "load_skill",
         description:
-          "Load the full prompt of a skill by name. Use this to get detailed instructions before using a skill.",
+          "Load the full prompt of a skill by name. Use this to get detailed instructions before using a skill. After loading, the skill's tools will be registered as independent tools you can call directly.",
         parameters: {
           type: "object",
           properties: {
@@ -471,49 +474,25 @@ export class AgentService {
           if (!record) {
             throw new Error(`Skill "${skillName}" not found`);
           }
+          // 动态注册该 skill 的 CATTool 为独立 LLM tool
+          if (record.toolNames.length > 0) {
+            const toolRecords = await this.skillRepo.getSkillScripts(skillName);
+            for (const tool of toolRecords) {
+              const def = catToolToToolDefinition({
+                name: tool.name,
+                description: tool.description,
+                params: tool.params,
+                grants: tool.grants,
+              });
+              const prefixed = prefixToolDefinition(skillName, def);
+              this.toolRegistry.registerBuiltin(prefixed, new CATToolExecutor(tool, this.sender));
+              dynamicToolNames.push(prefixed.name);
+            }
+          }
           return record.prompt;
         },
       },
     });
-
-    // execute_skill_tool — 有工具时才注册
-    if (hasTools) {
-      metaTools.push({
-        definition: {
-          name: "execute_skill_tool",
-          description:
-            "Execute a tool from a specific skill. Load the skill first with `load_skill` to see available tools and their parameters.",
-          parameters: {
-            type: "object",
-            properties: {
-              skill_name: { type: "string", description: "Name of the skill that owns the tool" },
-              tool_name: { type: "string", description: "Name of the tool to execute" },
-              arguments: {
-                type: "object",
-                description: "Arguments to pass to the tool, as specified in the tool's parameter schema",
-              },
-            },
-            required: ["skill_name", "tool_name"],
-          },
-        },
-        executor: {
-          execute: async (args: Record<string, unknown>) => {
-            const skillName = args.skill_name as string;
-            const toolName = args.tool_name as string;
-            const toolArgs = (args.arguments as Record<string, unknown>) || {};
-
-            // 按需从 OPFS 加载 skill 的 CATTool 脚本
-            const toolRecords = await this.skillRepo.getSkillScripts(skillName);
-            const tool = toolRecords.find((t) => t.name === toolName);
-            if (!tool) {
-              throw new Error(`Tool "${toolName}" not found in skill "${skillName}"`);
-            }
-            const executor = new CATToolExecutor(tool, this.sender);
-            return executor.execute(toolArgs);
-          },
-        },
-      });
-    }
 
     // read_reference — 有参考资料时才注册
     if (hasReferences) {
@@ -545,7 +524,7 @@ export class AgentService {
       });
     }
 
-    return { promptSuffix: promptParts.join("\n"), metaTools };
+    return { promptSuffix: promptParts.join("\n"), metaTools, dynamicToolNames };
   }
 
   // 获取模型配置
@@ -653,15 +632,15 @@ export class AgentService {
   }): Promise<void> {
     const { model, messages, tools, maxIterations, sendEvent, signal, scriptToolCallback, conversationId } = params;
 
-    // 合并内置工具和脚本工具定义
-    const allToolDefs = params.skipBuiltinTools ? (tools || []) : this.toolRegistry.getDefinitions(tools);
-
     const startTime = Date.now();
     let iterations = 0;
     const totalUsage = { inputTokens: 0, outputTokens: 0 };
 
     while (iterations < maxIterations) {
       iterations++;
+
+      // 每轮重新获取工具定义（load_skill 可能动态注册了新工具）
+      const allToolDefs = params.skipBuiltinTools ? tools || [] : this.toolRegistry.getDefinitions(tools);
 
       // 调用 LLM
       const result = await this.callLLM(
@@ -700,9 +679,11 @@ export class AgentService {
         // 通过 ToolRegistry 执行工具（内置工具直接执行，脚本工具回调 Sandbox）
         const toolResults = await this.toolRegistry.execute(result.toolCalls, scriptToolCallback);
 
-        // 将 tool 结果加入消息
+        // 将 tool 结果加入消息，并通知 UI 工具执行完成
         for (const tr of toolResults) {
           messages.push({ role: "tool", content: tr.result, toolCallId: tr.id });
+          // 通知 UI 工具执行完成
+          sendEvent({ type: "tool_call_complete", id: tr.id, result: tr.result });
           // 持久化 tool 结果消息
           if (conversationId) {
             await this.repo.appendMessage({
@@ -715,6 +696,9 @@ export class AgentService {
             });
           }
         }
+
+        // 通知 UI 即将开始新一轮 LLM 调用，创建新的 assistant 消息
+        sendEvent({ type: "new_message" });
 
         // 继续循环
         continue;
@@ -849,7 +833,7 @@ export class AgentService {
       const model = await this.getModel(conv.modelId);
 
       // 解析 Skills（注入 prompt + 注册 meta-tools）
-      const { promptSuffix, metaTools } = this.resolveSkills(conv.skills);
+      const { promptSuffix, metaTools, dynamicToolNames } = this.resolveSkills(conv.skills);
 
       // 临时注册 skill meta-tools（对话结束后清理）
       const registeredMetaToolNames: string[] = [];
@@ -913,8 +897,11 @@ export class AgentService {
           conversationId: params.conversationId,
         });
       } finally {
-        // 清理临时注册的 meta-tools
+        // 清理临时注册的 meta-tools 和 load_skill 动态注册的 CATTool
         for (const name of registeredMetaToolNames) {
+          this.toolRegistry.unregisterBuiltin(name);
+        }
+        for (const name of dynamicToolNames) {
           this.toolRegistry.unregisterBuiltin(name);
         }
       }
@@ -930,7 +917,12 @@ export class AgentService {
     params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[] },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
-  ): Promise<{ content: string; thinking?: string; toolCalls?: ToolCall[]; usage?: { inputTokens: number; outputTokens: number } }> {
+  ): Promise<{
+    content: string;
+    thinking?: string;
+    toolCalls?: ToolCall[];
+    usage?: { inputTokens: number; outputTokens: number };
+  }> {
     const chatRequest: ChatRequest = {
       conversationId: "",
       modelId: model.id,

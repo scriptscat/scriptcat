@@ -113,6 +113,11 @@ export function catToolToToolDefinition(metadata: CATToolMetadata): ToolDefiniti
   };
 }
 
+// 给 ToolDefinition 加前缀（用于 Skill 动态注册时避免冲突）
+export function prefixToolDefinition(prefix: string, def: ToolDefinition): ToolDefinition {
+  return { ...def, name: `${prefix}__${def.name}` };
+}
+
 // 获取 CATTool 脚本体（去掉元数据头）
 export function getCATToolBody(code: string): string {
   return code.replace(/\/\/\s*==CATTool==[\s\S]*?\/\/\s*==\/CATTool==\s*/, "").trim();

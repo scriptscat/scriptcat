@@ -1171,13 +1171,13 @@ describe("callLLMWithToolLoop", () => {
 
     // mock callLLM 来检查传入的 tools
     let capturedTools: ToolDefinition[] | undefined;
-    const callLLMSpy = vi.spyOn(service as any, "callLLM").mockImplementation(
-      async (_model: any, params: any, sendEvent: any) => {
+    const callLLMSpy = vi
+      .spyOn(service as any, "callLLM")
+      .mockImplementation(async (_model: any, params: any, sendEvent: any) => {
         capturedTools = params.tools;
         sendEvent({ type: "done" });
         return { content: "ok", usage: { inputTokens: 5, outputTokens: 3 } };
-      }
-    );
+      });
 
     await (service as any).callLLMWithToolLoop({
       model: openaiConfig,
@@ -1208,13 +1208,13 @@ describe("callLLMWithToolLoop", () => {
     );
 
     let capturedTools: ToolDefinition[] | undefined;
-    const callLLMSpy = vi.spyOn(service as any, "callLLM").mockImplementation(
-      async (_model: any, params: any, sendEvent: any) => {
+    const callLLMSpy = vi
+      .spyOn(service as any, "callLLM")
+      .mockImplementation(async (_model: any, params: any, sendEvent: any) => {
         capturedTools = params.tools;
         sendEvent({ type: "done" });
         return { content: "ok", usage: { inputTokens: 5, outputTokens: 3 } };
-      }
-    );
+      });
 
     await (service as any).callLLMWithToolLoop({
       model: openaiConfig,
@@ -1231,6 +1231,62 @@ describe("callLLMWithToolLoop", () => {
     expect(capturedTools).toBeUndefined();
 
     callLLMSpy.mockRestore();
+  });
+
+  it("每轮循环应重新获取工具定义（支持动态注册）", async () => {
+    const { service, toolRegistry } = createTestService();
+    const events: ChatStreamEvent[] = [];
+
+    // 注册 load_skill 工具：第一次调用时动态注册 new_tool
+    const loadSkillExecutor: ToolExecutor = {
+      execute: vi.fn().mockImplementation(async () => {
+        // 模拟 load_skill 动态注册新工具
+        toolRegistry.registerBuiltin(
+          { name: "dynamic_tool", description: "动态注册的工具", parameters: { type: "object", properties: {} } },
+          { execute: vi.fn().mockResolvedValue("dynamic result") }
+        );
+        return "skill loaded";
+      }),
+    };
+    toolRegistry.registerBuiltin(
+      { name: "load_skill", description: "加载 Skill", parameters: { type: "object", properties: {} } },
+      loadSkillExecutor
+    );
+
+    // 第一轮：LLM 调用 load_skill
+    fetchSpy.mockResolvedValueOnce(
+      buildSSEResponse(makeToolCallSSE("call_1", "load_skill", '{"skill_name":"test"}'))
+    );
+    // 第二轮：LLM 调用 dynamic_tool（动态注册的）
+    fetchSpy.mockResolvedValueOnce(
+      buildSSEResponse(makeToolCallSSE("call_2", "dynamic_tool", '{}'))
+    );
+    // 第三轮：纯文本结束
+    fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("完成")));
+
+    await (service as any).callLLMWithToolLoop({
+      model: openaiConfig,
+      messages: [{ role: "user", content: "test" }],
+      maxIterations: 10,
+      sendEvent: (e: ChatStreamEvent) => events.push(e),
+      signal: new AbortController().signal,
+      scriptToolCallback: null,
+    });
+
+    // fetch 应被调用 3 次（load_skill → dynamic_tool → 完成）
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+
+    // 第二次 fetch 的请求体应包含 dynamic_tool 定义
+    const secondCallBody = JSON.parse(fetchSpy.mock.calls[1][1]!.body as string);
+    const toolNames = secondCallBody.tools.map((t: any) => t.function.name);
+    expect(toolNames).toContain("dynamic_tool");
+
+    // 应有 done 事件
+    expect(events.find((e) => e.type === "done")).toBeDefined();
+
+    // 清理
+    toolRegistry.unregisterBuiltin("load_skill");
+    toolRegistry.unregisterBuiltin("dynamic_tool");
   });
 });
 
@@ -1306,9 +1362,7 @@ describe("handleConversationChat ephemeral 模式", () => {
     const { service } = createTestService();
     const { sender, sentMessages } = createMockSender();
 
-    fetchSpy.mockResolvedValueOnce(
-      buildSSEResponse(makeTextSSE("回复", { prompt_tokens: 10, completion_tokens: 5 }))
-    );
+    fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("回复", { prompt_tokens: 10, completion_tokens: 5 })));
 
     await (service as any).handleConversationChat(
       {
@@ -1352,9 +1406,7 @@ describe("handleConversationChat ephemeral 模式", () => {
       { execute: vi.fn().mockResolvedValue("page content") }
     );
 
-    fetchSpy.mockResolvedValueOnce(
-      buildSSEResponse(makeTextSSE("ok", { prompt_tokens: 5, completion_tokens: 3 }))
-    );
+    fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("ok", { prompt_tokens: 5, completion_tokens: 3 })));
 
     await (service as any).handleConversationChat(
       {
@@ -1419,9 +1471,7 @@ describe("handleConversationChat ephemeral 模式", () => {
     const { service } = createTestService();
     const { sender } = createMockSender();
 
-    fetchSpy.mockResolvedValueOnce(
-      buildSSEResponse(makeTextSSE("ok", { prompt_tokens: 5, completion_tokens: 3 }))
-    );
+    fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("ok", { prompt_tokens: 5, completion_tokens: 3 })));
 
     await (service as any).handleConversationChat(
       {
