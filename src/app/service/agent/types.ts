@@ -65,6 +65,9 @@ export type ToolDefinition = {
   parameters: Record<string, unknown>; // JSON Schema
 };
 
+// 命令处理器类型
+export type CommandHandler = (args: string, conv: any) => Promise<string | void>;
+
 // conversation.create() 的参数
 export type ConversationCreateOptions = {
   id?: string;
@@ -72,6 +75,7 @@ export type ConversationCreateOptions = {
   model?: string; // modelId，不传则使用默认模型
   maxIterations?: number; // tool calling 最大循环次数，默认 20
   tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
+  commands?: Record<string, CommandHandler>; // 自定义命令处理器，以 / 开头
 };
 
 // conv.chat() 的参数
@@ -85,6 +89,7 @@ export type ChatReply = {
   thinking?: string;
   toolCalls?: ToolCall[];
   usage?: { inputTokens: number; outputTokens: number };
+  command?: boolean; // 标识该回复来自命令处理
 };
 
 // conv.chatStream() 的流式 chunk
@@ -94,6 +99,7 @@ export type StreamChunk = {
   toolCall?: ToolCall;
   usage?: { inputTokens: number; outputTokens: number };
   error?: string;
+  command?: boolean; // 标识该 chunk 来自命令处理
 };
 
 // ---- CATTool 类型 ----

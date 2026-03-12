@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { Conversation, ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { message as extensionMessage } from "@App/pages/store/global";
@@ -14,8 +15,19 @@ function genId(): string {
 
 // 会话管理 hook
 export function useConversations() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
+
+  // 从 URL 参数读取当前会话 ID
+  const activeId = searchParams.get("id") || "";
+
+  // 设置会话 ID 并同步到 URL
+  const setActiveId = useCallback(
+    (id: string) => {
+      setSearchParams(id ? { id } : {}, { replace: true });
+    },
+    [setSearchParams]
+  );
 
   // 加载会话列表
   const loadConversations = useCallback(async () => {
@@ -26,9 +38,9 @@ export function useConversations() {
 
   useEffect(() => {
     loadConversations().then((list) => {
-      // 进入页面时，如果有会话且未选中，则自动选中第一个
-      if (list.length > 0) {
-        setActiveId((prev) => prev || list[0].id);
+      if (list.length > 0 && !activeId) {
+        // 进入页面时，如果有会话且 URL 中无 id 参数，则自动选中第一个
+        setActiveId(list[0].id);
       }
     });
   }, [loadConversations]);
@@ -48,7 +60,7 @@ export function useConversations() {
       setActiveId(conv.id);
       return { conv, list };
     },
-    [loadConversations]
+    [loadConversations, setActiveId]
   );
 
   // 删除会话
@@ -60,7 +72,7 @@ export function useConversations() {
         setActiveId(list[0]?.id || "");
       }
     },
-    [activeId, loadConversations]
+    [activeId, loadConversations, setActiveId]
   );
 
   // 重命名会话

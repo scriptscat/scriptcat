@@ -22,6 +22,8 @@ export default function ConversationList({
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string>("");
   const [editValue, setEditValue] = useState("");
+  // 记录正在显示删除确认弹框的会话 ID，防止鼠标移开时按钮隐藏导致弹框消失
+  const [deletingId, setDeletingId] = useState<string>("");
 
   const startRename = (conv: Conversation) => {
     setEditingId(conv.id);
@@ -84,7 +86,11 @@ export default function ConversationList({
                 <>
                   <IconMessage className="tw-text-sm tw-text-[var(--color-text-3)] tw-shrink-0" />
                   <span className="tw-flex-1 tw-truncate tw-text-sm">{conv.title}</span>
-                  <div className="tw-hidden group-hover:tw-flex tw-items-center tw-shrink-0">
+                  <div
+                    className={`tw-items-center tw-shrink-0 ${
+                      deletingId === conv.id ? "tw-flex" : "tw-hidden group-hover:tw-flex"
+                    }`}
+                  >
                     <Button
                       type="text"
                       size="mini"
@@ -96,6 +102,11 @@ export default function ConversationList({
                     />
                     <Popconfirm
                       title={t("agent_chat_delete_confirm")}
+                      position="top"
+                      getPopupContainer={() => document.body}
+                      onVisibleChange={(visible) => {
+                        setDeletingId(visible ? conv.id : "");
+                      }}
                       onOk={() => onDelete(conv.id)}
                       onCancel={(e) => e?.stopPropagation()}
                     >

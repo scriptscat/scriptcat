@@ -3,6 +3,7 @@ import type { MessageConnect } from "@Packages/message/types";
 import type {
   ChatReply,
   ChatStreamEvent,
+  CommandHandler,
   Conversation,
   ConversationApiRequest,
   ConversationCreateOptions,
@@ -14,9 +15,11 @@ import type {
 } from "@App/app/service/agent/types";
 
 // 对话实例，暴露给用户脚本
-class ConversationInstance {
+// 导出供测试使用
+export class ConversationInstance {
   private toolHandlers: Map<string, (args: Record<string, unknown>) => Promise<unknown>> = new Map();
   private toolDefs: ToolDefinition[] = [];
+  private commandHandlers: Map<string, CommandHandler> = new Map();
 
   constructor(
     private conv: Conversation,
@@ -24,12 +27,26 @@ class ConversationInstance {
     private gmConnect: (api: string, params: any[]) => Promise<MessageConnect>,
     private scriptUuid: string,
     private maxIterations: number,
-    initialTools?: ConversationCreateOptions["tools"]
+    initialTools?: ConversationCreateOptions["tools"],
+    commands?: Record<string, CommandHandler>
   ) {
     if (initialTools) {
       for (const tool of initialTools) {
         this.toolHandlers.set(tool.name, tool.handler);
         this.toolDefs.push({ name: tool.name, description: tool.description, parameters: tool.parameters });
+      }
+    }
+
+    // 注册内置 /new 命令
+    this.commandHandlers.set("/new", async () => {
+      await this.clear();
+      return "对话已清空";
+    });
+
+    // 用户传入的 commands 覆盖内置命令
+    if (commands) {
+      for (const [name, handler] of Object.entries(commands)) {
+        this.commandHandlers.set(name, handler);
       }
     }
   }
@@ -48,6 +65,10 @@ class ConversationInstance {
 
   // 发送消息并获取回复（内置 tool calling 循环）
   async chat(content: string, options?: ChatOptions): Promise<ChatReply> {
+    // 命令拦截
+    const cmdResult = await this.tryExecuteCommand(content);
+    if (cmdResult !== undefined) return cmdResult;
+
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
 
     // 通过 GM API connect 建立流式连接
@@ -66,6 +87,28 @@ class ConversationInstance {
 
   // 流式发送消息
   async chatStream(content: string, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>> {
+    // 命令拦截：返回单个 done chunk
+    const cmdResult = await this.tryExecuteCommand(content);
+    if (cmdResult !== undefined) {
+      return {
+        [Symbol.asyncIterator]() {
+          let yielded = false;
+          return {
+            async next(): Promise<IteratorResult<StreamChunk>> {
+              if (!yielded) {
+                yielded = true;
+                return {
+                  value: { type: "done" as const, content: cmdResult.content, command: true },
+                  done: false,
+                };
+              }
+              return { value: undefined as any, done: true };
+            },
+          };
+        },
+      };
+    }
+
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
 
     const conn = await this.gmConnect("CAT_agentConversationChat", [
@@ -79,6 +122,27 @@ class ConversationInstance {
     ]);
 
     return this.processStream(conn, handlers);
+  }
+
+  // 解析命令："/command args" -> { name, args }
+  private parseCommand(content: string): { name: string; args: string } | null {
+    const trimmed = content.trim();
+    if (!trimmed.startsWith("/")) return null;
+    const spaceIdx = trimmed.indexOf(" ");
+    if (spaceIdx === -1) return { name: trimmed, args: "" };
+    return { name: trimmed.slice(0, spaceIdx), args: trimmed.slice(spaceIdx + 1).trim() };
+  }
+
+  // 尝试执行命令，未注册的命令返回 undefined（正常发送给 LLM）
+  private async tryExecuteCommand(content: string): Promise<ChatReply | undefined> {
+    const parsed = this.parseCommand(content);
+    if (!parsed) return undefined;
+
+    const handler = this.commandHandlers.get(parsed.name);
+    if (!handler) return undefined;
+
+    const result = await handler(parsed.args, this);
+    return { content: result || "", command: true };
   }
 
   // 合并实例级别和调用级别的工具定义
@@ -323,7 +387,8 @@ function buildInstance(
     ctx.connect.bind(ctx),
     ctx.scriptRes?.uuid || "",
     options?.maxIterations || 20,
-    options?.tools
+    options?.tools,
+    options?.commands
   );
 }
 
