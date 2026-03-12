@@ -12,13 +12,13 @@ import type GMApi from "./gm_api";
 // Agent API 共用的权限确认逻辑
 const agentConfirm: ApiParamConfirmFn = async (request: GMApiRequest, _sender: IGetSender, gmApi: GMApi) => {
   const ret = await gmApi.permissionVerify.queryPermission(request, {
-    permission: "agent",
+    permission: "agent.conversation",
   });
   if (ret && ret.allow) return true;
   const metadata: { [key: string]: string } = {};
   metadata[i18next.t("script_name")] = i18nName(request.script);
   return {
-    permission: "agent",
+    permission: "agent.conversation",
     title: i18next.t("agent_permission_title"),
     metadata,
     describe: i18next.t("agent_permission_describe"),

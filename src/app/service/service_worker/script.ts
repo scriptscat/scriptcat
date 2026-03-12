@@ -47,6 +47,7 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { parseCATToolMetadata } from "@App/pkg/utils/cattool";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -85,8 +86,8 @@ export class ScriptService {
         }
         // 处理url, 实现安装脚本
         let targetUrl: string;
-        // 判断是否为 file:///*/*.user.js
-        if (req.url.startsWith("file://") && req.url.endsWith(".user.js")) {
+        // 判断是否为 file:///*/*.user.js 或 file:///*/*.cattool.js
+        if (req.url.startsWith("file://") && (req.url.endsWith(".user.js") || req.url.endsWith(".cattool.js"))) {
           targetUrl = req.url;
         } else {
           const reqUrl = new URL(req.url);
@@ -153,6 +154,7 @@ export class ScriptService {
           { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/en/docs/script_installation/" },
           { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
           { schemes: ["file"], pathSuffix: ".user.js" },
+          { schemes: ["file"], pathSuffix: ".cattool.js" },
         ],
       }
     );
@@ -236,6 +238,14 @@ export class ScriptService {
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
         isUrlFilterCaseSensitive: false,
         requestDomains: ["bitbucket.org"], // Chrome 101+
+      },
+      // CATTool (.cattool.js) 安装检测
+      {
+        regexFilter: "^([^?#]+?\\.cattool\\.js)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
       },
     ];
     const installPageURL = chrome.runtime.getURL("src/install.html");
@@ -855,6 +865,14 @@ export class ScriptService {
         logger?.error("prepare script failed", Logger.E(e));
       }
     }
+    // 检测是否为 CATTool
+    const cattoolMeta = parseCATToolMetadata(code);
+    if (cattoolMeta) {
+      const si = [false, { uuid, code, url, source: upsertBy, metadata: {}, userSubscribe: false, cattool: true } as ScriptInfo, options];
+      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+      return 1;
+    }
+
     const metadata = parseMetadata(code);
     if (!metadata) {
       throw new Error("parse script info failed");

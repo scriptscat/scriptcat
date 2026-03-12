@@ -328,3 +328,13 @@ export class SystemClient extends Client {
     return this.do("connectVSCode", params);
   }
 }
+
+export class AgentClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/agent");
+  }
+
+  installCATTool(code: string): Promise<unknown> {
+    return this.do("installCATTool", code);
+  }
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { IconDown, IconRight } from "@arco-design/web-react/icon";
 import MarkdownRenderer from "./MarkdownRenderer";
@@ -6,27 +6,48 @@ import MarkdownRenderer from "./MarkdownRenderer";
 export default function ThinkingBlock({ content }: { content: string }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setContentHeight(contentRef.current.scrollHeight);
+    }
+  }, [content, expanded]);
 
   if (!content) return null;
 
   return (
-    <div className="tw-my-2 tw-rounded-lg tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-overflow-hidden">
+    <div className="tw-my-3">
+      {/* 触发器 */}
       <div
-        className="tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2 tw-cursor-pointer tw-bg-[var(--color-fill-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors tw-select-none"
+        className="tw-inline-flex tw-items-center tw-gap-1.5 tw-cursor-pointer tw-select-none tw-group"
         onClick={() => setExpanded(!expanded)}
       >
-        {expanded ? (
-          <IconDown className="tw-text-xs tw-text-[var(--color-text-3)]" />
-        ) : (
-          <IconRight className="tw-text-xs tw-text-[var(--color-text-3)]" />
-        )}
-        <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-font-medium">{t("agent_chat_thinking")}</span>
+        <div className="tw-w-5 tw-h-5 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[var(--color-fill-2)] group-hover:tw-bg-[var(--color-fill-3)] tw-transition-colors">
+          {expanded ? (
+            <IconDown style={{ fontSize: 10 }} className="tw-text-[var(--color-text-3)]" />
+          ) : (
+            <IconRight style={{ fontSize: 10 }} className="tw-text-[var(--color-text-3)]" />
+          )}
+        </div>
+        <span className="tw-text-xs tw-text-[var(--color-text-3)] group-hover:tw-text-[var(--color-text-2)] tw-transition-colors tw-italic">
+          {t("agent_chat_thinking")}
+        </span>
       </div>
-      {expanded && (
-        <div className="tw-px-3 tw-py-2 tw-text-sm tw-text-[var(--color-text-3)] tw-bg-[var(--color-fill-1)] tw-border-t tw-border-solid tw-border-[var(--color-border-2)] tw-border-x-0 tw-border-b-0">
+
+      {/* 内容区域 */}
+      <div
+        className="agent-collapsible-content"
+        style={{ maxHeight: expanded ? contentHeight + 32 : 0, opacity: expanded ? 1 : 0 }}
+      >
+        <div
+          ref={contentRef}
+          className="tw-mt-2 tw-pl-4 tw-border-l-2 tw-border-solid tw-border-[var(--color-border-2)] tw-border-t-0 tw-border-r-0 tw-border-b-0 tw-text-sm tw-text-[var(--color-text-3)]"
+        >
           <MarkdownRenderer content={content} />
         </div>
-      )}
+      </div>
     </div>
   );
 }

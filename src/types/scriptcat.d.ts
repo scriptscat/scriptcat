@@ -816,8 +816,36 @@ declare namespace CATAgent {
   }
 }
 
+declare namespace CATAgentTools {
+  interface CATToolParam {
+    name: string;
+    type: "string" | "number" | "boolean";
+    required: boolean;
+    description: string;
+    enum?: string[];
+  }
+
+  interface CATToolRecord {
+    name: string;
+    description: string;
+    params: CATToolParam[];
+    grants: string[];
+    code: string;
+    installedAt: number;
+    updatedAt: number;
+  }
+
+  interface ToolsAPI {
+    install(code: string): Promise<CATToolRecord>;
+    remove(name: string): Promise<boolean>;
+    list(): Promise<CATToolRecord[]>;
+    call(name: string, params?: Record<string, unknown>): Promise<unknown>;
+  }
+}
+
 declare const CAT: {
   agent: {
     conversation: CATAgent.ConversationAPI;
+    tools: CATAgentTools.ToolsAPI;
   };
 };

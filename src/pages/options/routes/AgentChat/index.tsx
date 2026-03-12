@@ -3,6 +3,7 @@ import { useSystemConfig } from "../utils";
 import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
 import { useConversations } from "./hooks";
+import "./styles.css";
 
 export default function AgentChat() {
   const [agentConfig] = useSystemConfig("agent_config");

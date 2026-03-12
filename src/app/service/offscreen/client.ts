@@ -37,6 +37,14 @@ export function createObjectURL(msgSender: MessageSend, params: { blob: Blob; pe
   return sendMessage(msgSender, "offscreen/createObjectURL", params);
 }
 
+// 执行 CATTool
+export function executeCATTool(
+  msgSender: MessageSend,
+  params: { code: string; args: Record<string, unknown>; grants: string[]; name: string }
+) {
+  return sendMessage(msgSender, "offscreen/executeCATTool", params);
+}
+
 export class VscodeConnectClient extends Client {
   constructor(msgSender: MessageSend) {
     super(msgSender, "offscreen/vscodeConnect");

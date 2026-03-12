@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Input, Popconfirm, Empty } from "@arco-design/web-react";
-import { IconPlus, IconDelete, IconEdit, IconCheck, IconClose } from "@arco-design/web-react/icon";
+import { IconPlus, IconDelete, IconEdit, IconCheck, IconClose, IconMessage } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import type { Conversation } from "@App/app/service/agent/types";
 
@@ -39,13 +39,19 @@ export default function ConversationList({
     <div className="tw-flex tw-flex-col tw-h-full tw-w-[240px] tw-border-r tw-border-solid tw-border-[var(--color-border-2)] tw-border-y-0 tw-border-l-0 tw-bg-[var(--color-bg-1)]">
       {/* 头部 */}
       <div className="tw-p-3 tw-border-b tw-border-solid tw-border-[var(--color-border-2)] tw-border-x-0 tw-border-t-0">
-        <Button type="primary" long icon={<IconPlus />} size="small" onClick={onCreate}>
+        <Button
+          long
+          icon={<IconPlus />}
+          size="small"
+          onClick={onCreate}
+          className="!tw-border-dashed !tw-text-[var(--color-text-2)] hover:!tw-text-[rgb(var(--arcoblue-6))] hover:!tw-border-[rgb(var(--arcoblue-6))]"
+        >
           {t("agent_chat_new")}
         </Button>
       </div>
 
       {/* 列表 */}
-      <div className="tw-flex-1 tw-overflow-y-auto tw-py-1">
+      <div className="tw-flex-1 tw-overflow-y-auto tw-py-1 agent-chat-scroll">
         {conversations.length === 0 ? (
           <div className="tw-py-8">
             <Empty description={t("agent_chat_no_conversations")} />
@@ -54,10 +60,10 @@ export default function ConversationList({
           conversations.map((conv) => (
             <div
               key={conv.id}
-              className={`tw-group tw-flex tw-items-center tw-gap-1 tw-mx-2 tw-my-0.5 tw-px-3 tw-py-2.5 tw-rounded-lg tw-cursor-pointer tw-transition-colors ${
+              className={`agent-conversation-item tw-group tw-flex tw-items-center tw-gap-2 tw-mx-2 tw-my-0.5 tw-px-3 tw-py-2.5 tw-rounded-lg tw-cursor-pointer ${
                 conv.id === activeId
-                  ? "tw-bg-[rgb(var(--arcoblue-1))] tw-text-[rgb(var(--arcoblue-6))]"
-                  : "hover:tw-bg-[var(--color-fill-2)] tw-text-[var(--color-text-1)]"
+                  ? "active tw-bg-[var(--color-fill-2)] tw-text-[var(--color-text-1)]"
+                  : "hover:tw-bg-[var(--color-fill-1)] tw-text-[var(--color-text-2)]"
               }`}
               onClick={() => onSelect(conv.id)}
             >
@@ -76,6 +82,7 @@ export default function ConversationList({
                 </div>
               ) : (
                 <>
+                  <IconMessage className="tw-text-sm tw-text-[var(--color-text-3)] tw-shrink-0" />
                   <span className="tw-flex-1 tw-truncate tw-text-sm">{conv.title}</span>
                   <div className="tw-hidden group-hover:tw-flex tw-items-center tw-shrink-0">
                     <Button

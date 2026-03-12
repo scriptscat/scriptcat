@@ -17,6 +17,11 @@ export class ToolRegistry {
     this.builtinTools.set(definition.name, { definition, executor });
   }
 
+  // 注销内置工具
+  unregisterBuiltin(name: string): boolean {
+    return this.builtinTools.delete(name);
+  }
+
   // 获取所有工具定义（内置 + 额外的脚本工具），发送给 LLM
   getDefinitions(extraTools?: ToolDefinition[]): ToolDefinition[] {
     const definitions: ToolDefinition[] = [];

@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { ScriptDAO } from "@App/app/repo/scripts";
+import { ScriptDAO, type Script } from "@App/app/repo/scripts";
 import { type IGetSender, type Group, GetSenderType } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend, TMessageCommAction } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
@@ -50,6 +50,8 @@ import type { AgentService } from "../agent";
 // 注意：不能使用 import "./gm_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
 import GMAgentApi from "./gm_agent";
 void GMAgentApi;
+import GMAgentToolsApi from "./gm_agent_tools";
+void GMAgentToolsApi;
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -280,9 +282,26 @@ export default class GMApi {
 
   // 解析请求
   async parseRequest<T>(data: MessageRequest<T>): Promise<GMApiRequest<T>> {
-    const script = await this.scriptDAO.get(data.uuid);
-    if (!script) {
-      throw new Error("script is not found");
+    let script;
+    if (data.uuid.startsWith("cattool-")) {
+      // CATTool GM API 调用：构造虚拟 Script 对象（CATTool 不在 ScriptDAO 中）
+      script = {
+        uuid: data.uuid,
+        name: data.uuid,
+        namespace: "",
+        metadata: { grant: [] },
+        type: 3,
+        status: 1,
+        sort: 0,
+        runStatus: "running" as const,
+        createtime: Date.now(),
+        checktime: 0,
+      } as Script;
+    } else {
+      script = await this.scriptDAO.get(data.uuid);
+      if (!script) {
+        throw new Error("script is not found");
+      }
     }
     return { ...data, script } as GMApiRequest<T>;
   }

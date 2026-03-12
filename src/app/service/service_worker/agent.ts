@@ -40,6 +40,8 @@ export class AgentService {
     this.group.on("conversation", this.handleConversation.bind(this));
     // Sandbox 流式聊天（通过 connect）
     this.group.on("conversationChat", this.handleConversationChat.bind(this));
+    // 通过 install page 安装 CATTool
+    this.group.on("installCATTool", (code: string) => this.installCATTool(code));
     // 加载已安装的 CATTools
     this.loadCATTools();
   }

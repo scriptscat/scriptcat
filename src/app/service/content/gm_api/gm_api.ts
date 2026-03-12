@@ -28,6 +28,8 @@ import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPa
 // 注意：不能使用 import "./cat_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
 import CATAgentApi from "./cat_agent";
 void CATAgentApi;
+import CATAgentToolsApi from "./cat_agent_tools";
+void CATAgentToolsApi;
 
 // 内部函数呼叫定义
 export interface IGM_Base {
