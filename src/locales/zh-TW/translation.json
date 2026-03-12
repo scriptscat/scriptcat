@@ -677,5 +677,22 @@
   "agent_opfs_root": "根目錄",
   "agent_dom_permission_title": "腳本請求 DOM 操作權限",
   "agent_dom_permission_describe": "此腳本請求讀取和操作網頁 DOM 的能力（點擊、填寫表單、導航、截圖等）。請僅對可信腳本授權。",
-  "agent_dom_permission_content": "Agent DOM 操作"
+  "agent_dom_permission_content": "Agent DOM 操作",
+  "agent_mcp_title": "MCP 伺服器",
+  "agent_mcp_add_server": "新增伺服器",
+  "agent_mcp_no_servers": "未配置 MCP 伺服器",
+  "agent_mcp_test_connection": "測試",
+  "agent_mcp_name_url_required": "名稱和 URL 不能為空",
+  "agent_mcp_optional": "可選",
+  "agent_mcp_custom_headers": "自訂請求標頭",
+  "agent_mcp_enabled": "啟用",
+  "agent_mcp_detail": "詳情",
+  "agent_mcp_tools": "工具",
+  "agent_mcp_resources": "資源",
+  "agent_mcp_prompts": "提示詞",
+  "agent_mcp_no_tools": "暫無可用工具",
+  "agent_mcp_no_resources": "暫無可用資源",
+  "agent_mcp_no_prompts": "暫無可用提示詞",
+  "agent_mcp_loading": "載入中...",
+  "agent_mcp_parameters": "參數"
 }

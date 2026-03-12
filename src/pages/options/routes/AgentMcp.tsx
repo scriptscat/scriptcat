@@ -1,21 +1,25 @@
 import {
   Button,
   Card,
+  Drawer,
   Empty,
   Input,
   Message,
   Modal,
   Popconfirm,
   Space,
+  Spin,
   Switch,
+  Tabs,
   Tag,
   Typography,
 } from "@arco-design/web-react";
-import { IconDelete, IconEdit, IconLink, IconPlus } from "@arco-design/web-react/icon";
+import { IconDelete, IconEdit, IconEye, IconLink, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useState } from "react";
-import type { MCPServerConfig } from "@App/app/service/agent/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/service/agent/types";
 import { MCPServerRepo } from "@App/app/repo/mcp_server_repo";
+import { MCPClient } from "@App/app/service/agent/mcp_client";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const mcpServerRepo = new MCPServerRepo();
@@ -34,12 +38,16 @@ function ServerCard({
   onDelete,
   onToggle,
   onTest,
+  onDetail,
+  testing,
 }: {
   server: MCPServerConfig;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: (enabled: boolean) => void;
   onTest: () => void;
+  onDetail: () => void;
+  testing: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -89,7 +97,10 @@ function ServerCard({
 
       {/* 操作栏 */}
       <div className="tw-flex tw-items-center tw-justify-end tw-gap-0.5 tw-pt-3 tw-border-t tw-border-solid tw-border-[var(--color-border-1)] tw-border-x-0 tw-border-b-0 tw-opacity-60 group-hover:tw-opacity-100 tw-transition-opacity">
-        <Button type="text" size="small" icon={<IconLink />} onClick={onTest}>
+        <Button type="text" size="small" icon={<IconEye />} onClick={onDetail}>
+          {t("agent_mcp_detail")}
+        </Button>
+        <Button type="text" size="small" icon={<IconLink />} onClick={onTest} loading={testing}>
           {t("agent_mcp_test_connection")}
         </Button>
         <Button type="text" size="small" icon={<IconEdit />} onClick={onEdit}>
@@ -105,6 +116,188 @@ function ServerCard({
   );
 }
 
+// 格式化 JSON Schema 参数概要
+function formatSchemaParams(inputSchema: Record<string, unknown>): string[] {
+  const properties = inputSchema.properties as Record<string, { description?: string }> | undefined;
+  const required = (inputSchema.required as string[]) || [];
+  if (!properties) return [];
+  return Object.keys(properties).map((name) => (required.includes(name) ? name : `${name}?`));
+}
+
+function ServerDetailDrawer({
+  server,
+  visible,
+  onClose,
+}: {
+  server: MCPServerConfig | null;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tools, setTools] = useState<MCPTool[]>([]);
+  const [resources, setResources] = useState<MCPResource[]>([]);
+  const [prompts, setPrompts] = useState<MCPPrompt[]>([]);
+  const clientRef = useRef<MCPClient | null>(null);
+
+  useEffect(() => {
+    if (!visible || !server) return;
+
+    let cancelled = false;
+    const client = new MCPClient(server);
+    clientRef.current = client;
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      setTools([]);
+      setResources([]);
+      setPrompts([]);
+
+      try {
+        await client.initialize();
+        if (cancelled) return;
+
+        const [toolsResult, resourcesResult, promptsResult] = await Promise.all([
+          client.listTools().catch(() => [] as MCPTool[]),
+          client.listResources().catch(() => [] as MCPResource[]),
+          client.listPrompts().catch(() => [] as MCPPrompt[]),
+        ]);
+
+        if (!cancelled) {
+          setTools(toolsResult);
+          setResources(resourcesResult);
+          setPrompts(promptsResult);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(String(e));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+      client.close();
+      clientRef.current = null;
+    };
+  }, [visible, server]);
+
+  const handleClose = () => {
+    onClose();
+  };
+
+  return (
+    <Drawer width={520} title={server?.name || ""} visible={visible} onCancel={handleClose} footer={null} unmountOnExit>
+      {loading ? (
+        <div className="tw-flex tw-items-center tw-justify-center tw-py-16">
+          <Spin tip={t("agent_mcp_loading")} />
+        </div>
+      ) : error ? (
+        <div className="tw-py-8">
+          <Empty description={error} />
+        </div>
+      ) : (
+        <Tabs defaultActiveTab="tools">
+          <Tabs.TabPane key="tools" title={`${t("agent_mcp_tools")} (${tools.length})`}>
+            {tools.length === 0 ? (
+              <Empty className="tw-py-8" description={t("agent_mcp_no_tools")} />
+            ) : (
+              <div className="tw-flex tw-flex-col tw-gap-3 tw-py-2">
+                {tools.map((tool) => (
+                  <div key={tool.name} className="tw-rounded-lg tw-p-3 tw-bg-[var(--color-fill-1)]">
+                    <div className="tw-flex tw-items-center tw-gap-2 tw-mb-1">
+                      <Typography.Text className="tw-font-semibold tw-text-sm !tw-mb-0">{tool.name}</Typography.Text>
+                    </div>
+                    {tool.description && (
+                      <Typography.Text type="secondary" className="tw-text-xs !tw-mb-0 tw-block tw-mb-1">
+                        {tool.description}
+                      </Typography.Text>
+                    )}
+                    {tool.inputSchema && formatSchemaParams(tool.inputSchema).length > 0 && (
+                      <div className="tw-mt-2 tw-flex tw-items-center tw-gap-1 tw-flex-wrap">
+                        <span className="tw-text-xs tw-text-[var(--color-text-3)]">{t("agent_mcp_parameters")}:</span>
+                        {formatSchemaParams(tool.inputSchema).map((param) => (
+                          <Tag key={param} size="small" className="!tw-text-xs">
+                            {param}
+                          </Tag>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Tabs.TabPane>
+
+          <Tabs.TabPane key="resources" title={`${t("agent_mcp_resources")} (${resources.length})`}>
+            {resources.length === 0 ? (
+              <Empty className="tw-py-8" description={t("agent_mcp_no_resources")} />
+            ) : (
+              <div className="tw-flex tw-flex-col tw-gap-3 tw-py-2">
+                {resources.map((resource) => (
+                  <div key={resource.uri} className="tw-rounded-lg tw-p-3 tw-bg-[var(--color-fill-1)]">
+                    <Typography.Text className="tw-font-semibold tw-text-sm !tw-mb-0">{resource.name}</Typography.Text>
+                    <Typography.Text type="secondary" className="tw-text-xs tw-font-mono !tw-mb-0 tw-block">
+                      {resource.uri}
+                    </Typography.Text>
+                    {resource.description && (
+                      <Typography.Text type="secondary" className="tw-text-xs !tw-mb-0 tw-block tw-mt-1">
+                        {resource.description}
+                      </Typography.Text>
+                    )}
+                    {resource.mimeType && (
+                      <Tag size="small" className="tw-mt-1">
+                        {resource.mimeType}
+                      </Tag>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Tabs.TabPane>
+
+          <Tabs.TabPane key="prompts" title={`${t("agent_mcp_prompts")} (${prompts.length})`}>
+            {prompts.length === 0 ? (
+              <Empty className="tw-py-8" description={t("agent_mcp_no_prompts")} />
+            ) : (
+              <div className="tw-flex tw-flex-col tw-gap-3 tw-py-2">
+                {prompts.map((prompt) => (
+                  <div key={prompt.name} className="tw-rounded-lg tw-p-3 tw-bg-[var(--color-fill-1)]">
+                    <Typography.Text className="tw-font-semibold tw-text-sm !tw-mb-0">{prompt.name}</Typography.Text>
+                    {prompt.description && (
+                      <Typography.Text type="secondary" className="tw-text-xs !tw-mb-0 tw-block tw-mt-1">
+                        {prompt.description}
+                      </Typography.Text>
+                    )}
+                    {prompt.arguments && prompt.arguments.length > 0 && (
+                      <div className="tw-mt-2 tw-flex tw-items-center tw-gap-1 tw-flex-wrap">
+                        <span className="tw-text-xs tw-text-[var(--color-text-3)]">{t("agent_mcp_parameters")}:</span>
+                        {prompt.arguments.map((arg) => (
+                          <Tag key={arg.name} size="small" className="!tw-text-xs">
+                            {arg.required ? arg.name : `${arg.name}?`}
+                          </Tag>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Tabs.TabPane>
+        </Tabs>
+      )}
+    </Drawer>
+  );
+}
+
 function AgentMcp() {
   const { t } = useTranslation();
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
@@ -114,6 +307,10 @@ function AgentMcp() {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [headersText, setHeadersText] = useState("");
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [modalTesting, setModalTesting] = useState(false);
+  const [detailServer, setDetailServer] = useState<MCPServerConfig | null>(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const loadData = useCallback(async () => {
     const list = await mcpServerRepo.listServers();
@@ -161,8 +358,16 @@ function AgentMcp() {
   };
 
   const handleTest = async (server: MCPServerConfig) => {
+    setTestingId(server.id);
     try {
-      // 直接用 fetch 发 initialize 请求测试连接
+      await doTestConnection(server);
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const doTestConnection = async (server: Pick<MCPServerConfig, "url" | "apiKey" | "headers">) => {
+    try {
       const response = await fetch(server.url, {
         method: "POST",
         headers: {
@@ -198,6 +403,25 @@ function AgentMcp() {
     } catch (e) {
       Message.error(`${t("agent_provider_test_failed")}: ${e}`);
     }
+  };
+
+  const handleModalTest = async () => {
+    if (!editingServer.url) {
+      Message.error(t("agent_mcp_name_url_required"));
+      return;
+    }
+    setModalTesting(true);
+    try {
+      const headers = parseHeaders(headersText);
+      await doTestConnection({ url: editingServer.url, apiKey: editingServer.apiKey, headers });
+    } finally {
+      setModalTesting(false);
+    }
+  };
+
+  const handleDetail = (server: MCPServerConfig) => {
+    setDetailServer(server);
+    setDrawerVisible(true);
   };
 
   const parseHeaders = (text: string): Record<string, string> => {
@@ -279,6 +503,8 @@ function AgentMcp() {
                 onDelete={() => handleDelete(server.id)}
                 onToggle={(enabled) => handleToggle(server, enabled)}
                 onTest={() => handleTest(server)}
+                onDetail={() => handleDetail(server)}
+                testing={testingId === server.id}
               />
             ))}
           </div>
@@ -343,16 +569,21 @@ function AgentMcp() {
 
           {/* 启用 */}
           <div className="tw-flex tw-items-center tw-gap-3">
-            <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-2)]">
-              {t("agent_mcp_enabled")}
-            </span>
+            <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-2)]">{t("agent_mcp_enabled")}</span>
             <Switch
               checked={editingServer.enabled}
               onChange={(checked) => setEditingServer((prev) => ({ ...prev, enabled: checked }))}
             />
           </div>
+
+          {/* 测试连接 */}
+          <Button type="outline" icon={<IconLink />} loading={modalTesting} onClick={handleModalTest} long>
+            {t("agent_provider_test_connection")}
+          </Button>
         </Space>
       </Modal>
+
+      <ServerDetailDrawer server={detailServer} visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
     </Space>
   );
 }

@@ -677,5 +677,22 @@
   "agent_opfs_root": "Stammverzeichnis",
   "agent_dom_permission_title": "Das Skript fordert DOM-Zugriff an",
   "agent_dom_permission_describe": "Dieses Skript fordert die Fähigkeit an, das DOM der Webseite zu lesen und zu manipulieren (Klicken, Formulare ausfüllen, Navigation, Screenshot usw.). Erlauben Sie nur vertrauenswürdigen Skripten.",
-  "agent_dom_permission_content": "Agent DOM-Operationen"
+  "agent_dom_permission_content": "Agent DOM-Operationen",
+  "agent_mcp_title": "MCP-Server",
+  "agent_mcp_add_server": "Server hinzufügen",
+  "agent_mcp_no_servers": "Keine MCP-Server konfiguriert",
+  "agent_mcp_test_connection": "Testen",
+  "agent_mcp_name_url_required": "Name und URL sind erforderlich",
+  "agent_mcp_optional": "optional",
+  "agent_mcp_custom_headers": "Benutzerdefinierte Header",
+  "agent_mcp_enabled": "Aktiviert",
+  "agent_mcp_detail": "Details",
+  "agent_mcp_tools": "Werkzeuge",
+  "agent_mcp_resources": "Ressourcen",
+  "agent_mcp_prompts": "Prompts",
+  "agent_mcp_no_tools": "Keine Werkzeuge verfügbar",
+  "agent_mcp_no_resources": "Keine Ressourcen verfügbar",
+  "agent_mcp_no_prompts": "Keine Prompts verfügbar",
+  "agent_mcp_loading": "Laden...",
+  "agent_mcp_parameters": "Parameter"
 }

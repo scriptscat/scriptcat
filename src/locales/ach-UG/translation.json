@@ -650,5 +650,22 @@
   "agent_opfs_root": "Root",
   "agent_dom_permission_title": "The script is requesting DOM operation access",
   "agent_dom_permission_describe": "This script requests the ability to read and manipulate web page DOM (click, fill forms, navigate, screenshot, etc.). Only grant access to trusted scripts.",
-  "agent_dom_permission_content": "Agent DOM Operations"
+  "agent_dom_permission_content": "Agent DOM Operations",
+  "agent_mcp_title": "MCP Servers",
+  "agent_mcp_add_server": "Add Server",
+  "agent_mcp_no_servers": "No MCP servers configured",
+  "agent_mcp_test_connection": "Test",
+  "agent_mcp_name_url_required": "Name and URL are required",
+  "agent_mcp_optional": "optional",
+  "agent_mcp_custom_headers": "Custom Headers",
+  "agent_mcp_enabled": "Enabled",
+  "agent_mcp_detail": "Details",
+  "agent_mcp_tools": "Tools",
+  "agent_mcp_resources": "Resources",
+  "agent_mcp_prompts": "Prompts",
+  "agent_mcp_no_tools": "No tools available",
+  "agent_mcp_no_resources": "No resources available",
+  "agent_mcp_no_prompts": "No prompts available",
+  "agent_mcp_loading": "Loading...",
+  "agent_mcp_parameters": "Parameters"
 }

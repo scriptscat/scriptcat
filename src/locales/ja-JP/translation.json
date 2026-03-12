@@ -677,5 +677,22 @@
   "agent_opfs_root": "ルート",
   "agent_dom_permission_title": "スクリプトが DOM 操作アクセスをリクエストしています",
   "agent_dom_permission_describe": "このスクリプトはウェブページの DOM を読み取り操作する能力（クリック、フォーム入力、ナビゲーション、スクリーンショットなど）をリクエストしています。信頼できるスクリプトにのみ許可してください。",
-  "agent_dom_permission_content": "Agent DOM 操作"
+  "agent_dom_permission_content": "Agent DOM 操作",
+  "agent_mcp_title": "MCPサーバー",
+  "agent_mcp_add_server": "サーバーを追加",
+  "agent_mcp_no_servers": "MCPサーバーが設定されていません",
+  "agent_mcp_test_connection": "テスト",
+  "agent_mcp_name_url_required": "名前とURLは必須です",
+  "agent_mcp_optional": "任意",
+  "agent_mcp_custom_headers": "カスタムヘッダー",
+  "agent_mcp_enabled": "有効",
+  "agent_mcp_detail": "詳細",
+  "agent_mcp_tools": "ツール",
+  "agent_mcp_resources": "リソース",
+  "agent_mcp_prompts": "プロンプト",
+  "agent_mcp_no_tools": "利用可能なツールはありません",
+  "agent_mcp_no_resources": "利用可能なリソースはありません",
+  "agent_mcp_no_prompts": "利用可能なプロンプトはありません",
+  "agent_mcp_loading": "読み込み中...",
+  "agent_mcp_parameters": "パラメータ"
 }

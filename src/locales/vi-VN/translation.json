@@ -677,5 +677,22 @@
   "agent_opfs_root": "Gốc",
   "agent_dom_permission_title": "Script yêu cầu quyền thao tác DOM",
   "agent_dom_permission_describe": "Script này yêu cầu khả năng đọc và thao tác DOM trang web (nhấp chuột, điền biểu mẫu, điều hướng, chụp ảnh màn hình, v.v.). Chỉ cấp quyền cho các script đáng tin cậy.",
-  "agent_dom_permission_content": "Agent DOM thao tác"
+  "agent_dom_permission_content": "Agent DOM thao tác",
+  "agent_mcp_title": "Máy chủ MCP",
+  "agent_mcp_add_server": "Thêm máy chủ",
+  "agent_mcp_no_servers": "Chưa cấu hình máy chủ MCP",
+  "agent_mcp_test_connection": "Kiểm tra",
+  "agent_mcp_name_url_required": "Tên và URL là bắt buộc",
+  "agent_mcp_optional": "tùy chọn",
+  "agent_mcp_custom_headers": "Header tùy chỉnh",
+  "agent_mcp_enabled": "Đã bật",
+  "agent_mcp_detail": "Chi tiết",
+  "agent_mcp_tools": "Công cụ",
+  "agent_mcp_resources": "Tài nguyên",
+  "agent_mcp_prompts": "Lời nhắc",
+  "agent_mcp_no_tools": "Không có công cụ nào",
+  "agent_mcp_no_resources": "Không có tài nguyên nào",
+  "agent_mcp_no_prompts": "Không có lời nhắc nào",
+  "agent_mcp_loading": "Đang tải...",
+  "agent_mcp_parameters": "Tham số"
 }

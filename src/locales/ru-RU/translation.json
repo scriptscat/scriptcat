@@ -677,5 +677,22 @@
   "agent_opfs_root": "Корень",
   "agent_dom_permission_title": "Скрипт запрашивает доступ к операциям DOM",
   "agent_dom_permission_describe": "Этот скрипт запрашивает возможность читать и управлять DOM веб-страницы (клик, заполнение форм, навигация, скриншот и т.д.). Разрешайте только доверенным скриптам.",
-  "agent_dom_permission_content": "Agent DOM операции"
+  "agent_dom_permission_content": "Agent DOM операции",
+  "agent_mcp_title": "MCP серверы",
+  "agent_mcp_add_server": "Добавить сервер",
+  "agent_mcp_no_servers": "MCP серверы не настроены",
+  "agent_mcp_test_connection": "Тест",
+  "agent_mcp_name_url_required": "Имя и URL обязательны",
+  "agent_mcp_optional": "необязательно",
+  "agent_mcp_custom_headers": "Пользовательские заголовки",
+  "agent_mcp_enabled": "Включено",
+  "agent_mcp_detail": "Подробности",
+  "agent_mcp_tools": "Инструменты",
+  "agent_mcp_resources": "Ресурсы",
+  "agent_mcp_prompts": "Промпты",
+  "agent_mcp_no_tools": "Нет доступных инструментов",
+  "agent_mcp_no_resources": "Нет доступных ресурсов",
+  "agent_mcp_no_prompts": "Нет доступных промптов",
+  "agent_mcp_loading": "Загрузка...",
+  "agent_mcp_parameters": "Параметры"
 }
