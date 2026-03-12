@@ -307,4 +307,3 @@ return data;`;
     expect(body).not.toContain("==CATTool==");
   });
 });
-

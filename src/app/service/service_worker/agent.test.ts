@@ -20,9 +20,11 @@ function createTestService() {
 
   // 替换 modelRepo（避免 chrome.storage 调用）
   const mockModelRepo = {
-    listModels: vi.fn().mockResolvedValue([
-      { id: "test-openai", name: "Test", provider: "openai", apiBaseUrl: "", apiKey: "", model: "gpt-4o" },
-    ]),
+    listModels: vi
+      .fn()
+      .mockResolvedValue([
+        { id: "test-openai", name: "Test", provider: "openai", apiBaseUrl: "", apiKey: "", model: "gpt-4o" },
+      ]),
     getModel: vi.fn().mockImplementation((id: string) => {
       if (id === "test-openai") {
         return Promise.resolve({

@@ -2,10 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { CATToolExecutor, getCATToolNameByUuid, CATTOOL_UUID_PREFIX } from "./cattool_executor";
 import type { CATToolRecord } from "./types";
 
-function createRecord(
-  params: CATToolRecord["params"] = [],
-  overrides?: Partial<CATToolRecord>
-): CATToolRecord {
+function createRecord(params: CATToolRecord["params"] = [], overrides?: Partial<CATToolRecord>): CATToolRecord {
   return {
     id: "test-uuid-001",
     name: "test_tool",

@@ -149,10 +149,7 @@ function AgentProvider() {
 
   // 从 Repo 加载数据
   const loadData = useCallback(async () => {
-    const [modelList, defId] = await Promise.all([
-      agentModelRepo.listModels(),
-      agentModelRepo.getDefaultModelId(),
-    ]);
+    const [modelList, defId] = await Promise.all([agentModelRepo.listModels(), agentModelRepo.getDefaultModelId()]);
     setModels(modelList);
     setDefaultModelId(defId);
   }, []);

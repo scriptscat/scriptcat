@@ -13,12 +13,10 @@ export default function AgentChat() {
   const [defaultModelId, setDefaultModelId] = useState("");
 
   useEffect(() => {
-    Promise.all([agentModelRepo.listModels(), agentModelRepo.getDefaultModelId()]).then(
-      ([modelList, defId]) => {
-        setModels(modelList);
-        setDefaultModelId(defId || modelList[0]?.id || "");
-      }
-    );
+    Promise.all([agentModelRepo.listModels(), agentModelRepo.getDefaultModelId()]).then(([modelList, defId]) => {
+      setModels(modelList);
+      setDefaultModelId(defId || modelList[0]?.id || "");
+    });
   }, []);
 
   const {
