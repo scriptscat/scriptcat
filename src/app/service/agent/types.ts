@@ -330,6 +330,81 @@ export type DomApiRequest =
   | { action: "scroll"; direction: ScrollDirection; options?: ScrollOptions; scriptUuid: string }
   | { action: "waitFor"; selector: string; options?: WaitForOptions; scriptUuid: string };
 
+// ---- MCP 类型 ----
+
+// MCP 服务器配置
+export type MCPServerConfig = {
+  id: string;
+  name: string;
+  url: string; // Streamable HTTP endpoint
+  apiKey?: string; // 可选认证
+  headers?: Record<string, string>; // 自定义请求头
+  enabled: boolean;
+  createtime: number;
+  updatetime: number;
+};
+
+// MCP 工具（从服务器 tools/list 获取）
+export type MCPTool = {
+  serverId: string;
+  name: string;
+  description?: string;
+  inputSchema: Record<string, unknown>; // JSON Schema
+};
+
+// MCP 资源（从服务器 resources/list 获取）
+export type MCPResource = {
+  serverId: string;
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+};
+
+// MCP 提示词模板（从服务器 prompts/list 获取）
+export type MCPPrompt = {
+  serverId: string;
+  name: string;
+  description?: string;
+  arguments?: Array<{
+    name: string;
+    description?: string;
+    required?: boolean;
+  }>;
+};
+
+// MCP 提示词消息（prompts/get 返回）
+export type MCPPromptMessage = {
+  role: "user" | "assistant";
+  content:
+    | { type: "text"; text: string }
+    | { type: "resource"; resource: { uri: string; text: string; mimeType?: string } };
+};
+
+// CAT.agent.mcp API 请求
+export type MCPApiRequest =
+  | { action: "listServers"; scriptUuid: string }
+  | { action: "getServer"; id: string; scriptUuid: string }
+  | {
+      action: "addServer";
+      config: Omit<MCPServerConfig, "id" | "createtime" | "updatetime">;
+      scriptUuid: string;
+    }
+  | { action: "updateServer"; id: string; config: Partial<MCPServerConfig>; scriptUuid: string }
+  | { action: "removeServer"; id: string; scriptUuid: string }
+  | { action: "listTools"; serverId: string; scriptUuid: string }
+  | { action: "listResources"; serverId: string; scriptUuid: string }
+  | { action: "readResource"; serverId: string; uri: string; scriptUuid: string }
+  | { action: "listPrompts"; serverId: string; scriptUuid: string }
+  | {
+      action: "getPrompt";
+      serverId: string;
+      name: string;
+      args?: Record<string, string>;
+      scriptUuid: string;
+    }
+  | { action: "testConnection"; id: string; scriptUuid: string };
+
 // Sandbox -> Service Worker 的 conversation API 请求
 export type ConversationApiRequest =
   | { action: "create"; options: ConversationCreateOptions; scriptUuid: string }

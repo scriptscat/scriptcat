@@ -656,5 +656,13 @@
   "agent_opfs_root": "根目录",
   "agent_dom_permission_title": "脚本请求 DOM 操作权限",
   "agent_dom_permission_describe": "此脚本请求读取和操作网页 DOM 的能力（点击、填写表单、导航、截图等）。请仅对可信脚本授权。",
-  "agent_dom_permission_content": "Agent DOM 操作"
+  "agent_dom_permission_content": "Agent DOM 操作",
+  "agent_mcp_title": "MCP 服务器",
+  "agent_mcp_add_server": "添加服务器",
+  "agent_mcp_no_servers": "未配置 MCP 服务器",
+  "agent_mcp_test_connection": "测试",
+  "agent_mcp_name_url_required": "名称和 URL 不能为空",
+  "agent_mcp_optional": "可选",
+  "agent_mcp_custom_headers": "自定义请求头",
+  "agent_mcp_enabled": "启用"
 }

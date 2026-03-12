@@ -33,6 +33,7 @@ import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
 import { CACHE_KEY_CATTOOL_INSTALL } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
 import { AgentDomService } from "./agent_dom";
+import { MCPService } from "./agent_mcp";
 import { registerDomTools } from "@App/app/service/agent/dom_tools";
 
 // 安装超时时间：5 分钟
@@ -59,6 +60,7 @@ export class AgentService {
 
   private modelRepo = new AgentModelRepo();
   private domService = new AgentDomService();
+  private mcpService!: MCPService;
 
   constructor(
     private group: Group,
@@ -66,6 +68,9 @@ export class AgentService {
   ) {}
 
   init() {
+    // 初始化 MCP Service
+    this.mcpService = new MCPService(this.toolRegistry);
+    this.mcpService.init();
     // 注册 DOM 工具到 ToolRegistry
     registerDomTools(this.toolRegistry, this.domService);
     // Sandbox conversation API
