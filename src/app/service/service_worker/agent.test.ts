@@ -581,4 +581,194 @@ Do something useful.`;
       expect(result.metaTools).toEqual([]);
     });
   });
+
+  describe("installSkill 完整流程", () => {
+    it("安装含脚本和参考资料的 Skill", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      const skillMd = `---
+name: full-skill
+description: A skill with tools and refs
+---
+You are a full-featured skill.`;
+
+      const scripts = [
+        {
+          name: "my-tool",
+          code: VALID_CATTOOL_CODE,
+        },
+      ];
+
+      const references = [{ name: "api-doc", content: "Some API documentation" }];
+
+      const record = await service.installSkill(skillMd, scripts, references);
+
+      expect(record.name).toBe("full-skill");
+      expect(record.description).toBe("A skill with tools and refs");
+      expect(record.prompt).toBe("You are a full-featured skill.");
+      expect(record.toolNames).toEqual(["test-tool"]);
+      expect(record.referenceNames).toEqual(["api-doc"]);
+
+      // saveSkill 应被调用，带上脚本和参考资料
+      expect(mockSkillRepo.saveSkill).toHaveBeenCalledTimes(1);
+      const [savedRecord, savedScripts, savedRefs] = mockSkillRepo.saveSkill.mock.calls[0];
+      expect(savedRecord.name).toBe("full-skill");
+      expect(savedScripts).toHaveLength(1);
+      expect(savedScripts[0].name).toBe("test-tool");
+      expect(savedRefs).toHaveLength(1);
+      expect(savedRefs[0].name).toBe("api-doc");
+
+      // skillCache 应包含新安装的 skill
+      expect((service as any).skillCache.has("full-skill")).toBe(true);
+    });
+
+    it("更新已有 Skill 时保留 installtime", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      const oldInstallTime = 1000000;
+      mockSkillRepo.getSkill.mockResolvedValueOnce(
+        makeSkillRecord({ name: "existing-skill", installtime: oldInstallTime })
+      );
+
+      const skillMd = `---
+name: existing-skill
+description: Updated description
+---
+Updated prompt.`;
+
+      const record = await service.installSkill(skillMd);
+
+      expect(record.installtime).toBe(oldInstallTime);
+      expect(record.updatetime).toBeGreaterThan(oldInstallTime);
+      expect(record.description).toBe("Updated description");
+      expect(record.prompt).toBe("Updated prompt.");
+    });
+
+    it("无效 SKILL.md 应抛出异常", async () => {
+      const { service } = createTestService();
+
+      await expect(service.installSkill("not valid skill md")).rejects.toThrow("Invalid SKILL.md");
+    });
+
+    it("含无效 CATTool 脚本时应抛出异常", async () => {
+      const { service } = createTestService();
+
+      const skillMd = `---
+name: bad-scripts
+description: Has invalid script
+---
+Some prompt.`;
+
+      await expect(
+        service.installSkill(skillMd, [{ name: "bad-tool", code: "not a cattool" }])
+      ).rejects.toThrow("Invalid CATTool script");
+    });
+  });
+
+  describe("removeSkill", () => {
+    it("删除存在的 Skill 返回 true", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      (service as any).skillCache.set("to-delete", makeSkillRecord({ name: "to-delete" }));
+      mockSkillRepo.removeSkill.mockResolvedValueOnce(true);
+
+      const result = await service.removeSkill("to-delete");
+
+      expect(result).toBe(true);
+      expect(mockSkillRepo.removeSkill).toHaveBeenCalledWith("to-delete");
+      expect((service as any).skillCache.has("to-delete")).toBe(false);
+    });
+
+    it("删除不存在的 Skill 返回 false 且不影响缓存", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      mockSkillRepo.removeSkill.mockResolvedValueOnce(false);
+
+      const result = await service.removeSkill("non-existent");
+
+      expect(result).toBe(false);
+    });
+  });
+});
+
+// ---- init() 消息注册测试 ----
+
+describe("AgentService init() 消息注册", () => {
+  it("应注册 installSkill 和 removeSkill 消息处理", () => {
+    const mockGroup = { on: vi.fn() } as any;
+    const mockSender = {} as any;
+
+    const service = new AgentService(mockGroup, mockSender);
+
+    // 替换 repos 避免 OPFS 调用
+    (service as any).catToolRepo = { listTools: vi.fn().mockResolvedValue([]) };
+    (service as any).skillRepo = { listSkills: vi.fn().mockResolvedValue([]) };
+
+    service.init();
+
+    // 收集所有 group.on 注册的消息名
+    const registeredNames = mockGroup.on.mock.calls.map((call: any[]) => call[0]);
+
+    expect(registeredNames).toContain("installSkill");
+    expect(registeredNames).toContain("removeSkill");
+  });
+
+  it("installSkill 消息处理应正确转发参数", async () => {
+    const mockGroup = { on: vi.fn() } as any;
+    const mockSender = {} as any;
+
+    const service = new AgentService(mockGroup, mockSender);
+
+    const mockSkillRepo = {
+      listSkills: vi.fn().mockResolvedValue([]),
+      getSkill: vi.fn().mockResolvedValue(null),
+      saveSkill: vi.fn().mockResolvedValue(undefined),
+    };
+    (service as any).catToolRepo = { listTools: vi.fn().mockResolvedValue([]) };
+    (service as any).skillRepo = mockSkillRepo;
+
+    service.init();
+
+    // 找到 installSkill 处理函数
+    const installSkillCall = mockGroup.on.mock.calls.find((call: any[]) => call[0] === "installSkill");
+    expect(installSkillCall).toBeDefined();
+
+    const handler = installSkillCall[1];
+    const skillMd = `---
+name: msg-test
+description: Test via message
+---
+Prompt content.`;
+
+    const result = await handler({ skillMd });
+
+    expect(result.name).toBe("msg-test");
+    expect(mockSkillRepo.saveSkill).toHaveBeenCalledTimes(1);
+  });
+
+  it("removeSkill 消息处理应正确转发参数", async () => {
+    const mockGroup = { on: vi.fn() } as any;
+    const mockSender = {} as any;
+
+    const service = new AgentService(mockGroup, mockSender);
+
+    const mockSkillRepo = {
+      listSkills: vi.fn().mockResolvedValue([]),
+      removeSkill: vi.fn().mockResolvedValue(true),
+    };
+    (service as any).catToolRepo = { listTools: vi.fn().mockResolvedValue([]) };
+    (service as any).skillRepo = mockSkillRepo;
+
+    service.init();
+
+    // 找到 removeSkill 处理函数
+    const removeSkillCall = mockGroup.on.mock.calls.find((call: any[]) => call[0] === "removeSkill");
+    expect(removeSkillCall).toBeDefined();
+
+    const handler = removeSkillCall[1];
+    const result = await handler("msg-test-skill");
+
+    expect(result).toBe(true);
+    expect(mockSkillRepo.removeSkill).toHaveBeenCalledWith("msg-test-skill");
+  });
 });

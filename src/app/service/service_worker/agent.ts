@@ -83,6 +83,16 @@ export class AgentService {
     this.group.on("getCATToolInstallCode", (uuid: string) => this.getCATToolInstallCode(uuid));
     this.group.on("completeCATToolInstall", (uuid: string) => this.completeCATToolInstall(uuid));
     this.group.on("cancelCATToolInstall", (uuid: string) => this.cancelCATToolInstall(uuid));
+    // Skill 管理（供 Options UI 调用）
+    this.group.on(
+      "installSkill",
+      (params: {
+        skillMd: string;
+        scripts?: Array<{ name: string; code: string }>;
+        references?: Array<{ name: string; content: string }>;
+      }) => this.installSkill(params.skillMd, params.scripts, params.references)
+    );
+    this.group.on("removeSkill", (name: string) => this.removeSkill(name));
     // 加载已安装的 CATTools
     this.loadCATTools();
     // 加载已安装的 Skills

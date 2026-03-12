@@ -349,4 +349,16 @@ export class AgentClient extends Client {
   cancelCATToolInstall(uuid: string): Promise<void> {
     return this.do("cancelCATToolInstall", uuid);
   }
+
+  installSkill(params: {
+    skillMd: string;
+    scripts?: Array<{ name: string; code: string }>;
+    references?: Array<{ name: string; content: string }>;
+  }): Promise<unknown> {
+    return this.do("installSkill", params);
+  }
+
+  removeSkill(name: string): Promise<unknown> {
+    return this.do("removeSkill", name);
+  }
 }
