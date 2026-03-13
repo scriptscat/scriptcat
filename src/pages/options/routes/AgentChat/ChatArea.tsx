@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Message as ArcoMessage } from "@arco-design/web-react";
 import { IconRobot } from "@arco-design/web-react/icon";
-import type { AgentModelConfig, SkillSummary } from "@App/app/service/agent/types";
+import type { AgentModelConfig, SkillSummary, ContentBlock, MessageContent } from "@App/app/service/agent/types";
 import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
+import { getTextContent } from "@App/app/service/agent/content_utils";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
 import { useMessages, useStreamingChat, deleteMessages, clearMessages } from "./hooks";
@@ -80,8 +81,12 @@ export default function ChatArea({
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // 流式期间累积的非文本 blocks（content_block_complete 事件）
+  const pendingBlocksRef = useRef<ContentBlock[]>([]);
+
   // 创建流式事件回调（提取公共逻辑）
   const createStreamCallback = () => {
+    pendingBlocksRef.current = [];
     return (event: ChatStreamEvent) => {
       const msg = streamingMsgRef.current;
       if (!msg) return;
@@ -92,7 +97,10 @@ export default function ChatArea({
             firstTokenRecordedRef.current = true;
             firstTokenMsRef.current = Date.now() - sendStartTimeRef.current;
           }
-          msg.content += event.delta;
+          // streaming 期间 content 始终为 string
+          if (typeof msg.content === "string") {
+            msg.content += event.delta;
+          }
           break;
         case "thinking_delta":
           if (!msg.thinking) msg.thinking = { content: "" };
@@ -117,7 +125,24 @@ export default function ChatArea({
           }
           break;
         }
+        case "content_block_start":
+          // 非文本 block 开始，暂不处理（等 complete 时处理）
+          break;
+        case "content_block_complete":
+          // 非文本 block 完成，加入 pending 列表
+          pendingBlocksRef.current.push(event.block);
+          break;
         case "new_message": {
+          // 在开始新消息前，合并 pending blocks 到当前消息
+          if (pendingBlocksRef.current.length > 0) {
+            const textContent = typeof msg.content === "string" ? msg.content : "";
+            const blocks: ContentBlock[] = [];
+            if (textContent) blocks.push({ type: "text", text: textContent });
+            blocks.push(...pendingBlocksRef.current);
+            msg.content = blocks;
+            pendingBlocksRef.current = [];
+          }
+
           const newMsg: ChatMessage = {
             id: genId(),
             conversationId,
@@ -137,6 +162,15 @@ export default function ChatArea({
           if (event.usage) msg.usage = event.usage;
           if (event.durationMs != null) msg.durationMs = event.durationMs;
           if (firstTokenMsRef.current != null) msg.firstTokenMs = firstTokenMsRef.current;
+          // 合并 pending blocks 到最终消息
+          if (pendingBlocksRef.current.length > 0) {
+            const textContent = typeof msg.content === "string" ? msg.content : "";
+            const blocks: ContentBlock[] = [];
+            if (textContent) blocks.push({ type: "text", text: textContent });
+            blocks.push(...pendingBlocksRef.current);
+            msg.content = blocks;
+            pendingBlocksRef.current = [];
+          }
           break;
       }
 
@@ -160,7 +194,7 @@ export default function ChatArea({
   };
 
   // 初始化流式请求的公共逻辑
-  const startStreaming = (baseMessages: ChatMessage[], content: string, skipUserMessage?: boolean) => {
+  const startStreaming = (baseMessages: ChatMessage[], content: MessageContent, skipUserMessage?: boolean) => {
     sendStartTimeRef.current = Date.now();
     firstTokenRecordedRef.current = false;
     firstTokenMsRef.current = undefined;
@@ -196,11 +230,11 @@ export default function ChatArea({
   startStreamingRef.current = startStreaming;
 
   // 发送消息（支持指定 content 和可选的已有消息列表用于重新回答）
-  const handleSend = async (content: string, existingMessages?: ChatMessage[]) => {
+  const handleSend = async (content: MessageContent, existingMessages?: ChatMessage[]) => {
     if (!conversationId || !selectedModelId) return;
 
     // 处理 /new 命令：清空对话上下文
-    if (content.trim() === "/new") {
+    if (typeof content === "string" && content.trim() === "/new") {
       await clearMessages(conversationId);
       setMessages([]);
       return;
@@ -213,7 +247,7 @@ export default function ChatArea({
   const handleCopy = useCallback(
     (groupMessages: ChatMessage[]) => {
       const text = groupMessages
-        .map((m) => m.content)
+        .map((m) => getTextContent(m.content))
         .filter(Boolean)
         .join("\n\n");
       navigator.clipboard.writeText(text).then(() => {
@@ -329,7 +363,8 @@ export default function ChatArea({
                   isStreaming={isStreaming}
                   onEdit={(newContent) => handleEditMessage(group.message.id, newContent)}
                   onRegenerate={
-                    findNextAssistantGroupIndex(messageGroups, groupIndex) != null
+                    findNextAssistantGroupIndex(messageGroups, groupIndex) != null ||
+                    groupIndex === messageGroups.length - 1
                       ? () => handleRegenerateUserMessage(group.message.id)
                       : undefined
                   }

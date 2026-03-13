@@ -37,12 +37,21 @@ export class AgentChatRepo extends OPFSRepo {
     const messages = await this.getMessages(id);
     const attachmentIds: string[] = [];
     for (const msg of messages) {
+      // 扫描 toolCalls 中的附件
       if (msg.toolCalls) {
         for (const tc of msg.toolCalls) {
           if (tc.attachments) {
             for (const att of tc.attachments) {
               attachmentIds.push(att.id);
             }
+          }
+        }
+      }
+      // 扫描 ContentBlock[] 中的附件
+      if (Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (block.type !== "text" && "attachmentId" in block) {
+            attachmentIds.push(block.attachmentId);
           }
         }
       }

@@ -1,3 +1,13 @@
+// ---- ContentBlock 多模态内容类型 ----
+
+export type TextBlock = { type: "text"; text: string };
+export type ImageBlock = { type: "image"; attachmentId: string; mimeType: string; name?: string };
+export type FileBlock = { type: "file"; attachmentId: string; mimeType: string; name: string; size?: number };
+export type AudioBlock = { type: "audio"; attachmentId: string; mimeType: string; name?: string; durationMs?: number };
+
+export type ContentBlock = TextBlock | ImageBlock | FileBlock | AudioBlock;
+export type MessageContent = string | ContentBlock[];
+
 export type Conversation = {
   id: string;
   title: string;
@@ -12,7 +22,7 @@ export type MessageRole = "user" | "assistant" | "system" | "tool";
 
 export type Attachment = {
   id: string;
-  type: "image" | "file";
+  type: "image" | "file" | "audio";
   name: string; // 文件名
   mimeType: string; // "image/jpeg", "application/zip" 等
   size?: number; // 字节数
@@ -20,7 +30,7 @@ export type Attachment = {
 };
 
 export type AttachmentData = {
-  type: "image" | "file";
+  type: "image" | "file" | "audio";
   name: string;
   mimeType: string;
   data: string | Blob; // base64/data URL 或 Blob
@@ -48,7 +58,7 @@ export type ChatMessage = {
   id: string;
   conversationId: string;
   role: MessageRole;
-  content: string;
+  content: MessageContent;
   thinking?: ThinkingBlock;
   toolCalls?: ToolCall[];
   // tool 角色的消息需要关联到对应的 tool_call
@@ -69,6 +79,8 @@ export type ChatStreamEvent =
   | { type: "tool_call_start"; toolCall: Omit<ToolCall, "result"> }
   | { type: "tool_call_delta"; id: string; delta: string }
   | { type: "tool_call_complete"; id: string; result: string; attachments?: Attachment[] }
+  | { type: "content_block_start"; block: Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId"> }
+  | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock }
   | { type: "new_message" }
   | { type: "done"; usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number }; durationMs?: number }
   | { type: "error"; message: string; errorCode?: string };
@@ -77,7 +89,7 @@ export type ChatStreamEvent =
 export type ChatRequest = {
   conversationId: string;
   modelId: string;
-  messages: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }>;
+  messages: Array<{ role: MessageRole; content: MessageContent; toolCallId?: string; toolCalls?: ToolCall[] }>;
   tools?: ToolDefinition[];
   cache?: boolean; // 是否启用 prompt caching（Anthropic），默认 true。短对话（如子 agent）可关闭以节省开销
 };
@@ -125,7 +137,7 @@ export type ChatOptions = {
 
 // conv.chat() 的返回值
 export type ChatReply = {
-  content: string;
+  content: MessageContent;
   thinking?: string;
   toolCalls?: ToolCall[];
   usage?: { inputTokens: number; outputTokens: number };
@@ -134,8 +146,9 @@ export type ChatReply = {
 
 // conv.chatStream() 的流式 chunk
 export type StreamChunk = {
-  type: "content_delta" | "thinking_delta" | "tool_call" | "done" | "error";
+  type: "content_delta" | "thinking_delta" | "tool_call" | "content_block" | "done" | "error";
   content?: string;
+  block?: ContentBlock;
   toolCall?: ToolCall;
   usage?: { inputTokens: number; outputTokens: number };
   error?: string;
@@ -423,12 +436,12 @@ export type ConversationApiRequest =
   | {
       action: "chat";
       conversationId: string;
-      message: string;
+      message: MessageContent;
       tools?: ToolDefinition[];
       scriptUuid: string;
       // ephemeral 会话专用字段
       ephemeral?: boolean;
-      messages?: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }>;
+      messages?: Array<{ role: MessageRole; content: MessageContent; toolCallId?: string; toolCalls?: ToolCall[] }>;
       system?: string;
       modelId?: string;
     }

@@ -14,7 +14,9 @@ import type {
   ToolDefinition,
   ChatMessage,
   MessageRole,
+  MessageContent,
 } from "@App/app/service/agent/types";
+import { getTextContent } from "@App/app/service/agent/content_utils";
 
 // 对话实例，暴露给用户脚本
 // 导出供测试使用
@@ -24,7 +26,7 @@ export class ConversationInstance {
   private commandHandlers: Map<string, CommandHandler> = new Map();
   private ephemeral: boolean;
   private systemPrompt?: string;
-  private messageHistory: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }> =
+  private messageHistory: Array<{ role: MessageRole; content: MessageContent; toolCallId?: string; toolCalls?: ToolCall[] }> =
     [];
 
   constructor(
@@ -74,9 +76,10 @@ export class ConversationInstance {
   }
 
   // 发送消息并获取回复（内置 tool calling 循环）
-  async chat(content: string, options?: ChatOptions): Promise<ChatReply> {
-    // 命令拦截
-    const cmdResult = await this.tryExecuteCommand(content);
+  async chat(content: MessageContent, options?: ChatOptions): Promise<ChatReply> {
+    // 命令拦截（仅纯文本消息支持命令）
+    const textContent = getTextContent(content);
+    const cmdResult = await this.tryExecuteCommand(textContent);
     if (cmdResult !== undefined) return cmdResult;
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
@@ -123,9 +126,10 @@ export class ConversationInstance {
   }
 
   // 流式发送消息
-  async chatStream(content: string, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>> {
-    // 命令拦截：返回单个 done chunk
-    const cmdResult = await this.tryExecuteCommand(content);
+  async chatStream(content: MessageContent, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>> {
+    // 命令拦截：返回单个 done chunk（仅纯文本消息支持命令）
+    const textContent = getTextContent(content);
+    const cmdResult = await this.tryExecuteCommand(textContent);
     if (cmdResult !== undefined) {
       return {
         [Symbol.asyncIterator]() {
@@ -135,7 +139,7 @@ export class ConversationInstance {
               if (!yielded) {
                 yielded = true;
                 return {
-                  value: { type: "done" as const, content: cmdResult.content, command: true },
+                  value: { type: "done" as const, content: getTextContent(cmdResult.content), command: true },
                   done: false,
                 };
               }
@@ -196,7 +200,8 @@ export class ConversationInstance {
     if (!handler) return undefined;
 
     const result = await handler(parsed.args, this);
-    return { content: result || "", command: true };
+    // 命令结果始终为纯文本 string
+    return { content: (result || "") as string, command: true };
   }
 
   // 合并实例级别和调用级别的工具定义

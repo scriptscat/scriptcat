@@ -1,11 +1,68 @@
-import type { ChatStreamEvent, ChatRequest } from "../types";
+import type { ChatStreamEvent, ChatRequest, ContentBlock } from "../types";
 import type { AgentModelConfig } from "../types";
 import { SSEParser } from "../sse_parser";
+import { isContentBlocks } from "../content_utils";
+
+// 将 ContentBlock[] 转换为 Anthropic content 格式
+function convertContentBlocks(
+  blocks: ContentBlock[],
+  attachmentResolver?: (id: string) => string | null
+): Array<Record<string, unknown>> {
+  const result: Array<Record<string, unknown>> = [];
+  for (const block of blocks) {
+    switch (block.type) {
+      case "text":
+        result.push({ type: "text", text: block.text });
+        break;
+      case "image": {
+        const data = attachmentResolver?.(block.attachmentId);
+        if (data) {
+          // data URL → base64 内容
+          const match = data.match(/^data:([^;]+);base64,(.+)$/s);
+          if (match) {
+            result.push({
+              type: "image",
+              source: { type: "base64", media_type: match[1], data: match[2] },
+            });
+          } else {
+            result.push({ type: "text", text: `[Image: ${block.name || "image"}]` });
+          }
+        } else {
+          result.push({ type: "text", text: `[Image: ${block.name || "image"}]` });
+        }
+        break;
+      }
+      case "file": {
+        const data = attachmentResolver?.(block.attachmentId);
+        if (data) {
+          const match = data.match(/^data:([^;]+);base64,(.+)$/s);
+          if (match) {
+            result.push({
+              type: "document",
+              source: { type: "base64", media_type: match[1], data: match[2] },
+            });
+          } else {
+            result.push({ type: "text", text: `[File: ${block.name}]` });
+          }
+        } else {
+          result.push({ type: "text", text: `[File: ${block.name}]` });
+        }
+        break;
+      }
+      case "audio":
+        // Anthropic 暂不支持音频，降级为文本描述
+        result.push({ type: "text", text: `[Audio: ${block.name || "audio"}${block.durationMs ? ` (${(block.durationMs / 1000).toFixed(1)}s)` : ""}]` });
+        break;
+    }
+  }
+  return result;
+}
 
 // 构造 Anthropic 格式的请求
 export function buildAnthropicRequest(
   config: AgentModelConfig,
-  request: ChatRequest
+  request: ChatRequest,
+  attachmentResolver?: (id: string) => string | null
 ): { url: string; init: RequestInit } {
   const baseUrl = config.apiBaseUrl || "https://api.anthropic.com";
   const url = `${baseUrl}/v1/messages`;
@@ -34,7 +91,11 @@ export function buildAnthropicRequest(
     if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
       const content: Array<Record<string, unknown>> = [];
       if (m.content) {
-        content.push({ type: "text", text: m.content });
+        if (isContentBlocks(m.content)) {
+          content.push(...convertContentBlocks(m.content, attachmentResolver));
+        } else {
+          content.push({ type: "text", text: m.content });
+        }
       }
       for (const tc of m.toolCalls) {
         content.push({
@@ -45,6 +106,10 @@ export function buildAnthropicRequest(
         });
       }
       return { role: "assistant" as const, content };
+    }
+    // 处理 ContentBlock[] 格式的消息内容
+    if (isContentBlocks(m.content)) {
+      return { role: m.role, content: convertContentBlocks(m.content, attachmentResolver) };
     }
     return { role: m.role, content: m.content };
   });
@@ -62,7 +127,7 @@ export function buildAnthropicRequest(
   if (systemMessages.length > 0) {
     const systemBlocks = systemMessages.map((m) => ({
       type: "text" as const,
-      text: m.content,
+      text: typeof m.content === "string" ? m.content : m.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join(""),
     }));
     // 最后一个 system block 加 cache_control（仅在启用缓存时）
     if (useCache && systemBlocks.length > 0) {

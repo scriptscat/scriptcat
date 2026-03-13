@@ -17,7 +17,10 @@ import type {
   MCPApiRequest,
   SkillApiRequest,
   SkillRecord,
+  MessageContent,
+  ContentBlock,
 } from "@App/app/service/agent/types";
+import { getTextContent, isContentBlocks } from "@App/app/service/agent/content_utils";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
@@ -673,7 +676,7 @@ export class AgentService {
   async handleConversationChatFromGmApi(
     params: {
       conversationId: string;
-      message: string;
+      message: MessageContent;
       tools?: ToolDefinition[];
       maxIterations?: number;
       scriptUuid: string;
@@ -883,11 +886,52 @@ export class AgentService {
     sendEvent({ type: "error", message: `Tool calling loop exceeded maximum iterations (${maxIterations})`, errorCode: "max_iterations" });
   }
 
+  // 解析消息中所有 ContentBlock 引用的 attachmentId → base64 data URL
+  private async resolveAttachments(
+    messages: ChatRequest["messages"]
+  ): Promise<(id: string) => string | null> {
+    const resolved = new Map<string, string>();
+    const ids = new Set<string>();
+
+    for (const m of messages) {
+      if (isContentBlocks(m.content)) {
+        for (const block of m.content) {
+          if (block.type !== "text" && "attachmentId" in block) {
+            ids.add(block.attachmentId);
+          }
+        }
+      }
+    }
+
+    if (ids.size === 0) return () => null;
+
+    for (const id of ids) {
+      try {
+        const blob = await this.repo.getAttachment(id);
+        if (blob) {
+          // Blob → base64 data URL
+          const buffer = await blob.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const b64 = btoa(binary);
+          resolved.set(id, `data:${blob.type || "application/octet-stream"};base64,${b64}`);
+        }
+      } catch {
+        // 加载失败，跳过
+      }
+    }
+
+    return (id: string) => resolved.get(id) ?? null;
+  }
+
   // 统一的流式 conversation chat（UI 和脚本 API 共用）
   private async handleConversationChat(
     params: {
       conversationId: string;
-      message: string;
+      message: MessageContent;
       tools?: ToolDefinition[];
       maxIterations?: number;
       scriptUuid?: string;
@@ -1072,7 +1116,8 @@ export class AgentService {
 
       // 更新对话标题（如果是第一条消息）
       if (existingMessages.length === 0 && conv.title === "New Chat") {
-        conv.title = params.message.slice(0, 30) + (params.message.length > 30 ? "..." : "");
+        const titleText = getTextContent(params.message);
+        conv.title = titleText.slice(0, 30) + (titleText.length > 30 ? "..." : "");
         conv.updatetime = Date.now();
         await this.repo.saveConversation(conv);
       }
@@ -1124,10 +1169,13 @@ export class AgentService {
       cache: params.cache,
     };
 
+    // 预解析消息中 ContentBlock 引用的 attachmentId → base64
+    const attachmentResolver = await this.resolveAttachments(params.messages);
+
     const { url, init } =
       model.provider === "anthropic"
-        ? buildAnthropicRequest(model, chatRequest)
-        : buildOpenAIRequest(model, chatRequest);
+        ? buildAnthropicRequest(model, chatRequest, attachmentResolver)
+        : buildOpenAIRequest(model, chatRequest, attachmentResolver);
 
     const response = await fetch(url, { ...init, signal });
 

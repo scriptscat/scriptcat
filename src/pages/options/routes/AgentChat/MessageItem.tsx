@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import type { ChatMessage } from "@App/app/service/agent/types";
 import MarkdownRenderer from "./MarkdownRenderer";
+import ContentBlockRenderer from "./ContentBlockRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
 import MessageToolbar from "./MessageToolbar";
 import { Message as ArcoMessage, Tooltip } from "@arco-design/web-react";
 import { IconRobot, IconUser, IconEdit, IconCopy, IconRefresh } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
+import { getTextContent } from "@App/app/service/agent/content_utils";
 
 // 单条助手消息内容（无头像、无外层包装）
 function AssistantMessageContent({ message, isStreaming }: { message: ChatMessage; isStreaming?: boolean }) {
@@ -17,14 +19,14 @@ function AssistantMessageContent({ message, isStreaming }: { message: ChatMessag
       {message.thinking?.content && <ThinkingBlock content={message.thinking.content} />}
 
       {/* 主内容 */}
-      {message.content && (
+      {(typeof message.content === "string" ? message.content : message.content.length > 0) && (
         <div className={isStreaming ? "agent-streaming-cursor" : ""}>
-          <MarkdownRenderer content={message.content} />
+          <ContentBlockRenderer content={message.content} />
         </div>
       )}
 
       {/* 流式指示 */}
-      {isStreaming && !message.content && !message.thinking?.content && (
+      {isStreaming && !getTextContent(message.content) && !message.thinking?.content && (
         <div className="tw-flex tw-items-center tw-gap-2 tw-py-2">
           <div className="agent-tool-spinner" />
           <span className="tw-text-[var(--color-text-3)] tw-text-xs">{t("agent_chat_streaming")}</span>
@@ -62,7 +64,7 @@ export function UserMessageItem({
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
-  const [editContent, setEditContent] = useState(message.content);
+  const [editContent, setEditContent] = useState(getTextContent(message.content));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 进入编辑模式时聚焦并调整高度
@@ -78,13 +80,13 @@ export function UserMessageItem({
   }, [editing]);
 
   const handleStartEdit = () => {
-    setEditContent(message.content);
+    setEditContent(getTextContent(message.content));
     setEditing(true);
   };
 
   const handleCancel = () => {
     setEditing(false);
-    setEditContent(message.content);
+    setEditContent(getTextContent(message.content));
   };
 
   const handleSave = () => {
@@ -95,7 +97,7 @@ export function UserMessageItem({
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.content).then(() => {
+    navigator.clipboard.writeText(getTextContent(message.content)).then(() => {
       ArcoMessage.success(t("agent_chat_copy_success"));
     });
   };
@@ -152,7 +154,11 @@ export function UserMessageItem({
           // 只读模式：消息气泡 + 底部工具条
           <>
             <div className="tw-px-4 tw-py-2.5 tw-rounded-2xl tw-rounded-tr-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-white tw-text-sm tw-whitespace-pre-wrap tw-break-words tw-shadow-sm">
-              {message.content}
+              {typeof message.content === "string" ? (
+                message.content
+              ) : (
+                <ContentBlockRenderer content={message.content} />
+              )}
             </div>
             {canInteract && (
               <div className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-flex tw-items-center tw-mt-1 tw-gap-0.5">

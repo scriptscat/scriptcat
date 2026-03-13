@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Select } from "@arco-design/web-react";
 import { IconSend, IconPause } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { AgentModelConfig, SkillSummary } from "@App/app/service/agent/types";
+import type { AgentModelConfig, SkillSummary, MessageContent } from "@App/app/service/agent/types";
 
 export default function ChatInput({
   models,
@@ -19,7 +19,7 @@ export default function ChatInput({
   models: AgentModelConfig[];
   selectedModelId: string;
   onModelChange: (id: string) => void;
-  onSend: (content: string) => void;
+  onSend: (content: MessageContent) => void;
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;

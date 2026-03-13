@@ -1,4 +1,4 @@
-import type { ChatMessage } from "@App/app/service/agent/types";
+import type { ChatMessage, MessageContent } from "@App/app/service/agent/types";
 
 // 将消息按角色分组：连续的 assistant 消息合并为一组
 export type MessageGroup = { type: "user"; message: ChatMessage } | { type: "assistant"; messages: ChatMessage[] };
@@ -8,7 +8,8 @@ export function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
   const toolResultMap = new Map<string, string>();
   for (const msg of messages) {
     if (msg.role === "tool" && msg.toolCallId) {
-      toolResultMap.set(msg.toolCallId, msg.content);
+      // tool 消息的 content 始终是 string
+      toolResultMap.set(msg.toolCallId, typeof msg.content === "string" ? msg.content : "");
     }
   }
 
@@ -53,7 +54,7 @@ export function computeRegenerateAction(
   groups: MessageGroup[],
   assistantGroupIndex: number,
   allMessages: ChatMessage[]
-): { idsToDelete: string[]; remainingMessages: ChatMessage[]; userContent: string } | null {
+): { idsToDelete: string[]; remainingMessages: ChatMessage[]; userContent: MessageContent } | null {
   const group = groups[assistantGroupIndex];
   if (!group || group.type !== "assistant") return null;
 
@@ -109,7 +110,7 @@ export function findNextAssistantGroupIndex(
 export function computeUserRegenerateAction(
   messageId: string,
   allMessages: ChatMessage[]
-): { idsToDelete: string[]; remainingMessages: ChatMessage[]; userContent: string; skipUserMessage: true } | null {
+): { idsToDelete: string[]; remainingMessages: ChatMessage[]; userContent: MessageContent; skipUserMessage: true } | null {
   const idx = allMessages.findIndex((m) => m.id === messageId);
   if (idx < 0) return null;
 

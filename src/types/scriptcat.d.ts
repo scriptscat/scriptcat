@@ -750,6 +750,12 @@ declare namespace GMTypes {
 // ---- CAT.agent.conversation API ----
 
 declare namespace CATAgent {
+  type TextBlock = { type: "text"; text: string };
+  type ImageBlock = { type: "image"; attachmentId: string; mimeType: string; name?: string };
+  type FileBlock = { type: "file"; attachmentId: string; mimeType: string; name: string; size?: number };
+  type AudioBlock = { type: "audio"; attachmentId: string; mimeType: string; name?: string; durationMs?: number };
+  type ContentBlock = TextBlock | ImageBlock | FileBlock | AudioBlock;
+
   interface ToolDefinition {
     name: string;
     description: string;
@@ -776,15 +782,16 @@ declare namespace CATAgent {
   }
 
   interface ChatReply {
-    content: string;
+    content: string | ContentBlock[];
     thinking?: string;
     toolCalls?: ToolCallInfo[];
     usage?: { inputTokens: number; outputTokens: number };
   }
 
   interface StreamChunk {
-    type: "content_delta" | "thinking_delta" | "tool_call" | "done" | "error";
+    type: "content_delta" | "thinking_delta" | "tool_call" | "content_block" | "done" | "error";
     content?: string;
+    block?: ContentBlock;
     toolCall?: ToolCallInfo;
     usage?: { inputTokens: number; outputTokens: number };
     error?: string;
@@ -796,7 +803,7 @@ declare namespace CATAgent {
     id: string;
     conversationId: string;
     role: "user" | "assistant" | "system" | "tool";
-    content: string;
+    content: string | ContentBlock[];
     toolCalls?: ToolCallInfo[];
     toolCallId?: string;
     createdAt: number;
@@ -806,8 +813,8 @@ declare namespace CATAgent {
     readonly id: string;
     readonly title: string;
     readonly modelId: string;
-    chat(content: string, options?: ChatOptions): Promise<ChatReply>;
-    chatStream(content: string, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>>;
+    chat(content: string | ContentBlock[], options?: ChatOptions): Promise<ChatReply>;
+    chatStream(content: string | ContentBlock[], options?: ChatOptions): Promise<AsyncIterable<StreamChunk>>;
     getMessages(): Promise<ChatMessage[]>;
     save(): Promise<void>;
   }
