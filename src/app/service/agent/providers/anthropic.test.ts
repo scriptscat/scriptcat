@@ -27,7 +27,10 @@ describe("buildAnthropicRequest", () => {
     const { init } = buildAnthropicRequest(config, request);
     const body = JSON.parse(init.body as string);
 
-    expect(body.system).toBe("你是助手\n\n请用中文回答");
+    expect(body.system).toEqual([
+      { type: "text", text: "你是助手" },
+      { type: "text", text: "请用中文回答", cache_control: { type: "ephemeral" } },
+    ]);
     expect(body.messages).toHaveLength(1);
     expect(body.messages[0].role).toBe("user");
   });
@@ -138,6 +141,8 @@ describe("buildAnthropicRequest", () => {
     expect(body.tools[0].input_schema).toBeDefined();
     expect(body.tools[0].parameters).toBeUndefined();
     expect(body.tools[0].type).toBeUndefined();
+    // 最后一个工具应带 cache_control
+    expect(body.tools[0].cache_control).toEqual({ type: "ephemeral" });
   });
 
   it("应设置 max_tokens 和 stream", () => {
@@ -259,7 +264,37 @@ describe("parseAnthropicStream", () => {
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("done");
     if (events[0].type === "done") {
-      expect(events[0].usage).toEqual({ inputTokens: 100, outputTokens: 50 });
+      expect(events[0].usage).toEqual({
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheCreationInputTokens: undefined,
+        cacheReadInputTokens: undefined,
+      });
+    }
+  });
+
+  it("应合并 message_start 和 message_delta 的 usage（含 cache 信息）", async () => {
+    const reader = createMockReader([
+      'event: message_start\ndata: {"message":{"usage":{"input_tokens":200,"cache_creation_input_tokens":50,"cache_read_input_tokens":100}}}\n\n',
+      'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"hi"}}\n\n',
+      'event: message_delta\ndata: {"usage":{"output_tokens":30}}\n\n',
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toEqual({ type: "content_delta", delta: "hi" });
+    expect(events[1].type).toBe("done");
+    if (events[1].type === "done") {
+      expect(events[1].usage).toEqual({
+        inputTokens: 200,
+        outputTokens: 30,
+        cacheCreationInputTokens: 50,
+        cacheReadInputTokens: 100,
+      });
     }
   });
 

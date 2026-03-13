@@ -56,16 +56,29 @@ export function buildAnthropicRequest(
   };
 
   if (systemMessages.length > 0) {
-    body.system = systemMessages.map((m) => m.content).join("\n\n");
+    const systemBlocks = systemMessages.map((m) => ({
+      type: "text" as const,
+      text: m.content,
+    }));
+    // 最后一个 system block 加 cache_control
+    if (systemBlocks.length > 0) {
+      (systemBlocks[systemBlocks.length - 1] as Record<string, unknown>).cache_control = { type: "ephemeral" };
+    }
+    body.system = systemBlocks;
   }
 
   // 添加工具定义
   if (request.tools && request.tools.length > 0) {
-    body.tools = request.tools.map((t) => ({
+    const tools = request.tools.map((t) => ({
       name: t.name,
       description: t.description,
       input_schema: t.parameters,
     }));
+    // 最后一个 tool 加 cache_control
+    if (tools.length > 0) {
+      (tools[tools.length - 1] as Record<string, unknown>).cache_control = { type: "ephemeral" };
+    }
+    body.tools = tools;
   }
 
   const headers: Record<string, string> = {
@@ -94,6 +107,9 @@ export function parseAnthropicStream(
   const parser = new SSEParser();
   const decoder = new TextDecoder();
 
+  // 跟踪 message_start 中的 usage（含 cache 信息），在 message_delta 中合并输出
+  let cachedUsage: { inputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | null = null;
+
   return (async () => {
     try {
       while (!signal.aborted) {
@@ -108,6 +124,18 @@ export function parseAnthropicStream(
             const json = JSON.parse(sseEvent.data);
 
             switch (sseEvent.event) {
+              case "message_start": {
+                // message_start 包含初始 usage（input_tokens, cache 信息）
+                const usage = json.message?.usage;
+                if (usage) {
+                  cachedUsage = {
+                    inputTokens: usage.input_tokens || 0,
+                    cacheCreationInputTokens: usage.cache_creation_input_tokens,
+                    cacheReadInputTokens: usage.cache_read_input_tokens,
+                  };
+                }
+                break;
+              }
               case "content_block_start": {
                 const block = json.content_block;
                 if (block?.type === "thinking") {
@@ -140,13 +168,15 @@ export function parseAnthropicStream(
                 break;
               }
               case "message_delta": {
-                // 消息结束，可能包含 usage
+                // 消息结束，合并 message_start 的 input usage 和 message_delta 的 output usage
                 if (json.usage) {
                   onEvent({
                     type: "done",
                     usage: {
-                      inputTokens: json.usage.input_tokens || 0,
+                      inputTokens: cachedUsage?.inputTokens || json.usage.input_tokens || 0,
                       outputTokens: json.usage.output_tokens || 0,
+                      cacheCreationInputTokens: cachedUsage?.cacheCreationInputTokens,
+                      cacheReadInputTokens: cachedUsage?.cacheReadInputTokens,
                     },
                   });
                   return;

@@ -173,6 +173,24 @@ describe("parseOpenAIStream", () => {
     }
   });
 
+  it("应正确处理含 cached_tokens 的 usage 信息", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+      'data: {"usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":80}}}\n\n',
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toHaveLength(2);
+    expect(events[1].type).toBe("done");
+    if (events[1].type === "done") {
+      expect(events[1].usage).toEqual({ inputTokens: 100, outputTokens: 20, cacheReadInputTokens: 80 });
+    }
+  });
+
   it("应正确处理 API 错误响应", async () => {
     const reader = createMockReader(['data: {"error":{"message":"Rate limit exceeded"}}\n\n']);
 

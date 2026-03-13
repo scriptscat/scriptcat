@@ -354,7 +354,7 @@ describe("Anthropic Provider", () => {
 
       const body = JSON.parse(init.body as string);
       expect(body.model).toBe("claude-sonnet-4-20250514");
-      expect(body.system).toBe("你是助手");
+      expect(body.system).toEqual([{ type: "text", text: "你是助手", cache_control: { type: "ephemeral" } }]);
       // system 消息不应出现在 messages 中
       expect(body.messages).toHaveLength(1);
       expect(body.messages[0].role).toBe("user");

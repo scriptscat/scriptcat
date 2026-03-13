@@ -135,11 +135,13 @@ export function parseOpenAIStream(
 
             // 处理 usage（最后一个 chunk，必须在 choices 之后处理，避免丢失 tool_call 数据）
             if (json.usage) {
+              const cachedTokens = json.usage.prompt_tokens_details?.cached_tokens;
               onEvent({
                 type: "done",
                 usage: {
                   inputTokens: json.usage.prompt_tokens || 0,
                   outputTokens: json.usage.completion_tokens || 0,
+                  ...(cachedTokens ? { cacheReadInputTokens: cachedTokens } : {}),
                 },
               });
               return;
