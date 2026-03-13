@@ -36,18 +36,24 @@ export async function openEditorPage(context: BrowserContext, extensionId: strin
 /** Install a script by injecting code into the Monaco editor and saving */
 export async function installScriptByCode(context: BrowserContext, extensionId: string, code: string): Promise<void> {
   const page = await openEditorPage(context, extensionId);
-  // Wait for Monaco editor to be ready
+  // Wait for Monaco editor DOM and default template content to be ready
   await page.locator(".monaco-editor").waitFor({ timeout: 30_000 });
   await page.locator(".view-lines").waitFor({ timeout: 15_000 });
-  // Click into editor to ensure focus
+  // Click to focus and wait for the cursor to appear (confirms editor is interactive)
   await page.locator(".monaco-editor .view-lines").click();
-  await page.waitForTimeout(500);
-  // Select all existing content and replace via clipboard
+  await page.locator(".cursors-layer .cursor").waitFor({ timeout: 5_000 });
+  // Select all existing content
   await page.keyboard.press("ControlOrMeta+a");
-  await page.waitForTimeout(500);
+  // Capture current content fingerprint, then paste replacement
+  const initialText = await page.locator(".view-lines").textContent();
   await page.evaluate((text) => navigator.clipboard.writeText(text), code);
   await page.keyboard.press("ControlOrMeta+v");
-  await page.waitForTimeout(2000);
+  // Wait for Monaco to finish rendering the pasted content (content will differ from template)
+  await page.waitForFunction(
+    (init) => document.querySelector(".view-lines")?.textContent !== init,
+    initialText,
+    { timeout: 10_000 }
+  );
   // Save
   await page.keyboard.press("ControlOrMeta+s");
   // Wait for save: try arco-message first, then verify via script list
@@ -61,13 +67,9 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
     // For scripts with @require/@resource, the message may not appear.
     // Verify save by checking the script list on the options page.
     const listPage = await openOptionsPage(context, extensionId);
-    await listPage.waitForTimeout(2_000);
     const emptyState = listPage.locator(".arco-empty");
-    // Wait until at least one script appears (no empty state)
-    for (let i = 0; i < 30; i++) {
-      if ((await emptyState.count()) === 0) break;
-      await listPage.waitForTimeout(1_000);
-    }
+    // Wait until at least one script appears (no empty state), up to 30s
+    await emptyState.waitFor({ state: "detached", timeout: 30_000 }).catch(() => {});
     await listPage.close();
   }
   await page.close();
