@@ -4,16 +4,41 @@
 
 import type { ActionResult, MonitorResult, ScreenshotOptions } from "@App/app/service/agent/types";
 
+// 活跃的 monitor 会话，key 为 tabId（提前声明，withDebugger 需要检查）
+type MonitorEventListener = (source: chrome.debugger.Debuggee, method: string, params?: any) => void;
+
+type CapturedNode = {
+  nodeId: number;
+  tag: string;
+  id?: string;
+  class?: string;
+  role?: string;
+};
+
+type MonitorSession = {
+  dialogs: Array<{ type: string; message: string }>;
+  capturedNodes: CapturedNode[]; // 从事件中直接提取的节点信息
+  listener: MonitorEventListener;
+};
+
+const activeMonitors = new Map<number, MonitorSession>();
+
 // 生命周期管理：attach → 执行 → detach
+// 如果该 tabId 已有活跃的 monitor（已 attach），则复用连接，不做 attach/detach
 export async function withDebugger<T>(tabId: number, fn: (tabId: number) => Promise<T>): Promise<T> {
-  await chrome.debugger.attach({ tabId }, "1.3");
+  const hasMonitor = activeMonitors.has(tabId);
+  if (!hasMonitor) {
+    await chrome.debugger.attach({ tabId }, "1.3");
+  }
   try {
     return await fn(tabId);
   } finally {
-    try {
-      await chrome.debugger.detach({ tabId });
-    } catch {
-      // tab 可能已经关闭
+    if (!hasMonitor) {
+      try {
+        await chrome.debugger.detach({ tabId });
+      } catch {
+        // tab 可能已经关闭
+      }
     }
   }
 }
@@ -163,27 +188,6 @@ export async function cdpScreenshot(tabId: number, options?: ScreenshotOptions):
 
 // ---- 页面监控（startMonitor / stopMonitor） ----
 
-// ---- 页面监控（startMonitor / stopMonitor） ----
-
-// 活跃的 monitor 会话，key 为 tabId
-type MonitorEventListener = (source: chrome.debugger.Debuggee, method: string, params?: any) => void;
-
-type CapturedNode = {
-  nodeId: number;
-  tag: string;
-  id?: string;
-  class?: string;
-  role?: string;
-};
-
-type MonitorSession = {
-  dialogs: Array<{ type: string; message: string }>;
-  capturedNodes: CapturedNode[]; // 从事件中直接提取的节点信息
-  listener: MonitorEventListener;
-};
-
-const activeMonitors = new Map<number, MonitorSession>();
-
 // 启动页面监控：attach debugger，纯 CDP 事件监听（dialog + DOM 变化），零注入
 export async function cdpStartMonitor(tabId: number): Promise<void> {
   // 如果已有 monitor，先停止
@@ -239,6 +243,17 @@ export async function cdpStartMonitor(tabId: number): Promise<void> {
   chrome.debugger.onEvent.addListener(listener);
 
   activeMonitors.set(tabId, { dialogs, capturedNodes, listener });
+}
+
+// 轻量查询当前 monitor 状态（不停止监控）
+export function cdpPeekMonitor(tabId: number): { hasChanges: boolean; dialogCount: number; nodeCount: number } {
+  const monitor = activeMonitors.get(tabId);
+  if (!monitor) {
+    return { hasChanges: false, dialogCount: 0, nodeCount: 0 };
+  }
+  const dialogCount = monitor.dialogs.length;
+  const nodeCount = monitor.capturedNodes.length;
+  return { hasChanges: dialogCount > 0 || nodeCount > 0, dialogCount, nodeCount };
 }
 
 // 从 outerHTML 中提取纯文本（去除所有标签）

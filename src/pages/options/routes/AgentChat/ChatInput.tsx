@@ -84,6 +84,7 @@ export default function ChatInput({
                 value={selectedModelId}
                 onChange={onModelChange}
                 triggerProps={{ autoAlignPopupWidth: false }}
+                getPopupContainer={() => document.body}
                 className="!tw-w-auto !tw-min-w-[100px]"
                 bordered={false}
               >
@@ -111,6 +112,7 @@ export default function ChatInput({
                     }
                   }}
                   triggerProps={{ autoAlignPopupWidth: false }}
+                  getPopupContainer={() => document.body}
                   className="!tw-w-auto !tw-min-w-[80px] !tw-max-w-[200px]"
                   bordered={false}
                   placeholder="Skills"

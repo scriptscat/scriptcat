@@ -9,6 +9,7 @@ export function buildAnthropicRequest(
 ): { url: string; init: RequestInit } {
   const baseUrl = config.apiBaseUrl || "https://api.anthropic.com";
   const url = `${baseUrl}/v1/messages`;
+  const useCache = request.cache !== false;
 
   // 分离 system 消息和其他消息
   const systemMessages = request.messages.filter((m) => m.role === "system");
@@ -50,18 +51,21 @@ export function buildAnthropicRequest(
 
   const body: Record<string, unknown> = {
     model: config.model,
-    max_tokens: 8192,
     messages,
     stream: true,
   };
+
+  if (config.maxTokens) {
+    body.max_tokens = config.maxTokens;
+  }
 
   if (systemMessages.length > 0) {
     const systemBlocks = systemMessages.map((m) => ({
       type: "text" as const,
       text: m.content,
     }));
-    // 最后一个 system block 加 cache_control
-    if (systemBlocks.length > 0) {
+    // 最后一个 system block 加 cache_control（仅在启用缓存时）
+    if (useCache && systemBlocks.length > 0) {
       (systemBlocks[systemBlocks.length - 1] as Record<string, unknown>).cache_control = { type: "ephemeral" };
     }
     body.system = systemBlocks;
@@ -74,8 +78,8 @@ export function buildAnthropicRequest(
       description: t.description,
       input_schema: t.parameters,
     }));
-    // 最后一个 tool 加 cache_control
-    if (tools.length > 0) {
+    // 最后一个 tool 加 cache_control（仅在启用缓存时）
+    if (useCache && tools.length > 0) {
       (tools[tools.length - 1] as Record<string, unknown>).cache_control = { type: "ephemeral" };
     }
     body.tools = tools;

@@ -7,59 +7,18 @@ import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types"
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
 import { useMessages, useStreamingChat, deleteMessages, clearMessages } from "./hooks";
+import {
+  mergeToolResults,
+  groupMessages,
+  computeRegenerateAction,
+  computeEditAction,
+  computeUserRegenerateAction,
+  findNextAssistantGroupIndex,
+  type MessageGroup,
+} from "./chat_utils";
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-// 将 tool 角色消息的结果合并到 assistant 消息的 toolCalls 中，并过滤掉 tool/system 消息
-function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
-  // 建立 toolCallId → tool 消息内容 的映射
-  const toolResultMap = new Map<string, string>();
-  for (const msg of messages) {
-    if (msg.role === "tool" && msg.toolCallId) {
-      toolResultMap.set(msg.toolCallId, msg.content);
-    }
-  }
-
-  // 合并 tool 结果到 assistant 的 toolCalls，并过滤不需要展示的消息
-  return messages
-    .filter((msg) => msg.role === "user" || msg.role === "assistant")
-    .map((msg) => {
-      if (msg.role === "assistant" && msg.toolCalls && toolResultMap.size > 0) {
-        const updatedToolCalls = msg.toolCalls.map((tc) => {
-          const result = toolResultMap.get(tc.id);
-          if (result !== undefined) {
-            // 保留已有的 attachments（从持久化数据加载）
-            return { ...tc, result, status: (tc.status || "completed") as typeof tc.status };
-          }
-          return tc;
-        });
-        return { ...msg, toolCalls: updatedToolCalls };
-      }
-      return msg;
-    });
-}
-
-// 将消息按角色分组：连续的 assistant 消息合并为一组
-type MessageGroup = { type: "user"; message: ChatMessage } | { type: "assistant"; messages: ChatMessage[] };
-
-function groupMessages(messages: ChatMessage[]): MessageGroup[] {
-  const groups: MessageGroup[] = [];
-  for (const msg of messages) {
-    if (msg.role === "user") {
-      groups.push({ type: "user", message: msg });
-    } else {
-      // assistant 消息，尝试合并到上一个 assistant 组
-      const last = groups[groups.length - 1];
-      if (last && last.type === "assistant") {
-        last.messages.push(msg);
-      } else {
-        groups.push({ type: "assistant", messages: [msg] });
-      }
-    }
-  }
-  return groups;
 }
 
 // 欢迎界面
@@ -121,6 +80,121 @@ export default function ChatArea({
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // 创建流式事件回调（提取公共逻辑）
+  const createStreamCallback = () => {
+    return (event: ChatStreamEvent) => {
+      const msg = streamingMsgRef.current;
+      if (!msg) return;
+
+      switch (event.type) {
+        case "content_delta":
+          if (!firstTokenRecordedRef.current) {
+            firstTokenRecordedRef.current = true;
+            firstTokenMsRef.current = Date.now() - sendStartTimeRef.current;
+          }
+          msg.content += event.delta;
+          break;
+        case "thinking_delta":
+          if (!msg.thinking) msg.thinking = { content: "" };
+          msg.thinking.content += event.delta;
+          break;
+        case "tool_call_start":
+          if (!msg.toolCalls) msg.toolCalls = [];
+          msg.toolCalls.push({ ...event.toolCall, status: "running" });
+          break;
+        case "tool_call_delta":
+          if (msg.toolCalls?.length) {
+            const lastTc = msg.toolCalls[msg.toolCalls.length - 1];
+            lastTc.arguments += event.delta;
+          }
+          break;
+        case "tool_call_complete": {
+          const tc = msg.toolCalls?.find((t) => t.id === event.id);
+          if (tc) {
+            tc.status = "completed";
+            tc.result = event.result;
+            tc.attachments = event.attachments;
+          }
+          break;
+        }
+        case "new_message": {
+          const newMsg: ChatMessage = {
+            id: genId(),
+            conversationId,
+            role: "assistant",
+            content: "",
+            modelId: selectedModelId,
+            createtime: Date.now(),
+          };
+          streamingMsgRef.current = newMsg;
+          setMessages((prev) => [...prev, newMsg]);
+          return;
+        }
+        case "error":
+          msg.error = event.message;
+          break;
+        case "done":
+          if (event.usage) msg.usage = event.usage;
+          if (event.durationMs != null) msg.durationMs = event.durationMs;
+          if (firstTokenMsRef.current != null) msg.firstTokenMs = firstTokenMsRef.current;
+          break;
+      }
+
+      setMessages((prev) => {
+        const updated = [...prev];
+        const idx = updated.findIndex((m) => m.id === msg.id);
+        if (idx >= 0) {
+          updated[idx] = { ...msg };
+        }
+        return updated;
+      });
+    };
+  };
+
+  const createDoneCallback = () => {
+    return async () => {
+      streamingMsgRef.current = null;
+      await loadMessages();
+      onConversationTitleChange?.();
+    };
+  };
+
+  // 初始化流式请求的公共逻辑
+  const startStreaming = (baseMessages: ChatMessage[], content: string, skipUserMessage?: boolean) => {
+    sendStartTimeRef.current = Date.now();
+    firstTokenRecordedRef.current = false;
+    firstTokenMsRef.current = undefined;
+
+    const newMessages = [...baseMessages];
+    if (!skipUserMessage) {
+      newMessages.push({
+        id: genId(),
+        conversationId,
+        role: "user",
+        content,
+        createtime: Date.now(),
+      });
+    }
+
+    const assistantMsg: ChatMessage = {
+      id: genId(),
+      conversationId,
+      role: "assistant",
+      content: "",
+      modelId: selectedModelId,
+      createtime: Date.now(),
+    };
+    streamingMsgRef.current = assistantMsg;
+    newMessages.push(assistantMsg);
+
+    setMessages(newMessages);
+    sendMessage(conversationId, content, createStreamCallback(), createDoneCallback(), selectedModelId);
+  };
+
+  // 用 ref 保存 startStreaming 的最新引用，避免 useCallback 闭包陈旧
+  const startStreamingRef = useRef(startStreaming);
+  startStreamingRef.current = startStreaming;
+
   // 发送消息（支持指定 content 和可选的已有消息列表用于重新回答）
   const handleSend = async (content: string, existingMessages?: ChatMessage[]) => {
     if (!conversationId || !selectedModelId) return;
@@ -132,117 +206,7 @@ export default function ChatArea({
       return;
     }
 
-    // 记录发送开始时间
-    sendStartTimeRef.current = Date.now();
-    firstTokenRecordedRef.current = false;
-    firstTokenMsRef.current = undefined;
-
-    // 乐观 UI 更新：添加用户消息和助手消息占位
-    const userMsg: ChatMessage = {
-      id: genId(),
-      conversationId,
-      role: "user",
-      content,
-      createtime: Date.now(),
-    };
-
-    const assistantMsg: ChatMessage = {
-      id: genId(),
-      conversationId,
-      role: "assistant",
-      content: "",
-      modelId: selectedModelId,
-      createtime: Date.now(),
-    };
-    streamingMsgRef.current = assistantMsg;
-
-    const baseMessages = existingMessages ?? messages;
-    setMessages([...baseMessages, userMsg, assistantMsg]);
-
-    // SW 负责持久化和自动标题，UI 只需传 conversationId + message + modelId
-    sendMessage(
-      conversationId,
-      content,
-      (event: ChatStreamEvent) => {
-        const msg = streamingMsgRef.current;
-        if (!msg) return;
-
-        switch (event.type) {
-          case "content_delta":
-            // 记录首 token 延迟
-            if (!firstTokenRecordedRef.current) {
-              firstTokenRecordedRef.current = true;
-              firstTokenMsRef.current = Date.now() - sendStartTimeRef.current;
-            }
-            msg.content += event.delta;
-            break;
-          case "thinking_delta":
-            if (!msg.thinking) msg.thinking = { content: "" };
-            msg.thinking.content += event.delta;
-            break;
-          case "tool_call_start":
-            if (!msg.toolCalls) msg.toolCalls = [];
-            msg.toolCalls.push({ ...event.toolCall, status: "running" });
-            break;
-          case "tool_call_delta":
-            if (msg.toolCalls?.length) {
-              const lastTc = msg.toolCalls[msg.toolCalls.length - 1];
-              lastTc.arguments += event.delta;
-            }
-            break;
-          case "tool_call_complete": {
-            const tc = msg.toolCalls?.find((t) => t.id === event.id);
-            if (tc) {
-              tc.status = "completed";
-              tc.result = event.result;
-              tc.attachments = event.attachments;
-            }
-            break;
-          }
-          case "new_message": {
-            // Tool loop 新一轮：创建新 assistant 消息占位
-            const newAssistantMsg: ChatMessage = {
-              id: genId(),
-              conversationId,
-              role: "assistant",
-              content: "",
-              modelId: selectedModelId,
-              createtime: Date.now(),
-            };
-            streamingMsgRef.current = newAssistantMsg;
-            setMessages((prev) => [...prev, newAssistantMsg]);
-            break;
-          }
-          case "error":
-            msg.error = event.message;
-            break;
-          case "done":
-            // 写入元数据
-            if (event.usage) msg.usage = event.usage;
-            if (event.durationMs != null) msg.durationMs = event.durationMs;
-            if (firstTokenMsRef.current != null) msg.firstTokenMs = firstTokenMsRef.current;
-            break;
-        }
-
-        // 更新 UI（创建新引用触发重渲染）
-        setMessages((prev) => {
-          const updated = [...prev];
-          const idx = updated.findIndex((m) => m.id === msg.id);
-          if (idx >= 0) {
-            updated[idx] = { ...msg };
-          }
-          return updated;
-        });
-      },
-      async () => {
-        streamingMsgRef.current = null;
-        // 重新加载 SW 持久化的消息，确保一致性
-        await loadMessages();
-        // 通知标题可能已变更（SW 自动标题）
-        onConversationTitleChange?.();
-      },
-      selectedModelId
-    );
+    startStreaming(existingMessages ?? messages, content);
   };
 
   // 复制消息组的文本内容到剪贴板
@@ -264,37 +228,35 @@ export default function ChatArea({
     async (groups: MessageGroup[], groupIndex: number) => {
       if (isStreaming) return;
 
-      // 找到对应的 assistant 组
-      const group = groups[groupIndex];
-      if (group.type !== "assistant") return;
+      const action = computeRegenerateAction(groups, groupIndex, messages);
+      if (!action) return;
 
-      // 找到前面的用户消息
-      let userMessage: ChatMessage | null = null;
-      for (let i = groupIndex - 1; i >= 0; i--) {
-        if (groups[i].type === "user") {
-          userMessage = (groups[i] as { type: "user"; message: ChatMessage }).message;
-          break;
-        }
-      }
-      if (!userMessage) return;
+      await deleteMessages(conversationId, action.idsToDelete);
+      setMessages(action.remainingMessages);
 
-      // 收集需要删除的消息 ID（assistant 组 + 关联的 tool 消息）
-      const idsToDelete = group.messages.map((m) => m.id);
-      // 同时删除用户消息（会重新创建）
-      idsToDelete.push(userMessage.id);
-
-      // 从持久化存储中删除
-      await deleteMessages(conversationId, idsToDelete);
-
-      // 重建消息列表（不包含被删除的消息）
-      const idSet = new Set(idsToDelete);
-      const remainingMessages = messages.filter((m) => !idSet.has(m.id));
-      setMessages(remainingMessages);
-
-      // 用原来的用户消息内容重新请求
-      await handleSend(userMessage.content, remainingMessages);
+      // 通过 ref 调用最新的 startStreaming，避免闭包陈旧
+      startStreamingRef.current(action.remainingMessages, action.userContent);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [conversationId, isStreaming, messages, setMessages]
+  );
+
+  // 重新生成用户消息的回复：保留用户消息，只删除后续回复
+  const handleRegenerateUserMessage = useCallback(
+    async (messageId: string) => {
+      if (isStreaming) return;
+
+      const action = computeUserRegenerateAction(messageId, messages);
+      if (!action) return;
+
+      if (action.idsToDelete.length > 0) {
+        await deleteMessages(conversationId, action.idsToDelete);
+      }
+
+      setMessages(action.remainingMessages);
+
+      // skipUserMessage=true：用户消息已在 remainingMessages 中，不需要重新创建
+      startStreamingRef.current(action.remainingMessages, action.userContent, action.skipUserMessage);
+    },
     [conversationId, isStreaming, messages, setMessages]
   );
 
@@ -317,7 +279,6 @@ export default function ChatArea({
       }
 
       // 从持久化存储中删除（这里要删除原始消息，包括 tool 角色消息）
-      // 先根据 assistant 消息的 toolCalls 找出关联的 tool 消息
       const allToolCallIds = group.messages.flatMap((m) => m.toolCalls?.map((tc) => tc.id) || []);
       const originalToolMsgIds = messages
         .filter((m) => m.role === "tool" && m.toolCallId && allToolCallIds.includes(m.toolCallId))
@@ -335,24 +296,15 @@ export default function ChatArea({
     async (messageId: string, newContent: string) => {
       if (isStreaming) return;
 
-      // 找到被编辑消息在原始 messages 数组中的位置
-      const idx = messages.findIndex((m) => m.id === messageId);
-      if (idx < 0) return;
+      const action = computeEditAction(messageId, messages);
+      if (!action) return;
 
-      // 收集需要删除的消息 ID（该消息及其后的所有消息）
-      const idsToDelete = messages.slice(idx).map((m) => m.id);
+      await deleteMessages(conversationId, action.idsToDelete);
+      setMessages(action.remainingMessages);
 
-      // 从持久化存储中删除
-      await deleteMessages(conversationId, idsToDelete);
-
-      // 重建消息列表
-      const remainingMessages = messages.slice(0, idx);
-      setMessages(remainingMessages);
-
-      // 用编辑后的内容重新发送
-      await handleSend(newContent, remainingMessages);
+      // 通过 ref 调用最新的 startStreaming
+      startStreamingRef.current(action.remainingMessages, newContent);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [conversationId, isStreaming, messages, setMessages]
   );
 
@@ -376,6 +328,11 @@ export default function ChatArea({
                   message={group.message}
                   isStreaming={isStreaming}
                   onEdit={(newContent) => handleEditMessage(group.message.id, newContent)}
+                  onRegenerate={
+                    findNextAssistantGroupIndex(messageGroups, groupIndex) != null
+                      ? () => handleRegenerateUserMessage(group.message.id)
+                      : undefined
+                  }
                 />
               ) : (
                 <AssistantMessageGroup

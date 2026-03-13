@@ -79,6 +79,7 @@ export type ChatRequest = {
   modelId: string;
   messages: Array<{ role: MessageRole; content: string; toolCallId?: string; toolCalls?: ToolCall[] }>;
   tools?: ToolDefinition[];
+  cache?: boolean; // 是否启用 prompt caching（Anthropic），默认 true。短对话（如子 agent）可关闭以节省开销
 };
 
 // ---- Agent 模型配置 ----
@@ -90,6 +91,7 @@ export type AgentModelConfig = {
   apiBaseUrl: string;
   apiKey: string;
   model: string;
+  maxTokens?: number; // 最大输出 token 数，不设置则由 API 端决定
 };
 
 // ---- CAT.agent.conversation 用户脚本 API 类型 ----
@@ -317,6 +319,12 @@ export type MonitorResult = {
   addedNodes: Array<{ tag: string; id?: string; class?: string; role?: string; text: string }>;
 };
 
+export type MonitorStatus = {
+  hasChanges: boolean;
+  dialogCount: number;
+  nodeCount: number;
+};
+
 export type DomApiRequest =
   | { action: "listTabs"; scriptUuid: string }
   | { action: "navigate"; url: string; options?: NavigateOptions; scriptUuid: string }
@@ -328,7 +336,8 @@ export type DomApiRequest =
   | { action: "waitFor"; selector: string; options?: WaitForOptions; scriptUuid: string }
   | { action: "executeScript"; code: string; options?: ExecuteScriptOptions; scriptUuid: string }
   | { action: "startMonitor"; tabId: number; scriptUuid: string }
-  | { action: "stopMonitor"; tabId: number; scriptUuid: string };
+  | { action: "stopMonitor"; tabId: number; scriptUuid: string }
+  | { action: "peekMonitor"; tabId: number; scriptUuid: string };
 
 // ---- MCP 类型 ----
 

@@ -378,6 +378,54 @@ describe("parseOpenAIStream", () => {
     }
   });
 
+  it("每个 chunk 都带 usage 时不应提前终止流（Grok 兼容）", async () => {
+    // Grok API 在每个 chunk 都附带 usage，不应被当作结束信号
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"很"},"finish_reason":null,"index":0}],"usage":{"prompt_tokens":100,"completion_tokens":1}}\n\n',
+      'data: {"choices":[{"delta":{"content":"抱"},"finish_reason":null,"index":0}],"usage":{"prompt_tokens":100,"completion_tokens":2}}\n\n',
+      'data: {"choices":[{"delta":{"content":"歉"},"finish_reason":null,"index":0}],"usage":{"prompt_tokens":100,"completion_tokens":3}}\n\n',
+      'data: {"choices":[{"delta":{},"finish_reason":"stop","index":0}],"usage":{"prompt_tokens":100,"completion_tokens":3}}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    // 应收到 3 个 content_delta + 1 个 done（带最终 usage）
+    expect(events).toHaveLength(4);
+    expect(events[0]).toEqual({ type: "content_delta", delta: "很" });
+    expect(events[1]).toEqual({ type: "content_delta", delta: "抱" });
+    expect(events[2]).toEqual({ type: "content_delta", delta: "歉" });
+    expect(events[3].type).toBe("done");
+    if (events[3].type === "done") {
+      expect(events[3].usage).toEqual({ inputTokens: 100, outputTokens: 3 });
+    }
+  });
+
+  it("每个 chunk 都带 usage 且无 [DONE] 时应在流结束时发出 done", async () => {
+    // 某些 API 在所有 chunk 带 usage 但不发 [DONE]
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"你好"},"finish_reason":null}],"usage":{"prompt_tokens":50,"completion_tokens":1}}\n\n',
+      'data: {"choices":[{"delta":{"content":"世界"},"finish_reason":null}],"usage":{"prompt_tokens":50,"completion_tokens":2}}\n\n',
+      'data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":50,"completion_tokens":2}}\n\n',
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toHaveLength(3);
+    expect(events[0]).toEqual({ type: "content_delta", delta: "你好" });
+    expect(events[1]).toEqual({ type: "content_delta", delta: "世界" });
+    expect(events[2].type).toBe("done");
+    if (events[2].type === "done") {
+      expect(events[2].usage).toEqual({ inputTokens: 50, outputTokens: 2 });
+    }
+  });
+
   it("reasoning_content 后跟 tool_calls 应都正确解析", async () => {
     const reader = createMockReader([
       'data: {"choices":[{"delta":{"role":"assistant","content":null,"reasoning_content":"分析页面"}}]}\n\n',

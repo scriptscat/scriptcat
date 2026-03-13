@@ -1384,8 +1384,10 @@ describe("handleConversationChat ephemeral 模式", () => {
     const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
     // 应包含 system + 3 条消息
     expect(fetchBody.messages.length).toBeGreaterThanOrEqual(4);
-    // 第一条应是 system
-    expect(fetchBody.messages[0]).toMatchObject({ role: "system", content: "系统提示" });
+    // 第一条应是 system，包含内置提示词 + 用户自定义
+    expect(fetchBody.messages[0].role).toBe("system");
+    expect(fetchBody.messages[0].content).toContain("You are ScriptCat Agent");
+    expect(fetchBody.messages[0].content).toContain("系统提示");
 
     // 应该发送了 done 事件
     const doneMsg = sentMessages.find((m) => m.action === "event" && m.data.type === "done");
@@ -1483,7 +1485,9 @@ describe("handleConversationChat ephemeral 模式", () => {
     );
 
     const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
-    // 不应有 system 消息
-    expect(fetchBody.messages.every((m: any) => m.role !== "system")).toBe(true);
+    // 应有 system 消息（内置提示词），即使用户没传 system
+    const systemMsg = fetchBody.messages.find((m: any) => m.role === "system");
+    expect(systemMsg).toBeDefined();
+    expect(systemMsg.content).toContain("You are ScriptCat Agent");
   });
 });

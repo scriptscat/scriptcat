@@ -25,7 +25,7 @@ type ReadPageInjectedOptions = {
   maxLength: number;
   removeTags: string[];
 };
-import type { MonitorResult } from "@App/app/service/agent/types";
+import type { MonitorResult, MonitorStatus } from "@App/app/service/agent/types";
 import {
   withDebugger,
   cdpClick,
@@ -33,6 +33,7 @@ import {
   cdpScreenshot,
   cdpStartMonitor,
   cdpStopMonitor,
+  cdpPeekMonitor,
 } from "./agent_dom_cdp";
 
 export class AgentDomService {
@@ -242,6 +243,11 @@ export class AgentDomService {
     return cdpStopMonitor(tabId);
   }
 
+  // 查询当前 monitor 状态（不停止监控）
+  peekMonitor(tabId: number): MonitorStatus {
+    return cdpPeekMonitor(tabId);
+  }
+
   // 处理 GM API 请求路由
   async handleDomApi(request: DomApiRequest): Promise<unknown> {
     switch (request.action) {
@@ -267,6 +273,8 @@ export class AgentDomService {
         return this.startMonitor(request.tabId);
       case "stopMonitor":
         return this.stopMonitor(request.tabId);
+      case "peekMonitor":
+        return this.peekMonitor(request.tabId);
       default:
         throw new Error(`Unknown DOM action: ${(request as any).action}`);
     }

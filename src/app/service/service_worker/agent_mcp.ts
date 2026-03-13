@@ -21,9 +21,22 @@ export class MCPService {
 
   constructor(private toolRegistry: ToolRegistry) {}
 
-  // 加载所有已保存的服务器配置（不立即连接，懒初始化）
+  // 加载所有已保存的服务器配置，自动连接已启用的服务器
   async init(): Promise<void> {
-    // 仅加载配置，不连接
+    try {
+      const servers = await this.repo.listServers();
+      for (const server of servers) {
+        if (server.enabled) {
+          try {
+            await this.connectServer(server.id);
+          } catch {
+            // 连接失败不影响其他服务器
+          }
+        }
+      }
+    } catch {
+      // 加载失败静默忽略
+    }
   }
 
   // 连接服务器：创建 MCPClient，初始化，列出工具，注册到 ToolRegistry

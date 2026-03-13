@@ -145,15 +145,53 @@ describe("buildAnthropicRequest", () => {
     expect(body.tools[0].cache_control).toEqual({ type: "ephemeral" });
   });
 
-  it("应设置 max_tokens 和 stream", () => {
+  it("cache: false 时不应添加 cache_control", () => {
+    const request: ChatRequest = {
+      conversationId: "c1",
+      modelId: "test",
+      messages: [
+        { role: "system", content: "你是助手" },
+        { role: "user", content: "hi" },
+      ],
+      tools: [
+        {
+          name: "test_tool",
+          description: "测试",
+          parameters: { type: "object", properties: { x: { type: "number" } } },
+        },
+      ],
+      cache: false,
+    };
+
+    const { init } = buildAnthropicRequest(config, request);
+    const body = JSON.parse(init.body as string);
+
+    // system block 不应有 cache_control
+    expect(body.system[0].cache_control).toBeUndefined();
+    // tool 不应有 cache_control
+    expect(body.tools[0].cache_control).toBeUndefined();
+  });
+
+  it("默认不设置 max_tokens，应设置 stream", () => {
     const { init } = buildAnthropicRequest(config, {
       conversationId: "c1",
       modelId: "test",
       messages: [{ role: "user", content: "hi" }],
     });
     const body = JSON.parse(init.body as string);
-    expect(body.max_tokens).toBe(8192);
+    expect(body.max_tokens).toBeUndefined();
     expect(body.stream).toBe(true);
+  });
+
+  it("配置 maxTokens 时应设置 max_tokens", () => {
+    const configWithMax = { ...config, maxTokens: 4096 };
+    const { init } = buildAnthropicRequest(configWithMax, {
+      conversationId: "c1",
+      modelId: "test",
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const body = JSON.parse(init.body as string);
+    expect(body.max_tokens).toBe(4096);
   });
 
   it("tool 消息无 toolCallId 时应按普通消息处理", () => {

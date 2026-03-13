@@ -31,6 +31,7 @@ import { parseCATToolMetadata, catToolToToolDefinition, prefixToolDefinition } f
 import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
 import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
 import { CACHE_KEY_CATTOOL_INSTALL, CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
+import { buildSystemPrompt } from "@App/app/service/agent/system_prompt";
 import { cacheInstance } from "@App/app/cache";
 import { AgentDomService } from "./agent_dom";
 import { MCPService } from "./agent_mcp";
@@ -701,6 +702,8 @@ export class AgentService {
     conversationId?: string;
     // 跳过内置工具，仅使用传入的 tools（ephemeral 模式）
     skipBuiltinTools?: boolean;
+    // 是否启用 prompt caching，默认 true
+    cache?: boolean;
   }): Promise<void> {
     const { model, messages, tools, maxIterations, sendEvent, signal, scriptToolCallback, conversationId } = params;
 
@@ -717,7 +720,7 @@ export class AgentService {
       // 调用 LLM
       const result = await this.callLLM(
         model,
-        { messages, tools: allToolDefs.length > 0 ? allToolDefs : undefined },
+        { messages, tools: allToolDefs.length > 0 ? allToolDefs : undefined, cache: params.cache },
         sendEvent,
         signal
       );
@@ -897,10 +900,9 @@ export class AgentService {
         // 使用脚本传入的完整消息历史
         const messages: ChatRequest["messages"] = [];
 
-        // 添加 system prompt
-        if (params.system) {
-          messages.push({ role: "system", content: params.system });
-        }
+        // 添加 system prompt（内置提示词 + 用户自定义）
+        const ephemeralSystem = buildSystemPrompt({ userSystem: params.system });
+        messages.push({ role: "system", content: ephemeralSystem });
 
         // 添加脚本端维护的消息历史（已含最新 user message）
         if (params.messages) {
@@ -923,6 +925,7 @@ export class AgentService {
           signal: abortController.signal,
           scriptToolCallback: params.tools && params.tools.length > 0 ? scriptToolCallback : null,
           skipBuiltinTools: true,
+          cache: false, // ephemeral 会话轮次少，不需要 prompt caching
         });
         return;
       }
@@ -991,11 +994,12 @@ export class AgentService {
       // 构建消息列表
       const messages: ChatRequest["messages"] = [];
 
-      // 添加 system 消息（拼接 skill prompt）
-      const systemContent = (conv.system || "") + promptSuffix;
-      if (systemContent) {
-        messages.push({ role: "system", content: systemContent });
-      }
+      // 添加 system 消息（内置提示词 + 用户自定义 + skill prompt）
+      const systemContent = buildSystemPrompt({
+        userSystem: conv.system,
+        skillSuffix: promptSuffix,
+      });
+      messages.push({ role: "system", content: systemContent });
 
       // 添加历史消息（跳过 system）
       for (const msg of existingMessages) {
@@ -1057,7 +1061,7 @@ export class AgentService {
   // 调用 LLM 并收集完整响应（内部处理流式）
   private async callLLM(
     model: AgentModelConfig,
-    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[] },
+    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[]; cache?: boolean },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ): Promise<{
@@ -1071,6 +1075,7 @@ export class AgentService {
       modelId: model.id,
       messages: params.messages,
       tools: params.tools,
+      cache: params.cache,
     };
 
     const { url, init } =

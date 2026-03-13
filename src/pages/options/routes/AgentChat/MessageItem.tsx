@@ -4,8 +4,8 @@ import MarkdownRenderer from "./MarkdownRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
 import MessageToolbar from "./MessageToolbar";
-import { Tooltip } from "@arco-design/web-react";
-import { IconRobot, IconUser, IconEdit } from "@arco-design/web-react/icon";
+import { Message as ArcoMessage, Tooltip } from "@arco-design/web-react";
+import { IconRobot, IconUser, IconEdit, IconCopy, IconRefresh } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 
 // 单条助手消息内容（无头像、无外层包装）
@@ -52,10 +52,12 @@ function AssistantMessageContent({ message, isStreaming }: { message: ChatMessag
 export function UserMessageItem({
   message,
   onEdit,
+  onRegenerate,
   isStreaming,
 }: {
   message: ChatMessage;
   onEdit?: (newContent: string) => void;
+  onRegenerate?: () => void;
   isStreaming?: boolean;
 }) {
   const { t } = useTranslation();
@@ -92,14 +94,20 @@ export function UserMessageItem({
     onEdit?.(trimmed);
   };
 
-  const canEdit = onEdit && !isStreaming;
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+      ArcoMessage.success(t("agent_chat_copy_success"));
+    });
+  };
+
+  const canInteract = !isStreaming;
 
   return (
     <div className="agent-message-item tw-flex tw-gap-3 tw-py-5 tw-flex-row-reverse">
       <div className="tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-shrink-0 tw-shadow-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-white">
         <IconUser style={{ fontSize: 14 }} />
       </div>
-      <div className="tw-flex tw-items-end tw-gap-1.5 tw-max-w-[80%] tw-min-w-0 tw-flex-row-reverse">
+      <div className="tw-flex tw-flex-col tw-items-end tw-max-w-[80%] tw-min-w-0">
         {editing ? (
           // 编辑模式：圆角容器，与消息气泡同宽
           <div className="agent-edit-container tw-rounded-2xl tw-rounded-tr-sm tw-overflow-hidden tw-min-w-[240px]">
@@ -141,20 +149,42 @@ export function UserMessageItem({
             </div>
           </div>
         ) : (
-          // 只读模式：消息气泡 + 左侧 hover 编辑按钮
+          // 只读模式：消息气泡 + 底部工具条
           <>
             <div className="tw-px-4 tw-py-2.5 tw-rounded-2xl tw-rounded-tr-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-white tw-text-sm tw-whitespace-pre-wrap tw-break-words tw-shadow-sm">
               {message.content}
             </div>
-            {canEdit && (
-              <Tooltip content={t("agent_chat_edit_message")} mini position="left">
-                <button
-                  className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-w-7 tw-h-7 tw-flex tw-items-center tw-justify-center tw-rounded-full tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-4)] hover:tw-text-[var(--color-text-2)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors tw-shrink-0"
-                  onClick={handleStartEdit}
-                >
-                  <IconEdit style={{ fontSize: 13 }} />
-                </button>
-              </Tooltip>
+            {canInteract && (
+              <div className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-flex tw-items-center tw-mt-1 tw-gap-0.5">
+                <Tooltip content={t("agent_chat_copy_message")} mini position="bottom">
+                  <button
+                    className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                    onClick={handleCopy}
+                  >
+                    <IconCopy style={{ fontSize: 13 }} />
+                  </button>
+                </Tooltip>
+                {onEdit && (
+                  <Tooltip content={t("agent_chat_edit_message")} mini position="bottom">
+                    <button
+                      className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                      onClick={handleStartEdit}
+                    >
+                      <IconEdit style={{ fontSize: 13 }} />
+                    </button>
+                  </Tooltip>
+                )}
+                {onRegenerate && (
+                  <Tooltip content={t("agent_chat_regenerate")} mini position="bottom">
+                    <button
+                      className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                      onClick={onRegenerate}
+                    >
+                      <IconRefresh style={{ fontSize: 13 }} />
+                    </button>
+                  </Tooltip>
+                )}
+              </div>
             )}
           </>
         )}

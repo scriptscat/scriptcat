@@ -114,4 +114,12 @@ export default class CATAgentDomApi {
       { action: "stopMonitor", tabId, scriptUuid: ctx.scriptRes?.uuid || "" } as DomApiRequest,
     ]);
   }
+
+  @GMContext.API({ follow: "CAT.agent.dom" })
+  public "CAT.agent.dom.peekMonitor"(tabId: number): Promise<unknown> {
+    const ctx = this as unknown as GMBaseContext;
+    return ctx.sendMessage("CAT_agentDom", [
+      { action: "peekMonitor", tabId, scriptUuid: ctx.scriptRes?.uuid || "" } as DomApiRequest,
+    ]);
+  }
 }

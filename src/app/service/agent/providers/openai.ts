@@ -69,6 +69,9 @@ export function parseOpenAIStream(
   const decoder = new TextDecoder();
 
   return (async () => {
+    // 记录最新的 usage 数据（某些 API 如 Grok 在每个 chunk 都带 usage，而非仅最后一个）
+    let lastUsage: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | undefined;
+
     try {
       while (!signal.aborted) {
         const { done, value } = await reader.read();
@@ -79,7 +82,7 @@ export function parseOpenAIStream(
 
         for (const sseEvent of events) {
           if (sseEvent.data === "[DONE]") {
-            onEvent({ type: "done" });
+            onEvent({ type: "done", usage: lastUsage });
             return;
           }
 
@@ -133,23 +136,23 @@ export function parseOpenAIStream(
               }
             }
 
-            // 处理 usage（最后一个 chunk，必须在 choices 之后处理，避免丢失 tool_call 数据）
+            // 记录 usage（不作为结束信号，兼容每个 chunk 都带 usage 的 API）
             if (json.usage) {
               const cachedTokens = json.usage.prompt_tokens_details?.cached_tokens;
-              onEvent({
-                type: "done",
-                usage: {
-                  inputTokens: json.usage.prompt_tokens || 0,
-                  outputTokens: json.usage.completion_tokens || 0,
-                  ...(cachedTokens ? { cacheReadInputTokens: cachedTokens } : {}),
-                },
-              });
-              return;
+              lastUsage = {
+                inputTokens: json.usage.prompt_tokens || 0,
+                outputTokens: json.usage.completion_tokens || 0,
+                ...(cachedTokens ? { cacheReadInputTokens: cachedTokens } : {}),
+              };
             }
           } catch {
             // 解析失败忽略
           }
         }
+      }
+      // 流正常结束但没收到 [DONE]（某些 API 可能如此）
+      if (!signal.aborted) {
+        onEvent({ type: "done", usage: lastUsage });
       }
     } catch (e: any) {
       if (signal.aborted) return;
