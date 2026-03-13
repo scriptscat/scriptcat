@@ -124,23 +124,20 @@ describe("AgentDomService", () => {
   });
 
   describe("readPage", () => {
-    it("应在 summary 模式下返回页面骨架", async () => {
+    it("应返回页面 HTML", async () => {
       const mockPageContent = {
         title: "Test Page",
         url: "https://example.com",
-        sections: [{ selector: "main", summary: "Main content", elementCount: 10 }],
-        interactable: [],
-        forms: [],
-        links: [],
+        html: "<html><body><h1>Hello</h1></body></html>",
       };
       mockExecuteScript.mockResolvedValue([{ result: mockPageContent }]);
       mockTabsQuery.mockResolvedValue([{ id: 1 }]);
       mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
 
-      const result = await service.readPage({ tabId: 1, mode: "summary" });
+      const result = await service.readPage({ tabId: 1 });
 
       expect(result.title).toBe("Test Page");
-      expect(result.sections).toHaveLength(1);
+      expect(result.html).toContain("<h1>Hello</h1>");
       expect(mockExecuteScript).toHaveBeenCalledWith(
         expect.objectContaining({
           target: { tabId: 1 },
@@ -149,21 +146,21 @@ describe("AgentDomService", () => {
       );
     });
 
-    it("应在 detail 模式下返回文本内容", async () => {
+    it("应在 HTML 超长时截断", async () => {
       const mockPageContent = {
         title: "Test Page",
         url: "https://example.com",
-        content: "Hello World",
-        interactable: [],
-        forms: [],
-        links: [],
+        html: "<html>truncated...</html>",
+        truncated: true,
+        totalLength: 500000,
       };
       mockExecuteScript.mockResolvedValue([{ result: mockPageContent }]);
       mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
 
-      const result = await service.readPage({ tabId: 1, mode: "detail" });
+      const result = await service.readPage({ tabId: 1 });
 
-      expect(result.content).toBe("Hello World");
+      expect(result.truncated).toBe(true);
+      expect(result.totalLength).toBe(500000);
     });
   });
 
@@ -299,6 +296,30 @@ describe("AgentDomService", () => {
     });
   });
 
+  describe("executeScript", () => {
+    it("应在页面中执行代码并返回结果", async () => {
+      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockExecuteScript.mockResolvedValue([{ result: { count: 42, items: ["a", "b"] } }]);
+
+      const result = await service.executeScript('return document.querySelectorAll("a").length', { tabId: 1 });
+
+      expect(result).toEqual({ count: 42, items: ["a", "b"] });
+      expect(mockExecuteScript).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: { tabId: 1 },
+          world: "MAIN",
+        })
+      );
+    });
+
+    it("应在执行失败时抛出错误", async () => {
+      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockExecuteScript.mockResolvedValue([]);
+
+      await expect(service.executeScript("return 1", { tabId: 1 })).rejects.toThrow("Failed to execute script");
+    });
+  });
+
   describe("handleDomApi", () => {
     it("应正确路由 listTabs 请求", async () => {
       mockTabsQuery.mockResolvedValue([]);
@@ -334,9 +355,7 @@ describe("AgentDomService", () => {
       const mockContent = {
         title: "Test",
         url: "https://example.com",
-        interactable: [],
-        forms: [],
-        links: [],
+        html: "<html><body>Test</body></html>",
       };
       mockExecuteScript.mockResolvedValue([{ result: mockContent }]);
 

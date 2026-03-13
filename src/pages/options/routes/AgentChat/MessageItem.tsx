@@ -1,9 +1,11 @@
+import { useState, useRef, useEffect } from "react";
 import type { ChatMessage } from "@App/app/service/agent/types";
 import MarkdownRenderer from "./MarkdownRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
 import MessageToolbar from "./MessageToolbar";
-import { IconRobot, IconUser } from "@arco-design/web-react/icon";
+import { Tooltip } from "@arco-design/web-react";
+import { IconRobot, IconUser, IconEdit } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 
 // 单条助手消息内容（无头像、无外层包装）
@@ -47,16 +49,115 @@ function AssistantMessageContent({ message, isStreaming }: { message: ChatMessag
 }
 
 // 用户消息
-export function UserMessageItem({ message }: { message: ChatMessage }) {
+export function UserMessageItem({
+  message,
+  onEdit,
+  isStreaming,
+}: {
+  message: ChatMessage;
+  onEdit?: (newContent: string) => void;
+  isStreaming?: boolean;
+}) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 进入编辑模式时聚焦并调整高度
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      const el = textareaRef.current;
+      el.focus();
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+      // 光标移到末尾
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
+  }, [editing]);
+
+  const handleStartEdit = () => {
+    setEditContent(message.content);
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+    setEditContent(message.content);
+  };
+
+  const handleSave = () => {
+    const trimmed = editContent.trim();
+    if (!trimmed) return;
+    setEditing(false);
+    onEdit?.(trimmed);
+  };
+
+  const canEdit = onEdit && !isStreaming;
+
   return (
     <div className="agent-message-item tw-flex tw-gap-3 tw-py-5 tw-flex-row-reverse">
       <div className="tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-shrink-0 tw-shadow-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-white">
         <IconUser style={{ fontSize: 14 }} />
       </div>
-      <div className="tw-flex tw-flex-col tw-max-w-[80%] tw-min-w-0 tw-items-end">
-        <div className="tw-px-4 tw-py-2.5 tw-rounded-2xl tw-rounded-tr-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-white tw-text-sm tw-whitespace-pre-wrap tw-break-words tw-shadow-sm">
-          {message.content}
-        </div>
+      <div className="tw-flex tw-items-end tw-gap-1.5 tw-max-w-[80%] tw-min-w-0 tw-flex-row-reverse">
+        {editing ? (
+          // 编辑模式：圆角容器，与消息气泡同宽
+          <div className="agent-edit-container tw-rounded-2xl tw-rounded-tr-sm tw-overflow-hidden tw-min-w-[240px]">
+            <textarea
+              ref={textareaRef}
+              className="tw-w-full tw-min-h-[40px] tw-max-h-[200px] tw-px-4 tw-pt-3 tw-pb-2 tw-bg-transparent tw-text-[var(--color-text-1)] tw-text-sm tw-resize-none tw-outline-none tw-border-none tw-leading-relaxed"
+              value={editContent}
+              onChange={(e) => {
+                setEditContent(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") handleCancel();
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSave();
+                }
+              }}
+            />
+            <div className="tw-flex tw-items-center tw-justify-between tw-px-3 tw-pb-2">
+              <span className="tw-text-xs tw-text-[var(--color-text-4)]">
+                {"Escape"} {t("agent_chat_cancel_edit")}
+              </span>
+              <div className="tw-flex tw-gap-1.5">
+                <button
+                  className="tw-px-3 tw-py-1.5 tw-rounded-lg tw-text-xs tw-font-medium tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-bg-1)] tw-text-[var(--color-text-2)] tw-cursor-pointer hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                  onClick={handleCancel}
+                >
+                  {t("agent_chat_cancel_edit")}
+                </button>
+                <button
+                  className="tw-px-3 tw-py-1.5 tw-rounded-lg tw-text-xs tw-font-medium tw-border-none tw-bg-[rgb(var(--arcoblue-6))] tw-text-white tw-cursor-pointer hover:tw-bg-[rgb(var(--arcoblue-5))] tw-transition-colors tw-shadow-sm"
+                  onClick={handleSave}
+                >
+                  {t("agent_chat_save_and_send")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          // 只读模式：消息气泡 + 左侧 hover 编辑按钮
+          <>
+            <div className="tw-px-4 tw-py-2.5 tw-rounded-2xl tw-rounded-tr-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-white tw-text-sm tw-whitespace-pre-wrap tw-break-words tw-shadow-sm">
+              {message.content}
+            </div>
+            {canEdit && (
+              <Tooltip content={t("agent_chat_edit_message")} mini position="left">
+                <button
+                  className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-w-7 tw-h-7 tw-flex tw-items-center tw-justify-center tw-rounded-full tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-4)] hover:tw-text-[var(--color-text-2)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors tw-shrink-0"
+                  onClick={handleStartEdit}
+                >
+                  <IconEdit style={{ fontSize: 13 }} />
+                </button>
+              </Tooltip>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

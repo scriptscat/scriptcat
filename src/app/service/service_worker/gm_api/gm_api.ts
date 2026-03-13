@@ -28,7 +28,7 @@ import type {
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
 import { BrowserNoSupport, notificationsUpdate } from "../utils";
-import { getCATToolGrantsByUuid, CATTOOL_UUID_PREFIX } from "@App/app/service/agent/cattool_executor";
+import { getCATToolGrantsByUuid, getCATToolNameByUuid, CATTOOL_UUID_PREFIX } from "@App/app/service/agent/cattool_executor";
 import i18n from "@App/locales/locales";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { createObjectURL } from "../../offscreen/client";
@@ -290,9 +290,13 @@ export default class GMApi {
       // CATTool GM API 调用：构造虚拟 Script 对象（CATTool 不在 ScriptDAO 中）
       // 直接从 UUID map 获取 grants，避免查 repo（skill 的 CATTool 不在 catToolRepo 中）
       const grants = getCATToolGrantsByUuid(data.uuid);
+      const toolName = getCATToolNameByUuid(data.uuid);
+      // 使用基于工具名的稳定标识符，使权限缓存在多次执行间有效
+      // 每次执行生成新的临时 UUID，但权限应绑定到工具本身而非单次执行
+      const stableUuid = CATTOOL_UUID_PREFIX + toolName;
       script = {
-        uuid: data.uuid,
-        name: data.uuid,
+        uuid: stableUuid,
+        name: toolName || data.uuid,
         namespace: "",
         metadata: { grant: grants },
         type: 3,
@@ -308,7 +312,9 @@ export default class GMApi {
         throw new Error("script is not found");
       }
     }
-    return { ...data, script } as GMApiRequest<T>;
+    // CATTool 使用稳定标识符覆盖 uuid，确保权限 DB 查询/保存也用同一个标识符
+    const uuid = data.uuid.startsWith(CATTOOL_UUID_PREFIX) ? script.uuid : data.uuid;
+    return { ...data, uuid, script } as GMApiRequest<T>;
   }
 
   @PermissionVerify.API({

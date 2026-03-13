@@ -133,8 +133,8 @@ Test prompt content.`;
   it("应正确解析包含 SKILL.md + tools + references 的 ZIP", async () => {
     const zipData = await createTestZip({
       "SKILL.md": skillMdContent,
-      "tools/extract.js": "// tool code\nconsole.log('extract');",
-      "tools/parse.js": "// parse tool",
+      "scripts/extract.js": "// tool code\nconsole.log('extract');",
+      "scripts/parse.js": "// parse tool",
       "references/api_docs.md": "# API Docs\nSome docs.",
       "references/data.txt": "sample data",
     });
@@ -152,7 +152,7 @@ Test prompt content.`;
   it("应支持嵌套一层目录结构", async () => {
     const zipData = await createTestZip({
       "my-skill/SKILL.md": skillMdContent,
-      "my-skill/tools/helper.js": "// helper",
+      "my-skill/scripts/helper.js": "// helper",
       "my-skill/references/readme.md": "readme content",
     });
 
@@ -166,7 +166,7 @@ Test prompt content.`;
 
   it("缺少 SKILL.md 时应抛错", async () => {
     const zipData = await createTestZip({
-      "tools/some.js": "// code",
+      "scripts/some.js": "// code",
       "references/doc.md": "doc",
     });
 
@@ -187,9 +187,9 @@ Test prompt content.`;
   it("应忽略非 .js 的 tools 文件", async () => {
     const zipData = await createTestZip({
       "SKILL.md": skillMdContent,
-      "tools/valid.js": "// valid",
-      "tools/readme.md": "not a tool",
-      "tools/config.json": "{}",
+      "scripts/valid.js": "// valid",
+      "scripts/readme.md": "not a tool",
+      "scripts/config.json": "{}",
     });
 
     const result = await parseSkillZip(zipData);
@@ -200,7 +200,7 @@ Test prompt content.`;
   it("应忽略子目录中的文件", async () => {
     const zipData = await createTestZip({
       "SKILL.md": skillMdContent,
-      "tools/nested/deep.js": "// nested",
+      "scripts/nested/deep.js": "// nested",
       "references/sub/file.md": "nested ref",
     });
 
@@ -232,7 +232,7 @@ description: 淘宝购物助手
 
     const zipData = await createTestZip({
       "SKILL.md": skillMd,
-      "tools/taobao_extract.js": VALID_CATTOOL_CODE,
+      "scripts/taobao_extract.js": VALID_CATTOOL_CODE,
       "references/api_docs.md": "# 淘宝 API 文档\n提取接口说明",
     });
 
@@ -249,7 +249,7 @@ description: 淘宝购物助手
   it("ZIP 中的 CATTool 脚本可被 parseCATToolMetadata 正确解析", async () => {
     const zipData = await createTestZip({
       "SKILL.md": `---\nname: tool-skill\ndescription: test\n---\nPrompt.`,
-      "tools/taobao_extract.js": VALID_CATTOOL_CODE,
+      "scripts/taobao_extract.js": VALID_CATTOOL_CODE,
     });
 
     const zipResult = await parseSkillZip(zipData);
@@ -268,7 +268,7 @@ description: 淘宝购物助手
   it("ZIP 解析输出结构与 installSkill 参数签名一致", async () => {
     const zipData = await createTestZip({
       "SKILL.md": `---\nname: sig-test\ndescription: Signature test\n---\nPrompt.`,
-      "tools/helper.js": VALID_CATTOOL_CODE,
+      "scripts/helper.js": VALID_CATTOOL_CODE,
       "references/doc.md": "Doc content",
     });
 
@@ -297,7 +297,7 @@ description: 淘宝购物助手
   it("嵌套目录 ZIP 的完整流程：解析 → 验证 SKILL.md → 验证 CATTool", async () => {
     const zipData = await createTestZip({
       "taobao-skill/SKILL.md": `---\nname: nested-skill\ndescription: 嵌套目录测试\n---\n嵌套 Skill 提示词。`,
-      "taobao-skill/tools/extract.js": VALID_CATTOOL_CODE,
+      "taobao-skill/scripts/extract.js": VALID_CATTOOL_CODE,
       "taobao-skill/references/guide.txt": "使用指南内容",
     });
 

@@ -9,19 +9,19 @@ vi.mock("@App/pkg/utils/uuid", () => ({
 }));
 
 describe("registerDomTools", () => {
-  it("应注册所有 8 个 DOM 工具到 ToolRegistry", () => {
+  it("应注册所有 7 个 DOM 工具到 ToolRegistry（不含 dom_read_page）", () => {
     const registry = new ToolRegistry();
     const mockService = {} as AgentDomService;
 
     registerDomTools(registry, mockService);
 
     const defs = registry.getDefinitions();
-    expect(defs).toHaveLength(8);
+    expect(defs).toHaveLength(7);
 
     const names = defs.map((d) => d.name);
     expect(names).toContain("dom_list_tabs");
     expect(names).toContain("dom_navigate");
-    expect(names).toContain("dom_read_page");
+    expect(names).not.toContain("dom_read_page");
     expect(names).toContain("dom_screenshot");
     expect(names).toContain("dom_click");
     expect(names).toContain("dom_fill");
@@ -86,37 +86,6 @@ describe("registerDomTools", () => {
     expect(mockService.click).toHaveBeenCalledWith("#btn", {
       tabId: undefined,
       trusted: true,
-    });
-  });
-
-  it("应能通过 ToolRegistry 执行 dom_read_page", async () => {
-    const registry = new ToolRegistry();
-    const mockService = {
-      readPage: vi.fn().mockResolvedValue({
-        title: "Page",
-        url: "https://example.com",
-        interactable: [],
-        forms: [],
-        links: [],
-        sections: [{ selector: "main", summary: "Content", elementCount: 5 }],
-      }),
-    } as unknown as AgentDomService;
-
-    registerDomTools(registry, mockService);
-
-    const results = await registry.execute([
-      { id: "tc4", name: "dom_read_page", arguments: JSON.stringify({ mode: "summary", tabId: 1 }) },
-    ]);
-
-    expect(results).toHaveLength(1);
-    const parsed = JSON.parse(results[0].result);
-    expect(parsed.sections).toHaveLength(1);
-    expect(mockService.readPage).toHaveBeenCalledWith({
-      tabId: 1,
-      selector: undefined,
-      mode: "summary",
-      maxLength: undefined,
-      viewportOnly: undefined,
     });
   });
 

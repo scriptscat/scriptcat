@@ -130,11 +130,19 @@ export default function ToolCallBlock({ toolCall }: { toolCall: ToolCall }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
 
+  // 使用 ResizeObserver 监听内容区域尺寸变化，自动更新高度
+  // 解决流式加载期间展开后 result 到达导致 max-height 不足的问题
   useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight);
-    }
-  }, [toolCall, expanded]);
+    const el = contentRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver(() => {
+      setContentHeight(el.scrollHeight);
+    });
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
 
   const hasAttachments = toolCall.attachments && toolCall.attachments.length > 0;
 

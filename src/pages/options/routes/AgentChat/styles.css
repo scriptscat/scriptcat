@@ -325,3 +325,28 @@ body[arco-theme="dark"] .ai-markdown-body .hljs-deletion {
 .agent-message-item:hover .agent-toolbar-actions {
   opacity: 1 !important;
 }
+
+/* 用户消息编辑容器 */
+.agent-edit-container {
+  border: 1px solid rgb(var(--arcoblue-4));
+  background: var(--color-bg-2);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  animation: edit-expand 0.2s ease-out;
+}
+
+body[arco-theme="dark"] .agent-edit-container {
+  border-color: rgb(var(--arcoblue-7));
+  background: var(--color-bg-3);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.32);
+}
+
+@keyframes edit-expand {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

@@ -330,6 +330,32 @@ export default function ChatArea({
     [conversationId, isStreaming, messages, loadMessages]
   );
 
+  // 编辑用户消息并重新发送：删除该消息及其后的所有消息
+  const handleEditMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      if (isStreaming) return;
+
+      // 找到被编辑消息在原始 messages 数组中的位置
+      const idx = messages.findIndex((m) => m.id === messageId);
+      if (idx < 0) return;
+
+      // 收集需要删除的消息 ID（该消息及其后的所有消息）
+      const idsToDelete = messages.slice(idx).map((m) => m.id);
+
+      // 从持久化存储中删除
+      await deleteMessages(conversationId, idsToDelete);
+
+      // 重建消息列表
+      const remainingMessages = messages.slice(0, idx);
+      setMessages(remainingMessages);
+
+      // 用编辑后的内容重新发送
+      await handleSend(newContent, remainingMessages);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [conversationId, isStreaming, messages, setMessages]
+  );
+
   const noModel = models.length === 0;
   const showWelcome = !conversationId || (messages.length === 0 && !isStreaming);
   const mergedMessages = mergeToolResults(messages);
@@ -345,7 +371,12 @@ export default function ChatArea({
           ) : (
             messageGroups.map((group, groupIndex) =>
               group.type === "user" ? (
-                <UserMessageItem key={group.message.id} message={group.message} />
+                <UserMessageItem
+                  key={group.message.id}
+                  message={group.message}
+                  isStreaming={isStreaming}
+                  onEdit={(newContent) => handleEditMessage(group.message.id, newContent)}
+                />
               ) : (
                 <AssistantMessageGroup
                   key={group.messages[0].id}

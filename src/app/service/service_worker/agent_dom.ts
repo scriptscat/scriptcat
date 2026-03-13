@@ -17,7 +17,13 @@ import type {
   WaitForOptions,
   WaitForResult,
   DomApiRequest,
+  ExecuteScriptOptions,
 } from "@App/app/service/agent/types";
+
+type ReadPageInjectedOptions = {
+  selector: string | undefined | null;
+  maxLength: number;
+};
 import {
   withDebugger,
   cdpClick,
@@ -67,18 +73,16 @@ export class AgentDomService {
     };
   }
 
-  // 读取页面内容
+  // 读取页面内容，返回原始 HTML
   async readPage(options?: ReadPageOptions): Promise<PageContent> {
     const tabId = await this.resolveTabId(options?.tabId);
-    const mode = options?.mode ?? "summary";
-    const maxLength = options?.maxLength ?? 4000;
+    const maxLength = options?.maxLength ?? 200000;
     const selector = options?.selector;
-    const viewportOnly = options?.viewportOnly ?? false;
 
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       func: readPageContent,
-      args: [{ mode, maxLength, selector, viewportOnly }],
+      args: [{ selector, maxLength } as ReadPageInjectedOptions],
       world: "MAIN",
     });
 
@@ -201,6 +205,28 @@ export class AgentDomService {
     return { found: false };
   }
 
+  // 在页面中执行 JavaScript 代码
+  async executeScript(code: string, options?: ExecuteScriptOptions): Promise<unknown> {
+    const tabId = await this.resolveTabId(options?.tabId);
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (codeStr: string) => {
+        // 用 Function 构造器执行代码，支持 return 返回值
+        const fn = new Function(codeStr);
+        return fn();
+      },
+      args: [code],
+      world: "MAIN",
+    });
+
+    if (!results || results.length === 0) {
+      throw new Error("Failed to execute script");
+    }
+
+    return results[0].result;
+  }
+
   // 处理 GM API 请求路由
   async handleDomApi(request: DomApiRequest): Promise<unknown> {
     switch (request.action) {
@@ -220,6 +246,8 @@ export class AgentDomService {
         return this.scroll(request.direction, request.options);
       case "waitFor":
         return this.waitFor(request.selector, request.options);
+      case "executeScript":
+        return this.executeScript(request.code, request.options);
       default:
         throw new Error(`Unknown DOM action: ${(request as any).action}`);
     }
@@ -448,232 +476,30 @@ export class AgentDomService {
 
 // ---- 注入到页面中执行的函数 ----
 
-// 读取页面内容（注入到页面执行）
-function readPageContent(options: {
-  mode: string;
-  maxLength: number;
-  selector: string | undefined | null;
-  viewportOnly: boolean;
-}): PageContent {
-  const { mode, maxLength, selector, viewportOnly } = options;
+// 读取页面 HTML（注入到页面执行）
+function readPageContent(options: ReadPageInjectedOptions): PageContent {
+  const { selector, maxLength } = options;
 
-  const root = selector ? document.querySelector(selector) || document.body : document.body;
-
-  // 判断元素是否可见
-  const isVisible = (el: Element): boolean => {
-    const style = window.getComputedStyle(el);
-    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
-    if (viewportOnly) {
-      const rect = el.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  // 生成唯一选择器
-  const getSelector = (el: Element): string => {
-    if (el.id) return `#${el.id}`;
-    const tag = el.tagName.toLowerCase();
-    const parent = el.parentElement;
-    if (!parent) return tag;
-    const siblings = Array.from(parent.children).filter((c) => c.tagName === el.tagName);
-    if (siblings.length === 1) {
-      const parentSel = getSelector(parent);
-      return `${parentSel} > ${tag}`;
-    }
-    const index = siblings.indexOf(el) + 1;
-    const parentSel = getSelector(parent);
-    return `${parentSel} > ${tag}:nth-of-type(${index})`;
-  };
-
-  // 收集可交互元素
-  const interactable: PageContent["interactable"] = [];
-  const interactableSelectors = "button, [role='button'], a[href], input, textarea, select, [tabindex], [onclick]";
-  const interactableEls = root.querySelectorAll(interactableSelectors);
-
-  for (const el of Array.from(interactableEls).slice(0, 50)) {
-    if (!isVisible(el)) continue;
-    const htmlEl = el as HTMLElement;
-    interactable.push({
-      selector: getSelector(el),
-      tag: el.tagName.toLowerCase(),
-      text: (htmlEl.textContent || htmlEl.getAttribute("aria-label") || htmlEl.getAttribute("title") || "")
-        .trim()
-        .slice(0, 100),
-      role: el.getAttribute("role") || undefined,
-      type: el.getAttribute("type") || undefined,
-      visible: true,
-    });
+  const root = selector ? document.querySelector(selector) : document.documentElement;
+  if (!root) {
+    return {
+      title: document.title,
+      url: location.href,
+      html: `<error>Element not found: ${selector}</error>`,
+    };
   }
 
-  // 收集表单
-  const forms: PageContent["forms"] = [];
-  const formEls = root.querySelectorAll("form");
-  for (const form of Array.from(formEls).slice(0, 10)) {
-    if (!isVisible(form)) continue;
-    const fields: PageContent["forms"][0]["fields"] = [];
-    const inputs = form.querySelectorAll("input, textarea, select");
-    for (const input of Array.from(inputs).slice(0, 20)) {
-      const htmlInput = input as HTMLInputElement;
-      const field: PageContent["forms"][0]["fields"][0] = {
-        selector: getSelector(input),
-        name: htmlInput.name || htmlInput.id || "",
-        type: htmlInput.type || input.tagName.toLowerCase(),
-        value: htmlInput.value || undefined,
-        placeholder: htmlInput.placeholder || undefined,
-        required: htmlInput.required || false,
-      };
-      if (input.tagName === "SELECT") {
-        field.options = Array.from((input as HTMLSelectElement).options).map((o) => o.text);
-      }
-      fields.push(field);
-    }
-    forms.push({
-      selector: getSelector(form),
-      action: form.action || undefined,
-      fields,
-    });
-  }
-
-  // 收集链接
-  const links: PageContent["links"] = [];
-  const linkEls = root.querySelectorAll("a[href]");
-  for (const el of Array.from(linkEls).slice(0, 30)) {
-    if (!isVisible(el)) continue;
-    const anchor = el as HTMLAnchorElement;
-    const text = (anchor.textContent || "").trim().slice(0, 100);
-    if (!text) continue;
-    links.push({
-      selector: getSelector(el),
-      text,
-      href: anchor.href,
-    });
-  }
-
+  let html = root.outerHTML;
   const result: PageContent = {
     title: document.title,
     url: location.href,
-    interactable,
-    forms,
-    links,
+    html,
   };
 
-  if (mode === "summary") {
-    // 概要模式：提取页面骨架
-    const sections: PageContent["sections"] = [];
-    const sectionTags = "main, article, section, nav, header, footer, aside, [role='main'], [role='navigation']";
-    const sectionEls = root.querySelectorAll(sectionTags);
-
-    if (sectionEls.length === 0) {
-      // 没有语义化标签，用 body 直接的子 div
-      const children = root.children;
-      for (const child of Array.from(children).slice(0, 20)) {
-        if (!isVisible(child)) continue;
-        const text = (child.textContent || "").trim();
-        if (!text) continue;
-        sections.push({
-          selector: getSelector(child),
-          summary: text.replace(/\s+/g, " ").slice(0, 200),
-          elementCount: child.querySelectorAll("*").length,
-        });
-      }
-    } else {
-      for (const el of Array.from(sectionEls).slice(0, 20)) {
-        if (!isVisible(el)) continue;
-        const text = (el.textContent || "").trim();
-        if (!text) continue;
-        sections.push({
-          selector: getSelector(el),
-          summary: text.replace(/\s+/g, " ").slice(0, 200),
-          elementCount: el.querySelectorAll("*").length,
-        });
-      }
-    }
-
-    result.sections = sections;
-
-    // 控制总长度
-    const json = JSON.stringify(result);
-    if (json.length > maxLength) {
-      result.truncated = true;
-      result.totalLength = json.length;
-    }
-  } else {
-    // 详细模式：提取文本内容
-    const extractText = (node: Node): string => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        return (node.textContent || "").trim();
-      }
-      if (node.nodeType !== Node.ELEMENT_NODE) return "";
-      const el = node as Element;
-      const tag = el.tagName.toLowerCase();
-
-      // 跳过不需要的标签
-      if (["script", "style", "svg", "noscript"].includes(tag)) return "";
-      if (!isVisible(el)) return "";
-
-      // 图片替换
-      if (tag === "img") {
-        const alt = el.getAttribute("alt") || "";
-        return alt ? `[图片: ${alt}]` : "[图片]";
-      }
-
-      const children = Array.from(node.childNodes);
-      let text = "";
-
-      // 列表截断
-      if (tag === "ul" || tag === "ol") {
-        const items = el.querySelectorAll(":scope > li");
-        const maxItems = 20;
-        for (let i = 0; i < Math.min(items.length, maxItems); i++) {
-          text += extractText(items[i]) + "\n";
-        }
-        if (items.length > maxItems) {
-          text += `... (${items.length - maxItems} more items)\n`;
-        }
-        return text;
-      }
-
-      // 表格截断
-      if (tag === "table") {
-        const rows = el.querySelectorAll("tr");
-        const maxRows = 10;
-        for (let i = 0; i < Math.min(rows.length, maxRows); i++) {
-          text += extractText(rows[i]) + "\n";
-        }
-        if (rows.length > maxRows) {
-          text += `... (${rows.length - maxRows} more rows)\n`;
-        }
-        return text;
-      }
-
-      for (const child of children) {
-        text += extractText(child) + " ";
-      }
-
-      // 块级元素添加换行
-      if (["div", "p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr", "br", "hr"].includes(tag)) {
-        text += "\n";
-      }
-
-      return text;
-    };
-
-    let content = extractText(root);
-    // 折叠连续空白
-    content = content
-      .replace(/[ \t]+/g, " ")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-
-    if (content.length > maxLength) {
-      result.truncated = true;
-      result.totalLength = content.length;
-      content = content.slice(0, maxLength);
-    }
-    result.content = content;
+  if (html.length > maxLength) {
+    result.truncated = true;
+    result.totalLength = html.length;
+    result.html = html.slice(0, maxLength);
   }
 
   return result;

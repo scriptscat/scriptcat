@@ -11,6 +11,7 @@ import type {
   ScrollDirection,
   ScrollOptions,
   WaitForOptions,
+  ExecuteScriptOptions,
 } from "@App/app/service/agent/types";
 
 // 运行时 this 是 GM_Base 实例
@@ -87,6 +88,14 @@ export default class CATAgentDomApi {
     const ctx = this as unknown as GMBaseContext;
     return ctx.sendMessage("CAT_agentDom", [
       { action: "waitFor", selector, options, scriptUuid: ctx.scriptRes?.uuid || "" } as DomApiRequest,
+    ]);
+  }
+
+  @GMContext.API({ follow: "CAT.agent.dom" })
+  public "CAT.agent.dom.executeScript"(code: string, options?: ExecuteScriptOptions): Promise<unknown> {
+    const ctx = this as unknown as GMBaseContext;
+    return ctx.sendMessage("CAT_agentDom", [
+      { action: "executeScript", code, options, scriptUuid: ctx.scriptRes?.uuid || "" } as DomApiRequest,
     ]);
   }
 }

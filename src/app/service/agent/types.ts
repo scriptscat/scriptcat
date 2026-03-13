@@ -239,51 +239,10 @@ export type ActionResult = {
   dialog?: { type: "alert" | "confirm" | "prompt"; message: string };
 };
 
-export type InteractableElement = {
-  selector: string;
-  tag: string;
-  text: string;
-  role?: string;
-  type?: string;
-  visible: boolean;
-};
-
-export type FormField = {
-  selector: string;
-  name: string;
-  type: string;
-  value?: string;
-  placeholder?: string;
-  options?: string[];
-  required: boolean;
-};
-
-export type FormInfo = {
-  selector: string;
-  action?: string;
-  fields: FormField[];
-};
-
-export type LinkInfo = {
-  selector: string;
-  text: string;
-  href: string;
-};
-
-export type SectionInfo = {
-  selector: string;
-  summary: string;
-  elementCount: number;
-};
-
 export type PageContent = {
   title: string;
   url: string;
-  content?: string;
-  sections?: SectionInfo[];
-  interactable: InteractableElement[];
-  forms: FormInfo[];
-  links: LinkInfo[];
+  html: string;
   truncated?: boolean;
   totalLength?: number;
 };
@@ -291,9 +250,7 @@ export type PageContent = {
 export type ReadPageOptions = {
   tabId?: number;
   selector?: string;
-  mode?: "summary" | "detail";
   maxLength?: number;
-  viewportOnly?: boolean;
 };
 
 export type DomActionOptions = {
@@ -340,10 +297,21 @@ export type NavigateResult = {
 
 export type WaitForResult = {
   found: boolean;
-  element?: InteractableElement;
+  element?: {
+    selector: string;
+    tag: string;
+    text: string;
+    role?: string;
+    type?: string;
+    visible: boolean;
+  };
 };
 
 // GM API 请求类型
+export type ExecuteScriptOptions = {
+  tabId?: number;
+};
+
 export type DomApiRequest =
   | { action: "listTabs"; scriptUuid: string }
   | { action: "navigate"; url: string; options?: NavigateOptions; scriptUuid: string }
@@ -352,7 +320,8 @@ export type DomApiRequest =
   | { action: "click"; selector: string; options?: DomActionOptions; scriptUuid: string }
   | { action: "fill"; selector: string; value: string; options?: DomActionOptions; scriptUuid: string }
   | { action: "scroll"; direction: ScrollDirection; options?: ScrollOptions; scriptUuid: string }
-  | { action: "waitFor"; selector: string; options?: WaitForOptions; scriptUuid: string };
+  | { action: "waitFor"; selector: string; options?: WaitForOptions; scriptUuid: string }
+  | { action: "executeScript"; code: string; options?: ExecuteScriptOptions; scriptUuid: string };
 
 // ---- MCP 类型 ----
 

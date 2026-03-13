@@ -517,6 +517,8 @@ export class AgentService {
 
     // load_skill 动态注册的工具名，对话结束后需清理
     const dynamicToolNames: string[] = [];
+    // 已加载的 skill 名，避免重复加载和重复注册工具
+    const loadedSkills = new Set<string>();
 
     // load_skill — 始终注册
     metaTools.push({
@@ -539,6 +541,11 @@ export class AgentService {
           if (!record) {
             throw new Error(`Skill "${skillName}" not found`);
           }
+          // 已加载过则直接返回 prompt，跳过工具注册
+          if (loadedSkills.has(skillName)) {
+            return record.prompt;
+          }
+          loadedSkills.add(skillName);
           // 动态注册该 skill 的 CATTool 为独立 LLM tool
           if (record.toolNames.length > 0) {
             const toolRecords = await this.skillRepo.getSkillScripts(skillName);
@@ -948,6 +955,38 @@ export class AgentService {
 
       // 加载历史消息
       const existingMessages = await this.repo.getMessages(params.conversationId);
+
+      // 扫描历史消息中的 load_skill 调用，预加载之前已加载的 skill 的工具
+      if (metaTools.length > 0) {
+        const loadSkillMeta = metaTools.find((mt) => mt.definition.name === "load_skill");
+        if (loadSkillMeta) {
+          const loadedSkillNames = new Set<string>();
+          for (const msg of existingMessages) {
+            if (msg.role === "assistant" && msg.toolCalls) {
+              for (const tc of msg.toolCalls) {
+                if (tc.name === "load_skill") {
+                  try {
+                    const args = JSON.parse(tc.arguments || "{}");
+                    if (args.skill_name) {
+                      loadedSkillNames.add(args.skill_name);
+                    }
+                  } catch {
+                    // 解析失败，跳过
+                  }
+                }
+              }
+            }
+          }
+          // 预执行 load_skill 以注册动态工具（结果不需要，只需要副作用）
+          for (const skillName of loadedSkillNames) {
+            try {
+              await loadSkillMeta.executor.execute({ skill_name: skillName });
+            } catch {
+              // 加载失败，跳过
+            }
+          }
+        }
+      }
 
       // 构建消息列表
       const messages: ChatRequest["messages"] = [];

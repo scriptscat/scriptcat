@@ -39,7 +39,7 @@ export function parseSkillMd(content: string): { metadata: SkillMetadata; prompt
   };
 }
 
-// 解析 Skill ZIP 包：提取 SKILL.md、tools/*.js、references/*
+// 解析 Skill ZIP 包：提取 SKILL.md、scripts/*.js、references/*
 export async function parseSkillZip(data: ArrayBuffer): Promise<{
   skillMd: string;
   scripts: Array<{ name: string; code: string }>;
@@ -79,14 +79,14 @@ export async function parseSkillZip(data: ArrayBuffer): Promise<{
 
   const skillMd: string = await files[skillMdPath].async("string");
 
-  // 提取 tools/*.js
+  // 提取 scripts/*.js
   const scripts: Array<{ name: string; code: string }> = [];
-  const toolsDir = prefix + "tools/";
+  const scriptsDir = prefix + "scripts/";
   for (const [path, file] of Object.entries(files)) {
     if ((file as any).dir) continue;
     const normalized = path.replace(/\\/g, "/");
-    if (normalized.startsWith(toolsDir) && normalized.endsWith(".js")) {
-      const name = normalized.slice(toolsDir.length);
+    if (normalized.startsWith(scriptsDir) && normalized.endsWith(".js")) {
+      const name = normalized.slice(scriptsDir.length);
       if (name && !name.includes("/")) {
         const code: string = await (file as any).async("string");
         scripts.push({ name, code });

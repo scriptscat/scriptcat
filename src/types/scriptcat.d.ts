@@ -863,51 +863,10 @@ declare namespace CATAgentDom {
     dialog?: { type: "alert" | "confirm" | "prompt"; message: string };
   }
 
-  interface InteractableElement {
-    selector: string;
-    tag: string;
-    text: string;
-    role?: string;
-    type?: string;
-    visible: boolean;
-  }
-
-  interface FormField {
-    selector: string;
-    name: string;
-    type: string;
-    value?: string;
-    placeholder?: string;
-    options?: string[];
-    required: boolean;
-  }
-
-  interface FormInfo {
-    selector: string;
-    action?: string;
-    fields: FormField[];
-  }
-
-  interface LinkInfo {
-    selector: string;
-    text: string;
-    href: string;
-  }
-
-  interface SectionInfo {
-    selector: string;
-    summary: string;
-    elementCount: number;
-  }
-
   interface PageContent {
     title: string;
     url: string;
-    content?: string;
-    sections?: SectionInfo[];
-    interactable: InteractableElement[];
-    forms: FormInfo[];
-    links: LinkInfo[];
+    html: string;
     truncated?: boolean;
     totalLength?: number;
   }
@@ -915,9 +874,7 @@ declare namespace CATAgentDom {
   interface ReadPageOptions {
     tabId?: number;
     selector?: string;
-    mode?: "summary" | "detail";
     maxLength?: number;
-    viewportOnly?: boolean;
   }
 
   interface DomActionOptions {
@@ -964,7 +921,18 @@ declare namespace CATAgentDom {
 
   interface WaitForResult {
     found: boolean;
-    element?: InteractableElement;
+    element?: {
+      selector: string;
+      tag: string;
+      text: string;
+      role?: string;
+      type?: string;
+      visible: boolean;
+    };
+  }
+
+  interface ExecuteScriptOptions {
+    tabId?: number;
   }
 
   interface DomAPI {
@@ -976,6 +944,7 @@ declare namespace CATAgentDom {
     fill(selector: string, value: string, options?: DomActionOptions): Promise<ActionResult>;
     scroll(direction: ScrollDirection, options?: ScrollOptions): Promise<ScrollResult>;
     waitFor(selector: string, options?: WaitForOptions): Promise<WaitForResult>;
+    executeScript(code: string, options?: ExecuteScriptOptions): Promise<unknown>;
   }
 }
 

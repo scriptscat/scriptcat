@@ -52,42 +52,9 @@ export function registerDomTools(registry: ToolRegistry, domService: AgentDomSer
     },
     {
       definition: {
-        name: "dom_read_page",
-        description:
-          "Read page content. In 'summary' mode (default), returns page skeleton with sections, interactable elements, forms, and links. In 'detail' mode, returns full text content. Use 'selector' to narrow scope.",
-        parameters: {
-          type: "object",
-          properties: {
-            tabId: { type: "number", description: "Tab ID to read from. Defaults to active tab" },
-            selector: { type: "string", description: "CSS selector to narrow scope to a specific DOM subtree" },
-            mode: {
-              type: "string",
-              enum: ["summary", "detail"],
-              description: "Read mode: 'summary' returns page skeleton, 'detail' returns full text (default: summary)",
-            },
-            maxLength: { type: "number", description: "Max content length in characters (default: 4000)" },
-            viewportOnly: {
-              type: "boolean",
-              description: "Only return elements visible in the viewport (default: false)",
-            },
-          },
-        },
-      },
-      executor: new DomToolExecutor((args) =>
-        domService.readPage({
-          tabId: args.tabId as number | undefined,
-          selector: args.selector as string | undefined,
-          mode: args.mode as "summary" | "detail" | undefined,
-          maxLength: args.maxLength as number | undefined,
-          viewportOnly: args.viewportOnly as boolean | undefined,
-        })
-      ),
-    },
-    {
-      definition: {
         name: "dom_screenshot",
         description:
-          "Take a screenshot of a tab. Returns a base64 data URL. For background tabs, uses CDP (requires debugger permission).",
+          "Take a screenshot of a tab. The image is shown to the user in the conversation but NOT included in your context — you cannot see it. Use this when the user needs to visually verify page state. For background tabs, uses CDP (requires debugger permission).",
         parameters: {
           type: "object",
           properties: {
