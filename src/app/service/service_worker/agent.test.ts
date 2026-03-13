@@ -1459,3 +1459,743 @@ describe("handleConversationChat skipSaveUserMessage", () => {
     expect(nonSystem[2]).toMatchObject({ role: "user", content: "第二条" });
   });
 });
+
+// ---- callLLM 相关测试（通过 callLLMWithToolLoop 间接测试） ----
+
+describe("callLLM 流式响应解析", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  // 辅助：创建 OpenAI SSE Response
+  function makeSSEResponse(chunks: string[]): Response {
+    const encoder = new TextEncoder();
+    let i = 0;
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (i >= chunks.length) return { done: true, value: undefined };
+            return { done: false, value: encoder.encode(chunks[i++]) };
+          },
+          releaseLock: () => {},
+          cancel: async () => {},
+          closed: Promise.resolve(undefined),
+        }),
+      },
+      text: async () => "",
+    } as unknown as Response;
+  }
+
+  // 辅助：创建 Anthropic SSE Response
+  function makeAnthropicSSEResponse(events: Array<{ event: string; data: any }>): Response {
+    const encoder = new TextEncoder();
+    const chunks = events.map((e) => `event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n\n`);
+    let i = 0;
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (i >= chunks.length) return { done: true, value: undefined };
+            return { done: false, value: encoder.encode(chunks[i++]) };
+          },
+          releaseLock: () => {},
+          cancel: async () => {},
+          closed: Promise.resolve(undefined),
+        }),
+      },
+      text: async () => "",
+    } as unknown as Response;
+  }
+
+  function createMockSender() {
+    const sentMessages: any[] = [];
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const sender = {
+      isType: (type: any) => type === 1,
+      getConnect: () => mockConn,
+    };
+    return { sender, sentMessages };
+  }
+
+  const BASE_CONV = {
+    id: "conv-1",
+    title: "Test",
+    modelId: "test-openai",
+    createtime: Date.now(),
+    updatetime: Date.now(),
+  };
+
+  it("正常文本响应：OpenAI SSE → sendEvent 收到 content_delta + done", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    fetchSpy.mockResolvedValueOnce(
+      makeSSEResponse([
+        `data: {"choices":[{"delta":{"content":"你好"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"世界"}}]}\n\n`,
+        `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+      ])
+    );
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    const events = sentMessages.map((m) => m.data);
+    const contentDeltas = events.filter((e: any) => e.type === "content_delta");
+    const doneEvents = events.filter((e: any) => e.type === "done");
+
+    expect(contentDeltas.length).toBeGreaterThanOrEqual(1);
+    expect(doneEvents).toHaveLength(1);
+    expect(doneEvents[0].usage).toBeDefined();
+    expect(doneEvents[0].usage.inputTokens).toBe(10);
+    expect(doneEvents[0].usage.outputTokens).toBe(5);
+  });
+
+  it("正常文本响应（Anthropic provider）：验证 buildAnthropicRequest + parseAnthropicStream", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    // 设置 Anthropic model
+    const anthropicModelRepo = {
+      listModels: vi.fn().mockResolvedValue([
+        { id: "test-anthropic", name: "Claude", provider: "anthropic", apiBaseUrl: "https://api.anthropic.com", apiKey: "sk-test", model: "claude-3" },
+      ]),
+      getModel: vi.fn().mockImplementation((id: string) => {
+        if (id === "test-anthropic") {
+          return Promise.resolve({ id: "test-anthropic", name: "Claude", provider: "anthropic", apiBaseUrl: "https://api.anthropic.com", apiKey: "sk-test", model: "claude-3" });
+        }
+        return Promise.resolve(undefined);
+      }),
+      getDefaultModelId: vi.fn().mockResolvedValue("test-anthropic"),
+      saveModel: vi.fn(),
+      removeModel: vi.fn(),
+      setDefaultModelId: vi.fn(),
+    };
+    (service as any).modelRepo = anthropicModelRepo;
+
+    const conv = { ...BASE_CONV, modelId: "test-anthropic" };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    fetchSpy.mockResolvedValueOnce(
+      makeAnthropicSSEResponse([
+        { event: "message_start", data: { message: { usage: { input_tokens: 15 } } } },
+        { event: "content_block_start", data: { content_block: { type: "text", text: "" } } },
+        { event: "content_block_delta", data: { delta: { type: "text_delta", text: "你好世界" } } },
+        { event: "message_delta", data: { usage: { output_tokens: 8 } } },
+      ])
+    );
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    // 验证请求使用了 Anthropic 格式
+    const reqInit = fetchSpy.mock.calls[0][1];
+    expect(reqInit.headers["x-api-key"]).toBe("sk-test");
+    expect(fetchSpy.mock.calls[0][0]).toContain("/v1/messages");
+
+    const events = sentMessages.map((m) => m.data);
+    const contentDeltas = events.filter((e: any) => e.type === "content_delta");
+    const doneEvents = events.filter((e: any) => e.type === "done");
+    expect(contentDeltas).toHaveLength(1);
+    expect(contentDeltas[0].delta).toBe("你好世界");
+    expect(doneEvents).toHaveLength(1);
+    expect(doneEvents[0].usage.inputTokens).toBe(15);
+    expect(doneEvents[0].usage.outputTokens).toBe(8);
+  });
+
+  it("API 错误响应（HTTP 401）：sendEvent 收到 error + errorCode=auth", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // 返回 401 错误，errorText 非 JSON 使消息包含 "401"（classifyErrorCode 靠正则匹配）
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: async () => "401 Unauthorized",
+    } as unknown as Response);
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    const events = sentMessages.map((m) => m.data);
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0].errorCode).toBe("auth");
+  });
+
+  it("API 错误响应（HTTP 500 后重试成功）：withRetry 生效", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // 第一次 500 错误
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: async () => "Internal Server Error",
+    } as unknown as Response);
+
+    // 第二次成功
+    fetchSpy.mockResolvedValueOnce(
+      makeSSEResponse([
+        `data: {"choices":[{"delta":{"content":"恢复了"}}]}\n\n`,
+        `data: {"usage":{"prompt_tokens":10,"completion_tokens":3}}\n\n`,
+      ])
+    );
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    // fetch 应被调用 2 次（500 + 成功）
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    const events = sentMessages.map((m) => m.data);
+    const doneEvents = events.filter((e: any) => e.type === "done");
+    expect(doneEvents).toHaveLength(1);
+  });
+
+  it("无 response body：抛出 No response body", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: null,
+      text: async () => "",
+    } as unknown as Response);
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    const events = sentMessages.map((m) => m.data);
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0].message).toContain("No response body");
+  });
+
+  it("AbortSignal 中止：disconnect 后不再发送消息", async () => {
+    const { service, mockRepo } = createTestService();
+    const sentMessages: any[] = [];
+    let disconnectCb: (() => void) | null = null;
+
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: vi.fn(),
+      onDisconnect: vi.fn().mockImplementation((cb: () => void) => {
+        disconnectCb = cb;
+      }),
+    };
+    const sender = {
+      isType: (type: any) => type === 1,
+      getConnect: () => mockConn,
+    };
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // fetch 抛 AbortError（模拟 signal 取消 fetch）
+    fetchSpy.mockImplementation((_url, init) => {
+      // 在 fetch 调用时立即触发 disconnect
+      if (disconnectCb) {
+        disconnectCb();
+        disconnectCb = null;
+      }
+      // 模拟 abort 导致 fetch reject
+      return Promise.reject(new DOMException("The operation was aborted", "AbortError"));
+    });
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    // abort 后 handleConversationChat 检测到 signal.aborted，静默返回
+    const events = sentMessages.map((m) => m.data);
+    // 不应有 error 事件（abort 不算 error）
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(0);
+    // 不应有 done 事件
+    const doneEvents = events.filter((e: any) => e.type === "done");
+    expect(doneEvents).toHaveLength(0);
+  });
+});
+
+// ---- callLLMWithToolLoop 场景补充 ----
+
+describe("callLLMWithToolLoop 工具调用循环", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  function makeSSEResponse(chunks: string[]): Response {
+    const encoder = new TextEncoder();
+    let i = 0;
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (i >= chunks.length) return { done: true, value: undefined };
+            return { done: false, value: encoder.encode(chunks[i++]) };
+          },
+          releaseLock: () => {},
+          cancel: async () => {},
+          closed: Promise.resolve(undefined),
+        }),
+      },
+      text: async () => "",
+    } as unknown as Response;
+  }
+
+  function makeToolCallResponse(toolCalls: Array<{ id: string; name: string; arguments: string }>): Response {
+    const chunks: string[] = [];
+    for (const tc of toolCalls) {
+      chunks.push(`data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`);
+      chunks.push(`data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`);
+    }
+    chunks.push(`data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`);
+    return makeSSEResponse(chunks);
+  }
+
+  function makeTextResponse(text: string): Response {
+    return makeSSEResponse([
+      `data: {"choices":[{"delta":{"content":"${text}"}}]}\n\n`,
+      `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+    ]);
+  }
+
+  function createMockSender() {
+    const sentMessages: any[] = [];
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const sender = {
+      isType: (type: any) => type === 1,
+      getConnect: () => mockConn,
+    };
+    return { sender, sentMessages };
+  }
+
+  const BASE_CONV = {
+    id: "conv-1",
+    title: "Test",
+    modelId: "test-openai",
+    createtime: Date.now(),
+    updatetime: Date.now(),
+  };
+
+  it("工具调用单轮：tool_call → 执行 → 文本完成", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    // 注册一个内置工具
+    const registry = (service as any).toolRegistry;
+    registry.registerBuiltin(
+      { name: "echo", description: "Echo", parameters: { type: "object", properties: { msg: { type: "string" } } } },
+      { execute: async (args: Record<string, unknown>) => `echo: ${args.msg}` }
+    );
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // 第一次：返回 tool_call
+    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "call_1", name: "echo", arguments: '{"msg":"hello"}' }]));
+    // 第二次：纯文本
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "test" }, sender);
+
+    const events = sentMessages.map((m) => m.data);
+    // 应有 tool_call_start, tool_call_complete, new_message, done
+    expect(events.some((e: any) => e.type === "tool_call_start")).toBe(true);
+    expect(events.some((e: any) => e.type === "tool_call_complete")).toBe(true);
+    const completeEvent = events.find((e: any) => e.type === "tool_call_complete");
+    expect(completeEvent.result).toBe('echo: hello');
+    expect(events.some((e: any) => e.type === "new_message")).toBe(true);
+    expect(events.some((e: any) => e.type === "done")).toBe(true);
+
+    // assistant 消息应持久化（tool_calls 和最终文本各一条）
+    const appendCalls = mockRepo.appendMessage.mock.calls;
+    const assistantCalls = appendCalls.filter((c: any) => c[0].role === "assistant");
+    expect(assistantCalls).toHaveLength(2); // tool_call + final text
+
+    // fetch 应调用 2 次
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    registry.unregisterBuiltin("echo");
+  });
+
+  it("工具调用多轮（3 轮）：连续 tool_call 后文本", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    const registry = (service as any).toolRegistry;
+    let callCount = 0;
+    registry.registerBuiltin(
+      { name: "counter", description: "Count", parameters: { type: "object", properties: {} } },
+      { execute: async () => { callCount++; return `count=${callCount}`; } }
+    );
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // 3 轮 tool_call
+    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "c1", name: "counter", arguments: "{}" }]));
+    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "c2", name: "counter", arguments: "{}" }]));
+    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "c3", name: "counter", arguments: "{}" }]));
+    // 最终文本
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "test" }, sender);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(callCount).toBe(3);
+
+    const events = sentMessages.map((m) => m.data);
+    const doneEvents = events.filter((e: any) => e.type === "done");
+    expect(doneEvents).toHaveLength(1);
+    // done 事件 usage 应累计 4 轮
+    expect(doneEvents[0].usage.inputTokens).toBe(40); // 10 * 4
+    expect(doneEvents[0].usage.outputTokens).toBe(20); // 5 * 4
+
+    registry.unregisterBuiltin("counter");
+  });
+
+  it("超过 maxIterations：sendEvent 收到 max_iterations 错误", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    const registry = (service as any).toolRegistry;
+    registry.registerBuiltin(
+      { name: "loop", description: "Loop", parameters: { type: "object", properties: {} } },
+      { execute: async () => "ok" }
+    );
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // maxIterations=1 但 LLM 一直返回 tool_call
+    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "c1", name: "loop", arguments: "{}" }]));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "test", maxIterations: 1 },
+      sender
+    );
+
+    const events = sentMessages.map((m) => m.data);
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0].message).toContain("maximum iterations");
+    expect(errorEvents[0].errorCode).toBe("max_iterations");
+
+    // fetch 只调用 1 次（maxIterations=1）
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    registry.unregisterBuiltin("loop");
+  });
+
+  it("工具执行后附件回写：toolCalls 被更新", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    const registry = (service as any).toolRegistry;
+    // 注册返回带附件结果的工具
+    registry.registerBuiltin(
+      { name: "screenshot", description: "Screenshot", parameters: { type: "object", properties: {} } },
+      {
+        execute: async () => ({
+          content: "Screenshot taken",
+          attachments: [{ type: "image", name: "shot.png", mimeType: "image/png", data: "base64data" }],
+        }),
+      }
+    );
+    // 注入 mock chatRepo 到 registry 用于保存附件
+    registry.setChatRepo({
+      saveAttachment: vi.fn().mockResolvedValue(1024),
+    });
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+    // appendMessage 后 getMessages 返回含 toolCalls 的 assistant 消息
+    const storedMessages: any[] = [];
+    mockRepo.appendMessage.mockImplementation(async (msg: any) => {
+      storedMessages.push(msg);
+    });
+    mockRepo.getMessages.mockImplementation(async () => [...storedMessages]);
+
+    // 第一次：tool_call
+    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "sc1", name: "screenshot", arguments: "{}" }]));
+    // 第二次：文本
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "截图" }, sender);
+
+    const events = sentMessages.map((m) => m.data);
+    const completeEvent = events.find((e: any) => e.type === "tool_call_complete");
+    expect(completeEvent).toBeDefined();
+    expect(completeEvent.result).toBe("Screenshot taken");
+    expect(completeEvent.attachments).toHaveLength(1);
+    expect(completeEvent.attachments[0].type).toBe("image");
+
+    registry.unregisterBuiltin("screenshot");
+  });
+});
+
+// ---- handleConversationChat 场景补充 ----
+
+describe("handleConversationChat 场景补充", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  function makeSSEResponse(chunks: string[]): Response {
+    const encoder = new TextEncoder();
+    let i = 0;
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (i >= chunks.length) return { done: true, value: undefined };
+            return { done: false, value: encoder.encode(chunks[i++]) };
+          },
+          releaseLock: () => {},
+          cancel: async () => {},
+          closed: Promise.resolve(undefined),
+        }),
+      },
+      text: async () => "",
+    } as unknown as Response;
+  }
+
+  function makeTextResponse(text: string): Response {
+    return makeSSEResponse([
+      `data: {"choices":[{"delta":{"content":"${text}"}}]}\n\n`,
+      `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+    ]);
+  }
+
+  function createMockSender() {
+    const sentMessages: any[] = [];
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const sender = {
+      isType: (type: any) => type === 1,
+      getConnect: () => mockConn,
+    };
+    return { sender, sentMessages };
+  }
+
+  it("对话标题自动更新：第一条消息时 title 从 New Chat 变成消息截断", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    const conv = {
+      id: "conv-1",
+      title: "New Chat",
+      modelId: "test-openai",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+    mockRepo.getMessages.mockResolvedValue([]); // 空历史 → 第一条消息
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("ok"));
+
+    // 使用超过 30 个字符的消息（中文和英文混合确保超过 30 字符）
+    const longMessage = "This is a very long message that is used for testing title truncation behavior";
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: longMessage }, sender);
+
+    // saveConversation 应被调用，标题为截断后的消息
+    const saveCalls = mockRepo.saveConversation.mock.calls;
+    const titleUpdate = saveCalls.find((c: any) => c[0].title !== "New Chat");
+    expect(titleUpdate).toBeDefined();
+    expect(titleUpdate[0].title).toBe(longMessage.slice(0, 30) + "...");
+  });
+
+  it("ephemeral 模式：不走 repo 持久化", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("ephemeral reply"));
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "eph-1",
+        message: "hi",
+        ephemeral: true,
+        messages: [{ role: "user", content: "hi" }],
+        system: "You are a helper.",
+      },
+      sender
+    );
+
+    // ephemeral 模式不应查询 conversation
+    expect(mockRepo.listConversations).not.toHaveBeenCalled();
+    // 不应持久化消息
+    expect(mockRepo.appendMessage).not.toHaveBeenCalled();
+
+    // 但应收到 done 事件
+    const events = sentMessages.map((m) => m.data);
+    expect(events.some((e: any) => e.type === "done")).toBe(true);
+  });
+
+  it("modelId 覆盖：传入新 modelId 时更新 conversation", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    // 添加第二个 model
+    const modelRepo = (service as any).modelRepo;
+    modelRepo.getModel.mockImplementation((id: string) => {
+      if (id === "test-openai") return Promise.resolve({ id: "test-openai", name: "Test", provider: "openai", apiBaseUrl: "", apiKey: "", model: "gpt-4o" });
+      if (id === "test-openai-2") return Promise.resolve({ id: "test-openai-2", name: "Test2", provider: "openai", apiBaseUrl: "", apiKey: "", model: "gpt-4o-mini" });
+      return Promise.resolve(undefined);
+    });
+
+    const conv = {
+      id: "conv-1",
+      title: "Test",
+      modelId: "test-openai",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+    mockRepo.getMessages.mockResolvedValue([]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("ok"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "hi", modelId: "test-openai-2" },
+      sender
+    );
+
+    // conversation 应被保存，modelId 更新为 test-openai-2
+    const saveConvCalls = mockRepo.saveConversation.mock.calls;
+    const modelUpdate = saveConvCalls.find((c: any) => c[0].modelId === "test-openai-2");
+    expect(modelUpdate).toBeDefined();
+  });
+
+  it("conversation 不存在时 sendEvent error", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([]); // 空
+
+    await (service as any).handleConversationChat(
+      { conversationId: "not-exist", message: "hi" },
+      sender
+    );
+
+    const events = sentMessages.map((m) => m.data);
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0].message).toContain("Conversation not found");
+  });
+
+  it("skill 动态加载：历史消息含 load_skill 调用时预加载 skill 工具", async () => {
+    const { service, mockRepo, mockSkillRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    // 设置 skill
+    const skill = makeSkillRecord({
+      name: "web-skill",
+      toolNames: ["web-tool"],
+      prompt: "Web instructions.",
+    });
+    (service as any).skillCache.set("web-skill", skill);
+
+    const toolRecord = makeCATToolRecord({
+      name: "web-tool",
+      description: "Web tool",
+      params: [],
+    });
+    mockSkillRepo.getSkillScripts.mockResolvedValueOnce([toolRecord]);
+
+    const conv = {
+      id: "conv-1",
+      title: "Test",
+      modelId: "test-openai",
+      skills: "auto" as const,
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+    // 历史中含 load_skill 调用
+    mockRepo.getMessages.mockResolvedValue([
+      {
+        id: "u1",
+        conversationId: "conv-1",
+        role: "user",
+        content: "帮我查网页",
+        createtime: 1000,
+      },
+      {
+        id: "a1",
+        conversationId: "conv-1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc1", name: "load_skill", arguments: '{"skill_name":"web-skill"}' }],
+        createtime: 1001,
+      },
+      {
+        id: "t1",
+        conversationId: "conv-1",
+        role: "tool",
+        content: "Web instructions.",
+        toolCallId: "tc1",
+        createtime: 1002,
+      },
+    ]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("ok"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "继续" },
+      sender
+    );
+
+    // getSkillScripts 应被调用以预加载 web-skill 的工具
+    expect(mockSkillRepo.getSkillScripts).toHaveBeenCalledWith("web-skill");
+
+    // 发送给 LLM 的工具列表应包含 web-skill__web-tool
+    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    const toolNames = requestBody.tools?.map((t: any) => t.function?.name || t.name) || [];
+    expect(toolNames).toContain("web-skill__web-tool");
+  });
+});

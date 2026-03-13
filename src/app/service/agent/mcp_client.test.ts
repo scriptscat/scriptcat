@@ -334,5 +334,97 @@ describe("MCPClient", () => {
       client.close();
       expect(client.isInitialized()).toBe(false);
     });
+
+    it("close 后调用 listTools 应抛出 not initialized", async () => {
+      const client = new MCPClient(createConfig());
+
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+      await client.initialize();
+
+      client.close();
+      await expect(client.listTools()).rejects.toThrow("not initialized");
+    });
+
+    it("close 后调用 callTool 应抛出 not initialized", async () => {
+      const client = new MCPClient(createConfig());
+
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+      await client.initialize();
+
+      client.close();
+      await expect(client.callTool("search", { q: "test" })).rejects.toThrow("not initialized");
+    });
+  });
+
+  describe("callTool 边界场景", () => {
+    async function initClient(): Promise<MCPClient> {
+      const client = new MCPClient(createConfig());
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+      await client.initialize();
+      return client;
+    }
+
+    it("callTool 无参数调用：不传 args → 发送 arguments: {}", async () => {
+      const client = await initClient();
+
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          content: [{ type: "text", text: "no args result" }],
+        })
+      );
+
+      const result = await client.callTool("ping");
+      expect(result).toBe("no args result");
+
+      const lastCall = JSON.parse(mockFetch.mock.lastCall![1].body);
+      expect(lastCall.method).toBe("tools/call");
+      expect(lastCall.params.name).toBe("ping");
+      expect(lastCall.params.arguments).toEqual({});
+    });
+
+    it("callTool JSON-RPC 错误：返回 JSON-RPC error → 抛出 MCP error", async () => {
+      const client = await initClient();
+
+      mockFetch.mockResolvedValueOnce(jsonErrorResponse(-32601, "Method not found"));
+
+      await expect(client.callTool("unknown_tool", {})).rejects.toThrow("MCP error -32601: Method not found");
+    });
+
+    it("callTool 空 content：返回空 content 数组", async () => {
+      const client = await initClient();
+
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          content: [],
+        })
+      );
+
+      const result = await client.callTool("empty", {});
+      // 空 content，不是单个 text，返回整个 content 数组
+      expect(Array.isArray(result)).toBe(true);
+      expect((result as any[]).length).toBe(0);
+    });
+  });
+
+  describe("sendNotification 失败", () => {
+    it("initialize 过程中通知失败应抛出", async () => {
+      const client = new MCPClient(createConfig());
+
+      // initialize 请求成功
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          serverInfo: { name: "TestServer", version: "1.0" },
+        })
+      );
+      // initialized 通知失败（HTTP error）
+      mockFetch.mockResolvedValueOnce(httpErrorResponse(503, "Service Unavailable"));
+
+      await expect(client.initialize()).rejects.toThrow("503");
+    });
   });
 });

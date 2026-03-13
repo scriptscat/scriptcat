@@ -288,6 +288,80 @@ describe("CATTOOL_UUID_PREFIX", () => {
   });
 });
 
+describe("CATToolExecutor 类型转换边界值", () => {
+  it('boolean 转换："false" → false', async () => {
+    const sender = createMockSender();
+    const record = createRecord([{ name: "flag", type: "boolean", required: false, description: "标记" }]);
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({ flag: "false" });
+    expect(getCallParams(sender).args).toEqual({ flag: false });
+  });
+
+  it('boolean 转换："0" → false', async () => {
+    const sender = createMockSender();
+    const record = createRecord([{ name: "flag", type: "boolean", required: false, description: "标记" }]);
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({ flag: "0" });
+    expect(getCallParams(sender).args).toEqual({ flag: false });
+  });
+
+  it('boolean 转换：null → false', async () => {
+    const sender = createMockSender();
+    const record = createRecord([{ name: "flag", type: "boolean", required: false, description: "标记" }]);
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({ flag: null });
+    expect(getCallParams(sender).args).toEqual({ flag: false });
+  });
+
+  it('boolean 转换："true" → true（确认只有这个值和 true 为 true）', async () => {
+    const sender = createMockSender();
+    const record = createRecord([{ name: "flag", type: "boolean", required: false, description: "标记" }]);
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({ flag: "true" });
+    expect(getCallParams(sender).args).toEqual({ flag: true });
+  });
+
+  it('number 转换："abc" → NaN', async () => {
+    const sender = createMockSender();
+    const record = createRecord([{ name: "count", type: "number", required: false, description: "数量" }]);
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({ count: "abc" });
+    expect(getCallParams(sender).args.count).toBeNaN();
+  });
+
+  it('number 转换："" → 0', async () => {
+    const sender = createMockSender();
+    const record = createRecord([{ name: "count", type: "number", required: false, description: "数量" }]);
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({ count: "" });
+    expect(getCallParams(sender).args).toEqual({ count: 0 });
+  });
+
+  it("number 转换：null → 0", async () => {
+    const sender = createMockSender();
+    const record = createRecord([{ name: "count", type: "number", required: false, description: "数量" }]);
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({ count: null });
+    expect(getCallParams(sender).args).toEqual({ count: 0 });
+  });
+
+  it("空 params 定义但有多余 args：只传 metadata 中定义的参数", async () => {
+    const sender = createMockSender();
+    const record = createRecord([]); // 空 params
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({ extra1: "a", extra2: 123, extra3: true });
+    expect(getCallParams(sender).args).toEqual({});
+  });
+});
+
 describe("CATToolExecutor 超时处理", () => {
   afterEach(() => {
     vi.useRealTimers();
