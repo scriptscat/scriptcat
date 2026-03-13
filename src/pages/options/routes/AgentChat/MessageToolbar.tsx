@@ -82,9 +82,6 @@ export default function MessageToolbar({
 }: MessageToolbarProps) {
   const { t } = useTranslation();
 
-  const hasMetadata = isStreaming || usage || durationMs;
-  if (!hasMetadata) return null;
-
   // 元数据片段
   const metaParts: ReactNode[] = [];
 
