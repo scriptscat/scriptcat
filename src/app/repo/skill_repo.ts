@@ -55,19 +55,27 @@ export class SkillRepo extends OPFSRepo {
     // 写 skill.json
     await this.writeJsonFile("skill.json", record, skillDir);
 
-    // 写 scripts
-    if (scripts && scripts.length > 0) {
-      const scriptsDir = await this.getChildDir(`${DATA_DIR}/${SkillRepo.sanitizeName(record.name)}/${SCRIPTS_DIR}`);
-      for (const script of scripts) {
-        await this.writeJsonFile(`${script.name}.json`, script, scriptsDir);
+    // 写 scripts（先清空旧文件再写入，防止更新后残留旧工具）
+    if (scripts) {
+      const sanitized = SkillRepo.sanitizeName(record.name);
+      await this.removeDirectory(SCRIPTS_DIR, await this.getSkillDir(record.name));
+      if (scripts.length > 0) {
+        const scriptsDir = await this.getChildDir(`${DATA_DIR}/${sanitized}/${SCRIPTS_DIR}`);
+        for (const script of scripts) {
+          await this.writeJsonFile(`${script.name}.json`, script, scriptsDir);
+        }
       }
     }
 
-    // 写 references
-    if (references && references.length > 0) {
-      const refsDir = await this.getChildDir(`${DATA_DIR}/${SkillRepo.sanitizeName(record.name)}/${REFERENCES_DIR}`);
-      for (const ref of references) {
-        await this.writeJsonFile(`${ref.name}.json`, ref, refsDir);
+    // 写 references（先清空旧文件再写入）
+    if (references) {
+      const sanitized = SkillRepo.sanitizeName(record.name);
+      await this.removeDirectory(REFERENCES_DIR, await this.getSkillDir(record.name));
+      if (references.length > 0) {
+        const refsDir = await this.getChildDir(`${DATA_DIR}/${sanitized}/${REFERENCES_DIR}`);
+        for (const ref of references) {
+          await this.writeJsonFile(`${ref.name}.json`, ref, refsDir);
+        }
       }
     }
 
