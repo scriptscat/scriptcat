@@ -2,6 +2,7 @@ import * as path from "path";
 import { rspack, NormalModule, type Configuration } from "@rspack/core";
 import { readFileSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
+import semver from "semver";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
@@ -9,6 +10,27 @@ const version = pkg.version;
 const dirname = path.resolve();
 const isDev = process.env.NODE_ENV === "development";
 const isBeta = version.includes("-");
+
+// 将 prerelease 版本号转换为 Chrome 兼容的纯数字格式
+// 例如: "1.4.0-beta" -> "1.4.0.1100", "1.4.0-alpha.1" -> "1.4.0.1002"
+function toChromeVersion(ver: string): string {
+  const parsed = semver.parse(ver);
+  if (!parsed || !parsed.prerelease.length) {
+    return ver;
+  }
+  let betaVersion = 1000;
+  switch (parsed.prerelease[0]) {
+    case "alpha":
+      betaVersion += parseInt(String(parsed.prerelease[1] || "0"), 10) + 1 || 1;
+      break;
+    case "beta":
+      betaVersion += 100 * (parseInt(String(parsed.prerelease[1] || "0"), 10) + 1 || 1);
+      break;
+    default:
+      throw new Error("未知的版本类型");
+  }
+  return `${parsed.major}.${parsed.minor}.${parsed.patch}.${betaVersion}`;
+}
 const isReactTools = process.env.REACT_DEVTOOLS === "true";
 
 // Target browsers, see: https://github.com/browserslist/browserslist
@@ -137,6 +159,7 @@ export default {
           // 将manifest.json内版本号替换为package.json中版本号
           transform(content: Buffer) {
             const manifest = JSON.parse(content.toString()) as chrome.runtime.ManifestV3;
+            manifest.version = toChromeVersion(version);
             if (isDev || isBeta) {
               manifest.name = "__MSG_scriptcat_beta__";
             }
