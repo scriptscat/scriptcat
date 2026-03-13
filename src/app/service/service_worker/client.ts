@@ -366,6 +366,10 @@ export class AgentClient extends Client {
     return this.do("removeSkill", name);
   }
 
+  refreshSkill(name: string): Promise<boolean> {
+    return this.doThrow("refreshSkill", name);
+  }
+
   prepareSkillInstall(zipBase64: string): Promise<string> {
     return this.doThrow("prepareSkillInstall", zipBase64);
   }

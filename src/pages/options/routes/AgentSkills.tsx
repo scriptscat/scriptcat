@@ -1,5 +1,5 @@
 import { Button, Card, Empty, Input, Message, Modal, Popconfirm, Space, Tag, Typography } from "@arco-design/web-react";
-import { IconDelete, IconEye, IconPlus } from "@arco-design/web-react/icon";
+import { IconDelete, IconEye, IconPlus, IconRefresh } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkillSummary, SkillRecord, SkillReference, CATToolRecord } from "@App/app/service/agent/types";
@@ -14,11 +14,13 @@ function SkillCard({
   skill,
   onDetail,
   onUninstall,
+  onRefresh,
   t,
 }: {
   skill: SkillSummary;
   onDetail: () => void;
   onUninstall: () => void;
+  onRefresh: () => void;
   t: (key: string, opts?: Record<string, string>) => string;
 }) {
   return (
@@ -64,6 +66,9 @@ function SkillCard({
         <Button type="text" size="small" icon={<IconEye />} onClick={onDetail}>
           {t("agent_skills_detail")}
         </Button>
+        <Button type="text" size="small" icon={<IconRefresh />} onClick={onRefresh}>
+          {t("agent_skills_refresh")}
+        </Button>
         <Popconfirm title={t("agent_skills_uninstall_confirm", { name: skill.name })} onOk={onUninstall}>
           <Button type="text" size="small" status="danger" icon={<IconDelete />}>
             {t("agent_skills_uninstall")}
@@ -71,6 +76,56 @@ function SkillCard({
         </Popconfirm>
       </div>
     </div>
+  );
+}
+
+// ---- Tool Code Viewer Modal ----
+
+function ToolCodeModal({
+  visible,
+  tool,
+  onClose,
+  t,
+}: {
+  visible: boolean;
+  tool: CATToolRecord | null;
+  onClose: () => void;
+  t: (key: string) => string;
+}) {
+  if (!tool) return null;
+
+  return (
+    <Modal
+      title={`${t("agent_skills_tool_code")} - ${tool.name}`}
+      visible={visible}
+      onCancel={onClose}
+      footer={
+        <Button type="primary" onClick={onClose}>
+          {t("confirm")}
+        </Button>
+      }
+      autoFocus={false}
+      focusLock
+      unmountOnExit
+      style={{ width: 720 }}
+    >
+      <pre
+        style={{
+          background: "var(--color-fill-2)",
+          borderRadius: 8,
+          padding: 16,
+          fontSize: 13,
+          fontFamily: "monospace",
+          overflow: "auto",
+          maxHeight: 480,
+          margin: 0,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+        }}
+      >
+        {tool.code}
+      </pre>
+    </Modal>
   );
 }
 
@@ -93,6 +148,7 @@ function SkillDetailModal({
   const [scripts, setScripts] = useState<CATToolRecord[]>([]);
   const [references, setReferences] = useState<SkillReference[]>([]);
   const [saving, setSaving] = useState(false);
+  const [viewingTool, setViewingTool] = useState<CATToolRecord | null>(null);
 
   useEffect(() => {
     if (skill) {
@@ -126,76 +182,88 @@ function SkillDetailModal({
   if (!skill) return null;
 
   return (
-    <Modal
-      title={t("agent_skills_detail")}
-      visible={visible}
-      onOk={handleSave}
-      onCancel={onClose}
-      confirmLoading={saving}
-      autoFocus={false}
-      focusLock
-      unmountOnExit
-      style={{ width: 640 }}
-    >
-      <Space direction="vertical" size={16} className="tw-w-full">
-        {/* Name & Description (read-only) */}
-        <div>
-          <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">Name</div>
-          <Typography.Text>{skill.name}</Typography.Text>
-        </div>
-        {skill.description && (
+    <>
+      <Modal
+        title={t("agent_skills_detail")}
+        visible={visible}
+        onOk={handleSave}
+        onCancel={onClose}
+        confirmLoading={saving}
+        autoFocus={false}
+        focusLock
+        unmountOnExit
+        style={{ width: 640 }}
+      >
+        <Space direction="vertical" size={16} className="tw-w-full">
+          {/* Name & Description (read-only) */}
           <div>
-            <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">Description</div>
-            <Typography.Text type="secondary">{skill.description}</Typography.Text>
+            <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">Name</div>
+            <Typography.Text>{skill.name}</Typography.Text>
           </div>
-        )}
+          {skill.description && (
+            <div>
+              <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">Description</div>
+              <Typography.Text type="secondary">{skill.description}</Typography.Text>
+            </div>
+          )}
 
-        {/* Prompt (editable) */}
-        <div>
-          <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
-            {t("agent_skills_prompt")}
-          </div>
-          <Input.TextArea
-            value={prompt}
-            onChange={setPrompt}
-            autoSize={{ minRows: 6, maxRows: 16 }}
-            style={{ fontFamily: "monospace", fontSize: 13 }}
-          />
-        </div>
-
-        {/* Scripts */}
-        {scripts.length > 0 && (
+          {/* Prompt (editable) */}
           <div>
             <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
-              {t("agent_skills_tools")} ({scripts.length})
+              {t("agent_skills_prompt")}
             </div>
-            <div className="tw-flex tw-flex-wrap tw-gap-1.5">
-              {scripts.map((s) => (
-                <Tag key={s.name} color="arcoblue">
-                  {s.name}
-                </Tag>
-              ))}
-            </div>
+            <Input.TextArea
+              value={prompt}
+              onChange={setPrompt}
+              autoSize={{ minRows: 6, maxRows: 16 }}
+              style={{ fontFamily: "monospace", fontSize: 13 }}
+            />
           </div>
-        )}
 
-        {/* References */}
-        {references.length > 0 && (
-          <div>
-            <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
-              {t("agent_skills_references")} ({references.length})
+          {/* Scripts - clickable to view code */}
+          {scripts.length > 0 && (
+            <div>
+              <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
+                {t("agent_skills_tools")} ({scripts.length})
+              </div>
+              <div className="tw-flex tw-flex-wrap tw-gap-1.5">
+                {scripts.map((s) => (
+                  <Tag
+                    key={s.name}
+                    color="arcoblue"
+                    className="tw-cursor-pointer hover:tw-opacity-80"
+                    onClick={() => setViewingTool(s)}
+                  >
+                    {s.name}
+                  </Tag>
+                ))}
+              </div>
+              <div className="tw-text-xs tw-text-[var(--color-text-3)] tw-mt-1">
+                {t("agent_skills_click_to_view_code")}
+              </div>
             </div>
-            <div className="tw-flex tw-flex-wrap tw-gap-1.5">
-              {references.map((r) => (
-                <Tag key={r.name} color="green">
-                  {r.name}
-                </Tag>
-              ))}
+          )}
+
+          {/* References */}
+          {references.length > 0 && (
+            <div>
+              <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
+                {t("agent_skills_references")} ({references.length})
+              </div>
+              <div className="tw-flex tw-flex-wrap tw-gap-1.5">
+                {references.map((r) => (
+                  <Tag key={r.name} color="green">
+                    {r.name}
+                  </Tag>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </Space>
-    </Modal>
+          )}
+        </Space>
+      </Modal>
+
+      <ToolCodeModal visible={!!viewingTool} tool={viewingTool} onClose={() => setViewingTool(null)} t={t} />
+    </>
   );
 }
 
@@ -228,6 +296,16 @@ function AgentSkills() {
   const handleUninstall = async (name: string) => {
     await agentClient.removeSkill(name);
     loadSkills();
+  };
+
+  const handleRefresh = async (name: string) => {
+    try {
+      await agentClient.refreshSkill(name);
+      await loadSkills();
+      Message.success(t("agent_skills_refresh_success"));
+    } catch (e: any) {
+      Message.error(e.message || String(e));
+    }
   };
 
   // 选择 ZIP 文件后走安装页面流程
@@ -286,6 +364,7 @@ function AgentSkills() {
                 skill={skill}
                 onDetail={() => handleDetail(skill.name)}
                 onUninstall={() => handleUninstall(skill.name)}
+                onRefresh={() => handleRefresh(skill.name)}
                 t={t}
               />
             ))}

@@ -146,6 +146,7 @@ export class AgentService {
       }) => this.installSkill(params.skillMd, params.scripts, params.references)
     );
     this.group.on("removeSkill", (name: string) => this.removeSkill(name));
+    this.group.on("refreshSkill", (name: string) => this.refreshSkill(name));
     // Skill ZIP 安装页面相关消息
     this.group.on("prepareSkillInstall", (zipBase64: string) => this.prepareSkillInstall(zipBase64));
     this.group.on("getSkillInstallData", (uuid: string) => this.getSkillInstallData(uuid));
@@ -473,6 +474,17 @@ export class AgentService {
       this.skillCache.delete(name);
     }
     return removed;
+  }
+
+  // 刷新单个 Skill 缓存（从 OPFS 重新加载）
+  async refreshSkill(name: string): Promise<boolean> {
+    const record = await this.skillRepo.getSkill(name);
+    if (record) {
+      this.skillCache.set(record.name, record);
+      return true;
+    }
+    this.skillCache.delete(name);
+    return false;
   }
 
   // 缓存 Skill ZIP 数据，返回 uuid，供安装页面获取
