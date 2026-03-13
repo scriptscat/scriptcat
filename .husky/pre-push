@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# 跳过检查: SKIP_PRE_PUSH=1 git push 或 git push --no-verify
+if [ "$SKIP_PRE_PUSH" = "1" ]; then
+  echo "⏭ SKIP_PRE_PUSH=1，跳过 pre-push 检查"
+  exit 0
+fi
+
+# 只在推送到 main 或 release/* 分支时执行检查
+remote="$1"
+need_check=0
+
+while read local_ref local_sha remote_ref remote_sha; do
+  branch=$(echo "$remote_ref" | sed 's|refs/heads/||')
+
+  if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release"; then
+    need_check=1
+    echo "🔍 检测到推送目标: $branch"
+  fi
+done
+
+if [ "$need_check" = "0" ]; then
+  exit 0
+fi
+
+echo ""
+echo "▶ Running lint..."
+pnpm run lint || exit 1
+
+echo ""
+echo "▶ Running tests..."
+pnpm run test:ci || exit 1
+
+echo ""
+echo "▶ Building for e2e..."
+pnpm run build || exit 1
+
+echo ""
+echo "▶ Running e2e tests..."
+pnpm run test:e2e || exit 1
+
+echo ""
+echo "✅ 所有检查通过！"
