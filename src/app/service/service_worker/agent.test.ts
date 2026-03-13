@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AgentService } from "./agent";
+import { AgentService, isRetryableError, withRetry, classifyErrorCode } from "./agent";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_CATTOOL_INSTALL } from "@App/app/cache_key";
 
@@ -1085,5 +1085,369 @@ Prompt content.`;
 
     expect(result).toBe(true);
     expect(mockSkillRepo.removeSkill).toHaveBeenCalledWith("msg-test-skill");
+  });
+});
+
+// ---- isRetryableError ----
+
+describe("isRetryableError", () => {
+  it("429 应可重试", () => {
+    expect(isRetryableError(new Error("HTTP 429 Too Many Requests"))).toBe(true);
+  });
+
+  it("500 应可重试", () => {
+    expect(isRetryableError(new Error("HTTP 500 Internal Server Error"))).toBe(true);
+  });
+
+  it("503 应可重试", () => {
+    expect(isRetryableError(new Error("503 Service Unavailable"))).toBe(true);
+  });
+
+  it("network 错误应可重试", () => {
+    expect(isRetryableError(new Error("network error"))).toBe(true);
+    expect(isRetryableError(new Error("Network Error"))).toBe(true);
+  });
+
+  it("fetch 失败应可重试", () => {
+    expect(isRetryableError(new Error("fetch failed"))).toBe(true);
+  });
+
+  it("ECONNRESET 应可重试", () => {
+    expect(isRetryableError(new Error("ECONNRESET"))).toBe(true);
+  });
+
+  it("401 不应重试", () => {
+    expect(isRetryableError(new Error("401 Unauthorized"))).toBe(false);
+  });
+
+  it("403 不应重试", () => {
+    expect(isRetryableError(new Error("403 Forbidden"))).toBe(false);
+  });
+
+  it("400 不应重试", () => {
+    expect(isRetryableError(new Error("400 Bad Request"))).toBe(false);
+  });
+
+  it("404 不应重试", () => {
+    expect(isRetryableError(new Error("404 Not Found"))).toBe(false);
+  });
+
+  it("普通错误不应重试", () => {
+    expect(isRetryableError(new Error("Invalid API key"))).toBe(false);
+    expect(isRetryableError(new Error("JSON parse error"))).toBe(false);
+  });
+});
+
+// ---- withRetry ----
+
+describe("withRetry", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("首次成功时直接返回结果", async () => {
+    const fn = vi.fn().mockResolvedValue("ok");
+    const signal = new AbortController().signal;
+    const result = await withRetry(fn, signal);
+    expect(result).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("429 错误应重试直到成功", async () => {
+    vi.useFakeTimers();
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("HTTP 429 Too Many Requests"))
+      .mockRejectedValueOnce(new Error("HTTP 429 Too Many Requests"))
+      .mockResolvedValue("ok");
+    const signal = new AbortController().signal;
+
+    const resultPromise = withRetry(fn, signal);
+    // 推进足够的时间让两次重试的延迟都过去
+    await vi.runAllTimersAsync();
+    const result = await resultPromise;
+
+    expect(result).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("超过最大重试次数后抛出最后的错误", async () => {
+    vi.useFakeTimers();
+    const err = new Error("HTTP 429 Too Many Requests");
+    const fn = vi.fn().mockRejectedValue(err);
+    const signal = new AbortController().signal;
+
+    const resultPromise = withRetry(fn, signal, 3);
+    await vi.runAllTimersAsync();
+
+    await expect(resultPromise).rejects.toThrow("429");
+    // 1 次首次尝试 + 3 次重试 = 4 次
+    expect(fn).toHaveBeenCalledTimes(4);
+  });
+
+  it("401 错误不重试，直接抛出", async () => {
+    const fn = vi.fn().mockRejectedValue(new Error("401 Unauthorized"));
+    const signal = new AbortController().signal;
+
+    await expect(withRetry(fn, signal)).rejects.toThrow("401");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("abort 时立即退出，不再重试", async () => {
+    vi.useFakeTimers();
+    const ac = new AbortController();
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("HTTP 500"))
+      .mockResolvedValue("should_not_reach");
+
+    const resultPromise = withRetry(fn, ac.signal);
+    // abort 在延迟等待期间触发
+    ac.abort();
+    await vi.runAllTimersAsync();
+
+    await expect(resultPromise).rejects.toThrow();
+    // abort 后不应继续重试
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- classifyErrorCode ----
+
+describe("classifyErrorCode", () => {
+  it("429 应分类为 rate_limit", () => {
+    expect(classifyErrorCode(new Error("HTTP 429 Too Many Requests"))).toBe("rate_limit");
+  });
+
+  it("401 应分类为 auth", () => {
+    expect(classifyErrorCode(new Error("401 Unauthorized"))).toBe("auth");
+  });
+
+  it("403 应分类为 auth", () => {
+    expect(classifyErrorCode(new Error("403 Forbidden"))).toBe("auth");
+  });
+
+  it("消息含 timed out 应分类为 tool_timeout", () => {
+    expect(classifyErrorCode(new Error('CATTool "foo" timed out after 30s'))).toBe("tool_timeout");
+  });
+
+  it("errorCode 属性为 tool_timeout 应分类为 tool_timeout", () => {
+    const e = Object.assign(new Error("execution failed"), { errorCode: "tool_timeout" });
+    expect(classifyErrorCode(e)).toBe("tool_timeout");
+  });
+
+  it("其他错误应分类为 api_error", () => {
+    expect(classifyErrorCode(new Error("500 Internal Server Error"))).toBe("api_error");
+    expect(classifyErrorCode(new Error("Unknown error"))).toBe("api_error");
+  });
+});
+
+// ---- handleConversationChat skipSaveUserMessage（重新生成 bug 修复验证）----
+
+describe("handleConversationChat skipSaveUserMessage", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  function createMockSender() {
+    const sentMessages: any[] = [];
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const sender = {
+      isType: (type: any) => type === 1, // GetSenderType.CONNECT
+      getConnect: () => mockConn,
+    };
+    return { sender, sentMessages };
+  }
+
+  // 创建最简单的 OpenAI SSE 响应（纯文本，无 tool call）
+  function makeTextResponse(text: string): Response {
+    const encoder = new TextEncoder();
+    const chunks = [
+      `data: {"choices":[{"delta":{"content":"${text}"}}]}\n\n`,
+      `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+    ];
+    let i = 0;
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (i >= chunks.length) return { done: true, value: undefined };
+            return { done: false, value: encoder.encode(chunks[i++]) };
+          },
+          releaseLock: () => {},
+          cancel: async () => {},
+          closed: Promise.resolve(undefined),
+        }),
+      },
+      text: async () => "",
+    } as unknown as Response;
+  }
+
+  // 已存在于 storage 中的用户消息（模拟重新生成场景）
+  const EXISTING_USER_MSG = {
+    id: "existing-u1",
+    conversationId: "conv-1",
+    role: "user" as const,
+    content: "你好",
+    createtime: 1000,
+  };
+
+  const BASE_CONV = {
+    id: "conv-1",
+    title: "Test",
+    modelId: "test-openai",
+    createtime: Date.now(),
+    updatetime: Date.now(),
+  };
+
+  it("【默认行为】不传 skipSaveUserMessage：用户消息应被保存到 storage", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]); // 空历史
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("你好！"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "你好", modelId: "test-openai" },
+      sender
+    );
+
+    const appendCalls: any[][] = mockRepo.appendMessage.mock.calls;
+    const userCall = appendCalls.find((c) => c[0].role === "user");
+    expect(userCall).toBeDefined();
+    expect(userCall![0].content).toBe("你好");
+  });
+
+  it("【bug 回归】skipSaveUserMessage=true：用户消息不应再次保存到 storage", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    // storage 中已有用户消息（重新生成场景）
+    mockRepo.getMessages.mockResolvedValue([EXISTING_USER_MSG]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("你好！"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "你好", modelId: "test-openai", skipSaveUserMessage: true },
+      sender
+    );
+
+    const appendCalls: any[][] = mockRepo.appendMessage.mock.calls;
+    // user 角色消息不应被再次保存
+    const userCall = appendCalls.find((c) => c[0].role === "user");
+    expect(userCall).toBeUndefined();
+
+    // assistant 回复仍应被保存
+    const assistantCall = appendCalls.find((c) => c[0].role === "assistant");
+    expect(assistantCall).toBeDefined();
+    expect(assistantCall![0].content).toBe("你好！");
+  });
+
+  it("【bug 回归】skipSaveUserMessage=true：LLM 请求中用户消息不应出现两次", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    // storage 中已有用户消息
+    mockRepo.getMessages.mockResolvedValue([EXISTING_USER_MSG]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("你好！"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "你好", modelId: "test-openai", skipSaveUserMessage: true },
+      sender
+    );
+
+    // 检查发往 LLM 的请求 body
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    const userMessages = requestBody.messages.filter((m: any) => m.role === "user");
+
+    // 用户消息只应出现一次（来自 existingMessages，不应被重复追加）
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0].content).toBe("你好");
+  });
+
+  it("skipSaveUserMessage=false（默认）：LLM 收到 user message（来自 params.message 追加）", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]); // 空历史
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("你好！"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "你好", modelId: "test-openai" },
+      sender
+    );
+
+    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    const userMessages = requestBody.messages.filter((m: any) => m.role === "user");
+
+    // 历史为空时，用户消息应来自 params.message 追加，只出现一次
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0].content).toBe("你好");
+  });
+
+  it("skipSaveUserMessage=true：对话标题不应被更新（用户消息已在历史中）", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    const conv = { ...BASE_CONV, title: "New Chat" };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+    // existingMessages 非空 → 标题更新条件（length === 0）不满足
+    mockRepo.getMessages.mockResolvedValue([EXISTING_USER_MSG]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("你好！"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "你好", modelId: "test-openai", skipSaveUserMessage: true },
+      sender
+    );
+
+    // saveConversation 不应以更新标题为目的被调用（title 仍应为 "New Chat"）
+    const saveConvCalls: any[][] = mockRepo.saveConversation.mock.calls;
+    const titleUpdated = saveConvCalls.some((c) => c[0].title !== "New Chat");
+    expect(titleUpdated).toBe(false);
+  });
+
+  it("多轮对话中 skipSaveUserMessage=true：历史消息完整传入 LLM", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    // 两轮历史 + 第三条用户消息待重新生成
+    mockRepo.getMessages.mockResolvedValue([
+      { id: "u1", conversationId: "conv-1", role: "user", content: "第一条", createtime: 1000 },
+      { id: "a1", conversationId: "conv-1", role: "assistant", content: "回复一", createtime: 1001 },
+      { id: "u2", conversationId: "conv-1", role: "user", content: "第二条", createtime: 1002 },
+    ]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("回复二"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "第二条", modelId: "test-openai", skipSaveUserMessage: true },
+      sender
+    );
+
+    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    // 过滤 system 消息
+    const nonSystem = requestBody.messages.filter((m: any) => m.role !== "system");
+
+    // 应有 user("第一条"), assistant("回复一"), user("第二条") — 共 3 条，无重复
+    expect(nonSystem).toHaveLength(3);
+    expect(nonSystem[0]).toMatchObject({ role: "user", content: "第一条" });
+    expect(nonSystem[1]).toMatchObject({ role: "assistant", content: "回复一" });
+    expect(nonSystem[2]).toMatchObject({ role: "user", content: "第二条" });
   });
 });

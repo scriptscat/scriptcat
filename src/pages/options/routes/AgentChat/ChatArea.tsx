@@ -188,7 +188,7 @@ export default function ChatArea({
     newMessages.push(assistantMsg);
 
     setMessages(newMessages);
-    sendMessage(conversationId, content, createStreamCallback(), createDoneCallback(), selectedModelId);
+    sendMessage(conversationId, content, createStreamCallback(), createDoneCallback(), selectedModelId, skipUserMessage);
   };
 
   // 用 ref 保存 startStreaming 的最新引用，避免 useCallback 闭包陈旧

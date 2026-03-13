@@ -41,13 +41,13 @@ import { registerDomTools } from "@App/app/service/agent/dom_tools";
 const CATTOOL_INSTALL_TIMEOUT = 5 * 60 * 1000;
 
 // 判断是否可重试（429 / 5xx / 网络错误，不含 4xx 客户端错误）
-function isRetryableError(e: Error): boolean {
+export function isRetryableError(e: Error): boolean {
   const msg = e.message;
   return /429|5\d\d|network|fetch|ECONNRESET/i.test(msg) && !/40[0134]/.test(msg);
 }
 
 // 指数退避重试，aborted 时立即退出
-async function withRetry<T>(fn: () => Promise<T>, signal: AbortSignal, maxRetries = 3): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, signal: AbortSignal, maxRetries = 3): Promise<T> {
   let lastError!: Error;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (signal.aborted) throw lastError ?? new Error("Aborted");
@@ -71,7 +71,7 @@ async function withRetry<T>(fn: () => Promise<T>, signal: AbortSignal, maxRetrie
 }
 
 // 将 Error 分类为 errorCode 字符串
-function classifyErrorCode(e: Error): string {
+export function classifyErrorCode(e: Error): string {
   const msg = e.message;
   if (/429/.test(msg)) return "rate_limit";
   if (/401|403/.test(msg)) return "auth";
