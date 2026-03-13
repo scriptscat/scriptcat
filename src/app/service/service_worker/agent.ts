@@ -40,6 +40,45 @@ import { registerDomTools } from "@App/app/service/agent/dom_tools";
 // 安装超时时间：5 分钟
 const CATTOOL_INSTALL_TIMEOUT = 5 * 60 * 1000;
 
+// 判断是否可重试（429 / 5xx / 网络错误，不含 4xx 客户端错误）
+function isRetryableError(e: Error): boolean {
+  const msg = e.message;
+  return /429|5\d\d|network|fetch|ECONNRESET/i.test(msg) && !/40[0134]/.test(msg);
+}
+
+// 指数退避重试，aborted 时立即退出
+async function withRetry<T>(fn: () => Promise<T>, signal: AbortSignal, maxRetries = 3): Promise<T> {
+  let lastError!: Error;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal.aborted) throw lastError ?? new Error("Aborted");
+    try {
+      return await fn();
+    } catch (e: any) {
+      if (signal.aborted) throw e;
+      lastError = e;
+      if (!isRetryableError(e) || attempt === maxRetries) throw e;
+      const delay = 1000 * Math.pow(2, attempt) + Math.random() * 1000;
+      await new Promise<void>((r) => {
+        const t = setTimeout(r, delay);
+        signal.addEventListener("abort", () => {
+          clearTimeout(t);
+          r();
+        }, { once: true });
+      });
+    }
+  }
+  throw lastError;
+}
+
+// 将 Error 分类为 errorCode 字符串
+function classifyErrorCode(e: Error): string {
+  const msg = e.message;
+  if (/429/.test(msg)) return "rate_limit";
+  if (/401|403/.test(msg)) return "auth";
+  if (/timed out/.test(msg) || (e as any).errorCode === "tool_timeout") return "tool_timeout";
+  return "api_error";
+}
+
 export class AgentService {
   private repo = new AgentChatRepo();
   private catToolRepo = new CATToolRepo();
@@ -86,6 +125,7 @@ export class AgentService {
     this.group.on("getCATToolInstallCode", (uuid: string) => this.getCATToolInstallCode(uuid));
     this.group.on("completeCATToolInstall", (uuid: string) => this.completeCATToolInstall(uuid));
     this.group.on("cancelCATToolInstall", (uuid: string) => this.cancelCATToolInstall(uuid));
+    this.group.on("removeCATTool", (name: string) => this.removeCATTool(name));
     // Skill 管理（供 Options UI 调用）
     this.group.on(
       "installSkill",
@@ -509,10 +549,6 @@ export class AgentService {
       if (skill.referenceNames.length > 0) hasReferences = true;
     }
 
-    promptParts.push(
-      "\nWhen a skill is loaded, its tools become available as independent tools and you can use `read_reference` to read its reference documents."
-    );
-
     // 构建 meta-tools
     const metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> = [];
 
@@ -717,11 +753,15 @@ export class AgentService {
       // 每轮重新获取工具定义（load_skill 可能动态注册了新工具）
       const allToolDefs = params.skipBuiltinTools ? tools || [] : this.toolRegistry.getDefinitions(tools);
 
-      // 调用 LLM
-      const result = await this.callLLM(
-        model,
-        { messages, tools: allToolDefs.length > 0 ? allToolDefs : undefined, cache: params.cache },
-        sendEvent,
+      // 调用 LLM（带指数退避重试）
+      const result = await withRetry(
+        () =>
+          this.callLLM(
+            model,
+            { messages, tools: allToolDefs.length > 0 ? allToolDefs : undefined, cache: params.cache },
+            sendEvent,
+            signal
+          ),
         signal
       );
 
@@ -836,7 +876,7 @@ export class AgentService {
     }
 
     // 超过最大迭代次数
-    sendEvent({ type: "error", message: `Tool calling loop exceeded maximum iterations (${maxIterations})` });
+    sendEvent({ type: "error", message: `Tool calling loop exceeded maximum iterations (${maxIterations})`, errorCode: "max_iterations" });
   }
 
   // 统一的流式 conversation chat（UI 和脚本 API 共用）
@@ -848,6 +888,8 @@ export class AgentService {
       maxIterations?: number;
       scriptUuid?: string;
       modelId?: string;
+      // 用户消息已在存储中（重新生成场景），跳过保存和 LLM 上下文追加
+      skipSaveUserMessage?: boolean;
       // ephemeral 会话专用字段
       ephemeral?: boolean;
       messages?: ChatRequest["messages"];
@@ -1012,17 +1054,17 @@ export class AgentService {
         });
       }
 
-      // 添加新用户消息
-      messages.push({ role: "user", content: params.message });
-
-      // 持久化用户消息
-      await this.repo.appendMessage({
-        id: uuidv4(),
-        conversationId: params.conversationId,
-        role: "user",
-        content: params.message,
-        createtime: Date.now(),
-      });
+      if (!params.skipSaveUserMessage) {
+        // 添加新用户消息到 LLM 上下文并持久化
+        messages.push({ role: "user", content: params.message });
+        await this.repo.appendMessage({
+          id: uuidv4(),
+          conversationId: params.conversationId,
+          role: "user",
+          content: params.message,
+          createtime: Date.now(),
+        });
+      }
 
       // 更新对话标题（如果是第一条消息）
       if (existingMessages.length === 0 && conv.title === "New Chat") {
@@ -1054,7 +1096,7 @@ export class AgentService {
       }
     } catch (e: any) {
       if (abortController.signal.aborted) return;
-      sendEvent({ type: "error", message: e.message || "Unknown error" });
+      sendEvent({ type: "error", message: e.message || "Unknown error", errorCode: classifyErrorCode(e) });
     }
   }
 

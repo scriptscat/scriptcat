@@ -4,6 +4,7 @@ import AgentChat from "./AgentChat";
 import AgentMcp from "./AgentMcp";
 import AgentOPFS from "./AgentOPFS";
 import AgentSkills from "./AgentSkills";
+import AgentCATool from "./AgentCATool";
 
 function Agent() {
   return (
@@ -12,6 +13,7 @@ function Agent() {
       <Route path="/provider" element={<AgentProvider />} />
       <Route path="/mcp" element={<ComingSoon />} />
       <Route path="/skills" element={<AgentSkills />} />
+      <Route path="/catool" element={<AgentCATool />} />
       <Route path="/opfs" element={<AgentOPFS />} />
       <Route path="*" element={<AgentChat />} />
     </Routes>
