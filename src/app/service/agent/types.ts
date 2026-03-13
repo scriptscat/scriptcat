@@ -214,6 +214,7 @@ export type CATToolMetadata = {
   description: string;
   params: CATToolParam[];
   grants: string[];
+  requires: string[];
 };
 
 // OPFS 中存储的 CATTool 记录
@@ -223,6 +224,7 @@ export type CATToolRecord = {
   description: string;
   params: CATToolParam[];
   grants: string[];
+  requires?: string[]; // @require URL 列表
   code: string; // 完整代码（含元数据头）
   sourceScriptUuid?: string; // 安装来源脚本的 UUID
   sourceScriptName?: string; // 安装来源脚本的名称

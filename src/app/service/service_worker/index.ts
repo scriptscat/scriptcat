@@ -102,7 +102,7 @@ export default class ServiceWorkerManager {
       faviconDAO
     );
     system.init();
-    const agent = new AgentService(this.api.group("agent"), this.sender);
+    const agent = new AgentService(this.api.group("agent"), this.sender, resource);
     agent.init();
 
     // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道

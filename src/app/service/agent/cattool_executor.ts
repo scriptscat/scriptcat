@@ -27,11 +27,15 @@ export function getCATToolGrantsByUuid(uuid: string): string[] {
   return cattoolUuidMap.get(uuid)?.grants || [];
 }
 
+// require 资源加载器类型：根据 URL 返回资源内容
+export type RequireLoader = (url: string) => Promise<string | undefined>;
+
 // CATTool 执行器，通过 Offscreen -> Sandbox 执行 CATTool 脚本
 export class CATToolExecutor implements ToolExecutor {
   constructor(
     private record: CATToolRecord,
-    private sender: MessageSend
+    private sender: MessageSend,
+    private requireLoader?: RequireLoader
   ) {}
 
   async execute(args: Record<string, unknown>): Promise<unknown> {
@@ -56,6 +60,21 @@ export class CATToolExecutor implements ToolExecutor {
     const uuid = CATTOOL_UUID_PREFIX + uuidv4();
     cattoolUuidMap.set(uuid, { name: this.record.name, grants: this.record.grants });
 
+    // 加载 @require 资源内容
+    let requires: Array<{ url: string; content: string }> | undefined;
+    if (this.record.requires?.length && this.requireLoader) {
+      const loaded: Array<{ url: string; content: string }> = [];
+      for (const url of this.record.requires) {
+        const content = await this.requireLoader(url);
+        if (content) {
+          loaded.push({ url, content });
+        }
+      }
+      if (loaded.length > 0) {
+        requires = loaded;
+      }
+    }
+
     const code = getCATToolBody(this.record.code);
     try {
       const execPromise = executeCATTool(this.sender, {
@@ -64,6 +83,7 @@ export class CATToolExecutor implements ToolExecutor {
         args: typedArgs,
         grants: this.record.grants,
         name: this.record.name,
+        requires,
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(

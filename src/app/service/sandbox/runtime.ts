@@ -358,6 +358,7 @@ export class Runtime {
     args: Record<string, unknown>;
     grants: string[];
     name: string;
+    requires?: Array<{ url: string; content: string }>;
   }): Promise<unknown> {
     const uuid = params.uuid;
     const metadata: any = {
@@ -368,7 +369,7 @@ export class Runtime {
     const compiledCode = compileScriptCodeByResource({
       name: params.name,
       code: params.code,
-      require: [],
+      require: params.requires || [],
     });
 
     // 构造最小化的 ScriptLoadInfo

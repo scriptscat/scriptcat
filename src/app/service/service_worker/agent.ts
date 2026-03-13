@@ -38,6 +38,7 @@ import { buildSystemPrompt, SKILL_SUFFIX_HEADER } from "@App/app/service/agent/s
 import { cacheInstance } from "@App/app/cache";
 import { AgentDomService } from "./agent_dom";
 import { MCPService } from "./agent_mcp";
+import { type ResourceService } from "./resource";
 
 // 安装超时时间：5 分钟
 const CATTOOL_INSTALL_TIMEOUT = 5 * 60 * 1000;
@@ -114,7 +115,8 @@ export class AgentService {
 
   constructor(
     private group: Group,
-    private sender: MessageSend
+    private sender: MessageSend,
+    private resourceService?: ResourceService
   ) {}
 
   init() {
@@ -160,6 +162,16 @@ export class AgentService {
     return this.toolRegistry;
   }
 
+  // 创建 require 资源加载器，从 ResourceDAO 缓存中读取已下载的资源内容
+  private createRequireLoader(): ((url: string) => Promise<string | undefined>) | undefined {
+    if (!this.resourceService) return undefined;
+    const rs = this.resourceService;
+    return async (url: string) => {
+      const res = await rs.getResource("cattool-require", url, "require", false);
+      return res?.content as string | undefined;
+    };
+  }
+
   // 从 OPFS 加载所有 CATTool 并注册到 ToolRegistry
   private async loadCATTools() {
     try {
@@ -173,8 +185,9 @@ export class AgentService {
           description: tool.description,
           params: tool.params,
           grants: tool.grants,
+          requires: tool.requires || [],
         });
-        this.toolRegistry.registerBuiltin(def, new CATToolExecutor(tool, this.sender));
+        this.toolRegistry.registerBuiltin(def, new CATToolExecutor(tool, this.sender, this.createRequireLoader()));
       }
     } catch {
       // OPFS 可能在 SW 环境不可用，静默忽略
@@ -188,6 +201,14 @@ export class AgentService {
       throw new Error("Invalid CATTool: missing or malformed ==CATTool== header");
     }
 
+    // 下载并缓存 @require 资源
+    if (metadata.requires.length > 0 && this.resourceService) {
+      const dummyUuid = "cattool-require";
+      await Promise.all(
+        metadata.requires.map((url) => this.resourceService!.getResource(dummyUuid, url, "require", true))
+      );
+    }
+
     const now = Date.now();
     const existing = await this.catToolRepo.getTool(metadata.name);
     const record: CATToolRecord = {
@@ -196,6 +217,7 @@ export class AgentService {
       description: metadata.description,
       params: metadata.params,
       grants: metadata.grants,
+      requires: metadata.requires.length > 0 ? metadata.requires : undefined,
       code,
       sourceScriptUuid: sourceScriptUuid || existing?.sourceScriptUuid,
       sourceScriptName: sourceScriptName || existing?.sourceScriptName,
@@ -208,7 +230,7 @@ export class AgentService {
     // 注册/更新到 ToolRegistry
     const def = catToolToToolDefinition(metadata);
     this.toolRegistry.unregisterBuiltin(metadata.name);
-    this.toolRegistry.registerBuiltin(def, new CATToolExecutor(record, this.sender));
+    this.toolRegistry.registerBuiltin(def, new CATToolExecutor(record, this.sender, this.createRequireLoader()));
 
     return record;
   }
@@ -234,7 +256,7 @@ export class AgentService {
     if (!tool) {
       throw new Error(`CATTool "${name}" not found`);
     }
-    const executor = new CATToolExecutor(tool, this.sender);
+    const executor = new CATToolExecutor(tool, this.sender, this.createRequireLoader());
     return executor.execute(params);
   }
 
@@ -400,6 +422,13 @@ export class AgentService {
         if (!metadata) {
           throw new Error(`Invalid CATTool script "${script.name}": missing ==CATTool== header`);
         }
+        // 下载并缓存 @require 资源
+        if (metadata.requires.length > 0 && this.resourceService) {
+          const dummyUuid = "cattool-require";
+          await Promise.all(
+            metadata.requires.map((url) => this.resourceService!.getResource(dummyUuid, url, "require", true))
+          );
+        }
         toolNames.push(metadata.name);
         const now = Date.now();
         toolRecords.push({
@@ -408,6 +437,7 @@ export class AgentService {
           description: metadata.description,
           params: metadata.params,
           grants: metadata.grants,
+          requires: metadata.requires.length > 0 ? metadata.requires : undefined,
           code: script.code,
           installtime: now,
           updatetime: now,
@@ -599,9 +629,10 @@ export class AgentService {
                 description: tool.description,
                 params: tool.params,
                 grants: tool.grants,
+                requires: tool.requires || [],
               });
               const prefixed = prefixToolDefinition(skillName, def);
-              this.toolRegistry.registerBuiltin(prefixed, new CATToolExecutor(tool, this.sender));
+              this.toolRegistry.registerBuiltin(prefixed, new CATToolExecutor(tool, this.sender, this.createRequireLoader()));
               dynamicToolNames.push(prefixed.name);
             }
           }

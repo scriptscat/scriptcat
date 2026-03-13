@@ -12,6 +12,7 @@ export function parseCATToolMetadata(code: string): CATToolMetadata | null {
   let description = "";
   const params: CATToolParam[] = [];
   const grants: string[] = [];
+  const requires: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.replace(/^\/\/\s*/, "").trim();
@@ -39,12 +40,15 @@ export function parseCATToolMetadata(code: string): CATToolMetadata | null {
       case "grant":
         if (val) grants.push(val);
         break;
+      case "require":
+        if (val) requires.push(val);
+        break;
     }
   }
 
   if (!name) return null;
 
-  return { name, description, params, grants };
+  return { name, description, params, grants, requires };
 }
 
 // 解析 @param 行: name type [required] description

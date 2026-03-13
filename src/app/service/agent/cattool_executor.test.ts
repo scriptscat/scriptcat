@@ -4,6 +4,7 @@ import {
   getCATToolNameByUuid,
   getCATToolGrantsByUuid,
   CATTOOL_UUID_PREFIX,
+  type RequireLoader,
 } from "./cattool_executor";
 import type { CATToolRecord } from "./types";
 
@@ -359,6 +360,121 @@ describe("CATToolExecutor 类型转换边界值", () => {
 
     await executor.execute({ extra1: "a", extra2: 123, extra3: true });
     expect(getCallParams(sender).args).toEqual({});
+  });
+});
+
+describe("CATToolExecutor @require 加载", () => {
+  it("有 requires 和 requireLoader 时应加载资源并传给 executeCATTool", async () => {
+    const sender = createMockSender();
+    const record = createRecord([], {
+      requires: [
+        "https://cdn.example.com/lib1.js",
+        "https://cdn.example.com/lib2.js",
+      ],
+    });
+    const loader: RequireLoader = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("lib1")) return Promise.resolve("var LIB1 = {};");
+      if (url.includes("lib2")) return Promise.resolve("var LIB2 = {};");
+      return Promise.resolve(undefined);
+    });
+    const executor = new CATToolExecutor(record, sender, loader);
+
+    await executor.execute({});
+
+    // requireLoader 应被调用两次
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(loader).toHaveBeenCalledWith("https://cdn.example.com/lib1.js");
+    expect(loader).toHaveBeenCalledWith("https://cdn.example.com/lib2.js");
+
+    // 传给 offscreen 的 params 应包含 requires
+    const params = getCallParams(sender);
+    expect(params.requires).toEqual([
+      { url: "https://cdn.example.com/lib1.js", content: "var LIB1 = {};" },
+      { url: "https://cdn.example.com/lib2.js", content: "var LIB2 = {};" },
+    ]);
+  });
+
+  it("无 requireLoader 时 requires 不应传给 executeCATTool", async () => {
+    const sender = createMockSender();
+    const record = createRecord([], {
+      requires: ["https://cdn.example.com/lib.js"],
+    });
+    // 不传 requireLoader
+    const executor = new CATToolExecutor(record, sender);
+
+    await executor.execute({});
+
+    const params = getCallParams(sender);
+    expect(params.requires).toBeUndefined();
+  });
+
+  it("无 requires 字段时不应调用 requireLoader", async () => {
+    const sender = createMockSender();
+    const record = createRecord(); // 默认无 requires
+    const loader: RequireLoader = vi.fn();
+    const executor = new CATToolExecutor(record, sender, loader);
+
+    await executor.execute({});
+
+    expect(loader).not.toHaveBeenCalled();
+    const params = getCallParams(sender);
+    expect(params.requires).toBeUndefined();
+  });
+
+  it("空 requires 数组时不应调用 requireLoader", async () => {
+    const sender = createMockSender();
+    const record = createRecord([], { requires: [] });
+    const loader: RequireLoader = vi.fn();
+    const executor = new CATToolExecutor(record, sender, loader);
+
+    await executor.execute({});
+
+    expect(loader).not.toHaveBeenCalled();
+    const params = getCallParams(sender);
+    expect(params.requires).toBeUndefined();
+  });
+
+  it("requireLoader 返回 undefined 的 URL 应被跳过", async () => {
+    const sender = createMockSender();
+    const record = createRecord([], {
+      requires: [
+        "https://cdn.example.com/good.js",
+        "https://cdn.example.com/missing.js",
+        "https://cdn.example.com/also-good.js",
+      ],
+    });
+    const loader: RequireLoader = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("missing")) return Promise.resolve(undefined);
+      if (url.includes("also-good")) return Promise.resolve("var ALSO = 2;");
+      if (url.includes("good")) return Promise.resolve("var GOOD = 1;");
+      return Promise.resolve(undefined);
+    });
+    const executor = new CATToolExecutor(record, sender, loader);
+
+    await executor.execute({});
+
+    // loader 被调用 3 次
+    expect(loader).toHaveBeenCalledTimes(3);
+    // 只有成功加载的 2 个资源被传递
+    const params = getCallParams(sender);
+    expect(params.requires).toEqual([
+      { url: "https://cdn.example.com/good.js", content: "var GOOD = 1;" },
+      { url: "https://cdn.example.com/also-good.js", content: "var ALSO = 2;" },
+    ]);
+  });
+
+  it("所有 requireLoader 返回 undefined 时 requires 应为 undefined", async () => {
+    const sender = createMockSender();
+    const record = createRecord([], {
+      requires: ["https://cdn.example.com/missing1.js", "https://cdn.example.com/missing2.js"],
+    });
+    const loader: RequireLoader = vi.fn().mockResolvedValue(undefined);
+    const executor = new CATToolExecutor(record, sender, loader);
+
+    await executor.execute({});
+
+    const params = getCallParams(sender);
+    expect(params.requires).toBeUndefined();
   });
 });
 

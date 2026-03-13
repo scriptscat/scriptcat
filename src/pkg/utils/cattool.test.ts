@@ -100,6 +100,63 @@ return "ok";
     expect(meta.grants).toEqual(["GM.xmlHttpRequest", "GM.getValue", "GM.setValue"]);
   });
 
+  it("应正确解析单个 @require URL", () => {
+    const code = `
+// ==CATTool==
+// @name        xlsx_tool
+// @description 生成 Excel
+// @require     https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
+// ==/CATTool==
+return XLSX.utils.book_new();
+`;
+    const meta = parseCATToolMetadata(code)!;
+    expect(meta.requires).toEqual(["https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"]);
+  });
+
+  it("应正确解析多个 @require URL", () => {
+    const code = `
+// ==CATTool==
+// @name        multi_require
+// @description 多个外部库
+// @require     https://cdn.example.com/lib1.js
+// @require     https://cdn.example.com/lib2.js
+// @require     https://cdn.example.com/lib3.js
+// ==/CATTool==
+return "ok";
+`;
+    const meta = parseCATToolMetadata(code)!;
+    expect(meta.requires).toEqual([
+      "https://cdn.example.com/lib1.js",
+      "https://cdn.example.com/lib2.js",
+      "https://cdn.example.com/lib3.js",
+    ]);
+  });
+
+  it("无 @require 时 requires 应为空数组", () => {
+    const code = `
+// ==CATTool==
+// @name        no_require
+// @description 无外部依赖
+// ==/CATTool==
+return "ok";
+`;
+    const meta = parseCATToolMetadata(code)!;
+    expect(meta.requires).toEqual([]);
+  });
+
+  it("空 @require 值不应加入列表", () => {
+    const code = `
+// ==CATTool==
+// @name        empty_require
+// @description 测试
+// @require
+// ==/CATTool==
+return "ok";
+`;
+    const meta = parseCATToolMetadata(code)!;
+    expect(meta.requires).toHaveLength(0);
+  });
+
   it("空 @grant 值不应加入列表", () => {
     const code = `
 // ==CATTool==
@@ -206,6 +263,7 @@ describe("catToolToToolDefinition", () => {
         { name: "unit", type: "string", required: false, description: "单位", enum: ["c", "f"] },
       ],
       grants: [],
+      requires: [],
     });
 
     expect(def.name).toBe("weather");
@@ -226,6 +284,7 @@ describe("catToolToToolDefinition", () => {
       description: "test",
       params: [{ name: "x", type: "number", required: false, description: "x" }],
       grants: [],
+      requires: [],
     });
 
     expect(def.parameters).not.toHaveProperty("required");
@@ -237,6 +296,7 @@ describe("catToolToToolDefinition", () => {
       description: "连通性测试",
       params: [],
       grants: [],
+      requires: [],
     });
 
     expect(def.parameters).toEqual({
@@ -255,6 +315,7 @@ describe("catToolToToolDefinition", () => {
         { name: "c", type: "boolean", required: false, description: "参数c" },
       ],
       grants: [],
+      requires: [],
     });
 
     expect((def.parameters as any).required).toEqual(["a", "b"]);
@@ -266,6 +327,7 @@ describe("catToolToToolDefinition", () => {
       description: "测试",
       params: [{ name: "color", type: "string", required: false, description: "颜色", enum: ["red", "green", "blue"] }],
       grants: [],
+      requires: [],
     });
 
     const props = (def.parameters as any).properties;
@@ -280,6 +342,7 @@ describe("prefixToolDefinition", () => {
       description: "查询价格",
       params: [{ name: "url", type: "string", required: true, description: "目标URL" }],
       grants: [],
+      requires: [],
     });
 
     const prefixed = prefixToolDefinition("taobao", def);
@@ -295,6 +358,7 @@ describe("prefixToolDefinition", () => {
       description: "测试",
       params: [],
       grants: [],
+      requires: [],
     });
 
     prefixToolDefinition("skill-a", def);
@@ -304,8 +368,8 @@ describe("prefixToolDefinition", () => {
   });
 
   it("双下划线分隔应避免命名冲突", () => {
-    const def1 = catToolToToolDefinition({ name: "extract", description: "A", params: [], grants: [] });
-    const def2 = catToolToToolDefinition({ name: "extract", description: "B", params: [], grants: [] });
+    const def1 = catToolToToolDefinition({ name: "extract", description: "A", params: [], grants: [], requires: [] });
+    const def2 = catToolToToolDefinition({ name: "extract", description: "B", params: [], grants: [], requires: [] });
 
     const p1 = prefixToolDefinition("skill-a", def1);
     const p2 = prefixToolDefinition("skill-b", def2);
