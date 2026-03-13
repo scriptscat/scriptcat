@@ -11,9 +11,9 @@ try {
   if (args.tabId != null) options.tabId = args.tabId;
   if (args.quality != null) options.quality = args.quality;
 
-  const result = await CAT.agent.dom.screenshot(options);
+  const dataUrl = await CAT.agent.dom.screenshot(options);
 
-  if (!result || !result.dataUrl) {
+  if (!dataUrl) {
     return { content: "截图失败：未获取到图片数据", attachments: [] };
   }
 
@@ -22,8 +22,8 @@ try {
     attachments: [
       {
         type: "image",
-        mediaType: result.mediaType || "image/jpeg",
-        data: result.dataUrl,
+        mediaType: "image/jpeg",
+        data: dataUrl,
       },
     ],
   };
