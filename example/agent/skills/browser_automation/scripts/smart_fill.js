@@ -1,10 +1,10 @@
 // ==CATTool==
 // @name         smart_fill
-// @description  智能填充表单字段：直接使用 trusted 模式填充，填充后验证值是否正确
-// @param        selector string [required] 目标表单元素的 CSS 选择器
-// @param        value string [required] 要填充的值
-// @param        tabId number [required] 目标标签页 ID
-// @param        checkDelay number 填充后等待验证的时间（毫秒），默认 500
+// @description  Fill a form field using CDP trusted input and verify the value afterwards. Use this instead of execute_script for form filling — it triggers proper input/change events that frameworks (React, Vue) can detect.
+// @param        selector string [required] CSS selector of the form element
+// @param        value string [required] The value to fill in
+// @param        tabId number [required] Target tab ID
+// @param        checkDelay number Delay before verification in ms (default: 500)
 // @grant        CAT.agent.dom
 // ==/CATTool==
 

@@ -1,8 +1,8 @@
 // ==CATTool==
-// @name         dom_screenshot
-// @description  对目标标签页截图并返回图片（支持 vision 模型直接查看）
-// @param        tabId number 目标标签页 ID，不传则使用当前活动标签页
-// @param        quality number 截图质量（1-100），默认 80
+// @name         screenshot
+// @description  Capture a screenshot of the target tab. Returns an image attachment that vision models can view directly.
+// @param        tabId number Target tab ID (defaults to the active tab)
+// @param        quality number Image quality 1-100 (default: 80)
 // @grant        CAT.agent.dom
 // ==/CATTool==
 

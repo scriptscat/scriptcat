@@ -1,6 +1,6 @@
 // ==CATTool==
-// @name         dom_list_tabs
-// @description  列出所有打开的标签页（tabId、URL、标题、是否活跃），用于确定操作目标
+// @name         list_tabs
+// @description  List all open browser tabs with tabId, URL, title, and active status. Use this first to find the target tabId for other tools.
 // @grant        CAT.agent.dom
 // ==/CATTool==
 

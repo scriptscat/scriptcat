@@ -1,9 +1,9 @@
 // ==CATTool==
-// @name         dom_wait_for
-// @description  等待指定 CSS 选择器的元素出现在页面中，返回元素基本信息
-// @param        selector string [required] 要等待的元素的 CSS 选择器
-// @param        tabId number 目标标签页 ID，不传则使用当前活动标签页
-// @param        timeout number 超时时间（毫秒），默认 10000
+// @name         wait_for
+// @description  Wait for an element matching the CSS selector to appear in the DOM. Returns element info (tagName, text, id, className) on success, or an error on timeout.
+// @param        selector string [required] CSS selector of the element to wait for
+// @param        tabId number Target tab ID (defaults to the active tab)
+// @param        timeout number Timeout in milliseconds (default: 10000)
 // @grant        CAT.agent.dom
 // ==/CATTool==
 

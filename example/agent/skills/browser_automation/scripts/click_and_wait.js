@@ -1,9 +1,9 @@
 // ==CATTool==
 // @name         click_and_wait
-// @description  通过 CDP trusted 点击元素并等待页面变化（导航、新标签页、DOM 变化）。监控 JS 弹框和 DOM 变化，有新增 DOM 元素时启动子 agent 分析返回摘要。
-// @param        selector string [required] 要点击元素的 CSS 选择器
-// @param        tabId number [required] 目标标签页 ID
-// @param        timeout number 等待超时时间（毫秒），默认 5000
+// @description  Click an element via CDP trusted click, then wait for page changes (navigation, new tabs, DOM mutations, JS dialogs). A sub-agent analyzes any new DOM elements and returns a summary in `pageChanges`. Use this for any click that may trigger navigation, popups, or async UI updates.
+// @param        selector string [required] CSS selector of the element to click
+// @param        tabId number [required] Target tab ID
+// @param        timeout number Wait timeout in ms (default: 5000)
 // @grant        CAT.agent.dom
 // @grant        CAT.agent.conversation
 // ==/CATTool==

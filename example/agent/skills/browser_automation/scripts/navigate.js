@@ -1,9 +1,9 @@
 // ==CATTool==
-// @name         dom_navigate
-// @description  导航到指定 URL（可选目标标签页和是否等待加载完成）
-// @param        url string [required] 要导航到的 URL
-// @param        tabId number 目标标签页 ID，不传则使用当前活动标签页
-// @param        waitUntil boolean 是否等待页面加载完成（默认 true）
+// @name         navigate
+// @description  Navigate a tab to the specified URL. Returns the final URL and tabId after navigation.
+// @param        url string [required] Target URL (must start with http:// or https://)
+// @param        tabId number Target tab ID (defaults to the active tab)
+// @param        waitUntil boolean Whether to wait for page load to complete (default: true)
 // @grant        CAT.agent.dom
 // ==/CATTool==
 

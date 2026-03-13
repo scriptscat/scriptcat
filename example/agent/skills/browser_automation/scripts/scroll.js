@@ -1,9 +1,9 @@
 // ==CATTool==
-// @name         dom_scroll
-// @description  滚动页面（上/下/顶部/底部），返回滚动位置信息便于判断是否到底
-// @param        direction string [required] 滚动方向: up, down, top, bottom
-// @param        tabId number 目标标签页 ID，不传则使用当前活动标签页
-// @param        selector string 滚动指定容器元素的 CSS 选择器（不传则滚动整个页面）
+// @name         scroll
+// @description  Scroll the page or a specific container. Returns scroll position and whether top/bottom has been reached (atTop, atBottom).
+// @param        direction string [required] Scroll direction: up, down, top, bottom
+// @param        tabId number Target tab ID (defaults to the active tab)
+// @param        selector string CSS selector of a scrollable container (defaults to the whole page)
 // @grant        CAT.agent.dom
 // ==/CATTool==
 

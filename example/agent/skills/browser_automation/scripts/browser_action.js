@@ -1,8 +1,8 @@
 // ==CATTool==
 // @name         browser_action
-// @description  分析页面内容并返回精简结果（选择器、提取的数据、操作建议），不执行点击/填写等操作
-// @param        scenario string [required] 分析任务描述，如"找到搜索框和搜索按钮的选择器"或"提取搜索结果前5条"
-// @param        tabId number 目标标签页 ID，不传则使用当前活动标签页
+// @description  Analyze page content using a sub-agent — returns CSS selectors, extracted data, or action suggestions. Does NOT perform any clicks or form fills. Pass a specific scenario describing what to find or extract (e.g. "find the search input and submit button selectors", "extract the first 5 search results with titles and links").
+// @param        scenario string [required] What to analyze or extract from the page — be specific
+// @param        tabId number Target tab ID (defaults to the active tab)
 // @grant        CAT.agent.conversation
 // @grant        CAT.agent.dom
 // ==/CATTool==
