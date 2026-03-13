@@ -1,89 +1,10 @@
 import type { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
-import React, { useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { permissionClient } from "../store/features/script";
 
-// Chrome 权限请求独立组件（mode=chrome_permission 时使用）
-function ChromePermissionRequest({ permission, uuid }: { permission: string; uuid: string }) {
-  const { t } = useTranslation();
-  const [second, setSecond] = React.useState(30);
-  const sentRef = useRef(false);
-
-  // 发送结果给 Service Worker
-  const sendResult = useCallback(
-    (granted: boolean) => {
-      if (sentRef.current) return;
-      sentRef.current = true;
-      chrome.runtime.sendMessage({ type: "chrome_permission_result", uuid, granted });
-    },
-    [uuid]
-  );
-
-  // 倒计时自动关闭（视为拒绝）
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSecond((s) => {
-        if (s <= 1) {
-          clearInterval(timer);
-          sendResult(false);
-          setTimeout(() => window.close(), 200);
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [sendResult]);
-
-  // 页面关闭前视为拒绝
-  useEffect(() => {
-    const handleUnload = () => sendResult(false);
-    window.addEventListener("beforeunload", handleUnload);
-    return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [sendResult]);
-
-  const handleGrant = async () => {
-    try {
-      const granted = await chrome.permissions.request({
-        permissions: [permission as chrome.runtime.ManifestPermissions],
-      });
-      sendResult(granted);
-    } catch {
-      sendResult(false);
-    }
-    setTimeout(() => window.close(), 200);
-  };
-
-  const handleDeny = () => {
-    sendResult(false);
-    setTimeout(() => window.close(), 200);
-  };
-
-  // 根据权限类型选择描述文案
-  const descKey = permission === "debugger" ? "chrome_permission_debugger_desc" : "chrome_permission_debugger_desc";
-
-  return (
-    <div className="tw-h-full tw-p-4">
-      <Space direction="vertical" size="medium">
-        <span className="tw-text-2xl tw-font-500">{t("chrome_permission_title")}</span>
-        <span className="tw-text-base">{t(descKey)}</span>
-        <div>
-          <Space>
-            <Button type="primary" status="success" onClick={handleGrant}>
-              {t("chrome_permission_grant")}
-            </Button>
-            <Button status="danger" onClick={handleDeny}>
-              {`${t("chrome_permission_deny")} (${second})`}
-            </Button>
-          </Space>
-        </div>
-      </Space>
-    </div>
-  );
-}
-
-// 权限确认组件（默认模式）
+// 权限确认组件
 function PermissionConfirmRequest({ uuid }: { uuid: string }) {
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
   const [likeNum, setLikeNum] = React.useState(0);
@@ -228,13 +149,7 @@ function PermissionConfirmRequest({ uuid }: { uuid: string }) {
 
 function App() {
   const params = new URLSearchParams(location.search);
-  const mode = params.get("mode");
   const uuid = params.get("uuid");
-  const permission = params.get("permission");
-
-  if (mode === "chrome_permission" && uuid && permission) {
-    return <ChromePermissionRequest permission={permission} uuid={uuid} />;
-  }
 
   if (uuid) {
     return <PermissionConfirmRequest uuid={uuid} />;

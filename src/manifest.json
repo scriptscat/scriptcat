@@ -39,9 +39,10 @@
     "notifications",
     "clipboardWrite",
     "unlimitedStorage",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "debugger"
   ],
-  "optional_permissions": ["background", "userScripts", "debugger"],
+  "optional_permissions": ["background", "userScripts"],
   "host_permissions": ["<all_urls>"],
   "sandbox": {
     "pages": ["src/sandbox.html"]

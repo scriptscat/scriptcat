@@ -2,39 +2,6 @@
 // 通过 chrome.debugger API 实现真实用户输入模拟（isTrusted=true）
 
 import type { ActionResult, ScreenshotOptions } from "@App/app/service/agent/types";
-import { openInCurrentTab } from "@App/pkg/utils/utils";
-
-// 确保 debugger 权限已授予
-// chrome.permissions.request 不能在 Service Worker 中调用（需要用户手势），
-// 所以打开 confirm 页面让用户在有手势的上下文中授权
-export async function ensureDebuggerPermission(): Promise<void> {
-  const granted = await chrome.permissions.contains({ permissions: ["debugger"] });
-  if (granted) return;
-
-  return new Promise<void>((resolve, reject) => {
-    const uuid = crypto.randomUUID();
-    const timeout = setTimeout(() => {
-      chrome.runtime.onMessage.removeListener(listener);
-      reject(new Error("Permission request timed out"));
-    }, 60000);
-
-    const listener = (msg: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-      if (msg.type === "chrome_permission_result" && msg.uuid === uuid) {
-        clearTimeout(timeout);
-        chrome.runtime.onMessage.removeListener(listener);
-        if (msg.granted) {
-          resolve();
-        } else {
-          reject(new Error("Debugger permission denied by user"));
-        }
-        sendResponse(true);
-        return true;
-      }
-    };
-    chrome.runtime.onMessage.addListener(listener);
-    openInCurrentTab(`src/confirm.html?mode=chrome_permission&permission=debugger&uuid=${uuid}`);
-  });
-}
 
 // 生命周期管理：attach → 执行 → detach
 export async function withDebugger<T>(tabId: number, fn: (tabId: number) => Promise<T>): Promise<T> {
@@ -204,7 +171,7 @@ async function setupDialogHandler(tabId: number): Promise<DialogInfo> {
     target: { tabId },
     func: () => {
       const w = window as any;
-      if (!w.__sc_dialog_interceptor__) {
+      if (!w.__sc_interceptors__) {
         w.__sc_dialog_log__ = [] as Array<{ type: string; message: string }>;
         const origAlert = window.alert;
         const origConfirm = window.confirm;
@@ -220,7 +187,7 @@ async function setupDialogHandler(tabId: number): Promise<DialogInfo> {
           w.__sc_dialog_log__.push({ type: "prompt", message: String(msg ?? "") });
           return "";
         };
-        w.__sc_dialog_interceptor__ = { origAlert, origConfirm, origPrompt };
+        w.__sc_interceptors__ = { origAlert, origConfirm, origPrompt };
       }
     },
     world: "MAIN",

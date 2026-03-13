@@ -694,9 +694,5 @@
   "agent_mcp_no_resources": "No resources available",
   "agent_mcp_no_prompts": "No prompts available",
   "agent_mcp_loading": "Loading...",
-  "agent_mcp_parameters": "Parameters",
-  "chrome_permission_title": "Permission Required",
-  "chrome_permission_debugger_desc": "Debugger permission is required for trusted DOM operations (simulating real user input).",
-  "chrome_permission_grant": "Grant Permission",
-  "chrome_permission_deny": "Deny"
+  "agent_mcp_parameters": "Parameters"
 }

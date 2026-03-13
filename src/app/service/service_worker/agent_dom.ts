@@ -18,7 +18,12 @@ import type {
   WaitForResult,
   DomApiRequest,
 } from "@App/app/service/agent/types";
-import { ensureDebuggerPermission, withDebugger, cdpClick, cdpFill, cdpScreenshot } from "./agent_dom_cdp";
+import {
+  withDebugger,
+  cdpClick,
+  cdpFill,
+  cdpScreenshot,
+} from "./agent_dom_cdp";
 
 export class AgentDomService {
   // 列出所有标签页
@@ -91,13 +96,23 @@ export class AgentDomService {
     // 检查 tab 是否前台 active
     const tab = await chrome.tabs.get(tabId);
     if (!tab.active) {
-      // 后台 tab 使用 CDP 截图
-      await ensureDebuggerPermission();
-      return withDebugger(tabId, (id) => cdpScreenshot(id, options));
+      // 后台 tab 优先用 CDP 截图
+      try {
+        return await withDebugger(tabId, (id) => cdpScreenshot(id, options));
+      } catch (e) {
+        console.error("[AgentDom] CDP screenshot failed, falling back to captureVisibleTab", {
+          tabId,
+          error: e instanceof Error ? e.message : e,
+        });
+      }
+      // 降级：先激活 tab 再用 captureVisibleTab
+      await chrome.tabs.update(tabId, { active: true });
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
     const quality = options?.quality ?? 80;
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+    const updatedTab = await chrome.tabs.get(tabId);
+    const dataUrl = await chrome.tabs.captureVisibleTab(updatedTab.windowId, {
       format: "jpeg",
       quality,
     });
@@ -109,8 +124,15 @@ export class AgentDomService {
     const tabId = await this.resolveTabId(options?.tabId);
 
     if (options?.trusted) {
-      await ensureDebuggerPermission();
-      return withDebugger(tabId, (id) => cdpClick(id, selector));
+      try {
+        return await withDebugger(tabId, (id) => cdpClick(id, selector));
+      } catch (e) {
+        console.error("[AgentDom] CDP click failed, falling back to non-trusted mode", {
+          tabId,
+          selector,
+          error: e instanceof Error ? e.message : e,
+        });
+      }
     }
 
     return this.executeClick(tabId, selector);
@@ -121,8 +143,15 @@ export class AgentDomService {
     const tabId = await this.resolveTabId(options?.tabId);
 
     if (options?.trusted) {
-      await ensureDebuggerPermission();
-      return withDebugger(tabId, (id) => cdpFill(id, selector, value));
+      try {
+        return await withDebugger(tabId, (id) => cdpFill(id, selector, value));
+      } catch (e) {
+        console.error("[AgentDom] CDP fill failed, falling back to non-trusted mode", {
+          tabId,
+          selector,
+          error: e instanceof Error ? e.message : e,
+        });
+      }
     }
 
     return this.executeFill(tabId, selector, value);
@@ -198,11 +227,26 @@ export class AgentDomService {
 
   // ---- 辅助方法 ----
 
+  // 不可注入脚本的 URL 协议
+  private static RESTRICTED_PROTOCOLS = ["chrome:", "chrome-extension:", "edge:", "about:", "devtools:"];
+
+  // 检查 URL 是否可以注入脚本
+  private isRestrictedUrl(url: string | undefined): boolean {
+    if (!url) return false;
+    return AgentDomService.RESTRICTED_PROTOCOLS.some((p) => url.startsWith(p));
+  }
+
   // 解析 tabId，未传则获取当前活动 tab
   private async resolveTabId(tabId?: number): Promise<number> {
     if (tabId) {
-      // 检测 tab 是否被 discard
       const tab = await chrome.tabs.get(tabId);
+      // 检测是否为受限页面
+      if (this.isRestrictedUrl(tab.url)) {
+        throw new Error(
+          `Cannot operate on restricted page: ${tab.url}. Browser internal pages and extension pages do not allow script injection. Please specify a regular web page tab.`
+        );
+      }
+      // 检测 tab 是否被 discard
       if (tab.discarded) {
         await chrome.tabs.reload(tabId);
         await this.waitForPageLoad(tabId, 30000);
@@ -212,6 +256,12 @@ export class AgentDomService {
     const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (tabs.length === 0 || !tabs[0].id) {
       throw new Error("No active tab found");
+    }
+    // 当前活动标签是受限页面时，提示用户指定目标 tab
+    if (this.isRestrictedUrl(tabs[0].url)) {
+      throw new Error(
+        `Active tab is a restricted page (${tabs[0].url}) which does not allow script injection. Please use dom_list_tabs to find a regular web page and specify its tabId.`
+      );
     }
     return tabs[0].id;
   }
@@ -319,7 +369,7 @@ export class AgentDomService {
       target: { tabId },
       func: () => {
         const w = window as any;
-        if (!w.__sc_dialog_interceptor__) {
+        if (!w.__sc_interceptors__) {
           w.__sc_dialog_log__ = [] as Array<{ type: string; message: string }>;
           const origAlert = window.alert;
           const origConfirm = window.confirm;
@@ -335,7 +385,7 @@ export class AgentDomService {
             w.__sc_dialog_log__.push({ type: "prompt", message: String(msg ?? "") });
             return "";
           };
-          w.__sc_dialog_interceptor__ = { origAlert, origConfirm, origPrompt };
+          w.__sc_interceptors__ = { origAlert, origConfirm, origPrompt };
         }
       },
       world: "MAIN",
