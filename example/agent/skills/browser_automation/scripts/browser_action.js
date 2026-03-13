@@ -97,14 +97,18 @@ return {
 // 确定 tabId
 let targetTabId = args.tabId;
 if (!targetTabId) {
-  const tabs = await CAT.agent.dom.listTabs();
-  const activeTab = tabs.find((t) => t.active);
-  if (activeTab) {
-    targetTabId = activeTab.tabId;
-  } else if (tabs.length > 0) {
-    targetTabId = tabs[0].tabId;
-  } else {
-    return "错误：没有找到任何打开的标签页";
+  try {
+    const tabs = await CAT.agent.dom.listTabs();
+    const activeTab = tabs.find((t) => t.active);
+    if (activeTab) {
+      targetTabId = activeTab.tabId;
+    } else if (tabs.length > 0) {
+      targetTabId = tabs[0].tabId;
+    } else {
+      return "错误：没有找到任何打开的标签页";
+    }
+  } catch (e) {
+    return `错误：获取标签页列表失败: ${e.message || e}`;
   }
 }
 
@@ -166,69 +170,87 @@ function buildSkeletonScript(selector, maxLength) {
 }
 
 async function readPageSkeleton(selector, maxLength) {
-  const result = await CAT.agent.dom.executeScript(
-    buildSkeletonScript(selector, maxLength),
-    { tabId: targetTabId }
-  );
-  return result || { title: "", url: "", html: "元素未找到: " + selector };
+  try {
+    const result = await CAT.agent.dom.executeScript(
+      buildSkeletonScript(selector, maxLength),
+      { tabId: targetTabId }
+    );
+    return result || { title: "", url: "", html: "元素未找到: " + selector };
+  } catch (e) {
+    return { title: "", url: "", html: `页面读取失败: ${e.message || e}` };
+  }
 }
 
 // 预读取页面骨架，嵌入到初始消息中
-const initialSkeleton = await readPageSkeleton("body", 200000);
+let initialSkeleton;
+try {
+  initialSkeleton = await readPageSkeleton("body", 200000);
+} catch (e) {
+  return `错误：读取页面骨架失败: ${e.message || e}`;
+}
 
 // 创建无状态子 conversation，只提供分析类工具
-const conv = await CAT.agent.conversation.create({
-  ephemeral: true,
-  system: SYSTEM_PROMPT,
-  maxIterations: 5,
-  tools: [
-    {
-      name: "read_page",
-      description:
-        "读取页面骨架 HTML（只保留元素定位属性和文本摘要）。用于缩小范围重新读取页面局部区域。初始消息中已包含 body 级别的完整骨架，通常不需要再次调用，除非需要读取特定区域的更多细节。",
-      parameters: {
-        type: "object",
-        properties: {
-          selector: {
-            type: "string",
-            description: "CSS 选择器，缩小读取范围",
+let conv;
+try {
+  conv = await CAT.agent.conversation.create({
+    ephemeral: true,
+    system: SYSTEM_PROMPT,
+    maxIterations: 5,
+    tools: [
+      {
+        name: "read_page",
+        description:
+          "读取页面骨架 HTML（只保留元素定位属性和文本摘要）。用于缩小范围重新读取页面局部区域。初始消息中已包含 body 级别的完整骨架，通常不需要再次调用，除非需要读取特定区域的更多细节。",
+        parameters: {
+          type: "object",
+          properties: {
+            selector: {
+              type: "string",
+              description: "CSS 选择器，缩小读取范围",
+            },
+            maxLength: {
+              type: "number",
+              description: "最大返回内容长度（默认 200000）",
+            },
           },
-          maxLength: {
-            type: "number",
-            description: "最大返回内容长度（默认 200000）",
-          },
+          required: ["selector"],
         },
-        required: ["selector"],
-      },
-      handler: async (handlerArgs) => {
-        return await readPageSkeleton(
-          handlerArgs.selector,
-          handlerArgs.maxLength || 200000
-        );
-      },
-    },
-    {
-      name: "execute_script",
-      description:
-        "在页面中执行 JavaScript 代码。代码通过 new Function(code) 执行，必须用 return 语句返回值（不要用 IIFE）。例如：return document.querySelector('#id').textContent",
-      parameters: {
-        type: "object",
-        properties: {
-          code: {
-            type: "string",
-            description: "要执行的 JS 代码，必须用 return 返回值",
-          },
+        handler: async (handlerArgs) => {
+          return await readPageSkeleton(
+            handlerArgs.selector,
+            handlerArgs.maxLength || 200000
+          );
         },
-        required: ["code"],
       },
-      handler: async (handlerArgs) => {
-        return await CAT.agent.dom.executeScript(handlerArgs.code, {
-          tabId: targetTabId,
-        });
+      {
+        name: "execute_script",
+        description:
+          "在页面中执行 JavaScript 代码。代码通过 new Function(code) 执行，必须用 return 语句返回值（不要用 IIFE）。例如：return document.querySelector('#id').textContent",
+        parameters: {
+          type: "object",
+          properties: {
+            code: {
+              type: "string",
+              description: "要执行的 JS 代码，必须用 return 返回值",
+            },
+          },
+          required: ["code"],
+        },
+        handler: async (handlerArgs) => {
+          try {
+            return await CAT.agent.dom.executeScript(handlerArgs.code, {
+              tabId: targetTabId,
+            });
+          } catch (e) {
+            return `脚本执行失败: ${e.message || e}`;
+          }
+        },
       },
-    },
-  ],
-});
+    ],
+  });
+} catch (e) {
+  return `错误：创建分析会话失败: ${e.message || e}`;
+}
 
 // 将页面骨架和任务描述一起发送，子 agent 无需再调用 read_page
 const message = `## 任务
@@ -243,5 +265,9 @@ ${initialSkeleton.truncated ? "- （骨架已截断，可用 read_page 读取局
 ${initialSkeleton.html}
 \`\`\``;
 
-const reply = await conv.chat(message);
-return reply.content;
+try {
+  const reply = await conv.chat(message);
+  return reply.content;
+} catch (e) {
+  return `错误：页面分析失败: ${e.message || e}`;
+}

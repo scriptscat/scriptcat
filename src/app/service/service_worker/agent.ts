@@ -31,11 +31,10 @@ import { parseCATToolMetadata, catToolToToolDefinition, prefixToolDefinition } f
 import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
 import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
 import { CACHE_KEY_CATTOOL_INSTALL, CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
-import { buildSystemPrompt } from "@App/app/service/agent/system_prompt";
+import { buildSystemPrompt, SKILL_SUFFIX_HEADER } from "@App/app/service/agent/system_prompt";
 import { cacheInstance } from "@App/app/cache";
 import { AgentDomService } from "./agent_dom";
 import { MCPService } from "./agent_mcp";
-import { registerDomTools } from "@App/app/service/agent/dom_tools";
 
 // 安装超时时间：5 分钟
 const CATTOOL_INSTALL_TIMEOUT = 5 * 60 * 1000;
@@ -121,8 +120,6 @@ export class AgentService {
     // 初始化 MCP Service
     this.mcpService = new MCPService(this.toolRegistry);
     this.mcpService.init();
-    // 注册 DOM 工具到 ToolRegistry
-    registerDomTools(this.toolRegistry, this.domService);
     // Sandbox conversation API
     this.group.on("conversation", this.handleConversation.bind(this));
     // 流式聊天（UI 和 Sandbox 共用）
@@ -544,16 +541,15 @@ export class AgentService {
     }
 
     // 构建 prompt 后缀：只包含 name + description 摘要
-    const promptParts: string[] = [
-      "\n\n---\n\n# Available Skills\n",
-      "Below are installed skills. Use `load_skill` to read the full prompt when a skill is relevant.\n",
-    ];
+    const promptParts: string[] = [SKILL_SUFFIX_HEADER];
 
     // 检查是否有任何参考资料
     let hasReferences = false;
 
     for (const skill of skillRecords) {
-      promptParts.push(`- **${skill.name}**: ${skill.description || "(no description)"}`);
+      const toolHint = skill.toolNames.length > 0 ? ` (tools: ${skill.toolNames.join(", ")})` : "";
+      const refHint = skill.referenceNames.length > 0 ? ` [has references]` : "";
+      promptParts.push(`- **${skill.name}**: ${skill.description || "(no description)"}${toolHint}${refHint}`);
       if (skill.referenceNames.length > 0) hasReferences = true;
     }
 
@@ -570,7 +566,7 @@ export class AgentService {
       definition: {
         name: "load_skill",
         description:
-          "Load the full prompt of a skill by name. Use this to get detailed instructions before using a skill. After loading, the skill's tools will be registered as independent tools you can call directly.",
+          "Load a skill's full instructions and register its tools. MUST be called before using any skill. Returns the skill's detailed prompt; the skill's CATTools become callable as `skillname__toolname`.",
         parameters: {
           type: "object",
           properties: {
@@ -617,7 +613,7 @@ export class AgentService {
         definition: {
           name: "read_reference",
           description:
-            "Read a reference document from a skill. Load the skill first with `load_skill` to see available references.",
+            "Read a reference document belonging to a skill (e.g. API docs, examples). The skill must be loaded first via `load_skill`.",
           parameters: {
             type: "object",
             properties: {
