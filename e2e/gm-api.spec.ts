@@ -20,12 +20,13 @@ const test = base.extend<{
       args: ["--headless=new", ...chromeArgs],
     });
     let [bg] = ctx1.serviceWorkers();
-    if (!bg) bg = await ctx1.waitForEvent("serviceworker");
+    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
     const extensionId = bg.url().split("/")[2];
     const extPage = await ctx1.newPage();
     await extPage.goto("chrome://extensions/");
     await extPage.waitForLoadState("domcontentloaded");
-    await extPage.waitForTimeout(1_000);
+    // Wait for developerPrivate API to be available instead of a fixed delay
+    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 10_000 });
     await extPage.evaluate(async (id) => {
       await (chrome as any).developerPrivate.updateExtensionConfiguration({
         extensionId: id,
@@ -40,6 +41,10 @@ const test = base.extend<{
       headless: false,
       args: ["--headless=new", ...chromeArgs],
     });
+    // Ensure service worker is registered before handing context to fixtures,
+    // preventing extensionId fixture from timing out with the global 10s timeout.
+    let [sw] = context.serviceWorkers();
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -117,24 +122,25 @@ async function runTestScript(
 
   const page = await context.newPage();
   const logs: string[] = [];
-  page.on("console", (msg) => logs.push(msg.text()));
-
-  await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-
-  // Wait for test results to appear in console
-  const deadline = Date.now() + timeoutMs;
   let passed = -1;
   let failed = -1;
-  while (Date.now() < deadline) {
-    for (const log of logs) {
-      const passMatch = log.match(/通过[:：]\s*(\d+)/);
-      const failMatch = log.match(/失败[:：]\s*(\d+)/);
+
+  // Resolve as soon as both pass and fail counts appear in console output
+  const resultReady = new Promise<void>((resolve) => {
+    page.on("console", (msg) => {
+      const text = msg.text();
+      logs.push(text);
+      const passMatch = text.match(/通过[:：]\s*(\d+)/);
+      const failMatch = text.match(/失败[:：]\s*(\d+)/);
       if (passMatch) passed = parseInt(passMatch[1], 10);
       if (failMatch) failed = parseInt(failMatch[1], 10);
-    }
-    if (passed >= 0 && failed >= 0) break;
-    await page.waitForTimeout(500);
-  }
+      if (passed >= 0 && failed >= 0) resolve();
+    });
+  });
+
+  await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+  // Race: resolve immediately when results arrive, or fall through after timeout
+  await Promise.race([resultReady, page.waitForTimeout(timeoutMs)]);
 
   await page.close();
   return { passed, failed, logs };
