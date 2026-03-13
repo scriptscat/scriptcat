@@ -175,19 +175,15 @@ describe("AgentDomService", () => {
 
     it("应执行默认模式点击", async () => {
       mockTabsGet.mockResolvedValue({ id: 1, url: "https://example.com", status: "complete", discarded: false });
-      // dialog 拦截注入
-      mockExecuteScript.mockResolvedValueOnce([{ result: undefined }]);
       // 点击执行
       mockExecuteScript.mockResolvedValueOnce([{ result: undefined }]);
-      // dialog 结果读取
-      mockExecuteScript.mockResolvedValueOnce([{ result: [] }]);
 
       const promise = service.click("#btn", { tabId: 1 });
       await vi.advanceTimersByTimeAsync(600);
       const result = await promise;
 
       expect(result.success).toBe(true);
-      expect(mockExecuteScript).toHaveBeenCalledTimes(3);
+      expect(mockExecuteScript).toHaveBeenCalledTimes(1);
     });
 
     it("应检测页面跳转", async () => {
@@ -195,11 +191,9 @@ describe("AgentDomService", () => {
       mockTabsGet.mockResolvedValueOnce({ id: 1, url: "https://example.com", status: "complete", discarded: false });
       // 第二次 get 返回原始 URL（executeClick 内部）
       mockTabsGet.mockResolvedValueOnce({ id: 1, url: "https://example.com", status: "complete" });
-      mockExecuteScript.mockResolvedValueOnce([{ result: undefined }]); // dialog 拦截
       mockExecuteScript.mockResolvedValueOnce([{ result: undefined }]); // 点击
       // 第三次 get 返回新 URL（collectActionResult）
       mockTabsGet.mockResolvedValueOnce({ id: 1, url: "https://new-page.com", status: "complete" });
-      mockExecuteScript.mockResolvedValueOnce([{ result: [] }]); // dialog 结果
 
       const promise = service.click("#link", { tabId: 1 });
       await vi.advanceTimersByTimeAsync(600);

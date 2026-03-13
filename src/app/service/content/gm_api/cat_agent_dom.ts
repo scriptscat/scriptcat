@@ -98,4 +98,20 @@ export default class CATAgentDomApi {
       { action: "executeScript", code, options, scriptUuid: ctx.scriptRes?.uuid || "" } as DomApiRequest,
     ]);
   }
+
+  @GMContext.API({ follow: "CAT.agent.dom" })
+  public "CAT.agent.dom.startMonitor"(tabId: number): Promise<unknown> {
+    const ctx = this as unknown as GMBaseContext;
+    return ctx.sendMessage("CAT_agentDom", [
+      { action: "startMonitor", tabId, scriptUuid: ctx.scriptRes?.uuid || "" } as DomApiRequest,
+    ]);
+  }
+
+  @GMContext.API({ follow: "CAT.agent.dom" })
+  public "CAT.agent.dom.stopMonitor"(tabId: number): Promise<unknown> {
+    const ctx = this as unknown as GMBaseContext;
+    return ctx.sendMessage("CAT_agentDom", [
+      { action: "stopMonitor", tabId, scriptUuid: ctx.scriptRes?.uuid || "" } as DomApiRequest,
+    ]);
+  }
 }

@@ -1,7 +1,8 @@
-// CDP（Chrome DevTools Protocol）操作封装，用于 trusted 模式
+// CDP（Chrome DevTools Protocol）操作封装
 // 通过 chrome.debugger API 实现真实用户输入模拟（isTrusted=true）
+// 以及页面监控（dialog 自动处理 + DOM 变化捕获）
 
-import type { ActionResult, ScreenshotOptions } from "@App/app/service/agent/types";
+import type { ActionResult, MonitorResult, ScreenshotOptions } from "@App/app/service/agent/types";
 
 // 生命周期管理：attach → 执行 → detach
 export async function withDebugger<T>(tabId: number, fn: (tabId: number) => Promise<T>): Promise<T> {
@@ -26,12 +27,6 @@ function sendCommand(tabId: number, method: string, params?: Record<string, unkn
 export async function cdpClick(tabId: number, selector: string): Promise<ActionResult> {
   const originalUrl = (await chrome.tabs.get(tabId)).url || "";
 
-  // 启用 Page 事件以检测导航
-  await sendCommand(tabId, "Page.enable");
-
-  // 设置 dialog 自动处理
-  const dialogInfo = await setupDialogHandler(tabId);
-
   // 定位元素
   const doc = await sendCommand(tabId, "DOM.getDocument");
   const nodeId = await sendCommand(tabId, "DOM.querySelector", {
@@ -45,28 +40,33 @@ export async function cdpClick(tabId: number, selector: string): Promise<ActionR
   // 滚动到可见位置
   await sendCommand(tabId, "DOM.scrollIntoViewIfNeeded", { nodeId: nodeId.nodeId });
 
-  // 获取元素中心坐标
+  // 获取元素中心的页面坐标
   const boxModel = await sendCommand(tabId, "DOM.getBoxModel", { nodeId: nodeId.nodeId });
   if (!boxModel?.model) {
     throw new Error(`Cannot get box model for: ${selector}`);
   }
   const content = boxModel.model.content;
-  // content 是 [x1,y1, x2,y2, x3,y3, x4,y4] 四个角的坐标
-  const x = (content[0] + content[2] + content[4] + content[6]) / 4;
-  const y = (content[1] + content[3] + content[5] + content[7]) / 4;
+  // content 是 [x1,y1, x2,y2, x3,y3, x4,y4] 四个角的页面坐标
+  const pageX = (content[0] + content[2] + content[4] + content[6]) / 4;
+  const pageY = (content[1] + content[3] + content[5] + content[7]) / 4;
+
+  // 将页面坐标转为视口坐标（Input.dispatchMouseEvent 需要视口相对坐标）
+  const metrics = await sendCommand(tabId, "Page.getLayoutMetrics");
+  const viewportX = pageX - (metrics.visualViewport?.pageX ?? 0);
+  const viewportY = pageY - (metrics.visualViewport?.pageY ?? 0);
 
   // 模拟鼠标点击
   await sendCommand(tabId, "Input.dispatchMouseEvent", {
     type: "mousePressed",
-    x,
-    y,
+    x: viewportX,
+    y: viewportY,
     button: "left",
     clickCount: 1,
   });
   await sendCommand(tabId, "Input.dispatchMouseEvent", {
     type: "mouseReleased",
-    x,
-    y,
+    x: viewportX,
+    y: viewportY,
     button: "left",
     clickCount: 1,
   });
@@ -75,10 +75,13 @@ export async function cdpClick(tabId: number, selector: string): Promise<ActionR
   await new Promise((resolve) => setTimeout(resolve, 500));
 
   // 收集结果
-  const result = await collectCdpActionResult(tabId, originalUrl, dialogInfo);
-
-  await sendCommand(tabId, "Page.disable");
-  return result;
+  const tab = await chrome.tabs.get(tabId);
+  const currentUrl = tab.url || "";
+  return {
+    success: true,
+    navigated: currentUrl !== originalUrl,
+    url: currentUrl,
+  };
 }
 
 // 通过 CDP 填写表单
@@ -158,75 +161,157 @@ export async function cdpScreenshot(tabId: number, options?: ScreenshotOptions):
   return `data:image/jpeg;base64,${result.data}`;
 }
 
-// dialog 处理
-type DialogInfo = {
-  dialogs: Array<{ type: string; message: string }>;
+// ---- 页面监控（startMonitor / stopMonitor） ----
+
+// ---- 页面监控（startMonitor / stopMonitor） ----
+
+// 活跃的 monitor 会话，key 为 tabId
+type MonitorEventListener = (source: chrome.debugger.Debuggee, method: string, params?: any) => void;
+
+type CapturedNode = {
+  nodeId: number;
+  tag: string;
+  id?: string;
+  class?: string;
+  role?: string;
 };
 
-async function setupDialogHandler(tabId: number): Promise<DialogInfo> {
-  const info: DialogInfo = { dialogs: [] };
+type MonitorSession = {
+  dialogs: Array<{ type: string; message: string }>;
+  capturedNodes: CapturedNode[]; // 从事件中直接提取的节点信息
+  listener: MonitorEventListener;
+};
 
-  // 注入 dialog 拦截代码
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    func: () => {
-      const w = window as any;
-      if (!w.__sc_interceptors__) {
-        w.__sc_dialog_log__ = [] as Array<{ type: string; message: string }>;
-        const origAlert = window.alert;
-        const origConfirm = window.confirm;
-        const origPrompt = window.prompt;
-        window.alert = (msg: string) => {
-          w.__sc_dialog_log__.push({ type: "alert", message: String(msg) });
-        };
-        window.confirm = (msg?: string) => {
-          w.__sc_dialog_log__.push({ type: "confirm", message: String(msg ?? "") });
-          return true;
-        };
-        window.prompt = (msg?: string) => {
-          w.__sc_dialog_log__.push({ type: "prompt", message: String(msg ?? "") });
-          return "";
-        };
-        w.__sc_interceptors__ = { origAlert, origConfirm, origPrompt };
+const activeMonitors = new Map<number, MonitorSession>();
+
+// 启动页面监控：attach debugger，纯 CDP 事件监听（dialog + DOM 变化），零注入
+export async function cdpStartMonitor(tabId: number): Promise<void> {
+  // 如果已有 monitor，先停止
+  if (activeMonitors.has(tabId)) {
+    await cdpStopMonitor(tabId);
+  }
+
+  const dialogs: Array<{ type: string; message: string }> = [];
+  const capturedNodes: CapturedNode[] = [];
+
+  // attach debugger
+  await chrome.debugger.attach({ tabId }, "1.3");
+  await sendCommand(tabId, "Page.enable");
+  await sendCommand(tabId, "DOM.enable");
+
+  // 获取 document root，触发 DOM 树追踪
+  await sendCommand(tabId, "DOM.getDocument", { depth: 0 });
+
+  // 监听 CDP 事件
+  const listener: MonitorEventListener = (source, method, params) => {
+    if (source.tabId !== tabId) return;
+
+    // JS 弹框（alert/confirm/prompt）
+    if (method === "Page.javascriptDialogOpening") {
+      dialogs.push({
+        type: String(params?.type || "alert"),
+        message: String(params?.message || ""),
+      });
+      sendCommand(tabId, "Page.handleJavaScriptDialog", { accept: true }).catch(() => {});
+    }
+
+    // DOM 新增子节点：直接从事件的 node 对象提取属性
+    if (method === "DOM.childNodeInserted") {
+      const node = params?.node;
+      if (node && node.nodeType === 1) {
+        // node.attributes 是 [name, value, name, value, ...] 扁平数组
+        const attrs: Record<string, string> = {};
+        if (node.attributes) {
+          for (let i = 0; i < node.attributes.length; i += 2) {
+            attrs[node.attributes[i]] = node.attributes[i + 1];
+          }
+        }
+        capturedNodes.push({
+          nodeId: node.nodeId,
+          tag: (node.localName || node.nodeName || "").toLowerCase(),
+          id: attrs.id || undefined,
+          class: attrs.class || undefined,
+          role: attrs.role || undefined,
+        });
       }
-    },
-    world: "MAIN",
-  });
+    }
+  };
+  chrome.debugger.onEvent.addListener(listener);
 
-  return info;
+  activeMonitors.set(tabId, { dialogs, capturedNodes, listener });
 }
 
-// 收集 CDP 操作后的结果
-async function collectCdpActionResult(
-  tabId: number,
-  originalUrl: string,
-  _dialogInfo: DialogInfo
-): Promise<ActionResult> {
-  const tab = await chrome.tabs.get(tabId);
-  const currentUrl = tab.url || "";
-  const navigated = currentUrl !== originalUrl;
+// 从 outerHTML 中提取纯文本（去除所有标签）
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  // 读取拦截的 dialog 信息
-  const dialogResults = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: () => {
-      const w = window as any;
-      const logs = w.__sc_dialog_log__ || [];
-      w.__sc_dialog_log__ = [];
-      return logs;
-    },
-    world: "MAIN",
-  });
-
-  const result: ActionResult = {
-    success: true,
-    navigated,
-    url: currentUrl,
+// 停止监控：纯 CDP 解析新增节点 → 收集结果 → detach
+export async function cdpStopMonitor(tabId: number): Promise<MonitorResult> {
+  const monitor = activeMonitors.get(tabId);
+  const result: MonitorResult = {
+    dialogs: monitor?.dialogs || [],
+    addedNodes: [],
   };
 
-  const dialogs = dialogResults?.[0]?.result;
-  if (dialogs && dialogs.length > 0) {
-    result.dialog = dialogs[0];
+  if (monitor && monitor.capturedNodes.length > 0) {
+    // 去重（按 nodeId）并限制数量
+    const seen = new Set<number>();
+    const uniqueNodes = monitor.capturedNodes
+      .filter((n) => {
+        if (seen.has(n.nodeId)) return false;
+        seen.add(n.nodeId);
+        return true;
+      })
+      .slice(0, 50);
+
+    for (const captured of uniqueNodes) {
+      try {
+        // 用 DOM.getBoxModel 检测可见性：不可见/未渲染的元素会抛异常
+        await sendCommand(tabId, "DOM.getBoxModel", { nodeId: captured.nodeId });
+
+        // 用 DOM.getOuterHTML 获取内容，纯 CDP 无需注入 JS
+        const htmlResult = await sendCommand(tabId, "DOM.getOuterHTML", { nodeId: captured.nodeId });
+        const outerHTML: string = htmlResult?.outerHTML || "";
+        const text = stripHtmlTags(outerHTML).slice(0, 300);
+        if (!text) continue;
+
+        result.addedNodes.push({
+          tag: captured.tag,
+          id: captured.id,
+          class: captured.class,
+          role: captured.role,
+          text,
+        });
+      } catch {
+        // 节点可能已被移除或不可见，跳过
+      }
+    }
+  }
+
+  // 清理
+  if (monitor) {
+    chrome.debugger.onEvent.removeListener(monitor.listener);
+    activeMonitors.delete(tabId);
+  }
+
+  try {
+    await sendCommand(tabId, "DOM.disable");
+  } catch {
+    /* 忽略 */
+  }
+  try {
+    await sendCommand(tabId, "Page.disable");
+  } catch {
+    /* 忽略 */
+  }
+  try {
+    await chrome.debugger.detach({ tabId });
+  } catch {
+    /* 忽略 */
   }
 
   return result;

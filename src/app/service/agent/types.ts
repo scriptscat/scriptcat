@@ -55,7 +55,7 @@ export type ChatMessage = {
   toolCallId?: string;
   error?: string;
   modelId?: string;
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
   durationMs?: number;
   firstTokenMs?: number;
   parentId?: string;
@@ -70,7 +70,7 @@ export type ChatStreamEvent =
   | { type: "tool_call_delta"; id: string; delta: string }
   | { type: "tool_call_complete"; id: string; result: string; attachments?: Attachment[] }
   | { type: "new_message" }
-  | { type: "done"; usage?: { inputTokens: number; outputTokens: number }; durationMs?: number }
+  | { type: "done"; usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number }; durationMs?: number }
   | { type: "error"; message: string };
 
 // UI -> Service Worker 的聊天请求
@@ -236,7 +236,6 @@ export type ActionResult = {
   navigated?: boolean;
   url?: string;
   newTab?: { tabId: number; url: string };
-  dialog?: { type: "alert" | "confirm" | "prompt"; message: string };
 };
 
 export type PageContent = {
@@ -251,6 +250,7 @@ export type ReadPageOptions = {
   tabId?: number;
   selector?: string;
   maxLength?: number;
+  removeTags?: string[]; // 要移除的标签/选择器，如 ["script", "style", "svg"]
 };
 
 export type DomActionOptions = {
@@ -312,6 +312,11 @@ export type ExecuteScriptOptions = {
   tabId?: number;
 };
 
+export type MonitorResult = {
+  dialogs: Array<{ type: string; message: string }>;
+  addedNodes: Array<{ tag: string; id?: string; class?: string; role?: string; text: string }>;
+};
+
 export type DomApiRequest =
   | { action: "listTabs"; scriptUuid: string }
   | { action: "navigate"; url: string; options?: NavigateOptions; scriptUuid: string }
@@ -321,7 +326,9 @@ export type DomApiRequest =
   | { action: "fill"; selector: string; value: string; options?: DomActionOptions; scriptUuid: string }
   | { action: "scroll"; direction: ScrollDirection; options?: ScrollOptions; scriptUuid: string }
   | { action: "waitFor"; selector: string; options?: WaitForOptions; scriptUuid: string }
-  | { action: "executeScript"; code: string; options?: ExecuteScriptOptions; scriptUuid: string };
+  | { action: "executeScript"; code: string; options?: ExecuteScriptOptions; scriptUuid: string }
+  | { action: "startMonitor"; tabId: number; scriptUuid: string }
+  | { action: "stopMonitor"; tabId: number; scriptUuid: string };
 
 // ---- MCP 类型 ----
 

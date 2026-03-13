@@ -23,12 +23,16 @@ import type {
 type ReadPageInjectedOptions = {
   selector: string | undefined | null;
   maxLength: number;
+  removeTags: string[];
 };
+import type { MonitorResult } from "@App/app/service/agent/types";
 import {
   withDebugger,
   cdpClick,
   cdpFill,
   cdpScreenshot,
+  cdpStartMonitor,
+  cdpStopMonitor,
 } from "./agent_dom_cdp";
 
 export class AgentDomService {
@@ -78,11 +82,12 @@ export class AgentDomService {
     const tabId = await this.resolveTabId(options?.tabId);
     const maxLength = options?.maxLength ?? 200000;
     const selector = options?.selector;
+    const removeTags = options?.removeTags ?? ["script", "style", "noscript", "svg", "link[rel=stylesheet]"];
 
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       func: readPageContent,
-      args: [{ selector, maxLength } as ReadPageInjectedOptions],
+      args: [{ selector, maxLength, removeTags } as ReadPageInjectedOptions],
       world: "MAIN",
     });
 
@@ -227,6 +232,16 @@ export class AgentDomService {
     return results[0].result;
   }
 
+  // 启动页面监控（CDP：dialog 自动处理 + MutationObserver）
+  async startMonitor(tabId: number): Promise<void> {
+    return cdpStartMonitor(tabId);
+  }
+
+  // 停止监控并返回收集的结果
+  async stopMonitor(tabId: number): Promise<MonitorResult> {
+    return cdpStopMonitor(tabId);
+  }
+
   // 处理 GM API 请求路由
   async handleDomApi(request: DomApiRequest): Promise<unknown> {
     switch (request.action) {
@@ -248,6 +263,10 @@ export class AgentDomService {
         return this.waitFor(request.selector, request.options);
       case "executeScript":
         return this.executeScript(request.code, request.options);
+      case "startMonitor":
+        return this.startMonitor(request.tabId);
+      case "stopMonitor":
+        return this.stopMonitor(request.tabId);
       default:
         throw new Error(`Unknown DOM action: ${(request as any).action}`);
     }
@@ -327,9 +346,6 @@ export class AgentDomService {
     const tab = await chrome.tabs.get(tabId);
     const originalUrl = tab.url || "";
 
-    // 注入 dialog 拦截
-    await this.injectDialogInterceptor(tabId);
-
     // 监听新 tab 打开
     let newTabInfo: { tabId: number; url: string } | undefined;
     const onCreated = (newTab: chrome.tabs.Tab) => {
@@ -391,35 +407,6 @@ export class AgentDomService {
     };
   }
 
-  // 注入 dialog 拦截代码
-  private async injectDialogInterceptor(tabId: number): Promise<void> {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        const w = window as any;
-        if (!w.__sc_interceptors__) {
-          w.__sc_dialog_log__ = [] as Array<{ type: string; message: string }>;
-          const origAlert = window.alert;
-          const origConfirm = window.confirm;
-          const origPrompt = window.prompt;
-          window.alert = (msg?: string) => {
-            w.__sc_dialog_log__.push({ type: "alert", message: String(msg ?? "") });
-          };
-          window.confirm = (msg?: string) => {
-            w.__sc_dialog_log__.push({ type: "confirm", message: String(msg ?? "") });
-            return true;
-          };
-          window.prompt = (msg?: string) => {
-            w.__sc_dialog_log__.push({ type: "prompt", message: String(msg ?? "") });
-            return "";
-          };
-          w.__sc_interceptors__ = { origAlert, origConfirm, origPrompt };
-        }
-      },
-      world: "MAIN",
-    });
-  }
-
   // 收集操作后的状态
   private async collectActionResult(
     tabId: number,
@@ -436,27 +423,6 @@ export class AgentDomService {
 
     const navigated = currentUrl !== originalUrl;
 
-    // 读取拦截的 dialog
-    let dialogInfo: { type: "alert" | "confirm" | "prompt"; message: string } | undefined;
-    try {
-      const dialogResults = await chrome.scripting.executeScript({
-        target: { tabId },
-        func: () => {
-          const w = window as any;
-          const logs = w.__sc_dialog_log__ || [];
-          w.__sc_dialog_log__ = [];
-          return logs;
-        },
-        world: "MAIN",
-      });
-      const dialogs = dialogResults?.[0]?.result;
-      if (dialogs && dialogs.length > 0) {
-        dialogInfo = dialogs[0];
-      }
-    } catch {
-      // 页面可能已跳转
-    }
-
     const result: ActionResult = {
       success: true,
       navigated,
@@ -465,9 +431,6 @@ export class AgentDomService {
 
     if (newTabInfo) {
       result.newTab = newTabInfo;
-    }
-    if (dialogInfo) {
-      result.dialog = dialogInfo;
     }
 
     return result;
@@ -478,7 +441,7 @@ export class AgentDomService {
 
 // 读取页面 HTML（注入到页面执行）
 function readPageContent(options: ReadPageInjectedOptions): PageContent {
-  const { selector, maxLength } = options;
+  const { selector, maxLength, removeTags } = options;
 
   const root = selector ? document.querySelector(selector) : document.documentElement;
   if (!root) {
@@ -489,7 +452,15 @@ function readPageContent(options: ReadPageInjectedOptions): PageContent {
     };
   }
 
-  let html = root.outerHTML;
+  // 克隆节点并移除指定标签
+  const clone = root.cloneNode(true) as Element;
+  if (removeTags && removeTags.length > 0) {
+    for (const tag of removeTags) {
+      clone.querySelectorAll(tag).forEach((el) => el.remove());
+    }
+  }
+
+  const html = clone.outerHTML;
   const result: PageContent = {
     title: document.title,
     url: location.href,
