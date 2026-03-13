@@ -10,9 +10,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: "list",
+  reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
+  outputDir: "test-results",
   use: {
     actionTimeout: 10_000,
     trace: "on-first-retry",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
 });
