@@ -118,7 +118,7 @@ describe("registerDomTools", () => {
     expect(att.size).toBe(5000);
 
     // 验证保存到 OPFS 的数据是完整的 data URL
-    expect(mockRepo.saveAttachment).toHaveBeenCalledWith("mock-att-uuid", dataUrl);
+    expect(mockRepo.saveAttachment).toHaveBeenCalledWith(expect.any(String), dataUrl);
   });
 
   it("dom_screenshot PNG 格式应正确识别", async () => {

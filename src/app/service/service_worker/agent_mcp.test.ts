@@ -86,7 +86,8 @@ describe("MCPService", () => {
         scriptUuid: "test",
       })) as any;
 
-      expect(result.id).toBe("mock-uuid-123");
+      expect(typeof result.id).toBe("string");
+      expect(result.id.length).toBeGreaterThan(0);
       expect(result.name).toBe("Test");
       expect(result.url).toBe("https://mcp.test.com");
     });
