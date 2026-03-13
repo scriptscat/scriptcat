@@ -788,6 +788,8 @@ declare namespace CATAgent {
     toolCall?: ToolCallInfo;
     usage?: { inputTokens: number; outputTokens: number };
     error?: string;
+    /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "max_iterations" | "api_error" */
+    errorCode?: string;
   }
 
   interface ChatMessage {

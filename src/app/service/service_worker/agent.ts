@@ -47,7 +47,21 @@ export function isRetryableError(e: Error): boolean {
 }
 
 // 指数退避重试，aborted 时立即退出
-export async function withRetry<T>(fn: () => Promise<T>, signal: AbortSignal, maxRetries = 3): Promise<T> {
+// delayFn 仅供测试注入，生产代码不传
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  signal: AbortSignal,
+  maxRetries = 3,
+  delayFn?: (ms: number, signal: AbortSignal) => Promise<void>
+): Promise<T> {
+  const wait =
+    delayFn ??
+    ((ms, sig) =>
+      new Promise<void>((r) => {
+        const t = setTimeout(r, ms);
+        sig.addEventListener("abort", () => { clearTimeout(t); r(); }, { once: true });
+      }));
+
   let lastError!: Error;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (signal.aborted) throw lastError ?? new Error("Aborted");
@@ -58,13 +72,7 @@ export async function withRetry<T>(fn: () => Promise<T>, signal: AbortSignal, ma
       lastError = e;
       if (!isRetryableError(e) || attempt === maxRetries) throw e;
       const delay = 1000 * Math.pow(2, attempt) + Math.random() * 1000;
-      await new Promise<void>((r) => {
-        const t = setTimeout(r, delay);
-        signal.addEventListener("abort", () => {
-          clearTimeout(t);
-          r();
-        }, { once: true });
-      });
+      await wait(delay, signal);
     }
   }
   throw lastError;

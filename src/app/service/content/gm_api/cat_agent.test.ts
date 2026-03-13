@@ -356,3 +356,162 @@ describe("ConversationInstance ephemeral 模式", () => {
     expect(connectParams.tools[0].name).toBe("my_tool");
   });
 });
+
+// ---- errorCode 透传测试 ----
+
+// 创建发送指定事件序列的 mock 连接
+function mockConnectWithEvents(events: any[]): MessageConnect {
+  return {
+    onMessage(cb: (msg: any) => void) {
+      let i = 0;
+      const send = () => {
+        if (i < events.length) {
+          cb({ action: "event", data: events[i++] });
+          setTimeout(send, 0);
+        }
+      };
+      setTimeout(send, 0);
+    },
+    onDisconnect() {},
+    sendMessage() {},
+    disconnect() {},
+  };
+}
+
+describe("errorCode 透传：chat()", () => {
+  it("error event 带 errorCode 时，reject 的 Error 应有对应 errorCode", async () => {
+    const errorEvent = { type: "error", message: "Rate limit exceeded", errorCode: "rate_limit" };
+    const gmConnect = vi.fn().mockResolvedValue(mockConnectWithEvents([errorEvent]));
+
+    const instance = new ConversationInstance(
+      mockConversation(),
+      vi.fn().mockResolvedValue(undefined),
+      gmConnect,
+      "uuid",
+      20
+    );
+
+    const err = await instance.chat("你好").catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe("Rate limit exceeded");
+    expect((err as any).errorCode).toBe("rate_limit");
+  });
+
+  it("error event 无 errorCode 时，errorCode 应为 undefined", async () => {
+    const errorEvent = { type: "error", message: "Unknown error" };
+    const gmConnect = vi.fn().mockResolvedValue(mockConnectWithEvents([errorEvent]));
+
+    const instance = new ConversationInstance(
+      mockConversation(),
+      vi.fn().mockResolvedValue(undefined),
+      gmConnect,
+      "uuid",
+      20
+    );
+
+    const err = await instance.chat("你好").catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as any).errorCode).toBeUndefined();
+  });
+
+  it("各种 errorCode 值均能正确透传", async () => {
+    const codes = ["rate_limit", "auth", "tool_timeout", "max_iterations", "api_error"];
+
+    for (const code of codes) {
+      const gmConnect = vi
+        .fn()
+        .mockResolvedValue(mockConnectWithEvents([{ type: "error", message: "error", errorCode: code }]));
+
+      const instance = new ConversationInstance(
+        mockConversation(),
+        vi.fn().mockResolvedValue(undefined),
+        gmConnect,
+        "uuid",
+        20
+      );
+
+      const err = await instance.chat("test").catch((e) => e);
+      expect((err as any).errorCode).toBe(code);
+    }
+  });
+});
+
+describe("errorCode 透传：chatStream()", () => {
+  // processStream 在收到 error 事件后：将 error chunk 推入队列并设置 done=true。
+  // 迭代器先 yield error chunk（done: false），然后返回 { done: true }（正常结束）。
+  // 因此不会 throw，只需检查 chunk 中的 errorCode 即可。
+
+  it("error event 带 errorCode 时，error chunk 应有对应 errorCode", async () => {
+    const errorEvent = { type: "error", message: "Tool timed out", errorCode: "tool_timeout" };
+    const gmConnect = vi.fn().mockResolvedValue(mockConnectWithEvents([errorEvent]));
+
+    const instance = new ConversationInstance(
+      mockConversation(),
+      vi.fn().mockResolvedValue(undefined),
+      gmConnect,
+      "uuid",
+      20
+    );
+
+    const stream = await instance.chatStream("你好");
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+
+    const errorChunk = chunks.find((c) => c.type === "error");
+    expect(errorChunk).toBeDefined();
+    expect(errorChunk!.error).toBe("Tool timed out");
+    expect((errorChunk as any).errorCode).toBe("tool_timeout");
+  });
+
+  it("error event 无 errorCode 时，chunk.errorCode 应为 undefined", async () => {
+    const errorEvent = { type: "error", message: "Some error" };
+    const gmConnect = vi.fn().mockResolvedValue(mockConnectWithEvents([errorEvent]));
+
+    const instance = new ConversationInstance(
+      mockConversation(),
+      vi.fn().mockResolvedValue(undefined),
+      gmConnect,
+      "uuid",
+      20
+    );
+
+    const stream = await instance.chatStream("你好");
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+
+    const errorChunk = chunks.find((c) => c.type === "error");
+    expect(errorChunk).toBeDefined();
+    expect((errorChunk as any).errorCode).toBeUndefined();
+  });
+
+  it("各种 errorCode 均能正确在 chunk 中透传", async () => {
+    const codes = ["rate_limit", "auth", "tool_timeout", "max_iterations", "api_error"];
+
+    for (const code of codes) {
+      const gmConnect = vi
+        .fn()
+        .mockResolvedValue(mockConnectWithEvents([{ type: "error", message: "err", errorCode: code }]));
+
+      const instance = new ConversationInstance(
+        mockConversation(),
+        vi.fn().mockResolvedValue(undefined),
+        gmConnect,
+        "uuid",
+        20
+      );
+
+      const stream = await instance.chatStream("test");
+      const chunks: StreamChunk[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+
+      const errorChunk = chunks.find((c) => c.type === "error");
+      expect((errorChunk as any).errorCode).toBe(code);
+    }
+  });
+});

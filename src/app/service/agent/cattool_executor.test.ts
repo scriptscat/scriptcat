@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   CATToolExecutor,
   getCATToolNameByUuid,
@@ -285,5 +285,74 @@ describe("getCATToolGrantsByUuid", () => {
 describe("CATTOOL_UUID_PREFIX", () => {
   it("应为 'cattool-'", () => {
     expect(CATTOOL_UUID_PREFIX).toBe("cattool-");
+  });
+});
+
+describe("CATToolExecutor 超时处理", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("执行超过 30s 时应抛出带 errorCode=tool_timeout 的错误", async () => {
+    vi.useFakeTimers();
+
+    // sender.sendMessage 永不 resolve，模拟挂死的 CATTool
+    const sender = {
+      sendMessage: vi.fn().mockReturnValue(new Promise(() => {})),
+    } as any;
+
+    const record = createRecord([], { name: "hang_tool" });
+    const executor = new CATToolExecutor(record, sender);
+
+    // 先附加 catch 再推进时间，防止 rejection 在处理前被标记为 unhandled
+    const errPromise = executor.execute({}).catch((e) => e);
+
+    // 推进 30s 触发超时
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    const err = await errPromise;
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toContain("hang_tool");
+    expect(err.message).toContain("timed out");
+    expect((err as any).errorCode).toBe("tool_timeout");
+  });
+
+  it("超时后 UUID 映射应被清理", async () => {
+    vi.useFakeTimers();
+
+    let capturedUuid = "";
+    const sender = {
+      sendMessage: vi.fn().mockImplementation((msg: any) => {
+        capturedUuid = msg.data.uuid;
+        return new Promise(() => {});
+      }),
+    } as any;
+
+    const record = createRecord([], { name: "hang_tool2" });
+    const executor = new CATToolExecutor(record, sender);
+
+    const execPromise = executor.execute({}).catch(() => {});
+    await vi.advanceTimersByTimeAsync(30_000);
+    await execPromise;
+
+    expect(capturedUuid).toMatch(/^cattool-/);
+    expect(getCATToolNameByUuid(capturedUuid)).toBe("");
+  });
+
+  it("30s 内完成的执行不应超时", async () => {
+    vi.useFakeTimers();
+
+    const sender = {
+      sendMessage: vi.fn().mockResolvedValue({ data: "ok" }),
+    } as any;
+
+    const record = createRecord();
+    const executor = new CATToolExecutor(record, sender);
+
+    const execPromise = executor.execute({});
+    // 推进 5s，执行早已完成（mock 是 resolved）
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(execPromise).resolves.toBeDefined();
   });
 });

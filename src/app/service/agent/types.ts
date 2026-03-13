@@ -71,7 +71,7 @@ export type ChatStreamEvent =
   | { type: "tool_call_complete"; id: string; result: string; attachments?: Attachment[] }
   | { type: "new_message" }
   | { type: "done"; usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number }; durationMs?: number }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; errorCode?: string };
 
 // UI -> Service Worker 的聊天请求
 export type ChatRequest = {
@@ -139,6 +139,8 @@ export type StreamChunk = {
   toolCall?: ToolCall;
   usage?: { inputTokens: number; outputTokens: number };
   error?: string;
+  /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "max_iterations" | "api_error" */
+  errorCode?: string;
   command?: boolean; // 标识该 chunk 来自命令处理
 };
 

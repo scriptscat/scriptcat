@@ -1140,21 +1140,19 @@ describe("isRetryableError", () => {
 
 // ---- withRetry ----
 
-describe("withRetry", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+// 测试用的立即返回 delay（避免真实等待和 fake timer 复杂性）
+const immediateDelay = () => Promise.resolve();
 
+describe("withRetry", () => {
   it("首次成功时直接返回结果", async () => {
     const fn = vi.fn().mockResolvedValue("ok");
     const signal = new AbortController().signal;
-    const result = await withRetry(fn, signal);
+    const result = await withRetry(fn, signal, 3, immediateDelay);
     expect(result).toBe("ok");
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it("429 错误应重试直到成功", async () => {
-    vi.useFakeTimers();
     const fn = vi
       .fn()
       .mockRejectedValueOnce(new Error("HTTP 429 Too Many Requests"))
@@ -1162,25 +1160,17 @@ describe("withRetry", () => {
       .mockResolvedValue("ok");
     const signal = new AbortController().signal;
 
-    const resultPromise = withRetry(fn, signal);
-    // 推进足够的时间让两次重试的延迟都过去
-    await vi.runAllTimersAsync();
-    const result = await resultPromise;
+    const result = await withRetry(fn, signal, 3, immediateDelay);
 
     expect(result).toBe("ok");
     expect(fn).toHaveBeenCalledTimes(3);
   });
 
   it("超过最大重试次数后抛出最后的错误", async () => {
-    vi.useFakeTimers();
-    const err = new Error("HTTP 429 Too Many Requests");
-    const fn = vi.fn().mockRejectedValue(err);
+    const fn = vi.fn().mockRejectedValue(new Error("HTTP 429 Too Many Requests"));
     const signal = new AbortController().signal;
 
-    const resultPromise = withRetry(fn, signal, 3);
-    await vi.runAllTimersAsync();
-
-    await expect(resultPromise).rejects.toThrow("429");
+    await expect(withRetry(fn, signal, 3, immediateDelay)).rejects.toThrow("429");
     // 1 次首次尝试 + 3 次重试 = 4 次
     expect(fn).toHaveBeenCalledTimes(4);
   });
@@ -1189,26 +1179,44 @@ describe("withRetry", () => {
     const fn = vi.fn().mockRejectedValue(new Error("401 Unauthorized"));
     const signal = new AbortController().signal;
 
-    await expect(withRetry(fn, signal)).rejects.toThrow("401");
+    await expect(withRetry(fn, signal, 3, immediateDelay)).rejects.toThrow("401");
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it("abort 时立即退出，不再重试", async () => {
-    vi.useFakeTimers();
+  it("pre-abort 时不调用 fn，直接抛出", async () => {
     const ac = new AbortController();
+    ac.abort();
+
+    const fn = vi.fn().mockResolvedValue("ok");
+
+    await expect(withRetry(fn, ac.signal, 3, immediateDelay)).rejects.toThrow();
+    // 信号已 abort，循环开头立即退出，fn 从未被调用
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("fn 内 abort 后不再重试", async () => {
+    const ac = new AbortController();
+    // fn 执行时同步 abort，模拟外部取消
+    const fn = vi.fn().mockImplementation(() => {
+      ac.abort();
+      return Promise.reject(new Error("HTTP 500"));
+    });
+
+    await expect(withRetry(fn, ac.signal, 3, immediateDelay)).rejects.toThrow();
+    // fn 被调用一次后 abort，catch 分支检测到 signal.aborted，立即抛出不再重试
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("500 错误重试后成功", async () => {
     const fn = vi
       .fn()
-      .mockRejectedValueOnce(new Error("HTTP 500"))
-      .mockResolvedValue("should_not_reach");
+      .mockRejectedValueOnce(new Error("HTTP 500 Internal Server Error"))
+      .mockResolvedValue("recovered");
+    const signal = new AbortController().signal;
 
-    const resultPromise = withRetry(fn, ac.signal);
-    // abort 在延迟等待期间触发
-    ac.abort();
-    await vi.runAllTimersAsync();
-
-    await expect(resultPromise).rejects.toThrow();
-    // abort 后不应继续重试
-    expect(fn).toHaveBeenCalledTimes(1);
+    const result = await withRetry(fn, signal, 3, immediateDelay);
+    expect(result).toBe("recovered");
+    expect(fn).toHaveBeenCalledTimes(2);
   });
 });
 

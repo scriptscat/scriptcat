@@ -319,7 +319,7 @@ export class ConversationInstance {
             });
             break;
           case "error":
-            reject(new Error(event.message));
+            reject(Object.assign(new Error(event.message), { errorCode: event.errorCode }));
             break;
         }
       });
@@ -367,8 +367,8 @@ export class ConversationInstance {
           done = true;
           break;
         case "error":
-          chunk = { type: "error", error: event.message };
-          error = new Error(event.message);
+          chunk = { type: "error", error: event.message, errorCode: event.errorCode };
+          error = Object.assign(new Error(event.message), { errorCode: event.errorCode });
           done = true;
           break;
       }
