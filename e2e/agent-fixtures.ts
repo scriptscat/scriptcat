@@ -109,26 +109,55 @@ export const test = base.extend<AgentFixtures>({
       headless: false,
       args: ["--headless=new", ...chromeArgs],
     });
+
+    // extensionId 与 Phase 1 相同（同一 userDataDir）
+    (context as any).__extensionId = extensionId;
+
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
   },
 
   extensionId: async ({ context }, use) => {
-    let [background] = context.serviceWorkers();
-    if (!background) background = await context.waitForEvent("serviceworker", { timeout: 30_000 });
-    const extensionId = background.url().split("/")[2];
+    const extensionId: string = (context as any).__extensionId;
+
+    // 确保 service worker 处于活跃状态
+    const ensureServiceWorker = async () => {
+      let sw = context.serviceWorkers().find((w) => w.url().includes(extensionId));
+      if (sw) return sw;
+
+      // service worker 未就绪 — 先监听事件，再通过导航触发它启动
+      const swPromise = context.waitForEvent("serviceworker", { timeout: 30_000 });
+      const wakePage = await context.newPage();
+      try {
+        // 导航到扩展页面强制 service worker 激活
+        await wakePage.goto(`chrome-extension://${extensionId}/src/options.html`, {
+          waitUntil: "commit",
+          timeout: 10_000,
+        });
+      } catch {
+        // 即使导航失败（ERR_BLOCKED_BY_CLIENT），请求本身也可能触发 service worker 注册
+      }
+
+      sw = context.serviceWorkers().find((w) => w.url().includes(extensionId));
+      if (!sw) sw = await swPromise;
+      await wakePage.close();
+      return sw;
+    };
+
+    await ensureServiceWorker();
 
     // Dismiss first-use dialog
     const initPage = await context.newPage();
-    await initPage.goto(`chrome-extension://${extensionId}/src/options.html`);
-    await initPage.waitForLoadState("domcontentloaded");
+    await initPage.goto(`chrome-extension://${extensionId}/src/options.html`, {
+      waitUntil: "domcontentloaded",
+    });
     await initPage.evaluate(() => localStorage.setItem("firstUse", "false"));
     await initPage.close();
 
-    // Configure mock model in chrome.storage.local via service worker
+    // 获取活跃的 service worker（导航已唤醒它）
     let sw = context.serviceWorkers()[0];
-    if (!sw) sw = await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!sw) sw = await context.waitForEvent("serviceworker", { timeout: 10_000 });
     await sw.evaluate(() => {
       const modelConfig = {
         id: "mock-model",
