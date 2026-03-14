@@ -161,6 +161,9 @@ export default class ServiceWorkerManager {
           // 检查扩展更新
           regularExtensionUpdateCheck();
           break;
+        case "agentTaskScheduler":
+          agent.onSchedulerTick();
+          break;
       }
     });
     // 12小时检查一次扩展更新
@@ -183,6 +186,29 @@ export default class ServiceWorkerManager {
               console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
               // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
               console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+            }
+          }
+        );
+      }
+    });
+
+    // Agent 定时任务调度器 alarm（每分钟触发一次）
+    chrome.alarms.get("agentTaskScheduler", (alarm) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+      }
+      if (!alarm) {
+        chrome.alarms.create(
+          "agentTaskScheduler",
+          {
+            delayInMinutes: 1,
+            periodInMinutes: 1,
+          },
+          () => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
             }
           }
         );

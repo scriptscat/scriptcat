@@ -55,6 +55,10 @@ import GMAgentToolsApi from "./gm_agent_tools";
 void GMAgentToolsApi;
 import GMAgentSkillsApi from "./gm_agent_skills";
 void GMAgentSkillsApi;
+import GMAgentDomApi from "./gm_agent_dom";
+void GMAgentDomApi;
+import GMAgentTaskApi from "./gm_agent_task";
+void GMAgentTaskApi;
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";

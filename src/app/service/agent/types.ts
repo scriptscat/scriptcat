@@ -431,6 +431,64 @@ export type MCPApiRequest =
     }
   | { action: "testConnection"; id: string; scriptUuid: string };
 
+// ---- Agent 定时任务类型 ----
+
+export type AgentTask = {
+  id: string;
+  name: string;
+  crontab: string; // cron 表达式（复用 cron.ts 格式）
+  mode: "internal" | "event"; // internal: SW 自主执行; event: 通知脚本
+  enabled: boolean;
+  notify: boolean; // 是否通过 chrome.notifications 通知
+
+  // --- internal 模式字段 ---
+  prompt?: string; // 每次触发发送的消息
+  modelId?: string; // 使用的模型 ID
+  conversationId?: string; // 可选：续接已有对话
+  skills?: "auto" | string[];
+  maxIterations?: number; // 工具循环上限，默认 10
+
+  // --- event 模式字段 ---
+  sourceScriptUuid?: string; // 创建任务的脚本 UUID
+
+  // --- 运行状态 ---
+  lastruntime?: number;
+  nextruntime?: number;
+  lastRunStatus?: "success" | "error";
+  lastRunError?: string;
+  createtime: number;
+  updatetime: number;
+};
+
+export type AgentTaskTrigger = {
+  taskId: string;
+  name: string;
+  crontab: string;
+  triggeredAt: number;
+};
+
+export type AgentTaskRun = {
+  id: string;
+  taskId: string;
+  conversationId?: string; // internal 模式才有
+  starttime: number;
+  endtime?: number;
+  status: "running" | "success" | "error";
+  error?: string;
+  usage?: { inputTokens: number; outputTokens: number };
+};
+
+export type AgentTaskApiRequest =
+  | { action: "list" }
+  | { action: "get"; id: string }
+  | { action: "create"; task: Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime"> }
+  | { action: "update"; id: string; task: Partial<AgentTask> }
+  | { action: "delete"; id: string }
+  | { action: "enable"; id: string; enabled: boolean }
+  | { action: "runNow"; id: string }
+  | { action: "listRuns"; taskId: string; limit?: number }
+  | { action: "clearRuns"; taskId: string };
+
 // Sandbox -> Service Worker 的 conversation API 请求
 export type ConversationApiRequest =
   | { action: "create"; options: ConversationCreateOptions; scriptUuid: string }

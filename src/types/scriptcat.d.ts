@@ -957,10 +957,67 @@ declare namespace CATAgentDom {
   }
 }
 
+// ---- CAT.agent.task API ----
+
+declare namespace CATAgentTask {
+  interface AgentTask {
+    id: string;
+    name: string;
+    crontab: string;
+    mode: "internal" | "event";
+    enabled: boolean;
+    notify: boolean;
+    prompt?: string;
+    modelId?: string;
+    conversationId?: string;
+    skills?: "auto" | string[];
+    maxIterations?: number;
+    sourceScriptUuid?: string;
+    lastruntime?: number;
+    nextruntime?: number;
+    lastRunStatus?: "success" | "error";
+    lastRunError?: string;
+    createtime: number;
+    updatetime: number;
+  }
+
+  interface AgentTaskTrigger {
+    taskId: string;
+    name: string;
+    crontab: string;
+    triggeredAt: number;
+  }
+
+  interface AgentTaskCreateOptions {
+    name: string;
+    crontab: string;
+    mode: "internal" | "event";
+    enabled: boolean;
+    notify?: boolean;
+    prompt?: string;
+    modelId?: string;
+    conversationId?: string;
+    skills?: "auto" | string[];
+    maxIterations?: number;
+  }
+
+  interface TaskAPI {
+    create(options: AgentTaskCreateOptions): Promise<AgentTask>;
+    list(): Promise<AgentTask[]>;
+    get(id: string): Promise<AgentTask | undefined>;
+    update(id: string, task: Partial<AgentTask>): Promise<AgentTask>;
+    remove(id: string): Promise<boolean>;
+    runNow(id: string): Promise<void>;
+    addListener(taskId: string, callback: (trigger: AgentTaskTrigger) => void): number;
+    removeListener(listenerId: number): void;
+  }
+}
+
 declare const CAT: {
   agent: {
     conversation: CATAgent.ConversationAPI;
     tools: CATAgentTools.ToolsAPI;
     dom: CATAgentDom.DomAPI;
+    task: CATAgentTask.TaskAPI;
   };
 };
