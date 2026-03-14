@@ -1,3 +1,9 @@
+// ============================================================================
+// scriptcat.zh-CN.d.ts — ScriptCat 全量中文类型声明
+// 此文件为 scriptcat.d.ts 的中文翻译版本，包含所有 GM_*/CAT_*/CAT.agent API。
+// 如需接入，请在 tsconfig.json 中替换或追加此文件。
+// ============================================================================
+
 // @copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
 declare const unsafeWindow: Window;
@@ -6,47 +12,47 @@ declare type ConfigType = "text" | "checkbox" | "select" | "mult-select" | "numb
 
 declare interface Config {
   [key: string]: unknown;
-  /** Config item title. */
+  /** 配置项标题。 */
   title: string;
-  /** Config item description. */
+  /** 配置项描述。 */
   description: string;
-  /** Default value. */
+  /** 默认值。 */
   default?: unknown;
-  /** UI widget type. */
+  /** UI 控件类型。 */
   type?: ConfigType;
-  /** Binding key for two-way data flow. */
+  /** 双向绑定的键名。 */
   bind?: string;
-  /** Allowed values (for select/multi-select). */
+  /** 允许的值（用于 select / multi-select）。 */
   values?: unknown[];
-  /** Whether to mask input (password field). */
+  /** 是否隐藏输入内容（密码字段）。 */
   password?: boolean;
-  /** Max string length (for text) or max numeric value (for number). */
+  /** 文本最大长度 / 数值最大值。 */
   max?: number;
-  /** Min numeric value. */
+  /** 数值最小值。 */
   min?: number;
-  /** Number of rows (for textarea). */
+  /** 行数（用于 textarea）。 */
   rows?: number;
-  /** Sort index among config items. */
+  /** 配置项排序索引。 */
   index: number;
 }
 
 declare type UserConfig = { [key: string]: { [key: string]: Config } };
 
-/** Script and environment metadata, compatible with Tampermonkey's `GM_info`. */
+/** 脚本及环境元数据，兼容 Tampermonkey 的 `GM_info`。 */
 declare const GM_info: {
-  /** ScriptCat version string. */
+  /** ScriptCat 版本号。 */
   version: string;
-  /** Whether auto-update is enabled for this script. */
+  /** 脚本是否已启用自动更新。 */
   scriptWillUpdate: boolean;
-  /** Always `"ScriptCat"`. */
+  /** 始终为 `"ScriptCat"`。 */
   scriptHandler: "ScriptCat";
   scriptUpdateURL?: string;
   scriptMetaStr?: string;
   userConfig?: UserConfig;
   userConfigStr?: string;
-  /** Whether running in an incognito/private window. */
+  /** 是否在隐私/无痕窗口中运行。 */
   isIncognito: boolean;
-  /** Sandbox mode (ScriptCat always uses `"raw"`). */
+  /** 沙箱模式（ScriptCat 始终使用 `"raw"`）。 */
   sandboxMode: "raw";
   userAgentData: {
     brands?: { brand: string; version: string }[];
@@ -55,9 +61,9 @@ declare const GM_info: {
     architecture?: string;
     bitness?: string;
   };
-  /** Download mode (ScriptCat uses `"native"`). */
+  /** 下载模式（ScriptCat 使用 `"native"`）。 */
   downloadMode: "native";
-  /** Metadata parsed from the script header. */
+  /** 从脚本头部解析的元数据。 */
   script: {
     author?: string;
     description?: string;
@@ -78,75 +84,75 @@ declare const GM_info: {
 };
 
 // ===========================================================================
-// GM_* functions (Greasemonkey/Tampermonkey compatible, synchronous style)
+// GM_* 函数（Greasemonkey/Tampermonkey 兼容，同步风格）
 // ===========================================================================
 
-/** List all stored value keys. */
+/** 列出所有已存储的值的键名。 */
 declare function GM_listValues(): string[];
 
-/** Listen for changes to a stored value. Returns a listener ID. */
+/** 监听某个存储值的变化。返回监听器 ID。 */
 declare function GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number;
 
-/** Remove a value change listener by ID. */
+/** 根据 ID 移除值变化监听器。 */
 declare function GM_removeValueChangeListener(listenerId: number): void;
 
-/** Store a value. */
+/** 存储一个值。 */
 declare function GM_setValue(name: string, value: any): void;
 
-/** Store multiple values at once. Keys are value names. */
+/** 批量存储多个值。键为值的名称。 */
 declare function GM_setValues(values: { [key: string]: any }): void;
 
-/** Retrieve a stored value (returns `defaultValue` if not found). */
+/** 获取存储的值（未找到时返回 `defaultValue`）。 */
 declare function GM_getValue(name: string, defaultValue?: any): any;
 
 /**
- * Retrieve multiple values. If `keysOrDefaults` is an object, its values are used as defaults.
- * If it is an array, each element is a key name (no defaults).
+ * 批量获取多个值。
+ * 若 `keysOrDefaults` 为对象，其值作为默认值；若为数组，每个元素为键名（无默认值）。
  */
 declare function GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): {
   [key: string]: any;
 };
 
-/** Delete a stored value. */
+/** 删除一个存储的值。 */
 declare function GM_deleteValue(name: string): void;
 
-/** Delete multiple stored values. */
+/** 批量删除多个存储的值。 */
 declare function GM_deleteValues(names: string[]): void;
 
-/** Log a message with optional level and structured labels. */
+/** 记录日志，可选等级和结构化标签。 */
 declare function GM_log(message: string, level?: GMTypes.LoggerLevel, ...labels: GMTypes.LoggerLabel[]): void;
 
-/** Get the text content of a `@resource` by name. */
+/** 根据名称获取 `@resource` 的文本内容。 */
 declare function GM_getResourceText(name: string): string | undefined;
 
-/** Get a URL (data: or blob:) for a `@resource` by name. */
+/** 根据名称获取 `@resource` 的 URL（data: 或 blob:）。 */
 declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined;
 
-/** Register a menu command in the ScriptCat popup. */
+/** 在 ScriptCat 弹出面板中注册菜单命令。 */
 declare function GM_registerMenuCommand(
   name: string,
   listener?: (inputValue?: any) => void,
   options_or_accessKey?:
     | {
         id?: number | string;
-        /** Keyboard shortcut key. */
+        /** 键盘快捷键。 */
         accessKey?: string;
-        /** Whether clicking the menu closes the popup (default: true). */
+        /** 点击菜单后是否关闭弹出面板（默认 true）。 */
         autoClose?: boolean;
-        /** SC extension: nest under a parent menu (default: true). `false` promotes to browser context menu. */
+        /** SC 扩展：嵌套在父菜单下（默认 true）。`false` 提升到浏览器右键菜单。 */
         nested?: boolean;
-        /** SC extension: do not merge identical menu items (default: false). */
+        /** SC 扩展：不合并相同菜单项（默认 false）。 */
         individual?: boolean;
       }
     | string
 ): number;
 
-/** Unregister a menu command by ID. */
+/** 根据 ID 注销菜单命令。 */
 declare function GM_unregisterMenuCommand(id: number): void;
 
 /**
- * Register a menu item with an input field, allowing the user to enter a value.
- * The callback receives the user's input.
+ * 注册带输入框的菜单项，允许用户输入值。
+ * 回调接收用户的输入。
  */
 declare function CAT_registerMenuInput(
   name: string,
@@ -158,60 +164,60 @@ declare function CAT_registerMenuInput(
         autoClose?: boolean;
         nested?: boolean;
         individual?: boolean;
-        /** Input widget type. */
+        /** 输入控件类型。 */
         inputType?: "text" | "number" | "boolean";
-        /** Dialog title (for the input popup). */
+        /** 对话框标题。 */
         title?: string;
-        /** Label shown next to the input. */
+        /** 输入框旁显示的标签。 */
         inputLabel?: string;
-        /** Default value for the input. */
+        /** 输入框默认值。 */
         inputDefaultValue?: string | number | boolean;
-        /** Placeholder text. */
+        /** 占位文本。 */
         inputPlaceholder?: string;
       }
     | string
 ): number;
 
-/** Unregister a menu input (alias of `GM_unregisterMenuCommand`). */
+/** 注销菜单输入（`GM_unregisterMenuCommand` 的别名）。 */
 declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
 
-/** Wait for the script to be fully loaded. Used with `@early-start`. */
+/** 等待脚本完全加载。配合 `@early-start` 使用。 */
 declare function CAT_scriptLoaded(): Promise<void>;
 
-/** Create a blob URL from a Blob object. ScriptCat manages the URL lifecycle. */
+/** 从 Blob 对象创建 blob URL。ScriptCat 管理 URL 生命周期。 */
 declare function CAT_createBlobUrl(blob: Blob): Promise<string>;
 
-/** Fetch a blob URL and return the Blob data. Helper for `GM_xmlhttpRequest` stream responses. */
+/** 获取 blob URL 并返回 Blob 数据。用于 `GM_xmlhttpRequest` stream 响应的辅助函数。 */
 declare function CAT_fetchBlob(url: string): Promise<Blob>;
 
-/** Fetch a URL and parse it as a Document (in the content page context if available). */
+/** 获取 URL 并解析为 Document（优先在内容页上下文中执行）。 */
 declare function CAT_fetchDocument(url: string): Promise<Document | undefined>;
 
-/** Open a URL in a new tab. Returns a Tab handle (or `undefined` if context is invalid). */
+/** 在新标签页中打开 URL。返回 Tab 句柄（上下文无效时返回 `undefined`）。 */
 declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): GMTypes.Tab | undefined;
 declare function GM_openInTab(url: string, loadInBackground: boolean): GMTypes.Tab | undefined;
 declare function GM_openInTab(url: string): GMTypes.Tab | undefined;
 
-/** Close a tab opened by `GM_openInTab`. */
+/** 关闭由 `GM_openInTab` 打开的标签页。 */
 declare function GM_closeInTab(tabId: string): void;
 
-/** Perform a cross-origin XMLHttpRequest. Requires `@connect` for the target domain. */
+/** 执行跨域 XMLHttpRequest。目标域名需在 `@connect` 中声明。 */
 declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHandle<void>;
 
-/** Download a file. */
+/** 下载文件。 */
 declare function GM_download(details: GMTypes.DownloadDetails<string | Blob | File>): GMTypes.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
-/** Get the tab's persistent storage object. */
+/** 获取标签页的持久化存储对象。 */
 declare function GM_getTab(callback: (tab: object) => void): void;
 
-/** Save the tab's persistent storage object. */
+/** 保存标签页的持久化存储对象。 */
 declare function GM_saveTab(tab: object): void;
 
-/** Get all tabs' persistent storage objects. */
+/** 获取所有标签页的持久化存储对象。 */
 declare function GM_getTabs(callback: (tabs: { [key: number]: object }) => void): void;
 
-/** Show a desktop notification. */
+/** 显示桌面通知。 */
 declare function GM_notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): void;
 declare function GM_notification(
   text: string,
@@ -220,16 +226,16 @@ declare function GM_notification(
   onclick?: GMTypes.NotificationOnClick
 ): void;
 
-/** Close a notification by ID. */
+/** 根据 ID 关闭通知。 */
 declare function GM_closeNotification(id: string): void;
 
-/** Update a notification by ID. */
+/** 根据 ID 更新通知。 */
 declare function GM_updateNotification(id: string, details: GMTypes.NotificationDetails): void;
 
-/** Copy text to the clipboard. */
+/** 复制文本到剪贴板。 */
 declare function GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): void;
 
-/** Add a DOM element to the page. */
+/** 向页面添加 DOM 元素。 */
 declare function GM_addElement(tag: string, attributes: Record<string, string | number | boolean>): HTMLElement;
 declare function GM_addElement(
   parentNode: Node,
@@ -237,11 +243,11 @@ declare function GM_addElement(
   attrs: Record<string, string | number | boolean>
 ): HTMLElement;
 
-/** Inject a CSS stylesheet into the page. */
+/** 向页面注入 CSS 样式表。 */
 declare function GM_addStyle(css: string): Element | undefined;
 
 /**
- * Perform cookie operations. Both `name` and `domain` cannot be empty simultaneously.
+ * 执行 Cookie 操作。`name` 和 `domain` 不能同时为空。
  * @param action - `"list"` | `"set"` | `"delete"`
  */
 declare function GM_cookie(
@@ -251,50 +257,50 @@ declare function GM_cookie(
 ): void;
 
 // ===========================================================================
-// GM.* object (Greasemonkey 4 / Tampermonkey 4+ Promise-style API)
+// GM.* 对象（Greasemonkey 4 / Tampermonkey 4+ Promise 风格 API）
 // ===========================================================================
 
-/** Promise-based API object. Each method corresponds to a `GM_*` function. */
+/** Promise 风格的 API 对象。每个方法对应一个 `GM_*` 函数。 */
 declare const GM: {
-  /** Script and environment metadata (same as `GM_info`). */
+  /** 脚本及环境元数据（同 `GM_info`）。 */
   readonly info: typeof GM_info;
 
-  /** Retrieve a stored value. */
+  /** 获取存储的值。 */
   getValue<T = any>(name: string, defaultValue?: T): Promise<T>;
 
-  /** Retrieve multiple stored values. If `keysOrDefaults` is an object, values are used as defaults. */
+  /** 批量获取多个存储的值。若 `keysOrDefaults` 为对象，其值作为默认值。 */
   getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): Promise<{ [key: string]: any }>;
 
-  /** Store a value. */
+  /** 存储一个值。 */
   setValue(name: string, value: any): Promise<void>;
 
-  /** Store multiple values at once. */
+  /** 批量存储多个值。 */
   setValues(values: { [key: string]: any }): Promise<void>;
 
-  /** Delete a stored value. */
+  /** 删除一个存储的值。 */
   deleteValue(name: string): Promise<void>;
 
-  /** Delete multiple stored values. */
+  /** 批量删除多个存储的值。 */
   deleteValues(names: string[]): Promise<void>;
 
-  /** List all stored value keys. */
+  /** 列出所有已存储的值的键名。 */
   listValues(): Promise<string[]>;
 
-  /** Listen for changes to a stored value. */
+  /** 监听存储值的变化。 */
   addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): Promise<number>;
-  /** Remove a value change listener. */
+  /** 移除值变化监听器。 */
   removeValueChangeListener(listenerId: number): Promise<void>;
 
-  /** Log a message with optional level and structured labels. */
+  /** 记录日志，可选等级和结构化标签。 */
   log(message: string, level?: GMTypes.LoggerLevel, ...labels: GMTypes.LoggerLabel[]): Promise<void>;
 
-  /** Get the text content of a `@resource`. */
+  /** 获取 `@resource` 的文本内容。 */
   getResourceText(name: string): Promise<string | undefined>;
 
-  /** Get a URL for a `@resource`. */
+  /** 获取 `@resource` 的 URL。 */
   getResourceURL(name: string, isBlobUrl?: boolean): Promise<string | undefined>;
 
-  /** Register a menu command. */
+  /** 注册菜单命令。 */
   registerMenuCommand(
     name: string,
     listener?: (inputValue?: any) => void,
@@ -304,106 +310,106 @@ declare const GM: {
           accessKey?: string;
           autoClose?: boolean;
           title?: string;
-          /** SC extension: menu icon URL. */
+          /** SC 扩展：菜单图标 URL。 */
           icon?: string;
-          /** SC extension: alias for `autoClose`. */
+          /** SC 扩展：`autoClose` 的别名。 */
           closeOnClick?: boolean;
         }
       | string
   ): Promise<number | string | undefined>;
 
-  /** Unregister a menu command. */
+  /** 注销菜单命令。 */
   unregisterMenuCommand(id: number | string): Promise<void>;
 
-  /** Inject a CSS stylesheet. */
+  /** 注入 CSS 样式表。 */
   addStyle(css: string): Promise<Element | undefined>;
 
-  /** Show a desktop notification. */
+  /** 显示桌面通知。 */
   notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): Promise<void>;
   notification(text: string, title: string, image: string, onclick?: GMTypes.NotificationOnClick): Promise<void>;
-  /** Close a notification. */
+  /** 关闭通知。 */
   closeNotification(id: string): Promise<void>;
-  /** Update a notification. */
+  /** 更新通知。 */
   updateNotification(id: string, details: GMTypes.NotificationDetails): Promise<void>;
 
-  /** Copy text to the clipboard. */
+  /** 复制文本到剪贴板。 */
   setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): Promise<void>;
 
-  /** Add a DOM element. */
+  /** 添加 DOM 元素。 */
   addElement(tag: string, attributes: Record<string, string | number | boolean>): Promise<HTMLElement>;
   addElement(parentNode: Node, tag: string, attrs: Record<string, string | number | boolean>): Promise<HTMLElement>;
 
-  /** Perform a cross-origin XMLHttpRequest. The returned Promise also has an `.abort()` method. */
+  /** 执行跨域 XMLHttpRequest。返回的 Promise 同时具有 `.abort()` 方法。 */
   xmlHttpRequest(details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse> & GMTypes.AbortHandle<void>;
 
-  /** Download a file. */
+  /** 下载文件。 */
   download(details: GMTypes.DownloadDetails<string | Blob | File>): Promise<boolean>;
   download(url: string, filename: string): Promise<boolean>;
 
-  /** Get the tab's persistent storage object. */
+  /** 获取标签页的持久化存储对象。 */
   getTab(): Promise<object>;
-  /** Save the tab's persistent storage object. */
+  /** 保存标签页的持久化存储对象。 */
   saveTab(tab: object): Promise<void>;
-  /** Get all tabs' persistent storage objects. */
+  /** 获取所有标签页的持久化存储对象。 */
   getTabs(): Promise<{ [key: number]: object }>;
 
-  /** Open a URL in a new tab. */
+  /** 在新标签页中打开 URL。 */
   openInTab(url: string, options: GMTypes.OpenTabOptions): Promise<GMTypes.Tab | undefined>;
   openInTab(url: string, loadInBackground: boolean): Promise<GMTypes.Tab | undefined>;
   openInTab(url: string): Promise<GMTypes.Tab | undefined>;
 
-  /** Close a tab opened by `openInTab`. */
+  /** 关闭由 `openInTab` 打开的标签页。 */
   closeInTab(tabId: string): Promise<void>;
 
-  /** Cookie operations with sub-methods. */
+  /** Cookie 操作（含子方法）。 */
   cookie: {
     (action: GMTypes.CookieAction, details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
-    /** Set a cookie. */
+    /** 设置 Cookie。 */
     set(details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
-    /** List cookies matching the filter. */
+    /** 列出匹配的 Cookie。 */
     list(details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
-    /** Delete a cookie. */
+    /** 删除 Cookie。 */
     delete(details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
   };
 };
 
 // ===========================================================================
-// CAT_* functions (ScriptCat-specific extensions)
+// CAT_* 函数（ScriptCat 专有扩展）
 // ===========================================================================
 
 /**
- * Set browser proxy rules.
- * @deprecated Removed in stable release; may return in beta.
+ * 设置浏览器代理规则。
+ * @deprecated 已从稳定版移除；可能在 beta 版中恢复。
  */
 declare function CAT_setProxy(rule: CATType.ProxyRule[] | string): void;
 
 /**
- * Clear all proxy rules.
- * @deprecated Removed in stable release; may return in beta.
+ * 清除所有代理规则。
+ * @deprecated 已从稳定版移除；可能在 beta 版中恢复。
  */
 declare function CAT_clearProxy(): void;
 
 /**
- * Simulate a real click at coordinates (x, y).
- * @deprecated Removed in stable release; may return in beta.
+ * 在坐标 (x, y) 模拟真实点击。
+ * @deprecated 已从稳定版移除；可能在 beta 版中恢复。
  */
 declare function CAT_click(x: number, y: number): void;
 
-/** Open the script's user configuration page. */
+/** 打开脚本的用户配置页面。 */
 declare function CAT_userConfig(): void;
 
 /**
- * Interact with the managed file storage system.
- * Creates an `app/<uuid>` directory for this script (or uses `baseDir`).
- * Upload overwrites files with the same name.
+ * 与托管文件存储系统交互。
+ * 为当前脚本创建 `app/<uuid>` 目录（或使用 `baseDir`）。
+ * 上传会覆盖同名文件。
  * @param action - `"list"` | `"upload"` | `"download"` | `"delete"` | `"config"`
  */
 declare function CAT_fileStorage(
   action: "list",
   details: {
-    /** Directory path to list. */
+    /** 要列出的目录路径。 */
     path?: string;
-    /** Base directory; defaults to the script's UUID. */
+    /** 基础目录；默认为脚本的 UUID。 */
     baseDir?: string;
     onload?: (files: CATType.FileStorageFileInfo[]) => void;
     onerror?: (error: CATType.FileStorageError) => void;
@@ -412,7 +418,7 @@ declare function CAT_fileStorage(
 declare function CAT_fileStorage(
   action: "download",
   details: {
-    /** File info object (some platforms need the file hash). */
+    /** 文件信息对象（某些平台需要文件哈希）。 */
     file: CATType.FileStorageFileInfo;
     onload: (data: Blob) => void;
     onerror?: (error: CATType.FileStorageError) => void;
@@ -421,7 +427,7 @@ declare function CAT_fileStorage(
 declare function CAT_fileStorage(
   action: "delete",
   details: {
-    /** File path to delete. */
+    /** 要删除的文件路径。 */
     path: string;
     onload?: () => void;
     onerror?: (error: CATType.FileStorageError) => void;
@@ -430,32 +436,32 @@ declare function CAT_fileStorage(
 declare function CAT_fileStorage(
   action: "upload",
   details: {
-    /** Destination file path. */
+    /** 目标文件路径。 */
     path: string;
-    /** Base directory; defaults to the script's UUID. */
+    /** 基础目录；默认为脚本的 UUID。 */
     baseDir?: string;
-    /** File data to upload. */
+    /** 要上传的文件数据。 */
     data: Blob;
     onload?: () => void;
     onerror?: (error: CATType.FileStorageError) => void;
   }
 ): void;
-/** Open the file storage configuration page. */
+/** 打开文件存储配置页面。 */
 declare function CAT_fileStorage(action: "config"): void;
 
 /**
- * Retry error for background scripts. Throw this to make ScriptCat retry later.
- * Minimum retry interval is 5 seconds. Avoid overlapping with the script's own schedule.
+ * 后台脚本重试错误。抛出此错误可让 ScriptCat 稍后重试。
+ * 最小重试间隔为 5 秒。避免与脚本自身的调度重叠。
  */
 declare class CATRetryError {
-  /** @param message - Error message. @param seconds - Retry after N seconds. */
+  /** @param message - 错误信息。 @param seconds - N 秒后重试。 */
   constructor(message: string, seconds: number);
-  /** @param message - Error message. @param date - Retry at a specific time. */
+  /** @param message - 错误信息。 @param date - 在指定时间重试。 */
   constructor(message: string, date: Date);
 }
 
 // ===========================================================================
-// CATType namespace (ScriptCat-specific types)
+// CATType 命名空间（ScriptCat 专有类型）
 // ===========================================================================
 
 declare namespace CATType {
@@ -474,29 +480,29 @@ declare namespace CATType {
 
   interface FileStorageError {
     /**
-     * Error code:
-     * -1 = unknown, 1 = storage not configured, 2 = config error, 3 = path not found,
-     * 4 = upload failed, 5 = download failed, 6 = delete failed,
-     * 7 = disallowed file path, 8 = network error
+     * 错误码：
+     * -1 = 未知，1 = 存储未配置，2 = 配置错误，3 = 路径不存在，
+     * 4 = 上传失败，5 = 下载失败，6 = 删除失败，
+     * 7 = 不允许的文件路径，8 = 网络错误
      */
     code: -1 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
     error: string;
   }
 
   interface FileStorageFileInfo {
-    /** File name. */
+    /** 文件名。 */
     name: string;
-    /** Relative file path. */
+    /** 相对文件路径。 */
     path: string;
-    /** Absolute path in the storage space. */
+    /** 存储空间中的绝对路径。 */
     absPath: string;
-    /** File size in bytes. */
+    /** 文件大小（字节）。 */
     size: number;
-    /** File content digest/hash. */
+    /** 文件内容摘要/哈希。 */
     digest: string;
-    /** Creation timestamp. */
+    /** 创建时间戳。 */
     createtime: number;
-    /** Last modification timestamp. */
+    /** 最后修改时间戳。 */
     updatetime: number;
   }
 
@@ -510,7 +516,7 @@ declare namespace CATType {
 }
 
 // ===========================================================================
-// GMTypes namespace (Greasemonkey/Tampermonkey compatible types)
+// GMTypes 命名空间（Greasemonkey/Tampermonkey 兼容类型）
 // ===========================================================================
 
 declare namespace GMTypes {
@@ -552,7 +558,7 @@ declare namespace GMTypes {
     sameSite: "unspecified" | "no_restriction" | "lax" | "strict";
   }
 
-  /** Value change listener. `tabid` is only available for background script listeners. */
+  /** 值变化监听器。`tabid` 仅在后台脚本监听器中可用。 */
   type ValueChangeListener = (
     name: string,
     oldValue: unknown,
@@ -563,54 +569,54 @@ declare namespace GMTypes {
 
   interface OpenTabOptions {
     /**
-     * Whether the new tab gains focus immediately.
-     * - `true` — tab opens in foreground.
-     * - `false` — tab opens in background.
+     * 新标签页是否立即获得焦点。
+     * - `true` — 前台打开。
+     * - `false` — 后台打开。
      * @default true
      */
     active?: boolean;
 
     /**
-     * Tab insertion position.
-     * - `true` / `1` — insert after the current tab.
-     * - `false` — append to the end of the window.
-     * - `0` — insert before the current tab.
+     * 标签页插入位置。
+     * - `true` / `1` — 插入到当前标签页之后。
+     * - `false` — 追加到窗口末尾。
+     * - `0` — 插入到当前标签页之前。
      * @default true
      */
     insert?: boolean | number;
 
     /**
-     * Set the opener tab ID so browsers can track parent-child relationships.
+     * 设置 opener 标签页 ID，以便浏览器追踪父子关系。
      * @default true
      */
     setParent?: boolean;
 
     /**
-     * Open in an incognito/private window.
-     * Note: ScriptCat uses `"incognito": "split"` — in a normal window,
-     * tabId/windowId will not be available.
+     * 在隐私/无痕窗口中打开。
+     * 注意：ScriptCat 使用 `"incognito": "split"` — 在普通窗口中，
+     * tabId/windowId 将不可用。
      * @default false
      */
     incognito?: boolean;
 
     /**
-     * Legacy field (TM only). Semantics are the **opposite** of `active`:
-     * `true` = background, `false` = foreground.
+     * 旧版字段（仅 TM）。语义与 `active` **相反**：
+     * `true` = 后台，`false` = 前台。
      * @default false
-     * @deprecated Use `active` instead.
+     * @deprecated 请使用 `active` 代替。
      */
     loadInBackground?: boolean;
 
     /**
-     * Pin the new tab in the browser tab bar.
+     * 将新标签页固定在浏览器标签栏。
      * @default false
      */
     pinned?: boolean;
 
     /**
-     * Use `window.open` instead of `chrome.tabs.create`.
-     * Useful for special protocols like `vscode://`, `m3u8dl://`.
-     * Other options are ignored in this mode.
+     * 使用 `window.open` 代替 `chrome.tabs.create`。
+     * 适用于特殊协议如 `vscode://`、`m3u8dl://`。
+     * 此模式下其他选项会被忽略。
      * @default false
      */
     useOpen?: boolean;
@@ -619,7 +625,7 @@ declare namespace GMTypes {
   type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
 
   /**
-   * XMLHttpRequest readyState values.
+   * XMLHttpRequest readyState 值。
    * @see https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/readyState
    */
   type ReadyState =
@@ -664,24 +670,24 @@ declare namespace GMTypes {
     binary?: boolean;
     timeout?: number;
     context?: ContextType;
-    /** Response type. `"stream"` support is rudimentary in the current version. */
+    /** 响应类型。当前版本中 `"stream"` 支持有限。 */
     responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
     overrideMimeType?: string;
-    /** Send request without cookies (Tampermonkey compatible). */
+    /** 发送不带 Cookie 的请求（Tampermonkey 兼容）。 */
     anonymous?: boolean;
-    /** Send request without cookies (Greasemonkey compatible). */
+    /** 发送不带 Cookie 的请求（Greasemonkey 兼容）。 */
     mozAnon?: boolean;
-    /** Force using the Fetch API internally. */
+    /** 强制内部使用 Fetch API。 */
     fetch?: boolean;
     user?: string;
     password?: string;
-    /** Disable caching. */
+    /** 禁用缓存。 */
     nocache?: boolean;
-    /** Force revalidation: allow cache but revalidate before using. */
+    /** 强制重新验证：允许缓存但使用前重新验证。 */
     revalidate?: boolean;
-    /** Redirect handling. Forces fetch mode internally. */
+    /** 重定向处理。内部强制使用 fetch 模式。 */
     redirect?: "follow" | "error" | "manual";
-    /** Partitioned cookie key for storage partitioning. */
+    /** 分区 Cookie 键，用于存储分区。 */
     cookiePartition?: Record<string, any> & { topLevelSite?: string };
 
     onload?: Listener<XHRResponse>;
@@ -704,26 +710,26 @@ declare namespace GMTypes {
   }
 
   interface DownloadDetails<URL> {
-    // Standard parameters (TM/SC)
+    // 标准参数（TM/SC）
     url: URL;
     name: string;
     headers?: { [key: string]: string };
     saveAs?: boolean;
     conflictAction?: "uniquify" | "overwrite" | "prompt";
 
-    // Extended parameters (SC/VM)
+    // 扩展参数（SC/VM）
     timeout?: number;
     anonymous?: boolean;
     context?: ContextType;
     user?: string;
     password?: string;
 
-    // SC-only parameters
+    // SC 专有参数
     method?: "GET" | "POST";
     downloadMode?: "native" | "browser";
     cookie?: string;
 
-    // Callbacks
+    // 回调
     onload?: Listener<object>;
     onerror?: Listener<DownloadError>;
     onprogress?: Listener<{
@@ -778,7 +784,7 @@ declare namespace GMTypes {
     ondone?: NotificationOnDone;
     progress?: number;
     oncreate?: NotificationOnClick;
-    /** Max 2 buttons. */
+    /** 最多 2 个按钮。 */
     buttons?: NotificationButton[];
   }
 
@@ -798,436 +804,437 @@ declare namespace GMTypes {
 //        CAT.agent.task / CAT.agent.skills
 // ===========================================================================
 
-/** CAT Agent conversation, content blocks, and streaming types. */
-declare namespace CATAgent {
-  // ---- Content Block types ----
+// ---- CAT.agent.conversation API ----
 
-  /** Plain text content block. */
+/** CAT Agent 对话、内容块和流式类型。 */
+declare namespace CATAgent {
+  // ---- 内容块类型 ----
+
+  /** 纯文本内容块。 */
   type TextBlock = { type: "text"; text: string };
 
-  /** Image content block. Data is stored in OPFS and referenced by `attachmentId`. */
+  /** 图片内容块。数据存储在 OPFS 中，通过 `attachmentId` 引用。 */
   type ImageBlock = { type: "image"; attachmentId: string; mimeType: string; name?: string };
 
-  /** File content block. */
+  /** 文件内容块。 */
   type FileBlock = { type: "file"; attachmentId: string; mimeType: string; name: string; size?: number };
 
-  /** Audio content block. */
+  /** 音频内容块。 */
   type AudioBlock = {
     type: "audio";
     attachmentId: string;
     mimeType: string;
     name?: string;
-    /** Duration in milliseconds. */
+    /** 时长（毫秒）。 */
     durationMs?: number;
   };
 
-  /** Union of all content block types. */
+  /** 所有内容块类型的联合类型。 */
   type ContentBlock = TextBlock | ImageBlock | FileBlock | AudioBlock;
 
-  /** Message content: plain string or an array of content blocks (multimodal). */
+  /** 消息内容：纯字符串或内容块数组（多模态）。 */
   type MessageContent = string | ContentBlock[];
 
-  // ---- Tool types ----
+  // ---- 工具类型 ----
 
   /**
-   * Tool definition with an inline handler function.
-   * Use in `ConversationCreateOptions.tools` or `ChatOptions.tools`
-   * to register tools that the LLM can call.
+   * 工具定义（含内联处理函数）。
+   * 用于 `ConversationCreateOptions.tools` 或 `ChatOptions.tools`，注册可供 LLM 调用的工具。
    */
   interface ToolDefinition {
-    /** Unique tool name. */
+    /** 工具唯一名称。 */
     name: string;
-    /** Human-readable description. */
+    /** 工具描述。 */
     description: string;
-    /** JSON Schema describing the tool parameters. */
+    /** 描述工具参数的 JSON Schema。 */
     parameters: Record<string, unknown>;
-    /** Handler invoked when the LLM calls this tool. */
+    /** LLM 调用此工具时执行的处理函数。 */
     handler: (args: Record<string, unknown>) => Promise<unknown>;
   }
 
   /**
-   * Custom command handler. Commands are prefixed with `/` (e.g. `/new`).
-   * Return a string to display as the reply, or void.
+   * 自定义命令处理器。命令以 `/` 开头（如 `/new`）。
+   * 返回字符串作为回复内容，或返回 void。
    */
   type CommandHandler = (args: string, conv: ConversationInstance) => Promise<string | void>;
 
-  // ---- Conversation options ----
+  // ---- 对话选项 ----
 
-  /** Options for creating a new conversation via `CAT.agent.conversation.create()`. */
+  /** 通过 `CAT.agent.conversation.create()` 创建对话时的选项。 */
   interface ConversationCreateOptions {
-    /** Custom conversation ID; auto-generated if omitted. */
+    /** 自定义对话 ID，省略则自动生成。 */
     id?: string;
-    /** System prompt. */
+    /** 系统提示词。 */
     system?: string;
-    /** Model ID; uses the default model if omitted. */
+    /** 模型 ID，省略则使用默认模型。 */
     model?: string;
-    /** Max tool-calling loop iterations (default: 20). */
+    /** 工具调用循环最大迭代次数（默认 20）。 */
     maxIterations?: number;
-    /** Skills to load: `"auto"` loads all installed skills, or specify names. */
+    /** 加载的 Skill：`"auto"` 加载全部已安装 Skill，或指定名称数组。 */
     skills?: "auto" | string[];
-    /** Tools with inline handlers, available for the lifetime of this conversation. */
+    /** 带内联处理函数的工具，在此对话生命周期内可用。 */
     tools?: ToolDefinition[];
     /**
-     * Custom slash-command handlers (e.g. `{ "/reset": handler }`).
-     * The built-in `/new` command (clear conversation) can be overridden.
+     * 自定义斜杠命令处理器（如 `{ "/reset": handler }`）。
+     * 内置的 `/new` 命令（清空对话）可被覆盖。
      */
     commands?: Record<string, CommandHandler>;
     /**
-     * Ephemeral mode: messages are kept in memory only, not persisted.
-     * Built-in tools/skills are NOT loaded; the script must supply all tools.
+     * 临时模式：消息仅保留在内存中，不持久化。
+     * 不加载内置工具/Skill，脚本需自行提供所有工具。
      */
     ephemeral?: boolean;
   }
 
-  /** Options for a single `chat()` / `chatStream()` call. */
+  /** 单次 `chat()` / `chatStream()` 调用的选项。 */
   interface ChatOptions {
-    /** Additional tools for this call only (merged with conversation-level tools). */
+    /** 仅用于此次调用的附加工具（与对话级工具合并）。 */
     tools?: ToolDefinition[];
   }
 
-  // ---- Tool call ----
+  // ---- 工具调用 ----
 
-  /** Record of a tool call made by the LLM. */
+  /** LLM 发起的工具调用记录。 */
   interface ToolCallInfo {
-    /** Unique call ID. */
+    /** 唯一调用 ID。 */
     id: string;
-    /** Tool name. */
+    /** 工具名称。 */
     name: string;
-    /** JSON-serialized arguments. */
+    /** JSON 序列化的参数。 */
     arguments: string;
-    /** Tool execution result (populated after execution). */
+    /** 工具执行结果（执行后填充）。 */
     result?: string;
-    /** Call status. */
+    /** 调用状态。 */
     status?: "pending" | "running" | "completed" | "error";
   }
 
-  // ---- Chat reply ----
+  // ---- 聊天回复 ----
 
-  /** Result of a non-streaming `chat()` call. */
+  /** 非流式 `chat()` 调用的返回结果。 */
   interface ChatReply {
-    /** Response content. */
+    /** 回复内容。 */
     content: MessageContent;
-    /** Model thinking/reasoning text (if available). */
+    /** 模型思考/推理文本（如有）。 */
     thinking?: string;
-    /** Tool calls made during this turn. */
+    /** 本轮中的工具调用。 */
     toolCalls?: ToolCallInfo[];
-    /** Token usage. */
+    /** Token 用量。 */
     usage?: { inputTokens: number; outputTokens: number };
-    /** `true` when the reply was produced by a command handler, not the LLM. */
+    /** 当回复由命令处理器产生（而非 LLM）时为 `true`。 */
     command?: boolean;
   }
 
-  /** A single chunk emitted during streaming via `chatStream()`. */
+  /** 通过 `chatStream()` 流式返回的单个数据块。 */
   interface StreamChunk {
     /**
-     * Chunk type:
-     * - `"content_delta"` — incremental text
-     * - `"thinking_delta"` — incremental thinking/reasoning
-     * - `"tool_call"` — a tool call event
-     * - `"content_block"` — a complete non-text content block
-     * - `"done"` — stream finished
-     * - `"error"` — an error occurred
+     * 数据块类型：
+     * - `"content_delta"` — 增量文本
+     * - `"thinking_delta"` — 增量思考/推理
+     * - `"tool_call"` — 工具调用事件
+     * - `"content_block"` — 完整的非文本内容块
+     * - `"done"` — 流结束
+     * - `"error"` — 发生错误
      */
     type: "content_delta" | "thinking_delta" | "tool_call" | "content_block" | "done" | "error";
-    /** Text delta (for content_delta / thinking_delta). */
+    /** 文本增量（用于 content_delta / thinking_delta）。 */
     content?: string;
-    /** Complete content block (for content_block). */
+    /** 完整内容块（用于 content_block）。 */
     block?: ContentBlock;
-    /** Tool call info (for tool_call). */
+    /** 工具调用信息（用于 tool_call）。 */
     toolCall?: ToolCallInfo;
-    /** Token usage (for done). */
+    /** Token 用量（用于 done）。 */
     usage?: { inputTokens: number; outputTokens: number };
-    /** Error message (for error). */
+    /** 错误信息（用于 error）。 */
     error?: string;
-    /** Error classification: `"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */
+    /** 错误分类码：`"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */
     errorCode?: string;
-    /** `true` when the chunk was produced by a command handler. */
+    /** 当数据块由命令处理器产生时为 `true`。 */
     command?: boolean;
   }
 
-  // ---- Chat message ----
+  // ---- 聊天消息 ----
 
-  /** A persisted chat message in a conversation. */
+  /** 对话中持久化的聊天消息。 */
   interface ChatMessage {
-    /** Message ID. */
+    /** 消息 ID。 */
     id: string;
-    /** Parent conversation ID. */
+    /** 所属对话 ID。 */
     conversationId: string;
-    /** Message role. */
+    /** 消息角色。 */
     role: "user" | "assistant" | "system" | "tool";
-    /** Message content (text or multimodal). */
+    /** 消息内容（文本或多模态）。 */
     content: MessageContent;
-    /** Model thinking/reasoning block. */
+    /** 模型思考/推理块。 */
     thinking?: { content: string };
-    /** Tool calls in this message. */
+    /** 此消息中的工具调用。 */
     toolCalls?: ToolCallInfo[];
-    /** Associated tool_call ID (for role="tool" messages). */
+    /** 关联的 tool_call ID（用于 role="tool" 的消息）。 */
     toolCallId?: string;
-    /** Error message (if the turn errored). */
+    /** 错误信息（当轮次出错时）。 */
     error?: string;
-    /** Model ID used for this message. */
+    /** 生成此消息使用的模型 ID。 */
     modelId?: string;
-    /** Token usage for this message. */
+    /** 此消息的 Token 用量。 */
     usage?: {
       inputTokens: number;
       outputTokens: number;
-      /** Anthropic cache creation input tokens. */
+      /** Anthropic 缓存创建输入 tokens。 */
       cacheCreationInputTokens?: number;
-      /** Anthropic cache read input tokens. */
+      /** Anthropic 缓存读取输入 tokens。 */
       cacheReadInputTokens?: number;
     };
-    /** Total response duration in ms. */
+    /** 总响应时长（毫秒）。 */
     durationMs?: number;
-    /** Time-to-first-token in ms. */
+    /** 首 token 时间（毫秒）。 */
     firstTokenMs?: number;
-    /** Parent message ID (for branching). */
+    /** 父消息 ID（用于分支）。 */
     parentId?: string;
-    /** Creation timestamp. */
+    /** 创建时间戳。 */
     createtime: number;
   }
 
-  // ---- Conversation instance ----
+  // ---- 对话实例 ----
 
   /**
-   * A conversation instance returned by `CAT.agent.conversation.create()` or `.get()`.
-   * Provides methods for chatting, streaming, and managing message history.
+   * 由 `CAT.agent.conversation.create()` 或 `.get()` 返回的对话实例。
+   * 提供聊天、流式传输和管理消息历史的方法。
    */
   interface ConversationInstance {
-    /** Conversation ID. */
+    /** 对话 ID。 */
     readonly id: string;
-    /** Conversation title. */
+    /** 对话标题。 */
     readonly title: string;
-    /** Model ID used. */
+    /** 使用的模型 ID。 */
     readonly modelId: string;
 
-    /** Send a message and wait for the full reply (with automatic tool-calling loop). */
+    /** 发送消息并等待完整回复（自动执行工具调用循环）。 */
     chat(content: MessageContent, options?: ChatOptions): Promise<ChatReply>;
 
-    /** Send a message and receive a streaming response. */
+    /** 发送消息并接收流式响应。 */
     chatStream(content: MessageContent, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>>;
 
-    /** Get all messages in this conversation. */
+    /** 获取此对话中的所有消息。 */
     getMessages(): Promise<ChatMessage[]>;
 
-    /** Clear all messages in this conversation. */
+    /** 清空此对话中的所有消息。 */
     clear(): Promise<void>;
 
-    /** Persist the conversation to storage. */
+    /** 将对话持久化到存储。 */
     save(): Promise<void>;
   }
 
-  // ---- Conversation API ----
+  // ---- 对话 API ----
 
   /**
-   * `CAT.agent.conversation` — create and retrieve conversation instances.
+   * `CAT.agent.conversation` — 创建和获取对话实例。
    * @grant CAT.agent.conversation
    */
   interface ConversationAPI {
-    /** Create a new conversation. */
+    /** 创建新对话。 */
     create(options?: ConversationCreateOptions): Promise<ConversationInstance>;
 
-    /** Get an existing conversation by ID. Returns `null` if not found. */
+    /** 根据 ID 获取已有对话。未找到时返回 `null`。 */
     get(id: string): Promise<ConversationInstance | null>;
   }
 }
 
-// ---- CAT.agent.tools — CATTool management API ----
+// ---- CAT.agent.tools — CATTool 管理 API ----
 
-/** CATTool management types — install, remove, list, and invoke CATTools. */
+/** CATTool 管理类型 — 安装、卸载、列出和调用 CATTool。 */
 declare namespace CATAgentTools {
-  /** A parameter definition for a CATTool. */
+  /** CATTool 的参数定义。 */
   interface CATToolParam {
-    /** Parameter name. */
+    /** 参数名称。 */
     name: string;
-    /** Parameter type. */
+    /** 参数类型。 */
     type: "string" | "number" | "boolean";
-    /** Whether required. */
+    /** 是否必填。 */
     required: boolean;
-    /** Parameter description. */
+    /** 参数描述。 */
     description: string;
-    /** Allowed values (for enum parameters). */
+    /** 允许的值（用于枚举参数）。 */
     enum?: string[];
   }
 
-  /** A persisted CATTool record. */
+  /** 持久化的 CATTool 记录。 */
   interface CATToolRecord {
-    /** Internal UUID. */
+    /** 内部 UUID。 */
     id: string;
-    /** Tool name (from `@name` metadata). */
+    /** 工具名称（来自 `@name` 元数据）。 */
     name: string;
-    /** Tool description. */
+    /** 工具描述。 */
     description: string;
-    /** Parameter definitions. */
+    /** 参数定义列表。 */
     params: CATToolParam[];
-    /** Required GM grants. */
+    /** 所需的 GM 权限。 */
     grants: string[];
-    /** `@require` URL list. */
+    /** `@require` URL 列表。 */
     requires?: string[];
-    /** Full source code (including metadata header). */
+    /** 完整源代码（含元数据头）。 */
     code: string;
-    /** UUID of the script that installed this tool. */
+    /** 安装此工具的脚本 UUID。 */
     sourceScriptUuid?: string;
-    /** Name of the script that installed this tool. */
+    /** 安装此工具的脚本名称。 */
     sourceScriptName?: string;
-    /** Installation timestamp. */
+    /** 安装时间戳。 */
     installtime: number;
-    /** Last update timestamp. */
+    /** 最后更新时间戳。 */
     updatetime: number;
   }
 
   /**
-   * `CAT.agent.tools` — manage and invoke CATTools.
+   * `CAT.agent.tools` — 管理和调用 CATTool。
    * @grant CAT.agent.tools
    */
   interface ToolsAPI {
-    /** Install a CATTool from source code. */
+    /** 从源代码安装 CATTool。 */
     install(code: string): Promise<CATToolRecord>;
 
-    /** Remove a CATTool by name. */
+    /** 按名称卸载 CATTool。 */
     remove(name: string): Promise<boolean>;
 
-    /** List all installed CATTools. */
+    /** 列出所有已安装的 CATTool。 */
     list(): Promise<CATToolRecord[]>;
 
-    /** Invoke a CATTool by name with optional parameters. */
+    /** 按名称调用 CATTool，可传入参数。 */
     call(name: string, params?: Record<string, unknown>): Promise<unknown>;
   }
 }
 
-// ---- CAT.agent.dom — Browser DOM automation API ----
+// ---- CAT.agent.dom — 浏览器 DOM 自动化 API ----
 
-/** DOM automation types — interact with browser tabs, pages, and elements. */
+/** DOM 自动化类型 — 与浏览器标签页、页面和元素交互。 */
 declare namespace CATAgentDom {
-  /** Information about a browser tab. */
+  /** 浏览器标签页信息。 */
   interface TabInfo {
-    /** Tab ID. */
+    /** 标签页 ID。 */
     tabId: number;
-    /** Current URL. */
+    /** 当前 URL。 */
     url: string;
-    /** Page title. */
+    /** 页面标题。 */
     title: string;
-    /** Whether the tab is active. */
+    /** 标签页是否处于激活状态。 */
     active: boolean;
-    /** Window ID. */
+    /** 窗口 ID。 */
     windowId: number;
-    /** Whether the tab is discarded (unloaded from memory). */
+    /** 标签页是否已被丢弃（从内存中卸载）。 */
     discarded: boolean;
   }
 
-  /** Result of a DOM action (click, fill, etc.). */
+  /** DOM 操作（点击、填充等）的结果。 */
   interface ActionResult {
-    /** Whether the action succeeded. */
+    /** 操作是否成功。 */
     success: boolean;
-    /** Whether a navigation occurred as a result. */
+    /** 操作是否导致了导航。 */
     navigated?: boolean;
-    /** Current URL after the action. */
+    /** 操作后的当前 URL。 */
     url?: string;
-    /** New tab opened as a result. */
+    /** 操作导致打开的新标签页。 */
     newTab?: { tabId: number; url: string };
-    /** Dialog that appeared (alert/confirm/prompt). */
+    /** 出现的对话框。 */
     dialog?: { type: "alert" | "confirm" | "prompt"; message: string };
   }
 
-  /** Page content returned by `readPage()`. */
+  /** `readPage()` 返回的页面内容。 */
   interface PageContent {
-    /** Page title. */
+    /** 页面标题。 */
     title: string;
-    /** Page URL. */
+    /** 页面 URL。 */
     url: string;
-    /** HTML content (or selected fragment). */
+    /** HTML 内容（或选定的片段）。 */
     html: string;
-    /** Whether the content was truncated due to `maxLength`. */
+    /** 内容是否因 `maxLength` 而被截断。 */
     truncated?: boolean;
-    /** Original total length before truncation. */
+    /** 截断前的原始总长度。 */
     totalLength?: number;
   }
 
-  /** Options for `readPage()`. */
+  /** `readPage()` 的选项。 */
   interface ReadPageOptions {
-    /** Target tab ID; defaults to the active tab. */
+    /** 目标标签页 ID，默认为活动标签页。 */
     tabId?: number;
-    /** CSS selector to read a specific element. */
+    /** 读取特定元素的 CSS 选择器。 */
     selector?: string;
-    /** Maximum content length in characters. */
+    /** 最大内容长度（字符数）。 */
     maxLength?: number;
-    /** Tags/selectors to remove before reading (e.g. `["script", "style", "svg"]`). */
+    /** 读取前要移除的标签/选择器（如 `["script", "style", "svg"]`）。 */
     removeTags?: string[];
   }
 
-  /** Options for DOM actions (click, fill). */
+  /** DOM 操作（点击、填充）的选项。 */
   interface DomActionOptions {
-    /** Target tab ID. */
+    /** 目标标签页 ID。 */
     tabId?: number;
-    /** Use trusted (CDP-dispatched) events instead of synthetic JS events. */
+    /** 使用可信的（CDP 派发的）事件，而非合成 JS 事件。 */
     trusted?: boolean;
   }
 
-  /** Options for `screenshot()`. */
+  /** `screenshot()` 的选项。 */
   interface ScreenshotOptions {
-    /** Target tab ID. */
+    /** 目标标签页 ID。 */
     tabId?: number;
-    /** JPEG quality (0–100). */
+    /** JPEG 质量（0–100）。 */
     quality?: number;
-    /** Capture the full scrollable page. */
+    /** 捕获完整可滚动页面。 */
     fullPage?: boolean;
   }
 
-  /** Options for `navigate()`. */
+  /** `navigate()` 的选项。 */
   interface NavigateOptions {
-    /** Target tab ID. */
+    /** 目标标签页 ID。 */
     tabId?: number;
-    /** Wait until the page is fully loaded. */
+    /** 等待页面完全加载。 */
     waitUntil?: boolean;
-    /** Navigation timeout in ms. */
+    /** 导航超时时间（毫秒）。 */
     timeout?: number;
   }
 
-  /** Scroll direction. */
+  /** 滚动方向。 */
   type ScrollDirection = "up" | "down" | "top" | "bottom";
 
-  /** Options for `scroll()`. */
+  /** `scroll()` 的选项。 */
   interface ScrollOptions {
-    /** Target tab ID. */
+    /** 目标标签页 ID。 */
     tabId?: number;
-    /** Scroll within a specific element. */
+    /** 在特定元素内滚动。 */
     selector?: string;
   }
 
-  /** Result of a scroll operation. */
+  /** 滚动操作的结果。 */
   interface ScrollResult {
-    /** Current scroll position. */
+    /** 当前滚动位置。 */
     scrollTop: number;
-    /** Total scrollable height. */
+    /** 总可滚动高度。 */
     scrollHeight: number;
-    /** Visible viewport height. */
+    /** 可见视口高度。 */
     clientHeight: number;
-    /** Whether scrolled to the bottom. */
+    /** 是否已滚动到底部。 */
     atBottom: boolean;
   }
 
-  /** Result of a `navigate()` call. */
+  /** `navigate()` 调用的结果。 */
   interface NavigateResult {
-    /** Tab ID. */
+    /** 标签页 ID。 */
     tabId: number;
-    /** Final URL after navigation. */
+    /** 导航后的最终 URL。 */
     url: string;
-    /** Page title. */
+    /** 页面标题。 */
     title: string;
   }
 
-  /** Options for `waitFor()`. */
+  /** `waitFor()` 的选项。 */
   interface WaitForOptions {
-    /** Target tab ID. */
+    /** 目标标签页 ID。 */
     tabId?: number;
-    /** Timeout in ms. */
+    /** 超时时间（毫秒）。 */
     timeout?: number;
   }
 
-  /** Result of `waitFor()`. */
+  /** `waitFor()` 的结果。 */
   interface WaitForResult {
-    /** Whether the element was found. */
+    /** 是否找到了元素。 */
     found: boolean;
-    /** Element details (when found). */
+    /** 元素详情（找到时）。 */
     element?: {
       selector: string;
       tag: string;
@@ -1238,210 +1245,210 @@ declare namespace CATAgentDom {
     };
   }
 
-  /** Options for `executeScript()`. */
+  /** `executeScript()` 的选项。 */
   interface ExecuteScriptOptions {
-    /** Target tab ID. */
+    /** 目标标签页 ID。 */
     tabId?: number;
   }
 
-  /** Result of `peekMonitor()` — summary of DOM changes being monitored. */
+  /** `peekMonitor()` 的结果 — 正在监控的 DOM 变更摘要。 */
   interface MonitorStatus {
-    /** Whether any changes were detected. */
+    /** 是否检测到变更。 */
     hasChanges: boolean;
-    /** Number of dialogs captured. */
+    /** 捕获的对话框数量。 */
     dialogCount: number;
-    /** Number of added DOM nodes captured. */
+    /** 捕获的新增 DOM 节点数量。 */
     nodeCount: number;
   }
 
   /**
-   * `CAT.agent.dom` — browser tab and DOM automation.
+   * `CAT.agent.dom` — 浏览器标签页和 DOM 自动化。
    * @grant CAT.agent.dom
    */
   interface DomAPI {
-    /** List all open browser tabs. */
+    /** 列出所有打开的浏览器标签页。 */
     listTabs(): Promise<TabInfo[]>;
 
-    /** Navigate a tab to a URL. */
+    /** 导航标签页到指定 URL。 */
     navigate(url: string, options?: NavigateOptions): Promise<NavigateResult>;
 
-    /** Read the HTML content of a page (or a selected element). */
+    /** 读取页面的 HTML 内容（或选定元素）。 */
     readPage(options?: ReadPageOptions): Promise<PageContent>;
 
-    /** Capture a screenshot of a tab. Returns a base64-encoded data URL. */
+    /** 截取标签页的屏幕截图。返回 base64 编码的 data URL。 */
     screenshot(options?: ScreenshotOptions): Promise<string>;
 
-    /** Click an element matching the CSS selector. */
+    /** 点击匹配 CSS 选择器的元素。 */
     click(selector: string, options?: DomActionOptions): Promise<ActionResult>;
 
-    /** Fill an input/textarea matching the CSS selector with the given value. */
+    /** 向匹配 CSS 选择器的输入框/文本域填入指定值。 */
     fill(selector: string, value: string, options?: DomActionOptions): Promise<ActionResult>;
 
-    /** Scroll a page or element. */
+    /** 滚动页面或元素。 */
     scroll(direction: ScrollDirection, options?: ScrollOptions): Promise<ScrollResult>;
 
-    /** Wait for an element matching the CSS selector to appear. */
+    /** 等待匹配 CSS 选择器的元素出现。 */
     waitFor(selector: string, options?: WaitForOptions): Promise<WaitForResult>;
 
-    /** Execute JavaScript code in the page context. */
+    /** 在页面上下文中执行 JavaScript 代码。 */
     executeScript(code: string, options?: ExecuteScriptOptions): Promise<unknown>;
 
-    /** Start monitoring DOM changes on a tab (dialogs, added nodes). */
+    /** 开始监控标签页上的 DOM 变更（对话框、新增节点）。 */
     startMonitor(tabId: number): Promise<void>;
 
-    /** Stop monitoring DOM changes on a tab. */
+    /** 停止监控标签页上的 DOM 变更。 */
     stopMonitor(tabId: number): Promise<void>;
 
-    /** Peek at the current monitor status for a tab. */
+    /** 查看标签页的当前监控状态。 */
     peekMonitor(tabId: number): Promise<MonitorStatus>;
   }
 }
 
-// ---- CAT.agent.task — Scheduled task API ----
+// ---- CAT.agent.task — 定时任务 API ----
 
-/** Scheduled task types — create cron-based tasks that run agent conversations or emit events. */
+/** 定时任务类型 — 创建基于 cron 的任务，运行 Agent 对话或发出事件。 */
 declare namespace CATAgentTask {
-  /** A scheduled agent task record. */
+  /** 定时 Agent 任务记录。 */
   interface AgentTask {
-    /** Task ID. */
+    /** 任务 ID。 */
     id: string;
-    /** Task name. */
+    /** 任务名称。 */
     name: string;
-    /** Cron expression. */
+    /** Cron 表达式。 */
     crontab: string;
     /**
-     * Execution mode:
-     * - `"internal"` — Service Worker runs an LLM conversation automatically.
-     * - `"event"` — Notifies the script via `addListener`.
+     * 执行模式：
+     * - `"internal"` — Service Worker 自动运行 LLM 对话。
+     * - `"event"` — 通过 `addListener` 通知脚本。
      */
     mode: "internal" | "event";
-    /** Whether the task is enabled. */
+    /** 任务是否启用。 */
     enabled: boolean;
-    /** Whether to show a browser notification on trigger. */
+    /** 触发时是否显示浏览器通知。 */
     notify: boolean;
 
-    // --- internal mode fields ---
-    /** Prompt to send on each trigger. */
+    // --- internal 模式字段 ---
+    /** 每次触发时发送的提示词。 */
     prompt?: string;
-    /** Model ID to use. */
+    /** 使用的模型 ID。 */
     modelId?: string;
-    /** Existing conversation ID to continue. */
+    /** 要续接的已有对话 ID。 */
     conversationId?: string;
-    /** Skills to load. */
+    /** 加载的 Skill。 */
     skills?: "auto" | string[];
-    /** Max tool-calling iterations (default: 10). */
+    /** 工具调用最大迭代次数（默认 10）。 */
     maxIterations?: number;
 
-    // --- event mode fields ---
-    /** UUID of the script that created this task. */
+    // --- event 模式字段 ---
+    /** 创建此任务的脚本 UUID。 */
     sourceScriptUuid?: string;
 
-    // --- runtime status ---
-    /** Last run timestamp. */
+    // --- 运行状态 ---
+    /** 上次运行时间戳。 */
     lastruntime?: number;
-    /** Next scheduled run timestamp. */
+    /** 下次计划运行时间戳。 */
     nextruntime?: number;
-    /** Last run result status. */
+    /** 上次运行结果状态。 */
     lastRunStatus?: "success" | "error";
-    /** Last run error message. */
+    /** 上次运行错误信息。 */
     lastRunError?: string;
-    /** Creation timestamp. */
+    /** 创建时间戳。 */
     createtime: number;
-    /** Last update timestamp. */
+    /** 最后更新时间戳。 */
     updatetime: number;
   }
 
-  /** Event payload delivered to `addListener` callbacks when a task triggers. */
+  /** 任务触发时通过 `addListener` 回调传递的事件载荷。 */
   interface AgentTaskTrigger {
-    /** Task ID. */
+    /** 任务 ID。 */
     taskId: string;
-    /** Task name. */
+    /** 任务名称。 */
     name: string;
-    /** Cron expression. */
+    /** Cron 表达式。 */
     crontab: string;
-    /** Trigger timestamp. */
+    /** 触发时间戳。 */
     triggeredAt: number;
   }
 
-  /** Options for creating a new task (fields auto-populated by the system are omitted). */
+  /** 创建新任务的选项（系统自动填充的字段已省略）。 */
   type AgentTaskCreateOptions = Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime" | "sourceScriptUuid">;
 
   /**
-   * `CAT.agent.task` — create and manage scheduled agent tasks.
+   * `CAT.agent.task` — 创建和管理定时 Agent 任务。
    * @grant CAT.agent.task
    */
   interface TaskAPI {
-    /** Create a new scheduled task. */
+    /** 创建新的定时任务。 */
     create(options: AgentTaskCreateOptions): Promise<AgentTask>;
 
-    /** List all tasks. */
+    /** 列出所有任务。 */
     list(): Promise<AgentTask[]>;
 
-    /** Get a task by ID. */
+    /** 根据 ID 获取任务。 */
     get(id: string): Promise<AgentTask | undefined>;
 
-    /** Update a task. */
+    /** 更新任务。 */
     update(id: string, task: Partial<AgentTask>): Promise<AgentTask>;
 
-    /** Remove a task by ID. */
+    /** 根据 ID 删除任务。 */
     remove(id: string): Promise<boolean>;
 
-    /** Immediately trigger a task (regardless of cron schedule). */
+    /** 立即触发任务（不受 cron 计划限制）。 */
     runNow(id: string): Promise<void>;
 
     /**
-     * Listen for task trigger events (for `mode: "event"` tasks).
-     * Returns a listener ID for later removal.
+     * 监听任务触发事件（用于 `mode: "event"` 的任务）。
+     * 返回监听器 ID，可用于后续移除。
      */
     addListener(taskId: string, callback: (trigger: AgentTaskTrigger) => void): number;
 
-    /** Remove a previously registered listener. */
+    /** 移除之前注册的监听器。 */
     removeListener(listenerId: number): void;
   }
 }
 
-// ---- CAT.agent.skills — Skill management API ----
+// ---- CAT.agent.skills — Skill 管理 API ----
 
-/** Skill management types — install, remove, and query Agent Skills. */
+/** Skill 管理类型 — 安装、卸载和查询 Agent Skill。 */
 declare namespace CATAgentSkills {
-  /** Summary info for an installed Skill. */
+  /** 已安装 Skill 的摘要信息。 */
   interface SkillSummary {
-    /** Skill name. */
+    /** Skill 名称。 */
     name: string;
-    /** Skill description. */
+    /** Skill 描述。 */
     description: string;
-    /** CATTool names bundled in this Skill (from `scripts/` directory). */
+    /** 此 Skill 中打包的 CATTool 名称（来自 `scripts/` 目录）。 */
     toolNames: string[];
-    /** Reference document names (from `references/` directory). */
+    /** 参考资料名称（来自 `references/` 目录）。 */
     referenceNames: string[];
-    /** Installation timestamp. */
+    /** 安装时间戳。 */
     installtime: number;
-    /** Last update timestamp. */
+    /** 最后更新时间戳。 */
     updatetime: number;
   }
 
-  /** Full Skill record including the prompt. */
+  /** 包含 prompt 的完整 Skill 记录。 */
   interface SkillRecord extends SkillSummary {
-    /** SKILL.md body (markdown after frontmatter removal). */
+    /** SKILL.md 正文（去除 frontmatter 后的 markdown）。 */
     prompt: string;
   }
 
   /**
-   * `CAT.agent.skills` — manage Agent Skills (packaged prompts + tools + references).
+   * `CAT.agent.skills` — 管理 Agent Skill（打包的提示词 + 工具 + 参考资料）。
    * @grant CAT.agent.skills
    */
   interface SkillsAPI {
-    /** List all installed Skills. */
+    /** 列出所有已安装的 Skill。 */
     list(): Promise<SkillSummary[]>;
 
-    /** Get full details of a Skill by name. Returns `null` if not found. */
+    /** 根据名称获取 Skill 的完整详情。未找到时返回 `null`。 */
     get(name: string): Promise<SkillRecord | null>;
 
     /**
-     * Install a Skill from a SKILL.md string, with optional bundled scripts and references.
-     * @param skillMd - The SKILL.md content (with YAML frontmatter).
-     * @param scripts - CATTool scripts to bundle.
-     * @param references - Reference documents to bundle.
+     * 从 SKILL.md 字符串安装 Skill，可附带打包的脚本和参考资料。
+     * @param skillMd - SKILL.md 内容（含 YAML frontmatter）。
+     * @param scripts - 要打包的 CATTool 脚本。
+     * @param references - 要打包的参考资料。
      */
     install(
       skillMd: string,
@@ -1449,16 +1456,16 @@ declare namespace CATAgentSkills {
       references?: Array<{ name: string; content: string }>
     ): Promise<SkillRecord>;
 
-    /** Remove a Skill by name. */
+    /** 根据名称卸载 Skill。 */
     remove(name: string): Promise<boolean>;
   }
 }
 
-// ---- CAT global object ----
+// ---- CAT 全局对象 ----
 
 /**
- * ScriptCat Agent global object — provides access to conversation, tools, DOM, task, and skills APIs.
- * Each sub-API requires its own `@grant` declaration.
+ * ScriptCat Agent 全局对象 — 提供对话、工具、DOM、任务和 Skill API 的访问。
+ * 每个子 API 需要各自的 `@grant` 声明。
  */
 declare const CAT: {
   agent: {
@@ -1476,10 +1483,9 @@ declare const CAT: {
 };
 
 /**
- * Skill configuration values injected into the CATTool sandbox at runtime.
+ * Skill 配置值，运行时注入到 CATTool 沙箱中。
  *
- * Declared in the `config` block of a SKILL.md frontmatter and filled in by
- * the user through the Skill settings UI. The object is frozen at injection
- * time, so properties are read-only.
+ * 在 SKILL.md frontmatter 的 `config` 块中声明，由用户在 Skill 设置 UI 中填写。
+ * 注入时对象已被冻结，属性为只读。
  */
 declare const CAT_CONFIG: Readonly<Record<string, unknown>>;
