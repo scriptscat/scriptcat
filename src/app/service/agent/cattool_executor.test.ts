@@ -526,6 +526,33 @@ describe("CATToolExecutor 超时处理", () => {
     expect(getCATToolNameByUuid(capturedUuid)).toBe("");
   });
 
+  it("自定义 timeout 应覆盖默认 30s", async () => {
+    vi.useFakeTimers();
+
+    const sender = {
+      sendMessage: vi.fn().mockReturnValue(new Promise(() => {})),
+    } as any;
+
+    const record = createRecord([], { name: "slow_tool", timeout: 120 });
+    const executor = new CATToolExecutor(record, sender);
+
+    const errPromise = executor.execute({}).catch((e) => e);
+
+    // 30s 后不应超时
+    await vi.advanceTimersByTimeAsync(30_000);
+    // 60s 后仍不应超时
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    // 推进到 120s 触发超时
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    const err = await errPromise;
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain("slow_tool");
+    expect((err as Error).message).toContain("120s");
+    expect((err as any).errorCode).toBe("tool_timeout");
+  });
+
   it("30s 内完成的执行不应超时", async () => {
     vi.useFakeTimers();
 

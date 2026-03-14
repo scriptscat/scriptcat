@@ -13,6 +13,7 @@ export function parseCATToolMetadata(code: string): CATToolMetadata | null {
   const params: CATToolParam[] = [];
   const grants: string[] = [];
   const requires: string[] = [];
+  let timeout: number | undefined;
 
   for (const line of lines) {
     const trimmed = line.replace(/^\/\/\s*/, "").trim();
@@ -43,12 +44,17 @@ export function parseCATToolMetadata(code: string): CATToolMetadata | null {
       case "require":
         if (val) requires.push(val);
         break;
+      case "timeout": {
+        const n = Number(val);
+        if (Number.isFinite(n) && n > 0) timeout = n;
+        break;
+      }
     }
   }
 
   if (!name) return null;
 
-  return { name, description, params, grants, requires };
+  return { name, description, params, grants, requires, ...(timeout !== undefined ? { timeout } : {}) };
 }
 
 // 解析 @param 行: name type [required] description

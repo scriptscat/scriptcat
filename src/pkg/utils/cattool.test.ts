@@ -237,6 +237,66 @@ return "ok";
     expect(meta.description).toBe("测试工具");
   });
 
+  it("应正确解析 @timeout", () => {
+    const code = `
+// ==CATTool==
+// @name        slow_tool
+// @description 耗时工具
+// @timeout     120
+// ==/CATTool==
+return "ok";
+`;
+    const meta = parseCATToolMetadata(code)!;
+    expect(meta.name).toBe("slow_tool");
+    expect(meta.timeout).toBe(120);
+  });
+
+  it("无 @timeout 时 timeout 应为 undefined", () => {
+    const code = `
+// ==CATTool==
+// @name        fast_tool
+// @description 快速工具
+// ==/CATTool==
+return "ok";
+`;
+    const meta = parseCATToolMetadata(code)!;
+    expect(meta.timeout).toBeUndefined();
+  });
+
+  it("@timeout 值无效时应忽略", () => {
+    const code = `
+// ==CATTool==
+// @name        bad_timeout
+// @timeout     abc
+// ==/CATTool==
+return "ok";
+`;
+    const meta = parseCATToolMetadata(code)!;
+    expect(meta.timeout).toBeUndefined();
+  });
+
+  it("@timeout 值为 0 或负数时应忽略", () => {
+    const code = `
+// ==CATTool==
+// @name        zero_timeout
+// @timeout     0
+// ==/CATTool==
+return "ok";
+`;
+    const meta = parseCATToolMetadata(code)!;
+    expect(meta.timeout).toBeUndefined();
+
+    const code2 = `
+// ==CATTool==
+// @name        neg_timeout
+// @timeout     -5
+// ==/CATTool==
+return "ok";
+`;
+    const meta2 = parseCATToolMetadata(code2)!;
+    expect(meta2.timeout).toBeUndefined();
+  });
+
   it("@param [required] 带 enum 时应同时解析", () => {
     const code = `
 // ==CATTool==

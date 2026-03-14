@@ -8,8 +8,8 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 // CATTool UUID 前缀，用于在 GM API 请求中识别 CATTool
 export const CATTOOL_UUID_PREFIX = "cattool-";
 
-// CATTool 单次执行超时（ms）
-const CATTOOL_EXEC_TIMEOUT_MS = 30_000;
+// CATTool 默认超时（ms）
+const CATTOOL_DEFAULT_TIMEOUT_MS = 30_000;
 
 // 全局的 CATTool UUID → 工具信息映射，供 GM API 权限验证时使用
 // 直接携带 grants，避免运行时再查 repo（skill 的 CATTool 不在 catToolRepo 中）
@@ -77,6 +77,8 @@ export class CATToolExecutor implements ToolExecutor {
     }
 
     const code = getCATToolBody(this.record.code);
+    const timeoutMs = this.record.timeout ? this.record.timeout * 1000 : CATTOOL_DEFAULT_TIMEOUT_MS;
+    const timeoutSec = timeoutMs / 1000;
     try {
       const execPromise = executeCATTool(this.sender, {
         uuid,
@@ -91,11 +93,11 @@ export class CATToolExecutor implements ToolExecutor {
         setTimeout(
           () =>
             reject(
-              Object.assign(new Error(`CATTool "${this.record.name}" timed out after 30s`), {
+              Object.assign(new Error(`CATTool "${this.record.name}" timed out after ${timeoutSec}s`), {
                 errorCode: "tool_timeout",
               })
             ),
-          CATTOOL_EXEC_TIMEOUT_MS
+          timeoutMs
         )
       );
       return await Promise.race([execPromise, timeoutPromise]);
