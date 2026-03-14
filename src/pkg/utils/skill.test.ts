@@ -96,6 +96,127 @@ Minimal prompt.`;
     expect(result.prompt).toBe("Minimal prompt.");
   });
 
+  // ---- config 字段解析测试 ----
+
+  it("应正确解析含 config 的 SKILL.md", () => {
+    const content = `---
+name: weather-query
+description: 查询天气信息
+config:
+  WEATHER_API_KEY:
+    title: "OpenWeatherMap API Key"
+    type: text
+    secret: true
+    required: true
+  DEFAULT_CITY:
+    title: "默认城市"
+    type: text
+    default: "Beijing"
+---
+
+Use weather API to query.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.name).toBe("weather-query");
+    expect(result.metadata.config).toBeDefined();
+    const config = result.metadata.config!;
+    expect(Object.keys(config)).toHaveLength(2);
+
+    expect(config.WEATHER_API_KEY.title).toBe("OpenWeatherMap API Key");
+    expect(config.WEATHER_API_KEY.type).toBe("text");
+    expect(config.WEATHER_API_KEY.secret).toBe(true);
+    expect(config.WEATHER_API_KEY.required).toBe(true);
+
+    expect(config.DEFAULT_CITY.title).toBe("默认城市");
+    expect(config.DEFAULT_CITY.type).toBe("text");
+    expect(config.DEFAULT_CITY.default).toBe("Beijing");
+  });
+
+  it("config 中 type 缺失时默认为 text", () => {
+    const content = `---
+name: test
+config:
+  API_KEY:
+    title: "API Key"
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.config!.API_KEY.type).toBe("text");
+  });
+
+  it("应解析 select 类型的 values 字段", () => {
+    const content = `---
+name: test
+config:
+  REGION:
+    title: "Region"
+    type: select
+    values:
+      - us-east-1
+      - eu-west-1
+      - ap-northeast-1
+    default: us-east-1
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    const field = result.metadata.config!.REGION;
+    expect(field.type).toBe("select");
+    expect(field.values).toEqual(["us-east-1", "eu-west-1", "ap-northeast-1"]);
+    expect(field.default).toBe("us-east-1");
+  });
+
+  it("应解析 switch 和 number 类型", () => {
+    const content = `---
+name: test
+config:
+  ENABLED:
+    title: "Enable feature"
+    type: switch
+    default: true
+  MAX_RESULTS:
+    title: "Max results"
+    type: number
+    default: 10
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    const config = result.metadata.config!;
+    expect(config.ENABLED.type).toBe("switch");
+    expect(config.ENABLED.default).toBe(true);
+    expect(config.MAX_RESULTS.type).toBe("number");
+    expect(config.MAX_RESULTS.default).toBe(10);
+  });
+
+  it("无 config 时 metadata.config 应为 undefined", () => {
+    const content = `---
+name: no-config
+description: test
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.config).toBeUndefined();
+  });
+
+  it("空 config 对象时为 undefined", () => {
+    const content = `---
+name: empty-config
+config: {}
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.config).toBeUndefined();
+  });
+
   it("应正确处理多行 prompt 内容", () => {
     const content = `---
 name: multi-line

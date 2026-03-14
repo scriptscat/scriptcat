@@ -1021,3 +1021,6 @@ declare const CAT: {
     task: CATAgentTask.TaskAPI;
   };
 };
+
+/** Skill 配置值，通过 SKILL.md frontmatter 的 config 块声明，用户在 UI 中填写，执行时注入沙箱 */
+declare const CAT_CONFIG: Record<string, unknown>;

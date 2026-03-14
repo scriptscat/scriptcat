@@ -16,6 +16,7 @@ import type {
   DomApiRequest,
   MCPApiRequest,
   SkillApiRequest,
+  SkillMetadata,
   SkillRecord,
   MessageContent,
   ContentBlock,
@@ -162,6 +163,12 @@ export class AgentService {
     );
     this.group.on("removeSkill", (name: string) => this.removeSkill(name));
     this.group.on("refreshSkill", (name: string) => this.refreshSkill(name));
+    this.group.on("getSkillConfigValues", (name: string) => this.skillRepo.getConfigValues(name));
+    this.group.on(
+      "saveSkillConfig",
+      (params: { name: string; values: Record<string, unknown> }) =>
+        this.skillRepo.saveConfigValues(params.name, params.values)
+    );
     // Skill ZIP 安装页面相关消息
     this.group.on("prepareSkillInstall", (zipBase64: string) => this.prepareSkillInstall(zipBase64));
     this.group.on("getSkillInstallData", (uuid: string) => this.getSkillInstallData(uuid));
@@ -481,6 +488,7 @@ export class AgentService {
       toolNames,
       referenceNames,
       prompt: parsed.prompt,
+      ...(parsed.metadata.config ? { config: parsed.metadata.config } : {}),
       installtime: existing?.installtime || now,
       updatetime: now,
     };
@@ -522,7 +530,7 @@ export class AgentService {
   // 获取缓存的 Skill ZIP 数据并解析
   async getSkillInstallData(uuid: string): Promise<{
     skillMd: string;
-    metadata: { name: string; description: string };
+    metadata: SkillMetadata;
     prompt: string;
     scripts: Array<{ name: string; code: string }>;
     references: Array<{ name: string; content: string }>;
@@ -660,6 +668,8 @@ export class AgentService {
           // 动态注册该 skill 的 CATTool 为独立 LLM tool
           if (record.toolNames.length > 0) {
             const toolRecords = await this.skillRepo.getSkillScripts(skillName);
+            // 读取 skill 的用户配置值（如 API Key 等），注入到每个 CATTool 执行器
+            const configValues = record.config ? await this.skillRepo.getConfigValues(skillName) : undefined;
             for (const tool of toolRecords) {
               const def = catToolToToolDefinition({
                 name: tool.name,
@@ -669,7 +679,10 @@ export class AgentService {
                 requires: tool.requires || [],
               });
               const prefixed = prefixToolDefinition(skillName, def);
-              this.toolRegistry.registerBuiltin(prefixed, new CATToolExecutor(tool, this.sender, this.createRequireLoader()));
+              this.toolRegistry.registerBuiltin(
+                prefixed,
+                new CATToolExecutor(tool, this.sender, this.createRequireLoader(), configValues)
+              );
               dynamicToolNames.push(prefixed.name);
             }
           }

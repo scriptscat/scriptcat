@@ -47,6 +47,7 @@ export function executeCATTool(
     grants: string[];
     name: string;
     requires?: Array<{ url: string; content: string }>;
+    configValues?: Record<string, unknown>;
   }
 ) {
   return sendMessage(msgSender, "offscreen/executeCATTool", params);

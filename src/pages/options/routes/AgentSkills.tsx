@@ -1,8 +1,28 @@
-import { Button, Card, Empty, Input, Message, Modal, Popconfirm, Space, Tag, Typography } from "@arco-design/web-react";
-import { IconDelete, IconEye, IconPlus, IconRefresh } from "@arco-design/web-react/icon";
+import {
+  Button,
+  Card,
+  Empty,
+  Input,
+  InputNumber,
+  Message,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+} from "@arco-design/web-react";
+import { IconDelete, IconEye, IconPlus, IconRefresh, IconSettings } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SkillSummary, SkillRecord, SkillReference, CATToolRecord } from "@App/app/service/agent/types";
+import type {
+  SkillSummary,
+  SkillRecord,
+  SkillReference,
+  CATToolRecord,
+  SkillConfigField,
+} from "@App/app/service/agent/types";
 import { SkillRepo } from "@App/app/repo/skill_repo";
 import { agentClient } from "@App/pages/store/features/script";
 
@@ -15,12 +35,14 @@ function SkillCard({
   onDetail,
   onUninstall,
   onRefresh,
+  onConfig,
   t,
 }: {
   skill: SkillSummary;
   onDetail: () => void;
   onUninstall: () => void;
   onRefresh: () => void;
+  onConfig?: () => void;
   t: (key: string, opts?: Record<string, string>) => string;
 }) {
   return (
@@ -54,6 +76,11 @@ function SkillCard({
             {t("agent_skills_references")}: {skill.referenceNames.length}
           </Tag>
         )}
+        {skill.hasConfig && (
+          <Tag size="small" color="orange">
+            {t("agent_skills_config")}
+          </Tag>
+        )}
       </div>
 
       {/* Install time */}
@@ -66,6 +93,11 @@ function SkillCard({
         <Button type="text" size="small" icon={<IconEye />} onClick={onDetail}>
           {t("agent_skills_detail")}
         </Button>
+        {skill.hasConfig && onConfig && (
+          <Button type="text" size="small" icon={<IconSettings />} onClick={onConfig}>
+            {t("agent_skills_config")}
+          </Button>
+        )}
         <Button type="text" size="small" icon={<IconRefresh />} onClick={onRefresh}>
           {t("agent_skills_refresh")}
         </Button>
@@ -125,6 +157,142 @@ function ToolCodeModal({
       >
         {tool.code}
       </pre>
+    </Modal>
+  );
+}
+
+// ---- Config Modal ----
+
+function SkillConfigModal({
+  visible,
+  skill,
+  onClose,
+  t,
+}: {
+  visible: boolean;
+  skill: SkillRecord | null;
+  onClose: () => void;
+  t: (key: string) => string;
+}) {
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible && skill?.config) {
+      setLoading(true);
+      agentClient
+        .getSkillConfigValues(skill.name)
+        .then((saved) => {
+          // 用 default 值填充未保存的字段
+          const merged: Record<string, unknown> = {};
+          for (const [key, field] of Object.entries(skill.config!)) {
+            merged[key] = saved[key] !== undefined ? saved[key] : (field.default ?? "");
+          }
+          setValues(merged);
+        })
+        .catch(() => {
+          // 初始化为默认值
+          const defaults: Record<string, unknown> = {};
+          for (const [key, field] of Object.entries(skill.config!)) {
+            defaults[key] = field.default ?? "";
+          }
+          setValues(defaults);
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [visible, skill]);
+
+  const handleSave = async () => {
+    if (!skill) return;
+    setSaving(true);
+    try {
+      await agentClient.saveSkillConfig({ name: skill.name, values });
+      Message.success(t("agent_skills_config_saved"));
+      onClose();
+    } catch (e: any) {
+      Message.error(e.message || String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!skill?.config) return null;
+
+  const renderField = (key: string, field: SkillConfigField) => {
+    const value = values[key];
+    const onChange = (v: unknown) => setValues((prev) => ({ ...prev, [key]: v }));
+    const label = (
+      <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
+        {field.title || key}
+        {field.required && <span className="tw-text-red-500 tw-ml-0.5">*</span>}
+      </div>
+    );
+
+    switch (field.type) {
+      case "number":
+        return (
+          <div key={key}>
+            {label}
+            <InputNumber value={value as number} onChange={(v) => onChange(v)} className="tw-w-full" />
+          </div>
+        );
+      case "select":
+        return (
+          <div key={key}>
+            {label}
+            <Select value={value as string} onChange={(v) => onChange(v)} className="tw-w-full">
+              {(field.values || []).map((v) => (
+                <Select.Option key={v} value={v}>
+                  {v}
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
+        );
+      case "switch":
+        return (
+          <div key={key} className="tw-flex tw-items-center tw-justify-between">
+            <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-2)]">
+              {field.title || key}
+              {field.required && <span className="tw-text-red-500 tw-ml-0.5">*</span>}
+            </span>
+            <Switch checked={!!value} onChange={(v) => onChange(v)} />
+          </div>
+        );
+      default: // text
+        return (
+          <div key={key}>
+            {label}
+            {field.secret ? (
+              <Input.Password value={String(value || "")} onChange={(v) => onChange(v)} />
+            ) : (
+              <Input value={String(value || "")} onChange={(v) => onChange(v)} />
+            )}
+          </div>
+        );
+    }
+  };
+
+  return (
+    <Modal
+      title={`${t("agent_skills_config")} - ${skill.name}`}
+      visible={visible}
+      onOk={handleSave}
+      onCancel={onClose}
+      confirmLoading={saving}
+      autoFocus={false}
+      focusLock
+      unmountOnExit
+      style={{ width: 520 }}
+    >
+      {loading ? (
+        <div className="tw-py-8 tw-text-center tw-text-[var(--color-text-3)]">Loading...</div>
+      ) : (
+        <Space direction="vertical" size={12} className="tw-w-full">
+          {Object.entries(skill.config).map(([key, field]) => renderField(key, field))}
+        </Space>
+      )}
     </Modal>
   );
 }
@@ -274,6 +442,8 @@ function AgentSkills() {
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [detailVisible, setDetailVisible] = useState(false);
   const [detailSkill, setDetailSkill] = useState<SkillRecord | null>(null);
+  const [configVisible, setConfigVisible] = useState(false);
+  const [configSkill, setConfigSkill] = useState<SkillRecord | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSkills = useCallback(async () => {
@@ -296,6 +466,14 @@ function AgentSkills() {
   const handleUninstall = async (name: string) => {
     await agentClient.removeSkill(name);
     loadSkills();
+  };
+
+  const handleConfig = async (name: string) => {
+    const record = await skillRepo.getSkill(name);
+    if (record?.config) {
+      setConfigSkill(record);
+      setConfigVisible(true);
+    }
   };
 
   const handleRefresh = async (name: string) => {
@@ -365,6 +543,7 @@ function AgentSkills() {
                 onDetail={() => handleDetail(skill.name)}
                 onUninstall={() => handleUninstall(skill.name)}
                 onRefresh={() => handleRefresh(skill.name)}
+                onConfig={skill.hasConfig ? () => handleConfig(skill.name) : undefined}
                 t={t}
               />
             ))}
@@ -377,6 +556,13 @@ function AgentSkills() {
         skill={detailSkill}
         onClose={() => setDetailVisible(false)}
         onSaved={loadSkills}
+        t={t}
+      />
+
+      <SkillConfigModal
+        visible={configVisible}
+        skill={configSkill}
+        onClose={() => setConfigVisible(false)}
         t={t}
       />
     </Space>

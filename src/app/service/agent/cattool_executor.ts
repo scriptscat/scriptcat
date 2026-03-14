@@ -35,7 +35,8 @@ export class CATToolExecutor implements ToolExecutor {
   constructor(
     private record: CATToolRecord,
     private sender: MessageSend,
-    private requireLoader?: RequireLoader
+    private requireLoader?: RequireLoader,
+    private configValues?: Record<string, unknown>
   ) {}
 
   async execute(args: Record<string, unknown>): Promise<unknown> {
@@ -84,6 +85,7 @@ export class CATToolExecutor implements ToolExecutor {
         grants: this.record.grants,
         name: this.record.name,
         requires,
+        configValues: this.configValues,
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(

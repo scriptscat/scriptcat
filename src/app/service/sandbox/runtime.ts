@@ -359,6 +359,7 @@ export class Runtime {
     grants: string[];
     name: string;
     requires?: Array<{ url: string; content: string }>;
+    configValues?: Record<string, unknown>;
   }): Promise<unknown> {
     const uuid = params.uuid;
     const metadata: any = {
@@ -399,6 +400,7 @@ export class Runtime {
     // sandboxContext 已经包含了这些，再追加 args 即可）
     if ((exec as any).sandboxContext) {
       (exec as any).sandboxContext.args = params.args;
+      (exec as any).sandboxContext.CAT_CONFIG = Object.freeze(params.configValues || {});
     }
 
     try {

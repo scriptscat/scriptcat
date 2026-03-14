@@ -376,7 +376,7 @@ export class AgentClient extends Client {
 
   getSkillInstallData(uuid: string): Promise<{
     skillMd: string;
-    metadata: { name: string; description: string };
+    metadata: { name: string; description: string; config?: Record<string, import("@App/app/service/agent/types").SkillConfigField> };
     prompt: string;
     scripts: Array<{ name: string; code: string }>;
     references: Array<{ name: string; content: string }>;
@@ -391,5 +391,13 @@ export class AgentClient extends Client {
 
   cancelSkillInstall(uuid: string): Promise<void> {
     return this.do("cancelSkillInstall", uuid);
+  }
+
+  getSkillConfigValues(name: string): Promise<Record<string, unknown>> {
+    return this.doThrow("getSkillConfigValues", name);
+  }
+
+  saveSkillConfig(params: { name: string; values: Record<string, unknown> }): Promise<void> {
+    return this.doThrow("saveSkillConfig", params);
   }
 }

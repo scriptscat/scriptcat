@@ -3,9 +3,10 @@ import { Button, Space, Tag, Typography } from "@arco-design/web-react";
 import { IconDown, IconUp } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { parseCATToolMetadata } from "@App/pkg/utils/cattool";
+import type { SkillConfigField } from "@App/app/service/agent/types";
 
 interface SkillInstallViewProps {
-  metadata: { name: string; description: string };
+  metadata: { name: string; description: string; config?: Record<string, SkillConfigField> };
   prompt: string;
   scripts: Array<{ name: string; code: string }>;
   references: Array<{ name: string; content: string }>;
@@ -137,6 +138,42 @@ function SkillInstallView({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Config Fields */}
+            {metadata.config && Object.keys(metadata.config).length > 0 && (
+              <div className="tw-mt-2">
+                <Typography.Text bold>{`${t("agent_skills_config")} (${Object.keys(metadata.config).length}):`}</Typography.Text>
+                <div className="tw-mt-1 tw-flex tw-flex-col tw-gap-y-2">
+                  {Object.entries(metadata.config).map(([key, field]) => (
+                    <div key={key} className="tw-p-3 tw-rounded-lg tw-bg-[var(--color-fill-1)]">
+                      <div className="tw-flex tw-items-center tw-gap-2 tw-mb-1">
+                        <Tag bordered size="small" color="orange">
+                          {key}
+                        </Tag>
+                        <Tag bordered size="small" color="gray">
+                          {field.type}
+                        </Tag>
+                        {field.required && (
+                          <Tag bordered size="small" color="red">
+                            {t("cattool_required")}
+                          </Tag>
+                        )}
+                        {field.secret && (
+                          <Tag bordered size="small" color="purple">
+                            secret
+                          </Tag>
+                        )}
+                      </div>
+                      {field.title && (
+                        <Typography.Text type="secondary" className="tw-text-xs">
+                          {field.title}
+                        </Typography.Text>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

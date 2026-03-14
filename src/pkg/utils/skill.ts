@@ -1,5 +1,20 @@
-import type { SkillMetadata } from "@App/app/service/agent/types";
+import type { SkillConfigField, SkillMetadata } from "@App/app/service/agent/types";
+import { parse as parseYaml } from "yaml";
 import { loadAsyncJSZip } from "./jszip-x";
+
+// 校验并规范化单个 config 字段
+function normalizeConfigField(raw: Record<string, unknown>): SkillConfigField {
+  const type = (raw.type as string) || "text";
+  const field: SkillConfigField = {
+    title: String(raw.title || ""),
+    type: type as SkillConfigField["type"],
+  };
+  if (raw.secret === true) field.secret = true;
+  if (raw.required === true) field.required = true;
+  if (raw.default !== undefined) field.default = raw.default;
+  if (Array.isArray(raw.values)) field.values = raw.values.map(String);
+  return field;
+}
 
 // 解析 SKILL.md 内容：YAML frontmatter + markdown body
 export function parseSkillMd(content: string): { metadata: SkillMetadata; prompt: string } | null {
@@ -8,33 +23,39 @@ export function parseSkillMd(content: string): { metadata: SkillMetadata; prompt
 
   const [, frontmatter, body] = match;
 
-  let name = "";
-  let description = "";
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseYaml(frontmatter);
+  } catch {
+    return null;
+  }
 
-  for (const line of frontmatter.split("\n")) {
-    const trimmed = line.trim();
-    // 解析 key: value 格式
-    const kvMatch = trimmed.match(/^(\w+)\s*:\s*(.*)$/);
-    if (!kvMatch) continue;
+  if (!parsed || typeof parsed !== "object") return null;
 
-    const [, key, rawValue] = kvMatch;
-    // 去除引号
-    const value = rawValue.replace(/^["']|["']$/g, "").trim();
+  const name = typeof parsed.name === "string" ? parsed.name : "";
+  if (!name) return null;
 
-    switch (key) {
-      case "name":
-        name = value;
-        break;
-      case "description":
-        description = value;
-        break;
+  const description = typeof parsed.description === "string" ? parsed.description : "";
+
+  // 解析 config 块
+  let config: Record<string, SkillConfigField> | undefined;
+  if (parsed.config && typeof parsed.config === "object" && !Array.isArray(parsed.config)) {
+    const rawConfig = parsed.config as Record<string, unknown>;
+    const entries = Object.entries(rawConfig);
+    if (entries.length > 0) {
+      config = {};
+      for (const [key, value] of entries) {
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          config[key] = normalizeConfigField(value as Record<string, unknown>);
+        }
+      }
+      // 如果解析后没有有效字段，置为 undefined
+      if (Object.keys(config).length === 0) config = undefined;
     }
   }
 
-  if (!name) return null;
-
   return {
-    metadata: { name, description },
+    metadata: { name, description, ...(config ? { config } : {}) },
     prompt: body.trim(),
   };
 }

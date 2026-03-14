@@ -633,6 +633,8 @@
   "agent_skills_refresh_success": "Refreshed successfully",
   "agent_skills_tool_code": "Tool Code",
   "agent_skills_click_to_view_code": "Click tool name to view code",
+  "agent_skills_config": "Config",
+  "agent_skills_config_saved": "Config saved",
   "agent_chat_new": "New Chat",
   "agent_chat_delete": "Delete Chat",
   "agent_chat_delete_confirm": "Delete this conversation?",

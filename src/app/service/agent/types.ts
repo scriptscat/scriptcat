@@ -159,12 +159,23 @@ export type StreamChunk = {
 
 // ---- Skill 类型 ----
 
+// Skill config 字段定义（SKILL.md frontmatter 中声明）
+export type SkillConfigField = {
+  title: string;
+  type: "text" | "number" | "select" | "switch";
+  secret?: boolean;
+  required?: boolean;
+  default?: unknown;
+  values?: string[]; // select 类型的选项列表
+};
+
 // Skill 摘要（registry.json 中）
 export type SkillSummary = {
   name: string;
   description: string;
   toolNames: string[]; // 随 Skill 打包的 CATTool 名称（scripts/ 目录下）
   referenceNames: string[]; // 参考资料名称（references/ 目录下）
+  hasConfig?: boolean; // 是否有 config 字段声明
   installtime: number;
   updatetime: number;
 };
@@ -173,11 +184,13 @@ export type SkillSummary = {
 export type SkillMetadata = {
   name: string;
   description: string;
+  config?: Record<string, SkillConfigField>;
 };
 
 // 完整 Skill 记录
 export type SkillRecord = SkillSummary & {
   prompt: string; // SKILL.md body（去 frontmatter 后的 markdown）
+  config?: Record<string, SkillConfigField>; // config schema（来自 SKILL.md frontmatter）
 };
 
 // Skill 参考资料

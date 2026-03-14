@@ -5,6 +5,7 @@ const REGISTRY_FILE = "registry.json";
 const DATA_DIR = "data";
 const SCRIPTS_DIR = "scripts";
 const REFERENCES_DIR = "references";
+const CONFIG_VALUES_FILE = "config_values.json";
 
 // 目录结构：
 // agents/skills/registry.json — SkillSummary[]
@@ -86,6 +87,7 @@ export class SkillRepo extends OPFSRepo {
       description: record.description,
       toolNames: record.toolNames,
       referenceNames: record.referenceNames,
+      ...(record.config && Object.keys(record.config).length > 0 ? { hasConfig: true } : {}),
       installtime: record.installtime,
       updatetime: record.updatetime,
     };
@@ -152,5 +154,19 @@ export class SkillRepo extends OPFSRepo {
     } catch {
       return null;
     }
+  }
+
+  async getConfigValues(name: string): Promise<Record<string, unknown>> {
+    try {
+      const skillDir = await this.getSkillDir(name);
+      return this.readJsonFile<Record<string, unknown>>(CONFIG_VALUES_FILE, {}, skillDir);
+    } catch {
+      return {};
+    }
+  }
+
+  async saveConfigValues(name: string, values: Record<string, unknown>): Promise<void> {
+    const skillDir = await this.getSkillDir(name);
+    await this.writeJsonFile(CONFIG_VALUES_FILE, values, skillDir);
   }
 }

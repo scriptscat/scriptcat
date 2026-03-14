@@ -633,6 +633,8 @@
   "agent_skills_refresh_success": "刷新成功",
   "agent_skills_tool_code": "工具代码",
   "agent_skills_click_to_view_code": "点击工具名称查看代码",
+  "agent_skills_config": "配置",
+  "agent_skills_config_saved": "配置已保存",
   "agent_chat_new": "新建会话",
   "agent_chat_delete": "删除会话",
   "agent_chat_delete_confirm": "确定要删除此会话吗？",
