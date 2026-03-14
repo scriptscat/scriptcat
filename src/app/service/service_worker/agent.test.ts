@@ -1575,11 +1575,25 @@ describe("callLLM 流式响应解析", () => {
     // 设置 Anthropic model
     const anthropicModelRepo = {
       listModels: vi.fn().mockResolvedValue([
-        { id: "test-anthropic", name: "Claude", provider: "anthropic", apiBaseUrl: "https://api.anthropic.com", apiKey: "sk-test", model: "claude-3" },
+        {
+          id: "test-anthropic",
+          name: "Claude",
+          provider: "anthropic",
+          apiBaseUrl: "https://api.anthropic.com",
+          apiKey: "sk-test",
+          model: "claude-3",
+        },
       ]),
       getModel: vi.fn().mockImplementation((id: string) => {
         if (id === "test-anthropic") {
-          return Promise.resolve({ id: "test-anthropic", name: "Claude", provider: "anthropic", apiBaseUrl: "https://api.anthropic.com", apiKey: "sk-test", model: "claude-3" });
+          return Promise.resolve({
+            id: "test-anthropic",
+            name: "Claude",
+            provider: "anthropic",
+            apiBaseUrl: "https://api.anthropic.com",
+            apiKey: "sk-test",
+            model: "claude-3",
+          });
         }
         return Promise.resolve(undefined);
       }),
@@ -1643,6 +1657,8 @@ describe("callLLM 流式响应解析", () => {
   });
 
   it("API 错误响应（HTTP 500 后重试成功）：withRetry 生效", async () => {
+    vi.useFakeTimers();
+
     const { service, mockRepo } = createTestService();
     const { sender, sentMessages } = createMockSender();
 
@@ -1664,7 +1680,12 @@ describe("callLLM 流式响应解析", () => {
       ])
     );
 
-    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+    const chatPromise = (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    // 推进定时器跳过 withRetry 的退避延迟
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await chatPromise;
 
     // fetch 应被调用 2 次（500 + 成功）
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -1672,6 +1693,8 @@ describe("callLLM 流式响应解析", () => {
     const events = sentMessages.map((m) => m.data);
     const doneEvents = events.filter((e: any) => e.type === "done");
     expect(doneEvents).toHaveLength(1);
+
+    vi.useRealTimers();
   });
 
   it("无 response body：抛出 No response body", async () => {
@@ -1717,7 +1740,7 @@ describe("callLLM 流式响应解析", () => {
     mockRepo.getMessages.mockResolvedValue([]);
 
     // fetch 抛 AbortError（模拟 signal 取消 fetch）
-    fetchSpy.mockImplementation((_url, init) => {
+    fetchSpy.mockImplementation((_url: string, _init: RequestInit) => {
       // 在 fetch 调用时立即触发 disconnect
       if (disconnectCb) {
         disconnectCb();
@@ -1777,8 +1800,12 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
   function makeToolCallResponse(toolCalls: Array<{ id: string; name: string; arguments: string }>): Response {
     const chunks: string[] = [];
     for (const tc of toolCalls) {
-      chunks.push(`data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`);
-      chunks.push(`data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`);
+      chunks.push(
+        `data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`
+      );
+      chunks.push(
+        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`
+      );
     }
     chunks.push(`data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`);
     return makeSSEResponse(chunks);
@@ -1828,7 +1855,9 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     mockRepo.getMessages.mockResolvedValue([]);
 
     // 第一次：返回 tool_call
-    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "call_1", name: "echo", arguments: '{"msg":"hello"}' }]));
+    fetchSpy.mockResolvedValueOnce(
+      makeToolCallResponse([{ id: "call_1", name: "echo", arguments: '{"msg":"hello"}' }])
+    );
     // 第二次：纯文本
     fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
 
@@ -1839,7 +1868,7 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     expect(events.some((e: any) => e.type === "tool_call_start")).toBe(true);
     expect(events.some((e: any) => e.type === "tool_call_complete")).toBe(true);
     const completeEvent = events.find((e: any) => e.type === "tool_call_complete");
-    expect(completeEvent.result).toBe('echo: hello');
+    expect(completeEvent.result).toBe("echo: hello");
     expect(events.some((e: any) => e.type === "new_message")).toBe(true);
     expect(events.some((e: any) => e.type === "done")).toBe(true);
 
@@ -1862,7 +1891,12 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     let callCount = 0;
     registry.registerBuiltin(
       { name: "counter", description: "Count", parameters: { type: "object", properties: {} } },
-      { execute: async () => { callCount++; return `count=${callCount}`; } }
+      {
+        execute: async () => {
+          callCount++;
+          return `count=${callCount}`;
+        },
+      }
     );
 
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
@@ -2048,7 +2082,7 @@ describe("handleConversationChat 场景补充", () => {
     const saveCalls = mockRepo.saveConversation.mock.calls;
     const titleUpdate = saveCalls.find((c: any) => c[0].title !== "New Chat");
     expect(titleUpdate).toBeDefined();
-    expect(titleUpdate[0].title).toBe(longMessage.slice(0, 30) + "...");
+    expect(titleUpdate![0].title).toBe(longMessage.slice(0, 30) + "...");
   });
 
   it("ephemeral 模式：不走 repo 持久化", async () => {
@@ -2085,8 +2119,24 @@ describe("handleConversationChat 场景补充", () => {
     // 添加第二个 model
     const modelRepo = (service as any).modelRepo;
     modelRepo.getModel.mockImplementation((id: string) => {
-      if (id === "test-openai") return Promise.resolve({ id: "test-openai", name: "Test", provider: "openai", apiBaseUrl: "", apiKey: "", model: "gpt-4o" });
-      if (id === "test-openai-2") return Promise.resolve({ id: "test-openai-2", name: "Test2", provider: "openai", apiBaseUrl: "", apiKey: "", model: "gpt-4o-mini" });
+      if (id === "test-openai")
+        return Promise.resolve({
+          id: "test-openai",
+          name: "Test",
+          provider: "openai",
+          apiBaseUrl: "",
+          apiKey: "",
+          model: "gpt-4o",
+        });
+      if (id === "test-openai-2")
+        return Promise.resolve({
+          id: "test-openai-2",
+          name: "Test2",
+          provider: "openai",
+          apiBaseUrl: "",
+          apiKey: "",
+          model: "gpt-4o-mini",
+        });
       return Promise.resolve(undefined);
     });
 
@@ -2118,10 +2168,7 @@ describe("handleConversationChat 场景补充", () => {
 
     mockRepo.listConversations.mockResolvedValue([]); // 空
 
-    await (service as any).handleConversationChat(
-      { conversationId: "not-exist", message: "hi" },
-      sender
-    );
+    await (service as any).handleConversationChat({ conversationId: "not-exist", message: "hi" }, sender);
 
     const events = sentMessages.map((m) => m.data);
     const errorEvents = events.filter((e: any) => e.type === "error");
@@ -2185,10 +2232,7 @@ describe("handleConversationChat 场景补充", () => {
     ]);
     fetchSpy.mockResolvedValueOnce(makeTextResponse("ok"));
 
-    await (service as any).handleConversationChat(
-      { conversationId: "conv-1", message: "继续" },
-      sender
-    );
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "继续" }, sender);
 
     // getSkillScripts 应被调用以预加载 web-skill 的工具
     expect(mockSkillRepo.getSkillScripts).toHaveBeenCalledWith("web-skill");
@@ -2219,8 +2263,6 @@ describe.concurrent("AgentService.handleDomApi", () => {
     const mockHandleDomApi = vi.fn().mockRejectedValue(new Error("DOM action failed"));
     (service as any).domService = { handleDomApi: mockHandleDomApi };
 
-    await expect(service.handleDomApi({ action: "listTabs", scriptUuid: "test" })).rejects.toThrow(
-      "DOM action failed"
-    );
+    await expect(service.handleDomApi({ action: "listTabs", scriptUuid: "test" })).rejects.toThrow("DOM action failed");
   });
 });

@@ -1131,8 +1131,6 @@ declare namespace CATAgentDom {
     url?: string;
     /** 操作导致打开的新标签页。 */
     newTab?: { tabId: number; url: string };
-    /** 出现的对话框。 */
-    dialog?: { type: "alert" | "confirm" | "prompt"; message: string };
   }
 
   /** `readPage()` 返回的页面内容。 */
@@ -1371,7 +1369,10 @@ declare namespace CATAgentTask {
   }
 
   /** 创建新任务的选项（系统自动填充的字段已省略）。 */
-  type AgentTaskCreateOptions = Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime" | "sourceScriptUuid">;
+  type AgentTaskCreateOptions = Omit<
+    AgentTask,
+    "id" | "createtime" | "updatetime" | "nextruntime" | "sourceScriptUuid"
+  >;
 
   /**
    * `CAT.agent.task` — 创建和管理定时 Agent 任务。

@@ -41,7 +41,10 @@ export function AttachmentImage({ attachment }: { attachment: Attachment }) {
           className="tw-max-w-xs tw-max-h-48 tw-rounded tw-border tw-border-solid tw-border-[var(--color-border-1)] tw-object-contain"
         />
         <div className="tw-absolute tw-inset-0 tw-bg-black/0 group-hover:tw-bg-black/20 tw-rounded tw-flex tw-items-center tw-justify-center tw-transition-colors">
-          <IconEye className="tw-text-white tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity" style={{ fontSize: 20 }} />
+          <IconEye
+            className="tw-text-white tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity"
+            style={{ fontSize: 20 }}
+          />
         </div>
       </div>
       {/* 全屏预览 */}
@@ -93,9 +96,7 @@ export function AttachmentFile({ attachment }: { attachment: Attachment }) {
       <IconDownload style={{ fontSize: 14 }} className="tw-text-[var(--color-text-3)]" />
       <div className="tw-flex tw-flex-col">
         <span className="tw-text-xs tw-font-medium tw-text-[var(--color-text-2)]">{attachment.name}</span>
-        {sizeText && (
-          <span className="tw-text-[10px] tw-text-[var(--color-text-4)]">{sizeText}</span>
-        )}
+        {sizeText && <span className="tw-text-[10px] tw-text-[var(--color-text-4)]">{sizeText}</span>}
       </div>
     </div>
   );
@@ -129,9 +130,7 @@ export function AttachmentAudio({ block }: { block: AudioBlock }) {
 
   return (
     <div className="tw-my-1">
-      {block.name && (
-        <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-mb-1 tw-block">{block.name}</span>
-      )}
+      {block.name && <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-mb-1 tw-block">{block.name}</span>}
       <audio controls src={blobUrl} className="tw-max-w-xs" />
     </div>
   );

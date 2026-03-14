@@ -26,8 +26,12 @@ export class ConversationInstance {
   private commandHandlers: Map<string, CommandHandler> = new Map();
   private ephemeral: boolean;
   private systemPrompt?: string;
-  private messageHistory: Array<{ role: MessageRole; content: MessageContent; toolCallId?: string; toolCalls?: ToolCall[] }> =
-    [];
+  private messageHistory: Array<{
+    role: MessageRole;
+    content: MessageContent;
+    toolCallId?: string;
+    toolCalls?: ToolCall[];
+  }> = [];
 
   constructor(
     private conv: Conversation,

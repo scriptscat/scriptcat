@@ -11,6 +11,7 @@ import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
+import type { SkillConfigField } from "@App/app/service/agent/types";
 import type {
   ScriptService,
   TCheckScriptUpdateOption,
@@ -376,7 +377,11 @@ export class AgentClient extends Client {
 
   getSkillInstallData(uuid: string): Promise<{
     skillMd: string;
-    metadata: { name: string; description: string; config?: Record<string, import("@App/app/service/agent/types").SkillConfigField> };
+    metadata: {
+      name: string;
+      description: string;
+      config?: Record<string, SkillConfigField>;
+    };
     prompt: string;
     scripts: Array<{ name: string; code: string }>;
     references: Array<{ name: string; content: string }>;

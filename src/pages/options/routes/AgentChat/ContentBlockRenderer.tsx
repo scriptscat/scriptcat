@@ -2,13 +2,7 @@ import type { MessageContent, AudioBlock } from "@App/app/service/agent/types";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { AttachmentImage, AttachmentFile, AttachmentAudio } from "./AttachmentRenderers";
 
-export default function ContentBlockRenderer({
-  content,
-  className,
-}: {
-  content: MessageContent;
-  className?: string;
-}) {
+export default function ContentBlockRenderer({ content, className }: { content: MessageContent; className?: string }) {
   if (typeof content === "string") {
     return content ? <MarkdownRenderer content={content} /> : null;
   }
@@ -23,14 +17,25 @@ export default function ContentBlockRenderer({
             return (
               <AttachmentImage
                 key={i}
-                attachment={{ id: block.attachmentId, type: "image", name: block.name || "image", mimeType: block.mimeType }}
+                attachment={{
+                  id: block.attachmentId,
+                  type: "image",
+                  name: block.name || "image",
+                  mimeType: block.mimeType,
+                }}
               />
             );
           case "file":
             return (
               <AttachmentFile
                 key={i}
-                attachment={{ id: block.attachmentId, type: "file", name: block.name, mimeType: block.mimeType, size: block.size }}
+                attachment={{
+                  id: block.attachmentId,
+                  type: "file",
+                  name: block.name,
+                  mimeType: block.mimeType,
+                  size: block.size,
+                }}
               />
             );
           case "audio":

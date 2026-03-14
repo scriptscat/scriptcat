@@ -1324,4 +1324,3 @@ describe("@grant CAT.agent.dom", () => {
     expect(ret.hasCat).toEqual(false);
   });
 });
-

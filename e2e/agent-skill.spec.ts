@@ -26,13 +26,9 @@ return "Hello, " + args.name + "! Welcome!";
 test.describe("Agent Skill System", () => {
   test.setTimeout(300_000);
 
-  test("Skill install + load_skill + dynamic CATTool invocation", async ({
-    context,
-    extensionId,
-    mockLLMResponse,
-  }) => {
+  test("Skill install + load_skill + dynamic CATTool invocation", async ({ context, extensionId, mockLLMResponse }) => {
     let callCount = 0;
-    mockLLMResponse(({ tools }) => {
+    mockLLMResponse(({ tools: _tools }) => {
       callCount++;
       if (callCount === 1) {
         // First call: LLM decides to load the skill

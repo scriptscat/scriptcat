@@ -77,9 +77,7 @@ function TaskCard({
         <div className="tw-flex tw-items-center tw-gap-3">
           <div
             className={`tw-w-10 tw-h-10 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-lg tw-font-bold tw-shrink-0 ${
-              task.mode === "internal"
-                ? "tw-bg-[#e3f2fd] tw-text-[#1565c0]"
-                : "tw-bg-[#e8f5e9] tw-text-[#2e7d32]"
+              task.mode === "internal" ? "tw-bg-[#e3f2fd] tw-text-[#1565c0]" : "tw-bg-[#e8f5e9] tw-text-[#2e7d32]"
             }`}
           >
             {task.mode === "internal" ? "I" : "E"}
@@ -112,7 +110,9 @@ function TaskCard({
           {task.lastRunStatus ? (
             <Badge
               status={task.lastRunStatus === "success" ? "success" : "error"}
-              text={t(task.lastRunStatus === "success" ? "agent_tasks_run_status_success" : "agent_tasks_run_status_error")}
+              text={t(
+                task.lastRunStatus === "success" ? "agent_tasks_run_status_success" : "agent_tasks_run_status_error"
+              )}
             />
           ) : (
             <Typography.Text type="secondary" className="tw-text-xs !tw-mb-0">
@@ -201,8 +201,7 @@ function RunHistoryDrawer({
       title: t("agent_tasks_run_usage"),
       dataIndex: "usage",
       width: 120,
-      render: (usage: AgentTaskRun["usage"]) =>
-        usage ? `${usage.inputTokens} / ${usage.outputTokens}` : "-",
+      render: (usage: AgentTaskRun["usage"]) => (usage ? `${usage.inputTokens} / ${usage.outputTokens}` : "-"),
     },
   ];
 
@@ -239,8 +238,9 @@ function AgentTasks() {
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [models, setModels] = useState<AgentModelConfig[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingTask, setEditingTask] =
-    useState<Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime">>({ ...emptyTask });
+  const [editingTask, setEditingTask] = useState<Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime">>({
+    ...emptyTask,
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [cronPreview, setCronPreview] = useState("");
   const [drawerTask, setDrawerTask] = useState<AgentTask | null>(null);
@@ -429,9 +429,7 @@ function AgentTasks() {
 
           {/* 模式 */}
           <div>
-            <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">
-              {t("type")}
-            </div>
+            <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">{t("type")}</div>
             <Radio.Group
               value={editingTask.mode}
               onChange={(value) => setEditingTask((prev) => ({ ...prev, mode: value }))}

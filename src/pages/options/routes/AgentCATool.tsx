@@ -1,14 +1,4 @@
-import {
-  Button,
-  Card,
-  Drawer,
-  Empty,
-  Message,
-  Popconfirm,
-  Space,
-  Tag,
-  Typography,
-} from "@arco-design/web-react";
+import { Button, Card, Drawer, Empty, Message, Popconfirm, Space, Tag, Typography } from "@arco-design/web-react";
 import { IconCode, IconDelete, IconEye } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
@@ -112,14 +102,7 @@ function CATToolDetailDrawer({
   if (!tool) return null;
 
   return (
-    <Drawer
-      width={560}
-      title={tool.name}
-      visible={visible}
-      onCancel={onClose}
-      footer={null}
-      unmountOnExit
-    >
+    <Drawer width={560} title={tool.name} visible={visible} onCancel={onClose} footer={null} unmountOnExit>
       <Space direction="vertical" size={16} className="tw-w-full">
         {/* Description */}
         {tool.description && (
@@ -143,7 +126,11 @@ function CATToolDetailDrawer({
                   <div className="tw-flex tw-items-center tw-gap-2 tw-mb-1">
                     <Typography.Text className="tw-font-semibold tw-text-sm !tw-mb-0">{p.name}</Typography.Text>
                     <Tag size="small">{p.type}</Tag>
-                    {p.required && <Tag size="small" color="arcoblue">required</Tag>}
+                    {p.required && (
+                      <Tag size="small" color="arcoblue">
+                        required
+                      </Tag>
+                    )}
                   </div>
                   {p.description && (
                     <Typography.Text type="secondary" className="tw-text-xs !tw-mb-0">
@@ -153,7 +140,9 @@ function CATToolDetailDrawer({
                   {p.enum && p.enum.length > 0 && (
                     <div className="tw-mt-1 tw-flex tw-gap-1 tw-flex-wrap">
                       {p.enum.map((v) => (
-                        <Tag key={v} size="small" color="green">{v}</Tag>
+                        <Tag key={v} size="small" color="green">
+                          {v}
+                        </Tag>
                       ))}
                     </div>
                   )}
@@ -171,7 +160,9 @@ function CATToolDetailDrawer({
             </div>
             <div className="tw-flex tw-flex-wrap tw-gap-1.5">
               {tool.grants.map((g) => (
-                <Tag key={g} color="orange">{g}</Tag>
+                <Tag key={g} color="orange">
+                  {g}
+                </Tag>
               ))}
             </div>
           </div>
@@ -256,11 +247,7 @@ function AgentCATool() {
         )}
       </Card>
 
-      <CATToolDetailDrawer
-        visible={detailVisible}
-        tool={detailTool}
-        onClose={() => setDetailVisible(false)}
-      />
+      <CATToolDetailDrawer visible={detailVisible} tool={detailTool} onClose={() => setDetailVisible(false)} />
     </Space>
   );
 }

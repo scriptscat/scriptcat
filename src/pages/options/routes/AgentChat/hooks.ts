@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { Conversation, ChatMessage, ChatStreamEvent, SkillSummary, MessageContent } from "@App/app/service/agent/types";
+import type {
+  Conversation,
+  ChatMessage,
+  ChatStreamEvent,
+  SkillSummary,
+  MessageContent,
+} from "@App/app/service/agent/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { SkillRepo } from "@App/app/repo/skill_repo";
 import { message as extensionMessage } from "@App/pages/store/global";

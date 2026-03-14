@@ -999,7 +999,12 @@ describe("callLLMWithToolLoop", () => {
   it("callLLM HTTP 错误 - 纯文本错误体", async () => {
     const { service } = createTestService();
 
-    fetchSpy.mockResolvedValueOnce(buildErrorResponse(429, "Rate limit exceeded"));
+    // 429 是可重试错误，需要 mock 足够多的失败响应让 withRetry 用尽重试次数
+    const errorResp = () => buildErrorResponse(429, "Rate limit exceeded");
+    fetchSpy.mockResolvedValueOnce(errorResp());
+    fetchSpy.mockResolvedValueOnce(errorResp());
+    fetchSpy.mockResolvedValueOnce(errorResp());
+    fetchSpy.mockResolvedValueOnce(errorResp());
 
     await expect(
       (service as any).callLLMWithToolLoop({
@@ -1009,6 +1014,7 @@ describe("callLLMWithToolLoop", () => {
         sendEvent: () => {},
         signal: new AbortController().signal,
         scriptToolCallback: null,
+        delayFn: async () => {},
       })
     ).rejects.toThrow("API error: 429 - Rate limit exceeded");
   });
@@ -1016,7 +1022,12 @@ describe("callLLMWithToolLoop", () => {
   it("callLLM HTTP 错误 - 空错误体", async () => {
     const { service } = createTestService();
 
-    fetchSpy.mockResolvedValueOnce(buildErrorResponse(502, ""));
+    // 502 是可重试错误，需要 mock 足够多的失败响应让 withRetry 用尽重试次数
+    const errorResp = () => buildErrorResponse(502, "");
+    fetchSpy.mockResolvedValueOnce(errorResp());
+    fetchSpy.mockResolvedValueOnce(errorResp());
+    fetchSpy.mockResolvedValueOnce(errorResp());
+    fetchSpy.mockResolvedValueOnce(errorResp());
 
     await expect(
       (service as any).callLLMWithToolLoop({
@@ -1026,6 +1037,7 @@ describe("callLLMWithToolLoop", () => {
         sendEvent: () => {},
         signal: new AbortController().signal,
         scriptToolCallback: null,
+        delayFn: async () => {},
       })
     ).rejects.toThrow("API error: 502");
   });

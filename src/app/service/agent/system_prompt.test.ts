@@ -6,7 +6,7 @@ describe("buildSystemPrompt", () => {
   it("无 userSystem、无 skillSuffix 时只返回内置提示词", () => {
     const result = buildSystemPrompt({});
     expect(result).toContain("You are ScriptCat Agent");
-    expect(result).toContain("## Guidelines");
+    expect(result).toContain("## Core Principles");
     // 末尾不应有多余的空行
     expect(result.endsWith("\n\n")).toBe(false);
   });

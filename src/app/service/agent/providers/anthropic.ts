@@ -51,7 +51,10 @@ function convertContentBlocks(
       }
       case "audio":
         // Anthropic 暂不支持音频，降级为文本描述
-        result.push({ type: "text", text: `[Audio: ${block.name || "audio"}${block.durationMs ? ` (${(block.durationMs / 1000).toFixed(1)}s)` : ""}]` });
+        result.push({
+          type: "text",
+          text: `[Audio: ${block.name || "audio"}${block.durationMs ? ` (${(block.durationMs / 1000).toFixed(1)}s)` : ""}]`,
+        });
         break;
     }
   }
@@ -127,7 +130,13 @@ export function buildAnthropicRequest(
   if (systemMessages.length > 0) {
     const systemBlocks = systemMessages.map((m) => ({
       type: "text" as const,
-      text: typeof m.content === "string" ? m.content : m.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join(""),
+      text:
+        typeof m.content === "string"
+          ? m.content
+          : m.content
+              .filter((b) => b.type === "text")
+              .map((b) => (b as { type: "text"; text: string }).text)
+              .join(""),
     }));
     // 最后一个 system block 加 cache_control（仅在启用缓存时）
     if (useCache && systemBlocks.length > 0) {
@@ -177,7 +186,8 @@ export function parseAnthropicStream(
   const decoder = new TextDecoder();
 
   // 跟踪 message_start 中的 usage（含 cache 信息），在 message_delta 中合并输出
-  let cachedUsage: { inputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | null = null;
+  let cachedUsage: { inputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | null =
+    null;
 
   return (async () => {
     try {

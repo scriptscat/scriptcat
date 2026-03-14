@@ -1124,8 +1124,6 @@ declare namespace CATAgentDom {
     url?: string;
     /** New tab opened as a result. */
     newTab?: { tabId: number; url: string };
-    /** Dialog that appeared (alert/confirm/prompt). */
-    dialog?: { type: "alert" | "confirm" | "prompt"; message: string };
   }
 
   /** Page content returned by `readPage()`. */
@@ -1364,7 +1362,10 @@ declare namespace CATAgentTask {
   }
 
   /** Options for creating a new task (fields auto-populated by the system are omitted). */
-  type AgentTaskCreateOptions = Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime" | "sourceScriptUuid">;
+  type AgentTaskCreateOptions = Omit<
+    AgentTask,
+    "id" | "createtime" | "updatetime" | "nextruntime" | "sourceScriptUuid"
+  >;
 
   /**
    * `CAT.agent.task` — create and manage scheduled agent tasks.

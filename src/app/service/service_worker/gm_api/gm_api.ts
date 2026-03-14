@@ -28,7 +28,11 @@ import type {
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
 import { BrowserNoSupport, notificationsUpdate } from "../utils";
-import { getCATToolGrantsByUuid, getCATToolNameByUuid, CATTOOL_UUID_PREFIX } from "@App/app/service/agent/cattool_executor";
+import {
+  getCATToolGrantsByUuid,
+  getCATToolNameByUuid,
+  CATTOOL_UUID_PREFIX,
+} from "@App/app/service/agent/cattool_executor";
 import i18n from "@App/locales/locales";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { createObjectURL } from "../../offscreen/client";

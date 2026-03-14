@@ -95,10 +95,7 @@ export function computeEditAction(
 
 // 根据用户消息在 groups 中的位置，找到对应的 assistant 组索引
 // 用于"用户消息重新生成"场景
-export function findNextAssistantGroupIndex(
-  groups: MessageGroup[],
-  userGroupIndex: number
-): number | null {
+export function findNextAssistantGroupIndex(groups: MessageGroup[], userGroupIndex: number): number | null {
   if (userGroupIndex + 1 < groups.length && groups[userGroupIndex + 1].type === "assistant") {
     return userGroupIndex + 1;
   }
@@ -110,7 +107,12 @@ export function findNextAssistantGroupIndex(
 export function computeUserRegenerateAction(
   messageId: string,
   allMessages: ChatMessage[]
-): { idsToDelete: string[]; remainingMessages: ChatMessage[]; userContent: MessageContent; skipUserMessage: true } | null {
+): {
+  idsToDelete: string[];
+  remainingMessages: ChatMessage[];
+  userContent: MessageContent;
+  skipUserMessage: true;
+} | null {
   const idx = allMessages.findIndex((m) => m.id === messageId);
   if (idx < 0) return null;
 

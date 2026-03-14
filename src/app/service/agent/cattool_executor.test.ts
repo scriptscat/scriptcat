@@ -308,7 +308,7 @@ describe("CATToolExecutor 类型转换边界值", () => {
     expect(getCallParams(sender).args).toEqual({ flag: false });
   });
 
-  it('boolean 转换：null → false', async () => {
+  it("boolean 转换：null → false", async () => {
     const sender = createMockSender();
     const record = createRecord([{ name: "flag", type: "boolean", required: false, description: "标记" }]);
     const executor = new CATToolExecutor(record, sender);
@@ -367,10 +367,7 @@ describe("CATToolExecutor @require 加载", () => {
   it("有 requires 和 requireLoader 时应加载资源并传给 executeCATTool", async () => {
     const sender = createMockSender();
     const record = createRecord([], {
-      requires: [
-        "https://cdn.example.com/lib1.js",
-        "https://cdn.example.com/lib2.js",
-      ],
+      requires: ["https://cdn.example.com/lib1.js", "https://cdn.example.com/lib2.js"],
     });
     const loader: RequireLoader = vi.fn().mockImplementation((url: string) => {
       if (url.includes("lib1")) return Promise.resolve("var LIB1 = {};");
@@ -502,8 +499,8 @@ describe("CATToolExecutor 超时处理", () => {
 
     const err = await errPromise;
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toContain("hang_tool");
-    expect(err.message).toContain("timed out");
+    expect((err as Error).message).toContain("hang_tool");
+    expect((err as Error).message).toContain("timed out");
     expect((err as any).errorCode).toBe("tool_timeout");
   });
 

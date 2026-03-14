@@ -559,12 +559,7 @@ function AgentSkills() {
         t={t}
       />
 
-      <SkillConfigModal
-        visible={configVisible}
-        skill={configSkill}
-        onClose={() => setConfigVisible(false)}
-        t={t}
-      />
+      <SkillConfigModal visible={configVisible} skill={configSkill} onClose={() => setConfigVisible(false)} t={t} />
     </Space>
   );
 }

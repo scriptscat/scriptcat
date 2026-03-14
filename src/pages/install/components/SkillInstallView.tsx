@@ -145,7 +145,9 @@ function SkillInstallView({
             {/* Config Fields */}
             {metadata.config && Object.keys(metadata.config).length > 0 && (
               <div className="tw-mt-2">
-                <Typography.Text bold>{`${t("agent_skills_config")} (${Object.keys(metadata.config).length}):`}</Typography.Text>
+                <Typography.Text
+                  bold
+                >{`${t("agent_skills_config")} (${Object.keys(metadata.config).length}):`}</Typography.Text>
                 <div className="tw-mt-1 tw-flex tw-flex-col tw-gap-y-2">
                   {Object.entries(metadata.config).map(([key, field]) => (
                     <div key={key} className="tw-p-3 tw-rounded-lg tw-bg-[var(--color-fill-1)]">

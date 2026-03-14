@@ -268,7 +268,12 @@ describe("ToolRegistry", () => {
         content: "Files generated.",
         attachments: [
           { type: "image", name: "img1.png", mimeType: "image/png", data: "data:image/png;base64,abc" },
-          { type: "file", name: "report.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", data: "base64data" },
+          {
+            type: "file",
+            name: "report.xlsx",
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            data: "base64data",
+          },
         ],
       };
       const executor = createExecutor(async () => structuredResult);
@@ -290,9 +295,7 @@ describe("ToolRegistry", () => {
       const blob = new Blob(["hello"], { type: "text/plain" });
       const structuredResult: ToolResultWithAttachments = {
         content: "File created.",
-        attachments: [
-          { type: "file", name: "data.txt", mimeType: "text/plain", data: blob as unknown as string },
-        ],
+        attachments: [{ type: "file", name: "data.txt", mimeType: "text/plain", data: blob as unknown as string }],
       };
       const executor = createExecutor(async () => structuredResult);
       registry.registerBuiltin(weatherDef, executor);
@@ -360,19 +363,12 @@ describe("ToolRegistry", () => {
 
       const structuredResult: ToolResultWithAttachments = {
         content: "CATTool generated file.",
-        attachments: [
-          { type: "file", name: "output.zip", mimeType: "application/zip", data: "base64zipdata" },
-        ],
+        attachments: [{ type: "file", name: "output.zip", mimeType: "application/zip", data: "base64zipdata" }],
       };
 
-      const scriptCallback = vi.fn().mockResolvedValue([
-        { id: "tc_1", result: JSON.stringify(structuredResult) },
-      ]);
+      const scriptCallback = vi.fn().mockResolvedValue([{ id: "tc_1", result: JSON.stringify(structuredResult) }]);
 
-      const results = await registry.execute(
-        [{ id: "tc_1", name: "script_tool", arguments: "{}" }],
-        scriptCallback
-      );
+      const results = await registry.execute([{ id: "tc_1", name: "script_tool", arguments: "{}" }], scriptCallback);
 
       expect(results[0].result).toBe("CATTool generated file.");
       expect(results[0].attachments).toHaveLength(1);
@@ -385,14 +381,9 @@ describe("ToolRegistry", () => {
       const mockRepo = createMockChatRepo();
       registry.setChatRepo(mockRepo);
 
-      const scriptCallback = vi.fn().mockResolvedValue([
-        { id: "tc_1", result: JSON.stringify({ data: "hello" }) },
-      ]);
+      const scriptCallback = vi.fn().mockResolvedValue([{ id: "tc_1", result: JSON.stringify({ data: "hello" }) }]);
 
-      const results = await registry.execute(
-        [{ id: "tc_1", name: "script_tool", arguments: "{}" }],
-        scriptCallback
-      );
+      const results = await registry.execute([{ id: "tc_1", name: "script_tool", arguments: "{}" }], scriptCallback);
 
       expect(results[0].result).toBe('{"data":"hello"}');
       expect(results[0].attachments).toBeUndefined();
@@ -403,14 +394,9 @@ describe("ToolRegistry", () => {
       const mockRepo = createMockChatRepo();
       registry.setChatRepo(mockRepo);
 
-      const scriptCallback = vi.fn().mockResolvedValue([
-        { id: "tc_1", result: "plain text result" },
-      ]);
+      const scriptCallback = vi.fn().mockResolvedValue([{ id: "tc_1", result: "plain text result" }]);
 
-      const results = await registry.execute(
-        [{ id: "tc_1", name: "script_tool", arguments: "{}" }],
-        scriptCallback
-      );
+      const results = await registry.execute([{ id: "tc_1", name: "script_tool", arguments: "{}" }], scriptCallback);
 
       expect(results[0].result).toBe("plain text result");
       expect(results[0].attachments).toBeUndefined();

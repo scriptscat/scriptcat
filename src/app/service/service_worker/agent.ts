@@ -13,23 +13,24 @@ import type {
   ToolDefinition,
   CATToolApiRequest,
   CATToolRecord,
+  JsonValue,
   DomApiRequest,
-  MCPApiRequest,
   SkillApiRequest,
   SkillMetadata,
   SkillRecord,
+  SkillSummary,
   MessageContent,
-  ContentBlock,
   AgentTask,
   AgentTaskApiRequest,
   AgentTaskTrigger,
+  Attachment,
 } from "@App/app/service/agent/types";
 import { getTextContent, isContentBlocks } from "@App/app/service/agent/content_utils";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { AgentModelRepo } from "@App/app/repo/agent_model";
-import { CATToolRepo } from "@App/app/repo/cattool_repo";
+import { CATToolRepo, type CATToolSummary } from "@App/app/repo/cattool_repo";
 import { SkillRepo } from "@App/app/repo/skill_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
@@ -71,7 +72,14 @@ export async function withRetry<T>(
     ((ms, sig) =>
       new Promise<void>((r) => {
         const t = setTimeout(r, ms);
-        sig.addEventListener("abort", () => { clearTimeout(t); r(); }, { once: true });
+        sig.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(t);
+            r();
+          },
+          { once: true }
+        );
       }));
 
   let lastError!: Error;
@@ -164,10 +172,8 @@ export class AgentService {
     this.group.on("removeSkill", (name: string) => this.removeSkill(name));
     this.group.on("refreshSkill", (name: string) => this.refreshSkill(name));
     this.group.on("getSkillConfigValues", (name: string) => this.skillRepo.getConfigValues(name));
-    this.group.on(
-      "saveSkillConfig",
-      (params: { name: string; values: Record<string, unknown> }) =>
-        this.skillRepo.saveConfigValues(params.name, params.values)
+    this.group.on("saveSkillConfig", (params: { name: string; values: Record<string, unknown> }) =>
+      this.skillRepo.saveConfigValues(params.name, params.values)
     );
     // Skill ZIP 安装页面相关消息
     this.group.on("prepareSkillInstall", (zipBase64: string) => this.prepareSkillInstall(zipBase64));
@@ -284,7 +290,7 @@ export class AgentService {
   }
 
   // 直接调用 CATTool
-  async callCATTool(name: string, params: Record<string, unknown>): Promise<unknown> {
+  async callCATTool(name: string, params: Record<string, unknown>): Promise<JsonValue> {
     const tool = await this.catToolRepo.getTool(name);
     if (!tool) {
       throw new Error(`CATTool "${name}" not found`);
@@ -403,7 +409,10 @@ export class AgentService {
   }
 
   // 处理 CAT.agent.tools API 请求
-  async handleToolsApi(request: CATToolApiRequest, script?: Script): Promise<unknown> {
+  async handleToolsApi(
+    request: CATToolApiRequest,
+    script?: Script
+  ): Promise<CATToolRecord | boolean | CATToolSummary[] | JsonValue> {
     switch (request.action) {
       case "install":
         return this.openCATToolInstallPage(request.code, script?.uuid, script ? i18nName(script) : undefined);
@@ -579,7 +588,7 @@ export class AgentService {
   }
 
   // 处理 CAT.agent.skills API 请求
-  async handleSkillsApi(request: SkillApiRequest): Promise<unknown> {
+  async handleSkillsApi(request: SkillApiRequest): Promise<SkillSummary[] | SkillRecord | null | boolean> {
     switch (request.action) {
       case "list":
         return this.skillRepo.listSkills();
@@ -1080,6 +1089,8 @@ export class AgentService {
     skipBuiltinTools?: boolean;
     // 是否启用 prompt caching，默认 true
     cache?: boolean;
+    // 仅供测试注入，跳过重试延迟
+    delayFn?: (ms: number, signal: AbortSignal) => Promise<void>;
   }): Promise<void> {
     const { model, messages, tools, maxIterations, sendEvent, signal, scriptToolCallback, conversationId } = params;
 
@@ -1102,7 +1113,9 @@ export class AgentService {
             sendEvent,
             signal
           ),
-        signal
+        signal,
+        undefined,
+        params.delayFn
       );
 
       if (signal.aborted) return;
@@ -1136,7 +1149,7 @@ export class AgentService {
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
         // 收集需要回写附件的 toolCall ID → Attachment[]
-        const attachmentUpdates = new Map<string, import("@App/app/service/agent/types").Attachment[]>();
+        const attachmentUpdates = new Map<string, Attachment[]>();
 
         for (const tr of toolResults) {
           // LLM 上下文只包含文本结果，不含附件
@@ -1216,13 +1229,15 @@ export class AgentService {
     }
 
     // 超过最大迭代次数
-    sendEvent({ type: "error", message: `Tool calling loop exceeded maximum iterations (${maxIterations})`, errorCode: "max_iterations" });
+    sendEvent({
+      type: "error",
+      message: `Tool calling loop exceeded maximum iterations (${maxIterations})`,
+      errorCode: "max_iterations",
+    });
   }
 
   // 解析消息中所有 ContentBlock 引用的 attachmentId → base64 data URL
-  private async resolveAttachments(
-    messages: ChatRequest["messages"]
-  ): Promise<(id: string) => string | null> {
+  private async resolveAttachments(messages: ChatRequest["messages"]): Promise<(id: string) => string | null> {
     const resolved = new Map<string, string>();
     const ids = new Set<string>();
 

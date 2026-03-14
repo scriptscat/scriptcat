@@ -94,7 +94,9 @@ export async function cdpClick(tabId: number, selector: string): Promise<ActionR
   });
   const hitValue = hitTest?.result?.value;
   if (typeof hitValue === "string" && hitValue !== "hit") {
-    throw new Error(`Click blocked: element at (${Math.round(viewportX)},${Math.round(viewportY)}) is ${hitValue}, not "${selector}"`);
+    throw new Error(
+      `Click blocked: element at (${Math.round(viewportX)},${Math.round(viewportY)}) is ${hitValue}, not "${selector}"`
+    );
   }
 
   // 模拟鼠标点击

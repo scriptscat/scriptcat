@@ -55,7 +55,9 @@ export default class CATAgentTaskApi {
   @GMContext.API({ follow: "CAT.agent.task" })
   public "CAT.agent.task.update"(id: string, task: Partial<AgentTask>): Promise<AgentTask> {
     const ctx = this as unknown as GMBaseContext;
-    return ctx.sendMessage("CAT_agentTask", [{ action: "update", id, task } as AgentTaskApiRequest]) as Promise<AgentTask>;
+    return ctx.sendMessage("CAT_agentTask", [
+      { action: "update", id, task } as AgentTaskApiRequest,
+    ]) as Promise<AgentTask>;
   }
 
   @GMContext.API({ follow: "CAT.agent.task" })
@@ -73,10 +75,7 @@ export default class CATAgentTaskApi {
   // 监听任务触发事件
   // 利用 EE.on("agentTask:{taskId}", callback) 注册监听
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.addListener"(
-    taskId: string,
-    callback: (trigger: AgentTaskTrigger) => void
-  ): number {
+  public "CAT.agent.task.addListener"(taskId: string, callback: (trigger: AgentTaskTrigger) => void): number {
     const ctx = this as unknown as GMBaseContext;
     if (!ctx.EE) return 0;
 

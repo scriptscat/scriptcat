@@ -43,7 +43,7 @@ const test = base.extend<{
     });
     // Ensure service worker is registered before handing context to fixtures,
     // preventing extensionId fixture from timing out with the global 10s timeout.
-    let [sw] = context.serviceWorkers();
+    const [sw] = context.serviceWorkers();
     if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
     await use(context);
     await context.close();

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getTextContent, normalizeContent, isContentBlocks } from "./content_utils";
-import type { ContentBlock, MessageContent } from "./types";
+import type { ContentBlock } from "./types";
 
 describe("content_utils", () => {
   describe("getTextContent", () => {

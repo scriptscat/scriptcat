@@ -20,14 +20,20 @@ function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
 describe("AgentTaskScheduler", () => {
   let repo: AgentTaskRepo;
   let runRepo: AgentTaskRunRepo;
-  let internalExecutor: ReturnType<typeof vi.fn<(task: AgentTask) => Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }>>>;
+  let internalExecutor: ReturnType<
+    typeof vi.fn<
+      (task: AgentTask) => Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }>
+    >
+  >;
   let eventEmitter: ReturnType<typeof vi.fn<(task: AgentTask) => Promise<void>>>;
   let scheduler: AgentTaskScheduler;
 
   beforeEach(() => {
     repo = new AgentTaskRepo();
     runRepo = new AgentTaskRunRepo();
-    internalExecutor = vi.fn().mockResolvedValue({ conversationId: "conv-1", usage: { inputTokens: 100, outputTokens: 50 } });
+    internalExecutor = vi
+      .fn()
+      .mockResolvedValue({ conversationId: "conv-1", usage: { inputTokens: 100, outputTokens: 50 } });
     eventEmitter = vi.fn().mockResolvedValue(undefined);
     scheduler = new AgentTaskScheduler(repo, runRepo, internalExecutor, eventEmitter);
   });

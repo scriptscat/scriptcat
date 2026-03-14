@@ -126,7 +126,9 @@ export function parseOpenAIStream(
 
   return (async () => {
     // 记录最新的 usage 数据（某些 API 如 Grok 在每个 chunk 都带 usage，而非仅最后一个）
-    let lastUsage: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | undefined;
+    let lastUsage:
+      | { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number }
+      | undefined;
 
     try {
       while (!signal.aborted) {

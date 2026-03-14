@@ -4,7 +4,12 @@ import { Popconfirm, Tooltip } from "@arco-design/web-react";
 import { IconCopy, IconRefresh, IconDelete } from "@arco-design/web-react/icon";
 
 export type MessageToolbarProps = {
-  usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
   durationMs?: number;
   firstTokenMs?: number;
   toolCallCount: number;
@@ -100,7 +105,8 @@ export default function MessageToolbar({
       metaParts.push(
         <span key="tokens">
           <span style={{ color: "rgb(var(--green-5))" }}>{"↑"}</span>
-          {formatTokens(usage.inputTokens)}{cacheInfo} <span style={{ color: "rgb(var(--red-5))" }}>{"↓"}</span>
+          {formatTokens(usage.inputTokens)}
+          {cacheInfo} <span style={{ color: "rgb(var(--red-5))" }}>{"↓"}</span>
           {formatTokens(usage.outputTokens)}
         </span>
       );

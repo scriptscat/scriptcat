@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import type { ChatMessage } from "@App/app/service/agent/types";
-import MarkdownRenderer from "./MarkdownRenderer";
 import ContentBlockRenderer from "./ContentBlockRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";

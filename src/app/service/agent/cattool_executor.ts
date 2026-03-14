@@ -1,5 +1,5 @@
 import type { MessageSend } from "@Packages/message/types";
-import type { CATToolRecord } from "./types";
+import type { CATToolRecord, JsonValue } from "./types";
 import type { ToolExecutor } from "./tool_registry";
 import { getCATToolBody } from "@App/pkg/utils/cattool";
 import { executeCATTool } from "@App/app/service/offscreen/client";
@@ -39,7 +39,7 @@ export class CATToolExecutor implements ToolExecutor {
     private configValues?: Record<string, unknown>
   ) {}
 
-  async execute(args: Record<string, unknown>): Promise<unknown> {
+  async execute(args: Record<string, unknown>): Promise<JsonValue> {
     // 根据 @param 定义做基本的类型转换
     const typedArgs: Record<string, unknown> = {};
     for (const param of this.record.params) {

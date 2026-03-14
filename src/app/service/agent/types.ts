@@ -1,3 +1,7 @@
+// ---- 通用类型 ----
+
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
 // ---- ContentBlock 多模态内容类型 ----
 
 export type TextBlock = { type: "text"; text: string };
@@ -65,7 +69,12 @@ export type ChatMessage = {
   toolCallId?: string;
   error?: string;
   modelId?: string;
-  usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
   durationMs?: number;
   firstTokenMs?: number;
   parentId?: string;
@@ -82,7 +91,16 @@ export type ChatStreamEvent =
   | { type: "content_block_start"; block: Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId"> }
   | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock }
   | { type: "new_message" }
-  | { type: "done"; usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number }; durationMs?: number }
+  | {
+      type: "done";
+      usage?: {
+        inputTokens: number;
+        outputTokens: number;
+        cacheCreationInputTokens?: number;
+        cacheReadInputTokens?: number;
+      };
+      durationMs?: number;
+    }
   | { type: "error"; message: string; errorCode?: string };
 
 // UI -> Service Worker 的聊天请求

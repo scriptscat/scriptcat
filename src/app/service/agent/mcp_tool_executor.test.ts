@@ -102,9 +102,7 @@ describe("MCPToolExecutor", () => {
   });
 
   it("image 缺少 mimeType 时应默认为 image/png", async () => {
-    const mcpContent = [
-      { type: "image", data: "abc123" },
-    ];
+    const mcpContent = [{ type: "image", data: "abc123" }];
     const client = createMockClient(mcpContent);
     const executor = new MCPToolExecutor(client, "no_mime");
 

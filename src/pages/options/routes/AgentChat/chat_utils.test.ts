@@ -155,9 +155,7 @@ describe("computeRegenerateAction", () => {
   });
 
   it("没有用户消息时返回 null", () => {
-    const allMessages: ChatMessage[] = [
-      makeMsg({ id: "a1", role: "assistant", content: "hi" }),
-    ];
+    const allMessages: ChatMessage[] = [makeMsg({ id: "a1", role: "assistant", content: "hi" })];
     const groups = groupMessages(allMessages);
     const result = computeRegenerateAction(groups, 0, allMessages);
     expect(result).toBeNull();
@@ -216,9 +214,7 @@ describe("findNextAssistantGroupIndex", () => {
   });
 
   it("用户消息后面没有 assistant 组时返回 null", () => {
-    const allMessages: ChatMessage[] = [
-      makeMsg({ id: "u1", role: "user", content: "hello" }),
-    ];
+    const allMessages: ChatMessage[] = [makeMsg({ id: "u1", role: "user", content: "hello" })];
     const groups = groupMessages(allMessages);
     expect(findNextAssistantGroupIndex(groups, 0)).toBeNull();
   });
@@ -337,9 +333,7 @@ describe("computeUserRegenerateAction — 用户消息重新生成（bug 修复�
   });
 
   it("用户消息后面没有回复时：idsToDelete 为空", () => {
-    const allMessages: ChatMessage[] = [
-      makeMsg({ id: "u1", role: "user", content: "hello" }),
-    ];
+    const allMessages: ChatMessage[] = [makeMsg({ id: "u1", role: "user", content: "hello" })];
 
     const result = computeUserRegenerateAction("u1", allMessages);
     expect(result).not.toBeNull();
@@ -349,9 +343,7 @@ describe("computeUserRegenerateAction — 用户消息重新生成（bug 修复�
   });
 
   it("消息不存在时返回 null", () => {
-    const result = computeUserRegenerateAction("nonexistent", [
-      makeMsg({ id: "u1", role: "user", content: "hello" }),
-    ]);
+    const result = computeUserRegenerateAction("nonexistent", [makeMsg({ id: "u1", role: "user", content: "hello" })]);
     expect(result).toBeNull();
   });
 

@@ -57,10 +57,7 @@ export class ToolRegistry {
   }
 
   // 执行工具调用：先查内置工具，未找到则交给脚本回调
-  async execute(
-    toolCalls: ToolCall[],
-    scriptCallback?: ScriptToolCallback | null
-  ): Promise<ToolExecuteResult[]> {
+  async execute(toolCalls: ToolCall[], scriptCallback?: ScriptToolCallback | null): Promise<ToolExecuteResult[]> {
     const builtinCalls: ToolCall[] = [];
     const scriptCalls: ToolCall[] = [];
 

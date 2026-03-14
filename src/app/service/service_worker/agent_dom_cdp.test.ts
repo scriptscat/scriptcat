@@ -57,28 +57,20 @@ describe("agent_dom_cdp", () => {
     expect(cdpScreenshot).toBeDefined();
   });
 
-  it(
-    "cdpClick 在元素未被遮挡时正常点击",
-    async () => {
-      setupClickMocks("hit");
-      const result = await cdpClick(999, "#btn");
-      expect(result.success).toBe(true);
-      // 验证 dispatchMouseEvent 被调用（mousePressed + mouseReleased）
-      const mouseEvents = mockSendCommand.mock.calls.filter(
-        (c: unknown[]) => c[1] === "Input.dispatchMouseEvent"
-      );
-      expect(mouseEvents).toHaveLength(2);
-    },
-    1000
-  );
+  it("cdpClick 在元素未被遮挡时正常点击", async () => {
+    setupClickMocks("hit");
+    const result = await cdpClick(999, "#btn");
+    expect(result.success).toBe(true);
+    // 验证 dispatchMouseEvent 被调用（mousePressed + mouseReleased）
+    const mouseEvents = mockSendCommand.mock.calls.filter((c: unknown[]) => c[1] === "Input.dispatchMouseEvent");
+    expect(mouseEvents).toHaveLength(2);
+  }, 1000);
 
   it("cdpClick 在元素被遮挡时抛出错误", async () => {
     setupClickMocks("blocked_by:div.modal-overlay");
     await expect(cdpClick(999, "#btn")).rejects.toThrow(/Click blocked/);
     // 验证未发送鼠标事件
-    const mouseEvents = mockSendCommand.mock.calls.filter(
-      (c: unknown[]) => c[1] === "Input.dispatchMouseEvent"
-    );
+    const mouseEvents = mockSendCommand.mock.calls.filter((c: unknown[]) => c[1] === "Input.dispatchMouseEvent");
     expect(mouseEvents).toHaveLength(0);
   });
 
