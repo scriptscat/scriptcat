@@ -2199,3 +2199,28 @@ describe("handleConversationChat 场景补充", () => {
     expect(toolNames).toContain("web-skill__web-tool");
   });
 });
+
+describe.concurrent("AgentService.handleDomApi", () => {
+  it.concurrent("应将请求转发到 domService.handleDomApi", async () => {
+    const { service } = createTestService();
+    const mockResult = [{ id: 1, title: "Test Tab", url: "https://example.com" }];
+    const mockHandleDomApi = vi.fn().mockResolvedValue(mockResult);
+    (service as any).domService = { handleDomApi: mockHandleDomApi };
+
+    const request = { action: "listTabs" as const, scriptUuid: "test" };
+    const result = await service.handleDomApi(request);
+
+    expect(mockHandleDomApi).toHaveBeenCalledWith(request);
+    expect(result).toEqual(mockResult);
+  });
+
+  it.concurrent("应正确传递 domService 的错误", async () => {
+    const { service } = createTestService();
+    const mockHandleDomApi = vi.fn().mockRejectedValue(new Error("DOM action failed"));
+    (service as any).domService = { handleDomApi: mockHandleDomApi };
+
+    await expect(service.handleDomApi({ action: "listTabs", scriptUuid: "test" })).rejects.toThrow(
+      "DOM action failed"
+    );
+  });
+});
