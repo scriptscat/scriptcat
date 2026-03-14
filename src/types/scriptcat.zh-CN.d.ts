@@ -1082,6 +1082,9 @@ declare namespace CATAgentTools {
     updatetime: number;
   }
 
+  /** CATTool 摘要（不含源代码）。由 `list()` 返回。 */
+  type CATToolSummary = Omit<CATToolRecord, "code">;
+
   /**
    * `CAT.agent.tools` — 管理和调用 CATTool。
    * @grant CAT.agent.tools
@@ -1093,8 +1096,8 @@ declare namespace CATAgentTools {
     /** 按名称卸载 CATTool。 */
     remove(name: string): Promise<boolean>;
 
-    /** 列出所有已安装的 CATTool。 */
-    list(): Promise<CATToolRecord[]>;
+    /** 列出所有已安装的 CATTool（不含源代码）。 */
+    list(): Promise<CATToolSummary[]>;
 
     /** 按名称调用 CATTool，可传入参数。 */
     call(name: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -1249,6 +1252,14 @@ declare namespace CATAgentDom {
     tabId?: number;
   }
 
+  /** `stopMonitor()` 的结果 — 监控期间收集的 DOM 变更。 */
+  interface MonitorResult {
+    /** 监控期间捕获的对话框。 */
+    dialogs: Array<{ type: string; message: string }>;
+    /** 监控期间新增的 DOM 节点。 */
+    addedNodes: Array<{ tag: string; id?: string; class?: string; role?: string; text: string }>;
+  }
+
   /** `peekMonitor()` 的结果 — 正在监控的 DOM 变更摘要。 */
   interface MonitorStatus {
     /** 是否检测到变更。 */
@@ -1294,8 +1305,8 @@ declare namespace CATAgentDom {
     /** 开始监控标签页上的 DOM 变更（对话框、新增节点）。 */
     startMonitor(tabId: number): Promise<void>;
 
-    /** 停止监控标签页上的 DOM 变更。 */
-    stopMonitor(tabId: number): Promise<void>;
+    /** 停止监控并返回收集到的变更（对话框、新增节点）。 */
+    stopMonitor(tabId: number): Promise<MonitorResult>;
 
     /** 查看标签页的当前监控状态。 */
     peekMonitor(tabId: number): Promise<MonitorStatus>;
@@ -1422,16 +1433,36 @@ declare namespace CATAgentSkills {
     toolNames: string[];
     /** 参考资料名称（来自 `references/` 目录）。 */
     referenceNames: string[];
+    /** 此 Skill 是否声明了配置字段。 */
+    hasConfig?: boolean;
     /** 安装时间戳。 */
     installtime: number;
     /** 最后更新时间戳。 */
     updatetime: number;
   }
 
-  /** 包含 prompt 的完整 Skill 记录。 */
+  /** SKILL.md frontmatter 中声明的配置字段定义。 */
+  interface SkillConfigField {
+    /** 显示标题。 */
+    title: string;
+    /** 控件类型。 */
+    type: "text" | "number" | "select" | "switch";
+    /** 值是否应被掩码显示（如 API 密钥）。 */
+    secret?: boolean;
+    /** 是否必填。 */
+    required?: boolean;
+    /** 默认值。 */
+    default?: unknown;
+    /** 允许的值（用于 `select` 类型）。 */
+    values?: string[];
+  }
+
+  /** 包含 prompt 和配置模式的完整 Skill 记录。 */
   interface SkillRecord extends SkillSummary {
     /** SKILL.md 正文（去除 frontmatter 后的 markdown）。 */
     prompt: string;
+    /** 来自 SKILL.md frontmatter 的配置模式。 */
+    config?: Record<string, SkillConfigField>;
   }
 
   /**

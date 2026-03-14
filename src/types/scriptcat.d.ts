@@ -1075,6 +1075,9 @@ declare namespace CATAgentTools {
     updatetime: number;
   }
 
+  /** Summary of a CATTool (without source code). Returned by `list()`. */
+  type CATToolSummary = Omit<CATToolRecord, "code">;
+
   /**
    * `CAT.agent.tools` — manage and invoke CATTools.
    * @grant CAT.agent.tools
@@ -1086,8 +1089,8 @@ declare namespace CATAgentTools {
     /** Remove a CATTool by name. */
     remove(name: string): Promise<boolean>;
 
-    /** List all installed CATTools. */
-    list(): Promise<CATToolRecord[]>;
+    /** List all installed CATTools (without source code). */
+    list(): Promise<CATToolSummary[]>;
 
     /** Invoke a CATTool by name with optional parameters. */
     call(name: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -1242,6 +1245,14 @@ declare namespace CATAgentDom {
     tabId?: number;
   }
 
+  /** Result of `stopMonitor()` — collected DOM changes during monitoring. */
+  interface MonitorResult {
+    /** Dialogs captured during monitoring. */
+    dialogs: Array<{ type: string; message: string }>;
+    /** DOM nodes added during monitoring. */
+    addedNodes: Array<{ tag: string; id?: string; class?: string; role?: string; text: string }>;
+  }
+
   /** Result of `peekMonitor()` — summary of DOM changes being monitored. */
   interface MonitorStatus {
     /** Whether any changes were detected. */
@@ -1287,8 +1298,8 @@ declare namespace CATAgentDom {
     /** Start monitoring DOM changes on a tab (dialogs, added nodes). */
     startMonitor(tabId: number): Promise<void>;
 
-    /** Stop monitoring DOM changes on a tab. */
-    stopMonitor(tabId: number): Promise<void>;
+    /** Stop monitoring and return collected changes (dialogs, added nodes). */
+    stopMonitor(tabId: number): Promise<MonitorResult>;
 
     /** Peek at the current monitor status for a tab. */
     peekMonitor(tabId: number): Promise<MonitorStatus>;
@@ -1415,16 +1426,36 @@ declare namespace CATAgentSkills {
     toolNames: string[];
     /** Reference document names (from `references/` directory). */
     referenceNames: string[];
+    /** Whether this Skill has config fields declared. */
+    hasConfig?: boolean;
     /** Installation timestamp. */
     installtime: number;
     /** Last update timestamp. */
     updatetime: number;
   }
 
-  /** Full Skill record including the prompt. */
+  /** Config field definition declared in SKILL.md frontmatter. */
+  interface SkillConfigField {
+    /** Display title. */
+    title: string;
+    /** Widget type. */
+    type: "text" | "number" | "select" | "switch";
+    /** Whether the value should be masked (e.g. API keys). */
+    secret?: boolean;
+    /** Whether the field is required. */
+    required?: boolean;
+    /** Default value. */
+    default?: unknown;
+    /** Allowed values (for `select` type). */
+    values?: string[];
+  }
+
+  /** Full Skill record including the prompt and config schema. */
   interface SkillRecord extends SkillSummary {
     /** SKILL.md body (markdown after frontmatter removal). */
     prompt: string;
+    /** Config schema from SKILL.md frontmatter. */
+    config?: Record<string, SkillConfigField>;
   }
 
   /**
