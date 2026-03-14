@@ -80,6 +80,23 @@ export async function cdpClick(tabId: number, selector: string): Promise<ActionR
   const viewportX = pageX - (metrics.visualViewport?.pageX ?? 0);
   const viewportY = pageY - (metrics.visualViewport?.pageY ?? 0);
 
+  // 遮挡检测：检查该坐标处实际命中的元素是否是目标元素（或其子元素）
+  const selectorStr = JSON.stringify(selector);
+  const hitTest = await sendCommand(tabId, "Runtime.evaluate", {
+    expression: `(() => {
+      const el = document.elementFromPoint(${viewportX}, ${viewportY});
+      const target = document.querySelector(${selectorStr});
+      if (!el || !target) return 'not_found';
+      if (target.contains(el) || el === target) return 'hit';
+      return 'blocked_by:' + el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className ? '.' + String(el.className).split(' ').join('.') : '');
+    })()`,
+    returnByValue: true,
+  });
+  const hitValue = hitTest?.result?.value;
+  if (typeof hitValue === "string" && hitValue !== "hit") {
+    throw new Error(`Click blocked: element at (${Math.round(viewportX)},${Math.round(viewportY)}) is ${hitValue}, not "${selector}"`);
+  }
+
   // 模拟鼠标点击
   await sendCommand(tabId, "Input.dispatchMouseEvent", {
     type: "mousePressed",
