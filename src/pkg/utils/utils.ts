@@ -194,6 +194,10 @@ export function errorMsg(e: any): string {
 
 // 预计报错有机会在异步Promise里发生，不一定是 chrome.userScripts.getScripts
 export async function checkUserScriptsAvailable() {
+  if (chrome.extension.inIncognitoContext) {
+    // 隐身模式不检查 API 可用性，避免冲突
+    return true;
+  }
   try {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.

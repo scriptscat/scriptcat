@@ -54,6 +54,19 @@ export type TCheckScriptUpdateOption = Partial<
 
 export type TOpenBatchUpdatePageOption = { q: string; dontCheckNow: boolean };
 
+export type TScriptInstallParam = {
+  script: Script; // 脚本信息（包含脚本的基础元数据）
+  code: string; // 脚本源码内容
+  upsertBy?: InstallSource; // 安装/更新来源（用于标识脚本来源渠道）
+  createtime?: number; // 导入时指定的创建时间（时间戳，毫秒）
+  updatetime?: number; // 导入时指定的最后更新时间（时间戳，毫秒）
+};
+
+export type TScriptInstallReturn = {
+  update: boolean; // 是否为更新操作（true 表示更新，false 表示新增）
+  updatetime: number | undefined; // 实际生效的更新时间（时间戳，毫秒）
+};
+
 export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
@@ -369,14 +382,8 @@ export class ScriptService {
     return this.mq.publish<TInstallScript>("installScript", { script, ...options });
   }
 
-  // 安装脚本 / 更新腳本
-  async installScript(param: {
-    script: Script;
-    code: string;
-    upsertBy?: InstallSource;
-    createtime?: number;
-    updatetime?: number;
-  }) {
+  // 安装脚本 / 更新脚本
+  async installScript(param: TScriptInstallParam): Promise<TScriptInstallReturn> {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy, createtime, updatetime } = param;
     // 删 storage cache
@@ -427,10 +434,11 @@ export class ScriptService {
         ]);
 
         // 广播一下
-        // Runtime 會負責更新 CompiledResource
+        // Runtime 会负责更新 CompiledResource
         this.publishInstallScript(script, { update, upsertBy });
 
-        return { update };
+        // 传回(由后台控制的)实际更新时间，让 editor 中的script能保持正确的更新时间
+        return { update, updatetime: script.updatetime };
       })
       .catch((e: any) => {
         logger.error("install error", Logger.E(e));
@@ -1144,7 +1152,7 @@ export class ScriptService {
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
-    // 用於 window.external
+    // 用于 window.external
     return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
       if (script) {
         return {

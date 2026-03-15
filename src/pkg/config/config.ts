@@ -393,12 +393,14 @@ export class SystemConfig {
     });
   }
 
-  getCheckUpdate() {
-    return this._get<Parameters<typeof this.setCheckUpdate>[0]>("check_update", {
+  async getCheckUpdate(opts?: { sanitizeHTML?: (html: string) => string }) {
+    const result = await this._get<Parameters<typeof this.setCheckUpdate>[0]>("check_update", {
       notice: "",
       isRead: false,
       version: ExtVersion,
     });
+    if (typeof opts?.sanitizeHTML === "function") result.notice = opts.sanitizeHTML(result.notice);
+    return result;
   }
 
   setEnableScript(enable: boolean) {
