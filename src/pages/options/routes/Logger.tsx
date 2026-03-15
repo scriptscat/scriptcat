@@ -75,6 +75,7 @@ function LoggerPage() {
       onQueryLog();
       setInit(2);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [init]);
 
   useEffect(() => {
@@ -104,6 +105,7 @@ function LoggerPage() {
         setInit(1);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startTime, endTime]);
 
   return (

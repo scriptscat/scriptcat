@@ -451,7 +451,9 @@ function AgentTasks() {
             />
             {cronPreview && (
               <Typography.Text type="secondary" className="tw-text-xs !tw-mb-0 tw-mt-1 tw-block">
-                {t("agent_tasks_next_run")}: {cronPreview}
+                {t("agent_tasks_next_run")}
+                {": "}
+                {cronPreview}
               </Typography.Text>
             )}
           </div>

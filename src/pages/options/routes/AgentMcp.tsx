@@ -63,7 +63,7 @@ function ServerCard({
       <div className="tw-flex tw-items-start tw-justify-between tw-mb-4">
         <div className="tw-flex tw-items-center tw-gap-3">
           <div className="tw-w-10 tw-h-10 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-xs tw-font-bold tw-shrink-0 tw-bg-[#e8f5e9] tw-text-[#2e7d32]">
-            MCP
+            {"MCP"}
           </div>
           <div className="tw-flex tw-flex-col tw-gap-0.5">
             <Typography.Text className="tw-font-semibold tw-text-base !tw-mb-0">{server.name}</Typography.Text>
@@ -79,7 +79,7 @@ function ServerCard({
       <div className="tw-flex tw-flex-col tw-gap-2 tw-mb-4">
         {server.apiKey && (
           <div className="tw-flex tw-items-center tw-gap-2">
-            <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-min-w-16">API Key</span>
+            <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-min-w-16">{"API Key"}</span>
             <Typography.Text type="secondary" className="tw-text-xs tw-font-mono !tw-mb-0">
               {server.apiKey.length > 8
                 ? `${server.apiKey.slice(0, 4)}${"*".repeat(8)}${server.apiKey.slice(-4)}`
@@ -89,8 +89,10 @@ function ServerCard({
         )}
         {server.headers && Object.keys(server.headers).length > 0 && (
           <div className="tw-flex tw-items-center tw-gap-2">
-            <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-min-w-16">Headers</span>
-            <Tag size="small">{Object.keys(server.headers).length} custom</Tag>
+            <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-min-w-16">{"Headers"}</span>
+            <Tag size="small">
+              {Object.keys(server.headers).length} {"custom"}
+            </Tag>
           </div>
         )}
       </div>
@@ -223,7 +225,10 @@ function ServerDetailDrawer({
                     )}
                     {tool.inputSchema && formatSchemaParams(tool.inputSchema).length > 0 && (
                       <div className="tw-mt-2 tw-flex tw-items-center tw-gap-1 tw-flex-wrap">
-                        <span className="tw-text-xs tw-text-[var(--color-text-3)]">{t("agent_mcp_parameters")}:</span>
+                        <span className="tw-text-xs tw-text-[var(--color-text-3)]">
+                          {t("agent_mcp_parameters")}
+                          {":"}
+                        </span>
                         {formatSchemaParams(tool.inputSchema).map((param) => (
                           <Tag key={param} size="small" className="!tw-text-xs">
                             {param}
@@ -279,7 +284,10 @@ function ServerDetailDrawer({
                     )}
                     {prompt.arguments && prompt.arguments.length > 0 && (
                       <div className="tw-mt-2 tw-flex tw-items-center tw-gap-1 tw-flex-wrap">
-                        <span className="tw-text-xs tw-text-[var(--color-text-3)]">{t("agent_mcp_parameters")}:</span>
+                        <span className="tw-text-xs tw-text-[var(--color-text-3)]">
+                          {t("agent_mcp_parameters")}
+                          {":"}
+                        </span>
                         {prompt.arguments.map((arg) => (
                           <Tag key={arg.name} size="small" className="!tw-text-xs">
                             {arg.required ? arg.name : `${arg.name}?`}
@@ -535,7 +543,7 @@ function AgentMcp() {
 
           {/* URL */}
           <div>
-            <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">URL</div>
+            <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">{"URL"}</div>
             <Input
               value={editingServer.url}
               placeholder="https://example.com/mcp"
@@ -546,7 +554,9 @@ function AgentMcp() {
           {/* API Key */}
           <div>
             <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">
-              API Key ({t("agent_mcp_optional")})
+              {"API Key ("}
+              {t("agent_mcp_optional")}
+              {")"}
             </div>
             <Input.Password
               value={editingServer.apiKey}
@@ -557,7 +567,9 @@ function AgentMcp() {
           {/* 自定义 Headers */}
           <div>
             <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">
-              {t("agent_mcp_custom_headers")} ({t("agent_mcp_optional")})
+              {t("agent_mcp_custom_headers")} {"("}
+              {t("agent_mcp_optional")}
+              {")"}
             </div>
             <Input.TextArea
               value={headersText}

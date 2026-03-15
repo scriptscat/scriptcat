@@ -27,7 +27,7 @@ export function AttachmentImage({ attachment }: { attachment: Attachment }) {
   if (!blobUrl) {
     return (
       <div className="tw-w-40 tw-h-24 tw-bg-[var(--color-fill-2)] tw-rounded tw-flex tw-items-center tw-justify-center tw-text-xs tw-text-[var(--color-text-4)]">
-        Loading...
+        {"Loading..."}
       </div>
     );
   }
@@ -123,7 +123,7 @@ export function AttachmentAudio({ block }: { block: AudioBlock }) {
   if (!blobUrl) {
     return (
       <div className="tw-h-10 tw-bg-[var(--color-fill-2)] tw-rounded tw-flex tw-items-center tw-justify-center tw-text-xs tw-text-[var(--color-text-4)] tw-px-4">
-        Loading audio...
+        {"Loading audio..."}
       </div>
     );
   }

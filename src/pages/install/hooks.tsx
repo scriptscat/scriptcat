@@ -309,6 +309,7 @@ export function useInstallData() {
     } else {
       initAsync();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, loaded]);
 
   const metadataLive = useMemo(() => (scriptInfo?.metadata || {}) as SCMetadata, [scriptInfo]);
@@ -427,6 +428,7 @@ export function useInstallData() {
     if (upsertScript) {
       document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript!)} - ScriptCat`;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isUpdate, scriptInfo, upsertScript, cattoolMetadata, t]);
 
   // 设置脚本状态
@@ -600,6 +602,7 @@ export function useInstallData() {
     return () => {
       unmountFileTrack(handle);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoWatchFile]);
 
   // 检查是否有 uuid 或 file

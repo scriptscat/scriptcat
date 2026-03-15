@@ -51,7 +51,7 @@ function SkillCard({
       <div className="tw-flex tw-items-start tw-justify-between tw-mb-3">
         <div className="tw-flex tw-items-center tw-gap-3">
           <div className="tw-w-10 tw-h-10 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-xs tw-font-bold tw-shrink-0 tw-bg-[rgb(var(--arcoblue-1))] tw-text-[rgb(var(--arcoblue-6))]">
-            Sk
+            {"Sk"}
           </div>
           <div className="tw-flex tw-flex-col tw-gap-0.5">
             <Typography.Text className="tw-font-semibold tw-text-base !tw-mb-0">{skill.name}</Typography.Text>
@@ -68,12 +68,16 @@ function SkillCard({
       <div className="tw-flex tw-flex-wrap tw-gap-1.5 tw-mb-3">
         {skill.toolNames.length > 0 && (
           <Tag size="small" color="arcoblue">
-            {t("agent_skills_tools")}: {skill.toolNames.length}
+            {t("agent_skills_tools")}
+            {": "}
+            {skill.toolNames.length}
           </Tag>
         )}
         {skill.referenceNames.length > 0 && (
           <Tag size="small" color="green">
-            {t("agent_skills_references")}: {skill.referenceNames.length}
+            {t("agent_skills_references")}
+            {": "}
+            {skill.referenceNames.length}
           </Tag>
         )}
         {skill.hasConfig && (
@@ -85,7 +89,9 @@ function SkillCard({
 
       {/* Install time */}
       <div className="tw-text-xs tw-text-[var(--color-text-3)] tw-mb-3">
-        {t("agent_skills_installed_at")}: {new Date(skill.installtime).toLocaleString()}
+        {t("agent_skills_installed_at")}
+        {": "}
+        {new Date(skill.installtime).toLocaleString()}
       </div>
 
       {/* Actions */}
@@ -225,7 +231,7 @@ function SkillConfigModal({
     const label = (
       <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
         {field.title || key}
-        {field.required && <span className="tw-text-red-500 tw-ml-0.5">*</span>}
+        {field.required && <span className="tw-text-red-500 tw-ml-0.5">{"*"}</span>}
       </div>
     );
 
@@ -255,7 +261,7 @@ function SkillConfigModal({
           <div key={key} className="tw-flex tw-items-center tw-justify-between">
             <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-2)]">
               {field.title || key}
-              {field.required && <span className="tw-text-red-500 tw-ml-0.5">*</span>}
+              {field.required && <span className="tw-text-red-500 tw-ml-0.5">{"*"}</span>}
             </span>
             <Switch checked={!!value} onChange={(v) => onChange(v)} />
           </div>
@@ -287,7 +293,7 @@ function SkillConfigModal({
       style={{ width: 520 }}
     >
       {loading ? (
-        <div className="tw-py-8 tw-text-center tw-text-[var(--color-text-3)]">Loading...</div>
+        <div className="tw-py-8 tw-text-center tw-text-[var(--color-text-3)]">{"Loading..."}</div>
       ) : (
         <Space direction="vertical" size={12} className="tw-w-full">
           {Object.entries(skill.config).map(([key, field]) => renderField(key, field))}
@@ -365,12 +371,12 @@ function SkillDetailModal({
         <Space direction="vertical" size={16} className="tw-w-full">
           {/* Name & Description (read-only) */}
           <div>
-            <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">Name</div>
+            <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">{"Name"}</div>
             <Typography.Text>{skill.name}</Typography.Text>
           </div>
           {skill.description && (
             <div>
-              <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">Description</div>
+              <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">{"Description"}</div>
               <Typography.Text type="secondary">{skill.description}</Typography.Text>
             </div>
           )}
@@ -392,7 +398,9 @@ function SkillDetailModal({
           {scripts.length > 0 && (
             <div>
               <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
-                {t("agent_skills_tools")} ({scripts.length})
+                {t("agent_skills_tools")} {"("}
+                {scripts.length}
+                {")"}
               </div>
               <div className="tw-flex tw-flex-wrap tw-gap-1.5">
                 {scripts.map((s) => (
@@ -416,7 +424,9 @@ function SkillDetailModal({
           {references.length > 0 && (
             <div>
               <div className="tw-text-sm tw-font-medium tw-mb-1 tw-text-[var(--color-text-2)]">
-                {t("agent_skills_references")} ({references.length})
+                {t("agent_skills_references")} {"("}
+                {references.length}
+                {")"}
               </div>
               <div className="tw-flex tw-flex-wrap tw-gap-1.5">
                 {references.map((r) => (

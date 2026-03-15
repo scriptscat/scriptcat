@@ -110,7 +110,10 @@ export const test = base.extend<AgentFixtures>({
       args: ["--headless=new", ...chromeArgs],
     });
 
-    // extensionId 与 Phase 1 相同（同一 userDataDir）
+    // 立即等待 service worker 就绪（与 Phase 1 一致，避免事件丢失竞态）
+    let [bg2] = context.serviceWorkers();
+    if (!bg2) bg2 = await context.waitForEvent("serviceworker", { timeout: 30_000 });
+
     (context as any).__extensionId = extensionId;
 
     await use(context);
@@ -121,22 +124,21 @@ export const test = base.extend<AgentFixtures>({
   extensionId: async ({ context }, use) => {
     const extensionId: string = (context as any).__extensionId;
 
-    // 确保 service worker 处于活跃状态
+    // 唤醒可能已空闲终止的 service worker
     const ensureServiceWorker = async () => {
       let sw = context.serviceWorkers().find((w) => w.url().includes(extensionId));
       if (sw) return sw;
 
-      // service worker 未就绪 — 先监听事件，再通过导航触发它启动
+      // SW 可能已空闲终止，通过导航重新激活
       const swPromise = context.waitForEvent("serviceworker", { timeout: 30_000 });
       const wakePage = await context.newPage();
       try {
-        // 导航到扩展页面强制 service worker 激活
         await wakePage.goto(`chrome-extension://${extensionId}/src/options.html`, {
           waitUntil: "commit",
           timeout: 10_000,
         });
       } catch {
-        // 即使导航失败（ERR_BLOCKED_BY_CLIENT），请求本身也可能触发 service worker 注册
+        // 即使导航失败，请求本身也可能触发 service worker 注册
       }
 
       sw = context.serviceWorkers().find((w) => w.url().includes(extensionId));
@@ -145,9 +147,7 @@ export const test = base.extend<AgentFixtures>({
       return sw;
     };
 
-    await ensureServiceWorker();
-
-    // Dismiss first-use dialog
+    // Dismiss first-use dialog（导航也会唤醒 SW）
     const initPage = await context.newPage();
     await initPage.goto(`chrome-extension://${extensionId}/src/options.html`, {
       waitUntil: "domcontentloaded",
@@ -155,9 +155,8 @@ export const test = base.extend<AgentFixtures>({
     await initPage.evaluate(() => localStorage.setItem("firstUse", "false"));
     await initPage.close();
 
-    // 获取活跃的 service worker（导航已唤醒它）
-    let sw = context.serviceWorkers()[0];
-    if (!sw) sw = await context.waitForEvent("serviceworker", { timeout: 10_000 });
+    // 确保 SW 处于活跃状态
+    const sw = await ensureServiceWorker();
     await sw.evaluate(() => {
       const modelConfig = {
         id: "mock-model",

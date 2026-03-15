@@ -64,13 +64,17 @@ function CATToolCard({
       {/* Source */}
       {tool.sourceScriptName && (
         <div className="tw-text-xs tw-text-[var(--color-text-3)] tw-mb-3">
-          {t("agent_catool_source")}: {tool.sourceScriptName}
+          {t("agent_catool_source")}
+          {": "}
+          {tool.sourceScriptName}
         </div>
       )}
 
       {/* Install time */}
       <div className="tw-text-xs tw-text-[var(--color-text-3)] tw-mb-3">
-        {t("agent_catool_installed_at")}: {new Date(tool.installtime).toLocaleString()}
+        {t("agent_catool_installed_at")}
+        {": "}
+        {new Date(tool.installtime).toLocaleString()}
       </div>
 
       {/* Actions */}
@@ -118,7 +122,9 @@ function CATToolDetailDrawer({
         {tool.params.length > 0 && (
           <div>
             <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">
-              {t("agent_catool_params")} ({tool.params.length})
+              {t("agent_catool_params")} {"("}
+              {tool.params.length}
+              {")"}
             </div>
             <div className="tw-flex tw-flex-col tw-gap-2">
               {tool.params.map((p) => (
@@ -128,7 +134,7 @@ function CATToolDetailDrawer({
                     <Tag size="small">{p.type}</Tag>
                     {p.required && (
                       <Tag size="small" color="arcoblue">
-                        required
+                        {"required"}
                       </Tag>
                     )}
                   </div>
@@ -156,7 +162,9 @@ function CATToolDetailDrawer({
         {tool.grants.length > 0 && (
           <div>
             <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">
-              {t("agent_catool_grants")} ({tool.grants.length})
+              {t("agent_catool_grants")} {"("}
+              {tool.grants.length}
+              {")"}
             </div>
             <div className="tw-flex tw-flex-wrap tw-gap-1.5">
               {tool.grants.map((g) => (

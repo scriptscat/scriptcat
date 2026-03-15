@@ -64,7 +64,10 @@ function SkillInstallView({
                   className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer tw-select-none"
                   onClick={() => setPromptExpanded(!promptExpanded)}
                 >
-                  <Typography.Text bold>{t("agent_skills_prompt")}:</Typography.Text>
+                  <Typography.Text bold>
+                    {t("agent_skills_prompt")}
+                    {":"}
+                  </Typography.Text>
                   {promptExpanded ? <IconUp /> : <IconDown />}
                 </div>
                 {promptExpanded ? (
@@ -165,7 +168,7 @@ function SkillInstallView({
                         )}
                         {field.secret && (
                           <Tag bordered size="small" color="purple">
-                            secret
+                            {"secret"}
                           </Tag>
                         )}
                       </div>
