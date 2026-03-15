@@ -186,13 +186,27 @@ export default class PermissionVerify {
     });
   }
 
-  async confirm<T>(request: GMApiRequest<T>, confirm: boolean | ConfirmParam, sender: IGetSender): Promise<boolean> {
-    if (typeof confirm === "boolean") {
-      return confirm;
+  buildCacheKey(
+    request: GMApiRequest,
+    confirm: {
+      permission: string;
+      permissionValue?: string;
     }
-    const cacheKey = `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
+  ) {
+    return `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
+  }
+
+  async queryPermission<T>(
+    request: GMApiRequest<T>,
+    confirm: {
+      permission: string;
+      permissionValue?: string;
+      wildcard?: boolean;
+    }
+  ): Promise<Permission | undefined> {
+    const cacheKey = this.buildCacheKey(request, confirm);
     // 从数据库中查询是否有此权限
-    const ret = await cacheInstance.getOrSet(cacheKey, async () => {
+    return await cacheInstance.getOrSet(cacheKey, async () => {
       let model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, confirm.permissionValue || "");
       if (!model) {
         // 允许通配
@@ -202,6 +216,13 @@ export default class PermissionVerify {
       }
       return model;
     });
+  }
+
+  async confirm<T>(request: GMApiRequest<T>, confirm: boolean | ConfirmParam, sender: IGetSender): Promise<boolean> {
+    if (typeof confirm === "boolean") {
+      return confirm;
+    }
+    const ret = await this.queryPermission(request, confirm);
     // 有查询到结果,进入判断,不再需要用户确认
     if (ret) {
       if (ret.allow) {
@@ -238,6 +259,7 @@ export default class PermissionVerify {
     }
     // 临时 放入缓存
     if (userConfirm.type >= 2) {
+      const cacheKey = this.buildCacheKey(request, confirm);
       cacheInstance.set(cacheKey, model);
     }
     // 总是 放入数据库
