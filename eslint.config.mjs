@@ -63,5 +63,11 @@ export default [
     },
   },
   prettier,
-  { ignores: ["dist/", "example/"] },
+  {
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
+  { ignores: ["dist/", "example/", ".claude/"] },
 ];
