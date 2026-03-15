@@ -57,9 +57,15 @@ export function checkUrlMatch(s: string) {
 }
 
 const globSplit = (text: string) => {
-  text = text.replace(/\*{2,}/g, "*"); // api定义的 glob * 是等价于 glob **
-  text = text.replace(/\*(\?+)/g, "$1*"); // "*????" 改成 "????*"，避免 backward 处理
-  return text.split(/([*?])/g);
+  const split = text.split(/([*?]{2,})/g);
+  for (let i = 1; i < split.length; i += 2) {
+    // "*????" 改成 "????*"，避免 backward 处理
+    // api定义的 glob * 是等价于 glob **
+    const p = split[i]; // **??**??**
+    const q = p.replace(/\*/g, ""); // ????
+    if (p !== q) split[i] = `${q}*`; // ????*
+  }
+  return split.join("").split(/([*?])/g);
 };
 
 export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {

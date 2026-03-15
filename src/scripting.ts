@@ -22,8 +22,8 @@ negotiateEventFlag(messageFlag, 2, (eventFlag) => {
 
   logger.logger().debug("scripting start");
 
-  const contentMsg = new CustomEventMessage(`${eventFlag}${ScriptEnvTag.content}`, true);
-  const injectMsg = new CustomEventMessage(`${eventFlag}${ScriptEnvTag.inject}`, true);
+  const contentMsg = new CustomEventMessage(eventFlag, true, ScriptEnvTag.content);
+  const injectMsg = new CustomEventMessage(eventFlag, true, ScriptEnvTag.inject);
 
   const server = new Server("scripting", [contentMsg, injectMsg]);
 
