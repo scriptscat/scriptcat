@@ -3,6 +3,7 @@ import { FaviconDAO, type FaviconFile, type FaviconRecord } from "@App/app/repo/
 import { v5 as uuidv5 } from "uuid";
 import { getFaviconRootFolder } from "@App/app/service/service_worker/utils";
 import { readBlobContent } from "@App/pkg/utils/encoding";
+import type { FaviconService } from "@App/pkg/config/config";
 
 let scriptDAO: ScriptDAO | null = null;
 let faviconDAO: FaviconDAO | null = null;
@@ -179,8 +180,25 @@ export async function fetchIconByDomain(domain: string): Promise<string[]> {
   return urls.filter((url) => !!url) as string[];
 }
 
+/**
+ * 根据服务类型获取favicon URL列表
+ */
+export async function fetchIconByService(domain: string, service: FaviconService): Promise<string[]> {
+  switch (service) {
+    case "scriptcat":
+      return [`https://ext.scriptcat.org/api/v1/open/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
+    case "google":
+      return [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
+    case "local":
+      return await fetchIconByDomain(domain);
+  }
+}
+
 // 获取脚本的favicon
-export const getScriptFavicon = async (uuid: string): Promise<FaviconRecord[]> => {
+export const getScriptFavicon = async (
+  uuid: string,
+  service: FaviconService = "scriptcat"
+): Promise<FaviconRecord[]> => {
   scriptDAO ||= new ScriptDAO();
   faviconDAO ||= new FaviconDAO();
   const script = await scriptDAO.get(uuid);
@@ -199,7 +217,7 @@ export const getScriptFavicon = async (uuid: string): Promise<FaviconRecord[]> =
     domains.map(async (domain) => {
       try {
         if (domain.domain) {
-          const icons = await fetchIconByDomain(domain.domain);
+          const icons = await fetchIconByService(domain.domain, service);
           const icon = icons.length > 0 ? icons[0] : "";
           return { match: domain.match, website: "http://" + domain.domain, icon };
         }
@@ -233,6 +251,11 @@ export const loadFavicon = async (iconUrl: string): Promise<string> => {
     // 文件不存在，下载并保存
     const newFileHandle = await directoryHandle.getFileHandle(filename, { create: true });
     const response = await fetch(iconUrl);
+    if (response.status >= 300) {
+      // 状态码异常，删除创建的空文件并抛出错误
+      await directoryHandle.removeEntry(filename).catch(() => {});
+      throw new Error(`Favicon fetch failed with status ${response.status}`);
+    }
     const blob = await response.blob();
     const writable = await newFileHandle.createWritable();
     await writable.write(blob);
@@ -256,9 +279,9 @@ const getFileFromOPFS = async (opfsRet: FaviconFile): Promise<File> => {
 };
 
 // 处理单个脚本的favicon
-const processScriptFavicon = async (script: Script) => {
+const processScriptFavicon = async (script: Script, service: FaviconService = "scriptcat") => {
   const favFnAsync = async () => {
-    const icons = await getScriptFavicon(script.uuid); // 恒久。不会因SW重启而失效
+    const icons = await getScriptFavicon(script.uuid, service); // 恒久。不会因SW重启而失效
     if (icons.length === 0) return [];
     const newIcons = await Promise.all(
       icons.map(async (icon) => {
@@ -305,7 +328,7 @@ type FavIconResult = {
 type TFaviconStack = { chunkResults: FavIconResult[]; pendingCount: number };
 
 // 处理favicon加载，以批次方式处理
-export const loadScriptFavicons = async function* (scripts: Script[]) {
+export const loadScriptFavicons = async function* (scripts: Script[], service: FaviconService = "scriptcat") {
   const stack: TFaviconStack[] = [];
   const asyncWaiter: { promise?: any; resolve?: any } = {};
   const createPromise = () => {
@@ -319,7 +342,7 @@ export const loadScriptFavicons = async function* (scripts: Script[]) {
   const results: FavIconResult[] = [];
   let waiting = false;
   for (const script of scripts) {
-    processScriptFavicon(script).then((result: FavIconResult) => {
+    processScriptFavicon(script, service).then((result: FavIconResult) => {
       results.push(result);
       // 下一个 MacroTask 执行。
       // 使用 requestAnimationFrame 而非setTimeout 是因为前台才要显示。而且网页绘画中时会延后这个
