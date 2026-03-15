@@ -152,12 +152,8 @@ export function UserMessageItem({
         ) : (
           // 只读模式：消息气泡 + 底部工具条
           <>
-            <div className="tw-px-4 tw-py-2.5 tw-rounded-2xl tw-rounded-tr-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-white tw-text-sm tw-whitespace-pre-wrap tw-break-words tw-shadow-sm">
-              {typeof message.content === "string" ? (
-                message.content
-              ) : (
-                <ContentBlockRenderer content={message.content} />
-              )}
+            <div className="tw-px-4 tw-py-2.5 tw-rounded-2xl tw-rounded-tr-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-[var(--color-text-1)] dark:tw-text-white tw-text-sm tw-whitespace-pre-wrap tw-break-words tw-shadow-sm">
+              {getTextContent(message.content)}
             </div>
             {canInteract && (
               <div className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-flex tw-items-center tw-mt-1 tw-gap-0.5">
