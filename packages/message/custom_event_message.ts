@@ -12,6 +12,7 @@ import {
   createMouseEvent,
 } from "@Packages/message/common";
 import { ReadyWrap } from "@App/pkg/utils/ready-wrap";
+import type { ScriptEnvTag } from "@Packages/message/consts";
 
 // 避免页面载入后改动 Map.prototype 导致消息传递失败
 const relatedTargetMap = new Map<number, EventTarget>();
@@ -41,9 +42,11 @@ export class CustomEventMessage implements Message {
   readyWrap: ReadyWrap = new ReadyWrap();
 
   constructor(
-    messageFlag: string,
-    protected readonly isInbound: boolean
+    eventFlag: string,
+    protected readonly isInbound: boolean,
+    public readonly envTag: ScriptEnvTag | "" = ""
   ) {
+    const messageFlag = `${eventFlag}${envTag}`;
     this.receiveFlag = `${messageFlag}${isInbound ? DefinedFlags.inboundFlag : DefinedFlags.outboundFlag}${DefinedFlags.domEvent}`;
     this.sendFlag = `${messageFlag}${isInbound ? DefinedFlags.outboundFlag : DefinedFlags.inboundFlag}${DefinedFlags.domEvent}`;
     pageAddEventListener(this.receiveFlag, (event: Event) => {

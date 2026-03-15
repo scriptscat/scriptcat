@@ -1,4 +1,5 @@
 import { Discord, DocumentationSite, ExtVersion, ExtServer } from "@App/app/const";
+import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch, Tooltip } from "@arco-design/web-react";
 import {
   IconBook,
@@ -273,6 +274,9 @@ function App() {
         systemConfig.getCheckUpdate(),
       ]);
       if (!hookMgr.isMounted) return;
+      if (typeof checkUpdate.notice === "string") {
+        checkUpdate.notice = sanitizeHTML(checkUpdate.notice);
+      }
       setIsEnableScript(isEnableScript);
       setCheckUpdate(checkUpdate);
     };
@@ -374,13 +378,16 @@ function App() {
       ]).then(([resp]: [{ data: { notice: string; version: string } } | null | undefined, any]) => {
         let newCheckUpdateState = 0;
         if (resp?.data) {
+          let notice = "";
+          if (typeof resp.data.notice === "string") notice = sanitizeHTML(resp.data.notice);
+          const version = resp.data.version;
           setCheckUpdate((items) => {
-            if (resp.data.version === items.version) {
+            if (version === items.version) {
               newCheckUpdateState = 2;
               return items;
             }
-            const isRead = items.notice !== resp.data.notice ? false : items.isRead;
-            const newCheckUpdate = { ...resp.data, isRead };
+            const isRead = items.notice !== notice ? false : items.isRead;
+            const newCheckUpdate = { version, notice, isRead };
             systemConfig.setCheckUpdate(newCheckUpdate);
             return newCheckUpdate;
           });
@@ -482,7 +489,11 @@ function App() {
         <Alert
           style={{ display: showAlert ? "flex" : "none" }}
           type="info"
-          content={<div dangerouslySetInnerHTML={{ __html: checkUpdate.notice || "" }} />}
+          content={
+            <div
+              dangerouslySetInnerHTML={{ __html: checkUpdate.notice /* notice is already sanitized by dompurify */ }}
+            />
+          }
         />
         <Collapse
           bordered={false}

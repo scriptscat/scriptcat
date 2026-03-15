@@ -33,4 +33,9 @@ tailwind.config.js
 package-lock.json
 yarn.lock
 
-.claude/settings.local.json
+.claude
+
+CLAUDE.md
+
+test-results
+playwright-report
