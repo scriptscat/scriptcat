@@ -1,5 +1,6 @@
 import * as path from "path";
 import { rspack, NormalModule, type Configuration } from "@rspack/core";
+import { ZipExecutionPlugin } from "./rspack-plugins/ZipExecutionPlugin";
 import { readFileSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { toChromeVersion } from "./scripts/version.js";
@@ -51,6 +52,7 @@ export default {
     service_worker: `${src}/service_worker.ts`,
     offscreen: `${src}/offscreen.ts`,
     sandbox: `${src}/sandbox.ts`,
+    ff_persistent: `${src}/ff_persistent.ts`,
     content: `${src}/content.ts`,
     scripting: `${src}/scripting.ts`,
     inject: `${src}/inject.ts`,
@@ -232,6 +234,14 @@ export default {
       minify: true,
       chunks: ["sandbox"],
     }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/ff_persistent.html`,
+      template: `${src}/pages/ff_persistent.html`,
+      inject: "head",
+      minify: true,
+      chunks: ["ff_persistent"],
+    }),
+    new ZipExecutionPlugin(),
   ].filter(Boolean),
   experiments: {
     css: true,
@@ -254,7 +264,7 @@ export default {
             passes: 2,
             drop_console: false,
             drop_debugger: !isDev,
-            ecma: 2020,
+            ecma: 2022,
             arrows: true,
             dead_code: true,
             ie8: false,
@@ -272,7 +282,7 @@ export default {
           format: {
             comments: false,
             beautify: false,
-            ecma: 2020,
+            ecma: 2022,
           },
         },
       }),
