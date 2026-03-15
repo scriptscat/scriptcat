@@ -21,7 +21,8 @@
   "logs": "Журналы",
   "tools": "Инструменты",
   "settings": "Настройки",
-  "hide_sidebar": "Скрыть боковую панель",
+  "hide_main_sidebar": "Свернуть боковую панель",
+  "show_main_sidebar": "Развернуть боковую панель",
   "guide": "Руководство новичка",
   "helpcenter": "Справочный центр",
   "general": "Общие",
@@ -38,7 +39,8 @@
   "debug": "Отладка",
   "cloud_sync_account_verification": "Проверка учетной записи облачной синхронизации...",
   "cloud_sync_verification_failed": "Ошибка проверки учетной записи облачной синхронизации",
-  "save_success": "Успешно сохранено",
+  "save_success": "Сохранено успешно",
+  "reset_success": "Сброс выполнен успешно",
   "update": "Обновить",
   "check_update": "Проверить обновления",
   "script_subscription_check_interval": "Интервал проверки обновлений скриптов/подписок",
@@ -151,6 +153,7 @@
   "starting_script": "Запуск скрипта...",
   "starting_updates": "Массовое обновление...",
   "script_started": "Скрипт запущен",
+  "operation_failed": "Операция не выполнена",
   "batch_operations": "Пакетные операции",
   "export": "Экспорт",
   "delete": "Удалить",
@@ -192,7 +195,6 @@
   "yes": "Да",
   "no": "Нет",
   "confirm_delete_permission": "Вы уверены, что хотите удалить это разрешение?",
-  "script_setting": "Настройки скрипта",
   "basic_info": "Основная информация",
   "update_url": "URL обновления",
   "permission_management": "Управление разрешениями",
@@ -282,8 +284,17 @@
   "script_has_full_access_to": "Скрипт получит полный доступ к следующим адресам",
   "script_requires": "Скрипт ссылается на следующие внешние ресурсы",
   "cookie_warning": "Обратите внимание, что этот скрипт запрашивает разрешения на операции с Cookie. Это опасное разрешение, пожалуйста, убедитесь в безопасности скрипта.",
+  "cron_oncetype": {
+    "minute": "{{next}} (выполняется каждую минуту)",
+    "hour": "{{next}} (выполняется каждый час)",
+    "day": "{{next}} (выполняется каждый день)",
+    "month": "{{next}} (выполняется каждый месяц)",
+    "week": "{{next}} (выполняется каждую неделю)"
+  },
+  "cron_invalid_expr": "Неверное выражение cron",
   "scheduled_script_description_title": "Это запланированный скрипт. После включения он будет автоматически выполняться в определенное время и может управляться вручную с панели.",
-  "scheduled_script_description_description": "Выражение планировщика: {{expression}}, последнее время выполнения: {{time}}",
+  "scheduled_script_description_description_expr": "Выражение планировщика",
+  "scheduled_script_description_description_next": "Последнее время выполнения:",
   "background_script_description": "Это фоновый скрипт. После включения он будет автоматически выполняться один раз при открытии браузера и может управляться вручную с панели.",
   "install_success": "Установка успешна",
   "install": {
@@ -323,6 +334,11 @@
     "status_autoclose": "Автоматическое закрытие через $0 сек.",
     "header_other_update": "Другие доступные обновления"
   },
+  "downloading_status_text": "Загрузка. Получено {{bytes}}.",
+  "install_page_please_wait": "Пожалуйста, подождите",
+  "install_page_loading": "Загрузка страницы установки",
+  "install_page_load_failed": "Не удалось загрузить страницу установки",
+  "invalid_page": "Недействительная страница",
   "background_script_tag": "Это фоновый скрипт",
   "scheduled_script_tag": "Это запланированный скрипт",
   "background_script": "Фоновый скрипт",
@@ -371,6 +387,11 @@
   "url": "URL",
   "username": "Имя пользователя",
   "password": "Пароль",
+  "s3_bucket_name": "Имя корзины",
+  "s3_region": "Регион",
+  "s3_access_key_id": "Идентификатор ключа доступа",
+  "s3_secret_access_key": "Секретный ключ доступа",
+  "s3_custom_endpoint": "Пользовательская конечная точка (необязательно)",
   "skip": "Пропустить",
   "next": "Далее",
   "next_with_progress": "Следующий шаг (шаг {step} из {steps})",
@@ -420,6 +441,10 @@
   "confirm_leave_page": "В настоящее время идет редактирование. Переход на другую страницу приведет к потере текущего содержимого. Продолжить переход?",
   "page_in_blacklist": "Текущая страница находится в черном списке, невозможно использовать скрипты",
   "baidu_netdisk": "Baidu Netdisk",
+  "netdisk_unbind": "Отвязать {{provider}}",
+  "netdisk_unbind_confirm": "Отвязать аккаунт {{provider}}?",
+  "netdisk_unbind_success": "Аккаунт {{provider}} отвязан",
+  "netdisk_unbind_error": "Не удалось отвязать аккаунт {{provider}}",
   "save_only_current_group": "Сохранение действует только для текущей группы",
   "script_import_result": "Результат импорта скрипта",
   "failure_info": "Информация об ошибке",
@@ -489,10 +514,16 @@
   "enter_search_value": "Введите {{search}} для поиска",
   "script_run_env": {
     "title": "Среда выполнения",
-    "default": "По умолчанию",
     "all": "Все вкладки",
     "normal-tabs": "Обычные вкладки",
     "incognito-tabs": "Приватные вкладки"
+  },
+  "script_run_at": {
+    "title": "Время выполнения"
+  },
+  "script_setting": {
+    "title": "Настройки скрипта",
+    "default": "По умолчанию"
   },
   "editor_config": "Конфигурация редактора",
   "editor_config_description": "Вы можете настроить compilerOptions, ссылаясь на <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>",
@@ -505,8 +536,6 @@
   "editor_config_format_error": "Ошибка формата конфигурации редактора",
   "editor_type_definition_reset": "Определения типов редактора сброшены",
   "editor_type_definition_saved": "Определения типов редактора сохранены",
-  "layout": "Макет",
-  "hide_script_list": "Скрыть список скриптов",
   "script_list": {
     "sidebar": {
       "stopped": "Остановлено",
@@ -532,6 +561,7 @@
   "error_old_script_code_missing": "Предыдущий код скрипта не найден",
   "error_subscribe_name_required": "Имя подписки обязательно",
   "error_grant_conflict": "@grant одновременно объявляет 'none' и GM API",
+  "error_metadata_line_duplicated": "В метаданных есть повторяющиеся объявления.",
   "notification": {
     "script_sync_delete": "Синхронизация удаления скрипта",
     "script_sync_delete_desc": "Скрипт {{scriptName}} был удален",
@@ -550,5 +580,9 @@
     "enable_now": "Включить сейчас",
     "maybe_later": "Может быть позже",
     "settings_hint": "Вы можете изменить эту опцию в настройках в любое время."
+  },
+  "editor": {
+    "show_script_list": "Показать список скриптов",
+    "hide_script_list": "Скрыть список скриптов"
   }
 }

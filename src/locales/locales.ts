@@ -32,12 +32,15 @@ export function changeLanguage(lng: string, callback?: Callback): void {
   dayjs.locale(lng.toLocaleLowerCase());
 }
 
-export function initLocales(systemConfig: SystemConfig) {
-  const uiLanguage = chrome.i18n.getUILanguage();
-  const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
+let initLocalesResolve: (value: string) => void;
+export const initLocalesPromise = new Promise<string>((resolve) => {
+  initLocalesResolve = resolve;
+});
+
+export function initLanguage(lng: string = "en-US"): void {
   i18n.use(initReactI18next).init({
     fallbackLng: "en-US",
-    lng: defaultLanguage, // 优先使用localStorage中的语言设置
+    lng: lng, // 优先使用localStorage中的语言设置
     interpolation: {
       escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
     },
@@ -54,36 +57,61 @@ export function initLocales(systemConfig: SystemConfig) {
   });
 
   // 先根据默认语言设置路径
-  if (!defaultLanguage.startsWith("zh-")) {
+  if (!lng.startsWith("zh-")) {
     localePath = "/en";
   }
+}
 
-  systemConfig.getLanguage().then((lng) => {
-    changeLanguage(lng);
-    if (!lng.startsWith("zh-")) {
-      localePath = "/en";
-    }
-  });
-  systemConfig.addListener("language", (lng) => {
-    changeLanguage(lng);
+export function initLocales(systemConfig: SystemConfig) {
+  const uiLanguage = chrome.i18n.getUILanguage();
+  const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
+
+  initLanguage(defaultLanguage);
+
+  const changeLanguageCallback = (lng: string) => {
     if (!lng.startsWith("zh-")) {
       localePath = "/en";
     } else {
       localePath = "";
     }
+    changeLanguage(lng);
+  };
+
+  systemConfig.getLanguage().then((lng) => {
+    initLocalesResolve(lng);
+    changeLanguageCallback(lng);
   });
+
+  systemConfig.addListener("language", changeLanguageCallback);
+}
+
+export function watchLanguageChange(callback: (lng: string) => void) {
+  // 马上执行一次
+  let registered = false;
+  initLocalesPromise.then(() => {
+    callback(i18n.language);
+
+    // 监听变化
+    i18n.on("languageChanged", callback);
+    registered = true;
+  });
+
+  return () => {
+    if (registered) {
+      i18n.off("languageChanged", callback);
+    }
+  };
 }
 
 export const i18nLang = (): string => `${i18n?.language?.toLowerCase()}`;
 
-export function i18nName(script: { name: string; metadata: SCMetadata }): string {
-  const metadata = script.metadata;
+export function i18nName(script: { name: string; metadata: SCMetadata }) {
   const lang = i18nLang();
-  let m = metadata[`name:${lang}`];
+  let m = script.metadata[`name:${lang}`];
   if (!m) {
     // 尝试只用前缀匹配
     const langPrefix = lang.split("-")[0];
-    m = metadata[`name:${langPrefix}`];
+    m = script.metadata[`name:${langPrefix}`];
   }
   return m ? m[0] : script.name;
 }
@@ -102,7 +130,7 @@ export function i18nDescription(script: { metadata: SCMetadata }): string {
 
 // 判断是否是中文用户
 export function isChineseUser() {
-  const language = i18n?.language?.toLowerCase();
+  const language = i18nLang();
   return language.startsWith("zh-");
 }
 

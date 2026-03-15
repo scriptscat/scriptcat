@@ -1,4 +1,5 @@
 import { Discord, DocumentationSite, ExtVersion, ExtServer } from "@App/app/const";
+import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch, Tooltip } from "@arco-design/web-react";
 import {
   IconBook,
@@ -22,9 +23,10 @@ import type { ScriptMenu, TPopupScript } from "@App/app/service/service_worker/t
 import { systemConfig } from "@App/pages/store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
 import { getCurrentTab } from "@App/pkg/utils/utils";
-import { useAppContext } from "../store/AppContext";
+import { subscribeMessage } from "@App/pages/store/global";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
+import { HookManager } from "@App/pkg/utils/hookManager";
 
 const CollapseItem = Collapse.Item;
 
@@ -40,6 +42,32 @@ const scriptListSorter = (a: ScriptMenu, b: ScriptMenu) =>
   b.menus.length - a.menus.length ||
   b.runNum - a.runNum ||
   b.updatetime - a.updatetime;
+
+type TUpdateEntryFn = (item: ScriptMenu) => ScriptMenu | undefined;
+
+type TUpdateListOption = { sort?: boolean };
+
+const updateList = (list: ScriptMenu[], update: TUpdateEntryFn, options: TUpdateListOption | undefined) => {
+  // 如果更新跟当前 list 的子项无关，则不用更改 list 的物件参考
+  const newList: ScriptMenu[] = [];
+  let changed = false;
+  for (let i = 0; i < list.length; i++) {
+    const oldItem = list[i];
+    const newItem = update(oldItem); // 如没有更改，物件参考会保持一致
+    if (newItem !== oldItem) changed = true;
+    if (newItem) {
+      newList.push(newItem);
+    }
+  }
+  if (options?.sort) {
+    newList.sort(scriptListSorter);
+  }
+  if (!changed && list.map((e) => e.uuid).join(",") !== newList.map((e) => e.uuid).join(",")) {
+    // 单一项未有改变，但因为 sort值改变 而改变了次序
+    changed = true;
+  }
+  return changed ? newList : list; // 如子项没任何变化，则返回原list参考
+};
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -59,21 +87,29 @@ function App() {
   const { t } = useTranslation();
   const pageTabIdRef = useRef(0);
 
-  // 只随 script 数量和启动状态而改变的state
+  // ------------------------------ 重要! 不要隨便更改 ------------------------------
+  // > scriptList 會隨著 (( 任何 )) 子項狀態更新而進行物件參考更新
+  // > (( 必須 )) 把物件參考更新切換成 原始类型（例如字串）
+
+  // normalEnables: 只随 script 数量和启动状态而改变的state
+  // 故意生成一个字串 memo 避免因 scriptList 的参考频繁改动而导致 normalScriptCounts 的物件参考出现非预期更改。
   const normalEnables = useMemo(() => {
     // 返回字串让 React 比对 state 有否改动
     return scriptList.map((script) => (script.enable ? 1 : 0)).join(",");
   }, [scriptList]);
 
-  // 只随 script 数量和启动状态而改变的state
+  // backEnables: 只随 script 数量和启动状态而改变的state
+  // 故意生成一个字串 memo 避免因 scriptList 的参考频繁改动而导致 backScriptCounts 的物件参考出现非预期更改。
   const backEnables = useMemo(() => {
     // 返回字串让 React 比对 state 有否改动
     return backScriptList.map((script) => (script.enable ? 1 : 0)).join(",");
   }, [backScriptList]);
+  // ------------------------------ 重要! 不要隨便更改 ------------------------------
 
+  // normalScriptCounts 的物件參考只會隨 原始类型（字串）的 normalEnables 狀態更新而重新生成
   const normalScriptCounts = useMemo(() => {
     // 拆回array
-    const enables = normalEnables.split(",");
+    const enables = normalEnables.split(",").filter(Boolean);
     // 计算已开启了的数量
     const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
     return {
@@ -82,9 +118,10 @@ function App() {
     };
   }, [normalEnables]);
 
+  // backScriptCounts 的物件參考只會隨 原始类型（字串）的 backEnables 狀態更新而重新生成
   const backScriptCounts = useMemo(() => {
     // 拆回array
-    const enables = backEnables.split(",");
+    const enables = backEnables.split(",").filter(Boolean);
     // 计算已开启了的数量
     const running = enables.reduce((p, c) => p + (+c ? 1 : 0), 0);
     return {
@@ -103,38 +140,16 @@ function App() {
     return url?.hostname ?? "";
   }, [currentUrl]);
 
-  const { subscribeMessage } = useAppContext();
   useEffect(() => {
-    let isMounted = true;
+    const hookMgr = new HookManager();
 
-    const updateScriptList = (
-      update: (item: ScriptMenu) => ScriptMenu | undefined,
-      options?: {
-        sort?: boolean;
-      }
-    ) => {
-      const updateList = (list: ScriptMenu[], update: (item: ScriptMenu) => ScriptMenu | undefined) => {
-        const newList = [];
-        for (let i = 0; i < list.length; i++) {
-          const newItem = update(list[i]);
-          if (newItem) {
-            newList.push(newItem);
-          }
-        }
-        if (options?.sort) {
-          newList.sort(scriptListSorter);
-        }
-        return newList;
-      };
-      setScriptList((prev) => {
-        return updateList(prev, update);
-      });
-      setBackScriptList((prev) => {
-        return updateList(prev, update);
-      });
+    const updateScriptList = (update: TUpdateEntryFn, options?: TUpdateListOption) => {
+      // 当 启用/禁用/菜单改变 时，如有必要则更新 list 参考
+      setScriptList((prev) => updateList(prev, update, options));
+      setBackScriptList((prev) => updateList(prev, update, options));
     };
 
-    const unhooks = [
+    hookMgr.append(
       // 订阅脚本啟用状态变更（enableScripts），即时更新对应项目的 enable。
       subscribeMessage<TEnableScript[]>("enableScripts", (data) => {
         updateScriptList((item) => {
@@ -182,7 +197,7 @@ function App() {
           });
           if (!url) return;
           popupClient.getPopupData({ url, tabId }).then((resp) => {
-            if (!isMounted) return;
+            if (!hookMgr.isMounted) return;
 
             // 响应健全性检查：必须包含 scriptList，否则忽略此次更新
             if (!resp || !resp.scriptList) {
@@ -211,8 +226,8 @@ function App() {
             );
           });
         }
-      }),
-    ];
+      })
+    );
 
     const onCurrentUrlUpdated = (url: string, tabId: number) => {
       pageTabIdRef.current = tabId;
@@ -220,7 +235,7 @@ function App() {
       popupClient
         .getPopupData({ url, tabId })
         .then((resp) => {
-          if (!isMounted) return;
+          if (!hookMgr.isMounted) return;
 
           // 确保响应有效
           if (!resp || !resp.scriptList) {
@@ -241,14 +256,14 @@ function App() {
         })
         .catch((error) => {
           console.error("Failed to get popup data:", error);
-          if (!isMounted) return;
+          if (!hookMgr.isMounted) return;
           // 设为安全预设，避免 UI 因错误状态而崩溃
           setScriptList([]);
           setBackScriptList([]);
           setIsBlacklist(false);
         })
         .finally(() => {
-          if (!isMounted) return;
+          if (!hookMgr.isMounted) return;
           setLoading(false);
         });
     };
@@ -258,7 +273,10 @@ function App() {
         systemConfig.getEnableScript(),
         systemConfig.getCheckUpdate(),
       ]);
-      if (!isMounted) return;
+      if (!hookMgr.isMounted) return;
+      if (typeof checkUpdate.notice === "string") {
+        checkUpdate.notice = sanitizeHTML(checkUpdate.notice);
+      }
       setIsEnableScript(isEnableScript);
       setCheckUpdate(checkUpdate);
     };
@@ -266,7 +284,7 @@ function App() {
       // 仅在挂载时读取一次页签信息；不绑定 currentUrl 以避免重复查询
       try {
         const tab = await getCurrentTab();
-        if (!isMounted || !tab) return;
+        if (!hookMgr.isMounted || !tab) return;
         const newUrl = tab.url || "";
         setCurrentUrl((prev) => {
           if (newUrl !== prev) {
@@ -282,11 +300,7 @@ function App() {
 
     checkScriptEnableAndUpdate();
     queryTabInfo();
-    return () => {
-      isMounted = false;
-      for (const unhook of unhooks) unhook();
-      unhooks.length = 0;
-    };
+    return hookMgr.unhook;
   }, []);
 
   const { handleEnableScriptChange, handleSettingsClick, handleNotificationClick } = {
@@ -364,13 +378,16 @@ function App() {
       ]).then(([resp]: [{ data: { notice: string; version: string } } | null | undefined, any]) => {
         let newCheckUpdateState = 0;
         if (resp?.data) {
+          let notice = "";
+          if (typeof resp.data.notice === "string") notice = sanitizeHTML(resp.data.notice);
+          const version = resp.data.version;
           setCheckUpdate((items) => {
-            if (resp.data.version === items.version) {
+            if (version === items.version) {
               newCheckUpdateState = 2;
               return items;
             }
-            const isRead = items.notice !== resp.data.notice ? false : items.isRead;
-            const newCheckUpdate = { ...resp.data, isRead };
+            const isRead = items.notice !== notice ? false : items.isRead;
+            const newCheckUpdate = { version, notice, isRead };
             systemConfig.setCheckUpdate(newCheckUpdate);
             return newCheckUpdate;
           });
@@ -386,12 +403,12 @@ function App() {
       <Card
         size="small"
         title={
-          <div className="flex justify-between">
-            <div className="text-xl inline-flex flex-row items-center gap-x-1">
+          <div className="tw-flex tw-justify-between">
+            <div className="tw-text-xl tw-inline-flex tw-flex-row tw-items-center tw-gap-x-1">
               <span>{"ScriptCat"}</span>
             </div>
-            <div className="flex flex-row items-center">
-              <Switch size="small" className="mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
+            <div className="tw-flex tw-flex-row tw-items-center">
+              <Switch size="small" className="tw-mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
               <Button type="text" icon={<IconSettings />} iconOnly onClick={handleSettingsClick} />
               <Badge count={checkUpdate.isRead ? 0 : 1} dot offset={[-8, 6]}>
                 <Button type="text" icon={<IconNotification />} iconOnly onClick={handleNotificationClick} />
@@ -418,37 +435,43 @@ function App() {
                     }}
                     onClickMenuItem={handleMenuClick}
                   >
-                    <Menu.Item key="newScript" className="flex flex-row items-center">
+                    <Menu.Item key="newScript" className="tw-flex tw-flex-row tw-items-center">
                       <IconPlus style={iconStyle} />
                       {t("create_script")}
                     </Menu.Item>
                     <Menu.Item
                       key={`https://scriptcat.org/search?domain=${urlHost}`}
-                      className="flex flex-row items-center"
+                      className="tw-flex tw-flex-row tw-items-center"
                     >
                       <IconSearch style={iconStyle} />
                       {t("get_script")}
                     </Menu.Item>
-                    <Menu.Item key={"checkUpdate"} className="flex flex-row items-center">
+                    <Menu.Item key={"checkUpdate"} className="tw-flex tw-flex-row tw-items-center">
                       <IconSync style={iconStyle} />
                       {t("check_update")}
                     </Menu.Item>
-                    <Menu.Item key="report_issue" className="flex flex-row items-center">
+                    <Menu.Item key="report_issue" className="tw-flex tw-flex-row tw-items-center">
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
-                    <Menu.Item key={`${DocumentationSite}${localePath}`} className="flex flex-row items-center">
+                    <Menu.Item
+                      key={`${DocumentationSite}${localePath}`}
+                      className="tw-flex tw-flex-row tw-items-center"
+                    >
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>
                     <Menu.Item
                       key={isChineseUser() ? "https://bbs.tampermonkey.net.cn/" : Discord}
-                      className="flex flex-row items-center"
+                      className="tw-flex tw-flex-row tw-items-center"
                     >
                       <RiMessage2Line style={iconStyle} />
                       {t("community")}
                     </Menu.Item>
-                    <Menu.Item key="https://github.com/scriptscat/scriptcat" className="flex flex-row items-center">
+                    <Menu.Item
+                      key="https://github.com/scriptscat/scriptcat"
+                      className="tw-flex tw-flex-row tw-items-center"
+                    >
                       <IconGithub style={iconStyle} />
                       {"GitHub"}
                     </Menu.Item>
@@ -466,7 +489,11 @@ function App() {
         <Alert
           style={{ display: showAlert ? "flex" : "none" }}
           type="info"
-          content={<div dangerouslySetInnerHTML={{ __html: checkUpdate.notice || "" }} />}
+          content={
+            <div
+              dangerouslySetInnerHTML={{ __html: checkUpdate.notice /* notice is already sanitized by dompurify */ }}
+            />
+          }
         />
         <Collapse
           bordered={false}
@@ -508,14 +535,14 @@ function App() {
             />
           </CollapseItem>
         </Collapse>
-        <div className="flex flex-row arco-card-header !h-6">
+        <div className="tw-flex tw-flex-row arco-card-header !tw-h-6">
           {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS ? (
             <Tooltip content={`${t("popup.new_version_available")} (v${checkUpdate.version})`}>
               <span
                 onClick={() => {
                   window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
                 }}
-                className={`text-[12px] font-500 cursor-pointer underline underline-offset-2 text-blue-500 dark:text-blue-400`}
+                className={`tw-text-[12px] tw-font-500 tw-cursor-pointer tw-underline tw-underline-offset-2 tw-text-blue-500 dark:tw-text-blue-400`}
               >{`v${ExtVersion}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 0 ? (
@@ -524,12 +551,12 @@ function App() {
                 onClick={() => {
                   setCheckUpdateStatus(1);
                 }}
-                className="text-[12px] font-500 cursor-pointer hover:underline hover:underline-offset-2"
+                className="tw-text-[12px] tw-font-500 tw-cursor-pointer hover:tw-underline hover:tw-underline-offset-2"
               >{`v${ExtVersion}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 1 ? (
             <Tooltip content={t("checking_for_updates")}>
-              <span className="text-[12px] font-500">{`${t("checking_for_updates")}`}</span>
+              <span className="tw-text-[12px] tw-font-500">{`${t("checking_for_updates")}`}</span>
             </Tooltip>
           ) : checkUpdateStatus === 2 ? (
             <Tooltip content={t("latest_version")}>
@@ -537,7 +564,7 @@ function App() {
                 onClick={() => {
                   setCheckUpdateStatus(1);
                 }}
-                className="text-[12px] font-500 cursor-pointer hover:underline hover:underline-offset-2"
+                className="tw-text-[12px] tw-font-500 tw-cursor-pointer hover:tw-underline hover:tw-underline-offset-2"
               >{`${t("latest_version")}`}</span>
             </Tooltip>
           ) : (

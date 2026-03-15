@@ -21,7 +21,8 @@
   "logs": "Protokolle",
   "tools": "Werkzeuge",
   "settings": "Einstellungen",
-  "hide_sidebar": "Seitenleiste einklappen",
+  "hide_main_sidebar": "Seitenleiste einklappen",
+  "show_main_sidebar": "Seitenleiste ausklappen",
   "guide": "Einsteigeranleitung",
   "helpcenter": "Hilfezentrum",
   "general": "Allgemein",
@@ -39,6 +40,7 @@
   "cloud_sync_account_verification": "Cloud-Sync-Kontoinformationen werden überprüft...",
   "cloud_sync_verification_failed": "Cloud-Sync-Kontoinformationen-Überprüfung fehlgeschlagen",
   "save_success": "Erfolgreich gespeichert",
+  "reset_success": "Erfolgreich zurückgesetzt",
   "update": "Aktualisieren",
   "check_update": "Nach Updates suchen",
   "script_subscription_check_interval": "Skript-/Abonnement-Update-Überprüfungsintervall",
@@ -151,6 +153,7 @@
   "starting_script": "Skript wird gestartet...",
   "starting_updates": "Batch-Update wird gestartet...",
   "script_started": "Skript gestartet",
+  "operation_failed": "Vorgang fehlgeschlagen",
   "batch_operations": "Batch-Operationen",
   "export": "Exportieren",
   "delete": "Löschen",
@@ -192,7 +195,6 @@
   "yes": "Ja",
   "no": "Nein",
   "confirm_delete_permission": "Sind Sie sicher, dass Sie diese Berechtigung löschen möchten?",
-  "script_setting": "Skript-Einstellungen",
   "basic_info": "Grundinformationen",
   "update_url": "Update-URL",
   "permission_management": "Berechtigungsverwaltung",
@@ -282,8 +284,17 @@
   "script_has_full_access_to": "Skript erhält vollständigen Zugriff auf die folgenden Adressen",
   "script_requires": "Skript referenziert die folgenden externen Ressourcen",
   "cookie_warning": "Achtung: Dieses Skript beantragt Cookie-Operationsberechtigung. Dies ist eine gefährliche Berechtigung, bitte stellen Sie die Sicherheit des Skripts sicher.",
+  "cron_oncetype": {
+    "minute": "{{next}} (jede Minute ausgeführt)",
+    "hour": "{{next}} (jede Stunde ausgeführt)",
+    "day": "{{next}} (jeden Tag ausgeführt)",
+    "month": "{{next}} (jeden Monat ausgeführt)",
+    "week": "{{next}} (jede Woche ausgeführt)"
+  },
+  "cron_invalid_expr": "Ungültiger Cron-Ausdruck",
   "scheduled_script_description_title": "Dies ist ein geplantes Skript. Wenn aktiviert, wird es zu bestimmten Zeiten automatisch ausgeführt und kann im Panel manuell gesteuert werden.",
-  "scheduled_script_description_description": "Geplante Aufgaben-Ausdruck: {{expression}}, letzte Ausführungszeit: {{time}}",
+  "scheduled_script_description_description_expr": "Geplante Aufgaben-Ausdruck",
+  "scheduled_script_description_description_next": "Letzte Ausführungszeit:",
   "background_script_description": "Dies ist ein Hintergrundskript. Wenn aktiviert, wird es automatisch einmal ausgeführt, wenn der Browser geöffnet wird, und kann im Panel manuell gesteuert werden.",
   "install_success": "Installation erfolgreich",
   "install": {
@@ -323,6 +334,11 @@
     "status_autoclose": "Automatisches Schließen in $0 Sekunden",
     "header_other_update": "Andere verfügbare Updates"
   },
+  "downloading_status_text": "Wird heruntergeladen. {{bytes}} empfangen.",
+  "install_page_please_wait": "Bitte warten Sie",
+  "install_page_loading": "Installationsseite wird geladen",
+  "install_page_load_failed": "Installationsseite konnte nicht geladen werden",
+  "invalid_page": "Ungültige Seite",
   "background_script_tag": "Dies ist ein Hintergrundskript",
   "scheduled_script_tag": "Dies ist ein geplantes Skript",
   "background_script": "Hintergrundskript",
@@ -371,6 +387,11 @@
   "url": "URL",
   "username": "Benutzername",
   "password": "Passwort",
+  "s3_bucket_name": "Bucket-Name",
+  "s3_region": "Region",
+  "s3_access_key_id": "Zugriffs-Schlüssel-ID",
+  "s3_secret_access_key": "Geheimer Zugriffsschlüssel",
+  "s3_custom_endpoint": "Benutzerdefinierter Endpunkt (optional)",
   "skip": "Überspringen",
   "next": "Weiter",
   "next_with_progress": "Nächster Schritt (Schritt {step} von {steps})",
@@ -420,6 +441,10 @@
   "confirm_leave_page": "Derzeit im Bearbeitungsstatus. Das Navigieren zu anderen Seiten führt zum Verlust des aktuellen Inhalts. Navigieren?",
   "page_in_blacklist": "Die aktuelle Seite ist auf der Blacklist und kann keine Skripte verwenden",
   "baidu_netdisk": "Baidu Netdisk",
+  "netdisk_unbind": "{{provider}} trennen",
+  "netdisk_unbind_confirm": "Das {{provider}}-Konto trennen?",
+  "netdisk_unbind_success": "{{provider}}-Konto getrennt",
+  "netdisk_unbind_error": "{{provider}}-Konto konnte nicht getrennt werden",
   "save_only_current_group": "Speichern ist nur für die aktuelle Gruppe wirksam",
   "script_import_result": "Skript-Import-Ergebnis",
   "failure_info": "Fehlerinformationen",
@@ -489,10 +514,16 @@
   "enter_search_value": "Bitte geben Sie {{search}} für die Suche ein",
   "script_run_env": {
     "title": "Laufzeitumgebung",
-    "default": "default",
     "all": "Alle Bezeichnungen",
     "normal-tabs": "Normale Tabs",
     "incognito-tabs": "Inkognito-Tabs"
+  },
+  "script_run_at": {
+    "title": "Ausführungszeitpunkt"
+  },
+  "script_setting": {
+    "title": "Skript-Einstellungen",
+    "default": "default"
   },
   "editor_config": "Editor-Konfiguration",
   "editor_config_description": "Sie können sich an den compilerOptions in <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> orientieren, um die Konfiguration vorzunehmen",
@@ -505,8 +536,6 @@
   "editor_config_format_error": "Editor-Konfiguration Formatfehler",
   "editor_type_definition_reset": "Editor-Typdefinitionen wurden zurückgesetzt",
   "editor_type_definition_saved": "Editor-Typdefinitionen wurden gespeichert",
-  "layout": "Layout",
-  "hide_script_list": "Skriptliste ausblenden",
   "script_list": {
     "sidebar": {
       "stopped": "Gestoppt",
@@ -532,6 +561,7 @@
   "error_old_script_code_missing": "Alter Skriptcode nicht gefunden",
   "error_subscribe_name_required": "Abonnementname ist erforderlich",
   "error_grant_conflict": "@grant deklariert sowohl 'none' als auch GM API",
+  "error_metadata_line_duplicated": "In den Metadaten befinden sich doppelte Deklarationen.",
   "notification": {
     "script_sync_delete": "Skript-Löschsynchronisation",
     "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",
@@ -550,5 +580,9 @@
     "enable_now": "Jetzt aktivieren",
     "maybe_later": "Vielleicht später",
     "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern."
+  },
+  "editor": {
+    "show_script_list": "Skriptliste anzeigen",
+    "hide_script_list": "Skriptliste ausblenden"
   }
 }

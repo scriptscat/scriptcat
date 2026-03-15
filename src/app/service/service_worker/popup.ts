@@ -20,7 +20,6 @@ import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { v5 as uuidv5 } from "uuid";
-import { getCombinedMeta } from "./utils";
 
 const enum ScriptMenuRegisterType {
   REGISTER = 1,
@@ -370,9 +369,10 @@ export class PopupService {
         run.isEffective = o.effective!;
         run.hasUserConfig = !!script.config;
       } else {
-        if (script.selfMetadata) {
-          script.metadata = getCombinedMeta(script.metadata, script.selfMetadata);
-        }
+        // 由于目前没有在 Popup 显示 @match @include @exclude, 所以以下代码暂不需要
+        // if (script.selfMetadata) {
+        //   script.metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+        // }
         run = scriptToMenu(script);
         run.isEffective = o.effective!;
       }

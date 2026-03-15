@@ -21,7 +21,7 @@ loggerCore.logger().debug("batchupdate page start");
 
 const Root = (
   <AppProvider>
-    <MainLayout className="!flex-col !px-4 box-border batchupdate-mainlayout">
+    <MainLayout className="!tw-flex-col !tw-px-4 tw-box-border batchupdate-mainlayout">
       <App />
     </MainLayout>
   </AppProvider>

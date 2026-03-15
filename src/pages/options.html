@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><%= htmlRspackPlugin.options.title %></title>
+    <% if isReactTools=="true" { %>
+    <script src="http://localhost:8097"></script>
+    <% } %>
     <style>
       body {
         height: 100%;
@@ -16,8 +19,4 @@
   <body>
     <div id="root"></div>
   </body>
-  <% if rspackConfig.mode=="script" { %>
-  <script type="text/javascript" src="/_locales/i18n.js"></script>
-  <script type="text/javascript" src="https://cdn.crowdin.com/jipt/jipt.js"></script>
-  <% } %>
 </html>

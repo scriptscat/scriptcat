@@ -17,6 +17,7 @@ import {
   toUniquePatternStrings,
   type URLRuleEntry,
 } from "@App/pkg/utils/url_matcher";
+import { cacheInstance } from "@App/app/cache";
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle
@@ -90,27 +91,6 @@ export function parseUrlSRI(url: string): {
 
   // 即使没有解析到任何哈希值，也只会返回空对象而不是 undefined
   return { url: urls[0], hash };
-}
-
-export type TMsgResponse<T> =
-  | {
-      ok: true;
-      res: T;
-    }
-  | {
-      ok: false;
-      err: {
-        name?: string;
-        message?: string;
-        errType?: number;
-        [key: string]: any;
-      };
-    };
-
-export function msgResponse<T>(errType: number, t: Error | any, params?: T): TMsgResponse<T> {
-  if (!errType) return { ok: true, res: t };
-  const { name, message } = t;
-  return { ok: false, err: { name, message, errType, ...t, ...params } };
 }
 
 export async function notificationsUpdate(
@@ -190,7 +170,6 @@ export function parseScriptLoadInfo(script: ScriptRunResource, scriptUrlPatterns
 }
 
 export function compileInjectionCode(
-  messageFlag: string,
   scriptRes: ScriptRunResource,
   scriptCode: string,
   scriptUrlPatterns: URLRuleEntry[]
@@ -199,18 +178,14 @@ export function compileInjectionCode(
   let scriptInjectCode;
   scriptCode = compileScriptCode(scriptRes, scriptCode);
   if (preDocumentStartScript) {
-    scriptInjectCode = compilePreInjectScript(
-      messageFlag,
-      parseScriptLoadInfo(scriptRes, scriptUrlPatterns),
-      scriptCode
-    );
+    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
   } else {
     scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
   }
   return scriptInjectCode;
 }
 
-// 构建userScript注册信息（忽略代碼部份）
+// 构建userScript注册信息（忽略代码部份）
 export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
 
@@ -278,7 +253,7 @@ export function scriptURLPatternResults(scriptRes: {
     return null;
   }
 
-  // 黑名单排除 統一在腳本注冊時添加
+  // 黑名单排除 统一在脚本注册时添加
   const scriptUrlPatterns = extractUrlPatterns([
     ...(metaMatch || []).map((e) => `@match ${e}`),
     ...(metaInclude || []).map((e) => `@include ${e}`),
@@ -299,4 +274,34 @@ export function scriptURLPatternResults(scriptRes: {
       : scriptUrlPatterns;
 
   return { scriptUrlPatterns, originalUrlPatterns };
+}
+
+export const getFaviconRootFolder = (): Promise<FileSystemDirectoryHandle> => {
+  return navigator.storage
+    .getDirectory()
+    .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`, { create: true }));
+};
+
+export const removeFavicon = (filename: string): Promise<void> => {
+  return navigator.storage
+    .getDirectory()
+    .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`))
+    .then((faviconsFolder) => faviconsFolder.removeEntry(`${filename}`, { recursive: true }));
+};
+
+export type NotificationOptionCache = {
+  url?: string;
+};
+
+export async function InfoNotification(title: string, msg: string, options?: NotificationOptionCache) {
+  const notificationId = await chrome.notifications.create({
+    type: "basic",
+    title,
+    message: msg,
+    iconUrl: chrome.runtime.getURL("assets/logo.png"),
+  });
+  // 如果设定了url，则保存到cache里，在gm_api中集中处理
+  if (options) {
+    cacheInstance.set(`notification:${notificationId}:options`, options);
+  }
 }

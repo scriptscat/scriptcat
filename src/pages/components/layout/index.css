@@ -19,3 +19,8 @@
 :is(.arco-dropdown-menu-pop-header, .arco-dropdown-menu-item, .arco-dropdown-menu-item a) > svg {
     margin-right: .5em;
 }
+
+/* 避免拖拽时 tooltip 等元件弹出 */
+.dragzone-active .arco-layout-content {
+    pointer-events: none;
+}

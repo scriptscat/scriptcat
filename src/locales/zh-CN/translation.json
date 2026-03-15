@@ -21,7 +21,8 @@
   "logs": "日志",
   "tools": "工具",
   "settings": "设置",
-  "hide_sidebar": "收起侧边栏",
+  "hide_main_sidebar": "收起侧边栏",
+  "show_main_sidebar": "展开侧边栏",
   "guide": "新手指引",
   "helpcenter": "帮助中心",
   "general": "通用",
@@ -39,6 +40,7 @@
   "cloud_sync_account_verification": "云同步账号信息验证中...",
   "cloud_sync_verification_failed": "云同步账号信息验证失败",
   "save_success": "保存成功",
+  "reset_success": "重置成功",
   "update": "更新",
   "check_update": "检查更新",
   "script_subscription_check_interval": "脚本/订阅检查更新间隔",
@@ -151,6 +153,7 @@
   "starting_script": "正在启动脚本...",
   "starting_updates": "正在批量更新...",
   "script_started": "脚本已启动",
+  "operation_failed": "操作失败",
   "batch_operations": "批量操作",
   "export": "导出",
   "delete": "删除",
@@ -192,7 +195,6 @@
   "yes": "是",
   "no": "否",
   "confirm_delete_permission": "确定要删除此授权吗？",
-  "script_setting": "脚本设置",
   "basic_info": "基本信息",
   "update_url": "更新URL",
   "permission_management": "授权管理",
@@ -282,8 +284,17 @@
   "script_has_full_access_to": "脚本将获得以下地址的完整访问权限",
   "script_requires": "脚本引用了下列外部资源",
   "cookie_warning": "请注意，本脚本会请求 Cookie 的操作权限，这是一个危险的权限，请确认脚本的安全性。",
+  "cron_oncetype": {
+    "minute": "{{next}} （每分钟运行一次）",
+    "hour": "{{next}} （每小时运行一次）",
+    "day": "{{next}} （每天运行一次）",
+    "month": "{{next}} （每月运行一次）",
+    "week": "{{next}} （每星期运行一次）"
+  },
+  "cron_invalid_expr": "错误的定时表达式",
   "scheduled_script_description_title": "这是一个定时脚本，启用后将在特定时间自动运行，并可在面板中手动控制。",
-  "scheduled_script_description_description": "定时任务表达式：{{expression}}，最近一次运行时间：{{time}}",
+  "scheduled_script_description_description_expr": "定时任务表达式：",
+  "scheduled_script_description_description_next": "最近一次运行时间：",
   "background_script_description": "这是一个后台脚本，启用后将在浏览器打开时自动运行一次，并可在面板中手动控制。",
   "install_success": "安装成功",
   "install": {
@@ -323,6 +334,11 @@
     "status_autoclose": "$0 秒后自动关闭",
     "header_other_update": "其他可用更新"
   },
+  "downloading_status_text": "正在下载。已接收 {{bytes}}。",
+  "install_page_please_wait": "请稍等",
+  "install_page_loading": "安装页面加载中",
+  "install_page_load_failed": "安装页面加载失败",
+  "invalid_page": "无效页面",
   "background_script_tag": "这是一个后台脚本",
   "scheduled_script_tag": "这是一个定时脚本",
   "background_script": "后台脚本",
@@ -371,6 +387,11 @@
   "url": "URL",
   "username": "用户名",
   "password": "密码",
+  "s3_bucket_name": "存储桶名称",
+  "s3_region": "区域",
+  "s3_access_key_id": "访问密钥 ID",
+  "s3_secret_access_key": "访问密钥密文",
+  "s3_custom_endpoint": "自定义端点（可选）",
   "skip": "跳过",
   "next": "下一步",
   "next_with_progress": "下一步（第 {step} 步 / 共 {steps} 步）",
@@ -420,6 +441,10 @@
   "confirm_leave_page": "当前正在编辑状态，跳转其它页面将会丢失当前内容，是否跳转？",
   "page_in_blacklist": "当前页面在黑名单中，无法使用脚本",
   "baidu_netdisk": "百度网盘",
+  "netdisk_unbind": "解除绑定 {{provider}}",
+  "netdisk_unbind_confirm": "确定解除 {{provider}} 账号绑定吗？",
+  "netdisk_unbind_success": "已解除 {{provider}} 账号绑定",
+  "netdisk_unbind_error": "解除 {{provider}} 账号失败",
   "save_only_current_group": "保存只对当前组有效",
   "script_import_result": "脚本导入结果",
   "failure_info": "失败信息",
@@ -489,10 +514,16 @@
   "enter_search_value": "请输入 {{search}} 进行搜索",
   "script_run_env": {
     "title": "运行环境",
-    "default": "默认",
     "all": "所有标签",
     "normal-tabs": "普通标签",
     "incognito-tabs": "隐身标签"
+  },
+  "script_run_at": {
+    "title": "运行时机"
+  },
+  "script_setting": {
+    "title": "脚本设置",
+    "default": "默认"
   },
   "editor_config": "编辑器配置",
   "editor_config_description": "你可以参考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions进行配置",
@@ -505,8 +536,6 @@
   "editor_config_format_error": "编辑器配置格式错误",
   "editor_type_definition_reset": "编辑器类型定义已重置",
   "editor_type_definition_saved": "编辑器类型定义已保存",
-  "layout": "布局",
-  "hide_script_list": "隐藏脚本列表",
   "script_list": {
     "sidebar": {
       "stopped": "停止",
@@ -532,6 +561,7 @@
   "error_old_script_code_missing": "旧的脚本代码不存在",
   "error_subscribe_name_required": "订阅名不能为空",
   "error_grant_conflict": "@grant 同时声明了 none 和 GM API",
+  "error_metadata_line_duplicated": "Metadata 中有重复的声明。",
   "notification": {
     "script_sync_delete": "脚本删除同步",
     "script_sync_delete_desc": "脚本 {{scriptName}} 已被删除",
@@ -550,5 +580,9 @@
     "enable_now": "立即启用",
     "maybe_later": "暂不启用",
     "settings_hint": "你可以随时在设置中修改此选项。"
+  },
+  "editor": {
+    "show_script_list": "显示脚本列表",
+    "hide_script_list": "隐藏脚本列表"
   }
 }

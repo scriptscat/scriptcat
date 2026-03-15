@@ -17,8 +17,8 @@ import {
 } from "@App/app/service/service_worker/types";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { IconSync } from "@arco-design/web-react/icon";
-import { useAppContext } from "../store/AppContext";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
+import { subscribeMessage } from "@App/pages/store/global";
 
 const CollapseItem = Collapse.Item;
 const { GridItem } = Grid;
@@ -29,8 +29,6 @@ const { Text } = Typography;
 const pageExecute: Record<string, (data: any) => void> = {};
 
 function App() {
-  const { subscribeMessage } = useAppContext();
-
   const AUTO_CLOSE_PAGE = 8; // after 8s, auto close
   const getUrlParam = (key: string): string => {
     return (location.search?.includes(`${key}=`) ? new URLSearchParams(location.search).get(`${key}`) : "") || "";
@@ -92,7 +90,8 @@ function App() {
           site.push(entry);
           continue;
         }
-        const isIgnored = entry.script.ignoreVersion === entry.newMeta?.version?.[0];
+        const newVersion = entry.newMeta?.version?.[0];
+        const isIgnored = typeof newVersion === "string" && entry.script.ignoreVersion === newVersion;
         const mEntry = {
           ...entry,
         };
@@ -256,7 +255,7 @@ function App() {
                   title={
                     <span
                       onClick={() => openUpdatePage(item.uuid)}
-                      className="text-clickable text-gray-900 dark:text-gray-100 !hover:text-blue-600 dark:hover:text-blue-400"
+                      className="tw-text-clickable tw-text-gray-900 dark:tw-text-gray-100 !hover:tw-text-blue-600 dark:hover:tw-text-blue-400"
                     >
                       <Typography.Ellipsis rows={1} expandable={false} showTooltip={{ mini: true }}>
                         {item.script?.name}
@@ -269,12 +268,13 @@ function App() {
                       <Link disabled={isDoingTask} onClick={() => onUpdateClick(item.uuid)}>
                         {t("updatepage.update")}
                       </Link>
-                      {item.script.ignoreVersion !== item.newMeta?.version?.[0] ? (
+                      {typeof item.newMeta?.version?.[0] === "string" &&
+                      item.script.ignoreVersion !== item.newMeta.version[0] ? (
                         <>
                           <Divider type="vertical" />
                           <Link
                             disabled={isDoingTask}
-                            onClick={() => onIgnoreClick(item.uuid, item.newMeta?.version?.[0])}
+                            onClick={() => onIgnoreClick(item.uuid, item.newMeta.version[0])}
                           >
                             {t("updatepage.ignore")}
                           </Link>
@@ -285,7 +285,7 @@ function App() {
                     </>
                   }
                 >
-                  <Space className="pb-2">
+                  <Space className="tw-pb-2">
                     <Space direction="vertical">
                       <Text>{t("updatepage.old_version_")}</Text>
                       <Text>{t("updatepage.new_version_")}</Text>
@@ -377,31 +377,31 @@ function App() {
   return (
     <>
       {
-        <div className="mb-2 text-gray-800 dark:text-gray-200">
-          <div className="flex flex-row items-center gap-2">
-            <Typography.Title heading={6} className="!m-0 text-gray-900 dark:text-gray-100">
+        <div className="tw-mb-2 tw-text-gray-800 dark:tw-text-gray-200">
+          <div className="tw-flex tw-flex-row tw-items-center tw-gap-2">
+            <Typography.Title heading={6} className="!tw-m-0 tw-text-gray-900 dark:tw-text-gray-100">
               {t("updatepage.main_header")}
             </Typography.Title>
             <IconSync
               spin={checkUpdateSpin}
               onClick={() => onCheckUpdateClick()}
-              className="cursor-pointer text-gray-700 dark:text-gray-300"
+              className="tw-cursor-pointer tw-text-gray-700 dark:tw-text-gray-300"
             />
           </div>
-          <div className="flex flex-row indent-4">
-            <Typography.Text className="text-gray-700 dark:text-gray-300">{mStatusText}</Typography.Text>
+          <div className="tw-flex tw-flex-row tw-indent-4">
+            <Typography.Text className="tw-text-gray-700 dark:tw-text-gray-300">{mStatusText}</Typography.Text>
           </div>
           {mRecords === null ? (
             <></>
           ) : (
             <>
               {mRecords.site.length === 0 && mRecords.other.length === 0 ? (
-                <div className="flex flex-row indent-4">
-                  <Text className="text-gray-700 dark:text-gray-300">{t("updatepage.status_no_update")}</Text>
+                <div className="tw-flex tw-flex-row tw-indent-4">
+                  <Text className="tw-text-gray-700 dark:tw-text-gray-300">{t("updatepage.status_no_update")}</Text>
                 </div>
               ) : (
-                <div className="flex flex-row indent-4">
-                  <Text className="text-gray-700 dark:text-gray-300">
+                <div className="tw-flex tw-flex-row tw-indent-4">
+                  <Text className="tw-text-gray-700 dark:tw-text-gray-300">
                     {t("updatepage.status_n_update").replace("$0", `${mRecords.site.length + mRecords.other.length}`)}
                   </Text>
                 </div>
@@ -410,15 +410,15 @@ function App() {
                 // <div><Text>{"没有已忽略的更新"}</Text></div>
                 <></>
               ) : (
-                <div className="flex flex-row indent-4">
-                  <Text className="text-gray-700 dark:text-gray-300">
+                <div className="tw-flex tw-flex-row tw-indent-4">
+                  <Text className="tw-text-gray-700 dark:tw-text-gray-300">
                     {t("updatepage.status_n_ignored").replace("$0", `${mRecords.ignored.length}`)}
                   </Text>
                 </div>
               )}
               {mTimeClose >= 0 ? (
-                <div className="flex flex-row indent-4">
-                  <Text className="text-gray-700 dark:text-gray-300">
+                <div className="tw-flex tw-flex-row tw-indent-4">
+                  <Text className="tw-text-gray-700 dark:tw-text-gray-300">
                     {t("updatepage.status_autoclose").replace("$0", `${mTimeClose}`)}
                   </Text>
                 </div>
@@ -439,9 +439,9 @@ function App() {
             <Collapse
               defaultActiveKey={[]}
               className={[
-                "justify-self-center",
+                "tw-justify-self-center",
                 mRecords.site.length === 0 && mRecords.other.length === 0 && mRecords.ignored.length === 0
-                  ? "hidden"
+                  ? "tw-hidden"
                   : "",
               ]}
               style={{ width: "calc(100vw - 64px)" }}
@@ -481,7 +481,7 @@ function App() {
                   <CollapseItem
                     header={`${t("updatepage.header_other_update")}`}
                     name="list-other"
-                    className={[paramSite ? "" : "hidden"]}
+                    className={[paramSite ? "" : "tw-hidden"]}
                     disabled={!mRecords?.other?.length || isDoingTask}
                     extra={
                       mRecords?.other?.length ? (

@@ -4,8 +4,8 @@ import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "../types";
 import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
-import { encodeMessage } from "@App/pkg/utils/message_value";
-import { v4 as uuidv4 } from "uuid";
+import { encodeRValue } from "@App/pkg/utils/message_value";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -33,63 +33,127 @@ const envInfo: GMInfoEnv = {
 describe.concurrent("@grant GM", () => {
   it.concurrent("GM_", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_saveTab", "GM_cookie"];
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    script.metadata.grant = [
+      "GM_getValue",
+      "GM_getTab",
+      "GM_getTabs",
+      "GM_saveTab",
+      "GM_cookie",
+      "GM_addElement",
+      "GM_openInTab",
+      "GM_log",
+      "GM_notification",
+    ];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     script.code = `return {
-      ["GM.getValue"]: GM.getValue,
-      ["GM.getTab"]: GM.getTab,
-      ["GM.setTab"]: GM.setTab,
-      GM_getValue: this.GM_getValue,
-      GM_getTab: this.GM_getTab,
-      GM_saveTab: this.GM_saveTab,
-      GM_cookie: this.GM_cookie,
-      ["GM_cookie.list"]: this.GM_cookie.list,
-      ["GM.cookie"]: this.GM.cookie,
-    }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
-    expect(ret["GM.getValue"]).toBeUndefined();
-    expect(ret["GM.getTab"]).toBeUndefined();
-    expect(ret["GM.setTab"]).toBeUndefined();
-    expect(ret.GM_getValue.name).toEqual("bound GM_getValue");
-    expect(ret.GM_getTab.name).toEqual("bound GM_getTab");
-    expect(ret.GM_saveTab.name).toEqual("bound GM_saveTab");
-    expect(ret.GM_cookie.name).toEqual("bound GM_cookie");
-    expect(ret["GM_cookie.list"].name).toEqual("bound GM_cookie.list");
-    expect(ret["GM.cookie"]).toBeUndefined();
-  });
-
-  it.concurrent("GM.*", async () => {
-    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.getTabs", "GM.saveTab", "GM.cookie"];
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    script.code = `return {
-      ["GM.getValue"]: GM.getValue,
-      ["GM.getTab"]: GM.getTab,
-      ["GM.getTabs"]: GM.getTabs,
-      ["GM.saveTab"]: GM.saveTab,
       GM_getValue: this.GM_getValue,
       GM_getTab: this.GM_getTab,
       GM_getTabs: this.GM_getTabs,
       GM_saveTab: this.GM_saveTab,
       GM_cookie: this.GM_cookie,
-      ["GM.cookie"]: this.GM.cookie,
+      ["GM_cookie.list"]: this.GM_cookie.list,
+      ["GM_addElement"]: this.GM_addElement,
+      ["GM.addElement"]: this.GM.addElement,
+      ["GM_openInTab"]: this.GM_openInTab,
+      ["GM.openInTab"]: this.GM.openInTab,
+      ["GM_log"]: this.GM_log,
+      ["GM.log"]: this.GM.log,
+      ["GM_notification"]: this.GM_notification,
+      ["GM.notification"]: this.GM.notification,
+      ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
+      ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret["GM.getValue"].name).toEqual("bound GM.getValue");
-    expect(ret["GM.getTab"].name).toEqual("bound GM.getTab");
-    expect(ret["GM.getTabs"].name).toEqual("bound GM.getTabs");
-    expect(ret["GM.saveTab"].name).toEqual("bound GM_saveTab");
-    expect(ret.GM_getValue).toBeUndefined();
-    expect(ret.GM_getTab.name).toEqual("bound GM_getTab");
-    expect(ret.GM_getTabs.name).toEqual("bound GM_getTabs");
-    expect(ret.GM_saveTab).toBeUndefined();
-    expect(ret.GM_cookie).toBeUndefined();
-    expect(ret["GM.cookie"].name).toEqual("bound GM.cookie");
-    expect(ret["GM.cookie"].list.name).toEqual("bound GM.cookie.list");
+    // getValue
+    expect(ret.GM_getValue?.name).toEqual("bound GM_getValue");
+    // getTab / getTabs / saveTab
+    expect(ret.GM_getTab?.name).toEqual("bound GM_getTab");
+    expect(ret.GM_getTabs?.name).toEqual("bound GM_getTabs");
+    expect(ret.GM_saveTab?.name).toEqual("bound GM_saveTab");
+    // cookie
+    expect(ret.GM_cookie?.name).toEqual("bound GM_cookie");
+    expect(ret["GM_cookie.list"]?.name).toEqual("bound GM_cookie.list");
+    // GM_与GM.应该都在
+    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
+    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    // 没有grant应返回 nil
+    expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
+    expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
+  });
+
+  it.concurrent("GM.*", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = [
+      "GM.getValue",
+      "GM.getTab",
+      "GM.getTabs",
+      "GM.saveTab",
+      "GM.cookie",
+      "GM.addElement",
+      "GM.openInTab",
+      "GM.log",
+      "GM.notification",
+    ];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    script.code = `return {
+      ["GM.getValue"]: GM.getValue,
+      ["GM.getTab"]: GM.getTab,
+      ["GM.getTabs"]: GM.getTabs,
+      ["GM.saveTab"]: GM.saveTab,
+      ["GM.cookie"]: this.GM.cookie,
+      ["GM_addElement"]: this.GM_addElement,
+      ["GM.addElement"]: this.GM.addElement,
+      ["GM_openInTab"]: this.GM_openInTab,
+      ["GM.openInTab"]: this.GM.openInTab,
+      ["GM_log"]: this.GM_log,
+      ["GM.log"]: this.GM.log,
+      ["GM_notification"]: this.GM_notification,
+      ["GM.notification"]: this.GM.notification,
+      ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
+      ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
+    }`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    // getValue
+    expect(ret["GM.getValue"]?.name).toEqual("bound GM.getValue");
+    // getTab / getTabs / saveTab
+    expect(ret["GM.getTab"]?.name).toEqual("bound GM.getTab");
+    expect(ret["GM.getTabs"]?.name).toEqual("bound GM.getTabs");
+    expect(ret["GM.saveTab"]?.name).toEqual("bound GM.saveTab");
+    // cookie
+    expect(ret["GM.cookie"]?.name).toEqual("bound GM.cookie");
+    expect(ret["GM.cookie"]?.list?.name).toEqual("bound GM.cookie.list");
+    // GM_与GM.应该都在
+    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
+    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    // 没有grant应返回 nil
+    expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
+    expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
   });
 });
 
@@ -98,8 +162,13 @@ describe.concurrent("window.*", () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["window.close"];
     script.code = `return window.close;`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual(expect.any(Function));
@@ -112,8 +181,13 @@ describe.concurrent("GM Api", () => {
     script.value = { test: "ok" };
     script.metadata.grant = ["GM_getValue"];
     script.code = `return GM_getValue("test");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("ok");
@@ -123,8 +197,13 @@ describe.concurrent("GM Api", () => {
     script.value = { test: "ok" };
     script.metadata.grant = ["GM.getValue"];
     script.code = `return GM.getValue("test").then(v=>v+"!");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("ok!");
@@ -135,8 +214,13 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM_listValues"];
     script.code = `return GM_listValues().join("-");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
@@ -151,11 +235,16 @@ describe.concurrent("GM Api", () => {
     script.value.test1 = "40";
     script.metadata.grant = ["GM_listValues"];
     script.code = `return GM_listValues().join("-");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
 
   it.concurrent("GM.listValues", async () => {
@@ -163,8 +252,13 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
@@ -179,11 +273,16 @@ describe.concurrent("GM Api", () => {
     script.value.test1 = "40";
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
 
   it.concurrent("GM_getValues", async () => {
@@ -191,8 +290,13 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM_getValues"];
     script.code = `return GM_getValues(["test2", "test3", "test1"]);`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
@@ -212,8 +316,13 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM.getValues"];
     script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v);`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
@@ -229,8 +338,13 @@ describe.concurrent("early-script", () => {
     script.metadata["early-start"] = [""];
     script.metadata["grant"] = ["CAT_scriptLoaded"];
     script.code = `return CAT_scriptLoaded().then(()=>123);`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     // 抛出错误
     await expect(exec.exec()).rejects.toThrowError();
@@ -242,8 +356,13 @@ describe.concurrent("early-script", () => {
     script.metadata["run-at"] = ["document-start"];
     script.metadata["grant"] = ["CAT_scriptLoaded"];
     script.code = `return CAT_scriptLoaded().then(()=>123);`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = exec.exec();
     // 触发envInfo
@@ -263,8 +382,13 @@ describe.concurrent("GM_menu", () => {
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const retPromise = exec.exec();
 
@@ -278,7 +402,7 @@ describe.concurrent("GM_menu", () => {
 
     expect(mockSendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_registerMenuCommand",
           params: [
@@ -313,8 +437,13 @@ describe.concurrent("GM_menu", () => {
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "content",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = exec.exec();
     // 验证 sendMessage 是否被调用
@@ -335,8 +464,13 @@ describe.concurrent("GM_menu", () => {
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const retPromise = exec.exec();
 
@@ -350,7 +484,7 @@ describe.concurrent("GM_menu", () => {
 
     expect(mockSendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_registerMenuCommand",
           params: [
@@ -398,8 +532,13 @@ describe.concurrent("GM_menu", () => {
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "content",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual({ id1: "abc", id2: "abc", id3: 1, id4: 2, id5: "3", id6: 3, id7: 3, id8: 4 });
@@ -427,8 +566,13 @@ describe.concurrent("GM_value", () => {
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
@@ -439,7 +583,7 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [expect.any(String), "a", 123],
@@ -453,7 +597,7 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [expect.any(String), "a"],
@@ -467,7 +611,7 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [expect.any(String), "proxy-key", {}], // Proxy 会被转换为空对象
@@ -481,7 +625,7 @@ describe.concurrent("GM_value", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       4,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [expect.any(String), "window"], // window 会被转换为空对象
@@ -557,8 +701,13 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "content",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
@@ -672,33 +821,37 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledTimes(4);
 
+    const keyValuePairs1 = [
+      ["a", encodeRValue(123)],
+      ["b", encodeRValue(456)],
+      ["c", encodeRValue("789")],
+    ];
+
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: 123,
-                b: 456,
-                c: "789",
-              }),
-            }),
+            keyValuePairs1,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -706,24 +859,23 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       })
     );
 
+    const keyValuePairs2 = [
+      ["a", encodeRValue(undefined)],
+      ["c", encodeRValue(undefined)],
+    ];
+
     // 第二次调用：删除值（设置为 undefined）
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: expect.stringMatching(/^##[\d.]+##undefined$/),
-                c: expect.stringMatching(/^##[\d.]+##undefined$/),
-              }),
-            }),
+            keyValuePairs2,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -735,19 +887,14 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                "proxy-key": {},
-              }),
-            }),
+            [["proxy-key", encodeRValue({})]],
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -759,19 +906,19 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       4,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                window: expect.stringMatching(/^##[\d.]+##undefined$/),
-              }),
-            }),
+            [
+              [
+                "window",
+                encodeRValue(undefined), // window 会被转换为 undefined
+              ],
+            ],
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -802,33 +949,36 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
 
+    const keyValuePairs1 = [
+      ["a", encodeRValue(123)],
+      ["b", encodeRValue(456)],
+      ["c", encodeRValue("789")],
+    ];
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: 123,
-                b: 456,
-                c: "789",
-              }),
-            }),
+            keyValuePairs1,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -840,7 +990,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
           params: [
@@ -873,33 +1023,37 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
 
+    const keyValuePairs1 = [
+      ["a", encodeRValue(123)],
+      ["b", encodeRValue(456)],
+      ["c", encodeRValue("789")],
+    ];
+
     // 第一次调用：设置值为 123
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: 123,
-                b: 456,
-                c: "789",
-              }),
-            }),
+            keyValuePairs1,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -907,24 +1061,23 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       })
     );
 
+    const keyValuePairs2 = [
+      ["a", encodeRValue(undefined)],
+      ["c", encodeRValue(undefined)],
+    ];
+
     // 第二次调用：删除值（设置为 undefined）
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        action: "content/runtime/gmApi",
+        action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValues",
           params: [
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the string payload
-            expect.objectContaining({
-              k: expect.stringMatching(/^##[\d.]+##$/),
-              m: expect.objectContaining({
-                a: expect.stringMatching(/^##[\d.]+##undefined$/),
-                c: expect.stringMatching(/^##[\d.]+##undefined$/),
-              }),
-            }),
+            keyValuePairs2,
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -951,15 +1104,20 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
     exec.valueUpdate({
       id: "id-1",
-      entries: encodeMessage([["param1", 123, undefined]]),
+      entries: [["param1", encodeRValue(123), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
@@ -985,8 +1143,13 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     // remote = true
     const retPromise = exec.exec();
@@ -994,7 +1157,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     // 模拟值变化
     exec.valueUpdate({
       id: "id-2",
-      entries: encodeMessage([["param2", 456, undefined]]),
+      entries: [["param2", encodeRValue(456), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: "testStorage",
       sender: { runFlag: "user", tabId: -2 },
@@ -1011,8 +1174,13 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
-    // @ts-ignore
-    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const retPromise = exec.exec();
 
@@ -1029,7 +1197,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     // 触发valueUpdate
     exec.valueUpdate({
       id: id,
-      entries: encodeMessage([["a", 123, undefined]]),
+      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },

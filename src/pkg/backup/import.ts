@@ -49,8 +49,8 @@ export default class BackupImport {
 
   // 解析出备份数据
   async parse(): Promise<BackupData> {
-    const map = new Map<string, ScriptBackupData>();
-    const subscribe = new Map<string, SubscribeBackupData>();
+    const map = new Map<string, Partial<ScriptData> & ScriptBackupData>();
+    const subscribe = new Map<string, Partial<SubscribeData> & SubscribeBackupData>();
     let files = await this.fs.list();
 
     // 处理订阅
@@ -62,7 +62,8 @@ export default class BackupImport {
       const key = name.substring(0, name.length - 12);
       const subData = {
         source: <string>await this.getFileContent(file, false),
-      } as SubscribeBackupData;
+        lastModificationDate: file.updatetime,
+      } satisfies Partial<SubscribeData> & SubscribeBackupData;
       subscribe.set(key, subData);
       return true;
     });
@@ -92,7 +93,8 @@ export default class BackupImport {
         requires: [],
         requiresCss: [],
         resources: [],
-      } as ScriptBackupData;
+        lastModificationDate: file.updatetime,
+      } satisfies Partial<ScriptData> & ScriptBackupData;
       map.set(key, backupData);
       return true;
     });
@@ -229,8 +231,8 @@ export default class BackupImport {
 
     // 将map转化为数组
     return {
-      script: <ScriptData[]>Array.from(map.values()),
-      subscribe: <SubscribeData[]>Array.from(subscribe.values()),
+      script: [...map.values()] as ScriptData[],
+      subscribe: [...subscribe.values()] as SubscribeData[],
     };
   }
 

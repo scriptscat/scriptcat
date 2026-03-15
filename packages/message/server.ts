@@ -277,18 +277,10 @@ export function forwardMessage(
     const fromConnect = fromCon.getConnect();
     if (fromConnect) {
       connect(senderTo, `${prefix}/${path}`, params).then((toCon: MessageConnect) => {
-        fromConnect.onMessage((data) => {
-          toCon.sendMessage(data);
-        });
-        toCon.onMessage((data) => {
-          fromConnect.sendMessage(data);
-        });
-        fromConnect.onDisconnect(() => {
-          toCon.disconnect();
-        });
-        toCon.onDisconnect(() => {
-          fromConnect.disconnect();
-        });
+        fromConnect.onMessage(toCon.sendMessage.bind(toCon));
+        toCon.onMessage(fromConnect.sendMessage.bind(fromConnect));
+        fromConnect.onDisconnect(toCon.disconnect.bind(toCon));
+        toCon.onDisconnect(fromConnect.disconnect.bind(fromConnect));
       });
     } else {
       return sendMessage(senderTo, prefix + "/" + path, params);

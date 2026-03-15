@@ -27,6 +27,10 @@ export interface FileWriter {
 
 export type FileReadWriter = FileReader & FileWriter;
 
+export type FileCreateOptions = {
+  modifiedDate?: number;
+};
+
 // 文件读取
 export default interface FileSystem {
   // 授权验证
@@ -36,9 +40,9 @@ export default interface FileSystem {
   // 打开目录
   openDir(path: string): Promise<FileSystem>;
   // 创建文件
-  create(path: string): Promise<FileWriter>;
+  create(path: string, opts?: FileCreateOptions): Promise<FileWriter>;
   // 创建目录
-  createDir(dir: string): Promise<void>;
+  createDir(dir: string, opts?: FileCreateOptions): Promise<void>;
   // 删除文件
   delete(path: string): Promise<void>;
   // 文件列表

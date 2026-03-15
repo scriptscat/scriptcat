@@ -8,18 +8,23 @@ import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 // offscreen环境的管理器
 export class OffscreenManager {
-  private windowMessage = new WindowMessage(window, sandbox, true);
+  private windowMessage: WindowMessage;
 
-  private windowServer: Server = new Server("offscreen", this.windowMessage);
+  private windowServer: Server;
 
   private messageQueue = new MessageQueue();
 
-  private serviceWorker = new ServiceWorkerClient(this.extMsgSender);
+  private serviceWorker: ServiceWorkerClient;
 
-  constructor(private extMsgSender: MessageSend) {}
+  constructor(private extMsgSender: MessageSend) {
+    this.windowMessage = new WindowMessage(window, sandbox, true);
+    this.windowServer = new Server("offscreen", this.windowMessage);
+    this.serviceWorker = new ServiceWorkerClient(this.extMsgSender);
+  }
 
   logger(data: Logger) {
     // 发送日志消息
@@ -61,15 +66,8 @@ export class OffscreenManager {
     const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extMsgSender);
     vscodeConnect.init();
 
-    this.windowServer.on("createObjectURL", async (params: { data: Blob; persistence: boolean }) => {
-      const url = URL.createObjectURL(params.data);
-      if (!params.persistence) {
-        // 如果不是持久化的，则在1分钟后释放
-        setTimeout(() => {
-          URL.revokeObjectURL(url);
-        }, 1000 * 60);
-      }
-      return url;
+    this.windowServer.on("createObjectURL", async (params: { blob: Blob; persistence: boolean }) => {
+      return makeBlobURL(params) as string;
     });
   }
 }

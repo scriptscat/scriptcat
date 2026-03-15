@@ -5,12 +5,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
-import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
+import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Space, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
 import backgroundTpl from "@App/template/background.tpl";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import "./index.css";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
@@ -23,6 +23,8 @@ import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
+import { makeBlobURL } from "@App/pkg/utils/utils";
+import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 
 const { Row, Col } = Grid;
 
@@ -75,9 +77,7 @@ const Editor: React.FC<{
       onChange(node.editor.getValue() || "");
     });
     callbackEditor(node.editor);
-    return () => {
-      node.editor.dispose();
-    };
+    return node.editor.dispose.bind(node.editor);
   }, [node?.editor]);
 
   return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;
@@ -206,12 +206,15 @@ function ScriptEditor() {
   }>();
   const [pageInit, setPageInit] = useState<boolean>(false);
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
-  const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(false);
+  const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(() => {
+    return localStorage.getItem("hiddenEditorScriptList") === "true";
+  });
 
   const pageUrlParams = useParams();
   const [pageUrlSearchParams, setPageUrlSearchParams] = useSearchParams();
 
   const { t } = useTranslation();
+
   const scriptDAO = new ScriptDAO();
   const scriptCodeDAO = new ScriptCodeDAO();
 
@@ -246,7 +249,7 @@ function ScriptEditor() {
         }
         if (script.ignoreVersion) script.ignoreVersion = "";
         return scriptClient
-          .install(script, code)
+          .install({ script, code })
           .then((update): Script => {
             if (!update) {
               Message.success(t("create_success_note"));
@@ -304,7 +307,10 @@ function ScriptEditor() {
     return new Promise<void>((resolve) => {
       chrome.downloads.download(
         {
-          url: URL.createObjectURL(new Blob([e.getValue()], { type: "text/javascript" })),
+          url: makeBlobURL({
+            blob: new Blob([e.getValue()], { type: "text/javascript" }),
+            persistence: false,
+          }) as string,
           saveAs: true, // true直接弹出对话框；false弹出下载选项
           filename: `${script.name}.user.js`,
         },
@@ -407,18 +413,6 @@ function ScriptEditor() {
           action(script) {
             setShow("scriptResource", true);
             setCurrentScript(script);
-          },
-        },
-      ],
-    },
-    {
-      title: t("layout"),
-      items: [
-        {
-          id: "hideScriptList",
-          title: (hiddenScriptList ? "✓ " : "") + t("hide_script_list"),
-          action() {
-            setHiddenScriptList(!hiddenScriptList);
           },
         },
       ],
@@ -700,7 +694,7 @@ function ScriptEditor() {
 
   return (
     <div
-      className="h-full flex flex-col"
+      className="tw-h-full tw-flex tw-flex-col"
       style={{
         position: "relative",
         left: -10,
@@ -710,44 +704,48 @@ function ScriptEditor() {
       }}
     >
       {contextHolder}
-      <ScriptStorage
-        visible={visible.scriptStorage}
-        script={currentScript}
-        onOk={() => {
-          setShow("scriptStorage", false);
-        }}
-        onCancel={() => {
-          setShow("scriptStorage", false);
-        }}
-      />
-      <ScriptResource
-        visible={visible.scriptResource}
-        script={currentScript}
-        onOk={() => {
-          setShow("scriptResource", false);
-        }}
-        onCancel={() => {
-          setShow("scriptResource", false);
-        }}
-      />
-      <ScriptSetting
-        visible={visible.scriptSetting}
-        script={currentScript!}
-        onOk={() => {
-          setShow("scriptSetting", false);
-        }}
-        onCancel={() => {
-          setShow("scriptSetting", false);
-        }}
-      />
+      {currentScript && (
+        <>
+          <ScriptStorage
+            visible={visible.scriptStorage}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptStorage", false);
+            }}
+            onCancel={() => {
+              setShow("scriptStorage", false);
+            }}
+          />
+          <ScriptResource
+            visible={visible.scriptResource}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptResource", false);
+            }}
+            onCancel={() => {
+              setShow("scriptResource", false);
+            }}
+          />
+          <ScriptSetting
+            visible={visible.scriptSetting}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptSetting", false);
+            }}
+            onCancel={() => {
+              setShow("scriptSetting", false);
+            }}
+          />
+        </>
+      )}
       <div
-        className="h-6"
+        className="tw-h-6"
         style={{
           borderBottom: "1px solid var(--color-neutral-3)",
           background: "var(--color-secondary)",
         }}
       >
-        <div className="flex flex-row">
+        <div className="tw-flex tw-flex-row">
           {menu.map((item, index) => {
             if (!item.items) {
               // 没有子菜单
@@ -858,7 +856,7 @@ function ScriptEditor() {
         </div>
       </div>
       <Row
-        className="flex flex-grow flex-1"
+        className="tw-flex tw-flex-grow tw-flex-1"
         style={{
           overflow: "hidden",
         }}
@@ -866,20 +864,20 @@ function ScriptEditor() {
         {!hiddenScriptList && (
           <Col
             span={4}
-            className="h-full"
+            className="tw-h-full"
             style={{
               overflowY: "scroll",
             }}
           >
             <div
-              className="flex flex-col"
+              className="tw-flex tw-flex-col"
               style={{
                 backgroundColor: "var(--color-secondary)",
                 overflow: "hidden",
               }}
             >
               <Button
-                className="text-left"
+                className="tw-text-left"
                 size="mini"
                 style={{
                   color: "var(--color-text-2)",
@@ -891,7 +889,7 @@ function ScriptEditor() {
                   setShowSearchInput(!showSearchInput);
                 }}
               >
-                <div className="flex justify-between items-center">
+                <div className="tw-flex tw-justify-between tw-items-center">
                   {t("installed_scripts")}
                   <IconSearch
                     style={{
@@ -901,7 +899,7 @@ function ScriptEditor() {
                 </div>
               </Button>
               {showSearchInput && (
-                <div className="p-2">
+                <div className="tw-p-2">
                   <Input
                     placeholder={t("search_scripts")}
                     allowClear
@@ -921,14 +919,14 @@ function ScriptEditor() {
                 .map((script) => (
                   <div
                     key={`s_${script.uuid}`}
-                    className="relative group"
+                    className="tw-relative group"
                     style={{
                       overflow: "hidden",
                     }}
                   >
                     <Button
                       size="mini"
-                      className="text-left w-full"
+                      className="tw-text-left tw-w-full"
                       style={{
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -967,7 +965,7 @@ function ScriptEditor() {
                         }
                       }}
                     >
-                      <span className="overflow-hidden text-ellipsis">{i18nName(script)}</span>
+                      <span className="tw-overflow-hidden tw-text-ellipsis">{i18nName(script)}</span>
                     </Button>
                     {/* 删除按钮，只在鼠标悬停时显示 */}
                     <Button
@@ -975,7 +973,7 @@ function ScriptEditor() {
                       icon={<IconDelete />}
                       iconOnly
                       size="mini"
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      className="tw-absolute tw-right-1 tw-top-1/2 tw-transform -tw-translate-y-1/2 tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-duration-200"
                       style={{
                         width: "20px",
                         height: "20px",
@@ -1015,104 +1013,127 @@ function ScriptEditor() {
             </div>
           </Col>
         )}
-        <Col span={hiddenScriptList ? 24 : 20} className="flex! flex-col h-full">
-          <Tabs
-            editable
-            activeTab={activeTab}
-            className="edit-tabs"
-            type="card-gutter"
-            style={{
-              overflow: "inherit",
-            }}
-            onChange={(index: string) => {
-              setEditors((prev) =>
-                prev.map((editor, i) =>
-                  `${i}` === index
-                    ? {
-                        ...editor,
-                        active:
-                          (setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
-                          true),
-                      }
-                    : {
-                        ...editor,
-                        active: false,
-                      }
-                )
-              );
-            }}
-            onAddTab={() => {
-              const template = pageUrlSearchParams.get("template") || "";
-              emptyScript(template || "", hotKeys, "blank").then((e) => {
-                setEditors((prev) => {
-                  prev.forEach((item) => {
-                    item.active = false;
+        <Col span={hiddenScriptList ? 24 : 20} className="tw-flex! tw-flex-col tw-h-full">
+          <div className="tw-flex tw-flex-row tw-w-full tw-justify-between">
+            <Tabs
+              editable
+              activeTab={activeTab}
+              className="edit-tabs"
+              type="card-gutter"
+              style={{
+                overflow: "hidden",
+              }}
+              onChange={(index: string) => {
+                setEditors((prev) =>
+                  prev.map((editor, i) =>
+                    `${i}` === index
+                      ? {
+                          ...editor,
+                          active:
+                            (setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
+                            true),
+                        }
+                      : {
+                          ...editor,
+                          active: false,
+                        }
+                  )
+                );
+              }}
+              onAddTab={() => {
+                const template = pageUrlSearchParams.get("template") || "";
+                emptyScript(template || "", hotKeys, "blank").then((e) => {
+                  setEditors((prev) => {
+                    prev.forEach((item) => {
+                      item.active = false;
+                    });
+                    setSelectSciptButtonAndTab(e.script.uuid);
+                    return [...prev, e];
                   });
-                  setSelectSciptButtonAndTab(e.script.uuid);
-                  return [...prev, e];
                 });
-              });
-            }}
-            onDeleteTab={(index: string) => {
-              const i = parseInt(index, 10);
-              const targetUuid = editors[i]?.script.uuid;
-              if (targetUuid) {
-                handleDeleteEditor(targetUuid, true);
-              }
-            }}
-          >
-            {editors.map((e, index) => (
-              <TabPane
-                destroyOnHide
-                key={index!.toString()}
-                title={
-                  <Dropdown
-                    trigger="contextMenu"
-                    position="bl"
-                    droplist={
-                      <Menu
-                        onClickMenuItem={(key) => {
-                          setRightOperationTab({
-                            ...rightOperationTab,
-                            key,
-                            uuid: e.script.uuid,
-                            selectSciptButtonAndTab,
-                          });
+              }}
+              onDeleteTab={(index: string) => {
+                const i = parseInt(index, 10);
+                const targetUuid = editors[i]?.script.uuid;
+                if (targetUuid) {
+                  handleDeleteEditor(targetUuid, true);
+                }
+              }}
+            >
+              {editors.map((e, index) => (
+                <TabPane
+                  destroyOnHide
+                  key={index!.toString()}
+                  title={
+                    <Dropdown
+                      trigger="contextMenu"
+                      position="bl"
+                      droplist={
+                        <Menu
+                          onClickMenuItem={(key) => {
+                            setRightOperationTab({
+                              ...rightOperationTab,
+                              key,
+                              uuid: e.script.uuid,
+                              selectSciptButtonAndTab,
+                            });
+                          }}
+                        >
+                          <Menu.Item key="1">{t("close_current_tab")}</Menu.Item>
+                          <Menu.Item key="2">{t("close_other_tabs")}</Menu.Item>
+                          <Menu.Item key="3">{t("close_left_tabs")}</Menu.Item>
+                          <Menu.Item key="4">{t("close_right_tabs")}</Menu.Item>
+                        </Menu>
+                      }
+                    >
+                      <span
+                        style={{
+                          color: e.isChanged
+                            ? "rgb(var(--orange-5))"
+                            : e.script.uuid === selectSciptButtonAndTab
+                              ? "rgb(var(--green-7))"
+                              : e.active
+                                ? "rgb(var(--green-7))"
+                                : "var(--color-text-1)",
                         }}
                       >
-                        <Menu.Item key="1">{t("close_current_tab")}</Menu.Item>
-                        <Menu.Item key="2">{t("close_other_tabs")}</Menu.Item>
-                        <Menu.Item key="3">{t("close_left_tabs")}</Menu.Item>
-                        <Menu.Item key="4">{t("close_right_tabs")}</Menu.Item>
-                      </Menu>
-                    }
-                  >
-                    <span
-                      style={{
-                        color: e.isChanged
-                          ? "rgb(var(--orange-5))"
-                          : e.script.uuid === selectSciptButtonAndTab
-                            ? "rgb(var(--green-7))"
-                            : e.active
-                              ? "rgb(var(--green-7))"
-                              : "var(--color-text-1)",
-                      }}
-                    >
-                      {e.script.name}
-                    </span>
-                  </Dropdown>
-                }
-              />
-            ))}
-          </Tabs>
-          <div className="flex flex-grow flex-1">
+                        {e.script.name}
+                      </span>
+                    </Dropdown>
+                  }
+                />
+              ))}
+            </Tabs>
+            <Space>
+              <Tooltip
+                content={hiddenScriptList ? t("editor.show_script_list") : t("editor.hide_script_list")}
+                position="bottom"
+              >
+                <Button
+                  iconOnly
+                  type="text"
+                  size="small"
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                  icon={!hiddenScriptList ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                  onClick={() => {
+                    const newValue = !hiddenScriptList;
+                    localStorage.setItem("hiddenEditorScriptList", String(newValue));
+                    setHiddenScriptList(newValue);
+                  }}
+                />
+              </Tooltip>
+            </Space>
+          </div>
+          <div className="tw-flex tw-flex-grow tw-flex-1 tw-relative">
             {editors.map((item) => {
               if (item.active) {
                 document.title = `${i18nName(item.script)} - Script Editor`;
               }
               return (
                 <div
-                  className="w-full"
+                  className="tw-w-full tw-absolute sc-inset-0"
                   key={`fe_${item.script.uuid}`}
                   style={{
                     display: item.active ? "block" : "none",

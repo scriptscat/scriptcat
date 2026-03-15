@@ -10,7 +10,7 @@ import {
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
 } from "@App/app/repo/scripts";
-import { disableScript, enableScript, runScript, stopScript } from "../sandbox/client";
+import { disableScript, enableScript, runScript, setSandboxLanguage, stopScript } from "../sandbox/client";
 import { type Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import type { TDeleteScript, TInstallScript, TEnableScript } from "../queue";
@@ -18,9 +18,9 @@ import type { TDeleteScript, TInstallScript, TEnableScript } from "../queue";
 export class ScriptService {
   logger: Logger;
 
-  scriptClient: ScriptClient = new ScriptClient(this.extMsgSender);
-  resourceClient: ResourceClient = new ResourceClient(this.extMsgSender);
-  valueClient: ValueClient = new ValueClient(this.extMsgSender);
+  scriptClient: ScriptClient;
+  resourceClient: ResourceClient;
+  valueClient: ValueClient;
 
   constructor(
     private group: Group,
@@ -29,6 +29,9 @@ export class ScriptService {
     private messageQueue: IMessageQueue
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
+    this.scriptClient = new ScriptClient(this.extMsgSender);
+    this.resourceClient = new ResourceClient(this.extMsgSender);
+    this.valueClient = new ValueClient(this.extMsgSender);
   }
 
   runScript(script: ScriptRunResource) {
@@ -40,6 +43,9 @@ export class ScriptService {
   }
 
   async init() {
+    this.messageQueue.subscribe<string>("setSandboxLanguage", async (lang) => {
+      setSandboxLanguage(this.windowMessage, lang);
+    });
     this.messageQueue.subscribe<TEnableScript[]>("enableScripts", async (data) => {
       for (const { uuid, enable } of data) {
         const script = await this.scriptClient.info(uuid);

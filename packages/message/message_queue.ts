@@ -1,8 +1,13 @@
 import EventEmitter from "eventemitter3";
 import LoggerCore from "@App/app/logger/core";
 import { type TMessage } from "./types";
+import type { SystemConfigKey, SystemConfigValueType } from "@App/pkg/config/config";
 
-export type TKeyValue<T = string> = { key: string; value: T };
+export type TKeyValue<T extends SystemConfigKey> = {
+  key: T;
+  value: SystemConfigValueType<T> | undefined;
+  prev: SystemConfigValueType<T> | undefined;
+};
 
 // 中间件函数类型
 type MiddlewareFunction<T = any> = (topic: string, message: T, next: () => void) => void | Promise<void>;
@@ -64,9 +69,7 @@ export class MessageQueue implements IMessageQueue {
 
   subscribe<T>(topic: string, handler: (msg: T) => void) {
     this.EE.on(topic, handler);
-    return () => {
-      this.EE.off(topic, handler);
-    };
+    return this.EE.off.bind(this.EE, topic, handler) as () => void;
   }
 
   publish<T>(topic: string, message: NonNullable<T>) {

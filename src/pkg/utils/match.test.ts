@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isUrlExcluded, isUrlIncluded, UrlMatch } from "./match";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import { extractUrlPatterns } from "./url_matcher";
 
 describe.concurrent("UrlMatch-internal1", () => {
@@ -887,5 +887,15 @@ describe.concurrent("@include /REGEX/", () => {
     expect(isUrlIncluded("http://sub.example.com/", url.rulesMap.get("ok1")!)).toEqual(false);
     expect(isUrlIncluded("http://www.h7ample.com/", url.rulesMap.get("ok1")!)).toEqual(true);
     expect(isUrlIncluded("http://www.hlample.com/", url.rulesMap.get("ok1")!)).toEqual(false);
+  });
+});
+
+describe.concurrent("invalid or unsupported glob #1271", () => {
+  const url = new UrlMatch<string>();
+  url.addInclude("*://*?*", "ok1");
+  url.addInclude("*://*?page*", "ok2");
+  it.concurrent("include *://*?*", () => {
+    expect(url.urlMatch("http://www.example.com/?a=1")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://www.example.com/?page=1")).toEqual(["ok1", "ok2"]);
   });
 });

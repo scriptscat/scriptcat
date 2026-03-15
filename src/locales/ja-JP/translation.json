@@ -21,7 +21,8 @@
   "logs": "ログ",
   "tools": "ツール",
   "settings": "設定",
-  "hide_sidebar": "サイドバーを隠す",
+  "hide_main_sidebar": "サイドバーを折りたたむ",
+  "show_main_sidebar": "サイドバーを展開",
   "guide": "初心者ガイド",
   "helpcenter": "ヘルプセンター",
   "general": "一般",
@@ -39,6 +40,7 @@
   "cloud_sync_account_verification": "クラウド同期アカウント情報を確認中...",
   "cloud_sync_verification_failed": "クラウド同期アカウント情報の確認に失敗しました",
   "save_success": "保存に成功しました",
+  "reset_success": "リセットに成功しました",
   "update": "更新",
   "check_update": "更新をチェック",
   "script_subscription_check_interval": "スクリプト/サブスクライブの更新チェック間隔",
@@ -151,6 +153,7 @@
   "starting_script": "スクリプトを開始中...",
   "starting_updates": "一括更新を開始中...",
   "script_started": "スクリプトが開始しました",
+  "operation_failed": "操作に失敗しました",
   "batch_operations": "一括操作",
   "export": "エクスポート",
   "delete": "削除",
@@ -192,7 +195,6 @@
   "yes": "はい",
   "no": "いいえ",
   "confirm_delete_permission": "この権限を削除してもよろしいですか？",
-  "script_setting": "スクリプト設定",
   "basic_info": "基本情報",
   "update_url": "URLを更新",
   "permission_management": "権限管理",
@@ -282,8 +284,17 @@
   "script_has_full_access_to": "スクリプトは以下のアドレスへの完全なアクセス権限を取得します",
   "script_requires": "スクリプトは以下の外部リソースを参照しています",
   "cookie_warning": "注意：このスクリプトはCookieの操作権限をリクエストします。これは危険な権限ですので、スクリプトの安全性を確認してください。",
+  "cron_oncetype": {
+    "minute": "{{next}}（毎分実行）",
+    "hour": "{{next}}（毎時間実行）",
+    "day": "{{next}}（毎日実行）",
+    "month": "{{next}}（毎月実行）",
+    "week": "{{next}}（毎週実行）"
+  },
+  "cron_invalid_expr": "不正な cron 式です",
   "scheduled_script_description_title": "これはスケジュールスクリプトです。有効にすると特定の時間に自動実行され、手動操作も可能です。",
-  "scheduled_script_description_description": "スケジュールタスク式：{{expression}}、最近の実行時間：{{time}}",
+  "scheduled_script_description_description_expr": "スケジュールタスク表現：",
+  "scheduled_script_description_description_next": "最近の実行時間：",
   "background_script_description": "これはバックグラウンドスクリプトです。有効にするとブラウザを開いたときに自動的に一度実行され、パネルで手動制御できます。",
   "install_success": "インストールに成功しました",
   "install": {
@@ -323,6 +334,11 @@
     "status_autoclose": "$0 秒後に自動的に閉じます",
     "header_other_update": "その他の利用可能な更新"
   },
+  "downloading_status_text": "ダウンロード中。{{bytes}} を受信しました。",
+  "install_page_please_wait": "しばらくお待ちください",
+  "install_page_loading": "インストールページを読み込み中",
+  "install_page_load_failed": "インストールページの読み込みに失敗しました",
+  "invalid_page": "無効なページ",
   "background_script_tag": "これはバックグラウンドスクリプトです",
   "scheduled_script_tag": "これはスケジュールスクリプトです",
   "background_script": "バックグラウンドスクリプト",
@@ -371,6 +387,11 @@
   "url": "URL",
   "username": "ユーザー名",
   "password": "パスワード",
+  "s3_bucket_name": "バケット名",
+  "s3_region": "リージョン",
+  "s3_access_key_id": "アクセスキーID",
+  "s3_secret_access_key": "シークレットアクセスキー",
+  "s3_custom_endpoint": "カスタムエンドポイント（オプション）",
   "skip": "スキップ",
   "next": "次へ",
   "next_with_progress": "次へ（ステップ{step}の全{steps}ステップ中）",
@@ -420,6 +441,10 @@
   "confirm_leave_page": "現在編集中です。他のページに移動すると現在の内容が失われます。移動しますか？",
   "page_in_blacklist": "現在のページはブラックリストにあり、スクリプトを使用できません",
   "baidu_netdisk": "百度ネットディスク",
+  "netdisk_unbind": "{{provider}} の連携を解除",
+  "netdisk_unbind_confirm": "{{provider}} のアカウント連携を解除しますか？",
+  "netdisk_unbind_success": "{{provider}} のアカウント連携を解除しました",
+  "netdisk_unbind_error": "{{provider}} のアカウント解除に失敗しました",
   "save_only_current_group": "保存は現在のグループにのみ有効です",
   "script_import_result": "スクリプトインポート結果",
   "failure_info": "失敗情報",
@@ -489,10 +514,16 @@
   "enter_search_value": "{{search}}を入力して検索してください",
   "script_run_env": {
     "title": "実行環境",
-    "default": "デフォルト",
     "all": "すべてのタブ",
     "normal-tabs": "通常のタブ",
     "incognito-tabs": "シークレットタブ"
+  },
+  "script_run_at": {
+    "title": "実行タイミング"
+  },
+  "script_setting": {
+    "title": "スクリプト設定",
+    "default": "デフォルト"
   },
   "editor_config": "エディタ設定",
   "editor_config_description": "<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>のcompilerOptionsを参考に設定できます",
@@ -505,8 +536,6 @@
   "editor_config_format_error": "エディタ設定のフォーマットエラー",
   "editor_type_definition_reset": "エディタ型定義がリセットされました",
   "editor_type_definition_saved": "エディタ型定義が保存されました",
-  "layout": "レイアウト",
-  "hide_script_list": "スクリプトリストを非表示",
   "script_list": {
     "sidebar": {
       "stopped": "停止済み",
@@ -532,6 +561,7 @@
   "error_old_script_code_missing": "既存スクリプトのコードが見つかりません",
   "error_subscribe_name_required": "サブスクライブ名は必須です",
   "error_grant_conflict": "@grant に 'none' と GM API の両方が指定されています",
+  "error_metadata_line_duplicated": "メタデータ内に重複した宣言があります。",
   "notification": {
     "script_sync_delete": "スクリプト同期削除",
     "script_sync_delete_desc": "スクリプト {{scriptName}} が削除されました",
@@ -550,5 +580,9 @@
     "enable_now": "今すぐ有効にする",
     "maybe_later": "後で",
     "settings_hint": "設定ページでいつでも変更できます。"
+  },
+  "editor": {
+    "show_script_list": "スクリプトリストを表示",
+    "hide_script_list": "スクリプトリストを非表示"
   }
 }

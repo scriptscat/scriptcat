@@ -71,7 +71,9 @@ export const toBlobURL = (a: GMApi, blob: Blob): Promise<string> | string => {
 export const blobToDataURL = (blob: Blob): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.onerror = reject;
     reader.onabort = reject;
     reader.readAsDataURL(blob);
@@ -95,9 +97,9 @@ export const convObjectToURL = async (object: string | URL | Blob | File | undef
   return url;
 };
 
-export const urlToDocumentInContentPage = async (a: GMApi, url: string) => {
+export const urlToDocumentInContentPage = async (a: GMApi, url: string, isContent: boolean) => {
   // url (e.g. blob url) -> XMLHttpRequest (CONTENT) -> Document (CONTENT)
-  const nodeId = await a.sendMessage("CAT_fetchDocument", [url]);
+  const nodeId = await a.sendMessage("CAT_fetchDocument", [url, isContent]);
   return (<CustomEventMessage>a.message).getAndDelRelatedTarget(nodeId) as Document;
 };
 

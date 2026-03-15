@@ -15,6 +15,41 @@ chromeMock.runtime.getURL = vi.fn().mockImplementation((path: string) => {
   return `chrome-extension://${chrome.runtime.id}${path}`;
 });
 
+// ---- 修正 vitest 4.x.x 错误的 adoptedStyleSheets ----
+let fixAdoptedStyleSheets = false;
+if (!document.adoptedStyleSheets) fixAdoptedStyleSheets = true;
+else {
+  try {
+    document.adoptedStyleSheets = document.adoptedStyleSheets.concat([]);
+  } catch {
+    fixAdoptedStyleSheets = true;
+  }
+}
+if (fixAdoptedStyleSheets) {
+  //@ts-ignore
+  delete document.adoptedStyleSheets;
+  //@ts-ignore
+  delete Document.prototype.adoptedStyleSheets;
+
+  const map = new WeakMap<any, any>();
+  Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      let res = map.get(this);
+      if (!res) {
+        map.set(this, (res = []));
+      }
+      return res;
+    },
+    set(v) {
+      map.set(this, Object.freeze([...v])); // 模拟初版的 adoptedStyleSheets 无法 .push
+      return true;
+    },
+  });
+}
+// ---- --------------------------------------------- ----
+
 const isPrimitive = (x: any) => x !== Object(x);
 
 // Window.prototype[Symbol.toStringTag] = "Window"
@@ -227,16 +262,3 @@ vi.stubGlobal("define", "特殊关键字不能穿透沙盒");
 if (!URL.createObjectURL) URL.createObjectURL = undefined;
 //@ts-expect-error
 if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
-
-// 测试环境使用 window 代替 performance 作为 EventTarget
-performance.addEventListener = function (type: string, listener: any, options?: any) {
-  return window.addEventListener(type, listener, options);
-};
-
-performance.removeEventListener = function (type: string, listener: any, options?: any) {
-  return window.removeEventListener(type, listener, options);
-};
-
-performance.dispatchEvent = function (event: Event) {
-  return window.dispatchEvent(event);
-};

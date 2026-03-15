@@ -11,6 +11,7 @@ import "@App/locales/locales";
 import "@App/index.css";
 import "./index.css";
 import registerEditor from "@App/pkg/utils/monaco-editor";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 registerEditor();
 
@@ -22,12 +23,19 @@ const loggerCore = new LoggerCore({
 
 loggerCore.logger().debug("install page start");
 
-const Root = (
+const MyApp = () => (
   <AppProvider>
-    <MainLayout className="!flex-col !px-4 box-border install-main-layout">
+    <MainLayout className="!tw-flex-col !tw-px-4 tw-box-border">
       <App />
     </MainLayout>
   </AppProvider>
+);
+const Root = (
+  <BrowserRouter>
+    <Routes>
+      <Route path="/*" element={<MyApp />} />
+    </Routes>
+  </BrowserRouter>
 );
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

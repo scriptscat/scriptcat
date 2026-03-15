@@ -6,6 +6,7 @@ declare module "@App/app/types.d.ts";
 
 type Override<T, U> = Omit<T, keyof U> & U;
 type ValueOf<T> = T[keyof T];
+type ReactStateSetter<T> = (value: T | ((prev: T) => T)) => void;
 
 declare const sandbox: Window;
 
@@ -28,12 +29,10 @@ interface FileSystemObserverInstance {
   observe(handle: FileSystemFileHandle | FileSystemDirectoryHandle | FileSystemSyncAccessHandle): Promise<void>;
 }
 
-declare const MessageFlag: string;
-
-declare const UserAgentData: typeof GM_info.userAgentData;
+declare const UserAgentData: typeof GM_info.userAgentData | undefined;
 
 // 可以让content与inject环境交换携带dom的对象
-declare let cloneInto: ((detail: any, view: any) => any) | undefined;
+declare let cloneInto: ((obj: object, targetScope: object, options?: object) => object) | undefined;
 
 declare namespace GMSend {
   interface XHRDetails {

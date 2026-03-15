@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
@@ -166,15 +166,17 @@ export type ScriptIconsProps = {
 };
 
 export function ScriptIcons({ script, size = 32, style }: ScriptIconsProps) {
+  const [imageError, setImageError] = useState(false);
   style = style || {};
   style.display = style.display || "inline-block";
   style.marginRight = style.marginRight || "8px";
+  style.backgroundColor = style.backgroundColor || "unset";
   const m = script.metadata;
   const [icon] = m.icon || m.iconurl || m.icon64 || m.icon64url || [];
-  if (icon) {
+  if (icon && !imageError) {
     return (
       <Avatar size={size || 32} shape="square" style={style}>
-        <img src={icon} alt={script?.name} />
+        <img src={icon} alt={script?.name} onError={() => setImageError(true)} />
       </Avatar>
     );
   }
@@ -208,6 +210,12 @@ export function useSystemConfig<T extends SystemConfigKey>(key: T) {
       setValue(v);
     }
   }).current;
+  // 监听变更
+  useEffect(() => {
+    return systemConfig.addListener(key, (val) => {
+      setValue(val);
+    });
+  }, [key]);
   return [value as SystemConfigValueType<T>, setValue, submitValue] as const;
 }
 

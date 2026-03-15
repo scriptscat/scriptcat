@@ -81,6 +81,19 @@ class ExtCache implements CacheStorage {
     });
   }
 
+  dels(keys: string[]): Promise<void> {
+    return new Promise((resolve) => {
+      chrome.storage.session.remove(keys, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.session.remove:", lastError);
+          // 无视storage API错误，继续执行
+        }
+        resolve();
+      });
+    });
+  }
+
   clear(): Promise<void> {
     return new Promise((resolve) => {
       chrome.storage.session.clear(() => {
@@ -131,17 +144,19 @@ class Cache extends ExtCache {
     return stackAsyncTask(key, () => {
       let ret: Awaited<ReturnType<CB>>;
       const act = { action: Actions.NONE } as { action?: number; newVal?: T };
+      const set = (newVal: T) => {
+        act.action = Actions.SET;
+        act.newVal = newVal;
+      };
+      const del = () => {
+        act.action = Actions.DEL;
+        act.newVal = undefined;
+      };
       return this.get<T>(key)
         .then((result) => {
           const tx = {
-            set: (newVal: T) => {
-              act.action = Actions.SET;
-              act.newVal = newVal;
-            },
-            del: () => {
-              act.action = Actions.DEL;
-              act.newVal = undefined;
-            },
+            set,
+            del,
           };
           return callback(result, tx);
         })

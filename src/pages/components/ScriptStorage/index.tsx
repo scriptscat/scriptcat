@@ -1,5 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import { valueClient } from "@App/pages/store/features/script";
+import type { TKeyValuePair } from "@App/pkg/utils/message_value";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 import { valueType } from "@App/pkg/utils/utils";
 import { Button, Drawer, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from "@arco-design/web-react";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
@@ -31,7 +33,7 @@ const ScriptStorage: React.FC<{
 
   // 保存单个键值
   const saveData = (key: string, value: any) => {
-    valueClient.setScriptValue(script!.uuid, key, value);
+    valueClient.setScriptValue({ uuid: script!.uuid, key, value, ts: Date.now() });
     const newRawData = { ...rawData, [key]: value };
     if (value === undefined) {
       delete newRawData[key];
@@ -41,7 +43,11 @@ const ScriptStorage: React.FC<{
 
   // 保存所有键值
   const saveRawData = (newRawValue: { [key: string]: any }) => {
-    valueClient.setScriptValues(script!.uuid, newRawValue);
+    const keyValuePairs = [] as TKeyValuePair[];
+    for (const [key, value] of Object.entries(newRawValue)) {
+      keyValuePairs.push([key, encodeRValue(value)]);
+    }
+    valueClient.setScriptValues({ uuid: script!.uuid, keyValuePairs, isReplace: true, ts: Date.now() });
     updateRawData(newRawValue);
   };
 
@@ -235,8 +241,8 @@ const ScriptStorage: React.FC<{
           </Form>
         )}
       </Modal>
-      <Space className="w-full" direction="vertical">
-        <Space className="!flex justify-end">
+      <Space className="tw-w-full" direction="vertical">
+        <Space className="!tw-flex tw-justify-end">
           {isEdit ? (
             <>
               <Button

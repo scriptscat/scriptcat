@@ -84,8 +84,8 @@ export type ScriptLoading = Script & {
   code?: string; // 用于搜索的脚本代码
 };
 
-export const sortScript = async ({ active, over }: { active: string; over: string }) => {
-  return await scriptClient.sortScript(active, over);
+export const sortScript = async (data: { before: string[]; after: string[] }) => {
+  return await scriptClient.sortScript(data);
 };
 
 export const pinToTop = async (uuids: string[]) => {

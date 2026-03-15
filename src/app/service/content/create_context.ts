@@ -1,5 +1,5 @@
 import type { TScriptInfo } from "@App/app/repo/scripts";
-import { v4 as uuidv4 } from "uuid";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_api/gm_context";
@@ -14,6 +14,7 @@ export const createContext = (
   GMInfo: any,
   envPrefix: string,
   message: Message,
+  contentMsg: Message,
   scriptGrants: Set<string>
 ) => {
   // 按照GMApi构建
@@ -31,6 +32,7 @@ export const createContext = (
   const context = createGMBase({
     prefix: envPrefix,
     message,
+    contentMsg,
     scriptRes,
     valueChangeListener,
     EE,
@@ -79,7 +81,13 @@ export const createContext = (
     return true;
   };
   for (const grant of scriptGrants) {
+    // GM. 与 GM_ 都需要注入
     __methodInject__(grant);
+    if (grant.startsWith("GM.")) {
+      __methodInject__(grant.replace("GM.", "GM_"));
+    } else if (grant.startsWith("GM_")) {
+      __methodInject__(grant.replace("GM_", "GM."));
+    }
   }
   // 兼容GM.Cookie.*
   for (const fnKey of Object.keys(grantedAPIs)) {

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Space } from "@arco-design/web-react";
 import { IconDown } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { FilterItem } from "./hooks";
+import type { FilterItem, TFilterKey, TSelectFilter, TSelectFilterKeys } from "./hooks";
 
 interface SidebarProps {
   /**
@@ -15,18 +15,18 @@ interface SidebarProps {
     tagItems: FilterItem[];
     sourceItems: FilterItem[];
   };
-  selectedFilters: Record<string, string | number>;
-  setSelectedFilters: React.Dispatch<React.SetStateAction<Record<string, string | number>>>;
+  selectedFilters: TSelectFilter;
+  setSelectedFilters: ReactStateSetter<TSelectFilter>;
 }
 
 interface FilterGroupProps {
   title: string;
   items: FilterItem[];
-  groupKey: string;
-  collapsedGroups: Set<string>;
-  selectedFilters: Record<string, string | number>;
-  onFilterClick: (groupKey: string, itemKey: string | number) => void;
-  onToggleCollapse: (groupKey: string) => void;
+  groupKey: TSelectFilterKeys;
+  collapsedGroups: Set<TSelectFilterKeys>;
+  selectedFilters: TSelectFilter;
+  onFilterClick: (groupKey: TSelectFilterKeys, itemKey: TFilterKey) => void;
+  onToggleCollapse: (groupKey: TSelectFilterKeys) => void;
 }
 
 /**
@@ -50,15 +50,15 @@ const FilterGroup = React.memo<FilterGroupProps>(
     }, [items]);
 
     return (
-      <div className="mb-4">
+      <div className="tw-mb-4">
         <div
-          className="flex items-center justify-between px-2 py-1 cursor-pointer rounded transition-all duration-200 hover:bg-fill-2"
+          className="tw-flex tw-items-center tw-justify-between tw-px-2 tw-py-1 tw-cursor-pointer tw-rounded tw-transition-all tw-duration-200 hover:tw-bg-fill-2"
           style={{ color: "var(--color-text-2)" }}
           onClick={() => onToggleCollapse(groupKey)}
         >
-          <span className="text-sm font-medium select-none">{title}</span>
+          <span className="tw-text-sm tw-font-medium tw-select-none">{title}</span>
           <div
-            className="transition-all duration-300 ease-out"
+            className="tw-transition-all tw-duration-300 tw-ease-out"
             style={{
               transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
               transformOrigin: "center",
@@ -73,7 +73,7 @@ const FilterGroup = React.memo<FilterGroupProps>(
           </div>
         </div>
         <div
-          className="overflow-hidden transition-all duration-300 ease-out"
+          className="tw-overflow-hidden tw-transition-all tw-duration-300 tw-ease-out"
           style={{
             height: isCollapsed ? 0 : contentHeight || "auto",
             marginTop: isCollapsed ? 0 : "8px",
@@ -82,15 +82,13 @@ const FilterGroup = React.memo<FilterGroupProps>(
             transitionDelay: isCollapsed ? "0ms" : "50ms",
           }}
         >
-          <div ref={contentRef} className="space-y-1">
+          <div ref={contentRef} className="tw-space-y-1">
             {items.map((item, index) => {
               const isSelected = selectedItem === item.key;
               return (
                 <div
                   key={item.key}
-                  className={`flex items-center justify-between px-3 py-2 rounded cursor-pointer transition-all ease-out ${
-                    !isSelected ? "hover:bg-fill-2" : ""
-                  }`}
+                  className={`tw-flex tw-items-center tw-justify-between tw-px-3 tw-py-2 tw-rounded tw-cursor-pointer tw-transition-all tw-ease-out ${!isSelected ? "hover:tw-bg-fill-2" : ""}`}
                   style={{
                     backgroundColor: isSelected ? "var(--color-primary-light-1)" : "transparent",
                     color: isSelected ? "var(--color-primary-6)" : "var(--color-text-1)",
@@ -104,7 +102,7 @@ const FilterGroup = React.memo<FilterGroupProps>(
                   <Space size={8} style={{ flex: 1, minWidth: 0 }}>
                     {item.icon}
                     <span
-                      className="text-sm"
+                      className="tw-text-sm"
                       style={{
                         display: "inline-block",
                         overflow: "hidden",
@@ -118,7 +116,7 @@ const FilterGroup = React.memo<FilterGroupProps>(
                     </span>
                   </Space>
                   <span
-                    className="text-xs px-2 py-1 rounded"
+                    className="tw-text-xs tw-px-2 tw-py-1 tw-rounded"
                     style={{
                       backgroundColor: isSelected ? "var(--color-primary-light-2)" : "var(--color-fill-3)",
                       color: isSelected ? "var(--color-primary-6)" : "var(--color-text-3)",
@@ -147,17 +145,17 @@ FilterGroup.displayName = "FilterGroup";
 const ScriptListSidebar: React.FC<SidebarProps> = React.memo(
   ({ open, filterItems, selectedFilters, setSelectedFilters }) => {
     const { t } = useTranslation();
-    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<TSelectFilterKeys>>(new Set());
     const { statusItems, typeItems, tagItems, sourceItems } = filterItems;
 
-    const handleFilterClick = (groupKey: string, itemKey: string | number) => {
+    const handleFilterClick = (groupKey: TSelectFilterKeys, itemKey: TFilterKey) => {
       setSelectedFilters((prev) => ({
         ...prev,
         [groupKey]: itemKey,
       }));
     };
 
-    const toggleGroupCollapse = (groupKey: string) => {
+    const toggleGroupCollapse = (groupKey: TSelectFilterKeys) => {
       setCollapsedGroups((prev) => {
         const next = new Set(prev);
         next.has(groupKey) ? next.delete(groupKey) : next.add(groupKey);
@@ -171,7 +169,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = React.memo(
 
     return (
       <div
-        className="w-64"
+        className="tw-w-64"
         style={{
           minWidth: "256px",
           padding: "16px",
@@ -180,7 +178,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = React.memo(
           backgroundColor: "var(--color-bg-2)",
         }}
       >
-        <div className="space-y-4">
+        <div className="tw-space-y-4">
           <FilterGroup
             title={t("script_list.sidebar.status")}
             items={statusItems}

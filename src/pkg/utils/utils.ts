@@ -11,18 +11,37 @@ export function randomMessageFlag(): string {
   return `-${Date.now().toString(36)}.${randNum(8e11, 2e12).toString(36)}`;
 }
 
+let prevNow = 0;
+/**
+ * accumulated "now".
+ * 用 aNow 取得的现在时间能保证严格递增
+ */
+export const aNow = () => {
+  let now = Date.now();
+  if (prevNow >= now) now = prevNow + 0.0009765625; // 2^-10
+  prevNow = now;
+  return now;
+};
+
+export type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (v: T | PromiseLike<T>) => void;
+  reject: (e?: any) => void;
+};
+
+export const deferred = <T = void>(): Deferred<T> => {
+  let resolve!: (v: T | PromiseLike<T>) => void;
+  let reject!: (e?: any) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
+
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";
-}
-
-export function InfoNotification(title: string, msg: string) {
-  chrome.notifications.create({
-    type: "basic",
-    title,
-    message: msg,
-    iconUrl: chrome.runtime.getURL("assets/logo.png"),
-  });
 }
 
 export function valueType(val: unknown) {
@@ -175,6 +194,10 @@ export function errorMsg(e: any): string {
 
 // 预计报错有机会在异步Promise里发生，不一定是 chrome.userScripts.getScripts
 export async function checkUserScriptsAvailable() {
+  if (chrome.extension.inIncognitoContext) {
+    // 隐身模式不检查 API 可用性，避免冲突
+    return true;
+  }
   try {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
@@ -276,10 +299,32 @@ export function getBrowserType() {
   return o;
 }
 
+export const makeBlobURL = <T extends { blob: Blob; persistence: boolean }>(
+  params: T,
+  fallbackFn?: (params: T) => string | Promise<string>
+): Promise<string> | string => {
+  if (typeof URL?.createObjectURL !== "function") {
+    // 在service worker中，透过 offscreen 取得 blob URL
+    if (!fallbackFn) throw new Error("URL.createObjectURL is not supported");
+    return fallbackFn(params);
+  } else {
+    const url = URL.createObjectURL(params.blob);
+    if (!params.persistence) {
+      // 如果不是持久化的，则在1分钟后释放
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60_000);
+    }
+    return url;
+  }
+};
+
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(<string>reader.result);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.readAsDataURL(blob);
   });
 }
@@ -288,7 +333,9 @@ export function blobToBase64(blob: Blob): Promise<string> {
 export function blobToText(blob: Blob): Promise<string | null> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.onloadend = function () {
+      resolve(<string>this.result);
+    };
     reader.readAsText(blob);
   });
 }
@@ -348,9 +395,20 @@ export function toCamelCase(key: SystemConfigKey) {
 }
 
 export function cleanFileName(name: string): string {
-  // eslint-disable-next-line no-control-regex, no-useless-escape
-  return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
+  // https://github.com/Tampermonkey/tampermonkey/issues/2413
+  // https://developer.chrome.com/docs/extensions/reference/api/downloads#type-DownloadOptions
+  // A file path relative to the Downloads directory to contain the downloaded file, possibly containing subdirectories.
+  // Absolute paths, empty paths, and paths containing back-references ".." will cause an error.
+  let n = name;
+  // eslint-disable-next-line no-control-regex
+  n = n.replace(/[\x00-\x1F\\:*?"<>|]+/g, "-");
+  return n.replace(/\.\.+/g, "-").trim();
 }
+
+export const sourceMapTo = (scriptName: string) => {
+  const url = chrome.runtime.getURL(`/${encodeURI(scriptName)}`);
+  return `\n//# sourceURL=${url}`;
+};
 
 export const stringMatching = (main: string, sub: string): boolean => {
   // If no wildcards, use simple includes check
@@ -380,6 +438,23 @@ export const stringMatching = (main: string, sub: string): boolean => {
   }
 };
 
+/**
+ * 将字节数转换为人类可读的格式（B, KB, MB, GB 等）。
+ * @param bytes - 要转换的字节数（number）。
+ * @param decimals - 小数位数，默认为 2。
+ * @returns 格式化的字符串，例如 "1.23 MB"。
+ */
+export const formatBytes = (bytes: number, decimals: number = 2): string => {
+  if (bytes === 0) return "0 B";
+
+  const k = 1024;
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const value = bytes / Math.pow(k, i);
+
+  return `${value.toFixed(decimals)} ${units[i]}`;
+};
+
 // TM Xhr Header 兼容处理，原生xhr \r\n 在尾，但TM的GMXhr没有；同时除去冒号后面的空白
 export const normalizeResponseHeaders = (headersString: string) => {
   if (!headersString) return "";
@@ -393,4 +468,25 @@ export const normalizeResponseHeaders = (headersString: string) => {
     }
   });
   return out.substring(0, out.length - 2); // 去掉最后的 \r\n
+};
+
+// 获取本周是第几周
+// 遵循 ISO 8601, 一月四日为Week 1，星期一为新一周
+// 能应对每年开始和结束（不会因为踏入新一年而重新计算）
+// 见 https://wikipedia.org/wiki/ISO_week_date
+// 中文說明 https://juejin.cn/post/6921245139855736846
+export const getISOWeek = (date: Date): number => {
+  // 使用传入日期的年月日创建 UTC 日期对象，忽略本地时间部分，避免时区影响
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+
+  // 将日期调整到本周的星期四（ISO 8601 规定：周数以星期四所在周为准）
+  // 计算方式：当前日期 + 4 − 当前星期几（星期一 = 1，星期日 = 7）
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+  // 获取该星期四所在年份的第一天（UTC）
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+  // 计算从年初到该星期四的天数差
+  // 再换算为周数，并向上取整，得到 ISO 周数
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 };

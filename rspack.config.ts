@@ -1,23 +1,36 @@
 import * as path from "path";
-import { defineConfig } from "@rspack/cli";
-import { rspack } from "@rspack/core";
+import { rspack, NormalModule, type Configuration } from "@rspack/core";
 import { readFileSync } from "fs";
+import { v4 as uuidv4 } from "uuid";
 
-const pkg = JSON.parse(readFileSync("./package.json") as unknown as string);
+const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 const version = pkg.version;
 const dirname = path.resolve();
 const isDev = process.env.NODE_ENV === "development";
 const isBeta = version.includes("-");
+const isReactTools = process.env.REACT_DEVTOOLS === "true";
 
 // Target browsers, see: https://github.com/browserslist/browserslist
-const targets = ["chrome >= 87", "edge >= 88", "firefox >= 78", "safari >= 14"];
+// 依照 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
+const targets = ["chrome >= 120", "edge >= 120", "firefox >= 136"];
 
-const src = `${dirname}/src`;
-const dist = `${dirname}/dist`;
-const assets = `${src}/assets`;
+const src = path.join(dirname, "src");
+const dist = path.join(dirname, "dist");
+const assets = path.join(src, "assets");
 
-export default defineConfig({
+// 排除这些文件，不进行分离
+const chunkExcludeSet = new Set([
+  "editor.worker",
+  "ts.worker",
+  "linter.worker",
+  "service_worker",
+  "content",
+  "inject",
+  "scripting",
+]);
+
+export default {
   ...(isDev
     ? {
         watch: true,
@@ -28,12 +41,17 @@ export default defineConfig({
         mode: "production",
         devtool: false,
       }),
+  node: {
+    __filename: false, // This disables the warning and the mocking
+    __dirname: false,
+  },
   context: dirname,
   entry: {
     service_worker: `${src}/service_worker.ts`,
     offscreen: `${src}/offscreen.ts`,
     sandbox: `${src}/sandbox.ts`,
     content: `${src}/content.ts`,
+    scripting: `${src}/scripting.ts`,
     inject: `${src}/inject.ts`,
     popup: `${src}/pages/popup/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
@@ -66,20 +84,9 @@ export default defineConfig({
   module: {
     rules: [
       {
-        test: /\.css$/,
-        use: [
-          {
-            loader: "postcss-loader",
-            options: {
-              postcssOptions: {
-                plugins: {
-                  autoprefixer: {},
-                },
-              },
-            },
-          },
-        ],
-        type: "css",
+        test: /\.css$/i,
+        type: "css/auto",
+        use: ["postcss-loader"],
       },
       {
         test: /\.(svg|png)$/,
@@ -92,6 +99,7 @@ export default defineConfig({
             loader: "builtin:swc-loader",
             options: {
               jsc: {
+                externalHelpers: true,
                 parser: {
                   syntax: "typescript",
                   tsx: true,
@@ -117,6 +125,10 @@ export default defineConfig({
     ],
   },
   plugins: [
+    new rspack.DefinePlugin({
+      "process.env.VI_TESTING": "'false'",
+      "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
+    }),
     new rspack.CopyRspackPlugin({
       patterns: [
         {
@@ -124,10 +136,14 @@ export default defineConfig({
           to: `${dist}/ext`,
           // 将manifest.json内版本号替换为package.json中版本号
           transform(content: Buffer) {
-            const manifest = JSON.parse(content.toString());
+            const manifest = JSON.parse(content.toString()) as chrome.runtime.ManifestV3;
             if (isDev || isBeta) {
               manifest.name = "__MSG_scriptcat_beta__";
-              // manifest.content_security_policy = "script-src 'self' https://cdn.crowdin.com; object-src 'self'";
+            }
+            if (isReactTools) {
+              manifest.content_security_policy = {
+                extension_pages: "script-src 'self' http://localhost:8097; object-src 'self'",
+              };
             }
             return JSON.stringify(manifest);
           },
@@ -136,6 +152,12 @@ export default defineConfig({
           from: `${assets}/logo${isDev || isBeta ? "-beta" : ""}.png`,
           to: `${dist}/ext/assets/logo.png`,
         },
+        {
+          from: `${assets}/logo${isDev || isBeta ? "-beta" : ""}-32.png`,
+          to: `${dist}/ext/assets/logo-32.png`,
+        },
+        { from: `${assets}/logo-gray.png`, to: `${dist}/ext/assets/logo-gray.png` },
+        { from: `${assets}/logo-gray-32.png`, to: `${dist}/ext/assets/logo-gray-32.png` },
         { from: `${assets}/logo`, to: `${dist}/ext/assets/logo` },
         {
           from: `${assets}/_locales`,
@@ -176,6 +198,9 @@ export default defineConfig({
       chunks: ["import"],
     }),
     new rspack.HtmlRspackPlugin({
+      templateParameters: {
+        isReactTools: isReactTools ? "true" : "false",
+      },
       filename: `${dist}/ext/src/options.html`,
       template: `${src}/pages/options.html`,
       inject: "head",
@@ -206,25 +231,123 @@ export default defineConfig({
       chunks: ["sandbox"],
     }),
   ].filter(Boolean),
+  experiments: {
+    css: true,
+    parallelLoader: true,
+  },
   optimization: {
     minimizer: [
-      new rspack.SwcJsMinimizerRspackPlugin({}),
+      new rspack.SwcJsMinimizerRspackPlugin({
+        minimizerOptions: {
+          minify: !isDev,
+          mangle: {
+            keep_classnames: false,
+            keep_fnames: false,
+            keep_private_props: false,
+            ie8: false,
+            toplevel: true,
+          },
+          module: true,
+          compress: {
+            passes: 2,
+            drop_console: false,
+            drop_debugger: !isDev,
+            ecma: 2020,
+            arrows: true,
+            dead_code: true,
+            ie8: false,
+            keep_classnames: false,
+            keep_fargs: false,
+            keep_fnames: false,
+            toplevel: true,
+            sequences: true,
+            hoist_props: false,
+            hoist_vars: false,
+            reduce_funcs: true,
+            reduce_vars: true,
+            pure_getters: "strict",
+          },
+          format: {
+            comments: false,
+            beautify: false,
+            ecma: 2020,
+          },
+        },
+      }),
       new rspack.LightningCssMinimizerRspackPlugin({
         minimizerOptions: { targets },
       }),
     ],
+    removeAvailableModules: true,
+    removeEmptyChunks: true,
+    realContentHash: true,
+    sideEffects: true,
+    providedExports: true,
+    concatenateModules: true,
+    avoidEntryIife: true,
+    mergeDuplicateChunks: true,
     splitChunks: {
-      chunks: (chunk) => {
-        // 排除这些文件，不进行分离
-        return !["editor.worker", "ts.worker", "linter.worker", "service_worker", "content", "inject"].includes(
-          chunk.name || ""
-        );
+      minChunks: 1,
+      maxAsyncRequests: 30,
+      maxInitialRequests: 30,
+      minSize: {
+        javascript: 40 * 1024, // 40 kB
+        css: 10 * 1024, // 10 kB
       },
-      minSize: 307200,
-      maxSize: 4194304,
+      maxSize: {
+        javascript: 2 * 1024 * 1024, // 2 MB
+        css: 2 * 1024 * 1024, // 2 MB
+      },
+      chunks: (chunk) => !chunkExcludeSet.has(chunk.name || ""),
+      hidePathInfo: false,
+      name: (module, _ctx) => {
+        if (module instanceof NormalModule) {
+          const p = `/${module.rawRequest}|/${module.resource}`.toLowerCase().replace(/[\\@/]+/g, "/");
+          if (p.startsWith("/packages/message/")) return "lib_message";
+          if (module.type === "json" && p.includes("translation.json")) return "translation_json";
+          let tag = "";
+          const idx = p.indexOf("/node_modules/");
+          if (idx >= 0) {
+            let q = p.replace(/\.pnpm\/?/g, "");
+            q = q.substring(idx);
+            q = q.replace(/\..*/, "");
+            tag = q.split("/")[2] || "";
+          }
+          if (module.type !== "css" && tag === "monaco-editor") return "lib_monaco";
+          switch (tag) {
+            case "react-icons":
+              if (p.includes("/react-icons/tb")) return undefined;
+            // eslint-disable-next-line no-fallthrough
+            case "react-dropzone":
+            case "react-dom":
+            case "react-i18next":
+            case "react-router-dom":
+            case "react-joyride":
+            case "react":
+              return `lib_${tag}`;
+          }
+          if (tag.startsWith("dnd-kit")) return "lib_dnd-kit";
+          if (tag.startsWith("popper")) return "lib_react-joyride";
+          if (tag.startsWith("react-")) return "lib_react";
+          if (tag.startsWith("eslint")) return "lib_eslint";
+          if (tag.startsWith("i18n")) return "lib_i18n";
+          if (
+            tag.startsWith("arco-design") ||
+            tag === "resize-observer-polyfill" ||
+            tag === "b-validate" ||
+            tag === "lodash" ||
+            tag === "focus-lock"
+          ) {
+            return "lib_arco_design";
+          }
+          if (tag) {
+            // cron, dayjs, yaml, jszip, prettier, ...
+            if (tag === "luxon") return "lib_cron";
+            return `lib_${tag}`;
+          }
+          return "chunk";
+        }
+      },
     },
   },
-  experiments: {
-    css: true,
-  },
-});
+} satisfies Configuration;
