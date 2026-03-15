@@ -26,6 +26,7 @@ import type {
   GMApiRequest,
 } from "../types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
+import type { NotificationOptionCache } from "../utils";
 import { BrowserNoSupport, notificationsUpdate } from "../utils";
 import i18n from "@App/locales/locales";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
@@ -63,12 +64,6 @@ const generateUniqueMarkerID = () => {
   }
   return `MARKER::${u1}${u2}`;
 };
-
-const enum xhrExtraCode {
-  INVALID_URL = 0x20,
-  DOMAIN_NOT_INCLUDED = 0x30,
-  DOMAIN_IN_BLACKLIST = 0x40,
-}
 
 type OnBeforeSendHeadersOptions = `${chrome.webRequest.OnBeforeSendHeadersOptions}`;
 type OnHeadersReceivedOptions = `${chrome.webRequest.OnHeadersReceivedOptions}`;
@@ -282,7 +277,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    confirm: async (request: GMApiRequest<[string, GMTypes.CookieDetails]>, sender: IGetSender) => {
+    confirm: async (request: GMApiRequest<[string, GMTypes.CookieDetails]>, sender: IGetSender, gmApi: GMApi) => {
       if (request.params[0] === "store") {
         return true;
       }
@@ -298,6 +293,14 @@ export default class GMApi {
         url.hostname = detail.domain || "";
       }
       if (getConnectMatched(request.script.metadata.connect, url, sender) === ConnectMatch.NONE) {
+        // 检查是否配置了权限
+        const ret = await gmApi.permissionVerify.queryPermission(request, {
+          permission: "cookie",
+          permissionValue: url.host,
+        });
+        if (ret && ret.allow) {
+          return true;
+        }
         throw new Error("hostname must be in the definition of connect");
       }
       const metadata: { [key: string]: string } = {};
@@ -688,18 +691,37 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    confirm: async (request: GMApiRequest<[GMSend.XHRDetails]>, sender: IGetSender, GMApiInstance: GMApi) => {
-      const config = <GMSend.XHRDetails>request.params[0];
+    confirm: async (request: GMApiRequest<[GMSend.XHRDetails?]>, sender: IGetSender, GMApiInstance: GMApi) => {
+      const msgConn = sender.getConnect();
+      if (!msgConn) {
+        throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
+      }
+      const throwErrorFn = (error: string) => {
+        msgConn.sendMessage({
+          action: "onerror",
+          data: {
+            status: 0,
+            responseHeaders: "",
+            error: error,
+            readyState: 4, // ERROR. DONE.
+          },
+        });
+        return new Error(error);
+      };
+      const details = request.params[0];
+      if (!details) {
+        throw throwErrorFn("param is failed");
+      }
       let url;
       try {
-        url = new URL(config.url);
+        url = new URL(details.url);
       } catch {
-        request.extraCode = xhrExtraCode.INVALID_URL;
-        return false;
+        const msg = `Refused to connect to "${details.url}": The url is invalid`;
+        throw throwErrorFn(msg);
       }
       if (GMApiInstance.gmExternalDependencies.isBlacklistNetwork(url)) {
-        request.extraCode = xhrExtraCode.DOMAIN_IN_BLACKLIST;
-        return false;
+        const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
+        throw throwErrorFn(msg);
       }
       const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
       if (connectMatched === ConnectMatch.ALL) {
@@ -712,15 +734,24 @@ export default class GMApi {
         }
         // @connect 没有匹配，但有列明 @connect 的话，则自动拒绝
         if (request.script.metadata.connect?.find((e) => !!e)) {
-          request.extraCode = xhrExtraCode.DOMAIN_NOT_INCLUDED;
-          return false;
+          // 查询数据库权限记录，如果之前用户允许过该域名，则放行，否则拒绝
+          const ret = await GMApiInstance.permissionVerify.queryPermission(request, {
+            permission: "cors",
+            permissionValue: url.hostname,
+            wildcard: true,
+          });
+          if (ret && ret.allow) {
+            return true;
+          }
+          const msg = `Refused to connect to "${details.url}": This domain is not a part of the @connect list`;
+          throw throwErrorFn(msg);
         }
         // 其他情况：要询问用户
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
       metadata[i18next.t("request_domain")] = url.hostname;
-      metadata[i18next.t("request_url")] = config.url;
+      metadata[i18next.t("request_url")] = details.url;
 
       return {
         permission: "cors",
@@ -734,14 +765,12 @@ export default class GMApi {
     },
     alias: ["GM.xmlHttpRequest"],
   })
-  async GM_xmlhttpRequest(request: GMApiRequest<[GMSend.XHRDetails?]>, sender: IGetSender) {
+  async GM_xmlhttpRequest(request: GMApiRequest<[GMSend.XHRDetails]>, sender: IGetSender) {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("GM_xmlhttpRequest ERROR: sender is not MessageConnect");
     }
-    const msgConn = sender.getConnect();
-    if (!msgConn) {
-      throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
-    }
+    const msgConn = sender.getConnect()!;
+
     let isConnDisconnected = false;
     msgConn.onDisconnect(() => {
       isConnDisconnected = true;
@@ -753,40 +782,8 @@ export default class GMApi {
 
     const resultParam = new SWRequestResultParams(markerID);
 
-    const throwErrorFn = (error: string) => {
-      if (!isConnDisconnected) {
-        msgConn.sendMessage({
-          action: "onerror",
-          data: {
-            status: resultParam.statusCode,
-            responseHeaders: resultParam.responseHeaders,
-            error: `${error}`,
-            readyState: 4, // ERROR. DONE.
-          },
-        });
-      }
-      return new Error(`${error}`);
-    };
-
     const details = request.params[0];
-    if (!details) {
-      throw throwErrorFn("param is failed");
-    }
 
-    if (request.extraCode === xhrExtraCode.INVALID_URL) {
-      const msg = `Refused to connect to "${details.url}": The url is invalid`;
-      throw throwErrorFn(msg);
-    }
-    if (request.extraCode === xhrExtraCode.DOMAIN_NOT_INCLUDED) {
-      // 'Refused to connect to "https://nonexistent-domain-abcxyz.test/": This domain is not a part of the @connect list'
-      const msg = `Refused to connect to "${details.url}": This domain is not a part of the @connect list`;
-      throw throwErrorFn(msg);
-    }
-    if (request.extraCode === xhrExtraCode.DOMAIN_IN_BLACKLIST) {
-      // 'Refused to connect to "https://example.org/": URL is blacklisted'
-      const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
-      throw throwErrorFn(msg);
-    }
     try {
       /*
         There are TM-specific parameters:
@@ -878,7 +875,19 @@ export default class GMApi {
         msgConn.onDisconnect(offscreenCon.disconnect.bind(offscreenCon));
       }
     } catch (e: any) {
-      throw throwErrorFn(`GM_xmlhttpRequest ERROR: ${e?.message || e || "Unknown Error"}`);
+      const errorMsg = `GM_xmlhttpRequest ERROR: ${e?.message || e || "Unknown Error"}`;
+      if (!isConnDisconnected) {
+        msgConn.sendMessage({
+          action: "onerror",
+          data: {
+            status: resultParam.statusCode,
+            responseHeaders: resultParam.responseHeaders,
+            error: errorMsg,
+            readyState: 4, // ERROR. DONE.
+          },
+        });
+      }
+      throw new Error(errorMsg);
     }
   }
 
@@ -1320,6 +1329,25 @@ export default class GMApi {
             params,
           } as NotificationMessageOption,
         });
+      } else {
+        // 从缓存中检查是不是有选项
+        const options = await cacheInstance.get<NotificationOptionCache>(`notification:${notificationId}:options`);
+        if (options) {
+          if (event === "click") {
+            if (options.url) {
+              // 打开链接
+              chrome.tabs.create({
+                url: options.url,
+              });
+              // 关闭通知
+              chrome.notifications.clear(notificationId);
+              cacheInstance.del(`notification:${notificationId}:options`);
+            }
+          } else if (event === "close") {
+            // 删除缓存
+            cacheInstance.del(`notification:${notificationId}:options`);
+          }
+        }
       }
     };
     chrome.notifications.onClosed.addListener((notificationId, byUser) => {

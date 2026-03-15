@@ -12,6 +12,7 @@ import {
   createMouseEvent,
 } from "@Packages/message/common";
 import { ReadyWrap } from "@App/pkg/utils/ready-wrap";
+import type { ScriptEnvTag } from "@Packages/message/consts";
 
 // 避免页面载入后改动 Map.prototype 导致消息传递失败
 const relatedTargetMap = new Map<number, EventTarget>();
@@ -41,9 +42,11 @@ export class CustomEventMessage implements Message {
   readyWrap: ReadyWrap = new ReadyWrap();
 
   constructor(
-    messageFlag: string,
-    protected readonly isInbound: boolean
+    eventFlag: string,
+    protected readonly isInbound: boolean,
+    public readonly envTag: ScriptEnvTag | "" = ""
   ) {
+    const messageFlag = `${eventFlag}${envTag}`;
     this.receiveFlag = `${messageFlag}${isInbound ? DefinedFlags.inboundFlag : DefinedFlags.outboundFlag}${DefinedFlags.domEvent}`;
     this.sendFlag = `${messageFlag}${isInbound ? DefinedFlags.outboundFlag : DefinedFlags.inboundFlag}${DefinedFlags.domEvent}`;
     pageAddEventListener(this.receiveFlag, (event: Event) => {
@@ -51,6 +54,7 @@ export class CustomEventMessage implements Message {
         event.preventDefault(); // 告知另一端这边已准备好
         this.readyWrap.setReady(); // 两端已准备好，则 setReady()
       } else if (event instanceof MouseEventClone && event.movementX && event.relatedTarget) {
+        if (event.cancelable) event.preventDefault(); // 告知另一端
         relatedTargetMap.set(event.movementX, event.relatedTarget);
       } else if (event instanceof CustomEventClone) {
         this.messageHandle(event.detail, new CustomEventPostMessage(this));

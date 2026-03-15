@@ -4,16 +4,16 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
-import { getEventFlag, isContent } from "@Packages/message/common";
+import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
 getEventFlag(messageFlag, (eventFlag: string) => {
-  const scriptEnvTag = isContent ? ScriptEnvTag.content : ScriptEnvTag.inject;
+  const scriptEnvTag = ScriptEnvTag.inject;
 
-  const msg: Message = new CustomEventMessage(`${eventFlag}${scriptEnvTag}`, false);
+  const msg: Message = new CustomEventMessage(eventFlag, false, scriptEnvTag);
 
   // 初始化日志组件
   const logger = new LoggerCore({
@@ -25,8 +25,8 @@ getEventFlag(messageFlag, (eventFlag: string) => {
   logger.logger().debug("inject start");
 
   const server = new Server("inject", msg);
-  const scriptExecutor = new ScriptExecutor(msg);
-  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, messageFlag);
+  const scriptExecutor = new ScriptExecutor(msg, new CustomEventMessage(eventFlag, true, ScriptEnvTag.content));
+  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor);
   runtime.init();
 
   // inject环境，直接判断白名单，注入对外接口
