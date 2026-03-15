@@ -18,13 +18,13 @@ import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
-import { isContent } from "@Packages/message/common";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
 import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
+import { ScriptEnvTag } from "@Packages/message/consts";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
@@ -68,6 +68,9 @@ class GM_Base implements IGM_Base {
   // Extension Context 无效时释放 scriptRes
   @GMContext.protected()
   protected message?: Message | null;
+
+  @GMContext.protected()
+  protected contentMsg!: Message;
 
   // Extension Context 无效时释放 scriptRes
   @GMContext.protected()
@@ -200,8 +203,9 @@ export default class GMApi extends GM_Base {
 
   constructor(
     public prefix: string,
-    public message: Message | undefined,
-    public scriptRes: ScriptRunResource | undefined
+    public message: Message,
+    public contentMsg: Message,
+    public scriptRes: ScriptRunResource
   ) {
     // testing only 仅供测试用
     const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
@@ -522,7 +526,12 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    return urlToDocumentInContentPage(this, url, isContent);
+    // 上下文已失效时直接返回，避免访问已释放的 message 造成异常
+    if (this.isInvalidContext()) return undefined;
+
+    const message = this.message as CustomEventMessage | null;
+    const isContentEnv = !!message && message.envTag === ScriptEnvTag.content;
+    return urlToDocumentInContentPage(this, url, isContentEnv);
   }
 
   static _GM_cookie(
@@ -725,25 +734,22 @@ export default class GMApi extends GM_Base {
     if (typeof css !== "string") throw new Error("The parameter 'css' of GM_addStyle shall be a string.");
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
-    const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: `${this.prefix}/runtime/gmApi`,
+    const resp = (<CustomEventMessage>this.contentMsg).syncSendMessage({
+      action: `content/runtime/addElement`,
       data: {
-        uuid: this.scriptRes.uuid,
-        api: "GM_addElement",
         params: [
           null,
           "style",
           {
             textContent: css,
           },
-          isContent,
         ],
       },
     });
     if (resp.code) {
       throw new Error(resp.message);
     }
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data) as Element;
+    return (<CustomEventMessage>this.contentMsg).getAndDelRelatedTarget(resp.data) as Element;
   }
 
   @GMContext.API({ depend: ["GM_addStyle"] })
@@ -758,41 +764,72 @@ export default class GMApi extends GM_Base {
   public GM_addElement(
     parentNode: Node | string,
     tagName: string | Record<string, string | number | boolean>,
-    attrs: Record<string, string | number | boolean> = {}
+    attrs: Record<string, string | number | boolean> | null = {}
   ): Element | undefined {
     if (!this.message || !this.scriptRes) return;
-    // 与content页的消息通讯实际是同步,此方法不需要经过background
+    // 与content页的消息通讯实际是同步, 此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
+    // 在content脚本执行的话，与直接 DOM 无异
+    // TrustedTypes 限制了对 DOM 的 innerHTML/outerHTML 的操作 (TrustedHTML)
+    // TrustedTypes 限制了对 script 的 innerHTML/outerHTML/textContent/innerText 的操作 (TrustedScript)
+    // CSP 限制了对 appendChild/insertChild/replaceChild/insertAdjacentElement ... 等DOM插入移除操作
+
     let parentNodeId: number | null;
     if (typeof parentNode !== "string") {
-      const id = (<CustomEventMessage>this.message).sendRelatedTarget(parentNode);
+      const id = (<CustomEventMessage>this.contentMsg).sendRelatedTarget(parentNode);
       parentNodeId = id;
     } else {
       parentNodeId = null;
       attrs = (tagName || {}) as Record<string, string | number | boolean>;
       tagName = parentNode as string;
     }
+
     if (typeof tagName !== "string") throw new Error("The parameter 'tagName' of GM_addElement shall be a string.");
-    if (typeof attrs !== "object") throw new Error("The parameter 'attrs' of GM_addElement shall be an object.");
-    const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: `${this.prefix}/runtime/gmApi`,
+    if (attrs !== null && typeof attrs !== "object") {
+      throw new Error("The parameter 'attrs' of GM_addElement shall be an object.");
+    }
+
+    // 控制传送参数，避免参数出现 non-json-selizable
+    const attrsCT = {} as Record<string, string | number>;
+    const setAttr = {} as Record<string, any>;
+    for (const [key, value] of Object.entries(attrs as Record<string, any>)) {
+      if (typeof value === "string" || typeof value === "number") {
+        // 数字不是标准的 attribute value type, 但常见于实际使用
+        attrsCT[key] = value;
+      } else {
+        // property setter for non attribute (e.g. Function, Symbol, boolean, etc)
+        // Function, Symbol 无法跨环境传递
+        setAttr[key] = value;
+      }
+    }
+
+    // 使用contentMsg同步发送消息到content脚本，由content脚本创建元素并返回
+    // 不使用message，因为message是在scripting环境处理的，会因为扩展的 CSP 而无法操作 DOM
+    const resp = (<CustomEventMessage>this.contentMsg).syncSendMessage({
+      action: `content/runtime/addElement`,
       data: {
-        uuid: this.scriptRes.uuid,
-        api: "GM_addElement",
-        params: [parentNodeId, tagName, attrs, isContent],
+        params: [parentNodeId, tagName, attrsCT],
       },
     });
     if (resp.code) {
       throw new Error(resp.message);
     }
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data) as Element;
+
+    const el = (<CustomEventMessage>this.contentMsg).getAndDelRelatedTarget(resp.data) as Element;
+    // 设置属性
+    for (const [key, value] of Object.entries(setAttr)) {
+      (el as any)[key] = value;
+    }
+
+    // 回传元素
+    return el;
   }
 
   @GMContext.API({ depend: ["GM_addElement"] })
   public "GM.addElement"(
     parentNode: Node | string,
     tagName: string | Record<string, string | number | boolean>,
-    attrs: Record<string, string | number | boolean> = {}
+    attrs: Record<string, string | number | boolean> | null = {}
   ): Promise<Element | undefined> {
     return new Promise<Element | undefined>((resolve) => {
       const ret = this.GM_addElement(parentNode, tagName, attrs);
@@ -953,6 +990,7 @@ export default class GMApi extends GM_Base {
             name: details.name,
             headers: details.headers,
             saveAs: details.saveAs,
+            conflictAction: details.conflictAction,
             timeout: details.timeout,
             cookie: details.cookie,
             anonymous: details.anonymous,
@@ -1004,6 +1042,7 @@ export default class GMApi extends GM_Base {
                   name: details.name,
                   headers: details.headers,
                   saveAs: details.saveAs,
+                  conflictAction: details.conflictAction,
                   timeout: details.timeout,
                   cookie: details.cookie,
                   anonymous: details.anonymous,

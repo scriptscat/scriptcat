@@ -28,8 +28,13 @@ const envInfo: GMInfoEnv = {
   isIncognito: false,
 };
 
-// @ts-ignore
-const noneExec = new ExecScript(scriptRes, undefined, undefined, nilFn, envInfo);
+const noneExec = new ExecScript(scriptRes, {
+  envPrefix: "scripting",
+  message: undefined as any,
+  contentMsg: undefined as any,
+  code: nilFn,
+  envInfo,
+});
 
 const scriptRes2 = {
   id: 0,
@@ -42,8 +47,13 @@ const scriptRes2 = {
   value: {},
 } as unknown as ScriptLoadInfo;
 
-// @ts-ignore
-const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, nilFn, envInfo);
+const sandboxExec = new ExecScript(scriptRes2, {
+  envPrefix: "scripting",
+  message: undefined as any,
+  contentMsg: undefined as any,
+  code: nilFn,
+  envInfo,
+});
 
 describe.concurrent("GM_info", () => {
   it.concurrent("none", async () => {
@@ -503,8 +513,13 @@ describe("沙盒环境测试", async () => {
 
   it.concurrent("RegExp", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     script.code = `const str = "12345";
 const reg = /(123)/;
 return [str.match(reg), RegExp.$1];`;
@@ -516,24 +531,39 @@ return [str.match(reg), RegExp.$1];`;
   it.concurrent("沙盒之间不应该共享变量", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.code = `this.testVar = "ok"; ttest1 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
-    // @ts-ignore
-    const exec1 = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec1 = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec1.scriptFunc = compileScript(compileScriptCode(script));
     const ret1 = await exec1.exec();
     expect(ret1).toEqual({ testVar: "ok", testVar2: undefined, ttest1: "string", ttest2: "number" });
 
     const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script2.code = `this.testVar2 = "ok"; ttest2 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
-    // @ts-ignore
-    const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
+    const exec2 = new ExecScript(script2, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec2.scriptFunc = compileScript(compileScriptCode(script2));
     const ret2 = await exec2.exec();
     expect(ret2).toEqual({ testVar: undefined, testVar2: "ok", ttest1: "number", ttest2: "string" });
 
     const script3 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script3.code = `onload = function (){return 123}; return {onload, thisOnload: this.onload, winOnload: window.onload};`;
-    // @ts-ignore
-    const exec3 = new ExecScript(script3, undefined, undefined, nilFn, envInfo);
+    const exec3 = new ExecScript(script3, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec3.scriptFunc = compileScript(compileScriptCode(script3));
     const ret3 = await exec3.exec();
     expect(ret3.onload).toEqual(expect.any(Function));
@@ -545,8 +575,13 @@ return [str.match(reg), RegExp.$1];`;
 
     const script4 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script4.code = `onload = function (){return 456}; return {onload, thisOnload: this.onload, winOnload: window.onload};`;
-    // @ts-ignore
-    const exec4 = new ExecScript(script4, undefined, undefined, nilFn, envInfo);
+    const exec4 = new ExecScript(script4, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec4.scriptFunc = compileScript(compileScriptCode(script4));
     const ret4 = await exec4.exec();
     expect(ret4.onload).toEqual(expect.any(Function));
@@ -564,16 +599,26 @@ return [str.match(reg), RegExp.$1];`;
   it.concurrent("沙盒之间能用unsafeWindow（及全局作用域）共享变量", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.code = `unsafeWindow.testSVar1 = "shareA"; ggaa1 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
-    // @ts-ignore
-    const exec1 = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const exec1 = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec1.scriptFunc = compileScript(compileScriptCode(script));
     const ret1 = await exec1.exec();
     expect(ret1).toEqual({ testSVar1: "shareA", testSVar2: undefined, ggaa1: "string", ggaa2: "undefined" });
 
     const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script2.code = `unsafeWindow.testSVar2 = "shareB"; ggaa2 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
-    // @ts-ignore
-    const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
+    const exec2 = new ExecScript(script2, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec2.scriptFunc = compileScript(compileScriptCode(script2));
     const ret2 = await exec2.exec();
     expect(ret2).toEqual({ testSVar1: "shareA", testSVar2: "shareB", ggaa1: "string", ggaa2: "string" });
@@ -582,8 +627,13 @@ return [str.match(reg), RegExp.$1];`;
   it.concurrent("测试SC沙盒与TM沙盒有相近的特殊处理", async () => {
     const script1 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script1.code = `onfocus = function(){}; onresize = 123; onblur = "123"; const ret = {onfocus, onresize, onblur}; onfocus = null; onresize = null; onblur = null; return ret;`;
-    // @ts-ignore
-    const exec1 = new ExecScript(script1, undefined, undefined, nilFn, envInfo);
+    const exec1 = new ExecScript(script1, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec1.scriptFunc = compileScript(compileScriptCode(script1));
     const ret1 = await exec1.exec();
     expect(ret1.onfocus).toEqual(expect.any(Function));
@@ -592,8 +642,13 @@ return [str.match(reg), RegExp.$1];`;
 
     const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script2.code = `window.onfocus = function(){}; window.onresize = 123; window.onblur = "123"; const {onfocus, onresize, onblur} = window; const ret = {onfocus, onresize, onblur}; window.onfocus = null; window.onresize = null; window.onblur = null; return ret;`;
-    // @ts-ignore
-    const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
+    const exec2 = new ExecScript(script2, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
     exec2.scriptFunc = compileScript(compileScriptCode(script2));
     const ret2 = await exec2.exec();
     expect(ret2.onfocus).toEqual(expect.any(Function));
