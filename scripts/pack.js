@@ -7,6 +7,7 @@ import { execSync } from "child_process";
 import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
+import { toChromeVersion } from "./version.js";
 
 // ============================================================================
 
@@ -26,26 +27,11 @@ const createJSZip = () => {
 
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
+manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
-  // 替换manifest中的版本
-  let betaVersion = 1000;
-  switch (version.prerelease[0]) {
-    case "alpha":
-      // 第一位进1
-      betaVersion += parseInt(version.prerelease[1] || "0", 10) + 1 || 1;
-      break;
-    case "beta":
-      // 第三位进1
-      betaVersion += 100 * (parseInt(version.prerelease[1] || "0", 10) + 1 || 1);
-      break;
-    default:
-      throw new Error("未知的版本类型");
-  }
-  manifest.version = `${version.major}.${version.minor}.${version.patch}.${betaVersion}`;
   manifest.name = `__MSG_scriptcat_beta__`;
 } else {
   manifest.name = `__MSG_scriptcat__`;
-  manifest.version = packageInfo.version;
 }
 
 // 处理manifest version
