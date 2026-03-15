@@ -1029,6 +1029,7 @@ export class AgentService {
       messages?: ChatRequest["messages"];
       system?: string;
       modelId?: string;
+      cache?: boolean;
     },
     sender: IGetSender
   ) {
@@ -1292,6 +1293,7 @@ export class AgentService {
       ephemeral?: boolean;
       messages?: ChatRequest["messages"];
       system?: string;
+      cache?: boolean;
     },
     sender: IGetSender
   ) {
@@ -1365,7 +1367,7 @@ export class AgentService {
           signal: abortController.signal,
           scriptToolCallback: params.tools && params.tools.length > 0 ? scriptToolCallback : null,
           skipBuiltinTools: true,
-          cache: false, // ephemeral 会话轮次少，不需要 prompt caching
+          cache: params.cache,
         });
         return;
       }

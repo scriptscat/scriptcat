@@ -877,6 +877,8 @@ declare namespace CATAgent {
      * Built-in tools/skills are NOT loaded; the script must supply all tools.
      */
     ephemeral?: boolean;
+    /** Enable prompt caching. Defaults to true. */
+    cache?: boolean;
   }
 
   /** Options for a single `chat()` / `chatStream()` call. */

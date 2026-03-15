@@ -146,6 +146,7 @@ export type ConversationCreateOptions = {
   tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
   commands?: Record<string, CommandHandler>; // 自定义命令处理器，以 / 开头
   ephemeral?: boolean; // 临时会话：不持久化、不加载内置资源、工具由脚本提供
+  cache?: boolean; // 是否启用 prompt caching，默认 true
 };
 
 // conv.chat() 的参数

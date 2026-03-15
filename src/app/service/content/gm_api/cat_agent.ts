@@ -25,6 +25,7 @@ export class ConversationInstance {
   private toolDefs: ToolDefinition[] = [];
   private commandHandlers: Map<string, CommandHandler> = new Map();
   private ephemeral: boolean;
+  private cache?: boolean;
   private systemPrompt?: string;
   private messageHistory: Array<{
     role: MessageRole;
@@ -42,9 +43,11 @@ export class ConversationInstance {
     initialTools?: ConversationCreateOptions["tools"],
     commands?: Record<string, CommandHandler>,
     ephemeral?: boolean,
-    system?: string
+    system?: string,
+    cache?: boolean
   ) {
     this.ephemeral = ephemeral || false;
+    this.cache = cache;
     this.systemPrompt = system;
     if (initialTools) {
       for (const tool of initialTools) {
@@ -102,6 +105,9 @@ export class ConversationInstance {
       scriptUuid: this.scriptUuid,
     };
 
+    if (this.cache !== undefined) {
+      connectParams.cache = this.cache;
+    }
     if (this.ephemeral) {
       connectParams.ephemeral = true;
       connectParams.messages = this.messageHistory;
@@ -169,6 +175,9 @@ export class ConversationInstance {
       scriptUuid: this.scriptUuid,
     };
 
+    if (this.cache !== undefined) {
+      connectParams.cache = this.cache;
+    }
     if (this.ephemeral) {
       connectParams.ephemeral = true;
       connectParams.messages = this.messageHistory;
@@ -515,7 +524,8 @@ function buildInstance(
     options?.tools,
     options?.commands,
     options?.ephemeral,
-    options?.system
+    options?.system,
+    options?.cache
   );
 }
 

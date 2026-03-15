@@ -884,6 +884,8 @@ declare namespace CATAgent {
      * 不加载内置工具/Skill，脚本需自行提供所有工具。
      */
     ephemeral?: boolean;
+    /** 是否启用 prompt caching，默认 true。 */
+    cache?: boolean;
   }
 
   /** 单次 `chat()` / `chatStream()` 调用的选项。 */
