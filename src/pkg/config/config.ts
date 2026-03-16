@@ -482,7 +482,7 @@ export class SystemConfig {
   }
 
   setFaviconService(val: FaviconService) {
-    this._set("favicon_service", val);
+    return this._set("favicon_service", val);
   }
 }
 

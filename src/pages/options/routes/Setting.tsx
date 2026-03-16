@@ -16,6 +16,7 @@ import { useSystemConfig } from "./utils";
 import { subscribeMessage } from "@App/pages/store/global";
 import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config";
 import { FaviconDAO } from "@App/app/repo/favicon";
+import { clearFaviconMemoryCache } from "@App/pages/store/favicons";
 import { type TKeyValue } from "@Packages/message/message_queue";
 import { useEffect, useMemo } from "react";
 import { systemConfig } from "@App/pages/store/global";
@@ -323,10 +324,12 @@ function Setting() {
                   try {
                     const faviconDAO = new FaviconDAO();
                     const allFavicons = await faviconDAO.find();
-                    await Promise.all(allFavicons.map((f) => faviconDAO.delete(f.uuid)));
+                    await faviconDAO.deletes(allFavicons.map((f) => f.uuid));
                     // 清除 OPFS 缓存：删除并重建目录
                     const opfsRoot = await navigator.storage.getDirectory();
                     await opfsRoot.removeEntry("cached_favicons", { recursive: true }).catch(() => {});
+                    // 清除内存中的 blob URL 缓存
+                    clearFaviconMemoryCache();
                   } catch {
                     // 忽略清除缓存的错误
                   }

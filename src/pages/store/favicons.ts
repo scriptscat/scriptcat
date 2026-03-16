@@ -9,6 +9,18 @@ let scriptDAO: ScriptDAO | null = null;
 let faviconDAO: FaviconDAO | null = null;
 const loadFaviconPromises = new Map<string, any>(); // 关联 iconUrl 和 blobUrl
 
+// 清除内存中的 favicon 缓存，切换服务时调用
+export const clearFaviconMemoryCache = () => {
+  loadFaviconPromises.forEach((promise) => {
+    Promise.resolve(promise).then((blobUrl) => {
+      if (typeof blobUrl === "string" && blobUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    }).catch(() => {});
+  });
+  loadFaviconPromises.clear();
+};
+
 /**
  * 从URL模式中提取域名
  */
@@ -190,6 +202,7 @@ export async function fetchIconByService(domain: string, service: FaviconService
     case "google":
       return [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
     case "local":
+    default:
       return await fetchIconByDomain(domain);
   }
 }
