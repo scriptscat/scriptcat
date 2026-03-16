@@ -1,7 +1,7 @@
 import type { Group, IGetSender } from "@Packages/message/server";
 import { GetSenderType } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import type { AgentModelConfig } from "@App/app/service/agent/types";
+import type { AgentModelConfig, AgentModelSafeConfig } from "@App/app/service/agent/types";
 import type { Script } from "@App/app/repo/scripts";
 import { i18nName } from "@App/locales/locales";
 import type {
@@ -24,6 +24,7 @@ import type {
   AgentTaskApiRequest,
   AgentTaskTrigger,
   Attachment,
+  ModelApiRequest,
 } from "@App/app/service/agent/types";
 import { getTextContent, isContentBlocks } from "@App/app/service/agent/content_utils";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
@@ -1016,6 +1017,29 @@ export class AgentService {
     return this.handleAgentTask(params);
   }
 
+  // 处理 CAT.agent.model API 请求（只读，隐藏 apiKey），供 GMApi 调用
+  private stripApiKey(model: AgentModelConfig): AgentModelSafeConfig {
+    const { apiKey: _, ...safe } = model;
+    return safe;
+  }
+
+  async handleModelApi(request: ModelApiRequest): Promise<AgentModelSafeConfig[] | AgentModelSafeConfig | null | string> {
+    switch (request.action) {
+      case "list": {
+        const models = await this.modelRepo.listModels();
+        return models.map((m) => this.stripApiKey(m));
+      }
+      case "get": {
+        const model = await this.modelRepo.getModel(request.id);
+        return model ? this.stripApiKey(model) : null;
+      }
+      case "getDefault":
+        return this.modelRepo.getDefaultModelId();
+      default:
+        throw new Error(`Unknown model API action: ${(request as any).action}`);
+    }
+  }
+
   // 处理流式 conversation chat，供 GMApi 调用
   async handleConversationChatFromGmApi(
     params: {
@@ -1600,6 +1624,10 @@ export class AgentService {
             thinking += event.delta;
             break;
           case "tool_call_start":
+            // 如果已有一个正在收集的 tool call，先保存它（多个 tool_use 并行返回时）
+            if (currentToolCall) {
+              toolCalls.push(currentToolCall);
+            }
             currentToolCall = { ...event.toolCall, arguments: event.toolCall.arguments || "" };
             break;
           case "tool_call_delta":

@@ -72,7 +72,7 @@ function createTestService() {
   (service as any).catToolRepo = mockCatToolRepo;
   (service as any).skillRepo = mockSkillRepo;
 
-  return { service, mockRepo, mockCatToolRepo, mockSkillRepo };
+  return { service, mockRepo, mockCatToolRepo, mockSkillRepo, mockModelRepo };
 }
 
 const VALID_CATTOOL_CODE = `// ==CATTool==
@@ -2002,6 +2002,76 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
 
     registry.unregisterBuiltin("screenshot");
   });
+
+  it("同一轮返回多个 tool_call：两个工具都被执行", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    const registry = (service as any).toolRegistry;
+    const executedTools: string[] = [];
+    registry.registerBuiltin(
+      { name: "tool_a", description: "Tool A", parameters: { type: "object", properties: { x: { type: "string" } } } },
+      {
+        execute: async (args: Record<string, unknown>) => {
+          executedTools.push("tool_a");
+          return `a: ${args.x}`;
+        },
+      }
+    );
+    registry.registerBuiltin(
+      { name: "tool_b", description: "Tool B", parameters: { type: "object", properties: { y: { type: "string" } } } },
+      {
+        execute: async (args: Record<string, unknown>) => {
+          executedTools.push("tool_b");
+          return `b: ${args.y}`;
+        },
+      }
+    );
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // 第一次：同时返回两个 tool_call
+    fetchSpy.mockResolvedValueOnce(
+      makeToolCallResponse([
+        { id: "call_a", name: "tool_a", arguments: '{"x":"hello"}' },
+        { id: "call_b", name: "tool_b", arguments: '{"y":"world"}' },
+      ])
+    );
+    // 第二次：纯文本
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("完成"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "test" }, sender);
+
+    // 两个工具都应被执行
+    expect(executedTools).toEqual(["tool_a", "tool_b"]);
+
+    const events = sentMessages.map((m) => m.data);
+
+    // 应有两个 tool_call_start
+    const startEvents = events.filter((e: any) => e.type === "tool_call_start");
+    expect(startEvents).toHaveLength(2);
+    expect(startEvents[0].toolCall.name).toBe("tool_a");
+    expect(startEvents[1].toolCall.name).toBe("tool_b");
+
+    // 应有两个 tool_call_complete
+    const completeEvents = events.filter((e: any) => e.type === "tool_call_complete");
+    expect(completeEvents).toHaveLength(2);
+    expect(completeEvents.find((e: any) => e.id === "call_a").result).toBe("a: hello");
+    expect(completeEvents.find((e: any) => e.id === "call_b").result).toBe("b: world");
+
+    // 持久化的 assistant 消息应包含两个 toolCalls
+    const assistantMsgs = mockRepo.appendMessage.mock.calls
+      .map((c: any) => c[0])
+      .filter((m: any) => m.role === "assistant" && m.toolCalls);
+    expect(assistantMsgs).toHaveLength(1);
+    expect(assistantMsgs[0].toolCalls).toHaveLength(2);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    registry.unregisterBuiltin("tool_a");
+    registry.unregisterBuiltin("tool_b");
+  });
 });
 
 // ---- handleConversationChat 场景补充 ----
@@ -2264,5 +2334,67 @@ describe.concurrent("AgentService.handleDomApi", () => {
     (service as any).domService = { handleDomApi: mockHandleDomApi };
 
     await expect(service.handleDomApi({ action: "listTabs", scriptUuid: "test" })).rejects.toThrow("DOM action failed");
+  });
+});
+
+// ---- handleModelApi 测试 ----
+
+describe.concurrent("handleModelApi", () => {
+  it.concurrent("list 应返回去掉 apiKey 的模型列表", async () => {
+    const { service, mockModelRepo } = createTestService();
+    mockModelRepo.listModels.mockResolvedValueOnce([
+      { id: "m1", name: "GPT-4o", provider: "openai", apiBaseUrl: "https://api.openai.com", apiKey: "sk-secret", model: "gpt-4o" },
+      { id: "m2", name: "Claude", provider: "anthropic", apiBaseUrl: "https://api.anthropic.com", apiKey: "ant-secret", model: "claude-sonnet-4-20250514", maxTokens: 4096 },
+    ]);
+
+    const result = await service.handleModelApi({ action: "list", scriptUuid: "test" });
+    expect(Array.isArray(result)).toBe(true);
+    const models = result as any[];
+    expect(models).toHaveLength(2);
+
+    // apiKey 必须被剥离
+    for (const m of models) {
+      expect(m).not.toHaveProperty("apiKey");
+    }
+
+    // 其他字段保留
+    expect(models[0]).toEqual({ id: "m1", name: "GPT-4o", provider: "openai", apiBaseUrl: "https://api.openai.com", model: "gpt-4o" });
+    expect(models[1]).toEqual({ id: "m2", name: "Claude", provider: "anthropic", apiBaseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-20250514", maxTokens: 4096 });
+  });
+
+  it.concurrent("get 存在的模型应返回去掉 apiKey 的结果", async () => {
+    const { service, mockModelRepo } = createTestService();
+    mockModelRepo.getModel.mockResolvedValueOnce({
+      id: "m1", name: "GPT-4o", provider: "openai", apiBaseUrl: "https://api.openai.com", apiKey: "sk-secret", model: "gpt-4o",
+    });
+
+    const result = await service.handleModelApi({ action: "get", id: "m1", scriptUuid: "test" });
+    expect(result).not.toBeNull();
+    expect(result).not.toHaveProperty("apiKey");
+    expect((result as any).id).toBe("m1");
+  });
+
+  it.concurrent("get 不存在的模型应返回 null", async () => {
+    const { service, mockModelRepo } = createTestService();
+    mockModelRepo.getModel.mockResolvedValueOnce(undefined);
+
+    const result = await service.handleModelApi({ action: "get", id: "nonexistent", scriptUuid: "test" });
+    expect(result).toBeNull();
+  });
+
+  it.concurrent("getDefault 应返回默认模型 ID", async () => {
+    const { service, mockModelRepo } = createTestService();
+    mockModelRepo.getDefaultModelId.mockResolvedValueOnce("m1");
+
+    const result = await service.handleModelApi({ action: "getDefault", scriptUuid: "test" });
+    expect(result).toBe("m1");
+  });
+
+  it.concurrent("未知 action 应抛出错误", async () => {
+    const { service } = createTestService();
+
+    await expect(service.handleModelApi({ action: "unknown" as any, scriptUuid: "test" })).rejects.toThrow(
+      "Unknown model API action"
+    );
   });
 });

@@ -1488,6 +1488,42 @@ declare namespace CATAgentSkills {
   }
 }
 
+// ---- CAT.agent.model — Model configuration query API ----
+
+/** Model configuration types — query available LLM models (read-only, apiKey excluded). */
+declare namespace CATAgentModel {
+  /** Model configuration summary (apiKey excluded for security). */
+  interface ModelSummary {
+    /** Unique model config ID. */
+    id: string;
+    /** User-defined display name (e.g. "GPT-4o", "Claude Sonnet"). */
+    name: string;
+    /** LLM provider. */
+    provider: "openai" | "anthropic";
+    /** API base URL. */
+    apiBaseUrl: string;
+    /** Model identifier sent to the provider API. */
+    model: string;
+    /** Maximum output tokens; omitted if unset. */
+    maxTokens?: number;
+  }
+
+  /**
+   * `CAT.agent.model` — query configured LLM models (read-only).
+   * @grant CAT.agent.model
+   */
+  interface ModelAPI {
+    /** List all configured models (apiKey excluded). */
+    list(): Promise<ModelSummary[]>;
+
+    /** Get a specific model by ID. Returns `null` if not found. */
+    get(id: string): Promise<ModelSummary | null>;
+
+    /** Get the default model ID. Returns empty string if none set. */
+    getDefault(): Promise<string>;
+  }
+}
+
 // ---- CAT global object ----
 
 /**
@@ -1506,6 +1542,8 @@ declare const CAT: {
     task: CATAgentTask.TaskAPI;
     /** @grant CAT.agent.skills */
     skills: CATAgentSkills.SkillsAPI;
+    /** @grant CAT.agent.model */
+    model: CATAgentModel.ModelAPI;
   };
 };
 

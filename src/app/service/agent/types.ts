@@ -124,6 +124,15 @@ export type AgentModelConfig = {
   maxTokens?: number; // 最大输出 token 数，不设置则由 API 端决定
 };
 
+// 隐藏 apiKey 的安全版模型配置，暴露给用户脚本
+export type AgentModelSafeConfig = Omit<AgentModelConfig, "apiKey">;
+
+// CAT.agent.model API 请求
+export type ModelApiRequest =
+  | { action: "list"; scriptUuid: string }
+  | { action: "get"; id: string; scriptUuid: string }
+  | { action: "getDefault"; scriptUuid: string };
+
 // ---- CAT.agent.conversation 用户脚本 API 类型 ----
 
 // 工具定义（用户脚本传入的格式）

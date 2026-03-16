@@ -63,6 +63,8 @@ import GMAgentDomApi from "./gm_agent_dom";
 void GMAgentDomApi;
 import GMAgentTaskApi from "./gm_agent_task";
 void GMAgentTaskApi;
+import GMAgentModelApi from "./gm_agent_model";
+void GMAgentModelApi;
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
