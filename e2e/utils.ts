@@ -49,11 +49,9 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
   await page.evaluate((text) => navigator.clipboard.writeText(text), code);
   await page.keyboard.press("ControlOrMeta+v");
   // Wait for Monaco to finish rendering the pasted content (content will differ from template)
-  await page.waitForFunction(
-    (init) => document.querySelector(".view-lines")?.textContent !== init,
-    initialText,
-    { timeout: 10_000 }
-  );
+  await page.waitForFunction((init) => document.querySelector(".view-lines")?.textContent !== init, initialText, {
+    timeout: 10_000,
+  });
   // Save
   await page.keyboard.press("ControlOrMeta+s");
   // Wait for save: try arco-message first, then verify via script list
