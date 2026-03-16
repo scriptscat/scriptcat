@@ -12,11 +12,13 @@ const loadFaviconPromises = new Map<string, any>(); // 关联 iconUrl 和 blobUr
 // 清除内存中的 favicon 缓存，切换服务时调用
 export const clearFaviconMemoryCache = () => {
   loadFaviconPromises.forEach((promise) => {
-    Promise.resolve(promise).then((blobUrl) => {
-      if (typeof blobUrl === "string" && blobUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(blobUrl);
-      }
-    }).catch(() => {});
+    Promise.resolve(promise)
+      .then((blobUrl) => {
+        if (typeof blobUrl === "string" && blobUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(blobUrl);
+        }
+      })
+      .catch(() => {});
   });
   loadFaviconPromises.clear();
 };

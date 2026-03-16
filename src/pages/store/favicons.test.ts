@@ -50,10 +50,7 @@ describe("extractFaviconsDomain", () => {
   });
 
   it("相同域名应该去重", () => {
-    const result = extractFaviconsDomain(
-      ["https://example.com/page1", "https://example.com/page2"],
-      []
-    );
+    const result = extractFaviconsDomain(["https://example.com/page1", "https://example.com/page2"], []);
     // 两个pattern提取出相同域名 example.com，应去重
     expect(result).toHaveLength(1);
     expect(result[0].domain).toBe("example.com");
@@ -161,9 +158,7 @@ describe("fetchIconByService", () => {
 
   it("scriptcat服务应返回scriptcat API URL", async () => {
     const result = await fetchIconByService("example.com", "scriptcat");
-    expect(result).toEqual([
-      "https://ext.scriptcat.org/api/v1/open/favicons?domain=example.com&sz=64",
-    ]);
+    expect(result).toEqual(["https://ext.scriptcat.org/api/v1/open/favicons?domain=example.com&sz=64"]);
   });
 
   it("google服务应返回Google favicon URL", async () => {
@@ -213,9 +208,7 @@ describe("fetchIconByDomain", () => {
       vi.fn().mockImplementation((url: string | URL) => {
         const urlStr = url.toString();
         if (urlStr === "https://noicon.com") {
-          return Promise.resolve(
-            mockHtmlResponse("https://noicon.com/", "<html><head></head></html>")
-          );
+          return Promise.resolve(mockHtmlResponse("https://noicon.com/", "<html><head></head></html>"));
         }
         return Promise.resolve({ ok: true, url: "https://noicon.com/favicon.ico" });
       })
@@ -232,10 +225,7 @@ describe("fetchIconByDomain", () => {
         const urlStr = url.toString();
         if (urlStr === "https://fail.com") {
           return Promise.resolve(
-            mockHtmlResponse(
-              "https://fail.com/",
-              '<html><head><link rel="icon" href="/missing.ico"></head></html>'
-            )
+            mockHtmlResponse("https://fail.com/", '<html><head><link rel="icon" href="/missing.ico"></head></html>')
           );
         }
         return Promise.reject(new Error("Not found"));
@@ -253,10 +243,7 @@ describe("fetchIconByDomain", () => {
         const urlStr = url.toString();
         if (urlStr === "https://badstatus.com") {
           return Promise.resolve(
-            mockHtmlResponse(
-              "https://badstatus.com/",
-              '<html><head><link rel="icon" href="/icon.png"></head></html>'
-            )
+            mockHtmlResponse("https://badstatus.com/", '<html><head><link rel="icon" href="/icon.png"></head></html>')
           );
         }
         return Promise.resolve({ ok: false, url: "https://badstatus.com/icon.png" });
@@ -274,10 +261,7 @@ describe("fetchIconByDomain", () => {
         const urlStr = url.toString();
         if (urlStr === "https://redirect.com") {
           return Promise.resolve(
-            mockHtmlResponse(
-              "https://redirect.com/",
-              '<html><head><link rel="icon" href="/icon.png"></head></html>'
-            )
+            mockHtmlResponse("https://redirect.com/", '<html><head><link rel="icon" href="/icon.png"></head></html>')
           );
         }
         return Promise.resolve({ ok: true, url: "https://redirect.com/404.html" });
