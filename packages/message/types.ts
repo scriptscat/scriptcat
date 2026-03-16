@@ -50,7 +50,7 @@ export interface MessageConnect {
   onMessage(callback: (data: TMessage) => void): void;
   sendMessage(data: TMessage): void;
   disconnect(): void;
-  onDisconnect(callback: () => void): void;
+  onDisconnect(callback: (isSelfDisconnected: boolean) => void): void;
 }
 
 export type ExtMessageSender = {

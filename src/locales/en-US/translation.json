@@ -580,6 +580,11 @@
     "maybe_later": "Maybe Later",
     "settings_hint": "You can change this option in settings at any time."
   },
+  "favicon_service": "Favicon Service",
+  "favicon_service_desc": "Choose the service for fetching website icons",
+  "favicon_service_scriptcat": "ScriptCat",
+  "favicon_service_local": "Local Fetch",
+  "favicon_service_google": "Google",
   "editor": {
     "show_script_list": "Show Script List",
     "hide_script_list": "Hide Script List"
