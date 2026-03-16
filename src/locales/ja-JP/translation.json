@@ -611,6 +611,7 @@
   "agent_model_set_default": "デフォルトに設定",
   "agent_model_default_label": "デフォルト",
   "agent_model_delete_confirm": "このモデル設定を削除してもよろしいですか？",
+  "agent_model_max_tokens": "最大出力トークン数",
   "agent_model_no_models": "モデル設定がありません",
   "agent_coming_soon": "開発中...",
   "agent_skills_title": "Skills 管理",

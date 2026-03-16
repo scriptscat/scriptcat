@@ -611,6 +611,7 @@
   "agent_model_set_default": "Set as Default",
   "agent_model_default_label": "Default",
   "agent_model_delete_confirm": "Are you sure to delete this model?",
+  "agent_model_max_tokens": "Max Output Tokens",
   "agent_model_no_models": "No models configured",
   "agent_coming_soon": "Coming soon...",
   "agent_skills_title": "Skills Management",

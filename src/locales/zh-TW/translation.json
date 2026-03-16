@@ -611,6 +611,7 @@
   "agent_model_set_default": "設為預設",
   "agent_model_default_label": "預設",
   "agent_model_delete_confirm": "確定要刪除此模型配置嗎？",
+  "agent_model_max_tokens": "最大輸出 Token 數",
   "agent_model_no_models": "暫無模型配置",
   "agent_coming_soon": "開發中...",
   "agent_skills_title": "Skills 管理",

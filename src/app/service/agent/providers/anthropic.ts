@@ -123,9 +123,7 @@ export function buildAnthropicRequest(
     stream: true,
   };
 
-  if (config.maxTokens) {
-    body.max_tokens = config.maxTokens;
-  }
+  body.max_tokens = config.maxTokens || 16384;
 
   if (systemMessages.length > 0) {
     const systemBlocks = systemMessages.map((m) => ({

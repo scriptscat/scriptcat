@@ -3,6 +3,7 @@ import {
   Card,
   Empty,
   Input,
+  InputNumber,
   Message,
   Modal,
   Popconfirm,
@@ -375,6 +376,20 @@ function AgentProvider() {
                 {t("agent_model_fetch")}
               </Button>
             </div>
+          </div>
+
+          {/* Max Tokens */}
+          <div>
+            <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">
+              {t("agent_model_max_tokens")}
+            </div>
+            <InputNumber
+              value={editingModel.maxTokens}
+              placeholder="16384"
+              min={1}
+              step={1024}
+              onChange={(value) => setEditingModel((prev) => ({ ...prev, maxTokens: value || undefined }))}
+            />
           </div>
 
           {/* 测试连接 */}

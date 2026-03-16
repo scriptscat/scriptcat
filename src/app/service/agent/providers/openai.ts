@@ -93,6 +93,10 @@ export function buildOpenAIRequest(
     stream_options: { include_usage: true },
   };
 
+  if (config.maxTokens) {
+    body.max_tokens = config.maxTokens;
+  }
+
   // 添加工具定义
   if (request.tools && request.tools.length > 0) {
     body.tools = request.tools.map((t) => ({
