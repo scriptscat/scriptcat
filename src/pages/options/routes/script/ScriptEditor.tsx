@@ -914,10 +914,7 @@ function ScriptEditor() {
               )}
               {filteredScriptList.map((script) => {
                 const editor = editorFindItem(script.uuid);
-                const colorRGB = !editor ? "173,173,173" : editor.isChanged ? "230,155,31" : "199,199,199";
                 const alpha = script.status === 2 ? 0.8 : 1.0;
-                const colorRGBA = `rgba(${colorRGB},${alpha})`;
-                const delBtnRGBA = `rgba(173,173,173,${alpha})`;
                 return (
                   <div key={`s_${script.uuid}`} className="tw-relative tw-group">
                     <Button
@@ -927,8 +924,13 @@ function ScriptEditor() {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        color: `${colorRGBA}`,
-                        backgroundColor: selectedScript === script.uuid ? "#414958" : editor ? "#474747" : "#333333",
+                        opacity: alpha,
+                        color: !editor
+                          ? "var(--color-text-3)"
+                          : editor.isChanged
+                            ? "rgb(var(--warning-6))"
+                            : "var(--color-text-2)",
+                        backgroundColor: selectedScript === script.uuid ? "var(--color-fill-2)" : "",
                         paddingRight: "32px", // 为删除按钮留出空间
                       }}
                       onClick={() => {
@@ -950,7 +952,7 @@ function ScriptEditor() {
                         minWidth: "20px",
                         border: "none",
                         background: "transparent",
-                        color: `${delBtnRGBA}`,
+                        color: "var(--color-text-3)",
                         boxShadow: "none",
                       }}
                       onClick={(e) => {
