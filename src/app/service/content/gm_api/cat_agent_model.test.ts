@@ -18,9 +18,11 @@ describe.concurrent("CATAgentModelApi", () => {
   });
 
   it.concurrent("list 方法调用 sendMessage 并传递正确的请求", async () => {
-    const mockSendMessage = vi.fn().mockResolvedValue([
-      { id: "m1", name: "GPT-4o", provider: "openai", apiBaseUrl: "https://api.openai.com", model: "gpt-4o" },
-    ] as AgentModelSafeConfig[]);
+    const mockSendMessage = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "m1", name: "GPT-4o", provider: "openai", apiBaseUrl: "https://api.openai.com", model: "gpt-4o" },
+      ] as AgentModelSafeConfig[]);
 
     const ctx = {
       sendMessage: mockSendMessage,

@@ -5,7 +5,14 @@ import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
 import MessageToolbar from "./MessageToolbar";
 import { Message as ArcoMessage, Tooltip } from "@arco-design/web-react";
-import { IconRobot, IconUser, IconEdit, IconCopy, IconRefresh, IconExclamationCircleFill } from "@arco-design/web-react/icon";
+import {
+  IconRobot,
+  IconUser,
+  IconEdit,
+  IconCopy,
+  IconRefresh,
+  IconExclamationCircleFill,
+} from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { getTextContent } from "@App/app/service/agent/content_utils";
 

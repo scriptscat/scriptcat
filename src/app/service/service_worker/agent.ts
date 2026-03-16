@@ -1023,7 +1023,9 @@ export class AgentService {
     return safe;
   }
 
-  async handleModelApi(request: ModelApiRequest): Promise<AgentModelSafeConfig[] | AgentModelSafeConfig | null | string> {
+  async handleModelApi(
+    request: ModelApiRequest
+  ): Promise<AgentModelSafeConfig[] | AgentModelSafeConfig | null | string> {
     switch (request.action) {
       case "list": {
         const models = await this.modelRepo.listModels();

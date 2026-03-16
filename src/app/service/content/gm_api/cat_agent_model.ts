@@ -3,7 +3,10 @@ import GMContext from "./gm_context";
 
 // 运行时 this 是 GM_Base 实例
 interface GMBaseContext {
-  sendMessage: (api: string, params: ModelApiRequest[]) => Promise<AgentModelSafeConfig[] | AgentModelSafeConfig | null | string>;
+  sendMessage: (
+    api: string,
+    params: ModelApiRequest[]
+  ) => Promise<AgentModelSafeConfig[] | AgentModelSafeConfig | null | string>;
   scriptRes?: { uuid: string };
 }
 

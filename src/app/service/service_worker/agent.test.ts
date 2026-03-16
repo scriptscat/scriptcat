@@ -2343,8 +2343,23 @@ describe.concurrent("handleModelApi", () => {
   it.concurrent("list 应返回去掉 apiKey 的模型列表", async () => {
     const { service, mockModelRepo } = createTestService();
     mockModelRepo.listModels.mockResolvedValueOnce([
-      { id: "m1", name: "GPT-4o", provider: "openai", apiBaseUrl: "https://api.openai.com", apiKey: "sk-secret", model: "gpt-4o" },
-      { id: "m2", name: "Claude", provider: "anthropic", apiBaseUrl: "https://api.anthropic.com", apiKey: "ant-secret", model: "claude-sonnet-4-20250514", maxTokens: 4096 },
+      {
+        id: "m1",
+        name: "GPT-4o",
+        provider: "openai",
+        apiBaseUrl: "https://api.openai.com",
+        apiKey: "sk-secret",
+        model: "gpt-4o",
+      },
+      {
+        id: "m2",
+        name: "Claude",
+        provider: "anthropic",
+        apiBaseUrl: "https://api.anthropic.com",
+        apiKey: "ant-secret",
+        model: "claude-sonnet-4-20250514",
+        maxTokens: 4096,
+      },
     ]);
 
     const result = await service.handleModelApi({ action: "list", scriptUuid: "test" });
@@ -2358,14 +2373,32 @@ describe.concurrent("handleModelApi", () => {
     }
 
     // 其他字段保留
-    expect(models[0]).toEqual({ id: "m1", name: "GPT-4o", provider: "openai", apiBaseUrl: "https://api.openai.com", model: "gpt-4o" });
-    expect(models[1]).toEqual({ id: "m2", name: "Claude", provider: "anthropic", apiBaseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-20250514", maxTokens: 4096 });
+    expect(models[0]).toEqual({
+      id: "m1",
+      name: "GPT-4o",
+      provider: "openai",
+      apiBaseUrl: "https://api.openai.com",
+      model: "gpt-4o",
+    });
+    expect(models[1]).toEqual({
+      id: "m2",
+      name: "Claude",
+      provider: "anthropic",
+      apiBaseUrl: "https://api.anthropic.com",
+      model: "claude-sonnet-4-20250514",
+      maxTokens: 4096,
+    });
   });
 
   it.concurrent("get 存在的模型应返回去掉 apiKey 的结果", async () => {
     const { service, mockModelRepo } = createTestService();
     mockModelRepo.getModel.mockResolvedValueOnce({
-      id: "m1", name: "GPT-4o", provider: "openai", apiBaseUrl: "https://api.openai.com", apiKey: "sk-secret", model: "gpt-4o",
+      id: "m1",
+      name: "GPT-4o",
+      provider: "openai",
+      apiBaseUrl: "https://api.openai.com",
+      apiKey: "sk-secret",
+      model: "gpt-4o",
     });
 
     const result = await service.handleModelApi({ action: "get", id: "m1", scriptUuid: "test" });
