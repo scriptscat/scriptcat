@@ -580,6 +580,11 @@
     "maybe_later": "Để sau",
     "settings_hint": "Bạn có thể thay đổi tùy chọn này trong cài đặt bất kỳ lúc nào."
   },
+  "favicon_service": "Dịch vụ Favicon",
+  "favicon_service_desc": "Chọn dịch vụ để lấy biểu tượng trang web",
+  "favicon_service_scriptcat": "ScriptCat",
+  "favicon_service_local": "Lấy cục bộ",
+  "favicon_service_google": "Google",
   "editor": {
     "show_script_list": "Hiển thị danh sách script",
     "hide_script_list": "Ẩn danh sách script"
