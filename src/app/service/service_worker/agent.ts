@@ -1232,9 +1232,20 @@ export class AgentService {
     }
 
     // 超过最大迭代次数
+    const maxIterMsg = `Tool calling loop exceeded maximum iterations (${maxIterations})`;
+    if (conversationId) {
+      await this.repo.appendMessage({
+        id: uuidv4(),
+        conversationId,
+        role: "assistant",
+        content: "",
+        error: maxIterMsg,
+        createtime: Date.now(),
+      });
+    }
     sendEvent({
       type: "error",
-      message: `Tool calling loop exceeded maximum iterations (${maxIterations})`,
+      message: maxIterMsg,
       errorCode: "max_iterations",
     });
   }
@@ -1497,7 +1508,23 @@ export class AgentService {
       }
     } catch (e: any) {
       if (abortController.signal.aborted) return;
-      sendEvent({ type: "error", message: e.message || "Unknown error", errorCode: classifyErrorCode(e) });
+      const errorMsg = e.message || "Unknown error";
+      // 持久化错误消息到 OPFS，确保刷新后仍可见
+      if (params.conversationId && !params.ephemeral) {
+        try {
+          await this.repo.appendMessage({
+            id: uuidv4(),
+            conversationId: params.conversationId,
+            role: "assistant",
+            content: "",
+            error: errorMsg,
+            createtime: Date.now(),
+          });
+        } catch {
+          // 持久化失败不阻塞错误事件发送
+        }
+      }
+      sendEvent({ type: "error", message: errorMsg, errorCode: classifyErrorCode(e) });
     }
   }
 

@@ -339,7 +339,7 @@ const MainLayout: React.FC<{
       }}
     >
       {contextHolder}
-      <Layout className={"tw-min-h-screen"}>
+      <Layout className={"tw-h-screen tw-overflow-hidden"}>
         <Layout.Header
           style={{
             height: "50px",
@@ -520,7 +520,7 @@ const MainLayout: React.FC<{
           </Space>
         </Layout.Header>
         <Layout
-          className={`tw-bottom-0 tw-w-full ${className}`}
+          className={`tw-bottom-0 tw-w-full tw-flex-1 tw-overflow-hidden ${className}`}
           style={{ background: "var(--color-fill-2)" }}
           {...getRootProps({})}
         >

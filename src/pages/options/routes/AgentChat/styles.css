@@ -298,6 +298,38 @@ body[arco-theme="dark"] .ai-markdown-body .hljs-deletion {
   background-color: #67060c;
 }
 
+/* 错误消息 */
+.agent-error-block {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border-left: 3px solid #e5484d;
+  background: #fff0f0;
+  color: #ce2c31;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.agent-error-block .agent-error-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  margin-top: 1px;
+  color: #e5484d;
+}
+
+body[arco-theme="dark"] .agent-error-block {
+  background: rgba(229, 72, 77, 0.1);
+  color: #ff6369;
+  border-left-color: #e5484d;
+}
+
+body[arco-theme="dark"] .agent-error-block .agent-error-icon {
+  color: #ff6369;
+}
+
 /* 侧边栏会话列表 */
 .agent-conversation-item {
   position: relative;

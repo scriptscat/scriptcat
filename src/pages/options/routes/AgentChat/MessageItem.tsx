@@ -5,7 +5,7 @@ import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
 import MessageToolbar from "./MessageToolbar";
 import { Message as ArcoMessage, Tooltip } from "@arco-design/web-react";
-import { IconRobot, IconUser, IconEdit, IconCopy, IconRefresh } from "@arco-design/web-react/icon";
+import { IconRobot, IconUser, IconEdit, IconCopy, IconRefresh, IconExclamationCircleFill } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { getTextContent } from "@App/app/service/agent/content_utils";
 
@@ -39,10 +39,9 @@ function AssistantMessageContent({ message, isStreaming }: { message: ChatMessag
 
       {/* 错误 */}
       {message.error && (
-        <div className="tw-mt-2 tw-px-3 tw-py-2 tw-rounded-lg tw-bg-[rgb(var(--red-1))] tw-text-[rgb(var(--red-6))] tw-text-xs tw-border tw-border-solid tw-border-[rgb(var(--red-2))]">
-          {t("agent_chat_error")}
-          {": "}
-          {message.error}
+        <div className="agent-error-block">
+          <IconExclamationCircleFill className="agent-error-icon" />
+          <span style={{ minWidth: 0, wordBreak: "break-word" }}>{message.error}</span>
         </div>
       )}
     </div>

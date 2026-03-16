@@ -218,7 +218,7 @@ const Sider: React.FC = () => {
           borderLeft: "1px solid var(--color-bg-5)",
           overflow: "hidden",
           padding: 0,
-          height: "auto",
+          height: "100%",
           boxSizing: "border-box",
           position: "relative",
         }}
