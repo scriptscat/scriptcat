@@ -3,9 +3,8 @@ import { Button, Input, Message, Popconfirm, Select, Space } from "@arco-design/
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
-import { ClearNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
-import type { NetDiskType, Token } from "@Packages/filesystem/auth";
-import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { ClearNetDiskToken, HasNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
+import type { NetDiskType } from "@Packages/filesystem/auth";
 
 const FileSystemParams: React.FC<{
   headerContent: React.ReactNode | string;
@@ -32,14 +31,8 @@ const FileSystemParams: React.FC<{
       setHasBoundToken(false);
       return;
     }
-    const localStorageDAO = new LocalStorageDAO();
-    const key = `netdisk:token:${diskType}`;
-    try {
-      const token = await localStorageDAO.getValue<Token>(key);
-      setHasBoundToken(!!token?.accessToken);
-    } catch {
-      setHasBoundToken(false);
-    }
+    const bound = await HasNetDiskToken(diskType);
+    setHasBoundToken(bound);
   }, []);
 
   const netDiskType = netDiskTypeMap[fileSystemType];
