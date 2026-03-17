@@ -14,7 +14,7 @@
 // include: https://example.com/?test_unwrap_123
 // exclude: https://example.com/?test_unwrap_excluded
 
-var test_global_injection = "success"; 
+var test_global_injection = "success";
 // User can access the variable "test_global_injection" directly in DevTools
 
 (function () {

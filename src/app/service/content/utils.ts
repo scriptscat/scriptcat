@@ -4,7 +4,7 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { sourceMapTo } from "@App/pkg/utils/utils";
 import { ScriptEnvTag } from "@Packages/message/consts";
-import { embeddedPatternCheckerString, EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 export type CompileScriptCodeResource = {
   name: string;
