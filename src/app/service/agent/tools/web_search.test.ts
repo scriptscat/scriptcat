@@ -2,16 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WebSearchExecutor } from "./web_search";
 import type { SearchConfigRepo } from "./search_config";
 
-// Mock offscreen client
-vi.mock("@App/app/service/offscreen/client", () => ({
-  extractSearchResults: vi.fn(),
-}));
-
-import { extractSearchResults } from "@App/app/service/offscreen/client";
-const mockExtractResults = vi.mocked(extractSearchResults);
+// mockExtractResults 存储 mock 返回值，通过 mockSender.sendMessage 传递
+let mockExtractReturnValue: any[] = [];
 
 describe("WebSearchExecutor", () => {
-  const mockSender = {} as any;
+  const mockSender = {
+    sendMessage: vi.fn().mockImplementation(() => Promise.resolve({ data: mockExtractReturnValue })),
+  } as any;
 
   const createMockConfigRepo = (engine: "duckduckgo" | "google_custom"): SearchConfigRepo => ({
     getConfig: vi.fn().mockResolvedValue({
@@ -25,6 +22,8 @@ describe("WebSearchExecutor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", vi.fn());
+    mockExtractReturnValue = [];
+    mockSender.sendMessage.mockImplementation(() => Promise.resolve({ data: mockExtractReturnValue }));
   });
 
   it("should throw for missing query", async () => {
@@ -39,10 +38,10 @@ describe("WebSearchExecutor", () => {
     });
     vi.stubGlobal("fetch", mockFetch);
 
-    mockExtractResults.mockResolvedValue([
+    mockExtractReturnValue = [
       { title: "Result 1", url: "https://example.com/1", snippet: "Snippet 1" },
       { title: "Result 2", url: "https://example.com/2", snippet: "Snippet 2" },
-    ]);
+    ];
 
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test search" })) as string);
@@ -64,7 +63,7 @@ describe("WebSearchExecutor", () => {
       url: `https://example.com/${i}`,
       snippet: `S${i}`,
     }));
-    mockExtractResults.mockResolvedValue(manyResults);
+    mockExtractReturnValue = manyResults;
 
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test", max_results: 3 })) as string);
@@ -84,7 +83,7 @@ describe("WebSearchExecutor", () => {
       url: `https://example.com/${i}`,
       snippet: `S${i}`,
     }));
-    mockExtractResults.mockResolvedValue(manyResults);
+    mockExtractReturnValue = manyResults;
 
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test", max_results: 20 })) as string);
@@ -97,9 +96,7 @@ describe("WebSearchExecutor", () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          items: [
-            { title: "Google Result", link: "https://example.com", snippet: "Google snippet" },
-          ],
+          items: [{ title: "Google Result", link: "https://example.com", snippet: "Google snippet" }],
         }),
     });
     vi.stubGlobal("fetch", mockFetch);
@@ -170,9 +167,11 @@ describe("WebSearchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const manyResults = Array.from({ length: 8 }, (_, i) => ({
-      title: `R${i}`, url: `https://example.com/${i}`, snippet: `S${i}`,
+      title: `R${i}`,
+      url: `https://example.com/${i}`,
+      snippet: `S${i}`,
     }));
-    mockExtractResults.mockResolvedValue(manyResults);
+    mockExtractReturnValue = manyResults;
 
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test" })) as string);

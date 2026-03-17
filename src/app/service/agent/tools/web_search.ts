@@ -61,12 +61,7 @@ export class WebSearchExecutor implements ToolExecutor {
     return JSON.stringify(results.slice(0, maxResults));
   }
 
-  private async searchGoogle(
-    query: string,
-    maxResults: number,
-    apiKey: string,
-    cseId: string
-  ): Promise<string> {
+  private async searchGoogle(query: string, maxResults: number, apiKey: string, cseId: string): Promise<string> {
     if (!apiKey || !cseId) {
       throw new Error("Google Custom Search requires API Key and CSE ID. Configure them in Agent Tool Settings.");
     }

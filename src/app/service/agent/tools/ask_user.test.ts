@@ -21,7 +21,7 @@ describe("ask_user", () => {
 
     // Resolve the question
     expect(resolvers.size).toBe(1);
-    const [askId, resolve] = Array.from(resolvers.entries())[0];
+    const [_askId, resolve] = Array.from(resolvers.entries())[0];
     resolve("Blue");
 
     const result = await resultPromise;
@@ -71,7 +71,7 @@ describe("ask_user", () => {
     expect(id1).not.toBe(id2);
 
     // Resolve both
-    for (const [id, resolve] of resolvers) {
+    for (const [_id, resolve] of resolvers) {
       resolve("answer");
     }
     await Promise.all([p1, p2]);

@@ -1376,8 +1376,7 @@ export class AgentService {
               model,
               prompt,
               signal: abortController.signal,
-              sendEvent: (evt) =>
-                sendEvent({ type: "sub_agent_event", agentId, description: desc, event: evt }),
+              sendEvent: (evt) => sendEvent({ type: "sub_agent_event", agentId, description: desc, event: evt }),
               excludeTools: ["ask_user", "agent"],
               maxIterations: 20,
             });

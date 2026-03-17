@@ -82,9 +82,7 @@ describe("task_tools", () => {
 
     await create.executor.execute({ subject: "Test", description: "Some desc" });
 
-    const result = JSON.parse(
-      (await update.executor.execute({ task_id: "1", description: "" })) as string
-    );
+    const result = JSON.parse((await update.executor.execute({ task_id: "1", description: "" })) as string);
     expect(result.description).toBe("");
   });
 
@@ -95,9 +93,7 @@ describe("task_tools", () => {
 
     await create.executor.execute({ subject: "Original", description: "Desc" });
 
-    const result = JSON.parse(
-      (await update.executor.execute({ task_id: "1" })) as string
-    );
+    const result = JSON.parse((await update.executor.execute({ task_id: "1" })) as string);
     expect(result.subject).toBe("Original");
     expect(result.description).toBe("Desc");
     expect(result.status).toBe("pending");

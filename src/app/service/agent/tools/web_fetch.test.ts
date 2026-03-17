@@ -1,13 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WebFetchExecutor, stripHtmlTags } from "./web_fetch";
 
-// Mock offscreen client
-vi.mock("@App/app/service/offscreen/client", () => ({
-  extractHtmlContent: vi.fn(),
-}));
-
-import { extractHtmlContent } from "@App/app/service/offscreen/client";
-const mockExtract = vi.mocked(extractHtmlContent);
+// 通过 mockSender.sendMessage 控制 offscreen extractHtmlContent 的返回值
+let mockExtractReturnValue: string | null = null;
+let mockExtractShouldThrow = false;
 
 describe("stripHtmlTags", () => {
   it("should remove HTML tags", () => {
@@ -15,7 +11,7 @@ describe("stripHtmlTags", () => {
   });
 
   it("should remove script and style tags with content", () => {
-    const html = '<div>text<script>alert(1)</script> <style>.x{}</style>more</div>';
+    const html = "<div>text<script>alert(1)</script> <style>.x{}</style>more</div>";
     expect(stripHtmlTags(html)).toBe("text more");
   });
 
@@ -25,11 +21,26 @@ describe("stripHtmlTags", () => {
 });
 
 describe("WebFetchExecutor", () => {
-  const mockSender = {} as any;
+  const mockSender = {
+    sendMessage: vi.fn().mockImplementation(() => {
+      if (mockExtractShouldThrow) {
+        return Promise.reject(new Error("Offscreen unavailable"));
+      }
+      return Promise.resolve({ data: mockExtractReturnValue });
+    }),
+  } as any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", vi.fn());
+    mockExtractReturnValue = null;
+    mockExtractShouldThrow = false;
+    mockSender.sendMessage.mockImplementation(() => {
+      if (mockExtractShouldThrow) {
+        return Promise.reject(new Error("Offscreen unavailable"));
+      }
+      return Promise.resolve({ data: mockExtractReturnValue });
+    });
   });
 
   it("should throw for missing url", async () => {
@@ -70,7 +81,7 @@ describe("WebFetchExecutor", () => {
       text: () => Promise.resolve("<html><body><p>Hello World long content here for testing</p></body></html>"),
     });
     vi.stubGlobal("fetch", mockFetch);
-    mockExtract.mockResolvedValue("Hello World long content here for testing extracted properly by offscreen");
+    mockExtractReturnValue = "Hello World long content here for testing extracted properly by offscreen";
 
     const executor = new WebFetchExecutor(mockSender);
     const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
@@ -86,7 +97,7 @@ describe("WebFetchExecutor", () => {
       text: () => Promise.resolve("<p>Simple text</p>"),
     });
     vi.stubGlobal("fetch", mockFetch);
-    mockExtract.mockResolvedValue(null);
+    mockExtractReturnValue = null;
 
     const executor = new WebFetchExecutor(mockSender);
     const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
@@ -129,7 +140,7 @@ describe("WebFetchExecutor", () => {
       text: () => Promise.resolve("<p>Fallback content</p>"),
     });
     vi.stubGlobal("fetch", mockFetch);
-    mockExtract.mockRejectedValue(new Error("Offscreen unavailable"));
+    mockExtractShouldThrow = true;
 
     const executor = new WebFetchExecutor(mockSender);
     const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
@@ -145,7 +156,7 @@ describe("WebFetchExecutor", () => {
       text: () => Promise.resolve("<p>Hi</p>"),
     });
     vi.stubGlobal("fetch", mockFetch);
-    mockExtract.mockResolvedValue("Hi"); // shorter than 50 chars
+    mockExtractReturnValue = "Hi"; // shorter than 50 chars
 
     const executor = new WebFetchExecutor(mockSender);
     const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
@@ -173,16 +184,19 @@ describe("WebFetchExecutor", () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: new Headers({}),
-      text: () => Promise.resolve("<html><body>Long enough content for extraction to work properly and pass the threshold</body></html>"),
+      text: () =>
+        Promise.resolve(
+          "<html><body>Long enough content for extraction to work properly and pass the threshold</body></html>"
+        ),
     });
     vi.stubGlobal("fetch", mockFetch);
-    mockExtract.mockResolvedValue("Long enough content for extraction to work properly and pass the threshold");
+    mockExtractReturnValue = "Long enough content for extraction to work properly and pass the threshold";
 
     const executor = new WebFetchExecutor(mockSender);
     const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
 
     expect(result.content_type).toBe("html");
-    expect(mockExtract).toHaveBeenCalled();
+    expect(mockSender.sendMessage).toHaveBeenCalled();
   });
 
   it("should handle text/plain content-type as plain text", async () => {
@@ -198,7 +212,7 @@ describe("WebFetchExecutor", () => {
 
     expect(result.content_type).toBe("text");
     expect(result.content).toBe("Just plain text");
-    expect(mockExtract).not.toHaveBeenCalled();
+    expect(mockSender.sendMessage).not.toHaveBeenCalled();
   });
 
   it("should use default max_length of 10000", async () => {

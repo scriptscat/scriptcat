@@ -21,9 +21,10 @@ export const SUB_AGENT_DEFINITION: ToolDefinition = {
   },
 };
 
-export function createSubAgentTool(params: {
-  runSubAgent: (prompt: string, description: string) => Promise<string>;
-}): { definition: ToolDefinition; executor: ToolExecutor } {
+export function createSubAgentTool(params: { runSubAgent: (prompt: string, description: string) => Promise<string> }): {
+  definition: ToolDefinition;
+  executor: ToolExecutor;
+} {
   const executor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
       const prompt = args.prompt as string;
