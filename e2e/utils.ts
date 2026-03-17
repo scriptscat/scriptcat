@@ -39,9 +39,11 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
   // Wait for Monaco editor DOM and default template content to be ready
   await page.locator(".monaco-editor").waitFor({ timeout: 30_000 });
   await page.locator(".view-lines").waitFor({ timeout: 15_000 });
-  // Click to focus and wait for the cursor to appear (confirms editor is interactive)
+  // Click to focus editor; headless Chrome 下光标可能不会变为 visible，改用 focused 状态判断
   await page.locator(".monaco-editor .view-lines").click();
-  await page.locator(".cursors-layer .cursor").waitFor({ timeout: 5_000 });
+  // 等待编辑器获得焦点（textarea 获得 focus 即表示可交互）
+  await page.locator(".monaco-editor textarea.inputarea").waitFor({ state: "attached", timeout: 5_000 });
+  await page.locator(".monaco-editor textarea.inputarea").focus();
   // Select all existing content
   await page.keyboard.press("ControlOrMeta+a");
   // Capture current content fingerprint, then paste replacement

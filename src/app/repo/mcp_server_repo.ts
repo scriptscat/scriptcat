@@ -5,6 +5,7 @@ import { Repo } from "./repo";
 export class MCPServerRepo extends Repo<MCPServerConfig> {
   constructor() {
     super("mcp_server:");
+    this.enableCache();
   }
 
   async listServers(): Promise<MCPServerConfig[]> {

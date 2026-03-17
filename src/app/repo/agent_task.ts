@@ -4,6 +4,7 @@ import { Repo } from "./repo";
 export class AgentTaskRepo extends Repo<AgentTask> {
   constructor() {
     super("agent_task:");
+    this.enableCache();
   }
 
   async listTasks(): Promise<AgentTask[]> {
@@ -29,6 +30,7 @@ export class AgentTaskRepo extends Repo<AgentTask> {
 export class AgentTaskRunRepo extends Repo<AgentTaskRun> {
   constructor() {
     super("agent_task_run:");
+    this.enableCache();
   }
 
   async appendRun(run: AgentTaskRun): Promise<void> {

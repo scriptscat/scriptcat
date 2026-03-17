@@ -50,7 +50,7 @@ function ModelSelect({
       bordered={false}
       renderFormat={(_option, value) => {
         const m = models.find((model) => model.id === value);
-        if (!m) return <span>{String(value)}</span>;
+        if (!m) return <span>-</span>;
         return (
           <span className="tw-inline-flex tw-items-center tw-gap-1.5">
             <ProviderIcon providerKey={selectedProviderKey} size={12} />
@@ -338,9 +338,7 @@ export default function ChatInput({
               {onEnableToolsChange && (
                 <Tooltip
                   content={
-                    enableTools !== false
-                      ? t("agent_chat_tools_enabled_tip")
-                      : t("agent_chat_tools_disabled_tip")
+                    enableTools !== false ? t("agent_chat_tools_enabled_tip") : t("agent_chat_tools_disabled_tip")
                   }
                   mini
                 >
@@ -348,16 +346,10 @@ export default function ChatInput({
                     onClick={() => {
                       const next = !enableTools;
                       onEnableToolsChange(next);
-                      ArcoMessage.info(
-                        next
-                          ? t("agent_chat_tools_enabled")
-                          : t("agent_chat_tools_disabled")
-                      );
+                      ArcoMessage.info(next ? t("agent_chat_tools_enabled") : t("agent_chat_tools_disabled"));
                     }}
                     className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
-                      enableTools !== false
-                        ? "tw-text-[rgb(var(--arcoblue-6))]"
-                        : "tw-text-[var(--color-text-4)]"
+                      enableTools !== false ? "tw-text-[rgb(var(--arcoblue-6))]" : "tw-text-[var(--color-text-4)]"
                     } hover:tw-bg-[var(--color-fill-2)]`}
                   >
                     <IconTool style={{ fontSize: 16 }} />

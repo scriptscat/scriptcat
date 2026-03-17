@@ -49,6 +49,7 @@ function WelcomeScreen({ hasConversation }: { hasConversation: boolean }) {
 export default function ChatArea({
   conversationId,
   models,
+  modelsLoaded,
   selectedModelId,
   onModelChange,
   onConversationTitleChange,
@@ -60,6 +61,7 @@ export default function ChatArea({
 }: {
   conversationId: string;
   models: AgentModelConfig[];
+  modelsLoaded?: boolean;
   selectedModelId: string;
   onModelChange: (id: string) => void;
   onConversationTitleChange?: () => void;
@@ -364,7 +366,8 @@ export default function ChatArea({
     [conversationId, isStreaming, messages, setMessages]
   );
 
-  const noModel = models.length === 0;
+  // 只在模型加载完成后才判断是否无模型，避免加载中闪现提示
+  const noModel = modelsLoaded === true && models.length === 0;
   const showWelcome = !conversationId || (messages.length === 0 && !isStreaming);
   const mergedMessages = mergeToolResults(messages);
   const messageGroups = groupMessages(mergedMessages);

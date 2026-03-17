@@ -95,69 +95,8 @@ export const test = base.extend<AgentFixtures>({
     await extPage.goto("chrome://extensions/");
     await extPage.waitForLoadState("domcontentloaded");
     await extPage.waitForTimeout(1_000);
-    await extPage.evaluate(async (id) => {
-      await (chrome as any).developerPrivate.updateExtensionConfiguration({
-        extensionId: id,
-        userScriptsAccess: true,
-      });
-    }, extensionId);
-    await extPage.close();
-    await ctx1.close();
-
-    // Phase 2: Relaunch with user scripts enabled
-    const context = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
-      args: ["--headless=new", ...chromeArgs],
-    });
-
-    // 立即等待 service worker 就绪（与 Phase 1 一致，避免事件丢失竞态）
-    let [bg2] = context.serviceWorkers();
-    if (!bg2) bg2 = await context.waitForEvent("serviceworker", { timeout: 30_000 });
-
-    (context as any).__extensionId = extensionId;
-
-    await use(context);
-    await context.close();
-    fs.rmSync(userDataDir, { recursive: true, force: true });
-  },
-
-  extensionId: async ({ context }, use) => {
-    const extensionId: string = (context as any).__extensionId;
-
-    // 唤醒可能已空闲终止的 service worker
-    const ensureServiceWorker = async () => {
-      let sw = context.serviceWorkers().find((w) => w.url().includes(extensionId));
-      if (sw) return sw;
-
-      // SW 可能已空闲终止，通过导航重新激活
-      const swPromise = context.waitForEvent("serviceworker", { timeout: 30_000 });
-      const wakePage = await context.newPage();
-      try {
-        await wakePage.goto(`chrome-extension://${extensionId}/src/options.html`, {
-          waitUntil: "commit",
-          timeout: 10_000,
-        });
-      } catch {
-        // 即使导航失败，请求本身也可能触发 service worker 注册
-      }
-
-      sw = context.serviceWorkers().find((w) => w.url().includes(extensionId));
-      if (!sw) sw = await swPromise;
-      await wakePage.close();
-      return sw;
-    };
-
-    // Dismiss first-use dialog（导航也会唤醒 SW）
-    const initPage = await context.newPage();
-    await initPage.goto(`chrome-extension://${extensionId}/src/options.html`, {
-      waitUntil: "domcontentloaded",
-    });
-    await initPage.evaluate(() => localStorage.setItem("firstUse", "false"));
-    await initPage.close();
-
-    // 确保 SW 处于活跃状态
-    const sw = await ensureServiceWorker();
-    await sw.evaluate(() => {
+    // 预写入 mock model 配置到 storage（在 userScripts 启用之前，SW 仍可用）
+    await bg.evaluate(() => {
       const modelConfig = {
         id: "mock-model",
         name: "Mock LLM",
@@ -177,6 +116,57 @@ export const test = base.extend<AgentFixtures>({
       });
     });
 
+    // 启用 userScripts 权限（会触发扩展重载，SW 可能被终止）
+    await extPage.evaluate(async (id) => {
+      await (chrome as any).developerPrivate.updateExtensionConfiguration({
+        extensionId: id,
+        userScriptsAccess: true,
+      });
+    }, extensionId);
+    await extPage.close();
+    await ctx1.close();
+
+    // Phase 2: Relaunch with user scripts enabled
+    const context = await chromium.launchPersistentContext(userDataDir, {
+      headless: false,
+      args: ["--headless=new", ...chromeArgs],
+    });
+
+    // 先注册监听再检查，避免事件在 check 和 listen 之间丢失
+    // 如果 SW 已存在则忽略 promise（防止 dangling promise 在 context 关闭时报错）
+    const swPromise = context.waitForEvent("serviceworker", { timeout: 30_000 }).catch(() => null);
+    let [bg2] = context.serviceWorkers();
+    if (!bg2) bg2 = (await swPromise)!;
+
+    (context as any).__extensionId = extensionId;
+
+    await use(context);
+    await context.close();
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  },
+
+  extensionId: async ({ context }, use) => {
+    const extensionId: string = (context as any).__extensionId;
+
+    // Dismiss first-use dialog（导航也会唤醒 SW）
+    // 扩展可能还在初始化中，重试导航以应对 ERR_BLOCKED_BY_CLIENT
+    const initPage = await context.newPage();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        await initPage.goto(`chrome-extension://${extensionId}/src/options.html`, {
+          waitUntil: "domcontentloaded",
+          timeout: 15_000,
+        });
+        break;
+      } catch {
+        if (attempt === 4) throw new Error("Failed to load options page after 5 attempts");
+        await initPage.waitForTimeout(3_000);
+      }
+    }
+    await initPage.evaluate(() => localStorage.setItem("firstUse", "false"));
+    await initPage.close();
+
+    // mock model 已在 Phase 1 预写入 storage，Phase 2 SW 启动时缓存自动包含
     await use(extensionId);
   },
 

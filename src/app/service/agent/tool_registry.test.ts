@@ -4,7 +4,6 @@ import type { ToolExecutor } from "./tool_registry";
 import type { ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 
-
 // 创建一个简单的 mock executor
 function createExecutor(fn: (args: Record<string, unknown>) => Promise<unknown>): ToolExecutor {
   return { execute: fn };
@@ -251,10 +250,7 @@ describe("ToolRegistry", () => {
       expect(results[0].attachments![0].id.length).toBeGreaterThan(0);
       // 验证 chatRepo.saveAttachment 被调用
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
-      expect(mockRepo.saveAttachment).toHaveBeenCalledWith(
-        expect.any(String),
-        "data:image/jpeg;base64,/9j/abc"
-      );
+      expect(mockRepo.saveAttachment).toHaveBeenCalledWith(expect.any(String), "data:image/jpeg;base64,/9j/abc");
     });
 
     it("内置工具返回 ToolResultWithAttachments 含多个附件时应全部保存", async () => {

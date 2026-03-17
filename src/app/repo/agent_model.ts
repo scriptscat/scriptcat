@@ -1,5 +1,5 @@
 import type { AgentModelConfig } from "@App/app/service/agent/types";
-import { Repo } from "./repo";
+import { Repo, loadCache } from "./repo";
 
 const DEFAULT_MODEL_KEY = "agent_model:__default__";
 
@@ -7,6 +7,7 @@ const DEFAULT_MODEL_KEY = "agent_model:__default__";
 export class AgentModelRepo extends Repo<AgentModelConfig> {
   constructor() {
     super("agent_model:");
+    this.enableCache();
   }
 
   // 获取所有模型（排除 __default__ 这个存储默认模型 ID 的 key）
@@ -29,17 +30,16 @@ export class AgentModelRepo extends Repo<AgentModelConfig> {
     await this.delete(id);
   }
 
-  // 获取默认模型 ID（独立 key，不复用 Repo<AgentModelConfig> 的 get）
+  // 获取默认模型 ID（通过缓存层读取，避免绕过缓存导致不一致）
   async getDefaultModelId(): Promise<string> {
-    return new Promise<string>((resolve) => {
-      chrome.storage.local.get(DEFAULT_MODEL_KEY, (result) => {
-        resolve(result[DEFAULT_MODEL_KEY] || "");
-      });
-    });
+    const cache = await loadCache();
+    return (cache[DEFAULT_MODEL_KEY] as string) || "";
   }
 
-  // 设置默认模型 ID
+  // 设置默认模型 ID（同时更新缓存和 storage）
   async setDefaultModelId(id: string): Promise<void> {
+    const cache = await loadCache();
+    cache[DEFAULT_MODEL_KEY] = id;
     return new Promise<void>((resolve) => {
       chrome.storage.local.set({ [DEFAULT_MODEL_KEY]: id }, () => {
         resolve();

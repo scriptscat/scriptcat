@@ -9,11 +9,13 @@ import "./styles.css";
 export default function AgentChat() {
   const [models, setModels] = useState<AgentModelConfig[]>([]);
   const [defaultModelId, setDefaultModelId] = useState("");
+  const [modelsLoaded, setModelsLoaded] = useState(false);
 
   useEffect(() => {
     Promise.all([agentClient.listModels(), agentClient.getDefaultModelId()]).then(([modelList, defId]) => {
       setModels(modelList);
       setDefaultModelId(defId || modelList[0]?.id || "");
+      setModelsLoaded(true);
     });
   }, []);
 
@@ -34,6 +36,18 @@ export default function AgentChat() {
   const [selectedSkills, setSelectedSkills] = useState<"auto" | string[]>("auto");
   // 是否携带 tools（默认 true）
   const [enableTools, setEnableTools] = useState<boolean>(true);
+
+  // 切换会话时，自动恢复该会话上次使用的模型
+  useEffect(() => {
+    if (!activeId) {
+      setSelectedModelId("");
+      return;
+    }
+    const conv = conversations.find((c) => c.id === activeId);
+    if (conv?.modelId) {
+      setSelectedModelId(conv.modelId);
+    }
+  }, [activeId, conversations]);
 
   // 使用默认模型 ID（如果未选择）
   const effectiveModelId = selectedModelId || defaultModelId;
@@ -61,6 +75,7 @@ export default function AgentChat() {
       <ChatArea
         conversationId={activeId}
         models={models}
+        modelsLoaded={modelsLoaded}
         selectedModelId={effectiveModelId}
         onModelChange={setSelectedModelId}
         onConversationTitleChange={handleTitleChange}
