@@ -120,6 +120,15 @@ const importByUrls = async (urls: string[]): Promise<TImportStat | undefined> =>
   return stat;
 };
 
+const getSafePopupParent = (p: Element) => {
+  p = (p.closest("button")?.parentNode as Element) || p; // 確保 ancestor 沒有 button 元素
+  p = (p.closest("span")?.parentNode as Element) || p; // 確保 ancestor 沒有 span 元素
+  p = (p.closest(".arco-collapse-item-content")?.parentNode as Element) || p; // 確保 ancestor 沒有 .arco-collapse-item-content 元素
+  p = (p.closest(".arco-card")?.parentNode as Element) || p; // 確保 ancestor 沒有 .arco-card 元素
+  p = (p.closest("aside")?.parentNode as Element) || p; // 確保 ancestor 沒有 aside 元素
+  return p;
+};
+
 // --- 子组件：提取拖拽遮罩以优化性能 ---
 const DropzoneOverlay: React.FC<{ active: boolean; text: string }> = React.memo(({ active, text }) => {
   if (!active) return null;
@@ -326,16 +335,12 @@ const MainLayout: React.FC<{
       componentConfig={{
         Select: {
           getPopupContainer: (node) => {
-            return node;
+            return getSafePopupParent(node as Element);
           },
         },
       }}
       getPopupContainer={(node) => {
-        let p = node.parentNode as Element;
-        p = (p.closest("button")?.parentNode as Element) || p; // 確保 ancestor 沒有 button 元素
-        p = (p.closest("span")?.parentNode as Element) || p; // 確保 ancestor 沒有 span 元素
-        p = (p.closest("aside")?.parentNode as Element) || p; // 確保 ancestor 沒有 aside 元素
-        return p;
+        return getSafePopupParent(node.parentNode as Element);
       }}
     >
       {contextHolder}

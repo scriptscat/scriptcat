@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Input, Message, Popconfirm, Select, Space } from "@arco-design/web-react";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
-import { ClearNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
+import { ClearNetDiskToken, HasNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
 
 const FileSystemParams: React.FC<{
   headerContent: React.ReactNode | string;
@@ -22,6 +22,17 @@ const FileSystemParams: React.FC<{
 }) => {
   const fsParams = FileSystemFactory.params();
   const { t } = useTranslation();
+  const [hasBoundToken, setHasBoundToken] = useState(false);
+
+  const netDiskType = netDiskTypeMap[fileSystemType];
+
+  useEffect(() => {
+    if (!netDiskType) {
+      setHasBoundToken(false);
+      return;
+    }
+    HasNetDiskToken(netDiskType).then(setHasBoundToken);
+  }, [netDiskType]);
 
   const fileSystemList: {
     key: FileSystemType;
@@ -53,7 +64,6 @@ const FileSystemParams: React.FC<{
     },
   ];
 
-  const netDiskType = netDiskTypeMap[fileSystemType];
   const netDiskName = netDiskType ? fileSystemList.find((item) => item.key === fileSystemType)?.name : null;
 
   return (
@@ -74,13 +84,14 @@ const FileSystemParams: React.FC<{
           ))}
         </Select>
         {children}
-        {netDiskType && netDiskName && (
+        {netDiskType && netDiskName && hasBoundToken && (
           <Popconfirm
             key="netdisk-unbind"
             title={t("netdisk_unbind_confirm", { provider: netDiskName })}
             onOk={async () => {
               try {
                 await ClearNetDiskToken(netDiskType);
+                setHasBoundToken(false);
                 Message.success(t("netdisk_unbind_success", { provider: netDiskName })!);
               } catch (error) {
                 Message.error(`${t("netdisk_unbind_error", { provider: netDiskName })}: ${String(error)}`);
