@@ -133,6 +133,7 @@ function LoggerPage() {
                   style={{ width: 400 }}
                   showTime
                   shortcutsPlacementLeft
+                  getPopupContainer={() => document.body}
                   value={[startTime * 1000, endTime * 1000]}
                   onChange={(_, time) => {
                     setStartTime(time[0].unix());
