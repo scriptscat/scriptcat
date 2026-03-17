@@ -519,9 +519,11 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   };
 };
 
+type EmbeddedURLRuleEntry = Pick<URLRuleEntry, "ruleType" | "ruleContent">;
+
 export const embeddedPatternChecker = (
   url: string,
-  scriptUrlPatterns: URLRuleEntry[],
+  scriptUrlPatterns: EmbeddedURLRuleEntry[],
   isUrlMatchPattern: (s: string, m: string[]) => boolean,
   isUrlMatchGlob: (s: string, gs: string[]) => boolean,
   isUrlMatchRegEx: (s: string, ruleContent: [string, string]) => boolean
