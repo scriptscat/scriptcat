@@ -305,8 +305,39 @@ function ScriptEditor() {
     const code = e.getValue();
     const targetUUID = existingScript.uuid;
     return prepareScriptByCode(code, existingScript.origin || "", targetUUID, false, scriptDAO, { byEditor: true })
-      .then((prepareScript) => {
+      .then(async (prepareScript) => {
         const { script, oldScript } = prepareScript;
+        // 新增/更改名字时，有相同名字的脚本的话，提醒一下是否真的储存
+        if (
+          (!oldScript || oldScript.name !== script.name || oldScript.namespace !== script.namespace) &&
+          script.name &&
+          script.namespace
+        ) {
+          const searchResult = await scriptDAO.findByNameAndNamespace(script.name, script.namespace);
+          if (searchResult && searchResult.uuid !== targetUUID) {
+            const modalResult = await new Promise((resolve) => {
+              modal.confirm!({
+                focusLock: false,
+                simple: false,
+                closable: true,
+                title: t("scriptname_conflict"),
+                content: t("confirm_save_when_scriptname_conflict"),
+                onOk: () => {
+                  resolve("yes");
+                },
+                onCancel: () => {
+                  resolve("no");
+                },
+              });
+            });
+            setTimeout(e.focus.bind(e), 50);
+            if (modalResult === "no") {
+              Message.warning(t("save_abort_when_scriptname_conflict"));
+              // 用户主动取消，非错误
+              return Promise.reject(new Error("SAVE_CANCELED"));
+            }
+          }
+        }
         if (targetUUID) {
           if (existingScript.createtime !== 0) {
             if (!oldScript || oldScript.uuid !== targetUUID) {
@@ -320,6 +351,37 @@ function ScriptEditor() {
         if (!script.name) {
           Message.warning(t("script_name_cannot_be_set_to_empty"));
           return Promise.reject(new Error("script name cannot be empty"));
+        }
+        const currentEditorUpdateTime = existingScript.updatetime;
+        const latestUpdateTime = oldScript?.updatetime ?? 0;
+
+        if (
+          currentEditorUpdateTime !== latestUpdateTime &&
+          latestUpdateTime > 0 &&
+          script.uuid === existingScript.uuid &&
+          script.uuid === oldScript?.uuid
+        ) {
+          const modalResult = await new Promise((resolve) => {
+            modal.confirm!({
+              focusLock: false,
+              simple: false,
+              closable: true,
+              title: t("edit_conflict"),
+              content: t("confirm_override_when_edit_conflict"),
+              onOk: () => {
+                resolve("yes");
+              },
+              onCancel: () => {
+                resolve("no");
+              },
+            });
+          });
+          setTimeout(e.focus.bind(e), 50);
+          if (modalResult === "no") {
+            Message.warning(t("save_abort_when_edit_conflict"));
+            // 用户主动取消，非错误
+            return Promise.reject(new Error("SAVE_CANCELED"));
+          }
         }
 
         if (script.ignoreVersion) script.ignoreVersion = "";
@@ -370,11 +432,19 @@ function ScriptEditor() {
             return script;
           })
           .catch((err: any) => {
+            // 用户主动取消保存，不再弹出错误提示
+            if (err instanceof Error && err.message === "SAVE_CANCELED") {
+              return Promise.reject(err);
+            }
             Message.error(`${t("save_failed")}: ${err}`);
             return Promise.reject(err);
           });
       })
       .catch((err) => {
+        // 用户主动取消保存，不再弹出错误提示
+        if (err instanceof Error && err.message === "SAVE_CANCELED") {
+          return Promise.reject(err);
+        }
         Message.error(`${t("invalid_script_code")}: ${err}`);
         return Promise.reject(err);
       });
@@ -914,10 +984,7 @@ function ScriptEditor() {
               )}
               {filteredScriptList.map((script) => {
                 const editor = editorFindItem(script.uuid);
-                const colorRGB = !editor ? "173,173,173" : editor.isChanged ? "230,155,31" : "199,199,199";
                 const alpha = script.status === 2 ? 0.8 : 1.0;
-                const colorRGBA = `rgba(${colorRGB},${alpha})`;
-                const delBtnRGBA = `rgba(173,173,173,${alpha})`;
                 return (
                   <div key={`s_${script.uuid}`} className="tw-relative tw-group">
                     <Button
@@ -927,8 +994,18 @@ function ScriptEditor() {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        color: `${colorRGBA}`,
-                        backgroundColor: selectedScript === script.uuid ? "#414958" : editor ? "#474747" : "#333333",
+                        opacity: alpha,
+                        color: !editor
+                          ? "var(--color-text-3)"
+                          : editor.isChanged
+                            ? "rgb(var(--warning-6))"
+                            : "var(--color-text-2)",
+                        backgroundColor:
+                          selectedScript === script.uuid
+                            ? "var(--editor-bg-selected)"
+                            : editor
+                              ? "var(--editor-bg-open)"
+                              : "var(--editor-bg-default)",
                         paddingRight: "32px", // 为删除按钮留出空间
                       }}
                       onClick={() => {
@@ -950,7 +1027,7 @@ function ScriptEditor() {
                         minWidth: "20px",
                         border: "none",
                         background: "transparent",
-                        color: `${delBtnRGBA}`,
+                        color: "var(--color-text-3)",
                         boxShadow: "none",
                       }}
                       onClick={(e) => {

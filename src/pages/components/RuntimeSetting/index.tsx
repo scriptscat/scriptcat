@@ -5,7 +5,7 @@ import FileSystemParams from "../FileSystemParams";
 import { systemConfig } from "@App/pages/store/global";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
-import { isFirefox } from "@App/pkg/utils/utils";
+import { isPermissionOk, isFirefox } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -28,11 +28,8 @@ const RuntimeSetting: React.FC = () => {
     if (isFirefox()) {
       // no background permission
     } else {
-      chrome.permissions.contains({ permissions: ["background"] }, (result) => {
-        if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
-          return;
-        }
+      isPermissionOk("background").then((result) => {
+        if (result === null) return; // 无法要求 background permission
         setEnableBackgroundState(result);
       });
     }
