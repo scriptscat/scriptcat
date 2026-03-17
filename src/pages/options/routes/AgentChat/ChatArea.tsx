@@ -55,6 +55,8 @@ export default function ChatArea({
   skills,
   selectedSkills,
   onSkillsChange,
+  enableTools,
+  onEnableToolsChange,
 }: {
   conversationId: string;
   models: AgentModelConfig[];
@@ -64,6 +66,8 @@ export default function ChatArea({
   skills?: SkillSummary[];
   selectedSkills?: "auto" | string[];
   onSkillsChange?: (skills: "auto" | string[]) => void;
+  enableTools?: boolean;
+  onEnableToolsChange?: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
   const { messages, setMessages, loadMessages } = useMessages(conversationId);
@@ -231,7 +235,8 @@ export default function ChatArea({
       createStreamCallback(),
       createDoneCallback(),
       selectedModelId,
-      skipUserMessage
+      skipUserMessage,
+      enableTools
     );
   };
 
@@ -416,6 +421,8 @@ export default function ChatArea({
         skills={skills}
         selectedSkills={selectedSkills}
         onSkillsChange={onSkillsChange}
+        enableTools={enableTools}
+        onEnableToolsChange={onEnableToolsChange}
       />
       {noModel && (
         <div className="tw-text-center tw-text-xs tw-text-[var(--color-text-3)] tw-pb-2">

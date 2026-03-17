@@ -18,6 +18,7 @@ export type Conversation = {
   modelId: string;
   system?: string;
   skills?: "auto" | string[];
+  enableTools?: boolean; // 是否携带 tools，默认 true；图片生成模型需关闭
   createtime: number;
   updatetime: number;
 };

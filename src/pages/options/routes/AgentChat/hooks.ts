@@ -153,7 +153,8 @@ export function useStreamingChat() {
       onEvent: (event: ChatStreamEvent) => void,
       onDone: () => void,
       modelId?: string,
-      skipSaveUserMessage?: boolean
+      skipSaveUserMessage?: boolean,
+      enableTools?: boolean
     ) => {
       setIsStreaming(true);
       abortedRef.current = false;
@@ -164,6 +165,7 @@ export function useStreamingChat() {
           message,
           modelId,
           skipSaveUserMessage,
+          enableTools,
         });
 
         connRef.current = conn;

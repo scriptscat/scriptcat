@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Select } from "@arco-design/web-react";
-import { IconSend, IconPause, IconImage, IconClose, IconEye } from "@arco-design/web-react/icon";
+import { Select, Tooltip, Message as ArcoMessage } from "@arco-design/web-react";
+import { IconSend, IconPause, IconImage, IconClose, IconEye, IconTool } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/types";
 import { groupModelsByProvider, supportsVision, supportsImageOutput } from "./model_utils";
@@ -95,6 +95,8 @@ export default function ChatInput({
   skills,
   selectedSkills,
   onSkillsChange,
+  enableTools,
+  onEnableToolsChange,
 }: {
   models: AgentModelConfig[];
   selectedModelId: string;
@@ -106,6 +108,8 @@ export default function ChatInput({
   skills?: SkillSummary[];
   selectedSkills?: "auto" | string[];
   onSkillsChange?: (skills: "auto" | string[]) => void;
+  enableTools?: boolean;
+  onEnableToolsChange?: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
@@ -331,6 +335,35 @@ export default function ChatInput({
               >
                 <IconImage style={{ fontSize: 16 }} />
               </button>
+              {onEnableToolsChange && (
+                <Tooltip
+                  content={
+                    enableTools !== false
+                      ? t("agent_chat_tools_enabled_tip")
+                      : t("agent_chat_tools_disabled_tip")
+                  }
+                  mini
+                >
+                  <button
+                    onClick={() => {
+                      const next = !enableTools;
+                      onEnableToolsChange(next);
+                      ArcoMessage.info(
+                        next
+                          ? t("agent_chat_tools_enabled")
+                          : t("agent_chat_tools_disabled")
+                      );
+                    }}
+                    className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
+                      enableTools !== false
+                        ? "tw-text-[rgb(var(--arcoblue-6))]"
+                        : "tw-text-[var(--color-text-4)]"
+                    } hover:tw-bg-[var(--color-fill-2)]`}
+                  >
+                    <IconTool style={{ fontSize: 16 }} />
+                  </button>
+                </Tooltip>
+              )}
               <span className="tw-text-xs tw-text-[var(--color-text-4)] tw-hidden sm:tw-inline">
                 {"Shift+Enter"} {t("agent_chat_newline")}
               </span>

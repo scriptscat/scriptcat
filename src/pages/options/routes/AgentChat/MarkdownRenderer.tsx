@@ -1,12 +1,53 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import type { ReactNode } from "react";
-import { useRef, useState } from "react";
+import type { ImgHTMLAttributes, ReactNode } from "react";
+import { memo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tooltip } from "@arco-design/web-react";
-import { IconCopy, IconCheck } from "@arco-design/web-react/icon";
+import { IconCopy, IconCheck, IconEye } from "@arco-design/web-react/icon";
 import "highlight.js/styles/github.css";
+
+// Markdown 中的图片组件：支持点击预览
+function MarkdownImage(props: ImgHTMLAttributes<HTMLImageElement>) {
+  const [preview, setPreview] = useState(false);
+
+  return (
+    <>
+      <span className="tw-relative tw-inline-block tw-group tw-cursor-pointer" onClick={() => setPreview(true)}>
+        <img
+          {...props}
+          className="tw-max-w-xs tw-max-h-48 tw-rounded tw-border tw-border-solid tw-border-[var(--color-border-1)] tw-object-contain"
+        />
+        <span className="tw-absolute tw-inset-0 tw-bg-black/0 group-hover:tw-bg-black/20 tw-rounded tw-flex tw-items-center tw-justify-center tw-transition-colors">
+          <IconEye
+            className="tw-text-white tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity"
+            style={{ fontSize: 20 }}
+          />
+        </span>
+      </span>
+      {preview && (
+        <span
+          className="tw-fixed tw-inset-0 tw-z-[1000] tw-bg-black/80 tw-flex tw-items-center tw-justify-center tw-cursor-pointer"
+          onClick={() => setPreview(false)}
+        >
+          <img
+            src={props.src}
+            alt={props.alt}
+            className="tw-max-w-[90vw] tw-max-h-[90vh] tw-object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </span>
+      )}
+    </>
+  );
+}
+
+// 自定义 URL 转换：允许 data:image/ 开头的 base64 图片 URL（模型生成的图片）
+function urlTransform(url: string): string {
+  if (url.startsWith("data:image/")) return url;
+  return defaultUrlTransform(url);
+}
 
 // 从 React 节点树中递归提取纯文本，用于复制功能
 function extractText(node: ReactNode): string {
@@ -54,13 +95,17 @@ function CodeBlock({ children, className }: { children: ReactNode; className?: s
   );
 }
 
-export default function MarkdownRenderer({ content }: { content: string }) {
+const MarkdownRenderer = memo(function MarkdownRenderer({ content }: { content: string }) {
   return (
     <div className="ai-markdown-body">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
+        urlTransform={urlTransform}
         components={{
+          img(props) {
+            return <MarkdownImage {...props} />;
+          },
           pre({ children }) {
             return <>{children}</>;
           },
@@ -84,4 +129,6 @@ export default function MarkdownRenderer({ content }: { content: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});
+
+export default MarkdownRenderer;

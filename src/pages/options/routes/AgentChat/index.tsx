@@ -32,6 +32,8 @@ export default function AgentChat() {
   const [selectedModelId, setSelectedModelId] = useState<string>("");
   // 当前选择的 skills 配置（用于创建新对话）
   const [selectedSkills, setSelectedSkills] = useState<"auto" | string[]>("auto");
+  // 是否携带 tools（默认 true）
+  const [enableTools, setEnableTools] = useState<boolean>(true);
 
   // 使用默认模型 ID（如果未选择）
   const effectiveModelId = selectedModelId || defaultModelId;
@@ -65,6 +67,8 @@ export default function AgentChat() {
         skills={skills}
         selectedSkills={selectedSkills}
         onSkillsChange={setSelectedSkills}
+        enableTools={enableTools}
+        onEnableToolsChange={setEnableTools}
       />
     </div>
   );

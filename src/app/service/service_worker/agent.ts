@@ -1354,6 +1354,7 @@ export class AgentService {
       maxIterations?: number;
       scriptUuid?: string;
       modelId?: string;
+      enableTools?: boolean; // 是否携带 tools，undefined 表示不覆盖
       // 用户消息已在存储中（重新生成场景），跳过保存和 LLM 上下文追加
       skipSaveUserMessage?: boolean;
       // ephemeral 会话专用字段
@@ -1446,30 +1447,49 @@ export class AgentService {
         return;
       }
 
-      // UI 传入 modelId 时覆盖 conversation 的 modelId
+      // UI 传入 modelId / enableTools 时覆盖 conversation 的配置
+      let needSave = false;
       if (params.modelId && params.modelId !== conv.modelId) {
         conv.modelId = params.modelId;
+        needSave = true;
+      }
+      if (params.enableTools !== undefined && params.enableTools !== conv.enableTools) {
+        conv.enableTools = params.enableTools;
+        needSave = true;
+      }
+      if (needSave) {
         conv.updatetime = Date.now();
         await this.repo.saveConversation(conv);
       }
 
       const model = await this.getModel(conv.modelId);
 
-      // 解析 Skills（注入 prompt + 注册 meta-tools）
-      const { promptSuffix, metaTools, dynamicToolNames } = this.resolveSkills(conv.skills);
+      // enableTools 默认为 true
+      const enableTools = conv.enableTools !== false;
 
-      // 临时注册 skill meta-tools（对话结束后清理）
+      // 解析 Skills（注入 prompt + 注册 meta-tools），仅在启用 tools 时执行
+      let promptSuffix = "";
+      let dynamicToolNames: string[] = [];
       const registeredMetaToolNames: string[] = [];
-      for (const mt of metaTools) {
-        this.toolRegistry.registerBuiltin(mt.definition, mt.executor);
-        registeredMetaToolNames.push(mt.definition.name);
+      let metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> = [];
+      if (enableTools) {
+        const resolved = this.resolveSkills(conv.skills);
+        promptSuffix = resolved.promptSuffix;
+        dynamicToolNames = resolved.dynamicToolNames;
+        metaTools = resolved.metaTools;
+
+        // 临时注册 skill meta-tools（对话结束后清理）
+        for (const mt of metaTools) {
+          this.toolRegistry.registerBuiltin(mt.definition, mt.executor);
+          registeredMetaToolNames.push(mt.definition.name);
+        }
       }
 
       // 加载历史消息
       const existingMessages = await this.repo.getMessages(params.conversationId);
 
       // 扫描历史消息中的 load_skill 调用，预加载之前已加载的 skill 的工具
-      if (metaTools.length > 0) {
+      if (enableTools && metaTools.length > 0) {
         const loadSkillMeta = metaTools.find((mt) => mt.definition.name === "load_skill");
         if (loadSkillMeta) {
           const loadedSkillNames = new Set<string>();
@@ -1506,7 +1526,7 @@ export class AgentService {
       // 添加 system 消息（内置提示词 + 用户自定义 + skill prompt）
       const systemContent = buildSystemPrompt({
         userSystem: conv.system,
-        skillSuffix: promptSuffix,
+        skillSuffix: enableTools ? promptSuffix : undefined,
       });
       messages.push({ role: "system", content: systemContent });
 
@@ -1546,12 +1566,13 @@ export class AgentService {
         await this.callLLMWithToolLoop({
           model,
           messages,
-          tools: params.tools,
+          tools: enableTools ? params.tools : undefined,
           maxIterations: params.maxIterations || 20,
           sendEvent,
           signal: abortController.signal,
-          scriptToolCallback: params.tools && params.tools.length > 0 ? scriptToolCallback : null,
+          scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
           conversationId: params.conversationId,
+          skipBuiltinTools: !enableTools,
         });
       } finally {
         // 清理临时注册的 meta-tools 和 load_skill 动态注册的 CATTool
@@ -1699,6 +1720,35 @@ export class AgentService {
                   // 保存失败忽略
                 }
               }
+
+              // 提取文本中的 markdown 内联 base64 图片（某些 API 以 ![alt](data:image/...;base64,...) 形式返回图片）
+              const imgRegex = /!\[([^\]]*)\]\((data:image\/([^;]+);base64,[A-Za-z0-9+/=\s]+)\)/g;
+              let match;
+              let cleanedContent = content;
+              while ((match = imgRegex.exec(content)) !== null) {
+                const [fullMatch, alt, dataUrl, subtype] = match;
+                const blockId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                const mimeType = `image/${subtype}`;
+                try {
+                  await this.repo.saveAttachment(blockId, dataUrl);
+                  const block: ContentBlock = {
+                    type: "image",
+                    attachmentId: blockId,
+                    mimeType,
+                    name: alt || "generated-image",
+                  };
+                  savedBlocks.push(block);
+                  sendEvent({ type: "content_block_complete", block });
+                  cleanedContent = cleanedContent.replace(fullMatch, "");
+                } catch {
+                  // 保存失败保留原始 markdown
+                }
+              }
+              // 清理提取图片后的多余空行
+              if (cleanedContent !== content) {
+                content = cleanedContent.replace(/\n{3,}/g, "\n\n").trim();
+              }
+
               return savedBlocks.length > 0 ? savedBlocks : undefined;
             };
 
