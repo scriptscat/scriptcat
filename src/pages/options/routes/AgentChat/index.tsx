@@ -3,17 +3,15 @@ import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
 import { useConversations, useSkills } from "./hooks";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
-import { AgentModelRepo } from "@App/app/repo/agent_model";
+import { agentClient } from "@App/pages/store/features/script";
 import "./styles.css";
-
-const agentModelRepo = new AgentModelRepo();
 
 export default function AgentChat() {
   const [models, setModels] = useState<AgentModelConfig[]>([]);
   const [defaultModelId, setDefaultModelId] = useState("");
 
   useEffect(() => {
-    Promise.all([agentModelRepo.listModels(), agentModelRepo.getDefaultModelId()]).then(([modelList, defId]) => {
+    Promise.all([agentClient.listModels(), agentClient.getDefaultModelId()]).then(([modelList, defId]) => {
       setModels(modelList);
       setDefaultModelId(defId || modelList[0]?.id || "");
     });

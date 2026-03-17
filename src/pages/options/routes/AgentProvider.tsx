@@ -17,10 +17,8 @@ import { IconCheck, IconDelete, IconEdit, IconPlus } from "@arco-design/web-reac
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
-import { AgentModelRepo } from "@App/app/repo/agent_model";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-
-const agentModelRepo = new AgentModelRepo();
+import { agentClient } from "@App/pages/store/features/script";
 
 const emptyModel: AgentModelConfig = {
   id: "",
@@ -152,7 +150,7 @@ function AgentProvider() {
 
   // 从 Repo 加载数据
   const loadData = useCallback(async () => {
-    const [modelList, defId] = await Promise.all([agentModelRepo.listModels(), agentModelRepo.getDefaultModelId()]);
+    const [modelList, defId] = await Promise.all([agentClient.listModels(), agentClient.getDefaultModelId()]);
     setModels(modelList);
     setDefaultModelId(defId);
   }, []);
@@ -176,16 +174,16 @@ function AgentProvider() {
   };
 
   const handleDelete = async (id: string) => {
-    await agentModelRepo.removeModel(id);
+    await agentClient.removeModel(id);
     if (defaultModelId === id) {
       const remaining = models.filter((m) => m.id !== id);
-      await agentModelRepo.setDefaultModelId(remaining[0]?.id || "");
+      await agentClient.setDefaultModelId(remaining[0]?.id || "");
     }
     loadData();
   };
 
   const handleSetDefault = async (id: string) => {
-    await agentModelRepo.setDefaultModelId(id);
+    await agentClient.setDefaultModelId(id);
     loadData();
   };
 
@@ -195,13 +193,13 @@ function AgentProvider() {
       return;
     }
     if (isEditing) {
-      await agentModelRepo.saveModel(editingModel);
+      await agentClient.saveModel(editingModel);
     } else {
       const newModel = { ...editingModel, id: uuidv4() };
-      await agentModelRepo.saveModel(newModel);
+      await agentClient.saveModel(newModel);
       // 如果是第一个模型，自动设为默认
       if (models.length === 0) {
-        await agentModelRepo.setDefaultModelId(newModel.id);
+        await agentClient.setDefaultModelId(newModel.id);
       }
     }
     setModalVisible(false);

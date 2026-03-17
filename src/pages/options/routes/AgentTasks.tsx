@@ -22,13 +22,12 @@ import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
 import type { AgentTask, AgentTaskRun, AgentModelConfig } from "@App/app/service/agent/types";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
-import { AgentModelRepo } from "@App/app/repo/agent_model";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";
+import { agentClient } from "@App/pages/store/features/script";
 
 const taskRepo = new AgentTaskRepo();
 const taskRunRepo = new AgentTaskRunRepo();
-const modelRepo = new AgentModelRepo();
 
 const emptyTask: Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime"> = {
   name: "",
@@ -247,7 +246,7 @@ function AgentTasks() {
   const [drawerVisible, setDrawerVisible] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [taskList, modelList] = await Promise.all([taskRepo.listTasks(), modelRepo.listModels()]);
+    const [taskList, modelList] = await Promise.all([taskRepo.listTasks(), agentClient.listModels()]);
     setTasks(taskList);
     setModels(modelList);
   }, []);

@@ -11,7 +11,7 @@ import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { SkillConfigField } from "@App/app/service/agent/types";
+import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/types";
 import type {
   ScriptService,
   TCheckScriptUpdateOption,
@@ -404,5 +404,35 @@ export class AgentClient extends Client {
 
   saveSkillConfig(params: { name: string; values: Record<string, unknown> }): Promise<void> {
     return this.doThrow("saveSkillConfig", params);
+  }
+
+  // Model CRUD
+  listModels(): Promise<AgentModelConfig[]> {
+    return this.doThrow("listModels");
+  }
+
+  getModel(id: string) {
+    return this.do<AgentModelConfig | undefined>("getModel", id);
+  }
+
+  saveModel(model: AgentModelConfig) {
+    return this.do("saveModel", model);
+  }
+
+  removeModel(id: string) {
+    return this.do("removeModel", id);
+  }
+
+  getDefaultModelId(): Promise<string> {
+    return this.doThrow("getDefaultModelId");
+  }
+
+  setDefaultModelId(id: string) {
+    return this.do("setDefaultModelId", id);
+  }
+
+  // MCP API
+  mcpApi(request: MCPApiRequest): Promise<unknown> {
+    return this.doThrow("mcpApi", request);
   }
 }

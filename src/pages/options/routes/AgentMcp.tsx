@@ -16,13 +16,9 @@ import {
 } from "@arco-design/web-react";
 import { IconDelete, IconEdit, IconEye, IconLink, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/service/agent/types";
-import { MCPServerRepo } from "@App/app/repo/mcp_server_repo";
-import { MCPClient } from "@App/app/service/agent/mcp_client";
-import { uuidv4 } from "@App/pkg/utils/uuid";
-
-const mcpServerRepo = new MCPServerRepo();
+import { agentClient } from "@App/pages/store/features/script";
 
 const emptyServer: Omit<MCPServerConfig, "id" | "createtime" | "updatetime"> = {
   name: "",
@@ -141,14 +137,11 @@ function ServerDetailDrawer({
   const [tools, setTools] = useState<MCPTool[]>([]);
   const [resources, setResources] = useState<MCPResource[]>([]);
   const [prompts, setPrompts] = useState<MCPPrompt[]>([]);
-  const clientRef = useRef<MCPClient | null>(null);
 
   useEffect(() => {
     if (!visible || !server) return;
 
     let cancelled = false;
-    const client = new MCPClient(server);
-    clientRef.current = client;
 
     const load = async () => {
       setLoading(true);
@@ -158,19 +151,16 @@ function ServerDetailDrawer({
       setPrompts([]);
 
       try {
-        await client.initialize();
-        if (cancelled) return;
-
         const [toolsResult, resourcesResult, promptsResult] = await Promise.all([
-          client.listTools().catch(() => [] as MCPTool[]),
-          client.listResources().catch(() => [] as MCPResource[]),
-          client.listPrompts().catch(() => [] as MCPPrompt[]),
+          agentClient.mcpApi({ action: "listTools", serverId: server.id }).catch(() => [] as MCPTool[]),
+          agentClient.mcpApi({ action: "listResources", serverId: server.id }).catch(() => [] as MCPResource[]),
+          agentClient.mcpApi({ action: "listPrompts", serverId: server.id }).catch(() => [] as MCPPrompt[]),
         ]);
 
         if (!cancelled) {
-          setTools(toolsResult);
-          setResources(resourcesResult);
-          setPrompts(promptsResult);
+          setTools(toolsResult as MCPTool[]);
+          setResources(resourcesResult as MCPResource[]);
+          setPrompts(promptsResult as MCPPrompt[]);
         }
       } catch (e) {
         if (!cancelled) {
@@ -187,8 +177,6 @@ function ServerDetailDrawer({
 
     return () => {
       cancelled = true;
-      client.close();
-      clientRef.current = null;
     };
   }, [visible, server]);
 
@@ -321,7 +309,7 @@ function AgentMcp() {
   const [drawerVisible, setDrawerVisible] = useState(false);
 
   const loadData = useCallback(async () => {
-    const list = await mcpServerRepo.listServers();
+    const list = (await agentClient.mcpApi({ action: "listServers" })) as MCPServerConfig[];
     setServers(list);
   }, []);
 
@@ -356,72 +344,71 @@ function AgentMcp() {
   };
 
   const handleDelete = async (id: string) => {
-    await mcpServerRepo.removeServer(id);
+    await agentClient.mcpApi({ action: "removeServer", id });
     loadData();
   };
 
   const handleToggle = async (server: MCPServerConfig, enabled: boolean) => {
-    await mcpServerRepo.saveServer({ ...server, enabled, updatetime: Date.now() });
+    await agentClient.mcpApi({
+      action: "updateServer",
+      id: server.id,
+      config: { enabled },
+    });
     loadData();
   };
 
   const handleTest = async (server: MCPServerConfig) => {
     setTestingId(server.id);
     try {
-      await doTestConnection(server);
+      const result = (await agentClient.mcpApi({ action: "testConnection", id: server.id })) as {
+        tools: number;
+        resources: number;
+        prompts: number;
+      };
+      Message.success(
+        `${t("agent_provider_test_success")} - Tools: ${result.tools}, Resources: ${result.resources}, Prompts: ${result.prompts}`
+      );
+    } catch (e) {
+      Message.error(`${t("agent_provider_test_failed")}: ${e}`);
     } finally {
       setTestingId(null);
     }
   };
 
-  const doTestConnection = async (server: Pick<MCPServerConfig, "url" | "apiKey" | "headers">) => {
-    try {
-      const response = await fetch(server.url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(server.apiKey ? { Authorization: `Bearer ${server.apiKey}` } : {}),
-          ...(server.headers || {}),
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "initialize",
-          params: {
-            protocolVersion: "2025-03-26",
-            capabilities: {},
-            clientInfo: { name: "ScriptCat", version: "1.0.0" },
-          },
-        }),
-      });
-      if (response.ok) {
-        const json = await response.json();
-        if (json.result) {
-          const serverInfo = json.result.serverInfo;
-          Message.success(
-            `${t("agent_provider_test_success")}${serverInfo ? ` - ${serverInfo.name} ${serverInfo.version || ""}` : ""}`
-          );
-        } else if (json.error) {
-          Message.error(`${t("agent_provider_test_failed")}: ${json.error.message}`);
-        }
-      } else {
-        Message.error(`${t("agent_provider_test_failed")}: ${response.status}`);
-      }
-    } catch (e) {
-      Message.error(`${t("agent_provider_test_failed")}: ${e}`);
-    }
-  };
-
   const handleModalTest = async () => {
-    if (!editingServer.url) {
+    if (!editingServer.url || !editingServer.name) {
       Message.error(t("agent_mcp_name_url_required"));
       return;
     }
     setModalTesting(true);
     try {
+      // 先保存到 SW（新建或更新），再测试连接
       const headers = parseHeaders(headersText);
-      await doTestConnection({ url: editingServer.url, apiKey: editingServer.apiKey, headers });
+      let serverId = editingId;
+      if (serverId) {
+        await agentClient.mcpApi({
+          action: "updateServer",
+          id: serverId,
+          config: { name: editingServer.name, url: editingServer.url, apiKey: editingServer.apiKey, headers, enabled: editingServer.enabled },
+        });
+      } else {
+        const created = (await agentClient.mcpApi({
+          action: "addServer",
+          config: { name: editingServer.name, url: editingServer.url, apiKey: editingServer.apiKey, headers, enabled: editingServer.enabled },
+        })) as MCPServerConfig;
+        serverId = created.id;
+        setEditingId(serverId);
+      }
+      const result = (await agentClient.mcpApi({ action: "testConnection", id: serverId })) as {
+        tools: number;
+        resources: number;
+        prompts: number;
+      };
+      Message.success(
+        `${t("agent_provider_test_success")} - Tools: ${result.tools}, Resources: ${result.resources}, Prompts: ${result.prompts}`
+      );
+    } catch (e) {
+      Message.error(`${t("agent_provider_test_failed")}: ${e}`);
     } finally {
       setModalTesting(false);
     }
@@ -452,33 +439,31 @@ function AgentMcp() {
     }
 
     const headers = parseHeaders(headersText);
-    const now = Date.now();
 
     if (editingId) {
       // 编辑
-      const existing = servers.find((s) => s.id === editingId);
-      if (existing) {
-        await mcpServerRepo.saveServer({
-          ...existing,
+      await agentClient.mcpApi({
+        action: "updateServer",
+        id: editingId,
+        config: {
           name: editingServer.name,
           url: editingServer.url,
           apiKey: editingServer.apiKey,
           headers,
           enabled: editingServer.enabled,
-          updatetime: now,
-        });
-      }
+        },
+      });
     } else {
       // 新增
-      await mcpServerRepo.saveServer({
-        id: uuidv4(),
-        name: editingServer.name,
-        url: editingServer.url,
-        apiKey: editingServer.apiKey,
-        headers,
-        enabled: editingServer.enabled,
-        createtime: now,
-        updatetime: now,
+      await agentClient.mcpApi({
+        action: "addServer",
+        config: {
+          name: editingServer.name,
+          url: editingServer.url,
+          apiKey: editingServer.apiKey,
+          headers,
+          enabled: editingServer.enabled,
+        },
       });
     }
 

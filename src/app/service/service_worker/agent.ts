@@ -1,10 +1,9 @@
 import type { Group, IGetSender } from "@Packages/message/server";
 import { GetSenderType } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import type { AgentModelConfig, AgentModelSafeConfig } from "@App/app/service/agent/types";
-import type { Script } from "@App/app/repo/scripts";
-import { i18nName } from "@App/locales/locales";
 import type {
+  AgentModelConfig,
+  AgentModelSafeConfig,
   ChatRequest,
   ChatStreamEvent,
   ConversationApiRequest,
@@ -25,7 +24,10 @@ import type {
   AgentTaskTrigger,
   Attachment,
   ModelApiRequest,
+  MCPApiRequest,
 } from "@App/app/service/agent/types";
+import type { Script } from "@App/app/repo/scripts";
+import { i18nName } from "@App/locales/locales";
 import { getTextContent, isContentBlocks } from "@App/app/service/agent/content_utils";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
@@ -181,6 +183,15 @@ export class AgentService {
     this.group.on("getSkillInstallData", (uuid: string) => this.getSkillInstallData(uuid));
     this.group.on("completeSkillInstall", (uuid: string) => this.completeSkillInstall(uuid));
     this.group.on("cancelSkillInstall", (uuid: string) => this.cancelSkillInstall(uuid));
+    // Model CRUD（供 Options UI 调用）
+    this.group.on("listModels", () => this.modelRepo.listModels());
+    this.group.on("getModel", (id: string) => this.modelRepo.getModel(id));
+    this.group.on("saveModel", (model: AgentModelConfig) => this.modelRepo.saveModel(model));
+    this.group.on("removeModel", (id: string) => this.modelRepo.removeModel(id));
+    this.group.on("getDefaultModelId", () => this.modelRepo.getDefaultModelId());
+    this.group.on("setDefaultModelId", (id: string) => this.modelRepo.setDefaultModelId(id));
+    // MCP API（供 Options UI 调用，复用已有的 handleMCPApi）
+    this.group.on("mcpApi", (request: MCPApiRequest) => this.mcpService.handleMCPApi(request));
     // Agent 定时任务 API
     this.group.on("agentTask", this.handleAgentTask.bind(this));
     // 初始化定时任务调度器

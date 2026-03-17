@@ -451,28 +451,29 @@ export type MCPPromptMessage = {
 };
 
 // CAT.agent.mcp API 请求
+// scriptUuid 仅在 GM API 层用于权限校验，UI 直接调用时可省略
 export type MCPApiRequest =
-  | { action: "listServers"; scriptUuid: string }
-  | { action: "getServer"; id: string; scriptUuid: string }
+  | { action: "listServers"; scriptUuid?: string }
+  | { action: "getServer"; id: string; scriptUuid?: string }
   | {
       action: "addServer";
       config: Omit<MCPServerConfig, "id" | "createtime" | "updatetime">;
-      scriptUuid: string;
+      scriptUuid?: string;
     }
-  | { action: "updateServer"; id: string; config: Partial<MCPServerConfig>; scriptUuid: string }
-  | { action: "removeServer"; id: string; scriptUuid: string }
-  | { action: "listTools"; serverId: string; scriptUuid: string }
-  | { action: "listResources"; serverId: string; scriptUuid: string }
-  | { action: "readResource"; serverId: string; uri: string; scriptUuid: string }
-  | { action: "listPrompts"; serverId: string; scriptUuid: string }
+  | { action: "updateServer"; id: string; config: Partial<MCPServerConfig>; scriptUuid?: string }
+  | { action: "removeServer"; id: string; scriptUuid?: string }
+  | { action: "listTools"; serverId: string; scriptUuid?: string }
+  | { action: "listResources"; serverId: string; scriptUuid?: string }
+  | { action: "readResource"; serverId: string; uri: string; scriptUuid?: string }
+  | { action: "listPrompts"; serverId: string; scriptUuid?: string }
   | {
       action: "getPrompt";
       serverId: string;
       name: string;
       args?: Record<string, string>;
-      scriptUuid: string;
+      scriptUuid?: string;
     }
-  | { action: "testConnection"; id: string; scriptUuid: string };
+  | { action: "testConnection"; id: string; scriptUuid?: string };
 
 // ---- Agent 定时任务类型 ----
 
