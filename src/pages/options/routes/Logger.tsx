@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { BackTop, Button, Card, DatePicker, Input, List, Message, Space, Typography } from "@arco-design/web-react";
 import dayjs from "dayjs";
 import type { Logger } from "@App/app/repo/logger";
@@ -20,14 +20,23 @@ function LoggerPage() {
   const [search, setSearch] = React.useState<string>("");
   const [startTime, setStartTime] = React.useState(dayjs().subtract(24, "hour").unix());
   const [endTime, setEndTime] = React.useState(dayjs().unix());
+  // 标记 endTime 是否代表"当前时间"，默认为 true
+  const [isNow, setIsNow] = React.useState(true);
+  // 用于强制触发数据重新加载
+  const [refreshToken, setRefreshToken] = React.useState(0);
+  // 标记数据加载后是否需要自动执行过滤
+  const needFilterRef = useRef(false);
+  // 标记本次 onChange 是否由快捷方式触发
+  const shortcutClickRef = useRef(false);
   const loggerDAO = new LoggerDAO();
   const systemConfig = { logCleanCycle: 1 };
   const { t } = useTranslation();
 
-  const onQueryLog = () => {
+  const onQueryLog = (logsToFilter?: Logger[]) => {
+    const data = logsToFilter ?? logs;
     const newQueryLogs: Logger[] = [];
     const regex = search && new RegExp(search);
-    logs.forEach((log) => {
+    data.forEach((log) => {
       for (let i = 0; i < querys.length; i += 1) {
         const query = querys[i];
         if (query.key) {
@@ -99,12 +108,18 @@ function LoggerPage() {
         });
       });
       setLabels(newLabels);
-      setQueryLogs([]);
+      // 如果是查询按钮触发的刷新，自动执行过滤
+      if (needFilterRef.current) {
+        needFilterRef.current = false;
+        onQueryLog(l);
+      } else {
+        setQueryLogs([]);
+      }
       if (init === 0) {
         setInit(1);
       }
     });
-  }, [startTime, endTime]);
+  }, [startTime, endTime, refreshToken]);
 
   return (
     <>
@@ -133,10 +148,27 @@ function LoggerPage() {
                   style={{ width: 400 }}
                   showTime
                   shortcutsPlacementLeft
-                  value={[startTime * 1000, endTime * 1000]}
+                  placeholder={isNow ? ["", t("now")] : undefined}
+                  value={isNow ? [startTime * 1000] : [startTime * 1000, endTime * 1000]}
                   onChange={(_, time) => {
+                    if (!time || !time[0]) {
+                      // 清除操作，恢复默认状态
+                      setStartTime(dayjs().subtract(24, "hour").unix());
+                      setEndTime(dayjs().unix());
+                      setIsNow(true);
+                      return;
+                    }
                     setStartTime(time[0].unix());
                     setEndTime(time[1].unix());
+                    if (shortcutClickRef.current) {
+                      shortcutClickRef.current = false;
+                      setIsNow(true);
+                    } else {
+                      setIsNow(false);
+                    }
+                  }}
+                  onSelectShortcut={() => {
+                    shortcutClickRef.current = true;
                   }}
                   shortcuts={[
                     {
@@ -177,7 +209,20 @@ function LoggerPage() {
                     },
                   ]}
                 />
-                <Button type="primary" onClick={onQueryLog}>
+                <Button
+                  type="primary"
+                  onClick={() => {
+                    if (isNow) {
+                      // 刷新 endTime 到当前时间，数据加载后自动过滤
+                      needFilterRef.current = true;
+                      setEndTime(dayjs().unix());
+                      // 强制触发 useEffect，即使 endTime 值未变（同一秒内多次点击）
+                      setRefreshToken((prev) => prev + 1);
+                    } else {
+                      onQueryLog();
+                    }
+                  }}
+                >
                   {t("query")}
                 </Button>
               </Space>
@@ -289,7 +334,8 @@ function LoggerPage() {
             }}
           >
             <Typography.Text>
-              {formatUnixTime(startTime)} {t("to")} {formatUnixTime(endTime)} {t("total_logs", { length: logs.length })}
+              {formatUnixTime(startTime)} {t("to")} {isNow ? t("now") : formatUnixTime(endTime)}{" "}
+              {t("total_logs", { length: logs.length })}
               {init === 4
                 ? `, ${t("filtered_logs", { length: queryLogs.length })}`
                 : `, ${t("enter_filter_conditions")}`}

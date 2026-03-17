@@ -104,6 +104,7 @@
   "delete_current_logs": "現在のログを削除",
   "clear_completed": "クリア完了",
   "clear_logs": "ログをクリア",
+  "now": "現在",
   "total_logs": "合計{{length}}件のログが見つかりました",
   "filtered_logs": "フィルタリング後{{length}}件のログ",
   "enter_filter_conditions": "フィルタリング条件を入力してクエリしてください",

@@ -103,6 +103,7 @@
   "delete_current_logs": "crwdns8080:0crwdne8080:0",
   "clear_completed": "crwdns8082:0crwdne8082:0",
   "clear_logs": "crwdns8084:0crwdne8084:0",
+  "now": "Now",
   "total_logs": "crwdns8086:0{{length}}crwdne8086:0",
   "filtered_logs": "crwdns8088:0{{length}}crwdne8088:0",
   "enter_filter_conditions": "crwdns8090:0crwdne8090:0",
