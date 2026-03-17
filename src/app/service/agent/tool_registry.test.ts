@@ -4,9 +4,6 @@ import type { ToolExecutor } from "./tool_registry";
 import type { ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 
-vi.mock("@App/pkg/utils/uuid", () => ({
-  uuidv4: vi.fn(() => "mock-uuid-" + Math.random().toString(36).slice(2, 8)),
-}));
 
 // 创建一个简单的 mock executor
 function createExecutor(fn: (args: Record<string, unknown>) => Promise<unknown>): ToolExecutor {
@@ -250,11 +247,12 @@ describe("ToolRegistry", () => {
       expect(results[0].attachments![0].name).toBe("screenshot.jpg");
       expect(results[0].attachments![0].mimeType).toBe("image/jpeg");
       expect(results[0].attachments![0].size).toBe(1024);
-      expect(results[0].attachments![0].id).toMatch(/^mock-uuid-/);
+      expect(typeof results[0].attachments![0].id).toBe("string");
+      expect(results[0].attachments![0].id.length).toBeGreaterThan(0);
       // 验证 chatRepo.saveAttachment 被调用
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
       expect(mockRepo.saveAttachment).toHaveBeenCalledWith(
-        expect.stringMatching(/^mock-uuid-/),
+        expect.any(String),
         "data:image/jpeg;base64,/9j/abc"
       );
     });

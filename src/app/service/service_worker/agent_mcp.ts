@@ -12,14 +12,27 @@ function mcpToolName(serverName: string, toolName: string): string {
   return `mcp_${safeName}_${toolName}`;
 }
 
+// MCPClient 工厂函数类型
+export type MCPClientFactory = (config: MCPServerConfig) => MCPClient;
+
+// 默认工厂：直接创建 MCPClient
+const defaultClientFactory: MCPClientFactory = (config) => new MCPClient(config);
+
 // MCPService 管理 MCP 服务器连接池和工具注册
 export class MCPService {
-  private repo = new MCPServerRepo();
+  private repo: MCPServerRepo;
   private clients = new Map<string, MCPClient>();
   // 记录每个服务器注册的工具名，便于注销
   private registeredTools = new Map<string, string[]>();
+  private createClient: MCPClientFactory;
 
-  constructor(private toolRegistry: ToolRegistry) {}
+  constructor(
+    private toolRegistry: ToolRegistry,
+    options?: { clientFactory?: MCPClientFactory; repo?: MCPServerRepo }
+  ) {
+    this.createClient = options?.clientFactory || defaultClientFactory;
+    this.repo = options?.repo || new MCPServerRepo();
+  }
 
   // 加载所有已保存的服务器配置，自动连接已启用的服务器
   async init(): Promise<void> {
@@ -51,7 +64,7 @@ export class MCPService {
       await this.disconnectServer(id);
     }
 
-    const client = new MCPClient(config);
+    const client = this.createClient(config);
     await client.initialize();
 
     // 列出工具
@@ -113,7 +126,7 @@ export class MCPService {
       throw new Error(`MCP server "${id}" not found`);
     }
 
-    const client = new MCPClient(config);
+    const client = this.createClient(config);
     try {
       await client.initialize();
       const [tools, resources, prompts] = await Promise.all([

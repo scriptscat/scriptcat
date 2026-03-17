@@ -1,35 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MCPService } from "./agent_mcp";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
+import type { MCPClientFactory } from "./agent_mcp";
+import type { MCPServerRepo } from "@App/app/repo/mcp_server_repo";
 
-// 共享的服务器存储
-const servers = new Map<string, any>();
-
-// Mock MCPServerRepo
-vi.mock("@App/app/repo/mcp_server_repo", () => {
+// 创建 mock MCPServerRepo
+function createMockRepo() {
+  const servers = new Map<string, any>();
   return {
-    MCPServerRepo: class {
-      async listServers() {
-        return Array.from(servers.values());
-      }
-      async getServer(id: string) {
-        return servers.get(id);
-      }
-      async saveServer(config: any) {
-        servers.set(config.id, config);
-      }
-      async removeServer(id: string) {
-        servers.delete(id);
-      }
-    },
-  };
-});
+    listServers: vi.fn(async () => Array.from(servers.values())),
+    getServer: vi.fn(async (id: string) => servers.get(id)),
+    saveServer: vi.fn(async (config: any) => {
+      servers.set(config.id, config);
+    }),
+    removeServer: vi.fn(async (id: string) => {
+      servers.delete(id);
+    }),
+  } as unknown as MCPServerRepo;
+}
 
-// Mock MCPClient
-vi.mock("@App/app/service/agent/mcp_client", () => {
-  return {
-    MCPClient: class {
-      async initialize() {}
+// Mock MCPClient 工厂
+function createMockClientFactory(): MCPClientFactory {
+  return () =>
+    ({
+      async initialize() {},
       async listTools() {
         return [
           {
@@ -39,43 +33,39 @@ vi.mock("@App/app/service/agent/mcp_client", () => {
             inputSchema: { type: "object", properties: { query: { type: "string" } } },
           },
         ];
-      }
+      },
       async listResources() {
         return [{ serverId: "test-server", uri: "file:///test.md", name: "test", mimeType: "text/markdown" }];
-      }
+      },
       async listPrompts() {
         return [{ serverId: "test-server", name: "summarize", description: "Summarize text" }];
-      }
+      },
       async callTool() {
         return "tool result";
-      }
+      },
       async readResource() {
         return { contents: [{ uri: "file:///test.md", text: "# Test" }] };
-      }
+      },
       async getPrompt() {
         return [{ role: "user", content: { type: "text", text: "Hello" } }];
-      }
-      close() {}
+      },
+      close() {},
       isInitialized() {
         return true;
-      }
-    },
-  };
-});
-
-// Mock uuid
-vi.mock("@App/pkg/utils/uuid", () => ({
-  uuidv4: vi.fn(() => "mock-uuid-123"),
-}));
+      },
+    }) as any;
+}
 
 describe("MCPService", () => {
   let toolRegistry: ToolRegistry;
   let service: MCPService;
 
   beforeEach(() => {
-    servers.clear();
     toolRegistry = new ToolRegistry();
-    service = new MCPService(toolRegistry);
+    service = new MCPService(toolRegistry, {
+      clientFactory: createMockClientFactory(),
+      repo: createMockRepo(),
+    });
   });
 
   describe("handleMCPApi - addServer", () => {
