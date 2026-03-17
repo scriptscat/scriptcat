@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Input, Message, Popconfirm, Select, Space } from "@arco-design/web-react";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
 import { ClearNetDiskToken, HasNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
-import type { NetDiskType } from "@Packages/filesystem/auth";
 
 const FileSystemParams: React.FC<{
   headerContent: React.ReactNode | string;
@@ -25,21 +24,15 @@ const FileSystemParams: React.FC<{
   const { t } = useTranslation();
   const [hasBoundToken, setHasBoundToken] = useState(false);
 
-  // 检查当前网盘类型是否已绑定 token
-  const checkTokenBound = useCallback(async (diskType: NetDiskType | undefined) => {
-    if (!diskType) {
-      setHasBoundToken(false);
-      return;
-    }
-    const bound = await HasNetDiskToken(diskType);
-    setHasBoundToken(bound);
-  }, []);
-
   const netDiskType = netDiskTypeMap[fileSystemType];
 
   useEffect(() => {
-    checkTokenBound(netDiskType);
-  }, [netDiskType, checkTokenBound]);
+    if (!netDiskType) {
+      setHasBoundToken(false);
+      return;
+    }
+    HasNetDiskToken(netDiskType).then(setHasBoundToken);
+  }, [netDiskType]);
 
   const fileSystemList: {
     key: FileSystemType;
