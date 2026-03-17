@@ -29,8 +29,6 @@ import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPa
 // 注意：不能使用 import "./cat_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
 import CATAgentApi from "./cat_agent";
 void CATAgentApi;
-import CATAgentToolsApi from "./cat_agent_tools";
-void CATAgentToolsApi;
 import CATAgentSkillsApi from "./cat_agent_skills";
 void CATAgentSkillsApi;
 import CATAgentDomApi from "./cat_agent_dom";

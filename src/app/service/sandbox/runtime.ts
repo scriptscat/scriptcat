@@ -347,12 +347,12 @@ export class Runtime {
     this.api.on("runtime/valueUpdate", this.valueUpdate.bind(this));
     this.api.on("runtime/emitEvent", this.emitEvent.bind(this));
     this.api.on("setSandboxLanguage", this.setSandboxLanguage.bind(this));
-    this.api.on("executeCATTool", this.executeCATTool.bind(this));
+    this.api.on("executeSkillScript", this.executeSkillScript.bind(this));
     initLanguage();
   }
 
-  // 执行 CATTool：构建最小化脚本上下文，注入 args，执行并返回结果
-  async executeCATTool(params: {
+  // 执行 Skill Script：构建最小化脚本上下文，注入 args，执行并返回结果
+  async executeSkillScript(params: {
     uuid: string;
     code: string;
     args: Record<string, unknown>;

@@ -213,7 +213,7 @@ export const test = base.extend<AgentFixtures>({
 });
 
 /**
- * Auto-approve permission confirm dialogs and CATTool install pages.
+ * Auto-approve permission confirm dialogs.
  */
 export function autoApprovePermissions(context: BrowserContext): void {
   context.on("page", async (page) => {
@@ -234,21 +234,6 @@ export function autoApprovePermissions(context: BrowserContext): void {
         console.log("[autoApprove] Permission approved on confirm page");
       } catch (e) {
         console.log("[autoApprove] Failed to approve:", e);
-      }
-      return;
-    }
-
-    // Auto-approve CATTool install pages
-    if (url.includes("install.html") && url.includes("cattool=")) {
-      try {
-        await page.waitForLoadState("domcontentloaded");
-        // Wait for the install button to appear (primary button)
-        const installButton = page.locator("button.arco-btn-primary").first();
-        await installButton.waitFor({ timeout: 10_000 });
-        await installButton.click();
-        console.log("[autoApprove] CATTool install approved");
-      } catch (e) {
-        console.log("[autoApprove] Failed to approve CATTool install:", e);
       }
       return;
     }

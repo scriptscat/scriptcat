@@ -1,7 +1,7 @@
-import type { CATToolMetadata, CATToolParam, ToolDefinition } from "@App/app/service/agent/types";
+import type { SkillScriptMetadata, SkillScriptParam } from "@App/app/service/agent/types";
 
-// 解析 ==CATTool== 元数据头
-export function parseCATToolMetadata(code: string): CATToolMetadata | null {
+// 解析 ==CATTool== 元数据头（Skill Script 格式）
+export function parseSkillScriptMetadata(code: string): SkillScriptMetadata | null {
   const match = code.match(/\/\/\s*==CATTool==([\s\S]*?)\/\/\s*==\/CATTool==/);
   if (!match) return null;
 
@@ -10,7 +10,7 @@ export function parseCATToolMetadata(code: string): CATToolMetadata | null {
 
   let name = "";
   let description = "";
-  const params: CATToolParam[] = [];
+  const params: SkillScriptParam[] = [];
   const grants: string[] = [];
   const requires: string[] = [];
   let timeout: number | undefined;
@@ -59,7 +59,7 @@ export function parseCATToolMetadata(code: string): CATToolMetadata | null {
 
 // 解析 @param 行: name type [required] description
 // type 支持 string|number|boolean，支持 enum [val1,val2]
-function parseParam(raw: string): CATToolParam | null {
+function parseParam(raw: string): SkillScriptParam | null {
   // 匹配: paramName type [required] description
   // 或: paramName type[val1,val2] [required] description
   const match = raw.match(/^(\w+)\s+(string|number|boolean)(\[[^\]]*\])?\s*(.*)/);
@@ -86,49 +86,14 @@ function parseParam(raw: string): CATToolParam | null {
 
   return {
     name,
-    type: type as CATToolParam["type"],
+    type: type as SkillScriptParam["type"],
     required,
     description,
     ...(enumValues ? { enum: enumValues } : {}),
   };
 }
 
-// 将 CATTool 元数据转为 ToolDefinition（JSON Schema 格式）
-export function catToolToToolDefinition(metadata: CATToolMetadata): ToolDefinition {
-  const properties: Record<string, Record<string, unknown>> = {};
-  const required: string[] = [];
-
-  for (const param of metadata.params) {
-    const prop: Record<string, unknown> = {
-      type: param.type,
-      description: param.description,
-    };
-    if (param.enum) {
-      prop.enum = param.enum;
-    }
-    properties[param.name] = prop;
-    if (param.required) {
-      required.push(param.name);
-    }
-  }
-
-  return {
-    name: metadata.name,
-    description: metadata.description,
-    parameters: {
-      type: "object",
-      properties,
-      ...(required.length > 0 ? { required } : {}),
-    },
-  };
-}
-
-// 给 ToolDefinition 加前缀（用于 Skill 动态注册时避免冲突）
-export function prefixToolDefinition(prefix: string, def: ToolDefinition): ToolDefinition {
-  return { ...def, name: `${prefix}__${def.name}` };
-}
-
-// 获取 CATTool 脚本体（去掉元数据头）
-export function getCATToolBody(code: string): string {
+// 获取 Skill Script 脚本体（去掉元数据头）
+export function getSkillScriptBody(code: string): string {
   return code.replace(/\/\/\s*==CATTool==[\s\S]*?\/\/\s*==\/CATTool==\s*/, "").trim();
 }

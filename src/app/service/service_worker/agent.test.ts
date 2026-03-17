@@ -1,15 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AgentService, isRetryableError, withRetry, classifyErrorCode } from "./agent";
-import { cacheInstance } from "@App/app/cache";
-import { CACHE_KEY_CATTOOL_INSTALL } from "@App/app/cache_key";
-
-// 确保 chrome.tabs.onRemoved 方法可用
-if (!chrome.tabs.onRemoved.removeListener) {
-  (chrome.tabs.onRemoved as any).removeListener = vi.fn();
-}
-if (!chrome.tabs.onRemoved.addListener) {
-  (chrome.tabs.onRemoved as any).addListener = vi.fn();
-}
 
 // 创建 mock AgentService 实例
 function createTestService() {
@@ -45,19 +35,13 @@ function createTestService() {
   };
   (service as any).modelRepo = mockModelRepo;
 
-  // 替换 repo 和 catToolRepo（避免 OPFS 调用）
+  // 替换 repo 和 skillRepo（避免 OPFS 调用）
   const mockRepo = {
     appendMessage: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
     listConversations: vi.fn().mockResolvedValue([]),
     saveConversation: vi.fn().mockResolvedValue(undefined),
     saveMessages: vi.fn().mockResolvedValue(undefined),
-  };
-  const mockCatToolRepo = {
-    listTools: vi.fn().mockResolvedValue([]),
-    getTool: vi.fn().mockResolvedValue(null),
-    saveTool: vi.fn().mockResolvedValue(undefined),
-    removeTool: vi.fn().mockResolvedValue(true),
   };
   const mockSkillRepo = {
     listSkills: vi.fn().mockResolvedValue([]),
@@ -67,12 +51,12 @@ function createTestService() {
     getSkillScripts: vi.fn().mockResolvedValue([]),
     getSkillReferences: vi.fn().mockResolvedValue([]),
     getReference: vi.fn().mockResolvedValue(null),
+    getConfigValues: vi.fn().mockResolvedValue(undefined),
   };
   (service as any).repo = mockRepo;
-  (service as any).catToolRepo = mockCatToolRepo;
   (service as any).skillRepo = mockSkillRepo;
 
-  return { service, mockRepo, mockCatToolRepo, mockSkillRepo, mockModelRepo };
+  return { service, mockRepo, mockSkillRepo, mockModelRepo };
 }
 
 const VALID_CATTOOL_CODE = `// ==CATTool==
@@ -82,223 +66,9 @@ const VALID_CATTOOL_CODE = `// ==CATTool==
 // ==/CATTool==
 module.exports = async function(params) { return params.input; }`;
 
-describe("AgentService CATTool 安装流程", () => {
-  beforeEach(async () => {
-    await cacheInstance.clear();
-  });
-
-  describe("cancelCATToolInstall", () => {
-    it("应 await cleanupPendingInstall 并 reject", async () => {
-      const { service } = createTestService();
-      let rejected = false;
-      let rejectedError: Error | null = null;
-
-      // 模拟 pendingInstall
-      const uuid = "test-uuid";
-      // 创建 pending promise（catch 防止 unhandled rejection）
-      new Promise<any>((resolve, reject) => {
-        (service as any).pendingInstalls.set(uuid, {
-          resolve,
-          reject: (err: Error) => {
-            rejected = true;
-            rejectedError = err;
-            reject(err);
-          },
-          tabId: 1,
-          timer: setTimeout(() => {}, 60000),
-          onTabRemoved: () => {},
-        });
-      }).catch(() => {});
-
-      await service.cancelCATToolInstall(uuid);
-
-      expect(rejected).toBe(true);
-      expect(rejectedError!.message).toBe("CATTool install cancelled by user");
-      // pendingInstalls 应已清理
-      expect((service as any).pendingInstalls.has(uuid)).toBe(false);
-    });
-
-    it("uuid 不存在时应静默返回", async () => {
-      const { service } = createTestService();
-      // 不应抛出异常
-      await service.cancelCATToolInstall("non-existent");
-    });
-  });
-
-  describe("completeCATToolInstall", () => {
-    it("缓存存在时应完成安装并 resolve", async () => {
-      const { service } = createTestService();
-      const uuid = "complete-uuid";
-
-      // 设置缓存
-      await cacheInstance.set(CACHE_KEY_CATTOOL_INSTALL + uuid, {
-        code: VALID_CATTOOL_CODE,
-        scriptUuid: "src-script",
-        scriptName: "Source Script",
-      });
-
-      let resolvedRecord: any = null;
-
-      const completionPromise = new Promise<any>((resolve, reject) => {
-        (service as any).pendingInstalls.set(uuid, {
-          resolve: (record: any) => {
-            resolvedRecord = record;
-            resolve(record);
-          },
-          reject,
-          tabId: 1,
-          timer: setTimeout(() => {}, 60000),
-          onTabRemoved: () => {},
-        });
-      });
-
-      await (service as any).completeCATToolInstall(uuid);
-      await completionPromise;
-
-      expect(resolvedRecord).not.toBeNull();
-      expect(resolvedRecord.name).toBe("test-tool");
-      // pendingInstalls 应已清理
-      expect((service as any).pendingInstalls.has(uuid)).toBe(false);
-    });
-
-    it("缓存不存在时应 reject", async () => {
-      const { service } = createTestService();
-      const uuid = "no-cache-uuid";
-
-      let rejectedError: Error | null = null;
-
-      new Promise<any>((resolve, reject) => {
-        (service as any).pendingInstalls.set(uuid, {
-          resolve,
-          reject: (err: Error) => {
-            rejectedError = err;
-            reject(err);
-          },
-          tabId: 1,
-          timer: setTimeout(() => {}, 60000),
-          onTabRemoved: () => {},
-        });
-      }).catch(() => {});
-
-      await (service as any).completeCATToolInstall(uuid);
-
-      expect(rejectedError).not.toBeNull();
-      expect(rejectedError!.message).toContain("not found or expired");
-    });
-
-    it("pending 不存在时应静默返回", async () => {
-      const { service } = createTestService();
-      // 不应抛出异常
-      await (service as any).completeCATToolInstall("non-existent");
-    });
-  });
-
-  describe("getCATToolInstallCode", () => {
-    it("缓存存在时应返回代码和元信息", async () => {
-      const { service } = createTestService();
-      const uuid = "get-code-uuid";
-
-      await cacheInstance.set(CACHE_KEY_CATTOOL_INSTALL + uuid, {
-        code: VALID_CATTOOL_CODE,
-        scriptName: "My Script",
-      });
-
-      const result = await (service as any).getCATToolInstallCode(uuid);
-
-      expect(result.code).toBe(VALID_CATTOOL_CODE);
-      expect(result.scriptName).toBe("My Script");
-      expect(result.isUpdate).toBe(false);
-    });
-
-    it("同名工具已存在时 isUpdate 应为 true", async () => {
-      const { service, mockCatToolRepo } = createTestService();
-      const uuid = "update-uuid";
-
-      await cacheInstance.set(CACHE_KEY_CATTOOL_INSTALL + uuid, {
-        code: VALID_CATTOOL_CODE,
-      });
-
-      // 模拟已存在同名工具
-      mockCatToolRepo.getTool.mockResolvedValueOnce({ name: "test-tool" });
-
-      const result = await (service as any).getCATToolInstallCode(uuid);
-
-      expect(result.isUpdate).toBe(true);
-    });
-
-    it("缓存不存在时应抛出异常", async () => {
-      const { service } = createTestService();
-
-      await expect((service as any).getCATToolInstallCode("missing")).rejects.toThrow("not found or expired");
-    });
-  });
-
-  describe("installCATTool", () => {
-    it("应正确安装新工具", async () => {
-      const { service, mockCatToolRepo } = createTestService();
-
-      const record = await service.installCATTool(VALID_CATTOOL_CODE);
-
-      expect(record.id).toBeDefined();
-      expect(record.name).toBe("test-tool");
-      expect(record.description).toBe("A test tool");
-      expect(record.code).toBe(VALID_CATTOOL_CODE);
-      expect(record.installtime).toBeDefined();
-      expect(record.updatetime).toBeDefined();
-      expect(mockCatToolRepo.saveTool).toHaveBeenCalledTimes(1);
-    });
-
-    it("更新已有工具时应保留 id 和 installtime", async () => {
-      const { service, mockCatToolRepo } = createTestService();
-
-      const oldId = "existing-uuid-123";
-      const oldInstallTime = 1000000;
-      mockCatToolRepo.getTool.mockResolvedValueOnce({
-        id: oldId,
-        name: "test-tool",
-        installtime: oldInstallTime,
-        updatetime: oldInstallTime,
-      });
-
-      const record = await service.installCATTool(VALID_CATTOOL_CODE);
-
-      expect(record.id).toBe(oldId);
-      expect(record.installtime).toBe(oldInstallTime);
-      expect(record.updatetime).toBeGreaterThan(oldInstallTime);
-    });
-
-    it("无效代码应抛出异常", async () => {
-      const { service } = createTestService();
-
-      await expect(service.installCATTool("invalid code")).rejects.toThrow("Invalid CATTool");
-    });
-  });
-
-  describe("removeCATTool", () => {
-    it("工具存在时应删除并返回 true", async () => {
-      const { service, mockCatToolRepo } = createTestService();
-      mockCatToolRepo.removeTool.mockResolvedValueOnce(true);
-
-      const result = await service.removeCATTool("test-tool");
-
-      expect(result).toBe(true);
-      expect(mockCatToolRepo.removeTool).toHaveBeenCalledWith("test-tool");
-    });
-
-    it("工具不存在时应返回 false", async () => {
-      const { service, mockCatToolRepo } = createTestService();
-      mockCatToolRepo.removeTool.mockResolvedValueOnce(false);
-
-      const result = await service.removeCATTool("non-existent");
-
-      expect(result).toBe(false);
-    });
-  });
-});
-
 // ---- Skill 系统测试 ----
 
-import type { SkillRecord, CATToolRecord } from "@App/app/service/agent/types";
+import type { SkillRecord, SkillScriptRecord } from "@App/app/service/agent/types";
 
 // 辅助：创建 SkillRecord
 function makeSkillRecord(overrides: Partial<SkillRecord> = {}): SkillRecord {
@@ -314,12 +84,12 @@ function makeSkillRecord(overrides: Partial<SkillRecord> = {}): SkillRecord {
   };
 }
 
-// 辅助：创建 CATToolRecord
-function makeCATToolRecord(overrides: Partial<CATToolRecord> = {}): CATToolRecord {
+// 辅助：创建 SkillScriptRecord
+function makeSkillScriptRecord(overrides: Partial<SkillScriptRecord> = {}): SkillScriptRecord {
   return {
     id: "tool-id-1",
-    name: "test-cattool",
-    description: "A test CATTool",
+    name: "test-script",
+    description: "A test skill script",
     params: [{ name: "input", type: "string", description: "The input", required: true }],
     grants: [],
     code: "module.exports = async (p) => p.input;",
@@ -368,15 +138,12 @@ describe("AgentService Skill 系统", () => {
       expect(result.promptSuffix).not.toContain("Monitor prices.");
       expect(result.promptSuffix).not.toContain("Translate text.");
 
-      // 应返回 2 个 metaTools（load_skill, read_reference），不再有 execute_skill_tool
-      expect(result.metaTools).toHaveLength(2);
+      // 应返回 3 个 metaTools（load_skill, execute_skill_script, read_reference）
+      expect(result.metaTools).toHaveLength(3);
       const names = result.metaTools.map((t: any) => t.definition.name);
       expect(names).toContain("load_skill");
+      expect(names).toContain("execute_skill_script");
       expect(names).toContain("read_reference");
-      expect(names).not.toContain("execute_skill_tool");
-
-      // dynamicToolNames 初始为空
-      expect(result.dynamicToolNames).toEqual([]);
     });
 
     it("指定名称过滤", () => {
@@ -395,7 +162,7 @@ describe("AgentService Skill 系统", () => {
       expect(result.promptSuffix).not.toContain("Skill B");
     });
 
-    it("无工具/参考资料的 skill 只注册 load_skill", () => {
+    it("无工具/参考资料的 skill 注册 load_skill + execute_skill_script", () => {
       const { service } = createTestService();
 
       const skill = makeSkillRecord({ name: "simple-skill", toolNames: [], referenceNames: [] });
@@ -403,11 +170,13 @@ describe("AgentService Skill 系统", () => {
 
       const result = (service as any).resolveSkills("auto");
 
-      expect(result.metaTools).toHaveLength(1);
-      expect(result.metaTools[0].definition.name).toBe("load_skill");
+      expect(result.metaTools).toHaveLength(2);
+      const names = result.metaTools.map((t: any) => t.definition.name);
+      expect(names).toContain("load_skill");
+      expect(names).toContain("execute_skill_script");
     });
 
-    it("有工具无参考资料时只注册 load_skill", () => {
+    it("有工具无参考资料时注册 load_skill + execute_skill_script", () => {
       const { service } = createTestService();
 
       const skill = makeSkillRecord({ name: "tools-only", toolNames: ["my-tool"], referenceNames: [] });
@@ -415,12 +184,13 @@ describe("AgentService Skill 系统", () => {
 
       const result = (service as any).resolveSkills("auto");
 
-      // 工具在 load_skill 调用时才动态注册，不再有 execute_skill_tool
-      expect(result.metaTools).toHaveLength(1);
-      expect(result.metaTools[0].definition.name).toBe("load_skill");
+      expect(result.metaTools).toHaveLength(2);
+      const names = result.metaTools.map((t: any) => t.definition.name);
+      expect(names).toContain("load_skill");
+      expect(names).toContain("execute_skill_script");
     });
 
-    it("有参考资料无工具时注册 load_skill + read_reference", () => {
+    it("有参考资料无工具时注册 load_skill + execute_skill_script + read_reference", () => {
       const { service } = createTestService();
 
       const skill = makeSkillRecord({ name: "refs-only", toolNames: [], referenceNames: ["doc.md"] });
@@ -428,9 +198,10 @@ describe("AgentService Skill 系统", () => {
 
       const result = (service as any).resolveSkills("auto");
 
-      expect(result.metaTools).toHaveLength(2);
+      expect(result.metaTools).toHaveLength(3);
       const names = result.metaTools.map((t: any) => t.definition.name);
       expect(names).toContain("load_skill");
+      expect(names).toContain("execute_skill_script");
       expect(names).toContain("read_reference");
     });
   });
@@ -463,48 +234,33 @@ describe("AgentService Skill 系统", () => {
       );
     });
 
-    it("动态注册 skill 的 CATTool 为独立工具", async () => {
+    it("load_skill 返回 prompt 并附带脚本描述", async () => {
       const { service, mockSkillRepo } = createTestService();
 
-      const toolRecord = makeCATToolRecord({
+      const scriptRecord = makeSkillScriptRecord({
         name: "price-check",
         description: "Check price",
         params: [{ name: "url", type: "string", description: "Target URL", required: true }],
         grants: [],
       });
-      const skill = makeSkillRecord({ name: "price-skill", toolNames: ["price-check"] });
+      const skill = makeSkillRecord({ name: "price-skill", toolNames: ["price-check"], prompt: "Monitor prices." });
       (service as any).skillCache.set("price-skill", skill);
 
-      mockSkillRepo.getSkillScripts.mockResolvedValueOnce([toolRecord]);
+      mockSkillRepo.getSkillScripts.mockResolvedValueOnce([scriptRecord]);
 
       const result = (service as any).resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
 
-      // 调用 load_skill 前，toolRegistry 中不应有 price-skill__price-check
-      const registry = (service as any).toolRegistry;
-      const defsBefore = registry.getDefinitions();
-      expect(defsBefore.find((d: any) => d.name === "price-skill__price-check")).toBeUndefined();
-
-      // 调用 load_skill（CATToolExecutor 执行会失败，但注册应完成）
       const output = await loadSkill.executor.execute({ skill_name: "price-skill" });
-      expect(output).toBe(skill.prompt);
 
-      // 调用后，toolRegistry 中应有 price-skill__price-check
-      const defsAfter = registry.getDefinitions();
-      const registered = defsAfter.find((d: any) => d.name === "price-skill__price-check");
-      expect(registered).toBeDefined();
-      expect(registered.description).toBe("Check price");
-      expect(registered.parameters.properties.url).toBeDefined();
-      expect(registered.parameters.required).toContain("url");
-
-      // dynamicToolNames 应记录注册的工具名
-      expect(result.dynamicToolNames).toContain("price-skill__price-check");
+      // 返回的 prompt 应包含脚本描述信息
+      expect(output).toContain("Monitor prices.");
+      expect(output).toContain("price-check");
+      expect(output).toContain("Check price");
+      expect(output).toContain("execute_skill_script");
 
       // 验证 getSkillScripts 被正确调用
       expect(mockSkillRepo.getSkillScripts).toHaveBeenCalledWith("price-skill");
-
-      // 清理
-      registry.unregisterBuiltin("price-skill__price-check");
     });
 
     it("无工具的 skill 不调用 getSkillScripts", async () => {
@@ -518,18 +274,17 @@ describe("AgentService Skill 系统", () => {
 
       await loadSkill.executor.execute({ skill_name: "no-tools" });
       expect(mockSkillRepo.getSkillScripts).not.toHaveBeenCalled();
-      expect(result.dynamicToolNames).toEqual([]);
     });
 
-    it("多个 CATTool 应全部注册并使用正确前缀", async () => {
+    it("多个脚本应全部包含在 prompt 中", async () => {
       const { service, mockSkillRepo } = createTestService();
 
-      const tool1 = makeCATToolRecord({
+      const tool1 = makeSkillScriptRecord({
         name: "extract",
         description: "提取数据",
         params: [{ name: "url", type: "string", description: "URL", required: true }],
       });
-      const tool2 = makeCATToolRecord({
+      const tool2 = makeSkillScriptRecord({
         name: "compare",
         description: "比较价格",
         params: [
@@ -538,7 +293,7 @@ describe("AgentService Skill 系统", () => {
         ],
       });
 
-      const skill = makeSkillRecord({ name: "taobao", toolNames: ["extract", "compare"] });
+      const skill = makeSkillRecord({ name: "taobao", toolNames: ["extract", "compare"], prompt: "淘宝助手。" });
       (service as any).skillCache.set("taobao", skill);
 
       mockSkillRepo.getSkillScripts.mockResolvedValueOnce([tool1, tool2]);
@@ -546,61 +301,38 @@ describe("AgentService Skill 系统", () => {
       const result = (service as any).resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
 
-      await loadSkill.executor.execute({ skill_name: "taobao" });
+      const output = await loadSkill.executor.execute({ skill_name: "taobao" });
 
-      const registry = (service as any).toolRegistry;
-      const defs = registry.getDefinitions();
-
-      // 两个工具都应注册
-      const extractDef = defs.find((d: any) => d.name === "taobao__extract");
-      const compareDef = defs.find((d: any) => d.name === "taobao__compare");
-      expect(extractDef).toBeDefined();
-      expect(compareDef).toBeDefined();
-      expect(extractDef.description).toBe("提取数据");
-      expect(compareDef.parameters.required).toEqual(["a", "b"]);
-
-      // dynamicToolNames 应记录两个工具名
-      expect(result.dynamicToolNames).toHaveLength(2);
-      expect(result.dynamicToolNames).toContain("taobao__extract");
-      expect(result.dynamicToolNames).toContain("taobao__compare");
-
-      // 清理
-      registry.unregisterBuiltin("taobao__extract");
-      registry.unregisterBuiltin("taobao__compare");
+      // prompt 应包含所有脚本的描述
+      expect(output).toContain("extract");
+      expect(output).toContain("提取数据");
+      expect(output).toContain("compare");
+      expect(output).toContain("比较价格");
     });
 
-    it("重复 load_skill 同一 skill 应幂等注册（覆盖已有）", async () => {
+    it("重复 load_skill 同一 skill 应幂等（返回缓存 prompt）", async () => {
       const { service, mockSkillRepo } = createTestService();
 
-      const toolRecord = makeCATToolRecord({
+      const scriptRecord = makeSkillScriptRecord({
         name: "my-tool",
         description: "V1",
         params: [],
       });
-      const skill = makeSkillRecord({ name: "my-skill", toolNames: ["my-tool"] });
+      const skill = makeSkillRecord({ name: "my-skill", toolNames: ["my-tool"], prompt: "My prompt." });
       (service as any).skillCache.set("my-skill", skill);
 
       // 第一次 load
-      mockSkillRepo.getSkillScripts.mockResolvedValueOnce([toolRecord]);
+      mockSkillRepo.getSkillScripts.mockResolvedValueOnce([scriptRecord]);
       const result = (service as any).resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
       await loadSkill.executor.execute({ skill_name: "my-skill" });
 
-      // 第二次 load（模拟更新后的 toolRecord）
-      const updatedTool = makeCATToolRecord({ name: "my-tool", description: "V2", params: [] });
-      mockSkillRepo.getSkillScripts.mockResolvedValueOnce([updatedTool]);
-      await loadSkill.executor.execute({ skill_name: "my-skill" });
+      // 第二次 load 应直接返回 prompt（不再调用 getSkillScripts）
+      const output2 = await loadSkill.executor.execute({ skill_name: "my-skill" });
 
-      const registry = (service as any).toolRegistry;
-      const defs = registry.getDefinitions();
-      const def = defs.find((d: any) => d.name === "my-skill__my-tool");
-      expect(def).toBeDefined();
-
-      // dynamicToolNames 应记录两次（由外层清理负责去重）
-      expect(result.dynamicToolNames).toContain("my-skill__my-tool");
-
-      // 清理
-      registry.unregisterBuiltin("my-skill__my-tool");
+      expect(output2).toBe(skill.prompt);
+      // getSkillScripts 只应被调用一次（第一次 load 时）
+      expect(mockSkillRepo.getSkillScripts).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -754,7 +486,7 @@ Updated prompt.`;
       await expect(service.installSkill("not valid skill md")).rejects.toThrow("Invalid SKILL.md");
     });
 
-    it("含无效 CATTool 脚本时应抛出异常", async () => {
+    it("含无效 Skill Script 时应抛出异常", async () => {
       const { service } = createTestService();
 
       const skillMd = `---
@@ -764,7 +496,7 @@ description: Has invalid script
 Some prompt.`;
 
       await expect(service.installSkill(skillMd, [{ name: "bad-tool", code: "not a cattool" }])).rejects.toThrow(
-        "Invalid CATTool script"
+        "Invalid SkillScript"
       );
     });
   });
@@ -817,7 +549,7 @@ description: 淘宝购物助手
       expect(record.name).toBe("taobao-helper");
       expect(record.description).toBe("淘宝购物助手");
       expect(record.prompt).toBe("你是一个淘宝购物助手。");
-      expect(record.toolNames).toEqual(["test-tool"]); // CATTool 名称从 metadata 中解析
+      expect(record.toolNames).toEqual(["test-tool"]); // 脚本名称从 ==CATTool== metadata 中解析
       expect(record.referenceNames).toEqual(["api_docs.md", "guide.txt"]);
 
       // 验证 saveSkill 调用参数
@@ -905,12 +637,12 @@ describe("handleConversationChat skill 动态工具清理", () => {
     return { sender, sentMessages };
   }
 
-  it("对话结束后应清理 meta-tools 和动态注册的 CATTool", async () => {
+  it("对话结束后应清理 meta-tools", async () => {
     const { service, mockRepo, mockSkillRepo } = createTestService();
     const { sender } = createMockSender();
 
     // 设置 skill 带工具
-    const toolRecord = makeCATToolRecord({
+    const scriptRecord = makeSkillScriptRecord({
       name: "my-tool",
       description: "A tool",
       params: [],
@@ -935,8 +667,8 @@ describe("handleConversationChat skill 动态工具清理", () => {
       },
     ]);
 
-    // 第一轮 LLM 调用 load_skill → 注册动态工具
-    mockSkillRepo.getSkillScripts.mockResolvedValueOnce([toolRecord]);
+    // load_skill 调用时返回脚本记录
+    mockSkillRepo.getSkillScripts.mockResolvedValueOnce([scriptRecord]);
 
     // 构造 SSE：LLM 调用 load_skill，然后纯文本结束
     const encoder = new TextEncoder();
@@ -993,16 +725,15 @@ describe("handleConversationChat skill 动态工具清理", () => {
 
     const registry = (service as any).toolRegistry;
 
-    // 对话前 registry 不应有 load_skill 和 test-skill__my-tool
+    // 对话前 registry 不应有 load_skill 和 execute_skill_script
     expect(registry.getDefinitions().find((d: any) => d.name === "load_skill")).toBeUndefined();
-    expect(registry.getDefinitions().find((d: any) => d.name === "test-skill__my-tool")).toBeUndefined();
+    expect(registry.getDefinitions().find((d: any) => d.name === "execute_skill_script")).toBeUndefined();
 
     await (service as any).handleConversationChat({ conversationId: "conv-1", message: "test" }, sender);
 
     // 对话后 meta-tools 应已清理
     expect(registry.getDefinitions().find((d: any) => d.name === "load_skill")).toBeUndefined();
-    // 动态注册的 CATTool 也应已清理
-    expect(registry.getDefinitions().find((d: any) => d.name === "test-skill__my-tool")).toBeUndefined();
+    expect(registry.getDefinitions().find((d: any) => d.name === "execute_skill_script")).toBeUndefined();
   });
 });
 
@@ -1016,7 +747,6 @@ describe("AgentService init() 消息注册", () => {
     const service = new AgentService(mockGroup, mockSender);
 
     // 替换 repos 避免 OPFS 调用
-    (service as any).catToolRepo = { listTools: vi.fn().mockResolvedValue([]) };
     (service as any).skillRepo = { listSkills: vi.fn().mockResolvedValue([]) };
 
     service.init();
@@ -1039,7 +769,6 @@ describe("AgentService init() 消息注册", () => {
       getSkill: vi.fn().mockResolvedValue(null),
       saveSkill: vi.fn().mockResolvedValue(undefined),
     };
-    (service as any).catToolRepo = { listTools: vi.fn().mockResolvedValue([]) };
     (service as any).skillRepo = mockSkillRepo;
 
     service.init();
@@ -1071,7 +800,6 @@ Prompt content.`;
       listSkills: vi.fn().mockResolvedValue([]),
       removeSkill: vi.fn().mockResolvedValue(true),
     };
-    (service as any).catToolRepo = { listTools: vi.fn().mockResolvedValue([]) };
     (service as any).skillRepo = mockSkillRepo;
 
     service.init();
@@ -2246,7 +1974,7 @@ describe("handleConversationChat 场景补充", () => {
     expect(errorEvents[0].message).toContain("Conversation not found");
   });
 
-  it("skill 动态加载：历史消息含 load_skill 调用时预加载 skill 工具", async () => {
+  it("skill 预加载：历史消息含 load_skill 调用时预执行以标记 skill 已加载", async () => {
     const { service, mockRepo, mockSkillRepo } = createTestService();
     const { sender } = createMockSender();
 
@@ -2258,7 +1986,7 @@ describe("handleConversationChat 场景补充", () => {
     });
     (service as any).skillCache.set("web-skill", skill);
 
-    const toolRecord = makeCATToolRecord({
+    const toolRecord = makeSkillScriptRecord({
       name: "web-tool",
       description: "Web tool",
       params: [],
@@ -2304,13 +2032,14 @@ describe("handleConversationChat 场景补充", () => {
 
     await (service as any).handleConversationChat({ conversationId: "conv-1", message: "继续" }, sender);
 
-    // getSkillScripts 应被调用以预加载 web-skill 的工具
+    // getSkillScripts 应被调用以预加载 web-skill 的脚本描述
     expect(mockSkillRepo.getSkillScripts).toHaveBeenCalledWith("web-skill");
 
-    // 发送给 LLM 的工具列表应包含 web-skill__web-tool
+    // 发送给 LLM 的工具列表应包含 execute_skill_script（而非动态注册的独立工具）
     const requestBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
     const toolNames = requestBody.tools?.map((t: any) => t.function?.name || t.name) || [];
-    expect(toolNames).toContain("web-skill__web-tool");
+    expect(toolNames).toContain("execute_skill_script");
+    expect(toolNames).toContain("load_skill");
   });
 });
 

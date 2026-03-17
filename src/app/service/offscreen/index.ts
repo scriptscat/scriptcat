@@ -57,8 +57,8 @@ export class OffscreenManager {
     script.init();
     // 转发从sandbox来的gm api请求
     forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extMsgSender);
-    // 转发 CATTool 执行请求到 sandbox
-    forwardMessage("sandbox", "executeCATTool", this.windowServer, this.windowMessage);
+    // 转发 Skill Script 执行请求到 sandbox
+    forwardMessage("sandbox", "executeSkillScript", this.windowServer, this.windowMessage);
     // 转发valueUpdate与emitEvent
     forwardMessage("sandbox", "runtime/valueUpdate", this.windowServer, this.windowMessage);
     forwardMessage("sandbox", "runtime/emitEvent", this.windowServer, this.windowMessage);

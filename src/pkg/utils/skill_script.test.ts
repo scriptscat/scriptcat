@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseCATToolMetadata, catToolToToolDefinition, getCATToolBody, prefixToolDefinition } from "./cattool";
+import { parseSkillScriptMetadata, getSkillScriptBody } from "./skill_script";
 
-describe("parseCATToolMetadata", () => {
+describe("parseSkillScriptMetadata", () => {
   it("应正确解析完整的 CATTool 元数据", () => {
     const code = `
 // ==CATTool==
@@ -15,7 +15,7 @@ describe("parseCATToolMetadata", () => {
 const result = await GM.xmlHttpRequest({ url: "https://api.weather.com/" + args.city });
 return result;
 `;
-    const meta = parseCATToolMetadata(code);
+    const meta = parseSkillScriptMetadata(code);
     expect(meta).not.toBeNull();
     expect(meta!.name).toBe("weather");
     expect(meta!.description).toBe("查询天气信息");
@@ -41,7 +41,7 @@ return result;
 
   it("没有 ==CATTool== 头时返回 null", () => {
     const code = `console.log("hello");`;
-    expect(parseCATToolMetadata(code)).toBeNull();
+    expect(parseSkillScriptMetadata(code)).toBeNull();
   });
 
   it("缺少 @name 时返回 null", () => {
@@ -51,7 +51,7 @@ return result;
 // ==/CATTool==
 return "test";
 `;
-    expect(parseCATToolMetadata(code)).toBeNull();
+    expect(parseSkillScriptMetadata(code)).toBeNull();
   });
 
   it("应正确解析 number 和 boolean 类型参数", () => {
@@ -64,7 +64,7 @@ return "test";
 // ==/CATTool==
 return args.value * 2;
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.params[0].type).toBe("number");
     expect(meta.params[0].required).toBe(true);
     expect(meta.params[1].type).toBe("boolean");
@@ -79,7 +79,7 @@ return args.value * 2;
 // ==/CATTool==
 return "pong";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.name).toBe("ping");
     expect(meta.params).toHaveLength(0);
     expect(meta.grants).toHaveLength(0);
@@ -96,7 +96,7 @@ return "pong";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.grants).toEqual(["GM.xmlHttpRequest", "GM.getValue", "GM.setValue"]);
   });
 
@@ -109,7 +109,7 @@ return "ok";
 // ==/CATTool==
 return XLSX.utils.book_new();
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.requires).toEqual(["https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"]);
   });
 
@@ -124,7 +124,7 @@ return XLSX.utils.book_new();
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.requires).toEqual([
       "https://cdn.example.com/lib1.js",
       "https://cdn.example.com/lib2.js",
@@ -140,7 +140,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.requires).toEqual([]);
   });
 
@@ -153,7 +153,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.requires).toHaveLength(0);
   });
 
@@ -166,7 +166,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.grants).toHaveLength(0);
   });
 
@@ -178,7 +178,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.params[0].enum).toBeUndefined();
   });
 
@@ -190,7 +190,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.params[0].enum).toEqual(["red", "green", "blue"]);
   });
 
@@ -203,7 +203,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     // "object" 不是有效类型，应被忽略
     expect(meta.params).toHaveLength(1);
     expect(meta.params[0].name).toBe("valid");
@@ -216,7 +216,7 @@ return "ok";
 // ==/CATTool==
 return 42;
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.name).toBe("minimal");
     expect(meta.description).toBe("");
     expect(meta.params).toHaveLength(0);
@@ -232,7 +232,7 @@ return 42;
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.name).toBe("test");
     expect(meta.description).toBe("测试工具");
   });
@@ -246,7 +246,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.name).toBe("slow_tool");
     expect(meta.timeout).toBe(120);
   });
@@ -259,7 +259,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.timeout).toBeUndefined();
   });
 
@@ -271,7 +271,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.timeout).toBeUndefined();
   });
 
@@ -283,7 +283,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.timeout).toBeUndefined();
 
     const code2 = `
@@ -293,7 +293,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta2 = parseCATToolMetadata(code2)!;
+    const meta2 = parseSkillScriptMetadata(code2)!;
     expect(meta2.timeout).toBeUndefined();
   });
 
@@ -305,7 +305,7 @@ return "ok";
 // ==/CATTool==
 return "ok";
 `;
-    const meta = parseCATToolMetadata(code)!;
+    const meta = parseSkillScriptMetadata(code)!;
     expect(meta.params[0].name).toBe("level");
     expect(meta.params[0].required).toBe(true);
     expect(meta.params[0].enum).toEqual(["low", "medium", "high"]);
@@ -313,147 +313,20 @@ return "ok";
   });
 });
 
-describe("catToolToToolDefinition", () => {
-  it("应正确生成 JSON Schema 格式的 ToolDefinition", () => {
-    const def = catToolToToolDefinition({
-      name: "weather",
-      description: "查询天气",
-      params: [
-        { name: "city", type: "string", required: true, description: "城市" },
-        { name: "unit", type: "string", required: false, description: "单位", enum: ["c", "f"] },
-      ],
-      grants: [],
-      requires: [],
-    });
-
-    expect(def.name).toBe("weather");
-    expect(def.description).toBe("查询天气");
-    expect(def.parameters).toEqual({
-      type: "object",
-      properties: {
-        city: { type: "string", description: "城市" },
-        unit: { type: "string", description: "单位", enum: ["c", "f"] },
-      },
-      required: ["city"],
-    });
-  });
-
-  it("无 required 参数时不包含 required 字段", () => {
-    const def = catToolToToolDefinition({
-      name: "test",
-      description: "test",
-      params: [{ name: "x", type: "number", required: false, description: "x" }],
-      grants: [],
-      requires: [],
-    });
-
-    expect(def.parameters).not.toHaveProperty("required");
-  });
-
-  it("无参数时 properties 应为空对象", () => {
-    const def = catToolToToolDefinition({
-      name: "ping",
-      description: "连通性测试",
-      params: [],
-      grants: [],
-      requires: [],
-    });
-
-    expect(def.parameters).toEqual({
-      type: "object",
-      properties: {},
-    });
-  });
-
-  it("多个 required 参数应全部出现在 required 数组中", () => {
-    const def = catToolToToolDefinition({
-      name: "test",
-      description: "测试",
-      params: [
-        { name: "a", type: "string", required: true, description: "参数a" },
-        { name: "b", type: "number", required: true, description: "参数b" },
-        { name: "c", type: "boolean", required: false, description: "参数c" },
-      ],
-      grants: [],
-      requires: [],
-    });
-
-    expect((def.parameters as any).required).toEqual(["a", "b"]);
-  });
-
-  it("enum 参数应在 JSON Schema 中包含 enum 字段", () => {
-    const def = catToolToToolDefinition({
-      name: "test",
-      description: "测试",
-      params: [{ name: "color", type: "string", required: false, description: "颜色", enum: ["red", "green", "blue"] }],
-      grants: [],
-      requires: [],
-    });
-
-    const props = (def.parameters as any).properties;
-    expect(props.color.enum).toEqual(["red", "green", "blue"]);
-  });
-});
-
-describe("prefixToolDefinition", () => {
-  it("应给工具名添加前缀", () => {
-    const def = catToolToToolDefinition({
-      name: "price-check",
-      description: "查询价格",
-      params: [{ name: "url", type: "string", required: true, description: "目标URL" }],
-      grants: [],
-      requires: [],
-    });
-
-    const prefixed = prefixToolDefinition("taobao", def);
-
-    expect(prefixed.name).toBe("taobao__price-check");
-    expect(prefixed.description).toBe("查询价格");
-    expect(prefixed.parameters).toEqual(def.parameters);
-  });
-
-  it("不应修改原始 ToolDefinition", () => {
-    const def = catToolToToolDefinition({
-      name: "my-tool",
-      description: "测试",
-      params: [],
-      grants: [],
-      requires: [],
-    });
-
-    prefixToolDefinition("skill-a", def);
-
-    // 原始对象不变
-    expect(def.name).toBe("my-tool");
-  });
-
-  it("双下划线分隔应避免命名冲突", () => {
-    const def1 = catToolToToolDefinition({ name: "extract", description: "A", params: [], grants: [], requires: [] });
-    const def2 = catToolToToolDefinition({ name: "extract", description: "B", params: [], grants: [], requires: [] });
-
-    const p1 = prefixToolDefinition("skill-a", def1);
-    const p2 = prefixToolDefinition("skill-b", def2);
-
-    expect(p1.name).toBe("skill-a__extract");
-    expect(p2.name).toBe("skill-b__extract");
-    expect(p1.name).not.toBe(p2.name);
-  });
-});
-
-describe("getCATToolBody", () => {
+describe("getSkillScriptBody", () => {
   it("应正确去掉元数据头返回脚本体", () => {
     const code = `// ==CATTool==
 // @name test
 // ==/CATTool==
 const x = 1;
 return x;`;
-    const body = getCATToolBody(code);
+    const body = getSkillScriptBody(code);
     expect(body).toBe("const x = 1;\nreturn x;");
   });
 
   it("无元数据头时应返回原始代码", () => {
     const code = `const x = 1;\nreturn x;`;
-    const body = getCATToolBody(code);
+    const body = getSkillScriptBody(code);
     expect(body).toBe("const x = 1;\nreturn x;");
   });
 
@@ -468,7 +341,7 @@ return x;`;
 const result = await GM.xmlHttpRequest({url: "http://example.com/" + args.city});
 const data = JSON.parse(result.responseText);
 return data;`;
-    const body = getCATToolBody(code);
+    const body = getSkillScriptBody(code);
     expect(body).toContain("const result = await GM.xmlHttpRequest");
     expect(body).toContain("return data;");
     expect(body).not.toContain("==CATTool==");

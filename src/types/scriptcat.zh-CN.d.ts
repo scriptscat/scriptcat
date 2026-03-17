@@ -800,7 +800,7 @@ declare namespace GMTypes {
 
 // ===========================================================================
 // CAT.agent — ScriptCat Agent API
-// @grant CAT.agent.conversation / CAT.agent.tools / CAT.agent.dom /
+// @grant CAT.agent.conversation / CAT.agent.dom /
 //        CAT.agent.task / CAT.agent.skills
 // ===========================================================================
 
@@ -1037,72 +1037,6 @@ declare namespace CATAgent {
 
     /** 根据 ID 获取已有对话。未找到时返回 `null`。 */
     get(id: string): Promise<ConversationInstance | null>;
-  }
-}
-
-// ---- CAT.agent.tools — CATTool 管理 API ----
-
-/** CATTool 管理类型 — 安装、卸载、列出和调用 CATTool。 */
-declare namespace CATAgentTools {
-  /** CATTool 的参数定义。 */
-  interface CATToolParam {
-    /** 参数名称。 */
-    name: string;
-    /** 参数类型。 */
-    type: "string" | "number" | "boolean";
-    /** 是否必填。 */
-    required: boolean;
-    /** 参数描述。 */
-    description: string;
-    /** 允许的值（用于枚举参数）。 */
-    enum?: string[];
-  }
-
-  /** 持久化的 CATTool 记录。 */
-  interface CATToolRecord {
-    /** 内部 UUID。 */
-    id: string;
-    /** 工具名称（来自 `@name` 元数据）。 */
-    name: string;
-    /** 工具描述。 */
-    description: string;
-    /** 参数定义列表。 */
-    params: CATToolParam[];
-    /** 所需的 GM 权限。 */
-    grants: string[];
-    /** `@require` URL 列表。 */
-    requires?: string[];
-    /** 完整源代码（含元数据头）。 */
-    code: string;
-    /** 安装此工具的脚本 UUID。 */
-    sourceScriptUuid?: string;
-    /** 安装此工具的脚本名称。 */
-    sourceScriptName?: string;
-    /** 安装时间戳。 */
-    installtime: number;
-    /** 最后更新时间戳。 */
-    updatetime: number;
-  }
-
-  /** CATTool 摘要（不含源代码）。由 `list()` 返回。 */
-  type CATToolSummary = Omit<CATToolRecord, "code">;
-
-  /**
-   * `CAT.agent.tools` — 管理和调用 CATTool。
-   * @grant CAT.agent.tools
-   */
-  interface ToolsAPI {
-    /** 从源代码安装 CATTool。 */
-    install(code: string): Promise<CATToolRecord>;
-
-    /** 按名称卸载 CATTool。 */
-    remove(name: string): Promise<boolean>;
-
-    /** 列出所有已安装的 CATTool（不含源代码）。 */
-    list(): Promise<CATToolSummary[]>;
-
-    /** 按名称调用 CATTool，可传入参数。 */
-    call(name: string, params?: Record<string, unknown>): Promise<unknown>;
   }
 }
 
@@ -1492,6 +1426,9 @@ declare namespace CATAgentSkills {
 
     /** 根据名称卸载 Skill。 */
     remove(name: string): Promise<boolean>;
+
+    /** 按 Skill 名称和脚本名称调用 Skill 脚本，可传入参数。 */
+    call(skillName: string, scriptName: string, params?: Record<string, unknown>): Promise<unknown>;
   }
 }
 
@@ -1505,8 +1442,6 @@ declare const CAT: {
   agent: {
     /** @grant CAT.agent.conversation */
     conversation: CATAgent.ConversationAPI;
-    /** @grant CAT.agent.tools */
-    tools: CATAgentTools.ToolsAPI;
     /** @grant CAT.agent.dom */
     dom: CATAgentDom.DomAPI;
     /** @grant CAT.agent.task */

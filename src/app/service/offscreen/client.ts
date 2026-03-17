@@ -37,8 +37,8 @@ export function createObjectURL(msgSender: MessageSend, params: { blob: Blob; pe
   return sendMessage(msgSender, "offscreen/createObjectURL", params);
 }
 
-// 执行 CATTool
-export function executeCATTool(
+// 执行 Skill Script
+export function executeSkillScript(
   msgSender: MessageSend,
   params: {
     uuid: string;
@@ -50,7 +50,7 @@ export function executeCATTool(
     configValues?: Record<string, unknown>;
   }
 ) {
-  return sendMessage(msgSender, "offscreen/executeCATTool", params);
+  return sendMessage(msgSender, "offscreen/executeSkillScript", params);
 }
 
 export class VscodeConnectClient extends Client {

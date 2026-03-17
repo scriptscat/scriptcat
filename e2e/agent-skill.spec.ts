@@ -7,10 +7,7 @@ const SKILL_MD = `---
 name: greeting-skill
 description: A skill for greeting people
 ---
-You are a greeting assistant. Use the greeting tool to greet people.
-
-## Available Tools
-- **greeting-skill__say_hello**: Greet a person by name
+You are a greeting assistant. Use execute_skill_script to run the say_hello script.
 `;
 
 const SAY_HELLO_CODE = `
@@ -26,7 +23,11 @@ return "Hello, " + args.name + "! Welcome!";
 test.describe("Agent Skill System", () => {
   test.setTimeout(300_000);
 
-  test("Skill install + load_skill + dynamic CATTool invocation", async ({ context, extensionId, mockLLMResponse }) => {
+  test("Skill install + load_skill + execute_skill_script invocation", async ({
+    context,
+    extensionId,
+    mockLLMResponse,
+  }) => {
     let callCount = 0;
     mockLLMResponse(({ tools: _tools }) => {
       callCount++;
@@ -41,13 +42,12 @@ test.describe("Agent Skill System", () => {
         ]);
       }
       if (callCount === 2) {
-        // Second call: after skill loaded, LLM calls the dynamic CATTool
-        // The tool should now be registered as greeting-skill__say_hello
+        // Second call: after skill loaded, LLM calls execute_skill_script
         return makeToolCallSSE([
           {
             id: "call_greet",
-            name: "greeting-skill__say_hello",
-            arguments: JSON.stringify({ name: "World" }),
+            name: "execute_skill_script",
+            arguments: JSON.stringify({ skill: "greeting-skill", script: "say_hello", params: { name: "World" } }),
           },
         ]);
       }
@@ -62,7 +62,7 @@ test.describe("Agent Skill System", () => {
 // @name         Agent Skill Test
 // @namespace    https://e2e.test
 // @version      1.0.0
-// @description  Test Skill install + load_skill + dynamic CATTool
+// @description  Test Skill install + load_skill + execute_skill_script
 // @author       E2E
 // @match        ${TARGET_URL}*
 // @grant        CAT.agent.skills
@@ -81,8 +81,7 @@ test.describe("Agent Skill System", () => {
     const skillMd = ${escapedSkillMd};
     const toolCode = ${escapedToolCode};
 
-    // Install the skill with its CATTool script
-    // CAT.agent.skills.install(skillMd, scripts?, references?)
+    // Install the skill with its script
     const skillRecord = await CAT.agent.skills.install(
       skillMd,
       [{ name: "say_hello.js", code: toolCode }]
@@ -103,7 +102,7 @@ test.describe("Agent Skill System", () => {
     });
     assert("conversation created", !!conv && !!conv.id);
 
-    // Chat — mock will trigger load_skill → then say_hello CATTool → final text
+    // Chat — mock will trigger load_skill → then execute_skill_script → final text
     const reply = await conv.chat("Please greet World");
     console.log("Reply: " + reply.content);
     assert("reply has content", !!reply.content);

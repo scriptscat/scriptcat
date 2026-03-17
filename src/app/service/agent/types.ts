@@ -205,7 +205,7 @@ export type SkillConfigField = {
 export type SkillSummary = {
   name: string;
   description: string;
-  toolNames: string[]; // 随 Skill 打包的 CATTool 名称（scripts/ 目录下）
+  toolNames: string[]; // 随 Skill 打包的脚本名称（scripts/ 目录下）
   referenceNames: string[]; // 参考资料名称（references/ 目录下）
   hasConfig?: boolean; // 是否有 config 字段声明
   installtime: number;
@@ -242,11 +242,12 @@ export type SkillApiRequest =
       references?: Array<{ name: string; content: string }>;
       scriptUuid: string;
     }
-  | { action: "remove"; name: string; scriptUuid: string };
+  | { action: "remove"; name: string; scriptUuid: string }
+  | { action: "call"; skillName: string; scriptName: string; params?: Record<string, unknown>; scriptUuid: string };
 
-// ---- CATTool 类型 ----
+// ---- Skill Script 类型 ----
 
-export type CATToolParam = {
+export type SkillScriptParam = {
   name: string;
   type: "string" | "number" | "boolean";
   required: boolean;
@@ -254,21 +255,21 @@ export type CATToolParam = {
   enum?: string[];
 };
 
-export type CATToolMetadata = {
+export type SkillScriptMetadata = {
   name: string;
   description: string;
-  params: CATToolParam[];
+  params: SkillScriptParam[];
   grants: string[];
   requires: string[];
   timeout?: number; // 自定义超时时间（秒）
 };
 
-// OPFS 中存储的 CATTool 记录
-export type CATToolRecord = {
+// OPFS 中存储的 Skill Script 记录
+export type SkillScriptRecord = {
   id: string; // UUID，用于 OPFS data 文件名，避免 name 转文件名时的碰撞
   name: string;
   description: string;
-  params: CATToolParam[];
+  params: SkillScriptParam[];
   grants: string[];
   requires?: string[]; // @require URL 列表
   timeout?: number; // 自定义超时时间（秒）
@@ -278,13 +279,6 @@ export type CATToolRecord = {
   installtime: number;
   updatetime: number;
 };
-
-// CAT.agent.tools API 请求
-export type CATToolApiRequest =
-  | { action: "install"; code: string; scriptUuid: string }
-  | { action: "remove"; name: string; scriptUuid: string }
-  | { action: "list"; scriptUuid: string }
-  | { action: "call"; name: string; params: Record<string, unknown>; scriptUuid: string };
 
 // ---- CAT.agent.dom 类型 ----
 

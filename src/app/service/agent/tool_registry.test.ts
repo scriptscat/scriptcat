@@ -356,7 +356,7 @@ describe("ToolRegistry", () => {
       registry.setChatRepo(mockRepo);
 
       const structuredResult: ToolResultWithAttachments = {
-        content: "CATTool generated file.",
+        content: "Skill script generated file.",
         attachments: [{ type: "file", name: "output.zip", mimeType: "application/zip", data: "base64zipdata" }],
       };
 
@@ -364,7 +364,7 @@ describe("ToolRegistry", () => {
 
       const results = await registry.execute([{ id: "tc_1", name: "script_tool", arguments: "{}" }], scriptCallback);
 
-      expect(results[0].result).toBe("CATTool generated file.");
+      expect(results[0].result).toBe("Skill script generated file.");
       expect(results[0].attachments).toHaveLength(1);
       expect(results[0].attachments![0].name).toBe("output.zip");
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);

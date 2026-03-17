@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button, Space, Tag, Typography } from "@arco-design/web-react";
 import { IconDown, IconUp } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import { parseCATToolMetadata } from "@App/pkg/utils/cattool";
+import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import type { SkillConfigField } from "@App/app/service/agent/types";
 
 interface SkillInstallViewProps {
@@ -92,7 +92,7 @@ function SkillInstallView({
                 <Typography.Text bold>{`${t("agent_skills_tools")} (${scripts.length}):`}</Typography.Text>
                 <div className="tw-mt-1 tw-flex tw-flex-col tw-gap-y-2">
                   {scripts.map((script) => {
-                    const toolMeta = parseCATToolMetadata(script.code);
+                    const toolMeta = parseSkillScriptMetadata(script.code);
                     return (
                       <div key={script.name} className="tw-p-3 tw-rounded-lg tw-bg-[var(--color-fill-1)]">
                         <div className="tw-flex tw-items-center tw-gap-2 tw-mb-1">

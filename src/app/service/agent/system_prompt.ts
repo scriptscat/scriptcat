@@ -15,7 +15,7 @@ const BUILTIN_SYSTEM_PROMPT = `You are ScriptCat Agent, an AI assistant built in
 
 ## Tool Usage
 
-Your tools come from Skills, CATTools, and MCP servers. Read each tool's description before calling — it defines behavior, parameters, and constraints. When a tool returns an error, read the error message and adapt — do not blindly retry.
+Your tools come from Skills and MCP servers. Read each tool's description before calling — it defines behavior, parameters, and constraints. When a tool returns an error, read the error message and adapt — do not blindly retry.
 
 ### Loop Detection
 Detect when you are stuck and stop early:
@@ -49,12 +49,12 @@ export const SKILL_SUFFIX_HEADER = `---
 
 # Available Skills
 
-Skills extend your capabilities with specialized tools and workflows. **You must call \`load_skill\` before using any skill** — this loads the skill's detailed instructions and registers its tools.
+Skills extend your capabilities with specialized workflows and scripts. **You must call \`load_skill\` before using any skill** — this loads the skill's detailed instructions and lists its available scripts.
 
 Rules:
 - Only load skills that are relevant to the current task.
 - After loading, follow the skill's instructions carefully — they override general guidelines for that domain.
-- Skill tools are registered with a prefix: \`skillname__toolname\`. Call them directly after loading.
+- Use \`execute_skill_script\` to run a skill's scripts. Pass the skill name, script name, and parameters.
 - If a skill has reference documents, use \`read_reference\` to access them when needed.
 
 Installed skills:

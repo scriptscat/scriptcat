@@ -1,4 +1,4 @@
-import type { CATToolRecord, SkillRecord, SkillReference, SkillSummary } from "@App/app/service/agent/types";
+import type { SkillScriptRecord, SkillRecord, SkillReference, SkillSummary } from "@App/app/service/agent/types";
 import { OPFSRepo } from "./opfs_repo";
 
 const REGISTRY_FILE = "registry.json";
@@ -11,7 +11,7 @@ const CONFIG_VALUES_FILE = "config_values.json";
 // agents/skills/registry.json — SkillSummary[]
 // agents/skills/data/{sanitized_name}/
 //   skill.json — SkillRecord
-//   scripts/{toolname}.json — CATToolRecord
+//   scripts/{toolname}.json — SkillScriptRecord
 //   references/{name}.json — { name, content }
 export class SkillRepo extends OPFSRepo {
   constructor() {
@@ -50,7 +50,7 @@ export class SkillRepo extends OPFSRepo {
     return this.readJsonFile<SkillRecord | null>("skill.json", null, skillDir);
   }
 
-  async saveSkill(record: SkillRecord, scripts?: CATToolRecord[], references?: SkillReference[]): Promise<void> {
+  async saveSkill(record: SkillRecord, scripts?: SkillScriptRecord[], references?: SkillReference[]): Promise<void> {
     const skillDir = await this.getSkillDir(record.name);
 
     // 写 skill.json
@@ -115,14 +115,14 @@ export class SkillRepo extends OPFSRepo {
     return true;
   }
 
-  async getSkillScripts(name: string): Promise<CATToolRecord[]> {
+  async getSkillScripts(name: string): Promise<SkillScriptRecord[]> {
     try {
       const scriptsDir = await this.getChildDir(`${DATA_DIR}/${SkillRepo.sanitizeName(name)}/${SCRIPTS_DIR}`);
       const files = await this.listFiles(scriptsDir);
-      const records: CATToolRecord[] = [];
+      const records: SkillScriptRecord[] = [];
       for (const file of files) {
         if (!file.endsWith(".json")) continue;
-        const record = await this.readJsonFile<CATToolRecord | null>(file, null, scriptsDir);
+        const record = await this.readJsonFile<SkillScriptRecord | null>(file, null, scriptsDir);
         if (record) records.push(record);
       }
       return records;

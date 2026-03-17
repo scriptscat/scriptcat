@@ -111,13 +111,7 @@ describe.concurrent("GM API 注册完整性", () => {
 
   it.concurrent("Agent 相关 API 应全部注册", () => {
     // 确保 Agent 相关的 GM API 不会因 import 遗漏而丢失
-    const agentApis = [
-      "CAT_agentConversation",
-      "CAT_agentConversationChat",
-      "CAT_agentTools",
-      "CAT_agentSkills",
-      "CAT_agentDom",
-    ];
+    const agentApis = ["CAT_agentConversation", "CAT_agentConversationChat", "CAT_agentSkills", "CAT_agentDom"];
     for (const name of agentApis) {
       expect(PermissionVerifyApiGet(name), `${name} 应已注册`).toBeDefined();
     }

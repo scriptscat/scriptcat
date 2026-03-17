@@ -29,10 +29,10 @@ import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
 import { BrowserNoSupport, notificationsUpdate } from "../utils";
 import {
-  getCATToolGrantsByUuid,
-  getCATToolNameByUuid,
-  CATTOOL_UUID_PREFIX,
-} from "@App/app/service/agent/cattool_executor";
+  getSkillScriptGrantsByUuid,
+  getSkillScriptNameByUuid,
+  SKILL_SCRIPT_UUID_PREFIX,
+} from "@App/app/service/agent/skill_script_executor";
 import i18n from "@App/locales/locales";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { createObjectURL } from "../../offscreen/client";
@@ -55,8 +55,6 @@ import type { AgentService } from "../agent";
 // 注意：不能使用 import "./gm_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
 import GMAgentApi from "./gm_agent";
 void GMAgentApi;
-import GMAgentToolsApi from "./gm_agent_tools";
-void GMAgentToolsApi;
 import GMAgentSkillsApi from "./gm_agent_skills";
 void GMAgentSkillsApi;
 import GMAgentDomApi from "./gm_agent_dom";
@@ -296,14 +294,14 @@ export default class GMApi {
   // 解析请求
   async parseRequest<T>(data: MessageRequest<T>): Promise<GMApiRequest<T>> {
     let script;
-    if (data.uuid.startsWith(CATTOOL_UUID_PREFIX)) {
-      // CATTool GM API 调用：构造虚拟 Script 对象（CATTool 不在 ScriptDAO 中）
-      // 直接从 UUID map 获取 grants，避免查 repo（skill 的 CATTool 不在 catToolRepo 中）
-      const grants = getCATToolGrantsByUuid(data.uuid);
-      const toolName = getCATToolNameByUuid(data.uuid);
+    if (data.uuid.startsWith(SKILL_SCRIPT_UUID_PREFIX)) {
+      // Skill Script GM API 调用：构造虚拟 Script 对象（Skill Script 不在 ScriptDAO 中）
+      // 直接从 UUID map 获取 grants，避免查 repo（skill 的 Skill Script 不在 skillScriptRepo 中）
+      const grants = getSkillScriptGrantsByUuid(data.uuid);
+      const toolName = getSkillScriptNameByUuid(data.uuid);
       // 使用基于工具名的稳定标识符，使权限缓存在多次执行间有效
       // 每次执行生成新的临时 UUID，但权限应绑定到工具本身而非单次执行
-      const stableUuid = CATTOOL_UUID_PREFIX + toolName;
+      const stableUuid = SKILL_SCRIPT_UUID_PREFIX + toolName;
       script = {
         uuid: stableUuid,
         name: toolName || data.uuid,
@@ -322,8 +320,8 @@ export default class GMApi {
         throw new Error("script is not found");
       }
     }
-    // CATTool 使用稳定标识符覆盖 uuid，确保权限 DB 查询/保存也用同一个标识符
-    const uuid = data.uuid.startsWith(CATTOOL_UUID_PREFIX) ? script.uuid : data.uuid;
+    // Skill Script 使用稳定标识符覆盖 uuid，确保权限 DB 查询/保存也用同一个标识符
+    const uuid = data.uuid.startsWith(SKILL_SCRIPT_UUID_PREFIX) ? script.uuid : data.uuid;
     return { ...data, uuid, script } as GMApiRequest<T>;
   }
 

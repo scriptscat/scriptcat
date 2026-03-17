@@ -1,39 +1,39 @@
 import type { MessageSend } from "@Packages/message/types";
-import type { CATToolRecord, JsonValue } from "./types";
+import type { SkillScriptRecord, JsonValue } from "./types";
 import type { ToolExecutor } from "./tool_registry";
-import { getCATToolBody } from "@App/pkg/utils/cattool";
-import { executeCATTool } from "@App/app/service/offscreen/client";
+import { getSkillScriptBody } from "@App/pkg/utils/skill_script";
+import { executeSkillScript } from "@App/app/service/offscreen/client";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
-// CATTool UUID 前缀，用于在 GM API 请求中识别 CATTool
-export const CATTOOL_UUID_PREFIX = "cattool-";
+// Skill Script UUID 前缀，用于在 GM API 请求中识别 Skill Script
+export const SKILL_SCRIPT_UUID_PREFIX = "cattool-";
 
-// CATTool 默认超时（ms）
-const CATTOOL_DEFAULT_TIMEOUT_MS = 30_000;
+// Skill Script 默认超时（ms）
+const SKILL_SCRIPT_DEFAULT_TIMEOUT_MS = 30_000;
 
-// 全局的 CATTool UUID → 工具信息映射，供 GM API 权限验证时使用
-// 直接携带 grants，避免运行时再查 repo（skill 的 CATTool 不在 catToolRepo 中）
-// 注意：此 Map 在 SW 重启后会丢失，但 CATTool 执行是单次 request-response，
+// 全局的 Skill Script UUID → 工具信息映射，供 GM API 权限验证时使用
+// 直接携带 grants，避免运行时再查 repo（skill 的 Skill Script 不在 skillScriptRepo 中）
+// 注意：此 Map 在 SW 重启后会丢失，但 Skill Script 执行是单次 request-response，
 // SW 重启会同时中断消息通道，所以映射丢失不会导致额外问题
-const cattoolUuidMap = new Map<string, { name: string; grants: string[] }>();
+const skillScriptUuidMap = new Map<string, { name: string; grants: string[] }>();
 
-// 根据 CATTool UUID 获取工具名
-export function getCATToolNameByUuid(uuid: string): string {
-  return cattoolUuidMap.get(uuid)?.name || "";
+// 根据 Skill Script UUID 获取工具名
+export function getSkillScriptNameByUuid(uuid: string): string {
+  return skillScriptUuidMap.get(uuid)?.name || "";
 }
 
-// 根据 CATTool UUID 直接获取 grants（用于 GM API 权限验证）
-export function getCATToolGrantsByUuid(uuid: string): string[] {
-  return cattoolUuidMap.get(uuid)?.grants || [];
+// 根据 Skill Script UUID 直接获取 grants（用于 GM API 权限验证）
+export function getSkillScriptGrantsByUuid(uuid: string): string[] {
+  return skillScriptUuidMap.get(uuid)?.grants || [];
 }
 
 // require 资源加载器类型：根据 URL 返回资源内容
 export type RequireLoader = (url: string) => Promise<string | undefined>;
 
-// CATTool 执行器，通过 Offscreen -> Sandbox 执行 CATTool 脚本
-export class CATToolExecutor implements ToolExecutor {
+// Skill Script 执行器，通过 Offscreen -> Sandbox 执行 Skill Script 脚本
+export class SkillScriptExecutor implements ToolExecutor {
   constructor(
-    private record: CATToolRecord,
+    private record: SkillScriptRecord,
     private sender: MessageSend,
     private requireLoader?: RequireLoader,
     private configValues?: Record<string, unknown>
@@ -58,8 +58,8 @@ export class CATToolExecutor implements ToolExecutor {
     }
 
     // 在 service worker 端生成 UUID 并注册映射
-    const uuid = CATTOOL_UUID_PREFIX + uuidv4();
-    cattoolUuidMap.set(uuid, { name: this.record.name, grants: this.record.grants });
+    const uuid = SKILL_SCRIPT_UUID_PREFIX + uuidv4();
+    skillScriptUuidMap.set(uuid, { name: this.record.name, grants: this.record.grants });
 
     // 加载 @require 资源内容
     let requires: Array<{ url: string; content: string }> | undefined;
@@ -76,11 +76,11 @@ export class CATToolExecutor implements ToolExecutor {
       }
     }
 
-    const code = getCATToolBody(this.record.code);
-    const timeoutMs = this.record.timeout ? this.record.timeout * 1000 : CATTOOL_DEFAULT_TIMEOUT_MS;
+    const code = getSkillScriptBody(this.record.code);
+    const timeoutMs = this.record.timeout ? this.record.timeout * 1000 : SKILL_SCRIPT_DEFAULT_TIMEOUT_MS;
     const timeoutSec = timeoutMs / 1000;
     try {
-      const execPromise = executeCATTool(this.sender, {
+      const execPromise = executeSkillScript(this.sender, {
         uuid,
         code,
         args: typedArgs,
@@ -93,7 +93,7 @@ export class CATToolExecutor implements ToolExecutor {
         setTimeout(
           () =>
             reject(
-              Object.assign(new Error(`CATTool "${this.record.name}" timed out after ${timeoutSec}s`), {
+              Object.assign(new Error(`SkillScript "${this.record.name}" timed out after ${timeoutSec}s`), {
                 errorCode: "tool_timeout",
               })
             ),
@@ -103,7 +103,7 @@ export class CATToolExecutor implements ToolExecutor {
       return await Promise.race([execPromise, timeoutPromise]);
     } finally {
       // 执行完毕后清理映射
-      cattoolUuidMap.delete(uuid);
+      skillScriptUuidMap.delete(uuid);
     }
   }
 }

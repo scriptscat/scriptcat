@@ -47,7 +47,7 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
-import { parseCATToolMetadata } from "@App/pkg/utils/cattool";
+import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -912,8 +912,8 @@ export class ScriptService {
         logger?.error("prepare script failed", Logger.E(e));
       }
     }
-    // 检测是否为 CATTool
-    const cattoolMeta = parseCATToolMetadata(code);
+    // 检测是否为 SkillScript
+    const cattoolMeta = parseSkillScriptMetadata(code);
     if (cattoolMeta) {
       const si = [
         false,

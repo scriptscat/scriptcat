@@ -20,7 +20,7 @@ import type {
   SkillSummary,
   SkillRecord,
   SkillReference,
-  CATToolRecord,
+  SkillScriptRecord,
   SkillConfigField,
 } from "@App/app/service/agent/types";
 import { SkillRepo } from "@App/app/repo/skill_repo";
@@ -126,7 +126,7 @@ function ToolCodeModal({
   t,
 }: {
   visible: boolean;
-  tool: CATToolRecord | null;
+  tool: SkillScriptRecord | null;
   onClose: () => void;
   t: (key: string) => string;
 }) {
@@ -319,10 +319,10 @@ function SkillDetailModal({
   t: (key: string) => string;
 }) {
   const [prompt, setPrompt] = useState("");
-  const [scripts, setScripts] = useState<CATToolRecord[]>([]);
+  const [scripts, setScripts] = useState<SkillScriptRecord[]>([]);
   const [references, setReferences] = useState<SkillReference[]>([]);
   const [saving, setSaving] = useState(false);
-  const [viewingTool, setViewingTool] = useState<CATToolRecord | null>(null);
+  const [viewingTool, setViewingTool] = useState<SkillScriptRecord | null>(null);
 
   useEffect(() => {
     if (skill) {

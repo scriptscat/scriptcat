@@ -3,7 +3,10 @@ import GMContext from "./gm_context";
 
 // 运行时 this 是 GM_Base 实例
 interface GMBaseContext {
-  sendMessage: (api: string, params: SkillApiRequest[]) => Promise<SkillSummary[] | SkillRecord | null | boolean>;
+  sendMessage: (
+    api: string,
+    params: SkillApiRequest[]
+  ) => Promise<SkillSummary[] | SkillRecord | null | boolean | unknown>;
   scriptRes?: { uuid: string };
 }
 
@@ -14,7 +17,7 @@ export default class CATAgentSkillsApi {
   protected sendMessage!: (
     api: string,
     params: SkillApiRequest[]
-  ) => Promise<SkillSummary[] | SkillRecord | null | boolean>;
+  ) => Promise<SkillSummary[] | SkillRecord | null | boolean | unknown>;
 
   @GMContext.protected()
   protected scriptRes?: { uuid: string };
@@ -59,5 +62,23 @@ export default class CATAgentSkillsApi {
     return ctx.sendMessage("CAT_agentSkills", [
       { action: "remove", name, scriptUuid: ctx.scriptRes?.uuid || "" } as SkillApiRequest,
     ]) as Promise<boolean>;
+  }
+
+  @GMContext.API({ follow: "CAT.agent.skills" })
+  public "CAT.agent.skills.call"(
+    skillName: string,
+    scriptName: string,
+    params?: Record<string, unknown>
+  ): Promise<unknown> {
+    const ctx = this as unknown as GMBaseContext;
+    return ctx.sendMessage("CAT_agentSkills", [
+      {
+        action: "call",
+        skillName,
+        scriptName,
+        params,
+        scriptUuid: ctx.scriptRes?.uuid || "",
+      } as SkillApiRequest,
+    ]);
   }
 }

@@ -8,7 +8,6 @@ const compatMap = {
   CAT_unregisterMenuInput: [{ type: "scriptcat", versionConstraint: ">=0.17.0-beta.2" }],
   CAT_scriptLoaded: [{ type: "scriptcat", versionConstraint: ">=1.1.0-beta" }],
   "CAT.agent.conversation": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
-  "CAT.agent.tools": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   "CAT.agent.skills": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   "CAT.agent.dom": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],
   "CAT.agent.task": [{ type: "scriptcat", versionConstraint: ">=1.4.0-beta" }],

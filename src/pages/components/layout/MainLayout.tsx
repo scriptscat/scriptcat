@@ -34,7 +34,7 @@ import i18n, { matchLanguage } from "@App/locales/locales";
 import "./index.css";
 import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode, parseMetadata } from "@App/pkg/utils/script";
-import { parseCATToolMetadata } from "@App/pkg/utils/cattool";
+import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 
@@ -250,10 +250,10 @@ const MainLayout: React.FC<{
               // 先尝试 UserScript 解析
               const metadata = parseMetadata(code);
               if (metadata) return prepareScriptByCode(code, `file:///*resp-check*/${file.name}`);
-              // 再尝试 CATTool 解析
-              const cattoolMeta = parseCATToolMetadata(code);
-              if (cattoolMeta) return { script: {} as any };
-              throw new Error("not a valid UserScript or CATTool");
+              // 再尝试 SkillScript 解析
+              const skillScriptMeta = parseSkillScriptMetadata(code);
+              if (skillScriptMeta) return { script: {} as any };
+              throw new Error("not a valid UserScript or SkillScript");
             }),
             simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),
           ]);

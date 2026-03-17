@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import JSZip from "jszip";
 import { parseSkillMd, parseSkillZip } from "./skill";
-import { parseCATToolMetadata } from "./cattool";
+import { parseSkillScriptMetadata } from "./skill_script";
 
 // 辅助函数：创建测试用 ZIP ArrayBuffer
 async function createTestZip(files: Record<string, string>): Promise<ArrayBuffer> {
@@ -367,7 +367,7 @@ description: 淘宝购物助手
     expect(parsed!.prompt).toContain("淘宝购物助手");
   });
 
-  it("ZIP 中的 CATTool 脚本可被 parseCATToolMetadata 正确解析", async () => {
+  it("ZIP 中的 Skill Script 脚本可被 parseSkillScriptMetadata 正确解析", async () => {
     const zipData = await createTestZip({
       "SKILL.md": `---\nname: tool-skill\ndescription: test\n---\nPrompt.`,
       "scripts/taobao_extract.js": VALID_CATTOOL_CODE,
@@ -375,9 +375,9 @@ description: 淘宝购物助手
 
     const zipResult = await parseSkillZip(zipData);
 
-    // 验证脚本可被 CATTool 解析器识别
+    // 验证脚本可被 SkillScript 解析器识别
     expect(zipResult.scripts).toHaveLength(1);
-    const toolMeta = parseCATToolMetadata(zipResult.scripts[0].code);
+    const toolMeta = parseSkillScriptMetadata(zipResult.scripts[0].code);
     expect(toolMeta).not.toBeNull();
     expect(toolMeta!.name).toBe("taobao_extract");
     expect(toolMeta!.description).toBe("提取淘宝页面数据");
@@ -429,9 +429,9 @@ description: 淘宝购物助手
     expect(parsed).not.toBeNull();
     expect(parsed!.metadata.name).toBe("nested-skill");
 
-    // Step 2: CATTool 正确
+    // Step 2: SkillScript 正确
     expect(zipResult.scripts).toHaveLength(1);
-    const toolMeta = parseCATToolMetadata(zipResult.scripts[0].code);
+    const toolMeta = parseSkillScriptMetadata(zipResult.scripts[0].code);
     expect(toolMeta).not.toBeNull();
     expect(toolMeta!.name).toBe("taobao_extract");
 

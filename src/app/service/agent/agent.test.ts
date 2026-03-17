@@ -650,9 +650,8 @@ function createTestService() {
     getDefaultModelId: vi.fn().mockResolvedValue("test-openai"),
   };
 
-  // 替换 repo 和 catToolRepo（避免 OPFS 调用）
+  // 替换 repo（避免 OPFS 调用）
   (service as any).repo = mockRepo;
-  (service as any).catToolRepo = { listTools: vi.fn().mockResolvedValue([]) };
 
   const toolRegistry = (service as any).toolRegistry as ToolRegistry;
 

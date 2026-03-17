@@ -12,7 +12,7 @@ import type GMApi from "./gm_api";
 // 写操作（install/remove）每次都需弹窗确认
 const agentConfirm: ApiParamConfirmFn = async (request: GMApiRequest, _sender: IGetSender, gmApi: GMApi) => {
   const skillsReq = request.params[0] as SkillApiRequest;
-  const isWrite = skillsReq.action === "install" || skillsReq.action === "remove";
+  const isWrite = skillsReq.action === "install" || skillsReq.action === "remove" || skillsReq.action === "call";
 
   if (isWrite) {
     // 写操作：仅查询 DB 中的持久化授权，跳过缓存

@@ -10,14 +10,12 @@ import type {
   Conversation,
   ToolCall,
   ToolDefinition,
-  CATToolApiRequest,
-  CATToolRecord,
-  JsonValue,
   DomApiRequest,
   SkillApiRequest,
   SkillMetadata,
   SkillRecord,
   SkillSummary,
+  SkillScriptRecord,
   MessageContent,
   AgentTask,
   AgentTaskApiRequest,
@@ -27,22 +25,19 @@ import type {
   MCPApiRequest,
   ContentBlock,
 } from "@App/app/service/agent/types";
-import type { Script } from "@App/app/repo/scripts";
-import { i18nName } from "@App/locales/locales";
 import { getTextContent, isContentBlocks } from "@App/app/service/agent/content_utils";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { AgentModelRepo } from "@App/app/repo/agent_model";
-import { CATToolRepo, type CATToolSummary } from "@App/app/repo/cattool_repo";
 import { SkillRepo } from "@App/app/repo/skill_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/tool_registry";
 import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/tool_registry";
-import { parseCATToolMetadata, catToolToToolDefinition, prefixToolDefinition } from "@App/pkg/utils/cattool";
+import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
-import { CATToolExecutor } from "@App/app/service/agent/cattool_executor";
-import { CACHE_KEY_CATTOOL_INSTALL, CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
+import { SkillScriptExecutor } from "@App/app/service/agent/skill_script_executor";
+import { CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
 import { buildSystemPrompt, SKILL_SUFFIX_HEADER } from "@App/app/service/agent/system_prompt";
 import { cacheInstance } from "@App/app/cache";
 import { AgentDomService } from "./agent_dom";
@@ -53,9 +48,6 @@ import { AgentTaskScheduler } from "@App/app/service/agent/task_scheduler";
 import { InfoNotification } from "./utils";
 import { nextTimeInfo } from "@App/pkg/utils/cron";
 import { sendMessage } from "@Packages/message/client";
-
-// 安装超时时间：5 分钟
-const CATTOOL_INSTALL_TIMEOUT = 5 * 60 * 1000;
 
 // 判断是否可重试（429 / 5xx / 网络错误，不含 4xx 客户端错误）
 export function isRetryableError(e: Error): boolean {
@@ -113,22 +105,10 @@ export function classifyErrorCode(e: Error): string {
 
 export class AgentService {
   private repo = new AgentChatRepo();
-  private catToolRepo = new CATToolRepo();
   private skillRepo = new SkillRepo();
   private toolRegistry = new ToolRegistry();
   // 已加载的 Skill 缓存
   private skillCache = new Map<string, SkillRecord>();
-  // 待确认的 CATTool 安装请求
-  private pendingInstalls = new Map<
-    string,
-    {
-      resolve: (record: CATToolRecord) => void;
-      reject: (error: Error) => void;
-      tabId: number;
-      timer: ReturnType<typeof setTimeout>;
-      onTabRemoved: (tabId: number) => void;
-    }
-  >();
 
   private modelRepo = new AgentModelRepo();
   private domService = new AgentDomService();
@@ -157,13 +137,6 @@ export class AgentService {
     this.group.on("conversation", this.handleConversation.bind(this));
     // 流式聊天（UI 和 Sandbox 共用）
     this.group.on("conversationChat", this.handleConversationChat.bind(this));
-    // 通过 install page 安装 CATTool（文件/URL 安装，无来源脚本）
-    this.group.on("installCATTool", (code: string) => this.installCATTool(code));
-    // CATTool 安装页面相关消息
-    this.group.on("getCATToolInstallCode", (uuid: string) => this.getCATToolInstallCode(uuid));
-    this.group.on("completeCATToolInstall", (uuid: string) => this.completeCATToolInstall(uuid));
-    this.group.on("cancelCATToolInstall", (uuid: string) => this.cancelCATToolInstall(uuid));
-    this.group.on("removeCATTool", (name: string) => this.removeCATTool(name));
     // Skill 管理（供 Options UI 调用）
     this.group.on(
       "installSkill",
@@ -203,8 +176,6 @@ export class AgentService {
       (task) => this.emitTaskEvent(task)
     );
     this.taskScheduler.init();
-    // 加载已安装的 CATTools
-    this.loadCATTools();
     // 加载已安装的 Skills
     this.loadSkills();
   }
@@ -222,223 +193,6 @@ export class AgentService {
       const res = await rs.getResource("cattool-require", url, "require", false);
       return res?.content as string | undefined;
     };
-  }
-
-  // 从 OPFS 加载所有 CATTool 并注册到 ToolRegistry
-  private async loadCATTools() {
-    try {
-      const summaries = await this.catToolRepo.listTools();
-      for (const summary of summaries) {
-        // 读取完整记录（含 code），CATToolExecutor 需要 code 执行
-        const tool = await this.catToolRepo.getTool(summary.name);
-        if (!tool) continue;
-        const def = catToolToToolDefinition({
-          name: tool.name,
-          description: tool.description,
-          params: tool.params,
-          grants: tool.grants,
-          requires: tool.requires || [],
-        });
-        this.toolRegistry.registerBuiltin(def, new CATToolExecutor(tool, this.sender, this.createRequireLoader()));
-      }
-    } catch {
-      // OPFS 可能在 SW 环境不可用，静默忽略
-    }
-  }
-
-  // 安装 CATTool
-  async installCATTool(code: string, sourceScriptUuid?: string, sourceScriptName?: string): Promise<CATToolRecord> {
-    const metadata = parseCATToolMetadata(code);
-    if (!metadata) {
-      throw new Error("Invalid CATTool: missing or malformed ==CATTool== header");
-    }
-
-    // 下载并缓存 @require 资源
-    if (metadata.requires.length > 0 && this.resourceService) {
-      const dummyUuid = "cattool-require";
-      await Promise.all(
-        metadata.requires.map((url) => this.resourceService!.getResource(dummyUuid, url, "require", true))
-      );
-    }
-
-    const now = Date.now();
-    const existing = await this.catToolRepo.getTool(metadata.name);
-    const record: CATToolRecord = {
-      id: existing?.id || uuidv4(),
-      name: metadata.name,
-      description: metadata.description,
-      params: metadata.params,
-      grants: metadata.grants,
-      requires: metadata.requires.length > 0 ? metadata.requires : undefined,
-      timeout: metadata.timeout,
-      code,
-      sourceScriptUuid: sourceScriptUuid || existing?.sourceScriptUuid,
-      sourceScriptName: sourceScriptName || existing?.sourceScriptName,
-      installtime: existing?.installtime || now,
-      updatetime: now,
-    };
-
-    await this.catToolRepo.saveTool(record);
-
-    // 注册/更新到 ToolRegistry
-    const def = catToolToToolDefinition(metadata);
-    this.toolRegistry.unregisterBuiltin(metadata.name);
-    this.toolRegistry.registerBuiltin(def, new CATToolExecutor(record, this.sender, this.createRequireLoader()));
-
-    return record;
-  }
-
-  // 卸载 CATTool
-  async removeCATTool(name: string): Promise<boolean> {
-    const removed = await this.catToolRepo.removeTool(name);
-    if (removed) {
-      this.toolRegistry.unregisterBuiltin(name);
-    }
-    return removed;
-  }
-
-  // 根据名称获取 CATTool 的 grants（供 GM API 权限验证使用）
-  async getCATToolGrants(name: string): Promise<string[]> {
-    const tool = await this.catToolRepo.getTool(name);
-    return tool?.grants || [];
-  }
-
-  // 直接调用 CATTool
-  async callCATTool(name: string, params: Record<string, unknown>): Promise<JsonValue> {
-    const tool = await this.catToolRepo.getTool(name);
-    if (!tool) {
-      throw new Error(`CATTool "${name}" not found`);
-    }
-    const executor = new CATToolExecutor(tool, this.sender, this.createRequireLoader());
-    return executor.execute(params);
-  }
-
-  // 打开安装页面让用户确认安装 CATTool
-  async openCATToolInstallPage(code: string, scriptUuid?: string, scriptName?: string): Promise<CATToolRecord> {
-    const uuid = uuidv4();
-    // 缓存代码和来源信息到 session storage
-    await cacheInstance.set(CACHE_KEY_CATTOOL_INSTALL + uuid, { code, scriptUuid, scriptName });
-    // 打开安装页面
-    const tab = await chrome.tabs.create({
-      url: `/src/install.html?cattool=${uuid}`,
-    });
-    if (!tab.id) {
-      await cacheInstance.del(CACHE_KEY_CATTOOL_INSTALL + uuid);
-      throw new Error("Failed to create install tab");
-    }
-    const tabId = tab.id;
-
-    return new Promise<CATToolRecord>((resolve, reject) => {
-      // 超时处理
-      const timer = setTimeout(() => {
-        this.cleanupPendingInstall(uuid);
-        reject(new Error("CATTool install timed out"));
-      }, CATTOOL_INSTALL_TIMEOUT);
-
-      // 监听 tab 关闭作为取消的 fallback
-      const onTabRemoved = (removedTabId: number) => {
-        if (removedTabId === tabId && this.pendingInstalls.has(uuid)) {
-          this.cleanupPendingInstall(uuid);
-          reject(new Error("CATTool install cancelled by user"));
-        }
-      };
-      chrome.tabs.onRemoved.addListener(onTabRemoved);
-
-      this.pendingInstalls.set(uuid, { resolve, reject, tabId, timer, onTabRemoved });
-    });
-  }
-
-  // 供安装页面获取缓存的 CATTool 安装信息
-  async getCATToolInstallCode(uuid: string): Promise<{
-    code: string;
-    scriptName?: string;
-    isUpdate?: boolean;
-  }> {
-    const cached = await cacheInstance.get<{ code: string; scriptUuid?: string; scriptName?: string }>(
-      CACHE_KEY_CATTOOL_INSTALL + uuid
-    );
-    if (!cached) {
-      throw new Error("CATTool install code not found or expired");
-    }
-    // 检查同名工具是否已存在
-    const metadata = parseCATToolMetadata(cached.code);
-    let isUpdate = false;
-    if (metadata) {
-      const existing = await this.catToolRepo.getTool(metadata.name);
-      if (existing) {
-        isUpdate = true;
-      }
-    }
-    return {
-      code: cached.code,
-      scriptName: cached.scriptName,
-      isUpdate,
-    };
-  }
-
-  // 安装页面通知安装完成
-  async completeCATToolInstall(uuid: string): Promise<void> {
-    const pending = this.pendingInstalls.get(uuid);
-    if (!pending) {
-      return;
-    }
-    try {
-      const cached = await cacheInstance.get<{ code: string; scriptUuid?: string; scriptName?: string }>(
-        CACHE_KEY_CATTOOL_INSTALL + uuid
-      );
-      if (!cached) {
-        throw new Error("CATTool install code not found or expired");
-      }
-      const record = await this.installCATTool(cached.code, cached.scriptUuid, cached.scriptName);
-      pending.resolve(record);
-    } catch (e: any) {
-      pending.reject(e);
-    } finally {
-      this.cleanupPendingInstall(uuid);
-    }
-  }
-
-  // 安装页面通知取消
-  async cancelCATToolInstall(uuid: string): Promise<void> {
-    const pending = this.pendingInstalls.get(uuid);
-    if (!pending) {
-      return;
-    }
-    try {
-      pending.reject(new Error("CATTool install cancelled by user"));
-    } finally {
-      await this.cleanupPendingInstall(uuid);
-    }
-  }
-
-  // 清理待确认安装的状态
-  private async cleanupPendingInstall(uuid: string) {
-    const pending = this.pendingInstalls.get(uuid);
-    if (pending) {
-      clearTimeout(pending.timer);
-      chrome.tabs.onRemoved.removeListener(pending.onTabRemoved);
-      this.pendingInstalls.delete(uuid);
-    }
-    await cacheInstance.del(CACHE_KEY_CATTOOL_INSTALL + uuid);
-  }
-
-  // 处理 CAT.agent.tools API 请求
-  async handleToolsApi(
-    request: CATToolApiRequest,
-    script?: Script
-  ): Promise<CATToolRecord | boolean | CATToolSummary[] | JsonValue> {
-    switch (request.action) {
-      case "install":
-        return this.openCATToolInstallPage(request.code, script?.uuid, script ? i18nName(script) : undefined);
-      case "remove":
-        return this.removeCATTool(request.name);
-      case "list":
-        return this.catToolRepo.listTools();
-      case "call":
-        return this.callCATTool(request.name, request.params);
-      default:
-        throw new Error(`Unknown tools action: ${(request as any).action}`);
-    }
   }
 
   // ---- Skill 管理 ----
@@ -469,14 +223,14 @@ export class AgentService {
       throw new Error("Invalid SKILL.md: missing or malformed frontmatter");
     }
 
-    // 解析 CATTool 脚本
-    const toolRecords: CATToolRecord[] = [];
+    // 解析 SkillScript 脚本
+    const toolRecords: SkillScriptRecord[] = [];
     const toolNames: string[] = [];
     if (scripts) {
       for (const script of scripts) {
-        const metadata = parseCATToolMetadata(script.code);
+        const metadata = parseSkillScriptMetadata(script.code);
         if (!metadata) {
-          throw new Error(`Invalid CATTool script "${script.name}": missing ==CATTool== header`);
+          throw new Error(`Invalid SkillScript "${script.name}": missing ==CATTool== header`);
         }
         // 下载并缓存 @require 资源
         if (metadata.requires.length > 0 && this.resourceService) {
@@ -603,7 +357,7 @@ export class AgentService {
   }
 
   // 处理 CAT.agent.skills API 请求
-  async handleSkillsApi(request: SkillApiRequest): Promise<SkillSummary[] | SkillRecord | null | boolean> {
+  async handleSkillsApi(request: SkillApiRequest): Promise<SkillSummary[] | SkillRecord | null | boolean | unknown> {
     switch (request.action) {
       case "list":
         return this.skillRepo.listSkills();
@@ -613,21 +367,34 @@ export class AgentService {
         return this.installSkill(request.skillMd, request.scripts, request.references);
       case "remove":
         return this.removeSkill(request.name);
+      case "call": {
+        const { skillName, scriptName, params } = request;
+        const skillRecord = await this.skillRepo.getSkill(skillName);
+        if (!skillRecord) {
+          throw new Error(`Skill "${skillName}" not found`);
+        }
+        const scripts = await this.skillRepo.getSkillScripts(skillName);
+        const script = scripts.find((s) => s.name === scriptName);
+        if (!script) {
+          throw new Error(`Script "${scriptName}" not found in skill "${skillName}"`);
+        }
+        const configValues = skillRecord.config ? await this.skillRepo.getConfigValues(skillName) : undefined;
+        const executor = new SkillScriptExecutor(script, this.sender, this.createRequireLoader(), configValues);
+        return executor.execute(params || {});
+      }
       default:
         throw new Error(`Unknown skills action: ${(request as any).action}`);
     }
   }
 
   // 解析对话关联的 skills，返回 system prompt 附加内容和 meta-tool 定义
-  // 两层渐进加载：1) system prompt 只注入摘要 2) load_skill 按需加载完整提示词并动态注册 CATTool
+  // 两层渐进加载：1) system prompt 只注入摘要 2) load_skill 按需加载完整提示词及脚本描述
   private resolveSkills(skills?: "auto" | string[]): {
     promptSuffix: string;
     metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>;
-    // load_skill 动态注册的工具名引用，对话结束后需清理
-    dynamicToolNames: string[];
   } {
     if (!skills) {
-      return { promptSuffix: "", metaTools: [], dynamicToolNames: [] };
+      return { promptSuffix: "", metaTools: [] };
     }
 
     // 确定要加载的 skill 列表
@@ -639,7 +406,7 @@ export class AgentService {
     }
 
     if (skillRecords.length === 0) {
-      return { promptSuffix: "", metaTools: [], dynamicToolNames: [] };
+      return { promptSuffix: "", metaTools: [] };
     }
 
     // 构建 prompt 后缀：只包含 name + description 摘要
@@ -649,7 +416,7 @@ export class AgentService {
     let hasReferences = false;
 
     for (const skill of skillRecords) {
-      const toolHint = skill.toolNames.length > 0 ? ` (tools: ${skill.toolNames.join(", ")})` : "";
+      const toolHint = skill.toolNames.length > 0 ? ` (scripts: ${skill.toolNames.join(", ")})` : "";
       const refHint = skill.referenceNames.length > 0 ? ` [has references]` : "";
       promptParts.push(`- **${skill.name}**: ${skill.description || "(no description)"}${toolHint}${refHint}`);
       if (skill.referenceNames.length > 0) hasReferences = true;
@@ -658,9 +425,7 @@ export class AgentService {
     // 构建 meta-tools
     const metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> = [];
 
-    // load_skill 动态注册的工具名，对话结束后需清理
-    const dynamicToolNames: string[] = [];
-    // 已加载的 skill 名，避免重复加载和重复注册工具
+    // 已加载的 skill 名，避免重复加载
     const loadedSkills = new Set<string>();
 
     // load_skill — 始终注册
@@ -668,7 +433,7 @@ export class AgentService {
       definition: {
         name: "load_skill",
         description:
-          "Load a skill's full instructions and register its tools. MUST be called before using any skill. Returns the skill's detailed prompt; the skill's CATTools become callable as `skillname__toolname`.",
+          "Load a skill's full instructions. MUST be called before using any skill. Returns the skill's detailed prompt and a description of available scripts that can be executed via `execute_skill_script`.",
         parameters: {
           type: "object",
           properties: {
@@ -684,33 +449,70 @@ export class AgentService {
           if (!record) {
             throw new Error(`Skill "${skillName}" not found`);
           }
-          // 已加载过则直接返回 prompt，跳过工具注册
           if (loadedSkills.has(skillName)) {
             return record.prompt;
           }
           loadedSkills.add(skillName);
-          // 动态注册该 skill 的 CATTool 为独立 LLM tool
+          // 拼接脚本描述到 prompt（供 LLM 了解可用脚本及参数）
+          let prompt = record.prompt;
           if (record.toolNames.length > 0) {
             const toolRecords = await this.skillRepo.getSkillScripts(skillName);
-            // 读取 skill 的用户配置值（如 API Key 等），注入到每个 CATTool 执行器
-            const configValues = record.config ? await this.skillRepo.getConfigValues(skillName) : undefined;
-            for (const tool of toolRecords) {
-              const def = catToolToToolDefinition({
-                name: tool.name,
-                description: tool.description,
-                params: tool.params,
-                grants: tool.grants,
-                requires: tool.requires || [],
-              });
-              const prefixed = prefixToolDefinition(skillName, def);
-              this.toolRegistry.registerBuiltin(
-                prefixed,
-                new CATToolExecutor(tool, this.sender, this.createRequireLoader(), configValues)
-              );
-              dynamicToolNames.push(prefixed.name);
+            if (toolRecords.length > 0) {
+              prompt += "\n\n## Available Scripts\n\nUse `execute_skill_script` to run these scripts:\n";
+              for (const tool of toolRecords) {
+                prompt += `\n### ${tool.name}\n${tool.description}\n`;
+                if (tool.params.length > 0) {
+                  prompt += "\nParameters:\n";
+                  for (const p of tool.params) {
+                    const req = p.required ? " (required)" : "";
+                    const enumStr = p.enum ? ` [${p.enum.join(", ")}]` : "";
+                    prompt += `- \`${p.name}\` (${p.type}${enumStr})${req}: ${p.description}\n`;
+                  }
+                }
+              }
             }
           }
-          return record.prompt;
+          return prompt;
+        },
+      },
+    });
+
+    // execute_skill_script — 始终注册
+    metaTools.push({
+      definition: {
+        name: "execute_skill_script",
+        description: "Execute a script belonging to a loaded skill. The skill must be loaded first via `load_skill`.",
+        parameters: {
+          type: "object",
+          properties: {
+            skill: { type: "string", description: "Name of the skill that owns the script" },
+            script: { type: "string", description: "Name of the script to execute" },
+            params: {
+              type: "object",
+              description: "Parameters to pass to the script (as defined in the script's metadata)",
+            },
+          },
+          required: ["skill", "script"],
+        },
+      },
+      executor: {
+        execute: async (args: Record<string, unknown>) => {
+          const skillName = args.skill as string;
+          const scriptName = args.script as string;
+          const params = (args.params || {}) as Record<string, unknown>;
+          if (!loadedSkills.has(skillName)) {
+            throw new Error(`Skill "${skillName}" is not loaded. Call load_skill first.`);
+          }
+          const toolRecords = await this.skillRepo.getSkillScripts(skillName);
+          const scriptRecord = toolRecords.find((t) => t.name === scriptName);
+          if (!scriptRecord) {
+            throw new Error(`Script "${scriptName}" not found in skill "${skillName}"`);
+          }
+          const configValues = this.skillCache.get(skillName)?.config
+            ? await this.skillRepo.getConfigValues(skillName)
+            : undefined;
+          const executor = new SkillScriptExecutor(scriptRecord, this.sender, this.createRequireLoader(), configValues);
+          return executor.execute(params);
         },
       },
     });
@@ -745,7 +547,7 @@ export class AgentService {
       });
     }
 
-    return { promptSuffix: promptParts.join("\n"), metaTools, dynamicToolNames };
+    return { promptSuffix: promptParts.join("\n"), metaTools };
   }
 
   // 获取模型配置
@@ -865,7 +667,7 @@ export class AgentService {
     const model = await this.getModel(task.modelId);
 
     // 解析 Skills
-    const { promptSuffix, metaTools, dynamicToolNames } = this.resolveSkills(task.skills);
+    const { promptSuffix, metaTools } = this.resolveSkills(task.skills);
 
     // 临时注册 skill meta-tools
     const registeredMetaToolNames: string[] = [];
@@ -983,11 +785,8 @@ export class AgentService {
 
       return { conversationId, usage: totalUsage };
     } finally {
-      // 清理临时注册的工具
+      // 清理临时注册的 meta-tools
       for (const name of registeredMetaToolNames) {
-        this.toolRegistry.unregisterBuiltin(name);
-      }
-      for (const name of dynamicToolNames) {
         this.toolRegistry.unregisterBuiltin(name);
       }
     }
@@ -1469,13 +1268,11 @@ export class AgentService {
 
       // 解析 Skills（注入 prompt + 注册 meta-tools），仅在启用 tools 时执行
       let promptSuffix = "";
-      let dynamicToolNames: string[] = [];
       const registeredMetaToolNames: string[] = [];
       let metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> = [];
       if (enableTools) {
         const resolved = this.resolveSkills(conv.skills);
         promptSuffix = resolved.promptSuffix;
-        dynamicToolNames = resolved.dynamicToolNames;
         metaTools = resolved.metaTools;
 
         // 临时注册 skill meta-tools（对话结束后清理）
@@ -1575,11 +1372,8 @@ export class AgentService {
           skipBuiltinTools: !enableTools,
         });
       } finally {
-        // 清理临时注册的 meta-tools 和 load_skill 动态注册的 CATTool
+        // 清理临时注册的 meta-tools
         for (const name of registeredMetaToolNames) {
-          this.toolRegistry.unregisterBuiltin(name);
-        }
-        for (const name of dynamicToolNames) {
           this.toolRegistry.unregisterBuiltin(name);
         }
       }

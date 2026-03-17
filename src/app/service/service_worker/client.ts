@@ -335,26 +335,6 @@ export class AgentClient extends Client {
     super(msgSender, "serviceWorker/agent");
   }
 
-  installCATTool(code: string): Promise<unknown> {
-    return this.do("installCATTool", code);
-  }
-
-  getCATToolInstallCode(uuid: string): Promise<{ code: string; scriptName?: string; isUpdate?: boolean }> {
-    return this.doThrow("getCATToolInstallCode", uuid);
-  }
-
-  completeCATToolInstall(uuid: string): Promise<void> {
-    return this.do("completeCATToolInstall", uuid);
-  }
-
-  cancelCATToolInstall(uuid: string): Promise<void> {
-    return this.do("cancelCATToolInstall", uuid);
-  }
-
-  removeCATTool(name: string): Promise<boolean> {
-    return this.doThrow("removeCATTool", name);
-  }
-
   installSkill(params: {
     skillMd: string;
     scripts?: Array<{ name: string; code: string }>;

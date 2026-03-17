@@ -1,6 +1,6 @@
 import { parseMetadata } from "@App/pkg/utils/script";
 import { detectEncoding, bytesDecode } from "@App/pkg/utils/encoding";
-import { parseCATToolMetadata } from "@App/pkg/utils/cattool";
+import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
@@ -97,10 +97,10 @@ export const fetchScriptBody = async (url: string, { onProgress }: { [key: strin
   }
 
   const metadata = parseMetadata(code);
-  // 如果不是 UserScript，检测是否为 CATTool
+  // 如果不是 UserScript，检测是否为 SkillScript
   if (!metadata) {
-    const cattoolMeta = parseCATToolMetadata(code);
-    if (cattoolMeta) {
+    const skillScriptMeta = parseSkillScriptMetadata(code);
+    if (skillScriptMeta) {
       return { code, metadata: {} as SCMetadata, cattool: true };
     }
     throw new Error("parse script info failed");
