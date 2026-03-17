@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { compileScriptCode, compileScript, compileInjectScript, addStyle, addStyleSheet } from "./utils";
+import {
+  compileScriptCode,
+  compileScript,
+  compileInjectScript,
+  compileScriptletCode,
+  isScriptletUnwrap,
+  addStyle,
+  addStyleSheet,
+} from "./utils";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
+import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 // 设置 console mock 来避免测试输出污染
 vi.spyOn(console, "error").mockImplementation(() => {});
@@ -516,6 +525,140 @@ describe("utils", () => {
 
       expect(returnedSheet).toBe(lastSheet);
       expect((returnedSheet as any).cssText).toBe(css);
+    });
+  });
+
+  describe.concurrent("isScriptletUnwrap", () => {
+    it.concurrent("@unwrap 为空值时返回 true", () => {
+      expect(isScriptletUnwrap({ unwrap: [""] })).toBe(true);
+    });
+
+    it.concurrent("@unwrap 为 true 时返回 true", () => {
+      expect(isScriptletUnwrap({ unwrap: ["true"] })).toBe(true);
+    });
+
+    it.concurrent("没有 @unwrap 时返回 false", () => {
+      expect(isScriptletUnwrap({})).toBe(false);
+    });
+
+    it.concurrent("@unwrap 为 false 时返回 false", () => {
+      expect(isScriptletUnwrap({ unwrap: ["false"] })).toBe(false);
+    });
+  });
+
+  describe.concurrent("compileScriptletCode", () => {
+    const createMockScriptRes = (
+      overrides: Partial<ScriptRunResource> = {},
+      scriptUrlPatterns: URLRuleEntry[] = []
+    ): { scriptRes: ScriptRunResource; scriptUrlPatterns: URLRuleEntry[] } => ({
+      scriptRes: {
+        uuid: "test-uuid",
+        name: "Unwrap Script",
+        namespace: "test.namespace",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "console.log('unwrap');",
+        value: {},
+        flag: "test-flag",
+        resource: {},
+        metadata: { unwrap: [""] },
+        originalMetadata: {},
+        ...overrides,
+      },
+      scriptUrlPatterns,
+    });
+
+    it.concurrent("应该正确编译基本 unwrap 脚本", () => {
+      const patterns: URLRuleEntry[] = [
+        {
+          ruleType: RuleType.MATCH_INCLUDE,
+          ruleContent: ["https", "example.com", "*"],
+          ruleTag: "match",
+          patternString: "https://example.com/*",
+        },
+      ];
+      const { scriptRes } = createMockScriptRes({}, patterns);
+
+      const result = compileScriptletCode(scriptRes, scriptRes.code, patterns);
+
+      // 包含脚本代码
+      expect(result).toContain("console.log('unwrap');");
+      // 包含 sourceURL
+      expect(result).toContain("sourceURL=");
+      expect(chrome.runtime.getURL).toHaveBeenCalledWith("/Unwrap%20Script.user.js");
+      // 包含 flag 注册
+      expect(result).toContain("window['test-flag']=function(){};");
+      // 包含 URL 条件包裹 (if(...){...})
+      expect(result).toMatch(/^if\(/);
+      // 不包含沙箱封装
+      expect(result).not.toContain("with(arguments[0]||this.$)");
+      expect(result).not.toContain("return(async function(){");
+    });
+
+    it.concurrent("应该包含 require 资源", () => {
+      const patterns: URLRuleEntry[] = [
+        {
+          ruleType: RuleType.MATCH_INCLUDE,
+          ruleContent: ["*", "example.com", "*"],
+          ruleTag: "match",
+          patternString: "*://example.com/*",
+        },
+      ];
+      const { scriptRes } = createMockScriptRes(
+        {
+          metadata: {
+            unwrap: [""],
+            require: ["https://cdn.example.com/lib.js"],
+          },
+          resource: {
+            "https://cdn.example.com/lib.js": {
+              url: "https://cdn.example.com/lib.js",
+              content: "var libLoaded = true;",
+              base64: "",
+              hash: { md5: "t", sha1: "t", sha256: "t", sha384: "t", sha512: "t" },
+              type: "require",
+              link: {},
+              contentType: "text/javascript",
+              createtime: Date.now(),
+            },
+          },
+        },
+        patterns
+      );
+
+      const result = compileScriptletCode(scriptRes, scriptRes.code, patterns);
+
+      expect(result).toContain("var libLoaded = true;");
+      expect(result).toContain("console.log('unwrap');");
+    });
+
+    it.concurrent("应该包含 URL 条件检查代码", () => {
+      const patterns: URLRuleEntry[] = [
+        {
+          ruleType: RuleType.MATCH_INCLUDE,
+          ruleContent: ["https", "example.com", "*"],
+          ruleTag: "match",
+          patternString: "https://example.com/*",
+        },
+        {
+          ruleType: RuleType.MATCH_EXCLUDE,
+          ruleContent: ["https", "example.com", "admin/*"],
+          ruleTag: "match",
+          patternString: "https://example.com/admin/*",
+        },
+      ];
+      const { scriptRes } = createMockScriptRes({}, patterns);
+
+      const result = compileScriptletCode(scriptRes, scriptRes.code, patterns);
+
+      // 生成的代码应包含 embeddedPatternChecker 调用
+      expect(result).toContain("location.href");
+      // if 条件包裹
+      expect(result).toMatch(/^if\(/);
     });
   });
 });

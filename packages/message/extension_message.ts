@@ -1,4 +1,8 @@
+import EventEmitter from "eventemitter3";
 import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage, TMessageCommAction } from "./types";
+import { uuidv4 } from "@App/pkg/utils/uuid";
+
+const listenerMgr = new EventEmitter<string, any>(); // 单一管理器
 
 export class ExtensionMessage implements Message {
   constructor(private backgroundPrimary = false) {}
@@ -19,8 +23,6 @@ export class ExtensionMessage implements Message {
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.runtime.sendMessage:", lastError);
           // 通信API出错不回继续对话
-          resolve = null;
-          return;
         }
         resolve!(resp);
         resolve = null;
@@ -146,25 +148,75 @@ export class ExtensionMessage implements Message {
 }
 
 export class ExtensionMessageConnect implements MessageConnect {
-  constructor(private con: chrome.runtime.Port) {}
+  private readonly listenerId = `${uuidv4()}`; // 使用 uuidv4 确保唯一
+  private con: chrome.runtime.Port | null;
+  private isSelfDisconnected = false;
+
+  constructor(con: chrome.runtime.Port) {
+    this.con = con; // 强引用
+    const handler = (msg: TMessage, _con: chrome.runtime.Port) => {
+      listenerMgr.emit(`onMessage:${this.listenerId}`, msg);
+    };
+    const cleanup = (con: chrome.runtime.Port) => {
+      if (this.con) {
+        this.con = null;
+        listenerMgr.removeAllListeners(`cleanup:${this.listenerId}`);
+        con.onMessage.removeListener(handler);
+        con.onDisconnect.removeListener(cleanup);
+        listenerMgr.emit(`onDisconnect:${this.listenerId}`, this.isSelfDisconnected);
+        listenerMgr.removeAllListeners(`onDisconnect:${this.listenerId}`);
+        listenerMgr.removeAllListeners(`onMessage:${this.listenerId}`);
+      }
+    };
+    con.onMessage.addListener(handler);
+    con.onDisconnect.addListener(cleanup);
+    listenerMgr.once(`cleanup:${this.listenerId}`, cleanup);
+  }
 
   sendMessage(data: TMessage) {
-    this.con.postMessage(data);
+    if (!this.con) {
+      console.warn("Attempted to sendMessage on a disconnected port.");
+      // 無法 sendMessage 不应该屏蔽错误
+      throw new Error("Attempted to sendMessage on a disconnected port.");
+    }
+    this.con?.postMessage(data);
   }
 
   onMessage(callback: (data: TMessage) => void) {
-    this.con.onMessage.addListener(callback);
+    if (!this.con) {
+      console.error("onMessage Invalid Port");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onMessage Invalid Port");
+    }
+    listenerMgr.addListener(`onMessage:${this.listenerId}`, callback);
   }
 
   disconnect() {
-    this.con.disconnect();
+    if (!this.con) {
+      console.warn("Attempted to disconnect on a disconnected port.");
+      // 重复 disconnect() 不应该屏蔽错误
+      throw new Error("Attempted to disconnect on a disconnected port.");
+    }
+    this.isSelfDisconnected = true;
+    this.con?.disconnect();
+    // Note: .disconnect() will NOT automatically trigger the 'cleanup' listener
+    listenerMgr.emit(`cleanup:${this.listenerId}`);
   }
 
-  onDisconnect(callback: () => void) {
-    this.con.onDisconnect.addListener(callback);
+  onDisconnect(callback: (isSelfDisconnected: boolean) => void) {
+    if (!this.con) {
+      console.error("onDisconnect Invalid Port");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onDisconnect Invalid Port");
+    }
+    listenerMgr.once(`onDisconnect:${this.listenerId}`, callback);
   }
 
   getPort(): chrome.runtime.Port {
+    if (!this.con) {
+      console.error("Port is already disconnected.");
+      throw new Error("Port is already disconnected.");
+    }
     return this.con;
   }
 }

@@ -273,15 +273,15 @@ export function forwardMessage(
   senderTo: MessageSend,
   middleware?: ApiFunctionSync
 ) {
-  const handler = (params: any, fromCon: IGetSender) => {
-    const fromConnect = fromCon.getConnect();
+  const handler = async (params: any, fromCon: IGetSender): Promise<any> => {
+    const fromConnect: MessageConnect | undefined = fromCon.getConnect();
     if (fromConnect) {
-      connect(senderTo, `${prefix}/${path}`, params).then((toCon: MessageConnect) => {
-        fromConnect.onMessage(toCon.sendMessage.bind(toCon));
-        toCon.onMessage(fromConnect.sendMessage.bind(fromConnect));
-        fromConnect.onDisconnect(toCon.disconnect.bind(toCon));
-        toCon.onDisconnect(fromConnect.disconnect.bind(fromConnect));
-      });
+      const toCon: MessageConnect = await connect(senderTo, `${prefix}/${path}`, params);
+      fromConnect.onMessage(toCon.sendMessage.bind(toCon));
+      toCon.onMessage(fromConnect.sendMessage.bind(fromConnect));
+      fromConnect.onDisconnect(toCon.disconnect.bind(toCon));
+      toCon.onDisconnect(fromConnect.disconnect.bind(fromConnect));
+      return undefined;
     } else {
       return sendMessage(senderTo, prefix + "/" + path, params);
     }
