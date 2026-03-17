@@ -519,7 +519,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   };
 };
 
-type EmbeddedURLRuleEntry = Pick<URLRuleEntry, "ruleType" | "ruleContent">;
+export type EmbeddedURLRuleEntry = Pick<URLRuleEntry, "ruleType" | "ruleContent">;
 
 export const embeddedPatternChecker = (
   url: string,
@@ -528,7 +528,7 @@ export const embeddedPatternChecker = (
   isUrlMatchGlob: (s: string, gs: string[]) => boolean,
   isUrlMatchRegEx: (s: string, ruleContent: [string, string]) => boolean
 ): boolean => {
-  // 這個會直接轉換成Function代碼於網頁環境執行。請不要在這裡引入任何外部代碼
+  // 这个会直接转换成Function代码于网页环境执行。请不要在这里引入任何外部代码
   let included = false;
   let excluded = false;
   for (const rule of scriptUrlPatterns) {

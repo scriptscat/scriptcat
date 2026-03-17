@@ -4,7 +4,7 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { sourceMapTo } from "@App/pkg/utils/utils";
 import { ScriptEnvTag } from "@Packages/message/consts";
-import { embeddedPatternCheckerString, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { embeddedPatternCheckerString, EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -83,7 +83,10 @@ export function compileScriptletCode(
   const requireArray = getScriptRequire(scriptRes);
   const requireCode = requireArray.map((r) => r.content).join("\n;");
   // 在window[flag]注册一个空脚本让原本的脚本管理器知道并记录脚本成功执行
-  const reducedPatterns = scriptUrlPatterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+  const reducedPatterns = scriptUrlPatterns.map(({ ruleType, ruleContent }) => ({
+    ruleType,
+    ruleContent,
+  })) satisfies EmbeddedURLRuleEntry[];
   const urlCondition = embeddedPatternCheckerString("location.href", JSON.stringify(reducedPatterns));
   const codeBody = `if(${urlCondition}){\n${requireCode}\n${scriptCode}\nwindow['${scriptRes.flag}']=function(){};\n}`;
   return `${codeBody}${sourceMapTo(`${scriptRes.name}.user.js`)}\n`;
