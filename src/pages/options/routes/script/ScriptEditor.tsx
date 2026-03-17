@@ -333,7 +333,8 @@ function ScriptEditor() {
             setTimeout(e.focus.bind(e), 50);
             if (modalResult === "no") {
               Message.warning(t("save_abort_when_scriptname_conflict"));
-              return Promise.reject(new Error("This script name is already used by another script. Save aborted."));
+              // 用户主动取消，非错误
+              return Promise.reject(new Error("SAVE_CANCELED"));
             }
           }
         }
@@ -378,7 +379,8 @@ function ScriptEditor() {
           setTimeout(e.focus.bind(e), 50);
           if (modalResult === "no") {
             Message.warning(t("save_abort_when_edit_conflict"));
-            return Promise.reject(new Error("The script was edited in another instance. Save Aborted."));
+            // 用户主动取消，非错误
+            return Promise.reject(new Error("SAVE_CANCELED"));
           }
         }
 
@@ -430,11 +432,19 @@ function ScriptEditor() {
             return script;
           })
           .catch((err: any) => {
+            // 用户主动取消保存，不再弹出错误提示
+            if (err instanceof Error && err.message === "SAVE_CANCELED") {
+              return Promise.reject(err);
+            }
             Message.error(`${t("save_failed")}: ${err}`);
             return Promise.reject(err);
           });
       })
       .catch((err) => {
+        // 用户主动取消保存，不再弹出错误提示
+        if (err instanceof Error && err.message === "SAVE_CANCELED") {
+          return Promise.reject(err);
+        }
         Message.error(`${t("invalid_script_code")}: ${err}`);
         return Promise.reject(err);
       });
