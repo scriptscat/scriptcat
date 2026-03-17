@@ -574,7 +574,12 @@ describe("utils", () => {
 
     it.concurrent("应该正确编译基本 unwrap 脚本", () => {
       const patterns: URLRuleEntry[] = [
-        { ruleType: RuleType.MATCH_INCLUDE, ruleContent: ["https", "example.com", "*"], ruleTag: "match", patternString: "https://example.com/*" },
+        {
+          ruleType: RuleType.MATCH_INCLUDE,
+          ruleContent: ["https", "example.com", "*"],
+          ruleTag: "match",
+          patternString: "https://example.com/*",
+        },
       ];
       const { scriptRes } = createMockScriptRes({}, patterns);
 
@@ -596,7 +601,12 @@ describe("utils", () => {
 
     it.concurrent("应该包含 require 资源", () => {
       const patterns: URLRuleEntry[] = [
-        { ruleType: RuleType.MATCH_INCLUDE, ruleContent: ["*", "example.com", "*"], ruleTag: "match", patternString: "*://example.com/*" },
+        {
+          ruleType: RuleType.MATCH_INCLUDE,
+          ruleContent: ["*", "example.com", "*"],
+          ruleTag: "match",
+          patternString: "*://example.com/*",
+        },
       ];
       const { scriptRes } = createMockScriptRes(
         {
@@ -628,8 +638,18 @@ describe("utils", () => {
 
     it.concurrent("应该包含 URL 条件检查代码", () => {
       const patterns: URLRuleEntry[] = [
-        { ruleType: RuleType.MATCH_INCLUDE, ruleContent: ["https", "example.com", "*"], ruleTag: "match", patternString: "https://example.com/*" },
-        { ruleType: RuleType.MATCH_EXCLUDE, ruleContent: ["https", "example.com", "admin/*"], ruleTag: "match", patternString: "https://example.com/admin/*" },
+        {
+          ruleType: RuleType.MATCH_INCLUDE,
+          ruleContent: ["https", "example.com", "*"],
+          ruleTag: "match",
+          patternString: "https://example.com/*",
+        },
+        {
+          ruleType: RuleType.MATCH_EXCLUDE,
+          ruleContent: ["https", "example.com", "admin/*"],
+          ruleTag: "match",
+          patternString: "https://example.com/admin/*",
+        },
       ];
       const { scriptRes } = createMockScriptRes({}, patterns);
 
