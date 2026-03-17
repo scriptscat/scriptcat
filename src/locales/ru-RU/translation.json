@@ -586,6 +586,11 @@
     "maybe_later": "Может быть позже",
     "settings_hint": "Вы можете изменить эту опцию в настройках в любое время."
   },
+  "favicon_service": "Сервис Favicon",
+  "favicon_service_desc": "Выберите сервис для получения значков сайтов",
+  "favicon_service_scriptcat": "ScriptCat",
+  "favicon_service_local": "Локальное получение",
+  "favicon_service_google": "Google",
   "editor": {
     "show_script_list": "Показать список скриптов",
     "hide_script_list": "Скрыть список скриптов"
