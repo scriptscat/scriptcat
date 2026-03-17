@@ -82,11 +82,14 @@ function createMockOPFS() {
   const rootStore = new Map<string, any>();
   const mockRoot = createMockDirHandle(rootStore);
 
-  vi.stubGlobal("navigator", {
-    ...navigator,
-    storage: {
+  // 只 mock navigator.storage，避免展开 navigator 丢失 getter 属性（如 userAgent）
+  // 在 isolate=false 下破坏全局 navigator 会导致后续测试 react-dom 初始化失败
+  Object.defineProperty(navigator, "storage", {
+    value: {
       getDirectory: vi.fn(async () => mockRoot),
     },
+    configurable: true,
+    writable: true,
   });
 
   return { rootStore, mockRoot };

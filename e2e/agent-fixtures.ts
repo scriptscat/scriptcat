@@ -1,6 +1,4 @@
-import fs from "fs";
 import path from "path";
-import os from "os";
 import { test as base, chromium, type BrowserContext, type Route } from "@playwright/test";
 import { installScriptByCode } from "./utils";
 
@@ -76,27 +74,52 @@ export type AgentFixtures = {
 
 export { makeTextSSE, makeToolCallSSE };
 
+/**
+ * Agent test fixtures — 单 context 方案
+ *
+ * 与旧版两阶段方案（启动→关闭→重启）不同，这里在同一个 context 内完成
+ * userScripts 启用和 model 配置写入，避免了 CI 上 profile 持久化不可靠的问题。
+ */
 export const test = base.extend<AgentFixtures>({
   // eslint-disable-next-line no-empty-pattern
   context: async ({}, use) => {
     const pathToExtension = path.resolve(__dirname, "../dist/ext");
-    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-agent-"));
-    const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
-
-    // Phase 1: Enable user scripts permission
-    const ctx1 = await chromium.launchPersistentContext(userDataDir, {
+    const context = await chromium.launchPersistentContext("", {
       headless: false,
-      args: ["--headless=new", ...chromeArgs],
+      args: ["--headless=new", `--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`],
     });
-    let [bg] = ctx1.serviceWorkers();
-    if (!bg) bg = await ctx1.waitForEvent("serviceworker");
+
+    await use(context);
+    await context.close();
+  },
+
+  extensionId: async ({ context }, use) => {
+    // 等待 service worker 启动
+    let [bg] = context.serviceWorkers();
+    if (!bg) bg = await context.waitForEvent("serviceworker");
     const extensionId = bg.url().split("/")[2];
-    const extPage = await ctx1.newPage();
-    await extPage.goto("chrome://extensions/");
-    await extPage.waitForLoadState("domcontentloaded");
-    await extPage.waitForTimeout(1_000);
-    // 预写入 mock model 配置到 storage（在 userScripts 启用之前，SW 仍可用）
-    await bg.evaluate(() => {
+
+    // 在同一 context 内启用 userScripts 权限
+    const setupPage = await context.newPage();
+    await setupPage.goto("chrome://extensions/");
+    await setupPage.waitForLoadState("domcontentloaded");
+    await setupPage.waitForTimeout(1_000);
+    await setupPage.evaluate(async (id) => {
+      await (chrome as any).developerPrivate.updateExtensionConfiguration({
+        extensionId: id,
+        userScriptsAccess: true,
+      });
+    }, extensionId);
+    await setupPage.close();
+
+    // 启用 userScripts 后 SW 可能会重启，重新获取
+    let currentBg = context.serviceWorkers().find((w) => w.url().includes(extensionId));
+    if (!currentBg) {
+      currentBg = await context.waitForEvent("serviceworker", { timeout: 15_000 });
+    }
+
+    // 写入 mock model 配置到 storage
+    await currentBg.evaluate(() => {
       const modelConfig = {
         id: "mock-model",
         name: "Mock LLM",
@@ -116,57 +139,15 @@ export const test = base.extend<AgentFixtures>({
       });
     });
 
-    // 启用 userScripts 权限（会触发扩展重载，SW 可能被终止）
-    await extPage.evaluate(async (id) => {
-      await (chrome as any).developerPrivate.updateExtensionConfiguration({
-        extensionId: id,
-        userScriptsAccess: true,
-      });
-    }, extensionId);
-    await extPage.close();
-    await ctx1.close();
-
-    // Phase 2: Relaunch with user scripts enabled
-    const context = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
-      args: ["--headless=new", ...chromeArgs],
-    });
-
-    // 先注册监听再检查，避免事件在 check 和 listen 之间丢失
-    // 如果 SW 已存在则忽略 promise（防止 dangling promise 在 context 关闭时报错）
-    const swPromise = context.waitForEvent("serviceworker", { timeout: 30_000 }).catch(() => null);
-    let [bg2] = context.serviceWorkers();
-    if (!bg2) bg2 = (await swPromise)!;
-
-    (context as any).__extensionId = extensionId;
-
-    await use(context);
-    await context.close();
-    fs.rmSync(userDataDir, { recursive: true, force: true });
-  },
-
-  extensionId: async ({ context }, use) => {
-    const extensionId: string = (context as any).__extensionId;
-
-    // Dismiss first-use dialog（导航也会唤醒 SW）
-    // 扩展可能还在初始化中，重试导航以应对 ERR_BLOCKED_BY_CLIENT
+    // 关闭首次使用引导
     const initPage = await context.newPage();
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
-        await initPage.goto(`chrome-extension://${extensionId}/src/options.html`, {
-          waitUntil: "domcontentloaded",
-          timeout: 15_000,
-        });
-        break;
-      } catch {
-        if (attempt === 4) throw new Error("Failed to load options page after 5 attempts");
-        await initPage.waitForTimeout(3_000);
-      }
-    }
+    await initPage.goto(`chrome-extension://${extensionId}/src/options.html`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    });
     await initPage.evaluate(() => localStorage.setItem("firstUse", "false"));
     await initPage.close();
 
-    // mock model 已在 Phase 1 预写入 storage，Phase 2 SW 启动时缓存自动包含
     await use(extensionId);
   },
 
