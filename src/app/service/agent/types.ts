@@ -123,6 +123,8 @@ export type AgentModelConfig = {
   model: string;
   maxTokens?: number; // 最大输出 token 数，不设置则由 API 端决定
   availableModels?: string[]; // 缓存从 API 获取的可用模型列表
+  supportsVision?: boolean; // 用户手动标记是否支持视觉输入
+  supportsImageOutput?: boolean; // 用户手动标记是否支持图片输出
 };
 
 // 隐藏 apiKey 的安全版模型配置，暴露给用户脚本

@@ -120,8 +120,9 @@ export function supportsVisionByModelId(modelId: string): boolean {
   return false;
 }
 
-// 检测模型是否支持视觉输入
+// 检测模型是否支持视觉输入（用户手动设置优先于自动检测）
 export function supportsVision(model: AgentModelConfig): boolean {
+  if (model.supportsVision !== undefined) return model.supportsVision;
   return supportsVisionByModelId(model.model);
 }
 
@@ -132,13 +133,16 @@ export function supportsImageOutputByModelId(modelId: string): boolean {
   if (m.includes("gpt-4o") && !m.includes("mini") && !m.includes("audio")) return true;
   // Gemini 2.0 Flash 支持原生图片生成（不含 1.5 等旧版本）
   if (m.includes("gemini-2") && m.includes("flash") && !m.includes("lite")) return true;
+  // Gemini 3+ 带 image 标识的模型支持图片生成
+  if (m.includes("gemini-") && m.includes("image")) return true;
   // DALL-E
   if (m.startsWith("dall-e")) return true;
   return false;
 }
 
-// 检测模型是否支持图片输出
+// 检测模型是否支持图片输出（用户手动设置优先于自动检测）
 export function supportsImageOutput(model: AgentModelConfig): boolean {
+  if (model.supportsImageOutput !== undefined) return model.supportsImageOutput;
   return supportsImageOutputByModelId(model.model);
 }
 

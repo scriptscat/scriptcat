@@ -1,14 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { supportsImageOutputByModelId, supportsImageOutput, supportsVisionByModelId } from "./model_utils";
+import {
+  supportsImageOutputByModelId,
+  supportsImageOutput,
+  supportsVisionByModelId,
+  supportsVision,
+} from "./model_utils";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
 
-const makeModel = (model: string): AgentModelConfig => ({
+const makeModel = (model: string, overrides?: Partial<AgentModelConfig>): AgentModelConfig => ({
   id: "test",
   name: "Test",
   provider: "openai",
   apiBaseUrl: "",
   apiKey: "",
   model,
+  ...overrides,
 });
 
 describe("supportsImageOutputByModelId", () => {
@@ -32,10 +38,16 @@ describe("supportsImageOutputByModelId", () => {
     expect(supportsImageOutputByModelId("gemini-2.0-flash-exp")).toBe(true);
   });
 
-  it.concurrent("Gemini 旧版本和非 2.0 Flash 不应支持图片输出", () => {
+  it.concurrent("Gemini 3+ 带 image 标识的模型应支持图片输出", () => {
+    expect(supportsImageOutputByModelId("gemini-3-pro-image-preview")).toBe(true);
+    expect(supportsImageOutputByModelId("gemini-3.1-flash-image-preview")).toBe(true);
+  });
+
+  it.concurrent("Gemini 旧版本和非图片模型不应支持图片输出", () => {
     expect(supportsImageOutputByModelId("gemini-1.5-pro")).toBe(false);
     expect(supportsImageOutputByModelId("gemini-pro-vision")).toBe(false);
     expect(supportsImageOutputByModelId("gemini-3-flash-preview")).toBe(false);
+    expect(supportsImageOutputByModelId("gemini-3.1-pro-preview")).toBe(false);
     expect(supportsImageOutputByModelId("gemini-2.0-flash-lite")).toBe(false);
   });
 
@@ -75,5 +87,27 @@ describe("supportsVisionByModelId（回归测试）", () => {
     // 同时支持视觉和图片输出
     expect(supportsVisionByModelId("gpt-4o")).toBe(true);
     expect(supportsImageOutputByModelId("gpt-4o")).toBe(true);
+  });
+});
+
+describe("用户手动标记能力优先于自动检测", () => {
+  it.concurrent("supportsVision 应优先使用用户手动设置的值", () => {
+    // 自动检测为 true，用户手动关闭
+    expect(supportsVision(makeModel("gpt-4o", { supportsVision: false }))).toBe(false);
+    // 自动检测为 false，用户手动开启
+    expect(supportsVision(makeModel("deepseek-chat", { supportsVision: true }))).toBe(true);
+    // 未设置时回退到自动检测
+    expect(supportsVision(makeModel("gpt-4o"))).toBe(true);
+    expect(supportsVision(makeModel("deepseek-chat"))).toBe(false);
+  });
+
+  it.concurrent("supportsImageOutput 应优先使用用户手动设置的值", () => {
+    // 自动检测为 true，用户手动关闭
+    expect(supportsImageOutput(makeModel("gpt-4o", { supportsImageOutput: false }))).toBe(false);
+    // 自动检测为 false，用户手动开启
+    expect(supportsImageOutput(makeModel("gemini-3-flash-preview", { supportsImageOutput: true }))).toBe(true);
+    // 未设置时回退到自动检测
+    expect(supportsImageOutput(makeModel("gpt-4o"))).toBe(true);
+    expect(supportsImageOutput(makeModel("gemini-3-flash-preview"))).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import {
   Button,
   Card,
+  Checkbox,
   Empty,
   Input,
   InputNumber,
@@ -501,6 +502,27 @@ function AgentProvider() {
               step={1024}
               onChange={(value) => setEditingModel((prev) => ({ ...prev, maxTokens: value || undefined }))}
             />
+          </div>
+
+          {/* 模型能力 */}
+          <div>
+            <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">
+              {t("agent_model_capabilities")}
+            </div>
+            <div className="tw-flex tw-gap-6">
+              <Checkbox
+                checked={editingModel.supportsVision ?? supportsVisionByModelId(editingModel.model)}
+                onChange={(checked) => setEditingModel((prev) => ({ ...prev, supportsVision: checked }))}
+              >
+                {t("agent_model_supports_vision")}
+              </Checkbox>
+              <Checkbox
+                checked={editingModel.supportsImageOutput ?? supportsImageOutputByModelId(editingModel.model)}
+                onChange={(checked) => setEditingModel((prev) => ({ ...prev, supportsImageOutput: checked }))}
+              >
+                {t("agent_model_supports_image_output")}
+              </Checkbox>
+            </div>
           </div>
 
           {/* 测试连接 */}
