@@ -46,8 +46,9 @@ export function parseMetadata(code: string): SCMetadata | null {
 }
 
 // 从网址取得脚本代码
-export async function fetchScriptBody(url: string): Promise<string> {
+export async function fetchScriptBody(url: string, signal?: AbortSignal): Promise<string> {
   const resp = await fetch(url, {
+    signal,
     headers: {
       "Cache-Control": "no-cache",
     },
