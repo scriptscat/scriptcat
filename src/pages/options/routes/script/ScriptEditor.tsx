@@ -930,7 +930,12 @@ function ScriptEditor() {
                           : editor.isChanged
                             ? "rgb(var(--warning-6))"
                             : "var(--color-text-2)",
-                        backgroundColor: selectedScript === script.uuid ? "var(--color-fill-2)" : "",
+                        backgroundColor:
+                          selectedScript === script.uuid
+                            ? "var(--editor-bg-selected)"
+                            : editor
+                              ? "var(--editor-bg-open)"
+                              : "var(--editor-bg-default)",
                         paddingRight: "32px", // 为删除按钮留出空间
                       }}
                       onClick={() => {
