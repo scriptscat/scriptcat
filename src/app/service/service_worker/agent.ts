@@ -25,6 +25,7 @@ import type {
   Attachment,
   ModelApiRequest,
   MCPApiRequest,
+  ContentBlock,
 } from "@App/app/service/agent/types";
 import type { Script } from "@App/app/repo/scripts";
 import { i18nName } from "@App/locales/locales";
@@ -1166,6 +1167,17 @@ export class AgentService {
         totalUsage.outputTokens += result.usage.outputTokens;
       }
 
+      // 构建 assistant 消息的持久化内容（合并文本和生成的图片 blocks）
+      const buildMessageContent = (): MessageContent => {
+        if (result.contentBlocks && result.contentBlocks.length > 0) {
+          const blocks: ContentBlock[] = [];
+          if (result.content) blocks.push({ type: "text", text: result.content });
+          blocks.push(...result.contentBlocks);
+          return blocks;
+        }
+        return result.content;
+      };
+
       // 如果有 tool calls，需要执行并继续循环
       if (result.toolCalls && result.toolCalls.length > 0 && allToolDefs.length > 0) {
         // 持久化 assistant 消息（含 tool calls）
@@ -1174,7 +1186,7 @@ export class AgentService {
             id: uuidv4(),
             conversationId,
             role: "assistant",
-            content: result.content,
+            content: buildMessageContent(),
             thinking: result.thinking ? { content: result.thinking } : undefined,
             toolCalls: result.toolCalls,
             createtime: Date.now(),
@@ -1257,7 +1269,7 @@ export class AgentService {
           id: uuidv4(),
           conversationId,
           role: "assistant",
-          content: result.content,
+          content: buildMessageContent(),
           thinking: result.thinking ? { content: result.thinking } : undefined,
           createtime: Date.now(),
         });
@@ -1576,6 +1588,7 @@ export class AgentService {
     thinking?: string;
     toolCalls?: ToolCall[];
     usage?: { inputTokens: number; outputTokens: number };
+    contentBlocks?: ContentBlock[];
   }> {
     const chatRequest: ChatRequest = {
       conversationId: "",
@@ -1620,13 +1633,21 @@ export class AgentService {
     const toolCalls: ToolCall[] = [];
     let currentToolCall: ToolCall | null = null;
     let usage: { inputTokens: number; outputTokens: number } | undefined;
+    // 收集带 data 的图片 block（模型生成的图片），stream 结束后统一保存到 OPFS
+    const pendingImageSaves: Array<{ block: ContentBlock & { type: "image" }; data: string }> = [];
 
     return new Promise((resolve, reject) => {
       const onEvent = (event: ChatStreamEvent) => {
         // 只转发流式内容事件，done 和 error 由 callLLMWithToolLoop 统一管理
         // 避免在 tool calling 循环中提前发送 done 导致客户端过早 resolve
+        // 带 data 的 content_block_complete 暂不转发，等 OPFS 保存后再发
         if (event.type !== "done" && event.type !== "error") {
-          sendEvent(event);
+          if (event.type === "content_block_complete" && event.data) {
+            // 暂存，稍后保存到 OPFS 后再转发
+            pendingImageSaves.push({ block: event.block as ContentBlock & { type: "image" }, data: event.data });
+          } else {
+            sendEvent(event);
+          }
         }
 
         switch (event.type) {
@@ -1648,7 +1669,7 @@ export class AgentService {
               currentToolCall.arguments += event.delta;
             }
             break;
-          case "done":
+          case "done": {
             // 保存当前的 tool call
             if (currentToolCall) {
               toolCalls.push(currentToolCall);
@@ -1657,13 +1678,36 @@ export class AgentService {
             if (event.usage) {
               usage = event.usage;
             }
-            resolve({
-              content,
-              thinking: thinking || undefined,
-              toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-              usage,
-            });
+
+            // 保存模型生成的图片到 OPFS，然后转发事件
+            const finalize = async () => {
+              const savedBlocks: ContentBlock[] = [];
+              for (const pending of pendingImageSaves) {
+                try {
+                  await this.repo.saveAttachment(pending.block.attachmentId, pending.data);
+                  savedBlocks.push(pending.block);
+                  // 转发不含 data 的 content_block_complete 事件给 UI
+                  sendEvent({ type: "content_block_complete", block: pending.block });
+                } catch {
+                  // 保存失败忽略
+                }
+              }
+              return savedBlocks.length > 0 ? savedBlocks : undefined;
+            };
+
+            finalize()
+              .then((contentBlocks) => {
+                resolve({
+                  content,
+                  thinking: thinking || undefined,
+                  toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+                  usage,
+                  contentBlocks,
+                });
+              })
+              .catch(reject);
             break;
+          }
           case "error":
             reject(new Error(event.message));
             break;

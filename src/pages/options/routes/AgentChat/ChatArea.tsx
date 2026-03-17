@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Message as ArcoMessage } from "@arco-design/web-react";
 import { IconRobot } from "@arco-design/web-react/icon";
 import type { AgentModelConfig, SkillSummary, ContentBlock, MessageContent } from "@App/app/service/agent/types";
+import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types";
 import { getTextContent } from "@App/app/service/agent/content_utils";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
@@ -21,6 +22,8 @@ import {
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
+
+const chatRepo = new AgentChatRepo();
 
 // 欢迎界面
 function WelcomeScreen({ hasConversation }: { hasConversation: boolean }) {
@@ -236,8 +239,8 @@ export default function ChatArea({
   const startStreamingRef = useRef(startStreaming);
   startStreamingRef.current = startStreaming;
 
-  // 发送消息（支持指定 content 和可选的已有消息列表用于重新回答）
-  const handleSend = async (content: MessageContent, existingMessages?: ChatMessage[]) => {
+  // 发送消息（支持附件文件或已有消息列表用于重新回答）
+  const handleSend = async (content: MessageContent, files?: Map<string, File>) => {
     if (!conversationId || !selectedModelId) return;
 
     // 处理 /new 命令：清空对话上下文
@@ -247,7 +250,14 @@ export default function ChatArea({
       return;
     }
 
-    startStreaming(existingMessages ?? messages, content);
+    // 保存附件到 OPFS
+    if (files && files.size > 0) {
+      for (const [id, file] of files) {
+        await chatRepo.saveAttachment(id, file);
+      }
+    }
+
+    startStreaming(messages, content);
   };
 
   // 复制消息组的文本内容到剪贴板

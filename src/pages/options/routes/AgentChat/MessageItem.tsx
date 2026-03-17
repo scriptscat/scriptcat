@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { ChatMessage } from "@App/app/service/agent/types";
+import type { ChatMessage, ContentBlock } from "@App/app/service/agent/types";
 import ContentBlockRenderer from "./ContentBlockRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
@@ -158,9 +158,18 @@ export function UserMessageItem({
         ) : (
           // 只读模式：消息气泡 + 底部工具条
           <>
-            <div className="tw-px-4 tw-py-2.5 tw-rounded-2xl tw-rounded-tr-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-[var(--color-text-1)] dark:tw-text-white tw-text-sm tw-whitespace-pre-wrap tw-break-words tw-shadow-sm">
-              {getTextContent(message.content)}
-            </div>
+            {/* 文本气泡 */}
+            {getTextContent(message.content) && (
+              <div className="tw-px-4 tw-py-2.5 tw-rounded-2xl tw-rounded-tr-sm tw-bg-gradient-to-br tw-from-[rgb(var(--arcoblue-5))] tw-to-[rgb(var(--arcoblue-6))] tw-text-[var(--color-text-1)] dark:tw-text-white tw-text-sm tw-whitespace-pre-wrap tw-break-words tw-shadow-sm">
+                {getTextContent(message.content)}
+              </div>
+            )}
+            {/* 图片等非文本 blocks */}
+            {Array.isArray(message.content) && message.content.some((b: ContentBlock) => b.type !== "text") && (
+              <div className="tw-mt-1">
+                <ContentBlockRenderer content={message.content.filter((b: ContentBlock) => b.type !== "text")} />
+              </div>
+            )}
             {canInteract && (
               <div className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-flex tw-items-center tw-mt-1 tw-gap-0.5">
                 <Tooltip content={t("agent_chat_copy_message")} mini position="bottom">

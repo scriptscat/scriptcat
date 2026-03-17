@@ -1,8 +1,14 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Select } from "@arco-design/web-react";
-import { IconSend, IconPause } from "@arco-design/web-react/icon";
+import { IconSend, IconPause, IconImage, IconClose } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { AgentModelConfig, SkillSummary, MessageContent } from "@App/app/service/agent/types";
+import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/types";
+
+type PendingAttachment = {
+  id: string;
+  file: File;
+  previewUrl: string;
+};
 
 export default function ChatInput({
   models,
@@ -19,7 +25,7 @@ export default function ChatInput({
   models: AgentModelConfig[];
   selectedModelId: string;
   onModelChange: (id: string) => void;
-  onSend: (content: MessageContent) => void;
+  onSend: (content: MessageContent, files?: Map<string, File>) => void;
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;
@@ -29,7 +35,10 @@ export default function ChatInput({
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 自动调整高度
   useEffect(() => {
@@ -40,10 +49,56 @@ export default function ChatInput({
     }
   }, [input]);
 
+  // 清理 objectURLs
+  useEffect(() => {
+    return () => {
+      attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const addImageFiles = useCallback((files: File[]) => {
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+    const newAttachments = imageFiles.map((file) => ({
+      id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setAttachments((prev) => [...prev, ...newAttachments]);
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => {
+      const att = prev.find((a) => a.id === id);
+      if (att) URL.revokeObjectURL(att.previewUrl);
+      return prev.filter((a) => a.id !== id);
+    });
+  }, []);
+
   const handleSend = () => {
     const trimmed = input.trim();
-    if (!trimmed || isStreaming || disabled) return;
-    onSend(trimmed);
+    if ((!trimmed && attachments.length === 0) || isStreaming || disabled) return;
+
+    if (attachments.length > 0) {
+      // 构建 ContentBlock[] 和 files Map
+      const blocks: ContentBlock[] = [];
+      const files = new Map<string, File>();
+
+      if (trimmed) {
+        blocks.push({ type: "text", text: trimmed });
+      }
+      for (const att of attachments) {
+        blocks.push({ type: "image", attachmentId: att.id, mimeType: att.file.type, name: att.file.name });
+        files.set(att.id, att.file);
+      }
+
+      onSend(blocks, files);
+      // 清理（不 revoke，发送后由调用方负责）
+      setAttachments([]);
+    } else {
+      onSend(trimmed);
+    }
     setInput("");
   };
 
@@ -56,12 +111,82 @@ export default function ChatInput({
     }
   };
 
-  const canSend = input.trim() && !disabled;
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      addImageFiles(files);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    addImageFiles(files);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    addImageFiles(files);
+    // reset input value so the same file can be selected again
+    e.target.value = "";
+  };
+
+  const canSend = (input.trim() || attachments.length > 0) && !disabled;
 
   return (
     <div className="tw-px-4 tw-pb-4 tw-pt-2 tw-bg-[var(--color-bg-1)]">
       <div className="tw-max-w-3xl tw-mx-auto">
-        <div className="tw-rounded-2xl tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-bg-2)] tw-shadow-[0_2px_12px_rgba(0,0,0,0.06)] tw-overflow-hidden">
+        <div
+          className={`tw-rounded-2xl tw-border tw-border-solid tw-bg-[var(--color-bg-2)] tw-shadow-[0_2px_12px_rgba(0,0,0,0.06)] tw-overflow-hidden tw-transition-colors ${
+            isDragging
+              ? "tw-border-[rgb(var(--arcoblue-6))] tw-bg-[rgb(var(--arcoblue-1))]"
+              : "tw-border-[var(--color-border-2)]"
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {/* 附件预览条 */}
+          {attachments.length > 0 && (
+            <div className="tw-flex tw-gap-2 tw-px-4 tw-pt-3 tw-pb-1 tw-flex-wrap">
+              {attachments.map((att) => (
+                <div key={att.id} className="tw-relative tw-group tw-shrink-0">
+                  <img
+                    src={att.previewUrl}
+                    alt={att.file.name}
+                    className="tw-w-16 tw-h-16 tw-rounded-lg tw-object-cover tw-border tw-border-solid tw-border-[var(--color-border-2)]"
+                  />
+                  <button
+                    onClick={() => removeAttachment(att.id)}
+                    className="tw-absolute tw--top-1.5 tw--right-1.5 tw-w-5 tw-h-5 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[var(--color-bg-5)] tw-text-white tw-border-none tw-cursor-pointer tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-text-xs tw-leading-none"
+                  >
+                    <IconClose style={{ fontSize: 10 }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* 输入区域 */}
           <div className="tw-px-4 tw-pt-3 tw-pb-2">
             <textarea
@@ -69,12 +194,23 @@ export default function ChatInput({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={t("agent_chat_input_placeholder")}
               disabled={disabled}
               rows={1}
               className="tw-w-full tw-resize-none tw-border-none tw-outline-none tw-bg-transparent tw-text-sm tw-text-[var(--color-text-1)] tw-min-h-[24px] tw-max-h-[200px] placeholder:tw-text-[var(--color-text-4)]"
             />
           </div>
+
+          {/* 隐藏的文件选择器 */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="tw-hidden"
+            onChange={handleFileSelect}
+          />
 
           {/* 底部工具栏 */}
           <div className="tw-flex tw-items-center tw-justify-between tw-px-3 tw-pb-2">
@@ -128,6 +264,13 @@ export default function ChatInput({
                   ))}
                 </Select>
               )}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                title={t("agent_chat_attach_image")}
+              >
+                <IconImage style={{ fontSize: 16 }} />
+              </button>
               <span className="tw-text-xs tw-text-[var(--color-text-4)] tw-hidden sm:tw-inline">
                 {"Shift+Enter"} {t("agent_chat_newline")}
               </span>

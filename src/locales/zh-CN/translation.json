@@ -659,6 +659,7 @@
   "agent_chat_regenerate": "重新生成",
   "agent_chat_streaming": "生成中...",
   "agent_chat_newline": "换行",
+  "agent_chat_attach_image": "添加图片",
   "agent_chat_welcome_hint": "有关脚本的任何问题，尽管问我",
   "agent_chat_welcome_start": "创建一个对话开始吧",
   "agent_chat_tokens": "令牌",

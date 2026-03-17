@@ -169,9 +169,28 @@ export function parseOpenAIStream(
                   onEvent({ type: "thinking_delta", delta: delta.reasoning_content });
                 }
 
-                // 内容增量
+                // 内容增量（可能是字符串或数组，GPT-4o 图片生成时为数组）
                 if (delta.content) {
-                  onEvent({ type: "content_delta", delta: delta.content });
+                  if (Array.isArray(delta.content)) {
+                    for (const part of delta.content) {
+                      if (part.type === "text" && part.text) {
+                        onEvent({ type: "content_delta", delta: part.text });
+                      } else if (part.type === "image_url" && part.image_url?.url) {
+                        // 模型生成的图片，通过 content_block_complete 事件传递 data URL
+                        const dataUrl: string = part.image_url.url;
+                        const mimeMatch = dataUrl.match(/^data:([^;]+);/);
+                        const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
+                        const blockId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                        onEvent({
+                          type: "content_block_complete",
+                          block: { type: "image", attachmentId: blockId, mimeType, name: "generated-image" },
+                          data: dataUrl,
+                        });
+                      }
+                    }
+                  } else {
+                    onEvent({ type: "content_delta", delta: delta.content });
+                  }
                 }
 
                 // 工具调用
