@@ -46,7 +46,7 @@ export function useInstallData() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loaded, setLoaded] = useState<boolean>(false);
   const [doBackwards, setDoBackwards] = useState<boolean>(false);
-  const [cattoolMetadata, setCattoolMetadata] = useState<SkillScriptMetadata | null>(null);
+  const [skillScriptMetadata, setSkillScriptMetadata] = useState<SkillScriptMetadata | null>(null);
   const [watchFile, setWatchFile] = useState(false);
 
   // Skill 安装相关状态
@@ -185,24 +185,24 @@ export function useInstallData() {
         const metadata = parseMetadata(code);
         if (!metadata) {
           // 非 UserScript，尝试作为 SkillScript 处理
-          const cattoolMeta = parseSkillScriptMetadata(code);
-          if (!cattoolMeta) {
+          const skillScriptMeta = parseSkillScriptMetadata(code);
+          if (!skillScriptMeta) {
             throw new Error("parse script info failed");
           }
           info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", {} as SCMetadata);
-          info.cattool = true;
+          info.skillScript = true;
         } else {
           info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
         }
       }
 
       // SkillScript 安装：只需解析元数据并展示
-      if (info.cattool) {
+      if (info.skillScript) {
         const toolMeta = parseSkillScriptMetadata(info.code);
         if (!toolMeta) {
-          throw new Error("Invalid SkillScript: missing or malformed ==CATTool== header");
+          throw new Error("Invalid SkillScript: missing or malformed ==SkillScript== header");
         }
-        setCattoolMetadata(toolMeta);
+        setSkillScriptMetadata(toolMeta);
         setScriptCode(info.code);
         setScriptInfo(info);
         return;
@@ -367,8 +367,8 @@ export function useInstallData() {
       document.title = `${t("install_script")} - ${skillPreview.metadata.name} - ScriptCat`;
       return;
     }
-    if (scriptInfo?.cattool && cattoolMetadata) {
-      document.title = `${t("install_script")} - ${cattoolMetadata.name} - ScriptCat`;
+    if (scriptInfo?.skillScript && skillScriptMetadata) {
+      document.title = `${t("install_script")} - ${skillScriptMetadata.name} - ScriptCat`;
       return;
     }
     if (scriptInfo?.userSubscribe) {
@@ -380,7 +380,7 @@ export function useInstallData() {
       document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript!)} - ScriptCat`;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isUpdate, scriptInfo, upsertScript, cattoolMetadata, t]);
+  }, [isUpdate, scriptInfo, upsertScript, skillScriptMetadata, t]);
 
   // 设置脚本状态
   useEffect(() => {
@@ -589,12 +589,12 @@ export function useInstallData() {
     try {
       const { result, url } = await fetchValidScript();
       const { code, metadata } = result;
-      const isCATTool = "cattool" in result && result.cattool === true;
+      const isSkillScript = "skillScript" in result && result.skillScript === true;
 
       const uuid = uuidv4();
       const info = createScriptInfo(uuid, code, url, "user", metadata);
-      if (isCATTool) {
-        info.cattool = true;
+      if (isSkillScript) {
+        info.skillScript = true;
       }
       const scriptData = [false, info];
 
@@ -637,7 +637,7 @@ export function useInstallData() {
     localFileHandle,
     showBackgroundPrompt,
     setShowBackgroundPrompt,
-    cattoolMetadata,
+    skillScriptMetadata,
     watchFile,
     metadataLive,
     permissions,

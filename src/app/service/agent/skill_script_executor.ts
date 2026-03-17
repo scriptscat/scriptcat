@@ -6,7 +6,7 @@ import { executeSkillScript } from "@App/app/service/offscreen/client";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 // Skill Script UUID 前缀，用于在 GM API 请求中识别 Skill Script
-export const SKILL_SCRIPT_UUID_PREFIX = "cattool-";
+export const SKILL_SCRIPT_UUID_PREFIX = "skillscript-";
 
 // Skill Script 默认超时（ms）
 const SKILL_SCRIPT_DEFAULT_TIMEOUT_MS = 30_000;

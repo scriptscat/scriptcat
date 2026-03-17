@@ -1,8 +1,8 @@
 import type { SkillScriptMetadata, SkillScriptParam } from "@App/app/service/agent/types";
 
-// 解析 ==CATTool== 元数据头（Skill Script 格式）
+// 解析 ==SkillScript== 元数据头
 export function parseSkillScriptMetadata(code: string): SkillScriptMetadata | null {
-  const match = code.match(/\/\/\s*==CATTool==([\s\S]*?)\/\/\s*==\/CATTool==/);
+  const match = code.match(/\/\/\s*==SkillScript==([\s\S]*?)\/\/\s*==\/SkillScript==/);
   if (!match) return null;
 
   const block = match[1];
@@ -95,5 +95,5 @@ function parseParam(raw: string): SkillScriptParam | null {
 
 // 获取 Skill Script 脚本体（去掉元数据头）
 export function getSkillScriptBody(code: string): string {
-  return code.replace(/\/\/\s*==CATTool==[\s\S]*?\/\/\s*==\/CATTool==\s*/, "").trim();
+  return code.replace(/\/\/\s*==SkillScript==[\s\S]*?\/\/\s*==\/SkillScript==\s*/, "").trim();
 }

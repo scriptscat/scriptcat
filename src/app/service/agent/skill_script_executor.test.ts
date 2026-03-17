@@ -18,9 +18,9 @@ function createRecord(
     description: "测试工具",
     params,
     grants: [],
-    code: `// ==CATTool==
+    code: `// ==SkillScript==
 // @name test_tool
-// ==/CATTool==
+// ==/SkillScript==
 return args.value;`,
     installtime: Date.now(),
     updatetime: Date.now(),
@@ -132,9 +132,9 @@ describe("SkillScriptExecutor", () => {
       description: "查天气",
       params: [],
       grants: ["GM.xmlHttpRequest"],
-      code: `// ==CATTool==
+      code: `// ==SkillScript==
 // @name weather
-// ==/CATTool==
+// ==/SkillScript==
 const result = await GM.xmlHttpRequest({url: "http://example.com"});
 return result;`,
       installtime: 1,
@@ -147,7 +147,7 @@ return result;`,
     const params = getCallParams(sender);
     expect(params.grants).toEqual(["GM.xmlHttpRequest"]);
     expect(params.name).toBe("weather");
-    expect(params.code).not.toContain("==CATTool==");
+    expect(params.code).not.toContain("==SkillScript==");
   });
 
   it("应处理多个混合类型参数", async () => {
@@ -164,7 +164,7 @@ return result;`,
     expect(getCallParams(sender).args).toEqual({ city: "上海", days: 7, detailed: true });
   });
 
-  it("应生成 cattool- 前缀的 UUID", async () => {
+  it("应生成 skillscript- 前缀的 UUID", async () => {
     const sender = createMockSender();
     const record = createRecord();
     const executor = new SkillScriptExecutor(record, sender);
@@ -172,7 +172,7 @@ return result;`,
     await executor.execute({});
 
     const params = getCallParams(sender);
-    expect(params.uuid).toMatch(/^cattool-/);
+    expect(params.uuid).toMatch(/^skillscript-/);
     expect(params.uuid.length).toBeGreaterThan(SKILL_SCRIPT_UUID_PREFIX.length);
   });
 
@@ -235,7 +235,7 @@ return result;`,
 
 describe("getSkillScriptNameByUuid", () => {
   it("未注册的 UUID 应返回空字符串", () => {
-    expect(getSkillScriptNameByUuid("cattool-unknown-uuid")).toBe("");
+    expect(getSkillScriptNameByUuid("skillscript-unknown-uuid")).toBe("");
   });
 
   it("空字符串应返回空字符串", () => {
@@ -245,7 +245,7 @@ describe("getSkillScriptNameByUuid", () => {
 
 describe("getSkillScriptGrantsByUuid", () => {
   it("未注册的 UUID 应返回空数组", () => {
-    expect(getSkillScriptGrantsByUuid("cattool-unknown-uuid")).toEqual([]);
+    expect(getSkillScriptGrantsByUuid("skillscript-unknown-uuid")).toEqual([]);
   });
 
   it("执行期间应能通过 UUID 获取 grants", async () => {
@@ -287,8 +287,8 @@ describe("getSkillScriptGrantsByUuid", () => {
 });
 
 describe("SKILL_SCRIPT_UUID_PREFIX", () => {
-  it("应为 'cattool-'", () => {
-    expect(SKILL_SCRIPT_UUID_PREFIX).toBe("cattool-");
+  it("应为 'skillscript-'", () => {
+    expect(SKILL_SCRIPT_UUID_PREFIX).toBe("skillscript-");
   });
 });
 
@@ -525,7 +525,7 @@ describe("SkillScriptExecutor 超时处理", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await execPromise;
 
-    expect(capturedUuid).toMatch(/^cattool-/);
+    expect(capturedUuid).toMatch(/^skillscript-/);
     expect(getSkillScriptNameByUuid(capturedUuid)).toBe("");
   });
 

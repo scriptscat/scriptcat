@@ -1365,7 +1365,7 @@ declare namespace CATAgentSkills {
     name: string;
     /** Skill 描述。 */
     description: string;
-    /** 此 Skill 中打包的 CATTool 名称（来自 `scripts/` 目录）。 */
+    /** 此 Skill 中打包的 Skill Script 名称（来自 `scripts/` 目录）。 */
     toolNames: string[];
     /** 参考资料名称（来自 `references/` 目录）。 */
     referenceNames: string[];
@@ -1415,7 +1415,7 @@ declare namespace CATAgentSkills {
     /**
      * 从 SKILL.md 字符串安装 Skill，可附带打包的脚本和参考资料。
      * @param skillMd - SKILL.md 内容（含 YAML frontmatter）。
-     * @param scripts - 要打包的 CATTool 脚本。
+     * @param scripts - 要打包的 Skill Script 脚本。
      * @param references - 要打包的参考资料。
      */
     install(
@@ -1452,7 +1452,7 @@ declare const CAT: {
 };
 
 /**
- * Skill 配置值，运行时注入到 CATTool 沙箱中。
+ * Skill 配置值，运行时注入到 Skill Script 沙箱中。
  *
  * 在 SKILL.md frontmatter 的 `config` 块中声明，由用户在 Skill 设置 UI 中填写。
  * 注入时对象已被冻结，属性为只读。

@@ -253,7 +253,7 @@ const MainLayout: React.FC<{
           if (!file.name || !file.size) {
             throw new Error("No Read Access Right for File");
           }
-          // 先检查内容，后弹出安装页面（支持 UserScript 和 CATTool）
+          // 先检查内容，后弹出安装页面（支持 UserScript 和 SkillScript）
           const checkOk = await Promise.allSettled([
             file.text().then((code) => {
               // 先尝试 UserScript 解析

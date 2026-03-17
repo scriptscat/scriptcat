@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { parseSkillScriptMetadata, getSkillScriptBody } from "./skill_script";
 
 describe("parseSkillScriptMetadata", () => {
-  it("应正确解析完整的 CATTool 元数据", () => {
+  it("应正确解析完整的 SkillScript 元数据", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        weather
 // @description 查询天气信息
 // @param       city string [required] 城市名称
 // @param       unit string[celsius,fahrenheit] 温度单位
 // @grant       GM.xmlHttpRequest
-// ==/CATTool==
+// ==/SkillScript==
 
 const result = await GM.xmlHttpRequest({ url: "https://api.weather.com/" + args.city });
 return result;
@@ -39,16 +39,16 @@ return result;
     expect(meta!.grants).toEqual(["GM.xmlHttpRequest"]);
   });
 
-  it("没有 ==CATTool== 头时返回 null", () => {
+  it("没有 ==SkillScript== 头时返回 null", () => {
     const code = `console.log("hello");`;
     expect(parseSkillScriptMetadata(code)).toBeNull();
   });
 
   it("缺少 @name 时返回 null", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @description 没有名字的工具
-// ==/CATTool==
+// ==/SkillScript==
 return "test";
 `;
     expect(parseSkillScriptMetadata(code)).toBeNull();
@@ -56,12 +56,12 @@ return "test";
 
   it("应正确解析 number 和 boolean 类型参数", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        calc
 // @description 计算器
 // @param       value number [required] 输入值
 // @param       verbose boolean 是否输出详细信息
-// ==/CATTool==
+// ==/SkillScript==
 return args.value * 2;
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -73,10 +73,10 @@ return args.value * 2;
 
   it("应正确解析无参数的工具", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        ping
 // @description 测试连通性
-// ==/CATTool==
+// ==/SkillScript==
 return "pong";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -87,13 +87,13 @@ return "pong";
 
   it("应正确解析多个 @grant", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        multi_grant
 // @description 多个 grant
 // @grant       GM.xmlHttpRequest
 // @grant       GM.getValue
 // @grant       GM.setValue
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -102,11 +102,11 @@ return "ok";
 
   it("应正确解析单个 @require URL", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        xlsx_tool
 // @description 生成 Excel
 // @require     https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
-// ==/CATTool==
+// ==/SkillScript==
 return XLSX.utils.book_new();
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -115,13 +115,13 @@ return XLSX.utils.book_new();
 
   it("应正确解析多个 @require URL", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        multi_require
 // @description 多个外部库
 // @require     https://cdn.example.com/lib1.js
 // @require     https://cdn.example.com/lib2.js
 // @require     https://cdn.example.com/lib3.js
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -134,10 +134,10 @@ return "ok";
 
   it("无 @require 时 requires 应为空数组", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        no_require
 // @description 无外部依赖
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -146,11 +146,11 @@ return "ok";
 
   it("空 @require 值不应加入列表", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        empty_require
 // @description 测试
 // @require
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -159,11 +159,11 @@ return "ok";
 
   it("空 @grant 值不应加入列表", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        empty_grant
 // @description 测试
 // @grant
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -172,10 +172,10 @@ return "ok";
 
   it("@param 带空 enum 括号时不应生成 enum 字段", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        test
 // @param       mode string[] 模式
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -184,10 +184,10 @@ return "ok";
 
   it("@param enum 中的空格应被 trim", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        test
 // @param       color string[red , green , blue] 颜色选择
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -196,11 +196,11 @@ return "ok";
 
   it("无效的参数类型应被忽略", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        test
 // @param       data object 数据
 // @param       valid string 有效参数
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -211,9 +211,9 @@ return "ok";
 
   it("仅有 @name 时应返回有效元数据", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        minimal
-// ==/CATTool==
+// ==/SkillScript==
 return 42;
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -225,11 +225,11 @@ return 42;
 
   it("非 @ 开头的行应被忽略", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        test
 // 这是一个注释，不是 @ 指令
 // @description 测试工具
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -239,11 +239,11 @@ return "ok";
 
   it("应正确解析 @timeout", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        slow_tool
 // @description 耗时工具
 // @timeout     120
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -253,10 +253,10 @@ return "ok";
 
   it("无 @timeout 时 timeout 应为 undefined", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        fast_tool
 // @description 快速工具
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -265,10 +265,10 @@ return "ok";
 
   it("@timeout 值无效时应忽略", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        bad_timeout
 // @timeout     abc
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -277,20 +277,20 @@ return "ok";
 
   it("@timeout 值为 0 或负数时应忽略", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        zero_timeout
 // @timeout     0
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
     expect(meta.timeout).toBeUndefined();
 
     const code2 = `
-// ==CATTool==
+// ==SkillScript==
 // @name        neg_timeout
 // @timeout     -5
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta2 = parseSkillScriptMetadata(code2)!;
@@ -299,10 +299,10 @@ return "ok";
 
   it("@param [required] 带 enum 时应同时解析", () => {
     const code = `
-// ==CATTool==
+// ==SkillScript==
 // @name        test
 // @param       level string[low,medium,high] [required] 级别
-// ==/CATTool==
+// ==/SkillScript==
 return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
@@ -315,9 +315,9 @@ return "ok";
 
 describe("getSkillScriptBody", () => {
   it("应正确去掉元数据头返回脚本体", () => {
-    const code = `// ==CATTool==
+    const code = `// ==SkillScript==
 // @name test
-// ==/CATTool==
+// ==/SkillScript==
 const x = 1;
 return x;`;
     const body = getSkillScriptBody(code);
@@ -331,12 +331,12 @@ return x;`;
   });
 
   it("应保留元数据头后面的所有代码", () => {
-    const code = `// ==CATTool==
+    const code = `// ==SkillScript==
 // @name test
 // @description 测试
 // @param city string [required] 城市
 // @grant GM.xmlHttpRequest
-// ==/CATTool==
+// ==/SkillScript==
 
 const result = await GM.xmlHttpRequest({url: "http://example.com/" + args.city});
 const data = JSON.parse(result.responseText);
@@ -344,6 +344,6 @@ return data;`;
     const body = getSkillScriptBody(code);
     expect(body).toContain("const result = await GM.xmlHttpRequest");
     expect(body).toContain("return data;");
-    expect(body).not.toContain("==CATTool==");
+    expect(body).not.toContain("==SkillScript==");
   });
 });

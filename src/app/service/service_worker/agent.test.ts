@@ -59,11 +59,11 @@ function createTestService() {
   return { service, mockRepo, mockSkillRepo, mockModelRepo };
 }
 
-const VALID_CATTOOL_CODE = `// ==CATTool==
+const VALID_SKILLSCRIPT_CODE = `// ==SkillScript==
 // @name test-tool
 // @description A test tool
 // @param {string} input - The input
-// ==/CATTool==
+// ==/SkillScript==
 module.exports = async function(params) { return params.input; }`;
 
 // ---- Skill 系统测试 ----
@@ -431,7 +431,7 @@ You are a full-featured skill.`;
       const scripts = [
         {
           name: "my-tool",
-          code: VALID_CATTOOL_CODE,
+          code: VALID_SKILLSCRIPT_CODE,
         },
       ];
 
@@ -495,7 +495,7 @@ description: Has invalid script
 ---
 Some prompt.`;
 
-      await expect(service.installSkill(skillMd, [{ name: "bad-tool", code: "not a cattool" }])).rejects.toThrow(
+      await expect(service.installSkill(skillMd, [{ name: "bad-tool", code: "not a skillscript" }])).rejects.toThrow(
         "Invalid SkillScript"
       );
     });
@@ -537,7 +537,7 @@ name: taobao-helper
 description: 淘宝购物助手
 ---
 你是一个淘宝购物助手。`,
-        scripts: [{ name: "taobao_extract.js", code: VALID_CATTOOL_CODE }],
+        scripts: [{ name: "taobao_extract.js", code: VALID_SKILLSCRIPT_CODE }],
         references: [
           { name: "api_docs.md", content: "# API Docs\n淘宝接口文档" },
           { name: "guide.txt", content: "使用指南" },
@@ -549,7 +549,7 @@ description: 淘宝购物助手
       expect(record.name).toBe("taobao-helper");
       expect(record.description).toBe("淘宝购物助手");
       expect(record.prompt).toBe("你是一个淘宝购物助手。");
-      expect(record.toolNames).toEqual(["test-tool"]); // 脚本名称从 ==CATTool== metadata 中解析
+      expect(record.toolNames).toEqual(["test-tool"]); // 脚本名称从 ==SkillScript== metadata 中解析
       expect(record.referenceNames).toEqual(["api_docs.md", "guide.txt"]);
 
       // 验证 saveSkill 调用参数
@@ -569,17 +569,17 @@ description: 淘宝购物助手
     it("ZIP 结果中多个脚本应全部安装", async () => {
       const { service, mockSkillRepo } = createTestService();
 
-      const anotherToolCode = `// ==CATTool==
+      const anotherToolCode = `// ==SkillScript==
 // @name another-tool
 // @description Another tool
 // @param {string} query - Search query
-// ==/CATTool==
+// ==/SkillScript==
 return query;`;
 
       const record = await service.installSkill(
         `---\nname: multi-tool\ndescription: Multi tools skill\n---\nMulti tool prompt.`,
         [
-          { name: "tool1.js", code: VALID_CATTOOL_CODE },
+          { name: "tool1.js", code: VALID_SKILLSCRIPT_CODE },
           { name: "tool2.js", code: anotherToolCode },
         ],
         []
@@ -964,7 +964,7 @@ describe("classifyErrorCode", () => {
   });
 
   it("消息含 timed out 应分类为 tool_timeout", () => {
-    expect(classifyErrorCode(new Error('CATTool "foo" timed out after 30s'))).toBe("tool_timeout");
+    expect(classifyErrorCode(new Error('SkillScript "foo" timed out after 30s'))).toBe("tool_timeout");
   });
 
   it("errorCode 属性为 tool_timeout 应分类为 tool_timeout", () => {

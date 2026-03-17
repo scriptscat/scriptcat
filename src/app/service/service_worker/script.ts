@@ -99,8 +99,8 @@ export class ScriptService {
         }
         // 处理url, 实现安装脚本
         let targetUrl: string;
-        // 判断是否为 file:///*/*.user.js 或 file:///*/*.cattool.js
-        if (req.url.startsWith("file://") && (req.url.endsWith(".user.js") || req.url.endsWith(".cattool.js"))) {
+        // 判断是否为 file:///*/*.user.js 或 file:///*/*.skill.js
+        if (req.url.startsWith("file://") && (req.url.endsWith(".user.js") || req.url.endsWith(".skill.js"))) {
           targetUrl = req.url;
         } else {
           const reqUrl = new URL(req.url);
@@ -167,7 +167,7 @@ export class ScriptService {
           { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/en/docs/script_installation/" },
           { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
           { schemes: ["file"], pathSuffix: ".user.js" },
-          { schemes: ["file"], pathSuffix: ".cattool.js" },
+          { schemes: ["file"], pathSuffix: ".skill.js" },
         ],
       }
     );
@@ -252,9 +252,9 @@ export class ScriptService {
         isUrlFilterCaseSensitive: false,
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
-      // CATTool (.cattool.js) 安装检测
+      // SkillScript (.skill.js) 安装检测
       {
-        regexFilter: "^([^?#]+?\\.cattool\\.js)",
+        regexFilter: "^([^?#]+?\\.skill\\.js)",
         resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
         isUrlFilterCaseSensitive: false,
@@ -913,11 +913,11 @@ export class ScriptService {
       }
     }
     // 检测是否为 SkillScript
-    const cattoolMeta = parseSkillScriptMetadata(code);
-    if (cattoolMeta) {
+    const skillScriptMeta = parseSkillScriptMetadata(code);
+    if (skillScriptMeta) {
       const si = [
         false,
-        { uuid, code, url, source: upsertBy, metadata: {}, userSubscribe: false, cattool: true } as ScriptInfo,
+        { uuid, code, url, source: upsertBy, metadata: {}, userSubscribe: false, skillScript: true } as ScriptInfo,
         options,
       ];
       await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);

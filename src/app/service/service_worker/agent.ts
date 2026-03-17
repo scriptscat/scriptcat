@@ -190,7 +190,7 @@ export class AgentService {
     if (!this.resourceService) return undefined;
     const rs = this.resourceService;
     return async (url: string) => {
-      const res = await rs.getResource("cattool-require", url, "require", false);
+      const res = await rs.getResource("skillscript-require", url, "require", false);
       return res?.content as string | undefined;
     };
   }
@@ -230,11 +230,11 @@ export class AgentService {
       for (const script of scripts) {
         const metadata = parseSkillScriptMetadata(script.code);
         if (!metadata) {
-          throw new Error(`Invalid SkillScript "${script.name}": missing ==CATTool== header`);
+          throw new Error(`Invalid SkillScript "${script.name}": missing ==SkillScript== header`);
         }
         // 下载并缓存 @require 资源
         if (metadata.requires.length > 0 && this.resourceService) {
-          const dummyUuid = "cattool-require";
+          const dummyUuid = "skillscript-require";
           await Promise.all(
             metadata.requires.map((url) => this.resourceService!.getResource(dummyUuid, url, "require", true))
           );

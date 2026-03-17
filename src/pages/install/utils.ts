@@ -101,7 +101,7 @@ export const fetchScriptBody = async (url: string, { onProgress }: { [key: strin
   if (!metadata) {
     const skillScriptMeta = parseSkillScriptMetadata(code);
     if (skillScriptMeta) {
-      return { code, metadata: {} as SCMetadata, cattool: true };
+      return { code, metadata: {} as SCMetadata, skillScript: true };
     }
     throw new Error("parse script info failed");
   }

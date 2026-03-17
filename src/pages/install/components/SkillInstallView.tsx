@@ -117,7 +117,7 @@ function SkillInstallView({
                                 </Tag>
                                 {param.required && (
                                   <Tag bordered size="small" color="red">
-                                    {t("cattool_required")}
+                                    {t("skill_script_required")}
                                   </Tag>
                                 )}
                                 {param.description && (
@@ -163,7 +163,7 @@ function SkillInstallView({
                         </Tag>
                         {field.required && (
                           <Tag bordered size="small" color="red">
-                            {t("cattool_required")}
+                            {t("skill_script_required")}
                           </Tag>
                         )}
                         {field.secret && (

@@ -11,6 +11,15 @@ export const test = base.extend<{
     const context = await chromium.launchPersistentContext("", {
       headless: false,
       args: ["--headless=new", `--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`],
+      ...(() => {
+        const proxy =
+          process.env.E2E_PROXY ||
+          process.env.https_proxy ||
+          process.env.http_proxy ||
+          process.env.HTTPS_PROXY ||
+          process.env.HTTP_PROXY;
+        return proxy ? { proxy: { server: proxy } } : {};
+      })(),
     });
     await use(context);
     await context.close();

@@ -1358,7 +1358,7 @@ declare namespace CATAgentSkills {
     name: string;
     /** Skill description. */
     description: string;
-    /** CATTool names bundled in this Skill (from `scripts/` directory). */
+    /** Skill Script names bundled in this Skill (from `scripts/` directory). */
     toolNames: string[];
     /** Reference document names (from `references/` directory). */
     referenceNames: string[];
@@ -1408,7 +1408,7 @@ declare namespace CATAgentSkills {
     /**
      * Install a Skill from a SKILL.md string, with optional bundled scripts and references.
      * @param skillMd - The SKILL.md content (with YAML frontmatter).
-     * @param scripts - CATTool scripts to bundle.
+     * @param scripts - Skill Script scripts to bundle.
      * @param references - Reference documents to bundle.
      */
     install(
@@ -1483,7 +1483,7 @@ declare const CAT: {
 };
 
 /**
- * Skill configuration values injected into the CATTool sandbox at runtime.
+ * Skill configuration values injected into the Skill Script sandbox at runtime.
  *
  * Declared in the `config` block of a SKILL.md frontmatter and filled in by
  * the user through the Skill settings UI. The object is frozen at injection

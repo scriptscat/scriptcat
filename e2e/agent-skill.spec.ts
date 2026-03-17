@@ -11,11 +11,11 @@ You are a greeting assistant. Use execute_skill_script to run the say_hello scri
 `;
 
 const SAY_HELLO_CODE = `
-// ==CATTool==
+// ==SkillScript==
 // @name         say_hello
 // @description  Say hello to someone
 // @param        name string [required] Person's name
-// ==/CATTool==
+// ==/SkillScript==
 
 return "Hello, " + args.name + "! Welcome!";
 `.trim();

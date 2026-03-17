@@ -334,12 +334,12 @@ Test prompt content.`;
 // ---- ZIP → parseSkillMd → installSkill 集成测试 ----
 
 describe("parseSkillZip 端到端集成", () => {
-  const VALID_CATTOOL_CODE = `// ==CATTool==
+  const VALID_SKILLSCRIPT_CODE = `// ==SkillScript==
 // @name taobao_extract
 // @description 提取淘宝页面数据
 // @param pageType string[search_results,product_detail] 页面类型
 // @param tabId number 标签页 ID
-// ==/CATTool==
+// ==/SkillScript==
 const pageType = args.pageType || "auto";
 return { pageType };`;
 
@@ -353,7 +353,7 @@ description: 淘宝购物助手
 
     const zipData = await createTestZip({
       "SKILL.md": skillMd,
-      "scripts/taobao_extract.js": VALID_CATTOOL_CODE,
+      "scripts/taobao_extract.js": VALID_SKILLSCRIPT_CODE,
       "references/api_docs.md": "# 淘宝 API 文档\n提取接口说明",
     });
 
@@ -370,7 +370,7 @@ description: 淘宝购物助手
   it("ZIP 中的 Skill Script 脚本可被 parseSkillScriptMetadata 正确解析", async () => {
     const zipData = await createTestZip({
       "SKILL.md": `---\nname: tool-skill\ndescription: test\n---\nPrompt.`,
-      "scripts/taobao_extract.js": VALID_CATTOOL_CODE,
+      "scripts/taobao_extract.js": VALID_SKILLSCRIPT_CODE,
     });
 
     const zipResult = await parseSkillZip(zipData);
@@ -389,7 +389,7 @@ description: 淘宝购物助手
   it("ZIP 解析输出结构与 installSkill 参数签名一致", async () => {
     const zipData = await createTestZip({
       "SKILL.md": `---\nname: sig-test\ndescription: Signature test\n---\nPrompt.`,
-      "scripts/helper.js": VALID_CATTOOL_CODE,
+      "scripts/helper.js": VALID_SKILLSCRIPT_CODE,
       "references/doc.md": "Doc content",
     });
 
@@ -415,10 +415,10 @@ description: 淘宝购物助手
     }
   });
 
-  it("嵌套目录 ZIP 的完整流程：解析 → 验证 SKILL.md → 验证 CATTool", async () => {
+  it("嵌套目录 ZIP 的完整流程：解析 → 验证 SKILL.md → 验证 SkillScript", async () => {
     const zipData = await createTestZip({
       "taobao-skill/SKILL.md": `---\nname: nested-skill\ndescription: 嵌套目录测试\n---\n嵌套 Skill 提示词。`,
-      "taobao-skill/scripts/extract.js": VALID_CATTOOL_CODE,
+      "taobao-skill/scripts/extract.js": VALID_SKILLSCRIPT_CODE,
       "taobao-skill/references/guide.txt": "使用指南内容",
     });
 
