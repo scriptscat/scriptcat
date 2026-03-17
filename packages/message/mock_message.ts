@@ -16,11 +16,11 @@ export class MockMessageConnect implements MessageConnect {
   }
 
   disconnect(): void {
-    this.EE.emit("disconnect");
+    this.EE.emit("disconnect", true); // MockMessageConnect 未有模拟由另一端触发 disconnect() 的情况
   }
 
-  onDisconnect(callback: () => void): void {
-    this.EE.on("disconnect", callback);
+  onDisconnect(callback: (isSelfDisconnected: boolean) => void) {
+    this.EE.once("disconnect", callback);
   }
 }
 

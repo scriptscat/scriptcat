@@ -429,6 +429,12 @@
   "menu_expand_num_before": "Когда пунктов меню больше",
   "menu_expand_num_after": ", автоматически скрывать",
   "script_name_cannot_be_set_to_empty": "Имя скрипта не может быть пустым",
+  "edit_conflict": "Конфликт редактирования",
+  "confirm_override_when_edit_conflict": "Этот скрипт был изменён в другом экземпляре. Замена приведёт к перезаписи этих изменений. Хотите сохранить эту версию?",
+  "save_abort_when_edit_conflict": "Скрипт был изменён в другом экземпляре. Сохранение отменено.",
+  "scriptname_conflict": "Конфликт имени скрипта",
+  "confirm_save_when_scriptname_conflict": "Это имя скрипта уже используется другим скриптом. Вы всё равно хотите сохранить его?",
+  "save_abort_when_scriptname_conflict": "Это имя скрипта уже используется другим скриптом. Сохранение отменено.",
   "eslint_config_format_error": "Ошибка формата конфигурации ESLint",
   "export_success": "Экспорт успешен",
   "get_backup_dir_url_failed": "Ошибка получения адреса папки резервных копий",
@@ -580,6 +586,11 @@
     "maybe_later": "Может быть позже",
     "settings_hint": "Вы можете изменить эту опцию в настройках в любое время."
   },
+  "favicon_service": "Сервис Favicon",
+  "favicon_service_desc": "Выберите сервис для получения значков сайтов",
+  "favicon_service_scriptcat": "ScriptCat",
+  "favicon_service_local": "Локальное получение",
+  "favicon_service_google": "Google",
   "editor": {
     "show_script_list": "Показать список скриптов",
     "hide_script_list": "Скрыть список скриптов"
