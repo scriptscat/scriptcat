@@ -8,6 +8,7 @@ import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
+import { HtmlExtractorService } from "./html_extractor";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 
 // offscreen环境的管理器
@@ -66,6 +67,8 @@ export class OffscreenManager {
     gmApi.init();
     const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extMsgSender);
     vscodeConnect.init();
+    const htmlExtractor = new HtmlExtractorService(this.windowServer.group("htmlExtractor"));
+    htmlExtractor.init();
 
     this.windowServer.on("createObjectURL", async (params: { blob: Blob; persistence: boolean }) => {
       return makeBlobURL(params) as string;

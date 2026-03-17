@@ -9,6 +9,7 @@ import { getTextContent } from "@App/app/service/agent/content_utils";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
 import { useMessages, useStreamingChat, deleteMessages, clearMessages } from "./hooks";
+import AskUserBlock from "./AskUserBlock";
 import {
   mergeToolResults,
   groupMessages,
@@ -73,7 +74,7 @@ export default function ChatArea({
 }) {
   const { t } = useTranslation();
   const { messages, setMessages, loadMessages } = useMessages(conversationId);
-  const { isStreaming, sendMessage, stopGeneration } = useStreamingChat();
+  const { isStreaming, sendMessage, stopGeneration, askUserPending, respondToAskUser } = useStreamingChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMsgRef = useRef<ChatMessage | null>(null);
   // 计时相关
@@ -134,6 +135,10 @@ export default function ChatArea({
           }
           break;
         }
+        case "ask_user":
+        case "sub_agent_event":
+          // 这些事件由 hook 层处理或仅作信息展示，不修改消息
+          break;
         case "content_block_start":
           // 非文本 block 开始，暂不处理（等 complete 时处理）
           break;
@@ -407,6 +412,9 @@ export default function ChatArea({
                 />
               )
             )
+          )}
+          {askUserPending && (
+            <AskUserBlock id={askUserPending.id} question={askUserPending.question} onRespond={respondToAskUser} />
           )}
           <div ref={messagesEndRef} />
         </div>

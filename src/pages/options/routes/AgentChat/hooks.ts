@@ -131,9 +131,13 @@ export function useMessages(conversationId: string) {
   return { messages, setMessages, loadMessages };
 }
 
+// ask_user 待回复状态
+export type AskUserPending = { id: string; question: string };
+
 // 流式聊天 hook
 export function useStreamingChat() {
   const [isStreaming, setIsStreaming] = useState(false);
+  const [askUserPending, setAskUserPending] = useState<AskUserPending | null>(null);
   const connRef = useRef<MessageConnect | null>(null);
   const abortedRef = useRef(false);
 
@@ -144,6 +148,15 @@ export function useStreamingChat() {
       connRef.current = null;
     }
     setIsStreaming(false);
+    setAskUserPending(null);
+  }, []);
+
+  // 回复 ask_user 提问
+  const respondToAskUser = useCallback((id: string, answer: string) => {
+    if (connRef.current) {
+      connRef.current.sendMessage({ action: "askUserResponse", data: { id, answer } });
+    }
+    setAskUserPending(null);
   }, []);
 
   const sendMessage = useCallback(
@@ -158,6 +171,7 @@ export function useStreamingChat() {
     ) => {
       setIsStreaming(true);
       abortedRef.current = false;
+      setAskUserPending(null);
 
       try {
         const conn = await connect(extensionMessage, "serviceWorker/agent/conversationChat", {
@@ -173,9 +187,14 @@ export function useStreamingChat() {
         conn.onMessage((msg) => {
           if (abortedRef.current) return;
           const event = msg.data as ChatStreamEvent;
+          // 处理 ask_user 事件
+          if (event.type === "ask_user") {
+            setAskUserPending({ id: event.id, question: event.question });
+          }
           onEvent(event);
           if (event.type === "done" || event.type === "error") {
             setIsStreaming(false);
+            setAskUserPending(null);
             connRef.current = null;
             onDone();
           }
@@ -183,10 +202,12 @@ export function useStreamingChat() {
 
         conn.onDisconnect(() => {
           setIsStreaming(false);
+          setAskUserPending(null);
           connRef.current = null;
         });
       } catch (e: any) {
         setIsStreaming(false);
+        setAskUserPending(null);
         onEvent({ type: "error", message: e.message || "Connection failed" });
         onDone();
       }
@@ -194,7 +215,7 @@ export function useStreamingChat() {
     []
   );
 
-  return { isStreaming, sendMessage, stopGeneration };
+  return { isStreaming, sendMessage, stopGeneration, askUserPending, respondToAskUser };
 }
 
 // 批量删除持久化消息

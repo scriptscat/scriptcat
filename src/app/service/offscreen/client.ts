@@ -53,6 +53,21 @@ export function executeSkillScript(
   return sendMessage(msgSender, "offscreen/executeSkillScript", params);
 }
 
+// HTML 内容提取
+export async function extractHtmlContent(msgSender: MessageSend, html: string): Promise<string | null> {
+  const result = await sendMessage(msgSender, "offscreen/htmlExtractor/extractHtmlContent", html);
+  return result ?? null;
+}
+
+// 搜索结果提取
+export async function extractSearchResults(
+  msgSender: MessageSend,
+  html: string
+): Promise<Array<{ title: string; url: string; snippet: string }>> {
+  const result = await sendMessage(msgSender, "offscreen/htmlExtractor/extractSearchResults", html);
+  return result ?? [];
+}
+
 export class VscodeConnectClient extends Client {
   constructor(msgSender: MessageSend) {
     super(msgSender, "offscreen/vscodeConnect");

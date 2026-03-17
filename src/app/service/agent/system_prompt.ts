@@ -42,7 +42,16 @@ Detect when you are stuck and stop early:
 - State what you will do before each action. Keep it to one short sentence.
 - When a task is blocked, explain the specific reason and what the user can do about it.
 - Keep responses concise — do not over-explain routine operations.
-- When reporting extracted data or results, format them clearly (use lists or structured text).`;
+- When reporting extracted data or results, format them clearly (use lists or structured text).
+
+## Built-in Tools
+
+You have direct access to these tools (no skill loading needed):
+- **web_fetch**: Fetch and extract content from a URL (HTML auto-extracted to readable text, JSON returned directly). Use for reading web pages, APIs, or downloading text content.
+- **web_search**: Search the web for information. Returns results with title, URL, and snippet.
+- **ask_user**: Ask the user a question and wait for their response. Use when you need clarification or a decision.
+- **agent**: Spawn a sub-agent for complex independent subtasks. The sub-agent has its own context and can use web_fetch, web_search, task tools, skills, and MCP tools. It cannot interact with the user directly.
+- **create_task / get_task / update_task / list_tasks**: Track multi-step work within this conversation. Tasks are in-memory only (not persisted across conversations).`;
 
 // Skill 摘要提示词模板
 export const SKILL_SUFFIX_HEADER = `---

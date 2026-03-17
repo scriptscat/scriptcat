@@ -48,6 +48,12 @@ import { AgentTaskScheduler } from "@App/app/service/agent/task_scheduler";
 import { InfoNotification } from "./utils";
 import { nextTimeInfo } from "@App/pkg/utils/cron";
 import { sendMessage } from "@Packages/message/client";
+import { WEB_FETCH_DEFINITION, WebFetchExecutor } from "@App/app/service/agent/tools/web_fetch";
+import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent/tools/web_search";
+import { SearchConfigRepo } from "@App/app/service/agent/tools/search_config";
+import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
+import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
+import { createSubAgentTool } from "@App/app/service/agent/tools/sub_agent";
 
 // 判断是否可重试（429 / 5xx / 网络错误，不含 4xx 客户端错误）
 export function isRetryableError(e: Error): boolean {
@@ -176,6 +182,10 @@ export class AgentService {
       (task) => this.emitTaskEvent(task)
     );
     this.taskScheduler.init();
+    // 注册永久内置工具
+    const searchConfigRepo = new SearchConfigRepo();
+    this.toolRegistry.registerBuiltin(WEB_FETCH_DEFINITION, new WebFetchExecutor(this.sender));
+    this.toolRegistry.registerBuiltin(WEB_SEARCH_DEFINITION, new WebSearchExecutor(this.sender, searchConfigRepo));
     // 加载已安装的 Skills
     this.loadSkills();
   }
@@ -676,6 +686,13 @@ export class AgentService {
       registeredMetaToolNames.push(mt.definition.name);
     }
 
+    // 注册 task 工具（定时任务无 UI 连接，不注册 ask_user/agent）
+    const { tools: taskToolDefs } = createTaskTools();
+    for (const t of taskToolDefs) {
+      this.toolRegistry.registerBuiltin(t.definition, t.executor);
+      registeredMetaToolNames.push(t.definition.name);
+    }
+
     try {
       let conversationId: string;
       const messages: ChatRequest["messages"] = [];
@@ -927,6 +944,8 @@ export class AgentService {
     conversationId?: string;
     // 跳过内置工具，仅使用传入的 tools（ephemeral 模式）
     skipBuiltinTools?: boolean;
+    // 排除的工具名称列表（子代理不可用 ask_user、agent）
+    excludeTools?: string[];
     // 是否启用 prompt caching，默认 true
     cache?: boolean;
     // 仅供测试注入，跳过重试延迟
@@ -942,7 +961,11 @@ export class AgentService {
       iterations++;
 
       // 每轮重新获取工具定义（load_skill 可能动态注册了新工具）
-      const allToolDefs = params.skipBuiltinTools ? tools || [] : this.toolRegistry.getDefinitions(tools);
+      let allToolDefs = params.skipBuiltinTools ? tools || [] : this.toolRegistry.getDefinitions(tools);
+      if (params.excludeTools && params.excludeTools.length > 0) {
+        const excludeSet = new Set(params.excludeTools);
+        allToolDefs = allToolDefs.filter((t) => !excludeSet.has(t.name));
+      }
 
       // 调用 LLM（带指数退避重试）
       const result = await withRetry(
@@ -1144,6 +1167,48 @@ export class AgentService {
     return (id: string) => resolved.get(id) ?? null;
   }
 
+  // 启动子代理执行子任务
+  private async runSubAgent(params: {
+    model: AgentModelConfig;
+    prompt: string;
+    sendEvent: (event: ChatStreamEvent) => void;
+    signal: AbortSignal;
+    excludeTools: string[];
+    maxIterations: number;
+  }): Promise<string> {
+    const systemContent = buildSystemPrompt({});
+    const messages: ChatRequest["messages"] = [
+      { role: "system", content: systemContent },
+      { role: "user", content: params.prompt },
+    ];
+
+    let resultContent = "";
+
+    const subSendEvent = (event: ChatStreamEvent) => {
+      // 转发事件给父代理
+      params.sendEvent(event);
+      // 收集最终回复内容（new_message 表示新一轮，只取最后一轮的文本）
+      if (event.type === "new_message") {
+        resultContent = "";
+      } else if (event.type === "content_delta") {
+        resultContent += event.delta;
+      }
+    };
+
+    await this.callLLMWithToolLoop({
+      model: params.model,
+      messages,
+      maxIterations: params.maxIterations,
+      sendEvent: subSendEvent,
+      signal: params.signal,
+      scriptToolCallback: null,
+      excludeTools: params.excludeTools,
+      cache: false,
+    });
+
+    return resultContent || "(sub-agent produced no output)";
+  }
+
   // 统一的流式 conversation chat（UI 和脚本 API 共用）
   private async handleConversationChat(
     params: {
@@ -1185,12 +1250,21 @@ export class AgentService {
 
     // 构建脚本工具回调：通过 MessageConnect 让 Sandbox 执行 handler
     let toolResultResolve: ((results: Array<{ id: string; result: string }>) => void) | null = null;
+    // ask_user resolvers
+    const askResolvers = new Map<string, (answer: string) => void>();
 
     msgConn.onMessage((msg: any) => {
       if (msg.action === "toolResults" && toolResultResolve) {
         const resolve = toolResultResolve;
         toolResultResolve = null;
         resolve(msg.data);
+      }
+      if (msg.action === "askUserResponse" && msg.data) {
+        const resolver = askResolvers.get(msg.data.id);
+        if (resolver) {
+          askResolvers.delete(msg.data.id);
+          resolver(msg.data.answer);
+        }
       }
     });
 
@@ -1280,6 +1354,37 @@ export class AgentService {
           this.toolRegistry.registerBuiltin(mt.definition, mt.executor);
           registeredMetaToolNames.push(mt.definition.name);
         }
+
+        // 注册每次请求的临时工具
+        // Task tools
+        const { tools: taskToolDefs } = createTaskTools();
+        for (const t of taskToolDefs) {
+          this.toolRegistry.registerBuiltin(t.definition, t.executor);
+          registeredMetaToolNames.push(t.definition.name);
+        }
+
+        // Ask user
+        const askTool = createAskUserTool(sendEvent, askResolvers);
+        this.toolRegistry.registerBuiltin(askTool.definition, askTool.executor);
+        registeredMetaToolNames.push(askTool.definition.name);
+
+        // Sub-agent
+        const subAgentTool = createSubAgentTool({
+          runSubAgent: (prompt: string, desc: string) => {
+            const agentId = uuidv4();
+            return this.runSubAgent({
+              model,
+              prompt,
+              signal: abortController.signal,
+              sendEvent: (evt) =>
+                sendEvent({ type: "sub_agent_event", agentId, description: desc, event: evt }),
+              excludeTools: ["ask_user", "agent"],
+              maxIterations: 20,
+            });
+          },
+        });
+        this.toolRegistry.registerBuiltin(subAgentTool.definition, subAgentTool.executor);
+        registeredMetaToolNames.push(subAgentTool.definition.name);
       }
 
       // 加载历史消息
@@ -1364,7 +1469,7 @@ export class AgentService {
           model,
           messages,
           tools: enableTools ? params.tools : undefined,
-          maxIterations: params.maxIterations || 20,
+          maxIterations: params.maxIterations || 30,
           sendEvent,
           signal: abortController.signal,
           scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
