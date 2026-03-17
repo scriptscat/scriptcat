@@ -1302,6 +1302,8 @@ export class AgentService {
   // 解析消息中所有 ContentBlock 引用的 attachmentId → base64 data URL
   private async resolveAttachments(messages: ChatRequest["messages"]): Promise<(id: string) => string | null> {
     const resolved = new Map<string, string>();
+    // attachmentId → mimeType（从 ContentBlock 中提取，OPFS 不保留 MIME 类型）
+    const mimeTypes = new Map<string, string>();
     const ids = new Set<string>();
 
     for (const m of messages) {
@@ -1309,6 +1311,9 @@ export class AgentService {
         for (const block of m.content) {
           if (block.type !== "text" && "attachmentId" in block) {
             ids.add(block.attachmentId);
+            if ("mimeType" in block && block.mimeType) {
+              mimeTypes.set(block.attachmentId, block.mimeType);
+            }
           }
         }
       }
@@ -1328,7 +1333,9 @@ export class AgentService {
             binary += String.fromCharCode(bytes[i]);
           }
           const b64 = btoa(binary);
-          resolved.set(id, `data:${blob.type || "application/octet-stream"};base64,${b64}`);
+          // 优先使用 ContentBlock 中的 mimeType，OPFS 读出的 blob.type 通常为空
+          const mime = mimeTypes.get(id) || blob.type || "application/octet-stream";
+          resolved.set(id, `data:${mime};base64,${b64}`);
         }
       } catch {
         // 加载失败，跳过

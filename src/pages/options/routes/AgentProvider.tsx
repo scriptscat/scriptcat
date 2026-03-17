@@ -13,12 +13,23 @@ import {
   Tooltip,
   Typography,
 } from "@arco-design/web-react";
-import { IconCheck, IconDelete, IconEdit, IconPlus } from "@arco-design/web-react/icon";
+import { IconCheck, IconDelete, IconEdit, IconEye, IconImage, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { agentClient } from "@App/pages/store/features/script";
+import {
+  groupModelsByProvider,
+  groupModelIdsByProvider,
+  detectProvider,
+  detectProviderByModelId,
+  supportsVision,
+  supportsVisionByModelId,
+  supportsImageOutput,
+  supportsImageOutputByModelId,
+} from "./AgentChat/model_utils";
+import ProviderIcon from "./AgentChat/ProviderIcon";
 
 const emptyModel: AgentModelConfig = {
   id: "",
@@ -27,22 +38,6 @@ const emptyModel: AgentModelConfig = {
   apiBaseUrl: "",
   apiKey: "",
   model: "",
-};
-
-// Provider 配色方案
-const providerTheme: Record<string, { bg: string; text: string; accent: string; label: string }> = {
-  openai: {
-    bg: "tw-bg-[#f0fdf4]",
-    text: "tw-text-[#16a34a]",
-    accent: "#16a34a",
-    label: "OpenAI",
-  },
-  anthropic: {
-    bg: "tw-bg-[#fef3e2]",
-    text: "tw-text-[#d97706]",
-    accent: "#d97706",
-    label: "Anthropic",
-  },
 };
 
 function ModelCard({
@@ -60,7 +55,9 @@ function ModelCard({
   onSetDefault: () => void;
   t: (key: string) => string;
 }) {
-  const theme = providerTheme[model.provider] || providerTheme.openai;
+  const provider = detectProvider(model);
+  const hasVision = supportsVision(model);
+  const hasImageOutput = supportsImageOutput(model);
   // 遮蔽 API Key，只显示前4位和后4位
   const maskedKey =
     model.apiKey && model.apiKey.length > 8
@@ -78,11 +75,9 @@ function ModelCard({
       {/* 顶部区域 */}
       <div className="tw-flex tw-items-start tw-justify-between tw-mb-4">
         <div className="tw-flex tw-items-center tw-gap-3">
-          {/* Provider 色块标识 */}
-          <div
-            className={`tw-w-10 tw-h-10 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-xs tw-font-bold tw-shrink-0 ${theme.bg} ${theme.text}`}
-          >
-            {model.provider === "openai" ? "AI" : "An"}
+          {/* Provider 图标 */}
+          <div className="tw-w-10 tw-h-10 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-shrink-0 tw-bg-[var(--color-fill-2)]">
+            <ProviderIcon providerKey={provider.key} size={22} />
           </div>
           <div className="tw-flex tw-flex-col tw-gap-0.5">
             <div className="tw-flex tw-items-center tw-gap-2">
@@ -92,9 +87,19 @@ function ModelCard({
                   {t("agent_model_default_label")}
                 </Tag>
               )}
+              {hasVision && (
+                <Tooltip content={t("agent_model_vision_support") || "Vision"}>
+                  <IconEye style={{ fontSize: 14, color: "var(--color-text-3)" }} />
+                </Tooltip>
+              )}
+              {hasImageOutput && (
+                <Tooltip content={t("agent_model_image_output") || "Image Output"}>
+                  <IconImage style={{ fontSize: 14, color: "var(--color-text-3)" }} />
+                </Tooltip>
+              )}
             </div>
             <Typography.Text type="secondary" className="tw-text-xs !tw-mb-0">
-              {theme.label}
+              {provider.label}
             </Typography.Text>
           </div>
         </div>
@@ -138,6 +143,110 @@ function ModelCard({
   );
 }
 
+function ModelGroupedList({
+  models,
+  defaultModelId,
+  onEdit,
+  onDelete,
+  onSetDefault,
+  t,
+}: {
+  models: AgentModelConfig[];
+  defaultModelId: string;
+  onEdit: (model: AgentModelConfig) => void;
+  onDelete: (id: string) => void;
+  onSetDefault: (id: string) => void;
+  t: (key: string) => string;
+}) {
+  // 按 provider 排序，但所有卡片放在同一个 grid 中
+  const sortedModels = useMemo(() => {
+    const groups = groupModelsByProvider(models);
+    return groups.flatMap((g) => g.models);
+  }, [models]);
+
+  return (
+    <div className="tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-4">
+      {sortedModels.map((model) => (
+        <ModelCard
+          key={model.id}
+          model={model}
+          isDefault={model.id === defaultModelId}
+          onEdit={() => onEdit(model)}
+          onDelete={() => onDelete(model.id)}
+          onSetDefault={() => onSetDefault(model.id)}
+          t={t}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FetchedModelSelect({
+  availableModels,
+  value,
+  onChange,
+}: {
+  availableModels: string[];
+  value: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const groups = useMemo(() => groupModelIdsByProvider(availableModels), [availableModels]);
+  const hasMultipleGroups = groups.length > 1;
+
+  const renderModelOption = (id: string, providerKey: string) => (
+    <Select.Option key={id} value={id}>
+      <span className="tw-inline-flex tw-items-center tw-gap-1.5">
+        {!hasMultipleGroups && <ProviderIcon providerKey={providerKey} size={12} />}
+        <span>{id}</span>
+        {supportsVisionByModelId(id) && (
+          <IconEye style={{ fontSize: 12, color: "var(--color-text-4)", flexShrink: 0 }} />
+        )}
+        {supportsImageOutputByModelId(id) && (
+          <IconImage style={{ fontSize: 12, color: "var(--color-text-4)", flexShrink: 0 }} />
+        )}
+      </span>
+    </Select.Option>
+  );
+
+  return (
+    <Select
+      className="tw-flex-1"
+      showSearch
+      allowClear
+      allowCreate
+      value={value}
+      placeholder="gpt-4o / claude-sonnet-4-20250514"
+      onChange={onChange}
+      renderFormat={(_option, val) => {
+        const valStr = String(val);
+        const provider = detectProviderByModelId(valStr);
+        return (
+          <span className="tw-inline-flex tw-items-center tw-gap-1.5">
+            <ProviderIcon providerKey={provider.key} size={12} />
+            <span>{valStr}</span>
+          </span>
+        );
+      }}
+    >
+      {hasMultipleGroups
+        ? groups.map((g) => (
+            <Select.OptGroup
+              key={g.provider.key}
+              label={
+                <span className="tw-inline-flex tw-items-center tw-gap-1.5">
+                  <ProviderIcon providerKey={g.provider.key} size={12} />
+                  <span>{g.provider.label}</span>
+                </span>
+              }
+            >
+              {g.modelIds.map((id) => renderModelOption(id, g.provider.key))}
+            </Select.OptGroup>
+          ))
+        : groups.flatMap((g) => g.modelIds.map((id) => renderModelOption(id, g.provider.key)))}
+    </Select>
+  );
+}
+
 function AgentProvider() {
   const { t } = useTranslation();
   const [models, setModels] = useState<AgentModelConfig[]>([]);
@@ -169,7 +278,8 @@ function AgentProvider() {
   const handleEdit = (record: AgentModelConfig) => {
     setEditingModel({ ...record });
     setIsEditing(true);
-    setAvailableModels([]);
+    // 从模型记录中恢复已缓存的可用模型列表
+    setAvailableModels(record.availableModels || []);
     setModalVisible(true);
   };
 
@@ -251,6 +361,8 @@ function AgentProvider() {
       const json = await resp.json();
       const ids: string[] = (json.data || []).map((item: { id: string }) => item.id);
       setAvailableModels(ids);
+      // 更新到编辑中的模型，保存时一起持久化
+      setEditingModel((prev) => ({ ...prev, availableModels: ids }));
     } catch (e) {
       Message.error(`${t("agent_model_fetch_failed")}: ${e}`);
     } finally {
@@ -274,19 +386,14 @@ function AgentProvider() {
             <Empty description={t("agent_model_no_models")} />
           </div>
         ) : (
-          <div className="tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-4">
-            {models.map((model) => (
-              <ModelCard
-                key={model.id}
-                model={model}
-                isDefault={model.id === defaultModelId}
-                onEdit={() => handleEdit(model)}
-                onDelete={() => handleDelete(model.id)}
-                onSetDefault={() => handleSetDefault(model.id)}
-                t={t}
-              />
-            ))}
-          </div>
+          <ModelGroupedList
+            models={models}
+            defaultModelId={defaultModelId}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onSetDefault={handleSetDefault}
+            t={t}
+          />
         )}
       </Card>
 
@@ -320,9 +427,25 @@ function AgentProvider() {
             <Select
               value={editingModel.provider}
               onChange={(value) => setEditingModel((prev) => ({ ...prev, provider: value }))}
+              renderFormat={(_option, value) => (
+                <span className="tw-inline-flex tw-items-center tw-gap-2">
+                  <ProviderIcon providerKey={String(value)} size={14} />
+                  <span>{value === "anthropic" ? "Anthropic" : "OpenAI"}</span>
+                </span>
+              )}
             >
-              <Select.Option value="openai">{"OpenAI"}</Select.Option>
-              <Select.Option value="anthropic">{"Anthropic"}</Select.Option>
+              <Select.Option value="openai">
+                <span className="tw-inline-flex tw-items-center tw-gap-2">
+                  <ProviderIcon providerKey="openai" size={14} />
+                  <span>{"OpenAI"}</span>
+                </span>
+              </Select.Option>
+              <Select.Option value="anthropic">
+                <span className="tw-inline-flex tw-items-center tw-gap-2">
+                  <ProviderIcon providerKey="anthropic" size={14} />
+                  <span>{"Anthropic"}</span>
+                </span>
+              </Select.Option>
             </Select>
           </div>
 
@@ -355,21 +478,11 @@ function AgentProvider() {
               {t("agent_provider_model")}
             </div>
             <div className="tw-flex tw-gap-2">
-              <Select
-                className="tw-flex-1"
-                showSearch
-                allowClear
-                allowCreate
+              <FetchedModelSelect
+                availableModels={availableModels}
                 value={editingModel.model || undefined}
-                placeholder="gpt-4o / claude-sonnet-4-20250514"
                 onChange={(value) => setEditingModel((prev) => ({ ...prev, model: value || "" }))}
-              >
-                {availableModels.map((id) => (
-                  <Select.Option key={id} value={id}>
-                    {id}
-                  </Select.Option>
-                ))}
-              </Select>
+              />
               <Button type="outline" loading={fetchingModels} onClick={handleFetchModels}>
                 {t("agent_model_fetch")}
               </Button>

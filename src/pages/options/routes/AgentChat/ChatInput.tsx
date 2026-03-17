@@ -1,8 +1,82 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Select } from "@arco-design/web-react";
-import { IconSend, IconPause, IconImage, IconClose } from "@arco-design/web-react/icon";
+import { IconSend, IconPause, IconImage, IconClose, IconEye } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/types";
+import { groupModelsByProvider, supportsVision, supportsImageOutput } from "./model_utils";
+import ProviderIcon from "./ProviderIcon";
+
+function ModelSelect({
+  models,
+  selectedModelId,
+  onModelChange,
+}: {
+  models: AgentModelConfig[];
+  selectedModelId: string;
+  onModelChange: (id: string) => void;
+}) {
+  const groups = useMemo(() => groupModelsByProvider(models), [models]);
+  const hasMultipleGroups = groups.length > 1;
+
+  const renderOption = (m: AgentModelConfig, providerKey: string) => (
+    <Select.Option key={m.id} value={m.id}>
+      <span className="tw-inline-flex tw-items-center tw-gap-1.5">
+        {!hasMultipleGroups && <ProviderIcon providerKey={providerKey} size={12} />}
+        <span>{m.name}</span>
+        {supportsVision(m) && <IconEye style={{ fontSize: 12, color: "var(--color-text-4)", flexShrink: 0 }} />}
+        {supportsImageOutput(m) && <IconImage style={{ fontSize: 12, color: "var(--color-text-4)", flexShrink: 0 }} />}
+      </span>
+    </Select.Option>
+  );
+
+  // 找到当前选中模型的供应商用于 renderFormat
+  const selectedProviderKey = useMemo(() => {
+    for (const g of groups) {
+      if (g.models.some((m) => m.id === selectedModelId)) {
+        return g.provider.key;
+      }
+    }
+    return "other";
+  }, [groups, selectedModelId]);
+
+  return (
+    <Select
+      size="mini"
+      value={selectedModelId}
+      onChange={onModelChange}
+      triggerProps={{ autoAlignPopupWidth: false }}
+      getPopupContainer={() => document.body}
+      className="!tw-w-auto !tw-min-w-[100px]"
+      bordered={false}
+      renderFormat={(_option, value) => {
+        const m = models.find((model) => model.id === value);
+        if (!m) return <span>{String(value)}</span>;
+        return (
+          <span className="tw-inline-flex tw-items-center tw-gap-1.5">
+            <ProviderIcon providerKey={selectedProviderKey} size={12} />
+            <span>{m.name}</span>
+          </span>
+        );
+      }}
+    >
+      {hasMultipleGroups
+        ? groups.map((g) => (
+            <Select.OptGroup
+              key={g.provider.key}
+              label={
+                <span className="tw-inline-flex tw-items-center tw-gap-1.5">
+                  <ProviderIcon providerKey={g.provider.key} size={12} />
+                  <span>{g.provider.label}</span>
+                </span>
+              }
+            >
+              {g.models.map((m) => renderOption(m, g.provider.key))}
+            </Select.OptGroup>
+          ))
+        : groups.flatMap((g) => g.models.map((m) => renderOption(m, g.provider.key)))}
+    </Select>
+  );
+}
 
 type PendingAttachment = {
   id: string;
@@ -215,21 +289,7 @@ export default function ChatInput({
           {/* 底部工具栏 */}
           <div className="tw-flex tw-items-center tw-justify-between tw-px-3 tw-pb-2">
             <div className="tw-flex tw-items-center tw-gap-2">
-              <Select
-                size="mini"
-                value={selectedModelId}
-                onChange={onModelChange}
-                triggerProps={{ autoAlignPopupWidth: false }}
-                getPopupContainer={() => document.body}
-                className="!tw-w-auto !tw-min-w-[100px]"
-                bordered={false}
-              >
-                {models.map((m) => (
-                  <Select.Option key={m.id} value={m.id}>
-                    {m.name}
-                  </Select.Option>
-                ))}
-              </Select>
+              <ModelSelect models={models} selectedModelId={selectedModelId} onModelChange={onModelChange} />
               {skills && skills.length > 0 && onSkillsChange && (
                 <Select
                   size="mini"

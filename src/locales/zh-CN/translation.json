@@ -613,6 +613,8 @@
   "agent_model_delete_confirm": "确定要删除此模型配置吗？",
   "agent_model_max_tokens": "最大输出 Token 数",
   "agent_model_no_models": "暂无模型配置",
+  "agent_model_vision_support": "支持图片输入",
+  "agent_model_image_output": "支持图片输出",
   "agent_coming_soon": "开发中...",
   "agent_skills_title": "Skills 管理",
   "agent_skills_add": "添加 Skill",

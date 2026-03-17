@@ -172,14 +172,14 @@ describe("buildAnthropicRequest", () => {
     expect(body.tools[0].cache_control).toBeUndefined();
   });
 
-  it("默认不设置 max_tokens，应设置 stream", () => {
+  it("默认 max_tokens 为 16384，应设置 stream", () => {
     const { init } = buildAnthropicRequest(config, {
       conversationId: "c1",
       modelId: "test",
       messages: [{ role: "user", content: "hi" }],
     });
     const body = JSON.parse(init.body as string);
-    expect(body.max_tokens).toBeUndefined();
+    expect(body.max_tokens).toBe(16384);
     expect(body.stream).toBe(true);
   });
 
@@ -417,6 +417,103 @@ describe("parseAnthropicStream", () => {
     await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
 
     expect(events).toHaveLength(0);
+  });
+
+  it("应正确解析图片生成流（content_block_start image → image_delta → content_block_stop）", async () => {
+    const reader = createMockReader([
+      'event: content_block_start\ndata: {"index":0,"content_block":{"type":"image","source":{"type":"base64","media_type":"image/png"}}}\n\n',
+      'event: content_block_delta\ndata: {"index":0,"delta":{"type":"image_delta","data":"iVBORw0KGgo"}}\n\n',
+      'event: content_block_delta\ndata: {"index":0,"delta":{"type":"image_delta","data":"AAAANSUhEUg"}}\n\n',
+      'event: content_block_stop\ndata: {"index":0}\n\n',
+      "event: message_stop\ndata: {}\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+
+    // 1. content_block_start
+    expect(events[0].type).toBe("content_block_start");
+    if (events[0].type === "content_block_start") {
+      expect(events[0].block.type).toBe("image");
+      expect(events[0].block.mimeType).toBe("image/png");
+    }
+
+    // 2. content_block_complete（base64 拼接）
+    expect(events[1].type).toBe("content_block_complete");
+    if (events[1].type === "content_block_complete") {
+      expect(events[1].block.type).toBe("image");
+      expect(events[1].block.mimeType).toBe("image/png");
+      expect(events[1].block.attachmentId).toBeTruthy();
+      expect(events[1].data).toBe("data:image/png;base64,iVBORw0KGgoAAAANSUhEUg");
+    }
+
+    // 3. done
+    expect(events[2]).toEqual({ type: "done" });
+  });
+
+  it("图片生成后应正常处理后续文本", async () => {
+    const reader = createMockReader([
+      'event: content_block_start\ndata: {"index":0,"content_block":{"type":"image","source":{"type":"base64","media_type":"image/jpeg"}}}\n\n',
+      'event: content_block_delta\ndata: {"index":0,"delta":{"type":"image_delta","data":"/9j/4AAQ"}}\n\n',
+      'event: content_block_stop\ndata: {"index":0}\n\n',
+      'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"这是生成的图片"}}\n\n',
+      "event: message_stop\ndata: {}\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events[0].type).toBe("content_block_start");
+    expect(events[1].type).toBe("content_block_complete");
+    if (events[1].type === "content_block_complete") {
+      expect(events[1].data).toBe("data:image/jpeg;base64,/9j/4AAQ");
+    }
+    expect(events[2]).toEqual({ type: "content_delta", delta: "这是生成的图片" });
+    expect(events[3]).toEqual({ type: "done" });
+  });
+
+  it("非图片的 content_block_stop 不应触发图片完成事件", async () => {
+    const reader = createMockReader([
+      'event: content_block_start\ndata: {"content_block":{"type":"thinking"}}\n\n',
+      'event: content_block_delta\ndata: {"delta":{"type":"thinking_delta","thinking":"思考中"}}\n\n',
+      'event: content_block_stop\ndata: {"index":0}\n\n',
+      "event: message_stop\ndata: {}\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events[0]).toEqual({ type: "thinking_delta", delta: "思考中" });
+    // content_block_stop 不应产生 content_block_complete
+    expect(events[1]).toEqual({ type: "done" });
+  });
+
+  it("图片块 source 缺少 media_type 时应默认使用 image/png", async () => {
+    const reader = createMockReader([
+      'event: content_block_start\ndata: {"index":0,"content_block":{"type":"image","source":{"type":"base64"}}}\n\n',
+      'event: content_block_delta\ndata: {"index":0,"delta":{"type":"image_delta","data":"AAAA"}}\n\n',
+      'event: content_block_stop\ndata: {"index":0}\n\n',
+      "event: message_stop\ndata: {}\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+
+    if (events[0].type === "content_block_start") {
+      expect(events[0].block.mimeType).toBe("image/png");
+    }
+    if (events[1].type === "content_block_complete") {
+      expect(events[1].block.mimeType).toBe("image/png");
+      expect(events[1].data).toBe("data:image/png;base64,AAAA");
+    }
   });
 
   it("应忽略无法解析的 JSON 数据", async () => {

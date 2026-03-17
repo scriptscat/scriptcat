@@ -187,6 +187,9 @@ export function parseAnthropicStream(
   let cachedUsage: { inputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | null =
     null;
 
+  // 跟踪图片块的累积 base64 数据
+  let imageBlockData: { index: number; mediaType: string; base64Chunks: string[] } | null = null;
+
   return (async () => {
     try {
       while (!signal.aborted) {
@@ -226,6 +229,21 @@ export function parseAnthropicStream(
                       arguments: "",
                     },
                   });
+                } else if (block?.type === "image") {
+                  // 图片生成块开始，记录 index 和 media_type
+                  imageBlockData = {
+                    index: json.index,
+                    mediaType: block.source?.media_type || "image/png",
+                    base64Chunks: [],
+                  };
+                  onEvent({
+                    type: "content_block_start",
+                    block: {
+                      type: "image",
+                      mimeType: block.source?.media_type || "image/png",
+                      name: "generated_image",
+                    },
+                  });
                 }
                 break;
               }
@@ -241,6 +259,29 @@ export function parseAnthropicStream(
                     id: "",
                     delta: delta.partial_json,
                   });
+                } else if (delta?.type === "image_delta" && imageBlockData) {
+                  // 累积 base64 数据块
+                  imageBlockData.base64Chunks.push(delta.data);
+                }
+                break;
+              }
+              case "content_block_stop": {
+                // 图片块结束时，拼接 base64 并 emit content_block_complete
+                if (imageBlockData) {
+                  const fullBase64 = imageBlockData.base64Chunks.join("");
+                  const dataUrl = `data:${imageBlockData.mediaType};base64,${fullBase64}`;
+                  const attachmentId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                  onEvent({
+                    type: "content_block_complete",
+                    block: {
+                      type: "image",
+                      attachmentId,
+                      mimeType: imageBlockData.mediaType,
+                      name: "generated_image",
+                    },
+                    data: dataUrl,
+                  });
+                  imageBlockData = null;
                 }
                 break;
               }

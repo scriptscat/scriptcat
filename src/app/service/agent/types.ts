@@ -122,6 +122,7 @@ export type AgentModelConfig = {
   apiKey: string;
   model: string;
   maxTokens?: number; // 最大输出 token 数，不设置则由 API 端决定
+  availableModels?: string[]; // 缓存从 API 获取的可用模型列表
 };
 
 // 隐藏 apiKey 的安全版模型配置，暴露给用户脚本

@@ -389,12 +389,24 @@ function AgentMcp() {
         await agentClient.mcpApi({
           action: "updateServer",
           id: serverId,
-          config: { name: editingServer.name, url: editingServer.url, apiKey: editingServer.apiKey, headers, enabled: editingServer.enabled },
+          config: {
+            name: editingServer.name,
+            url: editingServer.url,
+            apiKey: editingServer.apiKey,
+            headers,
+            enabled: editingServer.enabled,
+          },
         });
       } else {
         const created = (await agentClient.mcpApi({
           action: "addServer",
-          config: { name: editingServer.name, url: editingServer.url, apiKey: editingServer.apiKey, headers, enabled: editingServer.enabled },
+          config: {
+            name: editingServer.name,
+            url: editingServer.url,
+            apiKey: editingServer.apiKey,
+            headers,
+            enabled: editingServer.enabled,
+          },
         })) as MCPServerConfig;
         serverId = created.id;
         setEditingId(serverId);
