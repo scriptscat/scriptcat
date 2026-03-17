@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
-import { test, makeTextSSE, makeToolCallSSE, runAgentTestScript } from "./agent-fixtures";
+import { test, makeTextSSE, makeToolCallSSE } from "./agent-fixtures";
+import { runInlineTestScript } from "./utils";
 
 const TARGET_URL = "https://content-security-policy.com/";
 
@@ -46,7 +47,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-basic-chat] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-basic-chat] logs:", logs.join("\n"));
@@ -130,7 +131,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-tool-calling] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-tool-calling] logs:", logs.join("\n"));
@@ -189,7 +190,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-multi-turn] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-multi-turn] logs:", logs.join("\n"));

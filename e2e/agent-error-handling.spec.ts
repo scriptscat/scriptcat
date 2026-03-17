@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
-import { test, makeTextSSE, runAgentTestScript } from "./agent-fixtures";
+import { test, makeTextSSE } from "./agent-fixtures";
+import { runInlineTestScript } from "./utils";
 
 const TARGET_URL = "https://content-security-policy.com/";
 
@@ -78,7 +79,7 @@ test.describe("Agent Error Handling", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 90_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 90_000);
 
     console.log(`[error-retry] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[error-retry] logs:", logs.join("\n"));
@@ -137,7 +138,7 @@ test.describe("Agent Error Handling", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[auth-error] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[auth-error] logs:", logs.join("\n"));
@@ -191,7 +192,7 @@ test.describe("Agent Error Handling", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 60_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[abort] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[abort] logs:", logs.join("\n"));

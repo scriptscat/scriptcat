@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
-import { test, makeTextSSE, makeToolCallSSE, runAgentTestScript } from "./agent-fixtures";
+import { test, makeTextSSE, makeToolCallSSE } from "./agent-fixtures";
+import { runInlineTestScript } from "./utils";
 
 const TARGET_URL = "https://content-security-policy.com/";
 
@@ -121,7 +122,7 @@ test.describe("Agent Skill System", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runAgentTestScript(context, extensionId, code, TARGET_URL, 90_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 90_000);
 
     console.log(`[skill-integration] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[skill-integration] logs:", logs.join("\n"));
