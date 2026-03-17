@@ -130,8 +130,8 @@ export function supportsImageOutputByModelId(modelId: string): boolean {
   const m = modelId.toLowerCase();
   // GPT-4o 系列支持图片生成（不含 mini/audio）
   if (m.includes("gpt-4o") && !m.includes("mini") && !m.includes("audio")) return true;
-  // Gemini 2.0 Flash 及以上支持原生图片生成
-  if (m.includes("gemini") && (m.includes("flash") || m.includes("pro"))) return true;
+  // Gemini 2.0 Flash 支持原生图片生成（不含 1.5 等旧版本）
+  if (m.includes("gemini-2") && m.includes("flash") && !m.includes("lite")) return true;
   // DALL-E
   if (m.startsWith("dall-e")) return true;
   return false;

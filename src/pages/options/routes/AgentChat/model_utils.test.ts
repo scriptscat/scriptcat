@@ -27,11 +27,16 @@ describe("supportsImageOutputByModelId", () => {
     expect(supportsImageOutputByModelId("gpt-4o-audio-preview")).toBe(false);
   });
 
-  it.concurrent("Gemini Flash/Pro 应支持图片输出", () => {
+  it.concurrent("Gemini 2.0 Flash 应支持图片输出", () => {
     expect(supportsImageOutputByModelId("gemini-2.0-flash")).toBe(true);
     expect(supportsImageOutputByModelId("gemini-2.0-flash-exp")).toBe(true);
-    expect(supportsImageOutputByModelId("gemini-1.5-pro")).toBe(true);
-    expect(supportsImageOutputByModelId("gemini-pro-vision")).toBe(true);
+  });
+
+  it.concurrent("Gemini 旧版本和非 2.0 Flash 不应支持图片输出", () => {
+    expect(supportsImageOutputByModelId("gemini-1.5-pro")).toBe(false);
+    expect(supportsImageOutputByModelId("gemini-pro-vision")).toBe(false);
+    expect(supportsImageOutputByModelId("gemini-3-flash-preview")).toBe(false);
+    expect(supportsImageOutputByModelId("gemini-2.0-flash-lite")).toBe(false);
   });
 
   it.concurrent("DALL-E 应支持图片输出", () => {
