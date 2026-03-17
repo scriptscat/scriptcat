@@ -42,7 +42,6 @@ export class VSCodeConnect {
   private ws: WebSocket | null = null;
   private epoch = 0; // 用于废弃旧连接的回调
   private currentParams: VSCodeConnectParam | null = null;
-  private isReconnecting = false; // 防止重复触发重连
 
   // 重连策略
   private reconnectDelay: number = CONFIG.BASE_RECONNECT_DELAY;
@@ -85,7 +84,6 @@ export class VSCodeConnect {
 
     try {
       this.logger.debug(`Attempting connection (Epoch: ${sessionEpoch})`, { url });
-      this.isReconnecting = false; // 开始新连接时重置锁
       this.ws = new WebSocket(url);
 
       // 设置连接超时看门狗
@@ -158,8 +156,8 @@ export class VSCodeConnect {
     this.ws = null;
     this.logger.debug("WebSocket connection closed");
 
-    // 无论是由 onerror 还是 onclose 触发，scheduleReconnect 内部的锁 (isReconnecting)
-    // 都会确保同一 epoch 下只开启一个重连定时器，此处作为保底调用。
+    // 无论是由 onerror 还是 onclose 触发，scheduleReconnect 会通过 reconnectTimer
+    // 判断是否已有重连定时器，避免重复调度。
     this.scheduleReconnect();
   }
 
@@ -170,7 +168,7 @@ export class VSCodeConnect {
       error: ev instanceof Error ? ev.message : String(ev),
     });
     // 发生错误时立即尝试介入重连，无需等待 onclose 事件。
-    // 内部锁会拦截后续 handleClose 发起的重复请求。
+    // reconnectTimer 会拦截后续 handleClose 发起的重复请求。
     this.scheduleReconnect();
   }
 
@@ -197,11 +195,8 @@ export class VSCodeConnect {
   }
 
   private scheduleReconnect(): void {
-    if (this.isReconnecting) return;
-    // 如果不允许重连，或者已经在重连中，或者 Socket 还是开启状态，则跳过
     if (!this.currentParams?.reconnect || this.reconnectTimer) return;
-    const sessionEpoch = this.epoch; // 锁定当前的 epoch
-    this.isReconnecting = true; // 上锁
+    const sessionEpoch = this.epoch;
     this.logger.debug(`Scheduling reconnect in ${this.reconnectDelay}ms`);
 
     this.reconnectTimer = setTimeout(() => {
@@ -209,7 +204,6 @@ export class VSCodeConnect {
       if (sessionEpoch !== this.epoch) return;
 
       this.reconnectTimer = null;
-      this.isReconnecting = false;
       this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, CONFIG.MAX_RECONNECT_DELAY);
 
       this.connect(sessionEpoch);
@@ -220,9 +214,7 @@ export class VSCodeConnect {
    * 销毁当前连接资源
    */
   private dispose(): void {
-    this.isReconnecting = false; // 彻底销毁时重置状态
-
-    // 1. 停止所有定时器
+    // 停止所有定时器
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
