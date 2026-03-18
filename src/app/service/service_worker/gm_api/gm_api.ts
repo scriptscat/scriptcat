@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { ScriptDAO } from "@App/app/repo/scripts";
+import { ScriptDAO, type Script } from "@App/app/repo/scripts";
 import { type IGetSender, type Group, GetSenderType } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend, TMessageCommAction } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
@@ -28,6 +28,11 @@ import type {
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
 import { BrowserNoSupport, notificationsUpdate } from "../utils";
+import {
+  getSkillScriptGrantsByUuid,
+  getSkillScriptNameByUuid,
+  SKILL_SCRIPT_UUID_PREFIX,
+} from "@App/app/service/agent/skill_script_executor";
 import i18n from "@App/locales/locales";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { createObjectURL } from "../../offscreen/client";
@@ -45,6 +50,19 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
+import type { AgentService } from "../agent";
+// 导入 Agent API 以触发装饰器注册
+// 注意：不能使用 import "./gm_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
+import GMAgentApi from "./gm_agent";
+void GMAgentApi;
+import GMAgentSkillsApi from "./gm_agent_skills";
+void GMAgentSkillsApi;
+import GMAgentDomApi from "./gm_agent_dom";
+void GMAgentDomApi;
+import GMAgentTaskApi from "./gm_agent_task";
+void GMAgentTaskApi;
+import GMAgentModelApi from "./gm_agent_model";
+void GMAgentModelApi;
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -237,9 +255,11 @@ export default class GMApi {
 
   scriptDAO: ScriptDAO = new ScriptDAO();
 
+  agentService?: AgentService;
+
   constructor(
     private systemConfig: SystemConfig,
-    private permissionVerify: PermissionVerify,
+    public permissionVerify: PermissionVerify,
     private group: Group,
     private msgSender: MessageSend,
     private mq: IMessageQueue,
@@ -247,6 +267,10 @@ export default class GMApi {
     private gmExternalDependencies: IGMExternalDependencies
   ) {
     this.logger = LoggerCore.logger().with({ service: "runtime/gm_api" });
+  }
+
+  setAgentService(agentService: AgentService) {
+    this.agentService = agentService;
   }
 
   // PermissionVerify.API
@@ -269,11 +293,36 @@ export default class GMApi {
 
   // 解析请求
   async parseRequest<T>(data: MessageRequest<T>): Promise<GMApiRequest<T>> {
-    const script = await this.scriptDAO.get(data.uuid);
-    if (!script) {
-      throw new Error("script is not found");
+    let script;
+    if (data.uuid.startsWith(SKILL_SCRIPT_UUID_PREFIX)) {
+      // Skill Script GM API 调用：构造虚拟 Script 对象（Skill Script 不在 ScriptDAO 中）
+      // 直接从 UUID map 获取 grants，避免查 repo（skill 的 Skill Script 不在 skillScriptRepo 中）
+      const grants = getSkillScriptGrantsByUuid(data.uuid);
+      const toolName = getSkillScriptNameByUuid(data.uuid);
+      // 使用基于工具名的稳定标识符，使权限缓存在多次执行间有效
+      // 每次执行生成新的临时 UUID，但权限应绑定到工具本身而非单次执行
+      const stableUuid = SKILL_SCRIPT_UUID_PREFIX + toolName;
+      script = {
+        uuid: stableUuid,
+        name: toolName || data.uuid,
+        namespace: "",
+        metadata: { grant: grants },
+        type: 3,
+        status: 1,
+        sort: 0,
+        runStatus: "running" as const,
+        createtime: Date.now(),
+        checktime: 0,
+      } as Script;
+    } else {
+      script = await this.scriptDAO.get(data.uuid);
+      if (!script) {
+        throw new Error("script is not found");
+      }
     }
-    return { ...data, script } as GMApiRequest<T>;
+    // Skill Script 使用稳定标识符覆盖 uuid，确保权限 DB 查询/保存也用同一个标识符
+    const uuid = data.uuid.startsWith(SKILL_SCRIPT_UUID_PREFIX) ? script.uuid : data.uuid;
+    return { ...data, uuid, script } as GMApiRequest<T>;
   }
 
   @PermissionVerify.API({

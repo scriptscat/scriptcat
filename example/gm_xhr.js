@@ -14,10 +14,7 @@
  */
 const data = new FormData();
 data.append("username", "admin");
-data.append(
-  "file",
-  new File(["foo"], "foo.txt", { type: "text/plain" })
-);
+data.append("file", new File(["foo"], "foo.txt", { type: "text/plain" }));
 
 /**
  * GM_xmlhttpRequest

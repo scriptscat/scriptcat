@@ -13,6 +13,7 @@ import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
+import { compileScriptCodeByResource } from "../content/utils";
 import type { ValueUpdateDataEncoded } from "../content/types";
 import { getStorageName, getMetadataStr, getUserConfigStr, getISOWeek } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
@@ -346,6 +347,67 @@ export class Runtime {
     this.api.on("runtime/valueUpdate", this.valueUpdate.bind(this));
     this.api.on("runtime/emitEvent", this.emitEvent.bind(this));
     this.api.on("setSandboxLanguage", this.setSandboxLanguage.bind(this));
+    this.api.on("executeSkillScript", this.executeSkillScript.bind(this));
     initLanguage();
+  }
+
+  // 执行 Skill Script：构建最小化脚本上下文，注入 args，执行并返回结果
+  async executeSkillScript(params: {
+    uuid: string;
+    code: string;
+    args: Record<string, unknown>;
+    grants: string[];
+    name: string;
+    requires?: Array<{ url: string; content: string }>;
+    configValues?: Record<string, unknown>;
+  }): Promise<unknown> {
+    const uuid = params.uuid;
+    const metadata: any = {
+      grant: params.grants,
+    };
+    // 通过 compileScriptCodeByResource 包裹代码，加上 with(arguments[0]||this.$) 等上下文绑定，
+    // 使脚本能访问 sandboxContext 上注入的变量（args、GM API 等）
+    const compiledCode = compileScriptCodeByResource({
+      name: params.name,
+      code: params.code,
+      require: params.requires || [],
+    });
+
+    // 构造最小化的 ScriptLoadInfo
+    const scriptLoadInfo = {
+      uuid,
+      name: params.name,
+      namespace: "",
+      type: SCRIPT_TYPE_BACKGROUND,
+      status: 1,
+      sort: 0,
+      runStatus: "complete" as const,
+      createtime: Date.now(),
+      checktime: 0,
+      code: compiledCode,
+      value: {},
+      flag: "",
+      resource: {},
+      metadata,
+      originalMetadata: metadata,
+      metadataStr: "",
+      userConfigStr: "",
+    } as ScriptLoadInfo;
+
+    // 使用 BgExecScriptWarp 执行，它会自动构建 setTimeout/setInterval 等
+    const exec = new BgExecScriptWarp(scriptLoadInfo, this.windowMessage);
+    // 通过 sandboxContext 注入 args（BgExecScriptWarp 通过 globalInjection 注入了 setTimeout 等，
+    // sandboxContext 已经包含了这些，再追加 args 即可）
+    if ((exec as any).sandboxContext) {
+      (exec as any).sandboxContext.args = params.args;
+      (exec as any).sandboxContext.CAT_CONFIG = Object.freeze(params.configValues || {});
+    }
+
+    try {
+      const result = await exec.exec();
+      return result;
+    } finally {
+      exec.stop();
+    }
   }
 }

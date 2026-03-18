@@ -11,27 +11,25 @@
 // ==/UserScript==
 
 return new Promise((resolve, reject) => {
-    // Your code here...
-    GM_log("下午两点至四点每十五分钟运行一次");
-    
+  // Your code here...
+  GM_log("下午两点至四点每十五分钟运行一次");
 
-    GM_xmlhttpRequest({
-        url: "https://dog.ceo/api/breeds/image/random",
-        method: "GET",
-        responseType: "json",
-        anonymous: true,
+  GM_xmlhttpRequest({
+    url: "https://dog.ceo/api/breeds/image/random",
+    method: "GET",
+    responseType: "json",
+    anonymous: true,
 
-        onload(resp) {
-            if (typeof resp.response.message !== "string") {
-                reject("服务器回应错误。");
-            }
-            else {
-                GM_log(`你可能会遇到的狗狗是\n${resp.response.message}`);
-                resolve();
-            }
-        },
-        onerror(){
-            reject("服务器回应错误。");
-        }
-    });
+    onload(resp) {
+      if (typeof resp.response.message !== "string") {
+        reject("服务器回应错误。");
+      } else {
+        GM_log(`你可能会遇到的狗狗是\n${resp.response.message}`);
+        resolve();
+      }
+    },
+    onerror() {
+      reject("服务器回应错误。");
+    },
+  });
 });

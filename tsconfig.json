@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "DOM",
-      "ES2022",
-      "WebWorker"
-    ],
+    "lib": ["DOM", "ES2022", "WebWorker"],
     "module": "nodenext",
     "jsx": "react-jsx",
     "strict": true,
@@ -20,22 +16,12 @@
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
-      "@App/*": [
-        "src/*"
-      ],
-      "@Packages/*": [
-        "packages/*"
-      ],
-      "@Tests/*": [
-        "tests/*"
-      ]
+      "@App/*": ["src/*"],
+      "@Packages/*": ["packages/*"],
+      "@Tests/*": ["tests/*"]
     }
   },
-  "include": [
-    "src",
-    "packages",
-    "tests"
-  ],
+  "include": ["src", "packages", "tests"],
   "ts-node": {
     "compilerOptions": {
       "module": "CommonJS"

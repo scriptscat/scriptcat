@@ -1,8 +1,8 @@
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
 import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Space, Tabs, Tooltip } from "@arco-design/web-react";
@@ -32,18 +32,18 @@ type HotKey = {
   id: string;
   title: string;
   hotKey: number;
-  action: (script: Script, codeEditor: editor.IStandaloneCodeEditor) => void;
+  action: (script: Script, codeEditor: editor.ICodeEditor) => void;
 };
 
 const Editor: React.FC<{
   id: string;
-  script: Script;
+  getScript: (uuid: string) => Script | undefined;
   code: string;
   hotKeys: HotKey[];
-  callbackEditor: (e: editor.IStandaloneCodeEditor) => void;
+  callbackEditor: (e: editor.ICodeEditor) => void;
   onChange: (code: string) => void;
   className: string;
-}> = ({ id, script, code, hotKeys, callbackEditor, onChange, className }) => {
+}> = ({ id, getScript, code, hotKeys, callbackEditor, onChange, className }) => {
   const [node, setNode] = useState<{ editor: editor.IStandaloneCodeEditor }>();
   const ref = useCallback<(node: { editor: editor.IStandaloneCodeEditor }) => void>(
     (inlineNode) => {
@@ -60,7 +60,7 @@ const Editor: React.FC<{
     // @ts-ignore
     if (!node.editor.uuid) {
       // @ts-ignore
-      node.editor.uuid = script.uuid;
+      node.editor.uuid = id;
     }
     hotKeys.forEach((item) => {
       node.editor.addAction({
@@ -68,8 +68,10 @@ const Editor: React.FC<{
         label: item.title,
         keybindings: [item.hotKey],
         run(editor) {
-          // @ts-ignore
-          item.action(script, editor);
+          const script = getScript(id);
+          if (script) {
+            item.action(script, editor);
+          }
         },
       });
     });
@@ -78,26 +80,27 @@ const Editor: React.FC<{
     });
     callbackEditor(node.editor);
     return node.editor.dispose.bind(node.editor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.editor]);
 
   return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;
 };
 
 const WarpEditor = React.memo(Editor, (prev, next) => {
-  return prev.script.uuid === next.script.uuid;
+  return prev.id === next.id;
 });
 
 type EditorMenu = {
   title: string;
   tooltip?: string;
-  action?: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+  action?: (script: Script, e: editor.ICodeEditor) => void;
   items?: {
     id: string;
     title: string;
     tooltip?: string;
     hotKey?: number;
     hotKeyString?: string;
-    action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+    action: (script: Script, e: editor.ICodeEditor) => void;
   }[];
 };
 
@@ -171,7 +174,11 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
-const popstate = () => {
+const popstate: EventListener = (e: Event) => {
+  if (!e.isTrusted) return;
+  if (location.href.startsWith(chrome.runtime.getURL("/src/options.html#/script/editor"))) {
+    return;
+  }
   if (confirm(i18n.t("script_modified_leave_confirm"))) {
     window.history.back();
     window.removeEventListener("popstate", popstate);
@@ -181,42 +188,110 @@ const popstate = () => {
   return false;
 };
 
+type EditorState = {
+  script: Script;
+  code: string;
+  active: boolean;
+  hotKeys: HotKey[];
+  editor?: editor.ICodeEditor;
+  isChanged: boolean;
+};
+
+const scriptDAO = new ScriptDAO();
+const scriptCodeDAO = new ScriptCodeDAO();
+
 function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
   const [modal, contextHolder] = Modal.useModal();
-  const [editors, setEditors] = useState<
-    {
-      script: Script;
-      code: string;
-      active: boolean;
-      hotKeys: HotKey[];
-      editor?: editor.IStandaloneCodeEditor;
-      isChanged: boolean;
-    }[]
-  >([]);
+  const [editors, setEditors] = useState<EditorState[]>([]);
+  const editorsRef = useRef<EditorState[]>(editors); // 取出资料用
+  // Sync during render (no useEffect needed)
+  editorsRef.current = editors;
+  // The function identity is now permanent (empty dependency array)
+  const getScript = useCallback((uuid: string) => {
+    return editorsRef.current.find((e) => e.script.uuid === uuid)?.script;
+  }, []);
+  const editorFindIndex = (uuid: string) => {
+    return editorsRef.current.findIndex((e) => e.script.uuid === uuid);
+  };
+  const editorFindItem = (uuid: string) => {
+    return editorsRef.current.find((e) => e.script.uuid === uuid);
+  };
+  const delayedEditorFocus = (editor: editor.ICodeEditor | null | undefined, delayMs: number = 100) => {
+    editor = !editor ? editorsRef.current.find((e) => e.active && e.script.uuid === selectedScript)?.editor : editor;
+    if (editor) {
+      setTimeout(editor.focus.bind(editor), delayMs);
+    }
+  };
   const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
-  const [selectSciptButtonAndTab, setSelectSciptButtonAndTab] = useState<string>("");
+  const [selectedScript, setSelectSciptButtonAndTab] = useState<string>("");
   const [rightOperationTab, setRightOperationTab] = useState<{
     key: string;
     uuid: string;
     selectSciptButtonAndTab: string;
   }>();
-  const [pageInit, setPageInit] = useState<boolean>(false);
+  const cidRef = useRef<ReturnType<typeof setTimeout>>();
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
   const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(() => {
     return localStorage.getItem("hiddenEditorScriptList") === "true";
   });
 
   const pageUrlParams = useParams();
-  const [pageUrlSearchParams, setPageUrlSearchParams] = useSearchParams();
+  const [pageUrlSearchParams, _] = useSearchParams();
 
+  const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const scriptDAO = new ScriptDAO();
-  const scriptCodeDAO = new ScriptCodeDAO();
+  // 封装：统一的打开/创建脚本逻辑 (Command Pattern)
+  const openScript = useCallback(
+    async (uuid?: string, template?: string, target?: string) => {
+      const insertEditor = (e: EditorState) => {
+        let insertIdx = editorFindIndex(selectedScript);
+        insertIdx = insertIdx >= 0 ? insertIdx + 1 : editorsRef.current.length;
+        setEditors((prev) => {
+          const ret = prev.map((e) => ({ ...e, active: false }));
+          ret.splice(insertIdx, 0, e);
+          return ret;
+        });
+      };
+
+      if (uuid) {
+        // 如果已在编辑器中，直接激活
+        const existIndex = editorFindIndex(uuid);
+        if (existIndex !== -1) {
+          setEditors((prev) => prev.map((e, i) => ({ ...e, active: i === existIndex })));
+          setSelectSciptButtonAndTab(uuid);
+          return;
+        }
+
+        // 如果不在，从数据库读取
+        const script = scriptList.find((s) => s.uuid === uuid);
+        if (script) {
+          const code = await scriptCodeDAO.findByUUID(uuid);
+          const newEditor: EditorState = {
+            script,
+            code: code?.code || "",
+            active: true,
+            hotKeys: hotKeys.current,
+            isChanged: false,
+          };
+          insertEditor(newEditor);
+          setSelectSciptButtonAndTab(uuid);
+        } else {
+          Message.error("Script Not Found");
+        }
+      } else {
+        // 新建脚本
+        const e = await emptyScript(template || "", hotKeys.current, target || "blank");
+        insertEditor(e);
+        setSelectSciptButtonAndTab(e.script.uuid);
+      }
+    },
+    [scriptList, selectedScript]
+  );
 
   const setShow = (key: visibleItem, show: boolean) => {
     for (const k of Object.keys(visible)) {
@@ -226,7 +301,7 @@ function ScriptEditor() {
     setVisible({ ...visible });
   };
 
-  const save = (existingScript: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
+  const save = (existingScript: Script, e: editor.ICodeEditor): Promise<Script> => {
     // 解析code生成新的script并更新
     const code = e.getValue();
     const targetUUID = existingScript.uuid;
@@ -247,11 +322,12 @@ function ScriptEditor() {
           Message.warning(t("script_name_cannot_be_set_to_empty"));
           return Promise.reject(new Error("script name cannot be empty"));
         }
+
         if (script.ignoreVersion) script.ignoreVersion = "";
         return scriptClient
           .install({ script, code })
-          .then((update): Script => {
-            if (!update) {
+          .then((result): Script => {
+            if (!result.update) {
               Message.success(t("create_success_note"));
               // 保存的时候如何左侧没有脚本即新建
               setScriptList((prev) => {
@@ -267,6 +343,7 @@ function ScriptEditor() {
                     ? {
                         ...script,
                         name,
+                        updatetime: result.updatetime || script.updatetime,
                       }
                     : script
                 )
@@ -285,6 +362,7 @@ function ScriptEditor() {
                       script: {
                         ...item.script,
                         name,
+                        updatetime: result.updatetime || item.script.updatetime,
                       },
                     }
                   : item
@@ -303,7 +381,7 @@ function ScriptEditor() {
       });
   };
 
-  const saveAs = (script: Script, e: editor.IStandaloneCodeEditor) => {
+  const saveAs = (script: Script, e: editor.ICodeEditor) => {
     return new Promise<void>((resolve) => {
       chrome.downloads.download(
         {
@@ -428,18 +506,12 @@ function ScriptEditor() {
   ];
 
   // 根据菜单生产快捷键
-  const hotKeys: HotKey[] = [];
-  let activeTab = "";
-  for (let i = 0; i < editors.length; i += 1) {
-    if (editors[i].active) {
-      activeTab = i.toString();
-      break;
-    }
-  }
+  const hotKeys = useRef<HotKey[]>([]);
+  hotKeys.current = [];
   menu.forEach((item) => {
     item.items?.forEach((menuItem) => {
       if (menuItem.hotKey) {
-        hotKeys.push({
+        hotKeys.current.push({
           id: menuItem.id,
           title: menuItem.title,
           hotKey: menuItem.hotKey,
@@ -448,96 +520,52 @@ function ScriptEditor() {
       }
     });
   });
+
+  const templateVal = useRef(pageUrlSearchParams.get("template"));
+  const targetVal = useRef(pageUrlSearchParams.get("target"));
+
+  // 初始化 & 网址改变
   useEffect(() => {
-    const [alreadyInit] = [pageInit];
-    if (!alreadyInit) {
-      setPageInit(true); // 防止开发模式下重复初始化
+    const template = pageUrlSearchParams.get("template");
+    const target = pageUrlSearchParams.get("target");
+    if (template) templateVal.current = template;
+    if (target) targetVal.current = target;
 
-      const newParams = new URLSearchParams(pageUrlSearchParams);
-      if (newParams.get("d")) {
-        newParams.delete("d");
-        setPageUrlSearchParams(newParams, { replace: true });
+    if (canLoadScript) {
+      const uuid = pageUrlParams.uuid;
+      if (uuid === selectedScript) return;
+      if (!uuid || editorFindItem(uuid) || scriptList.find((v) => v.uuid === uuid)) {
+        const template = templateVal.current;
+        const target = targetVal.current;
+        openScript(uuid || undefined, template || undefined, target || undefined);
+      } else {
+        if (!selectedScript) {
+          // e.g. F5 reload the script editor page with an unsaved template script.
+          openScript(undefined, template || undefined, target || undefined);
+        } else {
+          Message.error("Invalid UUID");
+        }
       }
-
-      scriptDAO.all().then((scripts) => {
-        setScriptList(scripts.sort((a, b) => a.sort - b.sort));
-        setCanLoadScript(true);
-      });
     }
-    // 恢复标题
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canLoadScript, pageUrlSearchParams, pageUrlParams.uuid, navigate]);
+
+  const updateScriptList = () => {
+    return scriptDAO.all().then((scripts) => {
+      setScriptList(scripts.sort((a, b) => a.sort - b.sort));
+      setCanLoadScript(true);
+    });
+  };
+
+  // 页面初次挂载：获取脚本列表
+  useEffect(() => {
+    updateScriptList();
+    // 离开ScriptEditor时恢复标题
     return () => {
       document.title = "Home - ScriptCat";
     };
   }, []);
-
-  const memoUrlQueryString = useMemo(() => {
-    return `${pageUrlParams.uuid || ""}|${pageUrlSearchParams.get("template") || ""}|${pageUrlSearchParams.get("target") || ""}|${pageUrlSearchParams.get("d") || ""}`;
-  }, [pageUrlParams, pageUrlSearchParams]);
-
-  useEffect(() => {
-    if (!canLoadScript) return;
-
-    const [uuid, template, target, d] = memoUrlQueryString.split("|");
-    if (d) return;
-    const newParams = new URLSearchParams(pageUrlSearchParams);
-    newParams.set("d", `${Date.now()}`);
-    setPageUrlSearchParams(newParams, { replace: true });
-
-    // 如果有id则打开对应的脚本
-    if (uuid) {
-      const [scripts] = [scriptList];
-      for (let i = 0; i < scripts.length; i += 1) {
-        if (scripts[i].uuid === uuid) {
-          // 如果已经打开则激活
-          scriptCodeDAO.findByUUID(uuid).then((code) => {
-            const uuid = scripts[i].uuid;
-            setEditors((prev) => {
-              const flag = prev.some((item) => item.script.uuid === uuid);
-              if (flag) {
-                return prev.map((item) =>
-                  item.script.uuid === uuid
-                    ? {
-                        ...item,
-                        active: true,
-                      }
-                    : {
-                        ...item,
-                        active: false,
-                      }
-                );
-              } else {
-                const newEditor = {
-                  script: scripts[i],
-                  code: code?.code || "",
-                  active: true,
-                  hotKeys,
-                  isChanged: false,
-                };
-                return [...prev, newEditor];
-              }
-            });
-            setSelectSciptButtonAndTab(uuid);
-          });
-          break;
-        }
-      }
-    } else {
-      emptyScript(template || "", hotKeys, target || "blank").then((e) => {
-        setEditors((prev) => {
-          prev.forEach((item) => {
-            if (item) {
-              item.active = false;
-            }
-          });
-          const uuid = e?.script?.uuid;
-          if (uuid) {
-            setSelectSciptButtonAndTab(uuid);
-          }
-          return [...prev, e];
-        });
-      });
-    }
-  }, [canLoadScript, memoUrlQueryString]);
 
   // 控制onbeforeunload
   useEffect(() => {
@@ -567,130 +595,104 @@ function ScriptEditor() {
   }, [editors]);
 
   // 对tab点击右键进行的操作
+  // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
   useEffect(() => {
-    let selectEditorIndex: number = 0;
-    // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
-    if (rightOperationTab) {
+    if (!rightOperationTab) return;
+
+    setEditors((prev) => {
+      const idx = editorFindIndex(rightOperationTab.uuid);
+      if (idx === -1) return prev;
+
+      let newList = [...prev];
       switch (rightOperationTab.key) {
         case "1":
-          setEditors((prev) => {
-            prev = prev.filter((item) => item.script.uuid !== rightOperationTab.uuid);
-            if (prev.length > 0) {
-              // 还有的话，如果之前有选中的，那么我们还是选中之前的，如果没有选中的我们就选中第一个
-              if (rightOperationTab.selectSciptButtonAndTab === rightOperationTab.uuid) {
-                prev[0] = {
-                  ...prev[0],
-                  active: true,
-                };
-                const chooseTabUUID = prev[0].script.uuid;
-                setSelectSciptButtonAndTab(chooseTabUUID);
-                return prev;
-              } else {
-                const prevTabUUID = rightOperationTab.selectSciptButtonAndTab;
-                setSelectSciptButtonAndTab(prevTabUUID);
-                // 之前选中的tab
-                return prev.map((item) =>
-                  item.script.uuid === prevTabUUID
-                    ? {
-                        ...item,
-                        active: true,
-                      }
-                    : {
-                        ...item,
-                        active: false,
-                      }
-                );
-              }
-            } else {
-              return [];
-            }
-          });
+          newList = newList.filter((e) => e.script.uuid !== rightOperationTab.uuid);
           break;
         case "2":
-          setSelectSciptButtonAndTab(rightOperationTab.uuid);
-          setEditors((prev) => prev.filter((item) => item.script.uuid === rightOperationTab.uuid));
+          newList = newList.filter((e) => e.script.uuid === rightOperationTab.uuid);
           break;
         case "3":
-          setEditors((prev) => {
-            prev.some((item, index) => {
-              if (item.script.uuid === rightOperationTab.uuid) {
-                selectEditorIndex = index;
-                return true;
-              }
-            });
-            return prev.slice(selectEditorIndex);
-          });
+          newList = newList.slice(idx);
           break;
         case "4":
-          setEditors((prev) => {
-            prev.some((item, index) => {
-              if (item.script.uuid === rightOperationTab.uuid) {
-                selectEditorIndex = index;
-                return true;
-              }
-            });
-            return prev.slice(0, selectEditorIndex + 1);
-          });
+          newList = newList.slice(0, idx + 1);
+          break;
       }
-    }
+
+      // 关键修复：确保关闭后仍有一个 Tab 是激活的
+      if (newList.length > 0 && !newList.some((e) => e.active)) {
+        newList[0] = { ...newList[0], active: true };
+        setSelectSciptButtonAndTab(newList[0].script.uuid);
+      }
+      return newList;
+    });
+    setRightOperationTab(undefined); // 处理完清空，防止重复触发
   }, [rightOperationTab]);
 
   // 通用的编辑器删除处理函数
-  const handleDeleteEditor = (targetUuid: string, needConfirm: boolean = false) => {
+  const handleDeleteEditor = async (targetUuid: string, needConfirm: boolean = false) => {
+    const editors = editorsRef.current;
+    const targetIndex = editorFindIndex(targetUuid);
+    if (targetIndex === -1) return;
+    const targetEditor = editors[targetIndex];
+
+    // 如果需要确认且脚本已修改
+    if (needConfirm && targetEditor.isChanged) {
+      if (!confirm(t("script_modified_close_confirm"))) return;
+    }
+
+    // 如果只剩一个编辑器，打开空白脚本
+    if (editors.length === 1) {
+      const template = templateVal.current || "";
+      const e = await emptyScript(template || "", hotKeys.current, "blank");
+      setEditors([e]);
+      setSelectSciptButtonAndTab(e.script.uuid);
+      return;
+    }
+
     setEditors((prev) => {
-      const targetIndex = prev.findIndex((e) => e.script.uuid === targetUuid);
-      if (targetIndex === -1) return prev;
-
-      const targetEditor = prev[targetIndex];
-
-      // 如果需要确认且脚本已修改
-      if (needConfirm && targetEditor.isChanged) {
-        if (!confirm(t("script_modified_close_confirm"))) {
-          return prev;
-        }
-      }
-
-      // 如果只剩一个编辑器，打开空白脚本
-      if (prev.length === 1) {
-        const template = pageUrlSearchParams.get("template") || "";
-        emptyScript(template || "", hotKeys, "blank").then((e) => {
-          setEditors([e]);
-          setSelectSciptButtonAndTab(e.script.uuid);
-        });
-        return prev;
-      }
-
+      // 在回调中重新计算 index，避免 confirm/await 期间状态变化导致的竞态问题
+      const currentIndex = prev.findIndex((e) => e.script.uuid === targetUuid);
+      if (currentIndex === -1) return prev;
+      const currentEditor = prev[currentIndex];
       // 删除目标编辑器
-      prev = prev.filter((_, index) => index !== targetIndex);
-
+      const filtered = prev.filter((e) => e.script.uuid !== targetUuid);
       // 如果删除的是当前激活的编辑器，需要激活其他编辑器
-      if (targetEditor.active && prev.length > 0) {
-        let nextActiveIndex;
-        if (targetIndex >= prev.length) {
-          // 如果删除的是最后一个，激活前一个
-          nextActiveIndex = prev.length - 1;
-        } else {
-          // 否则激活下一个（原来的下一个现在在同样的位置）
-          nextActiveIndex = targetIndex;
-        }
-        prev[nextActiveIndex].active = true;
-        setSelectSciptButtonAndTab(prev[nextActiveIndex].script.uuid);
+      if (currentEditor.active && filtered.length > 0) {
+        // 如果删除的是最后一个，激活前一个
+        // 否则激活下一个（原来的下一个现在在同样的位置）
+        const nextActiveIndex = currentIndex >= filtered.length ? filtered.length - 1 : currentIndex;
+        filtered[nextActiveIndex] = { ...filtered[nextActiveIndex], active: true };
+        setSelectSciptButtonAndTab(filtered[nextActiveIndex].script.uuid);
       }
-
-      return prev;
+      return filtered;
     });
   };
 
   // 处理编辑器激活状态变化时的focus
   useEffect(() => {
-    editors.forEach((item) => {
-      if (item.active && item.editor) {
-        setTimeout(() => {
-          item.editor?.focus();
-        }, 100);
-      }
+    if (!selectedScript) return;
+    if (pageUrlParams.uuid !== selectedScript) {
+      navigate(`/script/editor/${selectedScript}`, { replace: true });
+    }
+    delayedEditorFocus(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedScript]); // 只在activeTab变化时执行
+
+  const handleEditorChange = (uuid: string, newCode: string) => {
+    const targetEditor = editorFindItem(uuid);
+    if (!targetEditor) return;
+    const isChanged = targetEditor.code !== newCode;
+    if (targetEditor.isChanged === isChanged) return;
+    setEditors((prev) => prev.map((e) => (e.script.uuid !== uuid ? e : { ...e, isChanged: isChanged })));
+  };
+
+  const filteredScriptList = useMemo(() => {
+    return scriptList.filter((script) => {
+      if (!searchKeyword) return true;
+      return i18nName(script).toLowerCase().includes(searchKeyword.toLowerCase());
     });
-  }, [activeTab]); // 只在activeTab变化时执行
+  }, [scriptList, searchKeyword]);
 
   return (
     <div
@@ -911,19 +913,14 @@ function ScriptEditor() {
                   />
                 </div>
               )}
-              {scriptList
-                .filter((script) => {
-                  if (!searchKeyword) return true;
-                  return i18nName(script).toLowerCase().includes(searchKeyword.toLowerCase());
-                })
-                .map((script) => (
-                  <div
-                    key={`s_${script.uuid}`}
-                    className="tw-relative group"
-                    style={{
-                      overflow: "hidden",
-                    }}
-                  >
+              {filteredScriptList.map((script) => {
+                const editor = editorFindItem(script.uuid);
+                const colorRGB = !editor ? "173,173,173" : editor.isChanged ? "230,155,31" : "199,199,199";
+                const alpha = script.status === 2 ? 0.8 : 1.0;
+                const colorRGBA = `rgba(${colorRGB},${alpha})`;
+                const delBtnRGBA = `rgba(173,173,173,${alpha})`;
+                return (
+                  <div key={`s_${script.uuid}`} className="tw-relative tw-group">
                     <Button
                       size="mini"
                       className="tw-text-left tw-w-full"
@@ -931,38 +928,12 @@ function ScriptEditor() {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        backgroundColor: selectSciptButtonAndTab === script.uuid ? "gray" : "",
+                        color: `${colorRGBA}`,
+                        backgroundColor: selectedScript === script.uuid ? "#414958" : editor ? "#474747" : "#333333",
                         paddingRight: "32px", // 为删除按钮留出空间
                       }}
                       onClick={() => {
-                        setSelectSciptButtonAndTab(script.uuid);
-                        // 如果已经打开则激活
-                        let flag = false;
-                        for (let i = 0; i < editors.length; i += 1) {
-                          if (editors[i].script.uuid === script.uuid) {
-                            editors[i].active = true;
-                            flag = true;
-                          } else {
-                            editors[i].active = false;
-                          }
-                        }
-                        if (!flag) {
-                          // 如果没有打开则打开
-                          // 获取code
-                          scriptCodeDAO.findByUUID(script.uuid).then((code) => {
-                            if (!code) {
-                              return;
-                            }
-                            const newEditor = {
-                              script,
-                              code: code.code,
-                              active: true,
-                              hotKeys,
-                              isChanged: false,
-                            };
-                            setEditors((prev) => [...prev, newEditor]);
-                          });
-                        }
+                        openScript(script.uuid);
                       }}
                     >
                       <span className="tw-overflow-hidden tw-text-ellipsis">{i18nName(script)}</span>
@@ -980,7 +951,7 @@ function ScriptEditor() {
                         minWidth: "20px",
                         border: "none",
                         background: "transparent",
-                        color: "var(--color-text-2)",
+                        color: `${delBtnRGBA}`,
                         boxShadow: "none",
                       }}
                       onClick={(e) => {
@@ -989,13 +960,16 @@ function ScriptEditor() {
                         modal.confirm!({
                           title: t("confirm_delete_script"),
                           content: t("confirm_delete_script_content", { name: i18nName(script) }),
+                          focusLock: false,
+                          simple: false,
+                          closable: true,
                           onOk: () => {
                             scriptClient
                               .deletes([script.uuid])
                               .then(() => {
                                 setScriptList((prev) => prev.filter((s) => s.uuid !== script.uuid));
                                 handleDeleteEditor(script.uuid);
-                                if (selectSciptButtonAndTab === script.uuid) {
+                                if (selectedScript === script.uuid) {
                                   setSelectSciptButtonAndTab("");
                                 }
                                 Message.success(t("delete_success"));
@@ -1005,11 +979,15 @@ function ScriptEditor() {
                                 Message.error(`${t("delete_failed")}: ${err}`);
                               });
                           },
+                          onCancel: () => {
+                            delayedEditorFocus(null);
+                          },
                         });
                       }}
                     />
                   </div>
-                ))}
+                );
+              })}
             </div>
           </Col>
         )}
@@ -1017,53 +995,31 @@ function ScriptEditor() {
           <div className="tw-flex tw-flex-row tw-w-full tw-justify-between">
             <Tabs
               editable
-              activeTab={activeTab}
+              activeTab={selectedScript}
               className="edit-tabs"
               type="card-gutter"
               style={{
                 overflow: "hidden",
               }}
-              onChange={(index: string) => {
-                setEditors((prev) =>
-                  prev.map((editor, i) =>
-                    `${i}` === index
-                      ? {
-                          ...editor,
-                          active:
-                            (setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
-                            true),
-                        }
-                      : {
-                          ...editor,
-                          active: false,
-                        }
-                  )
-                );
+              onChange={(uuid) => {
+                // rightTabOperation 时会发生多次 onChange
+                // 只取最后一个
+                clearTimeout(cidRef.current);
+                cidRef.current = setTimeout(() => {
+                  if (editorFindIndex(uuid) >= 0) {
+                    openScript(uuid);
+                  }
+                }, 1);
               }}
-              onAddTab={() => {
-                const template = pageUrlSearchParams.get("template") || "";
-                emptyScript(template || "", hotKeys, "blank").then((e) => {
-                  setEditors((prev) => {
-                    prev.forEach((item) => {
-                      item.active = false;
-                    });
-                    setSelectSciptButtonAndTab(e.script.uuid);
-                    return [...prev, e];
-                  });
-                });
-              }}
-              onDeleteTab={(index: string) => {
-                const i = parseInt(index, 10);
-                const targetUuid = editors[i]?.script.uuid;
-                if (targetUuid) {
-                  handleDeleteEditor(targetUuid, true);
-                }
+              onAddTab={() => openScript(undefined, templateVal.current || undefined, undefined)} // 不传参数即为新建
+              onDeleteTab={(uuid) => {
+                handleDeleteEditor(uuid, true);
               }}
             >
-              {editors.map((e, index) => (
+              {editors.map((e, _index) => (
                 <TabPane
                   destroyOnHide
-                  key={index!.toString()}
+                  key={e.script.uuid}
                   title={
                     <Dropdown
                       trigger="contextMenu"
@@ -1075,7 +1031,7 @@ function ScriptEditor() {
                               ...rightOperationTab,
                               key,
                               uuid: e.script.uuid,
-                              selectSciptButtonAndTab,
+                              selectSciptButtonAndTab: selectedScript,
                             });
                           }}
                         >
@@ -1090,7 +1046,7 @@ function ScriptEditor() {
                         style={{
                           color: e.isChanged
                             ? "rgb(var(--orange-5))"
-                            : e.script.uuid === selectSciptButtonAndTab
+                            : e.script.uuid === selectedScript
                               ? "rgb(var(--green-7))"
                               : e.active
                                 ? "rgb(var(--green-7))"
@@ -1142,8 +1098,8 @@ function ScriptEditor() {
                   <WarpEditor
                     className="script-code-editor"
                     key={`e_${item.script.uuid}`}
-                    id={`e_${item.script.uuid}`}
-                    script={item.script}
+                    id={`${item.script.uuid}`}
+                    getScript={getScript}
                     code={item.code}
                     hotKeys={item.hotKeys}
                     callbackEditor={(e) => {
@@ -1152,26 +1108,14 @@ function ScriptEditor() {
                           v.script.uuid === item.script.uuid
                             ? {
                                 ...v,
-                                editor:
-                                  (v.active && setTimeout(() => e.focus(), 100), // 编辑器实例创建后立即聚焦一次
-                                  e),
+                                editor: e,
                               }
                             : v
                         )
                       );
+                      delayedEditorFocus(e); // 编辑器实例创建后立即聚焦一次
                     }}
-                    onChange={(code) => {
-                      setEditors((prev) => {
-                        const script = prev.find((v) => v.script.uuid === item.script.uuid);
-                        if (!script) return prev;
-                        const isChanged = !(script.code === code);
-                        if (isChanged !== script.isChanged) {
-                          script.isChanged = isChanged;
-                          return [...prev];
-                        }
-                        return prev;
-                      });
-                    }}
+                    onChange={(code) => handleEditorChange(item.script.uuid, code)}
                   />
                 </div>
               );

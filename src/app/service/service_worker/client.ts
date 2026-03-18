@@ -11,7 +11,14 @@ import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
+import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/types";
+import type {
+  ScriptService,
+  TCheckScriptUpdateOption,
+  TOpenBatchUpdatePageOption,
+  TScriptInstallParam,
+  TScriptInstallReturn,
+} from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 
@@ -40,15 +47,9 @@ export class ScriptClient extends Client {
     return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean }]>("getInstallInfo", uuid);
   }
 
-  install(params: {
-    script: Script;
-    code: string;
-    upsertBy?: InstallSource;
-    createtime?: number;
-    updatetime?: number;
-  }): Promise<{ update: boolean }> {
+  install(params: TScriptInstallParam): Promise<TScriptInstallReturn> {
     if (!params.upsertBy) params.upsertBy = "user";
-    return this.doThrow("install", { ...params });
+    return this.doThrow("install", { ...params } satisfies TScriptInstallParam);
   }
 
   // delete(uuid: string) {
@@ -326,5 +327,92 @@ export class SystemClient extends Client {
 
   connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
     return this.do("connectVSCode", params);
+  }
+}
+
+export class AgentClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/agent");
+  }
+
+  installSkill(params: {
+    skillMd: string;
+    scripts?: Array<{ name: string; code: string }>;
+    references?: Array<{ name: string; content: string }>;
+  }): Promise<unknown> {
+    return this.do("installSkill", params);
+  }
+
+  removeSkill(name: string): Promise<unknown> {
+    return this.do("removeSkill", name);
+  }
+
+  refreshSkill(name: string): Promise<boolean> {
+    return this.doThrow("refreshSkill", name);
+  }
+
+  prepareSkillInstall(zipBase64: string): Promise<string> {
+    return this.doThrow("prepareSkillInstall", zipBase64);
+  }
+
+  getSkillInstallData(uuid: string): Promise<{
+    skillMd: string;
+    metadata: {
+      name: string;
+      description: string;
+      config?: Record<string, SkillConfigField>;
+    };
+    prompt: string;
+    scripts: Array<{ name: string; code: string }>;
+    references: Array<{ name: string; content: string }>;
+    isUpdate: boolean;
+  }> {
+    return this.doThrow("getSkillInstallData", uuid);
+  }
+
+  completeSkillInstall(uuid: string): Promise<unknown> {
+    return this.doThrow("completeSkillInstall", uuid);
+  }
+
+  cancelSkillInstall(uuid: string): Promise<void> {
+    return this.do("cancelSkillInstall", uuid);
+  }
+
+  getSkillConfigValues(name: string): Promise<Record<string, unknown>> {
+    return this.doThrow("getSkillConfigValues", name);
+  }
+
+  saveSkillConfig(params: { name: string; values: Record<string, unknown> }): Promise<void> {
+    return this.doThrow("saveSkillConfig", params);
+  }
+
+  // Model CRUD
+  listModels(): Promise<AgentModelConfig[]> {
+    return this.doThrow("listModels");
+  }
+
+  getModel(id: string) {
+    return this.do<AgentModelConfig | undefined>("getModel", id);
+  }
+
+  saveModel(model: AgentModelConfig) {
+    return this.do("saveModel", model);
+  }
+
+  removeModel(id: string) {
+    return this.do("removeModel", id);
+  }
+
+  getDefaultModelId(): Promise<string> {
+    return this.doThrow("getDefaultModelId");
+  }
+
+  setDefaultModelId(id: string) {
+    return this.do("setDefaultModelId", id);
+  }
+
+  // MCP API
+  mcpApi(request: MCPApiRequest): Promise<unknown> {
+    return this.doThrow("mcpApi", request);
   }
 }

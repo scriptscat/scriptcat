@@ -12,7 +12,8 @@ Please clearly describe the feature you want:
 
 ### Use Case
 
-In what situations is this feature needed? (e.g., when processing specific websites, improving operational efficiency, etc.)
+In what situations is this feature needed? (e.g., when processing specific websites, improving operational efficiency,
+etc.)
 
 ### Additional Information
 

@@ -17,10 +17,10 @@ const tab = GM_openInTab("https://scriptcat.org/search");
 
 // 监听标签页关闭事件
 tab.onclose = () => {
-    console.log("close");
-}
+  console.log("close");
+};
 
 // 3 秒后主动关闭该标签页
 setTimeout(() => {
-    tab.close();
+  tab.close();
 }, 3000);

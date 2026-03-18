@@ -8,8 +8,8 @@
 // @require-css  https://samplesdl.me/training_html-css/style.css
 // ==/UserScript==
 
-(function() {
-    'use strict';
+(function () {
+  "use strict";
 
-    // Your code here...
+  // Your code here...
 })();

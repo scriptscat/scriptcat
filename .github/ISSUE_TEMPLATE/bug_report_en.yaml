@@ -14,7 +14,9 @@ body:
     attributes:
       label: "Problem Description"
       description: "What problem occurred? What is the expected normal behavior?"
-      placeholder: "e.g., When clicking the download button on YouTube page, the script throws a 404 error, expected to show a download window"
+      placeholder:
+        "e.g., When clicking the download button on YouTube page, the script throws a 404 error, expected to show a
+        download window"
     validations:
       required: true
 
@@ -37,7 +39,9 @@ body:
     id: scriptcat-version
     attributes:
       label: ScriptCat Version
-      description: You can view it by clicking on the ScriptCat popup window. If possible, please use the latest version as your issue may have already been resolved
+      description:
+        You can view it by clicking on the ScriptCat popup window. If possible, please use the latest version as your
+        issue may have already been resolved
       placeholder: e.g., v0.17.0
     validations:
       required: true

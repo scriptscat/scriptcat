@@ -8,6 +8,7 @@ import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
+import { HtmlExtractorService } from "./html_extractor";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 
 // offscreen环境的管理器
@@ -57,14 +58,17 @@ export class OffscreenManager {
     script.init();
     // 转发从sandbox来的gm api请求
     forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extMsgSender);
+    // 转发 Skill Script 执行请求到 sandbox
+    forwardMessage("sandbox", "executeSkillScript", this.windowServer, this.windowMessage);
     // 转发valueUpdate与emitEvent
     forwardMessage("sandbox", "runtime/valueUpdate", this.windowServer, this.windowMessage);
     forwardMessage("sandbox", "runtime/emitEvent", this.windowServer, this.windowMessage);
-
     const gmApi = new GMApi(this.windowServer.group("gmApi"));
     gmApi.init();
     const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extMsgSender);
     vscodeConnect.init();
+    const htmlExtractor = new HtmlExtractorService(this.windowServer.group("htmlExtractor"));
+    htmlExtractor.init();
 
     this.windowServer.on("createObjectURL", async (params: { blob: Blob; persistence: boolean }) => {
       return makeBlobURL(params) as string;

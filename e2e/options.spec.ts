@@ -35,12 +35,8 @@ test.describe("Options Page", () => {
       .click();
     await expect(page).toHaveURL(/.*#\/logger/);
 
-    // Click "Tools" / "工具" menu item
-    await page
-      .locator(".arco-menu-item")
-      .filter({ hasText: /tool|工具/i })
-      .first()
-      .click();
+    // Click "Tools" / "工具" menu item (use .menu-tools class to avoid hitting "CATool" submenu)
+    await page.locator(".menu-tools .arco-menu-item").click();
     await expect(page).toHaveURL(/.*#\/tools/);
 
     // Click "Settings" / "设置" menu item

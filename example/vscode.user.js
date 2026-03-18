@@ -7,7 +7,7 @@
 // @match        https://bbs.tampermonkey.net.cn/
 // ==/UserScript==
 
-(function() {
-    'use strict';
-    // Your code here...
+(function () {
+  "use strict";
+  // Your code here...
 })();

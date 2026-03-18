@@ -46,13 +46,11 @@ git commit -m "✨ add login feature"
 ### 工作流概述
 
 `main` 分支是 ScriptCat 的主分支。为了保持代码的完整性，请不要直接修改 `main`
-分支。你应该创建一个新的分支，并在这个分支上进行修改，然后发起一个目标分支为
-`main` 的 Pull Request。Pull Request
-的标题请尽量使用中文，以便于自动生成更新日志。
+分支。你应该创建一个新的分支，并在这个分支上进行修改，然后发起一个目标分支为 `main` 的 Pull Request。Pull
+Request 的标题请尽量使用中文，以便于自动生成更新日志。
 
-如果你不是 ScriptCat 团队的成员，你可以先 fork 本仓库，然后向本仓库的 `main`
-分支发起 Pull Request。在创建 commit 时，请按照上述 commit message
-规范进行。我们将在 code review 完成后将你的贡献合并到主分支。
+如果你不是 ScriptCat 团队的成员，你可以先 fork 本仓库，然后向本仓库的 `main` 分支发起 Pull
+Request。在创建 commit 时，请按照上述 commit message 规范进行。我们将在 code review 完成后将你的贡献合并到主分支。
 
 ## 撰写文档
 

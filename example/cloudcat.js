@@ -10,6 +10,6 @@
 // ==/UserScript==
 
 return new Promise((resolve, reject) => {
-    // Your code here...
-    resolve();
+  // Your code here...
+  resolve();
 });
