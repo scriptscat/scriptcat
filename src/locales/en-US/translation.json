@@ -749,5 +749,16 @@
   "agent_tasks_run_conversation": "View Conversation",
   "agent_tasks_run_time": "Time",
   "agent_tasks_run_status": "Status",
-  "agent_tasks_never_run": "Never run"
+  "agent_tasks_never_run": "Never run",
+  "agent_settings": "Settings",
+  "agent_settings_title": "Agent Settings",
+  "agent_model_settings": "Model Settings",
+  "agent_summary_model": "Summary Model",
+  "agent_summary_model_desc": "Model for summarization, falls back to default if not set",
+  "agent_summary_model_placeholder": "Use default model",
+  "agent_search_settings": "Search Settings",
+  "agent_search_engine": "Search Engine",
+  "agent_search_engine_baidu": "Baidu",
+  "agent_search_google_api_key": "Google API Key",
+  "agent_search_google_cse_id": "Custom Search Engine ID"
 }

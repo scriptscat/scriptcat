@@ -712,5 +712,16 @@
   "agent_mcp_no_resources": "Keine Ressourcen verfügbar",
   "agent_mcp_no_prompts": "Keine Prompts verfügbar",
   "agent_mcp_loading": "Laden...",
-  "agent_mcp_parameters": "Parameter"
+  "agent_mcp_parameters": "Parameter",
+  "agent_settings": "Einstellungen",
+  "agent_settings_title": "Agent-Einstellungen",
+  "agent_model_settings": "Modelleinstellungen",
+  "agent_summary_model": "Zusammenfassungsmodell",
+  "agent_summary_model_desc": "Für Web-Zusammenfassungen. Wenn nicht eingestellt, wird das Standardmodell verwendet",
+  "agent_summary_model_placeholder": "Standardmodell verwenden",
+  "agent_search_settings": "Sucheinstellungen",
+  "agent_search_engine": "Suchmaschine",
+  "agent_search_engine_baidu": "Baidu",
+  "agent_search_google_api_key": "Google API Key",
+  "agent_search_google_cse_id": "Benutzerdefinierte Suchmaschinen-ID"
 }

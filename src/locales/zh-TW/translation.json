@@ -712,5 +712,16 @@
   "agent_mcp_no_resources": "暫無可用資源",
   "agent_mcp_no_prompts": "暫無可用提示詞",
   "agent_mcp_loading": "載入中...",
-  "agent_mcp_parameters": "參數"
+  "agent_mcp_parameters": "參數",
+  "agent_settings": "設定",
+  "agent_settings_title": "Agent 設定",
+  "agent_model_settings": "模型設定",
+  "agent_summary_model": "摘要模型",
+  "agent_summary_model_desc": "用於網頁摘要等場景，未設定時使用預設模型",
+  "agent_summary_model_placeholder": "使用預設模型",
+  "agent_search_settings": "搜尋設定",
+  "agent_search_engine": "搜尋引擎",
+  "agent_search_engine_baidu": "百度",
+  "agent_search_google_api_key": "Google API Key",
+  "agent_search_google_cse_id": "自訂搜尋引擎 ID"
 }

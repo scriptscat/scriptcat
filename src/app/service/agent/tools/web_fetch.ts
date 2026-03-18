@@ -6,7 +6,7 @@ import { extractHtmlContent } from "@App/app/service/offscreen/client";
 export const WEB_FETCH_DEFINITION: ToolDefinition = {
   name: "web_fetch",
   description:
-    "Fetch content from a URL. Returns extracted text for HTML pages, raw content for JSON/plain text. Use this to read web pages, APIs, or download text content. " +
+    "Fetch content from a URL. Returns extracted text for HTML pages, raw content for JSON/plain text. Text only — not suitable for binary downloads. " +
     "Use prompt to have the LLM summarize/extract specific information from the fetched content.",
   parameters: {
     type: "object",

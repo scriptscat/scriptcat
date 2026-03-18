@@ -10,7 +10,7 @@ describe("WebSearchExecutor", () => {
     sendMessage: vi.fn().mockImplementation(() => Promise.resolve({ data: mockExtractReturnValue })),
   } as any;
 
-  const createMockConfigRepo = (engine: "duckduckgo" | "google_custom"): SearchConfigRepo => ({
+  const createMockConfigRepo = (engine: "bing" | "duckduckgo" | "baidu" | "google_custom"): SearchConfigRepo => ({
     getConfig: vi.fn().mockResolvedValue({
       engine,
       googleApiKey: engine === "google_custom" ? "test-key" : undefined,
@@ -206,6 +206,83 @@ describe("WebSearchExecutor", () => {
     const result = JSON.parse((await executor.execute({ query: "test" })) as string);
 
     expect(result).toEqual([]);
+  });
+
+  it("should search Bing and return results", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () =>
+        Promise.resolve(
+          "<html><li class='b_algo'><h2><a href='https://example.com'>Bing Result</a></h2><div class='b_caption'><p>Bing snippet</p></div></li></html>"
+        ),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    mockExtractReturnValue = [{ title: "Bing Result", url: "https://example.com", snippet: "Bing snippet" }];
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("bing"));
+    const result = JSON.parse((await executor.execute({ query: "bing test" })) as string);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("Bing Result");
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("bing.com/search"), expect.any(Object));
+  });
+
+  it("should throw when Bing returns error", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("bing"));
+    await expect(executor.execute({ query: "test" })).rejects.toThrow("Bing search failed");
+  });
+
+  it("should return empty array when Bing extraction fails", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve("<html></html>"),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    mockSender.sendMessage.mockImplementation(() => Promise.reject(new Error("extract timeout")));
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("bing"));
+    const result = JSON.parse((await executor.execute({ query: "test" })) as string);
+
+    expect(result).toEqual([]);
+  });
+
+  it("should search Baidu and return results", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () =>
+        Promise.resolve(
+          "<html><div class='result'><h3 class='t'><a href='https://example.com'>Baidu Result</a></h3><div class='c-abstract'>Baidu snippet</div></div></html>"
+        ),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    mockExtractReturnValue = [{ title: "Baidu Result", url: "https://example.com", snippet: "Baidu snippet" }];
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("baidu"));
+    const result = JSON.parse((await executor.execute({ query: "百度测试" })) as string);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("Baidu Result");
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("baidu.com/s"), expect.any(Object));
+  });
+
+  it("should throw when Baidu returns error", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("baidu"));
+    await expect(executor.execute({ query: "test" })).rejects.toThrow("Baidu search failed");
   });
 
   it("should default to 5 results when max_results not specified", async () => {

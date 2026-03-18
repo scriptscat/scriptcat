@@ -5,6 +5,7 @@ import AgentMcp from "./AgentMcp";
 import AgentOPFS from "./AgentOPFS";
 import AgentSkills from "./AgentSkills";
 import AgentTasks from "./AgentTasks";
+import AgentSettings from "./AgentSettings";
 
 function Agent() {
   return (
@@ -15,6 +16,7 @@ function Agent() {
       <Route path="/skills" element={<AgentSkills />} />
       <Route path="/tasks" element={<AgentTasks />} />
       <Route path="/opfs" element={<AgentOPFS />} />
+      <Route path="/settings" element={<AgentSettings />} />
       <Route path="*" element={<AgentChat />} />
     </Routes>
   );

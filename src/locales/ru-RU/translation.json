@@ -712,5 +712,16 @@
   "agent_mcp_no_resources": "Нет доступных ресурсов",
   "agent_mcp_no_prompts": "Нет доступных промптов",
   "agent_mcp_loading": "Загрузка...",
-  "agent_mcp_parameters": "Параметры"
+  "agent_mcp_parameters": "Параметры",
+  "agent_settings": "Настройки",
+  "agent_settings_title": "Настройки Agent",
+  "agent_model_settings": "Настройки модели",
+  "agent_summary_model": "Модель для резюме",
+  "agent_summary_model_desc": "Используется для суммаризации веб-страниц. При отсутствии используется модель по умолчанию",
+  "agent_summary_model_placeholder": "Использовать модель по умолчанию",
+  "agent_search_settings": "Настройки поиска",
+  "agent_search_engine": "Поисковая система",
+  "agent_search_engine_baidu": "Baidu",
+  "agent_search_google_api_key": "Google API Key",
+  "agent_search_google_cse_id": "ID пользовательской поисковой системы"
 }

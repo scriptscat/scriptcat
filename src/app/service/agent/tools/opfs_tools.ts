@@ -15,7 +15,8 @@ export { sanitizePath };
 
 const OPFS_WRITE_DEFINITION: ToolDefinition = {
   name: "opfs_write",
-  description: "Write text content to a file in the workspace. Creates parent directories automatically.",
+  description:
+    "Write content to a file in the workspace. Supports text strings, Blob, and data URL (base64 auto-decoded to binary). Creates parent directories automatically.",
   parameters: {
     type: "object",
     properties: {

@@ -53,7 +53,7 @@ import { nextTimeInfo } from "@App/pkg/utils/cron";
 import { sendMessage } from "@Packages/message/client";
 import { WEB_FETCH_DEFINITION, WebFetchExecutor } from "@App/app/service/agent/tools/web_fetch";
 import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent/tools/web_search";
-import { SearchConfigRepo } from "@App/app/service/agent/tools/search_config";
+import { SearchConfigRepo, type SearchEngineConfig } from "@App/app/service/agent/tools/search_config";
 import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/tools/sub_agent";
@@ -130,6 +130,7 @@ export class AgentService {
   private taskRepo = new AgentTaskRepo();
   private taskRunRepo = new AgentTaskRunRepo();
   private taskScheduler!: AgentTaskScheduler;
+  private searchConfigRepo = new SearchConfigRepo();
 
   constructor(
     private group: Group,
@@ -190,15 +191,19 @@ export class AgentService {
       (task) => this.emitTaskEvent(task)
     );
     this.taskScheduler.init();
+    // 摘要模型 & 搜索配置 API（供 Options UI 调用）
+    this.group.on("getSummaryModelId", () => this.modelRepo.getSummaryModelId());
+    this.group.on("setSummaryModelId", (id: string) => this.modelRepo.setSummaryModelId(id));
+    this.group.on("getSearchConfig", () => this.searchConfigRepo.getConfig());
+    this.group.on("saveSearchConfig", (config: SearchEngineConfig) => this.searchConfigRepo.saveConfig(config));
     // 注册永久内置工具
-    const searchConfigRepo = new SearchConfigRepo();
     this.toolRegistry.registerBuiltin(
       WEB_FETCH_DEFINITION,
       new WebFetchExecutor(this.sender, {
         summarize: (content, prompt) => this.summarizeContent(content, prompt),
       })
     );
-    this.toolRegistry.registerBuiltin(WEB_SEARCH_DEFINITION, new WebSearchExecutor(this.sender, searchConfigRepo));
+    this.toolRegistry.registerBuiltin(WEB_SEARCH_DEFINITION, new WebSearchExecutor(this.sender, this.searchConfigRepo));
     // 注册 OPFS 工作区文件工具
     // 注入 blob URL 创建函数（通过 Offscreen 的 URL.createObjectURL）
     setCreateBlobUrlFn(async (data: ArrayBuffer, mimeType: string) => {
@@ -1695,11 +1700,18 @@ export class AgentService {
   }
 
   // 对内容做摘要/提取（供 tab 工具使用）
+  // 优先使用摘要模型，fallback 到默认模型
   private async summarizeContent(content: string, prompt: string): Promise<string> {
-    const defaultId = await this.modelRepo.getDefaultModelId();
     let model: AgentModelConfig | undefined;
-    if (defaultId) {
-      model = await this.modelRepo.getModel(defaultId);
+    const summaryId = await this.modelRepo.getSummaryModelId();
+    if (summaryId) {
+      model = await this.modelRepo.getModel(summaryId);
+    }
+    if (!model) {
+      const defaultId = await this.modelRepo.getDefaultModelId();
+      if (defaultId) {
+        model = await this.modelRepo.getModel(defaultId);
+      }
     }
     if (!model) {
       throw new Error("No model configured for summarization");

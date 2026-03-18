@@ -712,5 +712,16 @@
   "agent_mcp_no_resources": "利用可能なリソースはありません",
   "agent_mcp_no_prompts": "利用可能なプロンプトはありません",
   "agent_mcp_loading": "読み込み中...",
-  "agent_mcp_parameters": "パラメータ"
+  "agent_mcp_parameters": "パラメータ",
+  "agent_settings": "設定",
+  "agent_settings_title": "Agent 設定",
+  "agent_model_settings": "モデル設定",
+  "agent_summary_model": "要約モデル",
+  "agent_summary_model_desc": "ウェブ要約などに使用。未設定の場合はデフォルトモデルを使用",
+  "agent_summary_model_placeholder": "デフォルトモデルを使用",
+  "agent_search_settings": "検索設定",
+  "agent_search_engine": "検索エンジン",
+  "agent_search_engine_baidu": "Baidu",
+  "agent_search_google_api_key": "Google API Key",
+  "agent_search_google_cse_id": "カスタム検索エンジン ID"
 }

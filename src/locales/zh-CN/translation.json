@@ -749,5 +749,16 @@
   "agent_tasks_run_conversation": "查看对话",
   "agent_tasks_run_time": "时间",
   "agent_tasks_run_status": "状态",
-  "agent_tasks_never_run": "未运行"
+  "agent_tasks_never_run": "未运行",
+  "agent_settings": "设置",
+  "agent_settings_title": "Agent 设置",
+  "agent_model_settings": "模型设置",
+  "agent_summary_model": "摘要模型",
+  "agent_summary_model_desc": "用于网页摘要等场景，未设置时使用默认模型",
+  "agent_summary_model_placeholder": "使用默认模型",
+  "agent_search_settings": "搜索设置",
+  "agent_search_engine": "搜索引擎",
+  "agent_search_engine_baidu": "百度",
+  "agent_search_google_api_key": "Google API Key",
+  "agent_search_google_cse_id": "自定义搜索引擎 ID"
 }

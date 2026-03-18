@@ -712,5 +712,16 @@
   "agent_mcp_no_resources": "Không có tài nguyên nào",
   "agent_mcp_no_prompts": "Không có lời nhắc nào",
   "agent_mcp_loading": "Đang tải...",
-  "agent_mcp_parameters": "Tham số"
+  "agent_mcp_parameters": "Tham số",
+  "agent_settings": "Cài đặt",
+  "agent_settings_title": "Cài đặt Agent",
+  "agent_model_settings": "Cài đặt mô hình",
+  "agent_summary_model": "Mô hình tóm tắt",
+  "agent_summary_model_desc": "Dùng cho tóm tắt trang web. Nếu chưa đặt sẽ dùng mô hình mặc định",
+  "agent_summary_model_placeholder": "Dùng mô hình mặc định",
+  "agent_search_settings": "Cài đặt tìm kiếm",
+  "agent_search_engine": "Công cụ tìm kiếm",
+  "agent_search_engine_baidu": "Baidu",
+  "agent_search_google_api_key": "Google API Key",
+  "agent_search_google_cse_id": "ID công cụ tìm kiếm tùy chỉnh"
 }

@@ -13,6 +13,8 @@ export class HtmlExtractorService {
     this.group.on("extractHtmlContent", (html: string) => this.extractHtmlContent(html));
     this.group.on("extractHtmlWithSelectors", (html: string) => this.extractHtmlWithSelectors(html));
     this.group.on("extractSearchResults", (html: string) => this.extractSearchResults(html));
+    this.group.on("extractBingResults", (html: string) => this.extractBingResults(html));
+    this.group.on("extractBaiduResults", (html: string) => this.extractBaiduResults(html));
   }
 
   extractHtmlContent(html: string): string | null {
@@ -296,6 +298,62 @@ export class HtmlExtractorService {
           lines.push("");
         }
       }
+    }
+  }
+
+  // 解析 Bing 搜索结果
+  extractBingResults(html: string): SearchResult[] {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const results: SearchResult[] = [];
+
+      const resultEls = doc.querySelectorAll(".b_algo");
+      for (const el of Array.from(resultEls)) {
+        const linkEl = el.querySelector("h2 > a");
+        const snippetEl = el.querySelector(".b_caption p, p");
+        if (!linkEl) continue;
+
+        const title = (linkEl.textContent || "").trim();
+        const url = linkEl.getAttribute("href") || "";
+        const snippet = (snippetEl?.textContent || "").trim();
+
+        if (title && url) {
+          results.push({ title, url, snippet });
+        }
+      }
+
+      return results;
+    } catch {
+      return [];
+    }
+  }
+
+  // 解析百度搜索结果
+  extractBaiduResults(html: string): SearchResult[] {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const results: SearchResult[] = [];
+
+      const resultEls = doc.querySelectorAll(".result, .result-op");
+      for (const el of Array.from(resultEls)) {
+        const linkEl = el.querySelector(".t > a, h3 > a");
+        const snippetEl = el.querySelector(".c-abstract, .c-span-last");
+        if (!linkEl) continue;
+
+        const title = (linkEl.textContent || "").trim();
+        const url = linkEl.getAttribute("href") || "";
+        const snippet = (snippetEl?.textContent || "").trim();
+
+        if (title && url) {
+          results.push({ title, url, snippet });
+        }
+      }
+
+      return results;
+    } catch {
+      return [];
     }
   }
 

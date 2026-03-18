@@ -1,5 +1,5 @@
 export type SearchEngineConfig = {
-  engine: "duckduckgo" | "google_custom";
+  engine: "bing" | "duckduckgo" | "baidu" | "google_custom";
   googleApiKey?: string;
   googleCseId?: string;
 };
@@ -7,7 +7,7 @@ export type SearchEngineConfig = {
 const STORAGE_KEY = "agent_search_config";
 
 const DEFAULT_CONFIG: SearchEngineConfig = {
-  engine: "duckduckgo",
+  engine: "bing",
 };
 
 export class SearchConfigRepo {

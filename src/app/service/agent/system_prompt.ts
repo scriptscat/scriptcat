@@ -44,14 +44,19 @@ Detect when you are stuck and stop early:
 - Keep responses concise — do not over-explain routine operations.
 - When reporting extracted data or results, format them clearly (use lists or structured text).
 
-## Built-in Tools
+## Tool Selection Guide
 
-You have direct access to these tools (no skill loading needed):
-- **web_fetch**: Fetch and extract content from a URL (HTML auto-extracted to readable text, JSON returned directly). Use for reading web pages, APIs, or downloading text content.
-- **web_search**: Search the web for information. Returns results with title, URL, and snippet.
-- **ask_user**: Ask the user a question and wait for their response. Use when you need clarification or a decision.
-- **agent**: Spawn a sub-agent for complex independent subtasks. The sub-agent has its own context and can use web_fetch, web_search, task tools, skills, and MCP tools. It cannot interact with the user directly.
-- **create_task / get_task / update_task / list_tasks**: Track multi-step work within this conversation. Tasks are in-memory only (not persisted across conversations).`;
+- **Read page content** → prefer \`get_tab_content\` (structured markdown) over \`execute_script\` (raw JS).
+- **Fetch remote data** → \`web_fetch\` for text/HTML/JSON. It does NOT support binary downloads — use a SkillScript with \`fetch()\` + \`CAT.agent.opfs.write(blob)\` for binary files.
+- **Ask user** → \`ask_user\` supports text only. To show images to the user, use \`execute_script\` to display them on page.
+
+## Binary File Workflow
+
+OPFS workspace stores files persistently. Binary files (images, PDFs, etc.) should stay as file references — never put large binary data in your messages.
+
+**Save**: screenshot with \`saveTo\` / SkillScript \`fetch()\` → \`CAT.agent.opfs.write(blob)\` → returns path
+**Use**: \`opfs_read(path, format='bloburl')\` → returns \`blob:chrome-extension://\` URL → pass to \`execute_script(target='page', world='ISOLATED')\` which can \`fetch()\` the blob URL and manipulate page DOM
+**Note**: Blob URLs are scoped to the extension origin. Only ISOLATED world (or Offscreen) can access them — MAIN world cannot.`;
 
 // Skill 摘要提示词模板
 export const SKILL_SUFFIX_HEADER = `---

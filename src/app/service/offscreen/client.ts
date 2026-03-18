@@ -65,6 +65,24 @@ export async function extractHtmlWithSelectors(msgSender: MessageSend, html: str
   return result ?? null;
 }
 
+// Bing 搜索结果提取
+export async function extractBingResults(
+  msgSender: MessageSend,
+  html: string
+): Promise<Array<{ title: string; url: string; snippet: string }>> {
+  const result = await sendMessage(msgSender, "offscreen/htmlExtractor/extractBingResults", html);
+  return result ?? [];
+}
+
+// 百度搜索结果提取
+export async function extractBaiduResults(
+  msgSender: MessageSend,
+  html: string
+): Promise<Array<{ title: string; url: string; snippet: string }>> {
+  const result = await sendMessage(msgSender, "offscreen/htmlExtractor/extractBaiduResults", html);
+  return result ?? [];
+}
+
 // 搜索结果提取
 export async function extractSearchResults(
   msgSender: MessageSend,

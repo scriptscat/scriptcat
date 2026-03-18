@@ -12,6 +12,7 @@ import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/types";
+import type { SearchEngineConfig } from "@App/app/service/agent/tools/search_config";
 import type {
   ScriptService,
   TCheckScriptUpdateOption,
@@ -409,6 +410,24 @@ export class AgentClient extends Client {
 
   setDefaultModelId(id: string) {
     return this.do("setDefaultModelId", id);
+  }
+
+  // 摘要模型
+  getSummaryModelId(): Promise<string> {
+    return this.doThrow("getSummaryModelId");
+  }
+
+  setSummaryModelId(id: string) {
+    return this.do("setSummaryModelId", id);
+  }
+
+  // 搜索配置
+  getSearchConfig(): Promise<SearchEngineConfig> {
+    return this.doThrow("getSearchConfig");
+  }
+
+  saveSearchConfig(config: SearchEngineConfig) {
+    return this.do("saveSearchConfig", config);
   }
 
   // MCP API

@@ -2,7 +2,7 @@ import type { ToolDefinition } from "@App/app/service/agent/types";
 import type { ToolExecutor } from "@App/app/service/agent/tool_registry";
 import type { MessageSend } from "@Packages/message/types";
 import type { SearchConfigRepo } from "./search_config";
-import { extractSearchResults } from "@App/app/service/offscreen/client";
+import { extractSearchResults, extractBingResults, extractBaiduResults } from "@App/app/service/offscreen/client";
 
 export const WEB_SEARCH_DEFINITION: ToolDefinition = {
   name: "web_search",
@@ -38,8 +38,12 @@ export class WebSearchExecutor implements ToolExecutor {
       case "google_custom":
         return this.searchGoogle(query, maxResults, config.googleApiKey || "", config.googleCseId || "");
       case "duckduckgo":
-      default:
         return this.searchDuckDuckGo(query, maxResults);
+      case "baidu":
+        return this.searchBaidu(query, maxResults);
+      case "bing":
+      default:
+        return this.searchBing(query, maxResults);
     }
   }
 
@@ -67,6 +71,62 @@ export class WebSearchExecutor implements ToolExecutor {
       ]);
     } catch {
       // 超时或提取失败，降级返回空数组
+      results = [];
+    }
+
+    return JSON.stringify(results.slice(0, maxResults));
+  }
+
+  private async searchBing(query: string, maxResults: number): Promise<string> {
+    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=${maxResults}`;
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Bing search failed: HTTP ${response.status}`);
+    }
+
+    const html = await response.text();
+
+    let results: Awaited<ReturnType<typeof extractBingResults>>;
+    try {
+      results = await Promise.race([
+        extractBingResults(this.sender, html),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("extract timeout")), 10_000)),
+      ]);
+    } catch {
+      results = [];
+    }
+
+    return JSON.stringify(results.slice(0, maxResults));
+  }
+
+  private async searchBaidu(query: string, maxResults: number): Promise<string> {
+    const url = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=${maxResults}`;
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Baidu search failed: HTTP ${response.status}`);
+    }
+
+    const html = await response.text();
+
+    let results: Awaited<ReturnType<typeof extractBaiduResults>>;
+    try {
+      results = await Promise.race([
+        extractBaiduResults(this.sender, html),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("extract timeout")), 10_000)),
+      ]);
+    } catch {
       results = [];
     }
 

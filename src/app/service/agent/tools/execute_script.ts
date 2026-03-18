@@ -4,7 +4,11 @@ import type { ToolExecutor } from "@App/app/service/agent/tool_registry";
 export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
   name: "execute_script",
   description:
-    "Execute JavaScript code. Use target='page' to run in a web page (DOM access). Use target='sandbox' for isolated computation.",
+    "Execute JavaScript code. " +
+    "target='page': run in a browser tab with DOM access. world param (page only): " +
+    "ISOLATED (default) — extension-isolated context, can fetch extension blob URLs (blob:chrome-extension://...) AND manipulate page DOM, ideal for bridging OPFS files to page operations; " +
+    "MAIN — shares page's window/globals (access page JS variables, call page functions), but cannot access extension URLs. " +
+    "target='sandbox': isolated computation environment, no DOM, no world param.",
   parameters: {
     type: "object",
     properties: {
