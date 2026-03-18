@@ -63,22 +63,47 @@ export function decodeDataUrl(dataUrl: string): { data: Uint8Array; mimeType: st
   return { data: bytes, mimeType };
 }
 
+/** 检测字符串是否是 data URL */
+export function isDataUrl(str: string): boolean {
+  return /^data:[^;]+;base64,/.test(str);
+}
+
 /** 将二进制数据写入 OPFS workspace 指定路径 */
 export async function writeWorkspaceFile(
   path: string,
-  data: Uint8Array | string
+  data: Uint8Array | Blob | string
 ): Promise<{ path: string; size: number }> {
   const safePath = sanitizePath(path);
   if (!safePath) throw new Error("path is required");
+
+  // data URL 字符串自动解码为二进制
+  if (typeof data === "string" && isDataUrl(data)) {
+    const decoded = decodeDataUrl(data);
+    data = decoded.data;
+  }
 
   const workspace = await getWorkspaceRoot(true);
   const { dirPath, fileName } = splitPath(safePath);
   const dir = dirPath ? await getDirectory(workspace, dirPath, true) : workspace;
   const fileHandle = await dir.getFileHandle(fileName, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(data instanceof Uint8Array ? (data.buffer as ArrayBuffer) : data);
+
+  if (data instanceof Blob) {
+    await writable.write(data);
+  } else if (data instanceof Uint8Array) {
+    await writable.write(data.buffer as ArrayBuffer);
+  } else {
+    await writable.write(data);
+  }
   await writable.close();
 
-  const size = typeof data === "string" ? new Blob([data]).size : data.byteLength;
+  let size: number;
+  if (data instanceof Blob) {
+    size = data.size;
+  } else if (data instanceof Uint8Array) {
+    size = data.byteLength;
+  } else {
+    size = new Blob([data]).size;
+  }
   return { path: safePath, size };
 }

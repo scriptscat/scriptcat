@@ -109,7 +109,7 @@ export function createOPFSTools(): {
 } {
   const writeExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const result = await writeWorkspaceFile(args.path as string, args.content as string);
+      const result = await writeWorkspaceFile(args.path as string, args.content as string | Blob);
       return JSON.stringify(result);
     },
   };

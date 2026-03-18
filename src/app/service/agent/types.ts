@@ -251,7 +251,7 @@ export type SkillApiRequest =
 
 // CAT.agent.opfs API 请求
 export type OPFSApiRequest =
-  | { action: "write"; path: string; content: string; scriptUuid: string }
+  | { action: "write"; path: string; content: string | Blob; scriptUuid: string }
   | { action: "read"; path: string; format?: "text" | "bloburl"; scriptUuid: string }
   | { action: "list"; path?: string; scriptUuid: string }
   | { action: "delete"; path: string; scriptUuid: string };

@@ -25,7 +25,7 @@ export default class CATAgentOPFSApi {
   protected scriptRes?: { uuid: string };
 
   @GMContext.API({ follow: "CAT.agent.opfs" })
-  public "CAT.agent.opfs.write"(path: string, content: string): Promise<{ path: string; size: number }> {
+  public "CAT.agent.opfs.write"(path: string, content: string | Blob): Promise<{ path: string; size: number }> {
     const ctx = this as unknown as GMBaseContext;
     return ctx.sendMessage("CAT_agentOPFS", [
       { action: "write", path, content, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
