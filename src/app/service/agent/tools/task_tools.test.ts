@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { createTaskTools } from "./task_tools";
 
 describe("task_tools", () => {
-  it("should create 4 tools", () => {
+  it("should create 5 tools", () => {
     const { tools } = createTaskTools();
-    expect(tools).toHaveLength(4);
+    expect(tools).toHaveLength(5);
     const names = tools.map((t) => t.definition.name);
-    expect(names).toEqual(["create_task", "get_task", "update_task", "list_tasks"]);
+    expect(names).toEqual(["create_task", "get_task", "update_task", "list_tasks", "delete_task"]);
   });
 
   it("create_task should create a task with auto-incremented ID", async () => {
@@ -105,6 +105,25 @@ describe("task_tools", () => {
 
     const result = JSON.parse((await create.executor.execute({ subject: "No desc" })) as string);
     expect(result.description).toBeUndefined();
+  });
+
+  it("delete_task should remove a task", async () => {
+    const { tools, tasks } = createTaskTools();
+    const create = tools.find((t) => t.definition.name === "create_task")!;
+    const del = tools.find((t) => t.definition.name === "delete_task")!;
+
+    await create.executor.execute({ subject: "To delete" });
+    expect(tasks.size).toBe(1);
+
+    const result = JSON.parse((await del.executor.execute({ task_id: "1" })) as string);
+    expect(result).toEqual({ deleted: "1" });
+    expect(tasks.size).toBe(0);
+  });
+
+  it("delete_task should throw for non-existent task", async () => {
+    const { tools } = createTaskTools();
+    const del = tools.find((t) => t.definition.name === "delete_task")!;
+    await expect(del.executor.execute({ task_id: "999" })).rejects.toThrow('Task "999" not found');
   });
 
   it("tasks map should be independent per createTaskTools call", async () => {

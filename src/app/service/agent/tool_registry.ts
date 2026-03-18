@@ -71,27 +71,30 @@ export class ToolRegistry {
 
     const results: ToolExecuteResult[] = [];
 
-    // 执行内置工具
-    for (const tc of builtinCalls) {
-      const tool = this.builtinTools.get(tc.name)!;
-      try {
-        let args: Record<string, unknown> = {};
-        if (tc.arguments) {
-          args = JSON.parse(tc.arguments);
-        }
-        const rawResult = await tool.executor.execute(args);
+    // 并行执行内置工具
+    const builtinResults = await Promise.all(
+      builtinCalls.map(async (tc): Promise<ToolExecuteResult> => {
+        const tool = this.builtinTools.get(tc.name)!;
+        try {
+          let args: Record<string, unknown> = {};
+          if (tc.arguments) {
+            args = JSON.parse(tc.arguments);
+          }
+          const rawResult = await tool.executor.execute(args);
 
-        // 检查是否带附件
-        if (isToolResultWithAttachments(rawResult)) {
-          const attachments = await this.saveAttachments(rawResult.attachments);
-          results.push({ id: tc.id, result: rawResult.content, attachments });
-        } else {
-          results.push({ id: tc.id, result: typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult) });
+          // 检查是否带附件
+          if (isToolResultWithAttachments(rawResult)) {
+            const attachments = await this.saveAttachments(rawResult.attachments);
+            return { id: tc.id, result: rawResult.content, attachments };
+          } else {
+            return { id: tc.id, result: typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult) };
+          }
+        } catch (e: any) {
+          return { id: tc.id, result: JSON.stringify({ error: e.message || "Tool execution failed" }) };
         }
-      } catch (e: any) {
-        results.push({ id: tc.id, result: JSON.stringify({ error: e.message || "Tool execution failed" }) });
-      }
-    }
+      })
+    );
+    results.push(...builtinResults);
 
     // 执行脚本工具
     if (scriptCalls.length > 0) {

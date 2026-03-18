@@ -215,7 +215,54 @@ describe("WebFetchExecutor", () => {
     expect(mockSender.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("should use default max_length of 10000", async () => {
+  it("should pass User-Agent header and AbortSignal to fetch", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: () => Promise.resolve("hello"),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const executor = new WebFetchExecutor(mockSender);
+    await executor.execute({ url: "https://example.com" });
+
+    expect(mockFetch).toHaveBeenCalledWith("https://example.com", {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)" },
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it("should return final_url when response URL differs (redirect)", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      url: "https://example.com/redirected",
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: () => Promise.resolve("content"),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const executor = new WebFetchExecutor(mockSender);
+    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+
+    expect(result.final_url).toBe("https://example.com/redirected");
+  });
+
+  it("should not include final_url when no redirect", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      url: "https://example.com",
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: () => Promise.resolve("content"),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const executor = new WebFetchExecutor(mockSender);
+    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+
+    expect(result.final_url).toBeUndefined();
+  });
+
+  it("should not truncate by default", async () => {
     const longContent = "x".repeat(15000);
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -227,7 +274,7 @@ describe("WebFetchExecutor", () => {
     const executor = new WebFetchExecutor(mockSender);
     const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
 
-    expect(result.content.length).toBe(10000);
-    expect(result.truncated).toBe(true);
+    expect(result.content.length).toBe(15000);
+    expect(result.truncated).toBe(false);
   });
 });

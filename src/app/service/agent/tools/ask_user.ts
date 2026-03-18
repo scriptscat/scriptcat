@@ -36,10 +36,10 @@ export function createAskUserTool(
       sendEvent({ type: "ask_user", id: askId, question });
 
       // 等待用户回复
-      return new Promise<string>((resolve, reject) => {
+      return new Promise<string>((resolve) => {
         const timer = setTimeout(() => {
           resolvers.delete(askId);
-          reject(new Error("User did not respond within 5 minutes"));
+          resolve(JSON.stringify({ answer: null, reason: "timeout" }));
         }, ASK_USER_TIMEOUT_MS);
 
         resolvers.set(askId, (answer: string) => {

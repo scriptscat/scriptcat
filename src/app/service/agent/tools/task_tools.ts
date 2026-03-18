@@ -61,6 +61,18 @@ const LIST_TASKS_DEFINITION: ToolDefinition = {
   },
 };
 
+const DELETE_TASK_DEFINITION: ToolDefinition = {
+  name: "delete_task",
+  description: "Delete a task by its ID. The task is permanently removed.",
+  parameters: {
+    type: "object",
+    properties: {
+      task_id: { type: "string", description: "The task ID to delete" },
+    },
+    required: ["task_id"],
+  },
+};
+
 export function createTaskTools(): {
   tools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>;
   tasks: Map<string, Task>;
@@ -115,12 +127,24 @@ export function createTaskTools(): {
     },
   };
 
+  const deleteExecutor: ToolExecutor = {
+    execute: async (args: Record<string, unknown>) => {
+      const taskId = args.task_id as string;
+      if (!tasks.has(taskId)) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+      tasks.delete(taskId);
+      return JSON.stringify({ deleted: taskId });
+    },
+  };
+
   return {
     tools: [
       { definition: CREATE_TASK_DEFINITION, executor: createExecutor },
       { definition: GET_TASK_DEFINITION, executor: getExecutor },
       { definition: UPDATE_TASK_DEFINITION, executor: updateExecutor },
       { definition: LIST_TASKS_DEFINITION, executor: listExecutor },
+      { definition: DELETE_TASK_DEFINITION, executor: deleteExecutor },
     ],
     tasks,
   };

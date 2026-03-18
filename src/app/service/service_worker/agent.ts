@@ -40,6 +40,8 @@ import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
 import { SkillScriptExecutor } from "@App/app/service/agent/skill_script_executor";
 import { CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
 import { buildSystemPrompt, SKILL_SUFFIX_HEADER } from "@App/app/service/agent/system_prompt";
+import { COMPACT_SYSTEM_PROMPT, buildCompactUserPrompt, extractSummary } from "@App/app/service/agent/compact_prompt";
+import { getContextWindow } from "@App/app/service/agent/model_context";
 import { cacheInstance } from "@App/app/cache";
 import { AgentDomService } from "./agent_dom";
 import { MCPService } from "./agent_mcp";
@@ -1023,6 +1025,16 @@ export class AgentService {
         totalUsage.outputTokens += result.usage.outputTokens;
       }
 
+      // 自动 compact：当上下文占用超过 80% 时触发
+      if (result.usage && conversationId) {
+        const contextWindow = getContextWindow(model);
+        const usageRatio = result.usage.inputTokens / contextWindow;
+
+        if (usageRatio >= 0.8) {
+          await this.autoCompact(conversationId, model, messages, sendEvent, signal);
+        }
+      }
+
       // 构建 assistant 消息的持久化内容（合并文本和生成的图片 blocks）
       const buildMessageContent = (): MessageContent => {
         if (result.contentBlocks && result.contentBlocks.length > 0) {
@@ -1244,6 +1256,49 @@ export class AgentService {
   }
 
   // 统一的流式 conversation chat（UI 和脚本 API 共用）
+  private async autoCompact(
+    conversationId: string,
+    model: AgentModelConfig,
+    currentMessages: ChatRequest["messages"],
+    sendEvent: (event: ChatStreamEvent) => void,
+    signal: AbortSignal
+  ): Promise<void> {
+    // 构建摘要请求（用 currentMessages 而非从 repo 加载，因为可能有未持久化的 tool 消息）
+    const summaryMessages: ChatRequest["messages"] = [];
+    summaryMessages.push({ role: "system", content: COMPACT_SYSTEM_PROMPT });
+
+    for (const msg of currentMessages) {
+      if (msg.role === "system") continue;
+      summaryMessages.push(msg);
+    }
+    summaryMessages.push({ role: "user", content: buildCompactUserPrompt() });
+
+    // 调用 LLM 获取摘要（不带 tools，不发流式事件给 UI）
+    const noopSendEvent = () => {};
+    const result = await this.callLLM(model, { messages: summaryMessages, cache: false }, noopSendEvent, signal);
+
+    const summary = extractSummary(result.content);
+
+    // 替换 currentMessages（保留 system，替换其余为摘要）
+    const systemMsg = currentMessages.find((m) => m.role === "system");
+    currentMessages.length = 0;
+    if (systemMsg) currentMessages.push(systemMsg);
+    currentMessages.push({ role: "user", content: `[Conversation Summary]\n\n${summary}` });
+
+    // 持久化
+    const summaryMessage = {
+      id: uuidv4(),
+      conversationId,
+      role: "user" as const,
+      content: `[Conversation Summary]\n\n${summary}`,
+      createtime: Date.now(),
+    };
+    await this.repo.saveMessages(conversationId, [summaryMessage]);
+
+    // 通知 UI
+    sendEvent({ type: "compact_done", summary, originalCount: -1 });
+  }
+
   private async handleConversationChat(
     params: {
       conversationId: string;
@@ -1260,6 +1315,9 @@ export class AgentService {
       messages?: ChatRequest["messages"];
       system?: string;
       cache?: boolean;
+      // compact 模式
+      compact?: boolean;
+      compactInstruction?: string;
     },
     sender: IGetSender
   ) {
@@ -1347,6 +1405,64 @@ export class AgentService {
         return;
       }
 
+      // compact 模式：压缩对话历史
+      if (params.compact) {
+        const conv = await this.getConversation(params.conversationId);
+        if (!conv) {
+          sendEvent({ type: "error", message: "Conversation not found" });
+          return;
+        }
+
+        const model = await this.getModel(params.modelId || conv.modelId);
+        const existingMessages = await this.repo.getMessages(params.conversationId);
+
+        if (existingMessages.filter((m) => m.role !== "system").length === 0) {
+          sendEvent({ type: "error", message: "No messages to compact" });
+          return;
+        }
+
+        // 构建摘要请求
+        const summaryMessages: ChatRequest["messages"] = [];
+        summaryMessages.push({ role: "system", content: COMPACT_SYSTEM_PROMPT });
+
+        for (const msg of existingMessages) {
+          if (msg.role === "system") continue;
+          summaryMessages.push({
+            role: msg.role,
+            content: msg.content,
+            toolCallId: msg.toolCallId,
+            toolCalls: msg.toolCalls,
+          });
+        }
+
+        summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
+
+        // 不带 tools 调用 LLM
+        const result = await this.callLLM(
+          model,
+          { messages: summaryMessages, cache: false },
+          sendEvent,
+          abortController.signal
+        );
+
+        const summary = extractSummary(result.content);
+        const originalCount = existingMessages.length;
+
+        // 用摘要消息替换历史
+        const summaryMessage = {
+          id: uuidv4(),
+          conversationId: params.conversationId,
+          role: "user" as const,
+          content: `[Conversation Summary]\n\n${summary}`,
+          createtime: Date.now(),
+        };
+        await this.repo.saveMessages(params.conversationId, [summaryMessage]);
+
+        sendEvent({ type: "compact_done", summary, originalCount });
+        sendEvent({ type: "done", usage: result.usage });
+        return;
+      }
+
       // 获取对话和模型
       const conv = await this.getConversation(params.conversationId);
       if (!conv) {
@@ -1406,10 +1522,12 @@ export class AgentService {
         const subAgentTool = createSubAgentTool({
           runSubAgent: (prompt: string, desc: string) => {
             const agentId = uuidv4();
+            // 组合父信号和 10 分钟超时信号
+            const subSignal = AbortSignal.any([abortController.signal, AbortSignal.timeout(600_000)]);
             return this.runSubAgent({
               model,
               prompt,
-              signal: abortController.signal,
+              signal: subSignal,
               sendEvent: (evt) => sendEvent({ type: "sub_agent_event", agentId, description: desc, event: evt }),
               excludeTools: ["ask_user", "agent"],
               maxIterations: 20,

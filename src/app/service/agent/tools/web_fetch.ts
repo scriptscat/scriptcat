@@ -11,7 +11,7 @@ export const WEB_FETCH_DEFINITION: ToolDefinition = {
     type: "object",
     properties: {
       url: { type: "string", description: "The URL to fetch (http/https)" },
-      max_length: { type: "number", description: "Max characters to return (default 10000)" },
+      max_length: { type: "number", description: "Max characters to return (no limit by default)" },
     },
     required: ["url"],
   },
@@ -32,7 +32,7 @@ export class WebFetchExecutor implements ToolExecutor {
 
   async execute(args: Record<string, unknown>): Promise<string> {
     const url = args.url as string;
-    const maxLength = (args.max_length as number) || 10000;
+    const maxLength = args.max_length as number | undefined;
 
     if (!url) {
       throw new Error("url is required");
@@ -49,10 +49,16 @@ export class WebFetchExecutor implements ToolExecutor {
       throw new Error("Only http/https URLs are supported");
     }
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)" },
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
+
+    // 检测重定向：最终 URL 与请求 URL 不同
+    const finalUrl = response.url && response.url !== url ? response.url : undefined;
 
     const contentType = response.headers.get("content-type") || "";
     const text = await response.text();
@@ -95,17 +101,21 @@ export class WebFetchExecutor implements ToolExecutor {
       detectedType = "text";
     }
 
-    // 截断
-    const truncated = content.length > maxLength;
+    // 截断（仅当显式传入 max_length 时）
+    const truncated = maxLength != null && content.length > maxLength;
     if (truncated) {
       content = content.slice(0, maxLength);
     }
 
-    return JSON.stringify({
+    const result: Record<string, unknown> = {
       url,
       content_type: detectedType,
       content,
       truncated,
-    });
+    };
+    if (finalUrl) {
+      result.final_url = finalUrl;
+    }
+    return JSON.stringify(result);
   }
 }

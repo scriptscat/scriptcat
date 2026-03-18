@@ -139,6 +139,10 @@ export default function ChatArea({
         case "sub_agent_event":
           // 这些事件由 hook 层处理或仅作信息展示，不修改消息
           break;
+        case "compact_done":
+          // 自动 compact 完成，刷新消息列表
+          loadMessages();
+          return;
         case "content_block_start":
           // 非文本 block 开始，暂不处理（等 complete 时处理）
           break;
@@ -259,6 +263,30 @@ export default function ChatArea({
     if (typeof content === "string" && content.trim() === "/new") {
       await clearMessages(conversationId);
       setMessages([]);
+      return;
+    }
+
+    // 处理 /compact 命令：压缩对话历史
+    if (typeof content === "string" && content.trim().startsWith("/compact")) {
+      const instruction = content.trim().slice("/compact".length).trim();
+      sendMessage(
+        conversationId,
+        "",
+        (event) => {
+          if (event.type === "compact_done") {
+            // compact 完成后刷新消息列表
+            loadMessages();
+          }
+        },
+        () => {},
+        selectedModelId,
+        undefined,
+        undefined,
+        {
+          compact: true,
+          compactInstruction: instruction || undefined,
+        }
+      );
       return;
     }
 

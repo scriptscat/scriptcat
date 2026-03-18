@@ -104,7 +104,8 @@ export type ChatStreamEvent =
       };
       durationMs?: number;
     }
-  | { type: "error"; message: string; errorCode?: string };
+  | { type: "error"; message: string; errorCode?: string }
+  | { type: "compact_done"; summary: string; originalCount: number };
 
 // UI -> Service Worker 的聊天请求
 export type ChatRequest = {
@@ -125,6 +126,7 @@ export type AgentModelConfig = {
   apiKey: string;
   model: string;
   maxTokens?: number; // 最大输出 token 数，不设置则由 API 端决定
+  contextWindow?: number; // 最大上下文 token 数（输入+输出），如 128000、200000
   availableModels?: string[]; // 缓存从 API 获取的可用模型列表
   supportsVision?: boolean; // 用户手动标记是否支持视觉输入
   supportsImageOutput?: boolean; // 用户手动标记是否支持图片输出

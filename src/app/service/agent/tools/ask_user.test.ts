@@ -37,7 +37,7 @@ describe("ask_user", () => {
     await expect(executor.execute({})).rejects.toThrow("question is required");
   });
 
-  it("should timeout after 5 minutes", async () => {
+  it("should resolve with timeout reason after 5 minutes", async () => {
     vi.useFakeTimers();
     const sendEvent = vi.fn();
     const resolvers = new Map<string, (answer: string) => void>();
@@ -48,7 +48,8 @@ describe("ask_user", () => {
     // Advance time past timeout
     vi.advanceTimersByTime(5 * 60 * 1000 + 1);
 
-    await expect(resultPromise).rejects.toThrow("User did not respond within 5 minutes");
+    const result = JSON.parse((await resultPromise) as string);
+    expect(result).toEqual({ answer: null, reason: "timeout" });
     expect(resolvers.size).toBe(0);
 
     vi.useRealTimers();

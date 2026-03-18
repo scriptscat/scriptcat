@@ -196,6 +196,7 @@ export class MCPClient {
       method: "POST",
       headers: this.buildHeaders(),
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
     });
 
     // 存储 session ID
@@ -229,6 +230,7 @@ export class MCPClient {
       method: "POST",
       headers: this.buildHeaders(),
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
     });
 
     // 存储 session ID

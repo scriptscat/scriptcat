@@ -483,7 +483,7 @@ describe("SkillScriptExecutor 超时处理", () => {
     vi.useRealTimers();
   });
 
-  it("执行超过 30s 时应抛出带 errorCode=tool_timeout 的错误", async () => {
+  it("执行超过默认超时(300s)时应抛出带 errorCode=tool_timeout 的错误", async () => {
     vi.useFakeTimers();
 
     // sender.sendMessage 永不 resolve，模拟挂死的 SkillScript
@@ -497,8 +497,8 @@ describe("SkillScriptExecutor 超时处理", () => {
     // 先附加 catch 再推进时间，防止 rejection 在处理前被标记为 unhandled
     const errPromise = executor.execute({}).catch((e) => e);
 
-    // 推进 30s 触发超时
-    await vi.advanceTimersByTimeAsync(30_000);
+    // 推进 300s 触发超时
+    await vi.advanceTimersByTimeAsync(300_000);
 
     const err = await errPromise;
     expect(err).toBeInstanceOf(Error);
@@ -522,14 +522,14 @@ describe("SkillScriptExecutor 超时处理", () => {
     const executor = new SkillScriptExecutor(record, sender);
 
     const execPromise = executor.execute({}).catch(() => {});
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(300_000);
     await execPromise;
 
     expect(capturedUuid).toMatch(/^skillscript-/);
     expect(getSkillScriptNameByUuid(capturedUuid)).toBe("");
   });
 
-  it("自定义 timeout 应覆盖默认 30s", async () => {
+  it("自定义 timeout 应覆盖默认 300s", async () => {
     vi.useFakeTimers();
 
     const sender = {
@@ -556,7 +556,7 @@ describe("SkillScriptExecutor 超时处理", () => {
     expect((err as any).errorCode).toBe("tool_timeout");
   });
 
-  it("30s 内完成的执行不应超时", async () => {
+  it("默认超时内完成的执行不应超时", async () => {
     vi.useFakeTimers();
 
     const sender = {

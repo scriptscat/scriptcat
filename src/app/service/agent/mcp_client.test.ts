@@ -409,6 +409,21 @@ describe("MCPClient", () => {
     });
   });
 
+  describe("请求超时", () => {
+    it("sendRequest 应传递 AbortSignal.timeout(60s)", async () => {
+      const client = new MCPClient(createConfig());
+
+      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+      await client.initialize();
+
+      // 检查 initialize 的 fetch 调用带了 signal
+      expect(mockFetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+      // 检查 notification 的 fetch 调用也带了 signal
+      expect(mockFetch.mock.calls[1][1].signal).toBeInstanceOf(AbortSignal);
+    });
+  });
+
   describe("sendNotification 失败", () => {
     it("initialize 过程中通知失败应抛出", async () => {
       const client = new MCPClient(createConfig());

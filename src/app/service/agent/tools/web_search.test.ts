@@ -106,7 +106,7 @@ describe("WebSearchExecutor", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe("Google Result");
-    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("googleapis.com/customsearch"));
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("googleapis.com/customsearch"), expect.any(Object));
   });
 
   it("should throw when DuckDuckGo returns error", async () => {
@@ -154,6 +154,55 @@ describe("WebSearchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("google_custom"));
+    const result = JSON.parse((await executor.execute({ query: "test" })) as string);
+
+    expect(result).toEqual([]);
+  });
+
+  it("should pass AbortSignal to DuckDuckGo fetch for 15s timeout", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve("<html></html>"),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+    mockExtractReturnValue = [];
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
+    await executor.execute({ query: "test" });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("html.duckduckgo.com"),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it("should pass AbortSignal to Google fetch for 15s timeout", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ items: [] }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("google_custom"));
+    await executor.execute({ query: "test" });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("googleapis.com/customsearch"),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it("should return empty array when extractSearchResults times out", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve("<html><div class='result'>...</div></html>"),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    // 模拟 extractSearchResults 抛出超时错误（等效于 Promise.race 超时）
+    mockSender.sendMessage.mockImplementation(() => Promise.reject(new Error("extract timeout")));
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test" })) as string);
 
     expect(result).toEqual([]);

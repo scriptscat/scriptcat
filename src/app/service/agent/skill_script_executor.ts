@@ -9,7 +9,7 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 export const SKILL_SCRIPT_UUID_PREFIX = "skillscript-";
 
 // Skill Script 默认超时（ms）
-const SKILL_SCRIPT_DEFAULT_TIMEOUT_MS = 30_000;
+const SKILL_SCRIPT_DEFAULT_TIMEOUT_MS = 300_000;
 
 // 全局的 Skill Script UUID → 工具信息映射，供 GM API 权限验证时使用
 // 直接携带 grants，避免运行时再查 repo（skill 的 Skill Script 不在 skillScriptRepo 中）

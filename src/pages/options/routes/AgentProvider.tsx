@@ -18,6 +18,7 @@ import { IconCheck, IconDelete, IconEdit, IconEye, IconImage, IconPlus } from "@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
+import { inferContextWindow } from "@App/app/service/agent/model_context";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { agentClient } from "@App/pages/store/features/script";
 import {
@@ -501,6 +502,20 @@ function AgentProvider() {
               min={1}
               step={1024}
               onChange={(value) => setEditingModel((prev) => ({ ...prev, maxTokens: value || undefined }))}
+            />
+          </div>
+
+          {/* Context Window */}
+          <div>
+            <div className="tw-text-sm tw-font-medium tw-mb-2 tw-text-[var(--color-text-2)]">
+              {t("agent_model_context_window")}
+            </div>
+            <InputNumber
+              value={editingModel.contextWindow}
+              placeholder={String(inferContextWindow(editingModel.model || ""))}
+              min={1}
+              step={1024}
+              onChange={(value) => setEditingModel((prev) => ({ ...prev, contextWindow: value || undefined }))}
             />
           </div>
 

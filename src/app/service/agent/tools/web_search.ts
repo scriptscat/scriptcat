@@ -49,6 +49,7 @@ export class WebSearchExecutor implements ToolExecutor {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)",
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {
@@ -56,7 +57,18 @@ export class WebSearchExecutor implements ToolExecutor {
     }
 
     const html = await response.text();
-    const results = await extractSearchResults(this.sender, html);
+
+    // extractSearchResults 走 Offscreen 通道，加 10s 超时防卡死
+    let results: Awaited<ReturnType<typeof extractSearchResults>>;
+    try {
+      results = await Promise.race([
+        extractSearchResults(this.sender, html),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("extract timeout")), 10_000)),
+      ]);
+    } catch {
+      // 超时或提取失败，降级返回空数组
+      results = [];
+    }
 
     return JSON.stringify(results.slice(0, maxResults));
   }
@@ -67,7 +79,7 @@ export class WebSearchExecutor implements ToolExecutor {
     }
 
     const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cseId)}&q=${encodeURIComponent(query)}&num=${maxResults}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
