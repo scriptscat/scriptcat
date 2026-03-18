@@ -59,6 +59,12 @@ export async function extractHtmlContent(msgSender: MessageSend, html: string): 
   return result ?? null;
 }
 
+// HTML 内容提取（带 selector 标注）
+export async function extractHtmlWithSelectors(msgSender: MessageSend, html: string): Promise<string | null> {
+  const result = await sendMessage(msgSender, "offscreen/htmlExtractor/extractHtmlWithSelectors", html);
+  return result ?? null;
+}
+
 // 搜索结果提取
 export async function extractSearchResults(
   msgSender: MessageSend,

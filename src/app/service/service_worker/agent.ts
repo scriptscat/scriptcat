@@ -58,6 +58,7 @@ import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/tools/sub_agent";
 import { createOPFSTools } from "@App/app/service/agent/tools/opfs_tools";
+import { createTabTools } from "@App/app/service/agent/tools/tab_tools";
 
 // 判断是否可重试（429 / 5xx / 网络错误，不含 4xx 客户端错误）
 export function isRetryableError(e: Error): boolean {
@@ -193,6 +194,14 @@ export class AgentService {
     // 注册 OPFS 工作区文件工具
     const opfsTools = createOPFSTools();
     for (const t of opfsTools.tools) {
+      this.toolRegistry.registerBuiltin(t.definition, t.executor);
+    }
+    // 注册 Tab 操作工具
+    const tabTools = createTabTools({
+      sender: this.sender,
+      summarize: (content, prompt) => this.summarizeContent(content, prompt),
+    });
+    for (const t of tabTools.tools) {
       this.toolRegistry.registerBuiltin(t.definition, t.executor);
     }
     // 加载已安装的 Skills
@@ -1652,6 +1661,38 @@ export class AgentService {
         }
       }
       sendEvent({ type: "error", message: errorMsg, errorCode: classifyErrorCode(e) });
+    }
+  }
+
+  // 对内容做摘要/提取（供 tab 工具使用）
+  private async summarizeContent(content: string, prompt: string): Promise<string> {
+    const defaultId = await this.modelRepo.getDefaultModelId();
+    let model: AgentModelConfig | undefined;
+    if (defaultId) {
+      model = await this.modelRepo.getModel(defaultId);
+    }
+    if (!model) {
+      throw new Error("No model configured for summarization");
+    }
+
+    const messages: ChatRequest["messages"] = [
+      {
+        role: "system" as const,
+        content: "根据用户要求，从以下网页内容中提取/摘要信息。只返回相关内容，不要解释。",
+      },
+      {
+        role: "user" as const,
+        content: `${prompt}\n\n---\n\n${content}`,
+      },
+    ];
+
+    const noopSendEvent = () => {};
+    const controller = new AbortController();
+    try {
+      const result = await this.callLLM(model, { messages, cache: false }, noopSendEvent, controller.signal);
+      return result.content;
+    } catch (e: any) {
+      throw new Error(`Summarization failed: ${e.message}`);
     }
   }
 
