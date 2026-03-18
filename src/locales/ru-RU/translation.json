@@ -607,6 +607,7 @@
   "agent_model_name": "Name",
   "agent_model_add": "Add Model",
   "agent_model_edit": "Edit",
+  "agent_model_copy": "Copy",
   "agent_model_delete": "Delete",
   "agent_model_set_default": "Set as Default",
   "agent_model_default_label": "Default",

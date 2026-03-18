@@ -14,7 +14,7 @@ import {
   Tooltip,
   Typography,
 } from "@arco-design/web-react";
-import { IconCheck, IconDelete, IconEdit, IconEye, IconImage, IconPlus } from "@arco-design/web-react/icon";
+import { IconCheck, IconCopy, IconDelete, IconEdit, IconEye, IconImage, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
@@ -46,6 +46,7 @@ function ModelCard({
   model,
   isDefault,
   onEdit,
+  onCopy,
   onDelete,
   onSetDefault,
   t,
@@ -53,6 +54,7 @@ function ModelCard({
   model: AgentModelConfig;
   isDefault: boolean;
   onEdit: () => void;
+  onCopy: () => void;
   onDelete: () => void;
   onSetDefault: () => void;
   t: (key: string) => string;
@@ -135,6 +137,9 @@ function ModelCard({
         <Button type="text" size="small" icon={<IconEdit />} onClick={onEdit}>
           {t("agent_model_edit")}
         </Button>
+        <Button type="text" size="small" icon={<IconCopy />} onClick={onCopy}>
+          {t("agent_model_copy")}
+        </Button>
         <Popconfirm title={t("agent_model_delete_confirm")} onOk={onDelete}>
           <Button type="text" size="small" status="danger" icon={<IconDelete />}>
             {t("agent_model_delete")}
@@ -149,6 +154,7 @@ function ModelGroupedList({
   models,
   defaultModelId,
   onEdit,
+  onCopy,
   onDelete,
   onSetDefault,
   t,
@@ -156,6 +162,7 @@ function ModelGroupedList({
   models: AgentModelConfig[];
   defaultModelId: string;
   onEdit: (model: AgentModelConfig) => void;
+  onCopy: (model: AgentModelConfig) => void;
   onDelete: (id: string) => void;
   onSetDefault: (id: string) => void;
   t: (key: string) => string;
@@ -174,6 +181,7 @@ function ModelGroupedList({
           model={model}
           isDefault={model.id === defaultModelId}
           onEdit={() => onEdit(model)}
+          onCopy={() => onCopy(model)}
           onDelete={() => onDelete(model.id)}
           onSetDefault={() => onSetDefault(model.id)}
           t={t}
@@ -285,6 +293,13 @@ function AgentProvider() {
     setModalVisible(true);
   };
 
+  const handleCopy = (record: AgentModelConfig) => {
+    setEditingModel({ ...record, id: "", name: `${record.name} (Copy)` });
+    setIsEditing(false);
+    setAvailableModels(record.availableModels || []);
+    setModalVisible(true);
+  };
+
   const handleDelete = async (id: string) => {
     await agentClient.removeModel(id);
     if (defaultModelId === id) {
@@ -392,6 +407,7 @@ function AgentProvider() {
             models={models}
             defaultModelId={defaultModelId}
             onEdit={handleEdit}
+            onCopy={handleCopy}
             onDelete={handleDelete}
             onSetDefault={handleSetDefault}
             t={t}

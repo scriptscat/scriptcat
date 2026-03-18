@@ -6,11 +6,16 @@ import { extractHtmlContent } from "@App/app/service/offscreen/client";
 export const WEB_FETCH_DEFINITION: ToolDefinition = {
   name: "web_fetch",
   description:
-    "Fetch content from a URL. Returns extracted text for HTML pages, raw content for JSON/plain text. Use this to read web pages, APIs, or download text content.",
+    "Fetch content from a URL. Returns extracted text for HTML pages, raw content for JSON/plain text. Use this to read web pages, APIs, or download text content. " +
+    "Use prompt to have the LLM summarize/extract specific information from the fetched content.",
   parameters: {
     type: "object",
     properties: {
       url: { type: "string", description: "The URL to fetch (http/https)" },
+      prompt: {
+        type: "string",
+        description: "When provided, the content will be processed by LLM to extract/summarize based on this prompt",
+      },
       max_length: { type: "number", description: "Max characters to return (no limit by default)" },
     },
     required: ["url"],
@@ -28,10 +33,18 @@ export function stripHtmlTags(html: string): string {
 }
 
 export class WebFetchExecutor implements ToolExecutor {
-  constructor(private sender: MessageSend) {}
+  private summarize?: (content: string, prompt: string) => Promise<string>;
+
+  constructor(
+    private sender: MessageSend,
+    deps?: { summarize?: (content: string, prompt: string) => Promise<string> }
+  ) {
+    this.summarize = deps?.summarize;
+  }
 
   async execute(args: Record<string, unknown>): Promise<string> {
     const url = args.url as string;
+    const prompt = args.prompt as string | undefined;
     const maxLength = args.max_length as number | undefined;
 
     if (!url) {
@@ -102,9 +115,15 @@ export class WebFetchExecutor implements ToolExecutor {
     }
 
     // 截断（仅当显式传入 max_length 时）
-    const truncated = maxLength != null && content.length > maxLength;
+    let truncated = maxLength != null && content.length > maxLength;
     if (truncated) {
       content = content.slice(0, maxLength);
+    }
+
+    // LLM 摘要
+    if (prompt && this.summarize) {
+      content = await this.summarize(content, prompt);
+      truncated = false;
     }
 
     const result: Record<string, unknown> = {

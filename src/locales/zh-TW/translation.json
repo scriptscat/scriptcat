@@ -607,6 +607,7 @@
   "agent_model_name": "名稱",
   "agent_model_add": "新增模型",
   "agent_model_edit": "編輯",
+  "agent_model_copy": "複製",
   "agent_model_delete": "刪除",
   "agent_model_set_default": "設為預設",
   "agent_model_default_label": "預設",

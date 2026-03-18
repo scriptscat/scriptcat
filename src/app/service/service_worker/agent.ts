@@ -192,7 +192,12 @@ export class AgentService {
     this.taskScheduler.init();
     // 注册永久内置工具
     const searchConfigRepo = new SearchConfigRepo();
-    this.toolRegistry.registerBuiltin(WEB_FETCH_DEFINITION, new WebFetchExecutor(this.sender));
+    this.toolRegistry.registerBuiltin(
+      WEB_FETCH_DEFINITION,
+      new WebFetchExecutor(this.sender, {
+        summarize: (content, prompt) => this.summarizeContent(content, prompt),
+      })
+    );
     this.toolRegistry.registerBuiltin(WEB_SEARCH_DEFINITION, new WebSearchExecutor(this.sender, searchConfigRepo));
     // 注册 OPFS 工作区文件工具
     // 注入 blob URL 创建函数（通过 Offscreen 的 URL.createObjectURL）
