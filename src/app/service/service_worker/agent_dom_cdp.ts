@@ -197,11 +197,42 @@ export async function cdpFill(tabId: number, selector: string, value: string): P
 // 通过 CDP 截图
 export async function cdpScreenshot(tabId: number, options?: ScreenshotOptions): Promise<string> {
   const quality = options?.quality ?? 80;
-  const result = await sendCommand(tabId, "Page.captureScreenshot", {
+  const captureParams: Record<string, unknown> = {
     format: "jpeg",
     quality,
     captureBeyondViewport: options?.fullPage ?? false,
-  });
+  };
+
+  // 指定 selector 时，定位元素并裁剪截图区域
+  if (options?.selector) {
+    const doc = await sendCommand(tabId, "DOM.getDocument");
+    const nodeResult = await sendCommand(tabId, "DOM.querySelector", {
+      nodeId: doc.root.nodeId,
+      selector: options.selector,
+    });
+    if (!nodeResult?.nodeId) {
+      throw new Error(`Screenshot target not found: ${options.selector}`);
+    }
+    // 滚动到可见区域
+    await sendCommand(tabId, "DOM.scrollIntoViewIfNeeded", { nodeId: nodeResult.nodeId });
+    const boxModel = await sendCommand(tabId, "DOM.getBoxModel", { nodeId: nodeResult.nodeId });
+    if (!boxModel?.model) {
+      throw new Error(`Cannot get box model for: ${options.selector}`);
+    }
+    // content 是 [x1,y1, x2,y2, x3,y3, x4,y4] 四个角的页面坐标
+    const content = boxModel.model.border; // 用 border box 包含边框
+    const xs = [content[0], content[2], content[4], content[6]];
+    const ys = [content[1], content[3], content[5], content[7]];
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    const width = Math.max(...xs) - x;
+    const height = Math.max(...ys) - y;
+    captureParams.clip = { x, y, width, height, scale: 1 };
+    // 区域截图需要 captureBeyondViewport 才能截到视口外的内容
+    captureParams.captureBeyondViewport = true;
+  }
+
+  const result = await sendCommand(tabId, "Page.captureScreenshot", captureParams);
   return `data:image/jpeg;base64,${result.data}`;
 }
 

@@ -252,7 +252,7 @@ export type SkillApiRequest =
 // CAT.agent.opfs API 请求
 export type OPFSApiRequest =
   | { action: "write"; path: string; content: string; scriptUuid: string }
-  | { action: "read"; path: string; scriptUuid: string }
+  | { action: "read"; path: string; format?: "text" | "bloburl"; scriptUuid: string }
   | { action: "list"; path?: string; scriptUuid: string }
   | { action: "delete"; path: string; scriptUuid: string };
 
@@ -339,6 +339,13 @@ export type ScreenshotOptions = {
   quality?: number;
   fullPage?: boolean;
   selector?: string; // CSS 选择器，截取指定元素区域
+  saveTo?: string; // OPFS workspace 相对路径，截图后保存二进制
+};
+
+export type ScreenshotResult = {
+  dataUrl: string; // 原始 data URL
+  path?: string; // saveTo 时返回的 OPFS 路径
+  size?: number; // saveTo 时返回的文件大小（字节）
 };
 
 export type NavigateOptions = {

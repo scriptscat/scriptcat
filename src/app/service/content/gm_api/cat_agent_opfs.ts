@@ -33,11 +33,14 @@ export default class CATAgentOPFSApi {
   }
 
   @GMContext.API({ follow: "CAT.agent.opfs" })
-  public "CAT.agent.opfs.read"(path: string): Promise<{ path: string; content: string; size: number }> {
+  public "CAT.agent.opfs.read"(
+    path: string,
+    format?: "text" | "bloburl"
+  ): Promise<{ path: string; content?: string; blobUrl?: string; size: number; mimeType?: string }> {
     const ctx = this as unknown as GMBaseContext;
     return ctx.sendMessage("CAT_agentOPFS", [
-      { action: "read", path, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
-    ]) as Promise<{ path: string; content: string; size: number }>;
+      { action: "read", path, format, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
+    ]) as Promise<{ path: string; content?: string; blobUrl?: string; size: number; mimeType?: string }>;
   }
 
   @GMContext.API({ follow: "CAT.agent.opfs" })

@@ -285,7 +285,7 @@ describe("AgentDomService", () => {
 
       const result = await service.screenshot({ tabId: 1 });
 
-      expect(result).toBe("data:image/jpeg;base64,abc123");
+      expect(result.dataUrl).toBe("data:image/jpeg;base64,abc123");
       expect(mockCaptureVisibleTab).toHaveBeenCalledWith(1, { format: "jpeg", quality: 80 });
     });
   });

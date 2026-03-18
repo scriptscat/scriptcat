@@ -6,6 +6,7 @@ import type {
   DomApiRequest,
   ReadPageOptions,
   ScreenshotOptions,
+  ScreenshotResult,
   DomActionOptions,
   NavigateOptions,
   ScrollDirection,
@@ -60,7 +61,7 @@ export default class CATAgentDomApi {
   }
 
   @GMContext.API({ follow: "CAT.agent.dom" })
-  public "CAT.agent.dom.screenshot"(options?: ScreenshotOptions): Promise<string> {
+  public "CAT.agent.dom.screenshot"(options?: ScreenshotOptions): Promise<ScreenshotResult> {
     const ctx = this as unknown as GMBaseContext;
     return ctx.sendMessage("CAT_agentDom", [
       { action: "screenshot", options, scriptUuid: ctx.scriptRes?.uuid || "" } as DomApiRequest,

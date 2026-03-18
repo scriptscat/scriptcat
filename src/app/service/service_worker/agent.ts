@@ -57,7 +57,8 @@ import { SearchConfigRepo } from "@App/app/service/agent/tools/search_config";
 import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/tools/sub_agent";
-import { createOPFSTools } from "@App/app/service/agent/tools/opfs_tools";
+import { createOPFSTools, setCreateBlobUrlFn } from "@App/app/service/agent/tools/opfs_tools";
+import { createObjectURL } from "@App/app/service/offscreen/client";
 import { createExecuteScriptTool } from "@App/app/service/agent/tools/execute_script";
 import { executeSkillScript } from "@App/app/service/offscreen/client";
 import { createTabTools } from "@App/app/service/agent/tools/tab_tools";
@@ -194,6 +195,11 @@ export class AgentService {
     this.toolRegistry.registerBuiltin(WEB_FETCH_DEFINITION, new WebFetchExecutor(this.sender));
     this.toolRegistry.registerBuiltin(WEB_SEARCH_DEFINITION, new WebSearchExecutor(this.sender, searchConfigRepo));
     // 注册 OPFS 工作区文件工具
+    // 注入 blob URL 创建函数（通过 Offscreen 的 URL.createObjectURL）
+    setCreateBlobUrlFn(async (data: ArrayBuffer, mimeType: string) => {
+      const blob = new Blob([data], { type: mimeType });
+      return (await createObjectURL(this.sender, { blob, persistence: true })) as string;
+    });
     const opfsTools = createOPFSTools();
     for (const t of opfsTools.tools) {
       this.toolRegistry.registerBuiltin(t.definition, t.executor);
@@ -429,7 +435,7 @@ export class AgentService {
       }
       case "read": {
         const executor = toolMap.get("opfs_read")!;
-        return JSON.parse((await executor.execute({ path: request.path })) as string);
+        return JSON.parse((await executor.execute({ path: request.path, format: request.format })) as string);
       }
       case "list": {
         const executor = toolMap.get("opfs_list")!;

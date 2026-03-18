@@ -9,6 +9,7 @@ import type {
   ReadPageOptions,
   DomActionOptions,
   ScreenshotOptions,
+  ScreenshotResult,
   NavigateOptions,
   ScrollDirection,
   ScrollOptions,
@@ -19,6 +20,7 @@ import type {
   DomApiRequest,
   ExecuteScriptOptions,
 } from "@App/app/service/agent/types";
+import { decodeDataUrl, writeWorkspaceFile } from "@App/app/service/agent/opfs_helpers";
 
 type ReadPageInjectedOptions = {
   selector: string | undefined | null;
@@ -100,38 +102,55 @@ export class AgentDomService {
   }
 
   // 截图
-  async screenshot(options?: ScreenshotOptions): Promise<string> {
+  async screenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
     const tabId = await this.resolveTabId(options?.tabId);
+    let dataUrl: string;
 
     // 指定 selector 区域截图时，必须走 CDP
     if (options?.selector) {
-      return await withDebugger(tabId, (id) => cdpScreenshot(id, options));
-    }
-
-    // 检查 tab 是否前台 active
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab.active) {
-      // 后台 tab 优先用 CDP 截图
-      try {
-        return await withDebugger(tabId, (id) => cdpScreenshot(id, options));
-      } catch (e) {
-        console.error("[AgentDom] CDP screenshot failed, falling back to captureVisibleTab", {
-          tabId,
-          error: e instanceof Error ? e.message : e,
-        });
+      dataUrl = await withDebugger(tabId, (id) => cdpScreenshot(id, options));
+    } else {
+      // 检查 tab 是否前台 active
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab.active) {
+        // 后台 tab 优先用 CDP 截图
+        try {
+          dataUrl = await withDebugger(tabId, (id) => cdpScreenshot(id, options));
+        } catch (e) {
+          console.error("[AgentDom] CDP screenshot failed, falling back to captureVisibleTab", {
+            tabId,
+            error: e instanceof Error ? e.message : e,
+          });
+          // 降级：先激活 tab 再用 captureVisibleTab
+          await chrome.tabs.update(tabId, { active: true });
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          dataUrl = await this.captureVisibleTab(tabId, options);
+        }
+      } else {
+        dataUrl = await this.captureVisibleTab(tabId, options);
       }
-      // 降级：先激活 tab 再用 captureVisibleTab
-      await chrome.tabs.update(tabId, { active: true });
-      await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
+    const result: ScreenshotResult = { dataUrl };
+
+    // saveTo: 将截图保存到 OPFS workspace
+    if (options?.saveTo) {
+      const { data } = decodeDataUrl(dataUrl);
+      const saved = await writeWorkspaceFile(options.saveTo, data);
+      result.path = saved.path;
+      result.size = saved.size;
+    }
+
+    return result;
+  }
+
+  private async captureVisibleTab(tabId: number, options?: ScreenshotOptions): Promise<string> {
     const quality = options?.quality ?? 80;
-    const updatedTab = await chrome.tabs.get(tabId);
-    const dataUrl = await chrome.tabs.captureVisibleTab(updatedTab.windowId, {
+    const tab = await chrome.tabs.get(tabId);
+    return chrome.tabs.captureVisibleTab(tab.windowId, {
       format: "jpeg",
       quality,
     });
-    return dataUrl;
   }
 
   // 点击元素
