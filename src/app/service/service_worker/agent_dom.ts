@@ -103,6 +103,11 @@ export class AgentDomService {
   async screenshot(options?: ScreenshotOptions): Promise<string> {
     const tabId = await this.resolveTabId(options?.tabId);
 
+    // 指定 selector 区域截图时，必须走 CDP
+    if (options?.selector) {
+      return await withDebugger(tabId, (id) => cdpScreenshot(id, options));
+    }
+
     // 检查 tab 是否前台 active
     const tab = await chrome.tabs.get(tabId);
     if (!tab.active) {
@@ -212,8 +217,9 @@ export class AgentDomService {
   }
 
   // 在页面中执行 JavaScript 代码
-  async executeScript(code: string, options?: ExecuteScriptOptions): Promise<unknown> {
+  async executeScript(code: string, options?: ExecuteScriptOptions): Promise<{ result: unknown; tabId: number }> {
     const tabId = await this.resolveTabId(options?.tabId);
+    const world = options?.world || "ISOLATED";
 
     const results = await chrome.scripting.executeScript({
       target: { tabId },
@@ -223,14 +229,14 @@ export class AgentDomService {
         return fn();
       },
       args: [code],
-      world: "MAIN",
+      world,
     });
 
     if (!results || results.length === 0) {
       throw new Error("Failed to execute script");
     }
 
-    return results[0].result;
+    return { result: results[0].result, tabId };
   }
 
   // 启动页面监控（CDP：dialog 自动处理 + MutationObserver）

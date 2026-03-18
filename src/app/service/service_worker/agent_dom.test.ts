@@ -297,11 +297,11 @@ describe("AgentDomService", () => {
 
       const result = await service.executeScript('return document.querySelectorAll("a").length', { tabId: 1 });
 
-      expect(result).toEqual({ count: 42, items: ["a", "b"] });
+      expect(result).toEqual({ result: { count: 42, items: ["a", "b"] }, tabId: 1 });
       expect(mockExecuteScript).toHaveBeenCalledWith(
         expect.objectContaining({
           target: { tabId: 1 },
-          world: "MAIN",
+          world: "ISOLATED",
         })
       );
     });

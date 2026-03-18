@@ -338,6 +338,7 @@ export type ScreenshotOptions = {
   tabId?: number;
   quality?: number;
   fullPage?: boolean;
+  selector?: string; // CSS 选择器，截取指定元素区域
 };
 
 export type NavigateOptions = {
@@ -381,6 +382,7 @@ export type WaitForResult = {
 // GM API 请求类型
 export type ExecuteScriptOptions = {
   tabId?: number;
+  world?: "MAIN" | "ISOLATED";
 };
 
 export type MonitorResult = {

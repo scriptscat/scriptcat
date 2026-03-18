@@ -37,7 +37,7 @@ import { ToolRegistry } from "@App/app/service/agent/tool_registry";
 import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/tool_registry";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
-import { SkillScriptExecutor } from "@App/app/service/agent/skill_script_executor";
+import { SkillScriptExecutor, SKILL_SCRIPT_UUID_PREFIX } from "@App/app/service/agent/skill_script_executor";
 import { CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
 import { buildSystemPrompt, SKILL_SUFFIX_HEADER } from "@App/app/service/agent/system_prompt";
 import { COMPACT_SYSTEM_PROMPT, buildCompactUserPrompt, extractSummary } from "@App/app/service/agent/compact_prompt";
@@ -58,6 +58,8 @@ import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/tools/sub_agent";
 import { createOPFSTools } from "@App/app/service/agent/tools/opfs_tools";
+import { createExecuteScriptTool } from "@App/app/service/agent/tools/execute_script";
+import { executeSkillScript } from "@App/app/service/offscreen/client";
 
 // 判断是否可重试（429 / 5xx / 网络错误，不含 4xx 客户端错误）
 export function isRetryableError(e: Error): boolean {
@@ -1536,6 +1538,23 @@ export class AgentService {
         });
         this.toolRegistry.registerBuiltin(subAgentTool.definition, subAgentTool.executor);
         registeredMetaToolNames.push(subAgentTool.definition.name);
+
+        // Execute script
+        const executeScriptTool = createExecuteScriptTool({
+          executeInPage: (code, options) => this.domService.executeScript(code, options),
+          executeInSandbox: (code) => {
+            const uuid = SKILL_SCRIPT_UUID_PREFIX + uuidv4();
+            return executeSkillScript(this.sender, {
+              uuid,
+              code,
+              args: {},
+              grants: [],
+              name: "execute_script",
+            });
+          },
+        });
+        this.toolRegistry.registerBuiltin(executeScriptTool.definition, executeScriptTool.executor);
+        registeredMetaToolNames.push(executeScriptTool.definition.name);
       }
 
       // 加载历史消息
