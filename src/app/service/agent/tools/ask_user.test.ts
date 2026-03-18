@@ -77,4 +77,53 @@ describe("ask_user", () => {
     }
     await Promise.all([p1, p2]);
   });
+
+  it("should send options in ask_user event", async () => {
+    const events: ChatStreamEvent[] = [];
+    const sendEvent = (event: ChatStreamEvent) => events.push(event);
+    const resolvers = new Map<string, (answer: string) => void>();
+
+    const { executor } = createAskUserTool(sendEvent, resolvers);
+
+    const resultPromise = executor.execute({
+      question: "Pick a color",
+      options: ["Red", "Blue", "Green"],
+    });
+
+    expect(events).toHaveLength(1);
+    const askEvent = events[0] as Extract<ChatStreamEvent, { type: "ask_user" }>;
+    expect(askEvent.options).toEqual(["Red", "Blue", "Green"]);
+    expect(askEvent.multiple).toBeUndefined();
+
+    // Resolve
+    const [_id, resolve] = Array.from(resolvers.entries())[0];
+    resolve("Blue");
+    const result = JSON.parse((await resultPromise) as string);
+    expect(result).toEqual({ answer: "Blue" });
+  });
+
+  it("should send multiple flag in ask_user event", async () => {
+    const events: ChatStreamEvent[] = [];
+    const sendEvent = (event: ChatStreamEvent) => events.push(event);
+    const resolvers = new Map<string, (answer: string) => void>();
+
+    const { executor } = createAskUserTool(sendEvent, resolvers);
+
+    const resultPromise = executor.execute({
+      question: "Select languages",
+      options: ["JavaScript", "Python", "Rust"],
+      multiple: true,
+    });
+
+    expect(events).toHaveLength(1);
+    const askEvent = events[0] as Extract<ChatStreamEvent, { type: "ask_user" }>;
+    expect(askEvent.options).toEqual(["JavaScript", "Python", "Rust"]);
+    expect(askEvent.multiple).toBe(true);
+
+    // Resolve with multiple selections
+    const [_id, resolve] = Array.from(resolvers.entries())[0];
+    resolve(JSON.stringify(["JavaScript", "Rust"]));
+    const result = JSON.parse((await resultPromise) as string);
+    expect(result).toEqual({ answer: '["JavaScript","Rust"]' });
+  });
 });

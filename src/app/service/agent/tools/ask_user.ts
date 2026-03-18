@@ -4,11 +4,22 @@ import type { ToolExecutor } from "@App/app/service/agent/tool_registry";
 export const ASK_USER_DEFINITION: ToolDefinition = {
   name: "ask_user",
   description:
-    "Ask the user a question and wait for their response. Use this when you need clarification, a decision, or user input before proceeding. The user will see the question in the chat UI and can type a response.",
+    "Ask the user a question and wait for their response (text only, no image support). " +
+    "Use options for structured choices (single/multi-select). Times out after 5 minutes.",
   parameters: {
     type: "object",
     properties: {
       question: { type: "string", description: "The question to ask the user" },
+      options: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Optional list of choices for the user. If provided, user selects from these instead of free text input.",
+      },
+      multiple: {
+        type: "boolean",
+        description: "Allow selecting multiple options (default: false, single-select).",
+      },
     },
     required: ["question"],
   },
@@ -30,10 +41,13 @@ export function createAskUserTool(
         throw new Error("question is required");
       }
 
+      const options = args.options as string[] | undefined;
+      const multiple = args.multiple as boolean | undefined;
+
       const askId = `ask_${Date.now()}_${++askCounter}`;
 
       // 通知 UI 显示提问
-      sendEvent({ type: "ask_user", id: askId, question });
+      sendEvent({ type: "ask_user", id: askId, question, options, multiple });
 
       // 等待用户回复
       return new Promise<string>((resolve) => {

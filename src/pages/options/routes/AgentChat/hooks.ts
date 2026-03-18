@@ -132,7 +132,7 @@ export function useMessages(conversationId: string) {
 }
 
 // ask_user 待回复状态
-export type AskUserPending = { id: string; question: string };
+export type AskUserPending = { id: string; question: string; options?: string[]; multiple?: boolean };
 
 // 流式聊天 hook
 export function useStreamingChat() {
@@ -191,7 +191,12 @@ export function useStreamingChat() {
           const event = msg.data as ChatStreamEvent;
           // 处理 ask_user 事件
           if (event.type === "ask_user") {
-            setAskUserPending({ id: event.id, question: event.question });
+            setAskUserPending({
+              id: event.id,
+              question: event.question,
+              options: event.options,
+              multiple: event.multiple,
+            });
           }
           onEvent(event);
           if (event.type === "done" || event.type === "error") {

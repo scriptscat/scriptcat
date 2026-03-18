@@ -442,7 +442,13 @@ export default function ChatArea({
             )
           )}
           {askUserPending && (
-            <AskUserBlock id={askUserPending.id} question={askUserPending.question} onRespond={respondToAskUser} />
+            <AskUserBlock
+              id={askUserPending.id}
+              question={askUserPending.question}
+              options={askUserPending.options}
+              multiple={askUserPending.multiple}
+              onRespond={respondToAskUser}
+            />
           )}
           <div ref={messagesEndRef} />
         </div>
