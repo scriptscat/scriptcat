@@ -22,6 +22,7 @@ import type {
   AgentTaskTrigger,
   Attachment,
   ModelApiRequest,
+  OPFSApiRequest,
   MCPApiRequest,
   ContentBlock,
 } from "@App/app/service/agent/types";
@@ -54,6 +55,7 @@ import { SearchConfigRepo } from "@App/app/service/agent/tools/search_config";
 import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/tools/sub_agent";
+import { createOPFSTools } from "@App/app/service/agent/tools/opfs_tools";
 
 // 判断是否可重试（429 / 5xx / 网络错误，不含 4xx 客户端错误）
 export function isRetryableError(e: Error): boolean {
@@ -186,6 +188,11 @@ export class AgentService {
     const searchConfigRepo = new SearchConfigRepo();
     this.toolRegistry.registerBuiltin(WEB_FETCH_DEFINITION, new WebFetchExecutor(this.sender));
     this.toolRegistry.registerBuiltin(WEB_SEARCH_DEFINITION, new WebSearchExecutor(this.sender, searchConfigRepo));
+    // 注册 OPFS 工作区文件工具
+    const opfsTools = createOPFSTools();
+    for (const t of opfsTools.tools) {
+      this.toolRegistry.registerBuiltin(t.definition, t.executor);
+    }
     // 加载已安装的 Skills
     this.loadSkills();
   }
@@ -394,6 +401,33 @@ export class AgentService {
       }
       default:
         throw new Error(`Unknown skills action: ${(request as any).action}`);
+    }
+  }
+
+  // 处理 CAT.agent.opfs API 请求
+  async handleOPFSApi(request: OPFSApiRequest): Promise<unknown> {
+    const opfsTools = createOPFSTools();
+    const toolMap = new Map(opfsTools.tools.map((t) => [t.definition.name, t.executor]));
+
+    switch (request.action) {
+      case "write": {
+        const executor = toolMap.get("opfs_write")!;
+        return JSON.parse((await executor.execute({ path: request.path, content: request.content })) as string);
+      }
+      case "read": {
+        const executor = toolMap.get("opfs_read")!;
+        return JSON.parse((await executor.execute({ path: request.path })) as string);
+      }
+      case "list": {
+        const executor = toolMap.get("opfs_list")!;
+        return JSON.parse((await executor.execute({ path: request.path || "" })) as string);
+      }
+      case "delete": {
+        const executor = toolMap.get("opfs_delete")!;
+        return JSON.parse((await executor.execute({ path: request.path })) as string);
+      }
+      default:
+        throw new Error(`Unknown OPFS action: ${(request as any).action}`);
     }
   }
 

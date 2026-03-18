@@ -1461,6 +1461,58 @@ declare namespace CATAgentModel {
   }
 }
 
+// ---- CAT.agent.opfs — Workspace file system API ----
+
+/** OPFS workspace types — read, write, list, and delete files in the agent workspace. */
+declare namespace CATAgentOPFS {
+  /** Entry info returned by `list()`. */
+  interface FileEntry {
+    /** File or directory name. */
+    name: string;
+    /** Entry type. */
+    type: "file" | "directory";
+    /** File size in bytes (only for files). */
+    size?: number;
+  }
+
+  /** Write result. */
+  interface WriteResult {
+    /** Sanitized path that was written. */
+    path: string;
+    /** Size in bytes. */
+    size: number;
+  }
+
+  /** Read result. */
+  interface ReadResult {
+    /** Sanitized path that was read. */
+    path: string;
+    /** File text content. */
+    content: string;
+    /** Size in bytes. */
+    size: number;
+  }
+
+  /**
+   * `CAT.agent.opfs` — workspace file system operations.
+   * All paths are relative to `agents/workspace/` in OPFS.
+   * @grant CAT.agent.opfs
+   */
+  interface OPFSAPI {
+    /** Write text content to a file. Creates parent directories automatically. */
+    write(path: string, content: string): Promise<WriteResult>;
+
+    /** Read text content from a file. */
+    read(path: string): Promise<ReadResult>;
+
+    /** List files and directories. Defaults to workspace root if path is omitted. */
+    list(path?: string): Promise<FileEntry[]>;
+
+    /** Delete a file or directory. */
+    delete(path: string): Promise<{ success: true }>;
+  }
+}
+
 // ---- CAT global object ----
 
 /**
@@ -1479,6 +1531,8 @@ declare const CAT: {
     skills: CATAgentSkills.SkillsAPI;
     /** @grant CAT.agent.model */
     model: CATAgentModel.ModelAPI;
+    /** @grant CAT.agent.opfs */
+    opfs: CATAgentOPFS.OPFSAPI;
   };
 };
 

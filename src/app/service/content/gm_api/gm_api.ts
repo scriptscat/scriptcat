@@ -37,6 +37,8 @@ import CATAgentTaskApi from "./cat_agent_task";
 void CATAgentTaskApi;
 import CATAgentModelApi from "./cat_agent_model";
 void CATAgentModelApi;
+import CATAgentOPFSApi from "./cat_agent_opfs";
+void CATAgentOPFSApi;
 
 // 内部函数呼叫定义
 export interface IGM_Base {

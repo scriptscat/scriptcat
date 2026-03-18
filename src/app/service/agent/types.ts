@@ -247,6 +247,13 @@ export type SkillApiRequest =
   | { action: "remove"; name: string; scriptUuid: string }
   | { action: "call"; skillName: string; scriptName: string; params?: Record<string, unknown>; scriptUuid: string };
 
+// CAT.agent.opfs API 请求
+export type OPFSApiRequest =
+  | { action: "write"; path: string; content: string; scriptUuid: string }
+  | { action: "read"; path: string; scriptUuid: string }
+  | { action: "list"; path?: string; scriptUuid: string }
+  | { action: "delete"; path: string; scriptUuid: string };
+
 // ---- Skill Script 类型 ----
 
 export type SkillScriptParam = {
