@@ -723,5 +723,11 @@
   "agent_search_engine": "搜尋引擎",
   "agent_search_engine_baidu": "百度",
   "agent_search_google_api_key": "Google API Key",
-  "agent_search_google_cse_id": "自訂搜尋引擎 ID"
+  "agent_search_google_cse_id": "自訂搜尋引擎 ID",
+  "agent_settings_saved": "設定已儲存",
+  "agent_settings_save_failed": "儲存設定失敗",
+  "agent_search_engine_tip_bing": "預設搜尋引擎，全球覆蓋廣泛，無需額外設定。",
+  "agent_search_engine_tip_duckduckgo": "注重隱私保護的搜尋引擎，無需 API Key。",
+  "agent_search_engine_tip_baidu": "針對中文內容最佳化，中文搜尋效果更好。",
+  "agent_search_engine_tip_google": "搜尋品質更高，需要設定 Google API Key 和自訂搜尋引擎 ID。"
 }

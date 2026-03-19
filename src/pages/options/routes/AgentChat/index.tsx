@@ -53,9 +53,10 @@ export default function AgentChat() {
   const effectiveModelId = selectedModelId || defaultModelId;
 
   const handleCreate = useCallback(async () => {
-    const { conv } = await createConversation(effectiveModelId, selectedSkills);
+    // 新会话始终使用默认模型，而非当前会话的模型
+    const { conv } = await createConversation(defaultModelId, selectedSkills);
     setActiveId(conv.id);
-  }, [createConversation, effectiveModelId, selectedSkills, setActiveId]);
+  }, [createConversation, defaultModelId, selectedSkills, setActiveId]);
 
   // 当会话标题变更时重新加载会话列表
   const handleTitleChange = useCallback(() => {

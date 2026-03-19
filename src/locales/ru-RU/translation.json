@@ -723,5 +723,11 @@
   "agent_search_engine": "Поисковая система",
   "agent_search_engine_baidu": "Baidu",
   "agent_search_google_api_key": "Google API Key",
-  "agent_search_google_cse_id": "ID пользовательской поисковой системы"
+  "agent_search_google_cse_id": "ID пользовательской поисковой системы",
+  "agent_settings_saved": "Настройки сохранены",
+  "agent_settings_save_failed": "Не удалось сохранить настройки",
+  "agent_search_engine_tip_bing": "Поисковая система по умолчанию с широким глобальным охватом, дополнительная настройка не требуется.",
+  "agent_search_engine_tip_duckduckgo": "Поисковая система с акцентом на конфиденциальность, API-ключ не требуется.",
+  "agent_search_engine_tip_baidu": "Оптимизирован для китайского контента, лучшие результаты для запросов на китайском языке.",
+  "agent_search_engine_tip_google": "Высококачественные результаты поиска, требуется Google API Key и ID пользовательской поисковой системы."
 }

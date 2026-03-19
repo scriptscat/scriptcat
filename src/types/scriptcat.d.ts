@@ -230,12 +230,12 @@ declare function GM_updateNotification(id: string, details: GMTypes.Notification
 declare function GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): void;
 
 /** Add a DOM element to the page. */
-declare function GM_addElement(tag: string, attributes: Record<string, string | number | boolean>): HTMLElement;
+declare function GM_addElement(tag: string, attributes: Record<string, string | number | boolean>): Element | undefined;
 declare function GM_addElement(
   parentNode: Node,
   tag: string,
   attrs: Record<string, string | number | boolean>
-): HTMLElement;
+): Element | undefined;
 
 /** Inject a CSS stylesheet into the page. */
 declare function GM_addStyle(css: string): Element | undefined;
@@ -752,7 +752,7 @@ declare namespace GMTypes {
     image: NotificationDetails["image"];
     silent: NotificationDetails["silent"];
     tag: NotificationDetails["tag"];
-    text: NotificationDetails["tag"];
+    text: NotificationDetails["text"];
     timeout: NotificationDetails["timeout"];
     title: NotificationDetails["title"];
     url: NotificationDetails["url"];
@@ -889,6 +889,20 @@ declare namespace CATAgent {
 
   // ---- Tool call ----
 
+  /** Attachment metadata for tool results and messages. */
+  interface Attachment {
+    /** Attachment ID. */
+    id: string;
+    /** Attachment type. */
+    type: "image" | "file" | "audio";
+    /** File name. */
+    name: string;
+    /** MIME type (e.g. "image/jpeg", "application/zip"). */
+    mimeType: string;
+    /** File size in bytes. */
+    size?: number;
+  }
+
   /** Record of a tool call made by the LLM. */
   interface ToolCallInfo {
     /** Unique call ID. */
@@ -899,6 +913,8 @@ declare namespace CATAgent {
     arguments: string;
     /** Tool execution result (populated after execution). */
     result?: string;
+    /** Attachments from tool execution (e.g. screenshots, files). */
+    attachments?: Attachment[];
     /** Call status. */
     status?: "pending" | "running" | "completed" | "error";
   }
@@ -1107,6 +1123,20 @@ declare namespace CATAgentDom {
     quality?: number;
     /** Capture the full scrollable page. */
     fullPage?: boolean;
+    /** CSS selector to capture a specific element region. */
+    selector?: string;
+    /** OPFS workspace relative path to save the binary screenshot. */
+    saveTo?: string;
+  }
+
+  /** Result of a `screenshot()` call. */
+  interface ScreenshotResult {
+    /** Base64-encoded data URL. */
+    dataUrl: string;
+    /** OPFS path (when `saveTo` is used). */
+    path?: string;
+    /** File size in bytes (when `saveTo` is used). */
+    size?: number;
   }
 
   /** Options for `navigate()`. */
@@ -1179,6 +1209,8 @@ declare namespace CATAgentDom {
   interface ExecuteScriptOptions {
     /** Target tab ID. */
     tabId?: number;
+    /** Script execution world. MAIN shares page globals, ISOLATED is extension-isolated. Default: ISOLATED. */
+    world?: "MAIN" | "ISOLATED";
   }
 
   /** Result of `stopMonitor()` — collected DOM changes during monitoring. */
@@ -1213,8 +1245,8 @@ declare namespace CATAgentDom {
     /** Read the HTML content of a page (or a selected element). */
     readPage(options?: ReadPageOptions): Promise<PageContent>;
 
-    /** Capture a screenshot of a tab. Returns a base64-encoded data URL. */
-    screenshot(options?: ScreenshotOptions): Promise<string>;
+    /** Capture a screenshot of a tab. */
+    screenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
 
     /** Click an element matching the CSS selector. */
     click(selector: string, options?: DomActionOptions): Promise<ActionResult>;
@@ -1487,10 +1519,14 @@ declare namespace CATAgentOPFS {
   interface ReadResult {
     /** Sanitized path that was read. */
     path: string;
-    /** File text content. */
-    content: string;
+    /** File text content (when format is "text" or omitted). */
+    content?: string;
+    /** Blob URL (when format is "bloburl"). Scoped to the extension origin. */
+    blobUrl?: string;
     /** Size in bytes. */
     size: number;
+    /** Detected MIME type (when format is "bloburl"). */
+    mimeType?: string;
   }
 
   /**
@@ -1499,11 +1535,11 @@ declare namespace CATAgentOPFS {
    * @grant CAT.agent.opfs
    */
   interface OPFSAPI {
-    /** Write text content to a file. Creates parent directories automatically. */
-    write(path: string, content: string): Promise<WriteResult>;
+    /** Write content to a file. Creates parent directories automatically. Accepts string, Blob, or data URL. */
+    write(path: string, content: string | Blob): Promise<WriteResult>;
 
-    /** Read text content from a file. */
-    read(path: string): Promise<ReadResult>;
+    /** Read content from a file. Use `format: "bloburl"` to get a blob URL for binary files. */
+    read(path: string, format?: "text" | "bloburl"): Promise<ReadResult>;
 
     /** List files and directories. Defaults to workspace root if path is omitted. */
     list(path?: string): Promise<FileEntry[]>;

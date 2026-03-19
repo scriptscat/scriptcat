@@ -236,12 +236,12 @@ declare function GM_updateNotification(id: string, details: GMTypes.Notification
 declare function GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): void;
 
 /** 向页面添加 DOM 元素。 */
-declare function GM_addElement(tag: string, attributes: Record<string, string | number | boolean>): HTMLElement;
+declare function GM_addElement(tag: string, attributes: Record<string, string | number | boolean>): Element | undefined;
 declare function GM_addElement(
   parentNode: Node,
   tag: string,
   attrs: Record<string, string | number | boolean>
-): HTMLElement;
+): Element | undefined;
 
 /** 向页面注入 CSS 样式表。 */
 declare function GM_addStyle(css: string): Element | undefined;
@@ -758,7 +758,7 @@ declare namespace GMTypes {
     image: NotificationDetails["image"];
     silent: NotificationDetails["silent"];
     tag: NotificationDetails["tag"];
-    text: NotificationDetails["tag"];
+    text: NotificationDetails["text"];
     timeout: NotificationDetails["timeout"];
     title: NotificationDetails["title"];
     url: NotificationDetails["url"];
@@ -896,6 +896,20 @@ declare namespace CATAgent {
 
   // ---- 工具调用 ----
 
+  /** 附件元数据，用于工具结果和消息。 */
+  interface Attachment {
+    /** 附件 ID。 */
+    id: string;
+    /** 附件类型。 */
+    type: "image" | "file" | "audio";
+    /** 文件名。 */
+    name: string;
+    /** MIME 类型（如 "image/jpeg"、"application/zip"）。 */
+    mimeType: string;
+    /** 文件大小（字节）。 */
+    size?: number;
+  }
+
   /** LLM 发起的工具调用记录。 */
   interface ToolCallInfo {
     /** 唯一调用 ID。 */
@@ -906,6 +920,8 @@ declare namespace CATAgent {
     arguments: string;
     /** 工具执行结果（执行后填充）。 */
     result?: string;
+    /** 工具执行产生的附件（如截图、文件）。 */
+    attachments?: Attachment[];
     /** 调用状态。 */
     status?: "pending" | "running" | "completed" | "error";
   }
@@ -1114,6 +1130,20 @@ declare namespace CATAgentDom {
     quality?: number;
     /** 捕获完整可滚动页面。 */
     fullPage?: boolean;
+    /** CSS 选择器，截取指定元素区域。 */
+    selector?: string;
+    /** OPFS workspace 相对路径，截图后保存二进制。 */
+    saveTo?: string;
+  }
+
+  /** `screenshot()` 调用的结果。 */
+  interface ScreenshotResult {
+    /** Base64 编码的 data URL。 */
+    dataUrl: string;
+    /** 使用 `saveTo` 时返回的 OPFS 路径。 */
+    path?: string;
+    /** 使用 `saveTo` 时返回的文件大小（字节）。 */
+    size?: number;
   }
 
   /** `navigate()` 的选项。 */
@@ -1186,6 +1216,8 @@ declare namespace CATAgentDom {
   interface ExecuteScriptOptions {
     /** 目标标签页 ID。 */
     tabId?: number;
+    /** 脚本执行世界。MAIN 共享页面全局变量，ISOLATED 为扩展隔离环境。默认：ISOLATED。 */
+    world?: "MAIN" | "ISOLATED";
   }
 
   /** `stopMonitor()` 的结果 — 监控期间收集的 DOM 变更。 */
@@ -1220,8 +1252,8 @@ declare namespace CATAgentDom {
     /** 读取页面的 HTML 内容（或选定元素）。 */
     readPage(options?: ReadPageOptions): Promise<PageContent>;
 
-    /** 截取标签页的屏幕截图。返回 base64 编码的 data URL。 */
-    screenshot(options?: ScreenshotOptions): Promise<string>;
+    /** 截取标签页的屏幕截图。 */
+    screenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
 
     /** 点击匹配 CSS 选择器的元素。 */
     click(selector: string, options?: DomActionOptions): Promise<ActionResult>;
@@ -1432,10 +1464,102 @@ declare namespace CATAgentSkills {
   }
 }
 
+// ---- CAT.agent.model — 模型配置查询 API ----
+
+/** 模型配置类型 — 查询可用的 LLM 模型（只读，apiKey 已排除）。 */
+declare namespace CATAgentModel {
+  /** 模型配置摘要（出于安全考虑排除了 apiKey）。 */
+  interface ModelSummary {
+    /** 唯一模型配置 ID。 */
+    id: string;
+    /** 用户自定义显示名称（如 "GPT-4o"、"Claude Sonnet"）。 */
+    name: string;
+    /** LLM 提供商。 */
+    provider: "openai" | "anthropic";
+    /** API 基础 URL。 */
+    apiBaseUrl: string;
+    /** 发送给提供商 API 的模型标识符。 */
+    model: string;
+    /** 最大输出 tokens；未设置时省略。 */
+    maxTokens?: number;
+  }
+
+  /**
+   * `CAT.agent.model` — 查询已配置的 LLM 模型（只读）。
+   * @grant CAT.agent.model
+   */
+  interface ModelAPI {
+    /** 列出所有已配置的模型（排除 apiKey）。 */
+    list(): Promise<ModelSummary[]>;
+
+    /** 根据 ID 获取特定模型。未找到时返回 `null`。 */
+    get(id: string): Promise<ModelSummary | null>;
+
+    /** 获取默认模型 ID。未设置时返回空字符串。 */
+    getDefault(): Promise<string>;
+  }
+}
+
+// ---- CAT.agent.opfs — 工作区文件系统 API ----
+
+/** OPFS 工作区类型 — 读取、写入、列出和删除 Agent 工作区中的文件。 */
+declare namespace CATAgentOPFS {
+  /** `list()` 返回的条目信息。 */
+  interface FileEntry {
+    /** 文件或目录名称。 */
+    name: string;
+    /** 条目类型。 */
+    type: "file" | "directory";
+    /** 文件大小（字节，仅文件类型有此字段）。 */
+    size?: number;
+  }
+
+  /** 写入结果。 */
+  interface WriteResult {
+    /** 规范化后的写入路径。 */
+    path: string;
+    /** 大小（字节）。 */
+    size: number;
+  }
+
+  /** 读取结果。 */
+  interface ReadResult {
+    /** 规范化后的读取路径。 */
+    path: string;
+    /** 文件文本内容（当 format 为 "text" 或省略时）。 */
+    content?: string;
+    /** Blob URL（当 format 为 "bloburl" 时）。作用域为扩展 origin。 */
+    blobUrl?: string;
+    /** 大小（字节）。 */
+    size: number;
+    /** 检测到的 MIME 类型（当 format 为 "bloburl" 时）。 */
+    mimeType?: string;
+  }
+
+  /**
+   * `CAT.agent.opfs` — 工作区文件系统操作。
+   * 所有路径相对于 OPFS 中的 `agents/workspace/`。
+   * @grant CAT.agent.opfs
+   */
+  interface OPFSAPI {
+    /** 写入内容到文件。自动创建父目录。支持字符串、Blob 或 data URL。 */
+    write(path: string, content: string | Blob): Promise<WriteResult>;
+
+    /** 读取文件内容。使用 `format: "bloburl"` 获取二进制文件的 blob URL。 */
+    read(path: string, format?: "text" | "bloburl"): Promise<ReadResult>;
+
+    /** 列出文件和目录。省略 path 时默认列出工作区根目录。 */
+    list(path?: string): Promise<FileEntry[]>;
+
+    /** 删除文件或目录。 */
+    delete(path: string): Promise<{ success: true }>;
+  }
+}
+
 // ---- CAT 全局对象 ----
 
 /**
- * ScriptCat Agent 全局对象 — 提供对话、工具、DOM、任务和 Skill API 的访问。
+ * ScriptCat Agent 全局对象 — 提供对话、工具、DOM、任务、Skill、模型和文件系统 API 的访问。
  * 每个子 API 需要各自的 `@grant` 声明。
  */
 declare const CAT: {
@@ -1448,6 +1572,10 @@ declare const CAT: {
     task: CATAgentTask.TaskAPI;
     /** @grant CAT.agent.skills */
     skills: CATAgentSkills.SkillsAPI;
+    /** @grant CAT.agent.model */
+    model: CATAgentModel.ModelAPI;
+    /** @grant CAT.agent.opfs */
+    opfs: CATAgentOPFS.OPFSAPI;
   };
 };
 

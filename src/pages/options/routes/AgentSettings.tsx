@@ -1,9 +1,16 @@
-import { Card, Message, Select, Input, Space, Typography } from "@arco-design/web-react";
+import { Card, Message, Select, Input, Space, Typography, Alert } from "@arco-design/web-react";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
 import type { SearchEngineConfig } from "@App/app/service/agent/tools/search_config";
 import { agentClient } from "@App/pages/store/features/script";
+
+const engineTipKeys: Record<SearchEngineConfig["engine"], string> = {
+  bing: "agent_search_engine_tip_bing",
+  duckduckgo: "agent_search_engine_tip_duckduckgo",
+  baidu: "agent_search_engine_tip_baidu",
+  google_custom: "agent_search_engine_tip_google",
+};
 
 function AgentSettings() {
   const { t } = useTranslation();
@@ -24,14 +31,20 @@ function AgentSettings() {
   const handleSummaryModelChange = useCallback((value: string | undefined) => {
     const id = value || "";
     setSummaryModelId(id);
-    agentClient.setSummaryModelId(id).catch(() => Message.error("Save failed"));
+    agentClient
+      .setSummaryModelId(id)
+      .then(() => Message.success(t("agent_settings_saved")))
+      .catch(() => Message.error(t("agent_settings_save_failed")));
   }, []);
 
   const handleEngineChange = useCallback(
     (value: string) => {
       const newConfig = { ...searchConfig, engine: value as SearchEngineConfig["engine"] };
       setSearchConfig(newConfig);
-      agentClient.saveSearchConfig(newConfig).catch(() => Message.error("Save failed"));
+      agentClient
+        .saveSearchConfig(newConfig)
+        .then(() => Message.success(t("agent_settings_saved")))
+        .catch(() => Message.error(t("agent_settings_save_failed")));
     },
     [searchConfig]
   );
@@ -40,7 +53,10 @@ function AgentSettings() {
     (value: string) => {
       const newConfig = { ...searchConfig, googleApiKey: value };
       setSearchConfig(newConfig);
-      agentClient.saveSearchConfig(newConfig).catch(() => Message.error("Save failed"));
+      agentClient
+        .saveSearchConfig(newConfig)
+        .then(() => Message.success(t("agent_settings_saved")))
+        .catch(() => Message.error(t("agent_settings_save_failed")));
     },
     [searchConfig]
   );
@@ -49,7 +65,10 @@ function AgentSettings() {
     (value: string) => {
       const newConfig = { ...searchConfig, googleCseId: value };
       setSearchConfig(newConfig);
-      agentClient.saveSearchConfig(newConfig).catch(() => Message.error("Save failed"));
+      agentClient
+        .saveSearchConfig(newConfig)
+        .then(() => Message.success(t("agent_settings_saved")))
+        .catch(() => Message.error(t("agent_settings_save_failed")));
     },
     [searchConfig]
   );
@@ -104,6 +123,13 @@ function AgentSettings() {
                 </Select.Option>
               ))}
             </Select>
+            <Alert
+              className="tw-mt-2"
+              type="info"
+              content={t(engineTipKeys[searchConfig.engine])}
+              closable={false}
+              style={{ maxWidth: 500 }}
+            />
           </div>
 
           {searchConfig.engine === "google_custom" && (

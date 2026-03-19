@@ -412,9 +412,9 @@ export class AgentClient extends Client {
     return this.do("setDefaultModelId", id);
   }
 
-  // 摘要模型
+  // 摘要模型（未设置时返回空字符串，不能用 doThrow）
   getSummaryModelId(): Promise<string> {
-    return this.doThrow("getSummaryModelId");
+    return this.do("getSummaryModelId").then((id) => id || "");
   }
 
   setSummaryModelId(id: string) {

@@ -723,5 +723,11 @@
   "agent_search_engine": "Công cụ tìm kiếm",
   "agent_search_engine_baidu": "Baidu",
   "agent_search_google_api_key": "Google API Key",
-  "agent_search_google_cse_id": "ID công cụ tìm kiếm tùy chỉnh"
+  "agent_search_google_cse_id": "ID công cụ tìm kiếm tùy chỉnh",
+  "agent_settings_saved": "Đã lưu cài đặt",
+  "agent_settings_save_failed": "Lưu cài đặt thất bại",
+  "agent_search_engine_tip_bing": "Công cụ tìm kiếm mặc định, phạm vi toàn cầu rộng, không cần cấu hình thêm.",
+  "agent_search_engine_tip_duckduckgo": "Công cụ tìm kiếm chú trọng quyền riêng tư, không cần API Key.",
+  "agent_search_engine_tip_baidu": "Tối ưu cho nội dung tiếng Trung, kết quả tốt hơn cho truy vấn tiếng Trung.",
+  "agent_search_engine_tip_google": "Kết quả tìm kiếm chất lượng cao, cần cấu hình Google API Key và ID công cụ tìm kiếm tùy chỉnh."
 }

@@ -723,5 +723,11 @@
   "agent_search_engine": "Suchmaschine",
   "agent_search_engine_baidu": "Baidu",
   "agent_search_google_api_key": "Google API Key",
-  "agent_search_google_cse_id": "Benutzerdefinierte Suchmaschinen-ID"
+  "agent_search_google_cse_id": "Benutzerdefinierte Suchmaschinen-ID",
+  "agent_settings_saved": "Einstellungen gespeichert",
+  "agent_settings_save_failed": "Einstellungen konnten nicht gespeichert werden",
+  "agent_search_engine_tip_bing": "Standard-Suchmaschine mit breiter globaler Abdeckung, keine zusätzliche Konfiguration erforderlich.",
+  "agent_search_engine_tip_duckduckgo": "Datenschutzorientierte Suchmaschine, kein API-Schlüssel erforderlich.",
+  "agent_search_engine_tip_baidu": "Optimiert für chinesische Inhalte, bessere Ergebnisse für chinesische Suchanfragen.",
+  "agent_search_engine_tip_google": "Hochwertige Suchergebnisse, erfordert einen Google API Key und eine benutzerdefinierte Suchmaschinen-ID."
 }

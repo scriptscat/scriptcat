@@ -78,7 +78,7 @@ export class WebSearchExecutor implements ToolExecutor {
   }
 
   private async searchBing(query: string, maxResults: number): Promise<string> {
-    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=${maxResults}`;
+    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)",

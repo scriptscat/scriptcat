@@ -691,5 +691,11 @@
   "agent_search_engine": "Search Engine",
   "agent_search_engine_baidu": "Baidu",
   "agent_search_google_api_key": "Google API Key",
-  "agent_search_google_cse_id": "Custom Search Engine ID"
+  "agent_search_google_cse_id": "Custom Search Engine ID",
+  "agent_settings_saved": "Settings saved",
+  "agent_settings_save_failed": "Failed to save settings",
+  "agent_search_engine_tip_bing": "Default search engine with broad global coverage, no extra configuration needed.",
+  "agent_search_engine_tip_duckduckgo": "Privacy-focused search engine, no API key required.",
+  "agent_search_engine_tip_baidu": "Optimized for Chinese content, better results for Chinese queries.",
+  "agent_search_engine_tip_google": "High-quality search results, requires a Google API Key and Custom Search Engine ID."
 }
