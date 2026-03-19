@@ -59,7 +59,7 @@ export default class CATAgentOPFSApi {
     const ctx = this as unknown as GMBaseContext;
     return ctx.sendMessage("CAT_agentOPFS", [
       { action: "readAttachment", id, format, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
-    ]) as Promise<{ id: string; blobUrl?: string; content?: string; size: number; mimeType?: string }>;
+    ]) as unknown as Promise<{ id: string; blobUrl?: string; content?: string; size: number; mimeType?: string }>;
   }
 
   @GMContext.API({ follow: "CAT.agent.opfs" })
