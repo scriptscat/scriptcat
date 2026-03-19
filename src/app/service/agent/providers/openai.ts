@@ -180,7 +180,8 @@ export function parseOpenAIStream(
                         const dataUrl: string = part.image_url.url;
                         const mimeMatch = dataUrl.match(/^data:([^;]+);/);
                         const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
-                        const blockId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                        const ext = mimeType.split("/")[1] || "png";
+                        const blockId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
                         onEvent({
                           type: "content_block_complete",
                           block: { type: "image", attachmentId: blockId, mimeType, name: "generated-image" },

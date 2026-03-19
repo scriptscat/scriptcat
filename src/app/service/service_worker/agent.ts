@@ -27,6 +27,7 @@ import type {
   ContentBlock,
 } from "@App/app/service/agent/types";
 import { getTextContent, isContentBlocks } from "@App/app/service/agent/content_utils";
+import { supportsVision, supportsImageOutput } from "@App/pages/options/routes/AgentChat/model_utils";
 import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
@@ -446,6 +447,22 @@ export class AgentService {
       case "read": {
         const executor = toolMap.get("opfs_read")!;
         return JSON.parse((await executor.execute({ path: request.path, format: request.format })) as string);
+      }
+      case "readAttachment": {
+        const blob = await this.repo.getAttachment(request.id);
+        if (!blob) {
+          throw new Error(`Attachment not found: ${request.id}`);
+        }
+        if (request.format === "dataurl") {
+          // 转为 data URL
+          const buffer = await blob.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+          const dataUrl = `data:${blob.type || "application/octet-stream"};base64,${base64}`;
+          return { id: request.id, content: dataUrl, size: blob.size, mimeType: blob.type };
+        }
+        // 默认返回 blob URL
+        const blobUrl = URL.createObjectURL(blob);
+        return { id: request.id, blobUrl, size: blob.size, mimeType: blob.type };
       }
       case "list": {
         const executor = toolMap.get("opfs_list")!;
@@ -909,8 +926,12 @@ export class AgentService {
   }
 
   // 处理 CAT.agent.model API 请求（只读，隐藏 apiKey），供 GMApi 调用
+  // 同时补充 supportsVision / supportsImageOutput 的自动检测 fallback，
+  // 避免用户未手动勾选时脚本端拿到 undefined
   private stripApiKey(model: AgentModelConfig): AgentModelSafeConfig {
     const { apiKey: _, ...safe } = model;
+    safe.supportsVision = supportsVision(model);
+    safe.supportsImageOutput = supportsImageOutput(model);
     return safe;
   }
 
@@ -1018,7 +1039,7 @@ export class AgentService {
 
     const startTime = Date.now();
     let iterations = 0;
-    const totalUsage = { inputTokens: 0, outputTokens: 0 };
+    const totalUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
 
     while (iterations < maxIterations) {
       iterations++;
@@ -1050,6 +1071,8 @@ export class AgentService {
       if (result.usage) {
         totalUsage.inputTokens += result.usage.inputTokens;
         totalUsage.outputTokens += result.usage.outputTokens;
+        totalUsage.cacheCreationInputTokens += result.usage.cacheCreationInputTokens || 0;
+        totalUsage.cacheReadInputTokens += result.usage.cacheReadInputTokens || 0;
       }
 
       // 自动 compact：当上下文占用超过 80% 时触发
@@ -1159,6 +1182,7 @@ export class AgentService {
       }
 
       // 没有 tool calls，对话结束
+      const durationMs = Date.now() - startTime;
       if (conversationId) {
         await this.repo.appendMessage({
           id: uuidv4(),
@@ -1166,12 +1190,14 @@ export class AgentService {
           role: "assistant",
           content: buildMessageContent(),
           thinking: result.thinking ? { content: result.thinking } : undefined,
+          usage: totalUsage,
+          durationMs,
           createtime: Date.now(),
         });
       }
 
       // 发送 done 事件
-      sendEvent({ type: "done", usage: totalUsage, durationMs: Date.now() - startTime });
+      sendEvent({ type: "done", usage: totalUsage, durationMs });
       return;
     }
 
@@ -1748,7 +1774,7 @@ export class AgentService {
     content: string;
     thinking?: string;
     toolCalls?: ToolCall[];
-    usage?: { inputTokens: number; outputTokens: number };
+    usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
     contentBlocks?: ContentBlock[];
   }> {
     const chatRequest: ChatRequest = {
@@ -1793,7 +1819,7 @@ export class AgentService {
     let thinking = "";
     const toolCalls: ToolCall[] = [];
     let currentToolCall: ToolCall | null = null;
-    let usage: { inputTokens: number; outputTokens: number } | undefined;
+    let usage: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | undefined;
     // 收集带 data 的图片 block（模型生成的图片），stream 结束后统一保存到 OPFS
     const pendingImageSaves: Array<{ block: ContentBlock & { type: "image" }; data: string }> = [];
 
@@ -1860,8 +1886,9 @@ export class AgentService {
               let cleanedContent = content;
               while ((match = imgRegex.exec(content)) !== null) {
                 const [fullMatch, alt, dataUrl, subtype] = match;
-                const blockId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                 const mimeType = `image/${subtype}`;
+                const ext = subtype || "png";
+                const blockId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
                 try {
                   await this.repo.saveAttachment(blockId, dataUrl);
                   const block: ContentBlock = {

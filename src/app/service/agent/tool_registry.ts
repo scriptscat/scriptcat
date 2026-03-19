@@ -1,6 +1,7 @@
 import type { Attachment, ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { getExtFromMime } from "./content_utils";
 
 // 工具执行器接口
 export interface ToolExecutor {
@@ -131,7 +132,8 @@ export class ToolRegistry {
 
     const attachments: Attachment[] = [];
     for (const ad of attachmentDataList) {
-      const id = uuidv4();
+      const ext = getExtFromMime(ad.mimeType);
+      const id = `${uuidv4()}.${ext}`;
       const size = await this.chatRepo.saveAttachment(id, ad.data);
       attachments.push({
         id,

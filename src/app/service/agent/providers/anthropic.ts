@@ -270,7 +270,8 @@ export function parseAnthropicStream(
                 if (imageBlockData) {
                   const fullBase64 = imageBlockData.base64Chunks.join("");
                   const dataUrl = `data:${imageBlockData.mediaType};base64,${fullBase64}`;
-                  const attachmentId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                  const ext = imageBlockData.mediaType.split("/")[1] || "png";
+                  const attachmentId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
                   onEvent({
                     type: "content_block_complete",
                     block: {

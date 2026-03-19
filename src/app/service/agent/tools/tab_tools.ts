@@ -8,8 +8,9 @@ import { extractHtmlWithSelectors } from "@App/app/service/offscreen/client";
 const GET_TAB_CONTENT_DEFINITION: ToolDefinition = {
   name: "get_tab_content",
   description:
-    "Read the rendered content of a browser tab. Returns cleaned markdown with CSS selector annotations for key elements. " +
-    "Use selector to extract specific sections. Use prompt to have the LLM summarize/extract specific information from the content.",
+    "Read the text content of a browser tab as cleaned markdown. Best for reading articles, extracting text, or summarizing page content. " +
+    "Use selector to extract specific sections. Use prompt to have the LLM summarize/extract specific information. " +
+    "NOTE: If you need to locate interactive elements (buttons, inputs, links) for clicking or form-filling, use the browser_action tool from the browser-automation skill instead — it returns element selectors optimized for DOM operations.",
   parameters: {
     type: "object",
     properties: {

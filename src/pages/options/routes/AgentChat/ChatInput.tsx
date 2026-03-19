@@ -138,11 +138,15 @@ export default function ChatInput({
   const addImageFiles = useCallback((files: File[]) => {
     const imageFiles = files.filter((f) => f.type.startsWith("image/"));
     if (imageFiles.length === 0) return;
-    const newAttachments = imageFiles.map((file) => ({
-      id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
+    const newAttachments = imageFiles.map((file) => {
+      // 从文件名提取扩展名，fallback 到 MIME 子类型
+      const ext = file.name.includes(".") ? file.name.split(".").pop() : file.type.split("/")[1] || "bin";
+      return {
+        id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      };
+    });
     setAttachments((prev) => [...prev, ...newAttachments]);
   }, []);
 

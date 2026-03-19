@@ -176,7 +176,7 @@ export type ChatReply = {
   content: MessageContent;
   thinking?: string;
   toolCalls?: ToolCall[];
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
   command?: boolean; // 标识该回复来自命令处理
 };
 
@@ -186,7 +186,7 @@ export type StreamChunk = {
   content?: string;
   block?: ContentBlock;
   toolCall?: ToolCall;
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
   error?: string;
   /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "max_iterations" | "api_error" */
   errorCode?: string;
@@ -253,6 +253,7 @@ export type SkillApiRequest =
 export type OPFSApiRequest =
   | { action: "write"; path: string; content: string | Blob; scriptUuid: string }
   | { action: "read"; path: string; format?: "text" | "bloburl"; scriptUuid: string }
+  | { action: "readAttachment"; id: string; format?: "bloburl" | "dataurl"; scriptUuid: string }
   | { action: "list"; path?: string; scriptUuid: string }
   | { action: "delete"; path: string; scriptUuid: string };
 

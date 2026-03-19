@@ -1536,6 +1536,20 @@ declare namespace CATAgentOPFS {
     mimeType?: string;
   }
 
+  /** 读取附件的返回结果。 */
+  interface ReadAttachmentResult {
+    /** 附件 ID。 */
+    id: string;
+    /** Blob URL（当 format 为 "bloburl" 或省略时）。作用域为扩展 origin。 */
+    blobUrl?: string;
+    /** Data URL 字符串（当 format 为 "dataurl" 时）。 */
+    content?: string;
+    /** 大小（字节）。 */
+    size: number;
+    /** 检测到的 MIME 类型。 */
+    mimeType?: string;
+  }
+
   /**
    * `CAT.agent.opfs` — 工作区文件系统操作。
    * 所有路径相对于 OPFS 中的 `agents/workspace/`。
@@ -1553,6 +1567,9 @@ declare namespace CATAgentOPFS {
 
     /** 删除文件或目录。 */
     delete(path: string): Promise<{ success: true }>;
+
+    /** 从内部附件存储读取附件（如 LLM 生成的图片）。使用 `format: "dataurl"` 获取 base64 data URL。 */
+    readAttachment(id: string, format?: "bloburl" | "dataurl"): Promise<ReadAttachmentResult>;
   }
 }
 

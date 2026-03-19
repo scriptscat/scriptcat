@@ -52,6 +52,17 @@ export default class CATAgentOPFSApi {
   }
 
   @GMContext.API({ follow: "CAT.agent.opfs" })
+  public "CAT.agent.opfs.readAttachment"(
+    id: string,
+    format?: "bloburl" | "dataurl"
+  ): Promise<{ id: string; blobUrl?: string; content?: string; size: number; mimeType?: string }> {
+    const ctx = this as unknown as GMBaseContext;
+    return ctx.sendMessage("CAT_agentOPFS", [
+      { action: "readAttachment", id, format, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
+    ]) as Promise<{ id: string; blobUrl?: string; content?: string; size: number; mimeType?: string }>;
+  }
+
+  @GMContext.API({ follow: "CAT.agent.opfs" })
   public "CAT.agent.opfs.delete"(path: string): Promise<{ success: true }> {
     const ctx = this as unknown as GMBaseContext;
     return ctx.sendMessage("CAT_agentOPFS", [

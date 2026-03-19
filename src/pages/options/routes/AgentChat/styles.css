@@ -330,6 +330,17 @@ body[arco-theme="dark"] .agent-error-block .agent-error-icon {
   color: #ff6369;
 }
 
+/* ask_user 交互卡片 */
+.agent-ask-user-card {
+  border-color: rgb(var(--arcoblue-4));
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+body[arco-theme="dark"] .agent-ask-user-card {
+  border-color: rgb(var(--arcoblue-7));
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.24);
+}
+
 /* 侧边栏会话列表 */
 .agent-conversation-item {
   position: relative;

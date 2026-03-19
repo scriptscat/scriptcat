@@ -5,6 +5,7 @@ import type {
   ChatReply,
   ChatStreamEvent,
   CommandHandler,
+  ContentBlock,
   Conversation,
   ConversationApiRequest,
   ConversationCreateOptions,
@@ -294,6 +295,7 @@ export class ConversationInstance {
       let content = "";
       let thinking = "";
       const toolCalls: ToolCall[] = [];
+      const contentBlocks: ContentBlock[] = [];
       let currentToolCall: ToolCall | null = null;
       let usage: { inputTokens: number; outputTokens: number } | undefined;
 
@@ -316,6 +318,10 @@ export class ConversationInstance {
           case "thinking_delta":
             thinking += event.delta;
             break;
+          case "content_block_complete":
+            // 收集模型生成的图片/文件/音频 blocks（data 已由 finalize 保存到 attachment 存储）
+            contentBlocks.push(event.block);
+            break;
           case "tool_call_start":
             if (currentToolCall) toolCalls.push(currentToolCall);
             currentToolCall = { ...event.toolCall, arguments: event.toolCall.arguments || "" };
@@ -323,19 +329,28 @@ export class ConversationInstance {
           case "tool_call_delta":
             if (currentToolCall) currentToolCall.arguments += event.delta;
             break;
-          case "done":
+          case "done": {
             if (currentToolCall) {
               toolCalls.push(currentToolCall);
               currentToolCall = null;
             }
             if (event.usage) usage = event.usage;
+            // 合并文本和 content blocks 到 MessageContent
+            let finalContent: MessageContent = content;
+            if (contentBlocks.length > 0) {
+              const blocks: ContentBlock[] = [];
+              if (content) blocks.push({ type: "text", text: content });
+              blocks.push(...contentBlocks);
+              finalContent = blocks;
+            }
             resolve({
-              content,
+              content: finalContent,
               thinking: thinking || undefined,
               toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
               usage,
             });
             break;
+          }
           case "error":
             reject(Object.assign(new Error(event.message), { errorCode: event.errorCode }));
             break;
@@ -376,6 +391,9 @@ export class ConversationInstance {
           break;
         case "thinking_delta":
           chunk = { type: "thinking_delta", content: event.delta };
+          break;
+        case "content_block_complete":
+          chunk = { type: "content_block", block: event.block };
           break;
         case "tool_call_start":
           chunk = { type: "tool_call", toolCall: { ...event.toolCall, arguments: "" } };

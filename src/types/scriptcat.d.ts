@@ -1529,6 +1529,20 @@ declare namespace CATAgentOPFS {
     mimeType?: string;
   }
 
+  /** Result of reading an attachment from internal attachment storage. */
+  interface ReadAttachmentResult {
+    /** Attachment ID. */
+    id: string;
+    /** Blob URL (when format is "bloburl" or omitted). Scoped to the extension origin. */
+    blobUrl?: string;
+    /** Data URL string (when format is "dataurl"). */
+    content?: string;
+    /** Size in bytes. */
+    size: number;
+    /** Detected MIME type. */
+    mimeType?: string;
+  }
+
   /**
    * `CAT.agent.opfs` — workspace file system operations.
    * All paths are relative to `agents/workspace/` in OPFS.
@@ -1546,6 +1560,9 @@ declare namespace CATAgentOPFS {
 
     /** Delete a file or directory. */
     delete(path: string): Promise<{ success: true }>;
+
+    /** Read an attachment from internal attachment storage (e.g. LLM-generated images). Use `format: "dataurl"` to get a base64 data URL. */
+    readAttachment(id: string, format?: "bloburl" | "dataurl"): Promise<ReadAttachmentResult>;
   }
 }
 

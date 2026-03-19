@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Breadcrumb, Button, Card, Empty, Message, Modal, Space, Table } from "@arco-design/web-react";
-import { IconDelete, IconFolder, IconFile } from "@arco-design/web-react/icon";
+import { IconDelete, IconDownload, IconEye, IconFolder, IconFile, IconImage } from "@arco-design/web-react/icon";
+import { isImageFileName } from "@App/app/service/agent/content_utils";
 
 interface FileEntry {
   name: string;
@@ -22,8 +23,12 @@ function AgentOPFS() {
   const [path, setPath] = useState<string[]>(["agents"]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  // 文本预览
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState("");
+  // 图片预览
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewImageName, setPreviewImageName] = useState("");
 
   // 获取指定路径的目录句柄
   const getDirHandle = useCallback(async (pathParts: string[]) => {
@@ -74,6 +79,13 @@ function AgentOPFS() {
     loadDirectory(path);
   }, [path, loadDirectory]);
 
+  // 清理图片预览的 objectURL
+  useEffect(() => {
+    return () => {
+      if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+    };
+  }, [previewImageUrl]);
+
   // 进入子目录
   const enterDirectory = (name: string) => {
     setPath((prev) => [...prev, name]);
@@ -88,21 +100,51 @@ function AgentOPFS() {
     }
   };
 
-  // 预览文件
+  // 读取文件 Blob
+  const getFileBlob = async (name: string): Promise<File> => {
+    const dir = await getDirHandle(path);
+    const fileHandle = await dir.getFileHandle(name);
+    return await fileHandle.getFile();
+  };
+
+  // 预览文件（图片 vs 文本）
   const previewFile = async (name: string) => {
     try {
-      const dir = await getDirHandle(path);
-      const fileHandle = await dir.getFileHandle(name);
-      const file = await fileHandle.getFile();
-      const text = await file.text();
-      // 尝试 JSON 格式化
-      try {
-        const json = JSON.parse(text);
-        setPreviewContent(JSON.stringify(json, null, 2));
-      } catch {
-        setPreviewContent(text);
+      if (isImageFileName(name)) {
+        const file = await getFileBlob(name);
+        // 清理之前的 URL
+        if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+        setPreviewImageUrl(URL.createObjectURL(file));
+        setPreviewImageName(name);
+      } else {
+        const file = await getFileBlob(name);
+        const text = await file.text();
+        // 尝试 JSON 格式化
+        try {
+          const json = JSON.parse(text);
+          setPreviewContent(JSON.stringify(json, null, 2));
+        } catch {
+          setPreviewContent(text);
+        }
+        setPreviewName(name);
       }
-      setPreviewName(name);
+    } catch (e) {
+      Message.error(String(e));
+    }
+  };
+
+  // 下载文件
+  const downloadFile = async (name: string) => {
+    try {
+      const file = await getFileBlob(name);
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (e) {
       Message.error(String(e));
     }
@@ -134,7 +176,13 @@ function AgentOPFS() {
           style={{ cursor: "pointer" }}
           onClick={() => (record.kind === "directory" ? enterDirectory(name) : previewFile(name))}
         >
-          {record.kind === "directory" ? <IconFolder className="tw-mr-1" /> : <IconFile className="tw-mr-1" />}
+          {record.kind === "directory" ? (
+            <IconFolder className="tw-mr-1" />
+          ) : isImageFileName(name) ? (
+            <IconImage className="tw-mr-1" />
+          ) : (
+            <IconFile className="tw-mr-1" />
+          )}
           {name}
         </span>
       ),
@@ -171,9 +219,27 @@ function AgentOPFS() {
     {
       title: "",
       dataIndex: "actions",
-      width: 80,
+      width: 120,
       render: (_: unknown, record: FileEntry) => (
         <Space>
+          {record.kind === "file" && (
+            <>
+              {isImageFileName(record.name) && (
+                <Button
+                  type="text"
+                  icon={<IconEye />}
+                  size="small"
+                  onClick={() => previewFile(record.name)}
+                />
+              )}
+              <Button
+                type="text"
+                icon={<IconDownload />}
+                size="small"
+                onClick={() => downloadFile(record.name)}
+              />
+            </>
+          )}
           <Button
             type="text"
             status="danger"
@@ -208,6 +274,7 @@ function AgentOPFS() {
           noDataElement={<Empty description={t("agent_opfs_empty")} />}
         />
       </Card>
+      {/* 文本预览 Modal */}
       <Modal
         title={`${t("agent_opfs_preview")} - ${previewName}`}
         visible={previewContent !== null}
@@ -218,6 +285,27 @@ function AgentOPFS() {
         <pre style={{ maxHeight: 500, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
           {previewContent}
         </pre>
+      </Modal>
+      {/* 图片预览 Modal */}
+      <Modal
+        title={`${t("agent_opfs_preview")} - ${previewImageName}`}
+        visible={previewImageUrl !== null}
+        onCancel={() => {
+          if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+          setPreviewImageUrl(null);
+        }}
+        footer={null}
+        style={{ width: "auto", maxWidth: "90vw" }}
+      >
+        {previewImageUrl && (
+          <div className="tw-flex tw-justify-center">
+            <img
+              src={previewImageUrl}
+              alt={previewImageName}
+              style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain" }}
+            />
+          </div>
+        )}
       </Modal>
     </Space>
   );
