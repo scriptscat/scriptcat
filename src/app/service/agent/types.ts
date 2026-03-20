@@ -114,6 +114,7 @@ export type ChatStreamEvent =
       durationMs?: number;
     }
   | { type: "error"; message: string; errorCode?: string }
+  | { type: "retry"; attempt: number; maxRetries: number; error: string; delayMs: number }
   | { type: "compact_done"; summary: string; originalCount: number }
   | {
       type: "sync";
@@ -160,7 +161,8 @@ export type AgentModelSafeConfig = Omit<AgentModelConfig, "apiKey">;
 export type ModelApiRequest =
   | { action: "list"; scriptUuid: string }
   | { action: "get"; id: string; scriptUuid: string }
-  | { action: "getDefault"; scriptUuid: string };
+  | { action: "getDefault"; scriptUuid: string }
+  | { action: "getSummary"; scriptUuid: string };
 
 // ---- CAT.agent.conversation 用户脚本 API 类型 ----
 
@@ -423,7 +425,6 @@ export type WaitForResult = {
 // GM API 请求类型
 export type ExecuteScriptOptions = {
   tabId?: number;
-  world?: "MAIN" | "ISOLATED";
 };
 
 export type MonitorResult = {

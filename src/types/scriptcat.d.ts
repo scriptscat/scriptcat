@@ -1209,8 +1209,6 @@ declare namespace CATAgentDom {
   interface ExecuteScriptOptions {
     /** Target tab ID. */
     tabId?: number;
-    /** Script execution world. MAIN shares page globals, ISOLATED is extension-isolated. Default: ISOLATED. */
-    world?: "MAIN" | "ISOLATED";
   }
 
   /** Result of `stopMonitor()` — collected DOM changes during monitoring. */
@@ -1492,6 +1490,9 @@ declare namespace CATAgentModel {
 
     /** Get the default model ID. Returns empty string if none set. */
     getDefault(): Promise<string>;
+
+    /** Get the summary (lightweight) model ID. Returns empty string if none set. */
+    getSummary(): Promise<string>;
   }
 }
 

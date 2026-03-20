@@ -5,10 +5,8 @@ export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
   name: "execute_script",
   description:
     "Execute JavaScript code. " +
-    "target='page': run in a browser tab with DOM access. world param (page only): " +
-    "ISOLATED (default) — extension-isolated context, can fetch extension blob URLs (blob:chrome-extension://...) AND manipulate page DOM, ideal for bridging OPFS files to page operations; " +
-    "MAIN — shares page's window/globals (access page JS variables, call page functions), but cannot access extension URLs. " +
-    "target='sandbox': isolated computation environment, no DOM, no world param.",
+    "target='page': run in a browser tab with DOM access, shares page's window/globals (can access page JS variables, call page functions). " +
+    "target='sandbox': isolated computation environment, no DOM.",
   parameters: {
     type: "object",
     properties: {
@@ -21,12 +19,6 @@ export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
       tab_id: {
         type: "number",
         description: "Target tab ID for page execution. Defaults to active tab. Ignored for sandbox.",
-      },
-      world: {
-        type: "string",
-        enum: ["MAIN", "ISOLATED"],
-        description:
-          "JS execution world for page target. MAIN shares page globals, ISOLATED is extension-isolated. Default: ISOLATED. Ignored for sandbox.",
       },
     },
     required: ["code", "target"],
@@ -47,7 +39,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export type ExecuteScriptDeps = {
   executeInPage: (
     code: string,
-    options?: { tabId?: number; world?: "MAIN" | "ISOLATED" }
+    options?: { tabId?: number }
   ) => Promise<{ result: unknown; tabId: number }>;
   executeInSandbox: (code: string) => Promise<unknown>;
   timeoutMs?: number; // 可选超时（ms），默认 30s，测试用
@@ -76,8 +68,7 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
 
       if (target === "page") {
         const tabId = args.tab_id as number | undefined;
-        const world = (args.world as "MAIN" | "ISOLATED" | undefined) || undefined;
-        const { result, tabId: actualTabId } = await withTimeout(deps.executeInPage(code, { tabId, world }), timeoutMs);
+        const { result, tabId: actualTabId } = await withTimeout(deps.executeInPage(code, { tabId }), timeoutMs);
         return JSON.stringify({ result: result ?? null, target: "page", tab_id: actualTabId });
       }
 

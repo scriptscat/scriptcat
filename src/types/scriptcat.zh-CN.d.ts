@@ -1216,8 +1216,6 @@ declare namespace CATAgentDom {
   interface ExecuteScriptOptions {
     /** 目标标签页 ID。 */
     tabId?: number;
-    /** 脚本执行世界。MAIN 共享页面全局变量，ISOLATED 为扩展隔离环境。默认：ISOLATED。 */
-    world?: "MAIN" | "ISOLATED";
   }
 
   /** `stopMonitor()` 的结果 — 监控期间收集的 DOM 变更。 */
@@ -1499,6 +1497,9 @@ declare namespace CATAgentModel {
 
     /** 获取默认模型 ID。未设置时返回空字符串。 */
     getDefault(): Promise<string>;
+
+    /** 获取摘要（轻量）模型 ID。未设置时返回空字符串。 */
+    getSummary(): Promise<string>;
   }
 }
 

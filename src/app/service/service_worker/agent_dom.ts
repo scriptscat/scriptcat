@@ -91,7 +91,7 @@ export class AgentDomService {
       target: { tabId },
       func: readPageContent,
       args: [{ selector, maxLength, removeTags } as ReadPageInjectedOptions],
-      world: "MAIN",
+      world: "ISOLATED",
     });
 
     if (!results || results.length === 0) {
@@ -200,7 +200,7 @@ export class AgentDomService {
       target: { tabId },
       func: executeScroll,
       args: [direction, selector || null],
-      world: "MAIN",
+      world: "ISOLATED",
     });
 
     if (!results || results.length === 0) {
@@ -222,7 +222,7 @@ export class AgentDomService {
         target: { tabId },
         func: checkElement,
         args: [selector],
-        world: "MAIN",
+        world: "ISOLATED",
       });
 
       if (results?.[0]?.result) {
@@ -235,10 +235,9 @@ export class AgentDomService {
     return { found: false };
   }
 
-  // 在页面中执行 JavaScript 代码
+  // 在页面中执行 JavaScript 代码（动态代码必须跑 MAIN world，ISOLATED 会被扩展 CSP 拦截 new Function）
   async executeScript(code: string, options?: ExecuteScriptOptions): Promise<{ result: unknown; tabId: number }> {
     const tabId = await this.resolveTabId(options?.tabId);
-    const world = options?.world || "ISOLATED";
 
     const results = await chrome.scripting.executeScript({
       target: { tabId },
@@ -248,7 +247,7 @@ export class AgentDomService {
         return fn();
       },
       args: [code],
-      world,
+      world: "MAIN",
     });
 
     if (!results || results.length === 0) {
@@ -398,7 +397,7 @@ export class AgentDomService {
           (el as HTMLElement).click();
         },
         args: [selector],
-        world: "MAIN",
+        world: "ISOLATED",
       });
 
       // 等待页面稳定
@@ -431,7 +430,7 @@ export class AgentDomService {
         el.dispatchEvent(new Event("change", { bubbles: true }));
       },
       args: [selector, value],
-      world: "MAIN",
+      world: "ISOLATED",
     });
 
     return {
