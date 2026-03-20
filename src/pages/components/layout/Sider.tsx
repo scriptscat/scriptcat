@@ -161,11 +161,30 @@ const Sider: React.FC = () => {
                     <RiFileCodeLine /> {t("development_guide")}
                   </a>
                 </Menu.Item>
-                <Menu.Item key="scriptcat/userscript">
-                  <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
-                    <IconLink /> {t("script_gallery")}
-                  </a>
-                </Menu.Item>
+                <Menu.SubMenu
+                  key="scriptGallery"
+                  title={
+                    <span>
+                      <IconLink /> {t("script_gallery")}
+                    </span>
+                  }
+                >
+                  <Menu.Item key="scriptcat/userscript">
+                    <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
+                      ScriptCat
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="greasyfork/userscript">
+                    <a href="https://greasyfork.org/scripts" target="_blank" rel="noreferrer">
+                      Greasy Fork
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="openuserjs/userscript">
+                    <a href="https://openuserjs.org/" target="_blank" rel="noreferrer">
+                      OpenUserJS
+                    </a>
+                  </Menu.Item>
+                </Menu.SubMenu>
                 <Menu.Item key="tampermonkey/bbs">
                   <a href="https://bbs.tampermonkey.net.cn/" target="_blank" rel="noreferrer">
                     <IconLink /> {t("community_forum")}

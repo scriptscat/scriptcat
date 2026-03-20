@@ -52,4 +52,21 @@ testWithUserScripts.describe("GM API", () => {
     expect(failed, "Some content inject tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
+
+  test("Unwrap scriptlet tests (unwrap_e2e_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "unwrap_e2e_test.js",
+      TARGET_URL,
+      60_000
+    );
+
+    console.log(`[unwrap_e2e_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[unwrap_e2e_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some unwrap scriptlet tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
 });

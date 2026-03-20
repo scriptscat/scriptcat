@@ -3,7 +3,6 @@ import type { MessageSend } from "@Packages/message/types";
 import { ScriptService } from "./script";
 import { type Logger } from "@App/app/repo/logger";
 import { WindowMessage } from "@Packages/message/window_message";
-import { ServiceWorkerClient } from "../service_worker/client";
 import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
@@ -19,12 +18,9 @@ export class OffscreenManager {
 
   private messageQueue = new MessageQueue();
 
-  private serviceWorker: ServiceWorkerClient;
-
-  constructor(private extMsgSender: MessageSend) {
+  constructor(private msgSender: MessageSend) {
     this.windowMessage = new WindowMessage(window, sandbox, true);
     this.windowServer = new Server("offscreen", this.windowMessage);
-    this.serviceWorker = new ServiceWorkerClient(this.extMsgSender);
   }
 
   logger(data: Logger) {
@@ -37,11 +33,11 @@ export class OffscreenManager {
 
   preparationSandbox() {
     // 通知初始化好环境了
-    this.serviceWorker.preparationOffscreen();
+    sendMessage(this.msgSender, "serviceWorker/preparationOffscreen");
   }
 
   sendMessageToServiceWorker(data: { action: string; data: any }) {
-    return sendMessage(this.extMsgSender, `serviceWorker/${data.action}`, data.data);
+    return sendMessage(this.msgSender, `serviceWorker/${data.action}`, data.data);
   }
 
   async initManager() {
@@ -51,20 +47,13 @@ export class OffscreenManager {
     this.windowServer.on("sendMessageToServiceWorker", this.sendMessageToServiceWorker.bind(this));
     const script = new ScriptService(
       this.windowServer.group("script"),
-      this.extMsgSender,
+      this.msgSender,
       this.windowMessage,
       this.messageQueue
     );
     script.init();
-    // 转发从sandbox来的gm api请求
-    // middleware 拦截 CAT_fetchBlob：在 offscreen（extension-origin）中本地处理 blob URL → Blob 转换
-    // 因为 chrome.runtime sendResponse 不支持 Blob，所以 SW 返回 blobUrl，由此处转换后通过 postMessage 传给 sandbox
-    forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extMsgSender, (params) => {
-      if (params?.api === "CAT_fetchBlob") {
-        return fetch(params.params[0]).then((res) => res.blob());
-      }
-      return false;
-    });
+    // 转发从sandbox来的gm api请求,通过postMessage通道传输(支持Blob等结构化克隆)
+    forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.msgSender);
     // 转发 Skill Script 执行请求到 sandbox
     forwardMessage("sandbox", "executeSkillScript", this.windowServer, this.windowMessage);
     // 转发valueUpdate与emitEvent
@@ -72,7 +61,7 @@ export class OffscreenManager {
     forwardMessage("sandbox", "runtime/emitEvent", this.windowServer, this.windowMessage);
     const gmApi = new GMApi(this.windowServer.group("gmApi"));
     gmApi.init();
-    const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extMsgSender);
+    const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.msgSender);
     vscodeConnect.init();
     const htmlExtractor = new HtmlExtractorService(this.windowServer.group("htmlExtractor"));
     htmlExtractor.init();
