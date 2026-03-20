@@ -16,7 +16,8 @@ export { sanitizePath };
 const OPFS_WRITE_DEFINITION: ToolDefinition = {
   name: "opfs_write",
   description:
-    "Write content to a file in the workspace. Supports text strings, Blob, and data URL (base64 auto-decoded to binary). Creates parent directories automatically.",
+    "Write content to a file in the workspace. Supports text strings, Blob, and data URL (base64 auto-decoded to binary). Creates parent directories automatically. " +
+    "Best for persisting binary data (images, downloads). Note: opfs_read returns a blob URL, not file text — so writing text here for later retrieval will not work. Keep text data in conversation context instead.",
   parameters: {
     type: "object",
     properties: {
@@ -30,7 +31,8 @@ const OPFS_WRITE_DEFINITION: ToolDefinition = {
 const OPFS_READ_DEFINITION: ToolDefinition = {
   name: "opfs_read",
   description:
-    "Read a file from the workspace. Returns a blob URL (blob:chrome-extension://...) that can be used in executeScript (ISOLATED world) for download, display, or further processing. Never returns file content directly to avoid context overflow.",
+    "Read a file from the workspace. Returns a blob URL (NOT file text content) — suitable for passing binary files (images, PDFs) to SkillScripts for display, download, or processing. " +
+    "Cannot retrieve text content — if you need text data, keep it in conversation context instead of writing to OPFS.",
   parameters: {
     type: "object",
     properties: {

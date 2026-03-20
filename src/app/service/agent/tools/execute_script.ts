@@ -5,8 +5,9 @@ export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
   name: "execute_script",
   description:
     "Execute JavaScript code. " +
-    "target='page': run in a browser tab with DOM access, shares page's window/globals (can access page JS variables, call page functions). " +
-    "target='sandbox': isolated computation environment, no DOM.",
+    "target='page': run in a browser tab (MAIN world) with full DOM access, shares page's window/globals — can access page JS variables and call page functions. Cannot access extension blob URLs. " +
+    "target='sandbox': isolated computation environment, no DOM. " +
+    "Use `return` to return a value. Timeout: 30 seconds.",
   parameters: {
     type: "object",
     properties: {

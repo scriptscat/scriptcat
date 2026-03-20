@@ -11,7 +11,7 @@ const GET_TAB_CONTENT_DEFINITION: ToolDefinition = {
     "Read the text content of a browser tab and extract specific information via LLM. Best for reading articles, extracting text, or summarizing page content. " +
     "Always provide a prompt describing what information you need — the raw page content will be processed by LLM to return only relevant information, saving context. " +
     "Use selector to narrow down to specific sections. " +
-    "NOTE: If you need to locate interactive elements (buttons, inputs, links) for clicking or form-filling, use the browser_action tool from the browser-automation skill instead — it returns element selectors optimized for DOM operations.",
+    "NOTE: This tool returns text/markdown content only — it does not return element selectors or interactive element info. For DOM manipulation, use execute_script.",
   parameters: {
     type: "object",
     properties: {
