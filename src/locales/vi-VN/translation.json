@@ -104,6 +104,7 @@
   "delete_current_logs": "Xóa nhật ký hiện tại",
   "clear_completed": "Xóa hoàn tất",
   "clear_logs": "Xóa nhật ký",
+  "now": "Hiện tại",
   "total_logs": "Tổng cộng {{length}} nhật ký đã được truy vấn",
   "filtered_logs": "{{length}} nhật ký sau khi lọc",
   "enter_filter_conditions": "Vui lòng nhập điều kiện lọc để truy vấn",
