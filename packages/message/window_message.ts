@@ -1,4 +1,12 @@
-import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage } from "./types";
+import type {
+  Message,
+  MessageConnect,
+  MessageSend,
+  OnConnectCallback,
+  OnMessageCallback,
+  RuntimeMessageSender,
+  TMessage,
+} from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import EventEmitter from "eventemitter3";
 
@@ -205,32 +213,46 @@ export class WindowMessageConnect implements MessageConnect {
 // service_worker和offscreen同时监听消息,会导致消息被两边同时接收,但是返回结果时会产生问题,导致报错
 // 不进行监听的话又无法从service_worker主动发送消息
 // 所以service_worker与offscreen使用ServiceWorker的方式进行通信
-export class ServiceWorkerMessageSend implements MessageSend {
+// 现在同时支持接收来自offscreen的请求(实现完整Message接口),使双向通道都走postMessage(结构化克隆,支持Blob)
+export class ServiceWorkerMessageSend implements Message {
   EE = new EventEmitter<string, any>();
 
   private target: PostMessage | undefined = undefined;
 
-  constructor() {}
-
-  listened: boolean = false;
+  constructor() {
+    // 在构造函数中设置监听,确保能接收来自offscreen的请求
+    self.addEventListener("message", (e: MessageEvent) => {
+      this.messageHandle(e.data, e.source as PostMessage);
+    });
+  }
 
   async init() {
     if (!this.target && self.clients) {
-      if (!this.listened) {
-        this.listened = true;
-        self.addEventListener("message", (e) => {
-          this.messageHandle(e.data);
-        });
-      }
       const list = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
       // 找到offscreen.html窗口
       this.target = list.find((client) => client.url == chrome.runtime.getURL("src/offscreen.html")) as PostMessage;
     }
   }
 
-  messageHandle(data: WindowMessageBody) {
+  messageHandle(data: WindowMessageBody, source?: PostMessage) {
     // 处理消息
-    if (data.type === "respMessage") {
+    if (data.type === "sendMessage" && source) {
+      // 接收到来自offscreen的请求消息
+      this.EE.emit("message", data.data, (resp: any) => {
+        if (!data.messageId) {
+          return;
+        }
+        const body: WindowMessageBody = {
+          messageId: data.messageId,
+          type: "respMessage",
+          data: resp,
+        };
+        source.postMessage(body);
+      });
+    } else if (data.type === "connect" && source) {
+      // 接收到来自offscreen的连接请求
+      this.EE.emit("connect", data.data, new WindowMessageConnect(data.messageId, this.EE, source));
+    } else if (data.type === "respMessage") {
       // 接收到响应消息
       this.EE.emit(`response:${data.messageId}`, data);
     } else if (data.type === "disconnect") {
@@ -238,6 +260,14 @@ export class ServiceWorkerMessageSend implements MessageSend {
     } else if (data.type === "connectMessage") {
       this.EE.emit(`connectMessage:${data.messageId}`, data.data);
     }
+  }
+
+  onMessage(callback: OnMessageCallback): void {
+    this.EE.addListener("message", callback);
+  }
+
+  onConnect(callback: OnConnectCallback): void {
+    this.EE.addListener("connect", callback);
   }
 
   async connect(data: TMessage): Promise<MessageConnect> {
@@ -268,6 +298,64 @@ export class ServiceWorkerMessageSend implements MessageSend {
         resolve = null; // 设为 null 提醒JS引擎可以GC
       });
       this.target!.postMessage(body);
+    });
+  }
+}
+
+// Offscreen端通过navigator.serviceWorker.controller.postMessage向SW发送消息
+// 与ServiceWorkerMessageSend配对使用,实现Offscreen→SW的postMessage通道
+export class ServiceWorkerClientMessage implements MessageSend {
+  EE = new EventEmitter<string, any>();
+
+  constructor() {
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      this.messageHandle(e.data);
+    });
+  }
+
+  messageHandle(data: WindowMessageBody) {
+    // 只处理响应类消息,请求类消息由WindowMessage处理
+    if (data.type === "respMessage") {
+      this.EE.emit(`response:${data.messageId}`, data);
+    } else if (data.type === "disconnect") {
+      this.EE.emit(`disconnect:${data.messageId}`);
+    } else if (data.type === "connectMessage") {
+      this.EE.emit(`connectMessage:${data.messageId}`, data.data);
+    }
+  }
+
+  private postToServiceWorker(message: any) {
+    navigator.serviceWorker.controller!.postMessage(message);
+  }
+
+  async connect(data: TMessage): Promise<MessageConnect> {
+    const body: WindowMessageBody<TMessage> = {
+      messageId: uuidv4(),
+      type: "connect",
+      data,
+    };
+    const target: PostMessage = {
+      postMessage: (msg) => this.postToServiceWorker(msg),
+    };
+    this.postToServiceWorker(body);
+    return new WindowMessageConnect(body.messageId, this.EE, target);
+  }
+
+  sendMessage<T = any>(data: TMessage): Promise<T> {
+    return new Promise((resolve: ((value: T) => void) | null) => {
+      const messageId = uuidv4();
+      const body: WindowMessageBody<TMessage> = {
+        messageId,
+        type: "sendMessage",
+        data,
+      };
+      const eventId = `response:${messageId}`;
+      this.EE.addListener(eventId, (body: WindowMessageBody<TMessage>) => {
+        this.EE.removeAllListeners(eventId);
+        resolve!(body.data as T);
+        resolve = null;
+      });
+      this.postToServiceWorker(body);
     });
   }
 }

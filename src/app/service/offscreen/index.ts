@@ -2,8 +2,7 @@ import { forwardMessage, Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { ScriptService } from "./script";
 import { type Logger } from "@App/app/repo/logger";
-import { WindowMessage } from "@Packages/message/window_message";
-import { ServiceWorkerClient } from "../service_worker/client";
+import { ServiceWorkerClientMessage, WindowMessage } from "@Packages/message/window_message";
 import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
@@ -18,12 +17,13 @@ export class OffscreenManager {
 
   private messageQueue = new MessageQueue();
 
-  private serviceWorker: ServiceWorkerClient;
+  // 通过postMessage与SW通信,支持结构化克隆(Blob等)
+  private swPostMessage: ServiceWorkerClientMessage;
 
   constructor(private extMsgSender: MessageSend) {
     this.windowMessage = new WindowMessage(window, sandbox, true);
     this.windowServer = new Server("offscreen", this.windowMessage);
-    this.serviceWorker = new ServiceWorkerClient(this.extMsgSender);
+    this.swPostMessage = new ServiceWorkerClientMessage();
   }
 
   logger(data: Logger) {
@@ -36,7 +36,7 @@ export class OffscreenManager {
 
   preparationSandbox() {
     // 通知初始化好环境了
-    this.serviceWorker.preparationOffscreen();
+    sendMessage(this.swPostMessage, "serviceWorker/preparationOffscreen");
   }
 
   sendMessageToServiceWorker(data: { action: string; data: any }) {
@@ -55,8 +55,8 @@ export class OffscreenManager {
       this.messageQueue
     );
     script.init();
-    // 转发从sandbox来的gm api请求
-    forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extMsgSender);
+    // 转发从sandbox来的gm api请求,通过postMessage通道传输(支持Blob等结构化克隆)
+    forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.swPostMessage);
     // 转发valueUpdate与emitEvent
     forwardMessage("sandbox", "runtime/valueUpdate", this.windowServer, this.windowMessage);
     forwardMessage("sandbox", "runtime/emitEvent", this.windowServer, this.windowMessage);
