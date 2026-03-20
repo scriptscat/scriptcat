@@ -1,9 +1,11 @@
 import type { Conversation, ChatMessage } from "@App/app/service/agent/types";
+import type { Task } from "@App/app/service/agent/tools/task_tools";
 import { OPFSRepo } from "./opfs_repo";
 
 const CONVERSATIONS_FILE = "conversations.json";
 const MESSAGES_DIR = "data";
 const ATTACHMENTS_DIR = "attachments";
+const TASKS_DIR = "tasks";
 
 // 目录结构：agents/conversations/
 //            agents/conversations/conversations.json       - 会话列表
@@ -66,6 +68,8 @@ export class AgentChatRepo extends OPFSRepo {
     // 删除对应消息文件
     const messagesDir = await this.getChildDir(MESSAGES_DIR);
     await this.deleteFile(`${id}.json`, messagesDir);
+    // 删除关联的任务数据
+    await this.deleteTasks(id).catch(() => {});
   }
 
   // 获取指定会话的所有消息
@@ -145,6 +149,26 @@ export class AgentChatRepo extends OPFSRepo {
     for (const id of ids) {
       await this.deleteFile(id, dir);
     }
+  }
+
+  // ---- 任务 (task_tools) 存储 ----
+
+  // 获取会话关联的任务列表
+  async getTasks(conversationId: string): Promise<Task[]> {
+    const tasksDir = await this.getChildDir(TASKS_DIR);
+    return this.readJsonFile<Task[]>(`${conversationId}.json`, [], tasksDir);
+  }
+
+  // 保存会话关联的任务列表
+  async saveTasks(conversationId: string, tasks: Task[]): Promise<void> {
+    const tasksDir = await this.getChildDir(TASKS_DIR);
+    await this.writeJsonFile(`${conversationId}.json`, tasks, tasksDir);
+  }
+
+  // 删除会话关联的任务
+  async deleteTasks(conversationId: string): Promise<void> {
+    const tasksDir = await this.getChildDir(TASKS_DIR);
+    await this.deleteFile(`${conversationId}.json`, tasksDir);
   }
 
   // 将 data URL 或纯 base64 转换为 Blob

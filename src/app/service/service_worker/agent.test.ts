@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AgentService, isRetryableError, withRetry, classifyErrorCode } from "./agent";
 
+// mock createObjectURL（offscreen/client）— readAttachment 和 read blob 使用
+vi.mock("@App/app/service/offscreen/client", () => ({
+  createObjectURL: vi.fn().mockResolvedValue("blob:chrome-extension://test/mock-blob-url"),
+  executeSkillScript: vi.fn(),
+  extractHtmlContent: vi.fn(),
+  extractHtmlWithSelectors: vi.fn(),
+  extractBingResults: vi.fn(),
+  extractBaiduResults: vi.fn(),
+  extractSearchResults: vi.fn(),
+}));
+
 // 创建 mock AgentService 实例
 function createTestService() {
   const mockGroup = { on: vi.fn() } as any;
@@ -2298,6 +2309,52 @@ describe("handleOPFSApi", () => {
     await expect(service.handleOPFSApi({ action: "unknown" as any, scriptUuid: "s1" })).rejects.toThrow(
       "Unknown OPFS action"
     );
+  });
+
+  it("readAttachment 应返回 blobUrl", async () => {
+    const { service, mockRepo } = createTestService();
+    const testBlob = new Blob(["test image data"], { type: "image/png" });
+    mockRepo.getAttachment = vi.fn().mockResolvedValue(testBlob);
+
+    const result = (await service.handleOPFSApi({
+      action: "readAttachment",
+      id: "att-123",
+      scriptUuid: "s1",
+    })) as any;
+
+    expect(result.id).toBe("att-123");
+    expect(result.blobUrl).toBe("blob:chrome-extension://test/mock-blob-url");
+    expect(result.size).toBe(testBlob.size);
+    expect(result.mimeType).toBe("image/png");
+    expect(mockRepo.getAttachment).toHaveBeenCalledWith("att-123");
+  });
+
+  it("readAttachment 附件不存在时应抛出错误", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.getAttachment = vi.fn().mockResolvedValue(null);
+
+    await expect(
+      service.handleOPFSApi({ action: "readAttachment", id: "not-exist", scriptUuid: "s1" })
+    ).rejects.toThrow("Attachment not found: not-exist");
+  });
+
+  it("read blob 格式应返回 blobUrl", async () => {
+    setupOPFS();
+    const { service } = createTestService();
+
+    await service.handleOPFSApi({ action: "write", path: "img.png", content: "fake png", scriptUuid: "s1" });
+
+    const result = (await service.handleOPFSApi({
+      action: "read",
+      path: "img.png",
+      format: "blob",
+      scriptUuid: "s1",
+    })) as any;
+
+    expect(result.path).toBe("img.png");
+    expect(result.blobUrl).toBe("blob:chrome-extension://test/mock-blob-url");
+    expect(result.mimeType).toBe("image/png");
+    expect(result.size).toBeGreaterThan(0);
   });
 });
 

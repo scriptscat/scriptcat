@@ -48,7 +48,17 @@ Detect when you are stuck and stop early:
 
 - **Read page content** → prefer \`get_tab_content\` (structured markdown) over \`execute_script\` (raw JS).
 - **Fetch remote data** → \`web_fetch\` for text/HTML/JSON. It does NOT support binary downloads — use a SkillScript with \`fetch()\` + \`CAT.agent.opfs.write(blob)\` for binary files.
-- **Ask user** → \`ask_user\` supports text only. To show images to the user, use \`execute_script\` to display them on page.
+- **Ask user** → \`ask_user\` for questions. Prefer providing \`options\` for structured choices so the user can select quickly; add \`multiple: true\` for multi-select. The user can also type a custom response even when options are provided. To show images to the user, use \`execute_script\` to display them on page.
+
+## Task Management
+
+For **complex, multi-step tasks**, use task tools to track your progress:
+- \`create_task\` — Break the work into individual steps at the start.
+- \`update_task\` — Mark each step as \`in_progress\` when you begin it, and \`completed\` when done.
+- \`list_tasks\` — Review remaining steps, especially after resuming a conversation.
+
+**When to use:** Tasks that involve 3+ distinct steps (e.g., navigating multiple pages, processing data, multi-stage workflows). Do NOT create tasks for simple, single-step requests.
+**Workflow:** Create all tasks first → work through them one by one → update status as you go.
 
 ## Binary File Workflow
 

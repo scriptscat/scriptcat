@@ -1530,9 +1530,11 @@ declare namespace CATAgentOPFS {
     content?: string;
     /** Blob URL（当 format 为 "bloburl" 时）。作用域为扩展 origin。 */
     blobUrl?: string;
+    /** 文件 Blob 对象（当 format 为 "blob" 时）。通过 structured clone 传递。 */
+    data?: Blob;
     /** 大小（字节）。 */
     size: number;
-    /** 检测到的 MIME 类型（当 format 为 "bloburl" 时）。 */
+    /** 检测到的 MIME 类型（当 format 为 "bloburl" 或 "blob" 时）。 */
     mimeType?: string;
   }
 
@@ -1540,10 +1542,8 @@ declare namespace CATAgentOPFS {
   interface ReadAttachmentResult {
     /** 附件 ID。 */
     id: string;
-    /** Blob URL（当 format 为 "bloburl" 或省略时）。作用域为扩展 origin。 */
-    blobUrl?: string;
-    /** Data URL 字符串（当 format 为 "dataurl" 时）。 */
-    content?: string;
+    /** 附件 Blob 对象，通过 structured clone 传递。 */
+    data: Blob;
     /** 大小（字节）。 */
     size: number;
     /** 检测到的 MIME 类型。 */
@@ -1559,8 +1559,8 @@ declare namespace CATAgentOPFS {
     /** 写入内容到文件。自动创建父目录。支持字符串、Blob 或 data URL。 */
     write(path: string, content: string | Blob): Promise<WriteResult>;
 
-    /** 读取文件内容。使用 `format: "bloburl"` 获取二进制文件的 blob URL。 */
-    read(path: string, format?: "text" | "bloburl"): Promise<ReadResult>;
+    /** 读取文件内容。使用 `format: "blob"` 获取二进制文件的 Blob 对象，或 `format: "bloburl"` 获取 blob URL（可在内容脚本 DOM 中使用）。 */
+    read(path: string, format?: "text" | "bloburl" | "blob"): Promise<ReadResult>;
 
     /** 列出文件和目录。省略 path 时默认列出工作区根目录。 */
     list(path?: string): Promise<FileEntry[]>;
@@ -1568,8 +1568,8 @@ declare namespace CATAgentOPFS {
     /** 删除文件或目录。 */
     delete(path: string): Promise<{ success: true }>;
 
-    /** 从内部附件存储读取附件（如 LLM 生成的图片）。使用 `format: "dataurl"` 获取 base64 data URL。 */
-    readAttachment(id: string, format?: "bloburl" | "dataurl"): Promise<ReadAttachmentResult>;
+    /** 从内部附件存储读取附件（如 LLM 生成的图片）。直接返回 Blob 对象，通过 structured clone 传递。 */
+    readAttachment(id: string): Promise<ReadAttachmentResult>;
   }
 }
 

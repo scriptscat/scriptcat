@@ -1523,9 +1523,11 @@ declare namespace CATAgentOPFS {
     content?: string;
     /** Blob URL (when format is "bloburl"). Scoped to the extension origin. */
     blobUrl?: string;
+    /** The file Blob object (when format is "blob"). Transferred via structured clone. */
+    data?: Blob;
     /** Size in bytes. */
     size: number;
-    /** Detected MIME type (when format is "bloburl"). */
+    /** Detected MIME type (when format is "bloburl" or "blob"). */
     mimeType?: string;
   }
 
@@ -1533,10 +1535,8 @@ declare namespace CATAgentOPFS {
   interface ReadAttachmentResult {
     /** Attachment ID. */
     id: string;
-    /** Blob URL (when format is "bloburl" or omitted). Scoped to the extension origin. */
-    blobUrl?: string;
-    /** Data URL string (when format is "dataurl"). */
-    content?: string;
+    /** The attachment Blob object, transferred via structured clone. */
+    data: Blob;
     /** Size in bytes. */
     size: number;
     /** Detected MIME type. */
@@ -1552,8 +1552,8 @@ declare namespace CATAgentOPFS {
     /** Write content to a file. Creates parent directories automatically. Accepts string, Blob, or data URL. */
     write(path: string, content: string | Blob): Promise<WriteResult>;
 
-    /** Read content from a file. Use `format: "bloburl"` to get a blob URL for binary files. */
-    read(path: string, format?: "text" | "bloburl"): Promise<ReadResult>;
+    /** Read content from a file. Use `format: "blob"` to get the Blob object for binary files, or `format: "bloburl"` for a blob URL (usable in content script DOM). */
+    read(path: string, format?: "text" | "bloburl" | "blob"): Promise<ReadResult>;
 
     /** List files and directories. Defaults to workspace root if path is omitted. */
     list(path?: string): Promise<FileEntry[]>;
@@ -1561,8 +1561,8 @@ declare namespace CATAgentOPFS {
     /** Delete a file or directory. */
     delete(path: string): Promise<{ success: true }>;
 
-    /** Read an attachment from internal attachment storage (e.g. LLM-generated images). Use `format: "dataurl"` to get a base64 data URL. */
-    readAttachment(id: string, format?: "bloburl" | "dataurl"): Promise<ReadAttachmentResult>;
+    /** Read an attachment from internal attachment storage (e.g. LLM-generated images). Returns the Blob object directly via structured clone. */
+    readAttachment(id: string): Promise<ReadAttachmentResult>;
   }
 }
 

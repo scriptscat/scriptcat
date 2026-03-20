@@ -1,15 +1,15 @@
-import { describe, it, expect } from "vitest";
-import { createTaskTools } from "./task_tools";
+import { describe, it, expect, vi } from "vitest";
+import { createTaskTools, type Task } from "./task_tools";
 
 describe("task_tools", () => {
-  it("should create 5 tools", () => {
+  it("应创建 3 个工具", () => {
     const { tools } = createTaskTools();
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(3);
     const names = tools.map((t) => t.definition.name);
-    expect(names).toEqual(["create_task", "get_task", "update_task", "list_tasks", "delete_task"]);
+    expect(names).toEqual(["create_task", "update_task", "list_tasks"]);
   });
 
-  it("create_task should create a task with auto-incremented ID", async () => {
+  it("create_task 应创建自增 ID 的任务", async () => {
     const { tools } = createTaskTools();
     const create = tools.find((t) => t.definition.name === "create_task")!;
 
@@ -22,19 +22,7 @@ describe("task_tools", () => {
     expect(result2).toEqual({ id: "2", subject: "Task 2", description: "Details", status: "pending" });
   });
 
-  it("get_task should return task or throw", async () => {
-    const { tools } = createTaskTools();
-    const create = tools.find((t) => t.definition.name === "create_task")!;
-    const get = tools.find((t) => t.definition.name === "get_task")!;
-
-    await create.executor.execute({ subject: "Test" });
-    const result = JSON.parse((await get.executor.execute({ task_id: "1" })) as string);
-    expect(result.subject).toBe("Test");
-
-    await expect(get.executor.execute({ task_id: "999" })).rejects.toThrow('Task "999" not found');
-  });
-
-  it("update_task should update fields", async () => {
+  it("update_task 应更新任务字段", async () => {
     const { tools } = createTaskTools();
     const create = tools.find((t) => t.definition.name === "create_task")!;
     const update = tools.find((t) => t.definition.name === "update_task")!;
@@ -48,13 +36,13 @@ describe("task_tools", () => {
     expect(result.subject).toBe("Updated");
   });
 
-  it("update_task should throw for non-existent task", async () => {
+  it("update_task 应对不存在的任务抛错", async () => {
     const { tools } = createTaskTools();
     const update = tools.find((t) => t.definition.name === "update_task")!;
     await expect(update.executor.execute({ task_id: "1" })).rejects.toThrow();
   });
 
-  it("list_tasks should return all tasks summary", async () => {
+  it("list_tasks 应返回所有任务摘要", async () => {
     const { tools } = createTaskTools();
     const create = tools.find((t) => t.definition.name === "create_task")!;
     const list = tools.find((t) => t.definition.name === "list_tasks")!;
@@ -68,65 +56,83 @@ describe("task_tools", () => {
     expect(result[1]).toEqual({ id: "2", subject: "B", status: "pending" });
   });
 
-  it("list_tasks should return empty array initially", async () => {
+  it("list_tasks 初始应返回空数组", async () => {
     const { tools } = createTaskTools();
     const list = tools.find((t) => t.definition.name === "list_tasks")!;
     const result = JSON.parse((await list.executor.execute({})) as string);
     expect(result).toEqual([]);
   });
 
-  it("update_task should allow clearing description with empty string", async () => {
-    const { tools } = createTaskTools();
+  it("应从 initialTasks 恢复任务并继续递增 ID", async () => {
+    const initial: Task[] = [
+      { id: "3", subject: "Existing", status: "in_progress" },
+      { id: "5", subject: "Another", status: "pending" },
+    ];
+    const { tools } = createTaskTools({ initialTasks: initial });
+    const create = tools.find((t) => t.definition.name === "create_task")!;
+    const list = tools.find((t) => t.definition.name === "list_tasks")!;
+
+    // 新任务 ID 应从 6 开始（max existing ID 5 + 1）
+    const result = JSON.parse((await create.executor.execute({ subject: "New" })) as string);
+    expect(result.id).toBe("6");
+
+    const all = JSON.parse((await list.executor.execute({})) as string);
+    expect(all).toHaveLength(3);
+  });
+
+  it("create_task 应调用 onSave 和 sendEvent", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const sendEvent = vi.fn();
+    const { tools } = createTaskTools({ onSave, sendEvent });
+    const create = tools.find((t) => t.definition.name === "create_task")!;
+
+    await create.executor.execute({ subject: "Test" });
+
+    expect(onSave).toHaveBeenCalledOnce();
+    expect(onSave).toHaveBeenCalledWith([{ id: "1", subject: "Test", status: "pending" }]);
+
+    expect(sendEvent).toHaveBeenCalledOnce();
+    expect(sendEvent).toHaveBeenCalledWith({
+      type: "task_update",
+      tasks: [{ id: "1", subject: "Test", status: "pending" }],
+    });
+  });
+
+  it("update_task 应调用 onSave 和 sendEvent", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const sendEvent = vi.fn();
+    const { tools } = createTaskTools({ onSave, sendEvent });
     const create = tools.find((t) => t.definition.name === "create_task")!;
     const update = tools.find((t) => t.definition.name === "update_task")!;
 
-    await create.executor.execute({ subject: "Test", description: "Some desc" });
+    await create.executor.execute({ subject: "Task" });
+    onSave.mockClear();
+    sendEvent.mockClear();
 
-    const result = JSON.parse((await update.executor.execute({ task_id: "1", description: "" })) as string);
-    expect(result.description).toBe("");
+    await update.executor.execute({ task_id: "1", status: "completed" });
+
+    expect(onSave).toHaveBeenCalledOnce();
+    expect(sendEvent).toHaveBeenCalledOnce();
+    expect(sendEvent).toHaveBeenCalledWith({
+      type: "task_update",
+      tasks: [{ id: "1", subject: "Task", status: "completed" }],
+    });
   });
 
-  it("update_task with only task_id should not change anything", async () => {
-    const { tools } = createTaskTools();
-    const create = tools.find((t) => t.definition.name === "create_task")!;
-    const update = tools.find((t) => t.definition.name === "update_task")!;
+  it("list_tasks 不应触发 onSave 或 sendEvent", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const sendEvent = vi.fn();
+    const initial: Task[] = [{ id: "1", subject: "Existing", status: "pending" }];
+    const { tools } = createTaskTools({ initialTasks: initial, onSave, sendEvent });
+    const list = tools.find((t) => t.definition.name === "list_tasks")!;
 
-    await create.executor.execute({ subject: "Original", description: "Desc" });
+    await list.executor.execute({});
 
-    const result = JSON.parse((await update.executor.execute({ task_id: "1" })) as string);
-    expect(result.subject).toBe("Original");
-    expect(result.description).toBe("Desc");
-    expect(result.status).toBe("pending");
+    expect(onSave).not.toHaveBeenCalled();
+    expect(sendEvent).not.toHaveBeenCalled();
   });
 
-  it("create_task without description should not include it in result", async () => {
-    const { tools } = createTaskTools();
-    const create = tools.find((t) => t.definition.name === "create_task")!;
-
-    const result = JSON.parse((await create.executor.execute({ subject: "No desc" })) as string);
-    expect(result.description).toBeUndefined();
-  });
-
-  it("delete_task should remove a task", async () => {
-    const { tools, tasks } = createTaskTools();
-    const create = tools.find((t) => t.definition.name === "create_task")!;
-    const del = tools.find((t) => t.definition.name === "delete_task")!;
-
-    await create.executor.execute({ subject: "To delete" });
-    expect(tasks.size).toBe(1);
-
-    const result = JSON.parse((await del.executor.execute({ task_id: "1" })) as string);
-    expect(result).toEqual({ deleted: "1" });
-    expect(tasks.size).toBe(0);
-  });
-
-  it("delete_task should throw for non-existent task", async () => {
-    const { tools } = createTaskTools();
-    const del = tools.find((t) => t.definition.name === "delete_task")!;
-    await expect(del.executor.execute({ task_id: "999" })).rejects.toThrow('Task "999" not found');
-  });
-
-  it("tasks map should be independent per createTaskTools call", async () => {
+  it("多实例应独立", async () => {
     const instance1 = createTaskTools();
     const instance2 = createTaskTools();
 

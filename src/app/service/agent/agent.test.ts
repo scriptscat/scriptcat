@@ -692,7 +692,12 @@ describe("callLLMWithToolLoop", () => {
 
     const doneEvent = events.find((e) => e.type === "done");
     expect(doneEvent).toBeDefined();
-    expect(doneEvent!.type === "done" && doneEvent!.usage).toEqual({ inputTokens: 10, outputTokens: 5, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 });
+    expect(doneEvent!.type === "done" && doneEvent!.usage).toEqual({
+      inputTokens: 10,
+      outputTokens: 5,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+    });
   });
 
   it("单轮 tool calling", async () => {
@@ -747,7 +752,12 @@ describe("callLLMWithToolLoop", () => {
     const doneEvent = events.find((e) => e.type === "done");
     expect(doneEvent).toBeDefined();
     if (doneEvent?.type === "done") {
-      expect(doneEvent.usage).toEqual({ inputTokens: 50, outputTokens: 18, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 });
+      expect(doneEvent.usage).toEqual({
+        inputTokens: 50,
+        outputTokens: 18,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+      });
     }
   });
 

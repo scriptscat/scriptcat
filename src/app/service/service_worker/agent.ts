@@ -470,7 +470,8 @@ export class AgentService {
       }
       case "read": {
         if (request.format === "blob") {
-          // blob 格式：直接返回 Blob 对象，通过 structured clone 传递到 sandbox
+          // blob 格式：chrome.runtime sendResponse 不支持 Blob，通过 offscreen 创建 blob URL
+          // 客户端通过 CAT_fetchBlob 在 extension-origin 上下文中转换回 Blob
           const safePath = sanitizePath(request.path);
           if (!safePath) throw new Error("path is required");
           const workspace = await getWorkspaceRoot();
@@ -478,7 +479,12 @@ export class AgentService {
           const dir = dirPath ? await getDirectory(workspace, dirPath) : workspace;
           const fileHandle = await dir.getFileHandle(fileName);
           const file = await fileHandle.getFile();
-          return { path: safePath, data: file, size: file.size, mimeType: guessMimeType(safePath) };
+          const mimeType = guessMimeType(safePath);
+          const blobUrl = (await createObjectURL(this.sender, {
+            blob: new Blob([await file.arrayBuffer()], { type: mimeType }),
+            persistence: true,
+          })) as string;
+          return { path: safePath, blobUrl, size: file.size, mimeType };
         }
         const executor = toolMap.get("opfs_read")!;
         return JSON.parse((await executor.execute({ path: request.path, format: request.format })) as string);
@@ -488,8 +494,10 @@ export class AgentService {
         if (!blob) {
           throw new Error(`Attachment not found: ${request.id}`);
         }
-        // 直接返回 Blob 对象，通过 structured clone 传递到 sandbox
-        return { id: request.id, data: blob, size: blob.size, mimeType: blob.type };
+        // chrome.runtime sendResponse 不支持 Blob，先发送到 offscreen 创建 blob URL
+        // 客户端通过 CAT_fetchBlob 在 extension-origin 上下文中转换回 Blob
+        const blobUrl = (await createObjectURL(this.sender, { blob, persistence: true })) as string;
+        return { id: request.id, blobUrl, size: blob.size, mimeType: blob.type };
       }
       case "list": {
         const executor = toolMap.get("opfs_list")!;

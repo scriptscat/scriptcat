@@ -57,7 +57,14 @@ export class OffscreenManager {
     );
     script.init();
     // 转发从sandbox来的gm api请求
-    forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extMsgSender);
+    // middleware 拦截 CAT_fetchBlob：在 offscreen（extension-origin）中本地处理 blob URL → Blob 转换
+    // 因为 chrome.runtime sendResponse 不支持 Blob，所以 SW 返回 blobUrl，由此处转换后通过 postMessage 传给 sandbox
+    forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extMsgSender, (params) => {
+      if (params?.api === "CAT_fetchBlob") {
+        return fetch(params.params[0]).then((res) => res.blob());
+      }
+      return false;
+    });
     // 转发 Skill Script 执行请求到 sandbox
     forwardMessage("sandbox", "executeSkillScript", this.windowServer, this.windowMessage);
     // 转发valueUpdate与emitEvent

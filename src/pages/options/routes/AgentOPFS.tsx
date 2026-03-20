@@ -225,19 +225,9 @@ function AgentOPFS() {
           {record.kind === "file" && (
             <>
               {isImageFileName(record.name) && (
-                <Button
-                  type="text"
-                  icon={<IconEye />}
-                  size="small"
-                  onClick={() => previewFile(record.name)}
-                />
+                <Button type="text" icon={<IconEye />} size="small" onClick={() => previewFile(record.name)} />
               )}
-              <Button
-                type="text"
-                icon={<IconDownload />}
-                size="small"
-                onClick={() => downloadFile(record.name)}
-              />
+              <Button type="text" icon={<IconDownload />} size="small" onClick={() => downloadFile(record.name)} />
             </>
           )}
           <Button

@@ -42,9 +42,7 @@ export default function AskUserBlock({
   // 多选：切换选中状态
   const handleMultiToggle = (value: string) => {
     if (submitted) return;
-    setSelectedOptions((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
-    );
+    setSelectedOptions((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
   };
 
   // 多选：确认提交

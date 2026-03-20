@@ -81,7 +81,7 @@ export function setCreateBlobUrlFn(fn: CreateBlobUrlFn): void {
 }
 
 /** 根据文件扩展名推断 MIME 类型 */
-function guessMimeType(path: string): string {
+export function guessMimeType(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase() || "";
   const map: Record<string, string> = {
     jpg: "image/jpeg",

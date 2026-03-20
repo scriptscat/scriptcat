@@ -1,4 +1,4 @@
-import type { ToolDefinition } from "@App/app/service/agent/types";
+import type { ToolDefinition, ChatStreamEvent } from "@App/app/service/agent/types";
 import type { ToolExecutor } from "@App/app/service/agent/tool_registry";
 
 export type Task = {
@@ -10,7 +10,8 @@ export type Task = {
 
 const CREATE_TASK_DEFINITION: ToolDefinition = {
   name: "create_task",
-  description: "Create a new task to track work. Returns the created task with an auto-assigned ID.",
+  description:
+    "Create a new task to track work progress. Use this to break complex, multi-step work into trackable steps. Returns the created task with an auto-assigned ID.",
   parameters: {
     type: "object",
     properties: {
@@ -21,21 +22,10 @@ const CREATE_TASK_DEFINITION: ToolDefinition = {
   },
 };
 
-const GET_TASK_DEFINITION: ToolDefinition = {
-  name: "get_task",
-  description: "Get the full details of a task by its ID.",
-  parameters: {
-    type: "object",
-    properties: {
-      task_id: { type: "string", description: "The task ID" },
-    },
-    required: ["task_id"],
-  },
-};
-
 const UPDATE_TASK_DEFINITION: ToolDefinition = {
   name: "update_task",
-  description: "Update a task's status, subject, or description.",
+  description:
+    'Update a task\'s status or details. Set status to "in_progress" when starting work, "completed" when done.',
   parameters: {
     type: "object",
     properties: {
@@ -54,31 +44,58 @@ const UPDATE_TASK_DEFINITION: ToolDefinition = {
 
 const LIST_TASKS_DEFINITION: ToolDefinition = {
   name: "list_tasks",
-  description: "List all tasks with their IDs, subjects, and statuses.",
+  description: "List all tasks with their IDs, subjects, and statuses. Use to review remaining work.",
   parameters: {
     type: "object",
     properties: {},
   },
 };
 
-const DELETE_TASK_DEFINITION: ToolDefinition = {
-  name: "delete_task",
-  description: "Delete a task by its ID. The task is permanently removed.",
-  parameters: {
-    type: "object",
-    properties: {
-      task_id: { type: "string", description: "The task ID to delete" },
-    },
-    required: ["task_id"],
-  },
+export type TaskToolsOptions = {
+  // 初始任务列表（从持久化加载）
+  initialTasks?: Task[];
+  // 任务变更时的持久化回调
+  onSave?: (tasks: Task[]) => Promise<void>;
+  // 任务变更时的事件推送回调（推送到 UI）
+  sendEvent?: (event: ChatStreamEvent) => void;
 };
 
-export function createTaskTools(): {
+export function createTaskTools(options?: TaskToolsOptions): {
   tools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>;
   tasks: Map<string, Task>;
 } {
   const tasks = new Map<string, Task>();
   let nextId = 1;
+
+  // 从持久化数据恢复
+  if (options?.initialTasks) {
+    for (const task of options.initialTasks) {
+      tasks.set(task.id, task);
+      const numId = parseInt(task.id, 10);
+      if (!isNaN(numId) && numId >= nextId) {
+        nextId = numId + 1;
+      }
+    }
+  }
+
+  // 持久化并推送事件
+  const emitUpdate = async () => {
+    const taskList = Array.from(tasks.values());
+    if (options?.onSave) {
+      await options.onSave(taskList);
+    }
+    if (options?.sendEvent) {
+      options.sendEvent({
+        type: "task_update",
+        tasks: taskList.map((t) => ({
+          id: t.id,
+          subject: t.subject,
+          status: t.status,
+          description: t.description,
+        })),
+      });
+    }
+  };
 
   const createExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
@@ -89,16 +106,7 @@ export function createTaskTools(): {
         status: "pending",
       };
       tasks.set(task.id, task);
-      return JSON.stringify(task);
-    },
-  };
-
-  const getExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
-      const task = tasks.get(args.task_id as string);
-      if (!task) {
-        throw new Error(`Task "${args.task_id}" not found`);
-      }
+      await emitUpdate();
       return JSON.stringify(task);
     },
   };
@@ -112,6 +120,7 @@ export function createTaskTools(): {
       if (args.status) task.status = args.status as Task["status"];
       if (args.subject) task.subject = args.subject as string;
       if (args.description !== undefined) task.description = args.description as string;
+      await emitUpdate();
       return JSON.stringify(task);
     },
   };
@@ -127,24 +136,11 @@ export function createTaskTools(): {
     },
   };
 
-  const deleteExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
-      const taskId = args.task_id as string;
-      if (!tasks.has(taskId)) {
-        throw new Error(`Task "${taskId}" not found`);
-      }
-      tasks.delete(taskId);
-      return JSON.stringify({ deleted: taskId });
-    },
-  };
-
   return {
     tools: [
       { definition: CREATE_TASK_DEFINITION, executor: createExecutor },
-      { definition: GET_TASK_DEFINITION, executor: getExecutor },
       { definition: UPDATE_TASK_DEFINITION, executor: updateExecutor },
       { definition: LIST_TASKS_DEFINITION, executor: listExecutor },
-      { definition: DELETE_TASK_DEFINITION, executor: deleteExecutor },
     ],
     tasks,
   };
