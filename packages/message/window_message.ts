@@ -238,17 +238,24 @@ export class ServiceWorkerMessageSend implements Message {
     // 处理消息
     if (data.type === "sendMessage" && source) {
       // 接收到来自offscreen的请求消息
-      this.EE.emit("message", data.data, (resp: any) => {
-        if (!data.messageId) {
-          return;
-        }
-        const body: WindowMessageBody = {
-          messageId: data.messageId,
-          type: "respMessage",
-          data: resp,
-        };
-        source.postMessage(body);
-      });
+      // 第三个参数传空对象作为sender,避免Server中SenderRuntime访问undefined属性
+      // 空对象经过getExtMessageSender()会得到tabId=-1等值,表示后台脚本
+      this.EE.emit(
+        "message",
+        data.data,
+        (resp: any) => {
+          if (!data.messageId) {
+            return;
+          }
+          const body: WindowMessageBody = {
+            messageId: data.messageId,
+            type: "respMessage",
+            data: resp,
+          };
+          source.postMessage(body);
+        },
+        {} as RuntimeMessageSender
+      );
     } else if (data.type === "connect" && source) {
       // 接收到来自offscreen的连接请求
       this.EE.emit("connect", data.data, new WindowMessageConnect(data.messageId, this.EE, source));
