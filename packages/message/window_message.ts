@@ -302,15 +302,30 @@ export class ServiceWorkerMessageSend implements Message {
   }
 }
 
-// Offscreen端通过navigator.serviceWorker.controller.postMessage向SW发送消息
+// Offscreen端通过navigator.serviceWorker向SW发送postMessage消息
 // 与ServiceWorkerMessageSend配对使用,实现Offscreen→SW的postMessage通道
+// 注意: 扩展offscreen页面的navigator.serviceWorker.controller通常为null,
+// 需要通过navigator.serviceWorker.ready获取registration.active
 export class ServiceWorkerClientMessage implements MessageSend {
   EE = new EventEmitter<string, any>();
+
+  private sw: ServiceWorker | null = null;
+  private swReady: Promise<ServiceWorker>;
 
   constructor() {
     navigator.serviceWorker.addEventListener("message", (e) => {
       this.messageHandle(e.data);
     });
+    // controller在扩展offscreen页面中通常为null,通过ready获取active
+    this.sw = navigator.serviceWorker.controller;
+    if (this.sw) {
+      this.swReady = Promise.resolve(this.sw);
+    } else {
+      this.swReady = navigator.serviceWorker.ready.then((reg) => {
+        this.sw = reg.active!;
+        return this.sw;
+      });
+    }
   }
 
   messageHandle(data: WindowMessageBody) {
@@ -325,7 +340,12 @@ export class ServiceWorkerClientMessage implements MessageSend {
   }
 
   private postToServiceWorker(message: any) {
-    navigator.serviceWorker.controller!.postMessage(message);
+    if (this.sw) {
+      this.sw.postMessage(message);
+    } else {
+      // 初始化期间还没获取到SW引用,等待ready后发送
+      this.swReady.then((sw) => sw.postMessage(message));
+    }
   }
 
   async connect(data: TMessage): Promise<MessageConnect> {
