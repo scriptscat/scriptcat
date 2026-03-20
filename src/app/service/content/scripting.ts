@@ -79,6 +79,14 @@ export default class ScriptingRuntime {
           case "CAT_fetchBlob": {
             return fetch(data.params[0]).then((res) => res.blob());
           }
+          case "CAT_agentOPFS": {
+            // chrome.runtime 不支持 Blob，write 操作的 Blob content 需先转为 blob URL
+            const req = data.params[0];
+            if (req?.action === "write" && req.content instanceof Blob) {
+              req.content = makeBlobURL({ blob: req.content, persistence: true }) as string;
+            }
+            return false; // 继续转发到 SW
+          }
           case "CAT_fetchDocument": {
             const [url, isContent] = data.params;
             // 根据来源选择不同的消息桥（content / inject）

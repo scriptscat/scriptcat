@@ -82,16 +82,18 @@ export class SkillRepo extends OPFSRepo {
 
     // 更新 registry
     const registry = await this.readRegistry();
+    const idx = registry.findIndex((s) => s.name === record.name);
     const summary: SkillSummary = {
       name: record.name,
       description: record.description,
       toolNames: record.toolNames,
       referenceNames: record.referenceNames,
       ...(record.config && Object.keys(record.config).length > 0 ? { hasConfig: true } : {}),
+      // 保留已有的 enabled 状态
+      ...(idx >= 0 && registry[idx].enabled !== undefined ? { enabled: registry[idx].enabled } : {}),
       installtime: record.installtime,
       updatetime: record.updatetime,
     };
-    const idx = registry.findIndex((s) => s.name === record.name);
     if (idx >= 0) {
       registry[idx] = summary;
     } else {
@@ -154,6 +156,15 @@ export class SkillRepo extends OPFSRepo {
     } catch {
       return null;
     }
+  }
+
+  async setSkillEnabled(name: string, enabled: boolean): Promise<boolean> {
+    const registry = await this.readRegistry();
+    const idx = registry.findIndex((s) => s.name === name);
+    if (idx < 0) return false;
+    registry[idx].enabled = enabled;
+    await this.writeRegistry(registry);
+    return true;
   }
 
   async getConfigValues(name: string): Promise<Record<string, unknown>> {

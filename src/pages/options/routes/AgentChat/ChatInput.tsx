@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Select, Tooltip, Message as ArcoMessage } from "@arco-design/web-react";
-import { IconSend, IconPause, IconImage, IconClose, IconEye, IconTool } from "@arco-design/web-react/icon";
+import {
+  IconSend,
+  IconPause,
+  IconImage,
+  IconClose,
+  IconEye,
+  IconTool,
+  IconFile,
+  IconPlayCircle,
+} from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/types";
 import { groupModelsByProvider, supportsVision, supportsImageOutput } from "./model_utils";
@@ -134,21 +143,22 @@ export default function ChatInput({
   // 清理 objectURLs
   useEffect(() => {
     return () => {
-      attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      attachments.forEach((a) => {
+        if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addImageFiles = useCallback((files: File[]) => {
-    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
-    if (imageFiles.length === 0) return;
-    const newAttachments = imageFiles.map((file) => {
+  const addFiles = useCallback((files: File[]) => {
+    if (files.length === 0) return;
+    const newAttachments = files.map((file) => {
       // 从文件名提取扩展名，fallback 到 MIME 子类型
       const ext = file.name.includes(".") ? file.name.split(".").pop() : file.type.split("/")[1] || "bin";
       return {
         id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`,
         file,
-        previewUrl: URL.createObjectURL(file),
+        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
       };
     });
     setAttachments((prev) => [...prev, ...newAttachments]);
@@ -157,7 +167,7 @@ export default function ChatInput({
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => {
       const att = prev.find((a) => a.id === id);
-      if (att) URL.revokeObjectURL(att.previewUrl);
+      if (att?.previewUrl) URL.revokeObjectURL(att.previewUrl);
       return prev.filter((a) => a.id !== id);
     });
   }, []);
@@ -175,7 +185,14 @@ export default function ChatInput({
         blocks.push({ type: "text", text: trimmed });
       }
       for (const att of attachments) {
-        blocks.push({ type: "image", attachmentId: att.id, mimeType: att.file.type, name: att.file.name });
+        const mime = att.file.type;
+        if (mime.startsWith("image/")) {
+          blocks.push({ type: "image", attachmentId: att.id, mimeType: mime, name: att.file.name });
+        } else if (mime.startsWith("audio/")) {
+          blocks.push({ type: "audio", attachmentId: att.id, mimeType: mime, name: att.file.name });
+        } else {
+          blocks.push({ type: "file", attachmentId: att.id, mimeType: mime, name: att.file.name, size: att.file.size });
+        }
         files.set(att.id, att.file);
       }
 
@@ -202,14 +219,14 @@ export default function ChatInput({
     if (!items) return;
     const files: File[] = [];
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith("image/")) {
+      if (items[i].kind === "file") {
         const file = items[i].getAsFile();
         if (file) files.push(file);
       }
     }
     if (files.length > 0) {
       e.preventDefault();
-      addImageFiles(files);
+      addFiles(files);
     }
   };
 
@@ -227,12 +244,12 @@ export default function ChatInput({
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
-    addImageFiles(files);
+    addFiles(files);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    addImageFiles(files);
+    addFiles(files);
     // reset input value so the same file can be selected again
     e.target.value = "";
   };
@@ -257,11 +274,29 @@ export default function ChatInput({
             <div className="tw-flex tw-gap-2 tw-px-4 tw-pt-3 tw-pb-1 tw-flex-wrap">
               {attachments.map((att) => (
                 <div key={att.id} className="tw-relative tw-group tw-shrink-0">
-                  <img
-                    src={att.previewUrl}
-                    alt={att.file.name}
-                    className="tw-w-16 tw-h-16 tw-rounded-lg tw-object-cover tw-border tw-border-solid tw-border-[var(--color-border-2)]"
-                  />
+                  {att.previewUrl ? (
+                    <img
+                      src={att.previewUrl}
+                      alt={att.file.name}
+                      className="tw-w-16 tw-h-16 tw-rounded-lg tw-object-cover tw-border tw-border-solid tw-border-[var(--color-border-2)]"
+                    />
+                  ) : (
+                    <div
+                      className="tw-w-16 tw-h-16 tw-rounded-lg tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-fill-1)] tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-0.5"
+                      title={att.file.name}
+                    >
+                      {att.file.type.startsWith("audio/") ? (
+                        <IconPlayCircle style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
+                      ) : (
+                        <IconFile style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
+                      )}
+                      <span className="tw-text-[9px] tw-text-[var(--color-text-4)] tw-max-w-[56px] tw-truncate tw-px-0.5">
+                        {att.file.name.length > 8
+                          ? att.file.name.slice(0, 5) + "..." + (att.file.name.split(".").pop() || "")
+                          : att.file.name}
+                      </span>
+                    </div>
+                  )}
                   <button
                     onClick={() => removeAttachment(att.id)}
                     className="tw-absolute tw--top-1.5 tw--right-1.5 tw-w-5 tw-h-5 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[var(--color-bg-5)] tw-text-white tw-border-none tw-cursor-pointer tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-text-xs tw-leading-none"
@@ -289,14 +324,7 @@ export default function ChatInput({
           </div>
 
           {/* 隐藏的文件选择器 */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="tw-hidden"
-            onChange={handleFileSelect}
-          />
+          <input ref={fileInputRef} type="file" multiple className="tw-hidden" onChange={handleFileSelect} />
 
           {/* 底部工具栏 */}
           <div className="tw-flex tw-items-center tw-justify-between tw-px-3 tw-pb-2">
@@ -339,9 +367,11 @@ export default function ChatInput({
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
-                title={t("agent_chat_attach_image")}
+                title={t("agent_chat_attach_file")}
               >
-                <IconImage style={{ fontSize: 16 }} />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
               </button>
               {onEnableToolsChange && (
                 <Tooltip

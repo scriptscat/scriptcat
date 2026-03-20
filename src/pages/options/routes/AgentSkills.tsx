@@ -36,6 +36,7 @@ function SkillCard({
   onUninstall,
   onRefresh,
   onConfig,
+  onToggleEnabled,
   t,
 }: {
   skill: SkillSummary;
@@ -43,10 +44,14 @@ function SkillCard({
   onUninstall: () => void;
   onRefresh: () => void;
   onConfig?: () => void;
+  onToggleEnabled: (enabled: boolean) => void;
   t: (key: string, opts?: Record<string, string>) => string;
 }) {
+  const enabled = skill.enabled !== false;
   return (
-    <div className="tw-group tw-relative tw-rounded-xl tw-p-5 tw-transition-all tw-duration-200 tw-cursor-default tw-bg-[var(--color-bg-2)] tw-shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:tw-shadow-[0_4px_16px_rgba(0,0,0,0.1)]">
+    <div
+      className={`tw-group tw-relative tw-rounded-xl tw-p-5 tw-transition-all tw-duration-200 tw-cursor-default tw-bg-[var(--color-bg-2)] tw-shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:tw-shadow-[0_4px_16px_rgba(0,0,0,0.1)] ${!enabled ? "tw-opacity-60" : ""}`}
+    >
       {/* Header */}
       <div className="tw-flex tw-items-start tw-justify-between tw-mb-3">
         <div className="tw-flex tw-items-center tw-gap-3">
@@ -62,6 +67,7 @@ function SkillCard({
             )}
           </div>
         </div>
+        <Switch size="small" checked={enabled} onChange={onToggleEnabled} />
       </div>
 
       {/* Tags */}
@@ -486,6 +492,15 @@ function AgentSkills() {
     }
   };
 
+  const handleToggleEnabled = async (name: string, enabled: boolean) => {
+    try {
+      await agentClient.setSkillEnabled(name, enabled);
+      await loadSkills();
+    } catch (e: any) {
+      Message.error(e.message || String(e));
+    }
+  };
+
   const handleRefresh = async (name: string) => {
     try {
       await agentClient.refreshSkill(name);
@@ -554,6 +569,7 @@ function AgentSkills() {
                 onUninstall={() => handleUninstall(skill.name)}
                 onRefresh={() => handleRefresh(skill.name)}
                 onConfig={skill.hasConfig ? () => handleConfig(skill.name) : undefined}
+                onToggleEnabled={(enabled) => handleToggleEnabled(skill.name, enabled)}
                 t={t}
               />
             ))}

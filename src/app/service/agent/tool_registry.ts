@@ -91,6 +91,7 @@ export class ToolRegistry {
             return { id: tc.id, result: typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult) };
           }
         } catch (e: any) {
+          console.error(`[ToolRegistry] builtin tool "${tc.name}" execution failed:`, e);
           return { id: tc.id, result: JSON.stringify({ error: e.message || "Tool execution failed" }) };
         }
       })
@@ -132,6 +133,19 @@ export class ToolRegistry {
 
     const attachments: Attachment[] = [];
     for (const ad of attachmentDataList) {
+      if (!ad.data) {
+        // 无 data 的附件是已保存的引用（如 skill script 返回的 imageBlock），直接透传元数据
+        if ("attachmentId" in ad && (ad as any).attachmentId) {
+          attachments.push({
+            id: (ad as any).attachmentId,
+            type: ad.type,
+            name: ad.name,
+            mimeType: ad.mimeType,
+            size: (ad as any).size,
+          });
+        }
+        continue;
+      }
       const ext = getExtFromMime(ad.mimeType);
       const id = `${uuidv4()}.${ext}`;
       const size = await this.chatRepo.saveAttachment(id, ad.data);

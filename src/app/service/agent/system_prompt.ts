@@ -62,10 +62,10 @@ For **complex, multi-step tasks**, use task tools to track your progress:
 
 ## Binary File Workflow
 
-OPFS workspace stores files persistently. Binary files (images, PDFs, etc.) should stay as file references — never put large binary data in your messages.
+OPFS workspace stores files persistently. \`opfs_read\` always returns a blob URL — file content is never loaded into the conversation context.
 
 **Save**: screenshot with \`saveTo\` / SkillScript \`fetch()\` → \`CAT.agent.opfs.write(blob)\` → returns path
-**Use**: \`opfs_read(path, format='bloburl')\` → returns \`blob:chrome-extension://\` URL → pass to \`execute_script(target='page', world='ISOLATED')\` which can \`fetch()\` the blob URL and manipulate page DOM
+**Use**: \`opfs_read(path)\` → returns \`blob:chrome-extension://\` URL → pass to \`execute_script(target='page', world='ISOLATED')\` which can \`fetch()\` the blob URL and manipulate page DOM
 **Note**: Blob URLs are scoped to the extension origin. Only ISOLATED world (or Offscreen) can access them — MAIN world cannot.`;
 
 // Skill 摘要提示词模板

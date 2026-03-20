@@ -673,6 +673,7 @@
   "agent_chat_streaming": "Generating...",
   "agent_chat_newline": "for new line",
   "agent_chat_attach_image": "Attach image",
+  "agent_chat_attach_file": "Attach file",
   "agent_chat_welcome_hint": "Ask me anything about your scripts",
   "agent_chat_welcome_start": "Create a conversation to get started",
   "agent_chat_tokens": "tokens",

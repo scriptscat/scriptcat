@@ -1403,6 +1403,8 @@ declare namespace CATAgentSkills {
     referenceNames: string[];
     /** 此 Skill 是否声明了配置字段。 */
     hasConfig?: boolean;
+    /** 是否启用此 Skill，`undefined` 时视为 `true`。 */
+    enabled?: boolean;
     /** 安装时间戳。 */
     installtime: number;
     /** 最后更新时间戳。 */
@@ -1528,13 +1530,11 @@ declare namespace CATAgentOPFS {
     path: string;
     /** 文件文本内容（当 format 为 "text" 或省略时）。 */
     content?: string;
-    /** Blob URL（当 format 为 "bloburl" 时）。作用域为扩展 origin。 */
-    blobUrl?: string;
     /** 文件 Blob 对象（当 format 为 "blob" 时）。通过 structured clone 传递。 */
     data?: Blob;
     /** 大小（字节）。 */
     size: number;
-    /** 检测到的 MIME 类型（当 format 为 "bloburl" 或 "blob" 时）。 */
+    /** 检测到的 MIME 类型（当 format 为 "blob" 时）。 */
     mimeType?: string;
   }
 
@@ -1559,8 +1559,8 @@ declare namespace CATAgentOPFS {
     /** 写入内容到文件。自动创建父目录。支持字符串、Blob 或 data URL。 */
     write(path: string, content: string | Blob): Promise<WriteResult>;
 
-    /** 读取文件内容。使用 `format: "blob"` 获取二进制文件的 Blob 对象，或 `format: "bloburl"` 获取 blob URL（可在内容脚本 DOM 中使用）。 */
-    read(path: string, format?: "text" | "bloburl" | "blob"): Promise<ReadResult>;
+    /** 读取文件内容。使用 `format: "blob"` 获取二进制文件的 Blob 对象。默认 "text" 返回文本内容。 */
+    read(path: string, format?: "text" | "blob"): Promise<ReadResult>;
 
     /** 列出文件和目录。省略 path 时默认列出工作区根目录。 */
     list(path?: string): Promise<FileEntry[]>;

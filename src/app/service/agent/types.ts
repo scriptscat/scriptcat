@@ -244,6 +244,7 @@ export type SkillSummary = {
   toolNames: string[]; // 随 Skill 打包的脚本名称（scripts/ 目录下）
   referenceNames: string[]; // 参考资料名称（references/ 目录下）
   hasConfig?: boolean; // 是否有 config 字段声明
+  enabled?: boolean; // 是否启用，默认 true（undefined 视为 true）
   installtime: number;
   updatetime: number;
 };

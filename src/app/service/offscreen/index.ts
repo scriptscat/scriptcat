@@ -69,5 +69,11 @@ export class OffscreenManager {
     this.windowServer.on("createObjectURL", async (params: { blob: Blob; persistence: boolean }) => {
       return makeBlobURL(params) as string;
     });
+
+    // fetch blob URL 并返回 Blob（供 SW 在 chrome.runtime 通道下还原 content script 创建的 blob URL）
+    this.windowServer.on("fetchBlob", async (params: { url: string }) => {
+      const res = await fetch(params.url);
+      return await res.blob();
+    });
   }
 }

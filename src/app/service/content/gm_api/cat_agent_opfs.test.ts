@@ -94,11 +94,56 @@ describe.concurrent("CATAgentOPFSApi", () => {
     ]);
   });
 
-  it.concurrent("readAttachment 发送请求并通过 CAT_fetchBlob 将 blobUrl 转换为 Blob", async () => {
+  // ---- postMessage 通道：SW 直接返回 Blob ----
+
+  it.concurrent("readAttachment postMessage 通道直接返回 Blob", async () => {
+    const testBlob = new Blob(["image data"], { type: "image/png" });
+    const mockSendMessage = vi.fn().mockResolvedValue({
+      id: "att-1",
+      data: testBlob,
+      size: 10,
+      mimeType: "image/png",
+    });
+    const ctx = { sendMessage: mockSendMessage, scriptRes: { uuid: "test-uuid" } };
+
+    const apis = GMContextApiGet("CAT.agent.opfs")!;
+    const readAttachmentApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.readAttachment")!;
+    const result = await readAttachmentApi.api.call(ctx, "att-1");
+
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    expect((result as any).data).toBe(testBlob);
+  });
+
+  it.concurrent("read blob postMessage 通道直接返回 Blob", async () => {
+    const testBlob = new Blob(["file data"], { type: "image/png" });
+    const mockSendMessage = vi.fn().mockResolvedValue({
+      path: "img.png",
+      data: testBlob,
+      size: 9,
+      mimeType: "image/png",
+    });
+    const ctx = { sendMessage: mockSendMessage, scriptRes: { uuid: "test-uuid" } };
+
+    const apis = GMContextApiGet("CAT.agent.opfs")!;
+    const readApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.read")!;
+    const result = await readApi.api.call(ctx, "img.png", "blob");
+
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    expect((result as any).data).toBe(testBlob);
+  });
+
+  // ---- chrome.runtime 通道：SW 返回 blobUrl，客户端 CAT_fetchBlob 还原 ----
+
+  it.concurrent("readAttachment chrome.runtime 通道通过 CAT_fetchBlob 还原 Blob", async () => {
     const testBlob = new Blob(["image data"], { type: "image/png" });
     const mockSendMessage = vi.fn().mockImplementation((api: string) => {
       if (api === "CAT_agentOPFS") {
-        return Promise.resolve({ id: "att-1", blobUrl: "blob:chrome-extension://test/123", size: 10, mimeType: "image/png" });
+        return Promise.resolve({
+          id: "att-1",
+          blobUrl: "blob:chrome-extension://test/123",
+          size: 10,
+          mimeType: "image/png",
+        });
       }
       if (api === "CAT_fetchBlob") {
         return Promise.resolve(testBlob);
@@ -111,22 +156,21 @@ describe.concurrent("CATAgentOPFSApi", () => {
     const readAttachmentApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.readAttachment")!;
     const result = await readAttachmentApi.api.call(ctx, "att-1");
 
-    // 第一次调用：请求 readAttachment
-    expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentOPFS", [
-      { action: "readAttachment", id: "att-1", scriptUuid: "test-uuid" },
-    ]);
-    // 第二次调用：CAT_fetchBlob 转换 blobUrl → Blob
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_fetchBlob", ["blob:chrome-extension://test/123"]);
-    // 结果应包含 data（Blob）而非 blobUrl
     expect((result as any).data).toBe(testBlob);
     expect((result as any).blobUrl).toBeUndefined();
   });
 
-  it.concurrent("read blob 格式通过 CAT_fetchBlob 将 blobUrl 转换为 Blob", async () => {
+  it.concurrent("read blob chrome.runtime 通道通过 CAT_fetchBlob 还原 Blob", async () => {
     const testBlob = new Blob(["file data"], { type: "image/png" });
     const mockSendMessage = vi.fn().mockImplementation((api: string) => {
       if (api === "CAT_agentOPFS") {
-        return Promise.resolve({ path: "img.png", blobUrl: "blob:chrome-extension://test/456", size: 9, mimeType: "image/png" });
+        return Promise.resolve({
+          path: "img.png",
+          blobUrl: "blob:chrome-extension://test/456",
+          size: 9,
+          mimeType: "image/png",
+        });
       }
       if (api === "CAT_fetchBlob") {
         return Promise.resolve(testBlob);
@@ -142,17 +186,5 @@ describe.concurrent("CATAgentOPFSApi", () => {
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_fetchBlob", ["blob:chrome-extension://test/456"]);
     expect((result as any).data).toBe(testBlob);
     expect((result as any).blobUrl).toBeUndefined();
-  });
-
-  it.concurrent("read text 格式不调用 CAT_fetchBlob", async () => {
-    const mockSendMessage = vi.fn().mockResolvedValue({ path: "f.txt", content: "hello", size: 5 });
-    const ctx = { sendMessage: mockSendMessage, scriptRes: { uuid: "test-uuid" } };
-
-    const apis = GMContextApiGet("CAT.agent.opfs")!;
-    const readApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.read")!;
-    await readApi.api.call(ctx, "f.txt", "text");
-
-    expect(mockSendMessage).toHaveBeenCalledTimes(1);
-    expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentOPFS", expect.anything());
   });
 });

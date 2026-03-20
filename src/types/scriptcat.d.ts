@@ -1396,6 +1396,8 @@ declare namespace CATAgentSkills {
     referenceNames: string[];
     /** Whether this Skill has config fields declared. */
     hasConfig?: boolean;
+    /** Whether this Skill is enabled. Defaults to `true` when `undefined`. */
+    enabled?: boolean;
     /** Installation timestamp. */
     installtime: number;
     /** Last update timestamp. */
@@ -1521,13 +1523,11 @@ declare namespace CATAgentOPFS {
     path: string;
     /** File text content (when format is "text" or omitted). */
     content?: string;
-    /** Blob URL (when format is "bloburl"). Scoped to the extension origin. */
-    blobUrl?: string;
     /** The file Blob object (when format is "blob"). Transferred via structured clone. */
     data?: Blob;
     /** Size in bytes. */
     size: number;
-    /** Detected MIME type (when format is "bloburl" or "blob"). */
+    /** Detected MIME type (when format is "blob"). */
     mimeType?: string;
   }
 
@@ -1552,8 +1552,8 @@ declare namespace CATAgentOPFS {
     /** Write content to a file. Creates parent directories automatically. Accepts string, Blob, or data URL. */
     write(path: string, content: string | Blob): Promise<WriteResult>;
 
-    /** Read content from a file. Use `format: "blob"` to get the Blob object for binary files, or `format: "bloburl"` for a blob URL (usable in content script DOM). */
-    read(path: string, format?: "text" | "bloburl" | "blob"): Promise<ReadResult>;
+    /** Read content from a file. Use `format: "blob"` to get the Blob object for binary files. Default "text" returns content as string. */
+    read(path: string, format?: "text" | "blob"): Promise<ReadResult>;
 
     /** List files and directories. Defaults to workspace root if path is omitted. */
     list(path?: string): Promise<FileEntry[]>;

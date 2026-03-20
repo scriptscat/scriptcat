@@ -188,6 +188,10 @@ export class AgentService {
     );
     this.group.on("removeSkill", (name: string) => this.removeSkill(name));
     this.group.on("refreshSkill", (name: string) => this.refreshSkill(name));
+    this.group.on(
+      "setSkillEnabled",
+      (params: { name: string; enabled: boolean }) => this.setSkillEnabled(params.name, params.enabled)
+    );
     this.group.on("getSkillConfigValues", (name: string) => this.skillRepo.getConfigValues(name));
     this.group.on("saveSkillConfig", (params: { name: string; values: Record<string, unknown> }) =>
       this.skillRepo.saveConfigValues(params.name, params.values)
@@ -275,6 +279,10 @@ export class AgentService {
       for (const summary of summaries) {
         const record = await this.skillRepo.getSkill(summary.name);
         if (record) {
+          // 从 registry 同步 enabled 状态到缓存
+          if (summary.enabled !== undefined) {
+            record.enabled = summary.enabled;
+          }
           this.skillCache.set(record.name, record);
         }
       }
@@ -369,6 +377,11 @@ export class AgentService {
     return false;
   }
 
+  // 启用/禁用 Skill
+  async setSkillEnabled(name: string, enabled: boolean): Promise<boolean> {
+    return this.skillRepo.setSkillEnabled(name, enabled);
+  }
+
   // 缓存 Skill ZIP 数据，返回 uuid，供安装页面获取
   async prepareSkillInstall(zipBase64: string): Promise<string> {
     const uuid = uuidv4();
@@ -459,19 +472,25 @@ export class AgentService {
   }
 
   // 处理 CAT.agent.opfs API 请求
-  async handleOPFSApi(request: OPFSApiRequest): Promise<unknown> {
+  // sender.getSender() 有值 → 来自 chrome.runtime（content script），不支持 Blob
+  // sender.getSender() 为空 → 来自 postMessage（offscreen），支持 Blob
+  async handleOPFSApi(request: OPFSApiRequest, sender: IGetSender): Promise<unknown> {
+    const supportBlob = !sender.getSender();
     const opfsTools = createOPFSTools();
     const toolMap = new Map(opfsTools.tools.map((t) => [t.definition.name, t.executor]));
 
     switch (request.action) {
       case "write": {
+        let content = request.content;
+        // chrome.runtime 通道：content script 已将 Blob 转为 blob URL，需还原
+        if (!supportBlob && typeof content === "string" && content.startsWith("blob:")) {
+          content = await this.fetchBlobFromOffscreen(content);
+        }
         const executor = toolMap.get("opfs_write")!;
-        return JSON.parse((await executor.execute({ path: request.path, content: request.content })) as string);
+        return JSON.parse((await executor.execute({ path: request.path, content })) as string);
       }
       case "read": {
         if (request.format === "blob") {
-          // blob 格式：chrome.runtime sendResponse 不支持 Blob，通过 offscreen 创建 blob URL
-          // 客户端通过 CAT_fetchBlob 在 extension-origin 上下文中转换回 Blob
           const safePath = sanitizePath(request.path);
           if (!safePath) throw new Error("path is required");
           const workspace = await getWorkspaceRoot();
@@ -480,22 +499,36 @@ export class AgentService {
           const fileHandle = await dir.getFileHandle(fileName);
           const file = await fileHandle.getFile();
           const mimeType = guessMimeType(safePath);
-          const blobUrl = (await createObjectURL(this.sender, {
-            blob: new Blob([await file.arrayBuffer()], { type: mimeType }),
-            persistence: true,
-          })) as string;
+          const blob = new Blob([await file.arrayBuffer()], { type: mimeType });
+          if (supportBlob) {
+            // postMessage 通道：直接返回 Blob
+            return { path: safePath, data: blob, size: file.size, mimeType };
+          }
+          // chrome.runtime 通道：通过 offscreen 创建 blob URL，客户端通过 CAT_fetchBlob 还原
+          const blobUrl = (await createObjectURL(this.sender, { blob, persistence: true })) as string;
           return { path: safePath, blobUrl, size: file.size, mimeType };
         }
-        const executor = toolMap.get("opfs_read")!;
-        return JSON.parse((await executor.execute({ path: request.path, format: request.format })) as string);
+        // 默认 text 模式：直接返回文件文本内容（不走 opfs_read executor，因其一律返回 blobUrl）
+        const safePath2 = sanitizePath(request.path);
+        if (!safePath2) throw new Error("path is required");
+        const workspace2 = await getWorkspaceRoot();
+        const { dirPath: dirPath2, fileName: fileName2 } = splitPath(safePath2);
+        const dir2 = dirPath2 ? await getDirectory(workspace2, dirPath2) : workspace2;
+        const fileHandle2 = await dir2.getFileHandle(fileName2);
+        const file2 = await fileHandle2.getFile();
+        const textContent = await file2.text();
+        return { path: safePath2, content: textContent, size: file2.size };
       }
       case "readAttachment": {
         const blob = await this.repo.getAttachment(request.id);
         if (!blob) {
           throw new Error(`Attachment not found: ${request.id}`);
         }
-        // chrome.runtime sendResponse 不支持 Blob，先发送到 offscreen 创建 blob URL
-        // 客户端通过 CAT_fetchBlob 在 extension-origin 上下文中转换回 Blob
+        if (supportBlob) {
+          // postMessage 通道：直接返回 Blob
+          return { id: request.id, data: blob, size: blob.size, mimeType: blob.type };
+        }
+        // chrome.runtime 通道：通过 offscreen 创建 blob URL，客户端通过 CAT_fetchBlob 还原
         const blobUrl = (await createObjectURL(this.sender, { blob, persistence: true })) as string;
         return { id: request.id, blobUrl, size: blob.size, mimeType: blob.type };
       }
@@ -512,6 +545,11 @@ export class AgentService {
     }
   }
 
+  // 通过 offscreen fetch blob URL 还原为 Blob（用于 chrome.runtime 通道下 content script 传来的 blob URL）
+  private async fetchBlobFromOffscreen(blobUrl: string): Promise<Blob> {
+    return (await sendMessage(this.sender, "offscreen/fetchBlob", { url: blobUrl })) as Blob;
+  }
+
   // 解析对话关联的 skills，返回 system prompt 附加内容和 meta-tool 定义
   // 两层渐进加载：1) system prompt 只注入摘要 2) load_skill 按需加载完整提示词及脚本描述
   private resolveSkills(skills?: "auto" | string[]): {
@@ -525,8 +563,10 @@ export class AgentService {
     // 确定要加载的 skill 列表
     let skillRecords: SkillRecord[];
     if (skills === "auto") {
-      skillRecords = Array.from(this.skillCache.values());
+      // auto 模式只加载已启用的 skill（enabled 为 undefined 视为启用）
+      skillRecords = Array.from(this.skillCache.values()).filter((r) => r.enabled !== false);
     } else {
+      // 显式指定名称时不过滤 enabled 状态
       skillRecords = skills.map((name) => this.skillCache.get(name)).filter((r): r is SkillRecord => r != null);
     }
 

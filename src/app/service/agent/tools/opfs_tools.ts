@@ -30,17 +30,11 @@ const OPFS_WRITE_DEFINITION: ToolDefinition = {
 const OPFS_READ_DEFINITION: ToolDefinition = {
   name: "opfs_read",
   description:
-    "Read a file from the workspace. For text files returns content. For binary files use format='bloburl' to get a blob URL usable in executeScript (ISOLATED world).",
+    "Read a file from the workspace. Returns a blob URL (blob:chrome-extension://...) that can be used in executeScript (ISOLATED world) for download, display, or further processing. Never returns file content directly to avoid context overflow.",
   parameters: {
     type: "object",
     properties: {
       path: { type: "string", description: "File path relative to workspace root" },
-      format: {
-        type: "string",
-        enum: ["text", "bloburl"],
-        description:
-          "Output format: 'text' (default) returns file content as string; 'bloburl' returns a blob:chrome-extension:// URL for binary files (usable in executeScript ISOLATED world)",
-      },
     },
     required: ["path"],
   },
@@ -119,7 +113,10 @@ export function createOPFSTools(): {
     execute: async (args: Record<string, unknown>) => {
       const safePath = sanitizePath(args.path as string);
       if (!safePath) throw new Error("path is required");
-      const format = (args.format as string) || "text";
+
+      if (!createBlobUrlFn) {
+        throw new Error("Blob URL creation not available (Offscreen not initialized)");
+      }
 
       const workspace = await getWorkspaceRoot();
       const { dirPath, fileName } = splitPath(safePath);
@@ -127,19 +124,11 @@ export function createOPFSTools(): {
       const fileHandle = await dir.getFileHandle(fileName);
       const file = await fileHandle.getFile();
 
-      if (format === "bloburl") {
-        if (!createBlobUrlFn) {
-          throw new Error("Blob URL creation not available (Offscreen not initialized)");
-        }
-        const arrayBuffer = await file.arrayBuffer();
-        const mimeType = guessMimeType(safePath);
-        const blobUrl = await createBlobUrlFn(arrayBuffer, mimeType);
-        return JSON.stringify({ path: safePath, blobUrl, size: file.size, mimeType });
-      }
-
-      // 默认 text 模式
-      const content = await file.text();
-      return JSON.stringify({ path: safePath, content, size: file.size });
+      // 一律返回 blob URL，避免文件内容进入 LLM 上下文
+      const arrayBuffer = await file.arrayBuffer();
+      const mimeType = guessMimeType(safePath);
+      const blobUrl = await createBlobUrlFn(arrayBuffer, mimeType);
+      return JSON.stringify({ path: safePath, blobUrl, size: file.size, mimeType });
     },
   };
 

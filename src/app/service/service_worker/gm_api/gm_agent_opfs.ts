@@ -46,11 +46,11 @@ class GMAgentOPFSApi {
     confirm: agentConfirm,
     dotAlias: false,
   })
-  CAT_agentOPFS(this: GMApi, request: GMApiRequest<[OPFSApiRequest]>, _sender: IGetSender) {
+  CAT_agentOPFS(this: GMApi, request: GMApiRequest<[OPFSApiRequest]>, sender: IGetSender) {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleOPFSApi(request.params[0]);
+    return this.agentService.handleOPFSApi(request.params[0], sender);
   }
 }
 

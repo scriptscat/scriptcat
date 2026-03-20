@@ -3,10 +3,7 @@ import GMContext from "./gm_context";
 
 // 运行时 this 是 GM_Base 实例
 interface GMBaseContext {
-  sendMessage: (
-    api: string,
-    params: any[]
-  ) => Promise<any>;
+  sendMessage: (api: string, params: any[]) => Promise<any>;
   scriptRes?: { uuid: string };
 }
 
@@ -30,14 +27,14 @@ export default class CATAgentOPFSApi {
   @GMContext.API({ follow: "CAT.agent.opfs" })
   public async "CAT.agent.opfs.read"(
     path: string,
-    format?: "text" | "bloburl" | "blob"
-  ): Promise<{ path: string; content?: string; blobUrl?: string; data?: Blob; size: number; mimeType?: string }> {
+    format?: "text" | "blob"
+  ): Promise<{ path: string; content?: string; data?: Blob; size: number; mimeType?: string }> {
     const ctx = this as unknown as GMBaseContext;
     const result = await ctx.sendMessage("CAT_agentOPFS", [
       { action: "read", path, format, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
     ]);
-    // blob 格式：SW 返回 blobUrl，通过 CAT_fetchBlob 在 extension-origin 上下文中转换为 Blob
-    if (format === "blob" && result.blobUrl) {
+    // blob 格式：postMessage 通道直接返回 Blob；chrome.runtime 通道返回 blobUrl 需转换
+    if (format === "blob" && !(result.data instanceof Blob) && result.blobUrl) {
       result.data = await ctx.sendMessage("CAT_fetchBlob", [result.blobUrl]);
       delete result.blobUrl;
     }
@@ -60,9 +57,8 @@ export default class CATAgentOPFSApi {
     const result = await ctx.sendMessage("CAT_agentOPFS", [
       { action: "readAttachment", id, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
     ]);
-    // SW 返回 blobUrl（chrome.runtime sendResponse 不支持 Blob），
-    // 通过 CAT_fetchBlob 在 extension-origin 上下文（offscreen/content script）中转换为 Blob
-    if (result.blobUrl) {
+    // postMessage 通道直接返回 Blob；chrome.runtime 通道返回 blobUrl 需转换
+    if (!(result.data instanceof Blob) && result.blobUrl) {
       result.data = await ctx.sendMessage("CAT_fetchBlob", [result.blobUrl]);
       delete result.blobUrl;
     }
