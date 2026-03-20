@@ -8,8 +8,9 @@ import { extractHtmlWithSelectors } from "@App/app/service/offscreen/client";
 const GET_TAB_CONTENT_DEFINITION: ToolDefinition = {
   name: "get_tab_content",
   description:
-    "Read the text content of a browser tab as cleaned markdown. Best for reading articles, extracting text, or summarizing page content. " +
-    "Use selector to extract specific sections. Use prompt to have the LLM summarize/extract specific information. " +
+    "Read the text content of a browser tab and extract specific information via LLM. Best for reading articles, extracting text, or summarizing page content. " +
+    "Always provide a prompt describing what information you need — the raw page content will be processed by LLM to return only relevant information, saving context. " +
+    "Use selector to narrow down to specific sections. " +
     "NOTE: If you need to locate interactive elements (buttons, inputs, links) for clicking or form-filling, use the browser_action tool from the browser-automation skill instead — it returns element selectors optimized for DOM operations.",
   parameters: {
     type: "object",
@@ -17,7 +18,7 @@ const GET_TAB_CONTENT_DEFINITION: ToolDefinition = {
       tab_id: { type: "number", description: "Target tab ID (use list_tabs to find)" },
       prompt: {
         type: "string",
-        description: "When provided, the content will be processed by LLM to extract/summarize based on this prompt",
+        description: "Describe what information to extract/summarize from the page content. Required for efficient context usage.",
       },
       selector: {
         type: "string",
@@ -25,7 +26,7 @@ const GET_TAB_CONTENT_DEFINITION: ToolDefinition = {
       },
       max_length: { type: "number", description: "Max characters to return (default: no limit)" },
     },
-    required: ["tab_id"],
+    required: ["tab_id", "prompt"],
   },
 };
 

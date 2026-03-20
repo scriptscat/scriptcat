@@ -109,11 +109,32 @@ export default function ChatArea({
 
   // 流式期间累积的非文本 blocks（content_block_complete 事件）
   const pendingBlocksRef = useRef<ContentBlock[]>([]);
+  // 重试倒计时定时器
+  const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 清除重试倒计时
+  const clearRetryTimer = useCallback(() => {
+    if (retryTimerRef.current) {
+      clearInterval(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+  }, []);
 
   // 创建流式事件回调（提取公共逻辑）
   const createStreamCallback = () => {
     pendingBlocksRef.current = [];
+    clearRetryTimer();
     return (event: ChatStreamEvent) => {
+      // 不依赖流式消息的事件优先处理
+      if (event.type === "task_update") {
+        handleTaskUpdate(event);
+        return;
+      }
+      if (event.type === "compact_done") {
+        loadMessages();
+        return;
+      }
+
       const msg = streamingMsgRef.current;
       if (!msg) return;
 
@@ -122,6 +143,11 @@ export default function ChatArea({
           if (!firstTokenRecordedRef.current) {
             firstTokenRecordedRef.current = true;
             firstTokenMsRef.current = Date.now() - sendStartTimeRef.current;
+          }
+          // 重试成功后清除重试错误提示和倒计时
+          if (msg.error) {
+            clearRetryTimer();
+            msg.error = undefined;
           }
           // streaming 期间 content 始终为 string
           if (typeof msg.content === "string") {
@@ -133,6 +159,10 @@ export default function ChatArea({
           msg.thinking.content += event.delta;
           break;
         case "tool_call_start":
+          if (msg.error) {
+            clearRetryTimer();
+            msg.error = undefined;
+          }
           if (!msg.toolCalls) msg.toolCalls = [];
           msg.toolCalls.push({ ...event.toolCall, status: "running" });
           break;
@@ -155,14 +185,6 @@ export default function ChatArea({
         case "sub_agent_event":
           // 这些事件由 hook 层处理或仅作信息展示，不修改消息
           break;
-        case "task_update":
-          // 任务列表变更，由 hook 层处理
-          handleTaskUpdate(event);
-          break;
-        case "compact_done":
-          // 自动 compact 完成，刷新消息列表
-          loadMessages();
-          return;
         case "content_block_start":
           // 非文本 block 开始，暂不处理（等 complete 时处理）
           break;
@@ -208,6 +230,24 @@ export default function ChatArea({
             setTasks(event.tasks);
           }
           break;
+        case "retry": {
+          clearRetryTimer();
+          const retryDeadline = Date.now() + event.delayMs;
+          const updateRetryMsg = () => {
+            const remaining = Math.max(0, Math.ceil((retryDeadline - Date.now()) / 1000));
+            msg.error = `${event.error}\n${t("agent_chat_retrying", { attempt: event.attempt, max: event.maxRetries })} (${remaining}s)`;
+            setMessages((prev) => {
+              const updated = [...prev];
+              const idx = updated.findIndex((m) => m.id === msg.id);
+              if (idx >= 0) updated[idx] = { ...msg };
+              return updated;
+            });
+            if (remaining <= 0) clearRetryTimer();
+          };
+          updateRetryMsg();
+          retryTimerRef.current = setInterval(updateRetryMsg, 1000);
+          break;
+        }
         case "error":
           msg.error = event.message;
           break;
@@ -240,6 +280,7 @@ export default function ChatArea({
 
   const createDoneCallback = () => {
     return async () => {
+      clearRetryTimer();
       streamingMsgRef.current = null;
       await loadMessages();
       onConversationTitleChange?.();
@@ -377,6 +418,12 @@ export default function ChatArea({
     [t]
   );
 
+  // 清理任务（重试/编辑时调用）
+  const clearTasks = useCallback(async () => {
+    await chatRepo.saveTasks(conversationId, []);
+    setTasks([]);
+  }, [conversationId, setTasks]);
+
   // 重新回答：删除当前 assistant 消息组，用上一条用户消息重新请求
   const handleRegenerate = useCallback(
     async (groups: MessageGroup[], groupIndex: number) => {
@@ -386,12 +433,13 @@ export default function ChatArea({
       if (!action) return;
 
       await deleteMessages(conversationId, action.idsToDelete);
+      await clearTasks();
       setMessages(action.remainingMessages);
 
       // 通过 ref 调用最新的 startStreaming，避免闭包陈旧
       startStreamingRef.current(action.remainingMessages, action.userContent);
     },
-    [conversationId, isStreaming, messages, setMessages]
+    [conversationId, isStreaming, messages, setMessages, clearTasks]
   );
 
   // 重新生成用户消息的回复：保留用户消息，只删除后续回复
@@ -405,13 +453,14 @@ export default function ChatArea({
       if (action.idsToDelete.length > 0) {
         await deleteMessages(conversationId, action.idsToDelete);
       }
+      await clearTasks();
 
       setMessages(action.remainingMessages);
 
       // skipUserMessage=true：用户消息已在 remainingMessages 中，不需要重新创建
       startStreamingRef.current(action.remainingMessages, action.userContent, action.skipUserMessage);
     },
-    [conversationId, isStreaming, messages, setMessages]
+    [conversationId, isStreaming, messages, setMessages, clearTasks]
   );
 
   // 删除整轮对话（用户消息 + assistant 消息组）
@@ -447,20 +496,49 @@ export default function ChatArea({
 
   // 编辑用户消息并重新发送：删除该消息及其后的所有消息
   const handleEditMessage = useCallback(
-    async (messageId: string, newContent: string) => {
+    async (messageId: string, content: MessageContent, files?: Map<string, File>) => {
       if (isStreaming) return;
 
       const action = computeEditAction(messageId, messages);
       if (!action) return;
 
+      // 保存新附件到 OPFS
+      if (files && files.size > 0) {
+        for (const [id, file] of files) {
+          await chatRepo.saveAttachment(id, file);
+        }
+      }
+
       await deleteMessages(conversationId, action.idsToDelete);
+      await clearTasks();
       setMessages(action.remainingMessages);
 
       // 通过 ref 调用最新的 startStreaming
-      startStreamingRef.current(action.remainingMessages, newContent);
+      startStreamingRef.current(action.remainingMessages, content);
     },
-    [conversationId, isStreaming, messages, setMessages]
+    [conversationId, isStreaming, messages, setMessages, clearTasks]
   );
+
+  // 停止生成：重置流式状态，将未完成的 tool call 标记为 error，并重新加载持久化消息
+  const handleStop = useCallback(() => {
+    clearRetryTimer();
+    stopGeneration();
+    streamingMsgRef.current = null;
+    // 将仍处于 running 状态的 tool call 标记为 error，避免 spinner 一直转
+    setMessages((prev) => {
+      const needsUpdate = prev.some((m) => m.toolCalls?.some((tc) => tc.status === "running"));
+      if (!needsUpdate) return prev;
+      return prev.map((m) => {
+        if (!m.toolCalls?.some((tc) => tc.status === "running")) return m;
+        return {
+          ...m,
+          toolCalls: m.toolCalls!.map((tc) => (tc.status === "running" ? { ...tc, status: "error" as const } : tc)),
+        };
+      });
+    });
+    // 重新加载持久化消息，恢复到后端实际保存的状态
+    loadMessages();
+  }, [clearRetryTimer, stopGeneration, setMessages, loadMessages]);
 
   // 只在模型加载完成后才判断是否无模型，避免加载中闪现提示
   const noModel = modelsLoaded === true && models.length === 0;
@@ -482,7 +560,7 @@ export default function ChatArea({
                   key={group.message.id}
                   message={group.message}
                   isStreaming={isStreaming}
-                  onEdit={(newContent) => handleEditMessage(group.message.id, newContent)}
+                  onEdit={(content, files) => handleEditMessage(group.message.id, content, files)}
                   onRegenerate={
                     findNextAssistantGroupIndex(messageGroups, groupIndex) != null ||
                     groupIndex === messageGroups.length - 1
@@ -524,7 +602,7 @@ export default function ChatArea({
         selectedModelId={selectedModelId}
         onModelChange={onModelChange}
         onSend={handleSend}
-        onStop={stopGeneration}
+        onStop={handleStop}
         isStreaming={isStreaming}
         disabled={noModel || !conversationId}
         skills={skills}

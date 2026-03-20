@@ -144,14 +144,23 @@ export function useStreamingChat() {
 
   const stopGeneration = useCallback(() => {
     abortedRef.current = true;
-    if (connRef.current) {
-      // 先发 stop 消息（后台模式需要），再断开
-      connRef.current.sendMessage({ action: "stop" });
-      connRef.current.disconnect();
-      connRef.current = null;
-    }
+    const conn = connRef.current;
+    connRef.current = null;
+    // 先确保 UI 状态重置，再断开连接（避免 sendMessage/disconnect 抛异常导致状态卡住）
     setIsStreaming(false);
     setAskUserPending(null);
+    if (conn) {
+      try {
+        conn.sendMessage({ action: "stop" });
+      } catch {
+        // port 可能已断开
+      }
+      try {
+        conn.disconnect();
+      } catch {
+        // port 可能已断开
+      }
+    }
   }, []);
 
   // 回复 ask_user 提问

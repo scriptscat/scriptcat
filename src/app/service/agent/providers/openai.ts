@@ -19,13 +19,18 @@ function convertContentBlocks(
         if (data) {
           result.push({ type: "image_url", image_url: { url: data } });
         } else {
-          result.push({ type: "text", text: `[Image: ${block.name || "image"}]` });
+          result.push({
+            type: "text",
+            text: `[Image: ${block.name || "image"}, OPFS path: uploads/${block.attachmentId}]`,
+          });
         }
         break;
       }
       case "file":
-        // OpenAI 不支持文件上传到 chat，降级为文本引用
-        result.push({ type: "text", text: `[File: ${block.name}]` });
+        result.push({
+          type: "text",
+          text: `[File: ${block.name}${block.size ? ` (${block.size} bytes)` : ""}, OPFS path: uploads/${block.attachmentId}]`,
+        });
         break;
       case "audio": {
         const data = attachmentResolver?.(block.attachmentId);
@@ -36,10 +41,16 @@ function convertContentBlocks(
             const format = block.mimeType.split("/")[1] || "wav";
             result.push({ type: "input_audio", input_audio: { data: match[2], format } });
           } else {
-            result.push({ type: "text", text: `[Audio: ${block.name || "audio"}]` });
+            result.push({
+              type: "text",
+              text: `[Audio: ${block.name || "audio"}, OPFS path: uploads/${block.attachmentId}]`,
+            });
           }
         } else {
-          result.push({ type: "text", text: `[Audio: ${block.name || "audio"}]` });
+          result.push({
+            type: "text",
+            text: `[Audio: ${block.name || "audio"}, OPFS path: uploads/${block.attachmentId}]`,
+          });
         }
         break;
       }

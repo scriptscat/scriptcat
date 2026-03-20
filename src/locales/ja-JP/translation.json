@@ -678,6 +678,8 @@
   "agent_chat_tools_disabled": "ツール無効",
   "agent_chat_tools_enabled_tip": "ツール有効 — クリックで無効化",
   "agent_chat_tools_disabled_tip": "ツール無効 — クリックで有効化",
+  "agent_chat_background_enabled_tip": "バックグラウンドモード ON — ページを閉じても会話は継続します。クリックで無効化",
+  "agent_chat_background_disabled_tip": "バックグラウンドモード OFF — ページを閉じると会話は停止します。クリックで有効化",
   "agent_chat_delete_round": "削除",
   "agent_chat_copy_message": "コピー",
   "agent_chat_edit_message": "編集",

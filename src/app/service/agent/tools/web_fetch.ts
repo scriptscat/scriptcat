@@ -6,19 +6,19 @@ import { extractHtmlContent } from "@App/app/service/offscreen/client";
 export const WEB_FETCH_DEFINITION: ToolDefinition = {
   name: "web_fetch",
   description:
-    "Fetch content from a URL. Returns extracted text for HTML pages, raw content for JSON/plain text. Text only — not suitable for binary downloads. " +
-    "Use prompt to have the LLM summarize/extract specific information from the fetched content.",
+    "Fetch content from a URL and extract specific information via LLM. Text only — not suitable for binary downloads. " +
+    "Always provide a prompt describing what information you need — the raw page content will be processed by LLM to return only relevant information, saving context.",
   parameters: {
     type: "object",
     properties: {
       url: { type: "string", description: "The URL to fetch (http/https)" },
       prompt: {
         type: "string",
-        description: "When provided, the content will be processed by LLM to extract/summarize based on this prompt",
+        description: "Describe what information to extract/summarize from the fetched content. Required for efficient context usage.",
       },
       max_length: { type: "number", description: "Max characters to return (no limit by default)" },
     },
-    required: ["url"],
+    required: ["url", "prompt"],
   },
 };
 

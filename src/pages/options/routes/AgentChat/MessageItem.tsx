@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import type { ChatMessage, ContentBlock } from "@App/app/service/agent/types";
+import { useState, useRef, useEffect, useCallback } from "react";
+import type { ChatMessage, ContentBlock, MessageContent } from "@App/app/service/agent/types";
 import ContentBlockRenderer from "./ContentBlockRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
@@ -12,9 +12,15 @@ import {
   IconCopy,
   IconRefresh,
   IconExclamationCircleFill,
+  IconClose,
+  IconFile,
+  IconPlayCircle,
 } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { getTextContent } from "@App/app/service/agent/content_utils";
+import { AgentChatRepo } from "@App/app/repo/agent_chat";
+
+const chatRepo = new AgentChatRepo();
 
 // 单条助手消息内容（无头像、无外层包装）
 function AssistantMessageContent({ message, isStreaming }: { message: ChatMessage; isStreaming?: boolean }) {
@@ -55,6 +61,82 @@ function AssistantMessageContent({ message, isStreaming }: { message: ChatMessag
   );
 }
 
+// 编辑模式下新添加的附件类型
+type EditPendingAttachment = {
+  id: string;
+  file: File;
+  previewUrl: string;
+};
+
+// 从消息内容中提取非文本 blocks
+function getNonTextBlocks(content: MessageContent): ContentBlock[] {
+  if (typeof content === "string") return [];
+  return content.filter((b) => b.type !== "text");
+}
+
+// 编辑模式下现有附件的预览
+function ExistingAttachmentPreview({ block, onRemove }: { block: ContentBlock; onRemove: () => void }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (block.type !== "image") return;
+    let cancelled = false;
+    chatRepo.getAttachment(block.attachmentId).then((blob) => {
+      if (blob && !cancelled) setPreviewUrl(URL.createObjectURL(blob));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [block]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const name = block.type !== "text" && "name" in block ? block.name || "" : "";
+
+  return (
+    <div className="tw-relative tw-group tw-shrink-0">
+      {block.type === "image" ? (
+        previewUrl ? (
+          <img
+            src={previewUrl}
+            alt={name}
+            className="tw-w-16 tw-h-16 tw-rounded-lg tw-object-cover tw-border tw-border-solid tw-border-[var(--color-border-2)]"
+          />
+        ) : (
+          <div className="tw-w-16 tw-h-16 tw-rounded-lg tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-fill-1)] tw-flex tw-items-center tw-justify-center tw-text-xs tw-text-[var(--color-text-4)]">
+            {"..."}
+          </div>
+        )
+      ) : (
+        <div
+          className="tw-w-16 tw-h-16 tw-rounded-lg tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-fill-1)] tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-0.5"
+          title={name}
+        >
+          {block.type === "audio" ? (
+            <IconPlayCircle style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
+          ) : (
+            <IconFile style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
+          )}
+          <span className="tw-text-[9px] tw-text-[var(--color-text-4)] tw-max-w-[56px] tw-truncate tw-px-0.5">
+            {name.length > 8 ? name.slice(0, 5) + "..." + (name.split(".").pop() || "") : name}
+          </span>
+        </div>
+      )}
+      <button
+        onClick={onRemove}
+        className="tw-absolute tw--top-1.5 tw--right-1.5 tw-w-5 tw-h-5 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[var(--color-bg-5)] tw-text-white tw-border-none tw-cursor-pointer tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-text-xs tw-leading-none"
+      >
+        <IconClose style={{ fontSize: 10 }} />
+      </button>
+    </div>
+  );
+}
+
 // 用户消息
 export function UserMessageItem({
   message,
@@ -63,14 +145,19 @@ export function UserMessageItem({
   isStreaming,
 }: {
   message: ChatMessage;
-  onEdit?: (newContent: string) => void;
+  onEdit?: (content: MessageContent, files?: Map<string, File>) => void;
   onRegenerate?: () => void;
   isStreaming?: boolean;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(getTextContent(message.content));
+  // 编辑模式下的现有附件 blocks
+  const [editBlocks, setEditBlocks] = useState<ContentBlock[]>([]);
+  // 编辑模式下新添加的附件
+  const [pendingAttachments, setPendingAttachments] = useState<EditPendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 进入编辑模式时聚焦并调整高度
   useEffect(() => {
@@ -86,19 +173,94 @@ export function UserMessageItem({
 
   const handleStartEdit = () => {
     setEditContent(getTextContent(message.content));
+    setEditBlocks(getNonTextBlocks(message.content));
+    setPendingAttachments([]);
     setEditing(true);
   };
 
   const handleCancel = () => {
     setEditing(false);
     setEditContent(getTextContent(message.content));
+    pendingAttachments.forEach((a) => {
+      if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+    });
+    setPendingAttachments([]);
+    setEditBlocks([]);
   };
 
   const handleSave = () => {
     const trimmed = editContent.trim();
-    if (!trimmed) return;
+    const hasAttachments = editBlocks.length > 0 || pendingAttachments.length > 0;
+    if (!trimmed && !hasAttachments) return;
     setEditing(false);
-    onEdit?.(trimmed);
+
+    if (!hasAttachments) {
+      onEdit?.(trimmed);
+      return;
+    }
+
+    // 构建 ContentBlock[] 和 files Map
+    const blocks: ContentBlock[] = [];
+    if (trimmed) blocks.push({ type: "text", text: trimmed });
+    blocks.push(...editBlocks);
+
+    const files = new Map<string, File>();
+    for (const att of pendingAttachments) {
+      const mime = att.file.type;
+      if (mime.startsWith("image/")) {
+        blocks.push({ type: "image", attachmentId: att.id, mimeType: mime, name: att.file.name });
+      } else if (mime.startsWith("audio/")) {
+        blocks.push({ type: "audio", attachmentId: att.id, mimeType: mime, name: att.file.name });
+      } else {
+        blocks.push({ type: "file", attachmentId: att.id, mimeType: mime, name: att.file.name, size: att.file.size });
+      }
+      files.set(att.id, att.file);
+    }
+
+    onEdit?.(blocks, files.size > 0 ? files : undefined);
+  };
+
+  const addFiles = useCallback((files: File[]) => {
+    if (files.length === 0) return;
+    const newAttachments = files.map((file) => {
+      const ext = file.name.includes(".") ? file.name.split(".").pop() : file.type.split("/")[1] || "bin";
+      return {
+        id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`,
+        file,
+        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
+      };
+    });
+    setPendingAttachments((prev) => [...prev, ...newAttachments]);
+  }, []);
+
+  const removePendingAttachment = useCallback((id: string) => {
+    setPendingAttachments((prev) => {
+      const att = prev.find((a) => a.id === id);
+      if (att?.previewUrl) URL.revokeObjectURL(att.previewUrl);
+      return prev.filter((a) => a.id !== id);
+    });
+  }, []);
+
+  const handleEditPaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === "file") {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    addFiles(files);
+    e.target.value = "";
   };
 
   const handleCopy = () => {
@@ -116,8 +278,59 @@ export function UserMessageItem({
       </div>
       <div className="tw-flex tw-flex-col tw-items-end tw-max-w-[80%] tw-min-w-0">
         {editing ? (
-          // 编辑模式：圆角容器，与消息气泡同宽
+          // 编辑模式：圆角容器，支持附件编辑
           <div className="agent-edit-container tw-rounded-2xl tw-rounded-tr-sm tw-overflow-hidden tw-min-w-[240px]">
+            {/* 附件预览区域 */}
+            {(editBlocks.length > 0 || pendingAttachments.length > 0) && (
+              <div className="tw-flex tw-gap-2 tw-px-4 tw-pt-3 tw-pb-1 tw-flex-wrap">
+                {/* 现有附件 */}
+                {editBlocks.map((block, index) => (
+                  <ExistingAttachmentPreview
+                    key={`existing-${index}`}
+                    block={block}
+                    onRemove={() => setEditBlocks((prev) => prev.filter((_, i) => i !== index))}
+                  />
+                ))}
+                {/* 新添加的附件 */}
+                {pendingAttachments.map((att) => (
+                  <div key={att.id} className="tw-relative tw-group tw-shrink-0">
+                    {att.previewUrl ? (
+                      <img
+                        src={att.previewUrl}
+                        alt={att.file.name}
+                        className="tw-w-16 tw-h-16 tw-rounded-lg tw-object-cover tw-border tw-border-solid tw-border-[var(--color-border-2)]"
+                      />
+                    ) : (
+                      <div
+                        className="tw-w-16 tw-h-16 tw-rounded-lg tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-fill-1)] tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-0.5"
+                        title={att.file.name}
+                      >
+                        {att.file.type.startsWith("audio/") ? (
+                          <IconPlayCircle style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
+                        ) : (
+                          <IconFile style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
+                        )}
+                        <span className="tw-text-[9px] tw-text-[var(--color-text-4)] tw-max-w-[56px] tw-truncate tw-px-0.5">
+                          {att.file.name.length > 8
+                            ? att.file.name.slice(0, 5) + "..." + (att.file.name.split(".").pop() || "")
+                            : att.file.name}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => removePendingAttachment(att.id)}
+                      className="tw-absolute tw--top-1.5 tw--right-1.5 tw-w-5 tw-h-5 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[var(--color-bg-5)] tw-text-white tw-border-none tw-cursor-pointer tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-text-xs tw-leading-none"
+                    >
+                      <IconClose style={{ fontSize: 10 }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 隐藏的文件选择器 */}
+            <input ref={fileInputRef} type="file" multiple className="tw-hidden" onChange={handleFileSelect} />
+
             <textarea
               ref={textareaRef}
               className="tw-w-full tw-min-h-[40px] tw-max-h-[200px] tw-px-4 tw-pt-3 tw-pb-2 tw-bg-transparent tw-text-[var(--color-text-1)] tw-text-sm tw-resize-none tw-outline-none tw-border-none tw-leading-relaxed"
@@ -134,11 +347,32 @@ export function UserMessageItem({
                   handleSave();
                 }
               }}
+              onPaste={handleEditPaste}
             />
             <div className="tw-flex tw-items-center tw-justify-between tw-px-3 tw-pb-2">
-              <span className="tw-text-xs tw-text-[var(--color-text-4)]">
-                {"Escape"} {t("agent_chat_cancel_edit")}
-              </span>
+              <div className="tw-flex tw-items-center tw-gap-2">
+                <span className="tw-text-xs tw-text-[var(--color-text-4)]">
+                  {"Escape"} {t("agent_chat_cancel_edit")}
+                </span>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="tw-w-6 tw-h-6 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                  title={t("agent_chat_attach_file")}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+              </div>
               <div className="tw-flex tw-gap-1.5">
                 <button
                   className="tw-px-3 tw-py-1.5 tw-rounded-lg tw-text-xs tw-font-medium tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-bg-1)] tw-text-[var(--color-text-2)] tw-cursor-pointer hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"

@@ -678,6 +678,8 @@
   "agent_chat_tools_disabled": "工具已停用",
   "agent_chat_tools_enabled_tip": "工具已啟用 — 點擊停用",
   "agent_chat_tools_disabled_tip": "工具已停用 — 點擊啟用",
+  "agent_chat_background_enabled_tip": "背景運行已開啟 — 關閉頁面後對話將繼續執行，點擊關閉",
+  "agent_chat_background_disabled_tip": "背景運行已關閉 — 關閉頁面後對話將停止，點擊開啟",
   "agent_chat_delete_round": "刪除",
   "agent_chat_copy_message": "複製",
   "agent_chat_edit_message": "編輯",

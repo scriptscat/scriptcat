@@ -678,6 +678,8 @@
   "agent_chat_tools_disabled": "Tools disabled",
   "agent_chat_tools_enabled_tip": "Tools enabled — click to disable",
   "agent_chat_tools_disabled_tip": "Tools disabled — click to enable",
+  "agent_chat_background_enabled_tip": "Chế độ nền BẬT — cuộc hội thoại tiếp tục chạy sau khi đóng trang, nhấn để tắt",
+  "agent_chat_background_disabled_tip": "Chế độ nền TẮT — cuộc hội thoại dừng khi đóng trang, nhấn để bật",
   "agent_chat_delete_round": "Delete",
   "agent_chat_copy_message": "Copy",
   "agent_chat_edit_message": "Chỉnh sửa",

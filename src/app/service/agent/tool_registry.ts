@@ -18,6 +18,13 @@ export type ToolExecuteResult = {
   attachments?: Attachment[];
 };
 
+// 从异常中提取错误消息（兼容 Error 对象和直接 throw 的字符串）
+function extractErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message || e.toString();
+  if (typeof e === "string") return e;
+  return String(e) || "Tool execution failed";
+}
+
 // 判断返回值是否是带附件的结构化结果
 function isToolResultWithAttachments(value: unknown): value is ToolResultWithAttachments {
   if (typeof value !== "object" || value === null) return false;
@@ -92,7 +99,7 @@ export class ToolRegistry {
           }
         } catch (e: any) {
           console.error(`[ToolRegistry] builtin tool "${tc.name}" execution failed:`, e);
-          return { id: tc.id, result: JSON.stringify({ error: e.message || "Tool execution failed" }) };
+          return { id: tc.id, result: JSON.stringify({ error: extractErrorMessage(e) }) };
         }
       })
     );
@@ -117,9 +124,18 @@ export class ToolRegistry {
           results.push({ id: sr.id, result: sr.result });
         }
       } else {
-        // 没有脚本回调，返回错误
+        // 没有脚本回调，返回错误并列出可用工具名，引导 LLM 自我纠正
+        const availableNames = Array.from(this.builtinTools.keys());
         for (const tc of scriptCalls) {
-          results.push({ id: tc.id, result: JSON.stringify({ error: `Tool "${tc.name}" not found` }) });
+          const hint = availableNames.includes("execute_skill_script")
+            ? ` If "${tc.name}" is a skill script, use the "execute_skill_script" tool instead.`
+            : "";
+          results.push({
+            id: tc.id,
+            result: JSON.stringify({
+              error: `Tool "${tc.name}" not found. Available tools: [${availableNames.join(", ")}].${hint}`,
+            }),
+          });
         }
       }
     }

@@ -19,23 +19,18 @@ function createMockOPFS() {
       kind: "file" as const,
       getFile: vi.fn(async () => {
         const content = dir.get(name);
-        if (content instanceof Blob) {
-          return content;
-        }
-        return new Blob([typeof content === "string" ? content : ""], { type: "application/octet-stream" });
+        if (content instanceof Blob) return content;
+        if (content instanceof ArrayBuffer) return new Blob([content]);
+        if (content instanceof Uint8Array) return new Blob([content.buffer as ArrayBuffer]);
+        if (typeof content === "string") return new Blob([content], { type: "application/octet-stream" });
+        return new Blob([""], { type: "application/octet-stream" });
       }),
       createWritable: vi.fn(async () => {
         const writable = createMockWritable();
         const origClose = writable.close;
         writable.close = vi.fn(async () => {
           const written = writable.getData();
-          if (written instanceof Blob) {
-            dir.set(name, written);
-          } else if (typeof written === "string") {
-            dir.set(name, written);
-          } else {
-            dir.set(name, written);
-          }
+          dir.set(name, written);
           await origClose();
         });
         return writable;
@@ -95,11 +90,26 @@ function createMockOPFS() {
   return { rootStore, mockRoot };
 }
 
+// 在 mock store 中按路径导航/创建目录
+function navigateDir(rootStore: Map<string, any>, ...path: string[]): Map<string, any> {
+  let current = rootStore;
+  for (const seg of path) {
+    const key = "__dir__" + seg;
+    if (!current.has(key)) {
+      current.set(key, new Map());
+    }
+    current = current.get(key);
+  }
+  return current;
+}
+
 describe("AgentChatRepo 附件存储", () => {
   let repo: AgentChatRepo;
+  let rootStore: Map<string, any>;
 
   beforeEach(() => {
-    createMockOPFS();
+    const mock = createMockOPFS();
+    rootStore = mock.rootStore;
     repo = new AgentChatRepo();
   });
 
@@ -118,6 +128,14 @@ describe("AgentChatRepo 附件存储", () => {
     expect(size).toBe(blob.size);
   });
 
+  it("saveAttachment 应存储到 workspace/uploads 路径", async () => {
+    await repo.saveAttachment("att-ws", new Blob(["workspace data"]));
+
+    // 验证新路径存在: agents/workspace/uploads/att-ws
+    const uploadsDir = navigateDir(rootStore, "agents", "workspace", "uploads");
+    expect(uploadsDir.has("att-ws")).toBe(true);
+  });
+
   it("getAttachment 应返回已保存的附件", async () => {
     const blob = new Blob(["test data"], { type: "text/plain" });
     await repo.saveAttachment("att-3", blob);
@@ -134,6 +152,19 @@ describe("AgentChatRepo 附件存储", () => {
     expect(result).toBeNull();
   });
 
+  it("getAttachment 应能回退读取旧路径的附件", async () => {
+    // 手动在旧路径写入附件数据: agents/conversations/attachments/{id}
+    const attachDir = navigateDir(rootStore, "agents", "conversations", "attachments");
+    attachDir.set("old-att", new Blob(["old path data"]));
+
+    const result = await repo.getAttachment("old-att");
+
+    expect(result).not.toBeNull();
+    expect(result).toBeInstanceOf(Blob);
+    const text = await result!.text();
+    expect(text).toBe("old path data");
+  });
+
   it("deleteAttachment 应删除已保存的附件", async () => {
     const blob = new Blob(["data"], { type: "text/plain" });
     await repo.saveAttachment("att-4", blob);
@@ -142,6 +173,21 @@ describe("AgentChatRepo 附件存储", () => {
 
     const result = await repo.getAttachment("att-4");
     expect(result).toBeNull();
+  });
+
+  it("deleteAttachment 应同时清理新旧路径", async () => {
+    // 在新路径保存
+    await repo.saveAttachment("att-both", new Blob(["new"]));
+    // 在旧路径也放一份
+    const attachDir = navigateDir(rootStore, "agents", "conversations", "attachments");
+    attachDir.set("att-both", new Blob(["old"]));
+
+    await repo.deleteAttachment("att-both");
+
+    // 新旧路径都应被清理
+    const uploadsDir = navigateDir(rootStore, "agents", "workspace", "uploads");
+    expect(uploadsDir.has("att-both")).toBe(false);
+    expect(attachDir.has("att-both")).toBe(false);
   });
 
   it("deleteAttachments 应批量删除附件", async () => {

@@ -395,13 +395,12 @@ export default function ChatInput({
                 </Tooltip>
               )}
               {onBackgroundEnabledChange && (
-                <Tooltip content={backgroundEnabled ? "Background mode: ON" : "Background mode: OFF"} mini>
+                <Tooltip content={backgroundEnabled ? t("agent_chat_background_enabled_tip") : t("agent_chat_background_disabled_tip")} mini>
                   <button
                     onClick={() => onBackgroundEnabledChange(!backgroundEnabled)}
                     className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
                       backgroundEnabled ? "tw-text-[rgb(var(--arcoblue-6))]" : "tw-text-[var(--color-text-4)]"
                     } hover:tw-bg-[var(--color-fill-2)]`}
-                    title="Background mode"
                   >
                     <svg
                       width="16"

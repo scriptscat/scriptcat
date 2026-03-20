@@ -139,7 +139,21 @@ describe("ToolRegistry", () => {
       const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
 
       const parsed = JSON.parse(results[0].result);
-      expect(parsed.error).toBe("Tool execution failed");
+      expect(parsed.error).toBeDefined();
+    });
+
+    it("内置工具抛出字符串时应正确提取错误消息", async () => {
+      const registry = new ToolRegistry();
+      // 模拟 message 层 throw res.message（直接抛出字符串）
+      const executor = createExecutor(async () => {
+        throw "连接超时：无法访问 sandbox";
+      });
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
+
+      const parsed = JSON.parse(results[0].result);
+      expect(parsed.error).toBe("连接超时：无法访问 sandbox");
     });
 
     it("未找到的工具应转发给 scriptCallback", async () => {

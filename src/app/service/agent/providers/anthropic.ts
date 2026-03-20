@@ -25,35 +25,30 @@ function convertContentBlocks(
               source: { type: "base64", media_type: match[1], data: match[2] },
             });
           } else {
-            result.push({ type: "text", text: `[Image: ${block.name || "image"}]` });
-          }
-        } else {
-          result.push({ type: "text", text: `[Image: ${block.name || "image"}]` });
-        }
-        break;
-      }
-      case "file": {
-        const data = attachmentResolver?.(block.attachmentId);
-        if (data) {
-          const match = data.match(/^data:([^;]+);base64,(.+)$/s);
-          if (match) {
             result.push({
-              type: "document",
-              source: { type: "base64", media_type: match[1], data: match[2] },
+              type: "text",
+              text: `[Image: ${block.name || "image"}, OPFS path: uploads/${block.attachmentId}]`,
             });
-          } else {
-            result.push({ type: "text", text: `[File: ${block.name}]` });
           }
         } else {
-          result.push({ type: "text", text: `[File: ${block.name}]` });
+          result.push({
+            type: "text",
+            text: `[Image: ${block.name || "image"}, OPFS path: uploads/${block.attachmentId}]`,
+          });
         }
         break;
       }
+      case "file":
+        result.push({
+          type: "text",
+          text: `[File: ${block.name}${block.size ? ` (${block.size} bytes)` : ""}, OPFS path: uploads/${block.attachmentId}]`,
+        });
+        break;
       case "audio":
         // Anthropic 暂不支持音频，降级为文本描述
         result.push({
           type: "text",
-          text: `[Audio: ${block.name || "audio"}${block.durationMs ? ` (${(block.durationMs / 1000).toFixed(1)}s)` : ""}]`,
+          text: `[Audio: ${block.name || "audio"}${block.durationMs ? ` (${(block.durationMs / 1000).toFixed(1)}s)` : ""}, OPFS path: uploads/${block.attachmentId}]`,
         });
         break;
     }

@@ -1017,6 +1017,8 @@ export class AgentService {
       }
       case "getDefault":
         return this.modelRepo.getDefaultModelId();
+      case "getSummary":
+        return this.modelRepo.getSummaryModelId();
       default:
         throw new Error(`Unknown model API action: ${(request as any).action}`);
     }
@@ -1428,19 +1430,24 @@ export class AgentService {
     });
   }
 
-  // 解析消息中所有 ContentBlock 引用的 attachmentId → base64 data URL
-  private async resolveAttachments(messages: ChatRequest["messages"]): Promise<(id: string) => string | null> {
+  // 解析消息中 image+vision 的 attachmentId → base64 data URL
+  // file/audio/image(无vision) 不加载，provider 使用 OPFS 路径引用
+  private async resolveAttachments(
+    messages: ChatRequest["messages"],
+    model: AgentModelConfig
+  ): Promise<(id: string) => string | null> {
     const resolved = new Map<string, string>();
-    // attachmentId → mimeType（从 ContentBlock 中提取，OPFS 不保留 MIME 类型）
     const mimeTypes = new Map<string, string>();
     const ids = new Set<string>();
+    const hasVision = supportsVision(model);
 
     for (const m of messages) {
       if (isContentBlocks(m.content)) {
         for (const block of m.content) {
-          if (block.type !== "text" && "attachmentId" in block) {
+          // 只收集 image + vision 的 attachmentId
+          if (block.type === "image" && hasVision && "attachmentId" in block) {
             ids.add(block.attachmentId);
-            if ("mimeType" in block && block.mimeType) {
+            if (block.mimeType) {
               mimeTypes.set(block.attachmentId, block.mimeType);
             }
           }
@@ -1454,15 +1461,15 @@ export class AgentService {
       try {
         const blob = await this.repo.getAttachment(id);
         if (blob) {
-          // Blob → base64 data URL
+          // Blob → base64 data URL（分块拼接，避免 O(n²) 字符串拼接）
           const buffer = await blob.arrayBuffer();
           const bytes = new Uint8Array(buffer);
-          let binary = "";
-          for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
+          const CHUNK_SIZE = 8192;
+          const chunks: string[] = [];
+          for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+            chunks.push(String.fromCharCode(...bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length))));
           }
-          const b64 = btoa(binary);
-          // 优先使用 ContentBlock 中的 mimeType，OPFS 读出的 blob.type 通常为空
+          const b64 = btoa(chunks.join(""));
           const mime = mimeTypes.get(id) || blob.type || "application/octet-stream";
           resolved.set(id, `data:${mime};base64,${b64}`);
         }
@@ -1854,7 +1861,7 @@ export class AgentService {
               signal: subSignal,
               sendEvent: (evt) => sendEvent({ type: "sub_agent_event", agentId, description: desc, event: evt }),
               excludeTools: ["ask_user", "agent"],
-              maxIterations: 20,
+              maxIterations: 30,
             });
           },
         });
@@ -1961,7 +1968,7 @@ export class AgentService {
           model,
           messages,
           tools: enableTools ? params.tools : undefined,
-          maxIterations: params.maxIterations || 30,
+          maxIterations: params.maxIterations || 50,
           sendEvent,
           signal: abortController.signal,
           scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
@@ -2078,32 +2085,65 @@ export class AgentService {
     };
 
     // 预解析消息中 ContentBlock 引用的 attachmentId → base64
-    const attachmentResolver = await this.resolveAttachments(params.messages);
+    const attachmentResolver = await this.resolveAttachments(params.messages, model);
 
     const { url, init } =
       model.provider === "anthropic"
         ? buildAnthropicRequest(model, chatRequest, attachmentResolver)
         : buildOpenAIRequest(model, chatRequest, attachmentResolver);
 
-    const response = await fetch(url, { ...init, signal });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      let errorMessage = `API error: ${response.status}`;
+    // 带重试的 LLM 调用，最多重试 5 次，间隔递增：10s, 10s, 20s, 20s, 30s
+    const RETRY_DELAYS = [10_000, 10_000, 20_000, 20_000, 30_000];
+    const MAX_RETRIES = RETRY_DELAYS.length;
+    let response!: Response;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
-      } catch {
-        if (errorText) errorMessage += ` - ${errorText.slice(0, 200)}`;
+        response = await fetch(url, { ...init, signal });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "");
+          let errorMessage = `API error: ${response.status}`;
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
+          } catch {
+            if (errorText) errorMessage += ` - ${errorText.slice(0, 200)}`;
+          }
+          throw new Error(errorMessage);
+        }
+
+        if (!response.body) {
+          throw new Error("No response body");
+        }
+        // 请求成功，跳出重试循环
+        break;
+      } catch (e: any) {
+        // 用户取消时直接抛出，不重试
+        if (signal.aborted) throw e;
+        // 已用完所有重试次数
+        if (attempt >= MAX_RETRIES) throw e;
+        // 向 UI 发送重试通知（含延迟时间，用于倒计时显示）
+        const delayMs = RETRY_DELAYS[attempt];
+        sendEvent({
+          type: "retry",
+          attempt: attempt + 1,
+          maxRetries: MAX_RETRIES,
+          error: e.message || "Unknown error",
+          delayMs,
+        });
+        // 等待后重试，等待期间可被 abort 取消
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, delayMs);
+          const onAbort = () => {
+            clearTimeout(timer);
+            reject(new Error("Aborted during retry wait"));
+          };
+          signal.addEventListener("abort", onAbort, { once: true });
+        });
       }
-      throw new Error(errorMessage);
     }
 
-    if (!response.body) {
-      throw new Error("No response body");
-    }
-
-    const reader = response.body.getReader();
+    const reader = response.body!.getReader();
     const parseStream = model.provider === "anthropic" ? parseAnthropicStream : parseOpenAIStream;
 
     // 收集响应

@@ -1,6 +1,7 @@
 import type { Conversation, ChatMessage } from "@App/app/service/agent/types";
 import type { Task } from "@App/app/service/agent/tools/task_tools";
 import { OPFSRepo } from "./opfs_repo";
+import { writeWorkspaceFile, getWorkspaceRoot, getDirectory } from "@App/app/service/agent/opfs_helpers";
 
 const CONVERSATIONS_FILE = "conversations.json";
 const MESSAGES_DIR = "data";
@@ -10,7 +11,8 @@ const TASKS_DIR = "tasks";
 // 目录结构：agents/conversations/
 //            agents/conversations/conversations.json       - 会话列表
 //            agents/conversations/data/{id}.json           - 每个会话的消息
-//            agents/conversations/attachments/{id}         - 附件二进制数据
+//            agents/workspace/uploads/{id}                 - 附件二进制数据（LLM 可通过 opfs_read 访问）
+//            agents/conversations/attachments/{id}         - 旧路径（兼容读取）
 export class AgentChatRepo extends OPFSRepo {
   constructor() {
     super("conversations");
@@ -104,50 +106,57 @@ export class AgentChatRepo extends OPFSRepo {
   }
 
   // ---- 附件存储 ----
+  // 新路径: agents/workspace/uploads/{id}（LLM 可通过 opfs_read 访问）
+  // 旧路径: agents/conversations/attachments/{id}（兼容读取）
 
-  // 保存附件数据（支持 base64/data URL 字符串或 Blob）
+  // 保存附件数据到 workspace/uploads（支持 base64/data URL 字符串或 Blob）
   async saveAttachment(id: string, data: string | Blob): Promise<number> {
-    const dir = await this.getChildDir(ATTACHMENTS_DIR);
-    const fileHandle = await dir.getFileHandle(id, { create: true });
-    const writable = await fileHandle.createWritable();
-
-    let size: number;
-    if (data instanceof Blob) {
-      await writable.write(data);
-      size = data.size;
-    } else {
-      // 字符串数据（base64/data URL），按原始二进制存储
-      const binary = this.dataUrlToBlob(data);
-      await writable.write(binary);
-      size = binary.size;
-    }
-
-    await writable.close();
-    return size;
+    const result = await writeWorkspaceFile(`uploads/${id}`, data);
+    return result.size;
   }
 
-  // 读取附件数据为 Blob
+  // 读取附件数据为 Blob（先查 workspace 新路径，fallback 旧路径）
   async getAttachment(id: string): Promise<Blob | null> {
+    // 新路径: agents/workspace/uploads/{id}
+    try {
+      const workspace = await getWorkspaceRoot();
+      const dir = await getDirectory(workspace, "uploads");
+      return await (await dir.getFileHandle(id)).getFile();
+    } catch {
+      // 新路径不存在，尝试旧路径
+    }
+    // 旧路径回退: agents/conversations/attachments/{id}
     try {
       const dir = await this.getChildDir(ATTACHMENTS_DIR);
-      const fileHandle = await dir.getFileHandle(id);
-      return await fileHandle.getFile();
+      return await (await dir.getFileHandle(id)).getFile();
     } catch {
       return null;
     }
   }
 
-  // 删除单个附件
+  // 删除单个附件（同时清理新旧路径）
   async deleteAttachment(id: string): Promise<void> {
-    const dir = await this.getChildDir(ATTACHMENTS_DIR);
-    await this.deleteFile(id, dir);
+    // 新路径: agents/workspace/uploads/{id}
+    try {
+      const workspace = await getWorkspaceRoot();
+      const dir = await getDirectory(workspace, "uploads");
+      await dir.removeEntry(id);
+    } catch {
+      // 新路径不存在则忽略
+    }
+    // 旧路径: agents/conversations/attachments/{id}
+    try {
+      const dir = await this.getChildDir(ATTACHMENTS_DIR);
+      await dir.removeEntry(id);
+    } catch {
+      // 旧路径不存在则忽略
+    }
   }
 
   // 删除会话关联的所有附件（需传入附件 ID 列表）
   async deleteAttachments(ids: string[]): Promise<void> {
-    const dir = await this.getChildDir(ATTACHMENTS_DIR);
     for (const id of ids) {
-      await this.deleteFile(id, dir);
+      await this.deleteAttachment(id);
     }
   }
 
@@ -171,20 +180,4 @@ export class AgentChatRepo extends OPFSRepo {
     await this.deleteFile(`${conversationId}.json`, tasksDir);
   }
 
-  // 将 data URL 或纯 base64 转换为 Blob
-  private dataUrlToBlob(data: string): Blob {
-    // 匹配 data URL 格式
-    const match = data.match(/^data:([^;]+);base64,(.+)$/s);
-    if (match) {
-      const byteString = atob(match[2]);
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-      }
-      return new Blob([ab], { type: match[1] });
-    }
-    // 纯文本存储
-    return new Blob([data], { type: "application/octet-stream" });
-  }
 }

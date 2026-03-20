@@ -45,4 +45,12 @@ export default class CATAgentModelApi {
       { action: "getDefault", scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
     ]) as Promise<string>;
   }
+
+  @GMContext.API({ follow: "CAT.agent.model" })
+  public "CAT.agent.model.getSummary"(): Promise<string> {
+    const ctx = this as unknown as GMBaseContext;
+    return ctx.sendMessage("CAT_agentModel", [
+      { action: "getSummary", scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
+    ]) as Promise<string>;
+  }
 }
