@@ -55,6 +55,7 @@ function createTestService() {
     saveMessages: vi.fn().mockResolvedValue(undefined),
     getTasks: vi.fn().mockResolvedValue([]),
     saveTasks: vi.fn().mockResolvedValue(undefined),
+    getAttachment: vi.fn().mockResolvedValue(null),
   };
   const mockSkillRepo = {
     listSkills: vi.fn().mockResolvedValue([]),
