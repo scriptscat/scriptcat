@@ -11,6 +11,7 @@ export default function ConversationList({
   onCreate,
   onDelete,
   onRename,
+  runningIds,
 }: {
   conversations: Conversation[];
   activeId: string;
@@ -18,6 +19,7 @@ export default function ConversationList({
   onCreate: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  runningIds?: Set<string>;
 }) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string>("");
@@ -84,7 +86,11 @@ export default function ConversationList({
                 </div>
               ) : (
                 <>
-                  <IconMessage className="tw-text-sm tw-text-[var(--color-text-3)] tw-shrink-0" />
+                  {runningIds?.has(conv.id) ? (
+                    <span className="tw-w-2 tw-h-2 tw-rounded-full tw-bg-[rgb(var(--arcoblue-6))] tw-shrink-0 tw-animate-pulse" />
+                  ) : (
+                    <IconMessage className="tw-text-sm tw-text-[var(--color-text-3)] tw-shrink-0" />
+                  )}
                   <span className="tw-flex-1 tw-truncate tw-text-sm">{conv.title}</span>
                   <div
                     className={`tw-items-center tw-shrink-0 ${

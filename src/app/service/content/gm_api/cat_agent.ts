@@ -35,6 +35,8 @@ export class ConversationInstance {
     toolCalls?: ToolCall[];
   }> = [];
 
+  private background: boolean;
+
   constructor(
     private conv: Conversation,
     private gmSendMessage: (api: string, params: any[]) => Promise<any>,
@@ -45,9 +47,11 @@ export class ConversationInstance {
     commands?: Record<string, CommandHandler>,
     ephemeral?: boolean,
     system?: string,
-    cache?: boolean
+    cache?: boolean,
+    background?: boolean
   ) {
     this.ephemeral = ephemeral || false;
+    this.background = background || false;
     this.cache = cache;
     this.systemPrompt = system;
     if (initialTools) {
@@ -108,6 +112,9 @@ export class ConversationInstance {
 
     if (this.cache !== undefined) {
       connectParams.cache = this.cache;
+    }
+    if (this.background) {
+      connectParams.background = true;
     }
     if (this.ephemeral) {
       connectParams.ephemeral = true;
@@ -178,6 +185,9 @@ export class ConversationInstance {
 
     if (this.cache !== undefined) {
       connectParams.cache = this.cache;
+    }
+    if (this.background) {
+      connectParams.background = true;
     }
     if (this.ephemeral) {
       connectParams.ephemeral = true;
@@ -284,6 +294,14 @@ export class ConversationInstance {
         scriptUuid: this.scriptUuid,
       } as ConversationApiRequest,
     ]);
+  }
+
+  // 附加到后台运行中的会话，返回流式事件
+  async attach(): Promise<AsyncIterable<StreamChunk>> {
+    const conn = await this.gmConnect("CAT_agentAttachToConversation", [
+      { conversationId: this.conv.id, scriptUuid: this.scriptUuid },
+    ]);
+    return this.processStream(conn, new Map());
   }
 
   // 处理非流式 chat 的响应
@@ -543,7 +561,8 @@ function buildInstance(
     options?.commands,
     options?.ephemeral,
     options?.system,
-    options?.cache
+    options?.cache,
+    options?.background
   );
 }
 

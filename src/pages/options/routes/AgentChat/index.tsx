@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
-import { useConversations, useSkills } from "./hooks";
+import { useConversations, useSkills, useRunningConversations } from "./hooks";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
 import { agentClient } from "@App/pages/store/features/script";
 import "./styles.css";
@@ -36,6 +36,9 @@ export default function AgentChat() {
   const [selectedSkills, setSelectedSkills] = useState<"auto" | string[]>("auto");
   // 是否携带 tools（默认 true）
   const [enableTools, setEnableTools] = useState<boolean>(true);
+  // 后台运行模式
+  const [backgroundEnabled, setBackgroundEnabled] = useState<boolean>(false);
+  const { runningIds } = useRunningConversations();
 
   // 切换会话时，自动恢复该会话上次使用的模型
   useEffect(() => {
@@ -72,6 +75,7 @@ export default function AgentChat() {
         onCreate={handleCreate}
         onDelete={deleteConversation}
         onRename={renameConversation}
+        runningIds={runningIds}
       />
       <ChatArea
         conversationId={activeId}
@@ -85,6 +89,9 @@ export default function AgentChat() {
         onSkillsChange={setSelectedSkills}
         enableTools={enableTools}
         onEnableToolsChange={setEnableTools}
+        runningIds={runningIds}
+        backgroundEnabled={backgroundEnabled}
+        onBackgroundEnabledChange={setBackgroundEnabled}
       />
     </div>
   );

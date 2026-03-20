@@ -93,6 +93,15 @@ export type ChatStreamEvent =
   | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock; data?: string }
   | { type: "ask_user"; id: string; question: string; options?: string[]; multiple?: boolean }
   | { type: "sub_agent_event"; agentId: string; description: string; event: ChatStreamEvent }
+  | {
+      type: "task_update";
+      tasks: Array<{
+        id: string;
+        subject: string;
+        status: "pending" | "in_progress" | "completed";
+        description?: string;
+      }>;
+    }
   | { type: "new_message" }
   | {
       type: "done";
@@ -105,7 +114,19 @@ export type ChatStreamEvent =
       durationMs?: number;
     }
   | { type: "error"; message: string; errorCode?: string }
-  | { type: "compact_done"; summary: string; originalCount: number };
+  | { type: "compact_done"; summary: string; originalCount: number }
+  | {
+      type: "sync";
+      streamingMessage?: { content: string; thinking?: string; toolCalls: ToolCall[] };
+      pendingAskUser?: { id: string; question: string; options?: string[]; multiple?: boolean };
+      tasks: Array<{
+        id: string;
+        subject: string;
+        status: "pending" | "in_progress" | "completed";
+        description?: string;
+      }>;
+      status: "running" | "done" | "error";
+    };
 
 // UI -> Service Worker 的聊天请求
 export type ChatRequest = {
@@ -164,6 +185,7 @@ export type ConversationCreateOptions = {
   commands?: Record<string, CommandHandler>; // 自定义命令处理器，以 / 开头
   ephemeral?: boolean; // 临时会话：不持久化、不加载内置资源、工具由脚本提供
   cache?: boolean; // 是否启用 prompt caching，默认 true
+  background?: boolean; // 后台运行：UI 断开后继续执行，默认 false
 };
 
 // conv.chat() 的参数
@@ -176,7 +198,12 @@ export type ChatReply = {
   content: MessageContent;
   thinking?: string;
   toolCalls?: ToolCall[];
-  usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
   command?: boolean; // 标识该回复来自命令处理
 };
 
@@ -186,7 +213,12 @@ export type StreamChunk = {
   content?: string;
   block?: ContentBlock;
   toolCall?: ToolCall;
-  usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
   error?: string;
   /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "max_iterations" | "api_error" */
   errorCode?: string;
@@ -252,8 +284,8 @@ export type SkillApiRequest =
 // CAT.agent.opfs API 请求
 export type OPFSApiRequest =
   | { action: "write"; path: string; content: string | Blob; scriptUuid: string }
-  | { action: "read"; path: string; format?: "text" | "bloburl"; scriptUuid: string }
-  | { action: "readAttachment"; id: string; format?: "bloburl" | "dataurl"; scriptUuid: string }
+  | { action: "read"; path: string; format?: "text" | "bloburl" | "blob"; scriptUuid: string }
+  | { action: "readAttachment"; id: string; scriptUuid: string }
   | { action: "list"; path?: string; scriptUuid: string }
   | { action: "delete"; path: string; scriptUuid: string };
 

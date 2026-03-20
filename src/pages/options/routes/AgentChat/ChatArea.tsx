@@ -8,8 +8,9 @@ import type { ChatMessage, ChatStreamEvent } from "@App/app/service/agent/types"
 import { getTextContent } from "@App/app/service/agent/content_utils";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
-import { useMessages, useStreamingChat, deleteMessages, clearMessages } from "./hooks";
+import { useMessages, useStreamingChat, useConversationTasks, deleteMessages, clearMessages } from "./hooks";
 import AskUserBlock from "./AskUserBlock";
+import TaskListBlock from "./TaskListBlock";
 import {
   mergeToolResults,
   groupMessages,
@@ -59,6 +60,9 @@ export default function ChatArea({
   onSkillsChange,
   enableTools,
   onEnableToolsChange,
+  runningIds,
+  backgroundEnabled,
+  onBackgroundEnabledChange,
 }: {
   conversationId: string;
   models: AgentModelConfig[];
@@ -71,10 +75,22 @@ export default function ChatArea({
   onSkillsChange?: (skills: "auto" | string[]) => void;
   enableTools?: boolean;
   onEnableToolsChange?: (enabled: boolean) => void;
+  runningIds?: Set<string>;
+  backgroundEnabled?: boolean;
+  onBackgroundEnabledChange?: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
   const { messages, setMessages, loadMessages } = useMessages(conversationId);
-  const { isStreaming, sendMessage, stopGeneration, askUserPending, respondToAskUser } = useStreamingChat();
+  const {
+    isStreaming,
+    setIsStreaming,
+    sendMessage,
+    stopGeneration,
+    askUserPending,
+    respondToAskUser,
+    attachToConversation,
+  } = useStreamingChat();
+  const { tasks, setTasks, handleTaskUpdate, loadTasks } = useConversationTasks(conversationId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMsgRef = useRef<ChatMessage | null>(null);
   // 计时相关
@@ -139,6 +155,10 @@ export default function ChatArea({
         case "sub_agent_event":
           // 这些事件由 hook 层处理或仅作信息展示，不修改消息
           break;
+        case "task_update":
+          // 任务列表变更，由 hook 层处理
+          handleTaskUpdate(event);
+          break;
         case "compact_done":
           // 自动 compact 完成，刷新消息列表
           loadMessages();
@@ -173,6 +193,21 @@ export default function ChatArea({
           setMessages((prev) => [...prev, newMsg]);
           return;
         }
+        case "sync":
+          // 重连快照：从快照重建流式消息状态
+          if (event.streamingMessage) {
+            msg.content = event.streamingMessage.content;
+            if (event.streamingMessage.thinking) {
+              msg.thinking = { content: event.streamingMessage.thinking };
+            }
+            if (event.streamingMessage.toolCalls.length > 0) {
+              msg.toolCalls = event.streamingMessage.toolCalls;
+            }
+          }
+          if (event.tasks.length > 0) {
+            setTasks(event.tasks);
+          }
+          break;
         case "error":
           msg.error = event.message;
           break;
@@ -247,7 +282,8 @@ export default function ChatArea({
       createDoneCallback(),
       selectedModelId,
       skipUserMessage,
-      enableTools
+      enableTools,
+      { background: backgroundEnabled }
     );
   };
 
@@ -255,14 +291,41 @@ export default function ChatArea({
   const startStreamingRef = useRef(startStreaming);
   startStreamingRef.current = startStreaming;
 
+  // 自动附加到后台运行中的会话
+  useEffect(() => {
+    if (!conversationId || isStreaming) return;
+    if (!runningIds?.has(conversationId)) return;
+
+    // 创建一个临时的 assistant 消息用于显示流式内容
+    const assistantMsg: ChatMessage = {
+      id: genId(),
+      conversationId,
+      role: "assistant",
+      content: "",
+      modelId: selectedModelId,
+      createtime: Date.now(),
+    };
+    streamingMsgRef.current = assistantMsg;
+    setIsStreaming(true);
+
+    // 先加载已持久化的消息
+    loadMessages().then(() => {
+      setMessages((prev) => [...prev, assistantMsg]);
+
+      attachToConversation(conversationId, createStreamCallback(), createDoneCallback());
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, runningIds]);
+
   // 发送消息（支持附件文件或已有消息列表用于重新回答）
   const handleSend = async (content: MessageContent, files?: Map<string, File>) => {
     if (!conversationId || !selectedModelId) return;
 
-    // 处理 /new 命令：清空对话上下文
+    // 处理 /new 命令：清空对话上下文及任务
     if (typeof content === "string" && content.trim() === "/new") {
       await clearMessages(conversationId);
       setMessages([]);
+      loadTasks();
       return;
     }
 
@@ -450,6 +513,7 @@ export default function ChatArea({
               onRespond={respondToAskUser}
             />
           )}
+          {tasks.length > 0 && <TaskListBlock tasks={tasks} />}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -468,6 +532,8 @@ export default function ChatArea({
         onSkillsChange={onSkillsChange}
         enableTools={enableTools}
         onEnableToolsChange={onEnableToolsChange}
+        backgroundEnabled={backgroundEnabled}
+        onBackgroundEnabledChange={onBackgroundEnabledChange}
       />
       {noModel && (
         <div className="tw-text-center tw-text-xs tw-text-[var(--color-text-3)] tw-pb-2">

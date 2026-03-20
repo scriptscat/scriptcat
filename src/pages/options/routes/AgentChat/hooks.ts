@@ -7,10 +7,11 @@ import type {
   SkillSummary,
   MessageContent,
 } from "@App/app/service/agent/types";
+import type { Task } from "@App/app/service/agent/tools/task_tools";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { SkillRepo } from "@App/app/repo/skill_repo";
 import { message as extensionMessage } from "@App/pages/store/global";
-import { connect } from "@Packages/message/client";
+import { connect, sendMessage as sendMsg } from "@Packages/message/client";
 import type { MessageConnect } from "@Packages/message/types";
 
 const repo = new AgentChatRepo();
@@ -144,6 +145,8 @@ export function useStreamingChat() {
   const stopGeneration = useCallback(() => {
     abortedRef.current = true;
     if (connRef.current) {
+      // 先发 stop 消息（后台模式需要），再断开
+      connRef.current.sendMessage({ action: "stop" });
       connRef.current.disconnect();
       connRef.current = null;
     }
@@ -168,7 +171,7 @@ export function useStreamingChat() {
       modelId?: string,
       skipSaveUserMessage?: boolean,
       enableTools?: boolean,
-      extra?: { compact?: boolean; compactInstruction?: string }
+      extra?: { compact?: boolean; compactInstruction?: string; background?: boolean }
     ) => {
       setIsStreaming(true);
       abortedRef.current = false;
@@ -222,7 +225,101 @@ export function useStreamingChat() {
     []
   );
 
-  return { isStreaming, sendMessage, stopGeneration, askUserPending, respondToAskUser };
+  // 附加到后台运行中的会话
+  const attachToConversation = useCallback(
+    async (conversationId: string, onEvent: (event: ChatStreamEvent) => void, onDone: () => void) => {
+      abortedRef.current = false;
+
+      try {
+        const conn = await connect(extensionMessage, "serviceWorker/agent/attachToConversation", {
+          conversationId,
+        });
+
+        connRef.current = conn;
+
+        conn.onMessage((msg) => {
+          if (abortedRef.current) return;
+          const event = msg.data as ChatStreamEvent;
+
+          if (event.type === "ask_user") {
+            setAskUserPending({
+              id: event.id,
+              question: event.question,
+              options: event.options,
+              multiple: event.multiple,
+            });
+          }
+
+          onEvent(event);
+
+          // sync 事件：根据 status 设置 isStreaming
+          if (event.type === "sync") {
+            if (event.status === "running") {
+              setIsStreaming(true);
+              if (event.pendingAskUser) {
+                setAskUserPending(event.pendingAskUser);
+              }
+            } else {
+              // done 或 error，无需保持连接
+              setIsStreaming(false);
+              connRef.current = null;
+              onDone();
+            }
+            return;
+          }
+
+          if (event.type === "done" || event.type === "error") {
+            setIsStreaming(false);
+            setAskUserPending(null);
+            connRef.current = null;
+            onDone();
+          }
+        });
+
+        conn.onDisconnect(() => {
+          setIsStreaming(false);
+          setAskUserPending(null);
+          connRef.current = null;
+        });
+      } catch (e: any) {
+        onEvent({ type: "error", message: e.message || "Attach failed" });
+        onDone();
+      }
+    },
+    []
+  );
+
+  return {
+    isStreaming,
+    setIsStreaming,
+    sendMessage,
+    stopGeneration,
+    askUserPending,
+    respondToAskUser,
+    attachToConversation,
+  };
+}
+
+// 查询正在运行的后台会话 ID
+export function useRunningConversations() {
+  const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
+
+  const refresh = useCallback(async () => {
+    try {
+      const ids = await sendMsg(extensionMessage, "serviceWorker/agent/getRunningConversationIds", undefined);
+      setRunningIds(new Set(ids as string[]));
+    } catch {
+      setRunningIds(new Set());
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const timer = setInterval(refresh, 5000);
+    return () => clearInterval(timer);
+  }, [refresh]);
+
+  return { runningIds, refresh };
 }
 
 // 批量删除持久化消息
@@ -233,9 +330,37 @@ export async function deleteMessages(conversationId: string, messageIds: string[
   await repo.saveMessages(conversationId, filtered);
 }
 
-// 清空对话消息
+// 清空对话消息及任务
 export async function clearMessages(conversationId: string): Promise<void> {
   await repo.saveMessages(conversationId, []);
+  await repo.saveTasks(conversationId, []);
+}
+
+// 会话任务列表 hook
+export function useConversationTasks(conversationId: string) {
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  const loadTasks = useCallback(async () => {
+    if (!conversationId) {
+      setTasks([]);
+      return;
+    }
+    const loaded = await repo.getTasks(conversationId);
+    setTasks(loaded);
+  }, [conversationId]);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  // 处理流式 task_update 事件
+  const handleTaskUpdate = useCallback((event: ChatStreamEvent) => {
+    if (event.type === "task_update") {
+      setTasks(event.tasks);
+    }
+  }, []);
+
+  return { tasks, setTasks, loadTasks, handleTaskUpdate };
 }
 
 // Skill 列表 hook

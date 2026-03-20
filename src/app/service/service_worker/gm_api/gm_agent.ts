@@ -52,6 +52,18 @@ class GMAgentApi {
     }
     return this.agentService.handleConversationChatFromGmApi(request.params[0], sender);
   }
+
+  @PermissionVerify.API({
+    link: ["CAT.agent.conversation"],
+    confirm: agentConfirm,
+    dotAlias: false,
+  })
+  async CAT_agentAttachToConversation(this: GMApi, request: GMApiRequest<[any]>, sender: IGetSender) {
+    if (!this.agentService) {
+      throw new Error("AgentService is not available");
+    }
+    return this.agentService.handleAttachToConversationFromGmApi(request.params[0], sender);
+  }
 }
 
 export default GMAgentApi;

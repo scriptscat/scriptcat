@@ -97,6 +97,8 @@ export default function ChatInput({
   onSkillsChange,
   enableTools,
   onEnableToolsChange,
+  backgroundEnabled,
+  onBackgroundEnabledChange,
 }: {
   models: AgentModelConfig[];
   selectedModelId: string;
@@ -110,6 +112,8 @@ export default function ChatInput({
   onSkillsChange?: (skills: "auto" | string[]) => void;
   enableTools?: boolean;
   onEnableToolsChange?: (enabled: boolean) => void;
+  backgroundEnabled?: boolean;
+  onBackgroundEnabledChange?: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
@@ -357,6 +361,31 @@ export default function ChatInput({
                     } hover:tw-bg-[var(--color-fill-2)]`}
                   >
                     <IconTool style={{ fontSize: 16 }} />
+                  </button>
+                </Tooltip>
+              )}
+              {onBackgroundEnabledChange && (
+                <Tooltip content={backgroundEnabled ? "Background mode: ON" : "Background mode: OFF"} mini>
+                  <button
+                    onClick={() => onBackgroundEnabledChange(!backgroundEnabled)}
+                    className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
+                      backgroundEnabled ? "tw-text-[rgb(var(--arcoblue-6))]" : "tw-text-[var(--color-text-4)]"
+                    } hover:tw-bg-[var(--color-fill-2)]`}
+                    title="Background mode"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
                   </button>
                 </Tooltip>
               )}

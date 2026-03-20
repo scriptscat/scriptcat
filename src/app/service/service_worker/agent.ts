@@ -58,7 +58,8 @@ import { SearchConfigRepo, type SearchEngineConfig } from "@App/app/service/agen
 import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/tools/sub_agent";
-import { createOPFSTools, setCreateBlobUrlFn } from "@App/app/service/agent/tools/opfs_tools";
+import { createOPFSTools, setCreateBlobUrlFn, guessMimeType } from "@App/app/service/agent/tools/opfs_tools";
+import { sanitizePath, getWorkspaceRoot, getDirectory, splitPath } from "@App/app/service/agent/opfs_helpers";
 import { createObjectURL } from "@App/app/service/offscreen/client";
 import { createExecuteScriptTool } from "@App/app/service/agent/tools/execute_script";
 import { executeSkillScript } from "@App/app/service/offscreen/client";
@@ -118,6 +119,23 @@ export function classifyErrorCode(e: Error): string {
   return "api_error";
 }
 
+// 后台运行会话的 listener 条目
+type ListenerEntry = {
+  sendEvent: (event: ChatStreamEvent) => void;
+};
+
+// 后台运行会话状态
+type RunningConversation = {
+  conversationId: string;
+  abortController: AbortController;
+  listeners: Set<ListenerEntry>;
+  streamingState: { content: string; thinking: string; toolCalls: ToolCall[] };
+  pendingAskUser?: { id: string; question: string; options?: string[]; multiple?: boolean };
+  askResolvers: Map<string, (answer: string) => void>;
+  tasks: Array<{ id: string; subject: string; status: "pending" | "in_progress" | "completed"; description?: string }>;
+  status: "running" | "done" | "error";
+};
+
 export class AgentService {
   private repo = new AgentChatRepo();
   private skillRepo = new SkillRepo();
@@ -132,6 +150,8 @@ export class AgentService {
   private taskRunRepo = new AgentTaskRunRepo();
   private taskScheduler!: AgentTaskScheduler;
   private searchConfigRepo = new SearchConfigRepo();
+  // 后台运行的会话注册表
+  private runningConversations = new Map<string, RunningConversation>();
 
   constructor(
     private group: Group,
@@ -153,6 +173,10 @@ export class AgentService {
     this.group.on("conversation", this.handleConversation.bind(this));
     // 流式聊天（UI 和 Sandbox 共用）
     this.group.on("conversationChat", this.handleConversationChat.bind(this));
+    // 附加到后台运行中的会话
+    this.group.on("attachToConversation", this.handleAttachToConversation.bind(this));
+    // 获取正在运行的会话 ID 列表
+    this.group.on("getRunningConversationIds", () => this.getRunningConversationIds());
     // Skill 管理（供 Options UI 调用）
     this.group.on(
       "installSkill",
@@ -445,6 +469,17 @@ export class AgentService {
         return JSON.parse((await executor.execute({ path: request.path, content: request.content })) as string);
       }
       case "read": {
+        if (request.format === "blob") {
+          // blob 格式：直接返回 Blob 对象，通过 structured clone 传递到 sandbox
+          const safePath = sanitizePath(request.path);
+          if (!safePath) throw new Error("path is required");
+          const workspace = await getWorkspaceRoot();
+          const { dirPath, fileName } = splitPath(safePath);
+          const dir = dirPath ? await getDirectory(workspace, dirPath) : workspace;
+          const fileHandle = await dir.getFileHandle(fileName);
+          const file = await fileHandle.getFile();
+          return { path: safePath, data: file, size: file.size, mimeType: guessMimeType(safePath) };
+        }
         const executor = toolMap.get("opfs_read")!;
         return JSON.parse((await executor.execute({ path: request.path, format: request.format })) as string);
       }
@@ -453,16 +488,8 @@ export class AgentService {
         if (!blob) {
           throw new Error(`Attachment not found: ${request.id}`);
         }
-        if (request.format === "dataurl") {
-          // 转为 data URL
-          const buffer = await blob.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-          const dataUrl = `data:${blob.type || "application/octet-stream"};base64,${base64}`;
-          return { id: request.id, content: dataUrl, size: blob.size, mimeType: blob.type };
-        }
-        // 默认返回 blob URL
-        const blobUrl = URL.createObjectURL(blob);
-        return { id: request.id, blobUrl, size: blob.size, mimeType: blob.type };
+        // 直接返回 Blob 对象，通过 structured clone 传递到 sandbox
+        return { id: request.id, data: blob, size: blob.size, mimeType: blob.type };
       }
       case "list": {
         const executor = toolMap.get("opfs_list")!;
@@ -766,13 +793,6 @@ export class AgentService {
       registeredMetaToolNames.push(mt.definition.name);
     }
 
-    // 注册 task 工具（定时任务无 UI 连接，不注册 ask_user/agent）
-    const { tools: taskToolDefs } = createTaskTools();
-    for (const t of taskToolDefs) {
-      this.toolRegistry.registerBuiltin(t.definition, t.executor);
-      registeredMetaToolNames.push(t.definition.name);
-    }
-
     try {
       let conversationId: string;
       const messages: ChatRequest["messages"] = [];
@@ -968,10 +988,150 @@ export class AgentService {
       system?: string;
       modelId?: string;
       cache?: boolean;
+      background?: boolean;
     },
     sender: IGetSender
   ) {
     return this.handleConversationChat(params, sender);
+  }
+
+  // 附加到后台运行会话，供 GMApi 调用
+  async handleAttachToConversationFromGmApi(params: { conversationId: string }, sender: IGetSender) {
+    return this.handleAttachToConversation(params, sender);
+  }
+
+  // 更新后台会话的流式状态快照
+  private updateStreamingState(rc: RunningConversation, event: ChatStreamEvent) {
+    switch (event.type) {
+      case "content_delta":
+        rc.streamingState.content += event.delta;
+        break;
+      case "thinking_delta":
+        rc.streamingState.thinking += event.delta;
+        break;
+      case "tool_call_start":
+        rc.streamingState.toolCalls.push({ ...event.toolCall, status: "running" });
+        break;
+      case "tool_call_delta":
+        if (rc.streamingState.toolCalls.length > 0) {
+          const last = rc.streamingState.toolCalls[rc.streamingState.toolCalls.length - 1];
+          last.arguments += event.delta;
+        }
+        break;
+      case "tool_call_complete": {
+        const tc = rc.streamingState.toolCalls.find((t) => t.id === event.id);
+        if (tc) {
+          tc.status = "completed";
+          tc.result = event.result;
+          tc.attachments = event.attachments;
+        }
+        break;
+      }
+      case "new_message":
+        // 新一轮 LLM 调用，重置流式状态
+        rc.streamingState = { content: "", thinking: "", toolCalls: [] };
+        break;
+      case "ask_user":
+        rc.pendingAskUser = {
+          id: event.id,
+          question: event.question,
+          options: event.options,
+          multiple: event.multiple,
+        };
+        break;
+      case "task_update":
+        rc.tasks = event.tasks;
+        break;
+      case "done":
+        rc.status = "done";
+        rc.pendingAskUser = undefined;
+        break;
+      case "error":
+        rc.status = "error";
+        rc.pendingAskUser = undefined;
+        break;
+    }
+  }
+
+  // 广播事件到所有 listener
+  private broadcastEvent(rc: RunningConversation, event: ChatStreamEvent) {
+    for (const listener of rc.listeners) {
+      try {
+        listener.sendEvent(event);
+      } catch {
+        // listener 断开，忽略
+      }
+    }
+  }
+
+  // 获取正在运行的会话 ID 列表
+  getRunningConversationIds(): string[] {
+    return Array.from(this.runningConversations.keys());
+  }
+
+  // 附加到后台运行中的会话
+  private async handleAttachToConversation(params: { conversationId: string }, sender: IGetSender) {
+    if (!sender.isType(GetSenderType.CONNECT)) {
+      throw new Error("attachToConversation requires connect mode");
+    }
+    const msgConn = sender.getConnect()!;
+
+    const rc = this.runningConversations.get(params.conversationId);
+
+    const sendEvent = (event: ChatStreamEvent) => {
+      msgConn.sendMessage({ action: "event", data: event });
+    };
+
+    if (!rc) {
+      // 会话不在运行中
+      sendEvent({ type: "sync", tasks: [], status: "done" });
+      return;
+    }
+
+    // 发送 sync 快照
+    const syncEvent: ChatStreamEvent = {
+      type: "sync",
+      streamingMessage:
+        rc.streamingState.content || rc.streamingState.thinking || rc.streamingState.toolCalls.length > 0
+          ? {
+              content: rc.streamingState.content,
+              thinking: rc.streamingState.thinking || undefined,
+              toolCalls: rc.streamingState.toolCalls,
+            }
+          : undefined,
+      pendingAskUser: rc.pendingAskUser,
+      tasks: rc.tasks,
+      status: rc.status,
+    };
+    sendEvent(syncEvent);
+
+    // 已完成则不需要添加 listener
+    if (rc.status !== "running") {
+      return;
+    }
+
+    // 添加 listener
+    const listener: ListenerEntry = { sendEvent };
+    rc.listeners.add(listener);
+
+    // 处理来自 UI 的消息
+    msgConn.onMessage((msg: any) => {
+      if (msg.action === "askUserResponse" && msg.data) {
+        const resolver = rc.askResolvers.get(msg.data.id);
+        if (resolver) {
+          rc.askResolvers.delete(msg.data.id);
+          rc.pendingAskUser = undefined;
+          resolver(msg.data.answer);
+        }
+      }
+      if (msg.action === "stop") {
+        rc.abortController.abort();
+      }
+    });
+
+    msgConn.onDisconnect(() => {
+      rc.listeners.delete(listener);
+    });
   }
 
   // 处理 Sandbox conversation API 请求（非流式）
@@ -1371,6 +1531,8 @@ export class AgentService {
       // compact 模式
       compact?: boolean;
       compactInstruction?: string;
+      // 后台运行模式
+      background?: boolean;
     },
     sender: IGetSender
   ) {
@@ -1379,24 +1541,76 @@ export class AgentService {
     }
     const msgConn = sender.getConnect()!;
 
+    // 后台模式：非 ephemeral、非 compact 时可用
+    const isBackground = params.background === true && !params.ephemeral && !params.compact;
+
+    // 检查是否已有后台运行的同一会话
+    if (isBackground && this.runningConversations.has(params.conversationId)) {
+      msgConn.sendMessage({
+        action: "event",
+        data: { type: "error", message: "会话正在运行中" } as ChatStreamEvent,
+      });
+      return;
+    }
+
     const abortController = new AbortController();
     let isDisconnected = false;
 
-    msgConn.onDisconnect(() => {
-      isDisconnected = true;
-      abortController.abort();
-    });
+    // 后台模式：创建 RunningConversation
+    let rc: RunningConversation | undefined;
+    if (isBackground) {
+      rc = {
+        conversationId: params.conversationId,
+        abortController,
+        listeners: new Set(),
+        streamingState: { content: "", thinking: "", toolCalls: [] },
+        askResolvers: new Map(),
+        tasks: [],
+        status: "running",
+      };
+      this.runningConversations.set(params.conversationId, rc);
+    }
+
+    // ask_user resolvers（后台模式挂在 rc 上，普通模式本地）
+    const askResolvers = rc ? rc.askResolvers : new Map<string, (answer: string) => void>();
 
     const sendEvent = (event: ChatStreamEvent) => {
-      if (!isDisconnected) {
-        msgConn.sendMessage({ action: "event", data: event });
+      if (rc) {
+        // 后台模式：先更新快照，再广播到所有 listener
+        this.updateStreamingState(rc, event);
+        this.broadcastEvent(rc, event);
+      } else {
+        if (!isDisconnected) {
+          msgConn.sendMessage({ action: "event", data: event });
+        }
       }
     };
 
+    if (rc) {
+      // 后台模式：初始 listener
+      const listener: ListenerEntry = {
+        sendEvent: (event) => {
+          if (!isDisconnected) {
+            msgConn.sendMessage({ action: "event", data: event });
+          }
+        },
+      };
+      rc.listeners.add(listener);
+
+      msgConn.onDisconnect(() => {
+        isDisconnected = true;
+        // 后台模式：只移除 listener，不 abort
+        rc!.listeners.delete(listener);
+      });
+    } else {
+      msgConn.onDisconnect(() => {
+        isDisconnected = true;
+        abortController.abort();
+      });
+    }
+
     // 构建脚本工具回调：通过 MessageConnect 让 Sandbox 执行 handler
     let toolResultResolve: ((results: Array<{ id: string; result: string }>) => void) | null = null;
-    // ask_user resolvers
-    const askResolvers = new Map<string, (answer: string) => void>();
 
     msgConn.onMessage((msg: any) => {
       if (msg.action === "toolResults" && toolResultResolve) {
@@ -1408,8 +1622,12 @@ export class AgentService {
         const resolver = askResolvers.get(msg.data.id);
         if (resolver) {
           askResolvers.delete(msg.data.id);
+          if (rc) rc.pendingAskUser = undefined;
           resolver(msg.data.answer);
         }
+      }
+      if (msg.action === "stop") {
+        abortController.abort();
       }
     });
 
@@ -1559,8 +1777,13 @@ export class AgentService {
         }
 
         // 注册每次请求的临时工具
-        // Task tools
-        const { tools: taskToolDefs } = createTaskTools();
+        // Task tools（从持久化加载，变更时保存并推送事件到 UI）
+        const initialTasks = await this.repo.getTasks(params.conversationId);
+        const { tools: taskToolDefs } = createTaskTools({
+          initialTasks,
+          onSave: (tasks) => this.repo.saveTasks(params.conversationId, tasks),
+          sendEvent,
+        });
         for (const t of taskToolDefs) {
           this.toolRegistry.registerBuiltin(t.definition, t.executor);
           registeredMetaToolNames.push(t.definition.name);
@@ -1697,6 +1920,8 @@ export class AgentService {
           conversationId: params.conversationId,
           skipBuiltinTools: !enableTools,
         });
+        // 后台模式：正常完成后延迟清理
+        this.cleanupRunningConversation(params.conversationId);
       } finally {
         // 清理临时注册的 meta-tools
         for (const name of registeredMetaToolNames) {
@@ -1704,7 +1929,11 @@ export class AgentService {
         }
       }
     } catch (e: any) {
-      if (abortController.signal.aborted) return;
+      // 后台模式：abort 也需要清理注册表
+      if (abortController.signal.aborted) {
+        this.cleanupRunningConversation(params.conversationId);
+        return;
+      }
       const errorMsg = e.message || "Unknown error";
       // 持久化错误消息到 OPFS，确保刷新后仍可见
       if (params.conversationId && !params.ephemeral) {
@@ -1722,7 +1951,17 @@ export class AgentService {
         }
       }
       sendEvent({ type: "error", message: errorMsg, errorCode: classifyErrorCode(e) });
+      this.cleanupRunningConversation(params.conversationId);
     }
+  }
+
+  // 延迟清理后台运行会话注册表（给迟到的重连者 30s 窗口）
+  private cleanupRunningConversation(conversationId: string) {
+    const rc = this.runningConversations.get(conversationId);
+    if (!rc) return;
+    setTimeout(() => {
+      this.runningConversations.delete(conversationId);
+    }, 30_000);
   }
 
   // 对内容做摘要/提取（供 tab 工具使用）
@@ -1774,7 +2013,12 @@ export class AgentService {
     content: string;
     thinking?: string;
     toolCalls?: ToolCall[];
-    usage?: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens?: number;
+      cacheReadInputTokens?: number;
+    };
     contentBlocks?: ContentBlock[];
   }> {
     const chatRequest: ChatRequest = {
@@ -1819,7 +2063,9 @@ export class AgentService {
     let thinking = "";
     const toolCalls: ToolCall[] = [];
     let currentToolCall: ToolCall | null = null;
-    let usage: { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | undefined;
+    let usage:
+      | { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number }
+      | undefined;
     // 收集带 data 的图片 block（模型生成的图片），stream 结束后统一保存到 OPFS
     const pendingImageSaves: Array<{ block: ContentBlock & { type: "image" }; data: string }> = [];
 
