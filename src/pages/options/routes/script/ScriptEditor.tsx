@@ -845,7 +845,7 @@ function ScriptEditor() {
             }
             return (
               <Dropdown
-                key={`d_${index.toString()}`}
+                key={`d_${index}`}
                 droplist={
                   <Menu
                     style={{
@@ -909,7 +909,7 @@ function ScriptEditor() {
                       );
                       return (
                         <Menu.Item
-                          key={`m_${i.toString()}`}
+                          key={`m_${i}`}
                           style={{
                             height: "unset",
                             padding: "0",
@@ -917,7 +917,7 @@ function ScriptEditor() {
                           }}
                         >
                           {menuItem.tooltip ? (
-                            <Tooltip key={`m${i.toString()}`} position="right" content={menuItem.tooltip}>
+                            <Tooltip key={`m${i}`} position="right" content={menuItem.tooltip}>
                               {btn}
                             </Tooltip>
                           ) : (
@@ -1147,7 +1147,7 @@ function ScriptEditor() {
               {editors.map((e, index) => (
                 <TabPane
                   destroyOnHide
-                  key={index!.toString()}
+                  key={`${index}`}
                   title={
                     <Dropdown
                       trigger="contextMenu"
