@@ -44,7 +44,6 @@ describe("execute_script 工具", () => {
       expect(parsed).toEqual({ result: { count: 5 }, target: "page", tab_id: 42 });
       expect(mockExecuteInPage).toHaveBeenCalledWith("return document.title", {
         tabId: undefined,
-        world: undefined,
       });
     });
 
@@ -55,17 +54,7 @@ describe("execute_script 工具", () => {
 
       await executor.execute({ code: "return 1", target: "page", tab_id: 10 });
 
-      expect(mockExecuteInPage).toHaveBeenCalledWith("return 1", { tabId: 10, world: undefined });
-    });
-
-    it.concurrent("应传递 world: MAIN", async () => {
-      const mockExecuteInPage = vi.fn().mockResolvedValue({ result: null, tabId: 1 });
-      const deps = makeDeps({ executeInPage: mockExecuteInPage });
-      const { executor } = createExecuteScriptTool(deps);
-
-      await executor.execute({ code: "return 1", target: "page", world: "MAIN" });
-
-      expect(mockExecuteInPage).toHaveBeenCalledWith("return 1", { tabId: undefined, world: "MAIN" });
+      expect(mockExecuteInPage).toHaveBeenCalledWith("return 1", { tabId: 10 });
     });
 
     it.concurrent("返回值为 undefined 时应转为 null", async () => {

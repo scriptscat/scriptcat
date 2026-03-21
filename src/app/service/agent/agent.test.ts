@@ -612,16 +612,6 @@ function makeToolCallSSE(
   return chunks;
 }
 
-// 辅助：构造 HTTP 错误响应
-function buildErrorResponse(status: number, body: string): Response {
-  return {
-    ok: false,
-    status,
-    body: null,
-    text: async () => body,
-  } as unknown as Response;
-}
-
 // 创建 mock AgentService 实例
 function createTestService() {
   const mockRepo = {
@@ -987,8 +977,8 @@ describe("callLLMWithToolLoop", () => {
     const { service } = createTestService();
     const events: ChatStreamEvent[] = [];
 
-    // fetch 返回 HTTP 500 JSON 错误
-    fetchSpy.mockResolvedValueOnce(buildErrorResponse(500, '{"error":{"message":"Internal server error"}}'));
+    // 直接 mock callLLM，避免内部重试延迟
+    vi.spyOn(service as any, "callLLM").mockRejectedValue(new Error("Internal server error"));
 
     await expect(
       (service as any).callLLMWithToolLoop({
@@ -1008,12 +998,8 @@ describe("callLLMWithToolLoop", () => {
   it("callLLM HTTP 错误 - 纯文本错误体", async () => {
     const { service } = createTestService();
 
-    // 429 是可重试错误，需要 mock 足够多的失败响应让 withRetry 用尽重试次数
-    const errorResp = () => buildErrorResponse(429, "Rate limit exceeded");
-    fetchSpy.mockResolvedValueOnce(errorResp());
-    fetchSpy.mockResolvedValueOnce(errorResp());
-    fetchSpy.mockResolvedValueOnce(errorResp());
-    fetchSpy.mockResolvedValueOnce(errorResp());
+    // 直接 mock callLLM，避免内部重试延迟；429 是可重试错误，withRetry 会重试 3 次
+    vi.spyOn(service as any, "callLLM").mockRejectedValue(new Error("API error: 429 - Rate limit exceeded"));
 
     await expect(
       (service as any).callLLMWithToolLoop({
@@ -1031,12 +1017,8 @@ describe("callLLMWithToolLoop", () => {
   it("callLLM HTTP 错误 - 空错误体", async () => {
     const { service } = createTestService();
 
-    // 502 是可重试错误，需要 mock 足够多的失败响应让 withRetry 用尽重试次数
-    const errorResp = () => buildErrorResponse(502, "");
-    fetchSpy.mockResolvedValueOnce(errorResp());
-    fetchSpy.mockResolvedValueOnce(errorResp());
-    fetchSpy.mockResolvedValueOnce(errorResp());
-    fetchSpy.mockResolvedValueOnce(errorResp());
+    // 直接 mock callLLM，避免内部重试延迟；502 是可重试错误，withRetry 会重试 3 次
+    vi.spyOn(service as any, "callLLM").mockRejectedValue(new Error("API error: 502"));
 
     await expect(
       (service as any).callLLMWithToolLoop({

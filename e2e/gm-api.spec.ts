@@ -53,7 +53,7 @@ testWithUserScripts.describe("GM API", () => {
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
-  test("Unwrap scriptlet tests (unwrap_e2e_test.js)", async ({ context, extensionId }) => {
+  testWithUserScripts("Unwrap scriptlet tests (unwrap_e2e_test.js)", async ({ context, extensionId }) => {
     const { passed, failed, logs } = await runTestScript(
       context,
       extensionId,

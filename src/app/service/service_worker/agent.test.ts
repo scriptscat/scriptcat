@@ -1,16 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AgentService, isRetryableError, withRetry, classifyErrorCode } from "./agent";
 
-// mock createObjectURL（offscreen/client）— readAttachment 和 read blob 使用
-vi.mock("@App/app/service/offscreen/client", () => ({
-  createObjectURL: vi.fn().mockResolvedValue("blob:chrome-extension://test/mock-blob-url"),
-  executeSkillScript: vi.fn(),
-  extractHtmlContent: vi.fn(),
-  extractHtmlWithSelectors: vi.fn(),
-  extractBingResults: vi.fn(),
-  extractBaiduResults: vi.fn(),
-  extractSearchResults: vi.fn(),
-}));
+// mock offscreen/client — isolate: false 下会影响其他测试文件，
+// extract 函数需要委托到 sender.sendMessage 以保持与其他测试的兼容性
+vi.mock("@App/app/service/offscreen/client", () => {
+  // 通用的 sendMessage 委托实现
+  const delegateToSender = (action: string, defaultValue: any) =>
+    vi.fn().mockImplementation(async (sender: any, data: any) => {
+      const res = await sender.sendMessage({ action, data });
+      return res?.data ?? defaultValue;
+    });
+  return {
+    createObjectURL: vi.fn().mockResolvedValue("blob:chrome-extension://test/mock-blob-url"),
+    executeSkillScript: vi.fn(),
+    extractHtmlContent: delegateToSender("offscreen/htmlExtractor/extractHtmlContent", null),
+    extractHtmlWithSelectors: delegateToSender("offscreen/htmlExtractor/extractHtmlWithSelectors", null),
+    extractBingResults: delegateToSender("offscreen/htmlExtractor/extractBingResults", []),
+    extractBaiduResults: delegateToSender("offscreen/htmlExtractor/extractBaiduResults", []),
+    extractSearchResults: delegateToSender("offscreen/htmlExtractor/extractSearchResults", []),
+  };
+});
 
 // 创建 mock AgentService 实例
 function createTestService() {
@@ -1377,25 +1386,35 @@ describe("callLLM 流式响应解析", () => {
   });
 
   it("API 错误响应（HTTP 401）：sendEvent 收到 error + errorCode=auth", async () => {
+    vi.useFakeTimers();
+
     const { service, mockRepo } = createTestService();
     const { sender, sentMessages } = createMockSender();
 
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
     mockRepo.getMessages.mockResolvedValue([]);
 
-    // 返回 401 错误，errorText 非 JSON 使消息包含 "401"（classifyErrorCode 靠正则匹配）
-    fetchSpy.mockResolvedValueOnce({
-      ok: false,
-      status: 401,
-      text: async () => "401 Unauthorized",
-    } as unknown as Response);
+    // 返回 401 错误，callLLM 内部会重试 5 次，需提供足够多的 mock
+    const make401 = () =>
+      ({ ok: false, status: 401, text: async () => "401 Unauthorized" }) as unknown as Response;
+    for (let i = 0; i < 6; i++) fetchSpy.mockResolvedValueOnce(make401());
 
-    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+    const chatPromise = (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "hi" },
+      sender
+    );
+
+    // 推进定时器跳过 callLLM 内部重试延迟（10+10+20+20+30 = 90s）
+    await vi.advanceTimersByTimeAsync(100_000);
+
+    await chatPromise;
 
     const events = sentMessages.map((m) => m.data);
     const errorEvents = events.filter((e: any) => e.type === "error");
     expect(errorEvents).toHaveLength(1);
     expect(errorEvents[0].errorCode).toBe("auth");
+
+    vi.useRealTimers();
   });
 
   it("API 错误响应（HTTP 500 后重试成功）：withRetry 生效", async () => {
@@ -1440,25 +1459,31 @@ describe("callLLM 流式响应解析", () => {
   });
 
   it("无 response body：抛出 No response body", async () => {
+    vi.useFakeTimers();
+
     const { service, mockRepo } = createTestService();
     const { sender, sentMessages } = createMockSender();
 
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
     mockRepo.getMessages.mockResolvedValue([]);
 
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      body: null,
-      text: async () => "",
-    } as unknown as Response);
+    // callLLM 内部会重试 5 次，需提供足够多的 mock
+    const makeNoBody = () => ({ ok: true, status: 200, body: null, text: async () => "" }) as unknown as Response;
+    for (let i = 0; i < 6; i++) fetchSpy.mockResolvedValueOnce(makeNoBody());
 
-    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+    const chatPromise = (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    // 推进定时器跳过 callLLM 内部重试延迟
+    await vi.advanceTimersByTimeAsync(100_000);
+
+    await chatPromise;
 
     const events = sentMessages.map((m) => m.data);
     const errorEvents = events.filter((e: any) => e.type === "error");
     expect(errorEvents).toHaveLength(1);
     expect(errorEvents[0].message).toContain("No response body");
+
+    vi.useRealTimers();
   });
 
   it("AbortSignal 中止：disconnect 后不再发送消息", async () => {
@@ -2122,6 +2147,8 @@ describe.concurrent("handleModelApi", () => {
       provider: "openai",
       apiBaseUrl: "https://api.openai.com",
       model: "gpt-4o",
+      supportsVision: true,
+      supportsImageOutput: true,
     });
     expect(models[1]).toEqual({
       id: "m2",
@@ -2130,6 +2157,8 @@ describe.concurrent("handleModelApi", () => {
       apiBaseUrl: "https://api.anthropic.com",
       model: "claude-sonnet-4-20250514",
       maxTokens: 4096,
+      supportsVision: true,
+      supportsImageOutput: false,
     });
   });
 
@@ -2178,6 +2207,9 @@ describe.concurrent("handleModelApi", () => {
 // ---- handleOPFSApi 测试 ----
 
 describe("handleOPFSApi", () => {
+  // mock sender: getSender() 返回 truthy → supportBlob = false → 使用 blobUrl（chrome.runtime 通道）
+  const mockOPFSSender = { getSender: () => ({ id: "test" }) } as any;
+
   // 构建内存 OPFS mock（与 opfs_tools.test.ts 相同逻辑）
   type FSNode = { kind: "file"; content: string } | { kind: "directory"; children: Map<string, FSNode> };
 
@@ -2264,20 +2296,26 @@ describe("handleOPFSApi", () => {
     setupOPFS();
     const { service } = createTestService();
 
-    const writeResult = (await service.handleOPFSApi({
-      action: "write",
-      path: "test.txt",
-      content: "Hello OPFS",
-      scriptUuid: "s1",
-    })) as any;
+    const writeResult = (await service.handleOPFSApi(
+      {
+        action: "write",
+        path: "test.txt",
+        content: "Hello OPFS",
+        scriptUuid: "s1",
+      },
+      mockOPFSSender
+    )) as any;
     expect(writeResult.path).toBe("test.txt");
     expect(writeResult.size).toBe(10);
 
-    const readResult = (await service.handleOPFSApi({
-      action: "read",
-      path: "test.txt",
-      scriptUuid: "s1",
-    })) as any;
+    const readResult = (await service.handleOPFSApi(
+      {
+        action: "read",
+        path: "test.txt",
+        scriptUuid: "s1",
+      },
+      mockOPFSSender
+    )) as any;
     expect(readResult.content).toBe("Hello OPFS");
   });
 
@@ -2285,10 +2323,13 @@ describe("handleOPFSApi", () => {
     setupOPFS();
     const { service } = createTestService();
 
-    await service.handleOPFSApi({ action: "write", path: "a.txt", content: "a", scriptUuid: "s1" });
-    await service.handleOPFSApi({ action: "write", path: "dir/b.txt", content: "bb", scriptUuid: "s1" });
+    await service.handleOPFSApi({ action: "write", path: "a.txt", content: "a", scriptUuid: "s1" }, mockOPFSSender);
+    await service.handleOPFSApi(
+      { action: "write", path: "dir/b.txt", content: "bb", scriptUuid: "s1" },
+      mockOPFSSender
+    );
 
-    const listResult = (await service.handleOPFSApi({ action: "list", scriptUuid: "s1" })) as any[];
+    const listResult = (await service.handleOPFSApi({ action: "list", scriptUuid: "s1" }, mockOPFSSender)) as any[];
     expect(listResult).toHaveLength(2);
     expect(listResult.find((e: any) => e.name === "a.txt")).toBeDefined();
     expect(listResult.find((e: any) => e.name === "dir")).toBeDefined();
@@ -2298,16 +2339,21 @@ describe("handleOPFSApi", () => {
     setupOPFS();
     const { service } = createTestService();
 
-    await service.handleOPFSApi({ action: "write", path: "tmp.txt", content: "x", scriptUuid: "s1" });
-    const delResult = (await service.handleOPFSApi({ action: "delete", path: "tmp.txt", scriptUuid: "s1" })) as any;
+    await service.handleOPFSApi({ action: "write", path: "tmp.txt", content: "x", scriptUuid: "s1" }, mockOPFSSender);
+    const delResult = (await service.handleOPFSApi(
+      { action: "delete", path: "tmp.txt", scriptUuid: "s1" },
+      mockOPFSSender
+    )) as any;
     expect(delResult.success).toBe(true);
 
-    await expect(service.handleOPFSApi({ action: "read", path: "tmp.txt", scriptUuid: "s1" })).rejects.toThrow();
+    await expect(
+      service.handleOPFSApi({ action: "read", path: "tmp.txt", scriptUuid: "s1" }, mockOPFSSender)
+    ).rejects.toThrow();
   });
 
   it("未知 action 应抛出错误", async () => {
     const { service } = createTestService();
-    await expect(service.handleOPFSApi({ action: "unknown" as any, scriptUuid: "s1" })).rejects.toThrow(
+    await expect(service.handleOPFSApi({ action: "unknown" as any, scriptUuid: "s1" }, mockOPFSSender)).rejects.toThrow(
       "Unknown OPFS action"
     );
   });
@@ -2317,11 +2363,14 @@ describe("handleOPFSApi", () => {
     const testBlob = new Blob(["test image data"], { type: "image/png" });
     mockRepo.getAttachment = vi.fn().mockResolvedValue(testBlob);
 
-    const result = (await service.handleOPFSApi({
-      action: "readAttachment",
-      id: "att-123",
-      scriptUuid: "s1",
-    })) as any;
+    const result = (await service.handleOPFSApi(
+      {
+        action: "readAttachment",
+        id: "att-123",
+        scriptUuid: "s1",
+      },
+      mockOPFSSender
+    )) as any;
 
     expect(result.id).toBe("att-123");
     expect(result.blobUrl).toBe("blob:chrome-extension://test/mock-blob-url");
@@ -2335,7 +2384,7 @@ describe("handleOPFSApi", () => {
     mockRepo.getAttachment = vi.fn().mockResolvedValue(null);
 
     await expect(
-      service.handleOPFSApi({ action: "readAttachment", id: "not-exist", scriptUuid: "s1" })
+      service.handleOPFSApi({ action: "readAttachment", id: "not-exist", scriptUuid: "s1" }, mockOPFSSender)
     ).rejects.toThrow("Attachment not found: not-exist");
   });
 
@@ -2343,14 +2392,20 @@ describe("handleOPFSApi", () => {
     setupOPFS();
     const { service } = createTestService();
 
-    await service.handleOPFSApi({ action: "write", path: "img.png", content: "fake png", scriptUuid: "s1" });
+    await service.handleOPFSApi(
+      { action: "write", path: "img.png", content: "fake png", scriptUuid: "s1" },
+      mockOPFSSender
+    );
 
-    const result = (await service.handleOPFSApi({
-      action: "read",
-      path: "img.png",
-      format: "blob",
-      scriptUuid: "s1",
-    })) as any;
+    const result = (await service.handleOPFSApi(
+      {
+        action: "read",
+        path: "img.png",
+        format: "blob",
+        scriptUuid: "s1",
+      },
+      mockOPFSSender
+    )) as any;
 
     expect(result.path).toBe("img.png");
     expect(result.blobUrl).toBe("blob:chrome-extension://test/mock-blob-url");

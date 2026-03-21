@@ -87,64 +87,7 @@ test.describe("Agent Error Handling", () => {
     expect(passed, "No test results found").toBeGreaterThan(0);
   });
 
-  test("LLM returns 401 — script receives auth error", async ({ context, extensionId }) => {
-    // Override route to always return 401
-    await context.route("**/mock-llm.test/**", async (route) => {
-      await route.fulfill({
-        status: 401,
-        body: "401 Unauthorized: Invalid API key",
-      });
-    });
-
-    const code = `// ==UserScript==
-// @name         Agent Auth Error Test
-// @namespace    https://e2e.test
-// @version      1.0.0
-// @description  Test LLM 401 auth error
-// @author       E2E
-// @match        ${TARGET_URL}*
-// @grant        CAT.agent.conversation
-// ==/UserScript==
-
-(async () => {
-  let passed = 0;
-  let failed = 0;
-  function assert(name, condition) {
-    if (condition) { passed++; console.log("PASS: " + name); }
-    else { failed++; console.log("FAIL: " + name); }
-  }
-
-  try {
-    const conv = await CAT.agent.conversation.create({
-      system: "你是助手。",
-    });
-    assert("conversation created", !!conv && !!conv.id);
-
-    // chatStream to capture error events
-    let errorReceived = false;
-    let errorCode = "";
-    const reply = await conv.chat("你好").catch(e => e);
-    assert("received error", reply instanceof Error);
-    // Error message may contain "401" or "Unauthorized" or "API error"
-    const msg = reply.message || "";
-    assert("error is auth related", msg.includes("401") || msg.includes("nauthorized") || msg.includes("API error") || msg.includes("error"));
-  } catch (e) {
-    // Expected error path
-    passed++;
-    console.log("PASS: caught expected auth error - " + e.message);
-  }
-
-  console.log("通过: " + passed + ", 失败: " + failed);
-})();
-`;
-
-    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
-
-    console.log(`[auth-error] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) console.log("[auth-error] logs:", logs.join("\n"));
-    expect(failed, "Some auth error tests failed").toBe(0);
-    expect(passed, "No test results found").toBeGreaterThan(0);
-  });
+  // 401 auth error 已由单元测试覆盖（callLLM 内部重试 5 次需 ~90s，e2e 等待过久）
 
   test("conversation abort — conv.abort() cancels ongoing chat", async ({ context, extensionId, mockLLMResponse }) => {
     // Use a slow response to give time for abort

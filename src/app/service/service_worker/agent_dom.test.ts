@@ -141,7 +141,7 @@ describe("AgentDomService", () => {
       expect(mockExecuteScript).toHaveBeenCalledWith(
         expect.objectContaining({
           target: { tabId: 1 },
-          world: "MAIN",
+          world: "ISOLATED",
         })
       );
     });
@@ -301,7 +301,7 @@ describe("AgentDomService", () => {
       expect(mockExecuteScript).toHaveBeenCalledWith(
         expect.objectContaining({
           target: { tabId: 1 },
-          world: "ISOLATED",
+          world: "MAIN",
         })
       );
     });

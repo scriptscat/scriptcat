@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createOPFSTools, sanitizePath } from "./opfs_tools";
+import { createOPFSTools, sanitizePath, setCreateBlobUrlFn } from "./opfs_tools";
 
 // ---- In-memory OPFS mock ----
 
@@ -139,6 +139,8 @@ describe("opfs_tools", () => {
         getDirectory: vi.fn().mockResolvedValue(mockFS.rootHandle),
       },
     });
+    // opfs_read 总是返回 blobUrl，需要初始化 createBlobUrlFn
+    setCreateBlobUrlFn(async () => "blob:mock-url");
   });
 
   function getTool(name: string) {
@@ -165,7 +167,7 @@ describe("opfs_tools", () => {
 
       const readResult = JSON.parse((await read.executor.execute({ path: "hello.txt" })) as string);
       expect(readResult.path).toBe("hello.txt");
-      expect(readResult.content).toBe("Hello!");
+      expect(readResult.blobUrl).toBe("blob:mock-url");
       expect(readResult.size).toBe(6);
     });
 
@@ -175,7 +177,7 @@ describe("opfs_tools", () => {
 
       await write.executor.execute({ path: "a/b/c.txt", content: "deep" });
       const result = JSON.parse((await read.executor.execute({ path: "a/b/c.txt" })) as string);
-      expect(result.content).toBe("deep");
+      expect(result.blobUrl).toBe("blob:mock-url");
     });
 
     it("should overwrite existing file", async () => {
@@ -185,7 +187,7 @@ describe("opfs_tools", () => {
       await write.executor.execute({ path: "f.txt", content: "v1" });
       await write.executor.execute({ path: "f.txt", content: "v2" });
       const result = JSON.parse((await read.executor.execute({ path: "f.txt" })) as string);
-      expect(result.content).toBe("v2");
+      expect(result.blobUrl).toBe("blob:mock-url");
     });
 
     it("should strip leading slashes from path", async () => {
@@ -194,7 +196,7 @@ describe("opfs_tools", () => {
 
       await write.executor.execute({ path: "/leading.txt", content: "ok" });
       const result = JSON.parse((await read.executor.execute({ path: "leading.txt" })) as string);
-      expect(result.content).toBe("ok");
+      expect(result.blobUrl).toBe("blob:mock-url");
     });
 
     it("should reject .. in path", async () => {
