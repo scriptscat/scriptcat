@@ -179,5 +179,4 @@ export class AgentChatRepo extends OPFSRepo {
     const tasksDir = await this.getChildDir(TASKS_DIR);
     await this.deleteFile(`${conversationId}.json`, tasksDir);
   }
-
 }

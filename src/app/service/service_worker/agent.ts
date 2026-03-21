@@ -40,7 +40,11 @@ import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
 import { SkillScriptExecutor, SKILL_SCRIPT_UUID_PREFIX } from "@App/app/service/agent/skill_script_executor";
 import { CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
-import { buildSystemPrompt, buildSubAgentSystemPrompt, SKILL_SUFFIX_HEADER } from "@App/app/service/agent/system_prompt";
+import {
+  buildSystemPrompt,
+  buildSubAgentSystemPrompt,
+  SKILL_SUFFIX_HEADER,
+} from "@App/app/service/agent/system_prompt";
 import { COMPACT_SYSTEM_PROMPT, buildCompactUserPrompt, extractSummary } from "@App/app/service/agent/compact_prompt";
 import { getContextWindow } from "@App/app/service/agent/model_context";
 import { cacheInstance } from "@App/app/cache";
@@ -57,7 +61,11 @@ import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent
 import { SearchConfigRepo, type SearchEngineConfig } from "@App/app/service/agent/tools/search_config";
 import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
-import { createSubAgentTool, type SubAgentRunOptions, type SubAgentRunResult } from "@App/app/service/agent/tools/sub_agent";
+import {
+  createSubAgentTool,
+  type SubAgentRunOptions,
+  type SubAgentRunResult,
+} from "@App/app/service/agent/tools/sub_agent";
 import { resolveSubAgentType, getExcludeToolsForType } from "@App/app/service/agent/sub_agent_types";
 import { detectToolCallIssues, type ToolCallRecord } from "@App/app/service/agent/tool_call_guard";
 import { createOPFSTools, setCreateBlobUrlFn, guessMimeType } from "@App/app/service/agent/tools/opfs_tools";
@@ -205,9 +213,8 @@ export class AgentService {
     );
     this.group.on("removeSkill", (name: string) => this.removeSkill(name));
     this.group.on("refreshSkill", (name: string) => this.refreshSkill(name));
-    this.group.on(
-      "setSkillEnabled",
-      (params: { name: string; enabled: boolean }) => this.setSkillEnabled(params.name, params.enabled)
+    this.group.on("setSkillEnabled", (params: { name: string; enabled: boolean }) =>
+      this.setSkillEnabled(params.name, params.enabled)
     );
     this.group.on("getSkillConfigValues", (name: string) => this.skillRepo.getConfigValues(name));
     this.group.on("saveSkillConfig", (params: { name: string; values: Record<string, unknown> }) =>
@@ -1549,14 +1556,21 @@ export class AgentService {
       const contextMap = this.subAgentContexts.get(parentConversationId);
       const ctx = contextMap?.get(options.to);
       if (!ctx) {
-        return { agentId: options.to, result: `Error: Sub-agent "${options.to}" not found. It may have been cleaned up when the conversation ended.` };
+        return {
+          agentId: options.to,
+          result: `Error: Sub-agent "${options.to}" not found. It may have been cleaned up when the conversation ended.`,
+        };
       }
 
       // 追加新的 user message 到已有上下文
       ctx.messages.push({ role: "user", content: options.prompt });
       ctx.status = "completed"; // 重置，将由 core 更新
 
-      const { result, details, usage: subUsage } = await this.runSubAgentCore({
+      const {
+        result,
+        details,
+        usage: subUsage,
+      } = await this.runSubAgentCore({
         messages: ctx.messages,
         model,
         excludeTools,
@@ -1593,7 +1607,11 @@ export class AgentService {
       { role: "user", content: options.prompt },
     ];
 
-    const { result, details, usage: subUsage } = await this.runSubAgentCore({
+    const {
+      result,
+      details,
+      usage: subUsage,
+    } = await this.runSubAgentCore({
       messages,
       model,
       excludeTools,
@@ -1645,7 +1663,12 @@ export class AgentService {
   }): Promise<{
     result: string;
     details: import("@App/app/service/agent/types").SubAgentMessage[];
-    usage: { inputTokens: number; outputTokens: number; cacheCreationInputTokens: number; cacheReadInputTokens: number };
+    usage: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens: number;
+      cacheReadInputTokens: number;
+    };
   }> {
     let resultContent = "";
     // 收集子代理执行详情用于持久化
@@ -1667,7 +1690,11 @@ export class AgentService {
           currentMsg.thinking = (currentMsg.thinking || "") + event.delta;
           break;
         case "tool_call_start":
-          currentMsg.toolCalls.push({ ...event.toolCall, arguments: event.toolCall.arguments || "", status: "running" });
+          currentMsg.toolCalls.push({
+            ...event.toolCall,
+            arguments: event.toolCall.arguments || "",
+            status: "running",
+          });
           break;
         case "tool_call_delta":
           if (currentMsg.toolCalls.length) {

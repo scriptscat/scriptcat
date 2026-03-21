@@ -44,7 +44,9 @@ function renderToolCall(tc: ToolCall, indent = ""): string {
 // 渲染子代理详情
 function renderSubAgent(details: SubAgentDetails, indent = ""): string {
   const lines: string[] = [];
-  lines.push(`${indent}**Sub-Agent:** ${details.description}${details.subAgentType ? ` (${details.subAgentType})` : ""}`);
+  lines.push(
+    `${indent}**Sub-Agent:** ${details.description}${details.subAgentType ? ` (${details.subAgentType})` : ""}`
+  );
   for (const msg of details.messages) {
     if (msg.thinking) {
       lines.push("");

@@ -88,9 +88,19 @@ describe("detectToolCallIssues", () => {
     it("中间穿插其他工具但 execute_script 仍然连续 null 时触发", () => {
       const history: ToolCallRecord[] = [
         { name: "execute_script", args: '{"code":"a()"}', result: '{"result":null}', iteration: 1 },
-        { name: "get_tab_content", args: '{"tab_id":1,"prompt":"find buttons"}', result: "page content...", iteration: 2 },
+        {
+          name: "get_tab_content",
+          args: '{"tab_id":1,"prompt":"find buttons"}',
+          result: "page content...",
+          iteration: 2,
+        },
         { name: "execute_script", args: '{"code":"b()"}', result: '{"result":null}', iteration: 3 },
-        { name: "get_tab_content", args: '{"tab_id":1,"prompt":"check state"}', result: "page content...", iteration: 4 },
+        {
+          name: "get_tab_content",
+          args: '{"tab_id":1,"prompt":"check state"}',
+          result: "page content...",
+          iteration: 4,
+        },
         { name: "execute_script", args: '{"code":"c()"}', result: '{"result":null}', iteration: 5 },
       ];
       const warning = detectToolCallIssues(history);

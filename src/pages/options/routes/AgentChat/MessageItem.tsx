@@ -37,7 +37,12 @@ function AssistantMessageContent({
   const { t } = useTranslation();
 
   // 匹配 agent 工具调用对应的子代理状态
-  const getSubAgentForToolCall = (tc: { name: string; result?: string; arguments?: string; subAgentDetails?: import("@App/app/service/agent/types").SubAgentDetails }) => {
+  const getSubAgentForToolCall = (tc: {
+    name: string;
+    result?: string;
+    arguments?: string;
+    subAgentDetails?: import("@App/app/service/agent/types").SubAgentDetails;
+  }) => {
     if (tc.name !== "agent") return undefined;
 
     // 1. 从流式 subAgents map 匹配（优先，因为包含实时状态）
@@ -491,37 +496,39 @@ export function UserMessageItem({
                   </button>
                 </Tooltip>
               </div>
-            ) : canInteract && (
-              <div className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-flex tw-items-center tw-mt-1 tw-gap-0.5">
-                <Tooltip content={t("agent_chat_copy_message")} mini position="bottom">
-                  <button
-                    className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
-                    onClick={handleCopy}
-                  >
-                    <IconCopy style={{ fontSize: 13 }} />
-                  </button>
-                </Tooltip>
-                {onEdit && (
-                  <Tooltip content={t("agent_chat_edit_message")} mini position="bottom">
+            ) : (
+              canInteract && (
+                <div className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-flex tw-items-center tw-mt-1 tw-gap-0.5">
+                  <Tooltip content={t("agent_chat_copy_message")} mini position="bottom">
                     <button
                       className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
-                      onClick={handleStartEdit}
+                      onClick={handleCopy}
                     >
-                      <IconEdit style={{ fontSize: 13 }} />
+                      <IconCopy style={{ fontSize: 13 }} />
                     </button>
                   </Tooltip>
-                )}
-                {onRegenerate && (
-                  <Tooltip content={t("agent_chat_regenerate")} mini position="bottom">
-                    <button
-                      className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
-                      onClick={onRegenerate}
-                    >
-                      <IconRefresh style={{ fontSize: 13 }} />
-                    </button>
-                  </Tooltip>
-                )}
-              </div>
+                  {onEdit && (
+                    <Tooltip content={t("agent_chat_edit_message")} mini position="bottom">
+                      <button
+                        className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                        onClick={handleStartEdit}
+                      >
+                        <IconEdit style={{ fontSize: 13 }} />
+                      </button>
+                    </Tooltip>
+                  )}
+                  {onRegenerate && (
+                    <Tooltip content={t("agent_chat_regenerate")} mini position="bottom">
+                      <button
+                        className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                        onClick={onRegenerate}
+                      >
+                        <IconRefresh style={{ fontSize: 13 }} />
+                      </button>
+                    </Tooltip>
+                  )}
+                </div>
+              )
             )}
           </>
         )}
@@ -572,7 +579,12 @@ export function AssistantMessageGroup({
       {/* 消息内容：连续的 assistant 消息纵向排列 */}
       <div className="tw-flex tw-flex-col tw-max-w-[80%] tw-min-w-0 tw-gap-1">
         {messages.map((msg) => (
-          <AssistantMessageContent key={msg.id} message={msg} isStreaming={streamingId === msg.id} subAgents={subAgents} />
+          <AssistantMessageContent
+            key={msg.id}
+            message={msg}
+            isStreaming={streamingId === msg.id}
+            subAgents={subAgents}
+          />
         ))}
 
         {/* 工具条 */}

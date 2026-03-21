@@ -11,28 +11,14 @@ export interface SubAgentTypeConfig {
 }
 
 // 所有子代理类型都默认可用的工具（task 工具用于与主 agent 共享任务进度）
-const ALWAYS_ALLOWED_TOOLS = [
-  "create_task",
-  "update_task",
-  "get_task",
-  "list_tasks",
-  "delete_task",
-];
+const ALWAYS_ALLOWED_TOOLS = ["create_task", "update_task", "get_task", "list_tasks", "delete_task"];
 
 // 内置子代理类型
 export const SUB_AGENT_TYPES: Record<string, SubAgentTypeConfig> = {
   researcher: {
     name: "researcher",
     description: "Web search/fetch, data analysis, no tab interaction",
-    allowedTools: [
-      "web_fetch",
-      "web_search",
-      "opfs_read",
-      "opfs_write",
-      "opfs_list",
-      "opfs_delete",
-      "execute_script",
-    ],
+    allowedTools: ["web_fetch", "web_search", "opfs_read", "opfs_write", "opfs_list", "opfs_delete", "execute_script"],
     maxIterations: 20,
     timeoutMs: 600_000,
     systemPromptAddition: `## Role: Researcher

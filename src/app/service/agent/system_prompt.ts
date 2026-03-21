@@ -355,10 +355,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 /**
  * 组装子代理的 system prompt：子代理专用基础提示词 + 类型角色说明 + 动态工具指南 + 条件 OPFS 段
  */
-export function buildSubAgentSystemPrompt(
-  typeConfig: SubAgentTypeConfig,
-  availableToolNames: string[]
-): string {
+export function buildSubAgentSystemPrompt(typeConfig: SubAgentTypeConfig, availableToolNames: string[]): string {
   const nameSet = new Set(availableToolNames);
   const hasOpfs = nameSet.has("opfs_read") || nameSet.has("opfs_write");
   const hasTabTools = nameSet.has("get_tab_content");

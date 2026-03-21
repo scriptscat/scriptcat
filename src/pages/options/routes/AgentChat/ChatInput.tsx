@@ -285,13 +285,10 @@ export default function ChatInput({
     setInput("");
   };
 
-  const handleSlashSelect = useCallback(
-    (skill: SkillSummary) => {
-      setInput(`/${skill.name} `);
-      textareaRef.current?.focus();
-    },
-    []
-  );
+  const handleSlashSelect = useCallback((skill: SkillSummary) => {
+    setInput(`/${skill.name} `);
+    textareaRef.current?.focus();
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // 忽略输入法组合状态中的回车（如中文输入法确认候选词）
@@ -388,185 +385,201 @@ export default function ChatInput({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-          {/* 附件预览条 */}
-          {attachments.length > 0 && (
-            <div className="tw-flex tw-gap-2 tw-px-4 tw-pt-3 tw-pb-1 tw-flex-wrap">
-              {attachments.map((att) => (
-                <div key={att.id} className="tw-relative tw-group tw-shrink-0">
-                  {att.previewUrl ? (
-                    <img
-                      src={att.previewUrl}
-                      alt={att.file.name}
-                      className="tw-w-16 tw-h-16 tw-rounded-lg tw-object-cover tw-border tw-border-solid tw-border-[var(--color-border-2)]"
-                    />
-                  ) : (
-                    <div
-                      className="tw-w-16 tw-h-16 tw-rounded-lg tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-fill-1)] tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-0.5"
-                      title={att.file.name}
+            {/* 附件预览条 */}
+            {attachments.length > 0 && (
+              <div className="tw-flex tw-gap-2 tw-px-4 tw-pt-3 tw-pb-1 tw-flex-wrap">
+                {attachments.map((att) => (
+                  <div key={att.id} className="tw-relative tw-group tw-shrink-0">
+                    {att.previewUrl ? (
+                      <img
+                        src={att.previewUrl}
+                        alt={att.file.name}
+                        className="tw-w-16 tw-h-16 tw-rounded-lg tw-object-cover tw-border tw-border-solid tw-border-[var(--color-border-2)]"
+                      />
+                    ) : (
+                      <div
+                        className="tw-w-16 tw-h-16 tw-rounded-lg tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-fill-1)] tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-0.5"
+                        title={att.file.name}
+                      >
+                        {att.file.type.startsWith("audio/") ? (
+                          <IconPlayCircle style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
+                        ) : (
+                          <IconFile style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
+                        )}
+                        <span className="tw-text-[9px] tw-text-[var(--color-text-4)] tw-max-w-[56px] tw-truncate tw-px-0.5">
+                          {att.file.name.length > 8
+                            ? att.file.name.slice(0, 5) + "..." + (att.file.name.split(".").pop() || "")
+                            : att.file.name}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => removeAttachment(att.id)}
+                      className="tw-absolute tw--top-1.5 tw--right-1.5 tw-w-5 tw-h-5 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[var(--color-bg-5)] tw-text-white tw-border-none tw-cursor-pointer tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-text-xs tw-leading-none"
                     >
-                      {att.file.type.startsWith("audio/") ? (
-                        <IconPlayCircle style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
-                      ) : (
-                        <IconFile style={{ fontSize: 20 }} className="tw-text-[var(--color-text-3)]" />
-                      )}
-                      <span className="tw-text-[9px] tw-text-[var(--color-text-4)] tw-max-w-[56px] tw-truncate tw-px-0.5">
-                        {att.file.name.length > 8
-                          ? att.file.name.slice(0, 5) + "..." + (att.file.name.split(".").pop() || "")
-                          : att.file.name}
-                      </span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => removeAttachment(att.id)}
-                    className="tw-absolute tw--top-1.5 tw--right-1.5 tw-w-5 tw-h-5 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[var(--color-bg-5)] tw-text-white tw-border-none tw-cursor-pointer tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-text-xs tw-leading-none"
-                  >
-                    <IconClose style={{ fontSize: 10 }} />
-                  </button>
-                </div>
-              ))}
+                      <IconClose style={{ fontSize: 10 }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 输入区域 */}
+            <div className="tw-px-4 tw-pt-3 tw-pb-2">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                placeholder={t("agent_chat_input_placeholder")}
+                disabled={disabled}
+                rows={1}
+                className="tw-w-full tw-resize-none tw-border-none tw-outline-none tw-bg-transparent tw-text-sm tw-text-[var(--color-text-1)] tw-min-h-[24px] tw-max-h-[200px] placeholder:tw-text-[var(--color-text-4)]"
+              />
             </div>
-          )}
 
-          {/* 输入区域 */}
-          <div className="tw-px-4 tw-pt-3 tw-pb-2">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder={t("agent_chat_input_placeholder")}
-              disabled={disabled}
-              rows={1}
-              className="tw-w-full tw-resize-none tw-border-none tw-outline-none tw-bg-transparent tw-text-sm tw-text-[var(--color-text-1)] tw-min-h-[24px] tw-max-h-[200px] placeholder:tw-text-[var(--color-text-4)]"
-            />
-          </div>
+            {/* 隐藏的文件选择器 */}
+            <input ref={fileInputRef} type="file" multiple className="tw-hidden" onChange={handleFileSelect} />
 
-          {/* 隐藏的文件选择器 */}
-          <input ref={fileInputRef} type="file" multiple className="tw-hidden" onChange={handleFileSelect} />
-
-          {/* 底部工具栏 */}
-          <div className="tw-flex tw-items-center tw-justify-between tw-px-3 tw-pb-2">
-            <div className="tw-flex tw-items-center tw-gap-2">
-              <ModelSelect models={models} selectedModelId={selectedModelId} onModelChange={onModelChange} />
-              {skills && skills.length > 0 && onSkillsChange && (
-                <Select
-                  size="mini"
-                  mode="multiple"
-                  value={selectedSkills === "auto" ? ["__auto__"] : selectedSkills || []}
-                  onChange={(val: string[]) => {
-                    const wasAuto = selectedSkills === "auto";
-                    if (!wasAuto && val.includes("__auto__")) {
-                      // 切换到 auto 模式
-                      onSkillsChange("auto");
-                    } else if (wasAuto && val.length > 1) {
-                      // 从 auto 模式选择了具体 skill，取消 auto
-                      onSkillsChange(val.filter((v) => v !== "__auto__"));
-                    } else {
-                      onSkillsChange(val.filter((v) => v !== "__auto__"));
-                    }
-                  }}
-                  triggerProps={{ autoAlignPopupWidth: false }}
-                  getPopupContainer={() => document.body}
-                  className="!tw-w-auto !tw-min-w-[80px] !tw-max-w-[200px]"
-                  bordered={false}
-                  placeholder="Skills"
-                  allowClear
-                >
-                  <Select.Option key="__auto__" value="__auto__">
-                    {"Auto (all)"}
-                  </Select.Option>
-                  {skills.map((s) => (
-                    <Select.Option key={s.name} value={s.name}>
-                      {s.name}
-                    </Select.Option>
-                  ))}
-                </Select>
-              )}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
-                title={t("agent_chat_attach_file")}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
-              {onEnableToolsChange && (
-                <Tooltip
-                  content={
-                    enableTools !== false ? t("agent_chat_tools_enabled_tip") : t("agent_chat_tools_disabled_tip")
-                  }
-                  mini
-                >
-                  <button
-                    onClick={() => {
-                      const next = !enableTools;
-                      onEnableToolsChange(next);
-                      ArcoMessage.info(next ? t("agent_chat_tools_enabled") : t("agent_chat_tools_disabled"));
+            {/* 底部工具栏 */}
+            <div className="tw-flex tw-items-center tw-justify-between tw-px-3 tw-pb-2">
+              <div className="tw-flex tw-items-center tw-gap-2">
+                <ModelSelect models={models} selectedModelId={selectedModelId} onModelChange={onModelChange} />
+                {skills && skills.length > 0 && onSkillsChange && (
+                  <Select
+                    size="mini"
+                    mode="multiple"
+                    value={selectedSkills === "auto" ? ["__auto__"] : selectedSkills || []}
+                    onChange={(val: string[]) => {
+                      const wasAuto = selectedSkills === "auto";
+                      if (!wasAuto && val.includes("__auto__")) {
+                        // 切换到 auto 模式
+                        onSkillsChange("auto");
+                      } else if (wasAuto && val.length > 1) {
+                        // 从 auto 模式选择了具体 skill，取消 auto
+                        onSkillsChange(val.filter((v) => v !== "__auto__"));
+                      } else {
+                        onSkillsChange(val.filter((v) => v !== "__auto__"));
+                      }
                     }}
-                    className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
-                      enableTools !== false ? "tw-text-[rgb(var(--arcoblue-6))]" : "tw-text-[var(--color-text-4)]"
-                    } hover:tw-bg-[var(--color-fill-2)]`}
+                    triggerProps={{ autoAlignPopupWidth: false }}
+                    getPopupContainer={() => document.body}
+                    className="!tw-w-auto !tw-min-w-[80px] !tw-max-w-[200px]"
+                    bordered={false}
+                    placeholder="Skills"
+                    allowClear
                   >
-                    <IconTool style={{ fontSize: 16 }} />
-                  </button>
-                </Tooltip>
-              )}
-              {onBackgroundEnabledChange && (
-                <Tooltip content={backgroundEnabled ? t("agent_chat_background_enabled_tip") : t("agent_chat_background_disabled_tip")} mini>
-                  <button
-                    onClick={() => onBackgroundEnabledChange(!backgroundEnabled)}
-                    className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
-                      backgroundEnabled ? "tw-text-[rgb(var(--arcoblue-6))]" : "tw-text-[var(--color-text-4)]"
-                    } hover:tw-bg-[var(--color-fill-2)]`}
+                    <Select.Option key="__auto__" value="__auto__">
+                      {"Auto (all)"}
+                    </Select.Option>
+                    {skills.map((s) => (
+                      <Select.Option key={s.name} value={s.name}>
+                        {s.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                )}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                  title={t("agent_chat_attach_file")}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+                {onEnableToolsChange && (
+                  <Tooltip
+                    content={
+                      enableTools !== false ? t("agent_chat_tools_enabled_tip") : t("agent_chat_tools_disabled_tip")
+                    }
+                    mini
+                  >
+                    <button
+                      onClick={() => {
+                        const next = !enableTools;
+                        onEnableToolsChange(next);
+                        ArcoMessage.info(next ? t("agent_chat_tools_enabled") : t("agent_chat_tools_disabled"));
+                      }}
+                      className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
+                        enableTools !== false ? "tw-text-[rgb(var(--arcoblue-6))]" : "tw-text-[var(--color-text-4)]"
+                      } hover:tw-bg-[var(--color-fill-2)]`}
                     >
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                  </button>
-                </Tooltip>
-              )}
-              <span className="tw-text-xs tw-text-[var(--color-text-4)] tw-hidden sm:tw-inline">
-                {"Shift+Enter"} {t("agent_chat_newline")}
-              </span>
-            </div>
+                      <IconTool style={{ fontSize: 16 }} />
+                    </button>
+                  </Tooltip>
+                )}
+                {onBackgroundEnabledChange && (
+                  <Tooltip
+                    content={
+                      backgroundEnabled
+                        ? t("agent_chat_background_enabled_tip")
+                        : t("agent_chat_background_disabled_tip")
+                    }
+                    mini
+                  >
+                    <button
+                      onClick={() => onBackgroundEnabledChange(!backgroundEnabled)}
+                      className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
+                        backgroundEnabled ? "tw-text-[rgb(var(--arcoblue-6))]" : "tw-text-[var(--color-text-4)]"
+                      } hover:tw-bg-[var(--color-fill-2)]`}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </button>
+                  </Tooltip>
+                )}
+                <span className="tw-text-xs tw-text-[var(--color-text-4)] tw-hidden sm:tw-inline">
+                  {"Shift+Enter"} {t("agent_chat_newline")}
+                </span>
+              </div>
 
-            <div className="tw-flex tw-items-center tw-gap-1.5">
-              {isStreaming && (
-                <button
-                  onClick={onStop}
-                  className="tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[rgb(var(--orange-6))] tw-text-white tw-border-none tw-cursor-pointer tw-transition-all hover:tw-opacity-80 tw-shadow-sm"
-                >
-                  <IconPause style={{ fontSize: 14 }} />
-                </button>
-              )}
-              {(!isStreaming || canSend) && (
-                <button
-                  onClick={handleSend}
-                  disabled={!canSend}
-                  className={`tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-border-none tw-cursor-pointer tw-transition-all tw-shadow-sm ${
-                    canSend
-                      ? "tw-bg-[rgb(var(--arcoblue-6))] tw-text-white hover:tw-opacity-80"
-                      : "tw-bg-[var(--color-fill-3)] tw-text-[var(--color-text-4)] tw-cursor-not-allowed"
-                  }`}
-                >
-                  <IconSend style={{ fontSize: 14 }} />
-                </button>
-              )}
+              <div className="tw-flex tw-items-center tw-gap-1.5">
+                {isStreaming && (
+                  <button
+                    onClick={onStop}
+                    className="tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[rgb(var(--orange-6))] tw-text-white tw-border-none tw-cursor-pointer tw-transition-all hover:tw-opacity-80 tw-shadow-sm"
+                  >
+                    <IconPause style={{ fontSize: 14 }} />
+                  </button>
+                )}
+                {(!isStreaming || canSend) && (
+                  <button
+                    onClick={handleSend}
+                    disabled={!canSend}
+                    className={`tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-border-none tw-cursor-pointer tw-transition-all tw-shadow-sm ${
+                      canSend
+                        ? "tw-bg-[rgb(var(--arcoblue-6))] tw-text-white hover:tw-opacity-80"
+                        : "tw-bg-[var(--color-fill-3)] tw-text-[var(--color-text-4)] tw-cursor-not-allowed"
+                    }`}
+                  >
+                    <IconSend style={{ fontSize: 14 }} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
     </div>

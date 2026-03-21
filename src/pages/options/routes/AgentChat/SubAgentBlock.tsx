@@ -110,7 +110,10 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
           <span className="tw-text-[10px] tw-text-[var(--color-text-4)] tw-whitespace-nowrap">
             {formatTokens(state.usage.inputTokens)}→{formatTokens(state.usage.outputTokens)}
             {(state.usage.cacheReadInputTokens ?? 0) > 0 && (
-              <span className="tw-text-[rgb(var(--green-6))]"> C:{formatTokens(state.usage.cacheReadInputTokens!)}</span>
+              <span className="tw-text-[rgb(var(--green-6))]">
+                {" "}
+                C:{formatTokens(state.usage.cacheReadInputTokens!)}
+              </span>
             )}
           </span>
         )}
@@ -126,7 +129,10 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
         )}
 
         {/* 展开/收起箭头 */}
-        <span className="tw-text-[var(--color-text-4)] tw-transition-transform tw-duration-200" style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}>
+        <span
+          className="tw-text-[var(--color-text-4)] tw-transition-transform tw-duration-200"
+          style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+        >
           <IconDown style={{ fontSize: 12 }} />
         </span>
       </div>

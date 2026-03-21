@@ -18,7 +18,8 @@ const GET_TAB_CONTENT_DEFINITION: ToolDefinition = {
       tab_id: { type: "number", description: "Target tab ID (use list_tabs to find)" },
       prompt: {
         type: "string",
-        description: "Describe what information to extract/summarize from the page content. Required for efficient context usage.",
+        description:
+          "Describe what information to extract/summarize from the page content. Required for efficient context usage.",
       },
       selector: {
         type: "string",

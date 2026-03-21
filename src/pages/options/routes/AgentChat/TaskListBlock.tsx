@@ -48,9 +48,7 @@ export default function TaskListBlock({ tasks }: { tasks: Task[] }) {
         <div className="tw-flex tw-items-center tw-gap-2.5 tw-flex-1 tw-min-w-0">
           <ProgressRing progress={progress} allDone={allDone} />
           <div className="tw-flex tw-flex-col tw-min-w-0">
-            <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-1)] tw-leading-tight">
-              Tasks
-            </span>
+            <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-1)] tw-leading-tight">Tasks</span>
             <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-leading-tight tw-mt-0.5">
               {allDone
                 ? `${total} 项任务已完成`
@@ -133,12 +131,7 @@ function ProgressRing({ progress, allDone }: { progress: number; allDone: boolea
   const offset = circumference - (progress / 100) * circumference;
 
   return (
-    <svg
-      width={size}
-      height={size}
-      className="tw-shrink-0"
-      style={{ transform: "rotate(-90deg)" }}
-    >
+    <svg width={size} height={size} className="tw-shrink-0" style={{ transform: "rotate(-90deg)" }}>
       {/* 背景圆环 */}
       <circle
         cx={size / 2}

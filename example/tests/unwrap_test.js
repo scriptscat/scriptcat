@@ -18,49 +18,44 @@ var test_global_injection = "success";
 // User can access the variable "test_global_injection" directly in DevTools
 
 (function () {
-    const results = {
-        GM: {
-            expected: "undefined",
-            actual: typeof GM,
-        },
-        GM_setValue: {
-            expected: "undefined",
-            actual: typeof GM_setValue,
-        },
-        jQuery: {
-            expected: "function",
-            actual: typeof jQuery,
-        },
+  const results = {
+    GM: {
+      expected: "undefined",
+      actual: typeof GM,
+    },
+    GM_setValue: {
+      expected: "undefined",
+      actual: typeof GM_setValue,
+    },
+    jQuery: {
+      expected: "function",
+      actual: typeof jQuery,
+    },
+  };
+
+  console.group("%c@unwrap Test", "color:#0aa;font-weight:bold");
+
+  const table = {};
+  let allPass = true;
+
+  for (const key in results) {
+    const { expected, actual } = results[key];
+    const pass = expected === actual;
+    allPass &&= pass;
+
+    table[key] = {
+      Expected: expected,
+      Actual: actual,
+      Result: pass ? "✅ PASS" : "❌ FAIL",
     };
+  }
 
-    console.group(
-        "%c@unwrap Test",
-        "color:#0aa;font-weight:bold"
-    );
+  console.table(table);
 
-    const table = {};
-    let allPass = true;
+  console.log(
+    allPass ? "%cAll tests passed ✔" : "%cSome tests failed ✘",
+    `font-weight:bold;color:${allPass ? "green" : "red"}`
+  );
 
-    for (const key in results) {
-        const { expected, actual } = results[key];
-        const pass = expected === actual;
-        allPass &&= pass;
-
-        table[key] = {
-            Expected: expected,
-            Actual: actual,
-            Result: pass ? "✅ PASS" : "❌ FAIL",
-        };
-    }
-
-    console.table(table);
-
-    console.log(
-        allPass
-            ? "%cAll tests passed ✔"
-            : "%cSome tests failed ✘",
-        `font-weight:bold;color:${allPass ? "green" : "red"}`
-    );
-
-    console.groupEnd();
+  console.groupEnd();
 })();

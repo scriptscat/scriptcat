@@ -529,7 +529,12 @@ export class ConversationInstance {
         const result = await handler(args);
         results.push({ id: tc.id, result: typeof result === "string" ? result : JSON.stringify(result) });
       } catch (e: any) {
-        const errorMsg = e instanceof Error ? e.message || e.toString() : typeof e === "string" ? e : String(e) || "Tool execution failed";
+        const errorMsg =
+          e instanceof Error
+            ? e.message || e.toString()
+            : typeof e === "string"
+              ? e
+              : String(e) || "Tool execution failed";
         results.push({ id: tc.id, result: JSON.stringify({ error: errorMsg }) });
       }
     }

@@ -14,7 +14,8 @@ export const WEB_FETCH_DEFINITION: ToolDefinition = {
       url: { type: "string", description: "The URL to fetch (http/https)" },
       prompt: {
         type: "string",
-        description: "Describe what information to extract/summarize from the fetched content. Required for efficient context usage.",
+        description:
+          "Describe what information to extract/summarize from the fetched content. Required for efficient context usage.",
       },
       max_length: { type: "number", description: "Max characters to return (no limit by default)" },
     },

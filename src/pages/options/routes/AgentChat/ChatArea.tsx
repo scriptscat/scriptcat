@@ -256,7 +256,11 @@ export default function ChatArea({
               break;
             case "retry":
               // 显示重试提示
-              sa.retryInfo = { attempt: innerEvent.attempt, maxRetries: innerEvent.maxRetries, error: innerEvent.error };
+              sa.retryInfo = {
+                attempt: innerEvent.attempt,
+                maxRetries: innerEvent.maxRetries,
+                error: innerEvent.error,
+              };
               break;
             case "done":
               // 收集 usage
@@ -264,10 +268,12 @@ export default function ChatArea({
                 if (!sa.usage) sa.usage = { inputTokens: 0, outputTokens: 0 };
                 sa.usage.inputTokens += innerEvent.usage.inputTokens;
                 sa.usage.outputTokens += innerEvent.usage.outputTokens;
-                sa.usage.cacheCreationInputTokens = (sa.usage.cacheCreationInputTokens || 0) + (innerEvent.usage.cacheCreationInputTokens || 0);
-                sa.usage.cacheReadInputTokens = (sa.usage.cacheReadInputTokens || 0) + (innerEvent.usage.cacheReadInputTokens || 0);
+                sa.usage.cacheCreationInputTokens =
+                  (sa.usage.cacheCreationInputTokens || 0) + (innerEvent.usage.cacheCreationInputTokens || 0);
+                sa.usage.cacheReadInputTokens =
+                  (sa.usage.cacheReadInputTokens || 0) + (innerEvent.usage.cacheReadInputTokens || 0);
               }
-              // falls through
+            // falls through
             case "error":
               // 最后一轮归档
               sa.retryInfo = undefined; // 清除重试提示

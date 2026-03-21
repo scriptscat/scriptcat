@@ -38,10 +38,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 export type ExecuteScriptDeps = {
-  executeInPage: (
-    code: string,
-    options?: { tabId?: number }
-  ) => Promise<{ result: unknown; tabId: number }>;
+  executeInPage: (code: string, options?: { tabId?: number }) => Promise<{ result: unknown; tabId: number }>;
   executeInSandbox: (code: string) => Promise<unknown>;
   timeoutMs?: number; // 可选超时（ms），默认 30s，测试用
 };

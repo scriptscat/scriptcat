@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildSystemPrompt,
-  buildSubAgentSystemPrompt,
-  _BUILTIN_SYSTEM_PROMPT_FOR_TEST,
-} from "./system_prompt";
+import { buildSystemPrompt, buildSubAgentSystemPrompt, _BUILTIN_SYSTEM_PROMPT_FOR_TEST } from "./system_prompt";
 import { SUB_AGENT_TYPES } from "./sub_agent_types";
 
 describe("buildSystemPrompt", () => {
