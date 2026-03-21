@@ -10,6 +10,7 @@ import {
 } from "@App/app/repo/scripts";
 import { fetchScript, fetchScriptList } from "@App/pages/store/features/script";
 import { loadScriptFavicons } from "@App/pages/store/favicons";
+import { systemConfig } from "@App/pages/store/global";
 import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { cacheInstance } from "@App/app/cache";
@@ -76,7 +77,8 @@ export function useScriptDataManagement() {
       setLoadingList(false);
       cacheInstance.tx("faviconOPFSControl", async () => {
         if (!mounted) return;
-        for await (const { chunkResults } of loadScriptFavicons(list)) {
+        const faviconService = await systemConfig.getFaviconService();
+        for await (const { chunkResults } of loadScriptFavicons(list, faviconService)) {
           if (!mounted) return;
           setScriptList((prev) => {
             const favMap = new Map(chunkResults.map((r) => [r.uuid, r]));
