@@ -4,8 +4,9 @@ import type { ToolExecutor } from "@App/app/service/agent/tool_registry";
 export const ASK_USER_DEFINITION: ToolDefinition = {
   name: "ask_user",
   description:
-    "Ask the user a question and wait for their response (text only, no image support). " +
-    "Use options for structured choices (single/multi-select). Times out after 5 minutes.",
+    "Ask the user a question and wait for their response. " +
+    "Text response only (no image support). Times out after 5 minutes. " +
+    "The user can always type a custom response even when options are provided.",
   parameters: {
     type: "object",
     properties: {
@@ -13,12 +14,11 @@ export const ASK_USER_DEFINITION: ToolDefinition = {
       options: {
         type: "array",
         items: { type: "string" },
-        description:
-          "Optional list of choices for the user. If provided, user selects from these instead of free text input.",
+        description: "List of choices. User selects from these but can also type a custom response.",
       },
       multiple: {
         type: "boolean",
-        description: "Allow selecting multiple options (default: false, single-select).",
+        description: "Allow selecting multiple options (default: false).",
       },
     },
     required: ["question"],

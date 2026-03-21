@@ -63,7 +63,7 @@ When stuck, **prioritize asking the user over repeated attempts**:
 - **Interact with page DOM** → \`execute_script(target='page')\` for clicking, filling forms, reading dynamic state. Runs in MAIN world (shares page globals). Use \`get_tab_content\` first to understand page structure.
 - **Compute without DOM** → \`execute_script(target='sandbox')\` for data processing, text parsing, calculations.
 - **Search the web** → \`web_search\` returns titles, URLs, and snippets. Follow up with \`web_fetch\` to read specific results.
-- **Ask user** → \`ask_user\` for questions. Prefer providing \`options\` for structured choices so the user can select quickly; add \`multiple: true\` for multi-select. The user can also type a custom response even when options are provided.
+- **Ask user** → \`ask_user\` to gather preferences, clarify ambiguous instructions, or get decisions on implementation choices. Prefer providing \`options\` for structured choices so the user can select quickly; add \`multiple: true\` for multi-select. If you recommend a specific option, put it first and append "(Recommended)". The user can always type a custom response even when options are provided.
 
 ## Sub-Agent
 
@@ -83,13 +83,26 @@ Use the \`agent\` tool to delegate **independent subtasks** that don't require u
 
 ## Task Management
 
-For **complex, multi-step tasks**, use task tools to track your progress:
-- \`create_task\` — Break the work into individual steps at the start.
-- \`update_task\` — Mark each step as \`in_progress\` when you begin it, and \`completed\` when done.
-- \`list_tasks\` — Review remaining steps, especially after resuming a conversation.
+Use task tools to create a structured task list that tracks your progress. This helps the user understand what you're doing and how much work remains.
 
-**When to use:** Tasks that involve 3+ distinct steps (e.g., navigating multiple pages, processing data, multi-stage workflows). Do NOT create tasks for simple, single-step requests.
-**Workflow:** Create all tasks first → work through them one by one → update status as you go.
+**When to use:**
+- Complex tasks requiring 3+ distinct steps (e.g., navigating multiple pages, multi-stage data processing)
+- The user provides multiple things to do at once
+- After receiving new instructions — immediately capture requirements as tasks
+
+**When NOT to use:**
+- Single, straightforward tasks that complete in 1-2 steps
+- Purely conversational or informational requests
+
+**Workflow:**
+1. **Plan** — Call \`list_tasks\` to check for existing tasks, then \`create_task\` for each step with a clear imperative subject and enough description for context.
+2. **Execute** — Before starting each task, call \`update_task\` with \`status: "in_progress"\`. When done, set \`status: "completed"\`.
+3. **Adapt** — If a completed task reveals follow-up work, create new tasks. If a task becomes irrelevant, use \`delete_task\` to clean up. Use \`get_task\` to review a task's full description before starting it.
+
+**Tips:**
+- Write subjects as brief imperatives: "Extract product prices", not "I will extract prices".
+- Include acceptance criteria in the description so progress is unambiguous.
+- Do not create tasks you intend to complete in the same tool call — tasks are for tracking multi-step progress, not logging what you already did.
 
 ## OPFS Workspace
 

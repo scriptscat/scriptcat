@@ -10,13 +10,18 @@ export type Task = {
 
 const CREATE_TASK_DEFINITION: ToolDefinition = {
   name: "create_task",
-  description:
-    "Create a new task to track work progress. Use this to break complex, multi-step work into trackable steps. Returns the created task with an auto-assigned ID.",
+  description: "Create a new task. Returns the created task with an auto-assigned ID and status 'pending'.",
   parameters: {
     type: "object",
     properties: {
-      subject: { type: "string", description: "Brief title for the task" },
-      description: { type: "string", description: "Detailed description of what needs to be done" },
+      subject: {
+        type: "string",
+        description: "Brief, actionable title in imperative form (e.g., 'Extract product prices from page')",
+      },
+      description: {
+        type: "string",
+        description: "Detailed description including context and acceptance criteria",
+      },
     },
     required: ["subject"],
   },
@@ -24,8 +29,7 @@ const CREATE_TASK_DEFINITION: ToolDefinition = {
 
 const UPDATE_TASK_DEFINITION: ToolDefinition = {
   name: "update_task",
-  description:
-    'Update a task\'s status or details. Set status to "in_progress" when starting work, "completed" when done.',
+  description: "Update a task's status or details. Can change status, subject, and description.",
   parameters: {
     type: "object",
     properties: {
@@ -42,9 +46,33 @@ const UPDATE_TASK_DEFINITION: ToolDefinition = {
   },
 };
 
+const GET_TASK_DEFINITION: ToolDefinition = {
+  name: "get_task",
+  description: "Get a task's full details including description. list_tasks only returns id/subject/status.",
+  parameters: {
+    type: "object",
+    properties: {
+      task_id: { type: "string", description: "The task ID" },
+    },
+    required: ["task_id"],
+  },
+};
+
+const DELETE_TASK_DEFINITION: ToolDefinition = {
+  name: "delete_task",
+  description: "Delete a task permanently.",
+  parameters: {
+    type: "object",
+    properties: {
+      task_id: { type: "string", description: "The task ID to delete" },
+    },
+    required: ["task_id"],
+  },
+};
+
 const LIST_TASKS_DEFINITION: ToolDefinition = {
   name: "list_tasks",
-  description: "List all tasks with their IDs, subjects, and statuses. Use to review remaining work.",
+  description: "List all tasks with their IDs, subjects, and statuses (without descriptions).",
   parameters: {
     type: "object",
     properties: {},
@@ -125,6 +153,28 @@ export function createTaskTools(options?: TaskToolsOptions): {
     },
   };
 
+  const getExecutor: ToolExecutor = {
+    execute: async (args: Record<string, unknown>) => {
+      const task = tasks.get(args.task_id as string);
+      if (!task) {
+        throw new Error(`Task "${args.task_id}" not found`);
+      }
+      return JSON.stringify(task);
+    },
+  };
+
+  const deleteExecutor: ToolExecutor = {
+    execute: async (args: Record<string, unknown>) => {
+      const taskId = args.task_id as string;
+      if (!tasks.has(taskId)) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+      tasks.delete(taskId);
+      await emitUpdate();
+      return JSON.stringify({ deleted: true, task_id: taskId });
+    },
+  };
+
   const listExecutor: ToolExecutor = {
     execute: async () => {
       const list = Array.from(tasks.values()).map((t) => ({
@@ -140,6 +190,8 @@ export function createTaskTools(options?: TaskToolsOptions): {
     tools: [
       { definition: CREATE_TASK_DEFINITION, executor: createExecutor },
       { definition: UPDATE_TASK_DEFINITION, executor: updateExecutor },
+      { definition: GET_TASK_DEFINITION, executor: getExecutor },
+      { definition: DELETE_TASK_DEFINITION, executor: deleteExecutor },
       { definition: LIST_TASKS_DEFINITION, executor: listExecutor },
     ],
     tasks,
