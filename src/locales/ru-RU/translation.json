@@ -104,6 +104,7 @@
   "delete_current_logs": "Удалить текущие журналы",
   "clear_completed": "Очистка завершена",
   "clear_logs": "Очистить журналы",
+  "now": "Сейчас",
   "total_logs": "Найдено {{length}} записей журнала",
   "filtered_logs": "После фильтрации {{length}} записей журнала",
   "enter_filter_conditions": "Введите условия фильтрации для поиска",
