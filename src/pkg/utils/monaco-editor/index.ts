@@ -17,9 +17,9 @@ const langPromise = systemConfig.getLanguage();
 let multiLang = asEditorLangEntry("en-US");
 
 const updateLang = (lang: string) => {
-  lang = (lang || "") as EditorLangCode | "";
-  const key = (lang && (lang in editorLangs ? lang : "en-US")) || ("en-US" as EditorLangCode);
-  multiLang = asEditorLangEntry(key as EditorLangCode);
+  lang = `${lang || ""}` as EditorLangCode | "";
+  const key = ((Object.hasOwn(editorLangs, lang) && lang) || "en-US") as EditorLangCode;
+  multiLang = asEditorLangEntry(key);
 };
 
 langPromise.then((res) => updateLang(res));
