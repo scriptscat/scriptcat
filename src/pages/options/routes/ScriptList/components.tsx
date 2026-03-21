@@ -135,6 +135,7 @@ export const UpdateTimeCell = React.memo(({ className, script }: { className?: s
   const { t } = useTranslation();
   const [checking, setChecking] = React.useState(false);
   const handleClick = () => {
+    if (checking) return;
     if (!script.checkUpdateUrl) {
       Message.warning(t("update_not_supported")!);
       return;
