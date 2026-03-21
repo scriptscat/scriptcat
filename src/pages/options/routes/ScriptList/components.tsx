@@ -186,22 +186,9 @@ export const UpdateTimeCell = React.memo(({ className, script }: { className?: s
       {script.checkUpdateUrl && (
         <Tooltip content={t("check_update")} position="tl">
           <IconSync
-            style={{
-              cursor: "pointer",
-              opacity: checking ? 1 : 0.45,
-              transition: "opacity 0.2s",
-            }}
-            className={checking ? "arco-icon-loading" : ""}
+            className={`update-icon-sync ${checking ? "arco-icon-loading" : ""}`}
             spin={checking}
             onClick={handleClick}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = "1";
-            }}
-            onMouseLeave={(e) => {
-              if (!checking) {
-                e.currentTarget.style.opacity = "0.45";
-              }
-            }}
           />
         </Tooltip>
       )}

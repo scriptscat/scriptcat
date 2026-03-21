@@ -1,0 +1,13 @@
+.update-icon-sync {
+	cursor: pointer;
+	opacity: 0.45;
+	transition: opacity 0.2s;
+}
+
+.update-icon-sync.arco-icon-loading {
+	opacity: 1;
+}
+
+.update-icon-sync:hover {
+	opacity: 1;
+}

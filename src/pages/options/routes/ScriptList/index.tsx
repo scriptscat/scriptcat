@@ -1,3 +1,4 @@
+import "./index.css";
 import { useCallback, useEffect, useState, memo } from "react";
 import { Card, Message } from "@arco-design/web-react";
 import { useSearchParams } from "react-router-dom";
