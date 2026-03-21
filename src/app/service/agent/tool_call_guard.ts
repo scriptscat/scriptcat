@@ -133,24 +133,29 @@ function checkGenericRepetition(history: ToolCallRecord[]): string | null {
 /**
  * 分析工具调用历史，检测重复/循环模式并生成针对性的提醒消息。
  * 按优先级检测，命中即返回。返回 null 表示没有检测到问题。
+ *
+ * @param startIndex 只检测 history[startIndex:] 的记录。
+ *   调用方应在每次收到警告后将 startIndex 推进到当前 history.length，
+ *   避免已经警告过的旧记录持续触发同一条警告。
  */
-export function detectToolCallIssues(history: ToolCallRecord[]): string | null {
-  if (history.length < 2) return null;
+export function detectToolCallIssues(history: ToolCallRecord[], startIndex = 0): string | null {
+  const relevantHistory = startIndex > 0 ? history.slice(startIndex) : history;
+  if (relevantHistory.length < 2) return null;
 
   // 规则1: 完全相同的 tool + args
-  const duplicateWarning = checkDuplicateCalls(history);
+  const duplicateWarning = checkDuplicateCalls(relevantHistory);
   if (duplicateWarning) return duplicateWarning;
 
   // 规则2: execute_script 连续返回 null
-  const executeNullWarning = checkExecuteScriptNulls(history);
+  const executeNullWarning = checkExecuteScriptNulls(relevantHistory);
   if (executeNullWarning) return executeNullWarning;
 
   // 规则3: get_tab_content 对同一 tab 重复调用
-  const getContentWarning = checkGetTabContentRepetition(history);
+  const getContentWarning = checkGetTabContentRepetition(relevantHistory);
   if (getContentWarning) return getContentWarning;
 
   // 规则4: 通用重复检测（兜底）
-  const genericWarning = checkGenericRepetition(history);
+  const genericWarning = checkGenericRepetition(relevantHistory);
   if (genericWarning) return genericWarning;
 
   return null;

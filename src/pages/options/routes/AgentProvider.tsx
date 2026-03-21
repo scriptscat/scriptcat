@@ -266,6 +266,8 @@ function AgentProvider() {
   const [isEditing, setIsEditing] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testReply, setTestReply] = useState("");
 
   // 从 Repo 加载数据
   const loadData = useCallback(async () => {
@@ -282,6 +284,7 @@ function AgentProvider() {
     setEditingModel({ ...emptyModel });
     setIsEditing(false);
     setAvailableModels([]);
+    setTestReply("");
     setModalVisible(true);
   };
 
@@ -290,6 +293,7 @@ function AgentProvider() {
     setIsEditing(true);
     // 从模型记录中恢复已缓存的可用模型列表
     setAvailableModels(record.availableModels || []);
+    setTestReply("");
     setModalVisible(true);
   };
 
@@ -297,6 +301,7 @@ function AgentProvider() {
     setEditingModel({ ...record, id: "", name: `${record.name} (Copy)` });
     setIsEditing(false);
     setAvailableModels(record.availableModels || []);
+    setTestReply("");
     setModalVisible(true);
   };
 
@@ -353,16 +358,56 @@ function AgentProvider() {
   };
 
   const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setTestReply("");
     try {
-      const { modelsUrl, headers } = buildProviderRequest(editingModel);
-      const resp = await fetch(modelsUrl, { method: "GET", headers });
-      if (resp.ok) {
-        Message.success(t("agent_provider_test_success")!);
+      const baseUrl =
+        editingModel.apiBaseUrl ||
+        (editingModel.provider === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      let chatUrl: string;
+      let body: string;
+
+      if (editingModel.provider === "anthropic") {
+        chatUrl = `${baseUrl}/v1/messages`;
+        headers["x-api-key"] = editingModel.apiKey;
+        headers["anthropic-version"] = "2023-06-01";
+        headers["anthropic-dangerous-direct-browser-access"] = "true";
+        body = JSON.stringify({
+          model: editingModel.model || "claude-sonnet-4-20250514",
+          max_tokens: 256,
+          messages: [{ role: "user", content: "hi" }],
+        });
       } else {
-        Message.error(`${t("agent_provider_test_failed")}: ${resp.status}`);
+        chatUrl = `${baseUrl}/chat/completions`;
+        if (editingModel.apiKey) {
+          headers["Authorization"] = `Bearer ${editingModel.apiKey}`;
+        }
+        body = JSON.stringify({
+          model: editingModel.model || "gpt-4o-mini",
+          max_tokens: 256,
+          messages: [{ role: "user", content: "hi" }],
+        });
       }
+
+      const resp = await fetch(chatUrl, { method: "POST", headers, body });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        setTestReply(`${t("agent_provider_test_failed")}: ${resp.status} ${errText}`);
+        return;
+      }
+      const json = await resp.json();
+      let reply: string;
+      if (editingModel.provider === "anthropic") {
+        reply = json.content?.[0]?.text || JSON.stringify(json);
+      } else {
+        reply = json.choices?.[0]?.message?.content || JSON.stringify(json);
+      }
+      setTestReply(reply);
     } catch (e) {
-      Message.error(`${t("agent_provider_test_failed")}: ${e}`);
+      setTestReply(`${t("agent_provider_test_failed")}: ${e}`);
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -557,8 +602,25 @@ function AgentProvider() {
           </div>
 
           {/* 测试连接 */}
-          <div className="tw-flex tw-justify-end tw-pt-2">
-            <Button type="outline" onClick={handleTestConnection}>
+          <div className="tw-flex tw-items-center tw-gap-3 tw-pt-2">
+            <div
+              className="tw-flex-1 tw-min-w-0 tw-max-h-[4.5em] tw-overflow-y-auto tw-leading-[1.5]"
+              style={{ scrollbarWidth: "thin" }}
+            >
+              {testReply && (
+                <Typography.Text
+                  className="tw-text-sm tw-break-all"
+                  style={{
+                    color: testReply.startsWith(t("agent_provider_test_failed") as string)
+                      ? "var(--color-danger-6)"
+                      : "var(--color-success-6)",
+                  }}
+                >
+                  {testReply}
+                </Typography.Text>
+              )}
+            </div>
+            <Button type="outline" loading={testingConnection} onClick={handleTestConnection}>
               {t("agent_provider_test_connection")}
             </Button>
           </div>

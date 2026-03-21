@@ -95,13 +95,13 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
         {state.isRunning ? (
           <span className="sub-agent-pulse" />
         ) : (
-          <span className="tw-w-[18px] tw-h-[18px] tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[rgba(var(--green-6),0.12)]">
+          <span className="tw-w-[18px] tw-h-[18px] tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[rgba(var(--green-6),0.15)]">
             <IconCheck style={{ fontSize: 10, color: "rgb(var(--green-6))" }} />
           </span>
         )}
 
         {/* 描述 */}
-        <span className="tw-text-xs tw-font-medium tw-text-[var(--color-text-2)] tw-flex-1 tw-truncate">
+        <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-1)] tw-flex-1 tw-truncate">
           {state.description}
         </span>
 

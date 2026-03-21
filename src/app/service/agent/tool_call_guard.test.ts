@@ -179,6 +179,48 @@ describe("detectToolCallIssues", () => {
     });
   });
 
+  describe("startIndex 防止重复警告", () => {
+    it("使用 startIndex 跳过已警告过的记录后不再重复触发", () => {
+      const history: ToolCallRecord[] = [
+        { name: "get_tab_content", args: '{"tab_id":123,"prompt":"a"}', result: "...", iteration: 1 },
+        { name: "get_tab_content", args: '{"tab_id":123,"prompt":"b"}', result: "...", iteration: 2 },
+        { name: "get_tab_content", args: '{"tab_id":123,"prompt":"c"}', result: "...", iteration: 3 },
+      ];
+      // 第一次检测：触发警告
+      const warning1 = detectToolCallIssues(history);
+      expect(warning1).not.toBeNull();
+      expect(warning1).toContain("get_tab_content");
+
+      // 模拟警告后推进 startIndex
+      const startIndex = history.length;
+
+      // 后续添加不同工具调用
+      history.push({ name: "execute_script", args: '{"code":"click()"}', result: '{"result":"ok"}', iteration: 4 });
+      history.push({ name: "list_tabs", args: "{}", result: "[]", iteration: 5 });
+
+      // 使用 startIndex 后不再触发
+      expect(detectToolCallIssues(history, startIndex)).toBeNull();
+    });
+
+    it("startIndex 之后出现新的违规模式仍然能检测到", () => {
+      const history: ToolCallRecord[] = [
+        { name: "get_tab_content", args: '{"tab_id":123,"prompt":"a"}', result: "...", iteration: 1 },
+        { name: "get_tab_content", args: '{"tab_id":123,"prompt":"b"}', result: "...", iteration: 2 },
+        { name: "get_tab_content", args: '{"tab_id":123,"prompt":"c"}', result: "...", iteration: 3 },
+      ];
+      const startIndex = history.length;
+
+      // 新增的调用在 startIndex 之后再次触发相同问题
+      history.push({ name: "get_tab_content", args: '{"tab_id":456,"prompt":"d"}', result: "...", iteration: 4 });
+      history.push({ name: "get_tab_content", args: '{"tab_id":456,"prompt":"e"}', result: "...", iteration: 5 });
+      history.push({ name: "get_tab_content", args: '{"tab_id":456,"prompt":"f"}', result: "...", iteration: 6 });
+
+      const warning = detectToolCallIssues(history, startIndex);
+      expect(warning).not.toBeNull();
+      expect(warning).toContain("get_tab_content");
+    });
+  });
+
   describe("优先级", () => {
     it("完全相同参数的 execute_script 优先触发重复检测而非 null 检测", () => {
       const history: ToolCallRecord[] = [

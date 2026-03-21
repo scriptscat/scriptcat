@@ -1268,6 +1268,7 @@ export class AgentService {
     let iterations = 0;
     const totalUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
     const toolCallHistory: ToolCallRecord[] = [];
+    let guardStartIndex = 0;
 
     while (iterations < maxIterations) {
       iterations++;
@@ -1423,8 +1424,10 @@ export class AgentService {
         }
 
         // 工具调用模式检测：检测重复/循环模式并注入针对性提醒
-        const toolCallWarning = detectToolCallIssues(toolCallHistory);
+        // 每次警告后推进 startIndex，避免旧记录持续触发同一条警告
+        const toolCallWarning = detectToolCallIssues(toolCallHistory, guardStartIndex);
         if (toolCallWarning) {
+          guardStartIndex = toolCallHistory.length;
           messages.push({ role: "user", content: toolCallWarning });
           sendEvent({ type: "system_warning", message: toolCallWarning });
         }
