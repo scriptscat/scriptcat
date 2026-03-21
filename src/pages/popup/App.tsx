@@ -442,7 +442,13 @@ function App() {
                     <Menu.SubMenu
                       key="getScript"
                       title={
-                        <span className="tw-flex tw-flex-row tw-items-center">
+                        <span
+                          className="tw-flex tw-flex-row tw-items-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`https://scriptcat.org/search?domain=${urlHost}`, "_blank");
+                          }}
+                        >
                           <IconSearch style={iconStyle} />
                           {t("get_script")}
                         </span>

@@ -104,6 +104,7 @@
   "delete_current_logs": "Delete Current Logs",
   "clear_completed": "Clearing Completed",
   "clear_logs": "Clear Logs",
+  "now": "Now",
   "total_logs": "A total of {{length}} logs were queried",
   "filtered_logs": "{{length}} logs after filtering",
   "enter_filter_conditions": "Please Enter Filter Conditions for Query",
