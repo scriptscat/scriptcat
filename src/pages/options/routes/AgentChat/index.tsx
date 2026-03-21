@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
+import { Message as ArcoMessage } from "@arco-design/web-react";
 import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
 import { useConversations, useSkills, useRunningConversations } from "./hooks";
 import type { AgentModelConfig } from "@App/app/service/agent/types";
+import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { agentClient } from "@App/pages/store/features/script";
+import { exportToMarkdown, downloadMarkdown } from "./export_utils";
 import "./styles.css";
+
+const exportRepo = new AgentChatRepo();
 
 export default function AgentChat() {
   const [models, setModels] = useState<AgentModelConfig[]>([]);
@@ -66,6 +71,23 @@ export default function AgentChat() {
     loadConversations();
   }, [loadConversations]);
 
+  // 导出会话为 Markdown
+  const handleExport = useCallback(
+    async (id: string) => {
+      const conv = conversations.find((c) => c.id === id);
+      if (!conv) return;
+      const msgs = await exportRepo.getMessages(id);
+      if (msgs.length === 0) {
+        ArcoMessage.warning("No messages to export");
+        return;
+      }
+      const md = exportToMarkdown(conv, msgs);
+      const safeName = conv.title.replace(/[/\\?%*:|"<>]/g, "_");
+      downloadMarkdown(`${safeName}.md`, md);
+    },
+    [conversations]
+  );
+
   return (
     <div className="tw-flex tw-h-full tw-bg-[var(--color-bg-1)]">
       <ConversationList
@@ -75,6 +97,7 @@ export default function AgentChat() {
         onCreate={handleCreate}
         onDelete={deleteConversation}
         onRename={renameConversation}
+        onExport={handleExport}
         runningIds={runningIds}
       />
       <ChatArea

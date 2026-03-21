@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Input, Popconfirm, Empty } from "@arco-design/web-react";
-import { IconPlus, IconDelete, IconEdit, IconCheck, IconClose, IconMessage } from "@arco-design/web-react/icon";
+import { IconPlus, IconDelete, IconEdit, IconCheck, IconClose, IconMessage, IconDownload } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import type { Conversation } from "@App/app/service/agent/types";
 
@@ -11,6 +11,7 @@ export default function ConversationList({
   onCreate,
   onDelete,
   onRename,
+  onExport,
   runningIds,
 }: {
   conversations: Conversation[];
@@ -19,6 +20,7 @@ export default function ConversationList({
   onCreate: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  onExport: (id: string) => void;
   runningIds?: Set<string>;
 }) {
   const { t } = useTranslation();
@@ -104,6 +106,15 @@ export default function ConversationList({
                       onClick={(e) => {
                         e.stopPropagation();
                         startRename(conv);
+                      }}
+                    />
+                    <Button
+                      type="text"
+                      size="mini"
+                      icon={<IconDownload />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onExport(conv.id);
                       }}
                     />
                     <Popconfirm
