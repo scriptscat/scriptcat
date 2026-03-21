@@ -7,6 +7,10 @@ export const DocumentationSite = "https://docs.scriptcat.org";
 export const ExtServer = "https://ext.scriptcat.org/";
 export const ExtServerApi = ExtServer + "api/v1/";
 
-export const ExternalWhitelist = ["greasyfork.org", "scriptcat.org", "tampermonkey.net.cn", "openuserjs.org"];
-
-export const ExternalMessage = "externalMessage";
+export const ExternalWhitelist = [
+  "scriptcat.org",
+  "greasyfork.org",
+  "sleazyfork.org",
+  "tampermonkey.net.cn",
+  "openuserjs.org",
+];
