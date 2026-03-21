@@ -99,6 +99,7 @@ type EditorMenu = {
         hotKey?: number;
         hotKeyString?: string;
         action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+        divider?: never;
       }
     | { divider: true }
   )[];
@@ -512,8 +513,7 @@ function ScriptEditor() {
   }
   menu.forEach((item) => {
     item.items?.forEach((menuItem) => {
-      if ("divider" in menuItem) return;
-      if (menuItem.hotKey) {
+      if (!menuItem.divider && menuItem.hotKey) {
         hotKeys.push({
           id: menuItem.id,
           title: menuItem.title,
@@ -857,7 +857,7 @@ function ScriptEditor() {
                     }}
                   >
                     {item.items.map((menuItem, i) => {
-                      if ("divider" in menuItem) {
+                      if (menuItem.divider) {
                         return (
                           <div
                             key={`divider_${i.toString()}`}
