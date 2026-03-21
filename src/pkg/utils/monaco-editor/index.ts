@@ -49,6 +49,8 @@ const langs = {
         "脚本注入环境<br>`content`：脚本注入到 content 环境<br>`page`：脚本注入到网页环境（默认）<br>注：SC 不支持以 CSP 判断是否需要脚本注入到 content 环境的 `inject-into: auto` 设计。",
       "early-start":
         "配合 `run-at: document-start` 的声明，使用 `early-start` 可以比网页更快地加载并执行脚本，但存在一定性能问题与 GM API 使用限制。（SC 独有）",
+      unwrap:
+        "让用户脚本不经过沙箱封装，直接注入并运行在页面的原生全局作用域中。<br>脚本可直接访问和修改页面真实的全局变量，但将无法使用 GM.* 等用户脚本特权 API。<br>常用于需要与页面原生脚本深度交互或从普通页面脚本迁移的场景。",
       definition: "ScriptCat 特有功能：一个 `.d.ts` 文件的引用地址，能够自动补全编辑器的提示",
       // https://bbs.tampermonkey.net.cn/thread-3036-1-1.html#%40antifeature%E8%A7%84%E5%88%99
       antifeature: `与脚本市场有关，不受欢迎的功能需要加上此描述值
@@ -118,6 +120,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
         "Script injection context<br>`content`: inject into content context<br>`page`: inject into page context (default)<br>Note: SC does not support `inject-into: auto`, which chooses context based on CSP.",
       "early-start":
         "Used with `run-at: document-start`. `early-start` lets the script execute even earlier than the page, but may affect performance and limit GM APIs. (SC only)",
+      unwrap:
+        "Makes the user script bypass sandbox wrapping and be injected and executed directly in the page’s native global scope. <br>The script can directly access and modify the page’s real global variables, but will not be able to use user script privileged APIs such as GM.*. <br>Commonly used in scenarios that require deep interaction with native page scripts or when migrating from regular page scripts.",
       definition: "ScriptCat-only: URL of a `.d.ts` file used for editor auto-completion",
       antifeature: "For script markets: describe any unwanted or controversial features",
       updateURL: "URL used to check for script updates",
@@ -180,6 +184,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
         "腳本注入環境<br>`content`：將腳本注入 content 環境<br>`page`：將腳本注入網頁環境（預設）<br>註：SC 不支援依據 CSP 判斷是否注入 content 環境的 `inject-into: auto`。",
       "early-start":
         "配合 `run-at: document-start` 使用，`early-start` 可以比網頁更早載入並執行腳本，但可能造成效能問題與 GM API 限制。（SC 獨有）",
+      unwrap:
+        "讓使用者腳本不經過沙箱封裝，直接注入並執行於頁面的原生全域作用域中。<br>腳本可直接存取並修改頁面真實的全域變數，但將無法使用 GM.* 等使用者腳本的特權 API。<br>常用於需要與頁面原生腳本深度互動，或從一般頁面腳本遷移的場景。",
       definition: "ScriptCat 特有功能：一個 `.d.ts` 檔案的引用網址，可啟用編輯器自動提示",
       antifeature: "與腳本市場相關，不受歡迎的功能需要在此描述",
       updateURL: "腳本檢查更新的 url",
@@ -242,6 +248,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
         "スクリプトの注入コンテキスト<br>`content`：コンテンツスクリプト環境に注入<br>`page`：ページコンテキストに注入（既定）<br>注：SC は CSP に基づき自動でコンテキストを切り替える `inject-into: auto` には対応していません。",
       "early-start":
         "`run-at: document-start` と併用します。`early-start` を指定するとページよりも早くスクリプトを実行できますが、パフォーマンスへの影響や GM API の制限が発生する場合があります（SC 独自機能）。",
+      unwrap:
+        "ユーザースクリプトをサンドボックスでラップせず、ページのネイティブなグローバルスコープに直接注入して実行します。<br>スクリプトはページの実際のグローバル変数に直接アクセスおよび変更できますが、GM.* などのユーザースクリプトの特権 API は使用できなくなります。<br>ページのネイティブスクリプトとの深い連携が必要な場合や、通常のページスクリプトから移行する際によく使用されます。",
       definition: "ScriptCat 専用機能：`.d.ts` ファイルの URL。エディタの補完を有効にします。",
       antifeature: "スクリプトマーケット向け：好まれない機能がある場合、ここに説明を記載します。",
       updateURL: "スクリプト更新を確認する URL",
@@ -304,6 +312,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
         "Skript-Injektionskontext<br>`content`: in den Content-Kontext injizieren<br>`page`: in den Seitenkontext injizieren (Standard)<br>Hinweis: SC unterstützt `inject-into: auto` nicht, bei dem der Kontext über CSP gewählt wird.",
       "early-start":
         "Wird mit `run-at: document-start` verwendet. `early-start` lässt das Skript noch vor der Seite laufen, kann aber die Leistung beeinträchtigen und GM-APIs einschränken. (Nur in SC)",
+      unwrap:
+        "Ermöglicht es, das Benutzerskript ohne Sandbox-Kapselung direkt in den nativen globalen Gültigkeitsbereich der Seite zu injizieren und auszuführen. <br>Das Skript kann direkt auf die tatsächlichen globalen Variablen der Seite zugreifen und diese verändern, kann jedoch keine privilegierten Benutzerskript-APIs wie GM.* verwenden. <br>Wird häufig in Szenarien eingesetzt, die eine tiefe Interaktion mit nativen Seitenskripten erfordern oder bei der Migration von normalen Seitenskripten.",
       definition: "Nur für ScriptCat: URL zu einer `.d.ts`-Datei für Editor-Autovervollständigung",
       antifeature: "Für Script-Marktplätze: hier unerwünschte oder kontroverse Funktionen beschreiben",
       updateURL: "URL zur Aktualisierungsprüfung des Skripts",
@@ -366,6 +376,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
         "Ngữ cảnh chèn script<br>`content`: chèn vào ngữ cảnh content<br>`page`: chèn vào ngữ cảnh trang (mặc định)<br>Lưu ý: SC không hỗ trợ `inject-into: auto`, lựa chọn ngữ cảnh dựa trên CSP.",
       "early-start":
         "Dùng cùng với `run-at: document-start`. `early-start` cho phép script chạy sớm hơn cả trang, nhưng có thể gây ảnh hưởng hiệu năng và giới hạn một số GM API. (Chỉ có trong SC)",
+      unwrap:
+        "Cho phép script người dùng bỏ qua sandbox và được chèn, thực thi trực tiếp trong phạm vi toàn cục gốc của trang. <br>Script có thể trực tiếp truy cập và chỉnh sửa các biến toàn cục thực sự của trang, nhưng sẽ không thể sử dụng các API đặc quyền của user script như GM.*. <br>Thường được dùng trong các trường hợp cần tương tác sâu với script gốc của trang hoặc khi chuyển đổi từ script trang thông thường.",
       definition: "Tính năng riêng của ScriptCat: URL tới tệp `.d.ts` giúp bật gợi ý tự động trong trình soạn thảo",
       antifeature: "Dùng cho chợ script: mô tả các tính năng không được người dùng ưa thích",
       updateURL: "URL dùng để kiểm tra cập nhật script",
@@ -428,6 +440,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
         "Контекст внедрения скрипта<br>`content`: внедрить в контекст content<br>`page`: внедрить в контекст страницы (по умолчанию)<br>Примечание: SC не поддерживает `inject-into: auto`, когда контекст выбирается по CSP.",
       "early-start":
         "Используется совместно с `run-at: document-start`. `early-start` позволяет выполнять скрипт раньше загрузки страницы, но может ухудшать производительность и ограничивать некоторые GM API. (Только в SC)",
+      unwrap:
+        "Позволяет пользовательскому скрипту обходить песочницу и напрямую внедряться и выполняться в нативной глобальной области видимости страницы. <br>Скрипт может напрямую получать доступ к реальным глобальным переменным страницы и изменять их, однако не сможет использовать привилегированные API пользовательских скриптов, такие как GM.*. <br>Обычно используется в сценариях, требующих глубокой интеграции с нативными скриптами страницы или при миграции с обычных скриптов страницы.",
       definition: "Особенность ScriptCat: URL файла `.d.ts`, используемого для автодополнения в редакторе",
       antifeature: "Для маркетплейсов скриптов: опишите здесь нежелательные / спорные функции",
       updateURL: "URL для проверки обновлений скрипта",
