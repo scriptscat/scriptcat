@@ -44,3 +44,34 @@ export const convertDomainToDNRUrlFilter = (text: string) => {
   }
   return ret;
 };
+
+export const createNoCSPRules = (urlFilters: string[]) => {
+  const REMOVE_HEADERS = [
+    `content-security-policy`,
+    `content-security-policy-report-only`,
+    `x-webkit-csp`,
+    `x-content-security-policy`,
+    `x-frame-options`,
+  ];
+  const { RuleActionType, HeaderOperation, ResourceType } = chrome.declarativeNetRequest;
+  if (urlFilters.length > 512) {
+    throw new Error(`Too many URL patterns (${urlFilters.length}). Max is 512.`);
+  }
+  const rules: chrome.declarativeNetRequest.Rule[] = urlFilters.map((urlFilter, index) => {
+    return {
+      id: 2001 + index,
+      action: {
+        type: RuleActionType.MODIFY_HEADERS,
+        responseHeaders: REMOVE_HEADERS.map((header) => ({
+          operation: HeaderOperation.REMOVE,
+          header,
+        })),
+      },
+      condition: {
+        urlFilter: urlFilter,
+        resourceTypes: [ResourceType.MAIN_FRAME, ResourceType.SUB_FRAME],
+      },
+    } satisfies chrome.declarativeNetRequest.Rule;
+  });
+  return rules;
+};

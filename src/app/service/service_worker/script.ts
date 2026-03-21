@@ -47,6 +47,7 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { createNoCSPRules } from "@App/pkg/utils/dnr";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -316,32 +317,7 @@ export class ScriptService {
 
     {
       type Config = Record<string, any>;
-      const REMOVE_HEADERS = [
-        `content-security-policy`,
-        `content-security-policy-report-only`,
-        `x-webkit-csp`,
-        `x-content-security-policy`,
-        `x-frame-options`,
-      ];
-
-      const { RuleActionType, HeaderOperation, ResourceType } = chrome.declarativeNetRequest;
-
-      const rules: chrome.declarativeNetRequest.Rule[] = [
-        {
-          id: 2001,
-          action: {
-            type: RuleActionType.MODIFY_HEADERS,
-            responseHeaders: REMOVE_HEADERS.map((header) => ({
-              operation: HeaderOperation.REMOVE,
-              header,
-            })),
-          },
-          condition: {
-            urlFilter: `|http*`,
-            resourceTypes: [ResourceType.MAIN_FRAME, ResourceType.SUB_FRAME],
-          },
-        },
-      ];
+      const rules = createNoCSPRules([`|http*`]);
 
       const updateRules = (newConfig: Config, oldConfig?: Config) => {
         if (oldConfig && newConfig.csp_http_disabled === oldConfig?.csp_http_disabled) {
