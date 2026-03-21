@@ -91,14 +91,17 @@ type EditorMenu = {
   title: string;
   tooltip?: string;
   action?: (script: Script, e: editor.IStandaloneCodeEditor) => void;
-  items?: {
-    id: string;
-    title: string;
-    tooltip?: string;
-    hotKey?: number;
-    hotKeyString?: string;
-    action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
-  }[];
+  items?: (
+    | {
+        id: string;
+        title: string;
+        tooltip?: string;
+        hotKey?: number;
+        hotKeyString?: string;
+        action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+      }
+    | { divider: true }
+  )[];
 };
 
 const emptyScript = async (template: string, hotKeys: any, target?: string) => {
@@ -352,6 +355,77 @@ function ScriptEditor() {
       ],
     },
     {
+      title: t("edit"),
+      items: [
+        {
+          id: "undo",
+          title: t("undo"),
+          hotKeyString: "Ctrl+Z",
+          action(_script, e) {
+            e.trigger("menu", "undo", null);
+          },
+        },
+        {
+          id: "redo",
+          title: t("redo"),
+          hotKeyString: "Ctrl+Shift+Z",
+          action(_script, e) {
+            e.trigger("menu", "redo", null);
+          },
+        },
+        { divider: true },
+        {
+          id: "cut",
+          title: t("cut"),
+          hotKeyString: "Ctrl+X",
+          action(_script, e) {
+            e.trigger("menu", "editor.action.clipboardCutAction", null);
+          },
+        },
+        {
+          id: "copy",
+          title: t("copy"),
+          hotKeyString: "Ctrl+C",
+          action(_script, e) {
+            e.trigger("menu", "editor.action.clipboardCopyAction", null);
+          },
+        },
+        {
+          id: "paste",
+          title: t("paste"),
+          hotKeyString: "Ctrl+V",
+          action(_script, e) {
+            e.trigger("menu", "editor.action.clipboardPasteAction", null);
+          },
+        },
+        { divider: true },
+        {
+          id: "find",
+          title: t("find"),
+          hotKeyString: "Ctrl+F",
+          action(_script, e) {
+            e.getAction("actions.find")?.run();
+          },
+        },
+        {
+          id: "replace",
+          title: t("replace"),
+          hotKeyString: "Ctrl+H",
+          action(_script, e) {
+            e.getAction("editor.action.startFindReplaceAction")?.run();
+          },
+        },
+        {
+          id: "selectAll",
+          title: t("select_all"),
+          hotKeyString: "Ctrl+A",
+          action(_script, e) {
+            e.trigger("menu", "editor.action.selectAll", null);
+          },
+        },
+      ],
+    },
+    {
       title: t("run"),
       items: [
         {
@@ -398,22 +472,6 @@ function ScriptEditor() {
       title: t("tools"),
       items: [
         {
-          id: "find",
-          title: t("find"),
-          hotKeyString: "Ctrl+F",
-          action(_script, e) {
-            e.getAction("actions.find")?.run();
-          },
-        },
-        {
-          id: "replace",
-          title: t("replace"),
-          hotKeyString: "Ctrl+H",
-          action(_script, e) {
-            e.getAction("editor.action.startFindReplaceAction")?.run();
-          },
-        },
-        {
           id: "scriptStorage",
           title: t("script_storage"),
           tooltip: t("script_storage_tooltip"),
@@ -454,6 +512,7 @@ function ScriptEditor() {
   }
   menu.forEach((item) => {
     item.items?.forEach((menuItem) => {
+      if ("divider" in menuItem) return;
       if (menuItem.hotKey) {
         hotKeys.push({
           id: menuItem.id,
@@ -793,9 +852,21 @@ function ScriptEditor() {
                       padding: "0",
                       margin: "0",
                       borderRadius: "0",
+                      maxHeight: "none",
+                      overflow: "visible",
                     }}
                   >
                     {item.items.map((menuItem, i) => {
+                      if ("divider" in menuItem) {
+                        return (
+                          <div
+                            key={`divider_${i.toString()}`}
+                            style={{ padding: "4px 0", background: "var(--color-secondary)" }}
+                          >
+                            <div style={{ height: "1px", backgroundColor: "var(--color-neutral-4)" }} />
+                          </div>
+                        );
+                      }
                       const btn = (
                         <Button
                           style={{
