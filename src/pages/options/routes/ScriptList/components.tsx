@@ -7,7 +7,7 @@ import { TbWorldWww } from "react-icons/tb";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { useTranslation } from "react-i18next";
 import { ListHomeRender } from "../utils";
-import { IconEdit, IconLink, IconUserAdd } from "@arco-design/web-react/icon";
+import { IconEdit, IconLink, IconSync, IconUserAdd } from "@arco-design/web-react/icon";
 import type { SearchType } from "@App/app/service/service_worker/types";
 import type { TFunction } from "i18next";
 import type { SearchFilterKeyEntry, SearchFilterRequest } from "./SearchFilter";
@@ -133,52 +133,79 @@ HomeCell.displayName = "HomeCell";
 
 export const UpdateTimeCell = React.memo(({ className, script }: { className?: string; script: ScriptLoading }) => {
   const { t } = useTranslation();
-  const { handleClick } = {
-    handleClick: () => {
-      if (!script.checkUpdateUrl) {
-        Message.warning(t("update_not_supported")!);
-        return;
-      }
-      Message.info({
-        id: "checkupdate",
-        content: t("checking_for_updates"),
-      });
-      scriptClient
-        .requestCheckUpdate(script.uuid)
-        .then((res) => {
-          if (res) {
-            Message.warning({
-              id: "checkupdate",
-              content: t("new_version_available"),
-            });
-          } else {
-            Message.success({
-              id: "checkupdate",
-              content: t("latest_version"),
-            });
-          }
-        })
-        .catch((e) => {
-          Message.error({
+  const [checking, setChecking] = React.useState(false);
+  const handleClick = () => {
+    if (!script.checkUpdateUrl) {
+      Message.warning(t("update_not_supported")!);
+      return;
+    }
+    Message.info({
+      id: "checkupdate",
+      content: t("checking_for_updates"),
+    });
+    setChecking(true);
+    scriptClient
+      .requestCheckUpdate(script.uuid)
+      .then((res) => {
+        if (res) {
+          Message.warning({
             id: "checkupdate",
-            content: `${t("update_check_failed")}: ${e.message}`,
+            content: t("new_version_available"),
           });
+        } else {
+          Message.success({
+            id: "checkupdate",
+            content: t("latest_version"),
+          });
+        }
+      })
+      .catch((e) => {
+        Message.error({
+          id: "checkupdate",
+          content: `${t("update_check_failed")}: ${e.message}`,
         });
-    },
+      })
+      .finally(() => {
+        setChecking(false);
+      });
   };
 
   return (
-    <Tooltip content={t("check_update")} position="tl">
-      <Typography.Text
-        className={className}
-        style={{
-          cursor: "pointer",
-        }}
-        onClick={handleClick}
-      >
-        {script.updatetime && semTime(new Date(script.updatetime))}
-      </Typography.Text>
-    </Tooltip>
+    <Space size={4}>
+      <Tooltip content={t("check_update")} position="tl">
+        <Typography.Text
+          className={className}
+          style={{
+            cursor: "pointer",
+          }}
+          onClick={handleClick}
+        >
+          {script.updatetime && semTime(new Date(script.updatetime))}
+        </Typography.Text>
+      </Tooltip>
+      {script.checkUpdateUrl && (
+        <Tooltip content={t("check_update")} position="tl">
+          <IconSync
+            style={{
+              cursor: "pointer",
+              opacity: checking ? 1 : 0.45,
+              transition: "opacity 0.2s",
+            }}
+            className={checking ? "arco-icon-loading" : ""}
+            spin={checking}
+            onClick={handleClick}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = "1";
+            }}
+            onMouseLeave={(e) => {
+              if (!checking) {
+                e.currentTarget.style.opacity = "0.45";
+              }
+            }}
+          />
+        </Tooltip>
+      )}
+    </Space>
   );
 });
 UpdateTimeCell.displayName = "UpdateTimeCell";
