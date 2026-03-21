@@ -38,12 +38,12 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
     const divRef = useRef<HTMLDivElement>(null);
     useImperativeHandle(ref, () => ({ editor: monacoEditor }));
 
-    // 註冊 monaco 全局環境（只需執行一次）
+    // 注册 monaco 全局环境（只需执行一次）
     useEffect(() => {
       registerEditor();
     }, []);
 
-    // 載入 ESLint 設定
+    // 载入 ESLint 设定
     useEffect(() => {
       Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(([config, enabled]) => {
         setEslintConfig(config);
@@ -51,7 +51,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
       });
     }, []);
 
-    // 建立 monaco 編輯器實例
+    // 建立 monaco 编辑器实例
     useEffect(() => {
       if (diffCode === undefined || code === undefined || !divRef.current) return;
 
@@ -180,7 +180,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
       };
     }, [id, code, diffCode, editable]);
 
-    // ESLint 即時檢查邏輯
+    // ESLint 即时检查逻辑
     useEffect(() => {
       if (!enableEslint || !monacoEditor) return;
 
@@ -201,14 +201,14 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         }, 500);
       };
       // 加载完成就检测一次
-      lint(); // 初次載入即檢查
+      lint(); // 初次载入即检查
       const changeListener = model.onDidChangeContent(lint);
 
-      // 在 glyph margin (行号旁) 顯示EsLint錯誤/警告圖示
+      // 在 glyph margin (行号旁) 显示EsLint错误/警告图示
       const showGlyphIcons = (markers: { startLineNumber: number; endLineNumber: number; severity: number }[]) => {
         const glyphMarginClassList = { 4: "icon-warn", 8: "icon-error" };
 
-        // 清除舊裝飾
+        // 清除旧装饰
         const oldDecorations = model
           .getAllDecorations()
           .filter(
@@ -218,7 +218,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
           );
         monacoEditor.removeDecorations(oldDecorations.map((d) => d.id));
 
-        // (重新)添加新裝飾 - Decorations
+        // (重新)添加新装饰 - Decorations
         monacoEditor.createDecorationsCollection(
           markers.map(({ startLineNumber, endLineNumber, severity }) => ({
             range: new Range(startLineNumber, 1, endLineNumber, 1),
@@ -263,7 +263,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
           });
         }
 
-        // 顯示 glyph 圖示 (在行号旁显示ESLint错误/警告图标)
+        // 显示 glyph 图示 (在行号旁显示ESLint错误/警告图标)
         const formatted = message.markers.map((m: TFormattedMarker) => ({
           startLineNumber: m.startLineNumber,
           endLineNumber: m.endLineNumber,
