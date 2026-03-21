@@ -136,6 +136,17 @@ export const netDiskTypeMap: Partial<Record<FileSystemType, NetDiskType>> = {
   dropbox: "dropbox",
 };
 
+export async function HasNetDiskToken(netDiskType: NetDiskType): Promise<boolean> {
+  const localStorageDAO = new LocalStorageDAO();
+  const key = `netdisk:token:${netDiskType}`;
+  try {
+    const token = await localStorageDAO.getValue<Token>(key);
+    return !!token?.accessToken;
+  } catch {
+    return false;
+  }
+}
+
 export async function ClearNetDiskToken(netDiskType: NetDiskType) {
   const localStorageDAO = new LocalStorageDAO();
   const key = `netdisk:token:${netDiskType}`;

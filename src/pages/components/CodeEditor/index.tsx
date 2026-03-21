@@ -98,7 +98,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         suggestSelection: "first",
 
         // Enable word based suggestions
-        wordBasedSuggestions: "matchingDocuments",
+        wordBasedSuggestions: "off",
 
         // Enable parameter hints
         parameterHints: {
@@ -110,7 +110,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         // https://github.com/is0383kk/VSCode
 
         quickSuggestions: {
-          other: "inline",
+          other: true,
           comments: true,
           strings: true,
         },
