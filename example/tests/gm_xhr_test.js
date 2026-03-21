@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_xmlhttpRequest Exhaustive Test Harness v3
 // @namespace    tm-gmxhr-test
-// @version      1.2.3
+// @version      1.2.4
 // @description  Comprehensive in-page tests for GM_xmlhttpRequest: normal, abnormal, and edge cases with clear pass/fail output.
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
@@ -876,6 +876,36 @@ const enableTool = true;
         assert(res.response && typeof res.response === "object", "parsed JSON object");
         assert(res.response.origin, "has JSON fields");
         assertEq(objectProps(res), "ok", "Object Props OK");
+      },
+    },
+    {
+      name: "responseType=document(parse ok)",
+      async run(fetch) {
+        const { res } = await gmRequest({
+          method: "GET",
+          url: `${HB}/base64/PHRlc3QtMTIzPmhlbGxvPC90ZXN0LTEyMz4=`,
+          responseType: "document",
+          fetch,
+        });
+        assertEq(res.status, 200);
+        assert(res.response instanceof Document, "xml present");
+        assert(res.responseXML !== null, "xml OK");
+        assert(!!res.responseXML.querySelector("test-123"), "xml content ok");
+      },
+    },
+    {
+      name: "responseType=document(parser error)",
+      async run(fetch) {
+        const { res } = await gmRequest({
+          method: "GET",
+          url: `${HB}/base64/AAAAAAEAAQA=`,
+          responseType: "document",
+          fetch,
+        });
+        assertEq(res.status, 200);
+        assert(res.response instanceof Document, "xml present");
+        assert(res.responseXML !== null, "xml OK");
+        assert(!!res.responseXML.querySelector("parsererror"), "xml content ok");
       },
     },
     {
