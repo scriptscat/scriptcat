@@ -21,10 +21,11 @@ import ScriptSetting from "@App/pages/components/ScriptSetting";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
+import { IconDelete, IconMenu, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
+import { useIsMobile } from "@App/pages/hooks/useIsMobile";
 
 const { Row, Col } = Grid;
 
@@ -234,6 +235,7 @@ function ScriptEditor() {
   }>();
   const cidRef = useRef<ReturnType<typeof setTimeout>>();
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
+  const isMobile = useIsMobile();
   const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(() => {
     return localStorage.getItem("hiddenEditorScriptList") === "true";
   });
@@ -817,113 +819,171 @@ function ScriptEditor() {
         }}
       >
         <div className="tw-flex tw-flex-row">
-          {menu.map((item, index) => {
-            if (!item.items) {
-              // 没有子菜单
-              return (
-                <Button
-                  key={`m_${item.title}`}
-                  size="mini"
-                  onClick={() => {
-                    setEditors((prev) => {
-                      prev.forEach((e) => {
-                        if (e.active) {
-                          item.action && item.action(e.script, e.editor!);
-                        }
-                      });
-                      return prev;
-                    });
-                  }}
-                >
-                  {item.title}
-                </Button>
-              );
-            }
-            return (
-              <Dropdown
-                key={`d_${index.toString()}`}
-                droplist={
-                  <Menu
-                    style={{
-                      padding: "0",
-                      margin: "0",
-                      borderRadius: "0",
-                    }}
-                  >
-                    {item.items.map((menuItem, i) => {
-                      const btn = (
-                        <Button
-                          style={{
-                            width: "100%",
-                            textAlign: "left",
-                            alignSelf: "center",
-                            verticalAlign: "middle",
-                          }}
-                          key={`sm_${menuItem.title}`}
-                          size="mini"
+          {/* 移动端：合并所有菜单到一个下拉 */}
+          {isMobile ? (
+            <Dropdown
+              droplist={
+                <Menu style={{ padding: "0", margin: "0" }}>
+                  {menu.map((item, groupIdx) => {
+                    if (!item.items) {
+                      return (
+                        <Menu.Item
+                          key={`mg_${groupIdx}`}
                           onClick={() => {
                             setEditors((prev) => {
                               prev.forEach((e) => {
                                 if (e.active) {
-                                  menuItem.action(e.script, e.editor!);
+                                  item.action && item.action(e.script, e.editor!);
                                 }
                               });
                               return prev;
                             });
                           }}
                         >
-                          <div
-                            style={{
-                              minWidth: "70px",
-                              float: "left",
-                              fontSize: "14px",
+                          {item.title}
+                        </Menu.Item>
+                      );
+                    }
+                    return (
+                      <Menu.SubMenu key={`mg_${groupIdx}`} title={item.title}>
+                        {item.items.map((menuItem, i) => (
+                          <Menu.Item
+                            key={`mi_${groupIdx}_${i}`}
+                            onClick={() => {
+                              setEditors((prev) => {
+                                prev.forEach((e) => {
+                                  if (e.active) {
+                                    menuItem.action(e.script, e.editor!);
+                                  }
+                                });
+                                return prev;
+                              });
                             }}
                           >
                             {menuItem.title}
-                          </div>
-                          <div
+                          </Menu.Item>
+                        ))}
+                      </Menu.SubMenu>
+                    );
+                  })}
+                </Menu>
+              }
+              trigger="click"
+              position="bl"
+            >
+              <Button size="mini" icon={<IconMenu />}>
+                {t("menu")}
+              </Button>
+            </Dropdown>
+          ) : (
+            // 桌面端：原有的独立菜单按钮
+            menu.map((item, index) => {
+              if (!item.items) {
+                return (
+                  <Button
+                    key={`m_${item.title}`}
+                    size="mini"
+                    onClick={() => {
+                      setEditors((prev) => {
+                        prev.forEach((e) => {
+                          if (e.active) {
+                            item.action && item.action(e.script, e.editor!);
+                          }
+                        });
+                        return prev;
+                      });
+                    }}
+                  >
+                    {item.title}
+                  </Button>
+                );
+              }
+              return (
+                <Dropdown
+                  key={`d_${index.toString()}`}
+                  droplist={
+                    <Menu
+                      style={{
+                        padding: "0",
+                        margin: "0",
+                        borderRadius: "0",
+                      }}
+                    >
+                      {item.items.map((menuItem, i) => {
+                        const btn = (
+                          <Button
                             style={{
-                              minWidth: "50px",
-                              float: "left",
-                              color: "rgb(165 165 165)",
-                              fontSize: "12px",
-                              lineHeight: "22px", // 不知道除此以外怎么垂直居中
+                              width: "100%",
+                              textAlign: "left",
+                              alignSelf: "center",
+                              verticalAlign: "middle",
+                            }}
+                            key={`sm_${menuItem.title}`}
+                            size="mini"
+                            onClick={() => {
+                              setEditors((prev) => {
+                                prev.forEach((e) => {
+                                  if (e.active) {
+                                    menuItem.action(e.script, e.editor!);
+                                  }
+                                });
+                                return prev;
+                              });
                             }}
                           >
-                            {menuItem.hotKeyString}
-                          </div>
-                        </Button>
-                      );
-                      return (
-                        <Menu.Item
-                          key={`m_${i.toString()}`}
-                          style={{
-                            height: "unset",
-                            padding: "0",
-                            lineHeight: "unset",
-                          }}
-                        >
-                          {menuItem.tooltip ? (
-                            <Tooltip key={`m${i.toString()}`} position="right" content={menuItem.tooltip}>
-                              {btn}
-                            </Tooltip>
-                          ) : (
-                            btn
-                          )}
-                        </Menu.Item>
-                      );
-                    })}
-                  </Menu>
-                }
-                trigger="click"
-                position="bl"
-              >
-                <Button key={`m_${item.title}`} size="mini">
-                  {item.title}
-                </Button>
-              </Dropdown>
-            );
-          })}
+                            <div
+                              style={{
+                                minWidth: "70px",
+                                float: "left",
+                                fontSize: "14px",
+                              }}
+                            >
+                              {menuItem.title}
+                            </div>
+                            <div
+                              style={{
+                                minWidth: "50px",
+                                float: "left",
+                                color: "rgb(165 165 165)",
+                                fontSize: "12px",
+                                lineHeight: "22px",
+                              }}
+                            >
+                              {menuItem.hotKeyString}
+                            </div>
+                          </Button>
+                        );
+                        return (
+                          <Menu.Item
+                            key={`m_${i.toString()}`}
+                            style={{
+                              height: "unset",
+                              padding: "0",
+                              lineHeight: "unset",
+                            }}
+                          >
+                            {menuItem.tooltip ? (
+                              <Tooltip key={`m${i.toString()}`} position="right" content={menuItem.tooltip}>
+                                {btn}
+                              </Tooltip>
+                            ) : (
+                              btn
+                            )}
+                          </Menu.Item>
+                        );
+                      })}
+                    </Menu>
+                  }
+                  trigger="click"
+                  position="bl"
+                >
+                  <Button key={`m_${item.title}`} size="mini">
+                    {item.title}
+                  </Button>
+                </Dropdown>
+              );
+            })
+          )}
         </div>
       </div>
       <Row
@@ -932,7 +992,8 @@ function ScriptEditor() {
           overflow: "hidden",
         }}
       >
-        {!hiddenScriptList && (
+        {/* 移动端默认隐藏左侧脚本列表 */}
+        {!isMobile && !hiddenScriptList && (
           <Col
             span={4}
             className="tw-h-full"
@@ -1067,7 +1128,7 @@ function ScriptEditor() {
             </div>
           </Col>
         )}
-        <Col span={hiddenScriptList ? 24 : 20} className="tw-flex! tw-flex-col tw-h-full">
+        <Col span={isMobile || hiddenScriptList ? 24 : 20} className="tw-flex! tw-flex-col tw-h-full">
           <div className="tw-flex tw-flex-row tw-w-full tw-justify-between">
             <Tabs
               editable
@@ -1136,27 +1197,29 @@ function ScriptEditor() {
                 />
               ))}
             </Tabs>
-            <Space>
-              <Tooltip
-                content={hiddenScriptList ? t("editor.show_script_list") : t("editor.hide_script_list")}
-                position="bottom"
-              >
-                <Button
-                  iconOnly
-                  type="text"
-                  size="small"
-                  style={{
-                    color: "var(--color-text-2)",
-                  }}
-                  icon={!hiddenScriptList ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
-                  onClick={() => {
-                    const newValue = !hiddenScriptList;
-                    localStorage.setItem("hiddenEditorScriptList", String(newValue));
-                    setHiddenScriptList(newValue);
-                  }}
-                />
-              </Tooltip>
-            </Space>
+            {!isMobile && (
+              <Space>
+                <Tooltip
+                  content={hiddenScriptList ? t("editor.show_script_list") : t("editor.hide_script_list")}
+                  position="bottom"
+                >
+                  <Button
+                    iconOnly
+                    type="text"
+                    size="small"
+                    style={{
+                      color: "var(--color-text-2)",
+                    }}
+                    icon={!hiddenScriptList ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                    onClick={() => {
+                      const newValue = !hiddenScriptList;
+                      localStorage.setItem("hiddenEditorScriptList", String(newValue));
+                      setHiddenScriptList(newValue);
+                    }}
+                  />
+                </Tooltip>
+              </Space>
+            )}
           </div>
           <div className="tw-flex tw-flex-grow tw-flex-1 tw-relative">
             {editors.map((item) => {

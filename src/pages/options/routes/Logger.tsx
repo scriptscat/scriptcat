@@ -145,7 +145,7 @@ function LoggerPage() {
             extra={
               <Space size="large">
                 <DatePicker.RangePicker
-                  style={{ width: 400 }}
+                  style={{ width: "100%", maxWidth: 400 }}
                   showTime
                   shortcutsPlacementLeft
                   placeholder={isNow ? ["", t("now")] : undefined}

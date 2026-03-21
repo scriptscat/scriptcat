@@ -79,7 +79,6 @@ h6.arco-typography {
   .arco-table-border .arco-table-th:first-child,
   .arco-table-border .arco-table-td:first-child {
     border-left: none !important;
-
   }
 
   /* 卡片视图样式 */
@@ -107,5 +106,65 @@ h6.arco-typography {
       grid-template-columns: 1fr;
     }
   }
+}
 
+/* ========== 移动端脚本列表适配 ========== */
+@media (max-width: 767px) {
+  .script-list .script-card .arco-card-body {
+    padding: 12px !important;
+  }
+
+  .script-list .script-card-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* 卡片操作按钮在移动端不显示文字，只显示图标 */
+  .script-list .script-action .arco-btn-size-mini {
+    padding: 0 6px;
+  }
+
+  .script-list .script-action .arco-btn-size-mini > span:not(.arco-btn-icon) {
+    display: none;
+  }
+
+  /* 移动端卡片不需要 hover 上浮效果 */
+  .script-list .script-card:hover {
+    transform: none;
+  }
+
+  /* 设置页面适配 */
+  .setting .arco-card {
+    margin-bottom: 8px;
+  }
+
+  .setting .tw-flex.tw-items-center.tw-justify-between {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .setting .tw-text-xs.tw-ml-6.tw-flex-shrink-0 {
+    margin-left: 0;
+    color: var(--color-text-3);
+  }
+
+  /* 日志页面适配 */
+  .log-space .arco-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .log-space .arco-card-header-extra {
+    width: 100%;
+  }
+
+  .log-space .arco-card-header-extra .arco-space {
+    flex-wrap: wrap;
+  }
+
+  .log-space .arco-picker-range {
+    width: 100% !important;
+  }
 }

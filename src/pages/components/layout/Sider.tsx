@@ -18,13 +18,14 @@ import {
   IconTool,
 } from "@arco-design/web-react/icon";
 import React, { useRef, useState } from "react";
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { RiFileCodeLine, RiGuideLine, RiLinkM } from "react-icons/ri";
 import SiderGuide from "./SiderGuide";
 import CustomLink from "../CustomLink";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
+import { useIsMobile } from "@App/pages/hooks/useIsMobile";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -34,11 +35,53 @@ if (!hash.length) {
   hash = hash.substring(1);
 }
 
+// 移动端底部 Tab 栏配置
+const mobileTabItems = [
+  { key: "/", icon: <IconCode />, labelKey: "installed_scripts" },
+  { key: "/subscribe", icon: <IconSubscribe />, labelKey: "subscribe" },
+  { key: "/logger", icon: <IconFile />, labelKey: "logs" },
+  { key: "/tools", icon: <IconTool />, labelKey: "tools" },
+  { key: "/setting", icon: <IconSettings />, labelKey: "settings" },
+] as const;
+
+/** 移动端底部导航栏 */
+const MobileTabBar: React.FC = () => {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // 匹配当前路由到 tab key
+  const currentPath = location.pathname || "/";
+  const activeKey = mobileTabItems.find((item) => {
+    if (item.key === "/") return currentPath === "/";
+    return currentPath.startsWith(item.key);
+  })?.key;
+
+  return (
+    <div className="mobile-tab-bar">
+      {mobileTabItems.map((item) => {
+        const isActive = activeKey === item.key;
+        return (
+          <div
+            key={item.key}
+            className={`mobile-tab-item ${isActive ? "mobile-tab-item-active" : ""}`}
+            onClick={() => navigate(item.key)}
+          >
+            <span className="mobile-tab-icon">{item.icon}</span>
+            <span className="mobile-tab-label">{t(item.labelKey)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const Sider: React.FC = () => {
   const [menuSelect, setMenuSelect] = useState(hash);
   const [collapsed, setCollapsed] = useState(localStorage.collapsed === "true");
   const { t } = useTranslation();
   const guideRef = useRef<{ open: () => void }>(null);
+  const isMobile = useIsMobile();
 
   const { handleMenuClick } = {
     handleMenuClick: (key: string) => {
@@ -49,145 +92,148 @@ const Sider: React.FC = () => {
   return (
     <HashRouter>
       <SiderGuide ref={guideRef} />
-      <Layout.Sider collapsed={collapsed} width={170}>
-        <div className="tw-flex tw-flex-col tw-justify-between tw-h-full">
-          <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
-            <CustomLink to="/">
-              <MenuItem key="/" className="menu-script">
-                <IconCode /> {t("installed_scripts")}
-              </MenuItem>
-            </CustomLink>
-            <CustomLink to="/subscribe">
-              <MenuItem key="/subscribe">
-                <IconSubscribe /> {t("subscribe")}
-              </MenuItem>
-            </CustomLink>
-            <CustomLink to="/logger">
-              <MenuItem key="/logger">
-                <IconFile /> {t("logs")}
-              </MenuItem>
-            </CustomLink>
-            <CustomLink to="/tools" className="menu-tools">
-              <MenuItem key="/tools">
-                <IconTool /> {t("tools")}
-              </MenuItem>
-            </CustomLink>
-            <CustomLink to="/setting" className="menu-setting">
-              <MenuItem key="/setting">
-                <IconSettings /> {t("settings")}
-              </MenuItem>
-            </CustomLink>
-          </Menu>
-          <Menu
-            style={{ width: "100%", borderTop: "1px solid var(--color-bg-5)" }}
-            selectedKeys={[]}
-            selectable
-            onClickMenuItem={handleMenuClick}
-            mode="pop"
-          >
-            <Menu.SubMenu
-              key="/help"
-              title={
-                <>
-                  <IconQuestion /> {t("helpcenter")}
-                </>
-              }
-              triggerProps={{
-                trigger: "hover",
-              }}
+      {/* 桌面端：左侧边栏 */}
+      {!isMobile && (
+        <Layout.Sider collapsed={collapsed} width={170}>
+          <div className="tw-flex tw-flex-col tw-justify-between tw-h-full">
+            <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
+              <CustomLink to="/">
+                <MenuItem key="/" className="menu-script">
+                  <IconCode /> {t("installed_scripts")}
+                </MenuItem>
+              </CustomLink>
+              <CustomLink to="/subscribe">
+                <MenuItem key="/subscribe">
+                  <IconSubscribe /> {t("subscribe")}
+                </MenuItem>
+              </CustomLink>
+              <CustomLink to="/logger">
+                <MenuItem key="/logger">
+                  <IconFile /> {t("logs")}
+                </MenuItem>
+              </CustomLink>
+              <CustomLink to="/tools" className="menu-tools">
+                <MenuItem key="/tools">
+                  <IconTool /> {t("tools")}
+                </MenuItem>
+              </CustomLink>
+              <CustomLink to="/setting" className="menu-setting">
+                <MenuItem key="/setting">
+                  <IconSettings /> {t("settings")}
+                </MenuItem>
+              </CustomLink>
+            </Menu>
+            <Menu
+              style={{ width: "100%", borderTop: "1px solid var(--color-bg-5)" }}
+              selectedKeys={[]}
+              selectable
+              onClickMenuItem={handleMenuClick}
+              mode="pop"
             >
               <Menu.SubMenu
-                key="/external_links"
+                key="/help"
                 title={
                   <>
-                    <RiLinkM /> <span className="tw-grow">{t("external_links")}</span>
+                    <IconQuestion /> {t("helpcenter")}
                   </>
                 }
+                triggerProps={{
+                  trigger: "hover",
+                }}
               >
-                <Menu.Item key="scriptcat/docs/dev/">
-                  <a href={`${DocumentationSite}${localePath}/docs/dev/`} target="_blank" rel="noreferrer">
-                    <RiFileCodeLine /> {t("api_docs")}
-                  </a>
-                </Menu.Item>
-                <Menu.Item key="scriptcat/docs/learn/">
-                  <a href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/" target="_blank" rel="noreferrer">
-                    <RiFileCodeLine /> {t("development_guide")}
-                  </a>
-                </Menu.Item>
                 <Menu.SubMenu
-                  key="scriptGallery"
+                  key="/external_links"
                   title={
-                    <span>
-                      <IconLink /> {t("script_gallery")}
-                    </span>
+                    <>
+                      <RiLinkM /> <span className="tw-grow">{t("external_links")}</span>
+                    </>
                   }
                 >
-                  <Menu.Item key="scriptcat/userscript">
-                    <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
-                      ScriptCat
+                  <Menu.Item key="scriptcat/docs/dev/">
+                    <a href={`${DocumentationSite}${localePath}/docs/dev/`} target="_blank" rel="noreferrer">
+                      <RiFileCodeLine /> {t("api_docs")}
                     </a>
                   </Menu.Item>
-                  <Menu.Item key="greasyfork/userscript">
-                    <a href="https://greasyfork.org/scripts" target="_blank" rel="noreferrer">
-                      Greasy Fork
+                  <Menu.Item key="scriptcat/docs/learn/">
+                    <a href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/" target="_blank" rel="noreferrer">
+                      <RiFileCodeLine /> {t("development_guide")}
                     </a>
                   </Menu.Item>
-                  <Menu.Item key="openuserjs/userscript">
-                    <a href="https://openuserjs.org/" target="_blank" rel="noreferrer">
-                      OpenUserJS
+                  <Menu.SubMenu
+                    key="scriptGallery"
+                    title={
+                      <span>
+                        <IconLink /> {t("script_gallery")}
+                      </span>
+                    }
+                  >
+                    <Menu.Item key="scriptcat/userscript">
+                      <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
+                        ScriptCat
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="greasyfork/userscript">
+                      <a href="https://greasyfork.org/scripts" target="_blank" rel="noreferrer">
+                        Greasy Fork
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="openuserjs/userscript">
+                      <a href="https://openuserjs.org/" target="_blank" rel="noreferrer">
+                        OpenUserJS
+                      </a>
+                    </Menu.Item>
+                  </Menu.SubMenu>
+                  <Menu.Item key="tampermonkey/bbs">
+                    <a href="https://bbs.tampermonkey.net.cn/" target="_blank" rel="noreferrer">
+                      <IconLink /> {t("community_forum")}
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="GitHub">
+                    <a href="https://github.com/scriptscat/scriptcat" target="_blank" rel="noreferrer">
+                      <IconGithub /> {"GitHub"}
                     </a>
                   </Menu.Item>
                 </Menu.SubMenu>
-                <Menu.Item key="tampermonkey/bbs">
-                  <a href="https://bbs.tampermonkey.net.cn/" target="_blank" rel="noreferrer">
-                    <IconLink /> {t("community_forum")}
-                  </a>
+                <Menu.Item
+                  key="/guide"
+                  onClick={() => {
+                    guideRef.current?.open();
+                  }}
+                >
+                  <RiGuideLine /> {t("guide")}
                 </Menu.Item>
-                <Menu.Item key="GitHub">
-                  <a href="https://github.com/scriptscat/scriptcat" target="_blank" rel="noreferrer">
-                    <IconGithub /> {"GitHub"}
+                <Menu.Item key="scriptcat/docs/use/">
+                  <a href={`${DocumentationSite}${localePath}/docs/use/use/`} target="_blank" rel="noreferrer">
+                    <RiFileCodeLine /> {t("user_guide")}
                   </a>
                 </Menu.Item>
               </Menu.SubMenu>
-              <Menu.Item
-                key="/guide"
+              <MenuItem
+                key="/collapsible"
                 onClick={() => {
-                  guideRef.current?.open();
+                  localStorage.collapsed = !collapsed;
+                  setCollapsed(!collapsed);
                 }}
               >
-                <RiGuideLine /> {t("guide")}
-              </Menu.Item>
-              <Menu.Item key="scriptcat/docs/use/">
-                <a href={`${DocumentationSite}${localePath}/docs/use/use/`} target="_blank" rel="noreferrer">
-                  <RiFileCodeLine /> {t("user_guide")}
-                </a>
-              </Menu.Item>
-            </Menu.SubMenu>
-            <MenuItem
-              key="/collapsible"
-              onClick={() => {
-                localStorage.collapsed = !collapsed;
-                setCollapsed(!collapsed);
-              }}
-            >
-              {collapsed ? (
-                <>
-                  <IconRight />
-                  {t("show_main_sidebar")}
-                </>
-              ) : (
-                <>
-                  <IconLeft />
-                  {t("hide_main_sidebar")}
-                </>
-              )}
-            </MenuItem>
-          </Menu>
-        </div>
-      </Layout.Sider>
+                {collapsed ? (
+                  <>
+                    <IconRight />
+                    {t("show_main_sidebar")}
+                  </>
+                ) : (
+                  <>
+                    <IconLeft />
+                    {t("hide_main_sidebar")}
+                  </>
+                )}
+              </MenuItem>
+            </Menu>
+          </div>
+        </Layout.Sider>
+      )}
       <Layout.Content
         style={{
-          borderLeft: "1px solid var(--color-bg-5)",
+          borderLeft: isMobile ? "none" : "1px solid var(--color-bg-5)",
           overflow: "hidden",
           padding: 0,
           height: "auto",
@@ -195,7 +241,14 @@ const Sider: React.FC = () => {
           position: "relative",
         }}
       >
-        <div className="tw-absolute sc-inset-0 tw-m-[10px]">
+        <div
+          className="tw-absolute sc-inset-0"
+          style={{
+            margin: isMobile ? "0" : "10px",
+            // 移动端为底部 tab 栏留出空间
+            marginBottom: isMobile ? "56px" : "10px",
+          }}
+        >
           <Routes>
             <Route index element={<ScriptList />} />
             <Route path="/script/editor">
@@ -209,6 +262,8 @@ const Sider: React.FC = () => {
           </Routes>
         </div>
       </Layout.Content>
+      {/* 移动端：底部 Tab 栏 */}
+      {isMobile && <MobileTabBar />}
     </HashRouter>
   );
 };

@@ -29,6 +29,7 @@ import { rectSwappingStrategy, SortableContext, sortableKeyboardCoordinates, use
 import { CSS } from "@dnd-kit/utilities";
 import { type SearchFilterRequest } from "./SearchFilter";
 import type { SearchType } from "@App/app/service/service_worker/types";
+import { useIsMobile } from "@App/pages/hooks/useIsMobile";
 
 type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
 const SortableDragCtx = createContext<DragCtx>(null);
@@ -400,6 +401,7 @@ const ScriptCard = ({
   handleRunStop,
 }: ScriptCardProps) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
 
   // 传感器 —— 放在这里（或更高层父组件）以保持稳定引用
   const sensors = useSensors(
@@ -470,32 +472,37 @@ const ScriptCard = ({
                 onClick={() => {
                   setSidebarOpen((sidebarOpen) => {
                     const newState = !sidebarOpen;
-                    localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
+                    if (!isMobile) {
+                      localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
+                    }
                     return newState;
                   });
                 }}
               />
             </Tooltip>
-            <Tooltip content={t("switch_to_table_mode")}>
-              <Button
-                icon={<FaThList />}
-                type="text"
-                size="small"
-                style={{
-                  color: "var(--color-text-2)",
-                }}
-                onClick={() => {
-                  setViewMode("table");
-                  localStorage.setItem("script-list-view-mode", "table");
-                }}
-              />
-            </Tooltip>
+            {/* 移动端隐藏表格视图切换 */}
+            {!isMobile && (
+              <Tooltip content={t("switch_to_table_mode")}>
+                <Button
+                  icon={<FaThList />}
+                  type="text"
+                  size="small"
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                  onClick={() => {
+                    setViewMode("table");
+                    localStorage.setItem("script-list-view-mode", "table");
+                  }}
+                />
+              </Tooltip>
+            )}
           </Space>
         </div>
       </Card>
       <div
         style={{
-          padding: "16px",
+          padding: isMobile ? "8px" : "16px",
         }}
       >
         {scriptList.length === 0 ? (

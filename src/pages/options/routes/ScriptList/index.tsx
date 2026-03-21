@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, memo } from "react";
-import { Card, Message } from "@arco-design/web-react";
+import { Card, Drawer, Message } from "@arco-design/web-react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { arrayMove, arraySwap } from "@dnd-kit/sortable";
+import { useIsMobile } from "@App/pages/hooks/useIsMobile";
 
 // 仓库与常量引用
 import type { Script, UserConfig } from "@App/app/repo/scripts";
@@ -74,6 +75,7 @@ function ScriptList() {
   const { t } = useTranslation();
   const [usp] = useSearchParams();
   const { guideMode } = useAppContext();
+  const isMobile = useIsMobile();
 
   // 1. 基础 UI 状态
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("script-list-sidebar") === "1");
@@ -82,6 +84,8 @@ function ScriptList() {
     if (saved === "table" || saved === "card") return saved;
     return window.screen.width < 1280 ? "card" : "table";
   });
+  // 移动端 Drawer 筛选面板状态
+  const [filterDrawerVisible, setFilterDrawerVisible] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState<TSelectFilter>({
     status: null,
     type: null,
@@ -258,33 +262,60 @@ function ScriptList() {
     }
   }, []);
 
+  // 移动端强制使用卡片视图
+  const effectiveViewMode = isMobile ? "card" : viewMode;
+  // 移动端侧边栏通过 Drawer 控制
+  const effectiveSidebarOpen = isMobile ? false : sidebarOpen;
+
   return (
     <Card id="script-list" className="script-list" style={{ height: "100%", overflowY: "auto" }}>
       <div className="tw-flex tw-flex-col">
         <div className="tw-flex tw-flex-row tw-relative">
+          {/* 桌面端：内联侧边栏 */}
           <ScriptListSidebar
-            open={sidebarOpen}
+            open={effectiveSidebarOpen}
             filterItems={filterItems}
             selectedFilters={selectedFilters}
             setSelectedFilters={setSelectedFilters}
           />
+          {/* 移动端：Drawer 筛选面板 */}
+          {isMobile && (
+            <Drawer
+              title={t("filter")}
+              visible={filterDrawerVisible}
+              placement="left"
+              width="80%"
+              footer={null}
+              onCancel={() => setFilterDrawerVisible(false)}
+            >
+              <ScriptListSidebar
+                open={true}
+                inDrawer
+                filterItems={filterItems}
+                selectedFilters={selectedFilters}
+                setSelectedFilters={(val) => {
+                  setSelectedFilters(val);
+                }}
+              />
+            </Drawer>
+          )}
           <div className="tw-flex-1">
             <MainContent
-              viewMode={viewMode}
+              viewMode={effectiveViewMode}
               loadingList={loadingList}
               scriptList={filterScriptList}
               scriptListSortOrderMove={scriptListSortOrderMove}
               scriptListSortOrderSwap={scriptListSortOrderSwap}
               updateScripts={updateScripts}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
+              sidebarOpen={isMobile ? filterDrawerVisible : sidebarOpen}
+              setSidebarOpen={isMobile ? setFilterDrawerVisible : setSidebarOpen}
               setViewMode={setViewMode}
               setUserConfig={setUserConfig}
               setCloudScript={setCloudScript}
               handleDelete={handleDelete}
               handleConfig={handleConfig}
               handleRunStop={handleRunStop}
-              searchRequest={searchRequest} // Card 模式需要
+              searchRequest={searchRequest}
               setSearchRequest={setSearchRequest}
             />
           </div>

@@ -9,6 +9,8 @@ interface SidebarProps {
    * 侧边栏是否打开
    */
   open: boolean;
+  /** 是否在 Drawer 内部渲染（移动端） */
+  inDrawer?: boolean;
   filterItems: {
     statusItems: FilterItem[];
     typeItems: FilterItem[];
@@ -143,7 +145,7 @@ FilterGroup.displayName = "FilterGroup";
  * 脚本列表侧边栏组件
  */
 const ScriptListSidebar: React.FC<SidebarProps> = React.memo(
-  ({ open, filterItems, selectedFilters, setSelectedFilters }) => {
+  ({ open, inDrawer, filterItems, selectedFilters, setSelectedFilters }) => {
     const { t } = useTranslation();
     const [collapsedGroups, setCollapsedGroups] = useState<Set<TSelectFilterKeys>>(new Set());
     const { statusItems, typeItems, tagItems, sourceItems } = filterItems;
@@ -169,13 +171,14 @@ const ScriptListSidebar: React.FC<SidebarProps> = React.memo(
 
     return (
       <div
-        className="tw-w-64"
+        className={inDrawer ? "" : "tw-w-64"}
         style={{
-          minWidth: "256px",
+          minWidth: inDrawer ? "auto" : "256px",
+          width: inDrawer ? "100%" : undefined,
           padding: "16px",
-          borderRight: "1px solid var(--color-neutral-3)",
-          borderBottom: "1px solid var(--color-neutral-3)",
-          backgroundColor: "var(--color-bg-2)",
+          borderRight: inDrawer ? "none" : "1px solid var(--color-neutral-3)",
+          borderBottom: inDrawer ? "none" : "1px solid var(--color-neutral-3)",
+          backgroundColor: inDrawer ? "transparent" : "var(--color-bg-2)",
         }}
       >
         <div className="tw-space-y-4">

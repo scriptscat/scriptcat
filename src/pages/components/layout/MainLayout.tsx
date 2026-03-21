@@ -19,6 +19,7 @@ import {
   IconDown,
   IconLanguage,
   IconLink,
+  IconMoreVertical,
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
@@ -36,6 +37,7 @@ import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL } from "@App/pkg/utils/utils";
+import { useIsMobile } from "@App/pages/hooks/useIsMobile";
 
 // --- 工具函数移出组件外，避免每次 Render 重新定义 ---
 
@@ -165,6 +167,7 @@ const MainLayout: React.FC<{
   const [importVisible, setImportVisible] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
 
   const showImportResult = (stat: TImportStat) => {
     if (!stat) return;
@@ -346,151 +349,273 @@ const MainLayout: React.FC<{
           </Modal>
           <div className="tw-flex tw-flex-row tw-items-center">
             <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
-            <Typography.Title heading={4} className="!tw-m-0">
-              {"ScriptCat"}
-            </Typography.Title>
+            {!isMobile && (
+              <Typography.Title heading={4} className="!tw-m-0">
+                {"ScriptCat"}
+              </Typography.Title>
+            )}
           </div>
           <Space size="small" className="action-tools">
-            {pageName === "options" && (
-              <Dropdown
-                droplist={
-                  <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
-                    <Menu.Item key="/script/editor">
-                      <a href="#/script/editor">
-                        <RiFileCodeLine /> {t("create_user_script")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item key="background">
-                      <a href="#/script/editor?template=background">
-                        <RiTerminalBoxLine /> {t("create_background_script")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item key="crontab">
-                      <a href="#/script/editor?template=crontab">
-                        <RiTimerLine /> {t("create_scheduled_script")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item
-                      key="import_local"
-                      onClick={() => {
-                        if ("showOpenFilePicker" in window) {
-                          // 使用新的文件打开接口，解决无法监听本地文件的问题
-                          //@ts-ignore
-                          window
-                            .showOpenFilePicker({
-                              multiple: true,
-                              types: [
-                                {
-                                  description: "JavaScript",
-                                  accept: { "text/javascript": [".js"] },
-                                },
-                              ],
-                            })
-                            .then((handles: any) => {
-                              onDrop(handles as FileWithPath[]);
-                            });
-                        } else {
-                          // 旧的方式，无法监听本地文件变更
-                          document.getElementById("import-local")?.click();
-                        }
+            {/* 桌面端：分开的操作按钮 */}
+            {!isMobile && (
+              <>
+                {pageName === "options" && (
+                  <Dropdown
+                    droplist={
+                      <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
+                        <Menu.Item key="/script/editor">
+                          <a href="#/script/editor">
+                            <RiFileCodeLine /> {t("create_user_script")}
+                          </a>
+                        </Menu.Item>
+                        <Menu.Item key="background">
+                          <a href="#/script/editor?template=background">
+                            <RiTerminalBoxLine /> {t("create_background_script")}
+                          </a>
+                        </Menu.Item>
+                        <Menu.Item key="crontab">
+                          <a href="#/script/editor?template=crontab">
+                            <RiTimerLine /> {t("create_scheduled_script")}
+                          </a>
+                        </Menu.Item>
+                        <Menu.Item
+                          key="import_local"
+                          onClick={() => {
+                            if ("showOpenFilePicker" in window) {
+                              //@ts-ignore
+                              window
+                                .showOpenFilePicker({
+                                  multiple: true,
+                                  types: [
+                                    {
+                                      description: "JavaScript",
+                                      accept: { "text/javascript": [".js"] },
+                                    },
+                                  ],
+                                })
+                                .then((handles: any) => {
+                                  onDrop(handles as FileWithPath[]);
+                                });
+                            } else {
+                              document.getElementById("import-local")?.click();
+                            }
+                          }}
+                        >
+                          <RiImportLine /> {t("import_by_local")}
+                        </Menu.Item>
+                        <Menu.Item
+                          key="link"
+                          onClick={() => {
+                            setImportVisible(true);
+                          }}
+                        >
+                          <IconLink /> {t("import_link")}
+                        </Menu.Item>
+                      </Menu>
+                    }
+                    position="bl"
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      style={{
+                        color: "var(--color-text-1)",
                       }}
+                      className="!tw-text-size-sm"
                     >
-                      <RiImportLine /> {t("import_by_local")}
-                    </Menu.Item>
-                    <Menu.Item
-                      key="link"
-                      onClick={() => {
-                        setImportVisible(true);
+                      <RiPlayListAddLine /> {t("create_script")} <IconDown />
+                    </Button>
+                  </Dropdown>
+                )}
+                <Dropdown
+                  droplist={
+                    <Menu
+                      onClickMenuItem={(key) => {
+                        const theme = key as "auto" | "light" | "dark";
+                        updateColorTheme(theme);
                       }}
+                      selectedKeys={[colorThemeState]}
                     >
-                      <IconLink /> {t("import_link")}
-                    </Menu.Item>
-                  </Menu>
-                }
-                position="bl"
-              >
-                <Button
-                  type="text"
-                  size="small"
-                  style={{
-                    color: "var(--color-text-1)",
-                  }}
-                  className="!tw-text-size-sm"
+                      <Menu.Item key="light">
+                        <IconSunFill /> {t("light")}
+                      </Menu.Item>
+                      <Menu.Item key="dark">
+                        <IconMoonFill /> {t("dark")}
+                      </Menu.Item>
+                      <Menu.Item key="auto">
+                        <IconDesktop /> {t("system_follow")}
+                      </Menu.Item>
+                    </Menu>
+                  }
+                  position="bl"
                 >
-                  <RiPlayListAddLine /> {t("create_script")} <IconDown />
-                </Button>
-              </Dropdown>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={
+                      <>
+                        {colorThemeState === "auto" && <IconDesktop />}
+                        {colorThemeState === "light" && <IconSunFill />}
+                        {colorThemeState === "dark" && <IconMoonFill />}
+                      </>
+                    }
+                    style={{
+                      color: "var(--color-text-1)",
+                    }}
+                    className="!tw-text-lg"
+                  />
+                </Dropdown>
+                {showLanguage && (
+                  <Dropdown
+                    droplist={
+                      <Menu>
+                        {languageList.map((value) => (
+                          <Menu.Item
+                            key={value.key}
+                            onClick={() => {
+                              if (value.key === "help") {
+                                window.open("https://crowdin.com/project/scriptcat", "_blank");
+                                return;
+                              }
+                              systemConfig.setLanguage(value.key);
+                              Message.success(t("language_change_tip")!);
+                            }}
+                          >
+                            {value.title}
+                          </Menu.Item>
+                        ))}
+                      </Menu>
+                    }
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      iconOnly
+                      icon={<IconLanguage />}
+                      style={{
+                        color: "var(--color-text-1)",
+                      }}
+                      className="!tw-text-lg"
+                    ></Button>
+                  </Dropdown>
+                )}
+              </>
             )}
-            <Dropdown
-              droplist={
-                <Menu
-                  onClickMenuItem={(key) => {
-                    const theme = key as "auto" | "light" | "dark";
-                    updateColorTheme(theme);
-                  }}
-                  selectedKeys={[colorThemeState]}
-                >
-                  <Menu.Item key="light">
-                    <IconSunFill /> {t("light")}
-                  </Menu.Item>
-                  <Menu.Item key="dark">
-                    <IconMoonFill /> {t("dark")}
-                  </Menu.Item>
-                  <Menu.Item key="auto">
-                    <IconDesktop /> {t("system_follow")}
-                  </Menu.Item>
-                </Menu>
-              }
-              position="bl"
-            >
-              <Button
-                type="text"
-                size="small"
-                icon={
-                  <>
-                    {colorThemeState === "auto" && <IconDesktop />}
-                    {colorThemeState === "light" && <IconSunFill />}
-                    {colorThemeState === "dark" && <IconMoonFill />}
-                  </>
-                }
-                style={{
-                  color: "var(--color-text-1)",
-                }}
-                className="!tw-text-lg"
-              />
-            </Dropdown>
-            {showLanguage && (
+            {/* 移动端：合并到「更多」菜单 */}
+            {isMobile && (
               <Dropdown
                 droplist={
                   <Menu>
-                    {languageList.map((value) => (
-                      <Menu.Item
-                        key={value.key}
-                        onClick={() => {
-                          if (value.key === "help") {
-                            window.open("https://crowdin.com/project/scriptcat", "_blank");
-                            return;
-                          }
-                          systemConfig.setLanguage(value.key);
-                          Message.success(t("language_change_tip")!);
-                        }}
-                      >
-                        {value.title}
+                    {pageName === "options" && (
+                      <>
+                        <Menu.Item key="/script/editor">
+                          <a href="#/script/editor">
+                            <RiFileCodeLine /> {t("create_user_script")}
+                          </a>
+                        </Menu.Item>
+                        <Menu.Item key="background">
+                          <a href="#/script/editor?template=background">
+                            <RiTerminalBoxLine /> {t("create_background_script")}
+                          </a>
+                        </Menu.Item>
+                        <Menu.Item key="crontab">
+                          <a href="#/script/editor?template=crontab">
+                            <RiTimerLine /> {t("create_scheduled_script")}
+                          </a>
+                        </Menu.Item>
+                        <Menu.Item
+                          key="import_local"
+                          onClick={() => {
+                            if ("showOpenFilePicker" in window) {
+                              //@ts-ignore
+                              window
+                                .showOpenFilePicker({
+                                  multiple: true,
+                                  types: [
+                                    {
+                                      description: "JavaScript",
+                                      accept: { "text/javascript": [".js"] },
+                                    },
+                                  ],
+                                })
+                                .then((handles: any) => {
+                                  onDrop(handles as FileWithPath[]);
+                                });
+                            } else {
+                              document.getElementById("import-local")?.click();
+                            }
+                          }}
+                        >
+                          <RiImportLine /> {t("import_by_local")}
+                        </Menu.Item>
+                        <Menu.Item
+                          key="link"
+                          onClick={() => {
+                            setImportVisible(true);
+                          }}
+                        >
+                          <IconLink /> {t("import_link")}
+                        </Menu.Item>
+                      </>
+                    )}
+                    <Menu.SubMenu
+                      key="theme"
+                      title={
+                        <>
+                          {colorThemeState === "auto" && <IconDesktop />}
+                          {colorThemeState === "light" && <IconSunFill />}
+                          {colorThemeState === "dark" && <IconMoonFill />} {t("theme")}
+                        </>
+                      }
+                    >
+                      <Menu.Item key="light" onClick={() => updateColorTheme("light")}>
+                        <IconSunFill /> {t("light")}
                       </Menu.Item>
-                    ))}
+                      <Menu.Item key="dark" onClick={() => updateColorTheme("dark")}>
+                        <IconMoonFill /> {t("dark")}
+                      </Menu.Item>
+                      <Menu.Item key="auto" onClick={() => updateColorTheme("auto")}>
+                        <IconDesktop /> {t("system_follow")}
+                      </Menu.Item>
+                    </Menu.SubMenu>
+                    {showLanguage && (
+                      <Menu.SubMenu
+                        key="language"
+                        title={
+                          <>
+                            <IconLanguage /> {t("language")}
+                          </>
+                        }
+                      >
+                        {languageList.map((value) => (
+                          <Menu.Item
+                            key={value.key}
+                            onClick={() => {
+                              if (value.key === "help") {
+                                window.open("https://crowdin.com/project/scriptcat", "_blank");
+                                return;
+                              }
+                              systemConfig.setLanguage(value.key);
+                              Message.success(t("language_change_tip")!);
+                            }}
+                          >
+                            {value.title}
+                          </Menu.Item>
+                        ))}
+                      </Menu.SubMenu>
+                    )}
                   </Menu>
                 }
+                position="br"
               >
                 <Button
                   type="text"
                   size="small"
                   iconOnly
-                  icon={<IconLanguage />}
-                  style={{
-                    color: "var(--color-text-1)",
-                  }}
+                  icon={<IconMoreVertical />}
+                  style={{ color: "var(--color-text-1)" }}
                   className="!tw-text-lg"
-                ></Button>
+                />
               </Dropdown>
             )}
           </Space>
