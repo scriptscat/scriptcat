@@ -59,6 +59,7 @@ import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
 import { createSubAgentTool, type SubAgentRunOptions, type SubAgentRunResult } from "@App/app/service/agent/tools/sub_agent";
 import { resolveSubAgentType, getExcludeToolsForType } from "@App/app/service/agent/sub_agent_types";
+import { detectToolCallIssues, type ToolCallRecord } from "@App/app/service/agent/tool_call_guard";
 import { createOPFSTools, setCreateBlobUrlFn, guessMimeType } from "@App/app/service/agent/tools/opfs_tools";
 import { sanitizePath, getWorkspaceRoot, getDirectory, splitPath } from "@App/app/service/agent/opfs_helpers";
 import { createObjectURL } from "@App/app/service/offscreen/client";
@@ -1266,6 +1267,7 @@ export class AgentService {
     const startTime = Date.now();
     let iterations = 0;
     const totalUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
+    const toolCallHistory: ToolCallRecord[] = [];
 
     while (iterations < maxIterations) {
       iterations++;
@@ -1344,8 +1346,9 @@ export class AgentService {
         const toolResults = await this.toolRegistry.execute(result.toolCalls, scriptToolCallback);
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
-        // 收集需要回写附件的 toolCall ID → Attachment[]
+        // 收集需要回写的 toolCall 元数据（附件 / 子代理详情）
         const attachmentUpdates = new Map<string, Attachment[]>();
+        const subAgentUpdates = new Map<string, import("@App/app/service/agent/types").SubAgentDetails>();
 
         for (const tr of toolResults) {
           // LLM 上下文只包含文本结果，不含附件
@@ -1355,6 +1358,9 @@ export class AgentService {
 
           if (tr.attachments?.length) {
             attachmentUpdates.set(tr.id, tr.attachments);
+          }
+          if (tr.subAgentDetails) {
+            subAgentUpdates.set(tr.id, tr.subAgentDetails);
           }
 
           // 持久化 tool 结果消息
@@ -1370,27 +1376,31 @@ export class AgentService {
           }
         }
 
-        // 回写附件元数据到 assistant 消息的 toolCalls（内存 + 持久化）
-        if (attachmentUpdates.size > 0) {
-          // 找到最近的 assistant 消息（刚推入的倒数第 toolResults.length + 1 位）
+        // 回写附件 / 子代理详情到 assistant 消息的 toolCalls（内存 + 持久化）
+        const needsUpdate = attachmentUpdates.size > 0 || subAgentUpdates.size > 0;
+        if (needsUpdate) {
+          const toolCallIds = new Set([...attachmentUpdates.keys(), ...subAgentUpdates.keys()]);
           const assistantMsg = messages.find(
-            (m) => m.role === "assistant" && m.toolCalls?.some((tc) => attachmentUpdates.has(tc.id))
+            (m) => m.role === "assistant" && m.toolCalls?.some((tc) => toolCallIds.has(tc.id))
           );
           if (assistantMsg?.toolCalls) {
             for (const tc of assistantMsg.toolCalls) {
               const atts = attachmentUpdates.get(tc.id);
               if (atts) tc.attachments = atts;
+              const sad = subAgentUpdates.get(tc.id);
+              if (sad) tc.subAgentDetails = sad;
             }
             // 更新持久化的 assistant 消息
             if (conversationId) {
               const allMessages = await this.repo.getMessages(conversationId);
-              // 找到最后一条有匹配 toolCall 的 assistant 消息
               for (let i = allMessages.length - 1; i >= 0; i--) {
                 const msg = allMessages[i];
-                if (msg.role === "assistant" && msg.toolCalls?.some((tc) => attachmentUpdates.has(tc.id))) {
+                if (msg.role === "assistant" && msg.toolCalls?.some((tc) => toolCallIds.has(tc.id))) {
                   for (const tc of msg.toolCalls!) {
                     const atts = attachmentUpdates.get(tc.id);
                     if (atts) tc.attachments = atts;
+                    const sad = subAgentUpdates.get(tc.id);
+                    if (sad) tc.subAgentDetails = sad;
                   }
                   await this.repo.saveMessages(conversationId, allMessages);
                   break;
@@ -1398,6 +1408,25 @@ export class AgentService {
               }
             }
           }
+        }
+
+        // 记录工具调用历史用于模式检测
+        const resultMap = new Map(toolResults.map((r) => [r.id, r]));
+        for (const tc of result.toolCalls) {
+          const tr = resultMap.get(tc.id);
+          toolCallHistory.push({
+            name: tc.name,
+            args: tc.arguments,
+            result: tr?.result ?? "",
+            iteration: iterations,
+          });
+        }
+
+        // 工具调用模式检测：检测重复/循环模式并注入针对性提醒
+        const toolCallWarning = detectToolCallIssues(toolCallHistory);
+        if (toolCallWarning) {
+          messages.push({ role: "user", content: toolCallWarning });
+          sendEvent({ type: "system_warning", message: toolCallWarning });
         }
 
         // 通知 UI 即将开始新一轮 LLM 调用，创建新的 assistant 消息
@@ -1524,7 +1553,7 @@ export class AgentService {
       ctx.messages.push({ role: "user", content: options.prompt });
       ctx.status = "completed"; // 重置，将由 core 更新
 
-      const result = await this.runSubAgentCore({
+      const { result, details, usage: subUsage } = await this.runSubAgentCore({
         messages: ctx.messages,
         model,
         excludeTools,
@@ -1537,7 +1566,17 @@ export class AgentService {
       ctx.result = result;
       ctx.status = "completed";
 
-      return { agentId: options.to, result };
+      return {
+        agentId: options.to,
+        result,
+        details: {
+          agentId: options.to,
+          description: ctx.description,
+          subAgentType: ctx.typeName,
+          messages: details,
+          usage: subUsage,
+        },
+      };
     }
 
     // 新建模式
@@ -1551,7 +1590,7 @@ export class AgentService {
       { role: "user", content: options.prompt },
     ];
 
-    const result = await this.runSubAgentCore({
+    const { result, details, usage: subUsage } = await this.runSubAgentCore({
       messages,
       model,
       excludeTools,
@@ -1579,7 +1618,17 @@ export class AgentService {
       result,
     });
 
-    return { agentId, result };
+    return {
+      agentId,
+      result,
+      details: {
+        agentId,
+        description: options.description,
+        subAgentType: typeConfig.name,
+        messages: details,
+        usage: subUsage,
+      },
+    };
   }
 
   // 子代理核心执行层
@@ -1590,17 +1639,63 @@ export class AgentService {
     maxIterations: number;
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
-  }): Promise<string> {
+  }): Promise<{
+    result: string;
+    details: import("@App/app/service/agent/types").SubAgentMessage[];
+    usage: { inputTokens: number; outputTokens: number; cacheCreationInputTokens: number; cacheReadInputTokens: number };
+  }> {
     let resultContent = "";
+    // 收集子代理执行详情用于持久化
+    const details: import("@App/app/service/agent/types").SubAgentMessage[] = [];
+    let currentMsg: import("@App/app/service/agent/types").SubAgentMessage = { content: "", toolCalls: [] };
+    // 累计 usage
+    const subUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
 
     const subSendEvent = (event: ChatStreamEvent) => {
       // 转发事件给父代理
       params.sendEvent(event);
-      // 收集最终回复内容（new_message 表示新一轮，只取最后一轮的文本）
-      if (event.type === "new_message") {
-        resultContent = "";
-      } else if (event.type === "content_delta") {
-        resultContent += event.delta;
+      // 收集执行详情
+      switch (event.type) {
+        case "content_delta":
+          resultContent += event.delta;
+          currentMsg.content += event.delta;
+          break;
+        case "thinking_delta":
+          currentMsg.thinking = (currentMsg.thinking || "") + event.delta;
+          break;
+        case "tool_call_start":
+          currentMsg.toolCalls.push({ ...event.toolCall, arguments: event.toolCall.arguments || "", status: "running" });
+          break;
+        case "tool_call_delta":
+          if (currentMsg.toolCalls.length) {
+            currentMsg.toolCalls[currentMsg.toolCalls.length - 1].arguments += event.delta;
+          }
+          break;
+        case "tool_call_complete": {
+          const tc = currentMsg.toolCalls.find((t) => t.id === event.id);
+          if (tc) {
+            tc.status = "completed";
+            tc.result = event.result;
+            tc.attachments = event.attachments;
+          }
+          break;
+        }
+        case "new_message":
+          // 新一轮开始，归档当前消息
+          resultContent = "";
+          if (currentMsg.content || currentMsg.thinking || currentMsg.toolCalls.length > 0) {
+            details.push(currentMsg);
+          }
+          currentMsg = { content: "", toolCalls: [] };
+          break;
+        case "done":
+          if (event.usage) {
+            subUsage.inputTokens += event.usage.inputTokens;
+            subUsage.outputTokens += event.usage.outputTokens;
+            subUsage.cacheCreationInputTokens += event.usage.cacheCreationInputTokens || 0;
+            subUsage.cacheReadInputTokens += event.usage.cacheReadInputTokens || 0;
+          }
+          break;
       }
     };
 
@@ -1615,7 +1710,16 @@ export class AgentService {
       cache: false,
     });
 
-    return resultContent || "(sub-agent produced no output)";
+    // 归档最后一轮消息
+    if (currentMsg.content || currentMsg.thinking || currentMsg.toolCalls.length > 0) {
+      details.push(currentMsg);
+    }
+
+    return {
+      result: resultContent || "(sub-agent produced no output)",
+      details,
+      usage: subUsage,
+    };
   }
 
   // 统一的流式 conversation chat（UI 和脚本 API 共用）

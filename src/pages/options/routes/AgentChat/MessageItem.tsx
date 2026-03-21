@@ -37,28 +37,52 @@ function AssistantMessageContent({
   const { t } = useTranslation();
 
   // 匹配 agent 工具调用对应的子代理状态
-  const getSubAgentForToolCall = (tc: { name: string; result?: string; arguments?: string }) => {
-    if (tc.name !== "agent" || !subAgents) return undefined;
-    // 1. 从已完成的结果中匹配（格式: "[agentId: xxx]\n\n..."）
-    if (tc.result) {
-      const match = tc.result.match(/^\[agentId: ([^\]]+)\]/);
-      if (match) return subAgents.get(match[1]);
-    }
-    // 2. 从参数中匹配 to 字段（resume 场景）
-    if (tc.arguments) {
-      try {
-        const args = JSON.parse(tc.arguments);
-        if (args.to && subAgents.has(args.to)) return subAgents.get(args.to);
-      } catch {
-        // 参数可能还在流式构建中
+  const getSubAgentForToolCall = (tc: { name: string; result?: string; arguments?: string; subAgentDetails?: import("@App/app/service/agent/types").SubAgentDetails }) => {
+    if (tc.name !== "agent") return undefined;
+
+    // 1. 从流式 subAgents map 匹配（优先，因为包含实时状态）
+    if (subAgents) {
+      // 1a. 从已完成的结果中匹配（格式: "[agentId: xxx]\n\n..."）
+      if (tc.result) {
+        const match = tc.result.match(/^\[agentId: ([^\]]+)\]/);
+        if (match) {
+          const sa = subAgents.get(match[1]);
+          if (sa) return sa;
+        }
+      }
+      // 1b. 从参数中匹配 to 字段（resume 场景）
+      if (tc.arguments) {
+        try {
+          const args = JSON.parse(tc.arguments);
+          if (args.to && subAgents.has(args.to)) return subAgents.get(args.to);
+        } catch {
+          // 参数可能还在流式构建中
+        }
+      }
+      // 1c. 正在运行的 agent 工具调用：匹配最近的正在运行的子代理
+      if (!tc.result) {
+        for (const sa of subAgents.values()) {
+          if (sa.isRunning) return sa;
+        }
       }
     }
-    // 3. 正在运行的 agent 工具调用：匹配最近的正在运行的子代理
-    if (!tc.result) {
-      for (const sa of subAgents.values()) {
-        if (sa.isRunning) return sa;
-      }
+
+    // 2. 回退到持久化的 subAgentDetails（页面刷新/加载后可用）
+    if (tc.subAgentDetails) {
+      const d = tc.subAgentDetails;
+      return {
+        agentId: d.agentId,
+        description: d.description,
+        subAgentType: d.subAgentType,
+        completedMessages: d.messages,
+        currentContent: "",
+        currentThinking: "",
+        currentToolCalls: [],
+        isRunning: false,
+        usage: d.usage,
+      } satisfies SubAgentState;
     }
+
     return undefined;
   };
 
@@ -90,6 +114,14 @@ function AssistantMessageContent({
         }
         return <ToolCallBlock key={tc.id} toolCall={tc} />;
       })}
+
+      {/* 系统警告 */}
+      {message.warning && (
+        <div className="agent-warning-block">
+          <IconExclamationCircleFill className="agent-warning-icon" />
+          <span style={{ minWidth: 0, wordBreak: "break-word" }}>{message.warning}</span>
+        </div>
+      )}
 
       {/* 错误 */}
       {message.error && (
@@ -184,11 +216,13 @@ export function UserMessageItem({
   onEdit,
   onRegenerate,
   isStreaming,
+  onCancel,
 }: {
   message: ChatMessage;
   onEdit?: (content: MessageContent, files?: Map<string, File>) => void;
   onRegenerate?: () => void;
   isStreaming?: boolean;
+  onCancel?: () => void;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -445,7 +479,19 @@ export function UserMessageItem({
                 <ContentBlockRenderer content={message.content.filter((b: ContentBlock) => b.type !== "text")} />
               </div>
             )}
-            {canInteract && (
+            {onCancel ? (
+              <div className="tw-flex tw-items-center tw-gap-1 tw-mt-1">
+                <span className="tw-text-xs tw-text-[var(--color-text-3)]">{t("agent_chat_message_queued")}</span>
+                <Tooltip content={t("agent_chat_cancel_message")} mini position="bottom">
+                  <button
+                    className="tw-w-6 tw-h-6 tw-flex tw-items-center tw-justify-center tw-rounded tw-bg-transparent tw-border-none tw-cursor-pointer tw-text-[var(--color-text-3)] hover:tw-text-[var(--color-text-1)] hover:tw-bg-[var(--color-fill-2)] tw-transition-colors"
+                    onClick={onCancel}
+                  >
+                    <IconClose style={{ fontSize: 13 }} />
+                  </button>
+                </Tooltip>
+              </div>
+            ) : canInteract && (
               <div className="agent-toolbar-actions tw-opacity-0 tw-transition-opacity tw-flex tw-items-center tw-mt-1 tw-gap-0.5">
                 <Tooltip content={t("agent_chat_copy_message")} mini position="bottom">
                   <button

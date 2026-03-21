@@ -685,6 +685,8 @@
   "agent_chat_edit_message": "編輯",
   "agent_chat_save_and_send": "儲存並傳送",
   "agent_chat_cancel_edit": "取消",
+  "agent_chat_message_queued": "排隊中",
+  "agent_chat_cancel_message": "取消傳送",
   "agent_permission_title": "腳本請求使用 Agent 對話",
   "agent_permission_describe": "此腳本請求使用 Agent 對話功能，將消耗 API Token。請僅對可信腳本授權。",
   "agent_permission_content": "Agent 對話",

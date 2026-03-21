@@ -46,12 +46,34 @@ export type ToolResultWithAttachments = {
   attachments: AttachmentData[]; // 附件数据（仅存储+展示）
 };
 
+// 子代理单轮消息（持久化用）
+export type SubAgentMessage = {
+  content: string;
+  thinking?: string;
+  toolCalls: ToolCall[];
+};
+
+// 子代理执行详情（持久化到 ToolCall）
+export type SubAgentDetails = {
+  agentId: string;
+  description: string;
+  subAgentType?: string;
+  messages: SubAgentMessage[];
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
+};
+
 export type ToolCall = {
   id: string;
   name: string;
   arguments: string;
   result?: string;
   attachments?: Attachment[];
+  subAgentDetails?: SubAgentDetails;
   status?: "pending" | "running" | "completed" | "error";
 };
 
@@ -69,6 +91,7 @@ export type ChatMessage = {
   // tool 角色的消息需要关联到对应的 tool_call
   toolCallId?: string;
   error?: string;
+  warning?: string;
   modelId?: string;
   usage?: {
     inputTokens: number;
@@ -92,6 +115,7 @@ export type ChatStreamEvent =
   | { type: "content_block_start"; block: Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId"> }
   | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock; data?: string }
   | { type: "ask_user"; id: string; question: string; options?: string[]; multiple?: boolean }
+  | { type: "system_warning"; message: string }
   | { type: "sub_agent_event"; agentId: string; description: string; subAgentType?: string; event: ChatStreamEvent }
   | {
       type: "task_update";

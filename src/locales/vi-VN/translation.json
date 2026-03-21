@@ -685,6 +685,8 @@
   "agent_chat_edit_message": "Chỉnh sửa",
   "agent_chat_save_and_send": "Lưu & Gửi",
   "agent_chat_cancel_edit": "Hủy",
+  "agent_chat_message_queued": "Đang chờ",
+  "agent_chat_cancel_message": "Hủy gửi",
   "agent_permission_title": "Script yêu cầu sử dụng cuộc trò chuyện Agent",
   "agent_permission_describe": "Script này yêu cầu quyền truy cập chức năng cuộc trò chuyện Agent, sẽ tiêu thụ API token. Chỉ cấp quyền cho các script đáng tin cậy.",
   "agent_permission_content": "Cuộc trò chuyện Agent",

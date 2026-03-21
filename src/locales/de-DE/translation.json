@@ -685,6 +685,8 @@
   "agent_chat_edit_message": "Bearbeiten",
   "agent_chat_save_and_send": "Speichern & Senden",
   "agent_chat_cancel_edit": "Abbrechen",
+  "agent_chat_message_queued": "In Warteschlange",
+  "agent_chat_cancel_message": "Senden abbrechen",
   "agent_permission_title": "Das Skript fordert die Verwendung des Agent-Gesprächs an",
   "agent_permission_describe": "Dieses Skript fordert Zugang zur Agent-Gesprächsfunktion an, was API-Token verbraucht. Erlauben Sie nur vertrauenswürdigen Skripten.",
   "agent_permission_content": "Agent-Gespräch",

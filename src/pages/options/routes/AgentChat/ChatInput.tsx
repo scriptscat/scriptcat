@@ -9,11 +9,67 @@ import {
   IconTool,
   IconFile,
   IconPlayCircle,
+  IconThunderbolt,
 } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/types";
 import { groupModelsByProvider, supportsVision, supportsImageOutput } from "./model_utils";
 import ProviderIcon from "./ProviderIcon";
+
+// 斜杠命令弹出菜单
+function SlashCommandMenu({
+  items,
+  activeIndex,
+  onSelect,
+}: {
+  items: SkillSummary[];
+  activeIndex: number;
+  onSelect: (skill: SkillSummary) => void;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // 保持选中项在视口内
+  useEffect(() => {
+    const container = listRef.current;
+    if (!container) return;
+    const active = container.children[activeIndex] as HTMLElement | undefined;
+    active?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div
+      ref={listRef}
+      className="tw-absolute tw-bottom-full tw-left-0 tw-right-0 tw-mb-1 tw-max-h-[240px] tw-overflow-y-auto tw-rounded-lg tw-border tw-border-solid tw-border-[var(--color-border-2)] tw-bg-[var(--color-bg-2)] tw-shadow-[0_4px_16px_rgba(0,0,0,0.1)] tw-z-10 tw-py-1 agent-chat-scroll"
+    >
+      {items.map((skill, i) => (
+        <div
+          key={skill.name}
+          onMouseDown={(e) => {
+            e.preventDefault(); // 阻止 textarea 失焦
+            onSelect(skill);
+          }}
+          className={`tw-flex tw-flex-col tw-gap-0.5 tw-px-3 tw-py-2 tw-cursor-pointer tw-transition-colors ${
+            i === activeIndex
+              ? "tw-bg-[rgb(var(--arcoblue-1))] dark:tw-bg-[rgba(var(--arcoblue-6),0.1)]"
+              : "hover:tw-bg-[var(--color-fill-1)]"
+          }`}
+        >
+          <span className="tw-text-sm tw-font-medium tw-text-[var(--color-text-1)] tw-flex tw-items-center tw-gap-1.5">
+            <IconThunderbolt style={{ fontSize: 13, color: "rgb(var(--arcoblue-6))", flexShrink: 0 }} />
+            <span>/{skill.name}</span>
+          </span>
+          {skill.description && (
+            <span className="tw-text-xs tw-text-[var(--color-text-3)] tw-pl-[21px] tw-line-clamp-1">
+              {skill.description}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function ModelSelect({
   models,
@@ -108,6 +164,7 @@ export default function ChatInput({
   onEnableToolsChange,
   backgroundEnabled,
   onBackgroundEnabledChange,
+  hasPendingMessage,
 }: {
   models: AgentModelConfig[];
   selectedModelId: string;
@@ -123,13 +180,36 @@ export default function ChatInput({
   onEnableToolsChange?: (enabled: boolean) => void;
   backgroundEnabled?: boolean;
   onBackgroundEnabledChange?: (enabled: boolean) => void;
+  hasPendingMessage?: boolean;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 斜杠命令过滤
+  const slashQuery = useMemo(() => {
+    const match = input.match(/^\/(\S*)$/);
+    return match ? match[1].toLowerCase() : null;
+  }, [input]);
+
+  const filteredSkills = useMemo(() => {
+    if (slashQuery === null || !skills || skills.length === 0) return [];
+    if (slashQuery === "") return skills;
+    return skills.filter(
+      (s) => s.name.toLowerCase().includes(slashQuery) || s.description.toLowerCase().includes(slashQuery)
+    );
+  }, [slashQuery, skills]);
+
+  const showSlashMenu = filteredSkills.length > 0;
+
+  // 重置选中索引
+  useEffect(() => {
+    setSlashActiveIndex(0);
+  }, [filteredSkills.length]);
 
   // 自动调整高度
   useEffect(() => {
@@ -174,7 +254,7 @@ export default function ChatInput({
 
   const handleSend = () => {
     const trimmed = input.trim();
-    if ((!trimmed && attachments.length === 0) || isStreaming || disabled) return;
+    if ((!trimmed && attachments.length === 0) || disabled || hasPendingMessage) return;
 
     if (attachments.length > 0) {
       // 构建 ContentBlock[] 和 files Map
@@ -205,9 +285,42 @@ export default function ChatInput({
     setInput("");
   };
 
+  const handleSlashSelect = useCallback(
+    (skill: SkillSummary) => {
+      setInput(`/${skill.name} `);
+      textareaRef.current?.focus();
+    },
+    []
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // 忽略输入法组合状态中的回车（如中文输入法确认候选词）
     if (e.nativeEvent.isComposing) return;
+
+    // 斜杠命令菜单键盘导航
+    if (showSlashMenu) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashActiveIndex((prev) => (prev <= 0 ? filteredSkills.length - 1 : prev - 1));
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashActiveIndex((prev) => (prev >= filteredSkills.length - 1 ? 0 : prev + 1));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        handleSlashSelect(filteredSkills[slashActiveIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setInput("");
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -254,21 +367,27 @@ export default function ChatInput({
     e.target.value = "";
   };
 
-  const canSend = (input.trim() || attachments.length > 0) && !disabled;
+  const canSend = (input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage;
 
   return (
     <div className="tw-px-4 tw-pb-4 tw-pt-2 tw-bg-[var(--color-bg-1)]">
       <div className="tw-max-w-3xl tw-mx-auto">
-        <div
-          className={`tw-rounded-2xl tw-border tw-border-solid tw-bg-[var(--color-bg-2)] tw-shadow-[0_2px_12px_rgba(0,0,0,0.06)] tw-overflow-hidden tw-transition-colors ${
-            isDragging
-              ? "tw-border-[rgb(var(--arcoblue-6))] tw-bg-[rgb(var(--arcoblue-1))]"
-              : "tw-border-[var(--color-border-2)]"
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
+        <div className="tw-relative">
+          {/* 斜杠命令弹出菜单 */}
+          {showSlashMenu && (
+            <SlashCommandMenu items={filteredSkills} activeIndex={slashActiveIndex} onSelect={handleSlashSelect} />
+          )}
+
+          <div
+            className={`tw-rounded-2xl tw-border tw-border-solid tw-bg-[var(--color-bg-2)] tw-shadow-[0_2px_12px_rgba(0,0,0,0.06)] tw-overflow-hidden tw-transition-colors ${
+              isDragging
+                ? "tw-border-[rgb(var(--arcoblue-6))] tw-bg-[rgb(var(--arcoblue-1))]"
+                : "tw-border-[var(--color-border-2)]"
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
           {/* 附件预览条 */}
           {attachments.length > 0 && (
             <div className="tw-flex tw-gap-2 tw-px-4 tw-pt-3 tw-pb-1 tw-flex-wrap">
@@ -423,27 +542,31 @@ export default function ChatInput({
               </span>
             </div>
 
-            {isStreaming ? (
-              <button
-                onClick={onStop}
-                className="tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[rgb(var(--orange-6))] tw-text-white tw-border-none tw-cursor-pointer tw-transition-all hover:tw-opacity-80 tw-shadow-sm"
-              >
-                <IconPause style={{ fontSize: 14 }} />
-              </button>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={!canSend}
-                className={`tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-border-none tw-cursor-pointer tw-transition-all tw-shadow-sm ${
-                  canSend
-                    ? "tw-bg-[rgb(var(--arcoblue-6))] tw-text-white hover:tw-opacity-80"
-                    : "tw-bg-[var(--color-fill-3)] tw-text-[var(--color-text-4)] tw-cursor-not-allowed"
-                }`}
-              >
-                <IconSend style={{ fontSize: 14 }} />
-              </button>
-            )}
+            <div className="tw-flex tw-items-center tw-gap-1.5">
+              {isStreaming && (
+                <button
+                  onClick={onStop}
+                  className="tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-[rgb(var(--orange-6))] tw-text-white tw-border-none tw-cursor-pointer tw-transition-all hover:tw-opacity-80 tw-shadow-sm"
+                >
+                  <IconPause style={{ fontSize: 14 }} />
+                </button>
+              )}
+              {(!isStreaming || canSend) && (
+                <button
+                  onClick={handleSend}
+                  disabled={!canSend}
+                  className={`tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-border-none tw-cursor-pointer tw-transition-all tw-shadow-sm ${
+                    canSend
+                      ? "tw-bg-[rgb(var(--arcoblue-6))] tw-text-white hover:tw-opacity-80"
+                      : "tw-bg-[var(--color-fill-3)] tw-text-[var(--color-text-4)] tw-cursor-not-allowed"
+                  }`}
+                >
+                  <IconSend style={{ fontSize: 14 }} />
+                </button>
+              )}
+            </div>
           </div>
+        </div>
         </div>
       </div>
     </div>

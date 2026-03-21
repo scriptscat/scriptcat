@@ -691,6 +691,8 @@
   "agent_chat_edit_message": "Edit",
   "agent_chat_save_and_send": "Save & Send",
   "agent_chat_cancel_edit": "Cancel",
+  "agent_chat_message_queued": "Queued",
+  "agent_chat_cancel_message": "Cancel send",
   "agent_permission_title": "The script is requesting to use Agent conversation",
   "agent_permission_describe": "This script requests Agent conversation access, which will consume API tokens. Only grant access to trusted scripts.",
   "agent_permission_content": "Agent Conversation",

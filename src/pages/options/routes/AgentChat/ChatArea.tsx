@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Message as ArcoMessage } from "@arco-design/web-react";
 import { IconRobot } from "@arco-design/web-react/icon";
@@ -98,6 +98,16 @@ export default function ChatArea({
   const sendStartTimeRef = useRef<number>(0);
   const firstTokenRecordedRef = useRef<boolean>(false);
   const firstTokenMsRef = useRef<number | undefined>(undefined);
+
+  // 待处理的用户消息（LLM 运行中排队）
+  const pendingMessageRef = useRef<{ content: MessageContent; messageId: string } | null>(null);
+  const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
+
+  // 会话切换时清除待处理消息
+  useEffect(() => {
+    pendingMessageRef.current = null;
+    setPendingMessageId(null);
+  }, [conversationId]);
 
   // 自动滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -244,9 +254,23 @@ export default function ChatArea({
               sa.currentThinking = "";
               sa.currentToolCalls = [];
               break;
+            case "retry":
+              // 显示重试提示
+              sa.retryInfo = { attempt: innerEvent.attempt, maxRetries: innerEvent.maxRetries, error: innerEvent.error };
+              break;
             case "done":
+              // 收集 usage
+              if (innerEvent.usage) {
+                if (!sa.usage) sa.usage = { inputTokens: 0, outputTokens: 0 };
+                sa.usage.inputTokens += innerEvent.usage.inputTokens;
+                sa.usage.outputTokens += innerEvent.usage.outputTokens;
+                sa.usage.cacheCreationInputTokens = (sa.usage.cacheCreationInputTokens || 0) + (innerEvent.usage.cacheCreationInputTokens || 0);
+                sa.usage.cacheReadInputTokens = (sa.usage.cacheReadInputTokens || 0) + (innerEvent.usage.cacheReadInputTokens || 0);
+              }
+              // falls through
             case "error":
               // 最后一轮归档
+              sa.retryInfo = undefined; // 清除重试提示
               if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
                 sa.completedMessages.push({
                   content: sa.currentContent,
@@ -325,6 +349,9 @@ export default function ChatArea({
           retryTimerRef.current = setInterval(updateRetryMsg, 1000);
           break;
         }
+        case "system_warning":
+          msg.warning = event.message;
+          break;
         case "error":
           msg.error = event.message;
           break;
@@ -355,12 +382,28 @@ export default function ChatArea({
     };
   };
 
+  // 处理排队的用户消息
+  const processPendingMessage = async () => {
+    const pending = pendingMessageRef.current;
+    if (!pending) return;
+    pendingMessageRef.current = null;
+    setPendingMessageId(null);
+    const freshMsgs = await chatRepo.getMessages(conversationId);
+    startStreamingRef.current(freshMsgs, pending.content);
+  };
+
   const createDoneCallback = () => {
     return async () => {
       clearRetryTimer();
       streamingMsgRef.current = null;
-      await loadMessages();
-      onConversationTitleChange?.();
+      if (pendingMessageRef.current) {
+        // 有排队消息：跳过 loadMessages 避免闪烁，直接处理
+        onConversationTitleChange?.();
+        await processPendingMessage();
+      } else {
+        await loadMessages();
+        onConversationTitleChange?.();
+      }
     };
   };
 
@@ -439,16 +482,18 @@ export default function ChatArea({
   const handleSend = async (content: MessageContent, files?: Map<string, File>) => {
     if (!conversationId || !selectedModelId) return;
 
-    // 处理 /new 命令：清空对话上下文及任务
+    // 处理 /new 命令：清空对话上下文及任务（流式中不允许）
     if (typeof content === "string" && content.trim() === "/new") {
+      if (isStreaming) return;
       await clearMessages(conversationId);
       setMessages([]);
       loadTasks();
       return;
     }
 
-    // 处理 /compact 命令：压缩对话历史
+    // 处理 /compact 命令：压缩对话历史（流式中不允许）
     if (typeof content === "string" && content.trim().startsWith("/compact")) {
+      if (isStreaming) return;
       const instruction = content.trim().slice("/compact".length).trim();
       sendMessage(
         conversationId,
@@ -476,6 +521,24 @@ export default function ChatArea({
       for (const [id, file] of files) {
         await chatRepo.saveAttachment(id, file);
       }
+    }
+
+    // LLM 运行中：排队等待空闲时处理
+    if (isStreaming) {
+      const msgId = genId();
+      pendingMessageRef.current = { content, messageId: msgId };
+      setPendingMessageId(msgId);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: msgId,
+          conversationId,
+          role: "user" as const,
+          content,
+          createtime: Date.now(),
+        },
+      ]);
+      return;
     }
 
     startStreaming(messages, content);
@@ -597,7 +660,7 @@ export default function ChatArea({
   );
 
   // 停止生成：重置流式状态，将未完成的 tool call 标记为 error，并重新加载持久化消息
-  const handleStop = useCallback(() => {
+  const handleStop = useCallback(async () => {
     clearRetryTimer();
     stopGeneration();
     streamingMsgRef.current = null;
@@ -613,9 +676,34 @@ export default function ChatArea({
         };
       });
     });
-    // 重新加载持久化消息，恢复到后端实际保存的状态
-    loadMessages();
-  }, [clearRetryTimer, stopGeneration, setMessages, loadMessages]);
+    // 有待处理消息时，停止后自动发送
+    if (pendingMessageRef.current) {
+      processPendingMessage();
+    } else {
+      // 重新加载持久化消息，恢复到后端实际保存的状态
+      loadMessages();
+    }
+  }, [clearRetryTimer, stopGeneration, setMessages, loadMessages, conversationId]);
+
+  // 取消排队的用户消息
+  const handleCancelPending = useCallback(() => {
+    const pending = pendingMessageRef.current;
+    if (!pending) return;
+    const msgId = pending.messageId;
+    pendingMessageRef.current = null;
+    setPendingMessageId(null);
+    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+  }, [setMessages]);
+
+  // 兜底：连接断开但 done 回调未触发时，处理排队消息
+  const prevStreamingRef = useRef(false);
+  useEffect(() => {
+    if (prevStreamingRef.current && !isStreaming && pendingMessageRef.current) {
+      processPendingMessage();
+    }
+    prevStreamingRef.current = isStreaming;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming]);
 
   // 只在模型加载完成后才判断是否无模型，避免加载中闪现提示
   const noModel = modelsLoaded === true && models.length === 0;
@@ -644,6 +732,7 @@ export default function ChatArea({
                       ? () => handleRegenerateUserMessage(group.message.id)
                       : undefined
                   }
+                  onCancel={pendingMessageId === group.message.id ? handleCancelPending : undefined}
                 />
               ) : (
                 <AssistantMessageGroup
@@ -652,7 +741,7 @@ export default function ChatArea({
                   streamingId={isStreaming ? streamingMsgRef.current?.id : undefined}
                   isStreaming={isStreaming}
                   streamStartTime={sendStartTimeRef.current || undefined}
-                  subAgents={isStreaming ? subAgentsRef.current : undefined}
+                  subAgents={subAgentsRef.current.size > 0 ? subAgentsRef.current : undefined}
                   onCopy={() => handleCopy(group.messages)}
                   onRegenerate={() => handleRegenerate(messageGroups, groupIndex)}
                   onDelete={() => handleDeleteRound(messageGroups, groupIndex)}
@@ -690,6 +779,7 @@ export default function ChatArea({
         onEnableToolsChange={onEnableToolsChange}
         backgroundEnabled={backgroundEnabled}
         onBackgroundEnabledChange={onBackgroundEnabledChange}
+        hasPendingMessage={pendingMessageId !== null}
       />
       {noModel && (
         <div className="tw-text-center tw-text-xs tw-text-[var(--color-text-3)] tw-pb-2">

@@ -115,10 +115,10 @@ export default function AskUserBlock({
                     key={opt}
                     type="button"
                     onClick={() => (multiple ? handleMultiToggle(opt) : handleSingleSelect(opt))}
-                    className={`tw-inline-flex tw-items-center tw-gap-1.5 tw-px-3.5 tw-py-2 tw-rounded-lg tw-text-sm tw-border tw-border-solid tw-cursor-pointer tw-transition-all tw-duration-150 tw-select-none ${
+                    className={`agent-ask-option tw-inline-flex tw-items-center tw-gap-1.5 tw-px-3.5 tw-py-2 tw-rounded-lg tw-text-sm tw-border tw-border-solid tw-cursor-pointer tw-transition-all tw-duration-150 tw-select-none ${
                       isSelected
-                        ? "tw-bg-[rgb(var(--arcoblue-1))] tw-border-[rgb(var(--arcoblue-5))] tw-text-[rgb(var(--arcoblue-6))] tw-font-medium tw-shadow-sm"
-                        : "tw-bg-[var(--color-bg-1)] tw-border-[var(--color-border-2)] tw-text-[var(--color-text-2)] hover:tw-border-[rgb(var(--arcoblue-4))] hover:tw-text-[rgb(var(--arcoblue-6))] hover:tw-bg-[rgb(var(--arcoblue-1))]"
+                        ? "selected tw-font-medium tw-shadow-sm"
+                        : "tw-bg-[var(--color-bg-1)] tw-text-[var(--color-text-2)]"
                     }`}
                   >
                     {multiple && (

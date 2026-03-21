@@ -298,6 +298,39 @@ body[arco-theme="dark"] .ai-markdown-body .hljs-deletion {
   background-color: #67060c;
 }
 
+/* 系统警告 */
+.agent-warning-block {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border-left: 3px solid #d97706;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.agent-warning-block .agent-warning-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  margin-top: 1px;
+  color: #d97706;
+}
+
+body[arco-theme="dark"] .agent-warning-block {
+  background: rgba(217, 119, 6, 0.1);
+  color: #fbbf24;
+  border-left-color: #d97706;
+}
+
+body[arco-theme="dark"] .agent-warning-block .agent-warning-icon {
+  color: #fbbf24;
+}
+
 /* 错误消息 */
 .agent-error-block {
   margin-top: 8px;
@@ -339,6 +372,37 @@ body[arco-theme="dark"] .agent-error-block .agent-error-icon {
 body[arco-theme="dark"] .agent-ask-user-card {
   border-color: rgb(var(--arcoblue-7));
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.24);
+}
+
+/* ask_user 选项按钮 */
+.agent-ask-option {
+  border-color: var(--color-border-2);
+}
+
+.agent-ask-option:hover {
+  border-color: rgb(var(--arcoblue-4));
+  color: rgb(var(--arcoblue-6));
+  background-color: rgb(var(--arcoblue-1));
+}
+
+.agent-ask-option.selected {
+  border-color: rgb(var(--arcoblue-5));
+  background-color: rgb(var(--arcoblue-1));
+  color: rgb(var(--arcoblue-6));
+}
+
+body[arco-theme="dark"] .agent-ask-option {
+  border-color: var(--color-border-2);
+}
+
+body[arco-theme="dark"] .agent-ask-option:hover {
+  border-color: rgb(var(--arcoblue-5));
+  background-color: rgba(var(--arcoblue-6), 0.1);
+}
+
+body[arco-theme="dark"] .agent-ask-option.selected {
+  border-color: rgb(var(--arcoblue-5));
+  background-color: rgba(var(--arcoblue-6), 0.15);
 }
 
 /* 侧边栏会话列表 */

@@ -1,4 +1,4 @@
-import type { Attachment, ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
+import type { Attachment, SubAgentDetails, ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { getExtFromMime } from "./content_utils";
@@ -11,11 +11,12 @@ export interface ToolExecutor {
 // 脚本工具回调类型：将 tool calls 发送到 Sandbox 执行
 export type ScriptToolCallback = (toolCalls: ToolCall[]) => Promise<Array<{ id: string; result: string }>>;
 
-// 工具执行结果（可能含附件）
+// 工具执行结果（可能含附件和子代理详情）
 export type ToolExecuteResult = {
   id: string;
   result: string;
   attachments?: Attachment[];
+  subAgentDetails?: SubAgentDetails;
 };
 
 // 从异常中提取错误消息（兼容 Error 对象和直接 throw 的字符串）
@@ -30,6 +31,13 @@ function isToolResultWithAttachments(value: unknown): value is ToolResultWithAtt
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
   return typeof obj.content === "string" && Array.isArray(obj.attachments);
+}
+
+// 判断返回值是否包含子代理详情
+function isToolResultWithSubAgent(value: unknown): value is { content: string; subAgentDetails: SubAgentDetails } {
+  if (typeof value !== "object" || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return typeof obj.content === "string" && typeof obj.subAgentDetails === "object" && obj.subAgentDetails !== null;
 }
 
 // 工具注册表，管理内置工具和脚本工具的统一执行
@@ -90,10 +98,12 @@ export class ToolRegistry {
           }
           const rawResult = await tool.executor.execute(args);
 
-          // 检查是否带附件
+          // 检查是否带附件或子代理详情
           if (isToolResultWithAttachments(rawResult)) {
             const attachments = await this.saveAttachments(rawResult.attachments);
             return { id: tc.id, result: rawResult.content, attachments };
+          } else if (isToolResultWithSubAgent(rawResult)) {
+            return { id: tc.id, result: rawResult.content, subAgentDetails: rawResult.subAgentDetails };
           } else {
             return { id: tc.id, result: typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult) };
           }
