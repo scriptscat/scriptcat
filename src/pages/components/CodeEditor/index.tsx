@@ -252,9 +252,10 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
 
         editor.setModelMarkers(model, "ESLint", message.markers);
 
-        // 更新 eslint-fix 快取
+        // 更新 eslint-fix 快取（每次替换整个 map，避免已修复问题的过期条目残留）
         const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
         if (eslintFixMap) {
+          eslintFixMap.clear();
           message.markers.forEach((m: TMarker) => {
             if (m.fix) {
               const key = `${m.code.value}|${m.startLineNumber}|${m.endLineNumber}|${m.startColumn}|${m.endColumn}`;

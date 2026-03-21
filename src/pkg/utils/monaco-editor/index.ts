@@ -58,42 +58,39 @@ let isRegisterEditorDone = false;
  * 应该在应用启动早期执行一次（例如在 App 根组件 mount 时）
  */
 export function registerEditor() {
-  // 避免单一ServiceWorker重复执行
+  // 避免重复注册
   if (isRegisterEditorDone) return;
   isRegisterEditorDone = true;
 
-  // 单一Monaco环境（页面）只有一个 linterWorker
-  // SW 重启后仍使用原有的 linterWorker 和 MonacoEnvironment
+  // worker 初始化：复用已有 worker 或创建新的
   if ((window.MonacoEnvironment as any)?.myLinterWorker) {
     linterWorkerDeferred.resolve((window.MonacoEnvironment as any)?.myLinterWorker);
-    return;
+  } else {
+    const linterWorker = new Worker("/src/linter.worker.js") as ILinterWorker;
+    linterWorker.myLinterHook = new EventEmitter<string, any>();
+
+    linterWorker.onmessage = (event) => {
+      LinterWorkerController.hookEmit("message", event.data);
+    };
+
+    window.MonacoEnvironment = {
+      getWorkerUrl(moduleId: any, label: any) {
+        if (label === "typescript" || label === "javascript") {
+          return "/src/ts.worker.js";
+        }
+        return "/src/editor.worker.js";
+      },
+    };
+
+    Object.assign(window.MonacoEnvironment, {
+      myLinterWorker: linterWorker,
+      eslintFixMap: new Map(),
+    });
+
+    linterWorkerDeferred.resolve(linterWorker);
   }
 
-  const linterWorker = new Worker("/src/linter.worker.js") as ILinterWorker;
-  linterWorker.myLinterHook = new EventEmitter<string, any>();
-
-  linterWorker.onmessage = (event) => {
-    LinterWorkerController.hookEmit("message", event.data);
-  };
-
-  window.MonacoEnvironment = {
-    getWorkerUrl(moduleId: any, label: any) {
-      if (label === "typescript" || label === "javascript") {
-        return "/src/ts.worker.js";
-      }
-      return "/src/editor.worker.js";
-    },
-  };
-
-  // 单一Monaco环境（页面）只有一个 linterWorker
-  // SW 重启后仍使用原有的 linterWorker 和 MonacoEnvironment
-  Object.assign(window.MonacoEnvironment, {
-    myLinterWorker: linterWorker,
-    eslintFixMap: new Map(),
-  });
-
-  linterWorkerDeferred.resolve(linterWorker);
-
+  // provider 注册始终执行，不受 worker 复用影响
   const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
 
   languages.registerHoverProvider("javascript", {
@@ -134,12 +131,8 @@ export function registerEditor() {
         const code = typeof val.code === "string" ? val.code : val.code!.value;
 
         // 1. eslint-fix
-        // 为避免多个 model / 编辑器实例间的 key 冲突，优先使用包含 model.uri 的作用域 key；
-        // 为保持向后兼容，若找不到则回退到旧的无作用域 key。
         const baseKey = `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`;
-        const modelKey = model.uri.toString();
-        const scopedKey = `${modelKey}|${baseKey}`;
-        const fix = eslintFixMap?.get(scopedKey) ?? eslintFixMap?.get(baseKey);
+        const fix = eslintFixMap?.get(baseKey);
         if (fix) {
           actions.push({
             title: multiLang.quickfix.replace("{0}", code),
