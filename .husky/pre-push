@@ -13,7 +13,7 @@ need_check=0
 while read local_ref local_sha remote_ref remote_sha; do
   branch=$(echo "$remote_ref" | sed 's|refs/heads/||')
 
-  if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release"; then
+  if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release/"; then
     need_check=1
     echo "🔍 Detected push target: $branch"
   fi
