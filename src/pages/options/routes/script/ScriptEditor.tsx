@@ -859,10 +859,7 @@ function ScriptEditor() {
                     {item.items.map((menuItem, i) => {
                       if (menuItem.divider) {
                         return (
-                          <div
-                            key={`divider_${i.toString()}`}
-                            style={{ padding: "4px 0", background: "var(--color-secondary)" }}
-                          >
+                          <div key={`divider_${i}`} style={{ padding: "4px 0", background: "var(--color-secondary)" }}>
                             <div style={{ height: "1px", backgroundColor: "var(--color-neutral-4)" }} />
                           </div>
                         );
