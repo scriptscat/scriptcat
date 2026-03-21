@@ -173,20 +173,14 @@ export const UpdateTimeCell = React.memo(({ className, script }: { className?: s
   return (
     <Space size={4}>
       <Tooltip content={t("check_update")} position="tl">
-        <Typography.Text
-          className={className}
-          style={{
-            cursor: "pointer",
-          }}
-          onClick={handleClick}
-        >
+        <Typography.Text className={`tw-cursor-pointer ${className ?? ""}`} onClick={handleClick}>
           {script.updatetime && semTime(new Date(script.updatetime))}
         </Typography.Text>
       </Tooltip>
       {script.checkUpdateUrl && (
         <Tooltip content={t("check_update")} position="tl">
           <IconSync
-            className={`update-icon-sync ${checking ? "arco-icon-loading" : ""}`}
+            className={`tw-cursor-pointer tw-opacity-45 hover:tw-opacity-100 tw-transition-opacity ${checking ? "arco-icon-loading tw-opacity-100" : ""}`}
             spin={checking}
             onClick={handleClick}
           />
