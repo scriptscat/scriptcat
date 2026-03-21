@@ -20,6 +20,8 @@
   "subscribe": "サブスクライブ",
   "logs": "ログ",
   "tools": "ツール",
+  "find": "検索",
+  "replace": "置換",
   "settings": "設定",
   "hide_main_sidebar": "サイドバーを折りたたむ",
   "show_main_sidebar": "サイドバーを展開",

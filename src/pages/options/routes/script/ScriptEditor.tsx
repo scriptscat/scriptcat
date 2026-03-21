@@ -398,6 +398,22 @@ function ScriptEditor() {
       title: t("tools"),
       items: [
         {
+          id: "find",
+          title: t("find"),
+          hotKeyString: "Ctrl+F",
+          action(_script, e) {
+            e.getAction("actions.find")?.run();
+          },
+        },
+        {
+          id: "replace",
+          title: t("replace"),
+          hotKeyString: "Ctrl+H",
+          action(_script, e) {
+            e.getAction("editor.action.startFindReplaceAction")?.run();
+          },
+        },
+        {
           id: "scriptStorage",
           title: t("script_storage"),
           tooltip: t("script_storage_tooltip"),

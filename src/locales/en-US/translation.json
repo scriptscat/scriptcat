@@ -20,6 +20,8 @@
   "subscribe": "Subscribe",
   "logs": "Logs",
   "tools": "Tools",
+  "find": "Find",
+  "replace": "Replace",
   "settings": "Settings",
   "hide_main_sidebar": "Collapse sidebar",
   "show_main_sidebar": "Expand sidebar",
