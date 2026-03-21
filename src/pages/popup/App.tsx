@@ -439,13 +439,25 @@ function App() {
                       <IconPlus style={iconStyle} />
                       {t("create_script")}
                     </Menu.Item>
-                    <Menu.Item
-                      key={`https://scriptcat.org/search?domain=${urlHost}`}
-                      className="tw-flex tw-flex-row tw-items-center"
+                    <Menu.SubMenu
+                      key="getScript"
+                      title={
+                        <span
+                          className="tw-flex tw-flex-row tw-items-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`https://scriptcat.org/search?domain=${urlHost}`, "_blank");
+                          }}
+                        >
+                          <IconSearch style={iconStyle} />
+                          {t("get_script")}
+                        </span>
+                      }
                     >
-                      <IconSearch style={iconStyle} />
-                      {t("get_script")}
-                    </Menu.Item>
+                      <Menu.Item key={`https://scriptcat.org/search?domain=${urlHost}`}>ScriptCat</Menu.Item>
+                      <Menu.Item key={`https://greasyfork.org/scripts/by-site/${urlHost}`}>Greasy Fork</Menu.Item>
+                      <Menu.Item key={`https://openuserjs.org/?q=${urlHost}`}>OpenUserJS</Menu.Item>
+                    </Menu.SubMenu>
                     <Menu.Item key={"checkUpdate"} className="tw-flex tw-flex-row tw-items-center">
                       <IconSync style={iconStyle} />
                       {t("check_update")}
