@@ -40,7 +40,7 @@ import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { parseSkillMd, parseSkillZip } from "@App/pkg/utils/skill";
 import { SkillScriptExecutor, SKILL_SCRIPT_UUID_PREFIX } from "@App/app/service/agent/skill_script_executor";
 import { CACHE_KEY_SKILL_INSTALL } from "@App/app/cache_key";
-import { buildSystemPrompt, SKILL_SUFFIX_HEADER } from "@App/app/service/agent/system_prompt";
+import { buildSystemPrompt, buildSubAgentSystemPrompt, SKILL_SUFFIX_HEADER } from "@App/app/service/agent/system_prompt";
 import { COMPACT_SYSTEM_PROMPT, buildCompactUserPrompt, extractSummary } from "@App/app/service/agent/compact_prompt";
 import { getContextWindow } from "@App/app/service/agent/model_context";
 import { cacheInstance } from "@App/app/cache";
@@ -57,7 +57,8 @@ import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent
 import { SearchConfigRepo, type SearchEngineConfig } from "@App/app/service/agent/tools/search_config";
 import { createTaskTools } from "@App/app/service/agent/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/tools/ask_user";
-import { createSubAgentTool } from "@App/app/service/agent/tools/sub_agent";
+import { createSubAgentTool, type SubAgentRunOptions, type SubAgentRunResult } from "@App/app/service/agent/tools/sub_agent";
+import { resolveSubAgentType, getExcludeToolsForType } from "@App/app/service/agent/sub_agent_types";
 import { createOPFSTools, setCreateBlobUrlFn, guessMimeType } from "@App/app/service/agent/tools/opfs_tools";
 import { sanitizePath, getWorkspaceRoot, getDirectory, splitPath } from "@App/app/service/agent/opfs_helpers";
 import { createObjectURL } from "@App/app/service/offscreen/client";
@@ -152,6 +153,21 @@ export class AgentService {
   private searchConfigRepo = new SearchConfigRepo();
   // 后台运行的会话注册表
   private runningConversations = new Map<string, RunningConversation>();
+  // 子代理上下文缓存，按父对话 ID 分组，对话结束时清理
+  private subAgentContexts = new Map<
+    string,
+    Map<
+      string,
+      {
+        agentId: string;
+        typeName: string;
+        description: string;
+        messages: ChatRequest["messages"];
+        status: "completed" | "error";
+        result?: string;
+      }
+    >
+  >();
 
   constructor(
     private group: Group,
@@ -1481,21 +1497,100 @@ export class AgentService {
     return (id: string) => resolved.get(id) ?? null;
   }
 
-  // 启动子代理执行子任务
+  // 子代理公共编排层：处理 type 解析、resume 路由
   private async runSubAgent(params: {
+    options: SubAgentRunOptions;
     model: AgentModelConfig;
-    prompt: string;
+    parentConversationId: string;
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
-    excludeTools: string[];
-    maxIterations: number;
-  }): Promise<string> {
-    const systemContent = buildSystemPrompt({});
+  }): Promise<SubAgentRunResult> {
+    const { options, model, parentConversationId, sendEvent, signal } = params;
+    const typeConfig = resolveSubAgentType(options.type);
+
+    // 获取所有已注册的工具名，计算排除列表
+    const allToolNames = this.toolRegistry.getDefinitions().map((d) => d.name);
+    const excludeTools = getExcludeToolsForType(typeConfig, allToolNames);
+
+    // resume 模式：延续已有子代理
+    if (options.to) {
+      const contextMap = this.subAgentContexts.get(parentConversationId);
+      const ctx = contextMap?.get(options.to);
+      if (!ctx) {
+        return { agentId: options.to, result: `Error: Sub-agent "${options.to}" not found. It may have been cleaned up when the conversation ended.` };
+      }
+
+      // 追加新的 user message 到已有上下文
+      ctx.messages.push({ role: "user", content: options.prompt });
+      ctx.status = "completed"; // 重置，将由 core 更新
+
+      const result = await this.runSubAgentCore({
+        messages: ctx.messages,
+        model,
+        excludeTools,
+        maxIterations: typeConfig.maxIterations,
+        sendEvent,
+        signal,
+      });
+
+      // 更新缓存
+      ctx.result = result;
+      ctx.status = "completed";
+
+      return { agentId: options.to, result };
+    }
+
+    // 新建模式
+    const agentId = uuidv4();
+
+    // 构建子代理专用 system prompt
+    const availableToolNames = allToolNames.filter((n) => !new Set(excludeTools).has(n));
+    const systemContent = buildSubAgentSystemPrompt(typeConfig, availableToolNames);
     const messages: ChatRequest["messages"] = [
       { role: "system", content: systemContent },
-      { role: "user", content: params.prompt },
+      { role: "user", content: options.prompt },
     ];
 
+    const result = await this.runSubAgentCore({
+      messages,
+      model,
+      excludeTools,
+      maxIterations: typeConfig.maxIterations,
+      sendEvent,
+      signal,
+    });
+
+    // 保存子代理上下文（用于延续）
+    if (!this.subAgentContexts.has(parentConversationId)) {
+      this.subAgentContexts.set(parentConversationId, new Map());
+    }
+    const contextMap = this.subAgentContexts.get(parentConversationId)!;
+    // 限制每个对话最多缓存 10 个子代理上下文，LRU 淘汰
+    if (contextMap.size >= 10) {
+      const oldestKey = contextMap.keys().next().value;
+      if (oldestKey) contextMap.delete(oldestKey);
+    }
+    contextMap.set(agentId, {
+      agentId,
+      typeName: typeConfig.name,
+      description: options.description,
+      messages,
+      status: "completed",
+      result,
+    });
+
+    return { agentId, result };
+  }
+
+  // 子代理核心执行层
+  private async runSubAgentCore(params: {
+    messages: ChatRequest["messages"];
+    model: AgentModelConfig;
+    excludeTools: string[];
+    maxIterations: number;
+    sendEvent: (event: ChatStreamEvent) => void;
+    signal: AbortSignal;
+  }): Promise<string> {
     let resultContent = "";
 
     const subSendEvent = (event: ChatStreamEvent) => {
@@ -1511,7 +1606,7 @@ export class AgentService {
 
     await this.callLLMWithToolLoop({
       model: params.model,
-      messages,
+      messages: params.messages,
       maxIterations: params.maxIterations,
       sendEvent: subSendEvent,
       signal: params.signal,
@@ -1851,17 +1946,24 @@ export class AgentService {
 
         // Sub-agent
         const subAgentTool = createSubAgentTool({
-          runSubAgent: (prompt: string, desc: string) => {
-            const agentId = uuidv4();
-            // 组合父信号和 10 分钟超时信号
-            const subSignal = AbortSignal.any([abortController.signal, AbortSignal.timeout(600_000)]);
+          runSubAgent: (options: SubAgentRunOptions) => {
+            const agentId = options.to || uuidv4();
+            const typeConfig = resolveSubAgentType(options.type);
+            // 组合父信号和类型配置的超时信号
+            const subSignal = AbortSignal.any([abortController.signal, AbortSignal.timeout(typeConfig.timeoutMs)]);
             return this.runSubAgent({
+              options: { ...options, description: options.description || "Sub-agent task" },
               model,
-              prompt,
+              parentConversationId: params.conversationId,
               signal: subSignal,
-              sendEvent: (evt) => sendEvent({ type: "sub_agent_event", agentId, description: desc, event: evt }),
-              excludeTools: ["ask_user", "agent"],
-              maxIterations: 30,
+              sendEvent: (evt) =>
+                sendEvent({
+                  type: "sub_agent_event",
+                  agentId,
+                  description: options.description || "Sub-agent task",
+                  subAgentType: typeConfig.name,
+                  event: evt,
+                }),
             });
           },
         });
@@ -1982,6 +2084,8 @@ export class AgentService {
         for (const name of registeredMetaToolNames) {
           this.toolRegistry.unregisterBuiltin(name);
         }
+        // 清理子代理上下文缓存
+        this.subAgentContexts.delete(params.conversationId);
       }
     } catch (e: any) {
       // 后台模式：abort 也需要清理注册表
@@ -2040,7 +2144,8 @@ export class AgentService {
     const messages: ChatRequest["messages"] = [
       {
         role: "system" as const,
-        content: "根据用户要求，从以下网页内容中提取/摘要信息。只返回相关内容，不要解释。",
+        content:
+          "Extract or summarize the relevant information from the provided web page content based on the user's request. Return only the relevant content without any explanation or commentary.",
       },
       {
         role: "user" as const,

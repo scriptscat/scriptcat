@@ -11,6 +11,7 @@ import ChatInput from "./ChatInput";
 import { useMessages, useStreamingChat, useConversationTasks, deleteMessages, clearMessages } from "./hooks";
 import AskUserBlock from "./AskUserBlock";
 import TaskListBlock from "./TaskListBlock";
+import type { SubAgentState } from "./SubAgentBlock";
 import {
   mergeToolResults,
   groupMessages,
@@ -109,6 +110,8 @@ export default function ChatArea({
 
   // 流式期间累积的非文本 blocks（content_block_complete 事件）
   const pendingBlocksRef = useRef<ContentBlock[]>([]);
+  // 子代理状态跟踪（流式期间按 agentId 维护）
+  const subAgentsRef = useRef<Map<string, SubAgentState>>(new Map());
   // 重试倒计时定时器
   const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -123,6 +126,7 @@ export default function ChatArea({
   // 创建流式事件回调（提取公共逻辑）
   const createStreamCallback = () => {
     pendingBlocksRef.current = [];
+    subAgentsRef.current = new Map();
     clearRetryTimer();
     return (event: ChatStreamEvent) => {
       // 不依赖流式消息的事件优先处理
@@ -182,9 +186,82 @@ export default function ChatArea({
           break;
         }
         case "ask_user":
-        case "sub_agent_event":
-          // 这些事件由 hook 层处理或仅作信息展示，不修改消息
+          // ask_user 事件由 hook 层处理
           break;
+        case "sub_agent_event": {
+          // 处理子代理事件：构建完整的子代理执行状态
+          const { agentId, description, subAgentType, event: innerEvent } = event;
+          let sa = subAgentsRef.current.get(agentId);
+          if (!sa) {
+            sa = {
+              agentId,
+              description,
+              subAgentType,
+              completedMessages: [],
+              currentContent: "",
+              currentThinking: "",
+              currentToolCalls: [],
+              isRunning: true,
+            };
+            subAgentsRef.current.set(agentId, sa);
+          }
+          // 分派内部事件
+          switch (innerEvent.type) {
+            case "content_delta":
+              sa.currentContent += innerEvent.delta;
+              break;
+            case "thinking_delta":
+              sa.currentThinking += innerEvent.delta;
+              break;
+            case "tool_call_start":
+              sa.currentToolCalls.push({ ...innerEvent.toolCall, status: "running" });
+              break;
+            case "tool_call_delta":
+              if (sa.currentToolCalls.length) {
+                const lastTc = sa.currentToolCalls[sa.currentToolCalls.length - 1];
+                lastTc.arguments += innerEvent.delta;
+              }
+              break;
+            case "tool_call_complete": {
+              const tc = sa.currentToolCalls.find((t) => t.id === innerEvent.id);
+              if (tc) {
+                tc.status = "completed";
+                tc.result = innerEvent.result;
+                tc.attachments = innerEvent.attachments;
+              }
+              break;
+            }
+            case "new_message":
+              // 当前轮次完成，归档到 completedMessages
+              if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
+                sa.completedMessages.push({
+                  content: sa.currentContent,
+                  thinking: sa.currentThinking || undefined,
+                  toolCalls: [...sa.currentToolCalls],
+                });
+              }
+              sa.currentContent = "";
+              sa.currentThinking = "";
+              sa.currentToolCalls = [];
+              break;
+            case "done":
+            case "error":
+              // 最后一轮归档
+              if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
+                sa.completedMessages.push({
+                  content: sa.currentContent,
+                  thinking: sa.currentThinking || undefined,
+                  toolCalls: [...sa.currentToolCalls],
+                });
+                sa.currentContent = "";
+                sa.currentThinking = "";
+                sa.currentToolCalls = [];
+              }
+              sa.isRunning = false;
+              break;
+          }
+          break;
+        }
         case "content_block_start":
           // 非文本 block 开始，暂不处理（等 complete 时处理）
           break;
@@ -575,6 +652,7 @@ export default function ChatArea({
                   streamingId={isStreaming ? streamingMsgRef.current?.id : undefined}
                   isStreaming={isStreaming}
                   streamStartTime={sendStartTimeRef.current || undefined}
+                  subAgents={isStreaming ? subAgentsRef.current : undefined}
                   onCopy={() => handleCopy(group.messages)}
                   onRegenerate={() => handleRegenerate(messageGroups, groupIndex)}
                   onDelete={() => handleDeleteRound(messageGroups, groupIndex)}

@@ -3,6 +3,8 @@ import type { ChatMessage, ContentBlock, MessageContent } from "@App/app/service
 import ContentBlockRenderer from "./ContentBlockRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
+import SubAgentBlock from "./SubAgentBlock";
+import type { SubAgentState } from "./SubAgentBlock";
 import MessageToolbar from "./MessageToolbar";
 import { Message as ArcoMessage, Tooltip } from "@arco-design/web-react";
 import {
@@ -23,8 +25,43 @@ import { AgentChatRepo } from "@App/app/repo/agent_chat";
 const chatRepo = new AgentChatRepo();
 
 // 单条助手消息内容（无头像、无外层包装）
-function AssistantMessageContent({ message, isStreaming }: { message: ChatMessage; isStreaming?: boolean }) {
+function AssistantMessageContent({
+  message,
+  isStreaming,
+  subAgents,
+}: {
+  message: ChatMessage;
+  isStreaming?: boolean;
+  subAgents?: Map<string, SubAgentState>;
+}) {
   const { t } = useTranslation();
+
+  // 匹配 agent 工具调用对应的子代理状态
+  const getSubAgentForToolCall = (tc: { name: string; result?: string; arguments?: string }) => {
+    if (tc.name !== "agent" || !subAgents) return undefined;
+    // 1. 从已完成的结果中匹配（格式: "[agentId: xxx]\n\n..."）
+    if (tc.result) {
+      const match = tc.result.match(/^\[agentId: ([^\]]+)\]/);
+      if (match) return subAgents.get(match[1]);
+    }
+    // 2. 从参数中匹配 to 字段（resume 场景）
+    if (tc.arguments) {
+      try {
+        const args = JSON.parse(tc.arguments);
+        if (args.to && subAgents.has(args.to)) return subAgents.get(args.to);
+      } catch {
+        // 参数可能还在流式构建中
+      }
+    }
+    // 3. 正在运行的 agent 工具调用：匹配最近的正在运行的子代理
+    if (!tc.result) {
+      for (const sa of subAgents.values()) {
+        if (sa.isRunning) return sa;
+      }
+    }
+    return undefined;
+  };
+
   return (
     <div className="tw-text-sm tw-min-w-0 tw-w-full">
       {/* Thinking 块 */}
@@ -46,9 +83,13 @@ function AssistantMessageContent({ message, isStreaming }: { message: ChatMessag
       )}
 
       {/* 工具调用 */}
-      {message.toolCalls?.map((tc) => (
-        <ToolCallBlock key={tc.id} toolCall={tc} />
-      ))}
+      {message.toolCalls?.map((tc) => {
+        const saState = getSubAgentForToolCall(tc);
+        if (saState) {
+          return <SubAgentBlock key={tc.id} state={saState} />;
+        }
+        return <ToolCallBlock key={tc.id} toolCall={tc} />;
+      })}
 
       {/* 错误 */}
       {message.error && (
@@ -449,6 +490,7 @@ export function AssistantMessageGroup({
   streamingId,
   isStreaming,
   streamStartTime,
+  subAgents,
   onCopy,
   onRegenerate,
   onDelete,
@@ -457,6 +499,7 @@ export function AssistantMessageGroup({
   streamingId?: string;
   isStreaming?: boolean;
   streamStartTime?: number;
+  subAgents?: Map<string, SubAgentState>;
   onCopy: () => void;
   onRegenerate: () => void;
   onDelete: () => void;
@@ -483,7 +526,7 @@ export function AssistantMessageGroup({
       {/* 消息内容：连续的 assistant 消息纵向排列 */}
       <div className="tw-flex tw-flex-col tw-max-w-[80%] tw-min-w-0 tw-gap-1">
         {messages.map((msg) => (
-          <AssistantMessageContent key={msg.id} message={msg} isStreaming={streamingId === msg.id} />
+          <AssistantMessageContent key={msg.id} message={msg} isStreaming={streamingId === msg.id} subAgents={subAgents} />
         ))}
 
         {/* 工具条 */}

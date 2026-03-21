@@ -92,7 +92,7 @@ export type ChatStreamEvent =
   | { type: "content_block_start"; block: Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId"> }
   | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock; data?: string }
   | { type: "ask_user"; id: string; question: string; options?: string[]; multiple?: boolean }
-  | { type: "sub_agent_event"; agentId: string; description: string; event: ChatStreamEvent }
+  | { type: "sub_agent_event"; agentId: string; description: string; subAgentType?: string; event: ChatStreamEvent }
   | {
       type: "task_update";
       tasks: Array<{

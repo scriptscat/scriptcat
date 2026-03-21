@@ -8,10 +8,10 @@ import { extractHtmlWithSelectors } from "@App/app/service/offscreen/client";
 const GET_TAB_CONTENT_DEFINITION: ToolDefinition = {
   name: "get_tab_content",
   description:
-    "Read the text content of a browser tab and extract specific information via LLM. Best for reading articles, extracting text, or summarizing page content. " +
-    "Always provide a prompt describing what information you need — the raw page content will be processed by LLM to return only relevant information, saving context. " +
-    "Use selector to narrow down to specific sections. " +
-    "NOTE: This tool returns text/markdown content only — it does not return element selectors or interactive element info. For DOM manipulation, use execute_script.",
+    "Read page content and extract information via LLM. Returns markdown with CSS selector annotations (as `<!-- selector -->` comments) for key elements. " +
+    "Use this BEFORE execute_script to understand page structure and discover correct selectors. " +
+    "Provide a prompt describing what to extract — e.g., 'find the title input, content editor, and submit button — return their CSS selectors and current state'. " +
+    "Use selector parameter to narrow scope to a specific section.",
   parameters: {
     type: "object",
     properties: {
