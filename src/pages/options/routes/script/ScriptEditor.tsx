@@ -550,6 +550,7 @@ function ScriptEditor() {
         {
           id: "find",
           title: t("find"),
+          hotKey: KeyMod.CtrlCmd | KeyCode.KeyF,
           hotKeyString: "Ctrl+F",
           action(_script, e) {
             e.getAction("actions.find")?.run();
@@ -558,6 +559,7 @@ function ScriptEditor() {
         {
           id: "replace",
           title: t("replace"),
+          hotKey: KeyMod.CtrlCmd | KeyCode.KeyH,
           hotKeyString: "Ctrl+H",
           action(_script, e) {
             e.getAction("editor.action.startFindReplaceAction")?.run();
