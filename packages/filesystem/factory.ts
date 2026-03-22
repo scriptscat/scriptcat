@@ -47,7 +47,7 @@ export default class FileSystemFactory {
             authType: params.authType,
             token: {
               token_type: "Bearer",
-              access_token: params.token,
+              access_token: params.accessToken,
             } satisfies OAuthToken,
           } satisfies WebDAVClientOptions;
         } else {
@@ -99,7 +99,7 @@ export default class FileSystemFactory {
         url: { title: t("url") },
         username: { title: t("username"), visibilityFor: ["password", "digest"] },
         password: { title: t("password"), type: "password", visibilityFor: ["password", "digest"] },
-        token: { title: t("token"), visibilityFor: ["token"] },
+        accessToken: { title: t("access_token_bearer"), visibilityFor: ["token"] },
       },
       "baidu-netdsik": {},
       onedrive: {},

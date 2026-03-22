@@ -387,6 +387,7 @@
   "url": "URL",
   "username": "ユーザー名",
   "password": "パスワード",
+  "access_token_bearer": "アクセストークン（Bearer）",
   "s3_bucket_name": "バケット名",
   "s3_region": "リージョン",
   "s3_access_key_id": "アクセスキーID",

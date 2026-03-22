@@ -387,6 +387,7 @@
   "url": "URL",
   "username": "用户名",
   "password": "密码",
+  "access_token_bearer": "访问令牌（Bearer）",
   "s3_bucket_name": "存储桶名称",
   "s3_region": "区域",
   "s3_access_key_id": "访问密钥 ID",

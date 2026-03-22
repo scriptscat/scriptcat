@@ -387,6 +387,7 @@
   "url": "Url",
   "username": "Tên người dùng",
   "password": "Mật khẩu",
+  "access_token_bearer": "Mã truy cập (Bearer)",
   "s3_bucket_name": "Tên Bucket",
   "s3_region": "Vùng",
   "s3_access_key_id": "ID Khóa Truy Cập",

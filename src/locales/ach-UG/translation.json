@@ -378,6 +378,7 @@
   "url": "crwdns8544:0crwdne8544:0",
   "username": "crwdns8546:0crwdne8546:0",
   "password": "crwdns8548:0crwdne8548:0",
+  "access_token_bearer": "Access Token (Bearer)",
   "s3_bucket_name": "Bucket Name",
   "s3_region": "Region",
   "s3_access_key_id": "Access Key ID",
