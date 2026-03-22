@@ -114,11 +114,11 @@ const FileSystemParams: React.FC<{
         {Object.keys(fsParam).map((key) => {
           const props = fsParam[key];
           const selectAuth = fsParam?.authType?.options?.[0]; // webDAV
+          if (selectAuth && props?.visibilityFor?.includes(fileSystemParams?.authType || selectAuth) === false) {
+            return null;
+          }
           return (
-            <div
-              key={key}
-              className={`${selectAuth && props?.visibilityFor?.includes(fileSystemParams?.authType || selectAuth) === false ? "tw-hidden" : ""}`}
-            >
+            <div key={key}>
               {props.type === "select" && (
                 <>
                   <span>{props.title}</span>
@@ -130,6 +130,7 @@ const FileSystemParams: React.FC<{
                         [key]: value,
                       });
                     }}
+                    style={{ minWidth: props.minWidth }}
                   >
                     {props.options!.map((option) => (
                       <Select.Option value={option} key={option}>

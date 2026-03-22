@@ -18,6 +18,7 @@ export type FileSystemParams = {
     type?: "select" | "authorize" | "password";
     options?: string[];
     visibilityFor?: string[];
+    minWidth?: string;
   };
 };
 
@@ -90,6 +91,7 @@ export default class FileSystemFactory {
           title: t("auth_type"),
           type: "select",
           options: ["password", "digest", "none", "token"],
+          minWidth: "140px",
         },
         url: { title: t("url") },
         username: { title: t("username"), visibilityFor: ["password", "digest"] },
