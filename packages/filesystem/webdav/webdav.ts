@@ -31,6 +31,7 @@ export default class WebDAVFileSystem implements FileSystem {
   basePath: string = "/";
 
   static fromCredentials(url: string, authType: AuthType, username: string, password: string) {
+    initWebDAVPatch();
     return new WebDAVFileSystem(createClient(url, { authType, username, password }), url, "/");
   }
 
@@ -39,7 +40,6 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   private constructor(client: WebDAVClient, url: string, basePath: string) {
-    initWebDAVPatch();
     this.client = client;
     this.url = url;
     this.basePath = basePath;
