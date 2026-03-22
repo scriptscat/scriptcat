@@ -88,7 +88,7 @@ export class SystemConfig {
     "vscode_reconnect", // VSCode 自动重连
     "language", // 语言偏好（可能因设备不同）
     "script_list_column_width", // UI 列宽（取决于屏幕尺寸）
-    "check_update", // 更新检查状态（含设备 version）
+    "check_update", // 更新检查状态（各设备独立检查更新）
     "enable_script", // 全局脚本开关（设备独立）
     "enable_script_incognito", // 隐身模式开关（浏览器级别）
   ]);
