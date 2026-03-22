@@ -8,6 +8,7 @@ import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import { toCamelCase } from "../utils/utils";
 import EventEmitter from "eventemitter3";
+import { STORAGE_LOCAL_KEYS } from "./consts";
 
 export const SystemConfigChange = "systemConfigChange";
 
@@ -73,7 +74,19 @@ export type SystemConfigValueType<K extends SystemConfigKey> =
 export class SystemConfig {
   private readonly cache = new Map<string, any>();
 
-  private readonly storage = new ChromeStorage("system", true);
+  // 跨设备同步的配置项，使用 chrome.storage.sync
+  private readonly syncStorage = new ChromeStorage("system", true);
+  // 设备相关的配置项，使用 chrome.storage.local（不跨设备同步）
+  private readonly localStorage = new ChromeStorage("system", false);
+
+  private isLocalKey(key: string): boolean {
+    return STORAGE_LOCAL_KEYS.has(key);
+  }
+
+  // 获取 key 对应的主 storage
+  private getStorage(key: string): ChromeStorage {
+    return this.isLocalKey(key) ? this.localStorage : this.syncStorage;
+  }
 
   private EE: EventEmitter<string> = new EventEmitter<string>();
 
@@ -108,21 +121,47 @@ export class SystemConfig {
     return this.addListener(key, callback);
   }
 
+  private resolveDefault<T>(defaultValue: WithAsyncValue<Exclude<T, undefined>>): T | Promise<T> {
+    //@ts-ignore
+    return (defaultValue?.asyncValue?.() || defaultValue) as T | Promise<T>;
+  }
+
+  private async transferSyncToLocal<T>(
+    key: SystemConfigKey,
+    defaultValue: WithAsyncValue<Exclude<T, undefined>>
+  ): Promise<T> {
+    const syncVal = await this.syncStorage.get(key);
+    if (syncVal === undefined) {
+      this.cache.set(key, undefined);
+      return this.resolveDefault<T>(defaultValue);
+    }
+    // 迁移到 local storage 并从 sync 中删除
+    await this.syncStorage.remove(key); // 先删除
+    await this.localStorage.set(key, syncVal); // 删除成功后储回本地
+    this.cache.set(key, syncVal);
+    return syncVal as T;
+  }
+
   private _get<T extends string | number | boolean | object>(
     key: SystemConfigKey,
     defaultValue: WithAsyncValue<Exclude<T, undefined>>
   ): Promise<T> {
     if (this.cache.has(key)) {
-      let val = this.cache.get(key);
-      //@ts-ignore
-      val = (val === undefined ? defaultValue?.asyncValue?.() || defaultValue : val) as T | Promise<T>;
-      return Promise.resolve(val);
+      const val = this.cache.get(key);
+      return Promise.resolve(val === undefined ? this.resolveDefault<T>(defaultValue) : (val as T));
     }
-    return this.storage.get(key).then((val) => {
+    const storage = this.getStorage(key);
+    return storage.get(key).then((val) => {
+      if (val !== undefined) {
+        this.cache.set(key, val);
+        return val as T;
+      }
+      // 对 local key，回退读取 sync storage（兼容旧版本数据迁移）
+      if (this.isLocalKey(key)) {
+        return this.transferSyncToLocal<T>(key, defaultValue);
+      }
       this.cache.set(key, val);
-      //@ts-ignore
-      val = (val === undefined ? defaultValue?.asyncValue?.() || defaultValue : val) as T | Promise<T>;
-      return val;
+      return this.resolveDefault<T>(defaultValue);
     });
   }
 
@@ -150,27 +189,23 @@ export class SystemConfig {
 
   private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
     const prev = this.cache.get(key);
+    const storage = this.getStorage(key);
+    let asyncOp;
     if (value === undefined) {
       this.cache.delete(key);
-      this.storage.remove(key);
+      asyncOp = storage.remove(key);
     } else {
       this.cache.set(key, value);
-      this.storage.set(key, value);
+      asyncOp = storage.set(key, value);
     }
-    // 发送消息通知更新
-    this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
-      key,
-      value,
-      prev,
+    asyncOp.then(() => {
+      // 发送消息通知更新
+      this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
+        key,
+        value,
+        prev,
+      });
     });
-  }
-
-  public getChangetime() {
-    return this._get<number>("changetime", 0);
-  }
-
-  public setChangetime(n: number) {
-    this._set("changetime", n);
   }
 
   defaultCheckScriptUpdateCycle() {
