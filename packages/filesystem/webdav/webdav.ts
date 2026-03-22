@@ -7,10 +7,20 @@ import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";
 
 // 禁止 WebDAV 请求携带浏览器 cookies，只通过账号密码认证 (#1297)
-getPatcher().patch("fetch", (...args: unknown[]) => {
-  const options = (args[1] as RequestInit) || {};
-  return fetch(args[0] as RequestInfo | URL, { ...options, credentials: "omit" });
-});
+// 全局单次注册
+let webDavPatched = false;
+const initWebDAVPatch = () => {
+  webDavPatched = true;
+  return getPatcher().patch("fetch", (...args: unknown[]) => {
+    const options = (args[1] as RequestInit) || {};
+    const headers = new Headers((options.headers as HeadersInit) || {});
+    return fetch(args[0] as RequestInfo | URL, {
+      ...options,
+      headers,
+      credentials: "omit",
+    });
+  });
+};
 
 export default class WebDAVFileSystem implements FileSystem {
   client: WebDAVClient;
@@ -26,6 +36,7 @@ export default class WebDAVFileSystem implements FileSystem {
       this.url = username!;
     } else {
       this.url = url!;
+      if (!webDavPatched) initWebDAVPatch();
       this.client = createClient(url!, {
         authType,
         username,
