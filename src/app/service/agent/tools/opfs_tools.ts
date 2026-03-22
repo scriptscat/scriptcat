@@ -7,6 +7,7 @@ import {
   splitPath,
   writeWorkspaceFile,
 } from "@App/app/service/agent/opfs_helpers";
+import { isText } from "@App/pkg/utils/istextorbinary";
 
 // re-export sanitizePath 供外部使用
 export { sanitizePath };
@@ -17,7 +18,7 @@ const OPFS_WRITE_DEFINITION: ToolDefinition = {
   name: "opfs_write",
   description:
     "Write content to a file in the workspace. Supports text strings, Blob, and data URL (base64 auto-decoded to binary). Creates parent directories automatically. " +
-    "Best for persisting binary data (images, downloads). Note: opfs_read returns a blob URL, not file text — so writing text here for later retrieval will not work. Keep text data in conversation context instead.",
+    "Text files can be read back via opfs_read. Binary data (images, downloads) are returned as blob URLs.",
   parameters: {
     type: "object",
     properties: {
@@ -28,15 +29,34 @@ const OPFS_WRITE_DEFINITION: ToolDefinition = {
   },
 };
 
+/** 最大允许无分页直接返回的文本行数 */
+const MAX_TEXT_LINES = 200;
+
+
 const OPFS_READ_DEFINITION: ToolDefinition = {
   name: "opfs_read",
   description:
-    "Read a file from the workspace. Returns a blob URL (NOT file text content) — suitable for passing binary files (images, PDFs) to SkillScripts for display, download, or processing. " +
-    "Cannot retrieve text content — if you need text data, keep it in conversation context instead of writing to OPFS.",
+    "Read a file from the workspace. " +
+    "By default auto-detects: text files return content, binary files return blob URL. " +
+    "Use 'mode' to override. If text exceeds 200 lines, use 'offset' and 'limit' to read in segments.",
   parameters: {
     type: "object",
     properties: {
       path: { type: "string", description: "File path relative to workspace root" },
+      mode: {
+        type: "string",
+        enum: ["text", "blob", "auto"],
+        description:
+          "Return mode. 'text': force text content; 'blob': force blob URL (for passing images/binary to SkillScripts or page); 'auto' (default): detect by file content",
+      },
+      offset: {
+        type: "number",
+        description: "Start line number (1-based). Only for text mode. Default: 1",
+      },
+      limit: {
+        type: "number",
+        description: "Number of lines to read. Only for text mode. Default: all (up to 200)",
+      },
     },
     required: ["path"],
   },
@@ -76,25 +96,34 @@ export function setCreateBlobUrlFn(fn: CreateBlobUrlFn): void {
   createBlobUrlFn = fn;
 }
 
-/** 根据文件扩展名推断 MIME 类型 */
+/** 根据文件扩展名推断 MIME 类型（仅用于元数据，文本/二进制判断由 isText 负责） */
 export function guessMimeType(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase() || "";
   const map: Record<string, string> = {
+    txt: "text/plain",
+    md: "text/markdown",
+    html: "text/html",
+    htm: "text/html",
+    css: "text/css",
+    csv: "text/csv",
+    xml: "text/xml",
+    svg: "image/svg+xml",
+    js: "application/javascript",
+    mjs: "application/javascript",
+    json: "application/json",
+    yaml: "text/yaml",
+    yml: "text/yaml",
     jpg: "image/jpeg",
     jpeg: "image/jpeg",
     png: "image/png",
     gif: "image/gif",
     webp: "image/webp",
-    svg: "image/svg+xml",
     mp3: "audio/mpeg",
     wav: "audio/wav",
     mp4: "video/mp4",
     pdf: "application/pdf",
-    json: "application/json",
-    txt: "text/plain",
-    html: "text/html",
-    css: "text/css",
-    js: "application/javascript",
+    zip: "application/zip",
+    wasm: "application/wasm",
   };
   return map[ext] || "application/octet-stream";
 }
@@ -116,21 +145,57 @@ export function createOPFSTools(): {
       const safePath = sanitizePath(args.path as string);
       if (!safePath) throw new Error("path is required");
 
-      if (!createBlobUrlFn) {
-        throw new Error("Blob URL creation not available (Offscreen not initialized)");
-      }
-
       const workspace = await getWorkspaceRoot();
       const { dirPath, fileName } = splitPath(safePath);
       const dir = dirPath ? await getDirectory(workspace, dirPath) : workspace;
       const fileHandle = await dir.getFileHandle(fileName);
       const file = await fileHandle.getFile();
-
-      // 一律返回 blob URL，避免文件内容进入 LLM 上下文
-      const arrayBuffer = await file.arrayBuffer();
       const mimeType = guessMimeType(safePath);
-      const blobUrl = await createBlobUrlFn(arrayBuffer, mimeType);
-      return JSON.stringify({ path: safePath, blobUrl, size: file.size, mimeType });
+      const arrayBuffer = await file.arrayBuffer();
+
+      // 确定返回模式：auto 通过内容字节检测文本/二进制
+      const mode = (args.mode as string) || "auto";
+      const useText = mode === "text" || (mode === "auto" && isText(new Uint8Array(arrayBuffer)));
+
+      // blob 模式：返回 blob URL
+      if (!useText) {
+        if (!createBlobUrlFn) {
+          throw new Error("Blob URL creation not available (Offscreen not initialized)");
+        }
+        const blobUrl = await createBlobUrlFn(arrayBuffer, mimeType);
+        return JSON.stringify({ path: safePath, blobUrl, size: file.size, mimeType, type: "binary" });
+      }
+
+      // text 模式：返回文本内容
+      const text = new TextDecoder().decode(arrayBuffer);
+      const lines = text.split("\n");
+      const totalLines = lines.length;
+
+      const offset = typeof args.offset === "number" ? args.offset : undefined;
+      const limit = typeof args.limit === "number" ? args.limit : undefined;
+
+      // 超过行数限制且未指定分页参数，报错要求分段读取
+      if (offset == null && limit == null && totalLines > MAX_TEXT_LINES) {
+        throw new Error(
+          `文件共 ${totalLines} 行，超过单次读取上限（${MAX_TEXT_LINES} 行）。` +
+            `请使用 offset 和 limit 参数分段读取，例如：offset=1, limit=${MAX_TEXT_LINES}`
+        );
+      }
+
+      const startLine = offset != null ? Math.max(1, offset) : 1;
+      const endLine = limit != null ? Math.min(totalLines, startLine + limit - 1) : totalLines;
+      const selectedLines = lines.slice(startLine - 1, endLine);
+      const content = selectedLines.join("\n");
+
+      return JSON.stringify({
+        path: safePath,
+        content,
+        totalLines,
+        startLine,
+        endLine,
+        mimeType,
+        type: "text",
+      });
     },
   };
 

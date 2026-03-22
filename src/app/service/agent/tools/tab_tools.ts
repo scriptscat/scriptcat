@@ -197,11 +197,21 @@ export function createTabTools(deps: {
 
       // 正则过滤
       if (urlPattern) {
-        const re = new RegExp(urlPattern, "i");
+        let re: RegExp;
+        try {
+          re = new RegExp(urlPattern, "i");
+        } catch {
+          throw new Error(`Invalid url_pattern regex: "${urlPattern}"`);
+        }
         tabs = tabs.filter((t) => re.test(t.url || ""));
       }
       if (titlePattern) {
-        const re = new RegExp(titlePattern, "i");
+        let re: RegExp;
+        try {
+          re = new RegExp(titlePattern, "i");
+        } catch {
+          throw new Error(`Invalid title_pattern regex: "${titlePattern}"`);
+        }
         tabs = tabs.filter((t) => re.test(t.title || ""));
       }
 

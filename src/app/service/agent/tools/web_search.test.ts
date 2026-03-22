@@ -192,7 +192,7 @@ describe("WebSearchExecutor", () => {
     );
   });
 
-  it("should return empty array when extractSearchResults times out", async () => {
+  it("should return warning when extractSearchResults times out", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       text: () => Promise.resolve("<html><div class='result'>...</div></html>"),
@@ -205,7 +205,9 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test" })) as string);
 
-    expect(result).toEqual([]);
+    expect(result.results).toEqual([]);
+    expect(result.warning).toContain("extraction failed");
+    expect(result.warning).toContain("duckduckgo");
   });
 
   it("should search Bing and return results", async () => {
@@ -239,7 +241,7 @@ describe("WebSearchExecutor", () => {
     await expect(executor.execute({ query: "test" })).rejects.toThrow("Bing search failed");
   });
 
-  it("should return empty array when Bing extraction fails", async () => {
+  it("should return warning when Bing extraction fails", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       text: () => Promise.resolve("<html></html>"),
@@ -251,7 +253,9 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("bing"));
     const result = JSON.parse((await executor.execute({ query: "test" })) as string);
 
-    expect(result).toEqual([]);
+    expect(result.results).toEqual([]);
+    expect(result.warning).toContain("extraction failed");
+    expect(result.warning).toContain("bing");
   });
 
   it("should search Baidu and return results", async () => {

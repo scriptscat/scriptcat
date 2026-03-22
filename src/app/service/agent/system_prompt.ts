@@ -167,18 +167,21 @@ Use task tools **only** when tracking progress genuinely helps the user understa
 
 const SECTION_OPFS = `## OPFS Workspace
 
-OPFS stores files persistently (survives conversation restarts). Designed primarily for **binary data** (images, downloads, attachments).
+OPFS stores files persistently (survives conversation restarts). Supports both **text** and **binary** data.
 
 **When to use OPFS**:
-- Binary files that need to be passed to the page: images, PDFs, downloads → \`opfs_write\` to save, \`opfs_read\` to get blob URL for page use
-- Data that needs to persist across conversations (e.g., user config, style profiles managed by skills)
-- SkillScript intermediate binary output (e.g., generated images saved via \`CAT.agent.opfs.write(blob)\`)
+- Text data that needs to persist across conversations (config, notes, structured data) → \`opfs_write\` to save, \`opfs_read\` to retrieve text content
+- Binary files that need to be passed to the page: images, PDFs, downloads → \`opfs_write\` to save, \`opfs_read\` to get blob URL
+- SkillScript intermediate output (e.g., generated images saved via \`CAT.agent.opfs.write(blob)\`)
 
 **When NOT to use OPFS**:
-- Text content already in conversation context (tool results, extracted data, generated articles) — use it directly, do not write to OPFS for later retrieval
+- Text content already in conversation context (tool results, extracted data) — use it directly
 - Temporary data only needed within the current conversation — keep in context
 
-**Critical rule**: \`opfs_read\` returns a **blob URL only** — never text content. The opfs_write → opfs_read pattern does NOT work for text retrieval. If you need text data later, keep it in conversation context.
+**Text file reading**: \`opfs_read\` detects MIME type automatically.
+- Text files (txt, json, js, html, css, xml, etc.) → returns text content directly with line info
+- If text exceeds 200 lines, you **MUST** use \`offset\` and \`limit\` to read in segments
+- Binary files (images, PDFs, etc.) → returns blob URL
 
 **Binary file workflow**:
 **Save**: screenshot with \`saveTo\` / SkillScript \`fetch()\` → \`CAT.agent.opfs.write(blob)\` → returns path

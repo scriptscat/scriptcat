@@ -18,6 +18,21 @@ export const WEB_SEARCH_DEFINITION: ToolDefinition = {
   },
 };
 
+/** 格式化搜索结果，区分"无结果"和"提取失败" */
+function formatSearchResults(
+  results: Array<{ title: string; url: string; snippet: string }>,
+  extractionFailed: boolean,
+  engine: string
+): string {
+  if (extractionFailed && results.length === 0) {
+    return JSON.stringify({
+      results: [],
+      warning: `Result extraction failed or timed out (engine: ${engine}). Try a different search engine or rephrase the query.`,
+    });
+  }
+  return JSON.stringify(results);
+}
+
 export class WebSearchExecutor implements ToolExecutor {
   constructor(
     private sender: MessageSend,
@@ -64,17 +79,18 @@ export class WebSearchExecutor implements ToolExecutor {
 
     // extractSearchResults 走 Offscreen 通道，加 10s 超时防卡死
     let results: Awaited<ReturnType<typeof extractSearchResults>>;
+    let extractionFailed = false;
     try {
       results = await Promise.race([
         extractSearchResults(this.sender, html),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("extract timeout")), 10_000)),
       ]);
     } catch {
-      // 超时或提取失败，降级返回空数组
       results = [];
+      extractionFailed = true;
     }
 
-    return JSON.stringify(results.slice(0, maxResults));
+    return formatSearchResults(results.slice(0, maxResults), extractionFailed, "duckduckgo");
   }
 
   private async searchBing(query: string, maxResults: number): Promise<string> {
@@ -93,6 +109,7 @@ export class WebSearchExecutor implements ToolExecutor {
     const html = await response.text();
 
     let results: Awaited<ReturnType<typeof extractBingResults>>;
+    let extractionFailed = false;
     try {
       results = await Promise.race([
         extractBingResults(this.sender, html),
@@ -100,9 +117,10 @@ export class WebSearchExecutor implements ToolExecutor {
       ]);
     } catch {
       results = [];
+      extractionFailed = true;
     }
 
-    return JSON.stringify(results.slice(0, maxResults));
+    return formatSearchResults(results.slice(0, maxResults), extractionFailed, "bing");
   }
 
   private async searchBaidu(query: string, maxResults: number): Promise<string> {
@@ -121,6 +139,7 @@ export class WebSearchExecutor implements ToolExecutor {
     const html = await response.text();
 
     let results: Awaited<ReturnType<typeof extractBaiduResults>>;
+    let extractionFailed = false;
     try {
       results = await Promise.race([
         extractBaiduResults(this.sender, html),
@@ -128,9 +147,10 @@ export class WebSearchExecutor implements ToolExecutor {
       ]);
     } catch {
       results = [];
+      extractionFailed = true;
     }
 
-    return JSON.stringify(results.slice(0, maxResults));
+    return formatSearchResults(results.slice(0, maxResults), extractionFailed, "baidu");
   }
 
   private async searchGoogle(query: string, maxResults: number, apiKey: string, cseId: string): Promise<string> {

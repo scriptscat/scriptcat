@@ -532,7 +532,7 @@ export class AgentService {
           const blobUrl = (await createObjectURL(this.sender, { blob, persistence: true })) as string;
           return { path: safePath, blobUrl, size: file.size, mimeType };
         }
-        // 默认 text 模式：直接返回文件文本内容（不走 opfs_read executor，因其一律返回 blobUrl）
+        // 默认 text 模式：直接返回文件文本内容（GM API 独立实现，不走 opfs_read executor 的分页逻辑）
         const safePath2 = sanitizePath(request.path);
         if (!safePath2) throw new Error("path is required");
         const workspace2 = await getWorkspaceRoot();
