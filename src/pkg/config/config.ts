@@ -126,6 +126,22 @@ export class SystemConfig {
     return (defaultValue?.asyncValue?.() || defaultValue) as T | Promise<T>;
   }
 
+  private async transferSyncToLocal<T>(
+    key: SystemConfigKey,
+    defaultValue: WithAsyncValue<Exclude<T, undefined>>
+  ): Promise<T> {
+    const syncVal = await this.syncStorage.get(key);
+    if (syncVal === undefined) {
+      this.cache.set(key, undefined);
+      return this.resolveDefault<T>(defaultValue);
+    }
+    // 迁移到 local storage 并从 sync 中删除
+    await this.syncStorage.remove(key); // 先删除
+    await this.localStorage.set(key, syncVal); // 删除成功后储回本地
+    this.cache.set(key, syncVal);
+    return syncVal as T;
+  }
+
   private _get<T extends string | number | boolean | object>(
     key: SystemConfigKey,
     defaultValue: WithAsyncValue<Exclude<T, undefined>>
@@ -142,17 +158,7 @@ export class SystemConfig {
       }
       // 对 local key，回退读取 sync storage（兼容旧版本数据迁移）
       if (this.isLocalKey(key)) {
-        return this.syncStorage.get(key).then((syncVal) => {
-          if (syncVal !== undefined) {
-            // 迁移到 local storage 并从 sync 中删除
-            this.localStorage.set(key, syncVal);
-            this.syncStorage.remove(key);
-            this.cache.set(key, syncVal);
-            return syncVal as T;
-          }
-          this.cache.set(key, undefined);
-          return this.resolveDefault<T>(defaultValue);
-        });
+        return this.transferSyncToLocal<T>(key, defaultValue);
       }
       this.cache.set(key, val);
       return this.resolveDefault<T>(defaultValue);
@@ -184,18 +190,21 @@ export class SystemConfig {
   private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
     const prev = this.cache.get(key);
     const storage = this.getStorage(key);
+    let asyncOp;
     if (value === undefined) {
       this.cache.delete(key);
-      storage.remove(key);
+      asyncOp = storage.remove(key);
     } else {
       this.cache.set(key, value);
-      storage.set(key, value);
+      asyncOp = storage.set(key, value);
     }
-    // 发送消息通知更新
-    this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
-      key,
-      value,
-      prev,
+    asyncOp.then(() => {
+      // 发送消息通知更新
+      this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
+        key,
+        value,
+        prev,
+      });
     });
   }
 
