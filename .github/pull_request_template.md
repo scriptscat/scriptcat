@@ -1,15 +1,13 @@
-## 概述 Descriptions
+## Checklist / 检查清单
 
-<!-- 如果有关联的 issue，请在下面记载 -->
-<!-- Describe related issue(s) if any. -->
-<!-- close #xxx -->
+- [ ] Fixes mentioned issues / 修复已提及的问题
+- [ ] Code reviewed by human / 代码通过人工检查
+- [ ] Changes tested / 已完成测试
 
-## 变更内容 Changes
+## Description / 描述
 
-<!-- - 这个 PR 做了什么？ -->
-<!-- - What does this PR do? -->
+<!-- Description / PR 描述 -->
 
-### 截图 Screenshots
+## Screenshots / 截图
 
-<!-- 如果可以展示页面，请务必附上截图 -->
-<!-- If it can be illustrated, please provide a screenshot. -->
+<!-- Screenshots / 截图-->
