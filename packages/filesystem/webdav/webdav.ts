@@ -8,9 +8,9 @@ import { WarpTokenError } from "../error";
 
 // 禁止 WebDAV 请求携带浏览器 cookies，只通过账号密码认证 (#1297)
 // 全局单次注册
-let webDavPatched = false;
+let patched = false;
 const initWebDAVPatch = () => {
-  webDavPatched = true;
+  patched = true;
   return getPatcher().patch("fetch", (...args: unknown[]) => {
     const options = (args[1] as RequestInit) || {};
     const headers = new Headers((options.headers as HeadersInit) || {});
@@ -36,7 +36,7 @@ export default class WebDAVFileSystem implements FileSystem {
       this.url = username!;
     } else {
       this.url = url!;
-      if (!webDavPatched) initWebDAVPatch();
+      if (!patched) initWebDAVPatch();
       this.client = createClient(url!, {
         authType,
         username,
