@@ -74,7 +74,25 @@ export type Token = {
   createtime: number;
 };
 
-export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
+// OAuth 弹窗锁，确保同一时间只有一个 OAuth 弹窗
+// key: netDiskType, value: 正在进行的认证 Promise
+const authLocks = new Map<string, Promise<string>>();
+
+export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean): Promise<string> {
+  // 如果已有相同类型的认证在进行中，等待其完成
+  const existing = authLocks.get(netDiskType);
+  if (existing && !invalid) {
+    return existing;
+  }
+
+  const authPromise: Promise<string> = doAuthVerify(netDiskType, invalid).finally(() => {
+    authLocks.delete(netDiskType);
+  });
+  authLocks.set(netDiskType, authPromise);
+  return authPromise;
+}
+
+async function doAuthVerify(netDiskType: NetDiskType, invalid?: boolean): Promise<string> {
   let token: Token | undefined = undefined;
   const localStorageDAO = new LocalStorageDAO();
   const key = `netdisk:token:${netDiskType}`;

@@ -14,7 +14,8 @@ import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
-import { isWarpTokenError } from "@Packages/filesystem/error";
+import { isWarpTokenError, WarpTokenError } from "@Packages/filesystem/error";
+import { HasNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -302,6 +303,15 @@ export class SynchronizeService {
   async buildFileSystem(config: CloudSyncConfig) {
     let fs: FileSystem;
     try {
+      // 对 OAuth 类型的 filesystem，先检查 token 是否存在
+      // 避免在未登录时自动弹出 OAuth 窗口（尤其是多脚本同步时会弹出大量窗口）
+      const netDiskType = netDiskTypeMap[config.filesystem];
+      if (netDiskType) {
+        const hasToken = await HasNetDiskToken(netDiskType);
+        if (!hasToken) {
+          throw new WarpTokenError(new Error(`${config.filesystem} token not found, please login first`));
+        }
+      }
       fs = await FileSystemFactory.create(config.filesystem, config.params[config.filesystem]);
       // 创建base目录
       await FileSystemFactory.mkdirAll(fs, "ScriptCat/sync");

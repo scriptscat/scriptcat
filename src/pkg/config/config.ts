@@ -73,7 +73,34 @@ export type SystemConfigValueType<K extends SystemConfigKey> =
 export class SystemConfig {
   private readonly cache = new Map<string, any>();
 
-  private readonly storage = new ChromeStorage("system", true);
+  // 跨设备同步的配置项，使用 chrome.storage.sync
+  private readonly syncStorage = new ChromeStorage("system", true);
+  // 设备相关的配置项，使用 chrome.storage.local（不跨设备同步）
+  private readonly localStorage = new ChromeStorage("system", false);
+
+  // 设备相关的配置项，存储在 chrome.storage.local 而非 sync
+  // 这些配置不应跨设备同步（如云同步认证、VSCode 连接、UI 布局等）
+  private static readonly LOCAL_KEYS: Set<string> = new Set([
+    "cloud_sync", // 云同步配置（token 存在本地，不应跨设备同步）
+    "backup", // 备份配置（含设备相关 filesystem params）
+    "cat_file_storage", // CAT 文件存储配置
+    "vscode_url", // VSCode 连接地址（设备相关）
+    "vscode_reconnect", // VSCode 自动重连
+    "language", // 语言偏好（可能因设备不同）
+    "script_list_column_width", // UI 列宽（取决于屏幕尺寸）
+    "check_update", // 更新检查状态（含设备 version）
+    "enable_script", // 全局脚本开关（设备独立）
+    "enable_script_incognito", // 隐身模式开关（浏览器级别）
+  ]);
+
+  private isLocalKey(key: string): boolean {
+    return SystemConfig.LOCAL_KEYS.has(key);
+  }
+
+  // 获取 key 对应的主 storage
+  private getStorage(key: string): ChromeStorage {
+    return this.isLocalKey(key) ? this.localStorage : this.syncStorage;
+  }
 
   private EE: EventEmitter<string> = new EventEmitter<string>();
 
@@ -108,21 +135,41 @@ export class SystemConfig {
     return this.addListener(key, callback);
   }
 
+  private resolveDefault<T>(defaultValue: WithAsyncValue<Exclude<T, undefined>>): T | Promise<T> {
+    //@ts-ignore
+    return (defaultValue?.asyncValue?.() || defaultValue) as T | Promise<T>;
+  }
+
   private _get<T extends string | number | boolean | object>(
     key: SystemConfigKey,
     defaultValue: WithAsyncValue<Exclude<T, undefined>>
   ): Promise<T> {
     if (this.cache.has(key)) {
-      let val = this.cache.get(key);
-      //@ts-ignore
-      val = (val === undefined ? defaultValue?.asyncValue?.() || defaultValue : val) as T | Promise<T>;
-      return Promise.resolve(val);
+      const val = this.cache.get(key);
+      return Promise.resolve(val === undefined ? this.resolveDefault<T>(defaultValue) : (val as T));
     }
-    return this.storage.get(key).then((val) => {
+    const storage = this.getStorage(key);
+    return storage.get(key).then((val) => {
+      if (val !== undefined) {
+        this.cache.set(key, val);
+        return val as T;
+      }
+      // 对 local key，回退读取 sync storage（兼容旧版本数据迁移）
+      if (this.isLocalKey(key)) {
+        return this.syncStorage.get(key).then((syncVal) => {
+          if (syncVal !== undefined) {
+            // 迁移到 local storage 并从 sync 中删除
+            this.localStorage.set(key, syncVal);
+            this.syncStorage.remove(key);
+            this.cache.set(key, syncVal);
+            return syncVal as T;
+          }
+          this.cache.set(key, undefined);
+          return this.resolveDefault<T>(defaultValue);
+        });
+      }
       this.cache.set(key, val);
-      //@ts-ignore
-      val = (val === undefined ? defaultValue?.asyncValue?.() || defaultValue : val) as T | Promise<T>;
-      return val;
+      return this.resolveDefault<T>(defaultValue);
     });
   }
 
@@ -150,12 +197,13 @@ export class SystemConfig {
 
   private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
     const prev = this.cache.get(key);
+    const storage = this.getStorage(key);
     if (value === undefined) {
       this.cache.delete(key);
-      this.storage.remove(key);
+      storage.remove(key);
     } else {
       this.cache.set(key, value);
-      this.storage.set(key, value);
+      storage.set(key, value);
     }
     // 发送消息通知更新
     this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
@@ -163,14 +211,6 @@ export class SystemConfig {
       value,
       prev,
     });
-  }
-
-  public getChangetime() {
-    return this._get<number>("changetime", 0);
-  }
-
-  public setChangetime(n: number) {
-    this._set("changetime", n);
   }
 
   defaultCheckScriptUpdateCycle() {
