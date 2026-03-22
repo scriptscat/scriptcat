@@ -5,11 +5,11 @@ let lastNow = 0;
 const cNode = document.createComment("0");
 let cVal = 0;
 
-const runner = () => {
+const runner = (ts: number) => {
   waitState = 1;
   cVal = cVal > 255 ? 1 : cVal + 1;
   cNode.data = `${cVal}`;
-  const now = Date.now();
+  const now = ts;
   if (now - lastNow > 2000) {
     lastNow = now;
     // history.replaceState({ now: now }, "", `${location.pathname}?t=${now}`);
@@ -21,9 +21,9 @@ const runner = () => {
   }
 };
 
-window.addEventListener("message", (response) => {
-  if (waitState === 2 && typeof response.data === "object" && response.data?.myCustomAction === "waked-up") {
-    runner();
+window.addEventListener("message", (ev) => {
+  if (waitState === 2 && typeof ev.data === "object" && ev.data?.myCustomAction === "waked-up") {
+    runner(ev.timeStamp);
   }
 });
 const mutObserver = new MutationObserver(() => {
@@ -43,4 +43,4 @@ const mutObserver = new MutationObserver(() => {
 mutObserver.observe(cNode, { characterData: true });
 // console.log("ff_persistent");
 
-runner();
+runner(0);
