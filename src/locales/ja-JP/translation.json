@@ -74,7 +74,7 @@
   "deleting": "削除中",
   "backup_strategy": "バックアップ戦略",
   "under_construction": "建設中",
-  "development_debugging": "開発デバッグ",
+  "development_tool": "開発ツール",
   "vscode_url": "VSCodeアドレス",
   "auto_connect_vscode_service": "VSCodeサービスに自動接続",
   "connect": "接続",

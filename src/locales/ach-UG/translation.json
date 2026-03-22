@@ -73,7 +73,7 @@
   "deleting": "crwdns8020:0crwdne8020:0",
   "backup_strategy": "crwdns8022:0crwdne8022:0",
   "under_construction": "crwdns8024:0crwdne8024:0",
-  "development_debugging": "crwdns8026:0crwdne8026:0",
+  "development_tool": "crwdns8026:0crwdne8026:0",
   "vscode_url": "crwdns8028:0crwdne8028:0",
   "auto_connect_vscode_service": "crwdns8030:0crwdne8030:0",
   "connect": "crwdns8032:0crwdne8032:0",
