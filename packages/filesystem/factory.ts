@@ -8,7 +8,7 @@ import ZipFileSystem from "./zip/zip";
 import S3FileSystem from "./s3/s3";
 import { t } from "@App/locales/locales";
 import LimiterFileSystem from "./limiter";
-import type { WebDAVClientOptions } from "webdav";
+import type { WebDAVClientOptions, OAuthToken } from "webdav";
 
 export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive" | "dropbox" | "s3";
 
@@ -45,7 +45,10 @@ export default class FileSystemFactory {
         } else if (params.authType === "token") {
           options = {
             authType: params.authType,
-            token: params.token,
+            token: {
+              token_type: "Bearer",
+              access_token: params.token,
+            } satisfies OAuthToken,
           } satisfies WebDAVClientOptions;
         } else {
           options = {
