@@ -16,18 +16,43 @@ export type FileSystemParams = {
     title: string;
     type?: "select" | "authorize" | "password";
     options?: string[];
+    visibilityFor?: string[];
   };
 };
 
 export default class FileSystemFactory {
   static create(type: FileSystemType, params: any): Promise<FileSystem> {
     let fs: FileSystem;
+    let options;
     switch (type) {
       case "zip":
         fs = new ZipFileSystem(params);
         break;
       case "webdav":
-        fs = WebDAVFileSystem.fromCredentials(params.url, params.authType, params.username, params.password);
+        /*
+          Auto = "auto",
+          Digest = "digest", // 需要避免密码直接传输
+          None = "none", // 公开资源 / 自定义认证
+          Password = "password", // 普通 WebDAV 服务，需要确保 HTTPS / Nextcloud 生产环境
+          Token = "token" // OAuth2 / 现代云服务 / Nextcloud 生产环境
+        */
+        if (params.authType === "none") {
+          options = {
+            authType: params.authType,
+          };
+        } else if (params.authType === "token") {
+          options = {
+            authType: params.authType,
+            token: params.token,
+          };
+        } else {
+          options = {
+            authType: params.authType || "auto",
+            username: params.username,
+            password: params.password,
+          };
+        }
+        fs = WebDAVFileSystem.fromCredentials(params.url, options);
         break;
       case "baidu-netdsik":
         fs = new BaiduFileSystem();
@@ -66,8 +91,9 @@ export default class FileSystemFactory {
           options: ["password", "digest", "none", "token"],
         },
         url: { title: t("url") },
-        username: { title: t("username") },
-        password: { title: t("password"), type: "password" },
+        username: { title: t("username"), visibilityFor: ["password", "digest"] },
+        password: { title: t("password"), type: "password", visibilityFor: ["password", "digest"] },
+        token: { title: t("token"), visibilityFor: ["token"] },
       },
       "baidu-netdsik": {},
       onedrive: {},

@@ -65,6 +65,7 @@ const FileSystemParams: React.FC<{
   ];
 
   const netDiskName = netDiskType ? fileSystemList.find((item) => item.key === fileSystemType)?.name : null;
+  const fsParam = fsParams[fileSystemType];
 
   return (
     <>
@@ -110,58 +111,65 @@ const FileSystemParams: React.FC<{
           marginTop: 4,
         }}
       >
-        {Object.keys(fsParams[fileSystemType]).map((key) => (
-          <div key={key}>
-            {fsParams[fileSystemType][key].type === "select" && (
-              <>
-                <span>{fsParams[fileSystemType][key].title}</span>
-                <Select
-                  value={fileSystemParams[key] || fsParams[fileSystemType][key].options![0]}
-                  onChange={(value) => {
-                    onChangeFileSystemParams({
-                      ...fileSystemParams,
-                      [key]: value,
-                    });
-                  }}
-                >
-                  {fsParams[fileSystemType][key].options!.map((option) => (
-                    <Select.Option value={option} key={option}>
-                      {option}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </>
-            )}
-            {fsParams[fileSystemType][key].type === "password" && (
-              <>
-                <span>{fsParams[fileSystemType][key].title}</span>
-                <Input.Password
-                  value={fileSystemParams[key]}
-                  onChange={(value) => {
-                    onChangeFileSystemParams({
-                      ...fileSystemParams,
-                      [key]: value,
-                    });
-                  }}
-                />
-              </>
-            )}
-            {!fsParams[fileSystemType][key].type && (
-              <>
-                <span>{fsParams[fileSystemType][key].title}</span>
-                <Input
-                  value={fileSystemParams[key]}
-                  onChange={(value) => {
-                    onChangeFileSystemParams({
-                      ...fileSystemParams,
-                      [key]: value,
-                    });
-                  }}
-                />
-              </>
-            )}
-          </div>
-        ))}
+        {Object.keys(fsParam).map((key) => {
+          const props = fsParam[key];
+          const selectAuth = fsParam?.authType?.options?.[0]; // webDAV
+          return (
+            <div
+              key={key}
+              className={`${selectAuth && props?.visibilityFor?.includes(fileSystemParams?.authType || selectAuth) === false ? "tw-hidden" : ""}`}
+            >
+              {props.type === "select" && (
+                <>
+                  <span>{props.title}</span>
+                  <Select
+                    value={fileSystemParams[key] || props.options![0]}
+                    onChange={(value) => {
+                      onChangeFileSystemParams({
+                        ...fileSystemParams,
+                        [key]: value,
+                      });
+                    }}
+                  >
+                    {props.options!.map((option) => (
+                      <Select.Option value={option} key={option}>
+                        {option}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </>
+              )}
+              {props.type === "password" && (
+                <>
+                  <span>{props.title}</span>
+                  <Input.Password
+                    value={fileSystemParams[key]}
+                    onChange={(value) => {
+                      onChangeFileSystemParams({
+                        ...fileSystemParams,
+                        [key]: value,
+                      });
+                    }}
+                  />
+                </>
+              )}
+              {!props.type && (
+                <>
+                  <span>{props.title}</span>
+                  <Input
+                    value={fileSystemParams[key]}
+                    onChange={(value) => {
+                      onChangeFileSystemParams({
+                        ...fileSystemParams,
+                        [key]: value,
+                      });
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          );
+        })}
       </Space>
     </>
   );

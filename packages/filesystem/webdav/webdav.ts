@@ -1,4 +1,4 @@
-import type { AuthType, FileStat, WebDAVClient } from "webdav";
+import type { FileStat, WebDAVClient, WebDAVClientOptions } from "webdav";
 import { createClient, getPatcher } from "webdav";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
@@ -30,9 +30,16 @@ export default class WebDAVFileSystem implements FileSystem {
 
   basePath: string = "/";
 
-  static fromCredentials(url: string, authType: AuthType, username: string, password: string) {
+  static fromCredentials(url: string, options: WebDAVClientOptions) {
     initWebDAVPatch();
-    return new WebDAVFileSystem(createClient(url, { authType, username, password }), url, "/");
+    options = {
+      ...options,
+      headers: {
+        "X-Requested-With": "XMLHttpRequest", // Nextcloud 等需要
+        // "requesttoken": csrfToken,          // 按账号各自传入
+      },
+    };
+    return new WebDAVFileSystem(createClient(url, options), url, "/");
   }
 
   static fromSameClient(fs: WebDAVFileSystem, basePath: string) {
