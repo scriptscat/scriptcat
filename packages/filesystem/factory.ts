@@ -47,7 +47,7 @@ export default class FileSystemFactory {
           };
         } else {
           options = {
-            authType: params.authType || "auto",
+            authType: params.authType || "auto", // UI 问题，有undefined机会。undefined等价于 password, 但此处用 webdav 本身的 auto 侦测算了
             username: params.username,
             password: params.password,
           };
