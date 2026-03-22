@@ -1,3 +1,4 @@
+// persistent_frame.ts
 const WAKE_UP_INTERVAL = 2000;
 let waitState = 0;
 let lastNow = 0;
