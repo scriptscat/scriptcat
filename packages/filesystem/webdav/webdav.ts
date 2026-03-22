@@ -1,10 +1,16 @@
 import type { AuthType, FileStat, WebDAVClient } from "webdav";
-import { createClient } from "webdav";
+import { createClient, getPatcher } from "webdav";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";
+
+// 禁止 WebDAV 请求携带浏览器 cookies，只通过账号密码认证 (#1297)
+getPatcher().patch("fetch", (...args: unknown[]) => {
+  const options = (args[1] as RequestInit) || {};
+  return fetch(args[0] as RequestInfo | URL, { ...options, credentials: "omit" });
+});
 
 export default class WebDAVFileSystem implements FileSystem {
   client: WebDAVClient;
