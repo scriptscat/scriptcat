@@ -2,13 +2,13 @@ let waitState = 0;
 
 let lastNow = 0;
 
-const dom = document.createElement("dom");
+const cNode = document.createComment("0");
+let cVal = 0;
 
 const runner = () => {
   waitState = 1;
-  const c = +(dom.getAttribute("domvalue") || 0) as number;
-  const s = c > 255 ? "1" : `${c + 1}`;
-  dom.setAttribute("domvalue", s);
+  cVal = cVal > 255 ? 1 : cVal + 1;
+  cNode.data = `${cVal}`;
   const now = Date.now();
   if (now - lastNow > 2000) {
     lastNow = now;
@@ -40,7 +40,7 @@ const mutObserver = new MutationObserver(() => {
     window?.postMessage({ myCustomAction: "waked-up" }, "*");
   }
 });
-mutObserver.observe(dom, { attributes: true, attributeFilter: ["domvalue"] });
+mutObserver.observe(cNode, { characterData: true });
 // console.log("ff_persistent");
 
 runner();
