@@ -74,7 +74,7 @@
   "deleting": "Đang xóa",
   "backup_strategy": "Chiến lược sao lưu",
   "under_construction": "Đang xây dựng",
-  "development_debugging": "Gỡ lỗi phát triển",
+  "development_tool": "Công cụ phát triển",
   "vscode_url": "Url vscode",
   "auto_connect_vscode_service": "Tự động kết nối dịch vụ vscode",
   "connect": "Kết nối",

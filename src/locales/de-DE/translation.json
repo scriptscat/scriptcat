@@ -74,7 +74,7 @@
   "deleting": "Wird gelöscht",
   "backup_strategy": "Sicherungsstrategie",
   "under_construction": "Im Aufbau",
-  "development_debugging": "Entwicklungsdebugging",
+  "development_tool": "Entwicklungstool",
   "vscode_url": "VSCode-Adresse",
   "auto_connect_vscode_service": "Automatisch mit VSCode-Service verbinden",
   "connect": "Verbinden",

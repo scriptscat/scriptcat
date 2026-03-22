@@ -74,7 +74,7 @@
   "deleting": "刪除中",
   "backup_strategy": "備份策略",
   "under_construction": "建設中",
-  "development_debugging": "開發除錯",
+  "development_tool": "開發工具",
   "vscode_url": "VSCode網址",
   "auto_connect_vscode_service": "自動連接VSCode服務",
   "connect": "連接",
