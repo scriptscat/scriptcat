@@ -8,6 +8,7 @@ import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import { toCamelCase } from "../utils/utils";
 import EventEmitter from "eventemitter3";
+import { STORAGE_LOCAL_KEYS } from "./consts";
 
 export const SystemConfigChange = "systemConfigChange";
 
@@ -78,23 +79,8 @@ export class SystemConfig {
   // 设备相关的配置项，使用 chrome.storage.local（不跨设备同步）
   private readonly localStorage = new ChromeStorage("system", false);
 
-  // 设备相关的配置项，存储在 chrome.storage.local 而非 sync
-  // 这些配置不应跨设备同步（如云同步认证、VSCode 连接、UI 布局等）
-  private static readonly LOCAL_KEYS: Set<string> = new Set([
-    "cloud_sync", // 云同步配置（token 存在本地，不应跨设备同步）
-    "backup", // 备份配置（含设备相关 filesystem params）
-    "cat_file_storage", // CAT 文件存储配置
-    "vscode_url", // VSCode 连接地址（设备相关）
-    "vscode_reconnect", // VSCode 自动重连
-    "language", // 语言偏好（可能因设备不同）
-    "script_list_column_width", // UI 列宽（取决于屏幕尺寸）
-    "check_update", // 扩展更新通知及已读状态（各设备已读状态独立）
-    "enable_script", // 全局脚本开关（设备独立）
-    "enable_script_incognito", // 隐身模式开关（浏览器级别）
-  ]);
-
   private isLocalKey(key: string): boolean {
-    return SystemConfig.LOCAL_KEYS.has(key);
+    return STORAGE_LOCAL_KEYS.has(key);
   }
 
   // 获取 key 对应的主 storage
