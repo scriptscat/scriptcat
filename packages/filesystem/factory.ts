@@ -27,7 +27,7 @@ export default class FileSystemFactory {
         fs = new ZipFileSystem(params);
         break;
       case "webdav":
-        fs = new WebDAVFileSystem(params.authType, params.url, params.username, params.password);
+        fs = WebDAVFileSystem.fromCredentials(params.url, params.authType, params.username, params.password);
         break;
       case "baidu-netdsik":
         fs = new BaiduFileSystem();
