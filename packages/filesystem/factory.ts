@@ -8,6 +8,7 @@ import ZipFileSystem from "./zip/zip";
 import S3FileSystem from "./s3/s3";
 import { t } from "@App/locales/locales";
 import LimiterFileSystem from "./limiter";
+import type { WebDAVClientOptions } from "webdav";
 
 export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive" | "dropbox" | "s3";
 
@@ -39,18 +40,18 @@ export default class FileSystemFactory {
         if (params.authType === "none") {
           options = {
             authType: params.authType,
-          };
+          } satisfies WebDAVClientOptions;
         } else if (params.authType === "token") {
           options = {
             authType: params.authType,
             token: params.token,
-          };
+          } satisfies WebDAVClientOptions;
         } else {
           options = {
             authType: params.authType || "auto", // UI 问题，有undefined机会。undefined等价于 password, 但此处用 webdav 本身的 auto 侦测算了
             username: params.username,
             password: params.password,
-          };
+          } satisfies WebDAVClientOptions;
         }
         fs = WebDAVFileSystem.fromCredentials(params.url, options);
         break;
