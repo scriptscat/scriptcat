@@ -35,7 +35,7 @@ export default class WebDAVFileSystem implements FileSystem {
     return new WebDAVFileSystem(createClient(url, { authType, username, password }), url, "/");
   }
 
-  static fromSameClient(fs: WebDAVFileSystem, basePath: string = "/") {
+  static fromSameClient(fs: WebDAVFileSystem, basePath: string) {
     return new WebDAVFileSystem(fs.client, fs.url, basePath);
   }
 
