@@ -338,9 +338,19 @@ function AgentProvider() {
     loadData();
   };
 
+  const getDefaultBaseUrl = (provider: string) => {
+    switch (provider) {
+      case "anthropic":
+        return "https://api.anthropic.com";
+      case "zhipu":
+        return "https://open.bigmodel.cn/api/paas/v4";
+      default:
+        return "https://api.openai.com/v1";
+    }
+  };
+
   const buildProviderRequest = (m: AgentModelConfig) => {
-    const baseUrl =
-      m.apiBaseUrl || (m.provider === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com");
+    const baseUrl = m.apiBaseUrl || getDefaultBaseUrl(m.provider);
     const headers: Record<string, string> = {};
     let modelsUrl: string;
     if (m.provider === "anthropic") {
@@ -361,9 +371,7 @@ function AgentProvider() {
     setTestingConnection(true);
     setTestReply("");
     try {
-      const baseUrl =
-        editingModel.apiBaseUrl ||
-        (editingModel.provider === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com");
+      const baseUrl = editingModel.apiBaseUrl || getDefaultBaseUrl(editingModel.provider);
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       let chatUrl: string;
       let body: string;
@@ -383,8 +391,9 @@ function AgentProvider() {
         if (editingModel.apiKey) {
           headers["Authorization"] = `Bearer ${editingModel.apiKey}`;
         }
+        const defaultModel = editingModel.provider === "zhipu" ? "glm-4-flash" : "gpt-4o-mini";
         body = JSON.stringify({
-          model: editingModel.model || "gpt-4o-mini",
+          model: editingModel.model || defaultModel,
           max_tokens: 256,
           messages: [{ role: "user", content: "hi" }],
         });
@@ -490,25 +499,32 @@ function AgentProvider() {
             <Select
               value={editingModel.provider}
               onChange={(value) => setEditingModel((prev) => ({ ...prev, provider: value }))}
-              renderFormat={(_option, value) => (
-                <span className="tw-inline-flex tw-items-center tw-gap-2">
-                  <ProviderIcon providerKey={String(value)} size={14} />
-                  <span>{value === "anthropic" ? "Anthropic" : "OpenAI"}</span>
-                </span>
-              )}
+              renderFormat={(_option, value) => {
+                const labels: Record<string, string> = {
+                  openai: "OpenAI",
+                  anthropic: "Anthropic",
+                  zhipu: "Zhipu (智谱)",
+                };
+                return (
+                  <span className="tw-inline-flex tw-items-center tw-gap-2">
+                    <ProviderIcon providerKey={String(value)} size={14} />
+                    <span>{labels[String(value)] || String(value)}</span>
+                  </span>
+                );
+              }}
             >
-              <Select.Option value="openai">
-                <span className="tw-inline-flex tw-items-center tw-gap-2">
-                  <ProviderIcon providerKey="openai" size={14} />
-                  <span>{"OpenAI"}</span>
-                </span>
-              </Select.Option>
-              <Select.Option value="anthropic">
-                <span className="tw-inline-flex tw-items-center tw-gap-2">
-                  <ProviderIcon providerKey="anthropic" size={14} />
-                  <span>{"Anthropic"}</span>
-                </span>
-              </Select.Option>
+              {[
+                { value: "openai", label: "OpenAI" },
+                { value: "anthropic", label: "Anthropic" },
+                { value: "zhipu", label: "Zhipu (智谱)" },
+              ].map((item) => (
+                <Select.Option key={item.value} value={item.value}>
+                  <span className="tw-inline-flex tw-items-center tw-gap-2">
+                    <ProviderIcon providerKey={item.value} size={14} />
+                    <span>{item.label}</span>
+                  </span>
+                </Select.Option>
+              ))}
             </Select>
           </div>
 
@@ -519,9 +535,7 @@ function AgentProvider() {
             </div>
             <Input
               value={editingModel.apiBaseUrl}
-              placeholder={
-                editingModel.provider === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com"
-              }
+              placeholder={getDefaultBaseUrl(editingModel.provider)}
               onChange={(value) => setEditingModel((prev) => ({ ...prev, apiBaseUrl: value }))}
             />
           </div>

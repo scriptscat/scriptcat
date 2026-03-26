@@ -2329,7 +2329,13 @@ export class AgentService {
     const { url, init } =
       model.provider === "anthropic"
         ? buildAnthropicRequest(model, chatRequest, attachmentResolver)
-        : buildOpenAIRequest(model, chatRequest, attachmentResolver);
+        : buildOpenAIRequest(
+            model.provider === "zhipu"
+              ? { ...model, apiBaseUrl: model.apiBaseUrl || "https://open.bigmodel.cn/api/paas/v4" }
+              : model,
+            chatRequest,
+            attachmentResolver
+          );
 
     // 带重试的 LLM 调用，最多重试 5 次，间隔递增：10s, 10s, 20s, 20s, 30s
     const RETRY_DELAYS = [10_000, 10_000, 20_000, 20_000, 30_000];

@@ -75,6 +75,9 @@ export function detectProvider(model: AgentModelConfig): ProviderInfo {
   if (model.provider === "anthropic") {
     return { key: "anthropic", label: "Anthropic", order: 2 };
   }
+  if (model.provider === "zhipu") {
+    return { key: "zhipu", label: "Zhipu", order: 12 };
+  }
   // 默认归入 OpenAI Compatible
   return { key: "other", label: "Other", order: 99 };
 }
