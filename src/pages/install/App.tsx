@@ -67,8 +67,6 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   const response = await fetch(url, {
     headers: {
       "Cache-Control": "no-cache",
-      /* 不指定 application/octet-stream 和 application/force-download 避免触发伺服器端 Error 406 */
-      Accept: "text/javascript, application/javascript, */*", // prefer JavaScript, but anything is acceptable
       // 参考：加权 Accept-Encoding 值说明
       // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Encoding#weighted_accept-encoding_values
       "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1",
@@ -84,23 +82,6 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   if (!response.body || !response.headers) {
     throw new Error("No response body or headers");
   }
-  const contentType = response.headers.get("content-type");
-
-  if (contentType) {
-    // 不接受非 JavaScript文本 的回应
-    const contentTypeLower = contentType.toLowerCase();
-    const m = /^\s*([\w-]+)[^\w-]+([\w-]+)/.exec(contentTypeLower);
-    if (m) {
-      const contentTypeOK =
-        (m[2] === "javascript" && (m[1] === "text" || m[1] === "application")) ||
-        (m[1] === "application" && (m[2] === "octet-stream" || m[2] === "force-download"));
-      if (!contentTypeOK) {
-        throw new Error(`Response is ${contentType}, not a valid UserScript`);
-        // e.g. Response is text/html, not a valid UserScript
-      }
-    }
-  }
-
   const reader = response.body.getReader();
 
   // 读取数据
@@ -127,6 +108,7 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   }
 
   // 检测编码：优先使用 Content-Type，回退到 chardet（仅检测前16KB）
+  const contentType = response.headers.get("content-type");
   const encode = detectEncoding(chunksAll, contentType);
 
   // 使用检测到的 charset 解码
