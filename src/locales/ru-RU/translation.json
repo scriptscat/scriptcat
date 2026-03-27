@@ -387,6 +387,7 @@
   "url": "URL",
   "username": "Имя пользователя",
   "password": "Пароль",
+  "access_token_bearer": "Токен доступа (Bearer)",
   "s3_bucket_name": "Имя корзины",
   "s3_region": "Регион",
   "s3_access_key_id": "Идентификатор ключа доступа",

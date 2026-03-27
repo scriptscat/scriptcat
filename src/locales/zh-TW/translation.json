@@ -387,6 +387,7 @@
   "url": "網址",
   "username": "使用者名稱",
   "password": "密碼",
+  "access_token_bearer": "存取權杖（Bearer）",
   "s3_bucket_name": "儲存貯體名稱",
   "s3_region": "區域",
   "s3_access_key_id": "存取金鑰 ID",
