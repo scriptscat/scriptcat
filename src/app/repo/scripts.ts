@@ -78,7 +78,7 @@ export interface Script {
   checktime: number; // 脚本检查更新时间戳
   lastruntime?: number; // 脚本最后一次运行时间戳
   nextruntime?: number; // 脚本下一次运行时间戳
-  ignoreVersion?: string; // 忽略單一版本的更新檢查
+  ignoreVersion?: string; // 忽略单一版本的更新检查
 }
 
 // 分开存储脚本代码
@@ -220,7 +220,7 @@ export class ScriptDAO extends Repo<Script> {
         if (val1.length < 2) {
           return val1[0] === val2[0];
         }
-        // 無視次序
+        // 无视次序
         const s = new Set([...val1, ...val2]);
         if (s.size !== val1.length) return false;
         return true;
@@ -228,14 +228,14 @@ export class ScriptDAO extends Repo<Script> {
       return val1 === val2;
     };
     const isScriptInfoEqual = (script1: Script, script2: Script) => {
-      // @author, @copyright, @license 應該不會改
+      // @author, @copyright, @license 应该不会改
       if (!valEqual(script1.metadata.author, script2.metadata.author)) return false;
       if (!valEqual(script1.metadata.copyright, script2.metadata.copyright)) return false;
       if (!valEqual(script1.metadata.license, script2.metadata.license)) return false;
-      // @grant, @connect 應該不會改
+      // @grant, @connect 应该不会改
       if (!valEqual(script1.metadata.grant, script2.metadata.grant)) return false;
       if (!valEqual(script1.metadata.connect, script2.metadata.connect)) return false;
-      // @match @include 應該不會改
+      // @match @include 应该不会改
       if (!valEqual(script1.metadata.match, script2.metadata.match)) return false;
       if (!valEqual(script1.metadata.include, script2.metadata.include)) return false;
       return true;
@@ -288,9 +288,10 @@ export class ScriptCodeDAO extends Repo<ScriptCode> {
   }
 }
 
-// 不能 extends Repo<ScriptCode>. 沒有 dao.gets()
+// 不能 extends Repo<ScriptCode>. 没有 dao.gets()
 export class ScriptCodeDAONew {
-  _dirHandlePromise: Promise<FileSystemDirectoryHandle> | null = null;
+  private readonly _scriptCodeDAO = new ScriptCodeDAO();
+  private _dirHandlePromise: Promise<FileSystemDirectoryHandle> | null = null;
   static getDirHandle(): Promise<FileSystemDirectoryHandle> {
     return navigator.storage
       .getDirectory()
@@ -303,6 +304,8 @@ export class ScriptCodeDAONew {
     const writable = await handle.createWritable({ keepExistingData: false });
     await writable.write(val.code);
     await writable.close();
+    // 过渡期间同步保存至 ScriptCodeDAO
+    await this._scriptCodeDAO.save(val); // [Version: 2] ONLY
   }
   public async delete(uuid: string) {
     if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();

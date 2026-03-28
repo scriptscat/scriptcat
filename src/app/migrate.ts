@@ -270,12 +270,20 @@ export function migrateChromeStorage() {
     {
       version: 2,
       upgrade: async () => {
-        // 修复之前originDomain字段错误的数据
         const scriptCodeDAO = new ScriptCodeDAO();
         const scriptCodeDAONew = new ScriptCodeDAONew();
         const scriptCodes = await scriptCodeDAO.all();
         await Promise.all(scriptCodes.map(async (scriptCode) => scriptCodeDAONew.save(scriptCode)));
-        await scriptCodeDAO.deletes(scriptCodes.map((e) => e.uuid));
+        // 过渡期间不删除旧代码
+        // await scriptCodeDAO.deletes(scriptCodes.map((e) => e.uuid));
+      },
+    },
+    {
+      version: 3,
+      upgrade: async () => {
+        // const scriptCodeDAO = new ScriptCodeDAO();
+        // 过渡期间后删除旧代码
+        // await scriptCodeDAO.deletes(scriptCodes.map((e) => e.uuid));
       },
     },
   ];
