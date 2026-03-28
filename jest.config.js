@@ -13,8 +13,7 @@ module.exports = {
     "\\.m[jt]s$": "babel-jest",
   },
   transformIgnorePatterns: ["node_modules/(?!(uuid|dexi|yaml|webdav))"],
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  setupFiles: ["./pkg/chrome-extension-mock/index.ts"],
+  setupFiles: ["./pkg/chrome-extension-mock/index.ts", "<rootDir>/jest.setup.js"],
   moduleDirectories: ["node_modules", "src"],
   watch: false,
 };

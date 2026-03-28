@@ -1,5 +1,6 @@
 import LoggerCore from "../logger/core";
 import { type Channel } from "./channel";
+import { CustomEventClone, MouseEventClone, pageAddEventListener, pageDispatchEvent } from "./common";
 import {
   ChannelManager,
   MessageHander,
@@ -34,7 +35,7 @@ export default class MessageContent
       this.nativeSend(data);
     });
     this.relatedTarget = new Map<number, Element>();
-    window.addEventListener(
+    pageAddEventListener(
       (isContent ? "ct" : "fd") + eventId,
       (event: unknown) => {
         if (event instanceof MouseEvent) {
@@ -113,11 +114,14 @@ export default class MessageContent
       delete detail.data.relatedTarget;
       detail.data.relatedTarget = Math.ceil(Math.random() * 1000000);
       // 可以使用此种方式交互element
-      const ev = new MouseEvent((this.isContent ? "fd" : "ct") + this.eventId, {
-        clientX: detail.data.relatedTarget,
-        relatedTarget: target,
-      });
-      window.dispatchEvent(ev);
+      const ev = new MouseEventClone(
+        (this.isContent ? "fd" : "ct") + this.eventId,
+        {
+          clientX: detail.data.relatedTarget,
+          relatedTarget: target,
+        }
+      );
+      pageDispatchEvent(ev);
     }
 
     if (typeof cloneInto !== "undefined") {
@@ -132,10 +136,11 @@ export default class MessageContent
       }
     }
 
-    const ev = new CustomEvent((this.isContent ? "fd" : "ct") + this.eventId, {
-      detail,
-    });
-    window.dispatchEvent(ev);
+    const ev = new CustomEventClone(
+      (this.isContent ? "fd" : "ct") + this.eventId,
+      { detail }
+    );
+    pageDispatchEvent(ev);
   }
 
   public send(action: string, data: any) {
