@@ -55,7 +55,7 @@
     "string-similarity-js": "^2.1.4",
     "uuid": "^11.1.0",
     "webdav": "^5.9.0",
-    "yaml": "^2.8.1"
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@eslint/compat": "^1.4.1",
