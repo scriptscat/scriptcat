@@ -7,6 +7,12 @@ import {
   WarpChannelManager,
 } from "./message";
 
+// 避免页面载入后改动全域物件导致消息传递失败
+const CustomEventClone = CustomEvent;
+const MouseEventClone = MouseEvent;
+const nativeDispatchEvent = window.dispatchEvent.bind(window);
+const nativeAddEventListener = window.addEventListener.bind(window);
+
 // content与页面通讯,使用CustomEvent
 export default class MessageContent
   extends MessageHander
@@ -34,7 +40,7 @@ export default class MessageContent
       this.nativeSend(data);
     });
     this.relatedTarget = new Map<number, Element>();
-    window.addEventListener(
+    nativeAddEventListener(
       (isContent ? "ct" : "fd") + eventId,
       (event: unknown) => {
         if (event instanceof MouseEvent) {
@@ -113,11 +119,14 @@ export default class MessageContent
       delete detail.data.relatedTarget;
       detail.data.relatedTarget = Math.ceil(Math.random() * 1000000);
       // 可以使用此种方式交互element
-      const ev = new MouseEvent((this.isContent ? "fd" : "ct") + this.eventId, {
-        clientX: detail.data.relatedTarget,
-        relatedTarget: target,
-      });
-      window.dispatchEvent(ev);
+      const ev = new MouseEventClone(
+        (this.isContent ? "fd" : "ct") + this.eventId,
+        {
+          clientX: detail.data.relatedTarget,
+          relatedTarget: target,
+        }
+      );
+      nativeDispatchEvent(ev);
     }
 
     if (typeof cloneInto !== "undefined") {
@@ -132,10 +141,11 @@ export default class MessageContent
       }
     }
 
-    const ev = new CustomEvent((this.isContent ? "fd" : "ct") + this.eventId, {
-      detail,
-    });
-    window.dispatchEvent(ev);
+    const ev = new CustomEventClone(
+      (this.isContent ? "fd" : "ct") + this.eventId,
+      { detail }
+    );
+    nativeDispatchEvent(ev);
   }
 
   public send(action: string, data: any) {
