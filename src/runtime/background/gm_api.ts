@@ -671,6 +671,10 @@ export default class GMApi {
         return Promise.resolve(true);
       }
       const detail = <GMTypes.CookieDetails>request.params[1];
+      // 未指定 url 和 domain 时，自动使用当前页面的 URL（兼容 Tampermonkey 行为）
+      if (!detail.url && !detail.domain && request.sender.url) {
+        detail.url = request.sender.url;
+      }
       if (!detail.url && !detail.domain) {
         return Promise.reject(new Error("there must be one of url or domain"));
       }
@@ -737,7 +741,10 @@ export default class GMApi {
         });
         return;
       }
-      // url或者域名不能为空
+      // 未指定 url 和 domain 时，自动使用当前页面的 URL（兼容 Tampermonkey 行为）
+      if (!detail.url && !detail.domain && request.sender.url) {
+        detail.url = request.sender.url;
+      }
       if (detail.url) {
         detail.url = detail.url.trim();
       }
