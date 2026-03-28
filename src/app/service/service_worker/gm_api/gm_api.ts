@@ -337,6 +337,9 @@ export default class GMApi {
     const detail: GMTypes.CookieDetails = param[1];
     // 未指定 url 和 domain 时，自动使用当前页面的 URL（兼容 Tampermonkey 行为）
     const senderURL = sender.getSender()?.url;
+    if (!detail.url && !detail.domain && senderURL) {
+      detail.url = senderURL;
+    }
     if (detail.domain) detail.domain = `${detail.domain}`.trim();
     if (detail.url) detail.url = `${detail.url}`.trim();
     if (!detail.partitionKey || typeof detail.partitionKey !== "object") {
