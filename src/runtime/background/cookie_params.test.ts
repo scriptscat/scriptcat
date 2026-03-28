@@ -2,12 +2,10 @@ import { cookieParams } from "./cookie_params";
 
 // 用于模拟 Firefox 环境的辅助函数
 const mockFirefox = () => {
-  (global as any).mozInnerScreenX = 0;
   (globalThis as any).mozInnerScreenX = 0;
 };
 
 const mockNonFirefox = () => {
-  delete (global as any).mozInnerScreenX;
   delete (globalThis as any).mozInnerScreenX;
 };
 
