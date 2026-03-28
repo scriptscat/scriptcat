@@ -31,6 +31,8 @@ import {
   setXhrHeader,
 } from "./utils";
 
+import { cookieParams } from "./cookie_params";
+
 // GMApi,处理脚本的GM API调用请求
 
 export type MessageRequest = {
@@ -669,6 +671,10 @@ export default class GMApi {
         return Promise.resolve(true);
       }
       const detail = <GMTypes.CookieDetails>request.params[1];
+      // 未指定 url 和 domain 时，自动使用当前页面的 URL（兼容 Tampermonkey 行为）
+      if (!detail.url && !detail.domain && request.sender.url) {
+        detail.url = request.sender.url;
+      }
       if (!detail.url && !detail.domain) {
         return Promise.reject(new Error("there must be one of url or domain"));
       }
@@ -735,7 +741,10 @@ export default class GMApi {
         });
         return;
       }
-      // url或者域名不能为空
+      // 未指定 url 和 domain 时，自动使用当前页面的 URL（兼容 Tampermonkey 行为）
+      if (!detail.url && !detail.domain && request.sender.url) {
+        detail.url = request.sender.url;
+      }
       if (detail.url) {
         detail.url = detail.url.trim();
       }
@@ -749,7 +758,7 @@ export default class GMApi {
       switch (param[0]) {
         case "list": {
           chrome.cookies.getAll(
-            {
+            cookieParams({
               domain: detail.domain,
               name: detail.name,
               path: detail.path,
@@ -757,7 +766,7 @@ export default class GMApi {
               session: detail.session,
               url: detail.url,
               storeId: detail.storeId,
-            },
+            }),
             (cookies) => {
               resolve(cookies);
             }
@@ -770,11 +779,11 @@ export default class GMApi {
             return;
           }
           chrome.cookies.remove(
-            {
+            cookieParams({
               name: detail.name,
               url: detail.url,
               storeId: detail.storeId,
-            },
+            }),
             () => {
               resolve(undefined);
             }
@@ -787,7 +796,7 @@ export default class GMApi {
             return;
           }
           chrome.cookies.set(
-            {
+            cookieParams({
               url: detail.url,
               name: detail.name,
               domain: detail.domain,
@@ -797,7 +806,7 @@ export default class GMApi {
               httpOnly: detail.httpOnly,
               secure: detail.secure,
               storeId: detail.storeId,
-            },
+            }),
             () => {
               resolve(undefined);
             }
