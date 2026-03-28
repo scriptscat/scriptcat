@@ -549,8 +549,8 @@ export default class GMApi extends GM_Base {
       typeof (details.name ?? "") !== "string" ||
       typeof (details.partitionKey ?? null) !== "object" ||
       typeof (details.path ?? "") !== "string" ||
-      typeof (details.secure ?? false) !== "string" ||
-      typeof (details.session ?? false) !== "string" ||
+      typeof (details.secure ?? false) !== "boolean" ||
+      typeof (details.session ?? false) !== "boolean" ||
       typeof (details.url ?? "") !== "string" ||
       typeof (details.value ?? "") !== "string"
     ) {
