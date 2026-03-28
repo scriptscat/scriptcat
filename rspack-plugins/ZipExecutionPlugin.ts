@@ -1,5 +1,5 @@
 import type { Compiler, Compilation } from "@rspack/core";
-import zlib from "zlib";
+import { deflateRawSync } from "zlib";
 
 import * as acorn from "acorn";
 import MagicString from "magic-string";
@@ -450,7 +450,7 @@ export class ZipExecutionPlugin {
     // Compress
     const json = JSON.stringify(extracted);
     // const deflated = pako.deflateRaw(Buffer.from(json, "utf8"), { level: 6 });
-    const deflated = zlib.deflateRawSync(Buffer.from(json, "utf8"), { level: 6 });
+    const deflated = deflateRawSync(Buffer.from(json, "utf8"), { level: 6 });
     if (!deflated) throw new Error("Compression Failed");
     const base64 = Buffer.from(deflated).toString("base64");
 
