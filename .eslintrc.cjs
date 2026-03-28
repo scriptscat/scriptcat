@@ -21,6 +21,7 @@ module.exports = {
   globals: {
     GMTypes: "readonly",
     GMSend: "readonly",
+    cloneInto: "readonly",
   },
   plugins: ["react", "@typescript-eslint", "prettier"],
   rules: {
