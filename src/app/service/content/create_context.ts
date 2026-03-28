@@ -8,6 +8,46 @@ import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
 import { createGMBase } from "./gm_api/gm_api";
 
+class UrlChangeEvent extends Event {
+  url: string;
+  constructor(type: string, eventInitDict?: EventInit) {
+    super(type, eventInitDict);
+    this.url = "";
+  }
+}
+
+// Chrome 102+, Firefox 147+
+// https://developer.chrome.com/docs/web-platform/navigation-api
+// https://developer.mozilla.org/en-US/docs/Web/API/Navigation_API#browser_compatibility
+const attachNavigateHandler = (win: Window & { navigation: EventTarget }) => {
+  // 以 location.href 判断避免 replaceState/pushState 重复执行重复触发
+  const location = win.location;
+  const getUrl = Object.getOwnPropertyDescriptor(location, "href")?.get?.bind(location);
+  const dispatcher = win.dispatchEvent.bind(win);
+  let lastUrl = getUrl?.();
+  const handler = async (ev: Event): Promise<void> => {
+    let newUrl = getUrl?.(); // 取得当前 location.href
+    const destinationUrl = (ev as any).destination?.url;
+    if (destinationUrl !== newUrl && newUrl === lastUrl) {
+      // 某些情况，location.href 未更新就触发了
+      // 用 postMessage 推迟到下一个 marcoEvent 阶段
+      await new Promise((resolve) => {
+        window.addEventListener("message", resolve, { once: true });
+        window.postMessage({ [`${Math.random()}`]: {} }); // 传一个 dummy message
+      });
+      // 注：等待时，或已经触发了其他 navigate
+      newUrl = getUrl?.(); // 再次取得当前 location.href
+    }
+    if (newUrl === lastUrl) return;
+    lastUrl = newUrl;
+    const dispatchEvent = new UrlChangeEvent("urlchange");
+    dispatchEvent.url = (destinationUrl || newUrl) as string; // info.url
+    dispatcher(dispatchEvent);
+  };
+  win.navigation?.addEventListener("navigate", handler, false);
+  return handler;
+};
+
 // 构建沙盒上下文
 export const createContext = (
   scriptRes: TScriptInfo,
@@ -102,6 +142,10 @@ export const createContext = (
     }
   }
   context.unsafeWindow = window;
+  if (scriptGrants.has("window.onurlchange") && context.onurlchange === undefined) {
+    context.onurlchange = null;
+    attachNavigateHandler(window as any);
+  }
   return context;
 };
 
@@ -389,7 +433,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
 
   // 把 GM context物件的 window属性内容移至exposedWindow
   // 由于目前只有 window.close, window.open, window.onurlchange, 不需要循环 window
-  const cWindow = context.window;
+  const cWindow = context.window as (Window & Record<string, any>) | undefined;
 
   // @grant window.close
   if (cWindow?.close) {
@@ -403,7 +447,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
 
   // @grant window.onurlchange
   if (cWindow?.onurlchange === null) {
-    // 目前 TM 只支援 null. ScriptCat不需要grant预设启用？
+    // 目前 TM 只支援 null
     mySandbox.onurlchange = null;
   }
 
