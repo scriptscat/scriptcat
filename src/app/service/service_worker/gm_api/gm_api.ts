@@ -292,19 +292,16 @@ export default class GMApi {
       const detail = request.params[1];
       // 未指定 url 和 domain 时，自动使用当前页面的 URL（兼容 Tampermonkey 行为）
       const senderURL = sender.getSender()?.url;
-      if (!detail.url && !detail.domain) {
-        if (senderURL) {
-          detail.url = senderURL;
-        } else {
-          throw new Error("there must be one of url or domain");
-        }
+      if (!detail.url && !detail.domain && senderURL) {
+        detail.url = senderURL;
       }
       let url: URL = <URL>{};
       if (detail.url) {
-        url = new URL(detail.url);
+        url = new URL(`${detail.url}`);
+      } else if (detail.domain) {
+        url.hostname = url.host = `${detail.domain}`;
       } else {
-        url.host = detail.domain || "";
-        url.hostname = detail.domain || "";
+        throw new Error("there must be one of url or domain");
       }
       if (getConnectMatched(request.script.metadata.connect, url, sender) === ConnectMatch.NONE) {
         // 检查是否配置了权限
