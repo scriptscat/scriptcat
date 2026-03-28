@@ -135,7 +135,7 @@ export class SubscribeService {
       // 通过uuid查询脚本id
       result.push(
         (async () => {
-          const script = await this.scriptDAO.findByUUID(item.uuid);
+          const script = await this.scriptDAO.get(item.uuid);
           if (script) {
             notification[1].push(i18nName(script));
             // 删除脚本

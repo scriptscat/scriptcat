@@ -2,7 +2,7 @@ import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, ScriptMenu } fr
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group, IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
-import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
+import { ScriptCodeDAONew, type TClientPageLoadInfo } from "@App/app/repo/scripts";
 import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
@@ -128,6 +128,7 @@ export class RuntimeService {
   initialCompiledResourcePromise: Promise<any> | undefined;
 
   compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
+  private readonly scriptCodeDAO: ScriptCodeDAONew = new ScriptCodeDAONew();
 
   constructor(
     private systemConfig: SystemConfig,
@@ -1245,7 +1246,7 @@ export class RuntimeService {
       }
     }
 
-    const { value, resource, scriptDAO } = this;
+    const { value, resource, scriptCodeDAO } = this;
     await Promise.all(
       enableScriptList.flatMap((script) => [
         // 加载value
@@ -1265,7 +1266,7 @@ export class RuntimeService {
           }
         }),
         // 加载code相关的信息
-        scriptDAO.scriptCodeDAO.get(script.uuid).then((code) => {
+        scriptCodeDAO.get(script.uuid).then((code) => {
           if (code) {
             const metadataStr = getMetadataStr(code.code) || "";
             const userConfigStr = getUserConfigStr(code.code) || "";

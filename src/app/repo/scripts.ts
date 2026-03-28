@@ -147,31 +147,16 @@ export type TClientPageLoadInfo =
   | { ok: false };
 
 export class ScriptDAO extends Repo<Script> {
-  scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
-
   constructor() {
     super("script");
   }
 
   enableCache(): void {
     super.enableCache();
-    this.scriptCodeDAO.enableCache();
   }
 
   public save(val: Script) {
     return super._save(val.uuid, val);
-  }
-
-  findByUUID(uuid: string) {
-    return this.get(uuid);
-  }
-
-  async getAndCode(uuid: string): Promise<ScriptAndCode | undefined> {
-    const [script, code] = await Promise.all([this.get(uuid), this.scriptCodeDAO.get(uuid)]);
-    if (!script || !code) {
-      return undefined;
-    }
-    return Object.assign(script, code);
   }
 
   public findByName(name: string) {
@@ -298,11 +283,79 @@ export class ScriptCodeDAO extends Repo<ScriptCode> {
     super("scriptCode");
   }
 
-  findByUUID(uuid: string) {
-    return this.get(uuid);
-  }
-
   public save(val: ScriptCode) {
     return super._save(val.uuid, val);
+  }
+}
+
+// 不能 extends Repo<ScriptCode>. 沒有 dao.gets()
+export class ScriptCodeDAONew {
+  _dirHandlePromise: Promise<FileSystemDirectoryHandle> | null = null;
+  static getDirHandle(): Promise<FileSystemDirectoryHandle> {
+    return navigator.storage
+      .getDirectory()
+      .then((opfsRoot) => opfsRoot.getDirectoryHandle("storage_script_codes", { create: true }));
+  }
+  public async save(val: ScriptCode) {
+    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
+    const folder = await this._dirHandlePromise;
+    const handle = await folder.getFileHandle(`${val.uuid}.user.js`, { create: true });
+    const writable = await handle.createWritable({ keepExistingData: false });
+    await writable.write(val.code);
+    await writable.close();
+  }
+  public async delete(uuid: string) {
+    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
+    const folder = await this._dirHandlePromise;
+    try {
+      await folder.removeEntry(`${uuid}.user.js`);
+    } catch {
+      // ignore delete failure. e.g. no file
+    }
+  }
+  public async get(uuid: string): Promise<ScriptCode> {
+    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
+    const folder = await this._dirHandlePromise;
+    let code: string = "";
+    let handle: FileSystemFileHandle;
+    try {
+      handle = await folder.getFileHandle(`${uuid}.user.js`, { create: false });
+    } catch {
+      // no file -> empty code
+      return {
+        uuid,
+        code,
+      };
+    }
+    code = await handle.getFile().then((f) => f.text());
+    return { uuid, code };
+  }
+  public async deletes(uuids: string[]) {
+    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
+    const folder = await this._dirHandlePromise;
+    await Promise.all(
+      uuids.map(async (uuid) => {
+        try {
+          await folder.removeEntry(`${uuid}.user.js`);
+        } catch {
+          // ignore delete failure. e.g. no file
+        }
+      })
+    );
+  }
+  public async gets(uuids: string[]): Promise<(ScriptCode | undefined)[]> {
+    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
+    const folder = await this._dirHandlePromise;
+    return Promise.all(
+      uuids.map(async (uuid) => {
+        try {
+          const handle = await folder.getFileHandle(`${uuid}.user.js`, { create: false });
+          const code = await handle.getFile().then((f) => f.text());
+          return { uuid, code };
+        } catch {
+          return undefined;
+        }
+      })
+    );
   }
 }

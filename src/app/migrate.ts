@@ -1,7 +1,7 @@
 import { getStorageName } from "@App/pkg/utils/utils";
 import { db } from "./repo/dao";
 import type { Script, ScriptAndCode } from "./repo/scripts";
-import { ScriptCodeDAO, ScriptDAO } from "./repo/scripts";
+import { ScriptCodeDAO, ScriptCodeDAONew, ScriptDAO } from "./repo/scripts";
 import type { Subscribe } from "./repo/subscribe";
 import { SubscribeDAO } from "./repo/subscribe";
 import type { Value } from "./repo/value";
@@ -19,7 +19,7 @@ export function migrateToChromeStorage() {
       // 迁移脚本
       const scripts = await db.table("scripts").toArray();
       const scriptDAO = new ScriptDAO();
-      const scriptCodeDAO = new ScriptCodeDAO();
+      const scriptCodeDAO = new ScriptCodeDAONew();
       console.log("开始迁移脚本数据", scripts.length);
       await Promise.all(
         // 不处理 Promise.reject ?
@@ -265,6 +265,17 @@ export function migrateChromeStorage() {
             }
           })
         );
+      },
+    },
+    {
+      version: 2,
+      upgrade: async () => {
+        // 修复之前originDomain字段错误的数据
+        const scriptCodeDAO = new ScriptCodeDAO();
+        const scriptCodeDAONew = new ScriptCodeDAONew();
+        const scriptCodes = await scriptCodeDAO.all();
+        await Promise.all(scriptCodes.map(async (scriptCode) => scriptCodeDAONew.save(scriptCode)));
+        await scriptCodeDAO.deletes(scriptCodes.map((e) => e.uuid));
       },
     },
   ];

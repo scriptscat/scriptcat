@@ -2,7 +2,7 @@ import { DocumentationSite } from "@App/app/const";
 import type { Export, ExportTarget } from "@App/app/repo/export";
 import { ExportDAO } from "@App/app/repo/export";
 import type { Script } from "@App/app/repo/scripts";
-import { ScriptCodeDAO } from "@App/app/repo/scripts";
+import { ScriptCodeDAONew } from "@App/app/repo/scripts";
 import { localePath } from "@App/locales/locales";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 import { Button, Checkbox, Form, Input, Message, Modal, Select } from "@arco-design/web-react";
@@ -123,7 +123,7 @@ const CloudScriptPlan: React.FC<{
             zip: zipFile,
             ...params,
           });
-          const code = await new ScriptCodeDAO().findByUUID(script.uuid);
+          const code = await new ScriptCodeDAONew().get(script.uuid);
           if (!code) {
             Message.error(t("invalid_script_code"));
             return;

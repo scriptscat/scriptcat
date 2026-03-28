@@ -7,7 +7,7 @@ import {
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
-  ScriptCodeDAO,
+  ScriptCodeDAONew,
   ScriptDAO,
 } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
@@ -190,7 +190,7 @@ export async function prepareScriptByCode(
     ) {
       throw new Error(i18n_t("error_script_type_mismatch"));
     }
-    const scriptCode = await new ScriptCodeDAO().get(old.uuid);
+    const scriptCode = await new ScriptCodeDAONew().get(old.uuid);
     if (!scriptCode) {
       throw new Error(i18n_t("error_old_script_code_missing"));
     }

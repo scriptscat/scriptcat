@@ -1,5 +1,5 @@
 import type { Script } from "@App/app/repo/scripts";
-import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
+import { SCRIPT_TYPE_NORMAL, ScriptCodeDAONew, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -201,7 +201,7 @@ type EditorState = {
 };
 
 const scriptDAO = new ScriptDAO();
-const scriptCodeDAO = new ScriptCodeDAO();
+const scriptCodeDAO = new ScriptCodeDAONew();
 
 function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
@@ -273,7 +273,7 @@ function ScriptEditor() {
         // 如果不在，从数据库读取
         const script = scriptList.find((s) => s.uuid === uuid);
         if (script) {
-          const code = await scriptCodeDAO.findByUUID(uuid);
+          const code = await scriptCodeDAO.get(uuid);
           const newEditor: EditorState = {
             script,
             code: code?.code || "",

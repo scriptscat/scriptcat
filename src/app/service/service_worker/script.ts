@@ -21,7 +21,7 @@ import type {
   ScriptRunResource,
   ScriptSite,
 } from "@App/app/repo/scripts";
-import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAONew } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
@@ -69,7 +69,7 @@ export type TScriptInstallReturn = {
 
 export class ScriptService {
   logger: Logger;
-  scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
+  scriptCodeDAO: ScriptCodeDAONew = new ScriptCodeDAONew();
   localStorageDAO: LocalStorageDAO = new LocalStorageDAO();
   compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
   private readonly scriptUpdateCheck;
@@ -83,7 +83,7 @@ export class ScriptService {
     private readonly scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
-    this.scriptCodeDAO.enableCache();
+    // this.scriptCodeDAO.enableCache();
     this.scriptUpdateCheck = new ScriptUpdateCheck(systemConfig, group, mq, valueService, resourceService, scriptDAO);
   }
 
