@@ -11,8 +11,15 @@ const trimCode = (code: string) => {
   return code.replace(/[\r\n]\s+/g, "").trim();
 };
 
-const inflateRawFnFactory = minify(
-  `function inflateRawFnFactory() {
+/**
+ * ## inflate-raw
+ * * 轻量级的 DEFLATE 解压算法实现（遵循 RFC 1951），内联进插件以避免额外依赖
+ * * 实现参考：https://github.com/js-vanilla/inflate-raw/ 仅做格式压缩与封装用于运行时解码
+ * * lightweight implementation of the DEFLATE decompression algorithm (RFC 1951)
+ * * See https://github.com/js-vanilla/inflate-raw/
+ */
+const inflateRawCode = minify(
+  `const $inflateRaw_ = (() => {
       const Uint8Arr = Uint8Array;
 
       const $fromBase64 = Uint8Arr.fromBase64?.bind(Uint8Arr) ?? ((b64) => {
@@ -253,7 +260,7 @@ const inflateRawFnFactory = minify(
 
       return $inflate;
 
-    }`,
+  })();`,
   {
     parse: {},
     compress: false,
@@ -277,16 +284,9 @@ const inflateRawFnFactory = minify(
 ).code;
 
 export function compileDecodeSource(templateCode: string, base64Data: string, pName: string) {
-  // ------------------------------------------ inflate-raw ------------------------------------------
-  // 轻量级的 DEFLATE 解压算法实现（遵循 RFC 1951），内联进插件以避免额外依赖
-  // 实现参考：https://github.com/js-vanilla/inflate-raw/，仅做格式压缩与封装用于运行时解码
-  // lightweight implementation of the DEFLATE decompression algorithm (RFC 1951)
-  // * See https://github.com/js-vanilla/inflate-raw/
-  const inflateRawCode = `(\n${inflateRawFnFactory}\n)();`;
-  // -------------------------------------------------------------------------------------------------
   return [
     `const $b64_ = "${base64Data}";`,
-    `const $inflateRaw_ = ${inflateRawCode};`,
+    `${inflateRawCode}`,
     `const $text_ = $inflateRaw_($b64_);`,
     `const ${pName} = JSON.parse($text_);`,
     `${templateCode}`,
