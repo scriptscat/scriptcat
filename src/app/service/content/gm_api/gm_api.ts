@@ -267,6 +267,7 @@ export default class GMApi extends GM_Base {
   }
 
   static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
+    key = `${key}`;
     if (!a.scriptRes) return;
     if (valChangeCounterId > 1e8) {
       // 防止 valChangeCounterId 过大导致无法正常工作
@@ -322,7 +323,7 @@ export default class GMApi extends GM_Base {
         valueStore[key] = value_;
       }
       // 避免undefined 等空值流失，先进行映射处理
-      keyValuePairs.push([key, encodeRValue(value_)]);
+      keyValuePairs.push([`${key}`, encodeRValue(value_)]);
     }
     a.sendMessage("GM_setValues", [id, keyValuePairs]);
     return id;
@@ -498,7 +499,7 @@ export default class GMApi extends GM_Base {
     if (typeof message !== "string") {
       message = Native.jsonStringify(message);
     }
-    this.sendMessage("GM_log", [message, level, labels]);
+    this.sendMessage("GM_log", [`${message}`, `${level}`, labels]);
   }
 
   @GMContext.API({ depend: ["GM_log"] })
@@ -521,7 +522,7 @@ export default class GMApi extends GM_Base {
   // 辅助GM_xml获取blob数据
   @GMContext.API()
   public CAT_fetchBlob(url: string): Promise<Blob> {
-    return this.sendMessage("CAT_fetchBlob", [url]);
+    return this.sendMessage("CAT_fetchBlob", [`${url}`]);
   }
 
   @GMContext.API()
@@ -540,17 +541,24 @@ export default class GMApi extends GM_Base {
     details: GMTypes.CookieDetails,
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
-    // 如果url和域名都没有，自动填充当前url
-    if (!details.url && !details.domain) {
-      details.url = window.location.href;
+    // 防止错误参数类型传送
+    if (
+      typeof (details.domain ?? "") !== "string" ||
+      typeof (details.expirationDate ?? 0) !== "number" ||
+      typeof (details.httpOnly ?? false) !== "boolean" ||
+      typeof (details.name ?? "") !== "string" ||
+      typeof (details.partitionKey ?? null) !== "object" ||
+      typeof (details.path ?? "") !== "string" ||
+      typeof (details.secure ?? false) !== "string" ||
+      typeof (details.session ?? false) !== "string" ||
+      typeof (details.url ?? "") !== "string" ||
+      typeof (details.value ?? "") !== "string"
+    ) {
+      done(undefined, new Error("Invalid Argument Type"));
+      return;
     }
-    // 如果是set、delete操作，自动填充当前url
-    if (action === "set" || action === "delete") {
-      if (!details.url) {
-        details.url = window.location.href;
-      }
-    }
-    a.sendMessage("GM_cookie", [action, details])
+    // 确保物件参数可以传送
+    a.sendMessage("GM_cookie", [`${action}`, customClone(details)])
       .then((resp: any) => {
         done && done(resp, undefined);
       })
@@ -707,7 +715,7 @@ export default class GMApi extends GM_Base {
       this.EE.addListener("menuClick:" + menuKey, listener);
     }
     // 发送至 service worker 处理（唯一键，显示名字，不包括id的其他设定）
-    this.sendMessage("GM_registerMenuCommand", [menuKey, name, options] as GMRegisterMenuCommandParam);
+    this.sendMessage("GM_registerMenuCommand", [menuKey, `${name}`, options] as GMRegisterMenuCommandParam);
     return ret;
   }
 
@@ -889,27 +897,29 @@ export default class GMApi extends GM_Base {
       const url = await toBlobURL(this, details.data);
       sendDetails.data = url;
     }
-    this.sendMessage("CAT_fileStorage", [action, sendDetails]).then(async (resp: { action: string; data: any }) => {
-      switch (resp.action) {
-        case "onload": {
-          if (action === "download") {
-            // 读取blob
-            const blob = await this.CAT_fetchBlob(resp.data);
-            details.onload && details.onload(blob);
-          } else {
-            details.onload && details.onload(resp.data);
+    this.sendMessage("CAT_fileStorage", [`${action}`, sendDetails]).then(
+      async (resp: { action: string; data: any }) => {
+        switch (resp.action) {
+          case "onload": {
+            if (action === "download") {
+              // 读取blob
+              const blob = await this.CAT_fetchBlob(resp.data);
+              details.onload && details.onload(blob);
+            } else {
+              details.onload && details.onload(resp.data);
+            }
+            break;
           }
-          break;
-        }
-        case "error": {
-          if (typeof resp.data.code === "undefined") {
-            details.onerror && details.onerror({ code: -1, message: resp.data.message });
-            return;
+          case "error": {
+            if (typeof resp.data.code === "undefined") {
+              details.onerror && details.onerror({ code: -1, message: resp.data.message });
+              return;
+            }
+            details.onerror && details.onerror(resp.data);
           }
-          details.onerror && details.onerror(resp.data);
         }
       }
-    });
+    );
   }
 
   // 用于脚本跨域请求,需要@connect domain指定允许的域名
@@ -1199,7 +1209,7 @@ export default class GMApi extends GM_Base {
     if (typeof data.tag === "string") {
       notificationId = notificationTagMap.get(data.tag);
     }
-    gmApi.sendMessage("GM_notification", [data, notificationId]).then((id) => {
+    gmApi.sendMessage("GM_notification", [customClone(data), notificationId]).then((id) => {
       if (!gmApi.EE) return;
       if (create) {
         create.apply({ id }, [id]);
@@ -1292,13 +1302,13 @@ export default class GMApi extends GM_Base {
   // ScriptCat 额外API
   @GMContext.API({ alias: "GM.closeNotification" })
   public GM_closeNotification(id: string): void {
-    this.sendMessage("GM_closeNotification", [id]);
+    this.sendMessage("GM_closeNotification", [`${id}`]);
   }
 
   // ScriptCat 额外API
   @GMContext.API({ alias: "GM.updateNotification" })
   public GM_updateNotification(id: string, details: GMTypes.NotificationDetails): void {
-    this.sendMessage("GM_updateNotification", [id, details]);
+    this.sendMessage("GM_updateNotification", [`${id}`, customClone(details)]);
   }
 
   @GMContext.API({ depend: ["GM_closeInTab"] })
@@ -1439,7 +1449,7 @@ export default class GMApi extends GM_Base {
     // 参考： https://github.com/Tampermonkey/tampermonkey/issues/1250
     let mimetype: string | undefined;
     if (typeof info === "object" && info?.mimetype) {
-      mimetype = info.mimetype;
+      mimetype = `${info.mimetype}`;
     } else {
       mimetype = (typeof info === "string" ? info : info?.type) || "text/plain";
       if (mimetype === "text") mimetype = "text/plain";
