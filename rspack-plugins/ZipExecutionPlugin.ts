@@ -260,6 +260,14 @@ const inflateRawFnFactory = minify(
     mangle: false,
     output: {
       beautify: true,
+      quote_style: 3, // original
+      wrap_iife: false,
+      indent_level: 2,
+      indent_start: 0,
+      comments: false,
+      braces: false,
+      ascii_only: false,
+      annotations: false,
       preamble: [
         "// lightweight implementation of the DEFLATE decompression algorithm (RFC 1951)",
         "// * See https://github.com/js-vanilla/inflate-raw/",
@@ -276,13 +284,13 @@ export function compileDecodeSource(templateCode: string, base64Data: string, pN
   // * See https://github.com/js-vanilla/inflate-raw/
   const inflateRawCode = `(\n${inflateRawFnFactory}\n)();`;
   // -------------------------------------------------------------------------------------------------
-  return `
-  const $b64_ = "${base64Data}";
-  const $inflateRaw_ = ${inflateRawCode};
-  const $text_ = $inflateRaw_($b64_);
-  const ${pName} = JSON.parse($text_);
-  ${templateCode}
-`;
+  return [
+    `const $b64_ = "${base64Data}";`,
+    `const $inflateRaw_ = ${inflateRawCode};`,
+    `const $text_ = $inflateRaw_($b64_);`,
+    `const ${pName} = JSON.parse($text_);`,
+    `${templateCode}`,
+  ].join("\n");
 }
 
 interface Candidate {
