@@ -379,7 +379,7 @@ export default class GMApi {
       }
       case "delete": {
         detail.domain = undefined;
-        detail.url = detail.url ? detail.url : senderURL;
+        detail.url = detail.url || senderURL;
         if (!detail.url || !detail.name) {
           throw new Error("delete operation must have url and name");
         }
@@ -395,7 +395,7 @@ export default class GMApi {
       }
       case "set": {
         detail.domain = detail.domain || undefined;
-        detail.url = detail.url ? detail.url : senderURL;
+        detail.url = detail.url || senderURL;
         // https://developer.chrome.com/docs/extensions/reference/api/cookies#method-set
         if (!detail.name) detail.name = ""; // Empty by default if omitted.
         if (!detail.value) detail.value = ""; // Empty by default if omitted.
