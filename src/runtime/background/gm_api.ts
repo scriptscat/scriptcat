@@ -31,7 +31,7 @@ import {
   setXhrHeader,
 } from "./utils";
 
-import { cookieQuery } from "./cookie_query";
+import { cookieParams } from "./cookie_params";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -758,7 +758,7 @@ export default class GMApi {
       switch (param[0]) {
         case "list": {
           chrome.cookies.getAll(
-            cookieQuery({
+            cookieParams({
               domain: detail.domain,
               name: detail.name,
               path: detail.path,
@@ -779,7 +779,7 @@ export default class GMApi {
             return;
           }
           chrome.cookies.remove(
-            cookieQuery({
+            cookieParams({
               name: detail.name,
               url: detail.url,
               storeId: detail.storeId,
@@ -796,7 +796,7 @@ export default class GMApi {
             return;
           }
           chrome.cookies.set(
-            cookieQuery({
+            cookieParams({
               url: detail.url,
               name: detail.name,
               domain: detail.domain,

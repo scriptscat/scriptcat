@@ -1,8 +1,8 @@
-import { cookieQuery } from "./cookie_query";
+import { cookieParams } from "./cookie_params";
 
-describe("cookieQuery", () => {
+describe("buildCookieFilter", () => {
   it("过滤掉 undefined 属性", () => {
-    const result = cookieQuery({
+    const result = cookieParams({
       url: "https://example.com",
       domain: undefined,
       name: undefined,
@@ -16,7 +16,7 @@ describe("cookieQuery", () => {
   });
 
   it("保留所有非 undefined 的属性（包括 null 和 false）", () => {
-    const result = cookieQuery({
+    const result = cookieParams({
       url: "https://example.com",
       secure: false,
       session: false,
@@ -34,7 +34,7 @@ describe("cookieQuery", () => {
     // 模拟 Firefox 环境
     (globalThis as any).mozInnerScreenX = 0;
     try {
-      const result = cookieQuery({ url: "https://example.com" });
+      const result = cookieParams({ url: "https://example.com" });
       expect(result).toEqual({
         url: "https://example.com",
         firstPartyDomain: null,
@@ -45,7 +45,7 @@ describe("cookieQuery", () => {
   });
 
   it("非 Firefox 下不添加 firstPartyDomain", () => {
-    const result = cookieQuery({ url: "https://example.com" });
+    const result = cookieParams({ url: "https://example.com" });
     expect("firstPartyDomain" in result).toBe(false);
   });
 });
