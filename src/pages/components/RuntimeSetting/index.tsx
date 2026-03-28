@@ -78,7 +78,9 @@ const RuntimeSetting: React.FC = () => {
               </span>
             </div>
           )}
-          <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("enable_background.description")}</span>
+          {!isFirefox() && (
+            <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("enable_background.description")}</span>
+          )}
         </div>
         <Collapse bordered={false} defaultActiveKey={["storage"]}>
           <CollapseItem header={t("storage_api")} name="storage">
