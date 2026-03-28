@@ -10,6 +10,8 @@ const trimCode = (code: string) => {
 
 export function compileDecodeSource(templateCode: string, base64Data: string, pName: string) {
   // ------------------------------------------ inflate-raw ------------------------------------------
+  // 轻量级的 DEFLATE 解压算法实现（遵循 RFC 1951），内联进插件以避免额外依赖
+  // 实现参考：https://github.com/js-vanilla/inflate-raw/，仅做格式压缩与封装用于运行时解码
   // lightweight implementation of the DEFLATE decompression algorithm (RFC 1951)
   // * See https://github.com/js-vanilla/inflate-raw/
   const inflateRawCode = trimCode(`
