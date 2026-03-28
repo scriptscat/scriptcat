@@ -7,16 +7,15 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
-import { createScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
+import { createTempCodeEntry, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type TInstallSubscribe } from "../queue";
 import { checkSilenceUpdate } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import { fetchScriptBody, parseMetadata, prepareSubscribeByCode } from "@App/pkg/utils/script";
-import { cacheInstance } from "@App/app/cache";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import i18n, { i18nName } from "@App/locales/locales";
 import { InfoNotification } from "./utils";
+import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 
 export class SubscribeService {
   logger: Logger;
@@ -225,8 +224,13 @@ export class SubscribeService {
         if (true === (await this.trySilenceUpdate(code, url))) {
           // slience update
         } else {
-          const si = [false, createScriptInfo(uuid, code, url, source, metadata), {}];
-          await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+          const si = await createTempCodeEntry(false, uuid, code, url, source, metadata, {});
+          await new TempStorageDAO().save({
+            key: uuid,
+            value: si,
+            savedAt: Date.now(),
+            type: TempStorageItemType.tempCode,
+          });
           chrome.tabs.create({
             url: `/src/install.html?uuid=${uuid}`,
           });
