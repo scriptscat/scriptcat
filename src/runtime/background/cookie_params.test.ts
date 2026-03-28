@@ -1,6 +1,6 @@
 import { cookieParams } from "./cookie_params";
 
-describe("buildCookieFilter", () => {
+describe("cookieParams", () => {
   it("过滤掉 undefined 属性", () => {
     const result = cookieParams({
       url: "https://example.com",
