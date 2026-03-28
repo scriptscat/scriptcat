@@ -470,7 +470,7 @@ export class ZipExecutionPlugin {
         },
         async (assets) => {
           for (const [filename, asset] of Object.entries(assets)) {
-            if (!filename.includes("ts.worker.js")) continue;
+            if (!filename.endsWith("ts.worker.js")) continue;
 
             let source = asset.source().toString();
 
