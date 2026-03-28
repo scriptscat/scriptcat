@@ -1,17 +1,12 @@
 import LoggerCore from "../logger/core";
 import { type Channel } from "./channel";
+import { CustomEventClone, MouseEventClone, pageAddEventListener, pageDispatchEvent } from "./common";
 import {
   ChannelManager,
   MessageHander,
   MessageManager,
   WarpChannelManager,
 } from "./message";
-
-// 避免页面载入后改动全域物件导致消息传递失败
-const CustomEventClone = CustomEvent;
-const MouseEventClone = MouseEvent;
-const nativeDispatchEvent = window.dispatchEvent.bind(window);
-const nativeAddEventListener = window.addEventListener.bind(window);
 
 // content与页面通讯,使用CustomEvent
 export default class MessageContent
@@ -40,7 +35,7 @@ export default class MessageContent
       this.nativeSend(data);
     });
     this.relatedTarget = new Map<number, Element>();
-    nativeAddEventListener(
+    pageAddEventListener(
       (isContent ? "ct" : "fd") + eventId,
       (event: unknown) => {
         if (event instanceof MouseEvent) {
@@ -126,7 +121,7 @@ export default class MessageContent
           relatedTarget: target,
         }
       );
-      nativeDispatchEvent(ev);
+      pageDispatchEvent(ev);
     }
 
     if (typeof cloneInto !== "undefined") {
@@ -145,7 +140,7 @@ export default class MessageContent
       (this.isContent ? "fd" : "ct") + this.eventId,
       { detail }
     );
-    nativeDispatchEvent(ev);
+    pageDispatchEvent(ev);
   }
 
   public send(action: string, data: any) {
