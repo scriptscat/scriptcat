@@ -31,6 +31,8 @@ import {
   setXhrHeader,
 } from "./utils";
 
+import { cookieQuery } from "./cookie_query";
+
 // GMApi,处理脚本的GM API调用请求
 
 export type MessageRequest = {
@@ -749,7 +751,7 @@ export default class GMApi {
       switch (param[0]) {
         case "list": {
           chrome.cookies.getAll(
-            {
+            cookieQuery({
               domain: detail.domain,
               name: detail.name,
               path: detail.path,
@@ -757,7 +759,7 @@ export default class GMApi {
               session: detail.session,
               url: detail.url,
               storeId: detail.storeId,
-            },
+            }),
             (cookies) => {
               resolve(cookies);
             }
@@ -770,11 +772,11 @@ export default class GMApi {
             return;
           }
           chrome.cookies.remove(
-            {
+            cookieQuery({
               name: detail.name,
               url: detail.url,
               storeId: detail.storeId,
-            },
+            }),
             () => {
               resolve(undefined);
             }
@@ -787,7 +789,7 @@ export default class GMApi {
             return;
           }
           chrome.cookies.set(
-            {
+            cookieQuery({
               url: detail.url,
               name: detail.name,
               domain: detail.domain,
@@ -797,7 +799,7 @@ export default class GMApi {
               httpOnly: detail.httpOnly,
               secure: detail.secure,
               storeId: detail.storeId,
-            },
+            }),
             () => {
               resolve(undefined);
             }
