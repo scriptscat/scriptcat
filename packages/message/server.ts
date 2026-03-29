@@ -104,6 +104,19 @@ type ApiFunction = (params: any, con: IGetSender) => Promise<any> | any | void;
 type ApiFunctionSync = (params: any, con: IGetSender) => any;
 type MiddlewareFunction = (params: any, con: IGetSender, next: () => Promise<any> | any) => Promise<any> | any;
 
+const formatErrorToClient = (e: any) => {
+  if (!e) return `${e}`;
+  if (typeof e?.message === "string") return e.message;
+  if (typeof e === "object") {
+    try {
+      return JSON.stringify(e);
+    } catch {
+      // ignored
+    }
+  }
+  return e.toString();
+};
+
 export class Server {
   private apiFunctionMap: Map<string, ApiFunction> = new Map();
 
@@ -159,7 +172,7 @@ export class Server {
               data && con.sendMessage({ code: 0, data });
             })
             .catch((e: Error) => {
-              con.sendMessage({ code: -1, message: e.message || e.toString() });
+              con.sendMessage({ code: -1, message: formatErrorToClient(e) });
               this.logger.error("connectHandle error", Logger.E(e));
             });
           return true;
@@ -191,7 +204,7 @@ export class Server {
               }
             })
             .catch((e: Error) => {
-              sendResponse({ code: -1, message: e.message || e.toString() });
+              sendResponse({ code: -1, message: formatErrorToClient(e) });
               this.logger.error("messageHandle error", Logger.E(e));
             });
           return true;
@@ -199,7 +212,7 @@ export class Server {
           sendResponse({ code: 0, data: ret });
         }
       } catch (e: any) {
-        sendResponse({ code: -1, message: e.message || e.toString() });
+        sendResponse({ code: -1, message: formatErrorToClient(e) });
         this.logger.error("messageHandle error", Logger.E(e));
       }
     } else {
