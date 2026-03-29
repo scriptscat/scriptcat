@@ -5,7 +5,7 @@ import {
   type Script,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
-  ScriptCodeDAONew,
+  ScriptCodeDAO,
   type ScriptDAO,
 } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
@@ -69,7 +69,7 @@ type PushScriptParam = TInstallScriptParams;
 export class SynchronizeService {
   logger: Logger;
 
-  readonly scriptCodeDAO: ScriptCodeDAONew = new ScriptCodeDAONew();
+  readonly scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
 
   storage: ChromeStorage = new ChromeStorage("sync", false);
 

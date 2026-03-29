@@ -2,7 +2,7 @@ import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, ScriptMenu } fr
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group, IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
-import { ScriptCodeDAONew, type TClientPageLoadInfo } from "@App/app/repo/scripts";
+import { ScriptCodeDAO, type TClientPageLoadInfo } from "@App/app/repo/scripts";
 import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
@@ -128,7 +128,7 @@ export class RuntimeService {
   initialCompiledResourcePromise: Promise<any> | undefined;
 
   compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
-  private readonly scriptCodeDAO: ScriptCodeDAONew = new ScriptCodeDAONew();
+  private readonly scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
 
   constructor(
     private systemConfig: SystemConfig,

@@ -1,5 +1,5 @@
 import type { Script } from "@App/app/repo/scripts";
-import { SCRIPT_TYPE_NORMAL, ScriptCodeDAONew, ScriptDAO } from "@App/app/repo/scripts";
+import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -201,7 +201,7 @@ type EditorState = {
 };
 
 const scriptDAO = new ScriptDAO();
-const scriptCodeDAO = new ScriptCodeDAONew();
+const scriptCodeDAO = new ScriptCodeDAO();
 
 function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});

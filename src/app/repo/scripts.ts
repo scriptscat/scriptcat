@@ -365,6 +365,3 @@ export class ScriptCodeDAO extends Repo<ScriptCode> {
     return super.deletes(keys);
   }
 }
-
-// 过渡期间保留别名，供其他文件引用（Task 4 将统一替换为 ScriptCodeDAO）
-export { ScriptCodeDAO as ScriptCodeDAONew };
