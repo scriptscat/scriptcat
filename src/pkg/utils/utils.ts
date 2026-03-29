@@ -144,19 +144,13 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   }
 }
 
-// 检查订阅规则是否改变,是否能够静默更新
-export function checkSilenceUpdate(
-  oldMeta: SCMetadata,
-  newMeta: SCMetadata,
-  subscribeMetadata?: SCMetadata | undefined
-): boolean {
-  // 判断connect是否改变
+// 检查 connect 是否改变，是否能够静默更新
+// 用于订阅本身的更新检查和普通脚本的静默更新检查
+export function checkSilenceUpdate(oldMeta: SCMetadata, newMeta: SCMetadata): boolean {
   const oldConnect = new Set<string>(oldMeta.connect || []);
   const newConnect = new Set<string>(newMeta.connect || []);
-  const subsConnect = subscribeMetadata ? new Set<string>(subscribeMetadata?.connect || []) : null;
-  // 老的里面没有新的就需要用户确认了
+  // 新的 connect 中有老的没有的域，则需要用户确认
   for (const key of newConnect) {
-    if (subsConnect?.has(key)) continue; // 如果有 Subscribe 而且它的 @connect 包含新的Script @connect, 则不用理会是否新增。
     if (!oldConnect.has(key)) {
       return false;
     }
