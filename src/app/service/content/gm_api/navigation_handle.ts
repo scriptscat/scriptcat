@@ -23,7 +23,7 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
     const destUrl = (ev as any).destination?.url;
     if (destUrl !== newUrl && newUrl === lastUrl) {
       // 某些情况，location.href 未更新就触发了
-      // 用 postMessage 推迟到下一个 marcoEvent 阶段
+      // 用 postMessage 推迟到下一个 macrotask 阶段
       await new Promise((resolve) => {
         window.addEventListener("message", resolve, { once: true });
         window.postMessage({ [`${Math.random()}`]: {} }); // 传一个 dummy message
