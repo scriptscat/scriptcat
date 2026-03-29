@@ -95,7 +95,10 @@ export function parseUrlSRI(url: string): TUrlSRIInfo {
     }
   }
 
-  // 即使没有解析到任何哈希值，也只会返回空对象而不是 undefined
+  // 如果没有解析到任何哈希值，则返回 undefined，与类型定义保持一致
+  if (Object.keys(hash).length === 0) {
+    return { url: urls[0], hash: undefined, originalUrl: url };
+  }
   return { url: urls[0], hash, originalUrl: url };
 }
 
