@@ -1,7 +1,7 @@
 import { getStorageName } from "@App/pkg/utils/utils";
 import { db } from "./repo/dao";
 import type { Script, ScriptAndCode } from "./repo/scripts";
-import { ScriptCodeDAO, ScriptCodeDAONew, ScriptDAO } from "./repo/scripts";
+import { ScriptCodeDAO, ScriptDAO } from "./repo/scripts";
 import type { Subscribe } from "./repo/subscribe";
 import { SubscribeDAO } from "./repo/subscribe";
 import type { Value } from "./repo/value";
@@ -19,7 +19,7 @@ export function migrateToChromeStorage() {
       // 迁移脚本
       const scripts = await db.table("scripts").toArray();
       const scriptDAO = new ScriptDAO();
-      const scriptCodeDAO = new ScriptCodeDAONew();
+      const scriptCodeDAO = new ScriptCodeDAO();
       console.log("开始迁移脚本数据", scripts.length);
       await Promise.all(
         // 不处理 Promise.reject ?
@@ -271,42 +271,37 @@ export function migrateChromeStorage() {
       version: 2,
       upgrade: async () => {
         const scriptCodeDAO = new ScriptCodeDAO();
-        const scriptCodeDAONew = new ScriptCodeDAONew();
+        // 从 chrome.storage.local 读取所有旧代码
         const scriptCodes = await scriptCodeDAO.all();
-        await Promise.all(scriptCodes.map(async (scriptCode) => scriptCodeDAONew.save(scriptCode)));
-        // 过渡期间不删除旧代码
-        // await scriptCodeDAO.deletes(scriptCodes.map((e) => e.uuid));
+        // 仅写入 OPFS，避免写放大（不通过 save() 回写 chrome.storage.local）
+        await Promise.all(scriptCodes.map(async (scriptCode) => scriptCodeDAO.saveToOPFS(scriptCode)));
       },
     },
-    // {
-    //   version: 3,
-    //   upgrade: async () => {
-    //     // const scriptCodeDAO = new ScriptCodeDAO();
-    //     // 过渡期间后删除旧代码
-    //     // await scriptCodeDAO.deletes(scriptCodes.map((e) => e.uuid));
-    //   },
-    // },
   ];
   const localstorageDAO = new LocalStorageDAO();
   localstorageDAO.get("migrations").then(async (item) => {
-    // 旧代码 logic 错误。只好维持 array 形式但只储单一版本号
-    const migrations = item?.value || [];
-    let migrationVersion = migrations[0] || 0;
+    const migrations: number[] = item?.value || [];
     for (let i = 0; i < migrationList.length; i++) {
       const m = migrationList[i];
-      if (migrationVersion < m.version) {
-        // 需要升级
-        try {
-          await m.upgrade();
-          migrationVersion = m.version;
-          localstorageDAO.save({
-            key: "migrations",
-            value: [migrationVersion],
-          });
-        } catch (e) {
-          // throw 后停止升级
-          throw new Error(`Chrome storage migration v${m.version} failed: ${e}`);
-        }
+      if (migrations.includes(m.version)) {
+        continue;
+      }
+      // 保证顺序：前一个版本必须已完成
+      if (i > 0 && !migrations.includes(migrationList[i - 1].version)) {
+        throw new Error(
+          `Chrome storage migration v${m.version} skipped: v${migrationList[i - 1].version} not completed`
+        );
+      }
+      try {
+        await m.upgrade();
+        migrations.push(m.version);
+        // 每步成功后立即持久化，避免 SW 挂起导致进度丢失
+        await localstorageDAO.save({
+          key: "migrations",
+          value: migrations,
+        });
+      } catch (e) {
+        throw new Error(`Chrome storage migration v${m.version} failed: ${e}`);
       }
     }
   });
