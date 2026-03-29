@@ -543,6 +543,7 @@ export default class GMApi extends GM_Base {
   ) {
     // 防止错误参数类型传送
     if (
+      typeof (details || false) !== "object" ||
       typeof (details.domain ?? "") !== "string" ||
       typeof (details.expirationDate ?? 0) !== "number" ||
       typeof (details.httpOnly ?? false) !== "boolean" ||
