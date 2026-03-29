@@ -6,13 +6,31 @@ class UrlChangeEvent extends Event {
   }
 }
 
+let attached = false;
+
+const getPropGetter = (obj: any, key: string) => {
+  // 避免直接 obj[key] 读取。或会被 hack
+  let t = obj;
+  let pd: PropertyDescriptor | undefined;
+  while (t) {
+    pd = Object.getOwnPropertyDescriptor(t, key);
+    if (pd) break;
+    t = Object.getPrototypeOf(t);
+  }
+  if (pd) {
+    return pd?.get?.bind(obj);
+  }
+};
+
 // Chrome 102+, Firefox 147+
 // https://developer.chrome.com/docs/web-platform/navigation-api
 // https://developer.mozilla.org/en-US/docs/Web/API/Navigation_API#browser_compatibility
 export const attachNavigateHandler = (win: Window & { navigation: EventTarget }) => {
+  if (attached) return;
+  attached = true;
   // 以 location.href 判断避免 replaceState/pushState 重复执行重复触发
   const loc = win.location;
-  const getUrl = Object.getOwnPropertyDescriptor(loc, "href")?.get?.bind(loc);
+  const getUrl = getPropGetter(loc, "href");
   const dispatch = win.dispatchEvent.bind(win);
   let lastUrl = getUrl?.();
   let callSeq = 0;
@@ -26,7 +44,7 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
       // 用 postMessage 推迟到下一个 macrotask 阶段
       await new Promise((resolve) => {
         window.addEventListener("message", resolve, { once: true });
-        window.postMessage({ [`${Math.random()}`]: {} }); // 传一个 dummy message
+        window.postMessage({ [`${Math.random()}`]: {} }, "*"); // 传一个 dummy message
       });
       if (seq !== callSeq) return; // 等待时，或许已经触发了其他 navigate
       newUrl = getUrl?.(); // 再次取得当前 location.href
