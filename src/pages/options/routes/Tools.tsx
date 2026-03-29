@@ -286,7 +286,7 @@ function Tools() {
         <Card
           title={
             <>
-              <span>{t("development_debugging")}</span>
+              <span>{t("development_tool")}</span>
               <Button
                 type="text"
                 style={{
