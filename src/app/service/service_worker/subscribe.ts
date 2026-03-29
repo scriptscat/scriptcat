@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { ScriptDAO } from "@App/app/repo/scripts";
+import { ScriptDAO, type Script } from "@App/app/repo/scripts";
 import type { SCMetadata, Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
 import { SubscribeDAO, SubscribeStatusType } from "@App/app/repo/subscribe";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -115,6 +115,14 @@ export class SubscribeService {
       }
     }
 
+    // 一次性取出所有已安装脚本，建立 URL → Script 的索引，避免每个 addedScript 都全表扫描
+    const allScripts = await this.scriptDAO.find();
+    const scriptByUrl = new Map<string, Script>();
+    for (const script of allScripts) {
+      if (script.downloadUrl) scriptByUrl.set(script.downloadUrl, script);
+      if (script.origin) scriptByUrl.set(script.origin, script);
+    }
+
     const addedScriptNames: string[] = [];
     const removedScriptNames: string[] = [];
     const promises: Promise<void>[] = [];
@@ -122,18 +130,15 @@ export class SubscribeService {
     addedScripts.forEach((url) => {
       promises.push(
         (async () => {
-          // 先找一下已安装的 scripts
-          const existingScript = await this.scriptDAO.find((_key, script) => {
-            return script.downloadUrl === url || script.origin === url;
-          });
-          if (existingScript?.[0]) {
+          const existingScript = scriptByUrl.get(url);
+          if (existingScript) {
             // 仅关联至 已安装脚本的 uuid
             // 注：1）已安装的脚本可能是用户用直接下载方式安装
             //     2）已安装的脚本可能是用户用其他 Subscribe 安装
             //     这里的 existingScript 的 subscribeUrl 值不一定是这个 Subscribe 的 url
             subscribe.scripts[url] = {
               url,
-              uuid: existingScript[0].uuid,
+              uuid: existingScript.uuid,
             };
           } else {
             // 安装Script脚本 ( script.subscribeUrl 会指定为这个 Subscribe. 当移除 Subscribe 时会一并移除 )
@@ -159,12 +164,12 @@ export class SubscribeService {
           // 以 uuid 找出已安装的Script脚本资讯
           const script = await this.scriptDAO.get(item.uuid);
           const url = item.url;
+          // 无论是否删除脚本，都需要清理 subscribe.scripts 中的关联
+          delete subscribe.scripts[url];
           if (script) {
             const name = i18nName(script);
-            // 如果不是以 此 Subscribe 安装的话则略过删除 ( 例如其他 Subscribe, 直接Script安装，本地安装，等等 )
+            // 如果不是以此 Subscribe 安装的话则略过删除（例如其他 Subscribe、直接安装、本地安装等）
             if (script.subscribeUrl === subscribe.url) {
-              delete subscribe.scripts[url];
-              // 删除脚本
               await this.scriptService.deleteScript(script.uuid);
               removedScriptNames.push(name);
             } else {

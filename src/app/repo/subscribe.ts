@@ -4,10 +4,8 @@ import type { SCMetadata } from "./metadata";
 export { SCMetadata };
 
 export const SubscribeStatusType = {
-  enable: 1, // 启动 checkSubscribeUpdate
-  disable: 2, // 停用 checkSubscribeUpdate
-  unknown3: 3, // 3 是什么？
-  unknown4: 4, // 4 是什么？
+  enable: 1,
+  disable: 2,
 } as const;
 
 export type SubscribeStatusType = ValueOf<typeof SubscribeStatusType>;
@@ -24,7 +22,7 @@ export interface Subscribe {
   author: string;
   scripts: Record<string, SubscribeScript>; // 这里只储存脚本的 uuid 和 url 等资讯，而不是实际的代码
   metadata: SCMetadata;
-  status: SubscribeStatusType; // 表示启动或停用。 3 和 4 不详
+  status: SubscribeStatusType;
   createtime: number;
   updatetime?: number;
   checktime: number;
