@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ScriptDAO, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { Script } from "@App/app/repo/scripts";
-import { SubscribeDAO, SUBSCRIBE_STATUS_ENABLE } from "@App/app/repo/subscribe";
+import { SubscribeDAO, SubscribeStatusType } from "@App/app/repo/subscribe";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import type { SCMetadata } from "@App/app/repo/metadata";
 import GMApi, { MockGMExternalDependencies } from "./gm_api";
@@ -43,7 +43,7 @@ function makeSubscribe(url: string, connect?: string[]): Subscribe {
     author: "test",
     scripts: {},
     metadata,
-    status: SUBSCRIBE_STATUS_ENABLE,
+    status: SubscribeStatusType.enable,
     createtime: Date.now(),
     checktime: Date.now(),
   };
