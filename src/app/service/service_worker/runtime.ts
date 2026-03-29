@@ -1211,7 +1211,7 @@ export class RuntimeService {
             // 如果有 校验hash 的话，根本不用更新本地资源呀！
             continue;
           }
-          // const oldResources = await this.resource.getResourceModel(u);
+          // 这里不用 getResourceModel 是因为上面已经跳过了有 hash 的 URL，无需 SRI 校验
           const oldResources = await this.resource.resourceDAO.get(u.url);
           const updatedResource = await this.resource.updateResource(scriptRes.uuid, u, type, oldResources);
           if (!updatedResource || !updatedResource.contentType || updatedResource === oldResources) {
@@ -1220,7 +1220,7 @@ export class RuntimeService {
             continue;
           }
           if (updatedResource.hash?.sha512 !== sha512) {
-            // ----- 感觉这里是跟 resource.updateResource 内容的更新重复了 -----
+            // updateResource 更新的是数据库，这里更新的是内存中的 scriptRes.resource 对象
             for (const uri of resourceList) {
               /** 资源键名 */
               let resourceKey = uri;
@@ -1250,7 +1250,6 @@ export class RuntimeService {
                 }
               }
             }
-            // ----- 感觉这里是跟 resource.updateResource 内容的更新重复了 -----
           }
         }
         if (resourceUpdated) {

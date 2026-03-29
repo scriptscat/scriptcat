@@ -16,7 +16,17 @@ import { blobToUint8Array } from "@App/pkg/utils/datatype";
 import { readBlobContent } from "@App/pkg/utils/encoding";
 import { Semaphore, withTimeoutNotify } from "@App/pkg/utils/concurrency-control";
 
-const fetchSemaphore = new Semaphore(5);
+/** 同时发起的最大 fetch 数量，避免大量请求冲击同一服务器 */
+const MAX_CONCURRENT_FETCHES = 5;
+/** fetch 前的随机延迟范围(ms)，分散请求时间 */
+const FETCH_DELAY_MIN_MS = 100;
+const FETCH_DELAY_MAX_MS = 150;
+/** fetch 超时后释放信号量的时间(ms)，不会中止 fetch 本身 */
+const FETCH_SEMAPHORE_TIMEOUT_MS = 800;
+/** 资源缓存过期时间(ms)，24小时 */
+const RESOURCE_CACHE_TTL_MS = 86400_000;
+
+const fetchSemaphore = new Semaphore(MAX_CONCURRENT_FETCHES);
 
 export class ResourceService {
   logger: Logger;
@@ -135,7 +145,7 @@ export class ResourceService {
             const updateTime = oldResources.updatetime;
             // 资源最后更新是24小时内则不更新
             // 这里是假设 resources 都是 static. 使用者应该加 ?d=xxxx 之类的方式提示SC要更新资源
-            if (updateTime && updateTime > Date.now() - 86400_000) return;
+            if (updateTime && updateTime > Date.now() - RESOURCE_CACHE_TTL_MS) return;
           }
           // 旧资源或没有资源记录或本地档案，尝试更新
           await this.updateResource(uuid, u, type, oldResources);
@@ -267,19 +277,22 @@ export class ResourceService {
     let released = false;
     await fetchSemaphore.acquire();
     // Semaphore 锁 - 同期只有五个 fetch 一起执行
-    const delay = randNum(100, 150); // 100~150ms delay before starting fetch
+    const delay = randNum(FETCH_DELAY_MIN_MS, FETCH_DELAY_MAX_MS);
     await sleep(delay);
-    // 执行 fetch, 若超过 800ms, 不会中止 fetch 但会启动下一个网络连接任务
-    // 这只为了避免等候时间过长，同时又不会有过多网络任务同时发生，使Web伺服器返回错误
-    const { result, err } = await withTimeoutNotify(fetch(url), 800, ({ done, timeouted, err }) => {
-      if (timeouted || done || err) {
-        // fetch 成功 或 发生错误 或 timeout 时解锁
-        if (!released) {
-          released = true;
-          fetchSemaphore.release();
+    // 执行 fetch, 若超时则不中止 fetch 但释放信号量，让下一个任务启动
+    const { result, err } = await withTimeoutNotify(
+      fetch(url),
+      FETCH_SEMAPHORE_TIMEOUT_MS,
+      ({ done, timeouted, err }) => {
+        if (timeouted || done || err) {
+          // fetch 成功 或 发生错误 或 timeout 时解锁
+          if (!released) {
+            released = true;
+            fetchSemaphore.release();
+          }
         }
       }
-    });
+    );
     // Semaphore 锁已解锁。继续处理 fetch Response 的结果
 
     if (err) {

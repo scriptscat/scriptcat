@@ -430,7 +430,7 @@ export class ScriptService {
           compiledResourceUpdatePromise,
           this.resourceService.updateResourceByTypes(script, ["require", "require-css", "resource"]),
         ]);
-        // 如果资源不完整，还是要接受安装吗？？？
+        // 资源下载失败不阻止安装，失败不影响安装
 
         // 广播一下
         // Runtime 会负责更新 CompiledResource
