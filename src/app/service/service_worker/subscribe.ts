@@ -2,8 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import type { SCMetadata, Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
-import { SubscribeStatusType, SubscribeDAO } from "@App/app/repo/subscribe";
-import { type SystemConfig } from "@App/pkg/config/config";
+import { SubscribeDAO, SubscribeStatusType } from "@App/app/repo/subscribe";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
@@ -24,7 +23,6 @@ export class SubscribeService {
   scriptDAO = new ScriptDAO();
 
   constructor(
-    private systemConfig: SystemConfig,
     private group: Group,
     private mq: IMessageQueue,
     private scriptService: ScriptService
@@ -280,26 +278,23 @@ export class SubscribeService {
     }
   }
 
+  // 订阅始终尝试静默更新，不受「非重要变更静默更新脚本」开关控制
+  // 仅当订阅的 @connect 新增了域时才需要用户确认
   async trySilenceUpdate(code: string, url: string) {
     const logger = this.logger.with({
       url,
     });
-    // 是否静默更新
-    const silenceUpdate = await this.systemConfig.getSilenceUpdateScript();
-    if (silenceUpdate) {
-      try {
-        const newSubscribe = await prepareSubscribeByCode(code, url);
-        // 由于 Subscribe 不会含有 @connect, 因此静默更新启动的话， Subscribe 列表本身总是自动更新。
-        if (checkSilenceUpdate(newSubscribe.oldSubscribe!.metadata, newSubscribe.subscribe.metadata)) {
-          logger.info("silence update subscribe");
-          this.install({
-            subscribe: newSubscribe.subscribe,
-          });
-          return true;
-        }
-      } catch (e) {
-        logger.error("prepare script failed", Logger.E(e));
+    try {
+      const newSubscribe = await prepareSubscribeByCode(code, url);
+      if (checkSilenceUpdate(newSubscribe.oldSubscribe!.metadata, newSubscribe.subscribe.metadata)) {
+        logger.info("silence update subscribe");
+        this.install({
+          subscribe: newSubscribe.subscribe,
+        });
+        return true;
       }
+    } catch (e) {
+      logger.error("prepare script failed", Logger.E(e));
     }
   }
 
