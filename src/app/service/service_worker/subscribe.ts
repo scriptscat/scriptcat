@@ -40,7 +40,7 @@ export class SubscribeService {
     try {
       await this.subscribeDAO.save(param.subscribe); // 所谓的安装，仅储存脚本资源。
       logger.info("upsert subscribe success");
-      // 广播后才会根据 subscrbie.scripts 的 url 取得/更新脚本
+      // 广播后才会根据 subscribe.scripts 的 url 取得/更新脚本
       // 注：installSubscribe 的广播是自己和自己对话。（不等待回应）
       this.mq.publish<TInstallSubscribe>("installSubscribe", {
         subscribe: param.subscribe,
