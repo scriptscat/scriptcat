@@ -130,6 +130,7 @@ export default class ServiceWorkerManager {
       pendingOpen = 0;
     });
 
+    const initTime = Date.now();
     // 定时器处理
     chrome.alarms.onAlarm.addListener((alarm) => {
       const lastError = chrome.runtime.lastError;
@@ -137,6 +138,10 @@ export default class ServiceWorkerManager {
         console.error("chrome.runtime.lastError in chrome.alarms.onAlarm:", lastError);
         // 非预期的异常API错误，停止处理
       }
+      const now = Date.now();
+      const isJustInit = now - initTime < 30_000; // 浏览器刚开
+      const isCarryoverAlarm = alarm.scheduledTime < initTime; // Alarm排程早于SW初始化
+      const needsWarmupDelay = isJustInit || isCarryoverAlarm;
       switch (alarm.name) {
         case "checkScriptUpdate":
           regularScriptUpdateCheck();
@@ -154,7 +159,8 @@ export default class ServiceWorkerManager {
           regularExtensionUpdateCheck();
           break;
         case "cleanupTempStorage":
-          cleanupStaleTempStorageEntries();
+          // 避免浏览器打开时立即清除。先等tabs载入一下
+          setTimeout(cleanupStaleTempStorageEntries, needsWarmupDelay ? 45_000 : 100);
           break;
       }
     });
