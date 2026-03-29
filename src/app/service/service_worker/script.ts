@@ -46,7 +46,6 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
-import { cleanupStaleTempStorageEntries } from "./temp";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -373,7 +372,6 @@ export class ScriptService {
   // 获取安装信息
   async getInstallInfo(uuid: string) {
     const entry = await new TempStorageDAO().get(uuid);
-    cleanupStaleTempStorageEntries();
     return <[boolean, ScriptInfo, Record<string, any>]>entry?.value;
   }
 

@@ -34,13 +34,17 @@ const saveTempCode = async (tempUUID: string, code: string) => {
   await writable.close();
 };
 
-export const getTempCode = async (tempUUID: string): Promise<string> => {
+export const getTempCode = async (tempUUID: string): Promise<string | undefined> => {
   try {
     const folder = await navigator.storage.getDirectory().then((root) => root.getDirectoryHandle("temp_install_codes"));
     const handle = await folder.getFileHandle(`${tempUUID}.user.js`);
     return await handle.getFile().then((f) => f.text());
-  } catch {
-    return "";
+  } catch (err: any) {
+    if (err?.name === "NotFoundError") {
+      return undefined;
+    }
+    console.error("[scriptInstall] getTempCode failed:", err);
+    throw err;
   }
 };
 

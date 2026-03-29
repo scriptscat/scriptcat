@@ -30,7 +30,6 @@ import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/fileha
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
-import { cacheInstance } from "@App/app/cache";
 import { formatBytes, isPermissionOk } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
 import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
@@ -136,11 +135,7 @@ let activeSessionKey = "";
 let keepAliveTimerId: ReturnType<typeof setTimeout> | number = 0;
 
 const updateSessionTimestamp = () => {
-  cacheInstance.tx(`keepTemp`, (val: Record<string, number> | undefined, tx) => {
-    val = val || {};
-    val[activeSessionKey] = Date.now();
-    tx.set(val);
-  });
+  new TempStorageDAO().update(activeSessionKey, { savedAt: Date.now() });
 };
 
 const startKeepAlive = (key: string) => {
@@ -220,7 +215,10 @@ function App() {
           throw new Error("fetch script info failed");
         }
         const code = await getTempCode(uuid);
-        if (code) info.code = code;
+        if (code === undefined) {
+          throw new Error("failed to load script code from temp storage");
+        }
+        info.code = code;
       } else {
         // 检查是不是本地文件安装
         if (!fid) {

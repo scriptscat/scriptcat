@@ -35,9 +35,9 @@ export class TempStorageDAO extends Repo<TempStorageItem> {
     return data;
   }
 
-  async staleEntries(keeps: Set<string>) {
+  async staleEntries() {
     const now = Date.now();
-    const entries = await new TempStorageDAO().entries();
-    return entries.filter((entry) => !keeps.has(entry.key) && now - entry.savedAt > TEMP_ENTRY_MIN_TIME);
+    const entries = await this.entries();
+    return entries.filter((entry) => now - entry.savedAt > TEMP_ENTRY_MIN_TIME);
   }
 }

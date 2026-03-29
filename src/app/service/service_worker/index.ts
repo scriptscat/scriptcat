@@ -21,6 +21,7 @@ import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
 import { InfoNotification } from "./utils";
+import { cleanupStaleTempStorageEntries } from "./temp";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -152,6 +153,9 @@ export default class ServiceWorkerManager {
           // 检查扩展更新
           regularExtensionUpdateCheck();
           break;
+        case "cleanupTempStorage":
+          cleanupStaleTempStorageEntries();
+          break;
       }
     });
     // 12小时检查一次扩展更新
@@ -184,6 +188,9 @@ export default class ServiceWorkerManager {
     systemConfig.watch("cloud_sync", (value) => {
       synchronize.cloudSyncConfigChange(value);
     });
+
+    // 定期清理过期的临时安装信息
+    chrome.alarms.create("cleanupTempStorage", { periodInMinutes: 30 });
 
     // 一些只需启动时运行一次的任务
     cacheInstance.getOrSet("extension_initialized", () => {
