@@ -66,7 +66,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
 * 1,3,5 once * * 每天 1/3/5 点运行一次，若 1 点已运行，当天 3、5 点不再运行
 * */4 once * * 每隔 4 小时检测并运行一次，若 4 点已运行，当天 8/12/16/20/24 点不再运行
 * 10-23 once * * 每天 10:00-23:59 运行一次，若 10:04 已运行，当日 10:05-23:59 不再运行
-* once 13 * * 每个月 13 号的每小时运行一次`.replace(/\n/g, "<br>"),
+* once 13 * * 每个月 13 号的每小时运行一次
+* once(9-17) * * * 每天 9 时至 17 时期间，每小时执行一次
+0,30 once * * * 每小时在 0 分或 30 分中最早命中的那次执行，本小时不再重复
+* * once(9-18) * * 每月 9 号至 18 号期间，每天执行一次
+* * * * once(1-5) 每周一至周五期间，每周执行一次`.replace(/\n/g, "<br>"),
     },
   },
 
@@ -130,7 +134,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
 * 1,3,5 once * * Run once at 1:00, 3:00, 5:00 each day; if it runs at 1:00, it won't run again at 3:00 or 5:00
 * */4 once * * Check and run once every 4 hours; if it runs at 4:00, it won't run again that day at 8:00, 12:00, 16:00, 20:00, 24:00
 * 10-23 once * * Run once between 10:00-23:59 each day; if it runs at 10:04, it won't run again that day between 10:05-23:59
-* once 13 * * Run once every hour on the 13th day of each month`.replace(/\n/g, "<br>"),
+* once 13 * * Run once every hour on the 13th day of each month
+* once(9-17) * * * Run once per hour during hours 9 to 17 each day
+0,30 once * * * Run once per hour; whichever of minute 0 or 30 comes first, the other is skipped
+* * once(9-18) * * Run once per day during the 9th to 18th of each month
+* * * * once(1-5) Run once per week; only on weekdays Monday to Friday`.replace(/\n/g, "<br>"),
     },
   },
 
@@ -194,7 +202,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
 * 1,3,5 once * * 每天 1/3/5 點執行一次，若 1 點已執行，當天 3、5 點不再執行
 * */4 once * * 每隔 4 小時檢查並執行一次，若 4 點已執行，當天 8/12/16/20/24 點不再執行
 * 10-23 once * * 每天 10:00-23:59 執行一次，若 10:04 已執行，當日 10:05-23:59 不再執行
-* once 13 * * 每月 13 號的每小時執行一次`.replace(/\n/g, "<br>"),
+* once 13 * * 每月 13 號的每小時執行一次
+* once(9-17) * * * 每天 9 時至 17 時期間，每小時執行一次
+0,30 once * * * 每小時在 0 分或 30 分中最早命中的那次執行，本小時不再重複
+* * once(9-18) * * 每月 9 號至 18 號期間，每天執行一次
+* * * * once(1-5) 每週一至週五期間，每週執行一次`.replace(/\n/g, "<br>"),
     },
   },
 
@@ -258,7 +270,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
 * 1,3,5 once * * 毎日 1/3/5 時に 1 回実行。1 時に実行された場合、その日は 3 時と 5 時に再実行されません
 * */4 once * * 4 時間ごとに確認して 1 回実行。4 時に実行された場合、その日は 8/12/16/20/24 時に再実行されません
 * 10-23 once * * 毎日 10:00-23:59 の間に 1 回実行。10:04 に実行された場合、その日は 10:05-23:59 に再実行されません
-* once 13 * * 毎月 13 日の各時間帯で 1 回実行`.replace(/\n/g, "<br>"),
+* once 13 * * 毎月 13 日の各時間帯で 1 回実行
+* once(9-17) * * * 毎日 9 時〜17 時の間、毎時 1 回実行
+0,30 once * * * 毎時 0 分または 30 分のうち最初に命中した方のみ実行、同じ時間内に再実行なし
+* * once(9-18) * * 毎月 9 日〜18 日の期間中、毎日 1 回実行
+* * * * once(1-5) 毎週月曜〜金曜の期間中、毎週 1 回実行`.replace(/\n/g, "<br>"),
     },
   },
 
@@ -322,7 +338,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
 * 1,3,5 once * * Einmal täglich um 1:00, 3:00, 5:00; wenn um 1:00 ausgeführt, an diesem Tag nicht erneut um 3:00 oder 5:00
 * */4 once * * Alle 4 Stunden prüfen und einmal ausführen; wenn um 4:00 ausgeführt, an diesem Tag nicht erneut um 8:00, 12:00, 16:00, 20:00, 24:00
 * 10-23 once * * Einmal täglich zwischen 10:00-23:59; wenn um 10:04 ausgeführt, an diesem Tag nicht erneut zwischen 10:05-23:59
-* once 13 * * Einmal stündlich am 13. Tag jedes Monats ausführen`.replace(/\n/g, "<br>"),
+* once 13 * * Einmal stündlich am 13. Tag jedes Monats ausführen
+* once(9-17) * * * Einmal pro Stunde zwischen 9 und 17 Uhr jeden Tag
+0,30 once * * * Einmal pro Stunde; Minute 0 oder 30 — der erste Treffer gewinnt, der andere wird übersprungen
+* * once(9-18) * * Einmal pro Tag vom 9. bis 18. des Monats
+* * * * once(1-5) Einmal pro Woche, nur von Montag bis Freitag`.replace(/\n/g, "<br>"),
     },
   },
 
@@ -386,7 +406,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
 * 1,3,5 once * * Chạy 1 lần lúc 1:00, 3:00, 5:00 mỗi ngày; nếu chạy lúc 1:00 thì hôm đó không chạy lại lúc 3:00 hoặc 5:00
 * */4 once * * Kiểm tra và chạy 1 lần mỗi 4 giờ; nếu chạy lúc 4:00 thì hôm đó không chạy lại lúc 8:00, 12:00, 16:00, 20:00, 24:00
 * 10-23 once * * Chạy 1 lần mỗi ngày trong khoảng 10:00-23:59; nếu chạy lúc 10:04 thì hôm đó không chạy lại trong 10:05-23:59
-* once 13 * * Chạy 1 lần mỗi giờ vào ngày 13 hằng tháng`.replace(/\n/g, "<br>"),
+* once 13 * * Chạy 1 lần mỗi giờ vào ngày 13 hằng tháng
+* once(9-17) * * * Mỗi ngày từ 9 giờ đến 17 giờ, chạy 1 lần mỗi giờ
+0,30 once * * * Mỗi giờ chạy 1 lần vào phút 0 hoặc 30, lần đầu kích hoạt thắng, lần sau bị bỏ qua
+* * once(9-18) * * Từ ngày 9 đến ngày 18 hằng tháng, mỗi ngày chạy 1 lần
+* * * * once(1-5) Mỗi tuần chạy 1 lần, chỉ trong các ngày thứ Hai đến thứ Sáu`.replace(/\n/g, "<br>"),
     },
   },
 
@@ -450,7 +474,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
 * 1,3,5 once * * Запуск раз в день в 1:00, 3:00, 5:00; если выполнен в 1:00, в этот день не запустится в 3:00 и 5:00
 * */4 once * * Проверка и запуск раз в 4 часа; если выполнен в 4:00, в этот день не запустится в 8:00, 12:00, 16:00, 20:00, 24:00
 * 10-23 once * * Запуск раз в день между 10:00-23:59; если выполнен в 10:04, в этот день не запустится снова между 10:05-23:59
-* once 13 * * Запуск каждый час в течение 13-го числа месяца`.replace(/\n/g, "<br>"),
+* once 13 * * Запуск каждый час в течение 13-го числа месяца
+* once(9-17) * * * Каждый день с 9 до 17 часов, запуск раз в час
+0,30 once * * * Раз в час в минуту 0 или 30, первое срабатывание побеждает, второе пропускается
+* * once(9-18) * * С 9 по 18 число каждого месяца, запуск раз в день
+* * * * once(1-5) Раз в неделю, только с понедельника по пятницу`.replace(/\n/g, "<br>"),
     },
   },
 } as const;

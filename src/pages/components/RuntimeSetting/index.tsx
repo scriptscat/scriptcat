@@ -55,7 +55,16 @@ const RuntimeSetting: React.FC = () => {
             Message.error(t("enable_background.disable_failed")!);
             return;
           }
-          setEnableBackgroundState(!removed);
+          if (removed) {
+            // 成功移除 background 权限，明确关闭开关
+            setEnableBackgroundState(false);
+          } else {
+            // 未成功移除时再次校验权限状态，以真实权限为准更新 UI
+            isPermissionOk("background").then((result) => {
+              if (result === null) return;
+              setEnableBackgroundState(result);
+            });
+          }
         });
       }
     }
@@ -78,7 +87,9 @@ const RuntimeSetting: React.FC = () => {
               </span>
             </div>
           )}
-          <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("enable_background.description")}</span>
+          {!isFirefox() && (
+            <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("enable_background.description")}</span>
+          )}
         </div>
         <Collapse bordered={false} defaultActiveKey={["storage"]}>
           <CollapseItem header={t("storage_api")} name="storage">
