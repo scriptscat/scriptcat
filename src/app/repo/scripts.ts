@@ -278,87 +278,93 @@ export class ScriptDAO extends Repo<Script> {
 }
 
 // 为了防止脚本代码数据量过大,单独存储脚本代码
+// 内部使用 OPFS 优先存储，fallback 到 chrome.storage.local（过渡期间）
 export class ScriptCodeDAO extends Repo<ScriptCode> {
+  private _dirHandlePromise: Promise<FileSystemDirectoryHandle> | null = null;
+
   constructor() {
     super("scriptCode");
   }
 
-  public save(val: ScriptCode) {
-    return super._save(val.uuid, val);
+  private getDirHandle(): Promise<FileSystemDirectoryHandle> {
+    if (!this._dirHandlePromise) {
+      this._dirHandlePromise = navigator.storage
+        .getDirectory()
+        .then((opfsRoot) => opfsRoot.getDirectoryHandle("storage_script_codes", { create: true }));
+    }
+    return this._dirHandlePromise;
   }
-}
 
-// 不能 extends Repo<ScriptCode>. 没有 dao.gets()
-export class ScriptCodeDAONew {
-  private readonly _scriptCodeDAO = new ScriptCodeDAO();
-  private _dirHandlePromise: Promise<FileSystemDirectoryHandle> | null = null;
-  static getDirHandle(): Promise<FileSystemDirectoryHandle> {
-    return navigator.storage
-      .getDirectory()
-      .then((opfsRoot) => opfsRoot.getDirectoryHandle("storage_script_codes", { create: true }));
-  }
-  public async save(val: ScriptCode) {
-    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
-    const folder = await this._dirHandlePromise;
+  // 仅写入 OPFS，供迁移使用，避免写放大
+  public async saveToOPFS(val: ScriptCode): Promise<void> {
+    const folder = await this.getDirHandle();
     const handle = await folder.getFileHandle(`${val.uuid}.user.js`, { create: true });
     const writable = await handle.createWritable({ keepExistingData: false });
     await writable.write(val.code);
     await writable.close();
-    // 过渡期间同步保存至 ScriptCodeDAO
-    await this._scriptCodeDAO.save(val); // [Version: 2] ONLY
   }
-  public async delete(uuid: string) {
-    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
-    const folder = await this._dirHandlePromise;
+
+  public async save(val: ScriptCode): Promise<ScriptCode> {
+    // 写入 OPFS
+    await this.saveToOPFS(val);
+    // 过渡期间同步写入 chrome.storage.local
+    return super._save(val.uuid, val);
+  }
+
+  public async get(key: string): Promise<ScriptCode | undefined> {
+    // 优先从 OPFS 读取
     try {
-      await folder.removeEntry(`${uuid}.user.js`);
+      const folder = await this.getDirHandle();
+      const handle = await folder.getFileHandle(`${key}.user.js`, { create: false });
+      const code = await handle.getFile().then((f) => f.text());
+      return { uuid: key, code };
     } catch {
-      // ignore delete failure. e.g. no file
+      // OPFS 没有，fallback 到 chrome.storage.local
     }
+    const result = await super.get(key);
+    if (result) {
+      // 懒迁移：写入 OPFS（不 await，异步后台执行即可）
+      this.saveToOPFS(result).catch(() => {});
+    }
+    return result;
   }
-  public async get(uuid: string): Promise<ScriptCode> {
-    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
-    const folder = await this._dirHandlePromise;
-    let code: string = "";
-    let handle: FileSystemFileHandle;
+
+  public async gets(keys: string[]): Promise<(ScriptCode | undefined)[]> {
+    return Promise.all(keys.map((key) => this.get(key)));
+  }
+
+  public async delete(key: string): Promise<void> {
+    // 删除 OPFS
     try {
-      handle = await folder.getFileHandle(`${uuid}.user.js`, { create: false });
+      const folder = await this.getDirHandle();
+      await folder.removeEntry(`${key}.user.js`);
     } catch {
-      // no file -> empty code
-      return {
-        uuid,
-        code,
-      };
+      // 忽略删除失败
     }
-    code = await handle.getFile().then((f) => f.text());
-    return { uuid, code };
+    // 过渡期间同步删除 chrome.storage.local
+    return super.delete(key);
   }
-  public async deletes(uuids: string[]) {
-    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
-    const folder = await this._dirHandlePromise;
-    await Promise.all(
-      uuids.map(async (uuid) => {
-        try {
-          await folder.removeEntry(`${uuid}.user.js`);
-        } catch {
-          // ignore delete failure. e.g. no file
-        }
-      })
-    );
-  }
-  public async gets(uuids: string[]): Promise<(ScriptCode | undefined)[]> {
-    if (!this._dirHandlePromise) this._dirHandlePromise = ScriptCodeDAONew.getDirHandle();
-    const folder = await this._dirHandlePromise;
-    return Promise.all(
-      uuids.map(async (uuid) => {
-        try {
-          const handle = await folder.getFileHandle(`${uuid}.user.js`, { create: false });
-          const code = await handle.getFile().then((f) => f.text());
-          return { uuid, code };
-        } catch {
-          return undefined;
-        }
-      })
-    );
+
+  public async deletes(keys: string[]): Promise<void> {
+    // 删除 OPFS
+    try {
+      const folder = await this.getDirHandle();
+      await Promise.all(
+        keys.map(async (key) => {
+          try {
+            await folder.removeEntry(`${key}.user.js`);
+          } catch {
+            // 忽略
+          }
+        })
+      );
+    } catch {
+      // 忽略
+    }
+    // 过渡期间同步删除 chrome.storage.local
+    return super.deletes(keys);
   }
 }
+
+// 过渡期间保留别名，供其他文件引用（Task 4 将统一替换为 ScriptCodeDAO）
+export { ScriptCodeDAO as ScriptCodeDAONew };
