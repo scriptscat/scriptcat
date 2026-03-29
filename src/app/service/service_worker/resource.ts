@@ -45,7 +45,7 @@ export class ResourceService {
     // 注意！ 如果它们包含相同名字的Resource，会根据次序而覆盖
     const recordKeyLens = [ret, require, require_css, resource].map((record) => Object.keys(record).length);
     if (recordKeyLens[0] !== recordKeyLens[1] + recordKeyLens[2] + recordKeyLens[3]) {
-      console.warn("One or more properties are merged in ResourceService.getScriptResources");
+      this.logger.warn("One or more properties are merged in ResourceService.getScriptResourceValue");
     }
 
     return {
