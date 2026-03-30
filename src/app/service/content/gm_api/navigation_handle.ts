@@ -43,8 +43,8 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
       // 某些情况，location.href 未更新就触发了
       // 用 postMessage 推迟到下一个 macrotask 阶段
       await new Promise((resolve) => {
-        window.addEventListener("message", resolve, { once: true });
-        window.postMessage({ [`${Math.random()}`]: {} }, "*"); // 传一个 dummy message
+        self.addEventListener("message", resolve, { once: true });
+        self.postMessage({ [`${Math.random()}`]: {} }, "*"); // 传一个 dummy message
       });
       if (seq !== callSeq) return; // 等待时，或许已经触发了其他 navigate
       newUrl = getUrl?.(); // 再次取得当前 location.href
