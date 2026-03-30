@@ -7,7 +7,7 @@ import { protect } from "./gm_api/gm_context";
 import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
 import { createGMBase } from "./gm_api/gm_api";
-import { attachNavigateHandler } from "./gm_api/navigation_handle";
+import { attachNavigateHandler, type UrlChangeEvent } from "./gm_api/navigation_handle";
 
 // 构建沙盒上下文
 export const createContext = (
@@ -375,6 +375,23 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     },
   };
 
+  // @grant window.onurlchange
+  if (context?.onurlchange === null) {
+    let currentValue: ((this: GlobalEventHandlers, ev: UrlChangeEvent) => any) | null = null;
+    ownDescs.onurlchange = {
+      enumerable: true,
+      configurable: true,
+      get() {
+        return currentValue;
+      },
+      set(nv) {
+        if (typeof nv !== "function") nv = null;
+        currentValue = nv;
+        return true;
+      },
+    };
+  }
+
   // 把初始Copy加上特殊变量后，生成一份新Copy
   mySandbox = Object.create(Object.getPrototypeOf(sharedInitCopy), ownDescs);
 
@@ -407,9 +424,11 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   }
 
   // @grant window.onurlchange
-  if (cWindow?.onurlchange === null) {
-    // 目前 TM 只支援 null
-    mySandbox.onurlchange = null;
+  if (context?.onurlchange === null) {
+    const handle = function (this: Window & Record<string, any>, e: UrlChangeEvent) {
+      this.onurlchange?.(e);
+    } as EventListener;
+    (<EventTarget>window).addEventListener("urlchange", handle.bind(mySandbox), false);
   }
 
   // 从网页 console 隔离出来的沙盒 console

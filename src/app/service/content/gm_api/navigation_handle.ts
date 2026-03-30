@@ -1,8 +1,8 @@
-class UrlChangeEvent extends Event {
-  url: string;
-  constructor(type: string, eventInitDict?: EventInit) {
-    super(type, eventInitDict);
-    this.url = "";
+export class UrlChangeEvent extends Event {
+  readonly url: string;
+  constructor(type: string, url: string) {
+    super(type);
+    this.url = url;
   }
 }
 
@@ -51,8 +51,7 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
     }
     if (newUrl === lastUrl) return;
     lastUrl = newUrl;
-    const urlChangeEv = new UrlChangeEvent("urlchange");
-    urlChangeEv.url = (destUrl || newUrl) as string; // info.url
+    const urlChangeEv = new UrlChangeEvent("urlchange", (destUrl || newUrl) as string);
     dispatch(urlChangeEv);
   };
   win.navigation?.addEventListener("navigate", handler, false);
