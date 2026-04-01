@@ -894,20 +894,24 @@ export class ScriptService {
   ) {
     const upsertBy = options.source;
     const code = await fetchScriptBody(url);
-    if (update && (await this.systemConfig.getSilenceUpdateScript())) {
+    if (update) {
       try {
         const { oldScript, script } = await prepareScriptByCode(code, url, uuid);
-        if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
-          logger?.info("silence update script");
-          await this.installScript({
-            script,
-            code,
-            upsertBy,
-          });
+        // 订阅脚本始终静默更新，信任关系由订阅建立
+        if (oldScript?.subscribeUrl) {
+          logger?.info("silence update subscribe script");
+          await this.installScript({ script, code, upsertBy });
           return 2;
         }
-        // 如果不符合静默更新规则，走后面的流程
-        logger?.info("not silence update script, open install page");
+        // 普通脚本：检查静默更新开关和 connect 变化
+        if (await this.systemConfig.getSilenceUpdateScript()) {
+          if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
+            logger?.info("silence update script");
+            await this.installScript({ script, code, upsertBy });
+            return 2;
+          }
+          logger?.info("not silence update script, open install page");
+        }
       } catch (e) {
         logger?.error("prepare script failed", Logger.E(e));
       }

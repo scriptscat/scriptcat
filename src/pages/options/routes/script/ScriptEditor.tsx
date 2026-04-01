@@ -94,14 +94,18 @@ type EditorMenu = {
   title: string;
   tooltip?: string;
   action?: (script: Script, e: editor.ICodeEditor) => void;
-  items?: {
-    id: string;
-    title: string;
-    tooltip?: string;
-    hotKey?: number;
-    hotKeyString?: string;
-    action: (script: Script, e: editor.ICodeEditor) => void;
-  }[];
+  items?: (
+    | {
+        id: string;
+        title: string;
+        tooltip?: string;
+        hotKey?: number;
+        hotKeyString?: string;
+        action: (script: Script, e: editor.ICodeEditor) => void;
+        divider?: never;
+      }
+    | { divider: true }
+  )[];
 };
 
 const emptyScript = async (template: string, hotKeys: any, target?: string) => {
@@ -500,6 +504,79 @@ function ScriptEditor() {
       ],
     },
     {
+      title: t("edit"),
+      items: [
+        {
+          id: "undo",
+          title: t("undo"),
+          hotKeyString: "Ctrl+Z",
+          action(_script, e) {
+            e.trigger("menu", "undo", null);
+          },
+        },
+        {
+          id: "redo",
+          title: t("redo"),
+          hotKeyString: "Ctrl+Shift+Z",
+          action(_script, e) {
+            e.trigger("menu", "redo", null);
+          },
+        },
+        { divider: true },
+        {
+          id: "cut",
+          title: t("cut"),
+          hotKeyString: "Ctrl+X",
+          action(_script, e) {
+            e.trigger("menu", "editor.action.clipboardCutAction", null);
+          },
+        },
+        {
+          id: "copy",
+          title: t("copy"),
+          hotKeyString: "Ctrl+C",
+          action(_script, e) {
+            e.trigger("menu", "editor.action.clipboardCopyAction", null);
+          },
+        },
+        {
+          id: "paste",
+          title: t("paste"),
+          hotKeyString: "Ctrl+V",
+          action(_script, e) {
+            e.trigger("menu", "editor.action.clipboardPasteAction", null);
+          },
+        },
+        { divider: true },
+        {
+          id: "find",
+          title: t("find"),
+          hotKey: KeyMod.CtrlCmd | KeyCode.KeyF,
+          hotKeyString: "Ctrl+F",
+          action(_script, e) {
+            e.getAction("actions.find")?.run();
+          },
+        },
+        {
+          id: "replace",
+          title: t("replace"),
+          hotKey: KeyMod.CtrlCmd | KeyCode.KeyH,
+          hotKeyString: "Ctrl+H",
+          action(_script, e) {
+            e.getAction("editor.action.startFindReplaceAction")?.run();
+          },
+        },
+        {
+          id: "selectAll",
+          title: t("select_all"),
+          hotKeyString: "Ctrl+A",
+          action(_script, e) {
+            e.trigger("menu", "editor.action.selectAll", null);
+          },
+        },
+      ],
+    },
+    {
       title: t("run"),
       items: [
         {
@@ -580,7 +657,7 @@ function ScriptEditor() {
   hotKeys.current = [];
   menu.forEach((item) => {
     item.items?.forEach((menuItem) => {
-      if (menuItem.hotKey) {
+      if (!menuItem.divider && menuItem.hotKey) {
         hotKeys.current.push({
           id: menuItem.id,
           title: menuItem.title,
@@ -842,16 +919,25 @@ function ScriptEditor() {
             }
             return (
               <Dropdown
-                key={`d_${index.toString()}`}
+                key={`d_${index}`}
                 droplist={
                   <Menu
                     style={{
                       padding: "0",
                       margin: "0",
                       borderRadius: "0",
+                      maxHeight: "none",
+                      overflow: "visible",
                     }}
                   >
                     {item.items.map((menuItem, i) => {
+                      if (menuItem.divider) {
+                        return (
+                          <div key={`divider_${i}`} style={{ padding: "4px 0", background: "var(--color-secondary)" }}>
+                            <div style={{ height: "1px", backgroundColor: "var(--color-neutral-4)" }} />
+                          </div>
+                        );
+                      }
                       const btn = (
                         <Button
                           style={{
@@ -897,7 +983,7 @@ function ScriptEditor() {
                       );
                       return (
                         <Menu.Item
-                          key={`m_${i.toString()}`}
+                          key={`m_${i}`}
                           style={{
                             height: "unset",
                             padding: "0",
@@ -905,7 +991,7 @@ function ScriptEditor() {
                           }}
                         >
                           {menuItem.tooltip ? (
-                            <Tooltip key={`m${i.toString()}`} position="right" content={menuItem.tooltip}>
+                            <Tooltip key={`m${i}`} position="right" content={menuItem.tooltip}>
                               {btn}
                             </Tooltip>
                           ) : (

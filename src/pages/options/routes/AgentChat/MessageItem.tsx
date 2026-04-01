@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { ChatMessage, ContentBlock, MessageContent } from "@App/app/service/agent/types";
+import type { ChatMessage, ContentBlock, MessageContent, SubAgentDetails } from "@App/app/service/agent/types";
 import ContentBlockRenderer from "./ContentBlockRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
@@ -41,7 +41,7 @@ function AssistantMessageContent({
     name: string;
     result?: string;
     arguments?: string;
-    subAgentDetails?: import("@App/app/service/agent/types").SubAgentDetails;
+    subAgentDetails?: SubAgentDetails;
   }) => {
     if (tc.name !== "agent") return undefined;
 
@@ -165,7 +165,6 @@ function ExistingAttachmentPreview({ block, onRemove }: { block: ContentBlock; o
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [block]);
 
   useEffect(() => {

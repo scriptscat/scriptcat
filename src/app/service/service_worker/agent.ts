@@ -25,6 +25,8 @@ import type {
   OPFSApiRequest,
   MCPApiRequest,
   ContentBlock,
+  SubAgentDetails,
+  SubAgentMessage,
 } from "@App/app/service/agent/types";
 import { getTextContent, isContentBlocks } from "@App/app/service/agent/content_utils";
 import { supportsVision, supportsImageOutput } from "@App/pages/options/routes/AgentChat/model_utils";
@@ -1356,7 +1358,7 @@ export class AgentService {
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
         // 收集需要回写的 toolCall 元数据（附件 / 子代理详情）
         const attachmentUpdates = new Map<string, Attachment[]>();
-        const subAgentUpdates = new Map<string, import("@App/app/service/agent/types").SubAgentDetails>();
+        const subAgentUpdates = new Map<string, SubAgentDetails>();
 
         for (const tr of toolResults) {
           // LLM 上下文只包含文本结果，不含附件
@@ -1662,7 +1664,7 @@ export class AgentService {
     signal: AbortSignal;
   }): Promise<{
     result: string;
-    details: import("@App/app/service/agent/types").SubAgentMessage[];
+    details: SubAgentMessage[];
     usage: {
       inputTokens: number;
       outputTokens: number;
@@ -1672,8 +1674,8 @@ export class AgentService {
   }> {
     let resultContent = "";
     // 收集子代理执行详情用于持久化
-    const details: import("@App/app/service/agent/types").SubAgentMessage[] = [];
-    let currentMsg: import("@App/app/service/agent/types").SubAgentMessage = { content: "", toolCalls: [] };
+    const details: SubAgentMessage[] = [];
+    let currentMsg: SubAgentMessage = { content: "", toolCalls: [] };
     // 累计 usage
     const subUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
 
