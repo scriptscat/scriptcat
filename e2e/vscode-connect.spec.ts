@@ -15,9 +15,9 @@ async function openToolsPage(context: Parameters<typeof openOptionsPage>[0], ext
   return page;
 }
 
-/** 获取「开发调试」卡片区域的定位器 */
+/** 获取「开发工具」卡片区域的定位器 */
 function getDevCard(page: Page) {
-  // 开发调试 / Development Debugging 卡片是页面上第二个 Card
+  // 开发工具 / Development Tool 卡片是页面上第二个 Card
   return page.locator(".arco-card").nth(1);
 }
 
@@ -106,7 +106,7 @@ test.describe("VSCode 连接", () => {
     const card = getDevCard(page);
 
     // 卡片标题
-    await expect(card.getByText(/development debugging|开发调试/i)).toBeVisible();
+    await expect(card.getByText(/development tool|开发工具/i)).toBeVisible();
 
     // VSCode URL 输入框
     const urlInput = card.locator(".arco-input");
