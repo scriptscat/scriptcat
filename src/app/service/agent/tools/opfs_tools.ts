@@ -32,7 +32,6 @@ const OPFS_WRITE_DEFINITION: ToolDefinition = {
 /** 最大允许无分页直接返回的文本行数 */
 const MAX_TEXT_LINES = 200;
 
-
 const OPFS_READ_DEFINITION: ToolDefinition = {
   name: "opfs_read",
   description:

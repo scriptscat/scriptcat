@@ -320,9 +320,7 @@ describe("opfs_tools", () => {
       const read = getTool("opfs_read");
 
       await write.executor.execute({ path: "readme.txt", content: "hello" });
-      const result = JSON.parse(
-        (await read.executor.execute({ path: "readme.txt", mode: "blob" })) as string
-      );
+      const result = JSON.parse((await read.executor.execute({ path: "readme.txt", mode: "blob" })) as string);
       expect(result.type).toBe("binary");
       expect(result.blobUrl).toBe("blob:mock-url");
       expect(result.content).toBeUndefined();
@@ -342,15 +340,11 @@ describe("opfs_tools", () => {
       });
 
       // auto 模式下内容检测为二进制，返回 blob
-      const blobResult = JSON.parse(
-        (await read.executor.execute({ path: "data.bin" })) as string
-      );
+      const blobResult = JSON.parse((await read.executor.execute({ path: "data.bin" })) as string);
       expect(blobResult.type).toBe("binary");
 
       // mode=text 强制文本读取
-      const textResult = JSON.parse(
-        (await read.executor.execute({ path: "data.bin", mode: "text" })) as string
-      );
+      const textResult = JSON.parse((await read.executor.execute({ path: "data.bin", mode: "text" })) as string);
       expect(textResult.type).toBe("text");
     });
 
@@ -361,9 +355,7 @@ describe("opfs_tools", () => {
       const lines = Array.from({ length: 10 }, (_, i) => `line${i + 1}`).join("\n");
       await write.executor.execute({ path: "multi.txt", content: lines });
 
-      const result = JSON.parse(
-        (await read.executor.execute({ path: "multi.txt", offset: 3, limit: 4 })) as string
-      );
+      const result = JSON.parse((await read.executor.execute({ path: "multi.txt", offset: 3, limit: 4 })) as string);
       expect(result.content).toBe("line3\nline4\nline5\nline6");
       expect(result.startLine).toBe(3);
       expect(result.endLine).toBe(6);
@@ -389,9 +381,7 @@ describe("opfs_tools", () => {
       const lines = Array.from({ length: 300 }, (_, i) => `line${i + 1}`).join("\n");
       await write.executor.execute({ path: "big.txt", content: lines });
 
-      const result = JSON.parse(
-        (await read.executor.execute({ path: "big.txt", offset: 290, limit: 11 })) as string
-      );
+      const result = JSON.parse((await read.executor.execute({ path: "big.txt", offset: 290, limit: 11 })) as string);
       expect(result.startLine).toBe(290);
       expect(result.endLine).toBe(300);
       expect(result.totalLines).toBe(300);
@@ -404,9 +394,7 @@ describe("opfs_tools", () => {
       await write.executor.execute({ path: "small.txt", content: "a\nb\nc" });
 
       // offset 超出范围
-      const result = JSON.parse(
-        (await read.executor.execute({ path: "small.txt", offset: 100, limit: 5 })) as string
-      );
+      const result = JSON.parse((await read.executor.execute({ path: "small.txt", offset: 100, limit: 5 })) as string);
       expect(result.content).toBe("");
       expect(result.startLine).toBe(100);
       expect(result.endLine).toBe(3);

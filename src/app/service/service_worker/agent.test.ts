@@ -1395,14 +1395,10 @@ describe("callLLM 流式响应解析", () => {
     mockRepo.getMessages.mockResolvedValue([]);
 
     // 返回 401 错误，callLLM 内部会重试 5 次，需提供足够多的 mock
-    const make401 = () =>
-      ({ ok: false, status: 401, text: async () => "401 Unauthorized" }) as unknown as Response;
+    const make401 = () => ({ ok: false, status: 401, text: async () => "401 Unauthorized" }) as unknown as Response;
     for (let i = 0; i < 6; i++) fetchSpy.mockResolvedValueOnce(make401());
 
-    const chatPromise = (service as any).handleConversationChat(
-      { conversationId: "conv-1", message: "hi" },
-      sender
-    );
+    const chatPromise = (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
 
     // 推进定时器跳过 callLLM 内部重试延迟（10+10+20+20+30 = 90s）
     await vi.advanceTimersByTimeAsync(100_000);
