@@ -8,12 +8,16 @@
 // @grant        window.onurlchange
 // ==/UserScript==
 
-// 方式一：使用 window.onurlchange 赋值
-window.onurlchange = function (e) {
-  console.log("URL changed to:", e.url);
-};
+if (window.onurlchange === null) {
+  // feature is supported
 
-// 方式二：使用 addEventListener
-window.addEventListener("urlchange", function (e) {
-  console.log("URL changed (addEventListener):", e.url);
-});
+  // 方式一：使用 window.onurlchange 赋值
+  window.onurlchange = function (e) {
+    console.log("URL changed to:", e.url);
+  };
+
+  // 方式二：使用 addEventListener
+  window.addEventListener("urlchange", function (e) {
+    console.log("URL changed (addEventListener):", e.url);
+  });
+}
