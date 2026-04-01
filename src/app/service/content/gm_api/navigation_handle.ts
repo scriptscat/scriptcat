@@ -27,6 +27,7 @@ const getPropGetter = (obj: any, key: string) => {
 // https://developer.mozilla.org/en-US/docs/Web/API/Navigation_API#browser_compatibility
 export const attachNavigateHandler = (win: Window & { navigation: EventTarget }) => {
   if (attached) return;
+  if (!win.navigation) return; // 不支持 Navigation API
   attached = true;
   // 以 location.href 判断避免 replaceState/pushState 重复执行重复触发
   const loc = win.location;
