@@ -1,3 +1,5 @@
+import { Native } from "../global";
+
 export class UrlChangeEvent extends Event {
   readonly url: string;
   constructor(type: string, url: string) {
@@ -8,17 +10,11 @@ export class UrlChangeEvent extends Event {
 
 let attached = false;
 
-const getPropGetter = (obj: any, key: string) => {
+const getPropGetter = <T>(obj: T, key: keyof T) => {
   // 避免直接 obj[key] 读取。或会被 hack
-  let t = obj;
-  let pd: PropertyDescriptor | undefined;
-  while (t) {
-    pd = Object.getOwnPropertyDescriptor(t, key);
-    if (pd) break;
-    t = Object.getPrototypeOf(t);
-  }
-  if (pd) {
-    return pd?.get?.bind(obj);
+  for (let t = obj; t; t = Native.objectGetPrototypeOf(t)) {
+    const pd = Native.objectGetOwnPropertyDescriptor(t, key);
+    if (pd) return pd.get?.bind(obj);
   }
 };
 
