@@ -10,13 +10,9 @@
 // ==/UserScript==
 
 return new Promise((resolve) => {
-  const id = GM_registerMenuCommand(
-    "测试菜单",
-    () => {
-      console.log(id);
-      GM_unregisterMenuCommand(id);
-      resolve();
-    },
-    "z"
-  );
+  const id = GM_registerMenuCommand("测试菜单", () => {
+    console.log(id);
+    GM_unregisterMenuCommand(id);
+    resolve();
+  }, "z");
 });
