@@ -4,6 +4,11 @@ import { UrlChangeEvent } from "./navigation_handle.js";
 // attachNavigateHandler 使用模块级 attached 单例，需要在每个测试前重置模块
 const importFresh = async () => {
   vi.resetModules();
+  // vi.resetModules() 会清空模块缓存，后续 import 得到全新的 LoggerCore 类，
+  // 需要重新初始化以免后续测试文件中 LoggerCore.getInstance() 返回 undefined
+  // @ts-expect-error 动态 import 路径别名在 tsc nodenext 下无法解析
+  const { default: LC, EmptyWriter: EW } = await import("@App/app/logger/core");
+  new LC({ level: "trace", consoleLevel: "trace", writer: new EW(), labels: { env: "test" } });
   return await import("./navigation_handle.js");
 };
 
