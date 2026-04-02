@@ -540,3 +540,15 @@ export const getISOWeek = (date: Date): number => {
   // 再换算为周数，并向上取整，得到 ISO 周数
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 };
+
+export function stripUndefined<T extends Record<string, unknown>, K = T | undefined>(obj: K | T): K | T {
+  if (!obj || typeof obj !== "object") return obj;
+  const keys = Object.keys(obj);
+  if (!keys.length) return obj;
+  const result = {} as T;
+  for (const k of keys as (keyof T)[]) {
+    const v = (obj as T)[k];
+    if (v !== undefined) result[k] = v;
+  }
+  return result;
+}
