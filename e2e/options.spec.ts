@@ -39,13 +39,8 @@ test.describe("Options Page", () => {
     await page.locator(".menu-tools .arco-menu-item").click();
     await expect(page).toHaveURL(/.*#\/tools/);
 
-    // Click "Settings" / "设置" menu item (may need scroll due to Agent submenu items)
-    const settingItem = page
-      .locator(".arco-menu-item")
-      .filter({ hasText: /setting|设置/i })
-      .first();
-    await settingItem.scrollIntoViewIfNeeded();
-    await settingItem.click();
+    // Click "Settings" / "设置" menu item (use .menu-setting to avoid matching agent_settings in submenu)
+    await page.locator(".menu-setting .arco-menu-item").click();
     await expect(page).toHaveURL(/.*#\/setting/);
 
     // Navigate back to script list (home) - click the first menu item
