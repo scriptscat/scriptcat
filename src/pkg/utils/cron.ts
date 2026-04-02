@@ -84,9 +84,18 @@ type NextTimeResult = {
  * - 否则直接返回下一次执行时间字符串
  */
 export const nextTimeDisplay = (crontab: string, date = new Date()): string => {
-  const res = nextTimeInfo(crontab, date);
-  const nextTimeFormatted = res.next.toFormat(res.format);
-  return res.once ? t(`cron_oncetype.${res.once}`, { next: nextTimeFormatted }) : nextTimeFormatted;
+  if (!date || typeof date !== "object" || !(date instanceof Date)) {
+    console.error(`nextTimeDisplay: Invalid data parameter "${date}"`);
+    return "ERROR";
+  }
+  try {
+    const res = nextTimeInfo(crontab, date);
+    const nextTimeFormatted = res.next.toFormat(res.format);
+    return res.once ? t(`cron_oncetype.${res.once}`, { next: nextTimeFormatted }) : nextTimeFormatted;
+  } catch (e) {
+    console.error(`nextTimeDisplay: Invalid cron expression "${crontab}"`, e);
+    return "ERROR";
+  }
 };
 
 /**
