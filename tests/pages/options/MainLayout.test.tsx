@@ -55,6 +55,7 @@ const hoisted = vi.hoisted(() => {
 vi.mock("@App/pages/store/features/script", () => ({
   popupClient: hoisted.mockPopupClient,
   scriptClient: hoisted.mockScriptClient,
+  agentClient: { prepareSkillInstall: vi.fn().mockResolvedValue("mock-uuid") },
 }));
 
 vi.mock("@App/pages/store/global", () => ({

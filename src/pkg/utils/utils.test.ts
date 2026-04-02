@@ -6,6 +6,7 @@ import {
   formatBytes,
   normalizeResponseHeaders,
   stringMatching,
+  stripUndefined,
   toCamelCase,
 } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
@@ -621,5 +622,68 @@ access-control-allow-origin:*`
 
     expect(normalizeResponseHeaders(input)).toBe(expected);
     expect(normalizeResponseHeaders(expected)).toBe(expected);
+  });
+});
+
+describe("stripUndefined", () => {
+  // 基本功能：移除 undefined 值
+  it("应移除所有 undefined 属性", () => {
+    const input = { a: 1, b: undefined, c: "hello" };
+    const result = stripUndefined(input);
+    expect(result).toEqual({ a: 1, c: "hello" });
+    expect("b" in result).toBe(false);
+  });
+
+  // 保留 null 值
+  it("应保留 null 值", () => {
+    const input = { a: null, b: undefined };
+    const result = stripUndefined(input);
+    expect(result).toEqual({ a: null });
+  });
+
+  // 保留假值（false、0、空字符串）
+  it("应保留假值（false、0、空字符串）", () => {
+    const input = { a: false, b: 0, c: "", d: undefined };
+    const result = stripUndefined(input);
+    expect(result).toEqual({ a: false, b: 0, c: "" });
+  });
+
+  // 空对象
+  it("空对象应返回空对象", () => {
+    expect(stripUndefined({})).toEqual({});
+  });
+
+  // 全部为 undefined
+  it("所有属性均为 undefined 时应返回空对象", () => {
+    const input = { a: undefined, b: undefined };
+    expect(stripUndefined(input)).toEqual({});
+  });
+
+  // 无 undefined 时原样返回
+  it("无 undefined 属性时应返回相同内容", () => {
+    const input = { a: 1, b: "hello", c: true };
+    expect(stripUndefined(input)).toEqual(input);
+  });
+
+  // 嵌套对象（不递归处理）
+  it("嵌套对象内的 undefined 不应被递归移除", () => {
+    const input = { a: { b: undefined }, c: 1 };
+    const result = stripUndefined(input);
+    expect(result).toEqual({ a: { b: undefined }, c: 1 });
+  });
+
+  // 不修改原始对象
+  it("不应修改原始对象", () => {
+    const input = { a: 1, b: undefined };
+    stripUndefined(input);
+    expect(input).toEqual({ a: 1, b: undefined });
+    expect("b" in input).toBe(true);
+  });
+
+  // 保留数组值
+  it("应保留数组值", () => {
+    const input = { a: [1, 2, 3], b: undefined };
+    const result = stripUndefined(input);
+    expect(result).toEqual({ a: [1, 2, 3] });
   });
 });
