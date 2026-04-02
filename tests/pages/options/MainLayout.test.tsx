@@ -155,15 +155,13 @@ describe("Options MainLayout Component", () => {
     expect(screen.getByText("Content")).toBeInTheDocument();
   });
 
-  it("should render with custom className", async () => {
+  it("should render with custom className", () => {
     render(
       <MainLayout pageName="options" className="custom-class">
         {"Content"}
       </MainLayout>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText("Content")).toBeInTheDocument();
-    });
+    expect(screen.getByText("Content")).toBeInTheDocument();
   });
 });
