@@ -196,6 +196,7 @@ describe("opfs_tools", () => {
   beforeEach(() => {
     mockFS = createMockFS();
     vi.stubGlobal("navigator", {
+      ...globalThis.navigator,
       storage: {
         getDirectory: vi.fn().mockResolvedValue(mockFS.rootHandle),
       },
@@ -203,6 +204,7 @@ describe("opfs_tools", () => {
     // opfs_read 读取二进制文件时需要 createBlobUrlFn 生成 blob URL
     setCreateBlobUrlFn(async () => "blob:mock-url");
   });
+
 
   function getTool(name: string) {
     const { tools } = createOPFSTools();

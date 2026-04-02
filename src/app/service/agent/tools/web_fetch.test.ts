@@ -43,6 +43,7 @@ describe("WebFetchExecutor", () => {
     });
   });
 
+
   it("should throw for missing url", async () => {
     const executor = new WebFetchExecutor(mockSender);
     await expect(executor.execute({})).rejects.toThrow("url is required");

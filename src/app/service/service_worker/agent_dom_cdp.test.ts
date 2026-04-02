@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
 // mock chrome.debugger 和 chrome.tabs
 const mockSendCommand = vi.fn();
@@ -6,6 +6,7 @@ const mockAttach = vi.fn().mockResolvedValue(undefined);
 const mockDetach = vi.fn().mockResolvedValue(undefined);
 const mockTabsGet = vi.fn();
 
+const savedChrome = globalThis.chrome;
 vi.stubGlobal("chrome", {
   debugger: {
     attach: mockAttach,
@@ -17,6 +18,10 @@ vi.stubGlobal("chrome", {
 });
 
 import { cdpClick, withDebugger, cdpFill, cdpScreenshot } from "./agent_dom_cdp";
+
+afterAll(() => {
+  vi.stubGlobal("chrome", savedChrome);
+});
 
 // 构造 sendCommand 的响应映射
 function setupClickMocks(hitTestValue: string) {
