@@ -12,7 +12,7 @@ import {
 } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
-import { nextTimeDisplay } from "./cron";
+import { ERROR_TEXT, nextTimeDisplay } from "./cron";
 import { parseUserConfig } from "./yaml";
 import { t as i18n_t } from "@App/locales/locales";
 import { readBlobContent } from "@App/pkg/utils/encoding";
@@ -80,10 +80,14 @@ export function parseScriptFromCode(code: string, origin: string, uuid?: string)
   let type = SCRIPT_TYPE_NORMAL;
   if (metadata.crontab !== undefined) {
     type = SCRIPT_TYPE_CRONTAB;
+    let isValidCrontTab;
     try {
-      nextTimeDisplay(metadata.crontab[0]);
+      isValidCrontTab = nextTimeDisplay(metadata.crontab[0]) !== ERROR_TEXT;
     } catch {
-      throw new Error(i18n_t("error_cron_invalid", { expr: metadata.crontab[0] }));
+      // ignored
+    }
+    if (isValidCrontTab !== true) {
+      throw new Error(i18n_t("error_cron_invalid", { expr: `${metadata.crontab[0]}` }));
     }
   } else if (metadata.background !== undefined) {
     type = SCRIPT_TYPE_BACKGROUND;

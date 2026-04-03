@@ -10,7 +10,7 @@ import {
   toCamelCase,
 } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
-import { nextTimeDisplay, nextTimeInfo } from "./cron";
+import { ERROR_TEXT, nextTimeDisplay, nextTimeInfo } from "./cron";
 
 describe.concurrent("aNow", () => {
   // aNow >= Date.now();
@@ -61,6 +61,22 @@ const assertNextTimeInfo = (expr: string, date: Date, expected: any) => {
     )
     .toEqual(expected);
 };
+
+describe.concurrent("nextTimeDisplay ERROR SAFE", () => {
+  it.concurrent.each([
+    ["* * * once * once"],
+    ["* * once * once"],
+    ["* once(2,4) once(4-5) * *"],
+    ["* * 1 A *"],
+    ["* once 1.2 * *"],
+    ["* 3 1**2 * *"],
+    ["* 1^2 F * *"],
+    ["1 1 * *"],
+    ["* 3"],
+  ])("錯誤Cron表达式: %s", (expr) => {
+    expect(nextTimeDisplay(expr)).toBe(ERROR_TEXT);
+  });
+});
 
 describe.concurrent("nextTimeInfo1", () => {
   const date = new Date("2025-12-17T11:47:17.629"); // 2025-12-17 11:47:17.629 (本地时区)
