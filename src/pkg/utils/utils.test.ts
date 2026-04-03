@@ -73,7 +73,7 @@ describe.concurrent("nextTimeDisplay ERROR SAFE", () => {
     ["* 1^2 F * *"],
     ["1 1 * *"],
     ["* 3"],
-  ])("錯誤Cron表达式: %s", (expr) => {
+  ])("错误Cron表达式: %s", (expr) => {
     expect(nextTimeDisplay(expr)).toBe(ERROR_TEXT);
   });
 });

@@ -140,7 +140,7 @@ export async function prepareScriptByCode(
   dao?: ScriptDAO,
   options?: {
     byEditor?: boolean; // 是否通过编辑器导入
-    byWebRequest?: boolean; // 是否通过網頁連結安裝或更新
+    byWebRequest?: boolean; // 是否通过网页连结安装或更新
   }
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
   dao = dao ?? new ScriptDAO();
