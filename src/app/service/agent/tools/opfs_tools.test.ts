@@ -205,7 +205,6 @@ describe("opfs_tools", () => {
     setCreateBlobUrlFn(async () => "blob:mock-url");
   });
 
-
   function getTool(name: string) {
     const { tools } = createOPFSTools();
     return tools.find((t) => t.definition.name === name)!;
