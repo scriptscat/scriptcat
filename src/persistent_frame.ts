@@ -5,6 +5,8 @@ let lastNow = 0;
 if (typeof frameElement === "object" && frameElement) {
   const cNode = document.createComment("0");
   let cVal = 0;
+  //@ts-ignore
+  const scheduler_ = typeof scheduler !== "undefined" && typeof scheduler?.postTask === "function" ? scheduler : null;
   const runner = (ts: number) => {
     waitState = 1;
     cVal = cVal > 8 ? 1 : cVal + 1;
@@ -18,7 +20,13 @@ if (typeof frameElement === "object" && frameElement) {
   };
   window.addEventListener("message", (ev) => {
     if (waitState === 2) {
-      if (typeof ev.data === "object" && ev.data?.myCustomAction === "waked-up") runner(ev.timeStamp);
+      if (typeof ev.data === "object" && ev.data?.myCustomAction === "waked-up") {
+        if (scheduler_) {
+          scheduler_.postTask(() => runner(Date.now()), { priority: "background", delay: 496.75 });
+        } else {
+          runner(ev.timeStamp);
+        }
+      }
     }
   });
   const mutObserver = new MutationObserver(() => {
