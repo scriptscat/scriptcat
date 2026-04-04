@@ -197,7 +197,7 @@ export const getConnectMatched = (
   return ConnectMatch.NONE;
 };
 
-const sessionRuleDynamicAdd = (rule: chrome.declarativeNetRequest.Rule, resolve?: any) => {
+const sessionRuleDynamicAdd = (rule: chrome.declarativeNetRequest.Rule, resolve?: ResolveFn) => {
   chrome.declarativeNetRequest.updateSessionRules(
     {
       removeRuleIds: [rule.id],
@@ -213,7 +213,7 @@ const sessionRuleDynamicAdd = (rule: chrome.declarativeNetRequest.Rule, resolve?
   );
 };
 
-const sessionRuleDynamicRemove = (ruleId: number, resolve?: any) => {
+const sessionRuleDynamicRemove = (ruleId: number, resolve?: ResolveFn) => {
   chrome.declarativeNetRequest.updateSessionRules(
     {
       removeRuleIds: [ruleId],

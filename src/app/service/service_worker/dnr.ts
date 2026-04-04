@@ -9,7 +9,7 @@ const scheduler_ =
     : null;
 
 // 用于扩充初始化时新增 SessionRules. FireFox 需要等一等才加，否则会失效。
-export const addSessionRules = async (rules: chrome.declarativeNetRequest.Rule[], resolve?: any) => {
+export const addSessionRules = async (rules: chrome.declarativeNetRequest.Rule[], resolve?: ResolveFn) => {
   await scheduler_?.yield?.();
   chrome.declarativeNetRequest.updateSessionRules(
     {
