@@ -144,12 +144,12 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   }
 }
 
-// 检查订阅规则是否改变,是否能够静默更新
+// 检查 connect 是否改变，是否能够静默更新
+// 用于订阅本身的更新检查和普通脚本的静默更新检查
 export function checkSilenceUpdate(oldMeta: SCMetadata, newMeta: SCMetadata): boolean {
-  // 判断connect是否改变
   const oldConnect = new Set<string>(oldMeta.connect || []);
   const newConnect = new Set<string>(newMeta.connect || []);
-  // 老的里面没有新的就需要用户确认了
+  // 新的 connect 中有老的没有的域，则需要用户确认
   for (const key of newConnect) {
     if (!oldConnect.has(key)) {
       return false;
@@ -540,3 +540,15 @@ export const getISOWeek = (date: Date): number => {
   // 再换算为周数，并向上取整，得到 ISO 周数
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 };
+
+export function stripUndefined<T extends Record<string, unknown>, K = T | undefined>(obj: K | T): K | T {
+  if (!obj || typeof obj !== "object") return obj;
+  const keys = Object.keys(obj);
+  if (!keys.length) return obj;
+  const result = {} as T;
+  for (const k of keys as (keyof T)[]) {
+    const v = (obj as T)[k];
+    if (v !== undefined) result[k] = v;
+  }
+  return result;
+}

@@ -8,6 +8,7 @@ import ZipFileSystem from "./zip/zip";
 import S3FileSystem from "./s3/s3";
 import { t } from "@App/locales/locales";
 import LimiterFileSystem from "./limiter";
+import type { WebDAVClientOptions, OAuthToken } from "webdav";
 
 export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive" | "dropbox" | "s3";
 
@@ -16,18 +17,47 @@ export type FileSystemParams = {
     title: string;
     type?: "select" | "authorize" | "password";
     options?: string[];
+    visibilityFor?: string[];
+    minWidth?: string;
   };
 };
 
 export default class FileSystemFactory {
   static create(type: FileSystemType, params: any): Promise<FileSystem> {
     let fs: FileSystem;
+    let options;
     switch (type) {
       case "zip":
         fs = new ZipFileSystem(params);
         break;
       case "webdav":
-        fs = new WebDAVFileSystem(params.authType, params.url, params.username, params.password);
+        /*
+          Auto = "auto",
+          Digest = "digest", // 需要避免密码直接传输
+          None = "none", // 公开资源 / 自定义认证
+          Password = "password", // 普通 WebDAV 服务，需要确保 HTTPS / Nextcloud 生产环境
+          Token = "token" // OAuth2 / 现代云服务 / Nextcloud 生产环境
+        */
+        if (params.authType === "none") {
+          options = {
+            authType: params.authType,
+          } satisfies WebDAVClientOptions;
+        } else if (params.authType === "token") {
+          options = {
+            authType: params.authType,
+            token: {
+              token_type: "Bearer",
+              access_token: params.accessToken,
+            } satisfies OAuthToken,
+          } satisfies WebDAVClientOptions;
+        } else {
+          options = {
+            authType: params.authType || "auto", // UI 问题，有undefined机会。undefined等价于 password, 但此处用 webdav 本身的 auto 侦测算了
+            username: params.username,
+            password: params.password,
+          } satisfies WebDAVClientOptions;
+        }
+        fs = WebDAVFileSystem.fromCredentials(params.url, options);
         break;
       case "baidu-netdsik":
         fs = new BaiduFileSystem();
@@ -64,10 +94,12 @@ export default class FileSystemFactory {
           title: t("auth_type"),
           type: "select",
           options: ["password", "digest", "none", "token"],
+          minWidth: "140px",
         },
         url: { title: t("url") },
-        username: { title: t("username") },
-        password: { title: t("password"), type: "password" },
+        username: { title: t("username"), visibilityFor: ["password", "digest"] },
+        password: { title: t("password"), type: "password", visibilityFor: ["password", "digest"] },
+        accessToken: { title: t("access_token_bearer"), visibilityFor: ["token"] },
       },
       "baidu-netdsik": {},
       onedrive: {},
