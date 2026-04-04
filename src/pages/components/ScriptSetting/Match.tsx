@@ -87,7 +87,6 @@ const Match: React.FC<{
 
   useEffect(() => {
     refreshMatch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [script]);
 
   const columns: ColumnProps[] = [
