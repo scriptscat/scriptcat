@@ -6,6 +6,9 @@ let lastNow = 0;
 if (typeof frameElement === "object" && frameElement) {
   const cNode = document.createComment("0");
   let cVal = 0;
+  /**
+   * scheduler 用于 Service Worker 或 Event Page, Chrome 94+, Firefox 142+
+   */
   //@ts-ignore
   const scheduler_ = typeof scheduler !== "undefined" && typeof scheduler?.postTask === "function" ? scheduler : null;
   const runner = (ts: number) => {
