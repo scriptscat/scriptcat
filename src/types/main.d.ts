@@ -9,6 +9,19 @@ type ValueOf<T> = T[keyof T];
 type ReactStateSetter<T> = (value: T | ((prev: T) => T)) => void;
 type ResolveFn<T = void> = (val: T) => void;
 
+interface SchedulerPostTaskOptions {
+  delay?: number;
+  priority?: "user-blocking" | "user-visible" | "background";
+  signal?: AbortSignal;
+}
+
+interface Scheduler {
+  postTask<T>(callback: () => T | Promise<T>, options?: SchedulerPostTaskOptions): Promise<T>;
+  yield(): Promise<void>;
+}
+
+declare let scheduler: Scheduler | undefined;
+
 declare const sandbox: Window;
 
 declare const self: ServiceWorkerGlobalScope;

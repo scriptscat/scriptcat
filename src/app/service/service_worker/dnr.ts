@@ -2,10 +2,11 @@
  * scheduler 用于 Service Worker 或 Event Page, Chrome 94+, Firefox 142+
  */
 const scheduler_ =
-  //@ts-ignore
-  typeof scheduler !== "undefined" && typeof scheduler?.postTask === "function" && typeof scheduler.yield === "function"
-    ? //@ts-ignore
-      scheduler
+  typeof scheduler !== "undefined" &&
+  typeof scheduler?.postTask === "function" &&
+  typeof scheduler?.yield === "function" &&
+  process.env.VI_TESTING !== "true"
+    ? scheduler
     : null;
 
 // 用于扩充初始化时新增 SessionRules. FireFox 需要等一等才加，否则会失效。
