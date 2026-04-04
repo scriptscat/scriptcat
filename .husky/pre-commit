@@ -1,13 +1,35 @@
 #!/bin/sh
 
-pnpm run lint-fix
+# Skip checks: SKIP_PRE_PUSH=1 git push or git push --no-verify
+if [ "$SKIP_PRE_PUSH" = "1" ]; then
+  echo "⏭ SKIP_PRE_PUSH=1, skipping pre-push checks"
+  exit 0
+fi
 
-# 将已暂存且被 lint-fix 修改过的文件重新加入暂存区
-STAGED=$(git diff --cached --name-only --diff-filter=d)
-CHANGED=$(git diff --name-only)
+# Only run checks when pushing to main or release/* branches
+remote="$1"
+need_check=0
 
-for file in $CHANGED; do
-  case "$STAGED" in
-    *"$file"*) git add "$file" ;;
-  esac
+while read local_ref local_sha remote_ref remote_sha; do
+  branch=$(echo "$remote_ref" | sed 's|refs/heads/||')
+
+  if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release/"; then
+    need_check=1
+    echo "🔍 Detected push target: $branch"
+  fi
 done
+
+if [ "$need_check" = "0" ]; then
+  exit 0
+fi
+
+echo ""
+echo "▶ Running lint..."
+pnpm run lint || exit 1
+
+echo ""
+echo "▶ Running tests..."
+pnpm run test:ci || exit 1
+
+echo ""
+echo "✅ All checks passed! (build and e2e tests will run in CI)"

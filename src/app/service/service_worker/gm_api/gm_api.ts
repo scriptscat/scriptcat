@@ -11,7 +11,15 @@ import type { ConfirmParam } from "../permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "../permission_verify";
 import { cacheInstance } from "@App/app/cache";
 import { type RuntimeService } from "../runtime";
-import { getIcon, isFirefox, getCurrentTab, openInCurrentTab, cleanFileName, makeBlobURL } from "@App/pkg/utils/utils";
+import {
+  getIcon,
+  isFirefox,
+  getCurrentTab,
+  openInCurrentTab,
+  cleanFileName,
+  makeBlobURL,
+  stripUndefined,
+} from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -291,15 +299,18 @@ export default class GMApi {
         return true;
       }
       const detail = request.params[1];
-      if (!detail.url && !detail.domain) {
-        throw new Error("there must be one of url or domain");
+      // 未指定 url 和 domain 时，自动使用当前页面的 URL（兼容 Tampermonkey 行为）
+      const senderURL = sender.getSender()?.url;
+      if (!detail.url && !detail.domain && senderURL) {
+        detail.url = senderURL;
       }
       let url: URL = <URL>{};
       if (detail.url) {
-        url = new URL(detail.url);
+        url = new URL(`${detail.url}`);
+      } else if (detail.domain) {
+        url.hostname = url.host = `${detail.domain}`;
       } else {
-        url.host = detail.domain || "";
-        url.hostname = detail.domain || "";
+        throw new Error("there must be one of url or domain");
       }
       if (getConnectMatched(request.script.metadata.connect, url, sender) === ConnectMatch.NONE) {
         // 检查是否配置了权限
@@ -331,17 +342,15 @@ export default class GMApi {
     if (param.length !== 2) {
       throw new Error("there must be two parameters");
     }
-    const detail: GMTypes.CookieDetails = request.params[1];
-    // url或者域名不能为空
-    if (detail.url) {
-      detail.url = detail.url.trim();
+    const cookieAction: string = `${param[0]}`;
+    const detail: GMTypes.CookieDetails = param[1];
+    // 未指定 url 和 domain 时，自动使用当前页面的 URL（兼容 Tampermonkey 行为）
+    const senderURL = sender.getSender()?.url;
+    if (!detail.url && !detail.domain && senderURL) {
+      detail.url = senderURL;
     }
-    if (detail.domain) {
-      detail.domain = detail.domain.trim();
-    }
-    if (!detail.url && !detail.domain) {
-      throw new Error("there must be one of url or domain");
-    }
+    if (detail.domain) detail.domain = `${detail.domain}`.trim();
+    if (detail.url) detail.url = `${detail.url}`.trim();
     if (!detail.partitionKey || typeof detail.partitionKey !== "object") {
       detail.partitionKey = {};
     }
@@ -359,48 +368,63 @@ export default class GMApi {
         storeId = store.id;
       }
     }
-    switch (param[0]) {
+    switch (cookieAction) {
       case "list": {
-        const cookies = await chrome.cookies.getAll({
-          domain: detail.domain,
-          name: detail.name,
-          path: detail.path,
-          secure: detail.secure,
-          session: detail.session,
-          url: detail.url,
-          storeId: storeId,
-          partitionKey: detail.partitionKey,
-        });
+        detail.domain = detail.domain || undefined;
+        detail.url = detail.url || undefined;
+        const cookies = await chrome.cookies.getAll(
+          stripUndefined({
+            domain: detail.domain,
+            name: detail.name,
+            path: detail.path,
+            secure: detail.secure,
+            session: detail.session,
+            url: detail.url,
+            storeId: storeId,
+            partitionKey: stripUndefined(detail.partitionKey),
+          })
+        );
         return cookies;
       }
       case "delete": {
+        detail.domain = undefined;
+        detail.url = detail.url || senderURL;
         if (!detail.url || !detail.name) {
           throw new Error("delete operation must have url and name");
         }
-        await chrome.cookies.remove({
-          name: detail.name,
-          url: detail.url,
-          storeId: storeId,
-          partitionKey: detail.partitionKey,
-        });
+        await chrome.cookies.remove(
+          stripUndefined({
+            name: detail.name,
+            url: detail.url,
+            storeId: storeId,
+            partitionKey: stripUndefined(detail.partitionKey),
+          })
+        );
         break;
       }
       case "set": {
-        if (!detail.url || !detail.name || !detail.value) {
-          throw new Error("set operation must have url, name and value");
+        detail.domain = detail.domain || undefined;
+        detail.url = detail.url || senderURL;
+        // https://developer.chrome.com/docs/extensions/reference/api/cookies#method-set
+        if (!detail.name) detail.name = ""; // Empty by default if omitted.
+        if (!detail.value) detail.value = ""; // Empty by default if omitted.
+        if (!detail.url) {
+          throw new Error("set operation must have url");
         }
-        await chrome.cookies.set({
-          url: detail.url,
-          name: detail.name,
-          domain: detail.domain,
-          value: detail.value,
-          expirationDate: detail.expirationDate,
-          path: detail.path,
-          httpOnly: detail.httpOnly,
-          secure: detail.secure,
-          storeId: storeId,
-          partitionKey: detail.partitionKey,
-        });
+        await chrome.cookies.set(
+          stripUndefined({
+            url: detail.url,
+            name: detail.name,
+            domain: detail.domain,
+            value: detail.value,
+            expirationDate: detail.expirationDate,
+            path: detail.path,
+            httpOnly: detail.httpOnly,
+            secure: detail.secure,
+            storeId: storeId,
+            partitionKey: stripUndefined(detail.partitionKey),
+          })
+        );
         break;
       }
       default: {
@@ -623,16 +647,13 @@ export default class GMApi {
         }
       }
 
-      const cookies = await chrome.cookies.getAll({
-        domain: undefined,
-        name: undefined,
-        path: undefined,
-        secure: undefined,
-        session: undefined,
-        url: params.url,
-        storeId: storeId,
-        partitionKey: params.cookiePartition,
-      });
+      const cookies = await chrome.cookies.getAll(
+        stripUndefined({
+          url: params.url,
+          storeId: storeId,
+          partitionKey: stripUndefined(params.cookiePartition),
+        })
+      );
       // 追加cookie
       if (cookies?.length) {
         const v = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
