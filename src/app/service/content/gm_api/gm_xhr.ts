@@ -99,7 +99,7 @@ export const convObjectToURL = async (object: string | URL | Blob | File | undef
 
 export const urlToDocumentInContentPage = async (a: GMApi, url: string, isContent: boolean) => {
   // url (e.g. blob url) -> XMLHttpRequest (CONTENT) -> Document (CONTENT)
-  const nodeId = await a.sendMessage("CAT_fetchDocument", [url, isContent]);
+  const nodeId = await a.sendMessage("CAT_fetchDocument", [`${url}`, isContent]);
   return (<CustomEventMessage>a.message).getAndDelRelatedTarget(nodeId) as Document;
 };
 
