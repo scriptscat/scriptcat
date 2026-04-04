@@ -17,7 +17,7 @@ import {
   SubscribeDAO,
 } from "@App/app/repo/subscribe";
 import { type InstallSource } from "@App/app/service/script/manager";
-import { nextTime } from "./cron";
+import { extractCronExpr } from "./cron";
 import { parseUserConfig } from "./yaml";
 // eslint-disable-next-line camelcase
 import { t as i18n_t } from "@App/locales/locales";
@@ -146,11 +146,9 @@ export async function prepareScriptByCode(
   if (metadata.crontab !== undefined) {
     type = SCRIPT_TYPE_CRONTAB;
     try {
-      nextTime(metadata.crontab[0]);
-    } catch (e) {
-      throw new Error(
-        i18n_t("error_cron_invalid", { expr: metadata.crontab[0] })
-      );
+      extractCronExpr(metadata.crontab[0]);
+    } catch {
+      throw new Error(i18n_t("error_cron_invalid", { expr: metadata.crontab[0] }));
     }
   } else if (metadata.background !== undefined) {
     type = SCRIPT_TYPE_BACKGROUND;

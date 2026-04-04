@@ -42,7 +42,9 @@ module.exports = {
     "no-param-reassign": "off",
     "no-bitwise": "off",
     "class-methods-use-this": "off",
-    "@typescript-eslint/no-use-before-define": ["error"],
+    "@typescript-eslint/no-use-before-define": ["off"],
+    "no-console": "off",
+    "no-unused-vars": "warn",
     "react/function-component-definition": [
       2,
       {
@@ -62,6 +64,21 @@ module.exports = {
     "no-continue": "off",
     "no-return-await": "off",
     "prettier/prettier": "off",
+    "prefer-destructuring": "off",
+    "no-else-return": "off",
+    "prefer-template": "off",
+    "object-shorthand": "off",
+    "camelcase": "off",
+    "consistent-return": "off",
+    "lines-between-class-members": "off",
+    "import/no-extraneous-dependencies": [
+      "error",
+      {
+        "devDependencies": [
+          "webpack-plugins/*"
+        ]
+      }
+    ],
   },
   settings: {
     "import/resolver": {

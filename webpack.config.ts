@@ -8,6 +8,7 @@ import CopyPlugin from "copy-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import { presetAttributify, presetUno } from "unocss";
 import UnoCSS from "@unocss/webpack";
+import { ZipExecutionPlugin } from "./webpack-plugins/ZipExecutionPlugin";
 
 const ProgressBarPlugin = require("progress-bar-webpack-plugin");
 const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
@@ -230,7 +231,9 @@ const configWebWorker: Configuration = {
   },
   
   // 移除插件
-  plugins: [],
+  plugins: [
+    new ZipExecutionPlugin(),
+  ],
 } satisfies Configuration;
 
 const configInjectScript: Configuration = {

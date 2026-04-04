@@ -22,7 +22,7 @@ import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
 } from "@App/app/repo/scripts";
-import { nextTime } from "@App/pkg/utils/cron";
+import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import IoC from "@App/app/ioc";
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "@App/app/repo/subscribe";
 import SubscribeController from "@App/app/service/subscribe/controller";
@@ -165,7 +165,7 @@ export default function Description() {
         perm.push({
           label: t("subscribe_install_label"),
           color: "#ff0000",
-          value: meta.scripturl,
+          value: meta.scripturl!,
         });
       }
       if (meta.match) {
@@ -203,18 +203,14 @@ export default function Description() {
         );
       }
       if (meta.crontab) {
+        desList.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
         desList.push(
-          <Typography.Text key="crontab">
-            {t("scheduled_script_description_1")}
-          </Typography.Text>
-        );
-        desList.push(
-          <Typography.Text key="cronta-nexttime">
-            {t("scheduled_script_description_2", {
-              expression: meta.crontab[0],
-              time: nextTime(meta.crontab[0]),
-            })}
-          </Typography.Text>
+          <div key="cronta-nexttime" className="tw-flex tw-flex-row tw-flex-wrap tw-gap-x-2">
+            <Typography.Text>{t("scheduled_script_description_description_expr")}</Typography.Text>
+            <Typography.Text code>{meta.crontab[0]}</Typography.Text>
+            <Typography.Text>{t("scheduled_script_description_description_next")}</Typography.Text>
+            <Typography.Text code>{nextTimeDisplay(meta.crontab[0])}</Typography.Text>
+          </div>
         );
       } else if (meta.background) {
         desList.push(

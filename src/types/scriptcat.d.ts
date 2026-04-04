@@ -2,28 +2,22 @@
 
 declare const unsafeWindow: Window;
 
-declare type ConfigType =
-  | "text"
-  | "checkbox"
-  | "select"
-  | "mult-select"
-  | "number"
-  | "textarea"
-  | "time";
+declare type ConfigType = "text" | "checkbox" | "select" | "mult-select" | "number" | "textarea" | "time";
 
 declare interface Config {
-  [key: string]: any;
+  [key: string]: unknown;
   title: string;
   description: string;
-  default?: any;
+  default?: unknown;
   type?: ConfigType;
   bind?: string;
-  values?: any[];
+  values?: unknown[];
   password?: boolean;
   // 文本类型时是字符串长度,数字类型时是最大值
   max?: number;
   min?: number;
   rows?: number; // textarea行数
+  index: number; // 配置项排序位置
 }
 
 declare type UserConfig = { [key: string]: { [key: string]: Config } };
@@ -37,8 +31,19 @@ declare const GM_info: {
   scriptMetaStr?: string;
   userConfig?: UserConfig;
   userConfigStr?: string;
-  // isIncognito: boolean;
-  // downloadMode: "native" | "disabled" | "browser";
+  isIncognito: boolean;
+  sandboxMode: "raw"; // "js" | "raw" | "none";
+  userAgentData: {
+    brands?: {
+      brand: string;
+      version: string;
+    }[];
+    mobile?: boolean;
+    platform?: string;
+    architecture?: string;
+    bitness?: string;
+  };
+  downloadMode: "native"; // "native" | "disabled" | "browser";
   script: {
     author?: string;
     description?: string;
@@ -55,6 +60,7 @@ declare const GM_info: {
     namespace?: string;
     // position: number;
     "run-at": string;
+    "run-in": string[];
     // resources: string[];
     // unwrap: boolean;
     version: string;
@@ -76,82 +82,102 @@ declare const GM_info: {
       };
       [key: string]: any;
     }; */
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  [key: string]: any;
+  [key: string]: unknown;
 };
-
-declare function GM_addStyle(css: string): HTMLElement;
-
-declare function GM_deleteValue(name: string): void;
 
 declare function GM_listValues(): string[];
 
-declare function GM_addValueChangeListener(
-  name: string,
-  listener: GMTypes.ValueChangeListener
-): number;
+declare function GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number;
 
 declare function GM_removeValueChangeListener(listenerId: number): void;
 
-// 可以使用Promise实际等待值的设置完成
-declare function GM_setValue(name: string, value: any): Promise;
+declare function GM_setValue(name: string, value: any): void;
+// 设置多个值, values是一个对象, 键为值的名称, 值为值的内容
+declare function GM_setValues(values: { [key: string]: any }): void;
 
 declare function GM_getValue(name: string, defaultValue?: any): any;
 
+// 获取多个值, 如果keysOrDefaults是一个对象, 则使用对象的值作为默认值
+declare function GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): {
+  [key: string]: any;
+};
+
+declare function GM_deleteValue(name: string): void;
+
+// 删除多个值, names是一个字符串数组
+declare function GM_deleteValues(names: string[]): void;
+
 // 支持level和label
-declare function GM_log(
-  message: string,
-  level?: GMTypes.LoggerLevel,
-  labels?: GMTypes.LoggerLabel
-): any;
+declare function GM_log(message: string, level?: GMTypes.LoggerLevel, labels?: GMTypes.LoggerLabel): void;
 
 declare function GM_getResourceText(name: string): string | undefined;
 
-declare function GM_getResourceURL(
-  name: string,
-  isBlobUrl?: boolean = false
-): string | undefined;
+declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined;
 
-declare function GM_registerMenuCommand(
+function GM_registerMenuCommand(
   name: string,
-  listener: () => void,
-  accessKey?: string
+  listener?: (inputValue?: any) => void,
+  options_or_accessKey?:
+    | {
+        id?: number | string;
+        accessKey?: string; // 菜单快捷键
+        autoClose?: boolean; // 默认为 true，false 时点击后不关闭弹出菜单页面
+        nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
+        individual?: boolean; // SC特有配置，默认为 false，true 表示相同的菜单项不合并显示
+      }
+    | string
 ): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
 
-declare function GM_openInTab(
-  url: string,
-  options: GMTypes.OpenTabOptions
-): tab;
-declare function GM_openInTab(url: string, loadInBackground: boolean): tab;
-declare function GM_openInTab(url: string): tab;
+/**
+ * 注册一个菜单输入框, 允许用户输入值, 并在输入完成后用回调函数
+ */
+declare function CAT_registerMenuInput(
+  name: string,
+  listener?: (inputValue?: any) => void,
+  options_or_accessKey?:
+    | {
+        id?: number | string;
+        accessKey?: string; // 菜单快捷键
+        autoClose?: boolean; // 默认为 true，false 时点击后不关闭弹出菜单页面
+        nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
+        individual?: boolean; // SC特有配置，默认为 false，true 表示相同的菜单项不合并显示
+        // 可选输入框
+        inputType?: "text" | "number" | "boolean";
+        title?: string; // title 只适用于输入框类型
+        inputLabel?: string;
+        inputDefaultValue?: string | number | boolean;
+        inputPlaceholder?: string;
+      }
+    | string
+): number;
 
-declare function GM_xmlhttpRequest(
-  details: GMTypes.XHRDetails
-): GMTypes.AbortHandle<void>;
+declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
 
-declare function GM_download(
-  details: GMTypes.DownloadDetails
-): GMTypes.AbortHandle<boolean>;
-declare function GM_download(
-  url: string,
-  filename: string
-): GMTypes.AbortHandle<boolean>;
+/**
+ * 当使用 @early-start 时，可以使用此函数来等待脚本完全加载完成
+ */
+declare function CAT_scriptLoaded(): Promise<void>;
 
-declare function GM_getTab(callback: (obj: object) => any): void;
+declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): GMTypes.Tab | undefined;
+declare function GM_openInTab(url: string, loadInBackground: boolean): GMTypes.Tab | undefined;
+declare function GM_openInTab(url: string): GMTypes.Tab | undefined;
 
-declare function GM_saveTab(obj: object): Promise<void>;
+declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHandle<void>;
 
-declare function GM_getTabs(
-  callback: (objs: { [key: number]: object }) => any
-): void;
+declare function GM_download(details: GMTypes.DownloadDetails<string | Blob | File>): GMTypes.AbortHandle<boolean>;
+declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
-declare function GM_notification(
-  details: GMTypes.NotificationDetails,
-  ondone?: GMTypes.NotificationOnDone
-): void;
+declare function GM_getTab(callback: (tab: object) => void): void;
+
+declare function GM_saveTab(tab: object): Promise<void>;
+
+declare function GM_getTabs(callback: (tabs: { [key: number]: object }) => void): void;
+
+declare function GM_notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): void;
 declare function GM_notification(
   text: string,
   title: string,
@@ -161,40 +187,124 @@ declare function GM_notification(
 
 declare function GM_closeNotification(id: string): void;
 
-declare function GM_updateNotification(
-  id: string,
-  details: GMTypes.NotificationDetails
-): void;
+declare function GM_updateNotification(id: string, details: GMTypes.NotificationDetails): void;
 
-declare function GM_setClipboard(
-  data: string,
-  info?: string | { type?: string; mimetype?: string }
-): void;
+declare function GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): void;
 
-declare function GM_addElement(tag: string, attribubutes: any);
-declare function GM_addElement(parentNode: Element, tag: string, attrs: any);
+declare function GM_addElement(tag: string, attributes: Record<string, string | number | boolean>): HTMLElement;
+declare function GM_addElement(
+  parentNode: Node,
+  tag: string,
+  attrs: Record<string, string | number | boolean>
+): HTMLElement;
+
+declare function GM_addStyle(css: string): HTMLStyleElement;
 
 // name和domain不能都为空
 declare function GM_cookie(
   action: GMTypes.CookieAction,
   details: GMTypes.CookieDetails,
-  ondone: (cookie: GMTypes.Cookie[], error: any | undefined) => void
+  ondone: (cookie: GMTypes.Cookie[], error: unknown | undefined) => void
 ): void;
 
 /**
- * 可以通过GM_addValueChangeListener获取tabid
- * 再通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
- * 请注意这是一个实验性质的API,后续可能会改变
- * @param tabid 页面的tabid
- * @param ondone 完成事件
- * @param callback.storeid 该页面的storeid,可以给GM_cookie使用
- * @param callback.error 错误信息
- * @deprecated 已废弃,请使用GM_cookie("store", tabid)替代
+ * GM.* API (兼容 Greasemonkey4/Tampermonkey 4+ 的 Promise 风格)
  */
-declare function GM_getCookieStore(
-  tabid: number,
-  ondone: (storeId: number | undefined, error: any | undefined) => void
-): void;
+declare const GM: {
+  /** 脚本信息 */
+  readonly info: typeof GM_info;
+
+  /** 获取一个值 */
+  getValue<T = any>(name: string, defaultValue?: T): Promise<T>;
+
+  /** 获取多个值, 如果keysOrDefaults是一个对象, 则使用对象的值作为默认值 */
+  getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): Promise<{ [key: string]: any }>;
+
+  /** 设置一个值 */
+  setValue(name: string, value: any): Promise<void>;
+
+  /** 设置多个值, values是一个对象, 键为值的名称, 值为值的内容 */
+  setValues(values: { [key: string]: any }): Promise<void>;
+
+  /** 删除一个值 */
+  deleteValue(name: string): Promise<void>;
+
+  /** 删除多个值, names是一个字符串数组 */
+  deleteValues(names: string[]): Promise<void>;
+
+  /** 获取所有已保存值的 key 列表 */
+  listValues(): Promise<string[]>;
+
+  /** 值变更监听 */
+  addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): Promise<number>;
+  removeValueChangeListener(listenerId: number): Promise<void>;
+
+  /** 支持level和label */
+  log(message: string, level?: GMTypes.LoggerLevel, labels?: GMTypes.LoggerLabel): Promise<void>;
+
+  /** 获取资源文本 */
+  getResourceText(name: string): Promise<string | undefined>;
+
+  /** 获取资源URL */
+  getResourceURL(name: string, isBlobUrl?: boolean): Promise<string | undefined>;
+
+  /** 注册菜单 */
+  registerMenuCommand(
+    name: string,
+    listener?: (inputValue?: any) => void,
+    options_or_accessKey?:
+      | {
+          id?: number | string;
+          accessKey?: string; // 菜单快捷键
+          autoClose?: boolean; // 默认为 true
+          title?: string; // 菜单提示
+          // ScriptCat 扩展
+          icon?: string; // 菜单图标
+          // ScriptCat 扩展
+          closeOnClick?: boolean; // 点击菜单后是否关闭, 与autoClose含义相同
+        }
+      | string
+  ): Promise<number | string | undefined>;
+
+  /** 注销菜单 */
+  unregisterMenuCommand(id: number | string): Promise<void>;
+
+  /** 样式注入 */
+  addStyle(css: string): Promise<HTMLStyleElement>;
+
+  /** 通知 */
+  notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): Promise<void>;
+  notification(text: string, title: string, image: string, onclick?: GMTypes.NotificationOnClick): Promise<void>;
+  closeNotification(id: string): Promise<void>;
+  updateNotification(id: string, details: GMTypes.NotificationDetails): Promise<void>;
+
+  /** 设置剪贴板 */
+  setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): Promise<void>;
+
+  /** 添加元素 */
+  addElement(tag: string, attributes: Record<string, string | number | boolean>): Promise<HTMLElement>;
+  addElement(parentNode: Node, tag: string, attrs: Record<string, string | number | boolean>): Promise<HTMLElement>;
+
+  /** XMLHttpRequest */
+  xmlHttpRequest(details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse>;
+
+  /** 下载 */
+  download(details: GMTypes.DownloadDetails<string | Blob | File>): Promise<boolean>;
+  download(url: string, filename: string): Promise<boolean>;
+
+  /** Tab 存储 */
+  getTab(): Promise<object>;
+  saveTab(tab: object): Promise<void>;
+  getTabs(): Promise<{ [key: number]: object }>;
+
+  /** 打开新标签页 */
+  openInTab(url: string, options: GMTypes.OpenTabOptions): Promise<GMTypes.Tab | undefined>;
+  openInTab(url: string, loadInBackground: boolean): Promise<GMTypes.Tab | undefined>;
+  openInTab(url: string): Promise<GMTypes.Tab | undefined>;
+
+  /** Cookie 操作 */
+  cookie(action: GMTypes.CookieAction, details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
+};
 
 /**
  * 设置浏览器代理
@@ -328,19 +438,28 @@ declare namespace CATType {
     // 文件修改时间
     updatetime: number;
   }
+
+  type CATFileStorageDetails = {
+    baseDir: string;
+    path: string;
+    filename: any;
+    file: FileStorageFileInfo;
+    data?: string;
+  };
 }
 
 declare namespace GMTypes {
-  /*
-   * store为获取隐身窗口之类的cookie,这是一个实验性质的API,后续可能会改变
-   */
-  type CookieAction = "list" | "delete" | "set" | "store";
+  type CookieAction = "list" | "delete" | "set";
 
   type LoggerLevel = "debug" | "info" | "warn" | "error";
 
   type LoggerLabel = {
     [key: string]: string | boolean | number | undefined;
   };
+
+  interface CookieDetailsPartitionKeyType {
+    topLevelSite?: string;
+  }
 
   interface CookieDetails {
     url?: string;
@@ -350,17 +469,14 @@ declare namespace GMTypes {
     path?: string;
     secure?: boolean;
     session?: boolean;
-    storeId?: string;
     httpOnly?: boolean;
     expirationDate?: number;
-    // store用
-    tabId?: number;
+    partitionKey?: CookieDetailsPartitionKeyType;
   }
 
   interface Cookie {
     domain: string;
     name: string;
-    storeId: string;
     value: string;
     session: boolean;
     hostOnly: boolean;
@@ -368,40 +484,122 @@ declare namespace GMTypes {
     path: string;
     httpOnly: boolean;
     secure: boolean;
+    sameSite: "unspecified" | "no_restriction" | "lax" | "strict";
   }
 
   // tabid是只有后台脚本监听才有的参数
   type ValueChangeListener = (
     name: string,
-    oldValue: any,
-    newValue: any,
+    oldValue: unknown,
+    newValue: unknown,
     remote: boolean,
     tabid?: number
-  ) => any;
+  ) => unknown;
 
   interface OpenTabOptions {
+    /**
+     * 决定新标签页是否在打开时获得焦点。
+     *
+     * - `true` → 新标签页会立即切换到前台。
+     * - `false` → 新标签页在后台打开，不会打断当前页面的焦点。
+     *
+     * 默认值：true
+     */
     active?: boolean;
-    insert?: boolean;
+
+    /**
+     * 决定新标签页插入位置。
+     *
+     * - 如果是 `boolean`：
+     *   - `true` → 插入在当前标签页之后。
+     *   - `false` → 插入到窗口末尾。
+     * - 如果是 `number`：
+     *   - `0` → 插入到当前标签前一格。
+     *   - `1` → 插入到当前标签后一格。
+     *
+     * 默认值：true
+     */
+    insert?: boolean | number;
+
+    /**
+     * 决定是否设置父标签页（即 `openerTabId`）。
+     *
+     * - `true` → 浏览器能追踪由哪个标签打开的子标签，
+     *   有助于某些扩展（如标签树管理器）识别父子关系。
+     *
+     * 默认值：true
+     */
     setParent?: boolean;
-    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能
+
+    /**
+     * 是否在隐私窗口（无痕模式）中打开标签页。
+     *
+     * 注意：ScriptCat 的 manifest.json 配置了 `"incognito": "split"`，
+     * 在 normal window 中执行时，tabId/windowId 将不可用，
+     * 只能执行「打开新标签页」动作。
+     *
+     * 默认值：false
+     */
+    incognito?: boolean;
+
+    /**
+     * 历史兼容字段，仅 TM 支持。
+     * 语义与 `active` **相反**：
+     *
+     * - `true` → 等价于 `active = false`（后台加载）。
+     * - `false` → 等价于 `active = true`（前台加载）。
+     *
+     * ⚠️ 不推荐使用：与 `active` 功能重复且容易混淆。
+     *
+     * 默认值：false
+     * @deprecated 请使用 `active` 替代
+     */
+    loadInBackground?: boolean;
+
+    /**
+     * 是否将新标签页固定（pin）在浏览器标签栏左侧。
+     *
+     * - `true` → 新标签页为固定状态。
+     * - `false` → 普通标签页。
+     *
+     * 默认值：false
+     */
+    pinned?: boolean;
+
+    /**
+     * 使用 `window.open` 打开新标签，而不是 `chrome.tabs.create`
+     * 在打开一些特殊协议的链接时很有用，例如 `vscode://`, `m3u8dl://`
+     * 其他参数在这个打开方式下无效
+     *
+     * 相关：Issue #178 #1043
+     * 默认值：false
+     */
+    useOpen?: boolean;
   }
+
+  type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
+
+  /**
+   * XMLHttpRequest readyState 状态值
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/readyState
+   */
+  type ReadyState =
+    | 0 // UNSENT
+    | 1 // OPENED
+    | 2 // HEADERS_RECEIVED
+    | 3 // LOADING
+    | 4; // DONE
 
   interface XHRResponse {
     finalUrl?: string;
-    readyState?: 0 | 1 | 2 | 3 | 4;
+    readyState?: ReadyState;
     responseHeaders?: string;
     status?: number;
     statusText?: string;
-    response?: string | Blob | ArrayBuffer | Document | ReadableStream | null;
-    responseText?: string;
-    responseXML?: Document | null;
-    responseType?:
-      | "text"
-      | "arraybuffer"
-      | "blob"
-      | "json"
-      | "document"
-      | "stream";
+    response?: string | Blob | ArrayBuffer | Document | ReadableStream<Uint8Array<ArrayBufferLike>> | null | undefined;
+    responseText?: string | undefined;
+    responseXML?: Document | null | undefined;
+    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "";
   }
 
   interface XHRProgress extends XHRResponse {
@@ -413,41 +611,43 @@ declare namespace GMTypes {
     totalSize: number;
   }
 
-  type Listener<OBJ> = (event: OBJ) => any;
-  type ContextType = any;
+  type Listener<OBJ> = (event: OBJ) => unknown;
+  type ContextType = unknown;
+
+  type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
 
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
-    url: string;
+    url: string | URL | File | Blob;
     headers?: { [key: string]: string };
-    data?: string | FormData | Blob;
+    data?: GMXHRDataType;
     cookie?: string;
     binary?: boolean;
     timeout?: number;
     context?: ContextType;
-    responseType?:
-      | "text"
-      | "arraybuffer"
-      | "blob"
-      | "json"
-      | "document"
-      | "stream"; // stream 在当前版本是一个较为简陋的实现
+    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream"; // stream 在当前版本是一个较为简陋的实现
     overrideMimeType?: string;
     anonymous?: boolean;
+    mozAnon?: boolean; // 发送请求时不携带cookie (兼容Greasemonkey)
     fetch?: boolean;
     user?: string;
     password?: string;
     nocache?: boolean;
-    maxRedirects?: number;
+    revalidate?: boolean; // 强制重新验证缓存内容：允许缓存，但必须在使用缓存内容之前重新验证
+    redirect?: "follow" | "error" | "manual"; // 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
+    cookiePartition?: Record<string, any> & {
+      topLevelSite?: string; // 表示分区 cookie 的顶部帧站点
+    }; // 包含用于发送和接收的分区 cookie 的分区键 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+    context?: any; // 自定义值，传递给响应的 response.context 属性
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;
     onloadend?: Listener<XHRResponse>;
     onprogress?: Listener<XHRProgress>;
     onreadystatechange?: Listener<XHRResponse>;
-    ontimeout?: () => void;
-    onabort?: () => void;
-    onerror?: (err: string) => void;
+    ontimeout?: Listener<XHRResponse>;
+    onabort?: Listener<XHRResponse>;
+    onerror?: (err: string | (XHRResponse & { error: string })) => void;
   }
 
   interface AbortHandle<RETURN_TYPE> {
@@ -455,42 +655,65 @@ declare namespace GMTypes {
   }
 
   interface DownloadError {
-    error:
-      | "not_enabled"
-      | "not_whitelisted"
-      | "not_permitted"
-      | "not_supported"
-      | "not_succeeded"
-      | "unknown";
+    error: "not_enabled" | "not_whitelisted" | "not_permitted" | "not_supported" | "not_succeeded" | "unknown";
     details?: string;
   }
 
-  interface DownloadDetails {
-    method?: "GET" | "POST";
-    url: string;
+  interface DownloadDetails<URL> {
+    // TM/SC 标准参数
+    url: URL;
     name: string;
     headers?: { [key: string]: string };
     saveAs?: boolean;
-    timeout?: number;
-    cookie?: string;
-    anonymous?: boolean;
+    conflictAction?: "uniquify" | "overwrite" | "prompt";
 
-    onerror?: Listener<DownloadError>;
-    ontimeout?: () => void;
+    // 其他参数
+    timeout?: number; // SC/VM
+    anonymous?: boolean; // SC/VM
+    context?: ContextType; // SC/VM
+    user?: string; // SC/VM
+    password?: string; // SC/VM
+
+    method?: "GET" | "POST"; // SC
+    downloadMode?: "native" | "browser"; // SC
+    cookie?: string; // SC
+
+    // TM/SC 标准回调
     onload?: Listener<object>;
-    onprogress?: Listener<XHRProgress>;
+    onerror?: Listener<DownloadError>;
+    onprogress?: Listener<{
+      done: number;
+      lengthComputable: boolean;
+      loaded: number;
+      position?: number;
+      total: number;
+      totalSize: number;
+    }>;
+    ontimeout?: (arg1?: any) => void;
   }
 
   interface NotificationThis extends NotificationDetails {
     id: string;
   }
 
-  type NotificationOnClick = (
-    this: NotificationThis,
-    id: string,
-    index?: number
-  ) => any;
-  type NotificationOnDone = (this: NotificationThis, user: boolean) => any;
+  type NotificationOnClickEvent = {
+    event: "click" | "buttonClick";
+    id: string;
+    isButtonClick: boolean;
+    buttonClickIndex: number | undefined;
+    byUser: boolean | undefined;
+    preventDefault: () => void;
+    highlight: NotificationDetails["highlight"];
+    image: NotificationDetails["image"];
+    silent: NotificationDetails["silent"];
+    tag: NotificationDetails["tag"];
+    text: NotificationDetails["tag"];
+    timeout: NotificationDetails["timeout"];
+    title: NotificationDetails["title"];
+    url: NotificationDetails["url"];
+  };
+  type NotificationOnClick = (this: NotificationThis, event: NotificationOnClickEvent) => unknown;
+  type NotificationOnDone = (this: NotificationThis, user?: boolean) => unknown;
 
   interface NotificationButton {
     title: string;
@@ -500,22 +723,26 @@ declare namespace GMTypes {
   interface NotificationDetails {
     text?: string;
     title?: string;
+    tag?: string;
     image?: string;
     highlight?: boolean;
     silent?: boolean;
     timeout?: number;
+    url?: string;
     onclick?: NotificationOnClick;
     ondone?: NotificationOnDone;
     progress?: number;
     oncreate?: NotificationOnClick;
+    // 只能存在2个
     buttons?: NotificationButton[];
   }
 
   interface Tab {
     close(): void;
-
     onclose?: () => void;
     closed?: boolean;
     name?: string;
   }
+
+  type GMClipboardInfo = string | { type?: string; mimetype?: string };
 }

@@ -130,11 +130,15 @@ export function proxyContext(
           // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return proxy;
         case "top":
-        case "parent":
           if (global[name] === global.self) {
             return special.global || proxy;
           }
           return global.top;
+        case "parent":
+          if (global[name] === global.self) {
+            return special.global || proxy;
+          }
+          return global.parent;
         default:
           break;
       }
@@ -192,12 +196,8 @@ export function proxyContext(
         case "window":
         case "self":
         case "globalThis":
-          return true;
         case "top":
         case "parent":
-          if (global[name] === global.self) {
-            return true;
-          }
           return true;
         default:
           break;
@@ -288,11 +288,21 @@ export function proxyContext(
   return proxy;
 }
 
-export function addStyle(css: string): HTMLElement {
+export function addStyle(css: string): HTMLStyleElement {
   const dom = document.createElement("style");
   dom.textContent = css;
   if (document.head) {
     return document.head.appendChild(dom);
   }
   return document.documentElement.appendChild(dom);
+}
+
+export function addStyleSheet(css: string): CSSStyleSheet {
+  // see https://unarist.hatenablog.com/entry/2020/07/06/012540
+  const sheet = new CSSStyleSheet();
+  // it might return as Promise
+  sheet.replaceSync(css);
+  // adoptedStyleSheets is FrozenArray so it has to be re-assigned.
+  document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
+  return sheet;
 }

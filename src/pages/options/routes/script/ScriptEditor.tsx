@@ -29,6 +29,7 @@ import ScriptResource from "@App/pages/components/ScriptResource";
 import ScriptSetting from "@App/pages/components/ScriptSetting";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
+import { lazyScriptName } from "@App/pkg/config/config";
 
 const { Row } = Grid;
 const { Col } = Grid;
@@ -116,26 +117,55 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   switch (template) {
     case "background":
       code = backgroundTpl;
+      code = lazyScriptName(code);
       break;
     case "crontab":
       code = crontabTpl;
+      code = lazyScriptName(code);
       break;
-    default:
+    default: {
       code = normalTpl;
-      if (target === "initial") {
-        const url = await new Promise<string>((resolve) => {
-          chrome.storage.local.get(["activeTabUrl"], (result) => {
-            chrome.storage.local.remove(["activeTabUrl"]);
-            if (result.activeTabUrl) {
-              resolve(result.activeTabUrl.url);
-            } else {
-              resolve("undefind");
-            }
-          });
-        });
+      const [url, icon] =
+        target === "initial"
+          ? await new Promise<string[]>((resolve) => {
+              chrome.storage.local.get(["activeTabUrl"], (result) => {
+                const lastError = chrome.runtime.lastError;
+                let retUrl = "https://*/*";
+                let retIcon = "";
+                if (lastError) {
+                  console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+                  chrome.storage.local.remove(["activeTabUrl"]);
+                } else {
+                  chrome.storage.local.remove(["activeTabUrl"]);
+                  const pageUrl = result?.activeTabUrl?.url;
+                  if (pageUrl) {
+                    try {
+                      const { protocol, pathname, hostname } = new URL(pageUrl);
+                      if (protocol && pathname && hostname) {
+                        retUrl = `${protocol}//${hostname}${pathname}`;
+                        if (protocol === "http:" || protocol === "https:") {
+                          retIcon = `https://www.google.com/s2/favicons?sz=64&domain=${hostname}`;
+                        }
+                      }
+                    } catch {
+                      // do nothing
+                    }
+                  }
+                }
+                resolve([retUrl, retIcon]);
+              });
+            })
+          : ["https://*/*", ""];
+      code = lazyScriptName(code);
+      if (icon) {
         code = code.replace("{{match}}", url);
+        code = code.replace("{{icon}}", icon);
+      } else {
+        code = code.replace("{{match}}", url);
+        code = code.replace(/[\r\n]*[^\r\n]*\{\{icon\}\}[^\r\n]*/, "");
       }
       break;
+    }
   }
   const prepareScript = await prepareScriptByCode(code, "", uuidv4());
   const { script } = prepareScript;
