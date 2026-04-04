@@ -54,6 +54,7 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
+import { addSessionRules } from "../dnr";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -1650,18 +1651,7 @@ export default class GMApi {
         tabIds: [chrome.tabs.TAB_ID_NONE], // 只限于后台 service_worker / offscreen
       },
     } as chrome.declarativeNetRequest.Rule;
-    chrome.declarativeNetRequest.updateSessionRules(
-      {
-        removeRuleIds: [ruleId],
-        addRules: [rule],
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-        }
-      }
-    );
+    addSessionRules([rule]);
   }
 
   start() {
