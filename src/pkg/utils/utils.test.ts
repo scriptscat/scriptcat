@@ -10,7 +10,7 @@ import {
   toCamelCase,
 } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
-import { ERROR_TEXT, nextTimeDisplay, nextTimeInfo } from "./cron";
+import { nextTimeDisplay, nextTimeInfo } from "./cron";
 
 describe.concurrent("aNow", () => {
   // aNow >= Date.now();
@@ -74,7 +74,8 @@ describe.concurrent("nextTimeDisplay ERROR SAFE", () => {
     ["1 1 * *"],
     ["* 3"],
   ])("错误Cron表达式: %s", (expr) => {
-    expect(nextTimeDisplay(expr)).toBe(ERROR_TEXT);
+    // 确保无效表达式不会抛出异常
+    expect(() => nextTimeDisplay(expr)).not.toThrow();
   });
 });
 

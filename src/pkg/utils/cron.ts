@@ -77,26 +77,21 @@ type NextTimeResult = {
   once: string;
 };
 
-export const ERROR_TEXT = "ERROR";
-
 /**
  * 对外展示用方法。
  *
  * - 若为 once cron，返回「下次在 xx 执行一次」的国际化文案
+ * - 若表达式无效，返回本地化的错误提示文案
  * - 否则直接返回下一次执行时间字符串
  */
 export const nextTimeDisplay = (crontab: string, date = new Date()): string => {
-  if (!date || typeof date !== "object" || !(date instanceof Date)) {
-    console.error(`nextTimeDisplay: Invalid data parameter "${date}"`);
-    return ERROR_TEXT;
-  }
   try {
     const res = nextTimeInfo(crontab, date);
     const nextTimeFormatted = res.next.toFormat(res.format);
     return res.once ? t(`cron_oncetype.${res.once}`, { next: nextTimeFormatted }) : nextTimeFormatted;
   } catch (e) {
     console.error(`nextTimeDisplay: Invalid cron expression "${crontab}"`, e);
-    return ERROR_TEXT;
+    return t("cron_invalid_expr");
   }
 };
 
