@@ -197,6 +197,37 @@ export const getConnectMatched = (
   return ConnectMatch.NONE;
 };
 
+const sessionRuleDynamicAdd = (rule: chrome.declarativeNetRequest.Rule, resolve?: any) => {
+  chrome.declarativeNetRequest.updateSessionRules(
+    {
+      removeRuleIds: [rule.id],
+      addRules: [rule],
+    },
+    () => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
+      }
+      resolve();
+    }
+  );
+};
+
+const sessionRuleDynamicRemove = (ruleId: number, resolve?: any) => {
+  chrome.declarativeNetRequest.updateSessionRules(
+    {
+      removeRuleIds: [ruleId],
+    },
+    () => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
+      }
+      resolve();
+    }
+  );
+};
+
 type NotificationData = {
   uuid: string;
   details: GMTypes.NotificationDetails;
@@ -713,10 +744,7 @@ export default class GMApi {
         },
       } as chrome.declarativeNetRequest.Rule;
       headerModifierMap.set(markerID, { rule, redirectNotManual });
-      await chrome.declarativeNetRequest.updateSessionRules({
-        removeRuleIds: [ruleId],
-        addRules: [rule],
-      });
+      await new Promise((resolve) => sessionRuleDynamicAdd(rule, resolve));
     }
     return true;
   }
@@ -1595,32 +1623,11 @@ export default class GMApi {
                 },
               };
               headerModifierMap.set(markerID, { rule: newRule, redirectNotManual });
-              chrome.declarativeNetRequest.updateSessionRules(
-                {
-                  removeRuleIds: [rule.id],
-                  addRules: [newRule],
-                },
-                () => {
-                  const lastError = chrome.runtime.lastError;
-                  if (lastError) {
-                    console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-                  }
-                }
-              );
+              sessionRuleDynamicAdd(newRule);
             } else {
               // 删除关联与DNR
               headerModifierMap.delete(markerID);
-              chrome.declarativeNetRequest.updateSessionRules(
-                {
-                  removeRuleIds: [rule.id],
-                },
-                () => {
-                  const lastError = chrome.runtime.lastError;
-                  if (lastError) {
-                    console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-                  }
-                }
-              );
+              sessionRuleDynamicRemove(rule.id);
             }
           }
         }
