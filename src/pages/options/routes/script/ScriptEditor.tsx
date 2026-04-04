@@ -80,6 +80,7 @@ const Editor: React.FC<{
     });
     callbackEditor(node.editor);
     return node.editor.dispose.bind(node.editor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.editor]);
 
   return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;

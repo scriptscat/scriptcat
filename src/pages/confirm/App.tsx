@@ -4,24 +4,29 @@ import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { permissionClient } from "../store/features/script";
 
-function App() {
-  const uuid = new URLSearchParams(location.search).get("uuid");
+// 权限确认组件
+function PermissionConfirmRequest({ uuid }: { uuid: string }) {
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
   const [likeNum, setLikeNum] = React.useState(0);
   const [second, setSecond] = React.useState(30);
 
   const { t } = useTranslation();
 
-  if (second === 0) {
-    window.close();
-  }
-
-  setTimeout(() => {
-    setSecond(second - 1);
-  }, 1000);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecond((s) => {
+        if (s <= 1) {
+          clearInterval(timer);
+          window.close();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
-    if (!uuid) return;
     window.addEventListener("beforeunload", () => {
       permissionClient.confirm(uuid, {
         allow: false,
@@ -39,11 +44,10 @@ function App() {
       .catch((e: any) => {
         Message.error(e.message || t("get_confirm_error"));
       });
-  }, []);
+  }, [uuid, t]);
 
   const handleConfirm = (allow: boolean, type: number) => {
     return async () => {
-      if (!uuid) return;
       try {
         await permissionClient.confirm(uuid, {
           allow,
@@ -141,6 +145,17 @@ function App() {
       </Space>
     </div>
   );
+}
+
+function App() {
+  const params = new URLSearchParams(location.search);
+  const uuid = params.get("uuid");
+
+  if (uuid) {
+    return <PermissionConfirmRequest uuid={uuid} />;
+  }
+
+  return null;
 }
 
 export default App;
