@@ -54,7 +54,7 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
-import { addSessionRules } from "../dnr";
+import { addSessionRules, sessionRuleDynamicAdd, sessionRuleDynamicRemove } from "../dnr";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -195,37 +195,6 @@ export const getConnectMatched = (
     }
   }
   return ConnectMatch.NONE;
-};
-
-const sessionRuleDynamicAdd = (rule: chrome.declarativeNetRequest.Rule, resolve?: ResolveFn) => {
-  chrome.declarativeNetRequest.updateSessionRules(
-    {
-      removeRuleIds: [rule.id],
-      addRules: [rule],
-    },
-    () => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-      }
-      resolve?.();
-    }
-  );
-};
-
-const sessionRuleDynamicRemove = (ruleId: number, resolve?: ResolveFn) => {
-  chrome.declarativeNetRequest.updateSessionRules(
-    {
-      removeRuleIds: [ruleId],
-    },
-    () => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-      }
-      resolve?.();
-    }
-  );
 };
 
 type NotificationData = {

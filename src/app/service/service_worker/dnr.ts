@@ -25,3 +25,34 @@ export const addSessionRules = async (rules: chrome.declarativeNetRequest.Rule[]
     }
   );
 };
+
+export const sessionRuleDynamicAdd = (rule: chrome.declarativeNetRequest.Rule, resolve?: ResolveFn) => {
+  chrome.declarativeNetRequest.updateSessionRules(
+    {
+      removeRuleIds: [rule.id],
+      addRules: [rule],
+    },
+    () => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
+      }
+      resolve?.();
+    }
+  );
+};
+
+export const sessionRuleDynamicRemove = (ruleId: number, resolve?: ResolveFn) => {
+  chrome.declarativeNetRequest.updateSessionRules(
+    {
+      removeRuleIds: [ruleId],
+    },
+    () => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
+      }
+      resolve?.();
+    }
+  );
+};
