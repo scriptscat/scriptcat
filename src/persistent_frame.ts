@@ -1,5 +1,6 @@
 // persistent_frame.ts
 const WAKE_UP_INTERVAL = 2000;
+const RUNNER_RATE = 496.75;
 let waitState = 0;
 let lastNow = 0;
 if (typeof frameElement === "object" && frameElement) {
@@ -22,7 +23,7 @@ if (typeof frameElement === "object" && frameElement) {
     if (waitState === 2) {
       if (typeof ev.data === "object" && ev.data?.myCustomAction === "waked-up") {
         if (scheduler_) {
-          scheduler_.postTask(() => runner(Date.now()), { priority: "background", delay: 496.75 });
+          scheduler_.postTask(() => runner(Date.now()), { priority: "background", delay: RUNNER_RATE });
         } else {
           runner(ev.timeStamp);
         }
