@@ -208,7 +208,7 @@ const sessionRuleDynamicAdd = (rule: chrome.declarativeNetRequest.Rule, resolve?
       if (lastError) {
         console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
       }
-      resolve();
+      resolve?.();
     }
   );
 };
@@ -223,7 +223,7 @@ const sessionRuleDynamicRemove = (ruleId: number, resolve?: any) => {
       if (lastError) {
         console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
       }
-      resolve();
+      resolve?.();
     }
   );
 };
