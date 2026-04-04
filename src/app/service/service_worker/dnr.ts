@@ -4,8 +4,7 @@
 const scheduler_ =
   typeof scheduler !== "undefined" &&
   typeof scheduler?.postTask === "function" &&
-  typeof scheduler?.yield === "function" &&
-  process.env.VI_TESTING !== "true"
+  typeof scheduler?.yield === "function"
     ? scheduler
     : null;
 

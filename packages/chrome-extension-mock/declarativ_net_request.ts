@@ -30,9 +30,10 @@ export default class DeclarativeNetRequest {
     OTHER: "other",
   };
 
-  updateSessionRules() {
+  updateSessionRules(rule: any, callback?: any) {
     return new Promise<void>((resolve) => {
       resolve();
+      callback?.();
     });
   }
 }
