@@ -237,22 +237,10 @@ export async function fetchIconByService(domain: string, service: FaviconService
        */
       return [`https://icons.duckduckgo.com/ip3/${encodeURI(domain)}.ico`];
 
-    case "favicone":
-      /**
-       * Favicone.com
-       * - 尺寸：支持 s 参数（如 16 / 32 / 64）
-       * - 限制：可能存在频率限制
-       * - 收费：免费（无官方 SLA）
-       * - 中国访问：⚠️ 不稳定
-       * - 缓存：建议缓存
-       * - 特点：返回 png，适合前端展示
-       */
-      return [`https://favicone.com/${encodeURI(domain)}?s=64`];
-
     case "icon-horse":
       /**
        * Icon Horse
-       * - 尺寸：自动适配（返回较高清 png）
+       * - 尺寸：自动适配（返回较高清 ico）
        * - 限制：未公开限流策略
        * - 收费：免费（轻量使用）
        * - 中国访问：⚠️ 较慢或不稳定
@@ -260,66 +248,6 @@ export async function fetchIconByService(domain: string, service: FaviconService
        * - 特点：质量较好，支持 fallback
        */
       return [`https://icon.horse/icon/${encodeURI(domain)}`];
-
-    case "favicon.im":
-      /**
-       * favicon.im
-       * - 尺寸：自动获取（通常较清晰）
-       * - 限制：未知
-       * - 收费：免费
-       * - 中国访问：⚠️ 不稳定
-       * - 缓存：建议缓存
-       * - 特点：接口简单
-       */
-      return [`https://favicon.im/${encodeURI(domain)}`];
-
-    case "vemetric":
-      /**
-       * Vemetric favicon 服务
-       * - 尺寸：支持 size 参数（如 32 / 64 / 128）
-       * - 限制：无公开说明
-       * - 收费：免费
-       * - 中国访问：⚠️ 可能较慢
-       * - 缓存：建议缓存
-       * - 特点：支持高清 favicon
-       */
-      return [`https://favicon.vemetric.com/${encodeURI(domain)}?size=64`]; // 特殊图标
-
-    case "yandex":
-      /**
-       * Yandex favicon
-       * - 尺寸：仅支持 16x16
-       * - 限制：无公开文档
-       * - 收费：免费
-       * - 中国访问：⚠️ 不稳定
-       * - 缓存：建议缓存
-       * - 特点：俄罗斯搜索引擎，fallback 用
-       */
-      return [`https://favicon.yandex.net/favicon/${encodeURI(domain)}`]; // 只有16x16
-
-    case "allesedv":
-      /**
-       * Allesedv favicon
-       * - 尺寸：路径中指定（如 /16/）
-       * - 限制：未知
-       * - 收费：免费
-       * - 中国访问：⚠️ 一般
-       * - 缓存：建议缓存
-       * - 特点：简单备用服务
-       */
-      return [`https://f1.allesedv.com/16/${encodeURI(domain)}`];
-
-    case "manifest.im":
-      /**
-       * manifest.im
-       * - 尺寸：自动解析网站 manifest（可能返回较大图标）
-       * - 限制：依赖目标站点
-       * - 收费：免费
-       * - 中国访问：⚠️ 不稳定
-       * - 缓存：建议缓存
-       * - 特点：可获取 PWA 图标（质量高）
-       */
-      return [`https://manifest.im/icon/${encodeURI(domain)}`];
 
     case "local":
     default:
