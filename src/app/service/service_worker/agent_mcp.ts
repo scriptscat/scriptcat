@@ -80,7 +80,7 @@ export class MCPService {
         description: `[MCP: ${config.name}] ${tool.description || tool.name}`,
         parameters: tool.inputSchema,
       };
-      this.toolRegistry.registerBuiltin(definition, new MCPToolExecutor(client, tool.name));
+      this.toolRegistry.register("mcp", definition, new MCPToolExecutor(client, tool.name));
       toolNames.push(name);
     }
     this.registeredTools.set(id, toolNames);
@@ -107,7 +107,7 @@ export class MCPService {
     const toolNames = this.registeredTools.get(id);
     if (toolNames) {
       for (const name of toolNames) {
-        this.toolRegistry.unregisterBuiltin(name);
+        this.toolRegistry.unregister(name);
       }
       this.registeredTools.delete(id);
     }

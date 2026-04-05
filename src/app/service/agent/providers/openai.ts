@@ -253,3 +253,17 @@ export function parseOpenAIStream(
     }
   })();
 }
+
+// ---- LLMProvider 接口适配 ----
+
+import type { LLMProvider } from "./types";
+import { providerRegistry } from "./registry";
+
+/** OpenAI 兼容格式的 Provider 实现 */
+export const openaiProvider: LLMProvider = {
+  name: "openai",
+  buildRequest: (input) => buildOpenAIRequest(input.model, input.request, input.resolver),
+  parseStream: (reader, onEvent, signal) => parseOpenAIStream(reader, onEvent, signal),
+};
+
+providerRegistry.register(openaiProvider);

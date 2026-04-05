@@ -1,10 +1,9 @@
 import type { Group } from "@Packages/message/server";
+// 触发所有搜索引擎注册（副作用导入）
+import "./search_engines";
+import { searchEngineRegistry } from "./search_engines/registry";
 
-export type SearchResult = {
-  title: string;
-  url: string;
-  snippet: string;
-};
+export type { SearchResult } from "./search_engines/types";
 
 export class HtmlExtractorService {
   constructor(private group: Group) {}
@@ -301,94 +300,31 @@ export class HtmlExtractorService {
     }
   }
 
-  // 解析 Bing 搜索结果
-  extractBingResults(html: string): SearchResult[] {
+  // 解析 Bing 搜索结果（适配层：委托给 bingEngine 插件）
+  extractBingResults(html: string): import("./search_engines/types").SearchResult[] {
     try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const results: SearchResult[] = [];
-
-      const resultEls = doc.querySelectorAll(".b_algo");
-      for (const el of Array.from(resultEls)) {
-        const linkEl = el.querySelector("h2 > a");
-        const snippetEl = el.querySelector(".b_caption p, p");
-        if (!linkEl) continue;
-
-        const title = (linkEl.textContent || "").trim();
-        const url = linkEl.getAttribute("href") || "";
-        const snippet = (snippetEl?.textContent || "").trim();
-
-        if (title && url) {
-          results.push({ title, url, snippet });
-        }
-      }
-
-      return results;
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      return searchEngineRegistry.get("bing")?.extract(doc) ?? [];
     } catch {
       return [];
     }
   }
 
-  // 解析百度搜索结果
-  extractBaiduResults(html: string): SearchResult[] {
+  // 解析百度搜索结果（适配层：委托给 baiduEngine 插件）
+  extractBaiduResults(html: string): import("./search_engines/types").SearchResult[] {
     try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const results: SearchResult[] = [];
-
-      const resultEls = doc.querySelectorAll(".result, .result-op");
-      for (const el of Array.from(resultEls)) {
-        const linkEl = el.querySelector(".t > a, h3 > a");
-        const snippetEl = el.querySelector(".c-abstract, .c-span-last");
-        if (!linkEl) continue;
-
-        const title = (linkEl.textContent || "").trim();
-        const url = linkEl.getAttribute("href") || "";
-        const snippet = (snippetEl?.textContent || "").trim();
-
-        if (title && url) {
-          results.push({ title, url, snippet });
-        }
-      }
-
-      return results;
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      return searchEngineRegistry.get("baidu")?.extract(doc) ?? [];
     } catch {
       return [];
     }
   }
 
-  extractSearchResults(html: string): SearchResult[] {
+  // 解析 DuckDuckGo 搜索结果（适配层：委托给 duckduckgoEngine 插件）
+  extractSearchResults(html: string): import("./search_engines/types").SearchResult[] {
     try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const results: SearchResult[] = [];
-
-      // DuckDuckGo HTML 搜索结果
-      const resultEls = doc.querySelectorAll(".result");
-      for (const el of Array.from(resultEls)) {
-        const linkEl = el.querySelector(".result__a");
-        const snippetEl = el.querySelector(".result__snippet");
-        if (!linkEl) continue;
-
-        const title = (linkEl.textContent || "").trim();
-        let url = linkEl.getAttribute("href") || "";
-        // DuckDuckGo 使用重定向 URL，提取实际 URL
-        if (url.includes("uddg=")) {
-          try {
-            const urlObj = new URL(url, "https://duckduckgo.com");
-            url = decodeURIComponent(urlObj.searchParams.get("uddg") || url);
-          } catch {
-            // 保持原始 URL
-          }
-        }
-        const snippet = (snippetEl?.textContent || "").trim();
-
-        if (title && url) {
-          results.push({ title, url, snippet });
-        }
-      }
-
-      return results;
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      return searchEngineRegistry.get("duckduckgo")?.extract(doc) ?? [];
     } catch {
       return [];
     }

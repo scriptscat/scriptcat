@@ -320,3 +320,17 @@ export function parseAnthropicStream(
     }
   })();
 }
+
+// ---- LLMProvider 接口适配 ----
+
+import type { LLMProvider } from "./types";
+import { providerRegistry } from "./registry";
+
+/** Anthropic Claude 格式的 Provider 实现 */
+export const anthropicProvider: LLMProvider = {
+  name: "anthropic",
+  buildRequest: (input) => buildAnthropicRequest(input.model, input.request, input.resolver),
+  parseStream: (reader, onEvent, signal) => parseAnthropicStream(reader, onEvent, signal),
+};
+
+providerRegistry.register(anthropicProvider);

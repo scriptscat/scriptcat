@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { ToolRegistry } from "./tool_registry";
-import type { ToolExecutor } from "./tool_registry";
+import type { ToolExecutor, ToolSource } from "./tool_registry";
 import type { ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 
@@ -433,6 +433,139 @@ describe("ToolRegistry", () => {
       registry.registerBuiltin(weatherDef, exec3);
       const r3 = await registry.execute([{ id: "t3", name: "get_weather", arguments: "{}" }]);
       expect(r3[0].attachments).toBeUndefined();
+    });
+  });
+
+  describe("来源追踪 API（register / getSource / listBySource / unregisterBySource）", () => {
+    it("register 注册工具后 getSource 应返回正确来源", () => {
+      const registry = new ToolRegistry();
+      registry.register("mcp", weatherDef, createExecutor(async () => "ok"));
+      expect(registry.getSource("get_weather")).toBe("mcp");
+    });
+
+    it("registerBuiltin 注册的工具来源应为 builtin", () => {
+      const registry = new ToolRegistry();
+      registry.registerBuiltin(weatherDef, createExecutor(async () => "ok"));
+      expect(registry.getSource("get_weather")).toBe("builtin");
+    });
+
+    it("getSource 查询不存在的工具应返回 undefined", () => {
+      const registry = new ToolRegistry();
+      expect(registry.getSource("nonexistent")).toBeUndefined();
+    });
+
+    it("listBySource 应只返回指定来源的工具名", () => {
+      const registry = new ToolRegistry();
+      registry.register("builtin", weatherDef, createExecutor(async () => ""));
+      registry.register("mcp", calcDef, createExecutor(async () => ""));
+      registry.register("skill", { name: "load_skill", description: "加载 skill", parameters: { type: "object", properties: {} } }, createExecutor(async () => ""));
+
+      expect(registry.listBySource("builtin")).toEqual(["get_weather"]);
+      expect(registry.listBySource("mcp")).toEqual(["calc"]);
+      expect(registry.listBySource("skill")).toEqual(["load_skill"]);
+      expect(registry.listBySource("script")).toEqual([]);
+    });
+
+    it("unregisterBySource 应批量删除指定来源的工具并返回名称列表", () => {
+      const registry = new ToolRegistry();
+      registry.register("mcp", weatherDef, createExecutor(async () => ""));
+      registry.register("mcp", calcDef, createExecutor(async () => ""));
+      registry.register("builtin", { name: "web_fetch", description: "抓取", parameters: { type: "object", properties: {} } }, createExecutor(async () => ""));
+
+      const removed = registry.unregisterBySource("mcp");
+      expect(removed).toHaveLength(2);
+      expect(removed).toContain("get_weather");
+      expect(removed).toContain("calc");
+      // builtin 工具应保留
+      expect(registry.getDefinitions()).toHaveLength(1);
+      expect(registry.getDefinitions()[0].name).toBe("web_fetch");
+    });
+
+    it("unregisterBySource 无匹配工具时应返回空数组", () => {
+      const registry = new ToolRegistry();
+      registry.register("builtin", weatherDef, createExecutor(async () => ""));
+      expect(registry.unregisterBySource("mcp")).toEqual([]);
+    });
+
+    it("unregister 应按名称删除工具", () => {
+      const registry = new ToolRegistry();
+      registry.register("mcp", weatherDef, createExecutor(async () => ""));
+      expect(registry.unregister("get_weather")).toBe(true);
+      expect(registry.getDefinitions()).toHaveLength(0);
+    });
+
+    it("unregister 删除不存在的工具应返回 false", () => {
+      const registry = new ToolRegistry();
+      expect(registry.unregister("nonexistent")).toBe(false);
+    });
+  });
+
+  describe("withScopedTools", () => {
+    it("fn 正常执行后应清理所有 scoped 工具", async () => {
+      const registry = new ToolRegistry();
+      registry.register("builtin", weatherDef, createExecutor(async () => ""));
+
+      await registry.withScopedTools(
+        "skill",
+        [{ definition: calcDef, executor: createExecutor(async () => "42") }],
+        async () => {
+          // fn 执行期间 scoped 工具应存在
+          expect(registry.getSource("calc")).toBe("skill");
+          expect(registry.getDefinitions()).toHaveLength(2);
+        }
+      );
+
+      // fn 结束后 scoped 工具应被清理
+      expect(registry.getSource("calc")).toBeUndefined();
+      expect(registry.getDefinitions()).toHaveLength(1);
+    });
+
+    it("fn 抛出异常时也应清理 scoped 工具（finally 保证）", async () => {
+      const registry = new ToolRegistry();
+
+      await expect(
+        registry.withScopedTools(
+          "skill",
+          [{ definition: calcDef, executor: createExecutor(async () => "42") }],
+          async () => {
+            throw new Error("测试异常");
+          }
+        )
+      ).rejects.toThrow("测试异常");
+
+      // 即使抛出，scoped 工具也应被清理
+      expect(registry.getSource("calc")).toBeUndefined();
+    });
+
+    it("withScopedTools 应返回 fn 的返回值", async () => {
+      const registry = new ToolRegistry();
+
+      const result = await registry.withScopedTools(
+        "skill",
+        [{ definition: calcDef, executor: createExecutor(async () => "") }],
+        async () => "scoped_result"
+      );
+
+      expect(result).toBe("scoped_result");
+    });
+
+    it("多个 scoped 工具应全部被清理", async () => {
+      const registry = new ToolRegistry();
+      const toolA: ToolDefinition = { name: "tool_a", description: "A", parameters: { type: "object", properties: {} } };
+      const toolB: ToolDefinition = { name: "tool_b", description: "B", parameters: { type: "object", properties: {} } };
+
+      await registry.withScopedTools(
+        "skill",
+        [
+          { definition: toolA, executor: createExecutor(async () => "") },
+          { definition: toolB, executor: createExecutor(async () => "") },
+        ],
+        async () => {
+          expect(registry.listBySource("skill")).toHaveLength(2);
+        }
+      );
+
+      expect(registry.listBySource("skill")).toHaveLength(0);
     });
   });
 });

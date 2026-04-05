@@ -30,8 +30,7 @@ import type {
 } from "@App/app/service/agent/types";
 import { getTextContent, isContentBlocks } from "@App/app/service/agent/content_utils";
 import { supportsVision, supportsImageOutput } from "@App/pages/options/routes/AgentChat/model_utils";
-import { buildOpenAIRequest, parseOpenAIStream } from "@App/app/service/agent/providers/openai";
-import { buildAnthropicRequest, parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
+import { providerRegistry } from "@App/app/service/agent/providers";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { AgentModelRepo } from "@App/app/repo/agent_model";
 import { SkillRepo } from "@App/app/repo/skill_repo";
@@ -2328,16 +2327,22 @@ export class AgentService {
     // 预解析消息中 ContentBlock 引用的 attachmentId → base64
     const attachmentResolver = await this.resolveAttachments(params.messages, model);
 
-    const { url, init } =
-      model.provider === "anthropic"
-        ? buildAnthropicRequest(model, chatRequest, attachmentResolver)
-        : buildOpenAIRequest(
-            model.provider === "zhipu"
-              ? { ...model, apiBaseUrl: model.apiBaseUrl || "https://open.bigmodel.cn/api/paas/v4" }
-              : model,
-            chatRequest,
-            attachmentResolver
-          );
+    // zhipu 暂无独立实现，映射到 openai provider；独立实现后可移除此映射
+    const providerName = model.provider === "zhipu" ? "openai" : model.provider;
+    const provider = providerRegistry.get(providerName);
+    if (!provider) {
+      throw new Error(`Unsupported LLM provider: ${model.provider}`);
+    }
+    // zhipu 需要设置默认 apiBaseUrl
+    const resolvedModel =
+      model.provider === "zhipu"
+        ? { ...model, apiBaseUrl: model.apiBaseUrl || "https://open.bigmodel.cn/api/paas/v4" }
+        : model;
+    const { url, init } = await provider.buildRequest({
+      model: resolvedModel,
+      request: chatRequest,
+      resolver: attachmentResolver,
+    });
 
     // 带重试的 LLM 调用，最多重试 5 次，间隔递增：10s, 10s, 20s, 20s, 30s
     const RETRY_DELAYS = [10_000, 10_000, 20_000, 20_000, 30_000];
@@ -2402,7 +2407,7 @@ export class AgentService {
     }
 
     const reader = response.body!.getReader();
-    const parseStream = model.provider === "anthropic" ? parseAnthropicStream : parseOpenAIStream;
+    const parseStream = provider.parseStream.bind(provider);
 
     // 收集响应
     let content = "";

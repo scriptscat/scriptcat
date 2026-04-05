@@ -8,6 +8,16 @@ export interface ToolExecutor {
   execute(args: Record<string, unknown>): Promise<unknown>;
 }
 
+// 工具来源分类
+export type ToolSource = "builtin" | "mcp" | "skill" | "script";
+
+// 工具条目（带来源追踪）
+interface ToolEntry {
+  definition: ToolDefinition;
+  executor: ToolExecutor;
+  source: ToolSource;
+}
+
 // 脚本工具回调类型：将 tool calls 发送到 Sandbox 执行
 export type ScriptToolCallback = (toolCalls: ToolCall[]) => Promise<Array<{ id: string; result: string }>>;
 
@@ -42,7 +52,7 @@ function isToolResultWithSubAgent(value: unknown): value is { content: string; s
 
 // 工具注册表，管理内置工具和脚本工具的统一执行
 export class ToolRegistry {
-  private builtinTools = new Map<string, { definition: ToolDefinition; executor: ToolExecutor }>();
+  private tools = new Map<string, ToolEntry>();
   private chatRepo?: AgentChatRepo;
 
   // 注入 AgentChatRepo 用于保存附件
@@ -50,20 +60,75 @@ export class ToolRegistry {
     this.chatRepo = repo;
   }
 
-  // 注册内置工具（由 SW 直接执行）
-  registerBuiltin(definition: ToolDefinition, executor: ToolExecutor): void {
-    this.builtinTools.set(definition.name, { definition, executor });
+  // 注册工具（带来源追踪）
+  register(source: ToolSource, definition: ToolDefinition, executor: ToolExecutor): void {
+    this.tools.set(definition.name, { definition, executor, source });
   }
 
-  // 注销内置工具
+  // 注册内置工具（兼容旧 API，等价于 register("builtin", ...)）
+  registerBuiltin(definition: ToolDefinition, executor: ToolExecutor): void {
+    this.register("builtin", definition, executor);
+  }
+
+  // 按名称注销工具
+  unregister(name: string): boolean {
+    return this.tools.delete(name);
+  }
+
+  // 注销内置工具（兼容旧 API，等价于 unregister(name)）
   unregisterBuiltin(name: string): boolean {
-    return this.builtinTools.delete(name);
+    return this.unregister(name);
+  }
+
+  // 批量注销某个来源的所有工具（用于 MCP server 断开时清理）
+  unregisterBySource(source: ToolSource): string[] {
+    const removed: string[] = [];
+    for (const [name, entry] of this.tools.entries()) {
+      if (entry.source === source) {
+        this.tools.delete(name);
+        removed.push(name);
+      }
+    }
+    return removed;
+  }
+
+  // 获取某个工具的来源信息（调试用）
+  getSource(name: string): ToolSource | undefined {
+    return this.tools.get(name)?.source;
+  }
+
+  // 列出某来源的所有工具名
+  listBySource(source: ToolSource): string[] {
+    const names: string[] = [];
+    for (const [name, entry] of this.tools.entries()) {
+      if (entry.source === source) names.push(name);
+    }
+    return names;
+  }
+
+  // 在临时 scoped 工具范围内执行 fn，保证 finally 清理（即使 fn 抛出）
+  // 注意：仍是共享 Map，并发调用同名工具时会互相覆盖；真正的会话隔离需重构为每会话独立实例
+  async withScopedTools<T>(
+    source: ToolSource,
+    scopedTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    for (const t of scopedTools) {
+      this.register(source, t.definition, t.executor);
+    }
+    try {
+      return await fn();
+    } finally {
+      for (const t of scopedTools) {
+        this.unregister(t.definition.name);
+      }
+    }
   }
 
   // 获取所有工具定义（内置 + 额外的脚本工具），发送给 LLM
   getDefinitions(extraTools?: ToolDefinition[]): ToolDefinition[] {
     const definitions: ToolDefinition[] = [];
-    for (const { definition } of this.builtinTools.values()) {
+    for (const { definition } of this.tools.values()) {
       definitions.push(definition);
     }
     if (extraTools) {
@@ -72,13 +137,13 @@ export class ToolRegistry {
     return definitions;
   }
 
-  // 执行工具调用：先查内置工具，未找到则交给脚本回调
+  // 执行工具调用：先查注册工具，未找到则交给脚本回调
   async execute(toolCalls: ToolCall[], scriptCallback?: ScriptToolCallback | null): Promise<ToolExecuteResult[]> {
     const builtinCalls: ToolCall[] = [];
     const scriptCalls: ToolCall[] = [];
 
     for (const tc of toolCalls) {
-      if (this.builtinTools.has(tc.name)) {
+      if (this.tools.has(tc.name)) {
         builtinCalls.push(tc);
       } else {
         scriptCalls.push(tc);
@@ -87,10 +152,10 @@ export class ToolRegistry {
 
     const results: ToolExecuteResult[] = [];
 
-    // 并行执行内置工具
+    // 并行执行注册工具
     const builtinResults = await Promise.all(
       builtinCalls.map(async (tc): Promise<ToolExecuteResult> => {
-        const tool = this.builtinTools.get(tc.name)!;
+        const tool = this.tools.get(tc.name)!;
         try {
           let args: Record<string, unknown> = {};
           if (tc.arguments) {
@@ -108,7 +173,7 @@ export class ToolRegistry {
             return { id: tc.id, result: typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult) };
           }
         } catch (e: any) {
-          console.error(`[ToolRegistry] builtin tool "${tc.name}" execution failed:`, e);
+          console.error(`[ToolRegistry] tool "${tc.name}" execution failed:`, e);
           return { id: tc.id, result: JSON.stringify({ error: extractErrorMessage(e) }) };
         }
       })
@@ -135,7 +200,7 @@ export class ToolRegistry {
         }
       } else {
         // 没有脚本回调，返回错误并列出可用工具名，引导 LLM 自我纠正
-        const availableNames = Array.from(this.builtinTools.keys());
+        const availableNames = Array.from(this.tools.keys());
         for (const tc of scriptCalls) {
           const hint = availableNames.includes("execute_skill_script")
             ? ` If "${tc.name}" is a skill script, use the "execute_skill_script" tool instead.`
