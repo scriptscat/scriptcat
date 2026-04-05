@@ -12,7 +12,7 @@ import {
   IconThunderbolt,
 } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/types";
+import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/core/types";
 import { groupModelsByProvider, supportsVision, supportsImageOutput } from "./model_utils";
 import ProviderIcon from "./ProviderIcon";
 

@@ -1,4 +1,4 @@
-import type { AgentModelConfig } from "@App/app/service/agent/types";
+import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 
 // 已知供应商信息
 export type ProviderInfo = {

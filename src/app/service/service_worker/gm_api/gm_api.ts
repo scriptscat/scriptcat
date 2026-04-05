@@ -41,7 +41,7 @@ import {
   getSkillScriptGrantsByUuid,
   getSkillScriptNameByUuid,
   SKILL_SCRIPT_UUID_PREFIX,
-} from "@App/app/service/agent/skill_script_executor";
+} from "@App/app/service/agent/core/skill_script_executor";
 import i18n from "@App/locales/locales";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { createObjectURL } from "../../offscreen/client";
@@ -59,7 +59,7 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
-import type { AgentService } from "../agent";
+import type { AgentService } from "@App/app/service/agent/service_worker/agent";
 // 导入 Agent API 以触发装饰器注册
 // 注意：不能使用 import "./gm_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
 import GMAgentApi from "./gm_agent";

@@ -1,8 +1,8 @@
 import { Card, Message, Select, Input, Space, Typography, Alert } from "@arco-design/web-react";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
-import type { AgentModelConfig } from "@App/app/service/agent/types";
-import type { SearchEngineConfig } from "@App/app/service/agent/tools/search_config";
+import type { AgentModelConfig } from "@App/app/service/agent/core/types";
+import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
 import { agentClient } from "@App/pages/store/features/script";
 
 const engineTipKeys: Record<SearchEngineConfig["engine"], string> = {

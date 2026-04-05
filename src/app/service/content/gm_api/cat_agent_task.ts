@@ -1,5 +1,5 @@
 import GMContext from "./gm_context";
-import type { AgentTask, AgentTaskApiRequest, AgentTaskTrigger } from "@App/app/service/agent/types";
+import type { AgentTask, AgentTaskApiRequest, AgentTaskTrigger } from "@App/app/service/agent/core/types";
 import type EventEmitter from "eventemitter3";
 
 // 运行时 this 是 GM_Base 实例

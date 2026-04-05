@@ -3,7 +3,7 @@ import { Button, Space, Tag, Typography } from "@arco-design/web-react";
 import { IconDown, IconUp } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
-import type { SkillConfigField } from "@App/app/service/agent/types";
+import type { SkillConfigField } from "@App/app/service/agent/core/types";
 
 interface SkillInstallViewProps {
   metadata: { name: string; description: string; config?: Record<string, SkillConfigField> };

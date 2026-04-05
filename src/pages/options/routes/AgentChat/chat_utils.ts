@@ -1,4 +1,4 @@
-import type { ChatMessage, MessageContent } from "@App/app/service/agent/types";
+import type { ChatMessage, MessageContent } from "@App/app/service/agent/core/types";
 
 // 将消息按角色分组：连续的 assistant 消息合并为一组
 export type MessageGroup = { type: "user"; message: ChatMessage } | { type: "assistant"; messages: ChatMessage[] };

@@ -1,4 +1,4 @@
-import type { SkillApiRequest, SkillRecord, SkillSummary } from "@App/app/service/agent/types";
+import type { SkillApiRequest, SkillRecord, SkillSummary } from "@App/app/service/agent/core/types";
 import GMContext from "./gm_context";
 
 // 运行时 this 是 GM_Base 实例

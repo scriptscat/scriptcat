@@ -1,7 +1,7 @@
-import type { Conversation, ChatMessage } from "@App/app/service/agent/types";
-import type { Task } from "@App/app/service/agent/tools/task_tools";
+import type { Conversation, ChatMessage } from "@App/app/service/agent/core/types";
+import type { Task } from "@App/app/service/agent/core/tools/task_tools";
 import { OPFSRepo } from "./opfs_repo";
-import { writeWorkspaceFile, getWorkspaceRoot, getDirectory } from "@App/app/service/agent/opfs_helpers";
+import { writeWorkspaceFile, getWorkspaceRoot, getDirectory } from "@App/app/service/agent/core/opfs_helpers";
 
 const CONVERSATIONS_FILE = "conversations.json";
 const MESSAGES_DIR = "data";

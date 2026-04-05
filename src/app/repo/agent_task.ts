@@ -1,4 +1,4 @@
-import type { AgentTask, AgentTaskRun } from "@App/app/service/agent/types";
+import type { AgentTask, AgentTaskRun } from "@App/app/service/agent/core/types";
 import { Repo } from "./repo";
 
 export class AgentTaskRepo extends Repo<AgentTask> {

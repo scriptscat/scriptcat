@@ -10,7 +10,7 @@ import {
   IconDownload,
 } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import type { Conversation } from "@App/app/service/agent/types";
+import type { Conversation } from "@App/app/service/agent/core/types";
 
 export default function ConversationList({
   conversations,

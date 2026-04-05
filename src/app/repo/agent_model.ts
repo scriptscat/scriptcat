@@ -1,4 +1,4 @@
-import type { AgentModelConfig } from "@App/app/service/agent/types";
+import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { Repo, loadCache } from "./repo";
 
 const DEFAULT_MODEL_KEY = "agent_model:__default__";

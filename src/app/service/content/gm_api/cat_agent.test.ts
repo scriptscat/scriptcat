@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ConversationInstance } from "./cat_agent";
-import type { Conversation, StreamChunk } from "@App/app/service/agent/types";
+import type { Conversation, StreamChunk } from "@App/app/service/agent/core/types";
 import type { MessageConnect } from "@Packages/message/types";
 
 function mockConversation(overrides?: Partial<Conversation>): Conversation {

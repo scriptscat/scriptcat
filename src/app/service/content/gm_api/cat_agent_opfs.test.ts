@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { OPFSApiRequest } from "@App/app/service/agent/types";
+import type { OPFSApiRequest } from "@App/app/service/agent/core/types";
 
 // 直接导入以触发装饰器注册
 import CATAgentOPFSApi from "./cat_agent_opfs";

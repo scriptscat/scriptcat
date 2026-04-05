@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Breadcrumb, Button, Card, Empty, Message, Modal, Space, Table } from "@arco-design/web-react";
 import { IconDelete, IconDownload, IconEye, IconFolder, IconFile, IconImage } from "@arco-design/web-react/icon";
-import { isImageFileName } from "@App/app/service/agent/content_utils";
+import { isImageFileName } from "@App/app/service/agent/core/content_utils";
 
 interface FileEntry {
   name: string;

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { AgentTaskRepo, AgentTaskRunRepo } from "./agent_task";
-import type { AgentTask, AgentTaskRun } from "@App/app/service/agent/types";
+import type { AgentTask, AgentTaskRun } from "@App/app/service/agent/core/types";
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {

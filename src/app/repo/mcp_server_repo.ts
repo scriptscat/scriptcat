@@ -1,4 +1,4 @@
-import type { MCPServerConfig } from "@App/app/service/agent/types";
+import type { MCPServerConfig } from "@App/app/service/agent/core/types";
 import { Repo } from "./repo";
 
 // 使用 chrome.storage.local 存储 MCP 服务器配置

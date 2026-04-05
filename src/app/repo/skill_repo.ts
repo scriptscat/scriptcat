@@ -1,4 +1,4 @@
-import type { SkillScriptRecord, SkillRecord, SkillReference, SkillSummary } from "@App/app/service/agent/types";
+import type { SkillScriptRecord, SkillRecord, SkillReference, SkillSummary } from "@App/app/service/agent/core/types";
 import { OPFSRepo } from "./opfs_repo";
 
 const REGISTRY_FILE = "registry.json";

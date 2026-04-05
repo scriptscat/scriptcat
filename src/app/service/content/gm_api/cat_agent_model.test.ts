@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AgentModelSafeConfig, ModelApiRequest } from "@App/app/service/agent/types";
+import type { AgentModelSafeConfig, ModelApiRequest } from "@App/app/service/agent/core/types";
 
 // 直接导入以触发装饰器注册
 import CATAgentModelApi from "./cat_agent_model";

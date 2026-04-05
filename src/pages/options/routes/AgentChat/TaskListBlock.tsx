@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { IconCheck, IconLoading, IconDown } from "@arco-design/web-react/icon";
-import type { Task } from "@App/app/service/agent/tools/task_tools";
+import type { Task } from "@App/app/service/agent/core/tools/task_tools";
 
 function TaskStatusIcon({ status }: { status: Task["status"] }) {
   switch (status) {

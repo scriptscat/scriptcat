@@ -20,7 +20,7 @@ import {
 import { IconDelete, IconEdit, IconHistory, IconPlayArrow, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
-import type { AgentTask, AgentTaskRun, AgentModelConfig } from "@App/app/service/agent/types";
+import type { AgentTask, AgentTaskRun, AgentModelConfig } from "@App/app/service/agent/core/types";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";

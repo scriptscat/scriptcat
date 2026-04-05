@@ -1,4 +1,4 @@
-import type { SkillConfigField, SkillMetadata } from "@App/app/service/agent/types";
+import type { SkillConfigField, SkillMetadata } from "@App/app/service/agent/core/types";
 import { parse as parseYaml } from "yaml";
 import { loadAsyncJSZip } from "./jszip-x";
 

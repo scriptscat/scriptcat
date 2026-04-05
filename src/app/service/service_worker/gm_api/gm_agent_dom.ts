@@ -5,7 +5,7 @@ import type { IGetSender } from "@Packages/message/server";
 import type { ConfirmParam } from "../permission_verify";
 import PermissionVerify, { type ApiParamConfirmFn } from "../permission_verify";
 import type { GMApiRequest } from "../types";
-import type { DomApiRequest } from "@App/app/service/agent/types";
+import type { DomApiRequest } from "@App/app/service/agent/core/types";
 import i18next, { i18nName } from "@App/locales/locales";
 import type GMApi from "./gm_api";
 

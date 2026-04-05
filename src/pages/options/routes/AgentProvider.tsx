@@ -17,8 +17,8 @@ import {
 import { IconCheck, IconCopy, IconDelete, IconEdit, IconEye, IconImage, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AgentModelConfig } from "@App/app/service/agent/types";
-import { inferContextWindow } from "@App/app/service/agent/model_context";
+import type { AgentModelConfig } from "@App/app/service/agent/core/types";
+import { inferContextWindow } from "@App/app/service/agent/core/model_context";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { agentClient } from "@App/pages/store/features/script";
 import {

@@ -1,4 +1,4 @@
-import type { SkillScriptMetadata, SkillScriptParam } from "@App/app/service/agent/types";
+import type { SkillScriptMetadata, SkillScriptParam } from "@App/app/service/agent/core/types";
 
 // 解析 ==SkillScript== 元数据头
 export function parseSkillScriptMetadata(code: string): SkillScriptMetadata | null {

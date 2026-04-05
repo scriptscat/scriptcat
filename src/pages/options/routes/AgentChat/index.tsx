@@ -3,7 +3,7 @@ import { Message as ArcoMessage } from "@arco-design/web-react";
 import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
 import { useConversations, useSkills, useRunningConversations } from "./hooks";
-import type { AgentModelConfig } from "@App/app/service/agent/types";
+import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { agentClient } from "@App/pages/store/features/script";
 import { exportToMarkdown, downloadMarkdown } from "./export_utils";

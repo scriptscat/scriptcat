@@ -22,7 +22,7 @@ import type {
   SkillReference,
   SkillScriptRecord,
   SkillConfigField,
-} from "@App/app/service/agent/types";
+} from "@App/app/service/agent/core/types";
 import { SkillRepo } from "@App/app/repo/skill_repo";
 import { agentClient } from "@App/pages/store/features/script";
 

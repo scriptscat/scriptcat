@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { IconDown, IconCheck, IconExclamationCircleFill } from "@arco-design/web-react/icon";
-import type { SubAgentMessage, ToolCall } from "@App/app/service/agent/types";
+import type { SubAgentMessage, ToolCall } from "@App/app/service/agent/core/types";
 import ToolCallBlock from "./ToolCallBlock";
 import ContentBlockRenderer from "./ContentBlockRenderer";
 

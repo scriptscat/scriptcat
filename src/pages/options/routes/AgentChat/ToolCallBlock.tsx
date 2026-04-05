@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { IconDown, IconRight, IconCheck, IconClose } from "@arco-design/web-react/icon";
-import type { ToolCall } from "@App/app/service/agent/types";
+import type { ToolCall } from "@App/app/service/agent/core/types";
 import { AttachmentImage, AttachmentFile } from "./AttachmentRenderers";
 
 // 状态图标

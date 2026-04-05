@@ -11,8 +11,8 @@ import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/types";
-import type { SearchEngineConfig } from "@App/app/service/agent/tools/search_config";
+import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/core/types";
+import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
 import type {
   ScriptService,
   TCheckScriptUpdateOption,

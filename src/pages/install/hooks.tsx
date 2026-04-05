@@ -19,7 +19,7 @@ import { cacheInstance } from "@App/app/cache";
 import { formatBytes } from "@App/pkg/utils/utils";
 import { i18nName } from "@App/locales/locales";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
-import type { SkillScriptMetadata } from "@App/app/service/agent/types";
+import type { SkillScriptMetadata } from "@App/app/service/agent/core/types";
 import {
   cIdKey,
   backgroundPromptShownKey,

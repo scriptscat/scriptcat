@@ -21,7 +21,7 @@ import type {
   WaitForResult,
   MonitorResult,
   MonitorStatus,
-} from "@App/app/service/agent/types";
+} from "@App/app/service/agent/core/types";
 
 // 运行时 this 是 GM_Base 实例
 interface GMBaseContext {

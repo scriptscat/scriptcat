@@ -1,5 +1,5 @@
-import type { Conversation, ChatMessage, ToolCall, SubAgentDetails } from "@App/app/service/agent/types";
-import { getTextContent } from "@App/app/service/agent/content_utils";
+import type { Conversation, ChatMessage, ToolCall, SubAgentDetails } from "@App/app/service/agent/core/types";
+import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { mergeToolResults } from "./chat_utils";
 
 // 格式化时间戳

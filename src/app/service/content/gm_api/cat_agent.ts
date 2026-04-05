@@ -16,8 +16,8 @@ import type {
   ChatMessage,
   MessageRole,
   MessageContent,
-} from "@App/app/service/agent/types";
-import { getTextContent } from "@App/app/service/agent/content_utils";
+} from "@App/app/service/agent/core/types";
+import { getTextContent } from "@App/app/service/agent/core/content_utils";
 
 // 对话实例，暴露给用户脚本
 // 导出供测试使用

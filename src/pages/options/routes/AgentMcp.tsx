@@ -17,7 +17,7 @@ import {
 import { IconDelete, IconEdit, IconEye, IconLink, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
-import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/service/agent/types";
+import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/service/agent/core/types";
 import { agentClient } from "@App/pages/store/features/script";
 
 const emptyServer: Omit<MCPServerConfig, "id" | "createtime" | "updatetime"> = {

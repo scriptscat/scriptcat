@@ -5,7 +5,7 @@ import {
   supportsVisionByModelId,
   supportsVision,
 } from "./model_utils";
-import type { AgentModelConfig } from "@App/app/service/agent/types";
+import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 
 const makeModel = (model: string, overrides?: Partial<AgentModelConfig>): AgentModelConfig => ({
   id: "test",

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { IconDownload, IconEye } from "@arco-design/web-react/icon";
-import type { Attachment, AudioBlock } from "@App/app/service/agent/types";
+import type { Attachment, AudioBlock } from "@App/app/service/agent/core/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 
 const repo = new AgentChatRepo();

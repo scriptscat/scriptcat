@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { ChatMessage, ContentBlock, MessageContent, SubAgentDetails } from "@App/app/service/agent/types";
+import type { ChatMessage, ContentBlock, MessageContent, SubAgentDetails } from "@App/app/service/agent/core/types";
 import ContentBlockRenderer from "./ContentBlockRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
@@ -19,7 +19,7 @@ import {
   IconPlayCircle,
 } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-import { getTextContent } from "@App/app/service/agent/content_utils";
+import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 
 const chatRepo = new AgentChatRepo();

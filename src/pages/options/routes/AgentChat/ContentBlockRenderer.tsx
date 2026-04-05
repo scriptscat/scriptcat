@@ -1,4 +1,4 @@
-import type { MessageContent, AudioBlock } from "@App/app/service/agent/types";
+import type { MessageContent, AudioBlock } from "@App/app/service/agent/core/types";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { AttachmentImage, AttachmentFile, AttachmentAudio } from "./AttachmentRenderers";
 

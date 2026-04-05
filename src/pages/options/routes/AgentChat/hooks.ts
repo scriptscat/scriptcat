@@ -6,8 +6,8 @@ import type {
   ChatStreamEvent,
   SkillSummary,
   MessageContent,
-} from "@App/app/service/agent/types";
-import type { Task } from "@App/app/service/agent/tools/task_tools";
+} from "@App/app/service/agent/core/types";
+import type { Task } from "@App/app/service/agent/core/tools/task_tools";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { SkillRepo } from "@App/app/repo/skill_repo";
 import { message as extensionMessage } from "@App/pages/store/global";
