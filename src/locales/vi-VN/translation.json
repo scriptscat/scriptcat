@@ -598,8 +598,12 @@
   "favicon_service": "Dịch vụ Favicon",
   "favicon_service_desc": "Chọn dịch vụ để lấy biểu tượng trang web",
   "favicon_service_scriptcat": "ScriptCat",
-  "favicon_service_local": "Lấy cục bộ",
   "favicon_service_google": "Google",
+  "favicon_service_duckduckgo": "DuckDuckGo",
+  "favicon_service_favicone": "Favicone",
+  "favicon_service_icon-horse": "Icon Horse",
+  "favicon_service_baidu": "Baidu",
+  "favicon_service_local": "Lấy cục bộ",
   "editor": {
     "show_script_list": "Hiển thị danh sách script",
     "hide_script_list": "Ẩn danh sách script"

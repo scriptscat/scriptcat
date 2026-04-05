@@ -20,7 +20,7 @@ export type CloudSyncConfig = {
   params: { [key: string]: any };
 };
 
-export type FaviconService = "scriptcat" | "local" | "google";
+export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "favicone" | "icon-horse" | "baidu" | "local";
 
 export type CATFileStorage = {
   filesystem: FileSystemType;

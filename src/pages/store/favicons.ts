@@ -203,6 +203,14 @@ export async function fetchIconByService(domain: string, service: FaviconService
       return [`https://ext.scriptcat.org/api/v1/open/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
     case "google":
       return [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
+    case "duckduckgo":
+      return [`https://icons.duckduckgo.com/ip3/${encodeURI(domain)}.ico`];
+    case "favicone":
+      return [`https://favicone.com/${encodeURI(domain)}?s=64`];
+    case "icon-horse":
+      return [`https://icon.horse/icon/${encodeURI(domain)}`];
+    case "baidu":
+      return [`https://www.baidu.com/favicon.ico?url=${encodeURIComponent(domain)}`];
     case "local":
     default:
       return await fetchIconByDomain(domain);

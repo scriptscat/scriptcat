@@ -598,8 +598,12 @@
   "favicon_service": "圖示服務",
   "favicon_service_desc": "選擇取得網站圖示的服務",
   "favicon_service_scriptcat": "ScriptCat",
-  "favicon_service_local": "本地取得",
   "favicon_service_google": "Google",
+  "favicon_service_duckduckgo": "DuckDuckGo",
+  "favicon_service_favicone": "Favicone",
+  "favicon_service_icon-horse": "Icon Horse",
+  "favicon_service_baidu": "百度 (Baidu)",
+  "favicon_service_local": "本地取得",
   "editor": {
     "show_script_list": "顯示腳本列表",
     "hide_script_list": "隱藏腳本列表"

@@ -598,8 +598,12 @@
   "favicon_service": "Favicon-Dienst",
   "favicon_service_desc": "Dienst zum Abrufen von Website-Symbolen auswählen",
   "favicon_service_scriptcat": "ScriptCat",
-  "favicon_service_local": "Lokal abrufen",
   "favicon_service_google": "Google",
+  "favicon_service_duckduckgo": "DuckDuckGo",
+  "favicon_service_favicone": "Favicone",
+  "favicon_service_icon-horse": "Icon Horse",
+  "favicon_service_baidu": "Baidu",
+  "favicon_service_local": "Lokal abrufen",
   "editor": {
     "show_script_list": "Skriptliste anzeigen",
     "hide_script_list": "Skriptliste ausblenden"
