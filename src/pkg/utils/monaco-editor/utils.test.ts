@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import type { editor } from "monaco-editor";
 import { escapeRegExp, findGlobalInsertionInfo, updateGlobalCommentLine } from "./utils";
 
