@@ -26,7 +26,6 @@ export type FaviconService =
   | "duckduckgo"
   | "favicone"
   | "icon-horse"
-  | "baidu"
   | "favicon.im"
   | "vemetric"
   | "yandex"

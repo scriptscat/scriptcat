@@ -341,7 +341,6 @@ function Setting() {
                 <Select.Option value="duckduckgo">{t("favicon_service_duckduckgo")}</Select.Option>
                 <Select.Option value="favicone">{t("favicon_service_favicone")}</Select.Option>
                 <Select.Option value="icon-horse">{t("favicon_service_icon-horse")}</Select.Option>
-                <Select.Option value="baidu">{t("favicon_service_baidu")}</Select.Option>
                 <Select.Option value="favicon.im">{t("favicon_service_favicon_im")}</Select.Option>
                 <Select.Option value="vemetric">{t("favicon_service_vemetric")}</Select.Option>
                 <Select.Option value="yandex">{t("favicon_service_yandex")}</Select.Option>

@@ -261,18 +261,6 @@ export async function fetchIconByService(domain: string, service: FaviconService
        */
       return [`https://icon.horse/icon/${encodeURI(domain)}`];
 
-    case "baidu":
-      /**
-       * 百度 favicon 服务
-       * - 尺寸：固定（通常 16x16 或站点原始）
-       * - 限制：无文档，但较稳定
-       * - 收费：免费
-       * - 中国访问：✅ 非常稳定
-       * - 缓存：可缓存
-       * - 特点：国内最佳 fallback 之一
-       */
-      return [`https://www.baidu.com/favicon.ico?url=${encodeURIComponent(domain)}`];
-
     case "favicon.im":
       /**
        * favicon.im
