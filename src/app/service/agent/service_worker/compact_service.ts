@@ -1,4 +1,4 @@
-import type { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { agentChatRepo } from "@App/app/repo/agent_chat";
 import type {
   AgentModelConfig,
   ChatRequest,
@@ -41,7 +41,6 @@ export interface CompactOrchestrator {
 
 export class CompactService {
   constructor(
-    public repo: AgentChatRepo,
     private modelService: AgentModelService,
     private orchestrator: CompactOrchestrator
   ) {}
@@ -89,7 +88,7 @@ export class CompactService {
       content: `[Conversation Summary]\n\n${summary}`,
       createtime: Date.now(),
     };
-    await this.repo.saveMessages(conversationId, [summaryMessage]);
+    await agentChatRepo.saveMessages(conversationId, [summaryMessage]);
 
     // 通知 UI
     sendEvent({ type: "compact_done", summary, originalCount: -1 });

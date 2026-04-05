@@ -11,7 +11,7 @@ import type {
 } from "@App/app/service/agent/core/types";
 import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { ToolCall } from "@App/app/service/agent/core/types";
-import type { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { agentChatRepo } from "@App/app/repo/agent_chat";
 import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import type { SkillService } from "./skill_service";
 import type { CompactService } from "./compact_service";
@@ -55,7 +55,6 @@ export interface ChatServiceLLMDeps {
 
 export class ChatService {
   constructor(
-    public repo: AgentChatRepo,
     private toolRegistry: ToolRegistry,
     private modelService: AgentModelService,
     private skillService: SkillService,
@@ -74,12 +73,12 @@ export class ChatService {
       case "get":
         return this.getConversation(params.id);
       case "getMessages":
-        return this.repo.getMessages(params.conversationId);
+        return agentChatRepo.getMessages(params.conversationId);
       case "save":
         // 对话已经在 chat 过程中持久化，这里确保元数据也保存
         return true;
       case "clearMessages":
-        await this.repo.saveMessages(params.conversationId, []);
+        await agentChatRepo.saveMessages(params.conversationId, []);
         return true;
       default:
         throw new Error(`Unknown conversation action: ${(params as any).action}`);
@@ -97,12 +96,12 @@ export class ChatService {
       createtime: Date.now(),
       updatetime: Date.now(),
     };
-    await this.repo.saveConversation(conv);
+    await agentChatRepo.saveConversation(conv);
     return conv;
   }
 
   private async getConversation(id: string): Promise<Conversation | null> {
-    const conversations = await this.repo.listConversations();
+    const conversations = await agentChatRepo.listConversations();
     return conversations.find((c) => c.id === id) || null;
   }
 
@@ -280,7 +279,7 @@ export class ChatService {
         }
 
         const model = await this.modelService.getModel(params.modelId || conv.modelId);
-        const existingMessages = await this.repo.getMessages(params.conversationId);
+        const existingMessages = await agentChatRepo.getMessages(params.conversationId);
 
         if (existingMessages.filter((m) => m.role !== "system").length === 0) {
           sendEvent({ type: "error", message: "No messages to compact" });
@@ -322,7 +321,7 @@ export class ChatService {
           content: `[Conversation Summary]\n\n${summary}`,
           createtime: Date.now(),
         };
-        await this.repo.saveMessages(params.conversationId, [summaryMessage]);
+        await agentChatRepo.saveMessages(params.conversationId, [summaryMessage]);
 
         sendEvent({ type: "compact_done", summary, originalCount });
         sendEvent({ type: "done", usage: result.usage });
@@ -348,7 +347,7 @@ export class ChatService {
       }
       if (needSave) {
         conv.updatetime = Date.now();
-        await this.repo.saveConversation(conv);
+        await agentChatRepo.saveConversation(conv);
       }
 
       const model = await this.modelService.getModel(conv.modelId);
@@ -373,10 +372,10 @@ export class ChatService {
 
         // 注册每次请求的临时工具
         // Task tools（从持久化加载，变更时保存并推送事件到 UI）
-        const initialTasks = await this.repo.getTasks(params.conversationId);
+        const initialTasks = await agentChatRepo.getTasks(params.conversationId);
         const { tools: taskToolDefs } = createTaskTools({
           initialTasks,
-          onSave: (tasks) => this.repo.saveTasks(params.conversationId, tasks),
+          onSave: (tasks) => agentChatRepo.saveTasks(params.conversationId, tasks),
           sendEvent,
         });
         for (const t of taskToolDefs) {
@@ -422,7 +421,7 @@ export class ChatService {
       }
 
       // 加载历史消息
-      const existingMessages = await this.repo.getMessages(params.conversationId);
+      const existingMessages = await agentChatRepo.getMessages(params.conversationId);
 
       // 扫描历史消息中的 load_skill 调用，预加载之前已加载的 skill 的工具
       if (enableTools && metaTools.length > 0) {
@@ -480,7 +479,7 @@ export class ChatService {
       if (!params.skipSaveUserMessage) {
         // 添加新用户消息到 LLM 上下文并持久化
         messages.push({ role: "user", content: params.message });
-        await this.repo.appendMessage({
+        await agentChatRepo.appendMessage({
           id: uuidv4(),
           conversationId: params.conversationId,
           role: "user",
@@ -494,7 +493,7 @@ export class ChatService {
         const titleText = getTextContent(params.message);
         conv.title = titleText.slice(0, 30) + (titleText.length > 30 ? "..." : "");
         conv.updatetime = Date.now();
-        await this.repo.saveConversation(conv);
+        await agentChatRepo.saveConversation(conv);
       }
 
       try {
@@ -530,7 +529,7 @@ export class ChatService {
       // 持久化错误消息到 OPFS，确保刷新后仍可见
       if (params.conversationId && !params.ephemeral) {
         try {
-          await this.repo.appendMessage({
+          await agentChatRepo.appendMessage({
             id: uuidv4(),
             conversationId: params.conversationId,
             role: "assistant",

@@ -2,6 +2,18 @@ import { vi } from "vitest";
 import { AgentService } from "./agent";
 import type { SkillRecord, SkillScriptRecord } from "@App/app/service/agent/core/types";
 
+// mock agent_chat repo 单例：让所有 import { agentChatRepo } 的子服务拿到同一个 mock 对象
+// 该对象在 createTestService() 中被重置，测试通过 mockRepo 断言
+// vi.mock 和 vi.hoisted 都会被 vitest 提升到文件顶部，确保子服务 import 前 mock 已就绪
+const { mockChatRepo } = vi.hoisted(() => ({
+  mockChatRepo: {} as any,
+}));
+
+vi.mock("@App/app/repo/agent_chat", () => ({
+  AgentChatRepo: class {},
+  agentChatRepo: mockChatRepo,
+}));
+
 // mock offscreen/client — isolate: false 下会影响其他测试文件，
 // extract 函数需要委托到 sender.sendMessage 以保持与其他测试的兼容性
 vi.mock("@App/app/service/offscreen/client", () => {
@@ -26,6 +38,19 @@ vi.mock("@App/app/service/offscreen/client", () => {
 export function createTestService() {
   const mockGroup = { on: vi.fn() } as any;
   const mockSender = {} as any;
+
+  // 重置 agent_chat 单例 mock 方法（保持对象身份不变，只替换 vi.fn）
+  Object.assign(mockChatRepo, {
+    appendMessage: vi.fn().mockResolvedValue(undefined),
+    getMessages: vi.fn().mockResolvedValue([]),
+    listConversations: vi.fn().mockResolvedValue([]),
+    saveConversation: vi.fn().mockResolvedValue(undefined),
+    saveMessages: vi.fn().mockResolvedValue(undefined),
+    getTasks: vi.fn().mockResolvedValue([]),
+    saveTasks: vi.fn().mockResolvedValue(undefined),
+    getAttachment: vi.fn().mockResolvedValue(null),
+    saveAttachment: vi.fn().mockResolvedValue(0),
+  });
 
   const service = new AgentService(mockGroup, mockSender);
 
@@ -56,17 +81,7 @@ export function createTestService() {
   };
   (service as any).modelRepo = mockModelRepo;
 
-  // 替换 repo 和 skillRepo（避免 OPFS 调用）
-  const mockRepo = {
-    appendMessage: vi.fn().mockResolvedValue(undefined),
-    getMessages: vi.fn().mockResolvedValue([]),
-    listConversations: vi.fn().mockResolvedValue([]),
-    saveConversation: vi.fn().mockResolvedValue(undefined),
-    saveMessages: vi.fn().mockResolvedValue(undefined),
-    getTasks: vi.fn().mockResolvedValue([]),
-    saveTasks: vi.fn().mockResolvedValue(undefined),
-    getAttachment: vi.fn().mockResolvedValue(null),
-  };
+  // 替换 skillRepo（避免 OPFS 调用）
   const mockSkillRepo = {
     listSkills: vi.fn().mockResolvedValue([]),
     getSkill: vi.fn().mockResolvedValue(null),
@@ -77,10 +92,9 @@ export function createTestService() {
     getReference: vi.fn().mockResolvedValue(null),
     getConfigValues: vi.fn().mockResolvedValue(undefined),
   };
-  (service as any).repo = mockRepo;
   (service as any).skillRepo = mockSkillRepo;
 
-  return { service, mockRepo, mockSkillRepo, mockModelRepo };
+  return { service, mockRepo: mockChatRepo, mockSkillRepo, mockModelRepo };
 }
 
 export const VALID_SKILLSCRIPT_CODE = `// ==SkillScript==

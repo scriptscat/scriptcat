@@ -180,3 +180,7 @@ export class AgentChatRepo extends OPFSRepo {
     await this.deleteFile(`${conversationId}.json`, tasksDir);
   }
 }
+
+// 模块级单例：AgentChatRepo 是 OPFS 的无状态薄包装，无需每处 new。
+// 子服务直接 import 使用，测试通过 vi.mock 替换整个模块。
+export const agentChatRepo = new AgentChatRepo();

@@ -18,7 +18,7 @@ import type {
   OPFSApiRequest,
   MCPApiRequest,
 } from "@App/app/service/agent/core/types";
-import { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { agentChatRepo } from "@App/app/repo/agent_chat";
 import type { AgentModelRepo } from "@App/app/repo/agent_model";
 import type { SkillRepo } from "@App/app/repo/skill_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
@@ -51,26 +51,6 @@ import { ChatService } from "./chat_service";
 export { isRetryableError, withRetry, classifyErrorCode } from "./retry_utils";
 
 export class AgentService {
-  private _repo = new AgentChatRepo();
-  // 测试兼容性：透传访问 repo，setter 同步更新 compactService
-  private get repo() {
-    return this._repo;
-  }
-  private set repo(v: AgentChatRepo) {
-    this._repo = v;
-    if (this.compactService) {
-      this.compactService.repo = v;
-    }
-    if (this.llmClient) {
-      this.llmClient.repo = v;
-    }
-    if (this.toolLoopOrchestrator) {
-      this.toolLoopOrchestrator.repo = v;
-    }
-    if (this.chatService) {
-      this.chatService.repo = v;
-    }
-  }
   private toolRegistry = new ToolRegistry();
   // Skill 相关功能委托给 SkillService
   private skillService!: SkillService;
@@ -138,11 +118,11 @@ export class AgentService {
     this.skillService = new SkillService(sender, resourceService);
     this.modelService = new AgentModelService(group);
     this.opfsService = new AgentOPFSService(sender);
-    this.llmClient = new LLMClient(this.repo);
-    this.compactService = new CompactService(this.repo, this.modelService, {
+    this.llmClient = new LLMClient();
+    this.compactService = new CompactService(this.modelService, {
       callLLM: (model, params, sendEvent, signal) => this.llmClient.callLLM(model, params, sendEvent, signal),
     });
-    this.toolLoopOrchestrator = new ToolLoopOrchestrator(this.toolRegistry, this.repo, {
+    this.toolLoopOrchestrator = new ToolLoopOrchestrator(this.toolRegistry, {
       // callLLM 通过 lambda 注入，确保测试 spy 可以拦截 service.callLLM
       callLLM: (model, params, sendEvent, signal) => this.callLLM(model, params, sendEvent, signal),
       autoCompact: (convId, model, msgs, sendEvent, signal) =>
@@ -152,7 +132,6 @@ export class AgentService {
       callLLMWithToolLoop: (params) => this.callLLMWithToolLoop(params),
     });
     this.chatService = new ChatService(
-      this.repo,
       this.toolRegistry,
       this.modelService,
       this.skillService,
@@ -185,7 +164,7 @@ export class AgentService {
 
   init() {
     // 注入 chatRepo 到 ToolRegistry 用于保存附件
-    this.toolRegistry.setChatRepo(this.repo);
+    this.toolRegistry.setChatRepo(agentChatRepo);
     // 初始化 MCP Service
     this.mcpService = new MCPService(this.toolRegistry);
     this.mcpService.init();
@@ -229,7 +208,7 @@ export class AgentService {
     // 初始化 AgentTaskService（在 skillService 初始化后）
     this.agentTaskService = new AgentTaskService(
       this.sender,
-      this.repo,
+      agentChatRepo,
       this.toolRegistry,
       this.skillService,
       {
@@ -347,7 +326,7 @@ export class AgentService {
 
   // 处理 CAT.agent.opfs API 请求，委托给 AgentOPFSService
   async handleOPFSApi(request: OPFSApiRequest, sender: IGetSender): Promise<unknown> {
-    return this.opfsService.handleOPFSApi(request, sender, this.repo);
+    return this.opfsService.handleOPFSApi(request, sender, agentChatRepo);
   }
 
   // 解析对话关联的 skills（测试兼容：通过 (service as any).resolveSkills 访问）

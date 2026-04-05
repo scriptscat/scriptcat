@@ -8,6 +8,16 @@ import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import type { ToolRegistry } from "./tool_registry";
 import type { ToolExecutor } from "./tool_registry";
 
+// mock agent_chat repo 单例：子服务通过 import { agentChatRepo } 直接使用该 mock 对象
+const { mockChatRepo } = vi.hoisted(() => ({
+  mockChatRepo: {} as any,
+}));
+
+vi.mock("@App/app/repo/agent_chat", () => ({
+  AgentChatRepo: class {},
+  agentChatRepo: mockChatRepo,
+}));
+
 // 模型配置
 const openaiConfig: AgentModelConfig = {
   id: "test-openai",
@@ -614,13 +624,16 @@ function makeToolCallSSE(
 
 // 创建 mock AgentService 实例
 function createTestService() {
-  const mockRepo = {
+  // 重置 agent_chat 单例 mock 方法（保持对象身份不变，只替换 vi.fn）
+  Object.assign(mockChatRepo, {
     appendMessage: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
     listConversations: vi.fn().mockResolvedValue([]),
     saveConversation: vi.fn().mockResolvedValue(undefined),
     saveMessages: vi.fn().mockResolvedValue(undefined),
-  };
+    getAttachment: vi.fn().mockResolvedValue(null),
+    saveAttachment: vi.fn().mockResolvedValue(0),
+  });
 
   const mockGroup = {
     on: vi.fn(),
@@ -640,12 +653,9 @@ function createTestService() {
     getDefaultModelId: vi.fn().mockResolvedValue("test-openai"),
   };
 
-  // 替换 repo（避免 OPFS 调用）
-  (service as any).repo = mockRepo;
-
   const toolRegistry = (service as any).toolRegistry as ToolRegistry;
 
-  return { service, mockRepo, toolRegistry };
+  return { service, mockRepo: mockChatRepo, toolRegistry };
 }
 
 describe("callLLMWithToolLoop", () => {

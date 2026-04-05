@@ -1,4 +1,4 @@
-import type { AgentChatRepo } from "@App/app/repo/agent_chat";
+import { agentChatRepo } from "@App/app/repo/agent_chat";
 import type {
   AgentModelConfig,
   ChatRequest,
@@ -24,8 +24,6 @@ export interface LLMCallResult {
 }
 
 export class LLMClient {
-  constructor(public repo: AgentChatRepo) {}
-
   /**
    * 调用 LLM 并收集完整响应（内部处理流式、重试与图片保存）
    */
@@ -44,7 +42,9 @@ export class LLMClient {
     };
 
     // 预解析消息中 ContentBlock 引用的 attachmentId → base64
-    const attachmentResolver = await resolveAttachments(params.messages, model, (id) => this.repo.getAttachment(id));
+    const attachmentResolver = await resolveAttachments(params.messages, model, (id) =>
+      agentChatRepo.getAttachment(id)
+    );
 
     // zhipu 暂无独立实现，映射到 openai provider；独立实现后可移除此映射
     const providerName = model.provider === "zhipu" ? "openai" : model.provider;
@@ -187,7 +187,7 @@ export class LLMClient {
               const savedBlocks: ContentBlock[] = [];
               for (const pending of pendingImageSaves) {
                 try {
-                  await this.repo.saveAttachment(pending.block.attachmentId, pending.data);
+                  await agentChatRepo.saveAttachment(pending.block.attachmentId, pending.data);
                   savedBlocks.push(pending.block);
                   // 转发不含 data 的 content_block_complete 事件给 UI
                   sendEvent({ type: "content_block_complete", block: pending.block });
@@ -206,7 +206,7 @@ export class LLMClient {
                 const ext = subtype || "png";
                 const blockId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
                 try {
-                  await this.repo.saveAttachment(blockId, dataUrl);
+                  await agentChatRepo.saveAttachment(blockId, dataUrl);
                   const block: ContentBlock = {
                     type: "image",
                     attachmentId: blockId,
