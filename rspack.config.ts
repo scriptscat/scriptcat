@@ -55,12 +55,6 @@ export default {
     content: `${src}/content.ts`,
     scripting: `${src}/scripting.ts`,
     inject: `${src}/inject.ts`,
-    popup: `${src}/pages/popup/main.tsx`,
-    install: `${src}/pages/install/main.tsx`,
-    batchupdate: `${src}/pages/batchupdate/main.tsx`,
-    confirm: `${src}/pages/confirm/main.tsx`,
-    import: `${src}/pages/import/main.tsx`,
-    options: `${src}/pages/options/main.tsx`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
     "linter.worker": `${src}/linter.worker.ts`,
@@ -88,7 +82,6 @@ export default {
       {
         test: /\.css$/i,
         type: "css/auto",
-        use: ["postcss-loader"],
       },
       {
         test: /\.(svg|png)$/,
@@ -167,57 +160,6 @@ export default {
           to: `${dist}/ext/_locales`,
         },
       ],
-    }),
-    new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/install.html`,
-      template: `${src}/pages/template.html`,
-      inject: "head",
-      title: "Install - ScriptCat",
-      minify: true,
-      chunks: ["install"],
-    }),
-    new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/batchupdate.html`,
-      template: `${src}/pages/template.html`,
-      inject: "head",
-      title: "BatchUpdate - ScriptCat",
-      minify: true,
-      chunks: ["batchupdate"],
-    }),
-    new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/confirm.html`,
-      template: `${src}/pages/template.html`,
-      inject: "head",
-      title: "Confirm - ScriptCat",
-      minify: true,
-      chunks: ["confirm"],
-    }),
-    new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/import.html`,
-      template: `${src}/pages/template.html`,
-      inject: "head",
-      title: "Import - ScriptCat",
-      minify: true,
-      chunks: ["import"],
-    }),
-    new rspack.HtmlRspackPlugin({
-      templateParameters: {
-        isReactTools: isReactTools ? "true" : "false",
-      },
-      filename: `${dist}/ext/src/options.html`,
-      template: `${src}/pages/options.html`,
-      inject: "head",
-      title: "Home - ScriptCat",
-      minify: true,
-      chunks: ["options"],
-    }),
-    new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/popup.html`,
-      template: `${src}/pages/popup.html`,
-      inject: "head",
-      title: "Home - ScriptCat",
-      minify: true,
-      chunks: ["popup"],
     }),
     new rspack.HtmlRspackPlugin({
       filename: `${dist}/ext/src/offscreen.html`,
@@ -319,31 +261,13 @@ export default {
           }
           if (module.type !== "css" && tag === "monaco-editor") return "lib_monaco";
           switch (tag) {
-            case "react-icons":
-              if (p.includes("/react-icons/tb")) return undefined;
-            // eslint-disable-next-line no-fallthrough
-            case "react-dropzone":
             case "react-dom":
-            case "react-i18next":
-            case "react-router-dom":
-            case "react-joyride":
             case "react":
               return `lib_${tag}`;
           }
-          if (tag.startsWith("dnd-kit")) return "lib_dnd-kit";
-          if (tag.startsWith("popper")) return "lib_react-joyride";
           if (tag.startsWith("react-")) return "lib_react";
           if (tag.startsWith("eslint")) return "lib_eslint";
           if (tag.startsWith("i18n")) return "lib_i18n";
-          if (
-            tag.startsWith("arco-design") ||
-            tag === "resize-observer-polyfill" ||
-            tag === "b-validate" ||
-            tag === "lodash" ||
-            tag === "focus-lock"
-          ) {
-            return "lib_arco_design";
-          }
           if (tag) {
             // cron, dayjs, yaml, jszip, prettier, ...
             if (tag === "luxon") return "lib_cron";

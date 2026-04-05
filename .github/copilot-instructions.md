@@ -72,8 +72,8 @@ User scripts are compiled with sandbox context isolation:
 ## Technology Stack
 
 - **React 18** - Component framework with automatic runtime
-- **Arco Design** - UI component library (`@arco-design/web-react`)
-- **UnoCSS** - Atomic CSS framework for styling
+- **shadcn/ui** - UI component library built on Radix UI
+- **Tailwind CSS** - Utility-first CSS framework for styling
 - **Rspack** - Fast bundler (Webpack alternative) with SWC
 - **TypeScript** - Type-safe development
 

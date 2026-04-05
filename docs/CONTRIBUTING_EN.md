@@ -83,8 +83,8 @@ pnpm run lint
 ScriptCat's page development uses the following technologies:
 
 - [React](https://reactjs.org/)
-- UI framework [arco](https://arco.design)
-- CSS framework [unocss](https://unocss.dev/interactive/)
+- UI framework [shadcn/ui](https://ui.shadcn.com/)
+- CSS framework [Tailwind CSS](https://tailwindcss.com/)
 - RsPack bundling tool [rspack](https://rspack.dev/)
 
 If you want to run ScriptCat locally, you can use the following commands:

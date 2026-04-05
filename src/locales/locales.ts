@@ -1,7 +1,6 @@
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { Callback } from "i18next";
 import i18n, { t } from "i18next";
-import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type { SCMetadata } from "@App/app/repo/scripts";
@@ -38,7 +37,7 @@ export const initLocalesPromise = new Promise<string>((resolve) => {
 });
 
 export function initLanguage(lng: string = "en-US"): void {
-  i18n.use(initReactI18next).init({
+  i18n.init({
     fallbackLng: "en-US",
     lng: lng, // 优先使用localStorage中的语言设置
     interpolation: {

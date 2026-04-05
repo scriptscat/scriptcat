@@ -90,8 +90,8 @@ pnpm run lint
 Для разработки страниц ScriptCat используются следующие технологии:
 
 - [React](https://reactjs.org/)
-- UI-фреймворк [arco](https://arco.design)
-- CSS-фреймворк [unocss](https://unocss.dev/interactive/)
+- UI-фреймворк [shadcn/ui](https://ui.shadcn.com/)
+- CSS-фреймворк [Tailwind CSS](https://tailwindcss.com/)
 - Инструмент сборки RsPack [rspack](https://rspack.dev/)
 
 Если вы хотите запустить ScriptCat локально, вы можете использовать следующую команду:

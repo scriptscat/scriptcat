@@ -92,8 +92,8 @@ pnpm run lint
 ScriptCat 的页面开发使用了以下技术：
 
 - [React](https://reactjs.org/)
-- UI 框架 [arco](https://arco.design)
-- CSS 框架 [unocss](https://unocss.dev/interactive/)
+- UI 框架 [shadcn/ui](https://ui.shadcn.com/)
+- CSS 框架 [Tailwind CSS](https://tailwindcss.com/)
 - RsPack 打包工具 [rspack](https://rspack.dev/)
 
 如果你想在本地运行 ScriptCat，可以使用以下命令：
