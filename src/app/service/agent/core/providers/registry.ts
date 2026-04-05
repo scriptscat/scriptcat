@@ -1,4 +1,6 @@
 import type { LLMProvider } from "./types";
+import { openaiProvider } from "./openai";
+import { anthropicProvider } from "./anthropic";
 
 /** LLM Provider 注册表，支持按 provider 名称查找实现 */
 export class ProviderRegistry {
@@ -26,3 +28,8 @@ export class ProviderRegistry {
 }
 
 export const providerRegistry = new ProviderRegistry();
+
+// 注册内置 Provider（与 registry 同模块，消费者使用 providerRegistry 即触发注册，
+// 避免 bundler 对纯副作用导入的 tree-shake）
+providerRegistry.register(openaiProvider);
+providerRegistry.register(anthropicProvider);
