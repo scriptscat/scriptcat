@@ -1,3 +1,4 @@
+import React from "react";
 import ReactDOM from "react-dom/client";
 import { registerEditor } from "@App/pkg/utils/monaco-editor/index";
 import "@arco-design/web-react/dist/css/arco.css";

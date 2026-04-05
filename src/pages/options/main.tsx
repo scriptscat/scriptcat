@@ -1,3 +1,4 @@
+import React from "react";
 import ReactDOM from "react-dom/client";
 import { registerEditor } from "@App/pkg/utils/monaco-editor/index";
 // eslint-disable-next-line import/no-unresolved
