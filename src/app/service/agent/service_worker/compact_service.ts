@@ -1,5 +1,12 @@
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
-import type { AgentModelConfig, ChatRequest, ChatStreamEvent, ToolCall, ContentBlock, ToolDefinition } from "@App/app/service/agent/core/types";
+import type {
+  AgentModelConfig,
+  ChatRequest,
+  ChatStreamEvent,
+  ToolCall,
+  ContentBlock,
+  ToolDefinition,
+} from "@App/app/service/agent/core/types";
 import {
   COMPACT_SYSTEM_PROMPT,
   buildCompactUserPrompt,

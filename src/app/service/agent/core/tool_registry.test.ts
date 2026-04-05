@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { ToolRegistry } from "./tool_registry";
-import type { ToolExecutor, ToolSource } from "./tool_registry";
+import type { ToolExecutor } from "./tool_registry";
 import type { ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 
@@ -439,13 +439,20 @@ describe("ToolRegistry", () => {
   describe("来源追踪 API（register / getSource / listBySource / unregisterBySource）", () => {
     it("register 注册工具后 getSource 应返回正确来源", () => {
       const registry = new ToolRegistry();
-      registry.register("mcp", weatherDef, createExecutor(async () => "ok"));
+      registry.register(
+        "mcp",
+        weatherDef,
+        createExecutor(async () => "ok")
+      );
       expect(registry.getSource("get_weather")).toBe("mcp");
     });
 
     it("registerBuiltin 注册的工具来源应为 builtin", () => {
       const registry = new ToolRegistry();
-      registry.registerBuiltin(weatherDef, createExecutor(async () => "ok"));
+      registry.registerBuiltin(
+        weatherDef,
+        createExecutor(async () => "ok")
+      );
       expect(registry.getSource("get_weather")).toBe("builtin");
     });
 
@@ -456,9 +463,21 @@ describe("ToolRegistry", () => {
 
     it("listBySource 应只返回指定来源的工具名", () => {
       const registry = new ToolRegistry();
-      registry.register("builtin", weatherDef, createExecutor(async () => ""));
-      registry.register("mcp", calcDef, createExecutor(async () => ""));
-      registry.register("skill", { name: "load_skill", description: "加载 skill", parameters: { type: "object", properties: {} } }, createExecutor(async () => ""));
+      registry.register(
+        "builtin",
+        weatherDef,
+        createExecutor(async () => "")
+      );
+      registry.register(
+        "mcp",
+        calcDef,
+        createExecutor(async () => "")
+      );
+      registry.register(
+        "skill",
+        { name: "load_skill", description: "加载 skill", parameters: { type: "object", properties: {} } },
+        createExecutor(async () => "")
+      );
 
       expect(registry.listBySource("builtin")).toEqual(["get_weather"]);
       expect(registry.listBySource("mcp")).toEqual(["calc"]);
@@ -468,9 +487,21 @@ describe("ToolRegistry", () => {
 
     it("unregisterBySource 应批量删除指定来源的工具并返回名称列表", () => {
       const registry = new ToolRegistry();
-      registry.register("mcp", weatherDef, createExecutor(async () => ""));
-      registry.register("mcp", calcDef, createExecutor(async () => ""));
-      registry.register("builtin", { name: "web_fetch", description: "抓取", parameters: { type: "object", properties: {} } }, createExecutor(async () => ""));
+      registry.register(
+        "mcp",
+        weatherDef,
+        createExecutor(async () => "")
+      );
+      registry.register(
+        "mcp",
+        calcDef,
+        createExecutor(async () => "")
+      );
+      registry.register(
+        "builtin",
+        { name: "web_fetch", description: "抓取", parameters: { type: "object", properties: {} } },
+        createExecutor(async () => "")
+      );
 
       const removed = registry.unregisterBySource("mcp");
       expect(removed).toHaveLength(2);
@@ -483,13 +514,21 @@ describe("ToolRegistry", () => {
 
     it("unregisterBySource 无匹配工具时应返回空数组", () => {
       const registry = new ToolRegistry();
-      registry.register("builtin", weatherDef, createExecutor(async () => ""));
+      registry.register(
+        "builtin",
+        weatherDef,
+        createExecutor(async () => "")
+      );
       expect(registry.unregisterBySource("mcp")).toEqual([]);
     });
 
     it("unregister 应按名称删除工具", () => {
       const registry = new ToolRegistry();
-      registry.register("mcp", weatherDef, createExecutor(async () => ""));
+      registry.register(
+        "mcp",
+        weatherDef,
+        createExecutor(async () => "")
+      );
       expect(registry.unregister("get_weather")).toBe(true);
       expect(registry.getDefinitions()).toHaveLength(0);
     });
@@ -503,7 +542,11 @@ describe("ToolRegistry", () => {
   describe("withScopedTools", () => {
     it("fn 正常执行后应清理所有 scoped 工具", async () => {
       const registry = new ToolRegistry();
-      registry.register("builtin", weatherDef, createExecutor(async () => ""));
+      registry.register(
+        "builtin",
+        weatherDef,
+        createExecutor(async () => "")
+      );
 
       await registry.withScopedTools(
         "skill",
@@ -551,8 +594,16 @@ describe("ToolRegistry", () => {
 
     it("多个 scoped 工具应全部被清理", async () => {
       const registry = new ToolRegistry();
-      const toolA: ToolDefinition = { name: "tool_a", description: "A", parameters: { type: "object", properties: {} } };
-      const toolB: ToolDefinition = { name: "tool_b", description: "B", parameters: { type: "object", properties: {} } };
+      const toolA: ToolDefinition = {
+        name: "tool_a",
+        description: "A",
+        parameters: { type: "object", properties: {} },
+      };
+      const toolB: ToolDefinition = {
+        name: "tool_b",
+        description: "B",
+        parameters: { type: "object", properties: {} },
+      };
 
       await registry.withScopedTools(
         "skill",

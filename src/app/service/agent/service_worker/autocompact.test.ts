@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTestService, makeSSEResponse, makeTextResponse } from "./test-helpers";
+import { createTestService, makeSSEResponse } from "./test-helpers";
 
 // ---- Compact 功能测试 ----
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTestService, makeSkillRecord, makeSkillScriptRecord, makeTextResponse, makeSSEResponse } from "./test-helpers";
+import { createTestService, makeSkillRecord, makeSkillScriptRecord, makeTextResponse } from "./test-helpers";
 
 // ---- handleConversationChat skipSaveUserMessage（重新生成 bug 修复验证）----
 

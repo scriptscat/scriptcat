@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTestService, makeSSEResponse, makeTextResponse, createRunningConversation } from "./test-helpers";
+import { createTestService, makeTextResponse, createRunningConversation } from "./test-helpers";
 
 // ---- updateStreamingState 快照状态管理 ----
 

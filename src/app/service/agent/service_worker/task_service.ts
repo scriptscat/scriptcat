@@ -12,7 +12,7 @@ import type { ScriptToolCallback, ToolRegistry } from "@App/app/service/agent/co
 import type { SkillService } from "./skill_service";
 import type { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import type { AgentTaskScheduler } from "@App/app/service/agent/core/task_scheduler";
-import { AgentChatRepo } from "@App/app/repo/agent_chat";
+import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { buildSystemPrompt } from "@App/app/service/agent/core/system_prompt";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { nextTimeInfo } from "@App/pkg/utils/cron";

@@ -1,6 +1,6 @@
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import type { ScriptToolCallback } from "@App/app/service/agent/core/tool_registry";
-import { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
+import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import type {
   AgentModelConfig,
   ChatRequest,

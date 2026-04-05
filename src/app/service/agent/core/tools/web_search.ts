@@ -82,11 +82,7 @@ export class WebSearchExecutor implements ToolExecutor {
     let results: Awaited<ReturnType<typeof extractSearchResults>>;
     let extractionFailed = false;
     try {
-      results = await withTimeout(
-        extractSearchResults(this.sender, html),
-        10_000,
-        () => new Error("extract timeout")
-      );
+      results = await withTimeout(extractSearchResults(this.sender, html), 10_000, () => new Error("extract timeout"));
     } catch {
       results = [];
       extractionFailed = true;
@@ -113,11 +109,7 @@ export class WebSearchExecutor implements ToolExecutor {
     let results: Awaited<ReturnType<typeof extractBingResults>>;
     let extractionFailed = false;
     try {
-      results = await withTimeout(
-        extractBingResults(this.sender, html),
-        10_000,
-        () => new Error("extract timeout")
-      );
+      results = await withTimeout(extractBingResults(this.sender, html), 10_000, () => new Error("extract timeout"));
     } catch {
       results = [];
       extractionFailed = true;
@@ -144,11 +136,7 @@ export class WebSearchExecutor implements ToolExecutor {
     let results: Awaited<ReturnType<typeof extractBaiduResults>>;
     let extractionFailed = false;
     try {
-      results = await withTimeout(
-        extractBaiduResults(this.sender, html),
-        10_000,
-        () => new Error("extract timeout")
-      );
+      results = await withTimeout(extractBaiduResults(this.sender, html), 10_000, () => new Error("extract timeout"));
     } catch {
       results = [];
       extractionFailed = true;

@@ -44,9 +44,7 @@ export class LLMClient {
     };
 
     // 预解析消息中 ContentBlock 引用的 attachmentId → base64
-    const attachmentResolver = await resolveAttachments(params.messages, model, (id) =>
-      this.repo.getAttachment(id)
-    );
+    const attachmentResolver = await resolveAttachments(params.messages, model, (id) => this.repo.getAttachment(id));
 
     // zhipu 暂无独立实现，映射到 openai provider；独立实现后可移除此映射
     const providerName = model.provider === "zhipu" ? "openai" : model.provider;

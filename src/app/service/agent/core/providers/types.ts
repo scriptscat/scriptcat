@@ -28,9 +28,7 @@ export interface LLMProvider {
   readonly name: string;
 
   /** 构建 fetch 请求所需的 url 与 RequestInit */
-  buildRequest(
-    input: ProviderBuildRequestInput
-  ): ProviderBuildRequestOutput | Promise<ProviderBuildRequestOutput>;
+  buildRequest(input: ProviderBuildRequestInput): ProviderBuildRequestOutput | Promise<ProviderBuildRequestOutput>;
 
   /** 解析 SSE 流式响应，通过 onEvent 推送 ChatStreamEvent */
   parseStream(

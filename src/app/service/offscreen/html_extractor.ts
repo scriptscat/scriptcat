@@ -2,6 +2,7 @@ import type { Group } from "@Packages/message/server";
 // 触发所有搜索引擎注册（副作用导入）
 import "./search_engines";
 import { searchEngineRegistry } from "./search_engines/registry";
+import type { SearchResult } from "./search_engines/types";
 
 export type { SearchResult } from "./search_engines/types";
 
@@ -301,7 +302,7 @@ export class HtmlExtractorService {
   }
 
   // 解析 Bing 搜索结果（适配层：委托给 bingEngine 插件）
-  extractBingResults(html: string): import("./search_engines/types").SearchResult[] {
+  extractBingResults(html: string): SearchResult[] {
     try {
       const doc = new DOMParser().parseFromString(html, "text/html");
       return searchEngineRegistry.get("bing")?.extract(doc) ?? [];
@@ -311,7 +312,7 @@ export class HtmlExtractorService {
   }
 
   // 解析百度搜索结果（适配层：委托给 baiduEngine 插件）
-  extractBaiduResults(html: string): import("./search_engines/types").SearchResult[] {
+  extractBaiduResults(html: string): SearchResult[] {
     try {
       const doc = new DOMParser().parseFromString(html, "text/html");
       return searchEngineRegistry.get("baidu")?.extract(doc) ?? [];
@@ -321,7 +322,7 @@ export class HtmlExtractorService {
   }
 
   // 解析 DuckDuckGo 搜索结果（适配层：委托给 duckduckgoEngine 插件）
-  extractSearchResults(html: string): import("./search_engines/types").SearchResult[] {
+  extractSearchResults(html: string): SearchResult[] {
     try {
       const doc = new DOMParser().parseFromString(html, "text/html");
       return searchEngineRegistry.get("duckduckgo")?.extract(doc) ?? [];

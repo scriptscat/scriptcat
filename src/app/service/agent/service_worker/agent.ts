@@ -13,15 +13,14 @@ import type {
   SkillRecord,
   SkillSummary,
   MessageContent,
-  AgentTask,
   AgentTaskApiRequest,
   ModelApiRequest,
   OPFSApiRequest,
   MCPApiRequest,
 } from "@App/app/service/agent/core/types";
 import { AgentChatRepo } from "@App/app/repo/agent_chat";
-import { AgentModelRepo } from "@App/app/repo/agent_model";
-import { SkillRepo } from "@App/app/repo/skill_repo";
+import type { AgentModelRepo } from "@App/app/repo/agent_model";
+import type { SkillRepo } from "@App/app/repo/skill_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import { SKILL_SCRIPT_UUID_PREFIX } from "@App/app/service/agent/core/skill_script_executor";
@@ -36,7 +35,6 @@ import { AgentTaskService } from "./task_service";
 import { AgentModelService } from "./model_service";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import { AgentTaskScheduler } from "@App/app/service/agent/core/task_scheduler";
-import { sendMessage } from "@Packages/message/client";
 import { WEB_FETCH_DEFINITION, WebFetchExecutor } from "@App/app/service/agent/core/tools/web_fetch";
 import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent/core/tools/web_search";
 import { SearchConfigRepo, type SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
@@ -51,7 +49,6 @@ import { ChatService } from "./chat_service";
 
 // 保留对外 API（测试文件直接从 "./agent" import 这三个函数）
 export { isRetryableError, withRetry, classifyErrorCode } from "./retry_utils";
-
 
 export class AgentService {
   private _repo = new AgentChatRepo();

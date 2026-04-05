@@ -21,7 +21,11 @@ import type { SubAgentService } from "./sub_agent_service";
 import type { ToolLoopOrchestrator } from "./tool_loop_orchestrator";
 import type { SubAgentRunOptions } from "@App/app/service/agent/core/tools/sub_agent";
 import { buildSystemPrompt } from "@App/app/service/agent/core/system_prompt";
-import { COMPACT_SYSTEM_PROMPT, buildCompactUserPrompt, extractSummary } from "@App/app/service/agent/core/compact_prompt";
+import {
+  COMPACT_SYSTEM_PROMPT,
+  buildCompactUserPrompt,
+  extractSummary,
+} from "@App/app/service/agent/core/compact_prompt";
 import { createTaskTools } from "@App/app/service/agent/core/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/core/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/core/tools/sub_agent";

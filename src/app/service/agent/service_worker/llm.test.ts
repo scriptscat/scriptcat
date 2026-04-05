@@ -161,9 +161,11 @@ describe("callLLM 流式响应解析", () => {
     mockRepo.getMessages.mockResolvedValue([]);
 
     // 401 不重试，只需提供 1 次 mock
-    fetchSpy.mockResolvedValueOnce(
-      ({ ok: false, status: 401, text: async () => "401 Unauthorized" }) as unknown as Response
-    );
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: async () => "401 Unauthorized",
+    } as unknown as Response);
 
     await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
 
@@ -186,9 +188,11 @@ describe("callLLM 流式响应解析", () => {
     mockRepo.getMessages.mockResolvedValue([]);
 
     // 第一次 429，第二次成功
-    fetchSpy.mockResolvedValueOnce(
-      ({ ok: false, status: 429, text: async () => "Too Many Requests" }) as unknown as Response
-    );
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      text: async () => "Too Many Requests",
+    } as unknown as Response);
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
         `data: {"choices":[{"delta":{"content":"重试成功"}}]}\n\n`,

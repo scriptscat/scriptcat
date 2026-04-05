@@ -182,9 +182,7 @@ describe("AgentDomService", () => {
     });
 
     it("应拒绝导航到 chrome:// URL", async () => {
-      await expect(service.navigate("chrome://settings")).rejects.toThrow(
-        "Agent DOM operation not allowed for URL:"
-      );
+      await expect(service.navigate("chrome://settings")).rejects.toThrow("Agent DOM operation not allowed for URL:");
     });
 
     it("应拒绝导航到 chrome-extension:// URL", async () => {
