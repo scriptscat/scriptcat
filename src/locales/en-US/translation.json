@@ -598,8 +598,10 @@
   "favicon_service": "Favicon Service",
   "favicon_service_desc": "Choose the service for fetching website icons",
   "favicon_service_scriptcat": "ScriptCat",
-  "favicon_service_local": "Local Fetch",
   "favicon_service_google": "Google",
+  "favicon_service_duckduckgo": "DuckDuckGo",
+  "favicon_service_icon-horse": "Icon Horse",
+  "favicon_service_local": "Local Fetch",
   "editor": {
     "show_script_list": "Show Script List",
     "hide_script_list": "Hide Script List"

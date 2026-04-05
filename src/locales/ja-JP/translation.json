@@ -598,8 +598,10 @@
   "favicon_service": "Favicon サービス",
   "favicon_service_desc": "ウェブサイトアイコンの取得サービスを選択",
   "favicon_service_scriptcat": "ScriptCat",
-  "favicon_service_local": "ローカル取得",
   "favicon_service_google": "Google",
+  "favicon_service_duckduckgo": "DuckDuckGo",
+  "favicon_service_icon-horse": "Icon Horse",
+  "favicon_service_local": "ローカル取得",
   "editor": {
     "show_script_list": "スクリプトリストを表示",
     "hide_script_list": "スクリプトリストを非表示"
