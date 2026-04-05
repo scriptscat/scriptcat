@@ -27,13 +27,17 @@ function PermissionConfirmRequest({ uuid }: { uuid: string }) {
   }, []);
 
   useEffect(() => {
-    window.addEventListener("beforeunload", () => {
+    const handler = () => {
       permissionClient.confirm(uuid, {
         allow: false,
         type: 0,
       });
-    });
+    };
+    window.addEventListener("beforeunload", handler, false);
+    return () => window.removeEventListener("beforeunload", handler, false);
+  }, [uuid]);
 
+  useEffect(() => {
     permissionClient
       .getPermissionInfo(uuid)
       .then((data) => {
