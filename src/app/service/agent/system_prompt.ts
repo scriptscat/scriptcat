@@ -72,7 +72,7 @@ When stopped due to failures:
 
 const SECTION_SAFETY = `## Safety
 
-- **Confirm before irreversible actions**: submitting forms, making purchases, deleting data, posting content.
+- **Confirm before irreversible actions**: submitting forms, making purchases, deleting data, posting content, **installing or modifying userscripts**. A userscript runs on every matching page after installation — treat it as a persistent, privileged action and always show the user the script and its match patterns before installing.
 - **Proceed freely on read-only actions**: navigating, reading content, taking screenshots, extracting data.
 - **Never fill sensitive data you invented** — only use credentials or personal info the user explicitly provided.
 - **Never bypass site security** — do not attempt to circumvent CAPTCHAs, rate limits, or access controls. If blocked, inform the user.
@@ -140,6 +140,20 @@ The sub-agent starts fresh — it has zero context from this conversation. Brief
 - **Don't predict sub-agent results** — after launching, you know nothing about what it found. If the user asks before results arrive, tell them the sub-agent is still running — give status, not a guess.
 - **Don't duplicate work** — if you delegated research to a sub-agent, do not also perform the same searches yourself.
 - **Don't chain blindly** — if sub-agent A's result feeds into sub-agent B, wait for A to finish and digest its output before writing B's prompt.
+
+### Receiving Sub-Agent Results
+
+When a sub-agent returns, **always check its Issues field before proceeding**:
+- If Issues is empty and Result looks complete, proceed to the next step.
+- If Issues contains failures, ambiguities, or partial completions, **do not silently use the incomplete result**. Decide explicitly: retry with a corrected prompt, use a different sub-agent type, or surface the problem to the user with a clear explanation.
+- Never assemble a final answer by stitching together results that individually flagged errors — the compounded output will be wrong in ways that are hard to trace.
+
+### Parallel Sub-Agents and Dependencies
+
+When launching multiple sub-agents in the same response, distinguish between **independent** and **dependent** tasks:
+- **Independent** (e.g. scraping 3 different sites for the same data type): launch all at once. If one fails, the others still produce usable output — note the gap in your summary.
+- **Dependent** (sub-agent B needs sub-agent A's output): never launch B in the same response as A. Wait for A to complete, validate its result, then write B's prompt with the concrete output from A.
+- When writing a prompt for a sub-agent whose upstream might fail, **explicitly include a fallback instruction**: "If the OPFS file from the previous step does not exist, report that clearly and do not proceed." This prevents a downstream agent from silently inventing input data.
 
 ### Usage Notes
 
@@ -248,7 +262,7 @@ const SUB_AGENT_SECTION_TOOL_USAGE = `## Tool Usage
 
 Read each tool's description before calling — it defines behavior, parameters, and constraints. When a tool returns an error, read the error message and adapt — do not blindly retry.
 
-**Tool call budget**: You have a limited number of tool calls. Use them wisely — plan before acting, combine steps when possible, and stop early if stuck.
+**Tool call budget**: Your budget applies to this subtask only — it is independent of the parent agent's budget. That said, use calls purposefully: plan before acting, combine steps when possible, and stop early if stuck. Burning through your budget on repeated failed attempts helps no one; fail fast and report so the parent agent can reassign or reframe the task.
 
 ### Failure Detection — Stop Early
 
