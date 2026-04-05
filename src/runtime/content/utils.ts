@@ -134,7 +134,7 @@ export function proxyContext(
           if (global[name] === global.self) {
             return special.global || proxy;
           }
-          return global.top;
+          return global[name];
         default:
           break;
       }
@@ -192,12 +192,8 @@ export function proxyContext(
         case "window":
         case "self":
         case "globalThis":
-          return true;
         case "top":
         case "parent":
-          if (global[name] === global.self) {
-            return true;
-          }
           return true;
         default:
           break;
