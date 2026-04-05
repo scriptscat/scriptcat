@@ -211,6 +211,16 @@ export async function fetchIconByService(domain: string, service: FaviconService
       return [`https://icon.horse/icon/${encodeURI(domain)}`];
     case "baidu":
       return [`https://www.baidu.com/favicon.ico?url=${encodeURIComponent(domain)}`];
+    case "favicon.im":
+      return [`https://favicon.im/${encodeURI(domain)}`];
+    case "vemetric":
+      return [`https://favicon.vemetric.com/${encodeURI(domain)}?size=64`]; // 特殊圖標
+    case "yandex":
+      return [`https://favicon.yandex.net/favicon/${encodeURI(domain)}`]; // 只有16x16
+    case "allesedv":
+      return [`https://f1.allesedv.com/16/${encodeURI(domain)}`];
+    case "manifest.im":
+      return [`https://manifest.im/icon/${encodeURI(domain)}`];
     case "local":
     default:
       return await fetchIconByDomain(domain);

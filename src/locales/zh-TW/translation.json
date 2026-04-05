@@ -603,6 +603,11 @@
   "favicon_service_favicone": "Favicone",
   "favicon_service_icon-horse": "Icon Horse",
   "favicon_service_baidu": "百度 (Baidu)",
+  "favicon_service_favicon_im": "Favicon.im",
+  "favicon_service_vemetric": "Vemetric",
+  "favicon_service_yandex": "Yandex",
+  "favicon_service_allesedv": "Allesedv",
+  "favicon_service_manifest_im": "Manifest.im",
   "favicon_service_local": "本地取得",
   "editor": {
     "show_script_list": "顯示腳本列表",

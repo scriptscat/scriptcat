@@ -342,6 +342,11 @@ function Setting() {
                 <Select.Option value="favicone">{t("favicon_service_favicone")}</Select.Option>
                 <Select.Option value="icon-horse">{t("favicon_service_icon-horse")}</Select.Option>
                 <Select.Option value="baidu">{t("favicon_service_baidu")}</Select.Option>
+                <Select.Option value="favicon.im">{t("favicon_service_favicon_im")}</Select.Option>
+                <Select.Option value="vemetric">{t("favicon_service_vemetric")}</Select.Option>
+                <Select.Option value="yandex">{t("favicon_service_yandex")}</Select.Option>
+                <Select.Option value="allesedv">{t("favicon_service_allesedv")}</Select.Option>
+                <Select.Option value="manifest.im">{t("favicon_service_manifest_im")}</Select.Option>
                 <Select.Option value="local">{t("favicon_service_local")}</Select.Option>
               </Select>
             </div>
