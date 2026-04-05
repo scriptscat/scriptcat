@@ -15,6 +15,10 @@ import { useTranslation } from "react-i18next";
 import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/types";
 import { groupModelsByProvider, supportsVision, supportsImageOutput } from "./model_utils";
 import ProviderIcon from "./ProviderIcon";
+import { buildAnthropicRequest } from "@App/app/service/agent/providers/anthropic";
+import { buildOpenAIRequest } from "@App/app/service/agent/providers/openai";
+import { parseAnthropicStream } from "@App/app/service/agent/providers/anthropic";
+import { parseOpenAIStream } from "@App/app/service/agent/providers/openai";
 
 // 斜杠命令弹出菜单
 function SlashCommandMenu({
@@ -187,6 +191,7 @@ export default function ChatInput({
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -364,6 +369,83 @@ export default function ChatInput({
     e.target.value = "";
   };
 
+  const handleOptimizePrompt = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || isOptimizing) return;
+
+    // Find the currently selected model config
+    const model = models.find((m) => m.id === selectedModelId) || models[0];
+    if (!model) {
+      ArcoMessage.error("No model available for optimization");
+      return;
+    }
+
+    setIsOptimizing(true);
+    const abortController = new AbortController();
+
+    try {
+      const chatRequest = {
+        conversationId: "__prompt_optimizer__",
+        modelId: model.id,
+        messages: [
+          {
+            role: "system" as const,
+            content:
+              "You are a prompt engineering expert. Rewrite the user's raw input into a clear, structured, and actionable prompt that an AI agent can easily understand and execute. IMPORTANT: Always respond in the same language as the user's input — if they write in Chinese, output in Chinese; if Japanese, output in Japanese; if English, output in English. Preserve the original intent. Output ONLY the optimized prompt text — no explanations, no preamble, no markdown fences.",
+          },
+          { role: "user" as const, content: trimmed },
+        ],
+        cache: false,
+      };
+
+      const { url, init } =
+        model.provider === "anthropic"
+          ? buildAnthropicRequest(model, chatRequest)
+          : buildOpenAIRequest(
+              model.provider === "zhipu"
+                ? { ...model, apiBaseUrl: model.apiBaseUrl || "https://open.bigmodel.cn/api/paas/v4" }
+                : model,
+              chatRequest
+            );
+
+      const response = await fetch(url, { ...init, signal: abortController.signal });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      let optimized = "";
+      const parseStream = model.provider === "anthropic" ? parseAnthropicStream : parseOpenAIStream;
+
+      await parseStream(
+        reader,
+        (event) => {
+          if (event.type === "content_delta" && typeof event.delta === "string") {
+            optimized += event.delta;
+          } else if (event.type === "error") {
+            throw new Error(event.message);
+          }
+        },
+        abortController.signal
+      );
+
+      if (optimized.trim()) {
+        setInput(optimized.trim());
+        textareaRef.current?.focus();
+        ArcoMessage.success("Prompt optimized ✨");
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== "AbortError") {
+        ArcoMessage.error(`Optimization failed: ${err.message}`);
+      }
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
   const canSend = (input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage;
 
   return (
@@ -498,6 +580,45 @@ export default function ChatInput({
                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
                 </button>
+                {/* Prompt Optimizer */}
+                <Tooltip content={isOptimizing ? "Optimizing..." : "Optimize prompt for Agent"} mini>
+                  <button
+                    onClick={handleOptimizePrompt}
+                    className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-cursor-pointer tw-transition-colors ${
+                      input.trim() && !isOptimizing
+                        ? "tw-text-[rgb(var(--arcoblue-6))] hover:tw-bg-[var(--color-fill-2)]"
+                        : "tw-text-[var(--color-text-4)] tw-opacity-40 tw-cursor-not-allowed"
+                    }`}
+                  >
+                    {isOptimizing ? (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        style={{ animation: "prompt-opt-spin 0.8s linear infinite", transformOrigin: "center" }}
+                      >
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    ) : (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                    )}
+                  </button>
+                </Tooltip>
                 {onEnableToolsChange && (
                   <Tooltip
                     content={
