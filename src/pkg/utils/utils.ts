@@ -1,8 +1,6 @@
 /* eslint-disable no-control-regex */
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable default-case */
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
 import type { SCMetadata } from "@App/app/repo/scripts";
 import type MessageInternal from "@App/app/message/internal";
 
@@ -109,7 +107,8 @@ export function parseStorageValue(str: string): any {
 // 尝试重新链接和超时通知
 export function tryConnect(
   message: MessageInternal,
-  callback: (ok: boolean) => void
+  callback: (ok: boolean) => void,
+  onError: (e: any) => void
 ) {
   const ping = () => {
     return new Promise((resolve) => {
@@ -137,11 +136,7 @@ export function tryConnect(
         message.reconnect();
         callback(true);
       } catch (e) {
-        // ignore
-        LoggerCore.getLogger({ component: "utils" }).error(
-          "re connect failed",
-          Logger.E(e)
-        );
+        onError(e);
       }
     }
   }, 5000);
@@ -319,6 +314,11 @@ export function cleanFileName(name: string): string {
   // eslint-disable-next-line no-control-regex, no-useless-escape
   return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
 }
+
+export const sourceMapTo = (scriptName: string) => {
+  const url = chrome.runtime.getURL(`/${encodeURI(scriptName)}`);
+  return `\n//# sourceURL=${url}`;
+};
 
 // 获取本周是第几周
 // 遵循 ISO 8601, 一月四日为Week 1，星期一为新一周

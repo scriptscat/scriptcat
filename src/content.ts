@@ -5,7 +5,7 @@ import MessageInternal from "./app/message/internal";
 import ContentRuntime from "./runtime/content/content";
 // @ts-ignore
 import injectJs from "../dist/inject.js";
-import { randomString } from "./pkg/utils/utils";
+import { randomString, sourceMapTo } from "./pkg/utils/utils";
 
 const internalMessage = new MessageInternal("content");
 
@@ -21,7 +21,7 @@ const scriptFlag = randomString(8);
 const temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
 temp.setAttribute("type", "text/javascript");
 temp.setAttribute("charset", "UTF-8");
-temp.textContent = `(function (ScriptFlag) {\n${injectJs}\n})('${scriptFlag}')`;
+temp.textContent = `(function (ScriptFlag) {\n${injectJs}\n})('${scriptFlag}')${sourceMapTo("injected.js")}`;
 temp.className = "injected-js";
 document.documentElement.appendChild(temp);
 temp.remove();

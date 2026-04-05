@@ -1,5 +1,6 @@
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { has } from "@App/pkg/utils/lodash";
+import { sourceMapTo } from "@App/pkg/utils/utils"
 
 // 构建脚本运行代码
 export function compileScriptCode(scriptRes: ScriptRunResource): string {
@@ -14,9 +15,8 @@ export function compileScriptCode(scriptRes: ScriptRunResource): string {
     });
   }
   code = require + code;
-  return `with (context) return (async ()=>{\n${code}\n//# sourceURL=${chrome.runtime.getURL(
-    `/${encodeURI(scriptRes.name)}.user.js`
-  )}\n})()`;
+  const filepath = `${scriptRes.name}.user.js`;
+  return `with (context) return (async ()=>{\n${code}${sourceMapTo(filepath)}\n})()`;
 }
 
 // eslint-disable-next-line camelcase
