@@ -89,7 +89,7 @@ export class AgentTaskScheduler {
         task.lastRunError = run.error;
       } finally {
         // 更新 run 记录
-        await this.runRepo.updateRun(run.id, {
+        await this.runRepo.updateRun(task.id, run.id, {
           status: run.status,
           endtime: run.endtime,
           error: run.error,

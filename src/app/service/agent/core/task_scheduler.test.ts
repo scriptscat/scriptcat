@@ -3,6 +3,67 @@ import { AgentTaskScheduler } from "./task_scheduler";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import type { AgentTask } from "@App/app/service/agent/core/types";
 
+// Mock OPFS 文件系统（AgentTaskRunRepo 使用 OPFS 存储）
+function createMockOPFS() {
+  function createMockWritable() {
+    let data: any = null;
+    return {
+      write: vi.fn(async (content: any) => {
+        data = content;
+      }),
+      close: vi.fn(async () => {}),
+      getData: () => data,
+    };
+  }
+  function createMockFileHandle(name: string, dir: Map<string, any>) {
+    return {
+      kind: "file" as const,
+      getFile: vi.fn(async () => {
+        const content = dir.get(name);
+        if (typeof content === "string") return new Blob([content], { type: "application/json" });
+        return new Blob([""], { type: "application/json" });
+      }),
+      createWritable: vi.fn(async () => {
+        const writable = createMockWritable();
+        const origClose = writable.close;
+        writable.close = vi.fn(async () => {
+          dir.set(name, writable.getData());
+          await origClose();
+        });
+        return writable;
+      }),
+    };
+  }
+  function createMockDirHandle(store: Map<string, any>): any {
+    return {
+      kind: "directory" as const,
+      getDirectoryHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
+        if (!store.has("__dir__" + name)) {
+          if (opts?.create) store.set("__dir__" + name, new Map());
+          else throw new Error("Not found");
+        }
+        return createMockDirHandle(store.get("__dir__" + name));
+      }),
+      getFileHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
+        if (!store.has(name) && !opts?.create) throw new Error("Not found");
+        if (!store.has(name)) store.set(name, "");
+        return createMockFileHandle(name, store);
+      }),
+      removeEntry: vi.fn(async (name: string) => {
+        store.delete(name);
+        store.delete("__dir__" + name);
+      }),
+    };
+  }
+  const rootStore = new Map<string, any>();
+  const mockRoot = createMockDirHandle(rootStore);
+  Object.defineProperty(navigator, "storage", {
+    value: { getDirectory: vi.fn(async () => mockRoot) },
+    configurable: true,
+    writable: true,
+  });
+}
+
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: "task-1",
@@ -29,6 +90,7 @@ describe("AgentTaskScheduler", () => {
   let scheduler: AgentTaskScheduler;
 
   beforeEach(() => {
+    createMockOPFS();
     repo = new AgentTaskRepo();
     runRepo = new AgentTaskRunRepo();
     internalExecutor = vi
@@ -88,10 +150,11 @@ describe("AgentTaskScheduler", () => {
 
     await scheduler.tick();
 
-    // 等待第一次执行开始
+    // 等待 executor 被调用（表明已经过 appendRun）
     await vi.waitFor(() => {
-      expect(scheduler.isRunning("running-1")).toBe(true);
+      expect(internalExecutor).toHaveBeenCalledTimes(1);
     });
+    expect(scheduler.isRunning("running-1")).toBe(true);
 
     // 再次 tick 不应重复执行
     await scheduler.tick();

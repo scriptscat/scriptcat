@@ -1,5 +1,6 @@
 import type { AgentTask, AgentTaskRun } from "@App/app/service/agent/core/types";
 import { Repo } from "./repo";
+import { OPFSRepo } from "./opfs_repo";
 
 export class AgentTaskRepo extends Repo<AgentTask> {
   constructor() {
@@ -27,32 +28,41 @@ export class AgentTaskRepo extends Repo<AgentTask> {
   }
 }
 
-export class AgentTaskRunRepo extends Repo<AgentTaskRun> {
+const MAX_RUNS_PER_TASK = 100;
+
+export class AgentTaskRunRepo extends OPFSRepo {
   constructor() {
-    super("agent_task_run:");
-    this.enableCache();
+    super("task_runs");
+  }
+
+  private filename(taskId: string): string {
+    return `${taskId}.json`;
   }
 
   async appendRun(run: AgentTaskRun): Promise<void> {
-    await this._save(run.id, run);
+    const runs = await this.readJsonFile<AgentTaskRun[]>(this.filename(run.taskId), []);
+    runs.unshift(run);
+    // 环形缓冲：超过上限时裁剪最老的记录
+    if (runs.length > MAX_RUNS_PER_TASK) {
+      runs.length = MAX_RUNS_PER_TASK;
+    }
+    await this.writeJsonFile(this.filename(run.taskId), runs);
   }
 
-  async updateRun(id: string, data: Partial<AgentTaskRun>): Promise<void> {
-    await this.update(id, data);
+  async updateRun(taskId: string, id: string, data: Partial<AgentTaskRun>): Promise<void> {
+    const runs = await this.readJsonFile<AgentTaskRun[]>(this.filename(taskId), []);
+    const idx = runs.findIndex((r) => r.id === id);
+    if (idx < 0) return;
+    Object.assign(runs[idx], data);
+    await this.writeJsonFile(this.filename(taskId), runs);
   }
 
   async listRuns(taskId: string, limit = 50): Promise<AgentTaskRun[]> {
-    const all = await this.find((_key, value) => value.taskId === taskId);
-    // 按 starttime 降序排列
-    all.sort((a, b) => b.starttime - a.starttime);
-    return all.slice(0, limit);
+    const runs = await this.readJsonFile<AgentTaskRun[]>(this.filename(taskId), []);
+    return runs.slice(0, limit);
   }
 
   async clearRuns(taskId: string): Promise<void> {
-    const all = await this.find((_key, value) => value.taskId === taskId);
-    if (all.length > 0) {
-      const keys = all.map((r) => r.id);
-      await this.deletes(keys);
-    }
+    await this.deleteFile(this.filename(taskId));
   }
 }
