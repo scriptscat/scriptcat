@@ -1,4 +1,6 @@
-export const COMPACT_SYSTEM_PROMPT = `You are a conversation summarizer. Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions. This summary will replace the conversation history, enabling efficient task resumption in a new context window.`;
+export const COMPACT_SYSTEM_PROMPT = `You are a conversation summarizer. Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions. This summary will replace the conversation history, enabling efficient task resumption in a new context window.
+
+**Fidelity requirement:** Summarize what actually happened — not what was intended or what would have been ideal. If a step failed, record the failure. If a result was ambiguous, record the ambiguity. If the agent's approach was wrong and corrected, record both. Do not revise history to make the prior work look cleaner than it was. An accurate summary of a messy situation is more useful than a polished summary of a fictional one.`;
 
 export function buildCompactUserPrompt(customInstruction?: string): string {
   let prompt = `Write a structured, concise, and actionable continuation summary of the conversation so far. First analyze the conversation in <analysis> tags, then write the summary in <summary> tags.
