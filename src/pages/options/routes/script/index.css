@@ -7,23 +7,23 @@
 
 /* ScriptEditor 脚本列表颜色变量 */
 body {
-  --editor-bg-selected: #d4d7de;
-  --editor-bg-open: #ebebeb;
-  --editor-bg-default: #f5f5f5;
+  --editor-bg-selected: #D4D7DE;
+  --editor-bg-open: #EBEBEB;
+  --editor-bg-default: #F5F5F5;
 }
 
-body[arco-theme="dark"] {
+body[arco-theme='dark'] {
   --editor-bg-selected: #414958;
   --editor-bg-open: #474747;
   --editor-bg-default: #333333;
 }
 
 .script-code-editor {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	box-sizing: border-box;
 }
