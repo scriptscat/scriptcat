@@ -96,11 +96,19 @@ export function buildAnthropicRequest(
         }
       }
       for (const tc of m.toolCalls) {
+        let inputArgs = {};
+        if (tc.arguments) {
+          try {
+            inputArgs = JSON.parse(tc.arguments);
+          } catch {
+            // 不是有效 JSON ，忽略 arguments
+          }
+        }
         content.push({
           type: "tool_use",
           id: tc.id,
           name: tc.name,
-          input: tc.arguments ? JSON.parse(tc.arguments) : {},
+          input: inputArgs,
         });
       }
       return { role: "assistant" as const, content };
@@ -252,7 +260,7 @@ export function parseAnthropicStream(
                   onEvent({
                     type: "tool_call_delta",
                     id: "",
-                    delta: delta.partial_json,
+                    delta: `${delta.partial_json}`,
                   });
                 } else if (delta?.type === "image_delta" && imageBlockData) {
                   // 累积 base64 数据块

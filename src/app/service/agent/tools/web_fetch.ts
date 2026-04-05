@@ -25,12 +25,13 @@ export const WEB_FETCH_DEFINITION: ToolDefinition = {
 
 // 简单正则去 HTML 标签（降级方案）
 export function stripHtmlTags(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  if (html.includes("<") && html.includes(">")) {
+    html = html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ");
+  }
+  return html.replace(/\s+/g, " ").trim();
 }
 
 export class WebFetchExecutor implements ToolExecutor {
@@ -77,15 +78,22 @@ export class WebFetchExecutor implements ToolExecutor {
     const contentType = response.headers.get("content-type") || "";
     const text = await response.text();
     let content: string;
-    let detectedType: string;
+    let detectedType: string = "";
 
     // a) Content-Type 含 json → 尝试 JSON.parse
     if (contentType.includes("json")) {
       try {
-        const parsed = JSON.parse(text);
-        content = JSON.stringify(parsed, null, 2);
-        detectedType = "json";
+        if (text && typeof text === "string") {
+          const parsed = JSON.parse(text);
+          if (Object.keys(parsed).length) {
+            content = JSON.stringify(parsed, null, 2);
+            detectedType = "json";
+          }
+        }
       } catch {
+        // 不是有效 JSON
+      }
+      if (detectedType !== "json") {
         // 不是有效 JSON，当作纯文本
         content = stripHtmlTags(text);
         detectedType = "text";

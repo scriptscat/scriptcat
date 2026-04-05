@@ -11,8 +11,11 @@ export interface ToolCallRecord {
  * 规范化参数字符串（消除 JSON 格式差异）
  */
 function normalizeArgs(args: string): string {
+  if (!args) return args || "{}";
   try {
-    return JSON.stringify(JSON.parse(args));
+    const result = JSON.parse(args);
+    if (Object.keys(result).length === 0) return "{}";
+    return JSON.stringify(result);
   } catch {
     return args;
   }
@@ -23,7 +26,7 @@ function normalizeArgs(args: string): string {
  */
 function isNullResult(result: string): boolean {
   try {
-    const parsed = JSON.parse(result);
+    const parsed = result ? JSON.parse(result) : {};
     return parsed.result === null || parsed.result === undefined;
   } catch {
     return false;

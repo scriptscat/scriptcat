@@ -308,10 +308,10 @@ export function cdpPeekMonitor(tabId: number): { hasChanges: boolean; dialogCoun
 
 // 从 outerHTML 中提取纯文本（去除所有标签）
 function stripHtmlTags(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  if (html.includes("<") && html.includes(">")) {
+    html = html.replace(/<[^>]*>/g, " ");
+  }
+  return html.replace(/\s+/g, " ").trim();
 }
 
 // 停止监控：纯 CDP 解析新增节点 → 收集结果 → detach

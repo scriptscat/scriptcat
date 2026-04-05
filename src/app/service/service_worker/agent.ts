@@ -895,7 +895,14 @@ export class AgentService {
                   for (const tc of msg.toolCalls) {
                     if (tc.name === "load_skill") {
                       try {
-                        const args = JSON.parse(tc.arguments || "{}");
+                        let args: Record<string, any> = {};
+                        if (tc.arguments) {
+                          try {
+                            args = JSON.parse(tc.arguments);
+                          } catch {
+                            // 不是有效 JSON ，忽略 arguments
+                          }
+                        }
                         if (args.skill_name) {
                           await loadSkillMeta.executor.execute({ skill_name: args.skill_name });
                         }
@@ -1682,6 +1689,7 @@ export class AgentService {
     const subSendEvent = (event: ChatStreamEvent) => {
       // 转发事件给父代理
       params.sendEvent(event);
+      let argText;
       // 收集执行详情
       switch (event.type) {
         case "content_delta":
@@ -1692,15 +1700,19 @@ export class AgentService {
           currentMsg.thinking = (currentMsg.thinking || "") + event.delta;
           break;
         case "tool_call_start":
+          argText = `${event.toolCall.arguments || ""}`;
+          if (argText === "{}") argText = "";
           currentMsg.toolCalls.push({
             ...event.toolCall,
-            arguments: event.toolCall.arguments || "",
+            arguments: argText,
             status: "running",
           });
           break;
         case "tool_call_delta":
           if (currentMsg.toolCalls.length) {
-            currentMsg.toolCalls[currentMsg.toolCalls.length - 1].arguments += event.delta;
+            argText = `${currentMsg.toolCalls[currentMsg.toolCalls.length - 1].arguments || ""}`;
+            if (argText === "{}") argText = "";
+            currentMsg.toolCalls[currentMsg.toolCalls.length - 1].arguments = argText + event.delta;
           }
           break;
         case "tool_call_complete": {
@@ -2137,7 +2149,14 @@ export class AgentService {
               for (const tc of msg.toolCalls) {
                 if (tc.name === "load_skill") {
                   try {
-                    const args = JSON.parse(tc.arguments || "{}");
+                    let args: Record<string, any> = {};
+                    if (tc.arguments) {
+                      try {
+                        args = JSON.parse(tc.arguments);
+                      } catch {
+                        // 不是有效 JSON ，忽略 arguments
+                      }
+                    }
                     if (args.skill_name) {
                       loadedSkillNames.add(args.skill_name);
                     }
@@ -2417,6 +2436,7 @@ export class AgentService {
             sendEvent(event);
           }
         }
+        let argText;
 
         switch (event.type) {
           case "content_delta":
@@ -2430,11 +2450,15 @@ export class AgentService {
             if (currentToolCall) {
               toolCalls.push(currentToolCall);
             }
-            currentToolCall = { ...event.toolCall, arguments: event.toolCall.arguments || "" };
+            argText = `${event.toolCall.arguments || ""}`;
+            if (argText === "{}") argText = "";
+            currentToolCall = { ...event.toolCall, arguments: argText };
             break;
           case "tool_call_delta":
             if (currentToolCall) {
-              currentToolCall.arguments += event.delta;
+              argText = `${currentToolCall.arguments || ""}`;
+              if (argText === "{}") argText = "";
+              currentToolCall.arguments = argText + event.delta;
             }
             break;
           case "done": {

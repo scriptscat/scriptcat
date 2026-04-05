@@ -94,7 +94,11 @@ export class ToolRegistry {
         try {
           let args: Record<string, unknown> = {};
           if (tc.arguments) {
-            args = JSON.parse(tc.arguments);
+            try {
+              args = JSON.parse(tc.arguments);
+            } catch {
+              // 不是有效 JSON ，忽略 arguments
+            }
           }
           const rawResult = await tool.executor.execute(args);
 

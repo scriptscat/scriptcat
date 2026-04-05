@@ -208,20 +208,22 @@ export function parseOpenAIStream(
                 // 工具调用
                 if (delta.tool_calls) {
                   for (const tc of delta.tool_calls) {
+                    let argText = `${tc.function.arguments || ""}`;
+                    if (argText === "{}") argText = "";
                     if (tc.function?.name) {
                       onEvent({
                         type: "tool_call_start",
                         toolCall: {
                           id: tc.id || `tc_${Date.now()}`,
                           name: tc.function.name,
-                          arguments: tc.function.arguments || "",
+                          arguments: argText,
                         },
                       });
-                    } else if (tc.function?.arguments) {
+                    } else if (argText) {
                       onEvent({
                         type: "tool_call_delta",
                         id: tc.id || "",
-                        delta: tc.function.arguments,
+                        delta: argText,
                       });
                     }
                   }

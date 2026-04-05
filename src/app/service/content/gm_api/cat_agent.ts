@@ -328,6 +328,7 @@ export class ConversationInstance {
 
         if (msg.action !== "event") return;
         const event: ChatStreamEvent = msg.data;
+        let argText;
 
         switch (event.type) {
           case "content_delta":
@@ -342,10 +343,16 @@ export class ConversationInstance {
             break;
           case "tool_call_start":
             if (currentToolCall) toolCalls.push(currentToolCall);
-            currentToolCall = { ...event.toolCall, arguments: event.toolCall.arguments || "" };
+            argText = `${event.toolCall.arguments || ""}`;
+            if (argText === "{}") argText = "";
+            currentToolCall = { ...event.toolCall, arguments: argText };
             break;
           case "tool_call_delta":
-            if (currentToolCall) currentToolCall.arguments += event.delta;
+            if (currentToolCall) {
+              argText = `${currentToolCall.arguments || ""}`;
+              if (argText === "{}") argText = "";
+              currentToolCall.arguments = argText + event.delta;
+            }
             break;
           case "done": {
             if (currentToolCall) {

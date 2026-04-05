@@ -12,8 +12,12 @@ function renderToolCall(tc: ToolCall, indent = ""): string {
   const lines: string[] = [];
   let argsStr = "";
   try {
-    const parsed = JSON.parse(tc.arguments);
-    argsStr = JSON.stringify(parsed, null, 2);
+    if (tc.arguments) {
+      const parsed = JSON.parse(tc.arguments);
+      if (Object.keys(parsed).length) {
+        argsStr = JSON.stringify(parsed, null, 2);
+      }
+    }
   } catch {
     argsStr = tc.arguments;
   }
