@@ -158,4 +158,25 @@ describe("AgentTaskScheduler", () => {
     expect(updated!.nextruntime).toBeGreaterThan(Date.now() - 1000);
     expect(updated!.lastruntime).toBeDefined();
   });
+
+  it("appendRun 抛错时，task.id 应从 runningTasks 移除", async () => {
+    runRepo.appendRun = vi.fn().mockRejectedValue(new Error("storage quota exceeded"));
+
+    const task = makeTask({ id: "append-fail-1", nextruntime: Date.now() - 1000 });
+    await repo.saveTask(task);
+
+    // 第一次 executeTask 时 appendRun 抛错，应不再阻塞任务
+    await expect(scheduler.executeTask(task)).rejects.toThrow("storage quota exceeded");
+
+    // task.id 应已从 runningTasks 移除
+    expect(scheduler.isRunning("append-fail-1")).toBe(false);
+
+    // 第二次调用应能正常进入（不被跳过）
+    runRepo.appendRun = vi.fn().mockResolvedValue(undefined);
+    internalExecutor.mockResolvedValue({ conversationId: "conv-2", usage: { inputTokens: 200, outputTokens: 100 } });
+
+    // 应能成功执行而不被 runningTasks.has() 阻挡
+    await scheduler.executeTask(task);
+    expect(internalExecutor).toHaveBeenCalled();
+  });
 });

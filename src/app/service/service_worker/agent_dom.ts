@@ -21,6 +21,7 @@ import type {
   ExecuteScriptOptions,
 } from "@App/app/service/agent/types";
 import { decodeDataUrl, writeWorkspaceFile } from "@App/app/service/agent/opfs_helpers";
+import { assertDomUrlAllowed } from "./agent_dom_policy";
 
 type ReadPageInjectedOptions = {
   selector: string | undefined | null;
@@ -56,6 +57,8 @@ export class AgentDomService {
 
   // 导航到 URL
   async navigate(url: string, options?: NavigateOptions): Promise<NavigateResult> {
+    // 校验目标 URL 是否在黑名单中
+    assertDomUrlAllowed(url);
     const timeout = options?.timeout ?? 30000;
     const waitUntil = options?.waitUntil ?? true;
 
@@ -306,25 +309,12 @@ export class AgentDomService {
 
   // ---- 辅助方法 ----
 
-  // 不可注入脚本的 URL 协议
-  private static RESTRICTED_PROTOCOLS = ["chrome:", "chrome-extension:", "edge:", "about:", "devtools:"];
-
-  // 检查 URL 是否可以注入脚本
-  private isRestrictedUrl(url: string | undefined): boolean {
-    if (!url) return false;
-    return AgentDomService.RESTRICTED_PROTOCOLS.some((p) => url.startsWith(p));
-  }
-
   // 解析 tabId，未传则获取当前活动 tab
   private async resolveTabId(tabId?: number): Promise<number> {
     if (tabId) {
       const tab = await chrome.tabs.get(tabId);
-      // 检测是否为受限页面
-      if (this.isRestrictedUrl(tab.url)) {
-        throw new Error(
-          `Cannot operate on restricted page: ${tab.url}. Browser internal pages and extension pages do not allow script injection. Please specify a regular web page tab.`
-        );
-      }
+      // 校验目标 tab 的 URL 是否在黑名单中（同时兼顾原有受限页面检测）
+      assertDomUrlAllowed(tab.url || "");
       // 检测 tab 是否被 discard
       if (tab.discarded) {
         await chrome.tabs.reload(tabId);
@@ -336,12 +326,8 @@ export class AgentDomService {
     if (tabs.length === 0 || !tabs[0].id) {
       throw new Error("No active tab found");
     }
-    // 当前活动标签是受限页面时，提示用户指定目标 tab
-    if (this.isRestrictedUrl(tabs[0].url)) {
-      throw new Error(
-        `Active tab is a restricted page (${tabs[0].url}) which does not allow script injection. Please use dom_list_tabs to find a regular web page and specify its tabId.`
-      );
-    }
+    // 校验当前活动 tab 的 URL 是否在黑名单中
+    assertDomUrlAllowed(tabs[0].url || "");
     return tabs[0].id;
   }
 

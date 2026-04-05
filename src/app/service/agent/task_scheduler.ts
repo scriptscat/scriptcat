@@ -57,57 +57,60 @@ export class AgentTaskScheduler {
     if (this.runningTasks.has(task.id)) return;
     this.runningTasks.add(task.id);
 
-    const run: AgentTaskRun = {
-      id: uuidv4(),
-      taskId: task.id,
-      starttime: Date.now(),
-      status: "running",
-    };
-    await this.runRepo.appendRun(run);
-
     try {
-      if (task.mode === "internal") {
-        const result = await this.internalExecutor(task);
-        run.conversationId = result.conversationId;
-        run.usage = result.usage;
-      } else {
-        await this.eventEmitter(task);
-      }
+      const run: AgentTaskRun = {
+        id: uuidv4(),
+        taskId: task.id,
+        starttime: Date.now(),
+        status: "running",
+      };
+      await this.runRepo.appendRun(run);
 
-      run.status = "success";
-      run.endtime = Date.now();
-
-      task.lastRunStatus = "success";
-      task.lastRunError = undefined;
-    } catch (e: any) {
-      run.status = "error";
-      run.error = e.message || "Unknown error";
-      run.endtime = Date.now();
-
-      task.lastRunStatus = "error";
-      task.lastRunError = run.error;
-    } finally {
-      this.runningTasks.delete(task.id);
-
-      // 更新 run 记录
-      await this.runRepo.updateRun(run.id, {
-        status: run.status,
-        endtime: run.endtime,
-        error: run.error,
-        conversationId: run.conversationId,
-        usage: run.usage,
-      });
-
-      // 更新 task 状态
-      task.lastruntime = run.starttime;
       try {
-        const info = nextTimeInfo(task.crontab);
-        task.nextruntime = info.next.toMillis();
-      } catch {
-        task.nextruntime = undefined;
+        if (task.mode === "internal") {
+          const result = await this.internalExecutor(task);
+          run.conversationId = result.conversationId;
+          run.usage = result.usage;
+        } else {
+          await this.eventEmitter(task);
+        }
+
+        run.status = "success";
+        run.endtime = Date.now();
+
+        task.lastRunStatus = "success";
+        task.lastRunError = undefined;
+      } catch (e: any) {
+        run.status = "error";
+        run.error = e.message || "Unknown error";
+        run.endtime = Date.now();
+
+        task.lastRunStatus = "error";
+        task.lastRunError = run.error;
+      } finally {
+        // 更新 run 记录
+        await this.runRepo.updateRun(run.id, {
+          status: run.status,
+          endtime: run.endtime,
+          error: run.error,
+          conversationId: run.conversationId,
+          usage: run.usage,
+        });
+
+        // 更新 task 状态
+        task.lastruntime = run.starttime;
+        try {
+          const info = nextTimeInfo(task.crontab);
+          task.nextruntime = info.next.toMillis();
+        } catch {
+          task.nextruntime = undefined;
+        }
+        task.updatetime = Date.now();
+        await this.repo.saveTask(task);
       }
-      task.updatetime = Date.now();
-      await this.repo.saveTask(task);
+    } finally {
+      // 必须在最外层 finally 确保任何异常都能清理 runningTasks
+      this.runningTasks.delete(task.id);
     }
   }
 

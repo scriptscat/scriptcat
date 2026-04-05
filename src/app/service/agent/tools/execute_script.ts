@@ -1,5 +1,6 @@
 import type { ToolDefinition } from "@App/app/service/agent/types";
 import type { ToolExecutor } from "@App/app/service/agent/tool_registry";
+import { withTimeout } from "@App/pkg/utils/with_timeout";
 
 export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
   name: "execute_script",
@@ -27,15 +28,6 @@ export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
 };
 
 const EXECUTE_SCRIPT_TIMEOUT_MS = 30_000;
-
-// 带自动清理的超时包装，避免 Promise.race 导致的 unhandled rejection
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("execute_script timed out after 30s")), ms);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
-}
 
 export type ExecuteScriptDeps = {
   executeInPage: (code: string, options?: { tabId?: number }) => Promise<{ result: unknown; tabId: number }>;
@@ -66,12 +58,20 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
 
       if (target === "page") {
         const tabId = args.tab_id as number | undefined;
-        const { result, tabId: actualTabId } = await withTimeout(deps.executeInPage(code, { tabId }), timeoutMs);
+        const { result, tabId: actualTabId } = await withTimeout(
+          deps.executeInPage(code, { tabId }),
+          timeoutMs,
+          () => new Error("execute_script timed out after 30s")
+        );
         return JSON.stringify({ result: result ?? null, target: "page", tab_id: actualTabId });
       }
 
       // sandbox
-      const result = await withTimeout(deps.executeInSandbox(code), timeoutMs);
+      const result = await withTimeout(
+        deps.executeInSandbox(code),
+        timeoutMs,
+        () => new Error("execute_script timed out after 30s")
+      );
       return JSON.stringify({ result: result ?? null, target: "sandbox" });
     },
   };

@@ -1385,7 +1385,30 @@ describe("callLLM 流式响应解析", () => {
     expect(doneEvents[0].usage.outputTokens).toBe(8);
   });
 
-  it("API 错误响应（HTTP 401）：sendEvent 收到 error + errorCode=auth", async () => {
+  it("API 错误响应（HTTP 401）：4xx 客户端错误不重试，立即收到 error + errorCode=auth", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // 401 不重试，只需提供 1 次 mock
+    fetchSpy.mockResolvedValueOnce(
+      ({ ok: false, status: 401, text: async () => "401 Unauthorized" }) as unknown as Response
+    );
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
+
+    // 仅调用 1 次 fetch，不重试
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const events = sentMessages.map((m) => m.data);
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0].errorCode).toBe("auth");
+  });
+
+  it("API 错误响应（HTTP 429）：应进入重试循环，第二次成功", async () => {
     vi.useFakeTimers();
 
     const { service, mockRepo } = createTestService();
@@ -1394,21 +1417,35 @@ describe("callLLM 流式响应解析", () => {
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
     mockRepo.getMessages.mockResolvedValue([]);
 
-    // 返回 401 错误，callLLM 内部会重试 5 次，需提供足够多的 mock
-    const make401 = () => ({ ok: false, status: 401, text: async () => "401 Unauthorized" }) as unknown as Response;
-    for (let i = 0; i < 6; i++) fetchSpy.mockResolvedValueOnce(make401());
+    // 第一次 429，第二次成功
+    fetchSpy.mockResolvedValueOnce(
+      ({ ok: false, status: 429, text: async () => "Too Many Requests" }) as unknown as Response
+    );
+    fetchSpy.mockResolvedValueOnce(
+      makeSSEResponse([
+        `data: {"choices":[{"delta":{"content":"重试成功"}}]}\n\n`,
+        `data: {"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n`,
+      ])
+    );
 
     const chatPromise = (service as any).handleConversationChat({ conversationId: "conv-1", message: "hi" }, sender);
 
-    // 推进定时器跳过 callLLM 内部重试延迟（10+10+20+20+30 = 90s）
-    await vi.advanceTimersByTimeAsync(100_000);
+    // 推进定时器跳过第一次重试延迟（10s）
+    await vi.advanceTimersByTimeAsync(10_000);
 
     await chatPromise;
 
+    // fetch 应被调用 2 次（429 + 成功）
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
     const events = sentMessages.map((m) => m.data);
-    const errorEvents = events.filter((e: any) => e.type === "error");
-    expect(errorEvents).toHaveLength(1);
-    expect(errorEvents[0].errorCode).toBe("auth");
+    // 应有 1 次 retry 通知
+    const retryEvents = events.filter((e: any) => e.type === "retry");
+    expect(retryEvents).toHaveLength(1);
+    expect(retryEvents[0].attempt).toBe(1);
+    // 最终应成功完成
+    const doneEvents = events.filter((e: any) => e.type === "done");
+    expect(doneEvents).toHaveLength(1);
 
     vi.useRealTimers();
   });
@@ -3081,7 +3118,7 @@ describe("后台运行会话 集成测试", () => {
     };
   }
 
-  function setupConversation(service: any, mockRepo: any) {
+  function setupConversation(mockRepo: any) {
     const conv = {
       id: "conv-bg",
       title: "BG Chat",
@@ -3095,7 +3132,7 @@ describe("后台运行会话 集成测试", () => {
 
   it("后台模式：listener 断开不中止会话，消息仍然持久化", async () => {
     const { service, mockRepo } = createTestService();
-    setupConversation(service, mockRepo);
+    setupConversation(mockRepo);
 
     const { sender, simulateDisconnect } = createMockSender();
 
@@ -3149,7 +3186,7 @@ describe("后台运行会话 集成测试", () => {
 
   it("后台模式：同会话并发请求被拒绝", async () => {
     const { service, mockRepo } = createTestService();
-    setupConversation(service, mockRepo);
+    setupConversation(mockRepo);
 
     let resolveRead: () => void;
     const readPromise = new Promise<void>((r) => {
@@ -3198,7 +3235,7 @@ describe("后台运行会话 集成测试", () => {
 
   it("非后台模式：保持原有行为（不注册到 runningConversations）", async () => {
     const { service, mockRepo } = createTestService();
-    setupConversation(service, mockRepo);
+    setupConversation(mockRepo);
 
     const { sender, sentMessages } = createMockSender();
 
@@ -3214,7 +3251,7 @@ describe("后台运行会话 集成测试", () => {
 
   it("后台模式：stop 指令中止会话后不抛未捕获异常", async () => {
     const { service, mockRepo } = createTestService();
-    setupConversation(service, mockRepo);
+    setupConversation(mockRepo);
 
     const { sender, simulateMessage } = createMockSender();
 

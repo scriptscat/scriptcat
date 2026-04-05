@@ -4,6 +4,7 @@ import type { ToolExecutor } from "./tool_registry";
 import { getSkillScriptBody } from "@App/pkg/utils/skill_script";
 import { executeSkillScript } from "@App/app/service/offscreen/client";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { withTimeout } from "@App/pkg/utils/with_timeout";
 
 // Skill Script UUID 前缀，用于在 GM API 请求中识别 Skill Script
 export const SKILL_SCRIPT_UUID_PREFIX = "skillscript-";
@@ -89,18 +90,11 @@ export class SkillScriptExecutor implements ToolExecutor {
         requires,
         configValues: this.configValues,
       });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              Object.assign(new Error(`SkillScript "${this.record.name}" timed out after ${timeoutSec}s`), {
-                errorCode: "tool_timeout",
-              })
-            ),
-          timeoutMs
-        )
+      return await withTimeout(execPromise, timeoutMs, () =>
+        Object.assign(new Error(`SkillScript "${this.record.name}" timed out after ${timeoutSec}s`), {
+          errorCode: "tool_timeout",
+        })
       );
-      return await Promise.race([execPromise, timeoutPromise]);
     } finally {
       // 执行完毕后清理映射
       skillScriptUuidMap.delete(uuid);

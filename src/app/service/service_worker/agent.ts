@@ -2367,6 +2367,14 @@ export class AgentService {
       } catch (e: any) {
         // 用户取消时直接抛出，不重试
         if (signal.aborted) throw e;
+        // 4xx 客户端错误（除 408/425/429 外）不重试，立即抛出
+        const m = (e.message || "").match(/API error:\s*(\d{3})/);
+        if (m) {
+          const code = Number(m[1]);
+          if (code >= 400 && code < 500 && code !== 408 && code !== 425 && code !== 429) {
+            throw e;
+          }
+        }
         // 已用完所有重试次数
         if (attempt >= MAX_RETRIES) throw e;
         // 向 UI 发送重试通知（含延迟时间，用于倒计时显示）
@@ -2378,13 +2386,16 @@ export class AgentService {
           error: e.message || "Unknown error",
           delayMs,
         });
-        // 等待后重试，等待期间可被 abort 取消
+        // 等待后重试，等待期间可被 abort 取消；resolve 时移除监听器避免泄漏
         await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(resolve, delayMs);
           const onAbort = () => {
             clearTimeout(timer);
             reject(new Error("Aborted during retry wait"));
           };
+          const timer = setTimeout(() => {
+            signal.removeEventListener("abort", onAbort);
+            resolve();
+          }, delayMs);
           signal.addEventListener("abort", onAbort, { once: true });
         });
       }

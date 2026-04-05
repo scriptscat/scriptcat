@@ -3,6 +3,7 @@ import type { ToolExecutor } from "@App/app/service/agent/tool_registry";
 import type { MessageSend } from "@Packages/message/types";
 import type { SearchConfigRepo } from "./search_config";
 import { extractSearchResults, extractBingResults, extractBaiduResults } from "@App/app/service/offscreen/client";
+import { withTimeout } from "@App/pkg/utils/with_timeout";
 
 export const WEB_SEARCH_DEFINITION: ToolDefinition = {
   name: "web_search",
@@ -81,10 +82,11 @@ export class WebSearchExecutor implements ToolExecutor {
     let results: Awaited<ReturnType<typeof extractSearchResults>>;
     let extractionFailed = false;
     try {
-      results = await Promise.race([
+      results = await withTimeout(
         extractSearchResults(this.sender, html),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("extract timeout")), 10_000)),
-      ]);
+        10_000,
+        () => new Error("extract timeout")
+      );
     } catch {
       results = [];
       extractionFailed = true;
@@ -111,10 +113,11 @@ export class WebSearchExecutor implements ToolExecutor {
     let results: Awaited<ReturnType<typeof extractBingResults>>;
     let extractionFailed = false;
     try {
-      results = await Promise.race([
+      results = await withTimeout(
         extractBingResults(this.sender, html),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("extract timeout")), 10_000)),
-      ]);
+        10_000,
+        () => new Error("extract timeout")
+      );
     } catch {
       results = [];
       extractionFailed = true;
@@ -141,10 +144,11 @@ export class WebSearchExecutor implements ToolExecutor {
     let results: Awaited<ReturnType<typeof extractBaiduResults>>;
     let extractionFailed = false;
     try {
-      results = await Promise.race([
+      results = await withTimeout(
         extractBaiduResults(this.sender, html),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("extract timeout")), 10_000)),
-      ]);
+        10_000,
+        () => new Error("extract timeout")
+      );
     } catch {
       results = [];
       extractionFailed = true;

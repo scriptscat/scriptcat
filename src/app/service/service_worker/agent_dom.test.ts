@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { AgentDomService } from "./agent_dom";
+import { assertDomUrlAllowed, SENSITIVE_HOST_PATTERNS } from "./agent_dom_policy";
 
 // mock chrome.scripting
 const mockExecuteScript = vi.fn();
@@ -48,6 +49,64 @@ beforeEach(() => {
     contains: mockPermissionsContains,
     request: mockPermissionsRequest,
   };
+});
+
+// ---- 守卫单元测试 ----
+describe("assertDomUrlAllowed", () => {
+  it("应拒绝空字符串", () => {
+    expect(() => assertDomUrlAllowed("")).toThrow("Agent DOM operation not allowed for URL: (empty)");
+  });
+
+  it("应拒绝 chrome:// URL", () => {
+    expect(() => assertDomUrlAllowed("chrome://settings")).toThrow("Agent DOM operation not allowed for URL:");
+  });
+
+  it("应拒绝 chrome-extension:// URL", () => {
+    expect(() => assertDomUrlAllowed("chrome-extension://abc123/popup.html")).toThrow(
+      "Agent DOM operation not allowed for URL:"
+    );
+  });
+
+  it("应拒绝 edge:// URL", () => {
+    expect(() => assertDomUrlAllowed("edge://newtab")).toThrow("Agent DOM operation not allowed for URL:");
+  });
+
+  it("应拒绝 about:newtab（非 about:blank）", () => {
+    expect(() => assertDomUrlAllowed("about:newtab")).toThrow("Agent DOM operation not allowed for URL:");
+  });
+
+  it("应拒绝 devtools:// URL", () => {
+    expect(() => assertDomUrlAllowed("devtools://devtools/bundled/devtools_app.html")).toThrow(
+      "Agent DOM operation not allowed for URL:"
+    );
+  });
+
+  it("应拒绝 view-source: URL", () => {
+    expect(() => assertDomUrlAllowed("view-source:https://example.com")).toThrow(
+      "Agent DOM operation not allowed for URL:"
+    );
+  });
+
+  it("应允许 about:blank（新标签页）", () => {
+    expect(() => assertDomUrlAllowed("about:blank")).not.toThrow();
+  });
+
+  it("应允许正常 https URL", () => {
+    expect(() => assertDomUrlAllowed("https://example.com/path")).not.toThrow();
+  });
+
+  it("应允许正常 http URL", () => {
+    expect(() => assertDomUrlAllowed("http://localhost:3000")).not.toThrow();
+  });
+
+  it("SENSITIVE_HOST_PATTERNS 应包含浏览器内部协议", () => {
+    expect(SENSITIVE_HOST_PATTERNS).toContain("chrome://");
+    expect(SENSITIVE_HOST_PATTERNS).toContain("chrome-extension://");
+    expect(SENSITIVE_HOST_PATTERNS).toContain("edge://");
+    expect(SENSITIVE_HOST_PATTERNS).toContain("about:");
+    expect(SENSITIVE_HOST_PATTERNS).toContain("devtools://");
+    expect(SENSITIVE_HOST_PATTERNS).toContain("view-source:");
+  });
 });
 
 describe("AgentDomService", () => {
@@ -121,6 +180,18 @@ describe("AgentDomService", () => {
       expect(mockTabsCreate).toHaveBeenCalledWith({ url: "https://new-url.com" });
       expect(result.tabId).toBe(5);
     });
+
+    it("应拒绝导航到 chrome:// URL", async () => {
+      await expect(service.navigate("chrome://settings")).rejects.toThrow(
+        "Agent DOM operation not allowed for URL:"
+      );
+    });
+
+    it("应拒绝导航到 chrome-extension:// URL", async () => {
+      await expect(service.navigate("chrome-extension://abc/popup.html")).rejects.toThrow(
+        "Agent DOM operation not allowed for URL:"
+      );
+    });
   });
 
   describe("readPage", () => {
@@ -132,7 +203,7 @@ describe("AgentDomService", () => {
       };
       mockExecuteScript.mockResolvedValue([{ result: mockPageContent }]);
       mockTabsQuery.mockResolvedValue([{ id: 1 }]);
-      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockTabsGet.mockResolvedValue({ id: 1, url: "https://example.com", status: "complete", discarded: false });
 
       const result = await service.readPage({ tabId: 1 });
 
@@ -155,12 +226,18 @@ describe("AgentDomService", () => {
         totalLength: 500000,
       };
       mockExecuteScript.mockResolvedValue([{ result: mockPageContent }]);
-      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockTabsGet.mockResolvedValue({ id: 1, url: "https://example.com", status: "complete", discarded: false });
 
       const result = await service.readPage({ tabId: 1 });
 
       expect(result.truncated).toBe(true);
       expect(result.totalLength).toBe(500000);
+    });
+
+    it("应拒绝操作 chrome:// tab", async () => {
+      mockTabsGet.mockResolvedValue({ id: 1, url: "chrome://newtab", status: "complete", discarded: false });
+
+      await expect(service.readPage({ tabId: 1 })).rejects.toThrow("Agent DOM operation not allowed for URL:");
     });
   });
 
@@ -226,7 +303,7 @@ describe("AgentDomService", () => {
         atBottom: false,
       };
       mockExecuteScript.mockResolvedValue([{ result: scrollResult }]);
-      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockTabsGet.mockResolvedValue({ id: 1, url: "https://example.com", status: "complete", discarded: false });
 
       const result = await service.scroll("down", { tabId: 1 });
 
@@ -247,7 +324,7 @@ describe("AgentDomService", () => {
         },
       };
       mockExecuteScript.mockResolvedValue([{ result: waitResult }]);
-      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockTabsGet.mockResolvedValue({ id: 1, url: "https://example.com", status: "complete", discarded: false });
 
       const result = await service.waitFor("#target", { tabId: 1 });
 
@@ -258,7 +335,7 @@ describe("AgentDomService", () => {
     it("应在超时后返回 found: false", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       mockExecuteScript.mockResolvedValue([{ result: null }]);
-      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockTabsGet.mockResolvedValue({ id: 1, url: "https://example.com", status: "complete", discarded: false });
 
       const promise = service.waitFor("#nonexistent", { tabId: 1, timeout: 100 });
       // 需要多次 advance 来驱动 while 循环中的 setTimeout
@@ -276,6 +353,7 @@ describe("AgentDomService", () => {
     it("应在前台 tab 使用 captureVisibleTab", async () => {
       mockTabsGet.mockResolvedValue({
         id: 1,
+        url: "https://example.com",
         active: true,
         windowId: 1,
         status: "complete",
@@ -292,7 +370,7 @@ describe("AgentDomService", () => {
 
   describe("executeScript", () => {
     it("应在页面中执行代码并返回结果", async () => {
-      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockTabsGet.mockResolvedValue({ id: 1, url: "https://example.com", status: "complete", discarded: false });
       mockExecuteScript.mockResolvedValue([{ result: { count: 42, items: ["a", "b"] } }]);
 
       const result = await service.executeScript('return document.querySelectorAll("a").length', { tabId: 1 });
@@ -307,7 +385,7 @@ describe("AgentDomService", () => {
     });
 
     it("应在执行失败时抛出错误", async () => {
-      mockTabsGet.mockResolvedValue({ id: 1, status: "complete", discarded: false });
+      mockTabsGet.mockResolvedValue({ id: 1, url: "https://example.com", status: "complete", discarded: false });
       mockExecuteScript.mockResolvedValue([]);
 
       await expect(service.executeScript("return 1", { tabId: 1 })).rejects.toThrow("Failed to execute script");
@@ -334,6 +412,7 @@ describe("AgentDomService", () => {
     it("应在 tab 被 discard 时自动 reload", async () => {
       mockTabsGet.mockResolvedValueOnce({
         id: 1,
+        url: "https://example.com",
         discarded: true,
         status: "complete",
       });
@@ -341,6 +420,7 @@ describe("AgentDomService", () => {
       // reload 后再次 get
       mockTabsGet.mockResolvedValueOnce({
         id: 1,
+        url: "https://example.com",
         discarded: false,
         status: "complete",
       });
@@ -363,6 +443,14 @@ describe("AgentDomService", () => {
       mockExecuteScript.mockResolvedValue([{ result: {} }]);
 
       await expect(service.readPage()).rejects.toThrow("No active tab found");
+    });
+
+    it("应允许操作 about:blank tab（新标签页）", async () => {
+      mockTabsGet.mockResolvedValue({ id: 1, url: "about:blank", status: "complete", discarded: false });
+      const mockContent = { title: "", url: "about:blank", html: "" };
+      mockExecuteScript.mockResolvedValue([{ result: mockContent }]);
+
+      await expect(service.readPage({ tabId: 1 })).resolves.toBeDefined();
     });
   });
 });
