@@ -10,6 +10,11 @@ export class UrlChangeEvent extends Event {
 
 let attached = false;
 
+// 仅供测试使用，重置 attached 标记
+export const resetAttachedForTest = () => {
+  attached = false;
+};
+
 const getPropGetter = <T>(obj: T, key: keyof T) => {
   // 避免直接 obj[key] 读取。或会被 hack
   for (let t = obj; t; t = Native.objectGetPrototypeOf(t)) {
