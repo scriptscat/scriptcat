@@ -49,13 +49,20 @@ const LIST_TABS_DEFINITION: ToolDefinition = {
 
 const OPEN_TAB_DEFINITION: ToolDefinition = {
   name: "open_tab",
-  description: "Open a new browser tab with the given URL.",
+  description:
+    "Open a new tab or navigate an existing tab to a URL. " +
+    "If tab_id is provided, navigates that tab; otherwise opens a new tab. Waits for page load by default when navigating.",
   parameters: {
     type: "object",
     properties: {
       url: { type: "string", description: "URL to open" },
-      active: { type: "boolean", description: "Whether to activate the tab (default: true, false for background)" },
-      window_id: { type: "number", description: "Window to open the tab in" },
+      tab_id: { type: "number", description: "Existing tab ID to navigate (omit to open a new tab)" },
+      active: { type: "boolean", description: "Whether to activate the tab (default: true, only for new tabs)" },
+      window_id: { type: "number", description: "Window to open the tab in (only for new tabs)" },
+      wait_until_loaded: {
+        type: "boolean",
+        description: "Wait for page to finish loading when navigating existing tab (default: true)",
+      },
     },
     required: ["url"],
   },
@@ -82,23 +89,6 @@ const ACTIVATE_TAB_DEFINITION: ToolDefinition = {
       tab_id: { type: "number", description: "Tab ID to activate" },
     },
     required: ["tab_id"],
-  },
-};
-
-const NAVIGATE_TAB_DEFINITION: ToolDefinition = {
-  name: "navigate_tab",
-  description: "Navigate an existing tab to a new URL. Waits for page load completion by default.",
-  parameters: {
-    type: "object",
-    properties: {
-      tab_id: { type: "number", description: "Target tab ID" },
-      url: { type: "string", description: "URL to navigate to" },
-      wait_until_loaded: {
-        type: "boolean",
-        description: "Wait for page to finish loading (default: true). Set false to return immediately.",
-      },
-    },
-    required: ["tab_id", "url"],
   },
 };
 
@@ -257,10 +247,45 @@ export function createTabTools(deps: {
   const openTabExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
       const url = args.url as string;
-      const active = (args.active as boolean | undefined) ?? true;
-      const windowId = args.window_id as number | undefined;
+      const tabId = args.tab_id as number | undefined;
 
       if (!url) throw new Error("url is required");
+
+      // 有 tab_id → 导航已有标签页
+      if (tabId != null) {
+        const waitUntilLoaded = (args.wait_until_loaded as boolean | undefined) ?? true;
+
+        await chrome.tabs.update(tabId, { url });
+
+        if (waitUntilLoaded) {
+          await new Promise<void>((resolve) => {
+            const timerId = setTimeout(() => {
+              chrome.tabs.onUpdated.removeListener(listener);
+              resolve();
+            }, 30_000);
+            const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
+              if (updatedTabId === tabId && changeInfo.status === "complete") {
+                clearTimeout(timerId);
+                chrome.tabs.onUpdated.removeListener(listener);
+                resolve();
+              }
+            };
+            chrome.tabs.onUpdated.addListener(listener);
+          });
+        }
+
+        const tab = await chrome.tabs.get(tabId);
+        return JSON.stringify({
+          id: tab.id,
+          url: tab.url || tab.pendingUrl || url,
+          title: tab.title || "",
+          status: tab.status || "unknown",
+        });
+      }
+
+      // 无 tab_id → 开新标签页
+      const active = (args.active as boolean | undefined) ?? true;
+      const windowId = args.window_id as number | undefined;
 
       const createProps: chrome.tabs.CreateProperties = { url, active };
       if (windowId != null) createProps.windowId = windowId;
@@ -305,44 +330,6 @@ export function createTabTools(deps: {
     },
   };
 
-  const navigateTabExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
-      const tabId = args.tab_id as number;
-      const url = args.url as string;
-      const waitUntilLoaded = (args.wait_until_loaded as boolean | undefined) ?? true;
-
-      if (tabId == null) throw new Error("tab_id is required");
-      if (!url) throw new Error("url is required");
-
-      await chrome.tabs.update(tabId, { url });
-
-      if (waitUntilLoaded) {
-        await new Promise<void>((resolve) => {
-          const timerId = setTimeout(() => {
-            chrome.tabs.onUpdated.removeListener(listener);
-            resolve();
-          }, 30_000);
-          const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
-            if (updatedTabId === tabId && changeInfo.status === "complete") {
-              clearTimeout(timerId);
-              chrome.tabs.onUpdated.removeListener(listener);
-              resolve();
-            }
-          };
-          chrome.tabs.onUpdated.addListener(listener);
-        });
-      }
-
-      const tab = await chrome.tabs.get(tabId);
-      return JSON.stringify({
-        id: tab.id,
-        url: tab.url || tab.pendingUrl || url,
-        title: tab.title || "",
-        status: tab.status || "unknown",
-      });
-    },
-  };
-
   return {
     tools: [
       { definition: GET_TAB_CONTENT_DEFINITION, executor: getTabContentExecutor },
@@ -350,7 +337,6 @@ export function createTabTools(deps: {
       { definition: OPEN_TAB_DEFINITION, executor: openTabExecutor },
       { definition: CLOSE_TAB_DEFINITION, executor: closeTabExecutor },
       { definition: ACTIVATE_TAB_DEFINITION, executor: activateTabExecutor },
-      { definition: NAVIGATE_TAB_DEFINITION, executor: navigateTabExecutor },
     ],
   };
 }

@@ -37,7 +37,6 @@ describe("Sub-Agent 类型系统", () => {
       "open_tab",
       "close_tab",
       "activate_tab",
-      "navigate_tab",
       "ask_user",
       "agent",
       "create_task",
@@ -60,7 +59,6 @@ describe("Sub-Agent 类型系统", () => {
       expect(excluded).not.toContain("open_tab");
       expect(excluded).not.toContain("list_tabs");
       expect(excluded).not.toContain("close_tab");
-      expect(excluded).not.toContain("navigate_tab");
 
       // task 工具始终可用（ALWAYS_ALLOWED_TOOLS）
       expect(excluded).not.toContain("create_task");
@@ -82,11 +80,10 @@ describe("Sub-Agent 类型系统", () => {
       expect(excluded).toContain("ask_user");
       expect(excluded).toContain("agent");
 
-      // 应该保留 tab 工具（含 navigate_tab）
+      // 应该保留 tab 工具
       expect(excluded).not.toContain("get_tab_content");
       expect(excluded).not.toContain("list_tabs");
       expect(excluded).not.toContain("open_tab");
-      expect(excluded).not.toContain("navigate_tab");
       expect(excluded).not.toContain("execute_script");
       expect(excluded).not.toContain("web_fetch");
 

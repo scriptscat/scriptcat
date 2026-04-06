@@ -65,16 +65,15 @@ function getExecutor(name: string) {
 }
 
 describe("createTabTools", () => {
-  it("should create 6 tools", () => {
+  it("should create 5 tools", () => {
     const { tools } = makeTools();
-    expect(tools).toHaveLength(6);
+    expect(tools).toHaveLength(5);
     const names = tools.map((t) => t.definition.name);
     expect(names).toContain("get_tab_content");
     expect(names).toContain("list_tabs");
     expect(names).toContain("open_tab");
     expect(names).toContain("close_tab");
     expect(names).toContain("activate_tab");
-    expect(names).toContain("navigate_tab");
   });
 });
 
@@ -445,17 +444,7 @@ describe("activate_tab", () => {
   });
 });
 
-describe("navigate_tab", () => {
-  it("should throw when tab_id is missing", async () => {
-    const executor = getExecutor("navigate_tab");
-    await expect(executor.execute({ url: "https://example.com" })).rejects.toThrow("tab_id is required");
-  });
-
-  it("should throw when url is missing", async () => {
-    const executor = getExecutor("navigate_tab");
-    await expect(executor.execute({ tab_id: 42 })).rejects.toThrow("url is required");
-  });
-
+describe("open_tab with tab_id (navigate)", () => {
   it("should navigate and wait for load by default", async () => {
     mockTabsUpdate.mockResolvedValue({ id: 42 });
     mockOnUpdatedAddListener.mockImplementation((listener: (tabId: number, info: { status?: string }) => void) => {
@@ -468,7 +457,7 @@ describe("navigate_tab", () => {
       status: "complete",
     });
 
-    const executor = getExecutor("navigate_tab");
+    const executor = getExecutor("open_tab");
     const raw = (await executor.execute({ tab_id: 42, url: "https://new-page.com" })) as string;
     const result = JSON.parse(raw);
 
@@ -490,7 +479,7 @@ describe("navigate_tab", () => {
       status: "loading",
     });
 
-    const executor = getExecutor("navigate_tab");
+    const executor = getExecutor("open_tab");
     const raw = (await executor.execute({
       tab_id: 42,
       url: "https://new-page.com",
@@ -516,7 +505,7 @@ describe("navigate_tab", () => {
       status: "complete",
     });
 
-    const executor = getExecutor("navigate_tab");
+    const executor = getExecutor("open_tab");
     const raw = (await executor.execute({ tab_id: 42, url: "https://new-page.com" })) as string;
     const result = JSON.parse(raw);
 
