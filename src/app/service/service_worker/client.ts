@@ -360,17 +360,23 @@ export class AgentClient extends Client {
     return this.doThrow("prepareSkillInstall", zipBase64);
   }
 
+  prepareSkillFromUrl(url: string): Promise<string> {
+    return this.doThrow("prepareSkillFromUrl", url);
+  }
+
   getSkillInstallData(uuid: string): Promise<{
     skillMd: string;
     metadata: {
       name: string;
       description: string;
+      version?: string;
       config?: Record<string, SkillConfigField>;
     };
     prompt: string;
     scripts: Array<{ name: string; code: string }>;
     references: Array<{ name: string; content: string }>;
     isUpdate: boolean;
+    installUrl?: string;
   }> {
     return this.doThrow("getSkillInstallData", uuid);
   }
@@ -381,6 +387,14 @@ export class AgentClient extends Client {
 
   cancelSkillInstall(uuid: string): Promise<void> {
     return this.do("cancelSkillInstall", uuid);
+  }
+
+  checkForUpdates(): Promise<Array<{ name: string; currentVersion: string; remoteVersion: string; installUrl: string }>> {
+    return this.doThrow("checkForUpdates");
+  }
+
+  updateSkill(name: string): Promise<unknown> {
+    return this.doThrow("updateSkill", name);
   }
 
   getSkillConfigValues(name: string): Promise<Record<string, unknown>> {

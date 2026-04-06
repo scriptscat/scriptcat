@@ -17,6 +17,15 @@ import { SKILL_SUFFIX_HEADER } from "@App/app/service/agent/core/system_prompt";
 import { cacheInstance } from "@App/app/cache";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { ResourceService } from "@App/app/service/service_worker/resource";
+import { versionCompare } from "@App/pkg/utils/semver";
+
+// 更新检查结果
+export type SkillUpdateInfo = {
+  name: string;
+  currentVersion: string;
+  remoteVersion: string;
+  installUrl: string;
+};
 
 export class SkillService {
   // 已加载的 Skill 缓存
@@ -66,11 +75,12 @@ export class SkillService {
   async installSkill(
     skillMd: string,
     scripts?: Array<{ name: string; code: string }>,
-    references?: Array<{ name: string; content: string }>
+    references?: Array<{ name: string; content: string }>,
+    installUrl?: string
   ): Promise<SkillRecord> {
     const parsed = parseSkillMd(skillMd);
     if (!parsed) {
-      throw new Error("Invalid SKILL.md: missing or malformed frontmatter");
+      throw new Error("Invalid SKILL.cat.md: missing or malformed frontmatter");
     }
 
     // 解析 SkillScript 脚本
@@ -113,10 +123,12 @@ export class SkillService {
     const record: SkillRecord = {
       name: parsed.metadata.name,
       description: parsed.metadata.description,
+      ...(parsed.metadata.version ? { version: parsed.metadata.version } : {}),
       toolNames,
       referenceNames,
       prompt: parsed.prompt,
       ...(parsed.metadata.config ? { config: parsed.metadata.config } : {}),
+      ...(installUrl ? { installUrl } : {}),
       installtime: existing?.installtime || now,
       updatetime: now,
     };
@@ -126,6 +138,97 @@ export class SkillService {
     this.skillCache.set(record.name, record);
 
     return record;
+  }
+
+  // ---- URL 安装与更新 ----
+
+  // 根据 SKILL.cat.md URL 的基路径获取相对资源
+  private resolveSkillUrl(skillMdUrl: string, relativePath: string): string {
+    const base = skillMdUrl.substring(0, skillMdUrl.lastIndexOf("/") + 1);
+    return base + relativePath;
+  }
+
+  // 从 URL 获取文本内容
+  private async fetchText(url: string): Promise<string> {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      throw new Error(`Failed to fetch ${url}: ${resp.status} ${resp.statusText}`);
+    }
+    return resp.text();
+  }
+
+  // 从 URL 安装 Skill（获取 SKILL.cat.md + 声明的 scripts/references）
+  async installFromUrl(url: string): Promise<SkillRecord> {
+    const skillMd = await this.fetchText(url);
+    const parsed = parseSkillMd(skillMd);
+    if (!parsed) {
+      throw new Error("Invalid SKILL.cat.md: missing or malformed frontmatter");
+    }
+
+    // 获取 frontmatter 中声明的 scripts
+    const scripts: Array<{ name: string; code: string }> = [];
+    if (parsed.metadata.scripts?.length) {
+      for (const fileName of parsed.metadata.scripts) {
+        const scriptUrl = this.resolveSkillUrl(url, `scripts/${fileName}`);
+        const code = await this.fetchText(scriptUrl);
+        scripts.push({ name: fileName, code });
+      }
+    }
+
+    // 获取 frontmatter 中声明的 references
+    const references: Array<{ name: string; content: string }> = [];
+    if (parsed.metadata.references?.length) {
+      for (const fileName of parsed.metadata.references) {
+        const refUrl = this.resolveSkillUrl(url, `references/${fileName}`);
+        const content = await this.fetchText(refUrl);
+        references.push({ name: fileName, content });
+      }
+    }
+
+    return this.installSkill(skillMd, scripts, references, url);
+  }
+
+  // 检查单个 Skill 是否有更新（返回 null 表示无更新或无法检查）
+  async checkSkillUpdate(name: string): Promise<SkillUpdateInfo | null> {
+    const summary = (await this.skillRepo.listSkills()).find((s) => s.name === name);
+    if (!summary?.installUrl || !summary.version) return null;
+
+    try {
+      const remoteMd = await this.fetchText(summary.installUrl);
+      const parsed = parseSkillMd(remoteMd);
+      if (!parsed?.metadata.version) return null;
+
+      if (versionCompare(parsed.metadata.version, summary.version) > 0) {
+        return {
+          name,
+          currentVersion: summary.version,
+          remoteVersion: parsed.metadata.version,
+          installUrl: summary.installUrl,
+        };
+      }
+    } catch {
+      // 网络错误静默忽略
+    }
+    return null;
+  }
+
+  // 检查所有有 installUrl 的 Skill 的更新
+  async checkForUpdates(): Promise<SkillUpdateInfo[]> {
+    const summaries = await this.skillRepo.listSkills();
+    const updatable = summaries.filter((s) => s.installUrl && s.version);
+    const results = await Promise.allSettled(updatable.map((s) => this.checkSkillUpdate(s.name)));
+    return results
+      .filter((r): r is PromiseFulfilledResult<SkillUpdateInfo | null> => r.status === "fulfilled" && r.value != null)
+      .map((r) => r.value!);
+  }
+
+  // 更新单个 Skill（从 installUrl 重新安装）
+  async updateSkill(name: string): Promise<SkillRecord> {
+    const summary = (await this.skillRepo.listSkills()).find((s) => s.name === name);
+    if (!summary?.installUrl) {
+      throw new Error(`Skill "${name}" has no install URL, cannot update`);
+    }
+    return this.installFromUrl(summary.installUrl);
   }
 
   // 卸载 Skill
@@ -160,7 +263,58 @@ export class SkillService {
     return uuid;
   }
 
-  // 获取缓存的 Skill ZIP 数据并解析
+  // 从 URL 获取 Skill 并缓存，返回 uuid，供安装页面获取
+  async prepareSkillFromUrl(url: string): Promise<string> {
+    const skillMd = await this.fetchText(url);
+    const parsed = parseSkillMd(skillMd);
+    if (!parsed) {
+      throw new Error("Invalid SKILL.cat.md: missing or malformed frontmatter");
+    }
+
+    // 获取 frontmatter 中声明的 scripts
+    const scripts: Array<{ name: string; code: string }> = [];
+    if (parsed.metadata.scripts?.length) {
+      for (const fileName of parsed.metadata.scripts) {
+        const scriptUrl = this.resolveSkillUrl(url, `scripts/${fileName}`);
+        const code = await this.fetchText(scriptUrl);
+        scripts.push({ name: fileName, code });
+      }
+    }
+
+    // 获取 frontmatter 中声明的 references
+    const references: Array<{ name: string; content: string }> = [];
+    if (parsed.metadata.references?.length) {
+      for (const fileName of parsed.metadata.references) {
+        const refUrl = this.resolveSkillUrl(url, `references/${fileName}`);
+        const content = await this.fetchText(refUrl);
+        references.push({ name: fileName, content });
+      }
+    }
+
+    const uuid = uuidv4();
+    // 缓存已解析的数据（对象格式，区别于 ZIP 的 base64 字符串格式）
+    await cacheInstance.set(CACHE_KEY_SKILL_INSTALL + uuid, {
+      skillMd,
+      scripts,
+      references,
+      installUrl: url,
+    });
+    return uuid;
+  }
+
+  // 缓存的 URL 安装数据格式
+  private isUrlInstallCache(
+    data: unknown
+  ): data is {
+    skillMd: string;
+    scripts: Array<{ name: string; code: string }>;
+    references: Array<{ name: string; content: string }>;
+    installUrl: string;
+  } {
+    return typeof data === "object" && data !== null && "skillMd" in data;
+  }
+
+  // 获取缓存的 Skill 安装数据并解析（支持 ZIP base64 和 URL 两种缓存格式）
   async getSkillInstallData(uuid: string): Promise<{
     skillMd: string;
     metadata: SkillMetadata;
@@ -168,40 +322,59 @@ export class SkillService {
     scripts: Array<{ name: string; code: string }>;
     references: Array<{ name: string; content: string }>;
     isUpdate: boolean;
+    installUrl?: string;
   }> {
-    const zipBase64 = await cacheInstance.get<string>(CACHE_KEY_SKILL_INSTALL + uuid);
-    if (!zipBase64) {
+    const cached = await cacheInstance.get<string | object>(CACHE_KEY_SKILL_INSTALL + uuid);
+    if (!cached) {
       throw new Error("Skill install data not found or expired");
     }
-    // base64 → ArrayBuffer
-    const binaryStr = atob(zipBase64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
-    const buffer = bytes.buffer;
 
-    const result = await parseSkillZip(buffer);
-    const parsed = parseSkillMd(result.skillMd);
-    if (!parsed) {
-      throw new Error("Invalid SKILL.md format in ZIP");
+    let skillMd: string;
+    let scripts: Array<{ name: string; code: string }>;
+    let references: Array<{ name: string; content: string }>;
+    let installUrl: string | undefined;
+
+    if (this.isUrlInstallCache(cached)) {
+      // URL 安装缓存：已解析的对象
+      skillMd = cached.skillMd;
+      scripts = cached.scripts;
+      references = cached.references;
+      installUrl = cached.installUrl;
+    } else if (typeof cached === "string") {
+      // ZIP 安装缓存：base64 字符串
+      const binaryStr = atob(cached);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      const result = await parseSkillZip(bytes.buffer);
+      skillMd = result.skillMd;
+      scripts = result.scripts;
+      references = result.references;
+    } else {
+      throw new Error("Invalid cached skill data format");
     }
-    // 检查是否为更新
+
+    const parsed = parseSkillMd(skillMd);
+    if (!parsed) {
+      throw new Error("Invalid SKILL.cat.md format");
+    }
     const existing = await this.skillRepo.getSkill(parsed.metadata.name);
     return {
-      skillMd: result.skillMd,
+      skillMd,
       metadata: parsed.metadata,
       prompt: parsed.prompt,
-      scripts: result.scripts,
-      references: result.references,
+      scripts,
+      references,
       isUpdate: !!existing,
+      installUrl,
     };
   }
 
   // Skill 安装页面确认安装
   async completeSkillInstall(uuid: string): Promise<SkillRecord> {
     const data = await this.getSkillInstallData(uuid);
-    const record = await this.installSkill(data.skillMd, data.scripts, data.references);
+    const record = await this.installSkill(data.skillMd, data.scripts, data.references, data.installUrl);
     await cacheInstance.del(CACHE_KEY_SKILL_INSTALL + uuid);
     return record;
   }

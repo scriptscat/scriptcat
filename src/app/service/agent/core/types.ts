@@ -284,18 +284,23 @@ export type SkillConfigField = {
 export type SkillSummary = {
   name: string;
   description: string;
+  version?: string; // 语义化版本号
   toolNames: string[]; // 随 Skill 打包的脚本名称（scripts/ 目录下）
   referenceNames: string[]; // 参考资料名称（references/ 目录下）
   hasConfig?: boolean; // 是否有 config 字段声明
   enabled?: boolean; // 是否启用，默认 true（undefined 视为 true）
+  installUrl?: string; // 安装来源 URL（用于检查更新）
   installtime: number;
   updatetime: number;
 };
 
-// SKILL.md frontmatter 解析结果
+// SKILL.cat.md frontmatter 解析结果
 export type SkillMetadata = {
   name: string;
   description: string;
+  version?: string; // 语义化版本号
+  scripts?: string[]; // 脚本文件名列表（URL 安装时按相对路径获取）
+  references?: string[]; // 参考资料文件名列表
   config?: Record<string, SkillConfigField>;
 };
 

@@ -387,7 +387,7 @@ Updated prompt.`;
     it("无效 SKILL.md 应抛出异常", async () => {
       const { service } = createTestService();
 
-      await expect(service.installSkill("not valid skill md")).rejects.toThrow("Invalid SKILL.md");
+      await expect(service.installSkill("not valid skill md")).rejects.toThrow("Invalid SKILL.cat.md");
     });
 
     it("含无效 Skill Script 时应抛出异常", async () => {
@@ -509,6 +509,248 @@ return query;`;
       expect(record.name).toBe("simple-zip");
       expect(record.toolNames).toEqual([]);
       expect(record.referenceNames).toEqual([]);
+    });
+  });
+
+  describe("installSkill version 和 installUrl", () => {
+    it("应正确保存 version 字段", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      const skillMd = `---
+name: versioned
+description: test
+version: 1.2.3
+---
+Prompt.`;
+
+      const record = await (service as any).skillService.installSkill(skillMd);
+      expect(record.version).toBe("1.2.3");
+      expect(mockSkillRepo.saveSkill.mock.calls[0][0].version).toBe("1.2.3");
+    });
+
+    it("应正确保存 installUrl", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      const skillMd = `---
+name: from-url
+description: test
+version: 1.0.0
+---
+Prompt.`;
+      const url = "https://example.com/skills/test/SKILL.cat.md";
+
+      const record = await (service as any).skillService.installSkill(skillMd, undefined, undefined, url);
+      expect(record.installUrl).toBe(url);
+      expect(mockSkillRepo.saveSkill.mock.calls[0][0].installUrl).toBe(url);
+    });
+
+    it("无 version 时 record.version 应为 undefined", async () => {
+      const { service } = createTestService();
+
+      const skillMd = `---
+name: no-ver
+description: test
+---
+Prompt.`;
+
+      const record = await (service as any).skillService.installSkill(skillMd);
+      expect(record.version).toBeUndefined();
+    });
+  });
+
+  describe("installFromUrl", () => {
+    it("应从 URL 获取 SKILL.cat.md 并安装", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      const skillMd = `---
+name: remote-skill
+description: Remote skill
+version: 2.0.0
+scripts:
+  - helper.js
+references:
+  - docs.md
+---
+Remote prompt.`;
+
+      const scriptCode = VALID_SKILLSCRIPT_CODE;
+      const refContent = "# Docs\nSome docs.";
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+        const urlStr = typeof url === "string" ? url : url.toString();
+        if (urlStr.endsWith("SKILL.cat.md")) {
+          return { ok: true, text: async () => skillMd } as Response;
+        }
+        if (urlStr.includes("scripts/helper.js")) {
+          return { ok: true, text: async () => scriptCode } as Response;
+        }
+        if (urlStr.includes("references/docs.md")) {
+          return { ok: true, text: async () => refContent } as Response;
+        }
+        return { ok: false, status: 404, statusText: "Not Found" } as Response;
+      });
+
+      try {
+        const record = await (service as any).skillService.installFromUrl(
+          "https://example.com/skills/test/SKILL.cat.md"
+        );
+
+        expect(record.name).toBe("remote-skill");
+        expect(record.version).toBe("2.0.0");
+        expect(record.installUrl).toBe("https://example.com/skills/test/SKILL.cat.md");
+        expect(record.toolNames).toEqual(["test-tool"]);
+        expect(record.referenceNames).toEqual(["docs.md"]);
+
+        // 验证 fetch 调用了正确的相对路径
+        expect(fetchSpy).toHaveBeenCalledTimes(3);
+        const urls = fetchSpy.mock.calls.map((c) => (typeof c[0] === "string" ? c[0] : c[0].toString()));
+        expect(urls).toContain("https://example.com/skills/test/SKILL.cat.md");
+        expect(urls).toContain("https://example.com/skills/test/scripts/helper.js");
+        expect(urls).toContain("https://example.com/skills/test/references/docs.md");
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it("SKILL.cat.md 获取失败时应抛错", async () => {
+      const { service } = createTestService();
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      } as Response);
+
+      try {
+        await expect(
+          (service as any).skillService.installFromUrl("https://example.com/not-found.cat.md")
+        ).rejects.toThrow("Failed to fetch");
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("checkForUpdates / updateSkill", () => {
+    it("远程版本更高时应返回更新信息", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      const skillList = [{ name: "updatable", version: "1.0.0", installUrl: "https://example.com/SKILL.cat.md" }];
+      mockSkillRepo.listSkills.mockResolvedValue(skillList);
+
+      const remoteMd = `---
+name: updatable
+description: test
+version: 2.0.0
+---
+Updated prompt.`;
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: true,
+        text: async () => remoteMd,
+      } as Response);
+
+      try {
+        const updates = await (service as any).skillService.checkForUpdates();
+        expect(updates).toHaveLength(1);
+        expect(updates[0].name).toBe("updatable");
+        expect(updates[0].currentVersion).toBe("1.0.0");
+        expect(updates[0].remoteVersion).toBe("2.0.0");
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it("远程版本相同或更低时不返回更新", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      mockSkillRepo.listSkills.mockResolvedValue([
+        { name: "up-to-date", version: "2.0.0", installUrl: "https://example.com/SKILL.cat.md" },
+      ]);
+
+      const remoteMd = `---
+name: up-to-date
+description: test
+version: 2.0.0
+---
+Same prompt.`;
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: true,
+        text: async () => remoteMd,
+      } as Response);
+
+      try {
+        const updates = await (service as any).skillService.checkForUpdates();
+        expect(updates).toHaveLength(0);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it("无 installUrl 的 Skill 不参与更新检查", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      mockSkillRepo.listSkills.mockResolvedValue([
+        { name: "local-only", version: "1.0.0" },
+        { name: "no-version", installUrl: "https://example.com/SKILL.cat.md" },
+      ]);
+
+      const updates = await (service as any).skillService.checkForUpdates();
+      expect(updates).toHaveLength(0);
+    });
+
+    it("网络错误时静默忽略", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      mockSkillRepo.listSkills.mockResolvedValue([
+        { name: "net-err", version: "1.0.0", installUrl: "https://example.com/SKILL.cat.md" },
+      ]);
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+
+      try {
+        const updates = await (service as any).skillService.checkForUpdates();
+        expect(updates).toHaveLength(0);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it("updateSkill 应从 installUrl 重新安装", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      const url = "https://example.com/skills/test/SKILL.cat.md";
+      mockSkillRepo.listSkills.mockResolvedValue([{ name: "to-update", version: "1.0.0", installUrl: url }]);
+
+      const remoteMd = `---
+name: to-update
+description: updated
+version: 2.0.0
+---
+Updated.`;
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: true,
+        text: async () => remoteMd,
+      } as Response);
+
+      try {
+        const record = await (service as any).skillService.updateSkill("to-update");
+        expect(record.name).toBe("to-update");
+        expect(record.version).toBe("2.0.0");
+        expect(record.installUrl).toBe(url);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it("无 installUrl 的 Skill 调用 updateSkill 应抛错", async () => {
+      const { service, mockSkillRepo } = createTestService();
+
+      mockSkillRepo.listSkills.mockResolvedValue([{ name: "local-only", version: "1.0.0" }]);
+
+      await expect((service as any).skillService.updateSkill("local-only")).rejects.toThrow("no install URL");
     });
   });
 });

@@ -13,7 +13,7 @@ import {
   Tag,
   Typography,
 } from "@arco-design/web-react";
-import { IconDelete, IconEye, IconPlus, IconRefresh, IconSettings } from "@arco-design/web-react/icon";
+import { IconDelete, IconDownload, IconEye, IconLink, IconPlus, IconRefresh, IconSettings } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
@@ -37,6 +37,8 @@ function SkillCard({
   onRefresh,
   onConfig,
   onToggleEnabled,
+  onUpdate,
+  updateAvailable,
   t,
 }: {
   skill: SkillSummary;
@@ -45,6 +47,8 @@ function SkillCard({
   onRefresh: () => void;
   onConfig?: () => void;
   onToggleEnabled: (enabled: boolean) => void;
+  onUpdate?: () => void;
+  updateAvailable?: string; // 远程新版本号
   t: (key: string, opts?: Record<string, string>) => string;
 }) {
   const enabled = skill.enabled !== false;
@@ -59,7 +63,21 @@ function SkillCard({
             {"Sk"}
           </div>
           <div className="tw-flex tw-flex-col tw-gap-0.5">
-            <Typography.Text className="tw-font-semibold tw-text-base !tw-mb-0">{skill.name}</Typography.Text>
+            <div className="tw-flex tw-items-center tw-gap-2">
+              <Typography.Text className="tw-font-semibold tw-text-base !tw-mb-0">{skill.name}</Typography.Text>
+              {skill.version && (
+                <Tag size="small" color="gray">
+                  {"v"}
+                  {skill.version}
+                </Tag>
+              )}
+              {updateAvailable && (
+                <Tag size="small" color="orangered">
+                  {"v"}
+                  {updateAvailable}
+                </Tag>
+              )}
+            </div>
             {skill.description && (
               <Typography.Text type="secondary" className="tw-text-xs !tw-mb-0">
                 {skill.description}
@@ -91,6 +109,11 @@ function SkillCard({
             {t("agent_skills_config")}
           </Tag>
         )}
+        {skill.installUrl && (
+          <Tag size="small" color="purple">
+            {"URL"}
+          </Tag>
+        )}
       </div>
 
       {/* Install time */}
@@ -108,6 +131,11 @@ function SkillCard({
         {skill.hasConfig && onConfig && (
           <Button type="text" size="small" icon={<IconSettings />} onClick={onConfig}>
             {t("agent_skills_config")}
+          </Button>
+        )}
+        {updateAvailable && onUpdate && (
+          <Button type="text" size="small" status="warning" icon={<IconDownload />} onClick={onUpdate}>
+            {t("agent_skills_update")}
           </Button>
         )}
         <Button type="text" size="small" icon={<IconRefresh />} onClick={onRefresh}>
@@ -460,6 +488,11 @@ function AgentSkills() {
   const [detailSkill, setDetailSkill] = useState<SkillRecord | null>(null);
   const [configVisible, setConfigVisible] = useState(false);
   const [configSkill, setConfigSkill] = useState<SkillRecord | null>(null);
+  const [urlInputVisible, setUrlInputVisible] = useState(false);
+  const [urlInputValue, setUrlInputValue] = useState("");
+  const [urlInstalling, setUrlInstalling] = useState(false);
+  const [updateMap, setUpdateMap] = useState<Record<string, string>>({}); // name → remoteVersion
+  const [checking, setChecking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSkills = useCallback(async () => {
@@ -528,10 +561,64 @@ function AgentSkills() {
     } catch (err: any) {
       Message.error(err.message || String(err));
     } finally {
-      // 清空 input 以便再次选择相同文件
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  // URL 安装
+  const handleUrlInstall = async () => {
+    const url = urlInputValue.trim();
+    if (!url) return;
+    setUrlInstalling(true);
+    try {
+      const uuid = await agentClient.prepareSkillFromUrl(url);
+      window.open(`/src/install.html?skill=${uuid}`, "_blank");
+      setUrlInputVisible(false);
+      setUrlInputValue("");
+    } catch (err: any) {
+      Message.error(err.message || String(err));
+    } finally {
+      setUrlInstalling(false);
+    }
+  };
+
+  // 检查更新
+  const handleCheckUpdates = async () => {
+    setChecking(true);
+    try {
+      const updates = await agentClient.checkForUpdates();
+      const map: Record<string, string> = {};
+      for (const u of updates) {
+        map[u.name] = u.remoteVersion;
+      }
+      setUpdateMap(map);
+      if (updates.length === 0) {
+        Message.success(t("agent_skills_no_updates"));
+      } else {
+        Message.info(`${updates.length} ${t("agent_skills_updates_available")}`);
+      }
+    } catch (e: any) {
+      Message.error(e.message || String(e));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  // 更新单个 Skill
+  const handleUpdate = async (name: string) => {
+    try {
+      await agentClient.updateSkill(name);
+      Message.success(t("agent_skills_update_success"));
+      setUpdateMap((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      await loadSkills();
+    } catch (e: any) {
+      Message.error(e.message || String(e));
     }
   };
 
@@ -541,7 +628,13 @@ function AgentSkills() {
         title={t("agent_skills_title")}
         bordered={false}
         extra={
-          <>
+          <Space>
+            <Button icon={<IconRefresh />} loading={checking} onClick={handleCheckUpdates}>
+              {t("agent_skills_check_updates")}
+            </Button>
+            <Button icon={<IconLink />} onClick={() => setUrlInputVisible(true)}>
+              {"URL"}
+            </Button>
             <input
               ref={fileInputRef}
               type="file"
@@ -552,9 +645,33 @@ function AgentSkills() {
             <Button type="primary" icon={<IconPlus />} onClick={() => fileInputRef.current?.click()}>
               {t("agent_skills_add")}
             </Button>
-          </>
+          </Space>
         }
       >
+        {/* URL 安装输入框 */}
+        {urlInputVisible && (
+          <div className="tw-flex tw-gap-2 tw-mb-4">
+            <Input
+              placeholder={t("agent_skills_url_placeholder")}
+              value={urlInputValue}
+              onChange={setUrlInputValue}
+              onPressEnter={handleUrlInstall}
+              className="tw-flex-1"
+            />
+            <Button type="primary" loading={urlInstalling} onClick={handleUrlInstall}>
+              {t("agent_skills_install")}
+            </Button>
+            <Button
+              onClick={() => {
+                setUrlInputVisible(false);
+                setUrlInputValue("");
+              }}
+            >
+              {t("cancel")}
+            </Button>
+          </div>
+        )}
+
         {skills.length === 0 ? (
           <div className="tw-py-12">
             <Empty description={t("agent_skills_empty")} />
@@ -570,6 +687,8 @@ function AgentSkills() {
                 onRefresh={() => handleRefresh(skill.name)}
                 onConfig={skill.hasConfig ? () => handleConfig(skill.name) : undefined}
                 onToggleEnabled={(enabled) => handleToggleEnabled(skill.name, enabled)}
+                onUpdate={updateMap[skill.name] ? () => handleUpdate(skill.name) : undefined}
+                updateAvailable={updateMap[skill.name]}
                 t={t}
               />
             ))}

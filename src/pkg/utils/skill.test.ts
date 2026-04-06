@@ -96,6 +96,125 @@ Minimal prompt.`;
     expect(result.prompt).toBe("Minimal prompt.");
   });
 
+  // ---- version / scripts / references 字段解析测试 ----
+
+  it("应正确解析 version 字段", () => {
+    const content = `---
+name: versioned-skill
+description: test
+version: 1.2.3
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.name).toBe("versioned-skill");
+    expect(result.metadata.version).toBe("1.2.3");
+  });
+
+  it("无 version 时 metadata.version 应为 undefined", () => {
+    const content = `---
+name: no-version
+description: test
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.version).toBeUndefined();
+  });
+
+  it("应正确解析 scripts 文件名列表", () => {
+    const content = `---
+name: with-scripts
+description: test
+scripts:
+  - compare.js
+  - helper.js
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.scripts).toEqual(["compare.js", "helper.js"]);
+  });
+
+  it("应正确解析 references 文件名列表", () => {
+    const content = `---
+name: with-refs
+description: test
+references:
+  - api_docs.md
+  - examples.md
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.references).toEqual(["api_docs.md", "examples.md"]);
+  });
+
+  it("scripts/references 为空数组时应为 undefined", () => {
+    const content = `---
+name: empty-arrays
+description: test
+scripts: []
+references: []
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.scripts).toBeUndefined();
+    expect(result.metadata.references).toBeUndefined();
+  });
+
+  it("应正确解析完整的 SKILL.cat.md（含 version + scripts + references + config）", () => {
+    const content = `---
+name: price-compare
+description: 多平台比价
+version: 2.0.0
+scripts:
+  - compare.js
+references:
+  - api_docs.md
+config:
+  api_key:
+    title: API Key
+    type: text
+    secret: true
+---
+
+# Price Compare
+
+比价工具使用说明。`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.name).toBe("price-compare");
+    expect(result.metadata.version).toBe("2.0.0");
+    expect(result.metadata.scripts).toEqual(["compare.js"]);
+    expect(result.metadata.references).toEqual(["api_docs.md"]);
+    expect(result.metadata.config).toBeDefined();
+    expect(result.metadata.config!.api_key.secret).toBe(true);
+    expect(result.prompt).toContain("# Price Compare");
+  });
+
+  it("scripts 中过滤非字符串值", () => {
+    const content = `---
+name: filter-test
+description: test
+scripts:
+  - valid.js
+  - 123
+  - true
+---
+
+Prompt.`;
+
+    const result = parseSkillMd(content)!;
+    expect(result.metadata.scripts).toEqual(["valid.js"]);
+  });
+
   // ---- config 字段解析测试 ----
 
   it("应正确解析含 config 的 SKILL.md", () => {
@@ -285,13 +404,49 @@ Test prompt content.`;
     expect(result.references[0].name).toBe("readme.md");
   });
 
-  it("缺少 SKILL.md 时应抛错", async () => {
+  it("应支持 SKILL.cat.md 文件名", async () => {
+    const zipData = await createTestZip({
+      "SKILL.cat.md": skillMdContent,
+      "scripts/tool.js": "// tool",
+      "references/doc.md": "doc",
+    });
+
+    const result = await parseSkillZip(zipData);
+    expect(result.skillMd).toBe(skillMdContent);
+    expect(result.scripts).toHaveLength(1);
+    expect(result.references).toHaveLength(1);
+  });
+
+  it("同时存在 SKILL.cat.md 和 SKILL.md 时优先 SKILL.cat.md", async () => {
+    const catContent = `---\nname: cat-version\ndescription: from cat.md\n---\nCat prompt.`;
+    const oldContent = `---\nname: old-version\ndescription: from old md\n---\nOld prompt.`;
+    const zipData = await createTestZip({
+      "SKILL.cat.md": catContent,
+      "SKILL.md": oldContent,
+    });
+
+    const result = await parseSkillZip(zipData);
+    expect(result.skillMd).toBe(catContent);
+  });
+
+  it("嵌套目录中的 SKILL.cat.md 也应被识别", async () => {
+    const zipData = await createTestZip({
+      "my-skill/SKILL.cat.md": skillMdContent,
+      "my-skill/scripts/helper.js": "// helper",
+    });
+
+    const result = await parseSkillZip(zipData);
+    expect(result.skillMd).toBe(skillMdContent);
+    expect(result.scripts).toHaveLength(1);
+  });
+
+  it("缺少 SKILL.cat.md 和 SKILL.md 时应抛错", async () => {
     const zipData = await createTestZip({
       "scripts/some.js": "// code",
       "references/doc.md": "doc",
     });
 
-    await expect(parseSkillZip(zipData)).rejects.toThrow("SKILL.md");
+    await expect(parseSkillZip(zipData)).rejects.toThrow("SKILL.cat.md");
   });
 
   it("tools 和 references 目录为空时应返回空数组", async () => {

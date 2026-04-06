@@ -17,6 +17,7 @@ function App() {
         scripts={data.skillPreview.scripts}
         references={data.skillPreview.references}
         isUpdate={data.skillPreview.isUpdate}
+        installUrl={data.skillPreview.installUrl}
         onInstall={data.handleSkillInstall}
         onClose={data.handleSkillCancel}
       />

@@ -165,11 +165,15 @@ export class AgentService {
     this.group.on("saveSkillConfig", (params: { name: string; values: Record<string, unknown> }) =>
       this.skillService.skillRepo.saveConfigValues(params.name, params.values)
     );
-    // Skill ZIP 安装页面相关消息
+    // Skill 安装页面相关消息
     this.group.on("prepareSkillInstall", (zipBase64: string) => this.prepareSkillInstall(zipBase64));
+    this.group.on("prepareSkillFromUrl", (url: string) => this.skillService.prepareSkillFromUrl(url));
     this.group.on("getSkillInstallData", (uuid: string) => this.getSkillInstallData(uuid));
     this.group.on("completeSkillInstall", (uuid: string) => this.completeSkillInstall(uuid));
     this.group.on("cancelSkillInstall", (uuid: string) => this.cancelSkillInstall(uuid));
+    // Skill 更新检查
+    this.group.on("checkForUpdates", () => this.skillService.checkForUpdates());
+    this.group.on("updateSkill", (name: string) => this.skillService.updateSkill(name));
     // Model CRUD 及摘要模型 API（委托给 AgentModelService）
     this.modelService.init();
     // MCP API（供 Options UI 调用，复用已有的 handleMCPApi）
@@ -268,7 +272,7 @@ export class AgentService {
     return this.skillService.prepareSkillInstall(zipBase64);
   }
 
-  // 获取缓存的 Skill ZIP 数据并解析
+  // 获取缓存的 Skill 安装数据并解析
   async getSkillInstallData(uuid: string): Promise<{
     skillMd: string;
     metadata: SkillMetadata;
@@ -276,6 +280,7 @@ export class AgentService {
     scripts: Array<{ name: string; code: string }>;
     references: Array<{ name: string; content: string }>;
     isUpdate: boolean;
+    installUrl?: string;
   }> {
     return this.skillService.getSkillInstallData(uuid);
   }

@@ -16,7 +16,7 @@ function normalizeConfigField(raw: Record<string, unknown>): SkillConfigField {
   return field;
 }
 
-// 解析 SKILL.md 内容：YAML frontmatter + markdown body
+// 解析 SKILL.cat.md 内容：YAML frontmatter + markdown body
 export function parseSkillMd(content: string): { metadata: SkillMetadata; prompt: string } | null {
   const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
   if (!match) return null;
@@ -36,6 +36,17 @@ export function parseSkillMd(content: string): { metadata: SkillMetadata; prompt
   if (!name) return null;
 
   const description = typeof parsed.description === "string" ? parsed.description : "";
+  const version = typeof parsed.version === "string" ? parsed.version : undefined;
+
+  // 解析 scripts 文件名列表（URL 安装时使用）
+  const scripts = Array.isArray(parsed.scripts)
+    ? parsed.scripts.filter((s): s is string => typeof s === "string")
+    : undefined;
+
+  // 解析 references 文件名列表（URL 安装时使用）
+  const references = Array.isArray(parsed.references)
+    ? parsed.references.filter((r): r is string => typeof r === "string")
+    : undefined;
 
   // 解析 config 块
   let config: Record<string, SkillConfigField> | undefined;
@@ -55,7 +66,14 @@ export function parseSkillMd(content: string): { metadata: SkillMetadata; prompt
   }
 
   return {
-    metadata: { name, description, ...(config ? { config } : {}) },
+    metadata: {
+      name,
+      description,
+      ...(version ? { version } : {}),
+      ...(scripts?.length ? { scripts } : {}),
+      ...(references?.length ? { references } : {}),
+      ...(config ? { config } : {}),
+    },
     prompt: body.trim(),
   };
 }
@@ -73,29 +91,30 @@ export async function parseSkillZip(data: ArrayBuffer): Promise<{
     files[relativePath] = file;
   });
 
-  // 查找 SKILL.md：根目录或第一层子目录
+  // 查找 SKILL.cat.md 或 SKILL.md：根目录或第一层子目录
   let skillMdPath = "";
   let prefix = "";
+  const skillFileNames = ["SKILL.cat.md", "SKILL.md"];
   for (const path of Object.keys(files)) {
     const normalized = path.replace(/\\/g, "/");
-    if (normalized === "SKILL.md" || normalized.endsWith("/SKILL.md")) {
-      const parts = normalized.split("/");
-      if (parts.length === 1) {
-        // 根目录
+    const fileName = normalized.split("/").pop() || "";
+    if (!skillFileNames.includes(fileName)) continue;
+    const parts = normalized.split("/");
+    if (parts.length === 1) {
+      // 根目录（优先 SKILL.cat.md）
+      if (!skillMdPath || fileName === "SKILL.cat.md") {
         skillMdPath = path;
         prefix = "";
-        break;
-      } else if (parts.length === 2) {
-        // 一层子目录
-        skillMdPath = path;
-        prefix = parts[0] + "/";
-        break;
       }
+    } else if (parts.length === 2 && !skillMdPath) {
+      // 一层子目录
+      skillMdPath = path;
+      prefix = parts[0] + "/";
     }
   }
 
   if (!skillMdPath) {
-    throw new Error("ZIP 包中未找到 SKILL.md");
+    throw new Error("ZIP 包中未找到 SKILL.cat.md 或 SKILL.md");
   }
 
   const skillMd: string = await files[skillMdPath].async("string");

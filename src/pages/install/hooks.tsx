@@ -52,11 +52,12 @@ export function useInstallData() {
   // Skill 安装相关状态
   const skillInstallUuid = searchParams.get("skill");
   const [skillPreview, setSkillPreview] = useState<{
-    metadata: { name: string; description: string };
+    metadata: { name: string; description: string; version?: string };
     prompt: string;
     scripts: Array<{ name: string; code: string }>;
     references: Array<{ name: string; content: string }>;
     isUpdate: boolean;
+    installUrl?: string;
   } | null>(null);
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
@@ -610,7 +611,30 @@ export function useInstallData() {
     }
   };
 
+  // 从 URL 加载 Skill（.cat.md）
+  const loadSkillFromUrl = async (url: string) => {
+    try {
+      setFetchingState((prev) => ({
+        ...prev,
+        loadingStatus: t("install_page_please_wait"),
+      }));
+      const uuid = await agentClient.prepareSkillFromUrl(url);
+      await initSkillFromCache(uuid);
+    } catch (err: any) {
+      setFetchingState((prev) => ({
+        ...prev,
+        loadingStatus: "",
+        errorStatus: `${err?.message || err}`,
+      }));
+    }
+  };
+
   const handleUrlChangeAndFetch = (targetUrlHref: string) => {
+    // .cat.md URL → Skill 安装流程
+    if (targetUrlHref.match(/\.cat\.md(\?|#|$)/i)) {
+      loadSkillFromUrl(targetUrlHref);
+      return;
+    }
     setFetchingState((prev) => ({
       ...prev,
       loadingStatus: t("install_page_please_wait"),

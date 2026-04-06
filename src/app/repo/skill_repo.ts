@@ -86,11 +86,14 @@ export class SkillRepo extends OPFSRepo {
     const summary: SkillSummary = {
       name: record.name,
       description: record.description,
+      ...(record.version ? { version: record.version } : {}),
       toolNames: record.toolNames,
       referenceNames: record.referenceNames,
       ...(record.config && Object.keys(record.config).length > 0 ? { hasConfig: true } : {}),
       // 保留已有的 enabled 状态
       ...(idx >= 0 && registry[idx].enabled !== undefined ? { enabled: registry[idx].enabled } : {}),
+      // 保留或更新 installUrl
+      ...(record.installUrl ? { installUrl: record.installUrl } : idx >= 0 && registry[idx].installUrl ? { installUrl: registry[idx].installUrl } : {}),
       installtime: record.installtime,
       updatetime: record.updatetime,
     };

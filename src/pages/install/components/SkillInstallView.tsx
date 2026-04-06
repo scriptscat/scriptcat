@@ -6,11 +6,12 @@ import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import type { SkillConfigField } from "@App/app/service/agent/core/types";
 
 interface SkillInstallViewProps {
-  metadata: { name: string; description: string; config?: Record<string, SkillConfigField> };
+  metadata: { name: string; description: string; version?: string; config?: Record<string, SkillConfigField> };
   prompt: string;
   scripts: Array<{ name: string; code: string }>;
   references: Array<{ name: string; content: string }>;
   isUpdate: boolean;
+  installUrl?: string;
   onInstall: () => void;
   onClose: () => void;
 }
@@ -21,6 +22,7 @@ function SkillInstallView({
   scripts,
   references,
   isUpdate,
+  installUrl,
   onInstall,
   onClose,
 }: SkillInstallViewProps) {
@@ -38,8 +40,14 @@ function SkillInstallView({
           <Typography.Text bold className="tw-text-size-lg tw-truncate tw-w-0 tw-grow-1">
             {metadata.name}
           </Typography.Text>
+          {metadata.version && (
+            <Tag bordered color="gray" style={{ marginLeft: "8px" }}>
+              {"v"}
+              {metadata.version}
+            </Tag>
+          )}
           {isUpdate && (
-            <Tag bordered color="green" style={{ marginLeft: "8px" }}>
+            <Tag bordered color="green" style={{ marginLeft: "4px" }}>
               {t("update")}
             </Tag>
           )}
@@ -54,6 +62,16 @@ function SkillInstallView({
             {metadata.description && (
               <div className="tw-mb-2">
                 <Typography.Text bold>{metadata.description}</Typography.Text>
+              </div>
+            )}
+
+            {/* Install URL */}
+            {installUrl && (
+              <div className="tw-mb-2">
+                <Typography.Text type="secondary" className="tw-text-xs">
+                  {"URL: "}
+                  {installUrl}
+                </Typography.Text>
               </div>
             )}
 

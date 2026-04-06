@@ -168,6 +168,7 @@ export class ScriptService {
           { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
           { schemes: ["file"], pathSuffix: ".user.js" },
           { schemes: ["file"], pathSuffix: ".skill.js" },
+          { schemes: ["file"], pathSuffix: ".cat.md" },
         ],
       }
     );
@@ -260,6 +261,13 @@ export class ScriptService {
         isUrlFilterCaseSensitive: false,
         excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
       },
+      // Skill 包 (.cat.md) 安装检测
+      {
+        regexFilter: "^([^?#]+?\\.cat\\.md)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+      },
     ];
     const installPageURL = chrome.runtime.getURL("src/install.html");
     const rules = conditions.map((condition, idx) => {
@@ -278,6 +286,7 @@ export class ScriptService {
                 "text/plain*",
                 "application/octet-stream*",
                 "application/force-download*",
+                "text/markdown*",
               ],
             },
           ],
