@@ -2,6 +2,7 @@ import type { ToolDefinition } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { MessageSend } from "@Packages/message/types";
 import { extractHtmlWithSelectors } from "@App/app/service/offscreen/client";
+import { assertDomUrlAllowed } from "@App/app/service/agent/service_worker/dom_policy";
 
 // ---- Tool Definitions ----
 
@@ -100,6 +101,10 @@ export function createTabTools(deps: {
       const maxLength = args.max_length as number | undefined;
 
       if (tabId == null) throw new Error("tab_id is required");
+
+      // 校验目标 tab URL 是否允许操作
+      const tabInfo = await chrome.tabs.get(tabId);
+      assertDomUrlAllowed(tabInfo.url || "");
 
       // 注入脚本获取页面 HTML
       const removeTags = ["script", "style", "noscript", "svg", "link[rel=stylesheet]", "iframe"];

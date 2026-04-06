@@ -8,6 +8,7 @@ const mockTabsQuery = vi.fn();
 const mockTabsCreate = vi.fn();
 const mockTabsRemove = vi.fn();
 const mockTabsUpdate = vi.fn();
+const mockTabsGet = vi.fn();
 // mock chrome.windows
 const mockWindowsUpdate = vi.fn();
 
@@ -31,12 +32,16 @@ beforeEach(() => {
   mockExtractReturn = "Extracted content with selectors for testing";
   mockExtractShouldThrow = false;
 
+  // Default mock for chrome.tabs.get - allows normal test flow
+  mockTabsGet.mockResolvedValue({ id: 42, url: "https://example.com" });
+
   (chrome as any).scripting = { executeScript: mockExecuteScript };
   (chrome as any).tabs = {
     query: mockTabsQuery,
     create: mockTabsCreate,
     remove: mockTabsRemove,
     update: mockTabsUpdate,
+    get: mockTabsGet,
   };
   (chrome as any).windows = { update: mockWindowsUpdate };
 });

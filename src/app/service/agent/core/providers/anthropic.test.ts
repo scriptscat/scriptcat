@@ -212,6 +212,29 @@ describe("buildAnthropicRequest", () => {
     expect(toolMsg.role).toBe("tool");
     expect(toolMsg.content).toBe("result");
   });
+
+  it("assistant toolCalls 中 arguments 格式错误时应降级为空对象", () => {
+    const request: ChatRequest = {
+      conversationId: "c1",
+      modelId: "test",
+      messages: [
+        { role: "user", content: "天气" },
+        {
+          role: "assistant",
+          content: "让我查一下",
+          toolCalls: [{ id: "toolu_1", name: "get_weather", arguments: "not json" }],
+        },
+      ],
+    };
+
+    const { init } = buildAnthropicRequest(config, request);
+    const body = JSON.parse(init.body as string);
+
+    const assistantMsg = body.messages[1];
+    expect(assistantMsg.content[1].type).toBe("tool_use");
+    // 格式错误的 JSON 应降级为空对象
+    expect(assistantMsg.content[1].input).toEqual({});
+  });
 });
 
 // 辅助函数：创建 mock ReadableStreamDefaultReader

@@ -50,12 +50,13 @@ describe("Sub-Agent 类型系统", () => {
       const config = SUB_AGENT_TYPES.researcher;
       const excluded = getExcludeToolsForType(config, allTools);
 
-      // researcher 不包含 tab 工具、ask_user、agent
+      // researcher 不包含 tab 工具、execute_script、ask_user、agent
       expect(excluded).toContain("get_tab_content");
       expect(excluded).toContain("list_tabs");
       expect(excluded).toContain("open_tab");
       expect(excluded).toContain("close_tab");
       expect(excluded).toContain("activate_tab");
+      expect(excluded).toContain("execute_script");
       expect(excluded).toContain("ask_user");
       expect(excluded).toContain("agent");
 
@@ -67,7 +68,6 @@ describe("Sub-Agent 类型系统", () => {
       // 应该保留的工具不在排除列表中
       expect(excluded).not.toContain("web_fetch");
       expect(excluded).not.toContain("web_search");
-      expect(excluded).not.toContain("execute_script");
       expect(excluded).not.toContain("opfs_read");
     });
 

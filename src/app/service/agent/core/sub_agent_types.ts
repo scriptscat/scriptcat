@@ -18,14 +18,14 @@ export const SUB_AGENT_TYPES: Record<string, SubAgentTypeConfig> = {
   researcher: {
     name: "researcher",
     description: "Web search/fetch, data analysis, no tab interaction",
-    allowedTools: ["web_fetch", "web_search", "opfs_read", "opfs_write", "opfs_list", "opfs_delete", "execute_script"],
+    allowedTools: ["web_fetch", "web_search", "opfs_read", "opfs_write", "opfs_list", "opfs_delete"],
     maxIterations: 20,
     timeoutMs: 600_000,
     systemPromptAddition: `## Role: Researcher
 
 You are a research-focused sub-agent. Your job is to search, fetch, read, and summarize information.
 
-**Capabilities:** Web search, URL fetching, data analysis via execute_script (sandbox mode only).
+**Capabilities:** Web search, URL fetching, OPFS file storage.
 **Limitations:** You cannot interact with browser tabs (no navigation, clicking, or form filling). You cannot ask the user questions.
 
 **Guidelines:**

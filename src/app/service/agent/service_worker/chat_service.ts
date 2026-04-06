@@ -397,23 +397,48 @@ export class ChatService {
             const typeConfig = resolveSubAgentType(options.type);
             // 组合父信号和类型配置的超时信号
             const subSignal = AbortSignal.any([abortController.signal, AbortSignal.timeout(typeConfig.timeoutMs)]);
+
+            // 为子代理创建完全独立的工具注册表（共享全局只读 parent，session 工具独立创建）
+            const childRegistry = new SessionToolRegistry(this.toolRegistry);
+
+            const subSendEvent = (evt: ChatStreamEvent) =>
+              sendEvent({
+                ...evt,
+                subAgent: {
+                  agentId,
+                  description: options.description || "Sub-agent task",
+                  subAgentType: typeConfig.name,
+                },
+              } as ChatStreamEvent);
+
+            // 独立的 task 工具（子代理有自己的任务列表）
+            const { tools: childTaskTools } = createTaskTools({ sendEvent: subSendEvent });
+            for (const t of childTaskTools) {
+              childRegistry.register("session", t.definition, t.executor);
+            }
+
+            // 独立的 execute_script
+            const childExecTool = createExecuteScriptTool(this.executeScriptDeps);
+            childRegistry.register("session", childExecTool.definition, childExecTool.executor);
+
+            // general 类型：独立的 skill meta-tools（load_skill / execute_skill_script / read_reference）
+            let skillPromptSuffix = "";
+            if (typeConfig.name === "general" && conv.skills) {
+              const resolved = this.skillService.resolveSkills(conv.skills);
+              skillPromptSuffix = resolved.promptSuffix;
+              for (const mt of resolved.metaTools) {
+                childRegistry.register("skill", mt.definition, mt.executor);
+              }
+            }
+
             return this.subAgentService.runSubAgent({
               options: { ...options, description: options.description || "Sub-agent task" },
               model,
               parentConversationId: params.conversationId,
               signal: subSignal,
-              // 子代理继承父会话的 sessionRegistry（共享 skill/task 等 session 工具）
-              toolRegistry: sessionRegistry,
-              sendEvent: (evt) =>
-                // 子代理只产出 ForwardableEvent，断言安全
-                sendEvent({
-                  ...evt,
-                  subAgent: {
-                    agentId,
-                    description: options.description || "Sub-agent task",
-                    subAgentType: typeConfig.name,
-                  },
-                } as ChatStreamEvent),
+              toolRegistry: childRegistry,
+              skillPromptSuffix,
+              sendEvent: subSendEvent,
             });
           },
         });

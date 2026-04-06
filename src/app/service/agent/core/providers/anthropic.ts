@@ -100,7 +100,15 @@ export function buildAnthropicRequest(
           type: "tool_use",
           id: tc.id,
           name: tc.name,
-          input: tc.arguments ? JSON.parse(tc.arguments) : {},
+          input: tc.arguments
+            ? (() => {
+                try {
+                  return JSON.parse(tc.arguments);
+                } catch {
+                  return {};
+                }
+              })()
+            : {},
         });
       }
       return { role: "assistant" as const, content };

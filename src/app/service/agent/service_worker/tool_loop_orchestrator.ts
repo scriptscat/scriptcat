@@ -14,7 +14,6 @@ import type {
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { getContextWindow } from "@App/app/service/agent/core/model_context";
 import { detectToolCallIssues, type ToolCallRecord } from "@App/app/service/agent/core/tool_call_guard";
-import { withRetry } from "./retry_utils";
 import type { LLMCallResult } from "./llm_client";
 
 /** ToolLoopOrchestrator 所需的外部依赖（由 AgentService 注入） */
@@ -61,8 +60,6 @@ export class ToolLoopOrchestrator {
     excludeTools?: string[];
     // 是否启用 prompt caching，默认 true
     cache?: boolean;
-    // 仅供测试注入，跳过重试延迟
-    delayFn?: (ms: number, signal: AbortSignal) => Promise<void>;
   }): Promise<void> {
     const {
       toolRegistry,
@@ -92,18 +89,12 @@ export class ToolLoopOrchestrator {
         allToolDefs = allToolDefs.filter((t) => !excludeSet.has(t.name));
       }
 
-      // 调用 LLM（带指数退避重试）
-      const result = await withRetry(
-        () =>
-          this.deps.callLLM(
-            model,
-            { messages, tools: allToolDefs.length > 0 ? allToolDefs : undefined, cache: params.cache },
-            sendEvent,
-            signal
-          ),
-        signal,
-        undefined,
-        params.delayFn
+      // 调用 LLM（重试由 llm_client 内部处理）
+      const result = await this.deps.callLLM(
+        model,
+        { messages, tools: allToolDefs.length > 0 ? allToolDefs : undefined, cache: params.cache },
+        sendEvent,
+        signal
       );
 
       if (signal.aborted) return;

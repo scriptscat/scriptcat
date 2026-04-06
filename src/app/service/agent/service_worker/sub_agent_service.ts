@@ -33,13 +33,14 @@ export class SubAgentService {
   constructor(private orchestrator: SubAgentOrchestrator) {}
 
   // 子代理公共编排层：处理 type 解析、resume 路由
-  // toolRegistry 由调用方（通常是 chat_service 的 sessionRegistry）传入，
-  // 保证子代理能看到父会话的 session 工具（task / skill / execute_script 等）
+  // toolRegistry 由调用方传入（隔离的 childRegistry），
+  // 包含子代理需要的工具（task / execute_script），不含父会话的 skill 等动态工具
   async runSubAgent(params: {
     options: SubAgentRunOptions;
     model: AgentModelConfig;
     parentConversationId: string;
     toolRegistry: ToolExecutorLike;
+    skillPromptSuffix?: string;
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
   }): Promise<SubAgentRunResult> {
@@ -114,7 +115,10 @@ export class SubAgentService {
 
     // 构建子代理专用 system prompt
     const availableToolNames = allToolNames.filter((n) => !new Set(excludeTools).has(n));
-    const systemContent = buildSubAgentSystemPrompt(typeConfig, availableToolNames);
+    let systemContent = buildSubAgentSystemPrompt(typeConfig, availableToolNames);
+    if (params.skillPromptSuffix) {
+      systemContent += "\n\n" + params.skillPromptSuffix;
+    }
     const messages: ChatRequest["messages"] = [
       { role: "system", content: systemContent },
       { role: "user", content: options.prompt },
@@ -258,6 +262,17 @@ export class SubAgentService {
       excludeTools: params.excludeTools,
       cache: false,
     });
+
+    // 检查是否因超时中止（区分用户主动取消和超时）
+    if (params.signal.aborted) {
+      const reason = params.signal.reason;
+      const isTimeout = reason instanceof DOMException && reason.name === "TimeoutError";
+      if (isTimeout) {
+        resultContent += resultContent
+          ? "\n\n[Sub-agent timed out. The results above may be incomplete.]"
+          : "[Sub-agent timed out before producing any output.]";
+      }
+    }
 
     // 归档最后一轮消息
     if (currentMsg.content || currentMsg.thinking || currentMsg.toolCalls.length > 0) {
