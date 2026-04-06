@@ -458,7 +458,7 @@ describe("navigate_tab", () => {
 
   it("should navigate and wait for load by default", async () => {
     mockTabsUpdate.mockResolvedValue({ id: 42 });
-    mockOnUpdatedAddListener.mockImplementation((listener: Function) => {
+    mockOnUpdatedAddListener.mockImplementation((listener: (tabId: number, info: { status?: string }) => void) => {
       listener(42, { status: "complete" });
     });
     mockTabsGet.mockResolvedValue({
@@ -504,7 +504,7 @@ describe("navigate_tab", () => {
 
   it("should ignore updates from other tabs", async () => {
     mockTabsUpdate.mockResolvedValue({ id: 42 });
-    mockOnUpdatedAddListener.mockImplementation((listener: Function) => {
+    mockOnUpdatedAddListener.mockImplementation((listener: (tabId: number, info: { status?: string }) => void) => {
       listener(99, { status: "complete" }); // 其他 tab
       listener(42, { status: "loading" }); // 目标 tab 还在加载
       listener(42, { status: "complete" }); // 目标 tab 加载完成

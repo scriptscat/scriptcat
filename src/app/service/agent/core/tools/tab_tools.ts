@@ -318,19 +318,18 @@ export function createTabTools(deps: {
 
       if (waitUntilLoaded) {
         await new Promise<void>((resolve) => {
-          let timeoutId: ReturnType<typeof setTimeout>;
+          const timerId = setTimeout(() => {
+            chrome.tabs.onUpdated.removeListener(listener);
+            resolve();
+          }, 30_000);
           const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
             if (updatedTabId === tabId && changeInfo.status === "complete") {
+              clearTimeout(timerId);
               chrome.tabs.onUpdated.removeListener(listener);
-              clearTimeout(timeoutId);
               resolve();
             }
           };
           chrome.tabs.onUpdated.addListener(listener);
-          timeoutId = setTimeout(() => {
-            chrome.tabs.onUpdated.removeListener(listener);
-            resolve();
-          }, 30_000);
         });
       }
 
