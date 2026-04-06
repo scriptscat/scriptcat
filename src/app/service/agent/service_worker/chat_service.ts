@@ -408,7 +408,11 @@ export class ChatService {
                 // 子代理只产出 ForwardableEvent，断言安全
                 sendEvent({
                   ...evt,
-                  subAgent: { agentId, description: options.description || "Sub-agent task", subAgentType: typeConfig.name },
+                  subAgent: {
+                    agentId,
+                    description: options.description || "Sub-agent task",
+                    subAgentType: typeConfig.name,
+                  },
                 } as ChatStreamEvent),
             });
           },

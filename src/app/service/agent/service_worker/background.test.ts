@@ -38,7 +38,11 @@ describe("updateStreamingState 快照状态管理", () => {
 
     // 参数增量
     (service as any).bgSessionManager.updateStreamingState(rc, { type: "tool_call_delta", id: "tc1", delta: '{"q":' });
-    (service as any).bgSessionManager.updateStreamingState(rc, { type: "tool_call_delta", id: "tc1", delta: '"test"}' });
+    (service as any).bgSessionManager.updateStreamingState(rc, {
+      type: "tool_call_delta",
+      id: "tc1",
+      delta: '"test"}',
+    });
     expect(rc.streamingState.toolCalls[0].arguments).toBe('{"q":"test"}');
 
     // 完成
@@ -109,7 +113,10 @@ describe("updateStreamingState 快照状态管理", () => {
       pendingAskUser: { id: "ask-1", question: "test" },
     });
 
-    (service as any).bgSessionManager.updateStreamingState(rc, { type: "done", usage: { inputTokens: 10, outputTokens: 5 } });
+    (service as any).bgSessionManager.updateStreamingState(rc, {
+      type: "done",
+      usage: { inputTokens: 10, outputTokens: 5 },
+    });
 
     expect(rc.status).toBe("done");
     expect(rc.pendingAskUser).toBeUndefined();
