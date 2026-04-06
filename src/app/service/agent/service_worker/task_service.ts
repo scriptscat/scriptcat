@@ -8,7 +8,8 @@ import type {
   ChatStreamEvent,
   Conversation,
 } from "@App/app/service/agent/core/types";
-import type { ScriptToolCallback, ToolRegistry } from "@App/app/service/agent/core/tool_registry";
+import type { ScriptToolCallback, ToolExecutorLike, ToolRegistry } from "@App/app/service/agent/core/tool_registry";
+import { SessionToolRegistry } from "@App/app/service/agent/core/session_tool_registry";
 import type { SkillService } from "./skill_service";
 import type { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import type { AgentTaskScheduler } from "@App/app/service/agent/core/task_scheduler";
@@ -23,6 +24,7 @@ import { sendMessage } from "@Packages/message/client";
 export interface TaskOrchestrator {
   getModel(modelId?: string): Promise<AgentModelConfig>;
   callLLMWithToolLoop(params: {
+    toolRegistry: ToolExecutorLike;
     model: AgentModelConfig;
     messages: ChatRequest["messages"];
     maxIterations: number;
@@ -61,11 +63,10 @@ export class AgentTaskService {
     // 解析 Skills
     const { promptSuffix, metaTools } = this.skillService.resolveSkills(task.skills);
 
-    // 临时注册 skill meta-tools
-    const registeredMetaToolNames: string[] = [];
+    // 定时任务也独享 SessionToolRegistry，防止和前台聊天会话互相覆盖 meta-tool 闭包
+    const sessionRegistry = new SessionToolRegistry(this.toolRegistry);
     for (const mt of metaTools) {
-      this.toolRegistry.registerBuiltin(mt.definition, mt.executor);
-      registeredMetaToolNames.push(mt.definition.name);
+      sessionRegistry.register("skill", mt.definition, mt.executor);
     }
 
     try {
@@ -161,6 +162,7 @@ export class AgentTaskService {
       };
 
       await this.orchestrator.callLLMWithToolLoop({
+        toolRegistry: sessionRegistry,
         model,
         messages,
         maxIterations: task.maxIterations || 10,
@@ -177,10 +179,7 @@ export class AgentTaskService {
 
       return { conversationId, usage: totalUsage };
     } finally {
-      // 清理临时注册的 meta-tools
-      for (const name of registeredMetaToolNames) {
-        this.toolRegistry.unregisterBuiltin(name);
-      }
+      // sessionRegistry 超出作用域后由 GC 清理，无需手动 unregister
     }
   }
 

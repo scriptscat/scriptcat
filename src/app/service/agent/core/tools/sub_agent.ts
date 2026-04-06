@@ -1,5 +1,6 @@
 import type { SubAgentDetails, ToolDefinition } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
+import { SUB_AGENT_TYPES } from "@App/app/service/agent/core/sub_agent_types";
 
 // 子代理运行选项
 export type SubAgentRunOptions = {
@@ -15,6 +16,10 @@ export type SubAgentRunResult = {
   result: string;
   details?: SubAgentDetails; // 执行详情（用于持久化）
 };
+
+// 在模块加载时固化一次可用 type 列表，供 provider 做 JSON Schema 强校验
+// 后续若把 SUB_AGENT_TYPES 改为运行时 registry（#9），这里改为动态构建
+const SUB_AGENT_TYPE_NAMES = Object.keys(SUB_AGENT_TYPES);
 
 export const SUB_AGENT_DEFINITION: ToolDefinition = {
   name: "agent",
@@ -34,8 +39,9 @@ export const SUB_AGENT_DEFINITION: ToolDefinition = {
       },
       type: {
         type: "string",
+        enum: SUB_AGENT_TYPE_NAMES,
         description:
-          "Sub-agent type. Available types: 'researcher' (web search/fetch, data analysis, no tab interaction), 'page_operator' (browser tab interaction, page automation), 'general' (all tools, default). Choose the most specific type for better results.",
+          "Sub-agent type. 'researcher' (web search/fetch, data analysis, no tab interaction), 'page_operator' (browser tab interaction, page automation), 'general' (all tools, default). Choose the most specific type for better results.",
       },
       to: {
         type: "string",

@@ -82,11 +82,19 @@ You are a general-purpose sub-agent with access to all tools except user interac
 };
 
 /**
- * 解析子代理类型名称为配置，未知类型 fallback 到 general
+ * 解析子代理类型名称为配置
+ * - 未传 typeName：返回 general（默认）
+ * - 传入未知 typeName：抛错，不静默降级（否则攻击者可传 "xxx" 获得更宽权限）
  */
 export function resolveSubAgentType(typeName?: string): SubAgentTypeConfig {
   if (!typeName) return SUB_AGENT_TYPES.general;
-  return SUB_AGENT_TYPES[typeName] || SUB_AGENT_TYPES.general;
+  const config = SUB_AGENT_TYPES[typeName];
+  if (!config) {
+    throw new Error(
+      `Unknown sub-agent type: "${typeName}". Available types: ${Object.keys(SUB_AGENT_TYPES).join(", ")}`
+    );
+  }
+  return config;
 }
 
 /**

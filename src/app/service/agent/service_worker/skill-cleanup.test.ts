@@ -46,7 +46,7 @@ describe("handleConversationChat skill 动态工具清理", () => {
       referenceNames: [],
       prompt: "Test prompt.",
     });
-    (service as any).skillCache.set("test-skill", skill);
+    (service as any).skillService.skillCache.set("test-skill", skill);
 
     // mock conversation 存在且带 skills
     mockRepo.listConversations.mockResolvedValue([
@@ -140,7 +140,7 @@ describe("AgentService init() 消息注册", () => {
     const service = new AgentService(mockGroup, mockSender);
 
     // 替换 repos 避免 OPFS 调用
-    (service as any).skillRepo = { listSkills: vi.fn().mockResolvedValue([]) };
+    (service as any).skillService.skillRepo = { listSkills: vi.fn().mockResolvedValue([]) };
 
     service.init();
 
@@ -162,7 +162,7 @@ describe("AgentService init() 消息注册", () => {
       getSkill: vi.fn().mockResolvedValue(null),
       saveSkill: vi.fn().mockResolvedValue(undefined),
     };
-    (service as any).skillRepo = mockSkillRepo;
+    (service as any).skillService.skillRepo = mockSkillRepo;
 
     service.init();
 
@@ -193,7 +193,7 @@ Prompt content.`;
       listSkills: vi.fn().mockResolvedValue([]),
       removeSkill: vi.fn().mockResolvedValue(true),
     };
-    (service as any).skillRepo = mockSkillRepo;
+    (service as any).skillService.skillRepo = mockSkillRepo;
 
     service.init();
 

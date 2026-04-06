@@ -9,8 +9,11 @@ describe("Sub-Agent 类型系统", () => {
       expect(resolveSubAgentType("general")).toBe(SUB_AGENT_TYPES.general);
     });
 
-    it.concurrent("未知类型 fallback 到 general", () => {
-      expect(resolveSubAgentType("unknown_type")).toBe(SUB_AGENT_TYPES.general);
+    it.concurrent("未知类型抛错（防止攻击者传 xxx 获得更宽权限）", () => {
+      expect(() => resolveSubAgentType("unknown_type")).toThrow(/Unknown sub-agent type/);
+      expect(() => resolveSubAgentType("unknown_type")).toThrow(/Available types/);
+      // 空字符串也视为未知类型（!"" 为 true 会短路，但这里显式用 "" 测试分支）
+      // 注意：空字符串被 !typeName 判断为 falsy，会返回 general；此处为 "" 不会抛
       expect(resolveSubAgentType("")).toBe(SUB_AGENT_TYPES.general);
     });
 

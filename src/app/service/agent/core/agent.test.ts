@@ -644,7 +644,7 @@ function createTestService() {
   const service = new AgentService(mockGroup, mockSender);
 
   // 替换 modelRepo（避免 chrome.storage 调用）
-  (service as any).modelRepo = {
+  (service as any).modelService.modelRepo = {
     listModels: vi.fn().mockResolvedValue([openaiConfig]),
     getModel: vi.fn().mockImplementation((id: string) => {
       if (id === "test-openai") return Promise.resolve(openaiConfig);
@@ -678,6 +678,7 @@ describe("callLLMWithToolLoop", () => {
     );
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "你好" }],
       maxIterations: 5,
@@ -727,6 +728,7 @@ describe("callLLMWithToolLoop", () => {
     const messages: ChatRequest["messages"] = [{ role: "user", content: "北京天气怎么样" }];
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages,
       tools: [{ name: "get_weather", description: "获取天气", parameters: {} }],
@@ -783,6 +785,7 @@ describe("callLLMWithToolLoop", () => {
     const messages: ChatRequest["messages"] = [{ role: "user", content: "搜索" }];
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages,
       tools: [{ name: "search", description: "搜索", parameters: {} }],
@@ -812,6 +815,7 @@ describe("callLLMWithToolLoop", () => {
     fetchSpy.mockImplementation(() => Promise.resolve(buildSSEResponse(makeToolCallSSE("call_x", "loop_tool", "{}"))));
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       tools: [{ name: "loop_tool", description: "循环工具", parameters: {} }],
@@ -846,6 +850,7 @@ describe("callLLMWithToolLoop", () => {
     });
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       maxIterations: 5,
@@ -871,6 +876,7 @@ describe("callLLMWithToolLoop", () => {
     fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("done")));
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       tools: [{ name: "script_tool", description: "脚本工具", parameters: {} }],
@@ -894,6 +900,7 @@ describe("callLLMWithToolLoop", () => {
     fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("回答")));
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "问题" }],
       maxIterations: 5,
@@ -921,6 +928,7 @@ describe("callLLMWithToolLoop", () => {
     fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("回答")));
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "问题" }],
       maxIterations: 5,
@@ -948,6 +956,7 @@ describe("callLLMWithToolLoop", () => {
     fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("最终回答")));
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "问题" }],
       tools: [{ name: "my_tool", description: "工具", parameters: {} }],
@@ -992,6 +1001,7 @@ describe("callLLMWithToolLoop", () => {
 
     await expect(
       (service as any).callLLMWithToolLoop({
+        toolRegistry: (service as any).toolRegistry,
         model: openaiConfig,
         messages: [{ role: "user", content: "test" }],
         maxIterations: 5,
@@ -1013,6 +1023,7 @@ describe("callLLMWithToolLoop", () => {
 
     await expect(
       (service as any).callLLMWithToolLoop({
+        toolRegistry: (service as any).toolRegistry,
         model: openaiConfig,
         messages: [{ role: "user", content: "test" }],
         maxIterations: 5,
@@ -1032,6 +1043,7 @@ describe("callLLMWithToolLoop", () => {
 
     await expect(
       (service as any).callLLMWithToolLoop({
+        toolRegistry: (service as any).toolRegistry,
         model: openaiConfig,
         messages: [{ role: "user", content: "test" }],
         maxIterations: 5,
@@ -1051,6 +1063,7 @@ describe("callLLMWithToolLoop", () => {
     fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeToolCallSSE("call_1", "phantom_tool", '{"x":1}')));
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       // 不传 tools，allToolDefs 为空
@@ -1075,6 +1088,7 @@ describe("callLLMWithToolLoop", () => {
     fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("hello", { prompt_tokens: 5, completion_tokens: 3 })));
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       maxIterations: 5,
@@ -1129,6 +1143,7 @@ describe("callLLMWithToolLoop", () => {
     const messages: ChatRequest["messages"] = [{ role: "user", content: "同时用两个工具" }];
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages,
       tools: [
@@ -1193,6 +1208,7 @@ describe("callLLMWithToolLoop", () => {
       });
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       tools: scriptTools,
@@ -1230,6 +1246,7 @@ describe("callLLMWithToolLoop", () => {
       });
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       // 不传 tools
@@ -1274,6 +1291,7 @@ describe("callLLMWithToolLoop", () => {
     fetchSpy.mockResolvedValueOnce(buildSSEResponse(makeTextSSE("完成")));
 
     await (service as any).callLLMWithToolLoop({
+      toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       maxIterations: 10,

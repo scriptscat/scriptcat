@@ -1,6 +1,5 @@
 import { agentChatRepo } from "@App/app/repo/agent_chat";
-import type { ScriptToolCallback } from "@App/app/service/agent/core/tool_registry";
-import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
+import type { ScriptToolCallback, ToolExecutorLike } from "@App/app/service/agent/core/tool_registry";
 import type {
   AgentModelConfig,
   ChatRequest,
@@ -37,13 +36,15 @@ export interface ToolLoopDeps {
 }
 
 export class ToolLoopOrchestrator {
-  constructor(
-    private toolRegistry: ToolRegistry,
-    private deps: ToolLoopDeps
-  ) {}
+  // 注意：不在构造器持有 toolRegistry。
+  // 每次 callLLMWithToolLoop 由调用方传入（通常是 SessionToolRegistry），
+  // 保证并发会话各自使用独立的工具注册表，避免闭包互相覆盖。
+  constructor(private deps: ToolLoopDeps) {}
 
   // 统一的 tool calling 循环，UI 和脚本共用
   async callLLMWithToolLoop(params: {
+    // 本次调用使用的工具注册表（SessionToolRegistry 或 ToolRegistry）
+    toolRegistry: ToolExecutorLike;
     model: AgentModelConfig;
     messages: ChatRequest["messages"];
     tools?: ToolDefinition[];
@@ -63,7 +64,17 @@ export class ToolLoopOrchestrator {
     // 仅供测试注入，跳过重试延迟
     delayFn?: (ms: number, signal: AbortSignal) => Promise<void>;
   }): Promise<void> {
-    const { model, messages, tools, maxIterations, sendEvent, signal, scriptToolCallback, conversationId } = params;
+    const {
+      toolRegistry,
+      model,
+      messages,
+      tools,
+      maxIterations,
+      sendEvent,
+      signal,
+      scriptToolCallback,
+      conversationId,
+    } = params;
 
     const startTime = Date.now();
     let iterations = 0;
@@ -75,7 +86,7 @@ export class ToolLoopOrchestrator {
       iterations++;
 
       // 每轮重新获取工具定义（load_skill 可能动态注册了新工具）
-      let allToolDefs = params.skipBuiltinTools ? tools || [] : this.toolRegistry.getDefinitions(tools);
+      let allToolDefs = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
       if (params.excludeTools && params.excludeTools.length > 0) {
         const excludeSet = new Set(params.excludeTools);
         allToolDefs = allToolDefs.filter((t) => !excludeSet.has(t.name));
@@ -145,7 +156,10 @@ export class ToolLoopOrchestrator {
         messages.push({ role: "assistant", content: result.content || "", toolCalls: result.toolCalls });
 
         // 通过 ToolRegistry 执行工具（内置工具直接执行，脚本工具回调 Sandbox）
-        const toolResults = await this.toolRegistry.execute(result.toolCalls, scriptToolCallback);
+        // excludeTools 做后端强校验：被排除的工具名直接返回 error，避免 LLM 盲调绕过白/黑名单
+        const excludeToolsSet =
+          params.excludeTools && params.excludeTools.length > 0 ? new Set(params.excludeTools) : undefined;
+        const toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet);
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
         // 收集需要回写的 toolCall 元数据（附件 / 子代理详情）

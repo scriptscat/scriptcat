@@ -79,7 +79,7 @@ export function createTestService() {
     removeModel: vi.fn().mockResolvedValue(undefined),
     setDefaultModelId: vi.fn().mockResolvedValue(undefined),
   };
-  (service as any).modelRepo = mockModelRepo;
+  (service as any).modelService.modelRepo = mockModelRepo;
 
   // 替换 skillRepo（避免 OPFS 调用）
   const mockSkillRepo = {
@@ -92,7 +92,7 @@ export function createTestService() {
     getReference: vi.fn().mockResolvedValue(null),
     getConfigValues: vi.fn().mockResolvedValue(undefined),
   };
-  (service as any).skillRepo = mockSkillRepo;
+  (service as any).skillService.skillRepo = mockSkillRepo;
 
   return { service, mockRepo: mockChatRepo, mockSkillRepo, mockModelRepo };
 }

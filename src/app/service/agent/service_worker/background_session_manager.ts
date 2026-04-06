@@ -45,6 +45,8 @@ export class BackgroundSessionManager {
 
   // 更新后台会话的流式状态快照
   updateStreamingState(rc: RunningConversation, event: ChatStreamEvent) {
+    // 子代理事件不更新父会话的流式状态
+    if ("subAgent" in event && event.subAgent) return;
     switch (event.type) {
       case "content_delta":
         rc.streamingState.content += event.delta;

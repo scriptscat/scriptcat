@@ -19,8 +19,6 @@ import type {
   MCPApiRequest,
 } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
-import type { AgentModelRepo } from "@App/app/repo/agent_model";
-import type { SkillRepo } from "@App/app/repo/skill_repo";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import { SKILL_SCRIPT_UUID_PREFIX } from "@App/app/service/agent/core/skill_script_executor";
@@ -39,7 +37,7 @@ import { WEB_FETCH_DEFINITION, WebFetchExecutor } from "@App/app/service/agent/c
 import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent/core/tools/web_search";
 import { SearchConfigRepo, type SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
 import { SubAgentService } from "./sub_agent_service";
-import { BackgroundSessionManager, type RunningConversation } from "./background_session_manager";
+import { BackgroundSessionManager } from "./background_session_manager";
 import { createOPFSTools, setCreateBlobUrlFn } from "@App/app/service/agent/core/tools/opfs_tools";
 import { createObjectURL } from "@App/app/service/offscreen/client";
 import { AgentOPFSService } from "./opfs_service";
@@ -55,32 +53,8 @@ export class AgentService {
   // Skill 相关功能委托给 SkillService
   private skillService!: SkillService;
 
-  // 测试兼容性：透传访问 SkillService 内部字段
-  // （测试通过 (service as any).skillCache / .skillRepo 读写）
-  private get skillCache() {
-    return this.skillService.skillCache;
-  }
-  private set skillCache(v: Map<string, SkillRecord>) {
-    this.skillService.skillCache = v;
-  }
-  private get skillRepo() {
-    return this.skillService.skillRepo;
-  }
-  private set skillRepo(v: SkillRepo) {
-    this.skillService.skillRepo = v;
-  }
-
   // 模型管理委托给 AgentModelService
   private modelService!: AgentModelService;
-
-  // 测试兼容性：透传访问 AgentModelService 内部 modelRepo
-  // （测试通过 (service as any).modelRepo 读写）
-  private get modelRepo() {
-    return this.modelService.modelRepo;
-  }
-  private set modelRepo(repo: AgentModelRepo) {
-    this.modelService.modelRepo = repo;
-  }
 
   private domService = new AgentDomService();
   private mcpService!: MCPService;
@@ -94,11 +68,6 @@ export class AgentService {
   private searchConfigRepo = new SearchConfigRepo();
   // 后台运行的会话注册表（委托给 BackgroundSessionManager）
   private bgSessionManager = new BackgroundSessionManager();
-  // 测试兼容性：透传访问 BackgroundSessionManager 内部注册表
-  // （测试通过 (service as any).runningConversations 读写）
-  private get runningConversations() {
-    return (this.bgSessionManager as any).runningConversations as Map<string, RunningConversation>;
-  }
   // 子代理编排逻辑委托给 SubAgentService
   private subAgentService: SubAgentService;
   // 上下文压缩逻辑委托给 CompactService
@@ -122,20 +91,22 @@ export class AgentService {
     this.compactService = new CompactService(this.modelService, {
       callLLM: (model, params, sendEvent, signal) => this.llmClient.callLLM(model, params, sendEvent, signal),
     });
-    this.toolLoopOrchestrator = new ToolLoopOrchestrator(this.toolRegistry, {
+    // ToolLoopOrchestrator 不持有 toolRegistry，每次 callLLMWithToolLoop 由调用方传入
+    // （通常是 SessionToolRegistry，保证并发会话工具注册互相隔离）
+    this.toolLoopOrchestrator = new ToolLoopOrchestrator({
       // callLLM 通过 lambda 注入，确保测试 spy 可以拦截 service.callLLM
       callLLM: (model, params, sendEvent, signal) => this.callLLM(model, params, sendEvent, signal),
       autoCompact: (convId, model, msgs, sendEvent, signal) =>
         this.compactService.autoCompact(convId, model, msgs, sendEvent, signal),
     });
-    this.subAgentService = new SubAgentService(this.toolRegistry, {
+    // SubAgentService 不持有 toolRegistry，runSubAgent 时由调用方（chat_service）传入父会话的 sessionRegistry
+    this.subAgentService = new SubAgentService({
       callLLMWithToolLoop: (params) => this.callLLMWithToolLoop(params),
     });
     this.chatService = new ChatService(
       this.toolRegistry,
       this.modelService,
       this.skillService,
-      this.compactService,
       this.bgSessionManager,
       this.subAgentService,
       {
@@ -190,9 +161,9 @@ export class AgentService {
     this.group.on("setSkillEnabled", (params: { name: string; enabled: boolean }) =>
       this.setSkillEnabled(params.name, params.enabled)
     );
-    this.group.on("getSkillConfigValues", (name: string) => this.skillRepo.getConfigValues(name));
+    this.group.on("getSkillConfigValues", (name: string) => this.skillService.skillRepo.getConfigValues(name));
     this.group.on("saveSkillConfig", (params: { name: string; values: Record<string, unknown> }) =>
-      this.skillRepo.saveConfigValues(params.name, params.values)
+      this.skillService.skillRepo.saveConfigValues(params.name, params.values)
     );
     // Skill ZIP 安装页面相关消息
     this.group.on("prepareSkillInstall", (zipBase64: string) => this.prepareSkillInstall(zipBase64));
@@ -204,7 +175,7 @@ export class AgentService {
     // MCP API（供 Options UI 调用，复用已有的 handleMCPApi）
     this.group.on("mcpApi", (request: MCPApiRequest) => this.mcpService.handleMCPApi(request));
     // Agent 定时任务 API
-    this.group.on("agentTask", this.handleAgentTask.bind(this));
+    this.group.on("agentTask", (params: AgentTaskApiRequest) => this.agentTaskService.handleAgentTask(params));
     // 初始化 AgentTaskService（在 skillService 初始化后）
     this.agentTaskService = new AgentTaskService(
       this.sender,
@@ -329,21 +300,6 @@ export class AgentService {
     return this.opfsService.handleOPFSApi(request, sender, agentChatRepo);
   }
 
-  // 解析对话关联的 skills（测试兼容：通过 (service as any).resolveSkills 访问）
-  private resolveSkills(skills?: "auto" | string[]) {
-    return this.skillService.resolveSkills(skills);
-  }
-
-  // 更新后台会话的流式状态快照（测试兼容：通过 (service as any).updateStreamingState 访问）
-  private updateStreamingState(rc: RunningConversation, event: ChatStreamEvent) {
-    this.bgSessionManager.updateStreamingState(rc, event);
-  }
-
-  // 广播事件到所有 listener（测试兼容：通过 (service as any).broadcastEvent 访问）
-  private broadcastEvent(rc: RunningConversation, event: ChatStreamEvent) {
-    this.bgSessionManager.broadcastEvent(rc, event);
-  }
-
   // 获取模型配置，委托给 AgentModelService
   private async getModel(modelId?: string): Promise<AgentModelConfig> {
     return this.modelService.getModel(modelId);
@@ -352,11 +308,6 @@ export class AgentService {
   // 定时任务调度器 tick，由 alarm handler 调用
   async onSchedulerTick() {
     await this.taskScheduler.tick();
-  }
-
-  // 处理定时任务 API 请求（委托给 AgentTaskService）
-  private async handleAgentTask(params: AgentTaskApiRequest) {
-    return this.agentTaskService.handleAgentTask(params);
   }
 
   // 处理 conversation API 请求（非流式），供 GMApi 调用

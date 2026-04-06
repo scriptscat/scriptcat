@@ -8,8 +8,8 @@ describe("updateStreamingState 快照状态管理", () => {
     const { service } = createTestService();
     const rc = createRunningConversation();
 
-    (service as any).updateStreamingState(rc, { type: "content_delta", delta: "Hello" });
-    (service as any).updateStreamingState(rc, { type: "content_delta", delta: " World" });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "content_delta", delta: "Hello" });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "content_delta", delta: " World" });
 
     expect(rc.streamingState.content).toBe("Hello World");
   });
@@ -18,8 +18,8 @@ describe("updateStreamingState 快照状态管理", () => {
     const { service } = createTestService();
     const rc = createRunningConversation();
 
-    (service as any).updateStreamingState(rc, { type: "thinking_delta", delta: "Let me " });
-    (service as any).updateStreamingState(rc, { type: "thinking_delta", delta: "think..." });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "thinking_delta", delta: "Let me " });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "thinking_delta", delta: "think..." });
 
     expect(rc.streamingState.thinking).toBe("Let me think...");
   });
@@ -29,7 +29,7 @@ describe("updateStreamingState 快照状态管理", () => {
     const rc = createRunningConversation();
 
     // 开始
-    (service as any).updateStreamingState(rc, {
+    (service as any).bgSessionManager.updateStreamingState(rc, {
       type: "tool_call_start",
       toolCall: { id: "tc1", name: "web_search", arguments: "" },
     });
@@ -37,12 +37,12 @@ describe("updateStreamingState 快照状态管理", () => {
     expect(rc.streamingState.toolCalls[0].status).toBe("running");
 
     // 参数增量
-    (service as any).updateStreamingState(rc, { type: "tool_call_delta", id: "tc1", delta: '{"q":' });
-    (service as any).updateStreamingState(rc, { type: "tool_call_delta", id: "tc1", delta: '"test"}' });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "tool_call_delta", id: "tc1", delta: '{"q":' });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "tool_call_delta", id: "tc1", delta: '"test"}' });
     expect(rc.streamingState.toolCalls[0].arguments).toBe('{"q":"test"}');
 
     // 完成
-    (service as any).updateStreamingState(rc, {
+    (service as any).bgSessionManager.updateStreamingState(rc, {
       type: "tool_call_complete",
       id: "tc1",
       result: "search results",
@@ -63,7 +63,7 @@ describe("updateStreamingState 快照状态管理", () => {
       },
     });
 
-    (service as any).updateStreamingState(rc, { type: "new_message" });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "new_message" });
 
     expect(rc.streamingState.content).toBe("");
     expect(rc.streamingState.thinking).toBe("");
@@ -74,7 +74,7 @@ describe("updateStreamingState 快照状态管理", () => {
     const { service } = createTestService();
     const rc = createRunningConversation();
 
-    (service as any).updateStreamingState(rc, {
+    (service as any).bgSessionManager.updateStreamingState(rc, {
       type: "ask_user",
       id: "ask-1",
       question: "选择颜色",
@@ -98,7 +98,7 @@ describe("updateStreamingState 快照状态管理", () => {
       { id: "t1", subject: "步骤1", status: "completed" as const },
       { id: "t2", subject: "步骤2", status: "in_progress" as const, description: "进行中" },
     ];
-    (service as any).updateStreamingState(rc, { type: "task_update", tasks });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "task_update", tasks });
 
     expect(rc.tasks).toEqual(tasks);
   });
@@ -109,7 +109,7 @@ describe("updateStreamingState 快照状态管理", () => {
       pendingAskUser: { id: "ask-1", question: "test" },
     });
 
-    (service as any).updateStreamingState(rc, { type: "done", usage: { inputTokens: 10, outputTokens: 5 } });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "done", usage: { inputTokens: 10, outputTokens: 5 } });
 
     expect(rc.status).toBe("done");
     expect(rc.pendingAskUser).toBeUndefined();
@@ -121,7 +121,7 @@ describe("updateStreamingState 快照状态管理", () => {
       pendingAskUser: { id: "ask-1", question: "test" },
     });
 
-    (service as any).updateStreamingState(rc, { type: "error", message: "API error" });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "error", message: "API error" });
 
     expect(rc.status).toBe("error");
     expect(rc.pendingAskUser).toBeUndefined();
@@ -132,7 +132,7 @@ describe("updateStreamingState 快照状态管理", () => {
     const rc = createRunningConversation();
 
     // 不应抛异常
-    (service as any).updateStreamingState(rc, {
+    (service as any).bgSessionManager.updateStreamingState(rc, {
       type: "tool_call_complete",
       id: "nonexistent",
       result: "result",
@@ -145,7 +145,26 @@ describe("updateStreamingState 快照状态管理", () => {
     const rc = createRunningConversation();
 
     // 空 toolCalls 列表时不应报错
-    (service as any).updateStreamingState(rc, { type: "tool_call_delta", id: "tc1", delta: "data" });
+    (service as any).bgSessionManager.updateStreamingState(rc, { type: "tool_call_delta", id: "tc1", delta: "data" });
+    expect(rc.streamingState.toolCalls).toHaveLength(0);
+  });
+
+  it("subAgent 事件不更新父会话的流式状态", () => {
+    const { service } = createTestService();
+    const rc = createRunningConversation();
+
+    (service as any).bgSessionManager.updateStreamingState(rc, {
+      type: "content_delta",
+      delta: "sub-agent text",
+      subAgent: { agentId: "sa-1", description: "test" },
+    });
+    expect(rc.streamingState.content).toBe("");
+
+    (service as any).bgSessionManager.updateStreamingState(rc, {
+      type: "tool_call_start",
+      toolCall: { id: "tc1", name: "search", arguments: "" },
+      subAgent: { agentId: "sa-1", description: "test" },
+    });
     expect(rc.streamingState.toolCalls).toHaveLength(0);
   });
 });
@@ -163,7 +182,7 @@ describe("broadcastEvent 广播与容错", () => {
     rc.listeners.add({ sendEvent: (e: any) => received2.push(e) });
 
     const event = { type: "content_delta" as const, delta: "hi" };
-    (service as any).broadcastEvent(rc, event);
+    (service as any).bgSessionManager.broadcastEvent(rc, event);
 
     expect(received1).toEqual([event]);
     expect(received2).toEqual([event]);
@@ -183,7 +202,7 @@ describe("broadcastEvent 广播与容错", () => {
 
     const event = { type: "content_delta" as const, delta: "hi" };
     // 不应抛异常
-    (service as any).broadcastEvent(rc, event);
+    (service as any).bgSessionManager.broadcastEvent(rc, event);
 
     // 第二个 listener 应正常收到
     expect(received).toEqual([event]);
@@ -194,7 +213,7 @@ describe("broadcastEvent 广播与容错", () => {
     const rc = createRunningConversation();
 
     // 空 listeners，不应报错
-    (service as any).broadcastEvent(rc, { type: "done" as const });
+    (service as any).bgSessionManager.broadcastEvent(rc, { type: "done" as const });
   });
 });
 
@@ -252,7 +271,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
       tasks: [{ id: "t1", subject: "第一步", status: "in_progress" }],
       status: "running",
     });
-    (service as any).runningConversations.set("conv-sync", rc);
+    (service as any).bgSessionManager.set("conv-sync", rc);
 
     const { sender, sentMessages } = createMockSender();
     await (service as any).handleAttachToConversation({ conversationId: "conv-sync" }, sender);
@@ -269,13 +288,13 @@ describe("handleAttachToConversation 重连逻辑", () => {
     expect(syncEvent.data.tasks).toEqual([{ id: "t1", subject: "第一步", status: "in_progress" }]);
 
     // 清理
-    (service as any).runningConversations.delete("conv-sync");
+    (service as any).bgSessionManager.delete("conv-sync");
   });
 
   it("已完成的会话不添加 listener", async () => {
     const { service } = createTestService();
     const rc = createRunningConversation({ status: "done" });
-    (service as any).runningConversations.set("conv-done", rc);
+    (service as any).bgSessionManager.set("conv-done", rc);
 
     const { sender } = createMockSender();
     await (service as any).handleAttachToConversation({ conversationId: "conv-done" }, sender);
@@ -283,13 +302,13 @@ describe("handleAttachToConversation 重连逻辑", () => {
     // listener 不应被添加
     expect(rc.listeners.size).toBe(0);
 
-    (service as any).runningConversations.delete("conv-done");
+    (service as any).bgSessionManager.delete("conv-done");
   });
 
   it("运行中的会话添加 listener，断开时移除", async () => {
     const { service } = createTestService();
     const rc = createRunningConversation({ status: "running" });
-    (service as any).runningConversations.set("conv-run", rc);
+    (service as any).bgSessionManager.set("conv-run", rc);
 
     const { sender, simulateDisconnect } = createMockSender();
     await (service as any).handleAttachToConversation({ conversationId: "conv-run" }, sender);
@@ -300,7 +319,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     simulateDisconnect();
     expect(rc.listeners.size).toBe(0);
 
-    (service as any).runningConversations.delete("conv-run");
+    (service as any).bgSessionManager.delete("conv-run");
   });
 
   it("通过 attach 发送 askUserResponse 能正确 resolve", async () => {
@@ -313,7 +332,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
       resolvedAnswer = answer;
     });
     rc.pendingAskUser = { id: "ask-1", question: "选择" };
-    (service as any).runningConversations.set("conv-ask", rc);
+    (service as any).bgSessionManager.set("conv-ask", rc);
 
     const { sender, simulateMessage } = createMockSender();
     await (service as any).handleAttachToConversation({ conversationId: "conv-ask" }, sender);
@@ -325,7 +344,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     expect(rc.pendingAskUser).toBeUndefined();
     expect(rc.askResolvers.has("ask-1")).toBe(false);
 
-    (service as any).runningConversations.delete("conv-ask");
+    (service as any).bgSessionManager.delete("conv-ask");
   });
 
   it("多个 listener 回复同一 ask_user 只有第一个生效", async () => {
@@ -339,7 +358,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
       lastAnswer = answer;
     });
     rc.pendingAskUser = { id: "ask-1", question: "选择" };
-    (service as any).runningConversations.set("conv-multi", rc);
+    (service as any).bgSessionManager.set("conv-multi", rc);
 
     const { sender: sender1, simulateMessage: sim1 } = createMockSender();
     const { sender: sender2, simulateMessage: sim2 } = createMockSender();
@@ -353,13 +372,13 @@ describe("handleAttachToConversation 重连逻辑", () => {
     expect(resolveCount).toBe(1);
     expect(lastAnswer).toBe("第一个");
 
-    (service as any).runningConversations.delete("conv-multi");
+    (service as any).bgSessionManager.delete("conv-multi");
   });
 
   it("通过 attach 发送 stop 能中止会话", async () => {
     const { service } = createTestService();
     const rc = createRunningConversation({ status: "running" });
-    (service as any).runningConversations.set("conv-stop", rc);
+    (service as any).bgSessionManager.set("conv-stop", rc);
 
     const { sender, simulateMessage } = createMockSender();
     await (service as any).handleAttachToConversation({ conversationId: "conv-stop" }, sender);
@@ -368,13 +387,13 @@ describe("handleAttachToConversation 重连逻辑", () => {
 
     expect(rc.abortController.signal.aborted).toBe(true);
 
-    (service as any).runningConversations.delete("conv-stop");
+    (service as any).bgSessionManager.delete("conv-stop");
   });
 
   it("空 streamingState 的 sync 不包含 streamingMessage 字段", async () => {
     const { service } = createTestService();
     const rc = createRunningConversation({ status: "running" });
-    (service as any).runningConversations.set("conv-empty", rc);
+    (service as any).bgSessionManager.set("conv-empty", rc);
 
     const { sender, sentMessages } = createMockSender();
     await (service as any).handleAttachToConversation({ conversationId: "conv-empty" }, sender);
@@ -382,7 +401,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     const syncEvent = sentMessages.find((m: any) => m.action === "event" && m.data.type === "sync");
     expect(syncEvent.data.streamingMessage).toBeUndefined();
 
-    (service as any).runningConversations.delete("conv-empty");
+    (service as any).bgSessionManager.delete("conv-empty");
   });
 });
 
@@ -484,7 +503,7 @@ describe("后台运行会话 集成测试", () => {
     expect(mockRepo.appendMessage).toHaveBeenCalled();
 
     // runningConversations 应包含该会话（延迟清理中）
-    const rc = (service as any).runningConversations.get("conv-bg");
+    const rc = (service as any).bgSessionManager.get("conv-bg");
     expect(rc).toBeDefined();
     expect(rc.status).toBe("done");
   });
@@ -548,7 +567,7 @@ describe("后台运行会话 集成测试", () => {
 
     await (service as any).handleConversationChat({ conversationId: "conv-bg", message: "test" }, sender);
 
-    expect((service as any).runningConversations.has("conv-bg")).toBe(false);
+    expect((service as any).bgSessionManager.has("conv-bg")).toBe(false);
 
     const events = sentMessages.filter((m: any) => m.action === "event").map((m: any) => m.data);
     expect(events.some((e: any) => e.type === "done")).toBe(true);
@@ -588,14 +607,15 @@ describe("后台运行会话 集成测试", () => {
 
     expect(service.getRunningConversationIds()).toEqual([]);
 
-    (service as any).runningConversations.set("conv-1", { status: "running" });
-    (service as any).runningConversations.set("conv-2", { status: "done" });
+    (service as any).bgSessionManager.set("conv-1", { status: "running" });
+    (service as any).bgSessionManager.set("conv-2", { status: "done" });
 
     const ids = service.getRunningConversationIds();
     expect(ids).toHaveLength(2);
     expect(ids).toContain("conv-1");
     expect(ids).toContain("conv-2");
 
-    (service as any).runningConversations.clear();
+    (service as any).bgSessionManager.delete("conv-1");
+    (service as any).bgSessionManager.delete("conv-2");
   });
 });

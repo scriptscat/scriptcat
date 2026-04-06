@@ -270,7 +270,7 @@ describe("handleConversationChat 场景补充", () => {
     const { sender } = createMockSender();
 
     // 添加第二个 model
-    const modelRepo = (service as any).modelRepo;
+    const modelRepo = (service as any).modelService.modelRepo;
     modelRepo.getModel.mockImplementation((id: string) => {
       if (id === "test-openai")
         return Promise.resolve({
@@ -339,7 +339,7 @@ describe("handleConversationChat 场景补充", () => {
       toolNames: ["web-tool"],
       prompt: "Web instructions.",
     });
-    (service as any).skillCache.set("web-skill", skill);
+    (service as any).skillService.skillCache.set("web-skill", skill);
 
     const toolRecord = makeSkillScriptRecord({
       name: "web-tool",

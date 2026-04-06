@@ -121,7 +121,7 @@ describe("callLLM 流式响应解析", () => {
       removeModel: vi.fn(),
       setDefaultModelId: vi.fn(),
     };
-    (service as any).modelRepo = anthropicModelRepo;
+    (service as any).modelService.modelRepo = anthropicModelRepo;
 
     const conv = { ...BASE_CONV, modelId: "test-anthropic" };
     mockRepo.listConversations.mockResolvedValue([conv]);

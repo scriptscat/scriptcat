@@ -224,6 +224,97 @@ describe("ToolRegistry", () => {
       const parsed = JSON.parse(results[0].result);
       expect(parsed.error).toBeDefined();
     });
+
+    describe("excludeTools 强校验（后端能力隔离）", () => {
+      it("命中 excludeTools 的工具应返回 error，不实际执行", async () => {
+        const registry = new ToolRegistry();
+        const executeSpy = vi.fn().mockResolvedValue("should_not_be_called");
+        registry.registerBuiltin(weatherDef, { execute: executeSpy });
+
+        const results = await registry.execute(
+          [{ id: "tc_1", name: "get_weather", arguments: '{"city":"北京"}' }],
+          null,
+          new Set(["get_weather"])
+        );
+
+        expect(results).toHaveLength(1);
+        const parsed = JSON.parse(results[0].result);
+        expect(parsed.error).toContain("get_weather");
+        expect(parsed.error).toContain("not available");
+        // 关键：executor 不应被调用
+        expect(executeSpy).not.toHaveBeenCalled();
+      });
+
+      it("未命中 excludeTools 的工具应正常执行", async () => {
+        const registry = new ToolRegistry();
+        registry.registerBuiltin(
+          weatherDef,
+          createExecutor(async () => "weather_ok")
+        );
+        registry.registerBuiltin(
+          calcDef,
+          createExecutor(async () => "calc_ok")
+        );
+
+        const results = await registry.execute(
+          [
+            { id: "tc_1", name: "get_weather", arguments: "{}" },
+            { id: "tc_2", name: "calc", arguments: "{}" },
+          ],
+          null,
+          new Set(["calc"]) // 仅排除 calc
+        );
+
+        expect(results).toHaveLength(2);
+        const weather = results.find((r) => r.id === "tc_1");
+        const calc = results.find((r) => r.id === "tc_2");
+        expect(weather?.result).toBe("weather_ok");
+        expect(JSON.parse(calc!.result).error).toContain("not available");
+      });
+
+      it("LLM 盲调（scriptCallback 场景）中被 excludeTools 的工具也应拦截", async () => {
+        const registry = new ToolRegistry();
+        const scriptCallback = vi.fn().mockResolvedValue([{ id: "tc_1", result: "should_not_happen" }]);
+
+        // ask_user 不是已注册的内置工具，正常会走 scriptCallback，但被 excludeTools 拦截
+        const results = await registry.execute(
+          [{ id: "tc_1", name: "ask_user", arguments: "{}" }],
+          scriptCallback,
+          new Set(["ask_user"])
+        );
+
+        expect(results).toHaveLength(1);
+        const parsed = JSON.parse(results[0].result);
+        expect(parsed.error).toContain("ask_user");
+        expect(parsed.error).toContain("not available");
+        // scriptCallback 不应被调用
+        expect(scriptCallback).not.toHaveBeenCalled();
+      });
+
+      it("不传 excludeTools 时所有工具正常执行（向后兼容）", async () => {
+        const registry = new ToolRegistry();
+        registry.registerBuiltin(
+          weatherDef,
+          createExecutor(async () => "weather_ok")
+        );
+
+        const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }]);
+
+        expect(results[0].result).toBe("weather_ok");
+      });
+
+      it("空 excludeTools Set 时所有工具正常执行", async () => {
+        const registry = new ToolRegistry();
+        registry.registerBuiltin(
+          weatherDef,
+          createExecutor(async () => "weather_ok")
+        );
+
+        const results = await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "{}" }], null, new Set());
+
+        expect(results[0].result).toBe("weather_ok");
+      });
+    });
   });
 
   describe("附件处理", () => {

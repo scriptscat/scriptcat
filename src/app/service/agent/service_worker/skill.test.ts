@@ -7,7 +7,7 @@ describe("AgentService Skill 系统", () => {
   describe("resolveSkills", () => {
     it("无 skills 时返回空", () => {
       const { service } = createTestService();
-      const result = (service as any).resolveSkills(undefined);
+      const result = (service as any).skillService.resolveSkills(undefined);
       expect(result.promptSuffix).toBe("");
       expect(result.metaTools).toEqual([]);
     });
@@ -27,10 +27,10 @@ describe("AgentService Skill 系统", () => {
         referenceNames: ["glossary"],
         prompt: "Translate text.",
       });
-      (service as any).skillCache.set("price-monitor", skill1);
-      (service as any).skillCache.set("translator", skill2);
+      (service as any).skillService.skillCache.set("price-monitor", skill1);
+      (service as any).skillService.skillCache.set("translator", skill2);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
 
       // promptSuffix 应包含两个 skill 的 name + description
       expect(result.promptSuffix).toContain("price-monitor");
@@ -55,10 +55,10 @@ describe("AgentService Skill 系统", () => {
 
       const skill1 = makeSkillRecord({ name: "skill-a", description: "Skill A" });
       const skill2 = makeSkillRecord({ name: "skill-b", description: "Skill B" });
-      (service as any).skillCache.set("skill-a", skill1);
-      (service as any).skillCache.set("skill-b", skill2);
+      (service as any).skillService.skillCache.set("skill-a", skill1);
+      (service as any).skillService.skillCache.set("skill-b", skill2);
 
-      const result = (service as any).resolveSkills(["skill-a"]);
+      const result = (service as any).skillService.resolveSkills(["skill-a"]);
 
       expect(result.promptSuffix).toContain("skill-a");
       expect(result.promptSuffix).toContain("Skill A");
@@ -70,9 +70,9 @@ describe("AgentService Skill 系统", () => {
       const { service } = createTestService();
 
       const skill = makeSkillRecord({ name: "simple-skill", toolNames: [], referenceNames: [] });
-      (service as any).skillCache.set("simple-skill", skill);
+      (service as any).skillService.skillCache.set("simple-skill", skill);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
 
       expect(result.metaTools).toHaveLength(2);
       const names = result.metaTools.map((t: any) => t.definition.name);
@@ -84,9 +84,9 @@ describe("AgentService Skill 系统", () => {
       const { service } = createTestService();
 
       const skill = makeSkillRecord({ name: "tools-only", toolNames: ["my-tool"], referenceNames: [] });
-      (service as any).skillCache.set("tools-only", skill);
+      (service as any).skillService.skillCache.set("tools-only", skill);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
 
       expect(result.metaTools).toHaveLength(2);
       const names = result.metaTools.map((t: any) => t.definition.name);
@@ -98,9 +98,9 @@ describe("AgentService Skill 系统", () => {
       const { service } = createTestService();
 
       const skill = makeSkillRecord({ name: "refs-only", toolNames: [], referenceNames: ["doc.md"] });
-      (service as any).skillCache.set("refs-only", skill);
+      (service as any).skillService.skillCache.set("refs-only", skill);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
 
       expect(result.metaTools).toHaveLength(3);
       const names = result.metaTools.map((t: any) => t.definition.name);
@@ -115,9 +115,9 @@ describe("AgentService Skill 系统", () => {
       const { service } = createTestService();
 
       const skill = makeSkillRecord({ name: "my-skill", prompt: "Detailed instructions here." });
-      (service as any).skillCache.set("my-skill", skill);
+      (service as any).skillService.skillCache.set("my-skill", skill);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
 
       const output = await loadSkill.executor.execute({ skill_name: "my-skill" });
@@ -128,9 +128,9 @@ describe("AgentService Skill 系统", () => {
       const { service } = createTestService();
 
       const skill = makeSkillRecord({ name: "existing" });
-      (service as any).skillCache.set("existing", skill);
+      (service as any).skillService.skillCache.set("existing", skill);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
 
       await expect(loadSkill.executor.execute({ skill_name: "non-existent" })).rejects.toThrow(
@@ -148,11 +148,11 @@ describe("AgentService Skill 系统", () => {
         grants: [],
       });
       const skill = makeSkillRecord({ name: "price-skill", toolNames: ["price-check"], prompt: "Monitor prices." });
-      (service as any).skillCache.set("price-skill", skill);
+      (service as any).skillService.skillCache.set("price-skill", skill);
 
       mockSkillRepo.getSkillScripts.mockResolvedValueOnce([scriptRecord]);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
 
       const output = await loadSkill.executor.execute({ skill_name: "price-skill" });
@@ -171,9 +171,9 @@ describe("AgentService Skill 系统", () => {
       const { service, mockSkillRepo } = createTestService();
 
       const skill = makeSkillRecord({ name: "no-tools", toolNames: [], prompt: "Simple prompt." });
-      (service as any).skillCache.set("no-tools", skill);
+      (service as any).skillService.skillCache.set("no-tools", skill);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
 
       await loadSkill.executor.execute({ skill_name: "no-tools" });
@@ -198,11 +198,11 @@ describe("AgentService Skill 系统", () => {
       });
 
       const skill = makeSkillRecord({ name: "taobao", toolNames: ["extract", "compare"], prompt: "淘宝助手。" });
-      (service as any).skillCache.set("taobao", skill);
+      (service as any).skillService.skillCache.set("taobao", skill);
 
       mockSkillRepo.getSkillScripts.mockResolvedValueOnce([tool1, tool2]);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
 
       const output = await loadSkill.executor.execute({ skill_name: "taobao" });
@@ -223,11 +223,11 @@ describe("AgentService Skill 系统", () => {
         params: [],
       });
       const skill = makeSkillRecord({ name: "my-skill", toolNames: ["my-tool"], prompt: "My prompt." });
-      (service as any).skillCache.set("my-skill", skill);
+      (service as any).skillService.skillCache.set("my-skill", skill);
 
       // 第一次 load
       mockSkillRepo.getSkillScripts.mockResolvedValueOnce([scriptRecord]);
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       const loadSkill = result.metaTools.find((t: any) => t.definition.name === "load_skill");
       await loadSkill.executor.execute({ skill_name: "my-skill" });
 
@@ -245,11 +245,11 @@ describe("AgentService Skill 系统", () => {
       const { service, mockSkillRepo } = createTestService();
 
       const skill = makeSkillRecord({ name: "ref-skill", referenceNames: ["api-doc"] });
-      (service as any).skillCache.set("ref-skill", skill);
+      (service as any).skillService.skillCache.set("ref-skill", skill);
 
       mockSkillRepo.getReference.mockResolvedValueOnce({ name: "api-doc", content: "API documentation content" });
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       const readRef = result.metaTools.find((t: any) => t.definition.name === "read_reference");
 
       const output = await readRef.executor.execute({ skill_name: "ref-skill", reference_name: "api-doc" });
@@ -261,11 +261,11 @@ describe("AgentService Skill 系统", () => {
       const { service, mockSkillRepo } = createTestService();
 
       const skill = makeSkillRecord({ name: "ref-skill", referenceNames: ["doc"] });
-      (service as any).skillCache.set("ref-skill", skill);
+      (service as any).skillService.skillCache.set("ref-skill", skill);
 
       mockSkillRepo.getReference.mockResolvedValueOnce(null);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       const readRef = result.metaTools.find((t: any) => t.definition.name === "read_reference");
 
       await expect(
@@ -291,9 +291,9 @@ Do something useful.`;
       await service.installSkill(skillMd);
 
       // skillCache 应包含新安装的 skill
-      expect((service as any).skillCache.has("integrated-skill")).toBe(true);
+      expect((service as any).skillService.skillCache.has("integrated-skill")).toBe(true);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       expect(result.promptSuffix).toContain("integrated-skill");
       expect(result.promptSuffix).toContain("An integrated test skill");
       // 不应包含 prompt 内容
@@ -307,16 +307,16 @@ Do something useful.`;
 
       // 先放入缓存
       const skill = makeSkillRecord({ name: "to-remove" });
-      (service as any).skillCache.set("to-remove", skill);
+      (service as any).skillService.skillCache.set("to-remove", skill);
 
       mockSkillRepo.removeSkill.mockResolvedValueOnce(true);
 
       await service.removeSkill("to-remove");
 
       // skillCache 应不再包含
-      expect((service as any).skillCache.has("to-remove")).toBe(false);
+      expect((service as any).skillService.skillCache.has("to-remove")).toBe(false);
 
-      const result = (service as any).resolveSkills("auto");
+      const result = (service as any).skillService.resolveSkills("auto");
       expect(result.promptSuffix).toBe("");
       expect(result.metaTools).toEqual([]);
     });
@@ -359,7 +359,7 @@ You are a full-featured skill.`;
       expect(savedRefs[0].name).toBe("api-doc");
 
       // skillCache 应包含新安装的 skill
-      expect((service as any).skillCache.has("full-skill")).toBe(true);
+      expect((service as any).skillService.skillCache.has("full-skill")).toBe(true);
     });
 
     it("更新已有 Skill 时保留 installtime", async () => {
@@ -409,14 +409,14 @@ Some prompt.`;
     it("删除存在的 Skill 返回 true", async () => {
       const { service, mockSkillRepo } = createTestService();
 
-      (service as any).skillCache.set("to-delete", makeSkillRecord({ name: "to-delete" }));
+      (service as any).skillService.skillCache.set("to-delete", makeSkillRecord({ name: "to-delete" }));
       mockSkillRepo.removeSkill.mockResolvedValueOnce(true);
 
       const result = await service.removeSkill("to-delete");
 
       expect(result).toBe(true);
       expect(mockSkillRepo.removeSkill).toHaveBeenCalledWith("to-delete");
-      expect((service as any).skillCache.has("to-delete")).toBe(false);
+      expect((service as any).skillService.skillCache.has("to-delete")).toBe(false);
     });
 
     it("删除不存在的 Skill 返回 false 且不影响缓存", async () => {
@@ -467,7 +467,7 @@ description: 淘宝购物助手
       expect(savedRefs[1].content).toBe("使用指南");
 
       // 验证 skillCache 更新
-      expect((service as any).skillCache.has("taobao-helper")).toBe(true);
+      expect((service as any).skillService.skillCache.has("taobao-helper")).toBe(true);
     });
 
     it("ZIP 结果中多个脚本应全部安装", async () => {

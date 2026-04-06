@@ -105,27 +105,28 @@ export type ChatMessage = {
   createtime: number;
 };
 
-// Service Worker -> UI/Sandbox 的流式事件（通过 MessageConnect 的 sendMessage 传输）
-export type ChatStreamEvent =
+// ---- 流式事件分类 ----
+
+// 子代理元信息（附加在子代理转发的事件上）
+export type SubAgentEventInfo = {
+  agentId: string;
+  description: string;
+  subAgentType?: string;
+};
+
+// LLM 流式输出事件
+export type LLMStreamEvent =
   | { type: "content_delta"; delta: string }
   | { type: "thinking_delta"; delta: string }
   | { type: "tool_call_start"; toolCall: Omit<ToolCall, "result"> }
   | { type: "tool_call_delta"; id: string; delta: string }
   | { type: "tool_call_complete"; id: string; result: string; attachments?: Attachment[] }
   | { type: "content_block_start"; block: Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId"> }
-  | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock; data?: string }
-  | { type: "ask_user"; id: string; question: string; options?: string[]; multiple?: boolean }
-  | { type: "system_warning"; message: string }
-  | { type: "sub_agent_event"; agentId: string; description: string; subAgentType?: string; event: ChatStreamEvent }
-  | {
-      type: "task_update";
-      tasks: Array<{
-        id: string;
-        subject: string;
-        status: "pending" | "in_progress" | "completed";
-        description?: string;
-      }>;
-    }
+  | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock; data?: string };
+
+// 可被子代理转发的事件（LLM 流式 + 生命周期），非递归
+export type ForwardableEvent =
+  | LLMStreamEvent
   | { type: "new_message" }
   | {
       type: "done";
@@ -138,7 +139,23 @@ export type ChatStreamEvent =
       durationMs?: number;
     }
   | { type: "error"; message: string; errorCode?: string }
-  | { type: "retry"; attempt: number; maxRetries: number; error: string; delayMs: number }
+  | { type: "retry"; attempt: number; maxRetries: number; error: string; delayMs: number };
+
+// Service Worker -> UI/Sandbox 的流式事件（通过 MessageConnect 的 sendMessage 传输）
+// ForwardableEvent 携带可选 subAgent 标识（扁平化子代理事件，消除递归包装）
+export type ChatStreamEvent =
+  | (ForwardableEvent & { subAgent?: SubAgentEventInfo })
+  | { type: "ask_user"; id: string; question: string; options?: string[]; multiple?: boolean }
+  | { type: "system_warning"; message: string }
+  | {
+      type: "task_update";
+      tasks: Array<{
+        id: string;
+        subject: string;
+        status: "pending" | "in_progress" | "completed";
+        description?: string;
+      }>;
+    }
   | { type: "compact_done"; summary: string; originalCount: number }
   | {
       type: "sync";

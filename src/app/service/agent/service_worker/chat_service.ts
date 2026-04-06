@@ -13,8 +13,8 @@ import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/co
 import type { ToolCall } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
 import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
+import { SessionToolRegistry } from "@App/app/service/agent/core/session_tool_registry";
 import type { SkillService } from "./skill_service";
-import type { CompactService } from "./compact_service";
 import type { BackgroundSessionManager, ListenerEntry, RunningConversation } from "./background_session_manager";
 import type { AgentModelService } from "./model_service";
 import type { SubAgentService } from "./sub_agent_service";
@@ -58,7 +58,6 @@ export class ChatService {
     private toolRegistry: ToolRegistry,
     private modelService: AgentModelService,
     private skillService: SkillService,
-    private compactService: CompactService,
     private bgSessionManager: BackgroundSessionManager,
     private subAgentService: SubAgentService,
     private executeScriptDeps: ChatServiceExecuteScriptDeps,
@@ -256,7 +255,10 @@ export class ChatService {
           }
         }
 
+        // ephemeral 模式无 skill/task 等 session 工具，直接使用全局 toolRegistry
+        // （skipBuiltinTools: true 保证 LLM 只看到 params.tools，toolRegistry 仅用于 execute 路由）
         await this.llmDeps.callLLMWithToolLoop({
+          toolRegistry: this.toolRegistry,
           model,
           messages,
           tools: params.tools,
@@ -355,22 +357,24 @@ export class ChatService {
       // enableTools 默认为 true
       const enableTools = conv.enableTools !== false;
 
+      // 每个 chat 请求一个独立的 SessionToolRegistry（parent = 全局 toolRegistry）
+      // 会话级 meta-tools（skill / task / ask_user / sub_agent / execute_script）只注册到 session，
+      // 避免并发会话的闭包互相覆盖。session 超出作用域后由 GC 清理，无需手动 unregister。
+      const sessionRegistry = new SessionToolRegistry(this.toolRegistry);
+
       // 解析 Skills（注入 prompt + 注册 meta-tools），仅在启用 tools 时执行
       let promptSuffix = "";
-      const registeredMetaToolNames: string[] = [];
       let metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> = [];
       if (enableTools) {
         const resolved = this.skillService.resolveSkills(conv.skills);
         promptSuffix = resolved.promptSuffix;
         metaTools = resolved.metaTools;
 
-        // 临时注册 skill meta-tools（对话结束后清理）
+        // 注册 skill meta-tools 到 session
         for (const mt of metaTools) {
-          this.toolRegistry.registerBuiltin(mt.definition, mt.executor);
-          registeredMetaToolNames.push(mt.definition.name);
+          sessionRegistry.register("skill", mt.definition, mt.executor);
         }
 
-        // 注册每次请求的临时工具
         // Task tools（从持久化加载，变更时保存并推送事件到 UI）
         const initialTasks = await agentChatRepo.getTasks(params.conversationId);
         const { tools: taskToolDefs } = createTaskTools({
@@ -379,14 +383,12 @@ export class ChatService {
           sendEvent,
         });
         for (const t of taskToolDefs) {
-          this.toolRegistry.registerBuiltin(t.definition, t.executor);
-          registeredMetaToolNames.push(t.definition.name);
+          sessionRegistry.register("session", t.definition, t.executor);
         }
 
         // Ask user
         const askTool = createAskUserTool(sendEvent, askResolvers);
-        this.toolRegistry.registerBuiltin(askTool.definition, askTool.executor);
-        registeredMetaToolNames.push(askTool.definition.name);
+        sessionRegistry.register("session", askTool.definition, askTool.executor);
 
         // Sub-agent
         const subAgentTool = createSubAgentTool({
@@ -400,24 +402,22 @@ export class ChatService {
               model,
               parentConversationId: params.conversationId,
               signal: subSignal,
+              // 子代理继承父会话的 sessionRegistry（共享 skill/task 等 session 工具）
+              toolRegistry: sessionRegistry,
               sendEvent: (evt) =>
+                // 子代理只产出 ForwardableEvent，断言安全
                 sendEvent({
-                  type: "sub_agent_event",
-                  agentId,
-                  description: options.description || "Sub-agent task",
-                  subAgentType: typeConfig.name,
-                  event: evt,
-                }),
+                  ...evt,
+                  subAgent: { agentId, description: options.description || "Sub-agent task", subAgentType: typeConfig.name },
+                } as ChatStreamEvent),
             });
           },
         });
-        this.toolRegistry.registerBuiltin(subAgentTool.definition, subAgentTool.executor);
-        registeredMetaToolNames.push(subAgentTool.definition.name);
+        sessionRegistry.register("session", subAgentTool.definition, subAgentTool.executor);
 
         // Execute script
         const executeScriptTool = createExecuteScriptTool(this.executeScriptDeps);
-        this.toolRegistry.registerBuiltin(executeScriptTool.definition, executeScriptTool.executor);
-        registeredMetaToolNames.push(executeScriptTool.definition.name);
+        sessionRegistry.register("session", executeScriptTool.definition, executeScriptTool.executor);
       }
 
       // 加载历史消息
@@ -497,8 +497,9 @@ export class ChatService {
       }
 
       try {
-        // 使用统一的 tool calling 循环
+        // 使用统一的 tool calling 循环（传入 session 级工具注册表，确保并发隔离）
         await this.llmDeps.callLLMWithToolLoop({
+          toolRegistry: sessionRegistry,
           model,
           messages,
           tools: enableTools ? params.tools : undefined,
@@ -512,10 +513,7 @@ export class ChatService {
         // 后台模式：正常完成后延迟清理
         this.bgSessionManager.cleanupIfDone(params.conversationId);
       } finally {
-        // 清理临时注册的 meta-tools
-        for (const name of registeredMetaToolNames) {
-          this.toolRegistry.unregisterBuiltin(name);
-        }
+        // sessionRegistry 超出作用域后由 GC 清理，无需手动 unregister
         // 清理子代理上下文缓存
         this.subAgentService.cleanup(params.conversationId);
       }

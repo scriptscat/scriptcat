@@ -152,6 +152,97 @@ export default function ChatArea({
       const msg = streamingMsgRef.current;
       if (!msg) return;
 
+      // 子代理事件：扁平化路由（通过 subAgent 标识区分）
+      if ("subAgent" in event && event.subAgent) {
+        const { agentId, description, subAgentType } = event.subAgent;
+        let sa = subAgentsRef.current.get(agentId);
+        if (!sa) {
+          sa = {
+            agentId,
+            description,
+            subAgentType,
+            completedMessages: [],
+            currentContent: "",
+            currentThinking: "",
+            currentToolCalls: [],
+            isRunning: true,
+          };
+          subAgentsRef.current.set(agentId, sa);
+        }
+        switch (event.type) {
+          case "content_delta":
+            sa.currentContent += event.delta;
+            break;
+          case "thinking_delta":
+            sa.currentThinking += event.delta;
+            break;
+          case "tool_call_start":
+            sa.currentToolCalls.push({ ...event.toolCall, status: "running" });
+            break;
+          case "tool_call_delta":
+            if (sa.currentToolCalls.length) {
+              sa.currentToolCalls[sa.currentToolCalls.length - 1].arguments += event.delta;
+            }
+            break;
+          case "tool_call_complete": {
+            const tc = sa.currentToolCalls.find((t) => t.id === event.id);
+            if (tc) {
+              tc.status = "completed";
+              tc.result = event.result;
+              tc.attachments = event.attachments;
+            }
+            break;
+          }
+          case "new_message":
+            if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
+              sa.completedMessages.push({
+                content: sa.currentContent,
+                thinking: sa.currentThinking || undefined,
+                toolCalls: [...sa.currentToolCalls],
+              });
+            }
+            sa.currentContent = "";
+            sa.currentThinking = "";
+            sa.currentToolCalls = [];
+            break;
+          case "retry":
+            sa.retryInfo = { attempt: event.attempt, maxRetries: event.maxRetries, error: event.error };
+            break;
+          case "done":
+            if (event.usage) {
+              if (!sa.usage) sa.usage = { inputTokens: 0, outputTokens: 0 };
+              sa.usage.inputTokens += event.usage.inputTokens;
+              sa.usage.outputTokens += event.usage.outputTokens;
+              sa.usage.cacheCreationInputTokens =
+                (sa.usage.cacheCreationInputTokens || 0) + (event.usage.cacheCreationInputTokens || 0);
+              sa.usage.cacheReadInputTokens =
+                (sa.usage.cacheReadInputTokens || 0) + (event.usage.cacheReadInputTokens || 0);
+            }
+          // falls through
+          case "error":
+            sa.retryInfo = undefined;
+            if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
+              sa.completedMessages.push({
+                content: sa.currentContent,
+                thinking: sa.currentThinking || undefined,
+                toolCalls: [...sa.currentToolCalls],
+              });
+              sa.currentContent = "";
+              sa.currentThinking = "";
+              sa.currentToolCalls = [];
+            }
+            sa.isRunning = false;
+            break;
+        }
+        setMessages((prev) => {
+          const updated = [...prev];
+          const idx = updated.findIndex((m) => m.id === msg.id);
+          if (idx >= 0) updated[idx] = { ...msg };
+          return updated;
+        });
+        return;
+      }
+
       switch (event.type) {
         case "content_delta":
           if (!firstTokenRecordedRef.current) {
@@ -198,100 +289,6 @@ export default function ChatArea({
         case "ask_user":
           // ask_user 事件由 hook 层处理
           break;
-        case "sub_agent_event": {
-          // 处理子代理事件：构建完整的子代理执行状态
-          const { agentId, description, subAgentType, event: innerEvent } = event;
-          let sa = subAgentsRef.current.get(agentId);
-          if (!sa) {
-            sa = {
-              agentId,
-              description,
-              subAgentType,
-              completedMessages: [],
-              currentContent: "",
-              currentThinking: "",
-              currentToolCalls: [],
-              isRunning: true,
-            };
-            subAgentsRef.current.set(agentId, sa);
-          }
-          // 分派内部事件
-          switch (innerEvent.type) {
-            case "content_delta":
-              sa.currentContent += innerEvent.delta;
-              break;
-            case "thinking_delta":
-              sa.currentThinking += innerEvent.delta;
-              break;
-            case "tool_call_start":
-              sa.currentToolCalls.push({ ...innerEvent.toolCall, status: "running" });
-              break;
-            case "tool_call_delta":
-              if (sa.currentToolCalls.length) {
-                const lastTc = sa.currentToolCalls[sa.currentToolCalls.length - 1];
-                lastTc.arguments += innerEvent.delta;
-              }
-              break;
-            case "tool_call_complete": {
-              const tc = sa.currentToolCalls.find((t) => t.id === innerEvent.id);
-              if (tc) {
-                tc.status = "completed";
-                tc.result = innerEvent.result;
-                tc.attachments = innerEvent.attachments;
-              }
-              break;
-            }
-            case "new_message":
-              // 当前轮次完成，归档到 completedMessages
-              if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
-                sa.completedMessages.push({
-                  content: sa.currentContent,
-                  thinking: sa.currentThinking || undefined,
-                  toolCalls: [...sa.currentToolCalls],
-                });
-              }
-              sa.currentContent = "";
-              sa.currentThinking = "";
-              sa.currentToolCalls = [];
-              break;
-            case "retry":
-              // 显示重试提示
-              sa.retryInfo = {
-                attempt: innerEvent.attempt,
-                maxRetries: innerEvent.maxRetries,
-                error: innerEvent.error,
-              };
-              break;
-            case "done":
-              // 收集 usage
-              if (innerEvent.usage) {
-                if (!sa.usage) sa.usage = { inputTokens: 0, outputTokens: 0 };
-                sa.usage.inputTokens += innerEvent.usage.inputTokens;
-                sa.usage.outputTokens += innerEvent.usage.outputTokens;
-                sa.usage.cacheCreationInputTokens =
-                  (sa.usage.cacheCreationInputTokens || 0) + (innerEvent.usage.cacheCreationInputTokens || 0);
-                sa.usage.cacheReadInputTokens =
-                  (sa.usage.cacheReadInputTokens || 0) + (innerEvent.usage.cacheReadInputTokens || 0);
-              }
-            // falls through
-            case "error":
-              // 最后一轮归档
-              sa.retryInfo = undefined; // 清除重试提示
-              if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
-                sa.completedMessages.push({
-                  content: sa.currentContent,
-                  thinking: sa.currentThinking || undefined,
-                  toolCalls: [...sa.currentToolCalls],
-                });
-                sa.currentContent = "";
-                sa.currentThinking = "";
-                sa.currentToolCalls = [];
-              }
-              sa.isRunning = false;
-              break;
-          }
-          break;
-        }
         case "content_block_start":
           // 非文本 block 开始，暂不处理（等 complete 时处理）
           break;

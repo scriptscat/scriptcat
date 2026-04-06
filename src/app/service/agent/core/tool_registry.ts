@@ -9,10 +9,15 @@ export interface ToolExecutor {
 }
 
 // 工具来源分类
-export type ToolSource = "builtin" | "mcp" | "skill" | "script";
+// - builtin: 启动期永久注册的内置工具（web_fetch / web_search / opfs_* / tab_*）
+// - mcp: MCP server 提供的工具
+// - skill: skill meta-tools (load_skill, execute_skill_script, read_reference)
+// - session: 会话级动态注册的工具（task tools, ask_user, sub_agent, execute_script）
+// - script: 用户脚本通过 conv.chat 传入的自定义工具（不存 Map，走 scriptCallback）
+export type ToolSource = "builtin" | "mcp" | "skill" | "session" | "script";
 
 // 工具条目（带来源追踪）
-interface ToolEntry {
+export interface ToolEntry {
   definition: ToolDefinition;
   executor: ToolExecutor;
   source: ToolSource;
@@ -28,6 +33,17 @@ export type ToolExecuteResult = {
   attachments?: Attachment[];
   subAgentDetails?: SubAgentDetails;
 };
+
+// 可执行工具的最小接口，供 ToolLoopOrchestrator / SubAgentService 按接口接收
+// 同时适用于 ToolRegistry（全局）和 SessionToolRegistry（会话级）
+export interface ToolExecutorLike {
+  getDefinitions(extraTools?: ToolDefinition[]): ToolDefinition[];
+  execute(
+    toolCalls: ToolCall[],
+    scriptCallback?: ScriptToolCallback | null,
+    excludeTools?: Set<string>
+  ): Promise<ToolExecuteResult[]>;
+}
 
 // 从异常中提取错误消息（兼容 Error 对象和直接 throw 的字符串）
 function extractErrorMessage(e: unknown): string {
@@ -51,9 +67,22 @@ function isToolResultWithSubAgent(value: unknown): value is { content: string; s
 }
 
 // 工具注册表，管理内置工具和脚本工具的统一执行
-export class ToolRegistry {
+// 作为"全局"注册表，承载启动期永久工具（builtin）和 MCP 动态工具
+// 会话级临时工具请使用 SessionToolRegistry（见 ./session_tool_registry.ts）
+export class ToolRegistry implements ToolExecutorLike {
   private tools = new Map<string, ToolEntry>();
   private chatRepo?: AgentChatRepo;
+
+  // 暴露底层 Map 的只读视图，供 SessionToolRegistry 构建合并视图
+  getTools(): ReadonlyMap<string, ToolEntry> {
+    return this.tools;
+  }
+
+  // 暴露 chatRepo，供 SessionToolRegistry 共享附件保存路径
+  // （session 工具返回附件时，调用相同的 saveAttachments 路径）
+  getChatRepo(): AgentChatRepo | undefined {
+    return this.chatRepo;
+  }
 
   // 注入 AgentChatRepo 用于保存附件
   setChatRepo(repo: AgentChatRepo): void {
@@ -138,24 +167,47 @@ export class ToolRegistry {
   }
 
   // 执行工具调用：先查注册工具，未找到则交给脚本回调
-  async execute(toolCalls: ToolCall[], scriptCallback?: ScriptToolCallback | null): Promise<ToolExecuteResult[]> {
+  // 基于自身 Map 执行，等价于 executeTools(this.tools, ...)
+  async execute(
+    toolCalls: ToolCall[],
+    scriptCallback?: ScriptToolCallback | null,
+    excludeTools?: Set<string>
+  ): Promise<ToolExecuteResult[]> {
+    return this.executeTools(this.tools, toolCalls, scriptCallback, excludeTools);
+  }
+
+  // 执行工具调用（接收外部 tools Map），供 SessionToolRegistry 复用附件保存等共享逻辑
+  // excludeTools: 禁止执行的工具名集合（子代理能力隔离），命中者直接返回 error
+  async executeTools(
+    tools: ReadonlyMap<string, ToolEntry>,
+    toolCalls: ToolCall[],
+    scriptCallback?: ScriptToolCallback | null,
+    excludeTools?: Set<string>
+  ): Promise<ToolExecuteResult[]> {
+    const results: ToolExecuteResult[] = [];
     const builtinCalls: ToolCall[] = [];
     const scriptCalls: ToolCall[] = [];
 
     for (const tc of toolCalls) {
-      if (this.tools.has(tc.name)) {
+      // 强校验 excludeTools：被排除的工具直接返回错误，防止 LLM 盲调绕过
+      if (excludeTools && excludeTools.has(tc.name)) {
+        results.push({
+          id: tc.id,
+          result: JSON.stringify({ error: `Tool "${tc.name}" is not available in this context` }),
+        });
+        continue;
+      }
+      if (tools.has(tc.name)) {
         builtinCalls.push(tc);
       } else {
         scriptCalls.push(tc);
       }
     }
 
-    const results: ToolExecuteResult[] = [];
-
     // 并行执行注册工具
     const builtinResults = await Promise.all(
       builtinCalls.map(async (tc): Promise<ToolExecuteResult> => {
-        const tool = this.tools.get(tc.name)!;
+        const tool = tools.get(tc.name)!;
         try {
           let args: Record<string, unknown> = {};
           if (tc.arguments) {
@@ -200,7 +252,7 @@ export class ToolRegistry {
         }
       } else {
         // 没有脚本回调，返回错误并列出可用工具名，引导 LLM 自我纠正
-        const availableNames = Array.from(this.tools.keys());
+        const availableNames = Array.from(tools.keys());
         for (const tc of scriptCalls) {
           const hint = availableNames.includes("execute_skill_script")
             ? ` If "${tc.name}" is a skill script, use the "execute_skill_script" tool instead.`

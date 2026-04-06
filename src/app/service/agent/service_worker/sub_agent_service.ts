@@ -5,24 +5,16 @@ import type {
   ChatStreamEvent,
   SubAgentMessage,
 } from "@App/app/service/agent/core/types";
-import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
+import type { ToolExecutorLike } from "@App/app/service/agent/core/tool_registry";
 import type { SubAgentRunOptions, SubAgentRunResult } from "@App/app/service/agent/core/tools/sub_agent";
 import { resolveSubAgentType, getExcludeToolsForType } from "@App/app/service/agent/core/sub_agent_types";
 import { buildSubAgentSystemPrompt } from "@App/app/service/agent/core/system_prompt";
-
-/** 子代理上下文条目 */
-interface SubAgentContextEntry {
-  agentId: string;
-  typeName: string;
-  description: string;
-  messages: ChatRequest["messages"];
-  status: "completed" | "error";
-  result?: string;
-}
+import { subAgentContextRepo, type SubAgentContextEntry } from "@App/app/repo/sub_agent_context";
 
 /** 供 SubAgentService 调用的 orchestrator 能力 */
 export interface SubAgentOrchestrator {
   callLLMWithToolLoop(params: {
+    toolRegistry: ToolExecutorLike;
     model: AgentModelConfig;
     messages: ChatRequest["messages"];
     maxIterations: number;
@@ -38,30 +30,42 @@ export class SubAgentService {
   // 子代理上下文缓存，按父对话 ID 分组，对话结束时清理
   private subAgentContexts = new Map<string, Map<string, SubAgentContextEntry>>();
 
-  constructor(
-    private toolRegistry: ToolRegistry,
-    private orchestrator: SubAgentOrchestrator
-  ) {}
+  constructor(private orchestrator: SubAgentOrchestrator) {}
 
   // 子代理公共编排层：处理 type 解析、resume 路由
+  // toolRegistry 由调用方（通常是 chat_service 的 sessionRegistry）传入，
+  // 保证子代理能看到父会话的 session 工具（task / skill / execute_script 等）
   async runSubAgent(params: {
     options: SubAgentRunOptions;
     model: AgentModelConfig;
     parentConversationId: string;
+    toolRegistry: ToolExecutorLike;
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
   }): Promise<SubAgentRunResult> {
-    const { options, model, parentConversationId, sendEvent, signal } = params;
+    const { options, model, parentConversationId, toolRegistry, sendEvent, signal } = params;
     const typeConfig = resolveSubAgentType(options.type);
 
-    // 获取所有已注册的工具名，计算排除列表
-    const allToolNames = this.toolRegistry.getDefinitions().map((d) => d.name);
+    // 从传入的 toolRegistry 获取可用工具名，计算排除列表（包含父会话的 session 工具）
+    const allToolNames = toolRegistry.getDefinitions().map((d) => d.name);
     const excludeTools = getExcludeToolsForType(typeConfig, allToolNames);
 
     // resume 模式：延续已有子代理
     if (options.to) {
+      // 先查内存缓存��未命中时从 OPFS 恢复
       const contextMap = this.subAgentContexts.get(parentConversationId);
-      const ctx = contextMap?.get(options.to);
+      let ctx = contextMap?.get(options.to);
+      if (!ctx) {
+        const persisted = await subAgentContextRepo.getContext(parentConversationId, options.to);
+        if (persisted) {
+          ctx = persisted;
+          // 恢复到内存缓存
+          if (!this.subAgentContexts.has(parentConversationId)) {
+            this.subAgentContexts.set(parentConversationId, new Map());
+          }
+          this.subAgentContexts.get(parentConversationId)!.set(options.to, ctx);
+        }
+      }
       if (!ctx) {
         return {
           agentId: options.to,
@@ -78,6 +82,7 @@ export class SubAgentService {
         details,
         usage: subUsage,
       } = await this.runSubAgentCore({
+        toolRegistry,
         messages: ctx.messages,
         model,
         excludeTools,
@@ -86,9 +91,10 @@ export class SubAgentService {
         signal,
       });
 
-      // 更新缓存
+      // 更新缓存 + 持久化
       ctx.result = result;
       ctx.status = "completed";
+      await subAgentContextRepo.saveContext(parentConversationId, ctx);
 
       return {
         agentId: options.to,
@@ -119,6 +125,7 @@ export class SubAgentService {
       details,
       usage: subUsage,
     } = await this.runSubAgentCore({
+      toolRegistry,
       messages,
       model,
       excludeTools,
@@ -137,14 +144,17 @@ export class SubAgentService {
       const oldestKey = contextMap.keys().next().value;
       if (oldestKey) contextMap.delete(oldestKey);
     }
-    contextMap.set(agentId, {
+    const entry: SubAgentContextEntry = {
       agentId,
       typeName: typeConfig.name,
       description: options.description,
       messages,
       status: "completed",
       result,
-    });
+    };
+    contextMap.set(agentId, entry);
+    // 持久化到 OPFS
+    await subAgentContextRepo.saveContext(parentConversationId, entry);
 
     return {
       agentId,
@@ -161,6 +171,7 @@ export class SubAgentService {
 
   // 子代理核心执行层
   private async runSubAgentCore(params: {
+    toolRegistry: ToolExecutorLike;
     messages: ChatRequest["messages"];
     model: AgentModelConfig;
     excludeTools: string[];
@@ -237,6 +248,7 @@ export class SubAgentService {
     };
 
     await this.orchestrator.callLLMWithToolLoop({
+      toolRegistry: params.toolRegistry,
       model: params.model,
       messages: params.messages,
       maxIterations: params.maxIterations,
@@ -259,8 +271,9 @@ export class SubAgentService {
     };
   }
 
-  /** 清理某对话的所有子代理上下文 */
+  /** 清理某对话的所有子代理上下文（内存 + OPFS） */
   cleanup(parentConversationId: string): void {
     this.subAgentContexts.delete(parentConversationId);
+    subAgentContextRepo.removeContexts(parentConversationId).catch(() => {});
   }
 }
