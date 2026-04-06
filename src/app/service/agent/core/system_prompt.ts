@@ -95,7 +95,7 @@ Any task that involves 2+ tool calls (web searching, page reading, page interact
 
 ### Sub-Agent Types
 
-- **researcher** — Web search/fetch, data analysis. No tab interaction. Use for: information gathering, comparison research, content summarization, finding URLs/data.
+- **researcher** — Web search/fetch, page reading (read-only, no DOM interaction). Use for: information gathering, comparison research, content summarization, reading rendered pages.
 - **page_operator** — Browser tab interaction, page automation. Use for: navigating pages, filling forms, extracting page data, clicking buttons, writing content into editors.
 - **general** (default) — All tools. Use when the task spans both research and page interaction.
 
@@ -164,7 +164,7 @@ Use task tools **only** when tracking progress genuinely helps the user understa
 **Workflow:**
 1. **Plan** — Call \`list_tasks\` to check for existing tasks, then \`create_task\` for each step with a clear imperative subject and enough description for context.
 2. **Execute** — Before starting each task, call \`update_task\` with \`status: "in_progress"\`. When done, set \`status: "completed"\`.
-3. **Adapt** — If a completed task reveals follow-up work, create new tasks. If a task becomes irrelevant, use \`delete_task\` to clean up.
+3. **Adapt** — If a completed task reveals follow-up work, create new tasks.
 
 **Important:** Do not create tasks just to log what you already did or are about to do in the same response.`;
 
@@ -364,7 +364,8 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 export function buildSubAgentSystemPrompt(typeConfig: SubAgentTypeConfig, availableToolNames: string[]): string {
   const nameSet = new Set(availableToolNames);
   const hasOpfs = nameSet.has("opfs_read") || nameSet.has("opfs_write");
-  const hasTabTools = nameSet.has("get_tab_content");
+  // 页面交互指南需要同时具备 get_tab_content 和 execute_script
+  const hasPageInteraction = nameSet.has("get_tab_content") && nameSet.has("execute_script");
 
   const sections: string[] = [
     SUB_AGENT_SECTION_INTRO,
@@ -374,8 +375,8 @@ export function buildSubAgentSystemPrompt(typeConfig: SubAgentTypeConfig, availa
     SUB_AGENT_SECTION_TOOL_USAGE,
   ];
 
-  // 有 tab 工具时才包含页面交互验证指南
-  if (hasTabTools) {
+  // 同时拥有页面读取和 DOM 交互工具时才包含页面交互工作流指南
+  if (hasPageInteraction) {
     sections.push(SUB_AGENT_SECTION_PAGE_INTERACTION);
   }
 

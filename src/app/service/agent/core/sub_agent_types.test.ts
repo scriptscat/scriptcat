@@ -37,28 +37,30 @@ describe("Sub-Agent 类型系统", () => {
       "open_tab",
       "close_tab",
       "activate_tab",
+      "navigate_tab",
       "ask_user",
       "agent",
       "create_task",
       "update_task",
-      "get_task",
       "list_tasks",
-      "delete_task",
     ];
 
-    it.concurrent("researcher 类型排除 tab 工具和其他不在白名单中的工具", () => {
+    it.concurrent("researcher 类型排除 DOM 交互工具和其他不在白名单中的工具", () => {
       const config = SUB_AGENT_TYPES.researcher;
       const excluded = getExcludeToolsForType(config, allTools);
 
-      // researcher 不包含 tab 工具、execute_script、ask_user、agent
-      expect(excluded).toContain("get_tab_content");
-      expect(excluded).toContain("list_tabs");
-      expect(excluded).toContain("open_tab");
-      expect(excluded).toContain("close_tab");
+      // researcher 不包含 DOM 交互工具（execute_script、activate_tab）、ask_user、agent
       expect(excluded).toContain("activate_tab");
       expect(excluded).toContain("execute_script");
       expect(excluded).toContain("ask_user");
       expect(excluded).toContain("agent");
+
+      // researcher 可以读取页面（get_tab_content + tab 管理）
+      expect(excluded).not.toContain("get_tab_content");
+      expect(excluded).not.toContain("open_tab");
+      expect(excluded).not.toContain("list_tabs");
+      expect(excluded).not.toContain("close_tab");
+      expect(excluded).not.toContain("navigate_tab");
 
       // task 工具始终可用（ALWAYS_ALLOWED_TOOLS）
       expect(excluded).not.toContain("create_task");
@@ -80,10 +82,11 @@ describe("Sub-Agent 类型系统", () => {
       expect(excluded).toContain("ask_user");
       expect(excluded).toContain("agent");
 
-      // 应该保留 tab 工具
+      // 应该保留 tab 工具（含 navigate_tab）
       expect(excluded).not.toContain("get_tab_content");
       expect(excluded).not.toContain("list_tabs");
       expect(excluded).not.toContain("open_tab");
+      expect(excluded).not.toContain("navigate_tab");
       expect(excluded).not.toContain("execute_script");
       expect(excluded).not.toContain("web_fetch");
 

@@ -11,26 +11,40 @@ export interface SubAgentTypeConfig {
 }
 
 // 所有子代理类型都默认可用的工具（task 工具用于与主 agent 共享任务进度）
-const ALWAYS_ALLOWED_TOOLS = ["create_task", "update_task", "get_task", "list_tasks", "delete_task"];
+const ALWAYS_ALLOWED_TOOLS = ["create_task", "update_task", "list_tasks"];
 
 // 内置子代理类型
 export const SUB_AGENT_TYPES: Record<string, SubAgentTypeConfig> = {
   researcher: {
     name: "researcher",
-    description: "Web search/fetch, data analysis, no tab interaction",
-    allowedTools: ["web_fetch", "web_search", "opfs_read", "opfs_write", "opfs_list", "opfs_delete"],
+    description: "Web search/fetch, page reading (read-only, no DOM interaction)",
+    allowedTools: [
+      "web_fetch",
+      "web_search",
+      "get_tab_content",
+      "open_tab",
+      "list_tabs",
+      "close_tab",
+      "navigate_tab",
+      "opfs_read",
+      "opfs_write",
+      "opfs_list",
+      "opfs_delete",
+    ],
     maxIterations: 20,
     timeoutMs: 600_000,
     systemPromptAddition: `## Role: Researcher
 
 You are a research-focused sub-agent. Your job is to search, fetch, read, and summarize information.
 
-**Capabilities:** Web search, URL fetching, OPFS file storage.
-**Limitations:** You cannot interact with browser tabs (no navigation, clicking, or form filling). You cannot ask the user questions.
+**Capabilities:** Web search, URL fetching, page reading (open tabs and read rendered content with get_tab_content), OPFS file storage.
+**Limitations:** You cannot interact with page DOM (no clicking, form filling, or script execution). You cannot ask the user questions.
 
 **Guidelines:**
-- Use web_search to find relevant sources, then web_fetch to read them.
+- Use web_search to find relevant sources, then web_fetch or get_tab_content to read them.
+- For JavaScript-rendered pages (SPAs), prefer get_tab_content over web_fetch — it reads the rendered DOM.
 - Synthesize information from multiple sources when possible.
+- Close tabs you no longer need to avoid clutter.
 - Return structured, concise results that the parent agent can act on.
 - If you cannot find the information, say so clearly rather than guessing.`,
   },
@@ -44,6 +58,7 @@ You are a research-focused sub-agent. Your job is to search, fetch, read, and su
       "open_tab",
       "close_tab",
       "activate_tab",
+      "navigate_tab",
       "execute_script",
       "web_fetch",
       "opfs_read",

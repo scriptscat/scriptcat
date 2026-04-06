@@ -46,33 +46,9 @@ const UPDATE_TASK_DEFINITION: ToolDefinition = {
   },
 };
 
-const GET_TASK_DEFINITION: ToolDefinition = {
-  name: "get_task",
-  description: "Get a task's full details including description. list_tasks only returns id/subject/status.",
-  parameters: {
-    type: "object",
-    properties: {
-      task_id: { type: "string", description: "The task ID" },
-    },
-    required: ["task_id"],
-  },
-};
-
-const DELETE_TASK_DEFINITION: ToolDefinition = {
-  name: "delete_task",
-  description: "Delete a task permanently.",
-  parameters: {
-    type: "object",
-    properties: {
-      task_id: { type: "string", description: "The task ID to delete" },
-    },
-    required: ["task_id"],
-  },
-};
-
 const LIST_TASKS_DEFINITION: ToolDefinition = {
   name: "list_tasks",
-  description: "List all tasks with their IDs, subjects, and statuses (without descriptions).",
+  description: "List all tasks with full details (ID, subject, status, description).",
   parameters: {
     type: "object",
     properties: {},
@@ -153,36 +129,9 @@ export function createTaskTools(options?: TaskToolsOptions): {
     },
   };
 
-  const getExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
-      const task = tasks.get(args.task_id as string);
-      if (!task) {
-        throw new Error(`Task "${args.task_id}" not found`);
-      }
-      return JSON.stringify(task);
-    },
-  };
-
-  const deleteExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
-      const taskId = args.task_id as string;
-      if (!tasks.has(taskId)) {
-        throw new Error(`Task "${taskId}" not found`);
-      }
-      tasks.delete(taskId);
-      await emitUpdate();
-      return JSON.stringify({ deleted: true, task_id: taskId });
-    },
-  };
-
   const listExecutor: ToolExecutor = {
     execute: async () => {
-      const list = Array.from(tasks.values()).map((t) => ({
-        id: t.id,
-        subject: t.subject,
-        status: t.status,
-      }));
-      return JSON.stringify(list);
+      return JSON.stringify(Array.from(tasks.values()));
     },
   };
 
@@ -190,8 +139,6 @@ export function createTaskTools(options?: TaskToolsOptions): {
     tools: [
       { definition: CREATE_TASK_DEFINITION, executor: createExecutor },
       { definition: UPDATE_TASK_DEFINITION, executor: updateExecutor },
-      { definition: GET_TASK_DEFINITION, executor: getExecutor },
-      { definition: DELETE_TASK_DEFINITION, executor: deleteExecutor },
       { definition: LIST_TASKS_DEFINITION, executor: listExecutor },
     ],
     tasks,

@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { createTaskTools, type Task } from "./task_tools";
 
 describe("task_tools", () => {
-  it("应创建 5 个工具", () => {
+  it("应创建 3 个工具", () => {
     const { tools } = createTaskTools();
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(3);
     const names = tools.map((t) => t.definition.name);
-    expect(names).toEqual(["create_task", "update_task", "get_task", "delete_task", "list_tasks"]);
+    expect(names).toEqual(["create_task", "update_task", "list_tasks"]);
   });
 
   it("create_task 应创建自增 ID 的任务", async () => {
@@ -42,18 +42,18 @@ describe("task_tools", () => {
     await expect(update.executor.execute({ task_id: "1" })).rejects.toThrow();
   });
 
-  it("list_tasks 应返回所有任务摘要", async () => {
+  it("list_tasks 应返回所有任务完整信息", async () => {
     const { tools } = createTaskTools();
     const create = tools.find((t) => t.definition.name === "create_task")!;
     const list = tools.find((t) => t.definition.name === "list_tasks")!;
 
     await create.executor.execute({ subject: "A" });
-    await create.executor.execute({ subject: "B" });
+    await create.executor.execute({ subject: "B", description: "Details" });
 
     const result = JSON.parse((await list.executor.execute({})) as string);
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ id: "1", subject: "A", status: "pending" });
-    expect(result[1]).toEqual({ id: "2", subject: "B", status: "pending" });
+    expect(result[1]).toEqual({ id: "2", subject: "B", description: "Details", status: "pending" });
   });
 
   it("list_tasks 初始应返回空数组", async () => {
@@ -127,81 +127,6 @@ describe("task_tools", () => {
     const list = tools.find((t) => t.definition.name === "list_tasks")!;
 
     await list.executor.execute({});
-
-    expect(onSave).not.toHaveBeenCalled();
-    expect(sendEvent).not.toHaveBeenCalled();
-  });
-
-  it("get_task 应返回任务完整信息", async () => {
-    const { tools } = createTaskTools();
-    const create = tools.find((t) => t.definition.name === "create_task")!;
-    const get = tools.find((t) => t.definition.name === "get_task")!;
-
-    await create.executor.execute({ subject: "Task", description: "Detailed info" });
-
-    const result = JSON.parse((await get.executor.execute({ task_id: "1" })) as string);
-    expect(result).toEqual({ id: "1", subject: "Task", description: "Detailed info", status: "pending" });
-  });
-
-  it("get_task 应对不存在的任务抛错", async () => {
-    const { tools } = createTaskTools();
-    const get = tools.find((t) => t.definition.name === "get_task")!;
-    await expect(get.executor.execute({ task_id: "999" })).rejects.toThrow('Task "999" not found');
-  });
-
-  it("delete_task 应删除任务", async () => {
-    const { tools } = createTaskTools();
-    const create = tools.find((t) => t.definition.name === "create_task")!;
-    const del = tools.find((t) => t.definition.name === "delete_task")!;
-    const list = tools.find((t) => t.definition.name === "list_tasks")!;
-
-    await create.executor.execute({ subject: "A" });
-    await create.executor.execute({ subject: "B" });
-
-    const result = JSON.parse((await del.executor.execute({ task_id: "1" })) as string);
-    expect(result).toEqual({ deleted: true, task_id: "1" });
-
-    const remaining = JSON.parse((await list.executor.execute({})) as string);
-    expect(remaining).toHaveLength(1);
-    expect(remaining[0].id).toBe("2");
-  });
-
-  it("delete_task 应对不存在的任务抛错", async () => {
-    const { tools } = createTaskTools();
-    const del = tools.find((t) => t.definition.name === "delete_task")!;
-    await expect(del.executor.execute({ task_id: "999" })).rejects.toThrow('Task "999" not found');
-  });
-
-  it("delete_task 应调用 onSave 和 sendEvent", async () => {
-    const onSave = vi.fn().mockResolvedValue(undefined);
-    const sendEvent = vi.fn();
-    const { tools } = createTaskTools({ onSave, sendEvent });
-    const create = tools.find((t) => t.definition.name === "create_task")!;
-    const del = tools.find((t) => t.definition.name === "delete_task")!;
-
-    await create.executor.execute({ subject: "Task" });
-    onSave.mockClear();
-    sendEvent.mockClear();
-
-    await del.executor.execute({ task_id: "1" });
-
-    expect(onSave).toHaveBeenCalledOnce();
-    expect(onSave).toHaveBeenCalledWith([]);
-    expect(sendEvent).toHaveBeenCalledOnce();
-    expect(sendEvent).toHaveBeenCalledWith({
-      type: "task_update",
-      tasks: [],
-    });
-  });
-
-  it("get_task 不应触发 onSave 或 sendEvent", async () => {
-    const onSave = vi.fn().mockResolvedValue(undefined);
-    const sendEvent = vi.fn();
-    const initial: Task[] = [{ id: "1", subject: "Existing", status: "pending", description: "Desc" }];
-    const { tools } = createTaskTools({ initialTasks: initial, onSave, sendEvent });
-    const get = tools.find((t) => t.definition.name === "get_task")!;
-
-    await get.executor.execute({ task_id: "1" });
 
     expect(onSave).not.toHaveBeenCalled();
     expect(sendEvent).not.toHaveBeenCalled();

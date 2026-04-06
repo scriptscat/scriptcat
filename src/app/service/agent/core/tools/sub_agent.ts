@@ -41,7 +41,7 @@ export const SUB_AGENT_DEFINITION: ToolDefinition = {
         type: "string",
         enum: SUB_AGENT_TYPE_NAMES,
         description:
-          "Sub-agent type. 'researcher' (web search/fetch, data analysis, no tab interaction), 'page_operator' (browser tab interaction, page automation), 'general' (all tools, default). Choose the most specific type for better results.",
+          "Sub-agent type. 'researcher' (web search/fetch, page reading — read-only, no DOM interaction), 'page_operator' (browser tab interaction, DOM manipulation, page automation), 'general' (all tools, default). Choose the most specific type for better results.",
       },
       to: {
         type: "string",

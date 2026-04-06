@@ -109,14 +109,16 @@ describe("buildSubAgentSystemPrompt", () => {
     expect(result).not.toContain("## Sub-Agent");
   });
 
-  it.concurrent("researcher 类型不包含 tab 工具的描述", () => {
+  it.concurrent("researcher 类型包含页面读取工具但不包含页面交互工作流", () => {
     const config = SUB_AGENT_TYPES.researcher;
     const tools = config.allowedTools || [];
     const result = buildSubAgentSystemPrompt(config, tools);
 
-    expect(result).not.toContain("get_tab_content");
+    expect(result).toContain("get_tab_content");
     expect(result).toContain("web_fetch");
     expect(result).toContain("web_search");
+    // researcher 没有 execute_script，不应包含页面交互工作流段
+    expect(result).not.toContain("### Page Interaction Workflow");
   });
 
   it.concurrent("researcher 类型包含角色说明", () => {

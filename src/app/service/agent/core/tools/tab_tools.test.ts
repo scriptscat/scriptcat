@@ -11,6 +11,9 @@ const mockTabsUpdate = vi.fn();
 const mockTabsGet = vi.fn();
 // mock chrome.windows
 const mockWindowsUpdate = vi.fn();
+// mock chrome.tabs.onUpdated
+const mockOnUpdatedAddListener = vi.fn();
+const mockOnUpdatedRemoveListener = vi.fn();
 
 // mock offscreen extractHtmlWithSelectors 的返回值
 let mockExtractReturn: string | null = "Extracted content with selectors for testing";
@@ -42,6 +45,10 @@ beforeEach(() => {
     remove: mockTabsRemove,
     update: mockTabsUpdate,
     get: mockTabsGet,
+    onUpdated: {
+      addListener: mockOnUpdatedAddListener,
+      removeListener: mockOnUpdatedRemoveListener,
+    },
   };
   (chrome as any).windows = { update: mockWindowsUpdate };
 });
@@ -58,15 +65,16 @@ function getExecutor(name: string) {
 }
 
 describe("createTabTools", () => {
-  it("should create 5 tools", () => {
+  it("should create 6 tools", () => {
     const { tools } = makeTools();
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(6);
     const names = tools.map((t) => t.definition.name);
     expect(names).toContain("get_tab_content");
     expect(names).toContain("list_tabs");
     expect(names).toContain("open_tab");
     expect(names).toContain("close_tab");
     expect(names).toContain("activate_tab");
+    expect(names).toContain("navigate_tab");
   });
 });
 
@@ -434,5 +442,84 @@ describe("activate_tab", () => {
 
     expect(mockTabsUpdate).toHaveBeenCalledWith(8, { active: true });
     expect(mockWindowsUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("navigate_tab", () => {
+  it("should throw when tab_id is missing", async () => {
+    const executor = getExecutor("navigate_tab");
+    await expect(executor.execute({ url: "https://example.com" })).rejects.toThrow("tab_id is required");
+  });
+
+  it("should throw when url is missing", async () => {
+    const executor = getExecutor("navigate_tab");
+    await expect(executor.execute({ tab_id: 42 })).rejects.toThrow("url is required");
+  });
+
+  it("should navigate and wait for load by default", async () => {
+    mockTabsUpdate.mockResolvedValue({ id: 42 });
+    mockOnUpdatedAddListener.mockImplementation((listener: Function) => {
+      listener(42, { status: "complete" });
+    });
+    mockTabsGet.mockResolvedValue({
+      id: 42,
+      url: "https://new-page.com",
+      title: "New Page",
+      status: "complete",
+    });
+
+    const executor = getExecutor("navigate_tab");
+    const raw = (await executor.execute({ tab_id: 42, url: "https://new-page.com" })) as string;
+    const result = JSON.parse(raw);
+
+    expect(result.id).toBe(42);
+    expect(result.url).toBe("https://new-page.com");
+    expect(result.title).toBe("New Page");
+    expect(result.status).toBe("complete");
+    expect(mockTabsUpdate).toHaveBeenCalledWith(42, { url: "https://new-page.com" });
+    expect(mockOnUpdatedAddListener).toHaveBeenCalled();
+    expect(mockOnUpdatedRemoveListener).toHaveBeenCalled();
+  });
+
+  it("should skip waiting when wait_until_loaded is false", async () => {
+    mockTabsUpdate.mockResolvedValue({ id: 42 });
+    mockTabsGet.mockResolvedValue({
+      id: 42,
+      url: "https://new-page.com",
+      title: "",
+      status: "loading",
+    });
+
+    const executor = getExecutor("navigate_tab");
+    const raw = (await executor.execute({
+      tab_id: 42,
+      url: "https://new-page.com",
+      wait_until_loaded: false,
+    })) as string;
+    const result = JSON.parse(raw);
+
+    expect(result.status).toBe("loading");
+    expect(mockOnUpdatedAddListener).not.toHaveBeenCalled();
+  });
+
+  it("should ignore updates from other tabs", async () => {
+    mockTabsUpdate.mockResolvedValue({ id: 42 });
+    mockOnUpdatedAddListener.mockImplementation((listener: Function) => {
+      listener(99, { status: "complete" }); // 其他 tab
+      listener(42, { status: "loading" }); // 目标 tab 还在加载
+      listener(42, { status: "complete" }); // 目标 tab 加载完成
+    });
+    mockTabsGet.mockResolvedValue({
+      id: 42,
+      url: "https://new-page.com",
+      title: "Done",
+      status: "complete",
+    });
+
+    const executor = getExecutor("navigate_tab");
+    const raw = (await executor.execute({ tab_id: 42, url: "https://new-page.com" })) as string;
+    const result = JSON.parse(raw);
+
+    expect(result.title).toBe("Done");
   });
 });

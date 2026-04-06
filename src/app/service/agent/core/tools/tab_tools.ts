@@ -85,6 +85,23 @@ const ACTIVATE_TAB_DEFINITION: ToolDefinition = {
   },
 };
 
+const NAVIGATE_TAB_DEFINITION: ToolDefinition = {
+  name: "navigate_tab",
+  description: "Navigate an existing tab to a new URL. Waits for page load completion by default.",
+  parameters: {
+    type: "object",
+    properties: {
+      tab_id: { type: "number", description: "Target tab ID" },
+      url: { type: "string", description: "URL to navigate to" },
+      wait_until_loaded: {
+        type: "boolean",
+        description: "Wait for page to finish loading (default: true). Set false to return immediately.",
+      },
+    },
+    required: ["tab_id", "url"],
+  },
+};
+
 // ---- Factory ----
 
 export function createTabTools(deps: {
@@ -288,6 +305,45 @@ export function createTabTools(deps: {
     },
   };
 
+  const navigateTabExecutor: ToolExecutor = {
+    execute: async (args: Record<string, unknown>) => {
+      const tabId = args.tab_id as number;
+      const url = args.url as string;
+      const waitUntilLoaded = (args.wait_until_loaded as boolean | undefined) ?? true;
+
+      if (tabId == null) throw new Error("tab_id is required");
+      if (!url) throw new Error("url is required");
+
+      await chrome.tabs.update(tabId, { url });
+
+      if (waitUntilLoaded) {
+        await new Promise<void>((resolve) => {
+          let timeoutId: ReturnType<typeof setTimeout>;
+          const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
+            if (updatedTabId === tabId && changeInfo.status === "complete") {
+              chrome.tabs.onUpdated.removeListener(listener);
+              clearTimeout(timeoutId);
+              resolve();
+            }
+          };
+          chrome.tabs.onUpdated.addListener(listener);
+          timeoutId = setTimeout(() => {
+            chrome.tabs.onUpdated.removeListener(listener);
+            resolve();
+          }, 30_000);
+        });
+      }
+
+      const tab = await chrome.tabs.get(tabId);
+      return JSON.stringify({
+        id: tab.id,
+        url: tab.url || tab.pendingUrl || url,
+        title: tab.title || "",
+        status: tab.status || "unknown",
+      });
+    },
+  };
+
   return {
     tools: [
       { definition: GET_TAB_CONTENT_DEFINITION, executor: getTabContentExecutor },
@@ -295,6 +351,7 @@ export function createTabTools(deps: {
       { definition: OPEN_TAB_DEFINITION, executor: openTabExecutor },
       { definition: CLOSE_TAB_DEFINITION, executor: closeTabExecutor },
       { definition: ACTIVATE_TAB_DEFINITION, executor: activateTabExecutor },
+      { definition: NAVIGATE_TAB_DEFINITION, executor: navigateTabExecutor },
     ],
   };
 }

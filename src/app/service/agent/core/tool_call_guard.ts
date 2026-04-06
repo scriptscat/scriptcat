@@ -31,7 +31,7 @@ function isNullResult(result: string): boolean {
 }
 
 // 不参与通用重复计数的查询类工具
-const QUERY_TOOLS = new Set(["list_tasks", "get_task", "list_tabs"]);
+const QUERY_TOOLS = new Set(["list_tasks", "list_tabs"]);
 
 /**
  * 检测：完全相同的 tool + args 被调用2次
