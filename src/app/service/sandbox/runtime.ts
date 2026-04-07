@@ -230,35 +230,49 @@ export class Runtime {
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);
     this.crontabSripts.push(script);
-    let flag = false;
+
+    const ERROR_MESSAGES: Record<number, string> = {
+      0: "crontabScript: cron expression failed",
+      2: "crontabScript: onTick creation failed",
+      4: "crontabScript: create cronjob failed",
+      6: "crontabScript: cronjob start failed",
+    };
+
+    const logError = (ok: number, val: string, e: unknown) =>
+      this.logger.error(
+        ERROR_MESSAGES[ok] ?? "crontabScript: execution failed",
+        { uuid: script.uuid, crontab: val },
+        Logger.E(e)
+      );
+
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
-      const { cronExpr, oncePos } = extractCronExpr(val);
+      let ok = 0;
       try {
-        const cron = new CronJob(cronExpr, this.crontabExec(script, oncePos));
+        const { cronExpr, oncePos } = extractCronExpr(val);
+        ok = 2;
+        const onTick = this.crontabExec(script, oncePos);
+        ok = 4;
+        const cron = new CronJob(cronExpr, onTick);
+        ok = 6;
         cron.start();
+        ok = 8;
         cronJobList.push(cron);
       } catch (e) {
-        flag = true;
-        this.logger.error(
-          "create cronjob failed",
-          {
-            uuid: script.uuid,
-            crontab: val,
-          },
-          Logger.E(e)
-        );
+        logError(ok, val, e);
       }
     });
-    if (cronJobList.length !== script.metadata.crontab.length) {
+
+    const allSucceeded = cronJobList.length === script.metadata.crontab.length;
+    if (allSucceeded) {
+      this.cronJob.set(script.uuid, cronJobList);
+    } else {
       // 有表达式失败了
       for (const crontab of cronJobList) {
         crontab.stop();
       }
-    } else {
-      this.cronJob.set(script.uuid, cronJobList);
     }
-    return !flag;
+    return allSucceeded;
   }
 
   crontabExec(script: ScriptLoadInfo, oncePos: number) {
