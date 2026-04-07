@@ -37,10 +37,7 @@ describe("getSubAgentForToolCall", () => {
 
     it("result 中的 agentId 在 subAgents 中不存在时继续后续匹配", () => {
       const subAgents = new Map<string, SubAgentState>();
-      const result = getSubAgentForToolCall(
-        { name: "agent", result: "[agentId: unknown-id]\n\nDone." },
-        subAgents
-      );
+      const result = getSubAgentForToolCall({ name: "agent", result: "[agentId: unknown-id]\n\nDone." }, subAgents);
       expect(result).toBeUndefined();
     });
   });
@@ -88,10 +85,7 @@ describe("getSubAgentForToolCall", () => {
       // result 已设置但 agentId 不匹配 → 不应回退到 1c
       const sa = makeSA({ agentId: "agent-x", isRunning: true });
       const subAgents = new Map([["agent-x", sa]]);
-      const result = getSubAgentForToolCall(
-        { name: "agent", result: "[agentId: other]\n\nDone." },
-        subAgents
-      );
+      const result = getSubAgentForToolCall({ name: "agent", result: "[agentId: other]\n\nDone." }, subAgents);
       // 1a 找不到 "other"，1c 不执行因为 result 存在
       expect(result).toBeUndefined();
     });
@@ -158,7 +152,12 @@ describe("getSubAgentForToolCall", () => {
     it("模拟完整渲染管线：streaming messages → mergeToolResults → getSubAgentForToolCall", () => {
       // 模拟 ChatArea 中的流式消息状态（不含 tool role 消息）
       const subAgents = new Map<string, SubAgentState>();
-      const agentToolCall: ToolCall = { id: "tc-agent", name: "agent", arguments: '{"prompt":"do","description":"test"}', status: "running" };
+      const agentToolCall: ToolCall = {
+        id: "tc-agent",
+        name: "agent",
+        arguments: '{"prompt":"do","description":"test"}',
+        status: "running",
+      };
       const assistantMsg: ChatMessage = {
         id: "msg-1",
         conversationId: "conv-1",
@@ -220,21 +219,36 @@ describe("getSubAgentForToolCall", () => {
           conversationId: "conv-1",
           role: "assistant",
           content: "",
-          toolCalls: [{
-            id: "tc-agent",
-            name: "agent",
-            arguments: '{"prompt":"do","description":"test"}',
-            status: "completed",
-            subAgentDetails: {
-              agentId: "sa-1",
-              description: "test",
-              messages: [{ content: "Task done.", toolCalls: [] }],
+          toolCalls: [
+            {
+              id: "tc-agent",
+              name: "agent",
+              arguments: '{"prompt":"do","description":"test"}',
+              status: "completed",
+              subAgentDetails: {
+                agentId: "sa-1",
+                description: "test",
+                messages: [{ content: "Task done.", toolCalls: [] }],
+              },
             },
-          }],
+          ],
           createtime: Date.now(),
         },
-        { id: "t-1", conversationId: "conv-1", role: "tool", content: "[agentId: sa-1]\n\nTask done.", toolCallId: "tc-agent", createtime: Date.now() },
-        { id: "msg-2", conversationId: "conv-1", role: "assistant", content: "I completed the sub-task.", createtime: Date.now() },
+        {
+          id: "t-1",
+          conversationId: "conv-1",
+          role: "tool",
+          content: "[agentId: sa-1]\n\nTask done.",
+          toolCallId: "tc-agent",
+          createtime: Date.now(),
+        },
+        {
+          id: "msg-2",
+          conversationId: "conv-1",
+          role: "assistant",
+          content: "I completed the sub-task.",
+          createtime: Date.now(),
+        },
       ];
       merged = mergeToolResults(storedMessages);
       const loadedTc = merged.find((m) => m.id === "msg-1")!.toolCalls![0];
