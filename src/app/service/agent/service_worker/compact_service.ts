@@ -1,4 +1,4 @@
-import { agentChatRepo } from "@App/app/repo/agent_chat";
+import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import type {
   AgentModelConfig,
   ChatRequest,
@@ -42,7 +42,8 @@ export interface CompactOrchestrator {
 export class CompactService {
   constructor(
     private modelService: AgentModelService,
-    private orchestrator: CompactOrchestrator
+    private orchestrator: CompactOrchestrator,
+    private chatRepo: AgentChatRepo
   ) {}
 
   /** 自动 compact：汇总对话历史为 summary 并替换 currentMessages */
@@ -88,7 +89,7 @@ export class CompactService {
       content: `[Conversation Summary]\n\n${summary}`,
       createtime: Date.now(),
     };
-    await agentChatRepo.saveMessages(conversationId, [summaryMessage]);
+    await this.chatRepo.saveMessages(conversationId, [summaryMessage]);
 
     // 通知 UI
     sendEvent({ type: "compact_done", summary, originalCount: -1 });

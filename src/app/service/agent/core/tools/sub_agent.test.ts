@@ -51,7 +51,7 @@ describe("sub_agent", () => {
     const mockRunSubAgent = vi.fn();
     const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });
 
-    await expect(executor.execute({})).rejects.toThrow("prompt is required");
+    await expect(executor.execute({})).rejects.toThrow('缺少必填参数 "prompt"');
     expect(mockRunSubAgent).not.toHaveBeenCalled();
   });
 

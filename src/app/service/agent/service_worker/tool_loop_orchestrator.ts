@@ -1,4 +1,4 @@
-import { agentChatRepo } from "@App/app/repo/agent_chat";
+import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import type { ScriptToolCallback, ToolExecutorLike } from "@App/app/service/agent/core/tool_registry";
 import type {
   AgentModelConfig,
@@ -38,7 +38,10 @@ export class ToolLoopOrchestrator {
   // 注意：不在构造器持有 toolRegistry。
   // 每次 callLLMWithToolLoop 由调用方传入（通常是 SessionToolRegistry），
   // 保证并发会话各自使用独立的工具注册表，避免闭包互相覆盖。
-  constructor(private deps: ToolLoopDeps) {}
+  constructor(
+    private deps: ToolLoopDeps,
+    private chatRepo: AgentChatRepo
+  ) {}
 
   // 统一的 tool calling 循环，UI 和脚本共用
   async callLLMWithToolLoop(params: {
@@ -132,7 +135,7 @@ export class ToolLoopOrchestrator {
       if (result.toolCalls && result.toolCalls.length > 0 && allToolDefs.length > 0) {
         // 持久化 assistant 消息（含 tool calls）
         if (conversationId) {
-          await agentChatRepo.appendMessage({
+          await this.chatRepo.appendMessage({
             id: uuidv4(),
             conversationId,
             role: "assistant",
@@ -172,7 +175,7 @@ export class ToolLoopOrchestrator {
 
           // 持久化 tool 结果消息
           if (conversationId) {
-            await agentChatRepo.appendMessage({
+            await this.chatRepo.appendMessage({
               id: uuidv4(),
               conversationId,
               role: "tool",
@@ -199,7 +202,7 @@ export class ToolLoopOrchestrator {
             }
             // 更新持久化的 assistant 消息
             if (conversationId) {
-              const allMessages = await agentChatRepo.getMessages(conversationId);
+              const allMessages = await this.chatRepo.getMessages(conversationId);
               for (let i = allMessages.length - 1; i >= 0; i--) {
                 const msg = allMessages[i];
                 if (msg.role === "assistant" && msg.toolCalls?.some((tc: ToolCall) => toolCallIds.has(tc.id))) {
@@ -209,7 +212,7 @@ export class ToolLoopOrchestrator {
                     const sad = subAgentUpdates.get(tc.id);
                     if (sad) tc.subAgentDetails = sad;
                   }
-                  await agentChatRepo.saveMessages(conversationId, allMessages);
+                  await this.chatRepo.saveMessages(conversationId, allMessages);
                   break;
                 }
               }
@@ -248,7 +251,7 @@ export class ToolLoopOrchestrator {
       // 没有 tool calls，对话结束
       const durationMs = Date.now() - startTime;
       if (conversationId) {
-        await agentChatRepo.appendMessage({
+        await this.chatRepo.appendMessage({
           id: uuidv4(),
           conversationId,
           role: "assistant",
@@ -268,7 +271,7 @@ export class ToolLoopOrchestrator {
     // 超过最大迭代次数
     const maxIterMsg = `Tool calling loop exceeded maximum iterations (${maxIterations})`;
     if (conversationId) {
-      await agentChatRepo.appendMessage({
+      await this.chatRepo.appendMessage({
         id: uuidv4(),
         conversationId,
         role: "assistant",

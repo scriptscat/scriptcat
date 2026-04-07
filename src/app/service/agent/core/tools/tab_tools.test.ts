@@ -80,7 +80,7 @@ describe("createTabTools", () => {
 describe("get_tab_content", () => {
   it("should throw when tab_id is missing", async () => {
     const executor = getExecutor("get_tab_content");
-    await expect(executor.execute({})).rejects.toThrow("tab_id is required");
+    await expect(executor.execute({})).rejects.toThrow('缺少必填参数 "tab_id"');
   });
 
   it("should inject script and return extracted content", async () => {
@@ -311,7 +311,7 @@ describe("list_tabs", () => {
 describe("open_tab", () => {
   it("should throw when url is missing", async () => {
     const executor = getExecutor("open_tab");
-    await expect(executor.execute({})).rejects.toThrow("url is required");
+    await expect(executor.execute({})).rejects.toThrow('缺少必填参数 "url"');
   });
 
   it("should create a new tab", async () => {
@@ -371,7 +371,7 @@ describe("open_tab", () => {
 describe("close_tab", () => {
   it("should throw when tab_id is missing", async () => {
     const executor = getExecutor("close_tab");
-    await expect(executor.execute({})).rejects.toThrow("tab_id is required");
+    await expect(executor.execute({})).rejects.toThrow('缺少必填参数 "tab_id"');
   });
 
   it("should close the tab", async () => {
@@ -397,7 +397,7 @@ describe("close_tab", () => {
 describe("activate_tab", () => {
   it("should throw when tab_id is missing", async () => {
     const executor = getExecutor("activate_tab");
-    await expect(executor.execute({})).rejects.toThrow("tab_id is required");
+    await expect(executor.execute({})).rejects.toThrow('缺少必填参数 "tab_id"');
   });
 
   it("should activate the tab and focus the window", async () => {

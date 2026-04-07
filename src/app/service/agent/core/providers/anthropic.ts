@@ -1,7 +1,13 @@
 import type { ChatStreamEvent, ChatRequest, ContentBlock } from "../types";
 import type { AgentModelConfig } from "../types";
-import { SSEParser } from "../sse_parser";
 import { isContentBlocks } from "../content_utils";
+import {
+  generateAttachmentId,
+  convertTextBlock,
+  convertFileBlock,
+  imageBlockFallback,
+  readSSEStream,
+} from "./content_utils";
 
 // 将 ContentBlock[] 转换为 Anthropic content 格式
 function convertContentBlocks(
@@ -12,12 +18,12 @@ function convertContentBlocks(
   for (const block of blocks) {
     switch (block.type) {
       case "text":
-        result.push({ type: "text", text: block.text });
+        result.push(convertTextBlock(block));
         break;
       case "image": {
         const data = attachmentResolver?.(block.attachmentId);
         if (data) {
-          // data URL → base64 内容
+          // data URL → base64 内容，Anthropic 格式：source.base64
           const match = data.match(/^data:([^;]+);base64,(.+)$/s);
           if (match) {
             result.push({
@@ -25,27 +31,18 @@ function convertContentBlocks(
               source: { type: "base64", media_type: match[1], data: match[2] },
             });
           } else {
-            result.push({
-              type: "text",
-              text: `[Image: ${block.name || "image"}, OPFS path: uploads/${block.attachmentId}]`,
-            });
+            result.push(imageBlockFallback(block));
           }
         } else {
-          result.push({
-            type: "text",
-            text: `[Image: ${block.name || "image"}, OPFS path: uploads/${block.attachmentId}]`,
-          });
+          result.push(imageBlockFallback(block));
         }
         break;
       }
       case "file":
-        result.push({
-          type: "text",
-          text: `[File: ${block.name}${block.size ? ` (${block.size} bytes)` : ""}, OPFS path: uploads/${block.attachmentId}]`,
-        });
+        result.push(convertFileBlock(block));
         break;
       case "audio":
-        // Anthropic 暂不支持音频，降级为文本描述
+        // Anthropic 暂不支持音频，降级为文本描述（含时长信息）
         result.push({
           type: "text",
           text: `[Audio: ${block.name || "audio"}${block.durationMs ? ` (${(block.durationMs / 1000).toFixed(1)}s)` : ""}, OPFS path: uploads/${block.attachmentId}]`,
@@ -183,9 +180,6 @@ export function parseAnthropicStream(
   onEvent: (event: ChatStreamEvent) => void,
   signal: AbortSignal
 ): Promise<void> {
-  const parser = new SSEParser();
-  const decoder = new TextDecoder();
-
   // 跟踪 message_start 中的 usage（含 cache 信息），在 message_delta 中合并输出
   let cachedUsage: { inputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number } | null =
     null;
@@ -193,140 +187,130 @@ export function parseAnthropicStream(
   // 跟踪图片块的累积 base64 数据
   let imageBlockData: { index: number; mediaType: string; base64Chunks: string[] } | null = null;
 
-  return (async () => {
-    try {
-      while (!signal.aborted) {
-        const { done, value } = await reader.read();
-        if (done) break;
+  return readSSEStream(
+    reader,
+    signal,
+    (sseEvent) => {
+      try {
+        const json = JSON.parse(sseEvent.data);
 
-        const chunk = decoder.decode(value, { stream: true });
-        const events = parser.parse(chunk);
-
-        for (const sseEvent of events) {
-          try {
-            const json = JSON.parse(sseEvent.data);
-
-            switch (sseEvent.event) {
-              case "message_start": {
-                // message_start 包含初始 usage（input_tokens, cache 信息）
-                const usage = json.message?.usage;
-                if (usage) {
-                  cachedUsage = {
-                    inputTokens: usage.input_tokens || 0,
-                    cacheCreationInputTokens: usage.cache_creation_input_tokens,
-                    cacheReadInputTokens: usage.cache_read_input_tokens,
-                  };
-                }
-                break;
-              }
-              case "content_block_start": {
-                const block = json.content_block;
-                if (block?.type === "thinking") {
-                  // thinking block 开始，后续通过 content_block_delta 传输内容
-                } else if (block?.type === "tool_use") {
-                  onEvent({
-                    type: "tool_call_start",
-                    toolCall: {
-                      id: block.id,
-                      name: block.name,
-                      arguments: "",
-                    },
-                  });
-                } else if (block?.type === "image") {
-                  // 图片生成块开始，记录 index 和 media_type
-                  imageBlockData = {
-                    index: json.index,
-                    mediaType: block.source?.media_type || "image/png",
-                    base64Chunks: [],
-                  };
-                  onEvent({
-                    type: "content_block_start",
-                    block: {
-                      type: "image",
-                      mimeType: block.source?.media_type || "image/png",
-                      name: "generated_image",
-                    },
-                  });
-                }
-                break;
-              }
-              case "content_block_delta": {
-                const delta = json.delta;
-                if (delta?.type === "text_delta") {
-                  onEvent({ type: "content_delta", delta: delta.text });
-                } else if (delta?.type === "thinking_delta") {
-                  onEvent({ type: "thinking_delta", delta: delta.thinking });
-                } else if (delta?.type === "input_json_delta") {
-                  onEvent({
-                    type: "tool_call_delta",
-                    id: "",
-                    delta: delta.partial_json,
-                  });
-                } else if (delta?.type === "image_delta" && imageBlockData) {
-                  // 累积 base64 数据块
-                  imageBlockData.base64Chunks.push(delta.data);
-                }
-                break;
-              }
-              case "content_block_stop": {
-                // 图片块结束时，拼接 base64 并 emit content_block_complete
-                if (imageBlockData) {
-                  const fullBase64 = imageBlockData.base64Chunks.join("");
-                  const dataUrl = `data:${imageBlockData.mediaType};base64,${fullBase64}`;
-                  const ext = imageBlockData.mediaType.split("/")[1] || "png";
-                  const attachmentId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-                  onEvent({
-                    type: "content_block_complete",
-                    block: {
-                      type: "image",
-                      attachmentId,
-                      mimeType: imageBlockData.mediaType,
-                      name: "generated_image",
-                    },
-                    data: dataUrl,
-                  });
-                  imageBlockData = null;
-                }
-                break;
-              }
-              case "message_delta": {
-                // 消息结束，合并 message_start 的 input usage 和 message_delta 的 output usage
-                if (json.usage) {
-                  onEvent({
-                    type: "done",
-                    usage: {
-                      inputTokens: cachedUsage?.inputTokens || json.usage.input_tokens || 0,
-                      outputTokens: json.usage.output_tokens || 0,
-                      cacheCreationInputTokens: cachedUsage?.cacheCreationInputTokens,
-                      cacheReadInputTokens: cachedUsage?.cacheReadInputTokens,
-                    },
-                  });
-                  return;
-                }
-                break;
-              }
-              case "message_stop": {
-                onEvent({ type: "done" });
-                return;
-              }
-              case "error": {
-                onEvent({
-                  type: "error",
-                  message: json.error?.message || "Anthropic API error",
-                });
-                return;
-              }
+        switch (sseEvent.event) {
+          case "message_start": {
+            // message_start 包含初始 usage（input_tokens, cache 信息）
+            const usage = json.message?.usage;
+            if (usage) {
+              cachedUsage = {
+                inputTokens: usage.input_tokens || 0,
+                cacheCreationInputTokens: usage.cache_creation_input_tokens,
+                cacheReadInputTokens: usage.cache_read_input_tokens,
+              };
             }
-          } catch {
-            // 解析失败忽略
+            break;
+          }
+          case "content_block_start": {
+            const block = json.content_block;
+            if (block?.type === "thinking") {
+              // thinking block 开始，后续通过 content_block_delta 传输内容
+            } else if (block?.type === "tool_use") {
+              onEvent({
+                type: "tool_call_start",
+                toolCall: {
+                  id: block.id,
+                  name: block.name,
+                  arguments: "",
+                },
+              });
+            } else if (block?.type === "image") {
+              // 图片生成块开始，记录 index 和 media_type
+              imageBlockData = {
+                index: json.index,
+                mediaType: block.source?.media_type || "image/png",
+                base64Chunks: [],
+              };
+              onEvent({
+                type: "content_block_start",
+                block: {
+                  type: "image",
+                  mimeType: block.source?.media_type || "image/png",
+                  name: "generated_image",
+                },
+              });
+            }
+            break;
+          }
+          case "content_block_delta": {
+            const delta = json.delta;
+            if (delta?.type === "text_delta") {
+              onEvent({ type: "content_delta", delta: delta.text });
+            } else if (delta?.type === "thinking_delta") {
+              onEvent({ type: "thinking_delta", delta: delta.thinking });
+            } else if (delta?.type === "input_json_delta") {
+              onEvent({
+                type: "tool_call_delta",
+                id: "",
+                delta: delta.partial_json,
+              });
+            } else if (delta?.type === "image_delta" && imageBlockData) {
+              // 累积 base64 数据块
+              imageBlockData.base64Chunks.push(delta.data);
+            }
+            break;
+          }
+          case "content_block_stop": {
+            // 图片块结束时，拼接 base64 并 emit content_block_complete
+            if (imageBlockData) {
+              const fullBase64 = imageBlockData.base64Chunks.join("");
+              const dataUrl = `data:${imageBlockData.mediaType};base64,${fullBase64}`;
+              const ext = imageBlockData.mediaType.split("/")[1] || "png";
+              onEvent({
+                type: "content_block_complete",
+                block: {
+                  type: "image",
+                  attachmentId: generateAttachmentId(ext),
+                  mimeType: imageBlockData.mediaType,
+                  name: "generated_image",
+                },
+                data: dataUrl,
+              });
+              imageBlockData = null;
+            }
+            break;
+          }
+          case "message_delta": {
+            // 消息结束，合并 message_start 的 input usage 和 message_delta 的 output usage
+            if (json.usage) {
+              onEvent({
+                type: "done",
+                usage: {
+                  inputTokens: cachedUsage?.inputTokens || json.usage.input_tokens || 0,
+                  outputTokens: json.usage.output_tokens || 0,
+                  cacheCreationInputTokens: cachedUsage?.cacheCreationInputTokens,
+                  cacheReadInputTokens: cachedUsage?.cacheReadInputTokens,
+                },
+              });
+              return true;
+            }
+            break;
+          }
+          case "message_stop": {
+            onEvent({ type: "done" });
+            return true;
+          }
+          case "error": {
+            onEvent({
+              type: "error",
+              message: json.error?.message || "Anthropic API error",
+            });
+            return true;
           }
         }
+      } catch {
+        // 解析失败忽略
       }
-    } catch (e: any) {
-      if (signal.aborted) return;
-      onEvent({ type: "error", message: e.message || "Stream read error" });
-    }
-  })();
+      return false;
+    },
+    (message) => onEvent({ type: "error", message })
+  );
 }
 
 // ---- LLMProvider 接口适配 ----

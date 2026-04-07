@@ -1,5 +1,6 @@
 import type { ToolDefinition, ChatStreamEvent } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
+import { requireString } from "./param_utils";
 
 export type Task = {
   id: string;
@@ -117,9 +118,10 @@ export function createTaskTools(options?: TaskToolsOptions): {
 
   const updateExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const task = tasks.get(args.task_id as string);
+      const taskId = requireString(args, "task_id");
+      const task = tasks.get(taskId);
       if (!task) {
-        throw new Error(`Task "${args.task_id}" not found`);
+        throw new Error(`Task "${taskId}" not found`);
       }
       if (args.status) task.status = args.status as Task["status"];
       if (args.subject) task.subject = args.subject as string;

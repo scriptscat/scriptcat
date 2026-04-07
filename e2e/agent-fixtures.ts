@@ -1,7 +1,8 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { test as base, chromium, type BrowserContext, type Route } from "@playwright/test";
+import { test as base, expect, chromium, type BrowserContext, type Route } from "@playwright/test";
+export { expect };
 
 const pathToExtension = path.resolve(__dirname, "../dist/ext");
 const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];

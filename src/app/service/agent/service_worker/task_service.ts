@@ -7,6 +7,8 @@ import type {
   ChatRequest,
   ChatStreamEvent,
   Conversation,
+  EventAgentTask,
+  InternalAgentTask,
 } from "@App/app/service/agent/core/types";
 import type { ScriptToolCallback, ToolExecutorLike, ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import { SessionToolRegistry } from "@App/app/service/agent/core/session_tool_registry";
@@ -56,7 +58,7 @@ export class AgentTaskService {
 
   // internal 模式定时任务执行：构建对话并调用 LLM
   async executeInternalTask(
-    task: AgentTask
+    task: InternalAgentTask
   ): Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }> {
     const model = await this.orchestrator.getModel(task.modelId);
 
@@ -184,11 +186,7 @@ export class AgentTaskService {
   }
 
   // event 模式定时任务：通知脚本
-  async emitTaskEvent(task: AgentTask): Promise<void> {
-    if (!task.sourceScriptUuid) {
-      throw new Error("Event mode task missing sourceScriptUuid");
-    }
-
+  async emitTaskEvent(task: EventAgentTask): Promise<void> {
     const trigger: AgentTaskTrigger = {
       taskId: task.id,
       name: task.name,
@@ -223,12 +221,12 @@ export class AgentTaskService {
         return this.taskRepo.getTask(params.id);
       case "create": {
         const now = Date.now();
-        const task: AgentTask = {
+        const task = {
           ...params.task,
           id: uuidv4(),
           createtime: now,
           updatetime: now,
-        };
+        } as AgentTask;
         // 计算 nextruntime
         if (task.enabled) {
           try {
@@ -244,7 +242,7 @@ export class AgentTaskService {
       case "update": {
         const existing = await this.taskRepo.getTask(params.id);
         if (!existing) throw new Error("Task not found");
-        const updated = { ...existing, ...params.task, updatetime: Date.now() };
+        const updated = { ...existing, ...params.task, updatetime: Date.now() } as AgentTask;
         // 如果 crontab 或 enabled 变化，重新计算 nextruntime
         if (params.task.crontab !== undefined || params.task.enabled !== undefined) {
           if (updated.enabled) {

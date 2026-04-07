@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import { withTimeout } from "@App/pkg/utils/with_timeout";
+import { requireString } from "./param_utils";
 
 export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
   name: "execute_script",
@@ -43,15 +44,9 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
 
   const executor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const code = args.code as string | undefined;
-      if (!code) {
-        throw new Error("code is required");
-      }
+      const code = requireString(args, "code");
 
-      const target = args.target as string | undefined;
-      if (!target) {
-        throw new Error("target is required");
-      }
+      const target = requireString(args, "target");
       if (target !== "page" && target !== "sandbox") {
         throw new Error(`Invalid target: ${target}. Must be 'page' or 'sandbox'.`);
       }

@@ -1,5 +1,5 @@
 import type { LLMProvider } from "./types";
-import { openaiProvider } from "./openai";
+import { openaiProvider, buildOpenAIRequest, parseOpenAIStream } from "./openai";
 import { anthropicProvider } from "./anthropic";
 
 /** LLM Provider 注册表，支持按 provider 名称查找实现 */
@@ -33,3 +33,20 @@ export const providerRegistry = new ProviderRegistry();
 // 避免 bundler 对纯副作用导入的 tree-shake）
 providerRegistry.register(openaiProvider);
 providerRegistry.register(anthropicProvider);
+
+/**
+ * 智谱 AI（GLM 系列）Provider。
+ * 接口与 OpenAI 兼容，仅默认 apiBaseUrl 不同；复用 openai 的请求构建与流解析逻辑。
+ */
+const zhipuProvider: LLMProvider = {
+  name: "zhipu",
+  buildRequest: (input) =>
+    buildOpenAIRequest(
+      { ...input.model, apiBaseUrl: input.model.apiBaseUrl || "https://open.bigmodel.cn/api/paas/v4" },
+      input.request,
+      input.resolver
+    ),
+  parseStream: (reader, onEvent, signal) => parseOpenAIStream(reader, onEvent, signal),
+};
+
+providerRegistry.register(zhipuProvider);

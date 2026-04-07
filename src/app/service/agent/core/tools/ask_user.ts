@@ -1,5 +1,6 @@
 import type { ToolDefinition, ChatStreamEvent } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
+import { requireString } from "./param_utils";
 
 export const ASK_USER_DEFINITION: ToolDefinition = {
   name: "ask_user",
@@ -36,10 +37,7 @@ export function createAskUserTool(
 
   const executor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const question = args.question as string;
-      if (!question) {
-        throw new Error("question is required");
-      }
+      const question = requireString(args, "question");
 
       const options = args.options as string[] | undefined;
       const multiple = args.multiple as boolean | undefined;

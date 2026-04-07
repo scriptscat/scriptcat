@@ -1,14 +1,14 @@
-import type { AgentTask, AgentTaskRun } from "@App/app/service/agent/core/types";
+import type { AgentTask, AgentTaskRun, EventAgentTask, InternalAgentTask } from "@App/app/service/agent/core/types";
 import type { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import { nextTimeInfo } from "@App/pkg/utils/cron";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
-export type InternalExecutor = (task: AgentTask) => Promise<{
+export type InternalExecutor = (task: InternalAgentTask) => Promise<{
   conversationId: string;
   usage?: { inputTokens: number; outputTokens: number };
 }>;
 
-export type EventEmitter = (task: AgentTask) => Promise<void>;
+export type EventEmitter = (task: EventAgentTask) => Promise<void>;
 
 export class AgentTaskScheduler {
   private runningTasks = new Set<string>();

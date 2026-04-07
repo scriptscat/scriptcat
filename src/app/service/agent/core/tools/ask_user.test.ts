@@ -34,7 +34,7 @@ describe("ask_user", () => {
     const resolvers = new Map<string, (answer: string) => void>();
     const { executor } = createAskUserTool(sendEvent, resolvers);
 
-    await expect(executor.execute({})).rejects.toThrow("question is required");
+    await expect(executor.execute({})).rejects.toThrow('缺少必填参数 "question"');
   });
 
   it("should resolve with timeout reason after 5 minutes", async () => {

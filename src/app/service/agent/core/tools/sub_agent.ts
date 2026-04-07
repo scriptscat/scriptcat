@@ -1,6 +1,7 @@
 import type { SubAgentDetails, ToolDefinition } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import { SUB_AGENT_TYPES } from "@App/app/service/agent/core/sub_agent_types";
+import { requireString } from "./param_utils";
 
 // 子代理运行选项
 export type SubAgentRunOptions = {
@@ -61,14 +62,10 @@ export function createSubAgentTool(params: {
 } {
   const executor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const prompt = args.prompt as string;
+      const prompt = requireString(args, "prompt");
       const description = (args.description as string) || "Sub-agent task";
       const type = args.type as string | undefined;
       const to = args.to as string | undefined;
-
-      if (!prompt) {
-        throw new Error("prompt is required");
-      }
 
       const result = await params.runSubAgent({ prompt, description, type, to });
 

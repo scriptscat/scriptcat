@@ -70,12 +70,13 @@ function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
     name: "测试任务",
     crontab: "0 9 * * *",
     mode: "internal",
+    prompt: "",
     enabled: true,
     notify: false,
     createtime: Date.now(),
     updatetime: Date.now(),
     ...overrides,
-  };
+  } as AgentTask;
 }
 
 describe("AgentTaskScheduler", () => {

@@ -2,6 +2,14 @@
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
+/** LLM 调用的 token 用量统计 */
+export type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+};
+
 // ---- ContentBlock 多模态内容类型 ----
 
 export type TextBlock = { type: "text"; text: string };
@@ -59,12 +67,7 @@ export type SubAgentDetails = {
   description: string;
   subAgentType?: string;
   messages: SubAgentMessage[];
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    cacheCreationInputTokens?: number;
-    cacheReadInputTokens?: number;
-  };
+  usage?: TokenUsage;
 };
 
 export type ToolCall = {
@@ -93,12 +96,7 @@ export type ChatMessage = {
   error?: string;
   warning?: string;
   modelId?: string;
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    cacheCreationInputTokens?: number;
-    cacheReadInputTokens?: number;
-  };
+  usage?: TokenUsage;
   durationMs?: number;
   firstTokenMs?: number;
   parentId?: string;
@@ -576,24 +574,13 @@ export type MCPApiRequest =
 
 // ---- Agent 定时任务类型 ----
 
-export type AgentTask = {
+/** 定时任务基础字段（两种模式共用） */
+type AgentTaskBase = {
   id: string;
   name: string;
   crontab: string; // cron 表达式（复用 cron.ts 格式）
-  mode: "internal" | "event"; // internal: SW 自主执行; event: 通知脚本
   enabled: boolean;
   notify: boolean; // 是否通过 chrome.notifications 通知
-
-  // --- internal 模式字段 ---
-  prompt?: string; // 每次触发发送的消息
-  modelId?: string; // 使用的模型 ID
-  conversationId?: string; // 可选：续接已有对话
-  skills?: "auto" | string[];
-  maxIterations?: number; // 工具循环上限，默认 10
-
-  // --- event 模式字段 ---
-  sourceScriptUuid?: string; // 创建任务的脚本 UUID
-
   // --- 运行状态 ---
   lastruntime?: number;
   nextruntime?: number;
@@ -602,6 +589,24 @@ export type AgentTask = {
   createtime: number;
   updatetime: number;
 };
+
+/** 内置模式：由 Service Worker 自主执行 LLM 对话 */
+export type InternalAgentTask = AgentTaskBase & {
+  mode: "internal";
+  prompt: string; // 每次触发发送的消息
+  modelId?: string; // 使用的模型 ID
+  conversationId?: string; // 可选：续接已有对话
+  skills?: "auto" | string[];
+  maxIterations?: number; // 工具循环上限，默认 10
+};
+
+/** 事件模式：通知用户脚本处理 */
+export type EventAgentTask = AgentTaskBase & {
+  mode: "event";
+  sourceScriptUuid: string; // 创建任务的脚本 UUID
+};
+
+export type AgentTask = InternalAgentTask | EventAgentTask;
 
 export type AgentTaskTrigger = {
   taskId: string;

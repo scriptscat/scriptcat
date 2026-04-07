@@ -20,7 +20,13 @@ import {
 import { IconDelete, IconEdit, IconHistory, IconPlayArrow, IconPlus } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
-import type { AgentTask, AgentTaskRun, AgentModelConfig } from "@App/app/service/agent/core/types";
+import type {
+  AgentTask,
+  AgentTaskRun,
+  AgentModelConfig,
+  InternalAgentTask,
+  EventAgentTask,
+} from "@App/app/service/agent/core/types";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";
@@ -29,7 +35,12 @@ import { agentClient } from "@App/pages/store/features/script";
 const taskRepo = new AgentTaskRepo();
 const taskRunRepo = new AgentTaskRunRepo();
 
-const emptyTask: Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime"> = {
+/** 编辑状态中的任务类型：去掉系统自动填充的字段 */
+type EditingTask =
+  | Omit<InternalAgentTask, "id" | "createtime" | "updatetime" | "nextruntime">
+  | Omit<EventAgentTask, "id" | "createtime" | "updatetime" | "nextruntime">;
+
+const emptyTask: EditingTask = {
   name: "",
   crontab: "",
   mode: "internal",
@@ -237,7 +248,7 @@ function AgentTasks() {
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [models, setModels] = useState<AgentModelConfig[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingTask, setEditingTask] = useState<Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime">>({
+  const [editingTask, setEditingTask] = useState<EditingTask>({
     ...emptyTask,
   });
   const [editingId, setEditingId] = useState<string | null>(null);

@@ -28,7 +28,7 @@ describe("WebSearchExecutor", () => {
 
   it("should throw for missing query", async () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
-    await expect(executor.execute({})).rejects.toThrow("query is required");
+    await expect(executor.execute({})).rejects.toThrow('缺少必填参数 "query"');
   });
 
   it("should search DuckDuckGo and return results", async () => {
@@ -207,7 +207,7 @@ describe("WebSearchExecutor", () => {
 
     expect(result.results).toEqual([]);
     expect(result.warning).toContain("extraction failed");
-    expect(result.warning).toContain("duckduckgo");
+    expect(result.warning).toContain("DuckDuckGo");
   });
 
   it("should search Bing and return results", async () => {
@@ -255,7 +255,7 @@ describe("WebSearchExecutor", () => {
 
     expect(result.results).toEqual([]);
     expect(result.warning).toContain("extraction failed");
-    expect(result.warning).toContain("bing");
+    expect(result.warning).toContain("Bing");
   });
 
   it("should search Baidu and return results", async () => {

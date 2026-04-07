@@ -2,6 +2,10 @@ import type { ToolDefinition } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { MessageSend } from "@Packages/message/types";
 import { extractHtmlContent } from "@App/app/service/offscreen/client";
+import { requireString, optionalNumber } from "./param_utils";
+
+// Agent User-Agent 字符串
+const AGENT_USER_AGENT = "Mozilla/5.0 (compatible; ScriptCat Agent)";
 
 export const WEB_FETCH_DEFINITION: ToolDefinition = {
   name: "web_fetch",
@@ -44,13 +48,9 @@ export class WebFetchExecutor implements ToolExecutor {
   }
 
   async execute(args: Record<string, unknown>): Promise<string> {
-    const url = args.url as string;
+    const url = requireString(args, "url");
     const prompt = args.prompt as string | undefined;
-    const maxLength = args.max_length as number | undefined;
-
-    if (!url) {
-      throw new Error("url is required");
-    }
+    const maxLength = optionalNumber(args, "max_length");
 
     // 校验 URL
     let parsedUrl: URL;
@@ -64,7 +64,7 @@ export class WebFetchExecutor implements ToolExecutor {
     }
 
     const response = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)" },
+      headers: { "User-Agent": AGENT_USER_AGENT },
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {

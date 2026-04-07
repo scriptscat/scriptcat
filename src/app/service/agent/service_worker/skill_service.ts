@@ -157,8 +157,15 @@ export class SkillService {
     return resp.text();
   }
 
-  // 从 URL 安装 Skill（获取 SKILL.cat.md + 声明的 scripts/references）
-  async installFromUrl(url: string): Promise<SkillRecord> {
+  /**
+   * 从 URL 获取 SKILL.cat.md 及其声明的 scripts/references
+   */
+  private async fetchSkillResources(url: string): Promise<{
+    skillMd: string;
+    parsed: { metadata: SkillMetadata; prompt: string };
+    scripts: Array<{ name: string; code: string }>;
+    references: Array<{ name: string; content: string }>;
+  }> {
     const skillMd = await this.fetchText(url);
     const parsed = parseSkillMd(skillMd);
     if (!parsed) {
@@ -185,6 +192,12 @@ export class SkillService {
       }
     }
 
+    return { skillMd, parsed, scripts, references };
+  }
+
+  // 从 URL 安装 Skill（获取 SKILL.cat.md + 声明的 scripts/references）
+  async installFromUrl(url: string): Promise<SkillRecord> {
+    const { skillMd, scripts, references } = await this.fetchSkillResources(url);
     return this.installSkill(skillMd, scripts, references, url);
   }
 
@@ -265,32 +278,7 @@ export class SkillService {
 
   // 从 URL 获取 Skill 并缓存，返回 uuid，供安装页面获取
   async prepareSkillFromUrl(url: string): Promise<string> {
-    const skillMd = await this.fetchText(url);
-    const parsed = parseSkillMd(skillMd);
-    if (!parsed) {
-      throw new Error("Invalid SKILL.cat.md: missing or malformed frontmatter");
-    }
-
-    // 获取 frontmatter 中声明的 scripts
-    const scripts: Array<{ name: string; code: string }> = [];
-    if (parsed.metadata.scripts?.length) {
-      for (const fileName of parsed.metadata.scripts) {
-        const scriptUrl = this.resolveSkillUrl(url, `scripts/${fileName}`);
-        const code = await this.fetchText(scriptUrl);
-        scripts.push({ name: fileName, code });
-      }
-    }
-
-    // 获取 frontmatter 中声明的 references
-    const references: Array<{ name: string; content: string }> = [];
-    if (parsed.metadata.references?.length) {
-      for (const fileName of parsed.metadata.references) {
-        const refUrl = this.resolveSkillUrl(url, `references/${fileName}`);
-        const content = await this.fetchText(refUrl);
-        references.push({ name: fileName, content });
-      }
-    }
-
+    const { skillMd, scripts, references } = await this.fetchSkillResources(url);
     const uuid = uuidv4();
     // 缓存已解析的数据（对象格式，区别于 ZIP 的 base64 字符串格式）
     await cacheInstance.set(CACHE_KEY_SKILL_INSTALL + uuid, {
@@ -303,9 +291,7 @@ export class SkillService {
   }
 
   // 缓存的 URL 安装数据格式
-  private isUrlInstallCache(
-    data: unknown
-  ): data is {
+  private isUrlInstallCache(data: unknown): data is {
     skillMd: string;
     scripts: Array<{ name: string; code: string }>;
     references: Array<{ name: string; content: string }>;

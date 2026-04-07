@@ -3,6 +3,8 @@ import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { MessageSend } from "@Packages/message/types";
 import { extractHtmlWithSelectors } from "@App/app/service/offscreen/client";
 import { assertDomUrlAllowed } from "@App/app/service/agent/service_worker/dom_policy";
+import { stripHtmlTags } from "./web_fetch";
+import { requireNumber, requireString, optionalString, optionalNumber, optionalBoolean } from "./param_utils";
 
 // ---- Tool Definitions ----
 
@@ -102,12 +104,10 @@ export function createTabTools(deps: {
 
   const getTabContentExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const tabId = args.tab_id as number;
+      const tabId = requireNumber(args, "tab_id");
       const prompt = args.prompt as string | undefined;
-      const selector = args.selector as string | undefined;
-      const maxLength = args.max_length as number | undefined;
-
-      if (tabId == null) throw new Error("tab_id is required");
+      const selector = optionalString(args, "selector");
+      const maxLength = optionalNumber(args, "max_length");
 
       // 校验目标 tab URL 是否允许操作
       const tabInfo = await chrome.tabs.get(tabId);
@@ -162,10 +162,7 @@ export function createTabTools(deps: {
         content = extracted && extracted.length > 20 ? extracted : pageData.html;
       } catch {
         // 降级：简单去标签
-        content = pageData.html
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
+        content = stripHtmlTags(pageData.html);
       }
 
       // 截断
@@ -194,11 +191,11 @@ export function createTabTools(deps: {
 
   const listTabsExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const urlPattern = args.url_pattern as string | undefined;
-      const titlePattern = args.title_pattern as string | undefined;
-      const active = args.active as boolean | undefined;
-      const windowId = args.window_id as number | undefined;
-      const audible = args.audible as boolean | undefined;
+      const urlPattern = optionalString(args, "url_pattern");
+      const titlePattern = optionalString(args, "title_pattern");
+      const active = optionalBoolean(args, "active");
+      const windowId = optionalNumber(args, "window_id");
+      const audible = optionalBoolean(args, "audible");
 
       const queryInfo: chrome.tabs.QueryInfo = {};
       if (active != null) queryInfo.active = active;
@@ -246,14 +243,12 @@ export function createTabTools(deps: {
 
   const openTabExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const url = args.url as string;
-      const tabId = args.tab_id as number | undefined;
-
-      if (!url) throw new Error("url is required");
+      const url = requireString(args, "url");
+      const tabId = optionalNumber(args, "tab_id");
 
       // 有 tab_id → 导航已有标签页
       if (tabId != null) {
-        const waitUntilLoaded = (args.wait_until_loaded as boolean | undefined) ?? true;
+        const waitUntilLoaded = optionalBoolean(args, "wait_until_loaded", true)!;
 
         await chrome.tabs.update(tabId, { url });
 
@@ -284,8 +279,8 @@ export function createTabTools(deps: {
       }
 
       // 无 tab_id → 开新标签页
-      const active = (args.active as boolean | undefined) ?? true;
-      const windowId = args.window_id as number | undefined;
+      const active = optionalBoolean(args, "active", true)!;
+      const windowId = optionalNumber(args, "window_id");
 
       const createProps: chrome.tabs.CreateProperties = { url, active };
       if (windowId != null) createProps.windowId = windowId;
@@ -303,8 +298,7 @@ export function createTabTools(deps: {
 
   const closeTabExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const tabId = args.tab_id as number;
-      if (tabId == null) throw new Error("tab_id is required");
+      const tabId = requireNumber(args, "tab_id");
       await chrome.tabs.remove(tabId);
       return JSON.stringify({ success: true, tab_id: tabId });
     },
@@ -312,8 +306,7 @@ export function createTabTools(deps: {
 
   const activateTabExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const tabId = args.tab_id as number;
-      if (tabId == null) throw new Error("tab_id is required");
+      const tabId = requireNumber(args, "tab_id");
       const tab = await chrome.tabs.update(tabId, { active: true });
       if (!tab) throw new Error(`Tab ${tabId} not found`);
       // 也激活对应窗口

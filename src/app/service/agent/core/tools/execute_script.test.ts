@@ -14,13 +14,13 @@ describe("execute_script 工具", () => {
     it.concurrent("缺少 code 应抛错", async () => {
       const deps = makeDeps();
       const { executor } = createExecuteScriptTool(deps);
-      await expect(executor.execute({ target: "page" })).rejects.toThrow("code is required");
+      await expect(executor.execute({ target: "page" })).rejects.toThrow('缺少必填参数 "code"');
     });
 
     it.concurrent("缺少 target 应抛错", async () => {
       const deps = makeDeps();
       const { executor } = createExecuteScriptTool(deps);
-      await expect(executor.execute({ code: "return 1" })).rejects.toThrow("target is required");
+      await expect(executor.execute({ code: "return 1" })).rejects.toThrow('缺少必填参数 "target"');
     });
 
     it.concurrent("无效 target 应抛错", async () => {

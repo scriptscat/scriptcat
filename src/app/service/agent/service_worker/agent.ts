@@ -87,18 +87,25 @@ export class AgentService {
     this.skillService = new SkillService(sender, resourceService);
     this.modelService = new AgentModelService(group);
     this.opfsService = new AgentOPFSService(sender);
-    this.llmClient = new LLMClient();
-    this.compactService = new CompactService(this.modelService, {
-      callLLM: (model, params, sendEvent, signal) => this.llmClient.callLLM(model, params, sendEvent, signal),
-    });
+    this.llmClient = new LLMClient(agentChatRepo);
+    this.compactService = new CompactService(
+      this.modelService,
+      {
+        callLLM: (model, params, sendEvent, signal) => this.llmClient.callLLM(model, params, sendEvent, signal),
+      },
+      agentChatRepo
+    );
     // ToolLoopOrchestrator 不持有 toolRegistry，每次 callLLMWithToolLoop 由调用方传入
     // （通常是 SessionToolRegistry，保证并发会话工具注册互相隔离）
-    this.toolLoopOrchestrator = new ToolLoopOrchestrator({
-      // callLLM 通过 lambda 注入，确保测试 spy 可以拦截 service.callLLM
-      callLLM: (model, params, sendEvent, signal) => this.callLLM(model, params, sendEvent, signal),
-      autoCompact: (convId, model, msgs, sendEvent, signal) =>
-        this.compactService.autoCompact(convId, model, msgs, sendEvent, signal),
-    });
+    this.toolLoopOrchestrator = new ToolLoopOrchestrator(
+      {
+        // callLLM 通过 lambda 注入，确保测试 spy 可以拦截 service.callLLM
+        callLLM: (model, params, sendEvent, signal) => this.callLLM(model, params, sendEvent, signal),
+        autoCompact: (convId, model, msgs, sendEvent, signal) =>
+          this.compactService.autoCompact(convId, model, msgs, sendEvent, signal),
+      },
+      agentChatRepo
+    );
     // SubAgentService 不持有 toolRegistry，runSubAgent 时由调用方（chat_service）传入父会话的 sessionRegistry
     this.subAgentService = new SubAgentService({
       callLLMWithToolLoop: (params) => this.callLLMWithToolLoop(params),
@@ -125,7 +132,8 @@ export class AgentService {
       {
         callLLM: (model, params, sendEvent, signal) => this.callLLM(model, params, sendEvent, signal),
         callLLMWithToolLoop: (params) => this.callLLMWithToolLoop(params),
-      }
+      },
+      agentChatRepo
     );
   }
 

@@ -4,6 +4,12 @@ import type { MessageSend } from "@Packages/message/types";
 import type { SearchConfigRepo } from "./search_config";
 import { extractSearchResults, extractBingResults, extractBaiduResults } from "@App/app/service/offscreen/client";
 import { withTimeout } from "@App/pkg/utils/with_timeout";
+import { requireString } from "./param_utils";
+
+// Agent User-Agent 字符串
+const AGENT_USER_AGENT = "Mozilla/5.0 (compatible; ScriptCat Agent)";
+// 搜索超时时间（毫秒）
+const SEARCH_TIMEOUT_MS = 15_000;
 
 export const WEB_SEARCH_DEFINITION: ToolDefinition = {
   name: "web_search",
@@ -34,6 +40,9 @@ function formatSearchResults(
   return JSON.stringify(results);
 }
 
+/** 搜索结果条目类型 */
+type SearchResult = { title: string; url: string; snippet: string };
+
 export class WebSearchExecutor implements ToolExecutor {
   constructor(
     private sender: MessageSend,
@@ -41,12 +50,8 @@ export class WebSearchExecutor implements ToolExecutor {
   ) {}
 
   async execute(args: Record<string, unknown>): Promise<string> {
-    const query = args.query as string;
+    const query = requireString(args, "query");
     const maxResults = Math.min((args.max_results as number) || 5, 10);
-
-    if (!query) {
-      throw new Error("query is required");
-    }
 
     const config = await this.configRepo.getConfig();
 
@@ -63,86 +68,51 @@ export class WebSearchExecutor implements ToolExecutor {
     }
   }
 
-  private async searchDuckDuckGo(query: string, maxResults: number): Promise<string> {
-    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+  /**
+   * 搜索引擎通用执行模板：fetch HTML → 提取结果 → 格式化
+   * @param url 搜索请求 URL
+   * @param extractFn 结果提取函数（接收 HTML 字符串，返回结果数组的 Promise）
+   * @param engineName 引擎名称（用于错误提示）
+   * @param maxResults 最大返回条数
+   */
+  private async fetchAndExtract(
+    url: string,
+    extractFn: (html: string) => Promise<SearchResult[]>,
+    engineName: string,
+    maxResults: number
+  ): Promise<string> {
     const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)",
-      },
-      signal: AbortSignal.timeout(15_000),
+      headers: { "User-Agent": AGENT_USER_AGENT },
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
     });
-
     if (!response.ok) {
-      throw new Error(`DuckDuckGo search failed: HTTP ${response.status}`);
+      throw new Error(`${engineName} search failed: HTTP ${response.status}`);
     }
-
     const html = await response.text();
-
-    // extractSearchResults 走 Offscreen 通道，加 10s 超时防卡死
-    let results: Awaited<ReturnType<typeof extractSearchResults>>;
+    let results: SearchResult[] = [];
     let extractionFailed = false;
     try {
-      results = await withTimeout(extractSearchResults(this.sender, html), 10_000, () => new Error("extract timeout"));
+      // 提取函数走 Offscreen 通道，加 10s 超时防卡死
+      results = await withTimeout(extractFn(html), 10_000, () => new Error("extract timeout"));
     } catch {
-      results = [];
       extractionFailed = true;
     }
+    return formatSearchResults(results.slice(0, maxResults), extractionFailed, engineName);
+  }
 
-    return formatSearchResults(results.slice(0, maxResults), extractionFailed, "duckduckgo");
+  private async searchDuckDuckGo(query: string, maxResults: number): Promise<string> {
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    return this.fetchAndExtract(url, (html) => extractSearchResults(this.sender, html), "DuckDuckGo", maxResults);
   }
 
   private async searchBing(query: string, maxResults: number): Promise<string> {
     const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)",
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Bing search failed: HTTP ${response.status}`);
-    }
-
-    const html = await response.text();
-
-    let results: Awaited<ReturnType<typeof extractBingResults>>;
-    let extractionFailed = false;
-    try {
-      results = await withTimeout(extractBingResults(this.sender, html), 10_000, () => new Error("extract timeout"));
-    } catch {
-      results = [];
-      extractionFailed = true;
-    }
-
-    return formatSearchResults(results.slice(0, maxResults), extractionFailed, "bing");
+    return this.fetchAndExtract(url, (html) => extractBingResults(this.sender, html), "Bing", maxResults);
   }
 
   private async searchBaidu(query: string, maxResults: number): Promise<string> {
     const url = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=${maxResults}`;
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)",
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Baidu search failed: HTTP ${response.status}`);
-    }
-
-    const html = await response.text();
-
-    let results: Awaited<ReturnType<typeof extractBaiduResults>>;
-    let extractionFailed = false;
-    try {
-      results = await withTimeout(extractBaiduResults(this.sender, html), 10_000, () => new Error("extract timeout"));
-    } catch {
-      results = [];
-      extractionFailed = true;
-    }
-
-    return formatSearchResults(results.slice(0, maxResults), extractionFailed, "baidu");
+    return this.fetchAndExtract(url, (html) => extractBaiduResults(this.sender, html), "Baidu", maxResults);
   }
 
   private async searchGoogle(query: string, maxResults: number, apiKey: string, cseId: string): Promise<string> {
@@ -151,7 +121,7 @@ export class WebSearchExecutor implements ToolExecutor {
     }
 
     const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cseId)}&q=${encodeURIComponent(query)}&num=${maxResults}`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS) });
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");

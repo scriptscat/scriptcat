@@ -8,6 +8,7 @@ import {
   writeWorkspaceFile,
 } from "@App/app/service/agent/core/opfs_helpers";
 import { isText } from "@App/pkg/utils/istextorbinary";
+import { requireString } from "./param_utils";
 
 // re-export sanitizePath 供外部使用
 export { sanitizePath };
@@ -134,14 +135,15 @@ export function createOPFSTools(): {
 } {
   const writeExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const result = await writeWorkspaceFile(args.path as string, args.content as string | Blob);
+      const path = requireString(args, "path");
+      const result = await writeWorkspaceFile(path, args.content as string | Blob);
       return JSON.stringify(result);
     },
   };
 
   const readExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const safePath = sanitizePath(args.path as string);
+      const safePath = sanitizePath(requireString(args, "path"));
       if (!safePath) throw new Error("path is required");
 
       const workspace = await getWorkspaceRoot();
@@ -222,7 +224,7 @@ export function createOPFSTools(): {
 
   const deleteExecutor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
-      const safePath = sanitizePath(args.path as string);
+      const safePath = sanitizePath(requireString(args, "path"));
       if (!safePath) throw new Error("path is required");
 
       const workspace = await getWorkspaceRoot();

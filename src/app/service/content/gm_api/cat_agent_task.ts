@@ -1,5 +1,11 @@
 import GMContext from "./gm_context";
-import type { AgentTask, AgentTaskApiRequest, AgentTaskTrigger } from "@App/app/service/agent/core/types";
+import type {
+  AgentTask,
+  AgentTaskApiRequest,
+  AgentTaskTrigger,
+  InternalAgentTask,
+  EventAgentTask,
+} from "@App/app/service/agent/core/types";
 import type EventEmitter from "eventemitter3";
 
 // 运行时 this 是 GM_Base 实例
@@ -27,13 +33,18 @@ export default class CATAgentTaskApi {
 
   @GMContext.API({ follow: "CAT.agent.task" })
   public "CAT.agent.task.create"(
-    options: Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime" | "sourceScriptUuid">
+    options:
+      | Omit<InternalAgentTask, "id" | "createtime" | "updatetime" | "nextruntime">
+      | Omit<EventAgentTask, "id" | "createtime" | "updatetime" | "nextruntime" | "sourceScriptUuid">
   ): Promise<AgentTask> {
     const ctx = this as unknown as GMBaseContext;
+    // event 模式：自动注入 sourceScriptUuid（脚本无需手动传入）
+    const task =
+      options.mode === "event" ? { ...options, sourceScriptUuid: ctx.scriptRes?.uuid || "" } : { ...options };
     return ctx.sendMessage("CAT_agentTask", [
       {
         action: "create",
-        task: { ...options, sourceScriptUuid: ctx.scriptRes?.uuid || "" },
+        task,
       } as AgentTaskApiRequest,
     ]) as Promise<AgentTask>;
   }
