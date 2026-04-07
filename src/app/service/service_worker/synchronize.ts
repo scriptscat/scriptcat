@@ -314,8 +314,8 @@ export class SynchronizeService {
       // 如果是token失效之类的错误,通知用户并关闭云同步
       if (isWarpTokenError(e)) {
         InfoNotification(
-          `${t("sync_system_connect_failed")}, ${t("sync_system_closed")}`,
-          `${t("sync_system_closed_description")}\n${errorMsg(e)}`
+          `${t("settings:sync_system_connect_failed")}, ${t("settings:sync_system_closed")}`,
+          `${t("settings:sync_system_closed_description")}\n${errorMsg(e)}`
         );
         this.systemConfig.setCloudSync({
           ...config,

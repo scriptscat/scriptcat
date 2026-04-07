@@ -1,0 +1,22 @@
+{
+  "permission": "Quyền",
+  "permission_value": "Giá trị quyền",
+  "allow": "Cho phép",
+  "permission_management": "Quản lý quyền",
+  "permission_cors": "Cross-domain (cors)",
+  "permission_cookie": "Quản lý cookie",
+  "allow_once": "Cho phép một lần",
+  "deny_once": "Từ chối một lần",
+  "script_accessing_cross_origin_resource": "Script đang cố gắng truy cập tài nguyên cross-origin",
+  "confirm_operation_description": "Vui lòng xác nhận xem bạn có cho phép script thực hiện thao tác này không. Script cũng có thể thêm thẻ @connect để bỏ qua tùy chọn này.",
+  "request_domain": "Miền yêu cầu",
+  "request_url": "Url yêu cầu",
+  "access_cookie_content": "Script đang cố gắng truy cập nội dung cookie của trang web",
+  "confirm_script_operation": "Vui lòng xác nhận xem bạn có cho phép script thực hiện thao tác này không. Cookie chứa dữ liệu người dùng quan trọng, vì vậy chỉ cấp quyền truy cập cho các script đáng tin cậy.",
+  "cookie_domain": "Miền cookie",
+  "script_operation_title": "Script đang cố gắng truy cập bộ nhớ đồng bộ script",
+  "script_operation_description": "Vui lòng xác nhận xem bạn có cho phép script thực hiện thao tác này không. Nếu được phép, script sẽ có thể truy cập không gian lưu trữ bạn đã thiết lập và tạo một thư mục app/${dir} trong đó.",
+  "script_permission_content": "Script",
+  "request_permission": "Yêu cầu quyền",
+  "allow_user_script_guide": "'Cho phép tập lệnh người dùng' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấn để xem cách bật</a>"
+}

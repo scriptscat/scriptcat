@@ -1,0 +1,24 @@
+{
+  "popup": {
+    "new_version_available": "Доступна новая версия"
+  },
+  "current_page_scripts": "Скрипты, выполняющиеся на текущей странице",
+  "enabled_background_scripts": "Включенные и работающие фоновые скрипты",
+  "menu_expand_num_before": "Когда пунктов меню больше",
+  "menu_expand_num_after": ", автоматически скрывать",
+  "develop_mode_guide": "«Режим разработчика» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать, как включить</a>",
+  "lower_version_browser_guide": "Ваш браузер слишком устарел, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать подробнее</a>",
+  "click_to_reload": "👉Нажмите для перезагрузки",
+  "page_in_blacklist": "Текущая страница находится в черном списке, невозможно использовать скрипты",
+  "ext_update_notification": "Расширение ScriptCat обновлено",
+  "ext_update_notification_desc": "Текущая версия: {{version}}, подробности смотрите в журнале обновлений",
+  "script_menu_display": "Меню, зарегистрированные скриптом",
+  "badge_type_none": "Не отображать",
+  "badge_type_run_count": "Количество запусков",
+  "badge_type_script_count": "Количество скриптов",
+  "script_menu": "Меню скрипта",
+  "display_right_click_menu": "Показать контекстное меню",
+  "display_right_click_menu_desc": "Показать меню скрипта в контекстном меню браузера",
+  "expand_count": "Количество развернутых",
+  "auto_collapse_when_exceeds": "Автоматически сворачивать при превышении этого количества"
+}

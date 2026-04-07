@@ -67,10 +67,7 @@ pnpm start
 
 ### 帮助我们翻译
 
-[Crowdin](https://crowdin.com/project/scriptcat)
-是一个在线的多语言翻译平台。如果您有兴趣帮助我们翻译 ScriptCat 的相关内容，您可以在 Crowdin 上找到 ScriptCat 项目，并开始进行翻译工作。
-
-- `src/locales`为[扩展](https://github.com/scriptscat/scriptcat)翻译文件目录
+翻译文件位于 `src/locales` 目录下，按命名空间划分。如果您有兴趣帮助翻译，请直接提交 PR。
 
 #### 扩展开启所见即所得模式
 

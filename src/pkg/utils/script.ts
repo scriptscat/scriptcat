@@ -67,15 +67,15 @@ export async function fetchScriptBody(url: string, signal?: AbortSignal): Promis
 export function parseScriptFromCode(code: string, origin: string, uuid?: string): Script {
   const metadata = parseMetadata(code);
   if (!metadata) {
-    throw new Error(i18n_t("error_metadata_invalid"));
+    throw new Error(i18n_t("script:error_metadata_invalid"));
   }
   // 不接受空白name
   if (!metadata.name?.[0]) {
-    throw new Error(i18n_t("error_script_name_required"));
+    throw new Error(i18n_t("script:error_script_name_required"));
   }
   // 可接受空白namespace
   if (metadata.namespace === undefined) {
-    throw new Error(i18n_t("error_script_namespace_required"));
+    throw new Error(i18n_t("script:error_script_namespace_required"));
   }
   // 可接受空白version
   let type = SCRIPT_TYPE_NORMAL;
@@ -84,7 +84,7 @@ export function parseScriptFromCode(code: string, origin: string, uuid?: string)
     try {
       nextTimeDisplay(metadata.crontab[0]);
     } catch {
-      throw new Error(i18n_t("error_cron_invalid", { expr: metadata.crontab[0] }));
+      throw new Error(i18n_t("script:error_cron_invalid", { expr: metadata.crontab[0] }));
     }
   } else if (metadata.background !== undefined) {
     type = SCRIPT_TYPE_BACKGROUND;
@@ -178,21 +178,21 @@ export async function prepareScriptByCode(
     }
   };
   if (options?.byEditor && hasGrantConflict(script.metadata) && (!old || !hasGrantConflict(old.metadata))) {
-    throw new Error(i18n_t("error_grant_conflict"));
+    throw new Error(i18n_t("script:error_grant_conflict"));
   }
   if (options?.byEditor && hasDuplicatedMetaline(script.metadata) && (!old || !hasDuplicatedMetaline(old.metadata))) {
-    throw new Error(i18n_t("error_metadata_line_duplicated"));
+    throw new Error(i18n_t("script:error_metadata_line_duplicated"));
   }
   if (old) {
     if (
       (old.type === SCRIPT_TYPE_NORMAL && script.type !== SCRIPT_TYPE_NORMAL) ||
       (script.type === SCRIPT_TYPE_NORMAL && old.type !== SCRIPT_TYPE_NORMAL)
     ) {
-      throw new Error(i18n_t("error_script_type_mismatch"));
+      throw new Error(i18n_t("script:error_script_type_mismatch"));
     }
     const scriptCode = await new ScriptCodeDAO().get(old.uuid);
     if (!scriptCode) {
-      throw new Error(i18n_t("error_old_script_code_missing"));
+      throw new Error(i18n_t("script:error_old_script_code_missing"));
     }
     oldCode = scriptCode;
     const { uuid, createtime, lastruntime, error, sort, selfMetadata, subscribeUrl, checkUpdate, status } = old;
@@ -236,10 +236,10 @@ export async function prepareSubscribeByCode(
   const dao = new SubscribeDAO();
   const metadata = parseMetadata(code);
   if (!metadata) {
-    throw new Error(i18n_t("error_metadata_invalid"));
+    throw new Error(i18n_t("script:error_metadata_invalid"));
   }
   if (metadata.name === undefined) {
-    throw new Error(i18n_t("error_subscribe_name_required"));
+    throw new Error(i18n_t("script:error_subscribe_name_required"));
   }
   const now = Date.now();
   const subscribe: Subscribe = {

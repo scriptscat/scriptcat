@@ -1,0 +1,24 @@
+{
+  "popup": {
+    "new_version_available": "Phiên bản mới có sẵn"
+  },
+  "current_page_scripts": "Script đang chạy trên trang hiện tại",
+  "enabled_background_scripts": "Script nền đã bật và đang chạy",
+  "menu_expand_num_before": "Các mục menu nhiều hơn",
+  "menu_expand_num_after": "sẽ bị ẩn.",
+  "develop_mode_guide": "'Chế độ nhà phát triển' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấn để xem cách bật</a>",
+  "lower_version_browser_guide": "Trình duyệt của bạn quá cũ, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấn để xem thêm</a>",
+  "click_to_reload": "👉Nhấp chuột để tải lại",
+  "page_in_blacklist": "Trang hiện tại nằm trong danh sách đen, không thể sử dụng script",
+  "ext_update_notification": "Tiện ích scriptcat đã cập nhật",
+  "ext_update_notification_desc": "Phiên bản hiện tại: {{version}}, vui lòng xem nhật ký cập nhật để biết chi tiết",
+  "script_menu_display": "Menu đã đăng ký script",
+  "badge_type_none": "Không",
+  "badge_type_run_count": "Số lần chạy",
+  "badge_type_script_count": "Số script",
+  "script_menu": "Menu script",
+  "display_right_click_menu": "Hiển thị menu chuột phải",
+  "display_right_click_menu_desc": "Hiển thị menu script trong menu chuột phải của trình duyệt",
+  "expand_count": "Số lượng mở rộng",
+  "auto_collapse_when_exceeds": "Tự động thu gọn khi vượt quá số này"
+}

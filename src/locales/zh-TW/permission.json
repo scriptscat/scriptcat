@@ -1,0 +1,22 @@
+{
+  "permission": "權限",
+  "permission_value": "權限值",
+  "allow": "是否允許",
+  "permission_management": "權限管理",
+  "permission_cors": "跨網域(CORS)",
+  "permission_cookie": "管理Cookie",
+  "allow_once": "允許一次",
+  "deny_once": "拒絕一次",
+  "script_accessing_cross_origin_resource": "腳本正在嘗試存取跨網域資源",
+  "confirm_operation_description": "請您確認是否允許腳本進行此操作，腳本也可增加@connect標籤跳過此選項",
+  "request_domain": "請求網域",
+  "request_url": "請求網址",
+  "access_cookie_content": "腳本正在嘗試存取網站Cookie內容",
+  "confirm_script_operation": "請您確認是否允許腳本進行此操作，Cookie是一項重要的使用者資料，請務必只給信任的腳本權限。",
+  "cookie_domain": "Cookie網域",
+  "script_operation_title": "腳本正在嘗試操作腳本同步儲存空間",
+  "script_operation_description": "請您確認是否允許腳本進行此操作，允許後將允許腳本操作您設定的儲存空間，腳本會在儲存空間下建立一個app/${dir}的目錄進行使用",
+  "script_permission_content": "腳本",
+  "request_permission": "要求權限",
+  "allow_user_script_guide": "目前尚未啟用「允許使用者指令碼」，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉點此查看啟用方式</a>"
+}

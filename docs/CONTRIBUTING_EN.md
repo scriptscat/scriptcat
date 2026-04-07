@@ -59,9 +59,7 @@ pnpm start
 
 ### Help Us Translate
 
-[Crowdin](https://crowdin.com/project/scriptcat) is an online multilingual translation platform. If you are interested in helping us translate ScriptCat-related content, you can find the ScriptCat project on Crowdin and start translation work.
-
-- `src/locales` is the translation file directory for the [extension](https://github.com/scriptscat/scriptcat)
+Translation files are located in `src/locales`, organized by namespace. If you're interested in helping translate, please submit a PR directly.
 
 #### Enable WYSIWYG Mode for Extension
 

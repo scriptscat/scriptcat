@@ -52,7 +52,7 @@ export default function FilterBar({ filterItems, selectedFilters, setSelectedFil
       />
       <FilterChip
         group="tags"
-        label={t("tags")}
+        label={t("script:tags")}
         items={filterItems.tagItems}
         selectedKey={selectedFilters.tags}
         onSelect={(key) => handleSelect("tags", key)}

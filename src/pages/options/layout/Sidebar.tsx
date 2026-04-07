@@ -35,8 +35,8 @@ import { localePath, t } from "@App/locales/locales";
 
 /** 主导航项 */
 const mainNav = [
-  { to: "/", icon: Package, label: () => t("installed_scripts") },
-  { to: "/subscribe", icon: Rss, label: () => t("subscribe") },
+  { to: "/", icon: Package, label: () => t("script:installed_scripts") },
+  { to: "/subscribe", icon: Rss, label: () => t("script:subscribe") },
 ];
 
 /** 辅助导航项 */

@@ -5,7 +5,7 @@ import type { ScriptMenu, TPopupScript } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { ScriptDAO } from "@App/app/repo/scripts";
-import { scriptToMenu, extractIcon, extractLocalizedNames, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type {
   TDeleteScript,
@@ -368,8 +368,6 @@ export class PopupService {
         run.enable = script.status === SCRIPT_STATUS_ENABLE;
         run.isEffective = o.effective!;
         run.hasUserConfig = !!script.config;
-        run.icon = extractIcon(script.metadata);
-        run.localizedNames = extractLocalizedNames(script.metadata);
       } else {
         // 由于目前没有在 Popup 显示 @match @include @exclude, 所以以下代码暂不需要
         // if (script.selfMetadata) {

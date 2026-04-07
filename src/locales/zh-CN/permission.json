@@ -1,0 +1,22 @@
+{
+  "permission": "权限",
+  "permission_value": "授权值",
+  "allow": "是否允许",
+  "permission_management": "授权管理",
+  "permission_cors": "跨域(cors)",
+  "permission_cookie": "管理cookie",
+  "allow_once": "允许一次",
+  "deny_once": "拒绝一次",
+  "script_accessing_cross_origin_resource": "脚本正在试图访问跨域资源",
+  "confirm_operation_description": "请您确认是否允许脚本进行此操作，脚本也可增加@connect标签跳过此选项",
+  "request_domain": "请求域名",
+  "request_url": "请求地址",
+  "access_cookie_content": "脚本正在试图访问网站cookie内容",
+  "confirm_script_operation": "请您确认是否允许脚本进行此操作，cookie是一项重要的用户数据，请务必只给信任的脚本授权.",
+  "cookie_domain": "Cookie域",
+  "script_operation_title": "脚本正在试图操作脚本同步储存空间",
+  "script_operation_description": "请您确认是否允许脚本进行此操作，允许后将允许脚本操作你设定的储存空间，脚本会在储存空间下创建一个app/${dir}的目录进行使用",
+  "script_permission_content": "脚本",
+  "request_permission": "请求权限",
+  "allow_user_script_guide": "当前未启用“允许运行用户脚本”，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉点击查看启用方法</a>"
+}

@@ -243,9 +243,13 @@ export default class ServiceWorkerManager {
             const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
             // 如果只是修复版本，只弹出通知不打开页面
             // beta版本还是每次都打开更新页面
-            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }), {
-              url,
-            });
+            InfoNotification(
+              t("popup:ext_update_notification"),
+              t("popup:ext_update_notification_desc", { version: ExtVersion }),
+              {
+                url,
+              }
+            );
             if (ExtVersion.endsWith(".0")) {
               getCurrentTab()
                 .then((tab) => {

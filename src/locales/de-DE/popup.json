@@ -1,0 +1,24 @@
+{
+  "popup": {
+    "new_version_available": "Neue Version verfügbar"
+  },
+  "current_page_scripts": "Aktuelle Seiten-Ausführungsskripte",
+  "enabled_background_scripts": "Aktivierte und laufende Hintergrundskripte",
+  "menu_expand_num_before": "Wenn Menüelemente mehr als",
+  "menu_expand_num_after": "sind, automatisch verbergen",
+  "develop_mode_guide": "Der 'Entwicklermodus' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um zu erfahren, wie man ihn aktiviert</a>",
+  "lower_version_browser_guide": "Ihr Browser ist zu veraltet, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um mehr zu erfahren</a>",
+  "click_to_reload": "👉Zum Neuladen klicken",
+  "page_in_blacklist": "Die aktuelle Seite ist auf der Blacklist und kann keine Skripte verwenden",
+  "ext_update_notification": "ScriptCat-Erweiterung wurde aktualisiert",
+  "ext_update_notification_desc": "Aktuelle Version: {{version}}, Details finden Sie im Changelog",
+  "script_menu_display": "Von Skript registrierte Menüs",
+  "badge_type_none": "Nicht anzeigen",
+  "badge_type_run_count": "Ausführungsanzahl",
+  "badge_type_script_count": "Skriptanzahl",
+  "script_menu": "Skriptmenü",
+  "display_right_click_menu": "Rechtsklickmenü anzeigen",
+  "display_right_click_menu_desc": "Skriptmenü im Rechtsklickmenü des Browsers anzeigen",
+  "expand_count": "Erweiterte Anzahl",
+  "auto_collapse_when_exceeds": "Automatisch einklappen, wenn diese Anzahl überschritten wird"
+}

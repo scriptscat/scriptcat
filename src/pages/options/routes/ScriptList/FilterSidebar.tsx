@@ -43,7 +43,7 @@ export default function FilterSidebar({ open, filterItems, selectedFilters, setS
           onSelect={(key) => handleSelect("type", key)}
         />
         <FilterGroup
-          title={t("tags")}
+          title={t("script:tags")}
           items={filterItems.tagItems}
           selectedKey={selectedFilters.tags}
           onSelect={(key) => handleSelect("tags", key)}

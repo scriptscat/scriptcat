@@ -1,0 +1,22 @@
+{
+  "permission": "Permission",
+  "permission_value": "Permission Value",
+  "allow": "Allow",
+  "permission_management": "Permission Management",
+  "permission_cors": "Cross-domain (cors)",
+  "permission_cookie": "Manage Cookies",
+  "allow_once": "Allow Once",
+  "deny_once": "Deny Once",
+  "script_accessing_cross_origin_resource": "Script is attempting to access a cross-origin resource",
+  "confirm_operation_description": "Please confirm if you allow the script to perform this operation. The script can also add the @connect tag to bypass this option.",
+  "request_domain": "Request Domain",
+  "request_url": "Request URL",
+  "access_cookie_content": "The script is attempting to access website cookie content",
+  "confirm_script_operation": "Please confirm if you allow the script to perform this operation. Cookies contain important user data, so only grant access to trusted scripts.",
+  "cookie_domain": "Cookie Domain",
+  "script_operation_title": "Script is attempting to access script synchronization storage",
+  "script_operation_description": "Please confirm whether you allow the script to perform this operation. If allowed, the script will be able to access the storage space you have set up and create a directory app/${dir} within it.",
+  "script_permission_content": "Script",
+  "request_permission": "Request Permission",
+  "allow_user_script_guide": "'Allow User Scripts' is currently not enabled, so the scripts cannot run properly. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉tap to learn how to enable</a>"
+}

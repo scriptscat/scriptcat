@@ -1,0 +1,24 @@
+{
+  "popup": {
+    "new_version_available": "有新版本可用"
+  },
+  "current_page_scripts": "当前页运行脚本",
+  "enabled_background_scripts": "开启和运行的后台脚本",
+  "menu_expand_num_before": "菜单项超过",
+  "menu_expand_num_after": "个时，自动隐藏",
+  "develop_mode_guide": "当前未启用“开发者模式”，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉点击查看启用方法</a>",
+  "lower_version_browser_guide": "您的浏览器版本过低，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点击了解更多</a>",
+  "click_to_reload": "👉点击重新加载",
+  "page_in_blacklist": "当前页面在黑名单中，无法使用脚本",
+  "ext_update_notification": "脚本猫扩展已更新",
+  "ext_update_notification_desc": "当前版本：{{version}}，详情请查看更新日志",
+  "script_menu_display": "脚本注册的菜单",
+  "badge_type_none": "不显示",
+  "badge_type_run_count": "运行次数",
+  "badge_type_script_count": "脚本个数",
+  "script_menu": "脚本菜单",
+  "display_right_click_menu": "显示右键菜单",
+  "display_right_click_menu_desc": "在浏览器右键菜单中显示脚本菜单",
+  "expand_count": "展开数量",
+  "auto_collapse_when_exceeds": "超过此数量时自动折叠"
+}

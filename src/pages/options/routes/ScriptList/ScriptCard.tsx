@@ -57,7 +57,13 @@ import { CSS } from "@dnd-kit/utilities";
 type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
 const SortableDragCtx = createContext<DragCtx>(null);
 
-function DraggableCard({ id, children }: { id: string; children: React.ReactElement }) {
+function DraggableCard({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactElement<{ style?: React.CSSProperties; ref?: React.Ref<HTMLDivElement> }>;
+}) {
   const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging, attributes } = useSortable({
     id,
   });
@@ -158,7 +164,7 @@ function ScriptCard({
       {/* 顶栏 */}
       <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
         <div className="flex items-center gap-2 shrink-0">
-          <h1 className="text-base font-semibold">{t("installed_scripts")}</h1>
+          <h1 className="text-base font-semibold">{t("script:installed_scripts")}</h1>
           <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium font-mono text-primary tabular-nums">
             {totalCount}
           </span>
@@ -167,7 +173,7 @@ function ScriptCard({
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
           <input
             className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
-            placeholder={t("search_scripts")}
+            placeholder={t("script:search_scripts")}
             value={searchRequest.keyword}
             onChange={(e) => setSearchRequest({ ...searchRequest, keyword: e.target.value })}
           />
@@ -328,7 +334,7 @@ const CardItem = React.memo(
                     {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{isRunning ? t("stopping_script") : t("starting_script")}</TooltipContent>
+                <TooltipContent>{isRunning ? t("script:stopping_script") : t("script:starting_script")}</TooltipContent>
               </Tooltip>
             )}
             <CardMoreMenu script={script} onDelete={onDelete} navigate={navigate} />

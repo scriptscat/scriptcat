@@ -1,0 +1,22 @@
+{
+  "permission": "Berechtigung",
+  "permission_value": "Berechtigungswert",
+  "allow": "Erlauben",
+  "permission_management": "Berechtigungsverwaltung",
+  "permission_cors": "Cross-Origin (CORS)",
+  "permission_cookie": "Cookies verwalten",
+  "allow_once": "Einmal erlauben",
+  "deny_once": "Einmal verweigern",
+  "script_accessing_cross_origin_resource": "Skript versucht auf Cross-Origin-Ressourcen zuzugreifen",
+  "confirm_operation_description": "Bitte bestätigen Sie, ob Sie dem Skript erlauben, diese Operation durchzuführen. Das Skript kann auch ein @connect-Tag hinzufügen, um diese Option zu überspringen",
+  "request_domain": "Anfrage-Domain",
+  "request_url": "Anfrage-URL",
+  "access_cookie_content": "Skript versucht auf Website-Cookie-Inhalte zuzugreifen",
+  "confirm_script_operation": "Bitte bestätigen Sie, ob Sie dem Skript erlauben, diese Operation durchzuführen. Cookies sind wichtige Benutzerdaten, bitte autorisieren Sie nur vertrauenswürdige Skripte.",
+  "cookie_domain": "Cookie-Domain",
+  "script_operation_title": "Skript versucht den Skript-Sync-Speicherplatz zu bearbeiten",
+  "script_operation_description": "Bitte bestätigen Sie, ob Sie dem Skript erlauben, diese Operation durchzuführen. Nach der Erlaubnis kann das Skript den von Ihnen eingestellten Speicherplatz bearbeiten. Das Skript erstellt ein app/${dir}-Verzeichnis unter dem Speicherplatz zur Verwendung",
+  "script_permission_content": "Skript",
+  "request_permission": "Beantragen Sie Genehmigungen",
+  "allow_user_script_guide": "'Nutzerskripts zulassen' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um zu erfahren, wie man es aktiviert</a>"
+}

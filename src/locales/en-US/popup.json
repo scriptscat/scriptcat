@@ -1,0 +1,24 @@
+{
+  "popup": {
+    "new_version_available": "New Version Available"
+  },
+  "current_page_scripts": "Current Page Running Scripts",
+  "enabled_background_scripts": "Enabled and Running Background Scripts",
+  "menu_expand_num_before": "Menu items more than",
+  "menu_expand_num_after": "will be hidden.",
+  "develop_mode_guide": "'Developer mode' is currently not enabled, so the scripts cannot run properly. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉tap to learn how to enable</a>",
+  "lower_version_browser_guide": "Your browser is too outdated, so the scripts cannot run properly. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Click me to learn more</a>",
+  "click_to_reload": "👉Click to Reload",
+  "page_in_blacklist": "The current page is blacklisted, cannot use script",
+  "ext_update_notification": "Scriptcat extension updated",
+  "ext_update_notification_desc": "Current version: {{version}}, please see the update log for details",
+  "script_menu_display": "Script Registered Menu",
+  "badge_type_none": "None",
+  "badge_type_run_count": "Run Count",
+  "badge_type_script_count": "Script Count",
+  "script_menu": "Script Menu",
+  "display_right_click_menu": "Show right-click menu",
+  "display_right_click_menu_desc": "Show script menu in browser right-click menu",
+  "expand_count": "Expand Count",
+  "auto_collapse_when_exceeds": "Auto collapse when exceeds this number"
+}

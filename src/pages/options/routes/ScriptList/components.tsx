@@ -147,7 +147,7 @@ export function RunStatusBadge({ runStatus }: { runStatus?: string }) {
     return (
       <div className="flex items-center gap-1.5">
         <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-        <span className="text-xs text-green-500">{t("running")}</span>
+        <span className="text-xs text-green-500">{t("script:running")}</span>
       </div>
     );
   }
@@ -217,7 +217,7 @@ export const SourceTag = React.memo(
         <Tooltip>
           <TooltipTrigger asChild>
             <Badge variant="warning" className="text-[10px] px-1.5 py-0 cursor-default">
-              {t("source_subscribe_link")}
+              {t("script:source_subscribe_link")}
             </Badge>
           </TooltipTrigger>
           <TooltipContent>{decodeURIComponent(script.subscribeUrl)}</TooltipContent>
@@ -227,7 +227,7 @@ export const SourceTag = React.memo(
     if (!script.origin) {
       return (
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 cursor-default">
-          {t("source_local_script")}
+          {t("script:source_local_script")}
         </Badge>
       );
     }
@@ -235,7 +235,7 @@ export const SourceTag = React.memo(
       <Tooltip>
         <TooltipTrigger asChild>
           <Badge variant="success" className="text-[10px] px-1.5 py-0 cursor-default">
-            {t("source_script_link")}
+            {t("script:source_script_link")}
           </Badge>
         </TooltipTrigger>
         <TooltipContent>{decodeURIComponent(script.origin)}</TooltipContent>
@@ -249,5 +249,5 @@ SourceTag.displayName = "SourceTag";
 // ========== 脚本类型标签文本 ==========
 export function scriptTypeLabel(type: number): string {
   if (type === SCRIPT_TYPE_NORMAL) return t("script_list.sidebar.normal_script");
-  return t("background_script");
+  return t("script:background_script");
 }

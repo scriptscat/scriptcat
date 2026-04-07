@@ -224,9 +224,9 @@ export default function ScriptTable({
           <div className="w-8" />
           <div className="w-12">{t("script_list.sidebar.status")}</div>
           <div className="flex-1 min-w-0">{t("name")}</div>
-          <div className="w-[100px]">{t("tags")}</div>
-          <div className="w-[140px]">{t("apply_to_run_status")}</div>
-          <div className="w-[100px]">{t("last_updated")}</div>
+          <div className="w-[100px]">{t("script:tags")}</div>
+          <div className="w-[140px]">{t("script:apply_to_run_status")}</div>
+          <div className="w-[100px]">{t("logs:last_updated")}</div>
           <div className="w-[120px] text-right">{t("action")}</div>
         </div>
 
@@ -290,17 +290,19 @@ function CreateScriptMenu({ navigate }: { navigate: ReturnType<typeof useNavigat
       <DropdownMenuTrigger asChild>
         <Button size="sm" className="gap-1.5 h-[34px] px-4" {...hoverProps}>
           <Plus className="w-4 h-4" />
-          <span className="text-[13px] font-medium">{t("create_script")}</span>
+          <span className="text-[13px] font-medium">{t("script:create_script")}</span>
           <ChevronDown className="w-3.5 h-3.5 opacity-70" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" {...contentProps}>
-        <DropdownMenuItem onClick={() => handleCreate("/script/editor")}>{t("create_user_script")}</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleCreate("/script/editor")}>
+          {t("script:create_user_script")}
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => handleCreate("/script/editor?template=background")}>
-          {t("create_background_script")}
+          {t("script:create_background_script")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => handleCreate("/script/editor?template=crontab")}>
-          {t("create_scheduled_script")}
+          {t("script:create_scheduled_script")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -325,7 +327,7 @@ function Toolbar({
     <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
       {/* 标题 + 数量 */}
       <div className="flex items-center gap-2 shrink-0">
-        <h1 className="text-base font-semibold">{t("installed_scripts")}</h1>
+        <h1 className="text-base font-semibold">{t("script:installed_scripts")}</h1>
         <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium font-mono text-primary tabular-nums">
           {totalCount}
         </span>
@@ -336,7 +338,7 @@ function Toolbar({
         <Search className="w-4 h-4 text-muted-foreground shrink-0" />
         <input
           className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
-          placeholder={t("search_scripts")}
+          placeholder={t("script:search_scripts")}
           value={searchRequest.keyword}
           onChange={(e) => setSearchRequest({ ...searchRequest, keyword: e.target.value })}
         />
@@ -472,7 +474,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
                 {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{isRunning ? t("stopping_script") : t("starting_script")}</TooltipContent>
+            <TooltipContent>{isRunning ? t("script:stopping_script") : t("script:starting_script")}</TooltipContent>
           </Tooltip>
         )}
 

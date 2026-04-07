@@ -39,7 +39,7 @@ import { usePopupData, getVisibleMenuItems, ExtVersion, VersionCompare, versionC
 import type { ScriptMenu, ScriptMenuItem } from "@App/app/service/service_worker/types";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_ERROR } from "@App/app/repo/scripts";
 import { Discord, DocumentationSite } from "@App/app/const";
-import { isChineseUser, localePath, t, i18nLang } from "@App/locales/locales";
+import { isChineseUser, localePath, t } from "@App/locales/locales";
 
 export default function App() {
   const data = usePopupData();
@@ -130,7 +130,7 @@ export default function App() {
         >
           <Section
             id="current"
-            title={t("current_page_scripts")}
+            title={t("popup:current_page_scripts")}
             enabledCount={data.enabledScriptCount}
             totalCount={data.fullScriptCount}
           >
@@ -157,12 +157,12 @@ export default function App() {
           <Divider />
           <Section
             id="background"
-            title={t("enabled_background_scripts")}
+            title={t("popup:enabled_background_scripts")}
             enabledCount={data.enabledBackScriptCount}
             totalCount={data.fullBackScriptCount}
             runningSummary={
               data.backRunningCount > 0
-                ? `${data.backRunningCount} ${t("running", { defaultValue: "运行中" })}`
+                ? `${data.backRunningCount} ${t("script:running", { defaultValue: "运行中" })}`
                 : undefined
             }
           >
@@ -276,7 +276,7 @@ function MoreMenu({
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem onClick={onCreateScript}>
           <Plus className="w-4 h-4" />
-          {t("create_script")}
+          {t("script:create_script")}
         </DropdownMenuItem>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger
@@ -347,7 +347,7 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={t("search_scripts", { defaultValue: "搜索脚本..." })}
+          placeholder={t("script:search_scripts", { defaultValue: "搜索脚本..." })}
           className="h-8 pl-8 text-[13px]"
         />
       </div>
@@ -425,14 +425,6 @@ interface ScriptRowProps {
   onStop?: (uuid: string) => void;
 }
 
-// 解析脚本本地化名称
-function getScriptDisplayName(script: ScriptMenu): string {
-  if (!script.localizedNames) return script.name;
-  const lang = i18nLang();
-  const prefix = lang.split("-")[0];
-  return script.localizedNames[lang] || script.localizedNames[prefix] || script.name;
-}
-
 function ScriptRow({
   script,
   host,
@@ -458,20 +450,20 @@ function ScriptRow({
     return allVisibleMenus;
   })();
   const statusBadge = getStatusBadge(script);
-  const displayName = getScriptDisplayName(script);
+  const displayName = script.name;
 
   // 运行次数 tooltip
   const runTitle = !script.enable
-    ? t("script_disabled")
+    ? t("script:script_disabled")
     : script.runNumByIframe
-      ? t("script_total_runs", { runNum: script.runNum, runNumByIframe: script.runNumByIframe })
-      : t("script_total_runs_single", { runNum: script.runNum });
+      ? t("script:script_total_runs", { runNum: script.runNum, runNumByIframe: script.runNumByIframe })
+      : t("script:script_total_runs_single", { runNum: script.runNum });
 
   return (
     <CollapsiblePrimitive.Root open={isActive} onOpenChange={setIsActive}>
       <div className="flex items-center gap-2.5 h-11 px-4 hover:bg-accent transition-colors">
         <CollapsiblePrimitive.Trigger className="flex flex-1 items-center gap-2.5 min-w-0 text-left focus:outline-none">
-          <ScriptIcon icon={script.icon} enable={script.enable} />
+          <ScriptIcon enable={script.enable} />
           <span
             className={`text-[13px] font-medium truncate ${script.runNum > 0 ? "text-foreground" : "text-muted-foreground"}`}
             title={runTitle}
@@ -519,7 +511,7 @@ function ScriptRow({
           )}
           {/* 删除（AlertDialog 二次确认） */}
           <Popconfirm
-            description={t("confirm_delete_script_content", { name: displayName })}
+            description={t("script:confirm_delete_script_content", { name: displayName })}
             onConfirm={() => onDelete(script.uuid)}
             destructive
             confirmText={t("delete")}
@@ -577,7 +569,7 @@ function ScriptRow({
           {/* 用户配置 */}
           {script.hasUserConfig && (
             <ActionItem icon={<Settings className="w-3.5 h-3.5" />} onClick={() => onOpenUserConfig(script.uuid)}>
-              {t("user_config")}
+              {t("editor:user_config")}
             </ActionItem>
           )}
         </div>
@@ -709,13 +701,7 @@ function Tag({ variant, children }: TagProps) {
 }
 
 // ========== ScriptIcon ==========
-function ScriptIcon({ icon, enable }: { icon?: string; enable: boolean }) {
-  const [error, setError] = useState(false);
-  if (icon && !error) {
-    return (
-      <img src={icon} alt="" className="w-5 h-5 shrink-0 rounded-sm object-cover" onError={() => setError(true)} />
-    );
-  }
+function ScriptIcon({ enable }: { enable: boolean }) {
   return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${enable ? "bg-success" : "bg-muted-foreground"}`} />;
 }
 
@@ -746,14 +732,14 @@ function Footer({
           className="text-[12px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2"
         >{`v${ExtVersion}`}</span>
       ) : checkUpdateStatus === 1 ? (
-        <span className="text-[12px] font-medium text-muted-foreground">{t("checking_for_updates")}</span>
+        <span className="text-[12px] font-medium text-muted-foreground">{t("script:checking_for_updates")}</span>
       ) : (
         <span
           onClick={onVersionClick}
           title={t("check_update")}
           className="text-[12px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2"
         >
-          {t("latest_version")}
+          {t("script:latest_version")}
         </span>
       )}
     </footer>

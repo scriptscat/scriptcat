@@ -29,7 +29,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<ScriptList />} />
-          <Route path="subscribe" element={<PlaceholderPage title={t("subscribe")} />} />
+          <Route path="subscribe" element={<PlaceholderPage title={t("script:subscribe")} />} />
           <Route path="logs" element={<PlaceholderPage title={t("logs")} />} />
           <Route path="tools" element={<PlaceholderPage title={t("tools")} />} />
           <Route path="settings" element={<PlaceholderPage title={t("settings")} />} />

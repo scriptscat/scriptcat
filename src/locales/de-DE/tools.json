@@ -1,0 +1,15 @@
+{
+  "cloud_sync_account_verification": "Cloud-Sync-Kontoinformationen werden überprüft...",
+  "cloud_sync_verification_failed": "Cloud-Sync-Kontoinformationen-Überprüfung fehlgeschlagen",
+  "development_tool": "Entwicklungstool",
+  "vscode_url": "VSCode-Adresse",
+  "auto_connect_vscode_service": "Automatisch mit VSCode-Service verbinden",
+  "connect": "Verbinden",
+  "connection_success": "Verbindung erfolgreich",
+  "connection_failed": "Verbindung fehlgeschlagen",
+  "select_import_script": "Bitte wählen Sie das zu importierende Skript auf der neuen Seite aus",
+  "import_error": "Import-Fehler",
+  "pulling_data_from_cloud": "Daten werden aus der Cloud abgerufen",
+  "pull_failed": "Abrufen fehlgeschlagen",
+  "restore": "Wiederherstellen"
+}

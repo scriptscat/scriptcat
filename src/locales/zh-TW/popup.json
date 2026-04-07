@@ -1,0 +1,24 @@
+{
+  "popup": {
+    "new_version_available": "有新版本可用"
+  },
+  "current_page_scripts": "目前頁面執行腳本",
+  "enabled_background_scripts": "開啟和執行的背景腳本",
+  "menu_expand_num_before": "選單項目超過",
+  "menu_expand_num_after": "個時，自動隱藏",
+  "develop_mode_guide": "目前尚未啟用「開發者模式」，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉點此查看啟用方式</a>",
+  "lower_version_browser_guide": "您的瀏覽器版本過舊，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉點擊了解更多</a>",
+  "click_to_reload": "👉點擊重新載入",
+  "page_in_blacklist": "目前頁面在黑名單中，無法使用腳本",
+  "ext_update_notification": "腳本貓擴充功能已更新",
+  "ext_update_notification_desc": "目前版本：{{version}}，詳情請查看更新日誌",
+  "script_menu_display": "腳本註冊的選單",
+  "badge_type_none": "不顯示",
+  "badge_type_run_count": "執行次數",
+  "badge_type_script_count": "腳本個數",
+  "script_menu": "腳本選單",
+  "display_right_click_menu": "顯示右鍵選單",
+  "display_right_click_menu_desc": "在瀏覽器右鍵選單中顯示腳本選單",
+  "expand_count": "展開數量",
+  "auto_collapse_when_exceeds": "超過此數量時自動摺疊"
+}

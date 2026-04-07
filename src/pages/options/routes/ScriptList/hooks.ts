@@ -227,7 +227,7 @@ export function useScriptFilters(
       { key: SCRIPT_STATUS_DISABLE, label: t("disable"), icon: Pause, count: counts.disable, color: "text-red-500" },
       {
         key: SCRIPT_RUN_STATUS_RUNNING,
-        label: t("running"),
+        label: t("script:running"),
         icon: Play,
         count: counts.running,
         color: "text-blue-500",
@@ -252,14 +252,14 @@ export function useScriptFilters(
       },
       {
         key: SCRIPT_TYPE_BACKGROUND,
-        label: t("background_script"),
+        label: t("script:background_script"),
         icon: Monitor,
         count: counts.background,
         color: "text-purple-500",
       },
       {
         key: SCRIPT_TYPE_CRONTAB,
-        label: t("scheduled_script"),
+        label: t("script:scheduled_script"),
         icon: Clock,
         count: counts.crontab,
         color: "text-orange-500",

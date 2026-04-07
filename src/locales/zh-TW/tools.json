@@ -1,0 +1,15 @@
+{
+  "cloud_sync_account_verification": "雲端同步帳號資訊驗證中...",
+  "cloud_sync_verification_failed": "雲端同步帳號資訊驗證失敗",
+  "development_tool": "開發工具",
+  "vscode_url": "VSCode網址",
+  "auto_connect_vscode_service": "自動連接VSCode服務",
+  "connect": "連接",
+  "connection_success": "連接成功",
+  "connection_failed": "連接失敗",
+  "select_import_script": "請在新頁面中選擇要匯入的腳本",
+  "import_error": "匯入錯誤",
+  "pulling_data_from_cloud": "正在從雲端拉取資料",
+  "pull_failed": "拉取失敗",
+  "restore": "還原"
+}

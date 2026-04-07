@@ -1,0 +1,15 @@
+{
+  "cloud_sync_account_verification": "クラウド同期アカウント情報を確認中...",
+  "cloud_sync_verification_failed": "クラウド同期アカウント情報の確認に失敗しました",
+  "development_tool": "開発ツール",
+  "vscode_url": "VSCodeアドレス",
+  "auto_connect_vscode_service": "VSCodeサービスに自動接続",
+  "connect": "接続",
+  "connection_success": "接続に成功しました",
+  "connection_failed": "接続に失敗しました",
+  "select_import_script": "新しいページでインポートするスクリプトを選択してください",
+  "import_error": "インポートエラー",
+  "pulling_data_from_cloud": "クラウドからデータを取得中",
+  "pull_failed": "取得に失敗しました",
+  "restore": "復元"
+}

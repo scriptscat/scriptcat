@@ -1,0 +1,24 @@
+{
+  "popup": {
+    "new_version_available": "新しいバージョンが利用可能です"
+  },
+  "current_page_scripts": "現在のページ実行スクリプト",
+  "enabled_background_scripts": "有効および実行中のバックグラウンドスクリプト",
+  "menu_expand_num_before": "メニュー項目が",
+  "menu_expand_num_after": "個を超えると自動的に非表示",
+  "develop_mode_guide": "現在「デベロッパーモード」が有効ではないため、スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉有効化の方法はこちら</a>",
+  "lower_version_browser_guide": "ご使用のブラウザは古すぎるため、スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉詳しくはこちら</a>",
+  "click_to_reload": "👉再読み込みする",
+  "page_in_blacklist": "現在のページはブラックリストにあり、スクリプトを使用できません",
+  "ext_update_notification": "ScriptCat拡張機能が更新されました",
+  "ext_update_notification_desc": "現在のバージョン: {{version}}、詳細は更新ログをご覧ください",
+  "script_menu_display": "スクリプトが登録したメニュー",
+  "badge_type_none": "表示しない",
+  "badge_type_run_count": "実行回数",
+  "badge_type_script_count": "スクリプト数",
+  "script_menu": "スクリプトメニュー",
+  "display_right_click_menu": "右クリックメニューを表示",
+  "display_right_click_menu_desc": "ブラウザの右クリックメニューにスクリプトメニューを表示する",
+  "expand_count": "展開数",
+  "auto_collapse_when_exceeds": "この数を超えたときに自動的に折りたたむ"
+}

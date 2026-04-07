@@ -113,7 +113,7 @@ export const extractCronExpr = (
 
   // 长度不合法，直接判定为非法表达式
   if (parts.length + lenOffset !== 6) {
-    throw new Error(t("cron_invalid_expr"));
+    throw new Error(t("script:cron_invalid_expr"));
   }
 
   let oncePos = -1;
@@ -154,7 +154,7 @@ export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult
      * 不支持多个 once
      * 示例："* once once * *"
      */
-    throw new Error(t("cron_invalid_expr"));
+    throw new Error(t("script:cron_invalid_expr"));
   }
 
   let luxonDate = (DateTime as any).fromJSDate(date) as LuxonDate;

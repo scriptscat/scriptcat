@@ -376,14 +376,14 @@ export default class GMApi {
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
-      metadata[i18next.t("request_domain")] = url.host;
+      metadata[i18next.t("permission:request_domain")] = url.host;
       return {
         permission: "cookie",
         permissionValue: url.host,
-        title: i18next.t("access_cookie_content")!,
+        title: i18next.t("permission:access_cookie_content")!,
         metadata,
-        describe: i18next.t("confirm_script_operation")!,
-        permissionContent: i18next.t("cookie_domain")!,
+        describe: i18next.t("permission:confirm_script_operation")!,
+        permissionContent: i18next.t("permission:cookie_domain")!,
         uuid: "",
       };
     },
@@ -545,11 +545,11 @@ export default class GMApi {
       return {
         permission: "file_storage",
         permissionValue: dir,
-        title: i18next.t("script_operation_title"),
+        title: i18next.t("permission:script_operation_title"),
         metadata,
-        describe: i18next.t("script_operation_description", { dir }),
+        describe: i18next.t("permission:script_operation_description", { dir }),
         wildcard: false,
-        permissionContent: i18next.t("script_permission_content"),
+        permissionContent: i18next.t("permission:script_permission_content"),
       } as ConfirmParam;
     },
   })
@@ -831,15 +831,15 @@ export default class GMApi {
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
-      metadata[i18next.t("request_domain")] = url.hostname;
-      metadata[i18next.t("request_url")] = details.url;
+      metadata[i18next.t("permission:request_domain")] = url.hostname;
+      metadata[i18next.t("permission:request_url")] = details.url;
 
       return {
         permission: "cors",
         permissionValue: url.hostname,
-        title: i18next.t("script_accessing_cross_origin_resource"),
+        title: i18next.t("permission:script_accessing_cross_origin_resource"),
         metadata,
-        describe: i18next.t("confirm_operation_description"),
+        describe: i18next.t("permission:confirm_operation_description"),
         wildcard: true,
         permissionContent: i18next.t("domain"),
       } as ConfirmParam;

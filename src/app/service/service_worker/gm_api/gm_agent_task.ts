@@ -19,10 +19,10 @@ const agentTaskConfirm: ApiParamConfirmFn = async (request: GMApiRequest, _sende
   metadata[i18next.t("script_name")] = i18nName(request.script);
   return {
     permission: "agent.task",
-    title: i18next.t("agent_permission_title"),
+    title: i18next.t("agent:permission_title"),
     metadata,
-    describe: i18next.t("agent_permission_describe"),
-    permissionContent: i18next.t("agent_permission_content"),
+    describe: i18next.t("agent:permission_describe"),
+    permissionContent: i18next.t("agent:permission_content"),
   } as ConfirmParam;
 };
 

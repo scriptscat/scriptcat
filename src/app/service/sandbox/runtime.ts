@@ -225,7 +225,7 @@ export class Runtime {
   crontabScript(script: ScriptLoadInfo) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
-      throw new Error(script.name + " - " + t("cron_invalid_expr"));
+      throw new Error(script.name + " - " + t("script:cron_invalid_expr"));
     }
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);

@@ -1,0 +1,22 @@
+{
+  "permission": "権限",
+  "permission_value": "権限値",
+  "allow": "許可",
+  "permission_management": "権限管理",
+  "permission_cors": "クロスドメイン（CORS）",
+  "permission_cookie": "Cookieを管理",
+  "allow_once": "一度許可",
+  "deny_once": "一度拒否",
+  "script_accessing_cross_origin_resource": "スクリプトがクロスドメインリソースにアクセスしようとしています",
+  "confirm_operation_description": "スクリプトがこの操作を実行することを許可するかどうか確認してください。スクリプトは@connectタグを追加してこのオプションをスキップすることもできます",
+  "request_domain": "リクエストドメイン",
+  "request_url": "リクエストURL",
+  "access_cookie_content": "スクリプトがウェブサイトのCookieコンテンツにアクセスしようとしています",
+  "confirm_script_operation": "スクリプトがこの操作を実行することを許可するかどうか確認してください。Cookieは重要なユーザーデータですので、信頼できるスクリプトにのみ許可してください。",
+  "cookie_domain": "Cookieドメイン",
+  "script_operation_title": "スクリプトがスクリプト同期ストレージスペースを操作しようとしています",
+  "script_operation_description": "スクリプトがこの操作を実行することを許可するかどうか確認してください。許可すると、スクリプトが設定したストレージスペースの操作が許可され、スクリプトはストレージスペース下にapp/${dir}ディレクトリを作成して使用します",
+  "script_permission_content": "スクリプト",
+  "request_permission": "権限をリクエストする",
+  "allow_user_script_guide": "現在「ユーザー スクリプトを許可する」が有効ではないため、スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉有効化の方法はこちら</a>"
+}

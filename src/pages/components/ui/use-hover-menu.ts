@@ -30,7 +30,7 @@ import { useCallback, useRef, useState } from "react";
  */
 export function useHoverMenu(closeDelay = 300) {
   const [isOpen, setIsOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout>>();
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const hoverCount = useRef(0);
 
   const handleEnter = useCallback(() => {

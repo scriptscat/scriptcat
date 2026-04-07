@@ -1,0 +1,15 @@
+{
+  "cloud_sync_account_verification": "Проверка учетной записи облачной синхронизации...",
+  "cloud_sync_verification_failed": "Ошибка проверки учетной записи облачной синхронизации",
+  "development_tool": "Инструмент разработки",
+  "vscode_url": "Адрес VSCode",
+  "auto_connect_vscode_service": "Автоматически подключаться к службе VSCode",
+  "connect": "Подключить",
+  "connection_success": "Подключение успешно",
+  "connection_failed": "Ошибка подключения",
+  "select_import_script": "Выберите скрипт для импорта на новой странице",
+  "import_error": "Ошибка импорта",
+  "pulling_data_from_cloud": "Получение данных из облака",
+  "pull_failed": "Ошибка получения",
+  "restore": "Восстановить"
+}
