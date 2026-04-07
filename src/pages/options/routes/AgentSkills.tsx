@@ -13,7 +13,15 @@ import {
   Tag,
   Typography,
 } from "@arco-design/web-react";
-import { IconDelete, IconDownload, IconEye, IconLink, IconPlus, IconRefresh, IconSettings } from "@arco-design/web-react/icon";
+import {
+  IconDelete,
+  IconDownload,
+  IconEye,
+  IconLink,
+  IconPlus,
+  IconRefresh,
+  IconSettings,
+} from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {

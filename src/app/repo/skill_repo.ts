@@ -93,7 +93,11 @@ export class SkillRepo extends OPFSRepo {
       // 保留已有的 enabled 状态
       ...(idx >= 0 && registry[idx].enabled !== undefined ? { enabled: registry[idx].enabled } : {}),
       // 保留或更新 installUrl
-      ...(record.installUrl ? { installUrl: record.installUrl } : idx >= 0 && registry[idx].installUrl ? { installUrl: registry[idx].installUrl } : {}),
+      ...(record.installUrl
+        ? { installUrl: record.installUrl }
+        : idx >= 0 && registry[idx].installUrl
+          ? { installUrl: registry[idx].installUrl }
+          : {}),
       installtime: record.installtime,
       updatetime: record.updatetime,
     };

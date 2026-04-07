@@ -389,7 +389,9 @@ export class AgentClient extends Client {
     return this.do("cancelSkillInstall", uuid);
   }
 
-  checkForUpdates(): Promise<Array<{ name: string; currentVersion: string; remoteVersion: string; installUrl: string }>> {
+  checkForUpdates(): Promise<
+    Array<{ name: string; currentVersion: string; remoteVersion: string; installUrl: string }>
+  > {
     return this.doThrow("checkForUpdates");
   }
 

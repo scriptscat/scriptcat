@@ -560,7 +560,7 @@ Prompt.`;
 
   describe("installFromUrl", () => {
     it("应从 URL 获取 SKILL.cat.md 并安装", async () => {
-      const { service, mockSkillRepo } = createTestService();
+      const { service } = createTestService();
 
       const skillMd = `---
 name: remote-skill
