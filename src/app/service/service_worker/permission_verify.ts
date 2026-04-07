@@ -28,6 +28,8 @@ export interface ConfirmParam {
   wildcard?: boolean;
   // 权限内容
   permissionContent?: string;
+  // 仅接受持久化（DB 存储）的授权，忽略临时缓存
+  persistentOnly?: boolean;
 }
 
 export interface UserConfirm {
@@ -196,6 +198,21 @@ export default class PermissionVerify {
     return `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
   }
 
+  // 仅查询 DB 中的持久化权限，跳过缓存
+  async queryPersistentPermission<T>(
+    request: GMApiRequest<T>,
+    confirm: {
+      permission: string;
+      permissionValue?: string;
+    }
+  ): Promise<Permission | undefined> {
+    let model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, confirm.permissionValue || "");
+    if (!model) {
+      model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, "*");
+    }
+    return model;
+  }
+
   async queryPermission<T>(
     request: GMApiRequest<T>,
     confirm: {
@@ -222,15 +239,26 @@ export default class PermissionVerify {
     if (typeof confirm === "boolean") {
       return confirm;
     }
-    const ret = await this.queryPermission(request, confirm);
-    // 有查询到结果,进入判断,不再需要用户确认
-    if (ret) {
-      if (ret.allow) {
-        return true;
+
+    if (confirm.persistentOnly) {
+      // 仅查询 DB，跳过缓存
+      const ret = await this.queryPersistentPermission(request, confirm);
+      if (ret) {
+        if (ret.allow) return true;
+        throw new Error("permission denied");
       }
-      // 权限拒绝
-      throw new Error("permission denied");
+    } else {
+      const ret = await this.queryPermission(request, confirm);
+      // 有查询到结果,进入判断,不再需要用户确认
+      if (ret) {
+        if (ret.allow) {
+          return true;
+        }
+        // 权限拒绝
+        throw new Error("permission denied");
+      }
     }
+
     // 没有权限,则弹出页面让用户进行确认
     const userConfirm = await this.confirmWindow(request.script, confirm, sender);
     // 成功存入数据库
@@ -257,12 +285,12 @@ export default class PermissionVerify {
       default:
         break;
     }
-    // 临时 放入缓存
-    if (userConfirm.type >= 2) {
+    // persistentOnly 模式：type 2-3 不缓存（等同于 type 1 的一次性允许）
+    if (!confirm.persistentOnly && userConfirm.type >= 2) {
       const cacheKey = this.buildCacheKey(request, confirm);
       cacheInstance.set(cacheKey, model);
     }
-    // 总是 放入数据库
+    // 总是 放入数据库（type 4-5 为永久授权）
     if (userConfirm.type >= 4) {
       const oldConfirm = await this.permissionDAO.findByKey(model.uuid, model.permission, model.permissionValue);
       if (!oldConfirm) {

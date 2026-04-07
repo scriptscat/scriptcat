@@ -18,13 +18,27 @@ import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
+import { ScriptEnvTag } from "@Packages/message/consts";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
 import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
-import { ScriptEnvTag } from "@Packages/message/consts";
+// 导入 CAT Agent API 以触发装饰器注册
+// 注意：不能使用 import "./cat_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
+import CATAgentApi from "./cat_agent";
+void CATAgentApi;
+import CATAgentSkillsApi from "./cat_agent_skills";
+void CATAgentSkillsApi;
+import CATAgentDomApi from "./cat_agent_dom";
+void CATAgentDomApi;
+import CATAgentTaskApi from "./cat_agent_task";
+void CATAgentTaskApi;
+import CATAgentModelApi from "./cat_agent_model";
+void CATAgentModelApi;
+import CATAgentOPFSApi from "./cat_agent_opfs";
+void CATAgentOPFSApi;
 
 // 内部函数呼叫定义
 export interface IGM_Base {
