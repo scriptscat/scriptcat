@@ -194,6 +194,8 @@ export type ScriptMenu = {
   // 不需要完整 metadata。目前在 Popup 未使用 metadata。
   // 有需要时请把 metadata 里需要的部份抽出 (例如 @match @include @exclude)，避免 chrome.storage.session 储存量过大
   // metadata: SCMetadata; // 脚本元数据
+  icon?: string; // 脚本图标 URL（从 metadata @icon/@iconurl/@icon64/@icon64url 提取）
+  localizedNames?: Record<string, string>; // 脚本本地化名称（从 metadata @name:lang 提取）
   runStatus?: SCRIPT_RUN_STATUS; // 脚本运行状态
   runNum: number; // 脚本运行次数
   runNumByIframe: number; // iframe运行次数

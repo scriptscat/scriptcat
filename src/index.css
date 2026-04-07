@@ -1,0 +1,227 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  ScriptCat 设计系统色彩令牌
+  品牌色：蓝色 #1296DB（Light） / #3AACEF（Dark）
+  基础色：温和灰阶（Light #FAFAFA/#FFFFFF, Dark #1E1E1E/#151515）
+  对应 Pencil 设计稿变量 bg-primary/bg-card/border-light/brand-blue/fg-primary 等
+*/
+:root {
+  /* 基础背景与文字 */
+  --background: #fafafa;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+
+  /* 品牌主色 - 蓝色 */
+  --primary: #1296db;
+  --primary-foreground: #ffffff;
+  --primary-hover: #0a7db8;
+  --primary-light: #d6ecfa;
+
+  /* 次要/柔和/hover 背景 - 统一为同一灰色值（遵循 shadcn 规范） */
+  --secondary: #f0f0f0;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f0f0f0;
+  --muted-foreground: #888888;
+  --accent: #f0f0f0;
+  --accent-foreground: #1a1a1a;
+
+  /* 文字层级 */
+  --fg-secondary: #666666;
+
+  /* 边框与表单输入边框 */
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #1296db;
+
+  /* Switch 关闭态 track（对应设计稿 $border-default） */
+  --switch-off: #d0d0d0;
+
+  /* 交互色 */
+  --destructive: #e7000b;
+  --destructive-foreground: #ffffff;
+
+  /* 状态色 - 运行中/周期执行 */
+  --success: #34c759;
+  --success-foreground: #ffffff;
+  --success-bg: #e8f9ec;
+  --success-fg: #0c8833;
+  --warning: #ff9500;
+  --warning-foreground: #ffffff;
+  --warning-bg: #fff4e6;
+  --warning-fg: #c46c00;
+
+  /* 切换按钮圆钮（Switch/Checkbox thumb） - 始终保持浅色 */
+  --thumb: #ffffff;
+
+  /* 侧边栏 */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #1296db;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf5fc;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #1296db;
+
+  /* 圆角（对应设计稿 radius-sm 6 / md 8 / lg 12） */
+  --radius: 0.5rem;
+}
+
+.dark {
+  /* 基础背景与文字 - 温和深灰 */
+  --background: #1e1e1e;
+  --foreground: #e5e5e5;
+  --card: #151515;
+  --card-foreground: #e5e5e5;
+  --popover: #151515;
+  --popover-foreground: #e5e5e5;
+
+  /* 品牌主色 - 暗色蓝（稍亮以保证对比） */
+  --primary: #3aacef;
+  --primary-foreground: #ffffff;
+  --primary-hover: #1296db;
+  --primary-light: #1e3040;
+
+  /* 次要/柔和/hover 背景 - 统一为同一灰色值（遵循 shadcn 规范） */
+  --secondary: #2a2a2a;
+  --secondary-foreground: #e5e5e5;
+  --muted: #2a2a2a;
+  --muted-foreground: #8a8a8a;
+  --accent: #2a2a2a;
+  --accent-foreground: #e5e5e5;
+
+  /* 文字层级 */
+  --fg-secondary: #b5b5b5;
+
+  /* 边框与表单输入边框 */
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #3aacef;
+
+  /* Switch 关闭态 track（对应设计稿 $dark-toggle-off） */
+  --switch-off: #3a3a3a;
+
+  /* 交互色 */
+  --destructive: #ff6669e6;
+  --destructive-foreground: #ffffff;
+
+  /* 状态色 */
+  --success: #34c759;
+  --success-foreground: #ffffff;
+  --success-bg: #1e3520;
+  --success-fg: #6fdd8a;
+  --warning: #ff9500;
+  --warning-foreground: #ffffff;
+  --warning-bg: #352c1e;
+  --warning-fg: #ffb84d;
+
+  /* 切换按钮圆钮（Switch/Checkbox thumb） - 深色模式仍保持浅色 */
+  --thumb: #eeeeee;
+
+  /* 侧边栏 */
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #e5e5e5;
+  --sidebar-primary: #3aacef;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2a30;
+  --sidebar-accent-foreground: #e5e5e5;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: #3aacef;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-switch-off: var(--switch-off);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-thumb: var(--thumb);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-bg: var(--success-bg);
+  --color-success-fg: var(--success-fg);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-fg: var(--warning-fg);
+  --color-type-orange: var(--warning);
+  --color-type-green: var(--success);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Radix Collapsible 动画（基于 --radix-collapsible-content-height 变量） */
+@keyframes collapsible-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+  }
+}
+
+@keyframes collapsible-up {
+  from {
+    height: var(--radix-collapsible-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+}
+
+@utility animate-collapsible-down {
+  animation: collapsible-down 200ms ease-out;
+}
+
+@utility animate-collapsible-up {
+  animation: collapsible-up 200ms ease-out;
+}

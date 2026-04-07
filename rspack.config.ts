@@ -55,6 +55,8 @@ export default {
     content: `${src}/content.ts`,
     scripting: `${src}/scripting.ts`,
     inject: `${src}/inject.ts`,
+    popup: `${src}/pages/popup/main.tsx`,
+    options: `${src}/pages/options/main.tsx`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
     "linter.worker": `${src}/linter.worker.ts`,
@@ -82,6 +84,7 @@ export default {
       {
         test: /\.css$/i,
         type: "css/auto",
+        use: ["postcss-loader"],
       },
       {
         test: /\.(svg|png)$/,
@@ -160,6 +163,22 @@ export default {
           to: `${dist}/ext/_locales`,
         },
       ],
+    }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/popup.html`,
+      template: `${src}/pages/popup.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: true,
+      chunks: ["popup"],
+    }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/options.html`,
+      template: `${src}/pages/options.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: true,
+      chunks: ["options"],
     }),
     new rspack.HtmlRspackPlugin({
       filename: `${dist}/ext/src/offscreen.html`,
