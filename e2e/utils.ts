@@ -171,3 +171,144 @@ export const sampleUserScript = `// ==UserScript==
 
 console.log("E2E Test Script loaded");
 `;
+
+/** Open the agent chat page */
+export async function openAgentChatPage(context: BrowserContext, extensionId: string): Promise<Page> {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/src/options.html#/agent/chat`);
+  await page.waitForLoadState("domcontentloaded");
+  return page;
+}
+
+/** Open the agent provider page */
+export async function openAgentProviderPage(context: BrowserContext, extensionId: string): Promise<Page> {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/src/options.html#/agent/provider`);
+  await page.waitForLoadState("domcontentloaded");
+  return page;
+}
+
+/**
+ * 通过 chrome.storage 预设一个 Agent 模型配置，避免通过 UI 操作。
+ * 在 extension 页面中执行，直接写入 chrome.storage.local。
+ * AgentModelRepo 使用 "agent_model:" 前缀 + id 作为 key。
+ */
+export async function setupAgentModel(
+  page: Page,
+  config?: { name?: string; provider?: string; model?: string; apiBaseUrl?: string; apiKey?: string }
+): Promise<string> {
+  const modelId = await page.evaluate(
+    ([cfg]) => {
+      const id = "e2e-test-model-" + Date.now();
+      const model = {
+        id,
+        name: cfg?.name || "E2E Test Model",
+        provider: cfg?.provider || "openai",
+        apiBaseUrl: cfg?.apiBaseUrl || "http://localhost:18399/v1",
+        apiKey: cfg?.apiKey || "test-key",
+        model: cfg?.model || "gpt-4o",
+      };
+      const storageKey = "agent_model:" + id;
+      return new Promise<string>((resolve, reject) => {
+        chrome.storage.local.set(
+          {
+            [storageKey]: model,
+            "agent_model:__default__": id,
+          },
+          () => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError.message);
+              return;
+            }
+            // 读回验证写入成功
+            chrome.storage.local.get(storageKey, (result) => {
+              if (result[storageKey]) {
+                resolve(id);
+              } else {
+                reject("Failed to verify storage write");
+              }
+            });
+          }
+        );
+      });
+    },
+    [config] as const
+  );
+  return modelId;
+}
+
+/**
+ * 构建一个 OpenAI 兼容的 SSE 流式响应体。
+ * 返回可用于 route handler 的响应字符串。
+ */
+export function buildOpenAISSEResponse(
+  content: string,
+  options?: { toolCalls?: Array<{ id: string; name: string; arguments: string }> }
+): string {
+  const chunks: string[] = [];
+  const toolCalls = options?.toolCalls;
+
+  if (toolCalls && toolCalls.length > 0) {
+    // 发送 tool call
+    for (let i = 0; i < toolCalls.length; i++) {
+      const tc = toolCalls[i];
+      // tool call start
+      chunks.push(
+        `data: ${JSON.stringify({
+          id: "chatcmpl-e2e",
+          object: "chat.completion.chunk",
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [{ index: i, id: tc.id, type: "function", function: { name: tc.name, arguments: "" } }],
+              },
+              finish_reason: null,
+            },
+          ],
+        })}\n\n`
+      );
+      // tool call arguments delta
+      chunks.push(
+        `data: ${JSON.stringify({
+          id: "chatcmpl-e2e",
+          object: "chat.completion.chunk",
+          choices: [
+            {
+              index: 0,
+              delta: { tool_calls: [{ index: i, function: { arguments: tc.arguments } }] },
+              finish_reason: null,
+            },
+          ],
+        })}\n\n`
+      );
+    }
+  }
+
+  if (content) {
+    // 分成几个 chunk 模拟真实流式
+    const words = content.split(" ");
+    for (const word of words) {
+      chunks.push(
+        `data: ${JSON.stringify({
+          id: "chatcmpl-e2e",
+          object: "chat.completion.chunk",
+          choices: [{ index: 0, delta: { content: word + " " }, finish_reason: null }],
+        })}\n\n`
+      );
+    }
+  }
+
+  // finish
+  chunks.push(
+    `data: ${JSON.stringify({
+      id: "chatcmpl-e2e",
+      object: "chat.completion.chunk",
+      choices: [{ index: 0, delta: {}, finish_reason: toolCalls ? "tool_calls" : "stop" }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    })}\n\n`
+  );
+  chunks.push("data: [DONE]\n\n");
+
+  return chunks.join("");
+}
