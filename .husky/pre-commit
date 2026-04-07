@@ -7,3 +7,14 @@ if [ "$SKIP_PRE_COMMIT" = "1" ]; then
 fi
 
 pnpm run lint || exit 1
+
+# 在 main 或 release/* 分支上提交时额外跑测试
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release/"; then
+  echo ""
+  echo "🔍 Detected branch: $branch"
+  echo "▶ Running tests..."
+  pnpm run test:ci || exit 1
+  echo ""
+  echo "✅ All checks passed!"
+fi
