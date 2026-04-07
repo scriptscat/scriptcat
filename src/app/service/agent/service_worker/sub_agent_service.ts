@@ -1,4 +1,3 @@
-import { uuidv4 } from "@App/pkg/utils/uuid";
 import type {
   AgentModelConfig,
   ChatRequest,
@@ -37,6 +36,7 @@ export class SubAgentService {
   // 包含子代理需要的工具（task / execute_script），不含父会话的 skill 等动态工具
   async runSubAgent(params: {
     options: SubAgentRunOptions;
+    agentId: string; // 由调用方生成，确保事件路由和结果使用同一 ID
     model: AgentModelConfig;
     parentConversationId: string;
     toolRegistry: ToolExecutorLike;
@@ -44,7 +44,7 @@ export class SubAgentService {
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
   }): Promise<SubAgentRunResult> {
-    const { options, model, parentConversationId, toolRegistry, sendEvent, signal } = params;
+    const { options, agentId: callerAgentId, model, parentConversationId, toolRegistry, sendEvent, signal } = params;
     const typeConfig = resolveSubAgentType(options.type);
 
     // 从传入的 toolRegistry 获取可用工具名，计算排除列表（包含父会话的 session 工具）
@@ -110,8 +110,8 @@ export class SubAgentService {
       };
     }
 
-    // 新建模式
-    const agentId = uuidv4();
+    // 新建模式：使用调用方传入的 agentId，确保与事件路由一致
+    const agentId = callerAgentId;
 
     // 构建子代理专用 system prompt
     const availableToolNames = allToolNames.filter((n) => !new Set(excludeTools).has(n));
@@ -119,9 +119,15 @@ export class SubAgentService {
     if (params.skillPromptSuffix) {
       systemContent += "\n\n" + params.skillPromptSuffix;
     }
+    // 如果父代理传递了 tab_id，在 prompt 前注入标签页上下文
+    let userPrompt = options.prompt;
+    if (options.tabId != null) {
+      userPrompt = `[Context] Parent agent has tab_id=${options.tabId} open. Use this tab directly — do NOT open a new tab for the same page.\n\n${userPrompt}`;
+    }
+
     const messages: ChatRequest["messages"] = [
       { role: "system", content: systemContent },
-      { role: "user", content: options.prompt },
+      { role: "user", content: userPrompt },
     ];
 
     const {

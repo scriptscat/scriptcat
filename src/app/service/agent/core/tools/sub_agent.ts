@@ -9,6 +9,7 @@ export type SubAgentRunOptions = {
   description: string;
   type?: string;
   to?: string; // 延续已有子代理
+  tabId?: number; // 父代理传递的标签页上下文
 };
 
 // 子代理运行结果
@@ -49,6 +50,11 @@ export const SUB_AGENT_DEFINITION: ToolDefinition = {
         description:
           "agentId of a previously completed sub-agent. Sends a follow-up message while preserving the sub-agent's full conversation context.",
       },
+      tab_id: {
+        type: "number",
+        description:
+          "Tab ID to pass as context. The sub-agent will work on this existing tab instead of opening a new one.",
+      },
     },
     required: ["prompt"],
   },
@@ -66,8 +72,9 @@ export function createSubAgentTool(params: {
       const description = (args.description as string) || "Sub-agent task";
       const type = args.type as string | undefined;
       const to = args.to as string | undefined;
+      const tabId = args.tab_id as number | undefined;
 
-      const result = await params.runSubAgent({ prompt, description, type, to });
+      const result = await params.runSubAgent({ prompt, description, type, to, tabId });
 
       // 返回结构化结果，附带子代理执行详情用于持久化
       const content = `[agentId: ${result.agentId}]\n\n${result.result}`;

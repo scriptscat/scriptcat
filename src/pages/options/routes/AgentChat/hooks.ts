@@ -211,7 +211,7 @@ export function useStreamingChat() {
             });
           }
           onEvent(event);
-          if (event.type === "done" || event.type === "error") {
+          if ((event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent)) {
             setIsStreaming(false);
             setAskUserPending(null);
             connRef.current = null;
@@ -277,7 +277,7 @@ export function useStreamingChat() {
             return;
           }
 
-          if (event.type === "done" || event.type === "error") {
+          if ((event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent)) {
             setIsStreaming(false);
             setAskUserPending(null);
             connRef.current = null;

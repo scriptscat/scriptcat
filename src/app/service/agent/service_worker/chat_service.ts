@@ -562,6 +562,7 @@ export class ChatService {
 
           return this.subAgentService.runSubAgent({
             options: { ...options, description: options.description || "Sub-agent task" },
+            agentId,
             model,
             parentConversationId: params.conversationId,
             signal: subSignal,

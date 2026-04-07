@@ -1,4 +1,5 @@
-import type { ChatMessage, MessageContent } from "@App/app/service/agent/core/types";
+import type { ChatMessage, MessageContent, SubAgentDetails } from "@App/app/service/agent/core/types";
+import type { SubAgentState } from "./SubAgentBlock";
 
 // 将消息按角色分组：连续的 assistant 消息合并为一组
 export type MessageGroup = { type: "user"; message: ChatMessage } | { type: "assistant"; messages: ChatMessage[] };
@@ -125,4 +126,67 @@ export function computeUserRegenerateAction(
   const remainingMessages = allMessages.slice(0, idx + 1);
 
   return { idsToDelete, remainingMessages, userContent, skipUserMessage: true };
+}
+
+// 匹配 agent 工具调用对应的子代理状态
+// 从 MessageItem 提取，方便单元测试
+export function getSubAgentForToolCall(
+  tc: {
+    name: string;
+    result?: string;
+    arguments?: string;
+    subAgentDetails?: SubAgentDetails;
+  },
+  subAgents?: Map<string, SubAgentState>
+): SubAgentState | undefined {
+  if (tc.name !== "agent") return undefined;
+
+  // 1. 从流式 subAgents map 匹配（优先，因为包含实时状态）
+  if (subAgents) {
+    // 1a. 从已完成的结果中匹配（格式: "[agentId: xxx]\n\n..."）
+    if (tc.result) {
+      const match = tc.result.match(/^\[agentId: ([^\]]+)\]/);
+      if (match) {
+        const sa = subAgents.get(match[1]);
+        if (sa) return sa;
+      }
+    }
+    // 1b. 从参数中匹配 to 字段（resume 场景）
+    if (tc.arguments) {
+      try {
+        const args = JSON.parse(tc.arguments);
+        if (args.to && subAgents.has(args.to)) return subAgents.get(args.to);
+      } catch {
+        // 参数可能还在流式构建中
+      }
+    }
+    // 1c. 无结果的 agent 工具调用：优先匹配运行中的子代理，
+    // 回退到已完成的（覆盖 sub-agent done → tool_call_complete 之间的间隙）
+    if (!tc.result) {
+      let completed: SubAgentState | undefined;
+      for (const sa of subAgents.values()) {
+        if (sa.isRunning) return sa;
+        if (!completed) completed = sa;
+      }
+      if (completed) return completed;
+    }
+  }
+
+  // 2. 回退到持久化的 subAgentDetails（页面刷新/加载后可用）
+  if (tc.subAgentDetails) {
+    const d = tc.subAgentDetails;
+    return {
+      agentId: d.agentId,
+      description: d.description,
+      subAgentType: d.subAgentType,
+      completedMessages: d.messages,
+      currentContent: "",
+      currentThinking: "",
+      currentToolCalls: [],
+      isRunning: false,
+      usage: d.usage,
+    } satisfies SubAgentState;
+  }
+
+  return undefined;
 }

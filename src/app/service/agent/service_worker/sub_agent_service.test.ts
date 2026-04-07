@@ -69,6 +69,7 @@ describe("SubAgentService OPFS 持久化", () => {
   it("a) 新建子代理后 saveContext 被调用", async () => {
     const result = await service.runSubAgent({
       options: { prompt: "做个任务", description: "测试任务" },
+      agentId: "test-agent-1",
       model: MODEL,
       parentConversationId: "conv-1",
       toolRegistry,
@@ -90,6 +91,7 @@ describe("SubAgentService OPFS 持久化", () => {
     // 先新建，使其进入内存缓存
     const created = await service.runSubAgent({
       options: { prompt: "初始任务", description: "初始" },
+      agentId: "test-agent-2",
       model: MODEL,
       parentConversationId: "conv-2",
       toolRegistry,
@@ -103,6 +105,7 @@ describe("SubAgentService OPFS 持久化", () => {
     // resume，内存中已有
     await service.runSubAgent({
       options: { prompt: "继续任务", description: "继续", to: created.agentId },
+      agentId: created.agentId,
       model: MODEL,
       parentConversationId: "conv-2",
       toolRegistry,
@@ -134,6 +137,7 @@ describe("SubAgentService OPFS 持久化", () => {
     // 直接 resume（内存中没有）
     const result = await service.runSubAgent({
       options: { prompt: "继续", description: "继续", to: agentId },
+      agentId,
       model: MODEL,
       parentConversationId: "conv-3",
       toolRegistry,
@@ -153,6 +157,7 @@ describe("SubAgentService OPFS 持久化", () => {
     mockContextRepo.saveContext.mockResolvedValue(undefined);
     await service.runSubAgent({
       options: { prompt: "再继续", description: "再继续", to: agentId },
+      agentId,
       model: MODEL,
       parentConversationId: "conv-3",
       toolRegistry,
@@ -167,6 +172,7 @@ describe("SubAgentService OPFS 持久化", () => {
 
     const result = await service.runSubAgent({
       options: { prompt: "继续", description: "继续", to: "nonexistent-agent" },
+      agentId: "nonexistent-agent",
       model: MODEL,
       parentConversationId: "conv-4",
       toolRegistry,
