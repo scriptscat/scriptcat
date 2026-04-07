@@ -130,15 +130,11 @@ export function proxyContext(
           // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return proxy;
         case "top":
-          if (global[name] === global.self) {
-            return special.global || proxy;
-          }
-          return global.top;
         case "parent":
           if (global[name] === global.self) {
             return special.global || proxy;
           }
-          return global.parent;
+          return global[name];
         default:
           break;
       }
