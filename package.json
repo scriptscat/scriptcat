@@ -80,7 +80,6 @@
     "@unocss/postcss": "66.5.4",
     "@vitest/coverage-v8": "^4.0.18",
     "acorn": "^8.16.0",
-    "uglify-js":"^3.19.3",
     "autoprefixer": "^10.4.21",
     "cross-env": "^10.1.0",
     "crx": "^5.0.1",
@@ -104,6 +103,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.2",
+    "uglify-js": "^3.19.3",
     "unocss": "66.5.4",
     "vitest": "^4.0.18"
   },
