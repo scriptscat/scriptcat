@@ -225,3 +225,29 @@
 @utility animate-collapsible-up {
   animation: collapsible-up 200ms ease-out;
 }
+
+@keyframes expand-bar {
+  from {
+    height: 0;
+    border-bottom-width: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes collapse-bar {
+  to {
+    height: 0;
+    border-bottom-width: 0;
+    opacity: 0;
+  }
+}
+
+@utility animate-expand-bar {
+  animation: expand-bar 200ms ease-out;
+  overflow: hidden;
+}
+
+@utility animate-collapse-bar {
+  animation: collapse-bar 200ms ease-out forwards;
+  overflow: hidden;
+}

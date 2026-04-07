@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route, Outlet } from "react-router-dom";
 import Sidebar from "./layout/Sidebar";
+import ScriptList from "./routes/ScriptList";
 import { t } from "@App/locales/locales";
 
 function Layout() {
@@ -27,7 +28,7 @@ export default function App() {
     <HashRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route index element={<PlaceholderPage title={t("installed_scripts")} />} />
+          <Route index element={<ScriptList />} />
           <Route path="subscribe" element={<PlaceholderPage title={t("subscribe")} />} />
           <Route path="logs" element={<PlaceholderPage title={t("logs")} />} />
           <Route path="tools" element={<PlaceholderPage title={t("tools")} />} />

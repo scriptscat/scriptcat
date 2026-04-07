@@ -5,6 +5,7 @@ import LoggerCore from "@App/app/logger/core.ts";
 import { message } from "../store/global.ts";
 import MessageWriter from "@App/app/logger/message_writer.ts";
 import { ThemeProvider } from "../components/theme-provider.tsx";
+import { TooltipProvider } from "../components/ui/tooltip.tsx";
 import "@App/index.css";
 
 // 初始化日志组件
@@ -17,7 +18,9 @@ loggerCore.logger().debug("options page start");
 
 const Root = (
   <ThemeProvider>
-    <App />
+    <TooltipProvider>
+      <App />
+    </TooltipProvider>
   </ThemeProvider>
 );
 

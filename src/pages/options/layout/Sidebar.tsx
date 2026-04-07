@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { useHoverMenu } from "../../components/ui/use-hover-menu";
 import { NavLink } from "react-router-dom";
 import {
   Package,
@@ -145,25 +146,19 @@ function SidebarItem({
 
 // ========== 帮助中心菜单（hover 触发） ==========
 function HelpMenu({ collapsed }: { collapsed: boolean }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout>>();
-  const openUrl = (url: string) => window.open(url, "_blank");
+  const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
 
-  const handleEnter = () => {
-    clearTimeout(closeTimer.current);
-    setIsOpen(true);
-  };
-  const handleLeave = () => {
-    closeTimer.current = setTimeout(() => setIsOpen(false), 150);
+  const openUrl = (url: string) => {
+    close();
+    window.open(url, "_blank");
   };
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu {...rootProps}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          onMouseEnter={handleEnter}
-          onMouseLeave={handleLeave}
+          {...hoverProps}
           className={`flex items-center gap-2.5 h-9 rounded-md text-[14px] text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
             collapsed ? "justify-center px-0" : "px-3"
           }`}
@@ -172,20 +167,14 @@ function HelpMenu({ collapsed }: { collapsed: boolean }) {
           {!collapsed && <span className="truncate">{t("helpcenter")}</span>}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side="right"
-        align="end"
-        className="w-48"
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
-      >
+      <DropdownMenuContent side="right" align="end" className="w-48" {...contentProps}>
         {/* 外部链接 */}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <Link className="w-4 h-4" />
             {t("external_links")}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+          <DropdownMenuSubContent {...hoverProps}>
             <DropdownMenuItem onClick={() => openUrl(`${DocumentationSite}${localePath}/docs/dev/`)}>
               <FileCode className="w-4 h-4" />
               {t("api_docs")}
@@ -199,7 +188,7 @@ function HelpMenu({ collapsed }: { collapsed: boolean }) {
                 <Store className="w-4 h-4" />
                 {t("script_gallery")}
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+              <DropdownMenuSubContent {...hoverProps}>
                 <DropdownMenuItem onClick={() => openUrl("https://scriptcat.org/search")}>
                   {"ScriptCat"}
                 </DropdownMenuItem>
