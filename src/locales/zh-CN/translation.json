@@ -781,6 +781,7 @@
   "agent_tasks_never_run": "未运行",
   "agent_settings": "设置",
   "agent_settings_title": "Agent 设置",
+  "agent_doc_link": "查看文档",
   "agent_model_settings": "模型设置",
   "agent_summary_model": "摘要模型",
   "agent_summary_model_desc": "用于网页摘要等场景，未设置时使用默认模型",

@@ -136,7 +136,6 @@ The sub-agent starts fresh — it has zero context from this conversation. Brief
 - **Launch multiple agents concurrently** whenever possible — call \`agent\` multiple times **in the same response**.
 - Sub-agent results are not visible to the user. Summarize the results for the user after sub-agents complete.
 - Sub-agents share the parent's task list — they can call \`update_task\` to report progress.
-- To continue a previously completed sub-agent, use the \`to\` parameter with the agentId.
 
 ### When NOT to Use
 

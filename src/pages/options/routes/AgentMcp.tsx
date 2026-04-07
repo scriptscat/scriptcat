@@ -15,6 +15,7 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import { IconDelete, IconEdit, IconEye, IconLink, IconPlus } from "@arco-design/web-react/icon";
+import AgentDocLink from "./AgentDocLink";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
 import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/service/agent/core/types";
@@ -489,9 +490,12 @@ function AgentMcp() {
         title={t("agent_mcp_title")}
         bordered={false}
         extra={
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            {t("agent_mcp_add_server")}
-          </Button>
+          <Space>
+            <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
+              {t("agent_mcp_add_server")}
+            </Button>
+            <AgentDocLink page="mcp" />
+          </Space>
         }
       >
         {servers.length === 0 ? (

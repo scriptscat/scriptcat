@@ -15,6 +15,7 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import { IconCheck, IconCopy, IconDelete, IconEdit, IconEye, IconImage, IconPlus } from "@arco-design/web-react/icon";
+import AgentDocLink from "./AgentDocLink";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
@@ -447,9 +448,12 @@ function AgentProvider() {
         title={t("agent_provider_title")}
         bordered={false}
         extra={
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            {t("agent_model_add")}
-          </Button>
+          <Space>
+            <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
+              {t("agent_model_add")}
+            </Button>
+            <AgentDocLink page="provider" />
+          </Space>
         }
       >
         {models.length === 0 ? (
