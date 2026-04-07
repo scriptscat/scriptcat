@@ -25,9 +25,10 @@ export class SSEParser {
             event: this.currentEvent || "message",
             data: this.currentData.join("\n"),
           });
-          this.currentEvent = "";
-          this.currentData = [];
         }
+        // 无条件重置，防止 currentEvent 残留污染下一条事件
+        this.currentEvent = "";
+        this.currentData = [];
         continue;
       }
 

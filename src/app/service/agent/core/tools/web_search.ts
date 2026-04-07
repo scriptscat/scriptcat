@@ -4,7 +4,7 @@ import type { MessageSend } from "@Packages/message/types";
 import type { SearchConfigRepo } from "./search_config";
 import { extractSearchResults, extractBingResults, extractBaiduResults } from "@App/app/service/offscreen/client";
 import { withTimeout } from "@App/pkg/utils/with_timeout";
-import { requireString } from "./param_utils";
+import { requireString, optionalNumber } from "./param_utils";
 
 // Agent User-Agent 字符串
 const AGENT_USER_AGENT = "Mozilla/5.0 (compatible; ScriptCat Agent)";
@@ -51,7 +51,7 @@ export class WebSearchExecutor implements ToolExecutor {
 
   async execute(args: Record<string, unknown>): Promise<string> {
     const query = requireString(args, "query");
-    const maxResults = Math.min((args.max_results as number) || 5, 10);
+    const maxResults = Math.min(optionalNumber(args, "max_results") ?? 5, 10);
 
     const config = await this.configRepo.getConfig();
 

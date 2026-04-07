@@ -91,7 +91,8 @@ export async function writeWorkspaceFile(
   if (data instanceof Blob) {
     await writable.write(data);
   } else if (data instanceof Uint8Array) {
-    await writable.write(data.buffer as ArrayBuffer);
+    // 精确截取视图对应的字节段，避免切片视图写入整个底层 buffer
+    await writable.write((data.buffer as ArrayBuffer).slice(data.byteOffset, data.byteOffset + data.byteLength));
   } else {
     await writable.write(data);
   }

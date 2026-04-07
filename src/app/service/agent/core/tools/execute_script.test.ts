@@ -102,7 +102,7 @@ describe("execute_script 工具", () => {
       const { executor } = createExecuteScriptTool(deps);
 
       await expect(executor.execute({ code: "while(true){}", target: "page" })).rejects.toThrow(
-        "execute_script timed out after 30s"
+        "execute_script timed out after 0.05s"
       );
     });
 
@@ -112,7 +112,7 @@ describe("execute_script 工具", () => {
       const { executor } = createExecuteScriptTool(deps);
 
       await expect(executor.execute({ code: "while(true){}", target: "sandbox" })).rejects.toThrow(
-        "execute_script timed out after 30s"
+        "execute_script timed out after 0.05s"
       );
     });
   });

@@ -1,6 +1,6 @@
 import type { AgentModelConfig, AgentModelSafeConfig, ModelApiRequest } from "@App/app/service/agent/core/types";
 import { AgentModelRepo } from "@App/app/repo/agent_model";
-import { supportsVision, supportsImageOutput } from "@App/pages/options/routes/AgentChat/model_utils";
+import { supportsVision, supportsImageOutput } from "@App/app/service/agent/core/model_capabilities";
 import type { Group } from "@Packages/message/server";
 
 export class AgentModelService {

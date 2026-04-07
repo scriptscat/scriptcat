@@ -1,6 +1,6 @@
 import type { ChatRequest, AgentModelConfig } from "./types";
 import { isContentBlocks } from "./content_utils";
-import { supportsVision } from "@App/pages/options/routes/AgentChat/model_utils";
+import { supportsVision } from "./model_capabilities";
 
 /**
  * 解析消息中 image+vision 的 attachmentId → base64 data URL

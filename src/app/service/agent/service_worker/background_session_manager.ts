@@ -179,7 +179,11 @@ export class BackgroundSessionManager {
     const rc = this.runningConversations.get(conversationId);
     if (!rc) return;
     setTimeout(() => {
-      this.runningConversations.delete(conversationId);
+      // 重新检查：如果会话已被复用（新的 rc 实例）或正在运行，则不删除
+      const current = this.runningConversations.get(conversationId);
+      if (current === rc && current.status !== "running") {
+        this.runningConversations.delete(conversationId);
+      }
     }, 30_000);
   }
 }

@@ -56,7 +56,7 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
         const { result, tabId: actualTabId } = await withTimeout(
           deps.executeInPage(code, { tabId }),
           timeoutMs,
-          () => new Error("execute_script timed out after 30s")
+          () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`)
         );
         return JSON.stringify({ result: result ?? null, target: "page", tab_id: actualTabId });
       }
@@ -65,7 +65,7 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
       const result = await withTimeout(
         deps.executeInSandbox(code),
         timeoutMs,
-        () => new Error("execute_script timed out after 30s")
+        () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`)
       );
       return JSON.stringify({ result: result ?? null, target: "sandbox" });
     },

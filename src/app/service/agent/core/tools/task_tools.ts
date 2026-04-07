@@ -1,6 +1,6 @@
 import type { ToolDefinition, ChatStreamEvent } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
-import { requireString } from "./param_utils";
+import { requireString, optionalString } from "./param_utils";
 
 export type Task = {
   id: string;
@@ -106,8 +106,8 @@ export function createTaskTools(options?: TaskToolsOptions): {
     execute: async (args: Record<string, unknown>) => {
       const task: Task = {
         id: String(nextId++),
-        subject: args.subject as string,
-        description: args.description as string | undefined,
+        subject: requireString(args, "subject"),
+        description: optionalString(args, "description"),
         status: "pending",
       };
       tasks.set(task.id, task);
