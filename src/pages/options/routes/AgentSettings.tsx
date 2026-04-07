@@ -1,4 +1,5 @@
 import { Card, Message, Select, Input, Space, Typography, Alert } from "@arco-design/web-react";
+import AgentDocLink from "./AgentDocLink";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
@@ -82,7 +83,12 @@ function AgentSettings() {
 
   return (
     <Space direction="vertical" size="medium" style={{ width: "100%" }}>
-      <Typography.Title heading={5}>{t("agent_settings_title")}</Typography.Title>
+      <div className="tw-flex tw-items-center tw-gap-2">
+        <Typography.Title heading={5} style={{ margin: 0 }}>
+          {t("agent_settings_title")}
+        </Typography.Title>
+        <AgentDocLink page="settings" />
+      </div>
 
       <Card title={t("agent_model_settings")}>
         <Space direction="vertical" size="medium" style={{ width: "100%" }}>

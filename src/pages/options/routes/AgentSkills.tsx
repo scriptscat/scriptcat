@@ -22,6 +22,7 @@ import {
   IconRefresh,
   IconSettings,
 } from "@arco-design/web-react/icon";
+import AgentDocLink from "./AgentDocLink";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
@@ -653,6 +654,7 @@ function AgentSkills() {
             <Button type="primary" icon={<IconPlus />} onClick={() => fileInputRef.current?.click()}>
               {t("agent_skills_add")}
             </Button>
+            <AgentDocLink page="skills" />
           </Space>
         }
       >

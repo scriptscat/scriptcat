@@ -15,7 +15,6 @@ describe("sub_agent", () => {
       prompt: "Search for X",
       description: "Searching X",
       type: undefined,
-      to: undefined,
     });
     expect(result).toContain("[agentId: test-id]");
     expect(result).toContain("Sub-agent result");
@@ -30,20 +29,18 @@ describe("sub_agent", () => {
       prompt: "Do something",
       description: "Sub-agent task",
       type: undefined,
-      to: undefined,
     });
   });
 
-  it("should pass type and to parameters", async () => {
+  it("should pass type parameter", async () => {
     const mockRunSubAgent = vi.fn().mockResolvedValue({ agentId: "id3", result: "ok" });
     const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });
 
-    await executor.execute({ prompt: "Research X", type: "researcher", to: "prev-agent-id" });
+    await executor.execute({ prompt: "Research X", type: "researcher" });
     expect(mockRunSubAgent).toHaveBeenCalledWith({
       prompt: "Research X",
       description: "Sub-agent task",
       type: "researcher",
-      to: "prev-agent-id",
     });
   });
 

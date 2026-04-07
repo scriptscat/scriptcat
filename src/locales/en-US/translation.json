@@ -781,6 +781,7 @@
   "agent_tasks_never_run": "Never run",
   "agent_settings": "Settings",
   "agent_settings_title": "Agent Settings",
+  "agent_doc_link": "Documentation",
   "agent_model_settings": "Model Settings",
   "agent_summary_model": "Summary Model",
   "agent_summary_model_desc": "Model for summarization, falls back to default if not set",

@@ -28,7 +28,7 @@ export class AgentTaskRepo extends Repo<AgentTask> {
   }
 }
 
-const MAX_RUNS_PER_TASK = 100;
+const MAX_RUNS_PER_TASK = 500;
 
 export class AgentTaskRunRepo extends OPFSRepo {
   constructor() {

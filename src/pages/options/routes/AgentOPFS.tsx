@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Breadcrumb, Button, Card, Empty, Message, Modal, Space, Table } from "@arco-design/web-react";
 import { IconDelete, IconDownload, IconEye, IconFolder, IconFile, IconImage } from "@arco-design/web-react/icon";
+import AgentDocLink from "./AgentDocLink";
 import { isImageFileName } from "@App/app/service/agent/core/content_utils";
 
 interface FileEntry {
@@ -244,7 +245,7 @@ function AgentOPFS() {
 
   return (
     <Space className="tw-w-full tw-h-full tw-overflow-auto tw-relative" direction="vertical">
-      <Card bordered={false} title={t("agent_opfs_title")}>
+      <Card bordered={false} title={t("agent_opfs_title")} extra={<AgentDocLink page="opfs" />}>
         <Breadcrumb style={{ marginBottom: 16 }}>
           <Breadcrumb.Item onClick={() => navigateTo(-1)} style={{ cursor: "pointer" }}>
             {t("agent_opfs_root")}

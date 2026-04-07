@@ -522,7 +522,7 @@ export class ChatService {
       // Sub-agent
       const subAgentTool = createSubAgentTool({
         runSubAgent: (options: SubAgentRunOptions) => {
-          const agentId = options.to || uuidv4();
+          const agentId = uuidv4();
           const typeConfig = resolveSubAgentType(options.type);
           // 组合父信号和类型配置的超时信号
           const subSignal = AbortSignal.any([abortController.signal, AbortSignal.timeout(typeConfig.timeoutMs)]);

@@ -18,6 +18,7 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import { IconDelete, IconEdit, IconHistory, IconPlayArrow, IconPlus } from "@arco-design/web-react/icon";
+import AgentDocLink from "./AgentDocLink";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
 import type {
@@ -388,9 +389,12 @@ function AgentTasks() {
         title={t("agent_tasks_title")}
         bordered={false}
         extra={
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            {t("agent_tasks_create")}
-          </Button>
+          <Space>
+            <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
+              {t("agent_tasks_create")}
+            </Button>
+            <AgentDocLink page="tasks" />
+          </Space>
         }
       >
         {tasks.length === 0 ? (
