@@ -89,6 +89,11 @@ export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   scriptMatchDisable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
+  private gmApi?: GMApi;
+
+  getGMApi(): GMApi | undefined {
+    return this.gmApi;
+  }
 
   logger: Logger;
 
@@ -369,7 +374,7 @@ export class RuntimeService {
   init() {
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
-    const gmApi = new GMApi(
+    this.gmApi = new GMApi(
       this.systemConfig,
       permission,
       this.group,
@@ -379,7 +384,7 @@ export class RuntimeService {
       new GMExternalDependencies(this)
     );
     permission.init();
-    gmApi.start();
+    this.gmApi.start();
 
     this.group.on("stopScript", this.stopScript.bind(this));
     this.group.on("runScript", this.runScript.bind(this));
@@ -720,7 +725,7 @@ export class RuntimeService {
     let jsCode = "";
     if (withCode) {
       const code = compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
-      registerScript.js[0].code = jsCode = code;
+      registerScript.js![0].code = jsCode = code;
     }
 
     // 过滤掉matches为空的脚本

@@ -295,9 +295,7 @@ function CreateScriptMenu({ navigate }: { navigate: ReturnType<typeof useNavigat
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" {...contentProps}>
-        <DropdownMenuItem onClick={() => handleCreate("/script/editor")}>
-          {t("create_user_script")}
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleCreate("/script/editor")}>{t("create_user_script")}</DropdownMenuItem>
         <DropdownMenuItem onClick={() => handleCreate("/script/editor?template=background")}>
           {t("create_background_script")}
         </DropdownMenuItem>
@@ -379,109 +377,109 @@ interface ScriptRowProps {
 }
 
 function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunStop, navigate }: ScriptRowProps) {
-    const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
-    const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
-    const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
-    const version = script.metadata?.version?.[0] || "";
-    const author = script.metadata?.author?.[0] || "";
-    const name = i18nName(script);
+  const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
+  const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
+  const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
+  const version = script.metadata?.version?.[0] || "";
+  const author = script.metadata?.author?.[0] || "";
+  const name = i18nName(script);
 
-    return (
-      <div
-        className={cn(
-          "group/row flex items-center h-[52px] px-3 rounded-lg transition-colors hover:bg-primary/[0.08]",
-          isDisabled && "opacity-60"
-        )}
-      >
-        {/* 复选框 */}
-        <div className="w-8 flex justify-center">
-          <Checkbox checked={selected} onCheckedChange={() => onSelect(script.uuid)} />
+  return (
+    <div
+      className={cn(
+        "group/row flex items-center h-[52px] px-3 rounded-lg transition-colors hover:bg-primary/[0.08]",
+        isDisabled && "opacity-60"
+      )}
+    >
+      {/* 复选框 */}
+      <div className="w-8 flex justify-center">
+        <Checkbox checked={selected} onCheckedChange={() => onSelect(script.uuid)} />
+      </div>
+
+      {/* 拖拽手柄 */}
+      <div className="w-8 flex justify-center">
+        <RowDragHandle />
+      </div>
+
+      {/* 开关 */}
+      <div className="w-12 flex justify-center">
+        <EnableSwitch
+          status={script.status}
+          enableLoading={script.enableLoading}
+          onCheckedChange={(checked) => onEnable(script, checked)}
+        />
+      </div>
+
+      {/* 脚本名称 + 元信息 */}
+      <div className="flex-1 min-w-0 flex items-center gap-2.5">
+        <ScriptIcon name={name} metadata={script.metadata} />
+        <div className="min-w-0 flex flex-col gap-px">
+          <Link to={`/script/editor/${script.uuid}`} className="text-sm font-medium truncate hover:underline">
+            {name}
+          </Link>
+          <span className="text-[11px] text-muted-foreground truncate">
+            {[version && `v${version}`, scriptTypeLabel(script.type), author].filter(Boolean).join(" · ")}
+          </span>
         </div>
+      </div>
 
-        {/* 拖拽手柄 */}
-        <div className="w-8 flex justify-center">
-          <RowDragHandle />
-        </div>
+      {/* 标签 */}
+      <div className="w-[100px]">
+        <TagBadges metadata={script.metadata} selfMetadata={script.selfMetadata} />
+      </div>
 
-        {/* 开关 */}
-        <div className="w-12 flex justify-center">
-          <EnableSwitch
-            status={script.status}
-            enableLoading={script.enableLoading}
-            onCheckedChange={(checked) => onEnable(script, checked)}
-          />
-        </div>
+      {/* 应用至 / 运行状态 */}
+      <div className="w-[140px]">
+        {isBackground ? <RunStatusBadge runStatus={script.runStatus} /> : <FaviconDots favorites={script.favorite} />}
+      </div>
 
-        {/* 脚本名称 + 元信息 */}
-        <div className="flex-1 min-w-0 flex items-center gap-2.5">
-          <ScriptIcon name={name} metadata={script.metadata} />
-          <div className="min-w-0 flex flex-col gap-px">
-            <Link to={`/script/editor/${script.uuid}`} className="text-sm font-medium truncate hover:underline">
-              {name}
-            </Link>
-            <span className="text-[11px] text-muted-foreground truncate">
-              {[version && `v${version}`, scriptTypeLabel(script.type), author].filter(Boolean).join(" · ")}
-            </span>
-          </div>
-        </div>
+      {/* 最后更新 */}
+      <div className="w-[100px]">
+        <UpdateTimeCell script={script} />
+      </div>
 
-        {/* 标签 */}
-        <div className="w-[100px]">
-          <TagBadges metadata={script.metadata} selfMetadata={script.selfMetadata} />
-        </div>
+      {/* 操作 */}
+      <div className="w-[120px] flex items-center justify-end gap-1 opacity-[0.55] group-hover/row:opacity-100">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => navigate(`/script/editor/${script.uuid}`)}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("edit")}</TooltipContent>
+        </Tooltip>
 
-        {/* 应用至 / 运行状态 */}
-        <div className="w-[140px]">
-          {isBackground ? <RunStatusBadge runStatus={script.runStatus} /> : <FaviconDots favorites={script.favorite} />}
-        </div>
-
-        {/* 最后更新 */}
-        <div className="w-[100px]">
-          <UpdateTimeCell script={script} />
-        </div>
-
-        {/* 操作 */}
-        <div className="w-[120px] flex items-center justify-end gap-1 opacity-[0.55] group-hover/row:opacity-100">
+        {isBackground && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
-                onClick={() => navigate(`/script/editor/${script.uuid}`)}
+                className={cn(
+                  "h-7 w-7",
+                  isRunning
+                    ? "group-hover/row:text-red-500 hover:text-red-600"
+                    : "group-hover/row:text-primary group-hover/row:bg-primary/10 hover:bg-primary/15 hover:text-primary"
+                )}
+                onClick={() => onRunStop(script)}
+                disabled={script.actionLoading}
               >
-                <Pencil className="w-3.5 h-3.5" />
+                {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{t("edit")}</TooltipContent>
+            <TooltipContent>{isRunning ? t("stopping_script") : t("starting_script")}</TooltipContent>
           </Tooltip>
+        )}
 
-          {isBackground && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-7 w-7",
-                    isRunning
-                      ? "group-hover/row:text-red-500 hover:text-red-600"
-                      : "group-hover/row:text-primary group-hover/row:bg-primary/10 hover:bg-primary/15 hover:text-primary"
-                  )}
-                  onClick={() => onRunStop(script)}
-                  disabled={script.actionLoading}
-                >
-                  {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{isRunning ? t("stopping_script") : t("starting_script")}</TooltipContent>
-            </Tooltip>
-          )}
-
-          <MoreMenu script={script} onDelete={onDelete} navigate={navigate} />
-        </div>
+        <MoreMenu script={script} onDelete={onDelete} navigate={navigate} />
       </div>
-    );
+    </div>
+  );
 }
 
 const ScriptRow = React.memo(ScriptRowInner, (prev, next) => {

@@ -11,6 +11,8 @@ import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
+import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/core/types";
+import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
 import type {
   ScriptService,
   TCheckScriptUpdateOption,
@@ -326,5 +328,130 @@ export class SystemClient extends Client {
 
   connectVSCode(params: VSCodeConnectParam): Promise<void> {
     return this.do("connectVSCode", params);
+  }
+}
+
+export class AgentClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/agent");
+  }
+
+  installSkill(params: {
+    skillMd: string;
+    scripts?: Array<{ name: string; code: string }>;
+    references?: Array<{ name: string; content: string }>;
+  }): Promise<unknown> {
+    return this.do("installSkill", params);
+  }
+
+  removeSkill(name: string): Promise<unknown> {
+    return this.do("removeSkill", name);
+  }
+
+  refreshSkill(name: string): Promise<boolean> {
+    return this.doThrow("refreshSkill", name);
+  }
+
+  setSkillEnabled(name: string, enabled: boolean): Promise<boolean> {
+    return this.doThrow("setSkillEnabled", { name, enabled });
+  }
+
+  prepareSkillInstall(zipBase64: string): Promise<string> {
+    return this.doThrow("prepareSkillInstall", zipBase64);
+  }
+
+  prepareSkillFromUrl(url: string): Promise<string> {
+    return this.doThrow("prepareSkillFromUrl", url);
+  }
+
+  getSkillInstallData(uuid: string): Promise<{
+    skillMd: string;
+    metadata: {
+      name: string;
+      description: string;
+      version?: string;
+      config?: Record<string, SkillConfigField>;
+    };
+    prompt: string;
+    scripts: Array<{ name: string; code: string }>;
+    references: Array<{ name: string; content: string }>;
+    isUpdate: boolean;
+    installUrl?: string;
+  }> {
+    return this.doThrow("getSkillInstallData", uuid);
+  }
+
+  completeSkillInstall(uuid: string): Promise<unknown> {
+    return this.doThrow("completeSkillInstall", uuid);
+  }
+
+  cancelSkillInstall(uuid: string): Promise<void> {
+    return this.do("cancelSkillInstall", uuid);
+  }
+
+  checkForUpdates(): Promise<
+    Array<{ name: string; currentVersion: string; remoteVersion: string; installUrl: string }>
+  > {
+    return this.doThrow("checkForUpdates");
+  }
+
+  updateSkill(name: string): Promise<unknown> {
+    return this.doThrow("updateSkill", name);
+  }
+
+  getSkillConfigValues(name: string): Promise<Record<string, unknown>> {
+    return this.doThrow("getSkillConfigValues", name);
+  }
+
+  saveSkillConfig(params: { name: string; values: Record<string, unknown> }): Promise<void> {
+    return this.doThrow("saveSkillConfig", params);
+  }
+
+  // Model CRUD
+  listModels(): Promise<AgentModelConfig[]> {
+    return this.doThrow("listModels");
+  }
+
+  getModel(id: string) {
+    return this.do<AgentModelConfig | undefined>("getModel", id);
+  }
+
+  saveModel(model: AgentModelConfig) {
+    return this.do("saveModel", model);
+  }
+
+  removeModel(id: string) {
+    return this.do("removeModel", id);
+  }
+
+  getDefaultModelId(): Promise<string> {
+    return this.doThrow("getDefaultModelId");
+  }
+
+  setDefaultModelId(id: string) {
+    return this.do("setDefaultModelId", id);
+  }
+
+  // 摘要模型（未设置时返回空字符串，不能用 doThrow）
+  getSummaryModelId(): Promise<string> {
+    return this.do("getSummaryModelId").then((id) => id || "");
+  }
+
+  setSummaryModelId(id: string) {
+    return this.do("setSummaryModelId", id);
+  }
+
+  // 搜索配置
+  getSearchConfig(): Promise<SearchEngineConfig> {
+    return this.doThrow("getSearchConfig");
+  }
+
+  saveSearchConfig(config: SearchEngineConfig) {
+    return this.do("saveSearchConfig", config);
+  }
+
+  // MCP API
+  mcpApi(request: MCPApiRequest): Promise<unknown> {
+    return this.doThrow("mcpApi", request);
   }
 }

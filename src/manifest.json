@@ -41,7 +41,8 @@
     "notifications",
     "clipboardWrite",
     "unlimitedStorage",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "debugger"
   ],
   "optional_permissions": [
     "background",

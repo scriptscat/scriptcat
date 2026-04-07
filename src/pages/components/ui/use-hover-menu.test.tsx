@@ -1,12 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, act, cleanup } from "@testing-library/react";
 import { useHoverMenu } from "./use-hover-menu";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "./dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./dropdown-menu";
 import { Button } from "./button";
 
 afterEach(cleanup);
@@ -23,10 +18,22 @@ function HoverMenuWithButton({ onSelect }: { onSelect: (key: string) => void }) 
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent {...contentProps}>
-        <DropdownMenuItem data-testid="item-normal" onClick={() => { close(); onSelect("normal"); }}>
+        <DropdownMenuItem
+          data-testid="item-normal"
+          onClick={() => {
+            close();
+            onSelect("normal");
+          }}
+        >
           普通脚本
         </DropdownMenuItem>
-        <DropdownMenuItem data-testid="item-bg" onClick={() => { close(); onSelect("background"); }}>
+        <DropdownMenuItem
+          data-testid="item-bg"
+          onClick={() => {
+            close();
+            onSelect("background");
+          }}
+        >
           后台脚本
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -46,10 +53,22 @@ function HoverMenuWithNativeButton({ onSelect }: { onSelect: (key: string) => vo
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent {...contentProps}>
-        <DropdownMenuItem data-testid="item-normal" onClick={() => { close(); onSelect("normal"); }}>
+        <DropdownMenuItem
+          data-testid="item-normal"
+          onClick={() => {
+            close();
+            onSelect("normal");
+          }}
+        >
           普通脚本
         </DropdownMenuItem>
-        <DropdownMenuItem data-testid="item-bg" onClick={() => { close(); onSelect("background"); }}>
+        <DropdownMenuItem
+          data-testid="item-bg"
+          onClick={() => {
+            close();
+            onSelect("background");
+          }}
+        >
           后台脚本
         </DropdownMenuItem>
       </DropdownMenuContent>

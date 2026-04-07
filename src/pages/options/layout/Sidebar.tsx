@@ -99,7 +99,12 @@ export default function Sidebar() {
       {/* 底部区域 */}
       <div className="flex flex-col gap-0.5 px-2 pb-3 pt-2">
         <div className="h-px bg-sidebar-border mx-2 mb-1" />
-        <SidebarButton icon={themeIcon} label={t("theme", { defaultValue: "主题切换" })} collapsed={collapsed} onClick={cycleTheme} />
+        <SidebarButton
+          icon={themeIcon}
+          label={t("theme", { defaultValue: "主题切换" })}
+          collapsed={collapsed}
+          onClick={cycleTheme}
+        />
         <HelpMenu collapsed={collapsed} />
         <SidebarButton
           icon={collapsed ? PanelLeftOpen : PanelLeftClose}
@@ -195,9 +200,7 @@ function HelpMenu({ collapsed }: { collapsed: boolean }) {
                 <DropdownMenuItem onClick={() => openUrl("https://greasyfork.org/scripts")}>
                   {"Greasy Fork"}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => openUrl("https://openuserjs.org/")}>
-                  {"OpenUserJS"}
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openUrl("https://openuserjs.org/")}>{"OpenUserJS"}</DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuItem onClick={() => openUrl("https://bbs.tampermonkey.net.cn/")}>

@@ -77,15 +77,7 @@ function getScriptIconUrl(metadata?: SCMetadata): string | undefined {
   return url;
 }
 
-export function ScriptIcon({
-  name,
-  metadata,
-  className,
-}: {
-  name: string;
-  metadata?: SCMetadata;
-  className?: string;
-}) {
+export function ScriptIcon({ name, metadata, className }: { name: string; metadata?: SCMetadata; className?: string }) {
   const iconUrl = getScriptIconUrl(metadata);
   const [imgError, setImgError] = useState(false);
   const handleError = useCallback(() => setImgError(true), []);

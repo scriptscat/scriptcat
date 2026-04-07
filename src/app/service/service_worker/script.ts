@@ -47,6 +47,7 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -98,8 +99,8 @@ export class ScriptService {
         }
         // 处理url, 实现安装脚本
         let targetUrl: string;
-        // 判断是否为 file:///*/*.user.js
-        if (req.url.startsWith("file://") && req.url.endsWith(".user.js")) {
+        // 判断是否为 file:///*/*.user.js 或 file:///*/*.skill.js
+        if (req.url.startsWith("file://") && (req.url.endsWith(".user.js") || req.url.endsWith(".skill.js"))) {
           targetUrl = req.url;
         } else {
           const reqUrl = new URL(req.url);
@@ -166,6 +167,8 @@ export class ScriptService {
           { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/en/docs/script_installation/" },
           { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
           { schemes: ["file"], pathSuffix: ".user.js" },
+          { schemes: ["file"], pathSuffix: ".skill.js" },
+          { schemes: ["file"], pathSuffix: ".cat.md" },
         ],
       }
     );
@@ -250,6 +253,21 @@ export class ScriptService {
         isUrlFilterCaseSensitive: false,
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
+      // SkillScript (.skill.js) 安装检测
+      {
+        regexFilter: "^([^?#]+?\\.skill\\.js)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
+      },
+      // Skill 包 (.cat.md) 安装检测
+      {
+        regexFilter: "^([^?#]+?\\.cat\\.md)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+      },
     ];
     const installPageURL = chrome.runtime.getURL("src/install.html");
     const rules = conditions.map((condition, idx) => {
@@ -268,6 +286,7 @@ export class ScriptService {
                 "text/plain*",
                 "application/octet-stream*",
                 "application/force-download*",
+                "text/markdown*",
               ],
             },
           ],
@@ -906,6 +925,18 @@ export class ScriptService {
         logger?.error("prepare script failed", Logger.E(e));
       }
     }
+    // 检测是否为 SkillScript
+    const skillScriptMeta = parseSkillScriptMetadata(code);
+    if (skillScriptMeta) {
+      const si = [
+        false,
+        { uuid, code, url, source: upsertBy, metadata: {}, userSubscribe: false, skillScript: true } as ScriptInfo,
+        options,
+      ];
+      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+      return 1;
+    }
+
     const metadata = parseMetadata(code);
     if (!metadata) {
       throw new Error("parse script info failed");

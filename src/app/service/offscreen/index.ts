@@ -7,6 +7,7 @@ import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
+import { HtmlExtractorService } from "./html_extractor";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 
 // offscreen环境的管理器
@@ -53,17 +54,26 @@ export class OffscreenManager {
     script.init();
     // 转发从sandbox来的gm api请求,通过postMessage通道传输(支持Blob等结构化克隆)
     forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.msgSender);
+    // 转发 Skill Script 执行请求到 sandbox
+    forwardMessage("sandbox", "executeSkillScript", this.windowServer, this.windowMessage);
     // 转发valueUpdate与emitEvent
     forwardMessage("sandbox", "runtime/valueUpdate", this.windowServer, this.windowMessage);
     forwardMessage("sandbox", "runtime/emitEvent", this.windowServer, this.windowMessage);
-
     const gmApi = new GMApi(this.windowServer.group("gmApi"));
     gmApi.init();
     const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.msgSender);
     vscodeConnect.init();
+    const htmlExtractor = new HtmlExtractorService(this.windowServer.group("htmlExtractor"));
+    htmlExtractor.init();
 
     this.windowServer.on("createObjectURL", async (params: { blob: Blob; persistence: boolean }) => {
       return makeBlobURL(params) as string;
+    });
+
+    // fetch blob URL 并返回 Blob（供 SW 在 chrome.runtime 通道下还原 content script 创建的 blob URL）
+    this.windowServer.on("fetchBlob", async (params: { url: string }) => {
+      const res = await fetch(params.url);
+      return await res.blob();
     });
   }
 }

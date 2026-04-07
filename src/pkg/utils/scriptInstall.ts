@@ -10,6 +10,7 @@ export type ScriptInfo = {
   userSubscribe: boolean;
   metadata: SCMetadata;
   source: InstallSource;
+  skillScript?: boolean;
 };
 
 // 供 getInstallInfo 使用
