@@ -49,7 +49,7 @@ export class WebFetchExecutor implements ToolExecutor {
 
   async execute(args: Record<string, unknown>): Promise<string> {
     const url = requireString(args, "url");
-    const prompt = args.prompt as string | undefined;
+    const prompt = requireString(args, "prompt");
     const maxLength = optionalNumber(args, "max_length");
 
     // 校验 URL
@@ -122,7 +122,7 @@ export class WebFetchExecutor implements ToolExecutor {
     }
 
     // LLM 摘要
-    if (prompt && this.summarize) {
+    if (this.summarize) {
       content = await this.summarize(content, prompt);
       truncated = false;
     }

@@ -46,8 +46,8 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test search" })) as string);
 
-    expect(result).toHaveLength(2);
-    expect(result[0].title).toBe("Result 1");
+    expect(result.results).toHaveLength(2);
+    expect(result.results[0].title).toBe("Result 1");
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("html.duckduckgo.com"), expect.any(Object));
   });
 
@@ -68,7 +68,7 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test", max_results: 3 })) as string);
 
-    expect(result).toHaveLength(3);
+    expect(result.results).toHaveLength(3);
   });
 
   it("should cap max_results at 10", async () => {
@@ -88,7 +88,7 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test", max_results: 20 })) as string);
 
-    expect(result).toHaveLength(10);
+    expect(result.results).toHaveLength(10);
   });
 
   it("should search Google Custom Search API", async () => {
@@ -104,8 +104,8 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("google_custom"));
     const result = JSON.parse((await executor.execute({ query: "google test" })) as string);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("Google Result");
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].title).toBe("Google Result");
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("googleapis.com/customsearch"), expect.any(Object));
   });
 
@@ -156,7 +156,7 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("google_custom"));
     const result = JSON.parse((await executor.execute({ query: "test" })) as string);
 
-    expect(result).toEqual([]);
+    expect(result.results).toEqual([]);
   });
 
   it("should pass AbortSignal to DuckDuckGo fetch for 15s timeout", async () => {
@@ -225,8 +225,8 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("bing"));
     const result = JSON.parse((await executor.execute({ query: "bing test" })) as string);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("Bing Result");
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].title).toBe("Bing Result");
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("bing.com/search"), expect.any(Object));
   });
 
@@ -273,8 +273,8 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("baidu"));
     const result = JSON.parse((await executor.execute({ query: "百度测试" })) as string);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("Baidu Result");
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].title).toBe("Baidu Result");
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("baidu.com/s"), expect.any(Object));
   });
 
@@ -306,6 +306,6 @@ describe("WebSearchExecutor", () => {
     const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("duckduckgo"));
     const result = JSON.parse((await executor.execute({ query: "test" })) as string);
 
-    expect(result).toHaveLength(5);
+    expect(result.results).toHaveLength(5);
   });
 });
