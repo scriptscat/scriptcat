@@ -32,6 +32,7 @@ tailwind.config.js
 
 superpowers
 .claude
+.omc
 CLAUDE.md
 
 test-results
