@@ -10,7 +10,7 @@ export function GetNetDiskToken(netDiskType: NetDiskType): Promise<{
   msg: string;
   data: { token: { access_token: string; refresh_token: string } };
 }> {
-  return fetch(ExtServerApi + `auth/net-disk/token?netDiskType=${netDiskType}`).then((resp) => resp.json());
+  return fetch(`${ExtServerApi}auth/net-disk/token?netDiskType=${netDiskType}`).then((resp) => resp.json());
 }
 
 export function RefreshToken(
@@ -21,7 +21,7 @@ export function RefreshToken(
   msg: string;
   data: { token: { access_token: string; refresh_token: string } };
 }> {
-  return fetch(ExtServerApi + `auth/net-disk/token/refresh?netDiskType=${netDiskType}`, {
+  return fetch(`${ExtServerApi}auth/net-disk/token/refresh?netDiskType=${netDiskType}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

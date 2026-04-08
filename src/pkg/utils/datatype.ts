@@ -18,27 +18,27 @@ export function base64ToUint8(b64: string): Uint8Array<ArrayBuffer> {
   if (typeof (Uint8Array as any).fromBase64 === "function") {
     // JS 2025
     return (Uint8Array as any).fromBase64(b64) as Uint8Array<ArrayBuffer>;
-  } else if (typeof Buffer !== "undefined" && typeof Buffer.from === "function") {
+  } if (typeof Buffer !== "undefined" && typeof Buffer.from === "function") {
     // Node.js
     return Uint8Array.from(Buffer.from(b64, "base64"));
-  } else {
+  } 
     // Fallback
     const bin = atob(b64);
     const ab = new ArrayBuffer(bin.length);
     const out = new Uint8Array<ArrayBuffer>(ab); // <- Uint8Array<ArrayBuffer>
     for (let i = 0, l = bin.length; i < l; i++) out[i] = bin.charCodeAt(i);
     return out;
-  }
+  
 }
 
 export function uint8ToBase64(uint8arr: Uint8Array<ArrayBufferLike>): string {
   if (typeof (uint8arr as any).toBase64 === "function") {
     // JS 2025
     return (uint8arr as any).toBase64() as string;
-  } else if (typeof Buffer !== "undefined" && typeof Buffer.from === "function") {
+  } if (typeof Buffer !== "undefined" && typeof Buffer.from === "function") {
     // Node.js
     return Buffer.from(uint8arr).toString("base64") as string;
-  } else {
+  } 
     // Fallback
     let binary = "";
     let i = 0;
@@ -48,7 +48,7 @@ export function uint8ToBase64(uint8arr: Uint8Array<ArrayBufferLike>): string {
     }
     binary += String.fromCharCode(...(i ? uint8arr.slice(i) : uint8arr));
     return btoa(binary) as string;
-  }
+  
 }
 
 // Split Uint8Array (or ArrayBuffer) into 2MB chunks as Uint8Array views

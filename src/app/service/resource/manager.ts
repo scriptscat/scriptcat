@@ -384,7 +384,7 @@ export class ResourceManager extends Manager {
       url: u.url,
       content: "",
       contentType: (contentType || "application/octet-stream").split(";")[0],
-      hash: hash,
+      hash,
       base64: "",
       type,
       createtime: Date.now(),
