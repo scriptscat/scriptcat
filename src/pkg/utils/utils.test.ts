@@ -62,6 +62,23 @@ const assertNextTimeInfo = (expr: string, date: Date, expected: any) => {
     .toEqual(expected);
 };
 
+describe.concurrent("nextTimeDisplay ERROR SAFE", () => {
+  it.concurrent.each([
+    ["* * * once * once"],
+    ["* * once * once"],
+    ["* once(2,4) once(4-5) * *"],
+    ["* * 1 A *"],
+    ["* once 1.2 * *"],
+    ["* 3 1**2 * *"],
+    ["* 1^2 F * *"],
+    ["1 1 * *"],
+    ["* 3"],
+  ])("错误Cron表达式: %s", (expr) => {
+    // 确保无效表达式不会抛出异常
+    expect(() => nextTimeDisplay(expr)).not.toThrow();
+  });
+});
+
 describe.concurrent("nextTimeInfo1", () => {
   const date = new Date("2025-12-17T11:47:17.629"); // 2025-12-17 11:47:17.629 (本地时区)
 

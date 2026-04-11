@@ -195,16 +195,71 @@ export async function fetchIconByDomain(domain: string): Promise<string[]> {
 }
 
 /**
- * 根据服务类型获取favicon URL列表
+ * 根据服务类型获取 favicon URL 列表
+ *
+ * 各服务说明（包含尺寸、限制、收费、国内可用性等）：
  */
 export async function fetchIconByService(domain: string, service: FaviconService): Promise<string[]> {
   switch (service) {
     case "scriptcat":
+      /**
+       * ScriptCat 图标服务
+       * - 尺寸：支持 sz 参数（如 16 / 32 / 64 / 128）
+       * - 限制：暂无公开限流说明，小规模使用稳定
+       * - 收费：免费
+       * - 中国访问：✅ 国内可正常访问（国内服务）
+       * - 缓存：可长期缓存（返回稳定）
+       * - 特点：适合国内项目，速度快
+       */
       return [`https://ext.scriptcat.org/api/v1/open/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
+
     case "google":
+      /**
+       * Google S2 Favicon 服务
+       * - 尺寸：支持 sz=16~256（常用 16/32/64）
+       * - 限制：无官方文档，存在隐性限流
+       * - 收费：免费
+       * - 中国访问：⚠️ 基本不可用
+       * - 缓存：强烈建议缓存（避免请求失败）
+       * - 特点：质量高，命中率高
+       */
       return [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
+
+    case "duckduckgo":
+      /**
+       * DuckDuckGo 图标服务
+       * - 尺寸：固定（通常 64x64 或 ico 原始尺寸）
+       * - 限制：无官方说明
+       * - 收费：免费
+       * - 中国访问：⚠️ 不稳定 / 偶尔失败
+       * - 缓存：建议缓存
+       * - 特点：简单直接，返回 ico
+       */
+      return [`https://icons.duckduckgo.com/ip3/${encodeURI(domain)}.ico`];
+
+    case "icon-horse":
+      /**
+       * Icon Horse
+       * - 尺寸：自动适配（返回较高清 ico）
+       * - 限制：未公开限流策略
+       * - 收费：免费（轻量使用）
+       * - 中国访问：⚠️ 较慢或不稳定
+       * - 缓存：建议缓存
+       * - 特点：质量较好，支持 fallback
+       */
+      return [`https://icon.horse/icon/${encodeURI(domain)}`];
+
     case "local":
     default:
+      /**
+       * 本地解析 favicon
+       * - 尺寸：取决于网站（可能多尺寸）
+       * - 限制：需要自行实现抓取逻辑
+       * - 收费：无（本地逻辑）
+       * - 中国访问：✅ 完全可控
+       * - 缓存：强烈建议缓存
+       * - 特点：最可靠但实现成本高
+       */
       return await fetchIconByDomain(domain);
   }
 }
