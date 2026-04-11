@@ -3,10 +3,35 @@ import MessageCenter from "@App/app/message/center";
 import { MessageHander } from "@App/app/message/message";
 import initTestEnv from "@App/pkg/utils/test_utils";
 import ResourceManager from "./manager";
-import axios from "axios";
-import MockAdapter from "axios-mock-adapter";
 import { Script } from "@App/app/repo/scripts";
-const mock = new MockAdapter(axios);
+
+// mock fetch 路由表
+const fetchMocks: Record<
+  string,
+  { status: number; blob: Blob; contentType: string }
+> = {};
+
+function mockFetchRoute(
+  url: string,
+  status: number,
+  blob: Blob,
+  contentType: string
+) {
+  fetchMocks[url] = { status, blob, contentType };
+}
+
+// @ts-ignore
+global.fetch = jest.fn((url: string) => {
+  const mock = fetchMocks[url];
+  if (!mock) {
+    return Promise.reject(new Error(`not implemented`));
+  }
+  return Promise.resolve({
+    status: mock.status,
+    blob: () => Promise.resolve(mock.blob),
+    headers: new Headers({ "content-type": mock.contentType }),
+  });
+});
 
 // @ts-ignore
 global.sandbox = global;
@@ -18,9 +43,12 @@ IoC.registerInstance(MessageCenter, center).alias([MessageHander]);
 describe("resource manager", () => {
   const manager = IoC.instance(ResourceManager) as ResourceManager;
   it("get resource", async () => {
-    mock.onGet("http://localhost/resource").reply(200, new Blob(["test"]), {
-      "content-type": "application/octet-stream",
-    });
+    mockFetchRoute(
+      "http://localhost/resource",
+      200,
+      new Blob(["test"]),
+      "application/octet-stream"
+    );
     const resource = await manager.getResource(
       1,
       "http://localhost/resource",
@@ -36,11 +64,12 @@ describe("resource manager", () => {
     expect(resource).toEqual(resource2);
   });
   it("not text", async () => {
-    mock
-      .onGet("http://localhost/require")
-      .reply(200, new Blob([String.fromCharCode(1) + String.fromCharCode(2)]), {
-        "content-type": "application/octet-stream",
-      });
+    mockFetchRoute(
+      "http://localhost/require",
+      200,
+      new Blob([String.fromCharCode(1) + String.fromCharCode(2)]),
+      "application/octet-stream"
+    );
     const require = await manager.getResource(
       1,
       "http://localhost/require",
@@ -49,11 +78,12 @@ describe("resource manager", () => {
     expect(require!.content).toEqual("");
   });
   it("bad resource", async () => {
-    mock
-      .onGet("http://localhost/require2")
-      .reply(200, new Blob(["test"], { type: "text/javascript" }), {
-        "content-type": "text/javascript",
-      });
+    mockFetchRoute(
+      "http://localhost/require2",
+      200,
+      new Blob(["test"], { type: "text/javascript" }),
+      "text/javascript"
+    );
     const script: Script = {
       metadata: {
         require: ["http://localhost/require2", "http://bad/resource"],

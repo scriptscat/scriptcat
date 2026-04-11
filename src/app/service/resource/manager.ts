@@ -10,7 +10,6 @@ import {
 } from "@App/app/repo/resource";
 import { ResourceLinkDAO } from "@App/app/repo/resource_link";
 import { Script } from "@App/app/repo/scripts";
-import axios from "axios";
 import Cache from "@App/app/cache";
 import { blobToBase64 } from "@App/pkg/utils/utils";
 import CacheKey from "@App/pkg/utils/cache_key";
@@ -18,6 +17,7 @@ import { isText } from "@App/pkg/utils/istextorbinary";
 import Manager from "../manager";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { base64ToHex, isBase64 } from "./utils";
+import { blobToUint8Array } from "@App/pkg/utils/datatype";
 
 // 资源管理器,负责资源的更新获取等操作
 
@@ -25,8 +25,8 @@ function calculateHash(blob: Blob): Promise<ResourceHash> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.readAsArrayBuffer(blob);
-    reader.onloadend = () => {
-      if (!reader.result) {
+    reader.onloadend = function () {
+      if (!this.result) {
         resolve({
           md5: "",
           sha1: "",
@@ -35,7 +35,7 @@ function calculateHash(blob: Blob): Promise<ResourceHash> {
           sha512: "",
         });
       } else {
-        resolve(calculateHashFromArrayBuffer(<ArrayBuffer>reader.result));
+        resolve(calculateHashFromArrayBuffer(<ArrayBuffer>this.result));
       }
     };
   });
@@ -366,41 +366,34 @@ export class ResourceManager extends Manager {
     return Promise.resolve(undefined);
   }
 
-  loadByUrl(url: string, type: ResourceType): Promise<Resource> {
-    return new Promise((resolve, reject) => {
-      const u = this.parseUrl(url);
-      axios
-        .get(u.url, {
-          responseType: "blob",
-        })
-        .then(async (response) => {
-          if (response.status !== 200) {
-            return reject(
-              new Error(`resource response status not 200:${response.status}`)
-            );
-          }
-          const resource: Resource = {
-            id: 0,
-            url: u.url,
-            content: "",
-            contentType: (
-              response.headers["content-type"] || "application/octet-stream"
-            ).split(";")[0],
-            hash: await calculateHash(<Blob>response.data),
-            base64: "",
-            type,
-            createtime: new Date().getTime(),
-          };
-          const arrayBuffer = await (<Blob>response.data).arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          if (isText(uint8Array)) {
-            resource.content = await (<Blob>response.data).text();
-          }
-          resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
-          return resolve(resource);
-        })
-        .catch((e) => reject(e));
-    });
+  async loadByUrl(url: string, type: ResourceType): Promise<Resource> {
+    const u = this.parseUrl(url);
+    const resp = await fetch(u.url);
+    if (resp.status !== 200) {
+      throw new Error(`resource response status not 200: ${resp.status}`);
+    }
+    const data = await resp.blob();
+    const [hash, uint8Array, base64] = await Promise.all([
+      calculateHash(data),
+      blobToUint8Array(data),
+      blobToBase64(data),
+    ]);
+    const contentType = resp.headers.get("content-type");
+    const resource: Resource = {
+      id: 0,
+      url: u.url,
+      content: "",
+      contentType: (contentType || "application/octet-stream").split(";")[0],
+      hash,
+      base64: "",
+      type,
+      createtime: Date.now(),
+    };
+    if (isText(uint8Array)) {
+      resource.content = await data.text();
+    }
+    resource.base64 = base64 || "";
+    return resource;
   }
 
   parseUrl(url: string): {
