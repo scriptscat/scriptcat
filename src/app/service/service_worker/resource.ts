@@ -16,17 +16,40 @@ import { blobToUint8Array } from "@App/pkg/utils/datatype";
 import { readBlobContent } from "@App/pkg/utils/encoding";
 import { Semaphore, withTimeoutNotify } from "@App/pkg/utils/concurrency-control";
 
-/** 同时发起的最大 fetch 数量，避免大量请求冲击同一服务器 */
-const MAX_CONCURRENT_FETCHES = 5;
-/** fetch 前的随机延迟范围(ms)，分散请求时间 */
-const FETCH_DELAY_MIN_MS = 100;
-const FETCH_DELAY_MAX_MS = 150;
-/** fetch 超时后释放信号量的时间(ms)，不会中止 fetch 本身 */
-const FETCH_SEMAPHORE_TIMEOUT_MS = 800;
-/** 资源缓存过期时间(ms)，24小时 */
-const RESOURCE_CACHE_TTL_MS = 86400_000;
+/**
+ * 滑动窗口并发上限：同时"已启动、尚未归还槽位"的 fetch 数量。
+ * 超过此数量的请求会排队等待槽位释放后再启动，
+ * 避免瞬间大量请求冲击同一 server（被误判为 DDoS）。
+ */
+const MAX_ACTIVE_FETCHES = 5;
 
-const fetchSemaphore = new Semaphore(MAX_CONCURRENT_FETCHES);
+/** fetch 启动前的随机抖动范围(ms)，分散对同一 server 的请求时间 */
+const FETCH_JITTER_MIN_MS = 100;
+const FETCH_JITTER_MAX_MS = 150;
+
+/**
+ * 滑动窗口超时(ms)：
+ * fetch 启动后若超过此时间仍无响应，提前归还并发槽位，
+ * 允许队列中的下一个请求启动——但原 fetch 继续运行，
+ * 响应回来后仍会被正常处理。
+ *
+ * 这是"槽位滑动"而非"取消请求"：
+ *   - 慢响应不会阻塞后续请求的启动（需求 3）
+ *   - 慢响应最终到达时仍会被处理（需求 4）
+ *   - 同时活跃的 fetch 数受 MAX_ACTIVE_FETCHES 控制（需求 1 & 2）
+ */
+const FETCH_SLOT_SLIDE_TIMEOUT_MS = 800;
+
+/** 资源缓存过期时间(ms)，24小时 */
+const RESOURCE_CACHE_TTL_MS = 86_400_000;
+
+/**
+ * 滑动窗口并发控制器（Sliding Window Semaphore）。
+ * 持有槽位 = "已启动 fetch 且尚未超时或完成"。
+ * 超时后槽位提前归还，让下一个 fetch 可以启动，
+ * 而超时的 fetch 本身继续跑直到响应或网络错误。
+ */
+const concurrentFetchSlots = new Semaphore(MAX_ACTIVE_FETCHES);
 
 export class ResourceService {
   logger: Logger;
@@ -274,26 +297,30 @@ export class ResourceService {
   async createResourceByUrlFetch(u: TUrlSRIInfo, type: ResourceType): Promise<Resource> {
     const url = u.url; // 无 URI Integrity Hash
 
-    let released = false;
-    await fetchSemaphore.acquire();
-    // Semaphore 锁 - 同期只有五个 fetch 一起执行
-    const delay = randNum(FETCH_DELAY_MIN_MS, FETCH_DELAY_MAX_MS);
-    await sleep(delay);
-    // 执行 fetch, 若超时则不中止 fetch 但释放信号量，让下一个任务启动
-    const { result, err } = await withTimeoutNotify(
-      fetch(url),
-      FETCH_SEMAPHORE_TIMEOUT_MS,
-      ({ done, timeouted, err }) => {
-        if (timeouted || done || err) {
-          // fetch 成功 或 发生错误 或 timeout 时解锁
-          if (!released) {
-            released = true;
-            fetchSemaphore.release();
-          }
-        }
+    // 等待并发槽位（滑动窗口入口）
+    await concurrentFetchSlots.acquire();
+
+    // releaseSlotOnce 保证槽位只归还一次，无论经由 timeout 路径还是正常完成路径
+    let slotReleased = false;
+    const releaseSlotOnce = () => {
+      if (!slotReleased) {
+        slotReleased = true;
+        concurrentFetchSlots.release();
       }
-    );
-    // Semaphore 锁已解锁。继续处理 fetch Response 的结果
+    };
+
+    // 随机抖动：分散对同一 server 的请求启动时间，降低被限速的概率
+    await sleep(randNum(FETCH_JITTER_MIN_MS, FETCH_JITTER_MAX_MS));
+
+    // 滑动窗口语义：
+    //   - fetch 超时 (timeouted=true)  → 提前归还槽位，下一个请求可以启动
+    //   - fetch 完成/失败 (done=true)  → 归还槽位（若 timeout 已归还则为 no-op）
+    // 原 fetch 在超时后仍继续运行，响应到达时照常处理（不会被取消）
+    const { result, err } = await withTimeoutNotify(fetch(url), FETCH_SLOT_SLIDE_TIMEOUT_MS, ({ done, timeouted }) => {
+      if (timeouted || done) {
+        releaseSlotOnce();
+      }
+    });
 
     if (err) {
       throw new Error(`resource fetch failed: ${err.message || err}`);
