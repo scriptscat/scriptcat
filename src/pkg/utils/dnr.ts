@@ -1,3 +1,6 @@
+const NOCSP_RULES_DOMAIN_MAX_COUNT = 32768;
+const NOCSP_RULES_URLFILTER_MAX_COUNT = 512;
+
 export const isValidDNRUrlFilter = (text: string) => {
   // https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest?hl=en#property-RuleCondition-urlFilter
 
@@ -45,7 +48,19 @@ export const convertDomainToDNRUrlFilter = (text: string) => {
   return ret;
 };
 
-export const createNoCSPRules = (urlFilters: string[]) => {
+export const createNoCSPRules = (domains: string[], urlFilters: string[]) => {
+  // domains = max 32768 domains
+  // urlFilters = max 512
+  if (domains.length > NOCSP_RULES_DOMAIN_MAX_COUNT) {
+    throw new Error(
+      `createNoCSPRules: The number of domains = ${domains.length} exceeding ${NOCSP_RULES_DOMAIN_MAX_COUNT}`
+    );
+  }
+  if (urlFilters.length > NOCSP_RULES_URLFILTER_MAX_COUNT) {
+    throw new Error(
+      `createNoCSPRules: The number of urlFilters = ${urlFilters.length} exceeding ${NOCSP_RULES_URLFILTER_MAX_COUNT}`
+    );
+  }
   const REMOVE_HEADERS = [
     `content-security-policy`,
     `content-security-policy-report-only`,
@@ -54,12 +69,9 @@ export const createNoCSPRules = (urlFilters: string[]) => {
     `x-frame-options`,
   ];
   const { RuleActionType, HeaderOperation, ResourceType } = chrome.declarativeNetRequest;
-  if (urlFilters.length > 512) {
-    throw new Error(`Too many URL patterns (${urlFilters.length}). Max is 512.`);
-  }
   const rules: chrome.declarativeNetRequest.Rule[] = urlFilters.map((urlFilter, index) => {
     return {
-      id: 2001 + index,
+      id: 2002 + index,
       action: {
         type: RuleActionType.MODIFY_HEADERS,
         responseHeaders: REMOVE_HEADERS.map((header) => ({
@@ -73,5 +85,43 @@ export const createNoCSPRules = (urlFilters: string[]) => {
       },
     } satisfies chrome.declarativeNetRequest.Rule;
   });
+  const requestDomains = domains
+    .map((s) => {
+      try {
+        const u = new URL(`https://${s}/`); // 取编码后的 hostname
+        return u.hostname;
+      } catch {
+        // ingored
+      }
+    })
+    .filter(Boolean) as string[]; // 去除错误或空字串
+  if (domains.length > 0) {
+    rules.push({
+      id: 2001,
+      action: {
+        type: RuleActionType.MODIFY_HEADERS,
+        responseHeaders: REMOVE_HEADERS.map((header) => ({
+          operation: HeaderOperation.REMOVE,
+          header,
+        })),
+      },
+      condition: {
+        requestDomains: requestDomains,
+        resourceTypes: [ResourceType.MAIN_FRAME, ResourceType.SUB_FRAME],
+      },
+    } satisfies chrome.declarativeNetRequest.Rule);
+  }
   return rules;
+};
+
+export const removeDynamicRulesInRange = async (minId: number, maxId: number) => {
+  const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+
+  const idsToRemove = existingRules.filter((rule) => rule.id >= minId && rule.id <= maxId).map((rule) => rule.id);
+
+  if (idsToRemove.length === 0) return;
+
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: idsToRemove,
+  });
 };
