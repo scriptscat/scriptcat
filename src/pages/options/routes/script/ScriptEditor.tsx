@@ -69,25 +69,6 @@ const Editor: React.FC<{
       node.editor.uuid = script.uuid;
     }
     hotKeys.forEach((item) => {
-      /*
-
-
-        hotKeys.forEach((item) => {
-          codeEditor.current?.editor.addCommand(item.hotKey, () => {
-            // 获取当前激活的editor（通过editor._focusTracker._hasFocus判断editor激活状态 可能有更好的方法）
-            const activeEditor = editor
-              .getEditors()
-              // @ts-ignore
-              // eslint-disable-next-line no-underscore-dangle
-              .find((i) => i._focusTracker._hasFocus);
-
-            // 仅在获取到激活的editor时，通过editor上绑定的uuid获取Script，并指定激活的editor执行快捷键action
-            activeEditor &&
-              // @ts-ignore
-              item.action(ScriptMap.get(activeEditor.uuid), activeEditor);
-          });
-        });
-        */
       node.editor.addAction({
         id: item.id,
         label: item.title,
