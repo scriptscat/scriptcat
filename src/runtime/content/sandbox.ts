@@ -122,7 +122,7 @@ export default class SandboxRuntime {
     return Promise.resolve(true);
   }
 
-  enable(script: ScriptRunResource): Promise<boolean> {
+  enable(script: ScriptRunResource) {
     // 如果正在运行,先释放
     if (this.execScripts.has(script.id)) {
       this.disable(script.id);
