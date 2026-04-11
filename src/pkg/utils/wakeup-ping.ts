@@ -16,10 +16,6 @@ export const startRepetitivePing = () => {
     let counter = 0;
     let isMutationPending = false;
 
-    const customPingHandler = (e: Event) => {
-      chrome.storage.session.set({ persistentWakeup: `${e.timeStamp}` });
-    };
-
     const pingNode = document.createComment("0");
 
     const incrementCounter = () => {
@@ -29,8 +25,6 @@ export const startRepetitivePing = () => {
         pingNode.data = `${counter}`;
       }
     };
-
-    pingNode.addEventListener("custom-ping", customPingHandler);
 
     const pingTask = async () => {
       channel.postMessage({});
