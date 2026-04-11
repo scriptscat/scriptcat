@@ -323,16 +323,4 @@ export default class SandboxRuntime {
     ]);
   }
 
-  // 获取本周是第几周
-  getWeek(date: Date) {
-    const nowDate = new Date(date);
-    const firstDay = new Date(date);
-    firstDay.setMonth(0); // 设置1月
-    firstDay.setDate(1); // 设置1号
-    const diffDays = Math.ceil(
-      (nowDate.getTime() - firstDay.getTime()) / (24 * 60 * 60 * 1000)
-    );
-    const week = Math.ceil(diffDays / 7);
-    return week === 0 ? 1 : week;
-  }
 }
