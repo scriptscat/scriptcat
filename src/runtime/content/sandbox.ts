@@ -276,7 +276,7 @@ export default class SandboxRuntime {
     const logError = (ok: number, val: string, e: unknown) =>
       this.logger.error(
         ERROR_MESSAGES[ok] ?? "crontabScript: execution failed",
-        { uuid: script.uuid, crontab: val },
+        { uuid: script.id, crontab: val },
         Logger.E(e)
       );
 
