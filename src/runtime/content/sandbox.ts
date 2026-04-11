@@ -14,6 +14,7 @@ import IoC from "@App/app/ioc";
 import ExecScript from "./exec_script";
 import { BgExecScriptWarp, CATRetryError } from "./exec_warp";
 import { getISOWeek } from "@App/pkg/utils/utils";
+import { extractCronExpr } from "@App/pkg/utils/cron";
 
 const utime_1min = 60 * 1000;
 const utime_1hr = 60 * 60 * 1000;
@@ -260,48 +261,53 @@ export default class SandboxRuntime {
   crontabScript(script: ScriptRunResource) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
-      throw new Error("错误的crontab表达式");
+      throw new Error(script.name + " - " + t("cron_invalid_expr"));
     }
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);
-    let flag = false;
+
+    const ERROR_MESSAGES: Record<number, string> = {
+      0: "crontabScript: cron expression failed",
+      2: "crontabScript: onTick creation failed",
+      4: "crontabScript: create cronjob failed",
+      6: "crontabScript: cronjob start failed",
+    };
+
+    const logError = (ok: number, val: string, e: unknown) =>
+      this.logger.error(
+        ERROR_MESSAGES[ok] ?? "crontabScript: execution failed",
+        { uuid: script.uuid, crontab: val },
+        Logger.E(e)
+      );
+
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
-      let oncePos = 0;
-      let crontab = val;
-      if (crontab.indexOf("once") !== -1) {
-        const vals = crontab.split(" ");
-        vals.forEach((item, index) => {
-          if (item === "once") {
-            oncePos = index;
-          }
-        });
-        if (vals.length === 5) {
-          oncePos += 1;
-        }
-        crontab = crontab.replace(/once/g, "*");
-      }
+      let ok = 0;
       try {
-        const cron = new CronJob(crontab, this.crontabExec(script, oncePos));
+        const { cronExpr, oncePos } = extractCronExpr(val);
+        ok = 2;
+        const onTick = this.crontabExec(script, oncePos);
+        ok = 4;
+        const cron = new CronJob(cronExpr, onTick);
+        ok = 6;
         cron.start();
+        ok = 8;
         cronJobList.push(cron);
       } catch (e) {
-        flag = true;
-        this.logger.error("create cronjob failed", {
-          script: script.id,
-          crontab: val,
-        });
+        logError(ok, val, e);
       }
     });
-    if (cronJobList.length !== script.metadata.crontab.length) {
-      // 有表达式失败了
-      cronJobList.forEach((crontab) => {
-        crontab.stop();
-      });
-    } else {
+
+    const allSucceeded = cronJobList.length === script.metadata.crontab.length;
+    if (allSucceeded) {
       this.cronJob.set(script.id, cronJobList);
+    } else {
+      // 有表达式失败了
+      for (const crontab of cronJobList) {
+        crontab.stop();
+      }
     }
-    return Promise.resolve(!flag);
+    return allSucceeded;
   }
 
   crontabExec(script: ScriptRunResource, oncePos: number): () => Promise<any> {
