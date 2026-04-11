@@ -322,5 +322,4 @@ export default class SandboxRuntime {
       SCRIPT_RUN_STATUS_COMPLETE,
     ]);
   }
-
 }
