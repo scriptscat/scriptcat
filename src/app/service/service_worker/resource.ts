@@ -297,6 +297,9 @@ export class ResourceService {
   async createResourceByUrlFetch(u: TUrlSRIInfo, type: ResourceType): Promise<Resource> {
     const url = u.url; // 无 URI Integrity Hash
 
+    // 随机抖动：分散对同一 server 的请求启动时间，降低被限速的概率
+    await sleep(randNum(FETCH_JITTER_MIN_MS, FETCH_JITTER_MAX_MS));
+
     // 等待并发槽位（滑动窗口入口）
     await concurrentFetchSlots.acquire();
 
@@ -309,18 +312,19 @@ export class ResourceService {
       }
     };
 
-    // 随机抖动：分散对同一 server 的请求启动时间，降低被限速的概率
-    await sleep(randNum(FETCH_JITTER_MIN_MS, FETCH_JITTER_MAX_MS));
-
     // 滑动窗口语义：
     //   - fetch 超时 (timeouted=true)  → 提前归还槽位，下一个请求可以启动
-    //   - fetch 完成/失败 (done=true)  → 归还槽位（若 timeout 已归还则为 no-op）
+    //   - fetch 完成/失败 (settled=true)  → 归还槽位（若 timeout 已归还则为 no-op）
     // 原 fetch 在超时后仍继续运行，响应到达时照常处理（不会被取消）
-    const { result, err } = await withTimeoutNotify(fetch(url), FETCH_SLOT_SLIDE_TIMEOUT_MS, ({ done, timeouted }) => {
-      if (timeouted || done) {
-        releaseSlotOnce();
+    const { result, err } = await withTimeoutNotify(
+      fetch(url),
+      FETCH_SLOT_SLIDE_TIMEOUT_MS,
+      ({ settled, timeouted }) => {
+        if (timeouted || settled) {
+          releaseSlotOnce();
+        }
       }
-    });
+    );
 
     if (err) {
       throw new Error(`resource fetch failed: ${err.message || err}`);

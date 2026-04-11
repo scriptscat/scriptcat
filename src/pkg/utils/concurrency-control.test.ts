@@ -96,35 +96,35 @@ describe("Semaphore", () => {
 });
 
 describe("withTimeoutNotify", () => {
-  it.concurrent("promise 在超时前完成时，回调收到 done=true", async () => {
+  it.concurrent("promise 在超时前完成时，回调收到 settled=true", async () => {
     const promise = Promise.resolve("ok");
-    const calls: Array<{ done: boolean; timeouted: boolean }> = [];
+    const calls: Array<{ settled: boolean; timeouted: boolean }> = [];
 
     const res = await withTimeoutNotify(promise, 1000, (r) => {
-      calls.push({ done: r.done, timeouted: r.timeouted });
+      calls.push({ settled: r.settled, timeouted: r.timeouted });
     });
 
     expect(res.result).toBe("ok");
-    expect(res.done).toBe(true);
+    expect(res.settled).toBe(true);
     expect(res.timeouted).toBe(false);
     expect(res.err).toBeUndefined();
     // 只调用一次（done），不触发 timeout
-    expect(calls).toEqual([{ done: true, timeouted: false }]);
+    expect(calls).toEqual([{ settled: true, timeouted: false }]);
   });
 
   it.concurrent("promise 在超时前失败时，回调收到 err", async () => {
     const error = new Error("fail");
     const promise = Promise.reject(error);
-    const calls: Array<{ done: boolean; err: Error | undefined }> = [];
+    const calls: Array<{ settled: boolean; err: Error | undefined }> = [];
 
     const res = await withTimeoutNotify(promise, 1000, (r) => {
-      calls.push({ done: r.done, err: r.err });
+      calls.push({ settled: r.settled, err: r.err });
     });
 
     expect(res.err).toBe(error);
-    expect(res.done).toBe(true);
+    expect(res.settled).toBe(true);
     expect(res.result).toBeUndefined();
-    expect(calls).toEqual([{ done: true, err: error }]);
+    expect(calls).toEqual([{ settled: true, err: error }]);
   });
 
   it.concurrent("超时后回调被调用，promise 完成后再次调用", async () => {
@@ -133,26 +133,26 @@ describe("withTimeoutNotify", () => {
     const promise = new Promise<string>((r) => {
       resolvePromise = r;
     });
-    const calls: Array<{ done: boolean; timeouted: boolean }> = [];
+    const calls: Array<{ settled: boolean; timeouted: boolean }> = [];
 
     const resultPromise = withTimeoutNotify(promise, 100, (r) => {
-      calls.push({ done: r.done, timeouted: r.timeouted });
+      calls.push({ settled: r.settled, timeouted: r.timeouted });
     });
 
     // 触发超时
     vi.advanceTimersByTime(100);
-    expect(calls).toEqual([{ done: false, timeouted: true }]);
+    expect(calls).toEqual([{ settled: false, timeouted: true }]);
 
     // promise 完成
     resolvePromise!("late");
     const res = await resultPromise;
 
     expect(res.result).toBe("late");
-    expect(res.done).toBe(true);
+    expect(res.settled).toBe(true);
     expect(res.timeouted).toBe(true);
-    // 回调被调用两次：timeout + done
+    // 回调被调用两次：timeout + settled
     expect(calls).toHaveLength(2);
-    expect(calls[1]).toEqual({ done: true, timeouted: true });
+    expect(calls[1]).toEqual({ settled: true, timeouted: true });
 
     vi.useRealTimers();
   });

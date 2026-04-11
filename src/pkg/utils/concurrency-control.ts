@@ -26,7 +26,7 @@ export class Semaphore {
 type TWithTimeoutNotifyResult<T> = {
   timeouted: boolean;
   result: T | undefined;
-  done: boolean;
+  settled: boolean;
   err: undefined | Error;
 };
 export const withTimeoutNotify = <T>(
@@ -43,14 +43,14 @@ export const withTimeoutNotify = <T>(
     .then((result: T) => {
       clearTimeout(cid);
       res.result = result;
-      res.done = true;
+      res.settled = true;
       fn(res);
       return res;
     })
     .catch((e) => {
       clearTimeout(cid);
       res.err = e;
-      res.done = true;
+      res.settled = true;
       fn(res);
       return res;
     });
