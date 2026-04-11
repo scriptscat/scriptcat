@@ -34,7 +34,7 @@ export const withTimeoutNotify = <T>(
   time: number,
   fn: (res: TWithTimeoutNotifyResult<T>) => any
 ) => {
-  const res: TWithTimeoutNotifyResult<T> = { timeouted: false, result: undefined, done: false, err: undefined };
+  const res: TWithTimeoutNotifyResult<T> = { timeouted: false, result: undefined, settled: false, err: undefined };
   const cid = setTimeout(() => {
     res.timeouted = true;
     fn(res);
