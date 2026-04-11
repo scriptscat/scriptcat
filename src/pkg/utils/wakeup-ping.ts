@@ -1,4 +1,5 @@
-const PING_INTERVAL_MS = 14_225;
+const PING_INTERVAL_MS_1 = 13_225;
+const PING_INTERVAL_MS_2 = 17_765;
 
 /**
  * scheduler 用于后台排程：Chrome 94+, Firefox 142+
@@ -34,10 +35,11 @@ export const startRepetitivePing = () => {
     const mutationObserver = new MutationObserver(() => {
       if (isMutationPending) {
         isMutationPending = false;
+        const pingIntervalMs = Math.random() * (PING_INTERVAL_MS_2 - PING_INTERVAL_MS_1) + PING_INTERVAL_MS_1;
         if (nativeScheduler) {
-          nativeScheduler.postTask(pingTask, { priority: "background", delay: PING_INTERVAL_MS });
+          nativeScheduler.postTask(pingTask, { priority: "background", delay: pingIntervalMs });
         } else {
-          setTimeout(pingTask, PING_INTERVAL_MS);
+          setTimeout(pingTask, pingIntervalMs);
         }
       }
     });
