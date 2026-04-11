@@ -168,6 +168,9 @@ importers:
       '@unocss/webpack':
         specifier: ^0.65.4
         version: 0.65.4(rollup@4.44.2)(webpack@5.96.1)
+      acorn:
+        specifier: ^8.16.0
+        version: 8.16.0
       babel-loader:
         specifier: ^8.2.5
         version: 8.4.1(@babel/core@7.29.0)(webpack@5.96.1)
