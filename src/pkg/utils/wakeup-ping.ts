@@ -48,12 +48,14 @@ export const startRepetitivePing = () => {
 
 export const listenWakeupPing = (onWakeupPing: (...args: any) => any) => {
   chrome.storage.session.onChanged.addListener((obj) => {
-    // consume persistentWakeup
+    // 消耗 persistentWakeup
     if (typeof obj.persistentWakeup !== "undefined") {
+      // 执行任意 callback
       onWakeupPing();
     }
   });
   channel.onmessage = (e) => {
+    // 触发 chrome storage onChanged 使 service worker 保持活跃
     chrome.storage.session.set({ persistentWakeup: `${e.timeStamp}` });
   };
 };
