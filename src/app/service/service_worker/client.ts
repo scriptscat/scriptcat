@@ -14,6 +14,7 @@ import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
+import { type CSPRule, type CSPConfig } from "@App/app/repo/cspRule";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -326,5 +327,47 @@ export class SystemClient extends Client {
 
   connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
     return this.do("connectVSCode", params);
+  }
+}
+
+export class CSPRuleClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/cspRule");
+  }
+
+  getAllRules(): Promise<CSPRule[]> {
+    return this.doThrow("getAllRules");
+  }
+
+  getEnabledRules(): Promise<CSPRule[]> {
+    return this.doThrow("getEnabledRules");
+  }
+
+  getCSPConfig(): Promise<CSPConfig> {
+    return this.doThrow("getCSPConfig");
+  }
+
+  toggleGlobal(enabled: boolean): Promise<CSPConfig> {
+    return this.doThrow("toggleGlobal", { enabled });
+  }
+
+  createRule(rule: Omit<CSPRule, "id" | "createtime" | "updatetime">): Promise<CSPRule> {
+    return this.doThrow("createRule", rule);
+  }
+
+  updateRule(params: { id: string; changes: Partial<CSPRule> }): Promise<CSPRule | false> {
+    return this.doThrow("updateRule", params);
+  }
+
+  deleteRule(id: string): Promise<void> {
+    return this.do("deleteRule", id);
+  }
+
+  toggleRule(params: { id: string; enabled: boolean }): Promise<CSPRule | false> {
+    return this.doThrow("toggleRule", params);
+  }
+
+  reorderRules(ruleIds: string[]): Promise<void> {
+    return this.do("reorderRules", ruleIds);
   }
 }

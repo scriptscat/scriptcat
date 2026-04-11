@@ -1,4 +1,5 @@
 import Logger from "@App/pages/options/routes/Logger";
+import CSPRule from "@App/pages/options/routes/CSPRule";
 import ScriptEditor from "@App/pages/options/routes/script/ScriptEditor";
 import ScriptList from "@App/pages/options/routes/ScriptList";
 import Setting from "@App/pages/options/routes/Setting";
@@ -11,6 +12,7 @@ import {
   IconGithub,
   IconLeft,
   IconLink,
+  IconLock,
   IconQuestion,
   IconRight,
   IconSettings,
@@ -70,6 +72,11 @@ const Sider: React.FC = () => {
             <CustomLink to="/tools" className="menu-tools">
               <MenuItem key="/tools">
                 <IconTool /> {t("tools")}
+              </MenuItem>
+            </CustomLink>
+            <CustomLink to="/csp-rule">
+              <MenuItem key="/csp-rule">
+                <IconLock /> {t("csp_rule")}
               </MenuItem>
             </CustomLink>
             <CustomLink to="/setting" className="menu-setting">
@@ -185,6 +192,7 @@ const Sider: React.FC = () => {
             </Route>
             <Route path="/subscribe" element={<SubscribeList />} />
             <Route path="/logger" element={<Logger />} />
+            <Route path="/csp-rule" element={<CSPRule />} />
             <Route path="/tools" element={<Tools />} />
             <Route path="/setting" element={<Setting />} />
           </Routes>
