@@ -122,7 +122,7 @@ export default class SandboxRuntime {
     return Promise.resolve(true);
   }
 
-  enable(script: ScriptRunResource) {
+  enable(script: ScriptRunResource): Promise<any> {
     // 如果正在运行,先释放
     if (this.execScripts.has(script.id)) {
       this.disable(script.id);
@@ -132,7 +132,7 @@ export default class SandboxRuntime {
       case SCRIPT_TYPE_CRONTAB:
         // 定时脚本
         this.stopCronJob(script.id);
-        return this.crontabScript(script);
+        return Promise.resolve(this.crontabScript(script));
       case SCRIPT_TYPE_BACKGROUND:
         // 后台脚本, 直接执行脚本
         return this.execScript(script);
