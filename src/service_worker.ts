@@ -8,6 +8,7 @@ import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import migrate, { migrateChromeStorage } from "./app/migrate";
 import { cleanInvalidKeys } from "./app/repo/resource";
+import { listenWakeupPing } from "./pkg/utils/wakeup-ping";
 
 migrate();
 migrateChromeStorage();
@@ -59,6 +60,10 @@ async function setupOffscreenDocument() {
   }
 }
 
+export const onWakeupPing = () => {
+  console.debug("onWakeupPing"); // 不用记录在系统日志
+};
+
 function main() {
   cleanInvalidKeys();
   // 初始化管理器
@@ -77,6 +82,7 @@ function main() {
   manager.initManager();
   // 初始化沙盒环境
   setupOffscreenDocument();
+  listenWakeupPing(onWakeupPing);
 }
 
 main();

@@ -2,6 +2,7 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { OffscreenManager } from "./app/service/offscreen";
 import { ServiceWorkerClientMessage } from "@Packages/message/window_message";
+import { startRepetitivePing } from "./pkg/utils/wakeup-ping";
 
 function main() {
   // 通过postMessage与SW通信,支持结构化克隆(Blob等)
@@ -15,6 +16,7 @@ function main() {
   // 初始化管理器
   const manager = new OffscreenManager(swPostMessage);
   manager.initManager();
+  startRepetitivePing();
 }
 
 main();
