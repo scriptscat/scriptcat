@@ -44,13 +44,13 @@ export const withTimeoutNotify = <T>(
       clearTimeout(cid);
       res.result = result;
       res.settled = true;
-      fn(res);
-      return res;
     })
     .catch((e) => {
       clearTimeout(cid);
       res.err = e;
       res.settled = true;
+    })
+    .then(() => {
       fn(res);
       return res;
     });
