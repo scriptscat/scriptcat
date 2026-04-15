@@ -101,7 +101,7 @@ importers:
         version: 1.58.2
       '@rspack/cli':
         specifier: ^1.7.6
-        version: 1.7.6(@rspack/core@1.7.6(@swc/helpers@0.5.17))(@types/express@4.17.25)(tslib@2.8.1)(webpack@5.96.1)
+        version: 1.7.6(@rspack/core@1.7.6(@swc/helpers@0.5.17))(@types/express@4.17.25)(tslib@2.8.1)(webpack@5.96.1(uglify-js@3.19.3))
       '@rspack/core':
         specifier: ^1.6.8
         version: 1.7.6(@swc/helpers@0.5.17)
@@ -141,6 +141,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.0.18
         version: 4.0.18(vitest@4.0.18(@types/node@22.16.0)(jiti@2.6.1)(jsdom@26.1.0)(terser@5.43.1)(tsx@4.19.2)(yaml@2.8.3))
+      acorn:
+        specifier: ^8.16.0
+        version: 8.16.0
       autoprefixer:
         specifier: ^10.4.21
         version: 10.4.21(postcss@8.5.6)
@@ -183,6 +186,9 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      magic-string:
+        specifier: ^0.30.21
+        version: 0.30.21
       mock-xmlhttprequest:
         specifier: ^8.4.1
         version: 8.4.1
@@ -191,7 +197,7 @@ importers:
         version: 8.5.6
       postcss-loader:
         specifier: ^8.2.0
-        version: 8.2.0(@rspack/core@1.7.6(@swc/helpers@0.5.17))(postcss@8.5.6)(typescript@5.9.3)(webpack@5.96.1)
+        version: 8.2.0(@rspack/core@1.7.6(@swc/helpers@0.5.17))(postcss@8.5.6)(typescript@5.9.3)(webpack@5.96.1(uglify-js@3.19.3))
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -207,6 +213,9 @@ importers:
       typescript-eslint:
         specifier: ^8.46.2
         version: 8.46.3(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      uglify-js:
+        specifier: ^3.19.3
+        version: 3.19.3
       unocss:
         specifier: 66.5.4
         version: 66.5.4(postcss@8.5.6)(vite@7.0.2(@types/node@22.16.0)(jiti@2.6.1)(terser@5.43.1)(tsx@4.19.2)(yaml@2.8.3))
@@ -776,12 +785,6 @@ packages:
   '@jridgewell/source-map@0.3.10':
     resolution: {integrity: sha512-0pPkgz9dY+bijgistcTTJ5mR+ocqRXLuhXHYdzoMmmoJ2C9S46RCm2GMUbatPEUK9Yjy26IrAy8D/M00lLkv+Q==}
 
-  '@jridgewell/sourcemap-codec@1.5.0':
-    resolution: {integrity: sha512-gv3ZRaISU3fjPAgNsriBRqGWQL6quFx04YMPW/zD8XMLsU32mhCCbfbO6KZFLjvYpCZ8zyDEgqsgf+PwPaM7GQ==}
-
-  '@jridgewell/sourcemap-codec@1.5.4':
-    resolution: {integrity: sha512-VT2+G1VQs/9oz078bLrYbecdZKs912zQlkelYpuf+SXF+QvZDYJlbx/LSx+meSAwdDFnF8FVXW92AVjjkVmgFw==}
-
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
@@ -999,56 +1002,67 @@ packages:
     resolution: {integrity: sha512-+xmiDGGaSfIIOXMzkhJ++Oa0Gwvl9oXUeIiwarsdRXSe27HUIvjbSIpPxvnNsRebsNdUo7uAiQVgBD1hVriwSQ==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm-musleabihf@4.44.2':
     resolution: {integrity: sha512-bDHvhzOfORk3wt8yxIra8N4k/N0MnKInCW5OGZaeDYa/hMrdPaJzo7CSkjKZqX4JFUWjUGm88lI6QJLCM7lDrA==}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-arm64-gnu@4.44.2':
     resolution: {integrity: sha512-NMsDEsDiYghTbeZWEGnNi4F0hSbGnsuOG+VnNvxkKg0IGDvFh7UVpM/14mnMwxRxUf9AdAVJgHPvKXf6FpMB7A==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm64-musl@4.44.2':
     resolution: {integrity: sha512-lb5bxXnxXglVq+7imxykIp5xMq+idehfl+wOgiiix0191av84OqbjUED+PRC5OA8eFJYj5xAGcpAZ0pF2MnW+A==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-loongarch64-gnu@4.44.2':
     resolution: {integrity: sha512-Yl5Rdpf9pIc4GW1PmkUGHdMtbx0fBLE1//SxDmuf3X0dUC57+zMepow2LK0V21661cjXdTn8hO2tXDdAWAqE5g==}
     cpu: [loong64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-powerpc64le-gnu@4.44.2':
     resolution: {integrity: sha512-03vUDH+w55s680YYryyr78jsO1RWU9ocRMaeV2vMniJJW/6HhoTBwyyiiTPVHNWLnhsnwcQ0oH3S9JSBEKuyqw==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-gnu@4.44.2':
     resolution: {integrity: sha512-iYtAqBg5eEMG4dEfVlkqo05xMOk6y/JXIToRca2bAWuqjrJYJlx/I7+Z+4hSrsWU8GdJDFPL4ktV3dy4yBSrzg==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-musl@4.44.2':
     resolution: {integrity: sha512-e6vEbgaaqz2yEHqtkPXa28fFuBGmUJ0N2dOJK8YUfijejInt9gfCSA7YDdJ4nYlv67JfP3+PSWFX4IVw/xRIPg==}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-s390x-gnu@4.44.2':
     resolution: {integrity: sha512-evFOtkmVdY3udE+0QKrV5wBx7bKI0iHz5yEVx5WqDJkxp9YQefy4Mpx3RajIVcM6o7jxTvVd/qpC1IXUhGc1Mw==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-gnu@4.44.2':
     resolution: {integrity: sha512-/bXb0bEsWMyEkIsUL2Yt5nFB5naLAwyOWMEviQfQY1x3l5WsLKgvZf66TM7UTfED6erckUVUJQ/jJ1FSpm3pRQ==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-musl@4.44.2':
     resolution: {integrity: sha512-3D3OB1vSSBXmkGEZR27uiMRNiwN08/RVAcBKwhUYPaiZ8bcvdeEwWPvbnXvvXHY+A/7xluzcN+kaiOFNiOZwWg==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-win32-arm64-msvc@4.44.2':
     resolution: {integrity: sha512-VfU0fsMK+rwdK8mwODqYeM2hDrF2WiHaSmCBrS7gColkQft95/8tphyzv2EupVxn3iE0FI78wzffoULH1G+dkw==}
@@ -1079,21 +1093,25 @@ packages:
     resolution: {integrity: sha512-eQfcsaxhFrv5FmtaA7+O1F9/2yFDNIoPZzV/ZvqvFz5bBXVc4FAm/1fVpBg8Po/kX1h0chBc7Xkpry3cabFW8w==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rspack/binding-linux-arm64-musl@1.7.6':
     resolution: {integrity: sha512-DfQXKiyPIl7i1yECHy4eAkSmlUzzsSAbOjgMuKn7pudsWf483jg0UUYutNgXSlBjc/QSUp7906Cg8oty9OfwPA==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rspack/binding-linux-x64-gnu@1.7.6':
     resolution: {integrity: sha512-NdA+2X3lk2GGrMMnTGyYTzM3pn+zNjaqXqlgKmFBXvjfZqzSsKq3pdD1KHZCd5QHN+Fwvoszj0JFsquEVhE1og==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rspack/binding-linux-x64-musl@1.7.6':
     resolution: {integrity: sha512-rEy6MHKob02t/77YNgr6dREyJ0e0tv1X6Xsg8Z5E7rPXead06zefUbfazj4RELYySWnM38ovZyJAkPx/gOn3VA==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rspack/binding-wasm32-wasi@1.7.6':
     resolution: {integrity: sha512-YupOrz0daSG+YBbCIgpDgzfMM38YpChv+afZpaxx5Ml7xPeAZIIdgWmLHnQ2rts73N2M1NspAiBwV00Xx0N4Vg==}
@@ -1554,18 +1572,8 @@ packages:
     resolution: {integrity: sha512-ueEepnujpqee2o5aIYnvHU6C0A42MNdsIDeqy5BydrkuC5R1ZuUFnm27EeFJGoEHJQgn3uleRvmTXaJgfXbt4g==}
     engines: {node: '>=0.4.0'}
 
-  acorn@8.13.0:
-    resolution: {integrity: sha512-8zSiw54Oxrdym50NlZ9sUusyO1Z1ZchgRLWRaK6c86XJFClyCgFKetdowBg5bKxyp/u+CDBJG4Mpp0m3HLZl9w==}
-    engines: {node: '>=0.4.0'}
-    hasBin: true
-
-  acorn@8.14.1:
-    resolution: {integrity: sha512-OvQ/2pUDKmgfCg++xsTX1wGxfTaszcHVcTctW4UJB4hibJx2HXxxO5UmVgyjMa+ZDsiaf5wWLXYpRWMmBI0QHg==}
-    engines: {node: '>=0.4.0'}
-    hasBin: true
-
-  acorn@8.15.0:
-    resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
+  acorn@8.16.0:
+    resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
     engines: {node: '>=0.4.0'}
     hasBin: true
 
@@ -3941,6 +3949,11 @@ packages:
   ufo@1.5.4:
     resolution: {integrity: sha512-UsUk3byDzKd04EyoZ7U4DOlxQaD14JUKQl6/P7wiX4FNvUfm3XL246n9W5AmqwW5RSFJ27NAuM0iLscAOYUiGQ==}
 
+  uglify-js@3.19.3:
+    resolution: {integrity: sha512-v3Xu+yuwBXisp6QYTcH4UbH+xYJXqnq2m/LtQVWKWzYc1iehYnLixoQDN9FH6/j9/oybfd6W9Ghwkl8+UMKTKQ==}
+    engines: {node: '>=0.8.0'}
+    hasBin: true
+
   unbox-primitive@1.1.0:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
     engines: {node: '>= 0.4'}
@@ -4334,7 +4347,7 @@ snapshots:
       '@babel/parser': 7.28.5
       '@babel/types': 7.28.5
       '@jridgewell/gen-mapping': 0.3.12
-      '@jridgewell/trace-mapping': 0.3.29
+      '@jridgewell/trace-mapping': 0.3.31
       jsesc: 3.1.0
 
   '@babel/helper-string-parser@7.27.1': {}
@@ -4714,8 +4727,8 @@ snapshots:
 
   '@jridgewell/gen-mapping@0.3.12':
     dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.4
-      '@jridgewell/trace-mapping': 0.3.29
+      '@jridgewell/sourcemap-codec': 1.5.5
+      '@jridgewell/trace-mapping': 0.3.31
 
   '@jridgewell/remapping@2.3.5':
     dependencies:
@@ -4730,16 +4743,12 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
     optional: true
 
-  '@jridgewell/sourcemap-codec@1.5.0': {}
-
-  '@jridgewell/sourcemap-codec@1.5.4': {}
-
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
   '@jridgewell/trace-mapping@0.3.29':
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
-      '@jridgewell/sourcemap-codec': 1.5.4
+      '@jridgewell/sourcemap-codec': 1.5.5
 
   '@jridgewell/trace-mapping@0.3.31':
     dependencies:
@@ -4749,7 +4758,7 @@ snapshots:
   '@jridgewell/trace-mapping@0.3.9':
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
-      '@jridgewell/sourcemap-codec': 1.5.0
+      '@jridgewell/sourcemap-codec': 1.5.5
 
   '@jsonjoy.com/base64@1.1.2(tslib@2.8.1)':
     dependencies:
@@ -5041,11 +5050,11 @@ snapshots:
       '@rspack/binding-win32-ia32-msvc': 1.7.6
       '@rspack/binding-win32-x64-msvc': 1.7.6
 
-  '@rspack/cli@1.7.6(@rspack/core@1.7.6(@swc/helpers@0.5.17))(@types/express@4.17.25)(tslib@2.8.1)(webpack@5.96.1)':
+  '@rspack/cli@1.7.6(@rspack/core@1.7.6(@swc/helpers@0.5.17))(@types/express@4.17.25)(tslib@2.8.1)(webpack@5.96.1(uglify-js@3.19.3))':
     dependencies:
       '@discoveryjs/json-ext': 0.5.7
       '@rspack/core': 1.7.6(@swc/helpers@0.5.17)
-      '@rspack/dev-server': 1.1.5(@rspack/core@1.7.6(@swc/helpers@0.5.17))(@types/express@4.17.25)(tslib@2.8.1)(webpack@5.96.1)
+      '@rspack/dev-server': 1.1.5(@rspack/core@1.7.6(@swc/helpers@0.5.17))(@types/express@4.17.25)(tslib@2.8.1)(webpack@5.96.1(uglify-js@3.19.3))
       exit-hook: 4.0.0
       webpack-bundle-analyzer: 4.10.2
     transitivePeerDependencies:
@@ -5066,13 +5075,13 @@ snapshots:
     optionalDependencies:
       '@swc/helpers': 0.5.17
 
-  '@rspack/dev-server@1.1.5(@rspack/core@1.7.6(@swc/helpers@0.5.17))(@types/express@4.17.25)(tslib@2.8.1)(webpack@5.96.1)':
+  '@rspack/dev-server@1.1.5(@rspack/core@1.7.6(@swc/helpers@0.5.17))(@types/express@4.17.25)(tslib@2.8.1)(webpack@5.96.1(uglify-js@3.19.3))':
     dependencies:
       '@rspack/core': 1.7.6(@swc/helpers@0.5.17)
       chokidar: 3.6.0
       http-proxy-middleware: 2.0.9(@types/express@4.17.25)
       p-retry: 6.2.1
-      webpack-dev-server: 5.2.2(tslib@2.8.1)(webpack@5.96.1)
+      webpack-dev-server: 5.2.2(tslib@2.8.1)(webpack@5.96.1(uglify-js@3.19.3))
       ws: 8.18.1
     transitivePeerDependencies:
       - '@types/express'
@@ -5676,19 +5685,15 @@ snapshots:
       mime-types: 2.1.35
       negotiator: 0.6.3
 
-  acorn-jsx@5.3.2(acorn@8.15.0):
+  acorn-jsx@5.3.2(acorn@8.16.0):
     dependencies:
-      acorn: 8.15.0
+      acorn: 8.16.0
 
   acorn-walk@8.3.4:
     dependencies:
-      acorn: 8.14.1
+      acorn: 8.16.0
 
-  acorn@8.13.0: {}
-
-  acorn@8.14.1: {}
-
-  acorn@8.15.0: {}
+  acorn@8.16.0: {}
 
   agent-base@7.1.1:
     dependencies:
@@ -6545,8 +6550,8 @@ snapshots:
 
   espree@10.4.0:
     dependencies:
-      acorn: 8.15.0
-      acorn-jsx: 5.3.2(acorn@8.15.0)
+      acorn: 8.16.0
+      acorn-jsx: 5.3.2(acorn@8.16.0)
       eslint-visitor-keys: 4.2.1
 
   esquery@1.6.0:
@@ -7361,7 +7366,7 @@ snapshots:
 
   mlly@1.7.4:
     dependencies:
-      acorn: 8.15.0
+      acorn: 8.16.0
       pathe: 2.0.3
       pkg-types: 1.3.1
       ufo: 1.5.4
@@ -7588,7 +7593,7 @@ snapshots:
 
   possible-typed-array-names@1.0.0: {}
 
-  postcss-loader@8.2.0(@rspack/core@1.7.6(@swc/helpers@0.5.17))(postcss@8.5.6)(typescript@5.9.3)(webpack@5.96.1):
+  postcss-loader@8.2.0(@rspack/core@1.7.6(@swc/helpers@0.5.17))(postcss@8.5.6)(typescript@5.9.3)(webpack@5.96.1(uglify-js@3.19.3)):
     dependencies:
       cosmiconfig: 9.0.0(typescript@5.9.3)
       jiti: 2.6.1
@@ -7596,7 +7601,7 @@ snapshots:
       semver: 7.7.2
     optionalDependencies:
       '@rspack/core': 1.7.6(@swc/helpers@0.5.17)
-      webpack: 5.96.1
+      webpack: 5.96.1(uglify-js@3.19.3)
     transitivePeerDependencies:
       - typescript
 
@@ -8207,20 +8212,22 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
 
-  terser-webpack-plugin@5.3.14(webpack@5.96.1):
+  terser-webpack-plugin@5.3.14(uglify-js@3.19.3)(webpack@5.96.1(uglify-js@3.19.3)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.2
       serialize-javascript: 6.0.2
       terser: 5.43.1
-      webpack: 5.96.1
+      webpack: 5.96.1(uglify-js@3.19.3)
+    optionalDependencies:
+      uglify-js: 3.19.3
     optional: true
 
   terser@5.43.1:
     dependencies:
       '@jridgewell/source-map': 0.3.10
-      acorn: 8.15.0
+      acorn: 8.16.0
       commander: 2.20.3
       source-map-support: 0.5.21
     optional: true
@@ -8292,7 +8299,7 @@ snapshots:
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4
       '@types/node': 22.16.0
-      acorn: 8.13.0
+      acorn: 8.16.0
       acorn-walk: 8.3.4
       arg: 4.1.3
       create-require: 1.1.1
@@ -8372,6 +8379,8 @@ snapshots:
   typescript@5.9.3: {}
 
   ufo@1.5.4: {}
+
+  uglify-js@3.19.3: {}
 
   unbox-primitive@1.1.0:
     dependencies:
@@ -8563,7 +8572,7 @@ snapshots:
   webpack-bundle-analyzer@4.10.2:
     dependencies:
       '@discoveryjs/json-ext': 0.5.7
-      acorn: 8.15.0
+      acorn: 8.16.0
       acorn-walk: 8.3.4
       commander: 7.2.0
       debounce: 1.2.1
@@ -8578,7 +8587,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  webpack-dev-middleware@7.4.5(tslib@2.8.1)(webpack@5.96.1):
+  webpack-dev-middleware@7.4.5(tslib@2.8.1)(webpack@5.96.1(uglify-js@3.19.3)):
     dependencies:
       colorette: 2.0.20
       memfs: 4.56.10(tslib@2.8.1)
@@ -8587,11 +8596,11 @@ snapshots:
       range-parser: 1.2.1
       schema-utils: 4.3.2
     optionalDependencies:
-      webpack: 5.96.1
+      webpack: 5.96.1(uglify-js@3.19.3)
     transitivePeerDependencies:
       - tslib
 
-  webpack-dev-server@5.2.2(tslib@2.8.1)(webpack@5.96.1):
+  webpack-dev-server@5.2.2(tslib@2.8.1)(webpack@5.96.1(uglify-js@3.19.3)):
     dependencies:
       '@types/bonjour': 3.5.13
       '@types/connect-history-api-fallback': 1.5.4
@@ -8619,10 +8628,10 @@ snapshots:
       serve-index: 1.9.2
       sockjs: 0.3.24
       spdy: 4.0.2
-      webpack-dev-middleware: 7.4.5(tslib@2.8.1)(webpack@5.96.1)
+      webpack-dev-middleware: 7.4.5(tslib@2.8.1)(webpack@5.96.1(uglify-js@3.19.3))
       ws: 8.18.1
     optionalDependencies:
-      webpack: 5.96.1
+      webpack: 5.96.1(uglify-js@3.19.3)
     transitivePeerDependencies:
       - bufferutil
       - debug
@@ -8633,14 +8642,14 @@ snapshots:
   webpack-sources@3.3.3:
     optional: true
 
-  webpack@5.96.1:
+  webpack@5.96.1(uglify-js@3.19.3):
     dependencies:
       '@types/eslint-scope': 3.7.7
       '@types/estree': 1.0.8
       '@webassemblyjs/ast': 1.14.1
       '@webassemblyjs/wasm-edit': 1.14.1
       '@webassemblyjs/wasm-parser': 1.14.1
-      acorn: 8.15.0
+      acorn: 8.16.0
       browserslist: 4.25.1
       chrome-trace-event: 1.0.4
       enhanced-resolve: 5.18.2
@@ -8655,7 +8664,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 3.3.0
       tapable: 2.2.2
-      terser-webpack-plugin: 5.3.14(webpack@5.96.1)
+      terser-webpack-plugin: 5.3.14(uglify-js@3.19.3)(webpack@5.96.1(uglify-js@3.19.3))
       watchpack: 2.4.4
       webpack-sources: 3.3.3
     transitivePeerDependencies:

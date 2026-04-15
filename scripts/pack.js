@@ -7,6 +7,7 @@ import { execSync } from "child_process";
 import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
+import { toChromeVersion } from "./version.js";
 
 // ============================================================================
 
@@ -26,26 +27,11 @@ const createJSZip = () => {
 
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
+manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
-  // 替换manifest中的版本
-  let betaVersion = 1000;
-  switch (version.prerelease[0]) {
-    case "alpha":
-      // 第一位进1
-      betaVersion += parseInt(version.prerelease[1] || "0", 10) + 1 || 1;
-      break;
-    case "beta":
-      // 第三位进1
-      betaVersion += 100 * (parseInt(version.prerelease[1] || "0", 10) + 1 || 1);
-      break;
-    default:
-      throw new Error("未知的版本类型");
-  }
-  manifest.version = `${version.major}.${version.minor}.${version.patch}.${betaVersion}`;
   manifest.name = `__MSG_scriptcat_beta__`;
 } else {
   manifest.name = `__MSG_scriptcat__`;
-  manifest.version = packageInfo.version;
 }
 
 // 处理manifest version
@@ -74,13 +60,13 @@ execSync("npm run build", { stdio: "inherit" });
 const firefoxManifest = { ...manifest, background: { ...manifest.background } };
 const chromeManifest = { ...manifest, background: { ...manifest.background } };
 
-delete chromeManifest.content_security_policy;
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
 
+// Firefox MV3 不支持 "background" permission
+firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
 delete firefoxManifest.background.service_worker;
 delete firefoxManifest.sandbox;
-// firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: {
     id: `{${
@@ -89,6 +75,15 @@ firefoxManifest.browser_specific_settings = {
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
     // Firefox 136 (Released 2025-03-04)
     strict_min_version: "136.0",
+    data_collection_permissions: {
+      required: [
+        "none", // 没有必须传送至第三方的资料。安装转页没有记录用户何时何地安装了什么。
+      ],
+      optional: [
+        "authenticationInfo", // 使用 Cloud Backup / Import 时，有传送用户的资料至第三方作登入验证
+        "personallyIdentifyingInfo", // 使用 电邮 或 帐密 让第三方识别个人身份进行 Cloud Backup / Import
+      ],
+    },
   },
 };
 
@@ -126,10 +121,8 @@ firefox.file("manifest.json", JSON.stringify(firefoxManifest));
 
 await Promise.all([
   addDir(chrome, "./dist/ext", "", ["manifest.json"]),
-  addDir(firefox, "./dist/ext", "", ["manifest.json", "ts.worker.js"]),
+  addDir(firefox, "./dist/ext", "", ["manifest.json"]),
 ]);
-// 添加ts.worker.js名字为gz
-firefox.file("src/ts.worker.js.gz", await fs.readFile("./dist/ext/src/ts.worker.js", { encoding: "utf8" }));
 
 // 导出zip包
 chrome

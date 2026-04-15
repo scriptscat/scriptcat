@@ -1,7 +1,7 @@
 import { Alert, Button } from "@arco-design/web-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { checkUserScriptsAvailable, getBrowserType, BrowserType } from "@App/pkg/utils/utils";
+import { checkUserScriptsAvailable, getBrowserType, BrowserType, isPermissionOk } from "@App/pkg/utils/utils";
 import edgeMobileQrCode from "@App/assets/images/edge_mobile_qrcode.png";
 
 interface PopupWarningsProps {
@@ -39,16 +39,28 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
 
     const browser = browserType.chrome & BrowserType.Edge ? "edge" : "chrome";
 
-    const warningMessageHTML = browserType.firefox
-      ? t("develop_mode_guide", { browser: "firefox" })
-      : browserType.chrome
-        ? browserType.chrome & BrowserType.chromeA
+    let warningMessageHTML;
+
+    if (browserType.firefox) {
+      // firefox
+      warningMessageHTML = t("develop_mode_guide", { browser: "firefox" });
+    } else if (browserType.chrome) {
+      // chrome
+      warningMessageHTML =
+        browserType.chrome & BrowserType.noUserScriptsAPI
           ? t("lower_version_browser_guide")
-          : (browserType.chrome & BrowserType.chromeC && browserType.chrome & BrowserType.Chrome) ||
-              browserType.chrome & BrowserType.edgeA
-            ? t("allow_user_script_guide", { browser }) // Edge 144+ 后使用`允许用户脚本`控制
-            : t("develop_mode_guide", { browser }) // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
-        : "UNKNOWN";
+          : // 120+
+            browserType.chrome & BrowserType.guardedByDeveloperMode
+            ? t("develop_mode_guide", { browser }) // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
+            : // Edge 144+ / Chrome 138+
+              browserType.chrome & BrowserType.guardedByAllowScript
+              ? t("allow_user_script_guide", { browser }) // Edge 144+ 后使用`允许用户脚本`控制
+              : // 用于日后扩充更新版本
+                "UNKNOWN";
+    } else {
+      // other browsers
+      warningMessageHTML = "UNKNOWN";
+    }
 
     return warningMessageHTML;
   }, [isUserScriptsAvailableState, t]);
@@ -62,28 +74,14 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
 
   // 权限要求详见：https://github.com/mdn/webextensions-examples/blob/main/userScripts-mv3/options.mjs
   useEffect(() => {
-    //@ts-ignore
-    if (chrome.permissions?.contains && chrome.permissions?.request) {
-      chrome.permissions.contains(
-        {
-          permissions: ["userScripts"],
-        },
-        function (permissionOK) {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.permissions.contains:", lastError.message);
-            // runtime 错误的话不显示按钮
-            return;
-          }
-          if (permissionOK === false) {
-            // 假设browser能支持 `chrome.permissions.contains` 及在 callback返回一个false值的话，
-            // chrome.permissions.request 应该可以执行
-            // 因此在这裡显示按钮
-            setShowRequestButton(true);
-          }
-        }
-      );
-    }
+    isPermissionOk("userScripts").then((permissionOK) => {
+      if (permissionOK === false) {
+        // 假设browser能支持 `chrome.permissions.contains` 及在 callback返回一个false值的话，
+        // chrome.permissions.request 应该可以执行
+        // 因此在这里显示按钮
+        setShowRequestButton(true);
+      }
+    });
   }, []);
 
   const handleRequestPermission = () => {
@@ -103,8 +101,8 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
       if (granted) {
         setPermissionReqResult("✅");
         // UserScripts API相关的初始化：
-        // userScripts.LISTEN_CONNECTIONS 進行 Server 通讯初始化
-        // onUserScriptAPIGrantAdded 進行 腳本注冊
+        // userScripts.LISTEN_CONNECTIONS 进行 Server 通讯初始化
+        // onUserScriptAPIGrantAdded 进行 脚本注册
         updateIsUserScriptsAvailableState();
       } else {
         setPermissionReqResult("❎");
