@@ -53,6 +53,8 @@
   "csp_rule_guide": "Guide",
   "csp_global_switch": "Remove All CSP",
   "csp_global_switch_desc": "When enabled, CSP headers will be removed from all pages without configuring rules",
+  "csp_manage_rules": "Manage Rules",
+  "csp_rule_summary": "Custom rules: {enabled} enabled / {total} total",
   "csp_global_enabled": "Global CSP removal enabled",
   "csp_global_disabled": "Global CSP removal disabled",
   "csp_test_title": "Pattern Test",

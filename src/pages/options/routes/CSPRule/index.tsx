@@ -38,7 +38,7 @@ type MatchTestResult = {
   details: string;
 };
 
-function CSPRulePage() {
+function CSPRuleCard() {
   const { t } = useTranslation();
   const [form] = useForm();
 
@@ -47,6 +47,7 @@ function CSPRulePage() {
   const [globalEnabled, setGlobalEnabled] = useState(false);
   const [globalLoading, setGlobalLoading] = useState(false);
 
+  const [managerVisible, setManagerVisible] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRule, setEditingRule] = useState<CSPRule | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -88,6 +89,9 @@ function CSPRulePage() {
     loadRules();
     loadConfig();
   }, [loadRules, loadConfig]);
+
+  const enabledCount = useMemo(() => rules.filter((r) => r.enabled).length, [rules]);
+  const totalCount = rules.length;
 
   const handleToggleGlobal = useCallback(
     async (checked: boolean) => {
@@ -344,68 +348,82 @@ function CSPRulePage() {
     },
   ];
 
+  const summaryText = t("csp_rule_summary")
+    .replace("{enabled}", String(enabledCount))
+    .replace("{total}", String(totalCount));
+
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 16,
-          flexShrink: 0,
-        }}
+    <>
+      <Card
+        className="csp-rule"
+        title={
+          <>
+            <span>{t("csp_rule")}</span>
+            <Button
+              type="text"
+              style={{ height: 24 }}
+              icon={<IconQuestionCircle style={{ margin: 0 }} />}
+              onClick={() => {
+                setTestDrawerVisible(false);
+                setHelpVisible(true);
+              }}
+              iconOnly
+            />
+          </>
+        }
+        bordered={false}
       >
-        <Title heading={5} style={{ margin: 0 }}>
-          {t("csp_rule")}
-        </Title>
-        <Space>
+        <Space direction="vertical" size="medium">
+          <Space align="center">
+            <Switch checked={globalEnabled} loading={globalLoading} onChange={handleToggleGlobal} />
+            <Text>{t("csp_global_switch")}</Text>
+          </Space>
+          {globalEnabled && (
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {t("csp_global_switch_desc")}
+            </Text>
+          )}
+          <Text>{summaryText}</Text>
+          <Button type="primary" onClick={() => setManagerVisible(true)}>
+            {t("csp_manage_rules")}
+          </Button>
+        </Space>
+      </Card>
+
+      {/* 规则管理抽屉 */}
+      <Drawer
+        title={t("csp_rule")}
+        width={800}
+        visible={managerVisible}
+        onCancel={() => setManagerVisible(false)}
+        footer={null}
+        unmountOnExit
+      >
+        {globalEnabled && (
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginRight: 8,
-              padding: "4px 12px",
+              marginBottom: 12,
+              padding: "8px 12px",
               borderRadius: 6,
-              background: globalEnabled ? "var(--color-primary-light-1)" : "var(--color-fill-2)",
-              transition: "background 0.2s",
+              background: "var(--color-primary-light-1)",
+              color: "var(--color-primary-6)",
+              fontSize: 13,
             }}
           >
-            <Switch size="small" checked={globalEnabled} loading={globalLoading} onChange={handleToggleGlobal} />
-            <Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>{t("csp_global_switch")}</Text>
+            {t("csp_global_switch_desc")}
           </div>
-          <Button
-            type="outline"
-            icon={<IconQuestionCircle />}
-            onClick={() => {
-              setTestDrawerVisible(false);
-              setHelpVisible(true);
-            }}
-          >
-            {t("csp_rule_guide")}
-          </Button>
+        )}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginBottom: 12,
+          }}
+        >
           <Button type="primary" icon={<IconPlus />} onClick={handleCreate} disabled={globalEnabled}>
             {t("csp_create_rule")}
           </Button>
-        </Space>
-      </div>
-
-      {globalEnabled && (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: "8px 12px",
-            borderRadius: 6,
-            background: "var(--color-primary-light-1)",
-            color: "var(--color-primary-6)",
-            fontSize: 13,
-          }}
-        >
-          {t("csp_global_switch_desc")}
         </div>
-      )}
-
-      <Card style={{ flex: 1, overflow: "auto" }}>
         <Table
           rowKey="id"
           columns={columns}
@@ -415,7 +433,6 @@ function CSPRulePage() {
           tableLayoutFixed
           scroll={{ x: 1400 }}
           style={{
-            minWidth: 800,
             opacity: globalEnabled ? 0.5 : 1,
             pointerEvents: globalEnabled ? "none" : "auto",
             transition: "opacity 0.2s",
@@ -426,251 +443,249 @@ function CSPRulePage() {
             </div>
           }
         />
+      </Drawer>
 
-        {/* 创建/编辑规则弹窗 */}
-        <Modal
-          title={editingRule ? t("csp_edit_rule") : t("csp_create_rule")}
-          visible={modalVisible}
-          confirmLoading={submitting}
-          onOk={handleSubmit}
-          onCancel={() => {
-            setModalVisible(false);
-            form.resetFields();
+      {/* 创建/编辑规则弹窗 */}
+      <Modal
+        title={editingRule ? t("csp_edit_rule") : t("csp_create_rule")}
+        visible={modalVisible}
+        confirmLoading={submitting}
+        onOk={handleSubmit}
+        onCancel={() => {
+          setModalVisible(false);
+          form.resetFields();
+        }}
+        unmountOnExit
+        maskClosable={false}
+        style={{ width: 560 }}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{
+            action: "remove",
+            priority: 1,
+            enabled: true,
           }}
-          unmountOnExit
-          maskClosable={false}
-          style={{ width: 560 }}
         >
-          <Form
-            form={form}
-            layout="vertical"
-            initialValues={{
-              action: "remove",
-              priority: 1,
-              enabled: true,
-            }}
+          <Form.Item
+            label={t("csp_rule_name")}
+            field="name"
+            rules={[{ required: true, message: t("csp_rule_name_required") }]}
           >
-            <Form.Item
-              label={t("csp_rule_name")}
-              field="name"
-              rules={[{ required: true, message: t("csp_rule_name_required") }]}
-            >
-              <Input placeholder={t("csp_rule_name_placeholder")} maxLength={100} />
-            </Form.Item>
+            <Input placeholder={t("csp_rule_name_placeholder")} maxLength={100} />
+          </Form.Item>
 
-            <Form.Item label={t("csp_rule_description")} field="description">
+          <Form.Item label={t("csp_rule_description")} field="description">
+            <Input.TextArea
+              placeholder={t("csp_rule_description_placeholder")}
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              maxLength={500}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label={t("csp_rule_path")}
+            field="path"
+            required
+            rules={[{ required: true, message: t("csp_rule_path_required") }]}
+            extra={
+              <Space style={{ marginTop: 4 }}>
+                <Button
+                  type="text"
+                  size="mini"
+                  icon={<IconSearch />}
+                  onClick={() => {
+                    const pathVal = form.getFieldValue("path");
+                    handleOpenTest(pathVal || "");
+                  }}
+                >
+                  {t("csp_rule_test")}
+                </Button>
+                <Button type="text" size="mini" icon={<IconQuestionCircle />} onClick={() => setHelpVisible(true)}>
+                  {t("csp_rule_path_help")}
+                </Button>
+              </Space>
+            }
+          >
+            <Input placeholder={t("csp_rule_path_placeholder")} />
+          </Form.Item>
+
+          <Form.Item label={t("csp_rule_action")} field="action">
+            <Select
+              value={formAction}
+              onChange={(val) => {
+                setFormAction(val as CSPRuleAction);
+                form.setFieldValue("action", val);
+              }}
+            >
+              <Select.Option value="remove">{t("csp_rule_action_remove")}</Select.Option>
+              <Select.Option value="modify">{t("csp_rule_action_modify")}</Select.Option>
+            </Select>
+          </Form.Item>
+
+          {formAction === "modify" && (
+            <Form.Item
+              label={t("csp_rule_action_value")}
+              field="actionValue"
+              rules={[{ required: true, message: t("csp_rule_action_value_required") }]}
+            >
               <Input.TextArea
-                placeholder={t("csp_rule_description_placeholder")}
-                autoSize={{ minRows: 2, maxRows: 4 }}
-                maxLength={500}
+                placeholder={t("csp_rule_action_value_placeholder")}
+                autoSize={{ minRows: 2, maxRows: 6 }}
               />
             </Form.Item>
+          )}
 
-            <Form.Item
-              label={t("csp_rule_path")}
-              field="path"
-              required
-              rules={[{ required: true, message: t("csp_rule_path_required") }]}
-              extra={
-                <Space style={{ marginTop: 4 }}>
-                  <Button
-                    type="text"
-                    size="mini"
-                    icon={<IconSearch />}
-                    onClick={() => {
-                      const pathVal = form.getFieldValue("path");
-                      handleOpenTest(pathVal || "");
-                    }}
-                  >
-                    {t("csp_rule_test")}
-                  </Button>
-                  <Button type="text" size="mini" icon={<IconQuestionCircle />} onClick={() => setHelpVisible(true)}>
-                    {t("csp_rule_path_help")}
-                  </Button>
-                </Space>
-              }
+          <Form.Item label={t("csp_rule_priority")} field="priority">
+            <InputNumber min={1} max={9999} defaultValue={1} style={{ width: "100%" }} />
+          </Form.Item>
+
+          <Form.Item label={t("csp_rule_enabled")} field="enabled" triggerPropName="checked">
+            <Switch defaultChecked />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 模式测试抽屉 */}
+      <Drawer
+        title={t("csp_test_title")}
+        visible={testDrawerVisible}
+        width={480}
+        onCancel={() => setTestDrawerVisible(false)}
+        footer={
+          <Button type="primary" loading={testing} onClick={handleTest} long>
+            {t("csp_rule_test")}
+          </Button>
+        }
+        unmountOnExit
+      >
+        <Space direction="vertical" size="medium" style={{ width: "100%" }}>
+          <div>
+            <Text bold style={{ display: "block", marginBottom: 8 }}>
+              {t("csp_test_pattern")}
+            </Text>
+            <Input value={testPattern} onChange={setTestPattern} placeholder={t("csp_rule_path_placeholder")} />
+          </div>
+          <div>
+            <Text bold style={{ display: "block", marginBottom: 8 }}>
+              {t("csp_test_url")}
+            </Text>
+            <Input
+              value={testUrl}
+              onChange={setTestUrl}
+              placeholder="https://example.com/page"
+              onPressEnter={handleTest}
+            />
+          </div>
+
+          {testResult && (
+            <Card
+              style={{
+                marginTop: 8,
+                background: testResult.matched ? "var(--color-success-light-1)" : "var(--color-danger-light-1)",
+              }}
+              bordered={false}
             >
-              <Input placeholder={t("csp_rule_path_placeholder")} />
-            </Form.Item>
+              <Space direction="vertical" size="small">
+                <Text bold>{testResult.matched ? t("csp_test_result_matched") : t("csp_test_result_not_matched")}</Text>
+                <Text>
+                  {t("csp_test_pattern_type")}: {testResult.patternType}
+                </Text>
+                <Paragraph style={{ margin: 0, fontSize: 13 }}>
+                  {t("csp_test_details")}: {testResult.details}
+                </Paragraph>
+              </Space>
+            </Card>
+          )}
+        </Space>
+      </Drawer>
 
-            <Form.Item label={t("csp_rule_action")} field="action">
-              <Select
-                value={formAction}
-                onChange={(val) => {
-                  setFormAction(val as CSPRuleAction);
-                  form.setFieldValue("action", val);
-                }}
-              >
-                <Select.Option value="remove">{t("csp_rule_action_remove")}</Select.Option>
-                <Select.Option value="modify">{t("csp_rule_action_modify")}</Select.Option>
-              </Select>
-            </Form.Item>
-
-            {formAction === "modify" && (
-              <Form.Item
-                label={t("csp_rule_action_value")}
-                field="actionValue"
-                rules={[{ required: true, message: t("csp_rule_action_value_required") }]}
-              >
-                <Input.TextArea
-                  placeholder={t("csp_rule_action_value_placeholder")}
-                  autoSize={{ minRows: 2, maxRows: 6 }}
-                />
-              </Form.Item>
-            )}
-
-            <Form.Item label={t("csp_rule_priority")} field="priority">
-              <InputNumber min={1} max={9999} defaultValue={1} style={{ width: "100%" }} />
-            </Form.Item>
-
-            <Form.Item label={t("csp_rule_enabled")} field="enabled" triggerPropName="checked">
-              <Switch defaultChecked />
-            </Form.Item>
-          </Form>
-        </Modal>
-
-        {/* 模式测试抽屉 */}
-        <Drawer
-          title={t("csp_test_title")}
-          visible={testDrawerVisible}
-          width={480}
-          onCancel={() => setTestDrawerVisible(false)}
-          footer={
-            <Button type="primary" loading={testing} onClick={handleTest} long>
-              {t("csp_rule_test")}
-            </Button>
-          }
-          unmountOnExit
-        >
-          <Space direction="vertical" size="medium" style={{ width: "100%" }}>
-            <div>
-              <Text bold style={{ display: "block", marginBottom: 8 }}>
-                {t("csp_test_pattern")}
-              </Text>
-              <Input value={testPattern} onChange={setTestPattern} placeholder={t("csp_rule_path_placeholder")} />
-            </div>
-            <div>
-              <Text bold style={{ display: "block", marginBottom: 8 }}>
-                {t("csp_test_url")}
-              </Text>
-              <Input
-                value={testUrl}
-                onChange={setTestUrl}
-                placeholder="https://example.com/page"
-                onPressEnter={handleTest}
-              />
-            </div>
-
-            {testResult && (
-              <Card
-                style={{
-                  marginTop: 8,
-                  background: testResult.matched ? "var(--color-success-light-1)" : "var(--color-danger-light-1)",
-                }}
-                bordered={false}
-              >
-                <Space direction="vertical" size="small">
-                  <Text bold>
-                    {testResult.matched ? t("csp_test_result_matched") : t("csp_test_result_not_matched")}
-                  </Text>
-                  <Text>
-                    {t("csp_test_pattern_type")}: {testResult.patternType}
-                  </Text>
-                  <Paragraph style={{ margin: 0, fontSize: 13 }}>
-                    {t("csp_test_details")}: {testResult.details}
-                  </Paragraph>
-                </Space>
-              </Card>
-            )}
-          </Space>
-        </Drawer>
-
-        {/* 模式指南抽屉 */}
-        <Drawer
-          title={t("csp_guide_title")}
-          visible={helpVisible}
-          width={520}
-          onCancel={() => setHelpVisible(false)}
-          unmountOnExit
-        >
-          <Space direction="vertical" size="large" style={{ width: "100%" }}>
-            <div>
-              <Title heading={6}>{t("csp_guide_domain_title")}</Title>
-              <Paragraph>{t("csp_guide_domain_desc")}</Paragraph>
-              <Input.TextArea
-                readOnly
-                value={`example.com
+      {/* 模式指南抽屉 */}
+      <Drawer
+        title={t("csp_guide_title")}
+        visible={helpVisible}
+        width={520}
+        onCancel={() => setHelpVisible(false)}
+        unmountOnExit
+      >
+        <Space direction="vertical" size="large" style={{ width: "100%" }}>
+          <div>
+            <Title heading={6}>{t("csp_guide_domain_title")}</Title>
+            <Paragraph>{t("csp_guide_domain_desc")}</Paragraph>
+            <Input.TextArea
+              readOnly
+              value={`example.com
 *.example.com
 **.example.com
 ***.example.com`}
-                autoSize={{ minRows: 4 }}
-                style={{ marginBottom: 8 }}
-              />
-              <Paragraph type="secondary" style={{ fontSize: 13 }}>
-                *. 仅匹配子域名 | **. 匹配多级子域名 | ***. 同时匹配根域名和多级子域名
-              </Paragraph>
-            </div>
+              autoSize={{ minRows: 4 }}
+              style={{ marginBottom: 8 }}
+            />
+            <Paragraph type="secondary" style={{ fontSize: 13 }}>
+              *. 仅匹配子域名 | **. 匹配多级子域名 | ***. 同时匹配根域名和多级子域名
+            </Paragraph>
+          </div>
 
-            <div>
-              <Title heading={6}>{t("csp_guide_wildcard_title")}</Title>
-              <Paragraph>{t("csp_guide_wildcard_desc")}</Paragraph>
-              <Input.TextArea
-                readOnly
-                value={`*
+          <div>
+            <Title heading={6}>{t("csp_guide_wildcard_title")}</Title>
+            <Paragraph>{t("csp_guide_wildcard_desc")}</Paragraph>
+            <Input.TextArea
+              readOnly
+              value={`*
 *://*.example.com/*
 https://*.example.com:8080/api/*
 http*://test.abc**.com`}
-                autoSize={{ minRows: 4 }}
-                style={{ marginBottom: 8 }}
-              />
-              <Paragraph type="secondary" style={{ fontSize: 13 }}>
-                * 匹配所有 URL | 域名中 * 匹配单段 | 协议中 * 匹配任意字母或冒号 | **. 匹配多级子域
-              </Paragraph>
-            </div>
+              autoSize={{ minRows: 4 }}
+              style={{ marginBottom: 8 }}
+            />
+            <Paragraph type="secondary" style={{ fontSize: 13 }}>
+              * 匹配所有 URL | 域名中 * 匹配单段 | 协议中 * 匹配任意字母或冒号 | **. 匹配多级子域
+            </Paragraph>
+          </div>
 
-            <div>
-              <Title heading={6}>路径通配符（需 ^ 前缀）</Title>
-              <Paragraph>
-                在路径中使用通配符时，需要在表达式前加 <Text code>^</Text> 显式声明。
-              </Paragraph>
-              <Input.TextArea
-                readOnly
-                value={`^http://*.example.com/data/*/result?q=*
+          <div>
+            <Title heading={6}>路径通配符（需 ^ 前缀）</Title>
+            <Paragraph>
+              在路径中使用通配符时，需要在表达式前加 <Text code>^</Text> 显式声明。
+            </Paragraph>
+            <Input.TextArea
+              readOnly
+              value={`^http://*.example.com/data/*/result?q=*
 ^http://**.example.com/data/**file
 ^http://*.example.com/data/***file`}
-                autoSize={{ minRows: 3 }}
-                style={{ marginBottom: 8 }}
-              />
-              <Paragraph type="secondary" style={{ fontSize: 13 }}>
-                路径中 * 匹配单级（不含 / 和 ?） | ** 匹配多级（不含 ?） | *** 匹配任意字符（含 / 和 ?）
-              </Paragraph>
-            </div>
+              autoSize={{ minRows: 3 }}
+              style={{ marginBottom: 8 }}
+            />
+            <Paragraph type="secondary" style={{ fontSize: 13 }}>
+              路径中 * 匹配单级（不含 / 和 ?） | ** 匹配多级（不含 ?） | *** 匹配任意字符（含 / 和 ?）
+            </Paragraph>
+          </div>
 
-            <div>
-              <Title heading={6}>{t("csp_guide_regex_title")}</Title>
-              <Paragraph>{t("csp_guide_regex_desc")}</Paragraph>
-              <Input.TextArea
-                readOnly
-                value={String.raw`/https?:\/\/example\.com\/.*/i
+          <div>
+            <Title heading={6}>{t("csp_guide_regex_title")}</Title>
+            <Paragraph>{t("csp_guide_regex_desc")}</Paragraph>
+            <Input.TextArea
+              readOnly
+              value={String.raw`/https?:\/\/example\.com\/.*/i
 /\.test\./`}
-                autoSize={{ minRows: 2 }}
-                style={{ marginBottom: 8 }}
-              />
-              <Paragraph type="secondary" style={{ fontSize: 13 }}>
-                支持 JavaScript 正则表达式，格式为 /正则体/标志
-              </Paragraph>
-            </div>
+              autoSize={{ minRows: 2 }}
+              style={{ marginBottom: 8 }}
+            />
+            <Paragraph type="secondary" style={{ fontSize: 13 }}>
+              支持 JavaScript 正则表达式，格式为 /正则体/标志
+            </Paragraph>
+          </div>
 
-            <div>
-              <Title heading={6}>{t("csp_guide_exact_title")}</Title>
-              <Paragraph>{t("csp_guide_exact_desc")}</Paragraph>
-              <Input.TextArea readOnly value="https://www.example.com/page" autoSize={{ minRows: 1 }} />
-            </div>
-          </Space>
-        </Drawer>
-      </Card>
-    </div>
+          <div>
+            <Title heading={6}>{t("csp_guide_exact_title")}</Title>
+            <Paragraph>{t("csp_guide_exact_desc")}</Paragraph>
+            <Input.TextArea readOnly value="https://www.example.com/page" autoSize={{ minRows: 1 }} />
+          </div>
+        </Space>
+      </Drawer>
+    </>
   );
 }
 
-export default CSPRulePage;
+export default CSPRuleCard;

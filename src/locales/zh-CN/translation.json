@@ -53,6 +53,8 @@
   "csp_rule_guide": "帮助",
   "csp_global_switch": "全局移除 CSP",
   "csp_global_switch_desc": "开启后将移除所有网页的 CSP 头，无需配置规则",
+  "csp_manage_rules": "管理规则",
+  "csp_rule_summary": "自定义规则: {enabled} 已启用 / {total} 总数",
   "csp_global_enabled": "已开启全局移除 CSP",
   "csp_global_disabled": "已关闭全局移除 CSP",
   "csp_test_title": "模式测试",
