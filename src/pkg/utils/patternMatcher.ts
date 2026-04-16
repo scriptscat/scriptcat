@@ -73,7 +73,7 @@ export function parsePatternType(pattern: string): PatternType {
 /**
  * 测试 URL 是否匹配模式
  */
-export function match(pattern: string, url: string): boolean {
+export function patternMatch(pattern: string, url: string): boolean {
   if (!pattern || !url) {
     return false;
   }

@@ -1,11 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-  match,
+  patternMatch,
   parsePatternType,
   toDeclarativeNetRequestFilter,
   validatePattern,
   getPatternExamples,
 } from "@App/pkg/utils/patternMatcher";
+
+const matchHelper = (pattern: string, type: string, url: string, res: boolean = true) => {
+  expect({
+    pattern,
+    type: parsePatternType(pattern),
+    url,
+    urlMatch: patternMatch(pattern, url),
+  }).toEqual({
+    pattern,
+    type,
+    url,
+    urlMatch: res,
+  });
+};
 
 describe("patternMatcher", () => {
   // ============================================================
@@ -57,16 +71,16 @@ describe("patternMatcher", () => {
   // ============================================================
   describe("match - exact", () => {
     it("完全匹配 URL", () => {
-      expect(match("https://example.com/path", "https://example.com/path")).toBe(true);
+      matchHelper("https://example.com/path", "exact", "https://example.com/path");
     });
 
     it("不匹配不同的 URL", () => {
-      expect(match("https://example.com/path", "https://example.com/other")).toBe(false);
+      matchHelper("https://example.com/path", "exact", "https://example.com/other", false);
     });
 
     it("空输入返回 false", () => {
-      expect(match("", "https://example.com")).toBe(false);
-      expect(match("https://example.com", "")).toBe(false);
+      expect(patternMatch("", "https://example.com")).toBe(false);
+      expect(patternMatch("https://example.com", "")).toBe(false);
     });
   });
 
@@ -75,20 +89,20 @@ describe("patternMatcher", () => {
   // ============================================================
   describe("match - wildcard (global)", () => {
     it("* 应匹配所有 URL", () => {
-      expect(match("*", "https://example.com")).toBe(true);
-      expect(match("*", "http://localhost:3000/api")).toBe(true);
-      expect(match("*", "https://sub.example.com/path?q=1")).toBe(true);
-      expect(match("*", "https://example.com:8080/path#section")).toBe(true);
+      matchHelper("*", "wildcard", "https://example.com");
+      matchHelper("*", "wildcard", "http://localhost:3000/api");
+      matchHelper("*", "wildcard", "https://sub.example.com/path?q=1");
+      matchHelper("*", "wildcard", "https://example.com:8080/path#section");
     });
 
     it("*://* 应匹配所有 URL", () => {
-      expect(match("*://*", "https://example.com")).toBe(true);
-      expect(match("*://*", "http://localhost:3000")).toBe(true);
+      matchHelper("*://*", "wildcard", "https://example.com");
+      matchHelper("*://*", "wildcard", "http://localhost:3000");
     });
 
     it("* 不应匹配无效 URL", () => {
-      expect(match("*", "not-a-url")).toBe(false);
-      expect(match("*", "")).toBe(false);
+      expect(patternMatch("*", "not-a-url")).toBe(false);
+      expect(patternMatch("*", "")).toBe(false);
     });
   });
 
@@ -97,44 +111,44 @@ describe("patternMatcher", () => {
   // ============================================================
   describe("match - wildcard (host)", () => {
     it("*://*.example.com/* 应匹配子域名", () => {
-      expect(match("*://*.example.com/*", "https://sub.example.com/page")).toBe(true);
-      expect(match("*://*.example.com/*", "https://a.b.example.com/page")).toBe(true);
-      expect(match("*://*.example.com/*", "https://example.com/page")).toBe(false);
+      matchHelper("*://*.example.com/*", "wildcard", "https://sub.example.com/page");
+      matchHelper("*://*.example.com/*", "wildcard", "https://a.b.example.com/page");
+      matchHelper("*://*.example.com/*", "wildcard", "https://example.com/page", false);
     });
 
     it("https://*.example.com/* 应匹配子域名", () => {
-      expect(match("https://*.example.com/*", "https://sub.example.com/page")).toBe(true);
-      expect(match("https://*.example.com/*", "http://sub.example.com/page")).toBe(false);
+      matchHelper("https://*.example.com/*", "wildcard", "https://sub.example.com/page");
+      matchHelper("https://*.example.com/*", "wildcard", "http://sub.example.com/page", false);
     });
 
     it("**.example.com/* 应匹配自身和子域名", () => {
-      expect(match("**.example.com/*", "https://example.com/page")).toBe(true);
-      expect(match("**.example.com/*", "https://sub.example.com/page")).toBe(true);
-      expect(match("**.example.com/*", "https://a.b.example.com/page")).toBe(true);
+      matchHelper("**.example.com/*", "wildcard", "https://example.com/page");
+      matchHelper("**.example.com/*", "wildcard", "https://sub.example.com/page");
+      matchHelper("**.example.com/*", "wildcard", "https://a.b.example.com/page");
     });
 
     it("***.example.com 应匹配根域名和多级子域名", () => {
       // ***. 域名模式（无协议前缀 → domain 类型）
-      expect(match("***.example.com", "https://example.com")).toBe(true);
-      expect(match("***.example.com", "https://sub.example.com")).toBe(true);
-      expect(match("***.example.com", "https://a.b.c.example.com/path")).toBe(true);
-      expect(match("***.example.com", "https://other.com")).toBe(false);
+      matchHelper("***.example.com", "domain", "https://example.com");
+      matchHelper("***.example.com", "domain", "https://sub.example.com");
+      matchHelper("***.example.com", "domain", "https://a.b.c.example.com/path");
+      matchHelper("***.example.com", "domain", "https://other.com", false);
     });
 
     it("混合通配符 test.abc**.com", () => {
-      expect(match("http*://test.abc**.com", "https://test.abc.com")).toBe(true);
-      expect(match("http*://test.abc**.com", "https://test.abc.xyz.com")).toBe(true);
-      expect(match("http*://test.abc**.com", "https://test.abc.a.b.com")).toBe(true);
-      expect(match("http*://test.abc**.com", "https://test.other.com")).toBe(false);
+      matchHelper("http*://test.abc**.com", "wildcard", "https://test.abc.com");
+      matchHelper("http*://test.abc**.com", "wildcard", "https://test.abc.xyz.com");
+      matchHelper("http*://test.abc**.com", "wildcard", "https://test.abc.a.b.com");
+      matchHelper("http*://test.abc**.com", "wildcard", "https://test.other.com", false);
     });
 
     it("协议中 * 匹配任意字母或冒号", () => {
-      expect(match("http*://example.com", "https://example.com")).toBe(true);
-      expect(match("http*://example.com", "http://example.com")).toBe(true);
+      matchHelper("http*://example.com", "wildcard", "https://example.com");
+      matchHelper("http*://example.com", "wildcard", "http://example.com");
     });
 
     it("带端口的通配符匹配", () => {
-      expect(match("https://*.example.com:8080/api/*", "https://sub.example.com:8080/api/page")).toBe(true);
+      matchHelper("https://*.example.com:8080/api/*", "wildcard", "https://sub.example.com:8080/api/page");
     });
   });
 
@@ -143,28 +157,26 @@ describe("patternMatcher", () => {
   // ============================================================
   describe("match - wildcard (path with ^ prefix)", () => {
     it("^ 前缀路径中 * 匹配单级（不含 / 和 ?）", () => {
-      expect(match("^http://*.example.com/data/*/result?q=*", "http://api.example.com/data/v1/result?q=123")).toBe(
-        true
-      );
+      matchHelper("^http://*.example.com/data/*/result?q=*", "wildcard", "http://api.example.com/data/v1/result?q=123");
       // * 不应匹配含 / 的内容
-      expect(match("^http://*.example.com/data/*/result", "http://api.example.com/data/v1/v2/result")).toBe(false);
+      matchHelper("^http://*.example.com/data/*/result", "wildcard", "http://api.example.com/data/v1/v2/result", false);
     });
 
     it("^ 前缀路径中 ** 匹配多级（不含 ?）", () => {
-      expect(match("^http://**.example.com/data/**file", "http://sub.example.com/data/path/to/testfile")).toBe(true);
-      expect(match("^http://**.example.com/data/**file", "http://sub.example.com/data/a/b/c/myfile")).toBe(true);
+      matchHelper("^http://**.example.com/data/**file", "wildcard", "http://sub.example.com/data/path/to/testfile");
+      matchHelper("^http://**.example.com/data/**file", "wildcard", "http://sub.example.com/data/a/b/c/myfile");
     });
 
     it("^ 前缀路径中 *** 匹配任意字符（含 / 和 ?）", () => {
-      expect(match("^http://*.example.com/data/***", "http://api.example.com/data/a/b/c?q=1&r=2")).toBe(true);
-      expect(match("^http://*.example.com/data/***file", "http://api.example.com/data/x/y/z/myfile")).toBe(true);
+      matchHelper("^http://*.example.com/data/***", "wildcard", "http://api.example.com/data/a/b/c?q=1&r=2");
+      matchHelper("^http://*.example.com/data/***file", "wildcard", "http://api.example.com/data/x/y/z/myfile");
       // *** 跨越 ? 匹配
-      expect(match("^http://*.example.com/a/***z", "http://api.example.com/a/b/c?d=z")).toBe(true);
+      matchHelper("^http://*.example.com/a/***z", "wildcard", "http://api.example.com/a/b/c?d=z");
     });
 
     it("^ 前缀路径中 ? 是字面量查询字符串分隔符", () => {
-      expect(match("^http://example.com/api/?est", "http://example.com/api/?est")).toBe(true);
-      expect(match("^http://example.com/api/?est", "http://example.com/api/test")).toBe(false);
+      matchHelper("^http://example.com/api/?est", "wildcard", "http://example.com/api/?est");
+      matchHelper("^http://example.com/api/?est", "wildcard", "http://example.com/api/test", false);
     });
   });
 
@@ -173,13 +185,13 @@ describe("patternMatcher", () => {
   // ============================================================
   describe("match - wildcard (simple path)", () => {
     it("路径中的 * 匹配单段", () => {
-      expect(match("https://example.com/*/page", "https://example.com/api/page")).toBe(true);
-      expect(match("https://example.com/*/page", "https://example.com/api/v2/page")).toBe(false);
+      matchHelper("https://example.com/*/page", "wildcard", "https://example.com/api/page");
+      matchHelper("https://example.com/*/page", "wildcard", "https://example.com/api/v2/page", false);
     });
 
     it("路径 /* 匹配所有路径", () => {
-      expect(match("https://example.com/*", "https://example.com/anything")).toBe(true);
-      expect(match("https://example.com/*", "https://example.com/a/b")).toBe(false);
+      matchHelper("https://example.com/*", "wildcard", "https://example.com/anything");
+      matchHelper("https://example.com/*", "wildcard", "https://example.com/a/b", false);
     });
   });
 
@@ -188,21 +200,21 @@ describe("patternMatcher", () => {
   // ============================================================
   describe("match - regex", () => {
     it("基本正则匹配", () => {
-      expect(match("/https?:\\/\\/example\\.com/i", "https://example.com")).toBe(true);
-      expect(match("/https?:\\/\\/example\\.com/i", "http://example.com")).toBe(true);
+      matchHelper("/https?:\\/\\/example\\.com/i", "regex", "https://example.com", true);
+      matchHelper("/https?:\\/\\/example\\.com/i", "regex", "http://example.com", true);
     });
 
     it("正则不匹配", () => {
-      expect(match("/https?:\\/\\/example\\.com/i", "https://other.com")).toBe(false);
+      matchHelper("/https?:\\/\\/example\\.com/i", "regex", "https://other.com", false);
     });
 
     it("正则应支持捕获组", () => {
-      expect(match("/^https:\\/\\/(www\\.)?example\\.com/", "https://example.com")).toBe(true);
-      expect(match("/^https:\\/\\/(www\\.)?example\\.com/", "https://www.example.com")).toBe(true);
+      matchHelper("/^https:\\/\\/(www\\.)?example\\.com/", "regex", "https://example.com", true);
+      matchHelper("/^https:\\/\\/(www\\.)?example\\.com/", "regex", "https://www.example.com", true);
     });
 
     it("无效正则不崩溃", () => {
-      expect(match("/[invalid/i", "https://example.com")).toBe(false);
+      matchHelper("/[invalid/i", "regex", "https://example.com", false);
     });
   });
 
@@ -211,37 +223,37 @@ describe("patternMatcher", () => {
   // ============================================================
   describe("match - domain", () => {
     it("example.com 应匹配自身和所有子域名", () => {
-      expect(match("example.com", "https://example.com")).toBe(true);
-      expect(match("example.com", "https://example.com/page")).toBe(true);
-      expect(match("example.com", "https://sub.example.com")).toBe(true);
-      expect(match("example.com", "https://a.b.example.com/path")).toBe(true);
+      matchHelper("example.com", "domain", "https://example.com");
+      matchHelper("example.com", "domain", "https://example.com/page");
+      matchHelper("example.com", "domain", "https://sub.example.com");
+      matchHelper("example.com", "domain", "https://a.b.example.com/path");
     });
 
     it("*.example.com 应匹配子域名和自身（域名模式）", () => {
-      expect(match("*.example.com", "https://sub.example.com")).toBe(true);
-      expect(match("*.example.com", "https://example.com")).toBe(true);
+      matchHelper("*.example.com", "domain", "https://sub.example.com");
+      matchHelper("*.example.com", "domain", "https://example.com");
     });
 
     it("**.example.com 应匹配自身和子域名", () => {
-      expect(match("**.example.com", "https://example.com")).toBe(true);
-      expect(match("**.example.com", "https://sub.example.com")).toBe(true);
-      expect(match("**.example.com", "https://a.b.example.com")).toBe(true);
+      matchHelper("**.example.com", "domain", "https://example.com");
+      matchHelper("**.example.com", "domain", "https://sub.example.com");
+      matchHelper("**.example.com", "domain", "https://a.b.example.com");
     });
 
     it("***.example.com 应匹配根域名和多级子域名", () => {
-      expect(match("***.example.com", "https://example.com")).toBe(true);
-      expect(match("***.example.com", "https://sub.example.com")).toBe(true);
-      expect(match("***.example.com", "https://a.b.c.example.com")).toBe(true);
-      expect(match("***.example.com", "https://other.com")).toBe(false);
+      matchHelper("***.example.com", "domain", "https://example.com");
+      matchHelper("***.example.com", "domain", "https://sub.example.com");
+      matchHelper("***.example.com", "domain", "https://a.b.c.example.com");
+      matchHelper("***.example.com", "domain", "https://other.com", false);
     });
 
     it("不应匹配不同域名", () => {
-      expect(match("example.com", "https://other.com")).toBe(false);
-      expect(match("example.com", "https://notexample.com")).toBe(false);
+      matchHelper("example.com", "domain", "https://other.com", false);
+      matchHelper("example.com", "domain", "https://notexample.com", false);
     });
 
     it("域名带端口", () => {
-      expect(match("example.com:8080", "https://example.com:8080/path")).toBe(true);
+      matchHelper("example.com:8080", "domain", "https://example.com:8080/path");
     });
   });
 
@@ -398,31 +410,31 @@ describe("patternMatcher", () => {
   // ============================================================
   describe("edge cases", () => {
     it("URL 带查询字符串", () => {
-      expect(match("*://*.example.com/*", "https://sub.example.com/path?q=1&r=2")).toBe(true);
-      expect(match("example.com", "https://example.com/search?q=test")).toBe(true);
+      matchHelper("*://*.example.com/*", "wildcard", "https://sub.example.com/path?q=1&r=2");
+      matchHelper("example.com", "domain", "https://example.com/search?q=test");
     });
 
     it("URL 带片段", () => {
-      expect(match("example.com", "https://example.com/page#section")).toBe(true);
+      matchHelper("example.com", "domain", "https://example.com/page#section");
     });
 
     it("URL 带端口", () => {
-      expect(match("*://*.example.com/*", "https://sub.example.com:8080/path")).toBe(true);
+      matchHelper("*://*.example.com/*", "wildcard", "https://sub.example.com:8080/path");
     });
 
     it("大小写不敏感（域名）", () => {
-      expect(match("example.com", "https://EXAMPLE.COM")).toBe(true);
-      expect(match("example.com", "https://Example.Com/path")).toBe(true);
+      matchHelper("example.com", "domain", "https://EXAMPLE.COM");
+      matchHelper("example.com", "domain", "https://Example.Com/path");
     });
 
     it("特殊字符域名", () => {
-      expect(match("example.com", "https://sub-example.com")).toBe(false);
+      matchHelper("example.com", "domain", "https://sub-example.com", false);
     });
 
     it("http* 协议通配匹配 https 和 http", () => {
-      expect(match("http*://test.com", "https://test.com")).toBe(true);
-      expect(match("http*://test.com", "http://test.com")).toBe(true);
-      expect(match("http*://test.com", "ftp://test.com")).toBe(false);
+      matchHelper("http*://test.com", "wildcard", "https://test.com");
+      matchHelper("http*://test.com", "wildcard", "http://test.com");
+      matchHelper("http*://test.com", "wildcard", "ftp://test.com", false);
     });
   });
 });

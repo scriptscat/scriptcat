@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import type { CSPRule, CSPRuleAction } from "@App/app/repo/cspRule";
 import { CSPRuleClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
-import { match as patternMatch, parsePatternType } from "@App/pkg/utils/patternMatcher";
+import { patternMatch, parsePatternType } from "@App/pkg/utils/patternMatcher";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 
 const { Title, Text, Paragraph } = Typography;
