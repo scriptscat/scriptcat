@@ -52,5 +52,6 @@ export const nextSessionRuleId = async () => {
   do {
     id = ++SESSION_RULE_ID_BEGIN;
   } while (ruleIds.has(id));
+  ruleIds.add(id);
   return id;
 };

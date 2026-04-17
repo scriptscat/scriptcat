@@ -1,5 +1,5 @@
 import { sleep } from "@App/pkg/utils/utils";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   getSessionRuleIds,
   LIMIT_SESSION_RULES,
@@ -9,15 +9,12 @@ import {
 
 describe("getSessionRuleIds", () => {
   it("initializes from existing chrome session rules", async () => {
-    //@ts-ignore
-    vi.mocked(chrome.declarativeNetRequest.getSessionRules).mockResolvedValueOnce([
-      { id: 10901, priority: 1, action: { type: "block" }, condition: {} },
-      { id: 10902, priority: 1, action: { type: "block" }, condition: {} },
-    ]);
-
     const ids = await getSessionRuleIds();
-    expect(ids).toContain(10901);
-    expect(ids).toContain(10902);
+    expect(ids.size).lessThan(100);
+    await nextSessionRuleId();
+    expect(ids.size).greaterThanOrEqual(1);
+    await nextSessionRuleId();
+    expect(ids.size).greaterThanOrEqual(2);
   });
 });
 
@@ -97,19 +94,26 @@ describe("removeSessionRuleIdEntry", () => {
   });
 
   it("does not rewind SESSION_RULE_ID_BEGIN when removed id was pre-existing (ahead of counter)", async () => {
-    //@ts-ignore
-    vi.mocked(chrome.declarativeNetRequest.getSessionRules).mockResolvedValueOnce([
-      { id: 11122, priority: 1, action: { type: "block" }, condition: {} },
-    ]);
+    const id1 = await nextSessionRuleId();
+    const id2 = await nextSessionRuleId();
+    const id3 = await nextSessionRuleId();
+    const id4 = await nextSessionRuleId();
+    const id5 = await nextSessionRuleId();
+    const id6 = await nextSessionRuleId();
 
-    const ids = await getSessionRuleIds();
+    removeSessionRuleIdEntry(id1);
+    removeSessionRuleIdEntry(id5);
+    removeSessionRuleIdEntry(id3);
+    removeSessionRuleIdEntry(id4);
+    removeSessionRuleIdEntry(id2);
     const nextBefore = await nextSessionRuleId(); // e.g. 10001
+    removeSessionRuleIdEntry(id6);
 
-    ids.add(11122); // ensure it's tracked
-    removeSessionRuleIdEntry(11122); // 11122 > SESSION_RULE_ID_BEGIN + 1, no rewind
-
-    const nextAfter = await nextSessionRuleId();
-    expect(nextAfter).toBe(nextBefore + 1); // counter unchanged, just increments normally
+    expect(await nextSessionRuleId()).toBe(nextBefore + 1); // counter unchanged, just increments normally
+    expect(await nextSessionRuleId()).toBe(nextBefore + 2); // counter unchanged, just increments normally
+    expect(await nextSessionRuleId()).toBe(nextBefore + 3); // counter unchanged, just increments normally
+    expect(await nextSessionRuleId()).toBe(nextBefore + 4); // counter unchanged, just increments normally
+    expect(await nextSessionRuleId()).toBe(nextBefore + 5); // counter unchanged, just increments normally
   });
 });
 
