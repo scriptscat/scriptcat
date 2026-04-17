@@ -29,7 +29,7 @@ export const getSessionRuleIds = async (): Promise<Set<number>> => {
 
 export const removeSessionRuleIdEntry = (ruleId: number) => {
   if (ruleId <= 10000) {
-    throw new Error("removeSessionRuleIdEntry cannot remove ids not recreated by nextSessionRuleId");
+    throw new Error("removeSessionRuleIdEntry cannot remove ids not created by nextSessionRuleId");
   }
   if (sessionRuleIds) {
     if (sessionRuleIds.delete(ruleId) === true) {
