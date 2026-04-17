@@ -34,12 +34,20 @@ export default class DeclarativeNetRequest {
     OTHER: "other",
   };
 
-  updateSessionRules(
-    options: {
+  updateSessionRules(arg1: any, arg2: any): Promise<void> {
+    let options: {
       addRules?: chrome.declarativeNetRequest.Rule[];
       removeRuleIds?: number[];
-    } = {}
-  ): Promise<void> {
+    } = {};
+    let callback: undefined | ((...args: any) => any) = undefined;
+
+    if (typeof arg1 === "function") {
+      callback = arg1;
+    } else if (typeof arg2 === "function") {
+      callback = arg2;
+    }
+    if (typeof arg1 === "object" && arg1) options = arg1;
+
     return new Promise<void>((resolve) => {
       const { addRules = [], removeRuleIds = [] } = options;
 
@@ -59,6 +67,7 @@ export default class DeclarativeNetRequest {
       }
 
       resolve();
+      callback?.();
     });
   }
 
