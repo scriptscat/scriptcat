@@ -9,6 +9,8 @@ import { mockFetch } from "./mocks/fetch";
 
 vi.stubGlobal("chrome", chromeMock);
 chromeMock.init();
+vi.spyOn(chromeMock.declarativeNetRequest, "getSessionRules");
+vi.spyOn(chromeMock.declarativeNetRequest, "updateSessionRules");
 initTestEnv();
 
 chromeMock.runtime.getURL = vi.fn().mockImplementation((path: string) => {

@@ -53,6 +53,7 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
+import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -685,8 +686,7 @@ export default class GMApi {
       }
       const redirectNotManual = params.redirect !== "manual";
 
-      // 使用 cacheInstance 避免SW重启造成重复 DNR Rule ID
-      const ruleId = 10000 + (await cacheInstance.incr("gmXhrRequestId", 1));
+      const ruleId = await nextSessionRuleId();
       const rule = {
         id: ruleId,
         action: {
@@ -1609,6 +1609,7 @@ export default class GMApi {
                   if (lastError) {
                     console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
                   }
+                  removeSessionRuleIdEntry(rule.id);
                 }
               );
             }
