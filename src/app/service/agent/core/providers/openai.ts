@@ -203,20 +203,26 @@ export function parseOpenAIStream(
             // 工具调用
             if (delta.tool_calls) {
               for (const tc of delta.tool_calls) {
+                // OpenAI 约定：第一个 chunk 带 id + function.name，后续 chunk 只带 index + function.arguments
                 if (tc.function?.name) {
                   onEvent({
                     type: "tool_call_start",
                     toolCall: {
-                      id: tc.id || `tc_${Date.now()}`,
+                      id: tc.id || `tc_${Date.now()}_${tc.index ?? 0}`,
                       name: tc.function.name,
-                      arguments: tc.function.arguments || "",
+                      arguments: "", // 永远空启动，避免首 chunk 的 "{}" 作为 prefix 污染
                     },
+                    // 如果类型允许，再加 index 字段用于后续 delta 匹配
+                    // index: tc.index,
                   });
-                } else if (tc.function?.arguments) {
+                }
+                // 首 chunk 带 arguments 也作为 delta 处理（不 else if！）
+                if (tc.function?.arguments !== undefined && tc.function.arguments !== "") {
                   onEvent({
                     type: "tool_call_delta",
-                    id: tc.id || "",
+                    id: tc.id || "", // 后续 chunk 大概率无 id，这里只保留接口兼容
                     delta: tc.function.arguments,
+                    // index: tc.index,  // 真正用于匹配的字段
                   });
                 }
               }

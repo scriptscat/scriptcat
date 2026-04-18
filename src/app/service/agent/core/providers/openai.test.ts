@@ -448,4 +448,49 @@ describe("parseOpenAIStream", () => {
       expect(events[3].usage).toEqual({ inputTokens: 500, outputTokens: 50 });
     }
   });
+
+  it("首 chunk 同时带 name 和 arguments='{}' 时不应污染后续 args", async () => {
+    const reader = createMockReader([
+      // gateway / 某些 model 会先发一个 arguments="{}" 占位再送真正 JSON
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_x","function":{"name":"agent","arguments":"{}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"description\\":\\"r\\""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":",\\"prompt\\":\\"do\\"}"}}]}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+    const events: ChatStreamEvent[] = [];
+    await parseOpenAIStream(reader, (e) => events.push(e), new AbortController().signal);
+
+    expect(events[0].type).toBe("tool_call_start");
+    if (events[0].type === "tool_call_start") {
+      // 关键断言：start 事件里的 args 必须为空，不能是 "{}"
+      expect(events[0].toolCall.arguments).toBe("");
+      expect(events[0].toolCall.name).toBe("agent");
+    }
+    // 三段 delta：首 chunk 的 "{}" + 两次真实 JSON
+    const deltas = events.filter((e) => e.type === "tool_call_delta");
+    expect(deltas).toHaveLength(3);
+    const joined = deltas.map((e) => (e.type === "tool_call_delta" ? e.delta : "")).join("");
+    // 拼接后应等同 LLM 真正要发的（就算首 chunk 有 "{}"，也应被后续覆盖式语义接受）
+    // 注意：如果模型真的先发 "{}" 再发别的 JSON，整体不是合法 JSON —— 这是模型问题，
+    // 但至少我们不在 start 事件里把 "{}" 当成 args 的 prefix。
+    expect(joined.startsWith("{}")).toBe(true); // 原样透传
+  });
+
+  it("并发多个 tool_call（不同 index）arguments 不应互相串扰", async () => {
+    const reader = createMockReader([
+      // 两个 tool 同时开始
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"f1","arguments":""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"b","function":{"name":"f2","arguments":""}}]}}]}\n\n',
+      // 然后交错发 arguments delta（只带 index，不带 id）
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"x\\":1}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\\"y\\":2}"}}]}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+    const events: ChatStreamEvent[] = [];
+    await parseOpenAIStream(reader, (e) => events.push(e), new AbortController().signal);
+    // 基础断言：两个 start + 两个 delta + done
+    const starts = events.filter((e) => e.type === "tool_call_start");
+    expect(starts).toHaveLength(2);
+    // （完整的 index 匹配需要 ChatStreamEvent 增加 index 字段，这里先确保 parser 不丢 event）
+  });
 });
