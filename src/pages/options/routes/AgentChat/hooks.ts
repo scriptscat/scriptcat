@@ -391,3 +391,53 @@ export function useSkills() {
 
   return { skills, loadSkills };
 }
+
+// Prompt 优化 hook：通过 serviceWorker/agent/optimizePrompt 通道，
+// 走完整 LLMClient 路径（providerRegistry + 重试）
+export function useOptimizePrompt() {
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const connRef = useRef<MessageConnect | null>(null);
+
+  const cancel = useCallback(() => {
+    try {
+      connRef.current?.sendMessage({ action: "stop" });
+    } catch {
+      // port 可能已断开
+    }
+    try {
+      connRef.current?.disconnect();
+    } catch {
+      // port 可能已断开
+    }
+    connRef.current = null;
+    setIsOptimizing(false);
+  }, []);
+
+  const optimize = useCallback(async (modelId: string, input: string): Promise<string> => {
+    setIsOptimizing(true);
+    let optimized = "";
+    try {
+      const conn = await connect(extensionMessage, "serviceWorker/agent/optimizePrompt", {
+        modelId,
+        input,
+      });
+      connRef.current = conn;
+
+      await new Promise<void>((resolve, reject) => {
+        conn.onMessage((msg) => {
+          const event = msg.data as ChatStreamEvent;
+          if (event.type === "content_delta") optimized += event.delta;
+          if (event.type === "done") resolve();
+          if (event.type === "error") reject(new Error(event.message));
+        });
+        conn.onDisconnect(() => resolve());
+      });
+    } finally {
+      connRef.current = null;
+      setIsOptimizing(false);
+    }
+    return optimized.trim();
+  }, []);
+
+  return { isOptimizing, optimize, cancel };
+}

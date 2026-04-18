@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/core/types";
 import { groupModelsByProvider, supportsVision, supportsImageOutput } from "./model_utils";
 import ProviderIcon from "./ProviderIcon";
+import { useOptimizePrompt } from "./hooks";
 
 // 斜杠命令弹出菜单
 function SlashCommandMenu({
@@ -189,6 +190,7 @@ export default function ChatInput({
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isOptimizing, optimize } = useOptimizePrompt();
 
   // 斜杠命令过滤
   const slashQuery = useMemo(() => {
@@ -364,6 +366,26 @@ export default function ChatInput({
     e.target.value = "";
   };
 
+  const handleOptimizePrompt = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || isOptimizing) return;
+    const model = models.find((m) => m.id === selectedModelId) ?? models[0];
+    if (!model) {
+      ArcoMessage.error(t("agent_chat_no_model"));
+      return;
+    }
+    try {
+      const result = await optimize(model.id, trimmed);
+      if (result) {
+        setInput(result);
+        textareaRef.current?.focus();
+        ArcoMessage.success(t("agent_optimize_prompt_success"));
+      }
+    } catch {
+      ArcoMessage.error(t("agent_optimize_prompt_failed"));
+    }
+  };
+
   const canSend = (input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage;
 
   return (
@@ -498,6 +520,46 @@ export default function ChatInput({
                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
                 </button>
+                {/* Prompt 优化 */}
+                <Tooltip content={isOptimizing ? t("agent_optimizing_prompt") : t("agent_optimize_prompt")} mini>
+                  <button
+                    type="button"
+                    onClick={handleOptimizePrompt}
+                    className={`tw-w-7 tw-h-7 tw-rounded tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-border-none tw-transition-colors ${
+                      input.trim() && !isOptimizing
+                        ? "tw-cursor-pointer tw-text-[rgb(var(--arcoblue-6))] hover:tw-bg-[var(--color-fill-2)]"
+                        : "tw-cursor-not-allowed tw-text-[var(--color-text-4)] tw-opacity-40"
+                    }`}
+                  >
+                    {isOptimizing ? (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        style={{ animation: "spin-dot 0.8s linear infinite", transformOrigin: "center" }}
+                      >
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    ) : (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                    )}
+                  </button>
+                </Tooltip>
                 {onEnableToolsChange && (
                   <Tooltip
                     content={
