@@ -212,8 +212,6 @@ export function parseOpenAIStream(
                       name: tc.function.name,
                       arguments: "", // 永远空启动，避免首 chunk 的 "{}" 作为 prefix 污染
                     },
-                    // 如果类型允许，再加 index 字段用于后续 delta 匹配
-                    // index: tc.index,
                   });
                 }
                 // 首 chunk 带 arguments 也作为 delta 处理（不 else if！）
@@ -221,8 +219,8 @@ export function parseOpenAIStream(
                   onEvent({
                     type: "tool_call_delta",
                     id: tc.id || "", // 后续 chunk 大概率无 id，这里只保留接口兼容
+                    index: tc.index, // 用于匹配的字段
                     delta: tc.function.arguments,
-                    // index: tc.index,  // 真正用于匹配的字段
                   });
                 }
               }

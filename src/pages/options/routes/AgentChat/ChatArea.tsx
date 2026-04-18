@@ -179,11 +179,21 @@ export default function ChatArea({
           case "tool_call_start":
             sa.currentToolCalls.push({ ...event.toolCall, status: "running" });
             break;
-          case "tool_call_delta":
-            if (sa.currentToolCalls.length) {
-              sa.currentToolCalls[sa.currentToolCalls.length - 1].arguments += event.delta;
+          case "tool_call_delta": {
+            if (!sa.currentToolCalls.length) break;
+            let t = event.id ? sa.currentToolCalls.find((x) => x.id === event.id) : undefined;
+            if (!t && event.index !== undefined) t = sa.currentToolCalls[event.index];
+            if (!t) {
+              for (let i = sa.currentToolCalls.length - 1; i >= 0; i--) {
+                if (sa.currentToolCalls[i].status === "running") {
+                  t = sa.currentToolCalls[i];
+                  break;
+                }
+              }
             }
+            if (t) t.arguments += event.delta;
             break;
+          }
           case "tool_call_complete": {
             const tc = sa.currentToolCalls.find((t) => t.id === event.id);
             if (tc) {

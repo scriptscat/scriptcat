@@ -138,11 +138,21 @@ export class SubAgentService {
             status: "running",
           });
           break;
-        case "tool_call_delta":
-          if (currentMsg.toolCalls.length) {
-            currentMsg.toolCalls[currentMsg.toolCalls.length - 1].arguments += event.delta;
+        case "tool_call_delta": {
+          if (!currentMsg.toolCalls.length) break;
+          let t = event.id ? currentMsg.toolCalls.find((x) => x.id === event.id) : undefined;
+          if (!t && event.index !== undefined) t = currentMsg.toolCalls[event.index];
+          if (!t) {
+            for (let i = currentMsg.toolCalls.length - 1; i >= 0; i--) {
+              if (currentMsg.toolCalls[i].status === "running") {
+                t = currentMsg.toolCalls[i];
+                break;
+              }
+            }
           }
+          if (t) t.arguments += event.delta;
           break;
+        }
         case "tool_call_complete": {
           const tc = currentMsg.toolCalls.find((t) => t.id === event.id);
           if (tc) {

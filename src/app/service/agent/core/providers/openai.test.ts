@@ -361,20 +361,25 @@ describe("parseOpenAIStream", () => {
 
     await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
 
-    expect(events).toHaveLength(3);
+    expect(events).toHaveLength(4);
     expect(events[0].type).toBe("tool_call_start");
     if (events[0].type === "tool_call_start") {
       expect(events[0].toolCall.name).toBe("dom_read_page");
-      expect(events[0].toolCall.arguments).toBe('{"tabId":123');
+      // 新行为：start 事件的 args 永远为空，首 chunk 的 args 通过 delta 发出
+      expect(events[0].toolCall.arguments).toBe("");
     }
-    // 关键：最后的 tool_call_delta 不应被 usage 检查吞掉
     expect(events[1].type).toBe("tool_call_delta");
     if (events[1].type === "tool_call_delta") {
-      expect(events[1].delta).toBe(',"mode":"summary"}');
+      expect(events[1].delta).toBe('{"tabId":123');
     }
-    expect(events[2].type).toBe("done");
-    if (events[2].type === "done") {
-      expect(events[2].usage).toEqual({ inputTokens: 40010, outputTokens: 154 });
+    // 关键：最后的 tool_call_delta 不应被 usage 检查吞掉
+    expect(events[2].type).toBe("tool_call_delta");
+    if (events[2].type === "tool_call_delta") {
+      expect(events[2].delta).toBe(',"mode":"summary"}');
+    }
+    expect(events[3].type).toBe("done");
+    if (events[3].type === "done") {
+      expect(events[3].usage).toEqual({ inputTokens: 40010, outputTokens: 154 });
     }
   });
 
@@ -439,13 +444,21 @@ describe("parseOpenAIStream", () => {
 
     await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
 
-    expect(events).toHaveLength(4);
+    expect(events).toHaveLength(5);
     expect(events[0]).toEqual({ type: "thinking_delta", delta: "分析页面" });
     expect(events[1]).toEqual({ type: "thinking_delta", delta: "结构" });
     expect(events[2].type).toBe("tool_call_start");
-    expect(events[3].type).toBe("done");
-    if (events[3].type === "done") {
-      expect(events[3].usage).toEqual({ inputTokens: 500, outputTokens: 50 });
+    if (events[2].type === "tool_call_start") {
+      expect(events[2].toolCall.name).toBe("dom_read_page");
+      expect(events[2].toolCall.arguments).toBe("");
+    }
+    expect(events[3].type).toBe("tool_call_delta");
+    if (events[3].type === "tool_call_delta") {
+      expect(events[3].delta).toBe('{"selector":".item"}');
+    }
+    expect(events[4].type).toBe("done");
+    if (events[4].type === "done") {
+      expect(events[4].usage).toEqual({ inputTokens: 500, outputTokens: 50 });
     }
   });
 
@@ -492,5 +505,25 @@ describe("parseOpenAIStream", () => {
     const starts = events.filter((e) => e.type === "tool_call_start");
     expect(starts).toHaveLength(2);
     // （完整的 index 匹配需要 ChatStreamEvent 增加 index 字段，这里先确保 parser 不丢 event）
+  });
+
+  it("並行 tool_call 按 index 正確分派 arguments", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"f1","arguments":""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"b","function":{"name":"f2","arguments":""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\\"y\\":2}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"x\\":1}"}}]}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+    const events: ChatStreamEvent[] = [];
+    await parseOpenAIStream(reader, (e) => events.push(e), new AbortController().signal);
+
+    const deltas = events.filter((e) => e.type === "tool_call_delta");
+    expect(deltas).toHaveLength(2);
+    // 第一個 delta 對應 index=1（因為到達順序）
+    expect((deltas[0] as any).index).toBe(1);
+    expect((deltas[0] as any).delta).toBe('{"y":2}');
+    expect((deltas[1] as any).index).toBe(0);
+    expect((deltas[1] as any).delta).toBe('{"x":1}');
   });
 });
