@@ -370,7 +370,7 @@ describe("parseOpenAIStream", () => {
     }
     expect(events[1].type).toBe("tool_call_delta");
     if (events[1].type === "tool_call_delta") {
-      expect(events[1].delta).toBe('{"tabId":123');
+      expect(events[1].delta).toBe('{"tabId":123'); // 故意的 — 模拟 streaming 还没收完的状态
     }
     // 关键：最后的 tool_call_delta 不应被 usage 检查吞掉
     expect(events[2].type).toBe("tool_call_delta");
@@ -507,7 +507,7 @@ describe("parseOpenAIStream", () => {
     // （完整的 index 匹配需要 ChatStreamEvent 增加 index 字段，这里先确保 parser 不丢 event）
   });
 
-  it("並行 tool_call 按 index 正確分派 arguments", async () => {
+  it("并行 tool_call 按 index 正确分派 arguments", async () => {
     const reader = createMockReader([
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"f1","arguments":""}}]}}]}\n\n',
       'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"b","function":{"name":"f2","arguments":""}}]}}]}\n\n',
@@ -520,7 +520,7 @@ describe("parseOpenAIStream", () => {
 
     const deltas = events.filter((e) => e.type === "tool_call_delta");
     expect(deltas).toHaveLength(2);
-    // 第一個 delta 對應 index=1（因為到達順序）
+    // 第一个 delta 对应 index=1（因为到达顺序）
     expect((deltas[0] as any).index).toBe(1);
     expect((deltas[0] as any).delta).toBe('{"y":2}');
     expect((deltas[1] as any).index).toBe(0);
