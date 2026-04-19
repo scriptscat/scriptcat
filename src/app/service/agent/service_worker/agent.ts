@@ -401,14 +401,10 @@ export class AgentService {
     return this.chatService.handleConversationChat(
       {
         conversationId: `__optimize_${Date.now()}`,
-        message: params.input,
+        message: "",
         modelId: params.modelId,
-        ephemeral: true,
-        messages: [{ role: "user", content: params.input }],
-        system:
-          "Act as an Expert Prompt Engineer. Transform the input into a highly structured, actionable LLM prompt. Preserve intent, injecting context or constraints ONLY to resolve ambiguity and ensure flawless execution. Match the input language. Output ONLY the final prompt text—strictly no preambles, commentary, or enclosing markdown fences.",
-        cache: false,
-        enableTools: false,
+        optimizePrompt: true,
+        optimizeInput: params.input,
       },
       sender
     );

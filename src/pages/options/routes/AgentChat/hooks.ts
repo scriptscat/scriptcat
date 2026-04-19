@@ -425,8 +425,10 @@ export function useOptimizePrompt() {
 
       await new Promise<void>((resolve, reject) => {
         conn.onMessage((msg) => {
-          const event = msg.data as ChatStreamEvent;
-          if (event.type === "content_delta") optimized += event.delta;
+          const event = msg.data as any;
+          if (event.type === "optimize_done") {
+            optimized = event.optimized ?? "";
+          }
           if (event.type === "done") resolve();
           if (event.type === "error") reject(new Error(event.message));
         });
