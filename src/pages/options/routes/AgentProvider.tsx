@@ -377,6 +377,9 @@ function AgentProvider() {
       let chatUrl: string;
       let body: string;
 
+      const systemMessage = "Reply in one brief sentence only. No thinking or reasoning.";
+      const userMessage = "Greet the user warmly in a short, concise sentence.";
+
       if (editingModel.provider === "anthropic") {
         chatUrl = `${baseUrl}/v1/messages`;
         headers["x-api-key"] = editingModel.apiKey;
@@ -385,8 +388,8 @@ function AgentProvider() {
         body = JSON.stringify({
           model: editingModel.model || "claude-sonnet-4-20250514",
           max_tokens: 256,
-          system: "Reply briefly. No thinking or reasoning.",
-          messages: [{ role: "user", content: "hi" }],
+          system: systemMessage,
+          messages: [{ role: "user", content: userMessage }],
           stream: false,
         });
       } else {
@@ -399,8 +402,8 @@ function AgentProvider() {
           model: editingModel.model || defaultModel,
           max_tokens: 256,
           messages: [
-            { role: "system", content: "Reply briefly. No thinking or reasoning." },
-            { role: "user", content: "hi" },
+            { role: "system", content: systemMessage },
+            { role: "user", content: userMessage },
           ],
           stream: false,
         });
