@@ -385,7 +385,9 @@ function AgentProvider() {
         body = JSON.stringify({
           model: editingModel.model || "claude-sonnet-4-20250514",
           max_tokens: 256,
+          system: "Reply briefly. No thinking or reasoning.",
           messages: [{ role: "user", content: "hi" }],
+          stream: false,
         });
       } else {
         chatUrl = `${baseUrl}/chat/completions`;
@@ -396,7 +398,11 @@ function AgentProvider() {
         body = JSON.stringify({
           model: editingModel.model || defaultModel,
           max_tokens: 256,
-          messages: [{ role: "user", content: "hi" }],
+          messages: [
+            { role: "system", content: "Reply briefly. No thinking or reasoning." },
+            { role: "user", content: "hi" },
+          ],
+          stream: false,
         });
       }
 

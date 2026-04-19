@@ -139,6 +139,9 @@ export function parseOpenAIStream(
   // 标记是否已通过 [DONE] 信号发出了 done 事件，避免 .then() 再次发出
   let doneSent = false;
 
+  // 跨 chunk 追踪 <think>...</think> 块状态（用于把思考混在 content 里的模型）
+  let inThinkBlock = false;
+
   return readSSEStream(
     reader,
     signal,
@@ -196,7 +199,43 @@ export function parseOpenAIStream(
                   }
                 }
               } else {
-                onEvent({ type: "content_delta", delta: delta.content });
+                // 处理 <think>...</think> 内联标签（reasoning 模型）
+                // 思考内容路由为 thinking_delta，避免裸露标签出现在对话里
+                let remaining: string = delta.content;
+
+                while (remaining.length > 0) {
+                  if (inThinkBlock) {
+                    // 已在 think 块内，找结束标签
+                    const endIdx = remaining.indexOf("</think>");
+                    if (endIdx === -1) {
+                      // 整段都是思考内容
+                      onEvent({ type: "thinking_delta", delta: remaining });
+                      remaining = "";
+                    } else {
+                      // 结束标签之前是思考内容，之后是正文
+                      if (endIdx > 0) {
+                        onEvent({ type: "thinking_delta", delta: remaining.slice(0, endIdx) });
+                      }
+                      inThinkBlock = false;
+                      remaining = remaining.slice(endIdx + "</think>".length);
+                    }
+                  } else {
+                    // 不在 think 块内，找开始标签
+                    const startIdx = remaining.indexOf("<think>");
+                    if (startIdx === -1) {
+                      // 整段都是正文
+                      onEvent({ type: "content_delta", delta: remaining });
+                      remaining = "";
+                    } else {
+                      // 开始标签之前是正文，之后进入思考块
+                      if (startIdx > 0) {
+                        onEvent({ type: "content_delta", delta: remaining.slice(0, startIdx) });
+                      }
+                      inThinkBlock = true;
+                      remaining = remaining.slice(startIdx + "<think>".length);
+                    }
+                  }
+                }
               }
             }
 
