@@ -222,14 +222,26 @@ export function addStyle(css: string): HTMLStyleElement {
   return document.documentElement.appendChild(dom);
 }
 
-export function addStyleSheet(css: string): CSSStyleSheet {
+export function addStyleSheet(css: string): CSSStyleSheet | HTMLStyleElement {
   // see https://unarist.hatenablog.com/entry/2020/07/06/012540
-  const sheet = new CSSStyleSheet();
-  // it might return as Promise
-  sheet.replaceSync(css);
-  // adoptedStyleSheets is FrozenArray so it has to be re-assigned.
-  document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
-  return sheet;
+  // 旧浏览器（如 Firefox 100 以下）不支持 Constructable Stylesheets / adoptedStyleSheets，回退到 <style> 注入
+  if (
+    typeof CSSStyleSheet === "function" &&
+    typeof CSSStyleSheet.prototype?.replaceSync === "function" &&
+    Array.isArray(document.adoptedStyleSheets)
+  ) {
+    try {
+      const sheet = new CSSStyleSheet();
+      // it might return as Promise
+      sheet.replaceSync(css);
+      // adoptedStyleSheets is FrozenArray so it has to be re-assigned.
+      document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
+      return sheet;
+    } catch {
+      // 个别环境下 new CSSStyleSheet() 仍可能抛出，落到 <style> fallback
+    }
+  }
+  return addStyle(css);
 }
 
 export function metadataBlankOrTrue(metadata: SCMetadata, key: string): boolean {

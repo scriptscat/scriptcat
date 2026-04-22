@@ -458,7 +458,7 @@ describe("utils", () => {
       expect((sheet as any).cssText).toBe(css);
 
       const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
-      expect(adopted.includes(sheet)).toBe(true);
+      expect(adopted.includes(sheet as CSSStyleSheet)).toBe(true);
     });
 
     it("应该在已有样式表的基础上追加新的样式表", () => {
@@ -487,7 +487,7 @@ describe("utils", () => {
       expect((sheet as any).cssText).toBe("");
 
       const adopted = (document as any).adoptedStyleSheets as CSSStyleSheet[];
-      expect(adopted.includes(sheet)).toBe(true);
+      expect(adopted.includes(sheet as CSSStyleSheet)).toBe(true);
     });
 
     it("应该允许添加多个样式表", () => {
