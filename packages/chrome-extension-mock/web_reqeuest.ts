@@ -15,6 +15,12 @@ export default class WebRequest {
     },
   };
 
+  onResponseStarted = {
+    addListener: () => {
+      // TODO
+    },
+  };
+
   onCompleted = {
     addListener: () => {
       // TODO
