@@ -1,6 +1,6 @@
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { has } from "@App/pkg/utils/lodash";
-import { sourceMapTo } from "@App/pkg/utils/utils"
+import { sourceMapTo } from "@App/pkg/utils/utils";
 
 // 构建脚本运行代码
 export function compileScriptCode(scriptRes: ScriptRunResource): string {
