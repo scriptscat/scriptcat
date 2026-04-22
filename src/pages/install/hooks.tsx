@@ -620,6 +620,7 @@ export function useInstallData() {
       }));
       const uuid = await agentClient.prepareSkillFromUrl(url);
       await initSkillFromCache(uuid);
+      setSearchParams(new URLSearchParams(`?skill=${uuid}`), { replace: true });
     } catch (err: any) {
       setFetchingState((prev) => ({
         ...prev,
