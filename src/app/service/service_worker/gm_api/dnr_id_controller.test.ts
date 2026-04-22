@@ -8,7 +8,7 @@ import {
 } from "./dnr_id_controller";
 
 describe("getSessionRuleIds", () => {
-  it("initializes from existing chrome session rules", async () => {
+  it("从现有 chrome session rules 初始化", async () => {
     const ids = await getSessionRuleIds();
     expect(ids.size).lessThan(100);
     await nextSessionRuleId();
@@ -19,7 +19,7 @@ describe("getSessionRuleIds", () => {
 });
 
 describe("nextSessionRuleId", () => {
-  it("returns unique incrementing IDs on each call", async () => {
+  it("每次调用返回唯一递增的 id", async () => {
     const id1 = await nextSessionRuleId();
     const id2 = await nextSessionRuleId();
     const id3 = await nextSessionRuleId();
@@ -28,7 +28,7 @@ describe("nextSessionRuleId", () => {
     expect(id3).toBeGreaterThan(id2);
   });
 
-  it("skips IDs that already exist in session rules", async () => {
+  it("跳过已存在于 session rules 中的 id", async () => {
     const ids = await getSessionRuleIds();
     const next = await nextSessionRuleId();
 
@@ -40,7 +40,7 @@ describe("nextSessionRuleId", () => {
 });
 
 describe("removeSessionRuleIdEntry", () => {
-  it("removes the given ID from the tracked set", async () => {
+  it("从追踪集合中移除指定 id", async () => {
     const ids = await getSessionRuleIds();
     const id = await nextSessionRuleId();
 
@@ -50,16 +50,16 @@ describe("removeSessionRuleIdEntry", () => {
     expect(ids.has(id)).toBe(false);
   });
 
-  it("is a no-op when called before sessionRuleIds is initialized", () => {
+  it("sessionRuleIds 未初始化时为 no-op", () => {
     expect(() => removeSessionRuleIdEntry(10404)).not.toThrow();
   });
 
-  it("throws when ruleId is <= 10000", () => {
+  it("ruleId <= 10000 时抛错", () => {
     expect(() => removeSessionRuleIdEntry(10000)).toThrow();
     expect(() => removeSessionRuleIdEntry(1)).toThrow();
   });
 
-  it("rewinds SESSION_RULE_ID_BEGIN so the removed id gets reused next", async () => {
+  it("回退 SESSION_RULE_ID_BEGIN 使被移除的 id 下次被复用", async () => {
     const ids = await getSessionRuleIds();
 
     const id1 = await nextSessionRuleId();
@@ -70,13 +70,13 @@ describe("removeSessionRuleIdEntry", () => {
     ids.add(id2);
     ids.add(id3);
 
-    // Remove the latest — counter should rewind and reuse it
+    // 移除最新的 id，counter 回退并复用该 id
     removeSessionRuleIdEntry(id3);
     const reused = await nextSessionRuleId();
     expect(reused).toBe(id3);
   });
 
-  it("rewinds SESSION_RULE_ID_BEGIN when removed id is behind the counter", async () => {
+  it("移除的 id 在 counter 之前时仍会回退", async () => {
     const ids = await getSessionRuleIds();
 
     const id1 = await nextSessionRuleId();
@@ -87,13 +87,13 @@ describe("removeSessionRuleIdEntry", () => {
     ids.add(id2);
     ids.add(id3);
 
-    // Remove an older id — counter rewinds to id1 - 1, so id1 gets reused
+    // 移除较早的 id，counter 回退到 id1 - 1，下次分配会得到 id1
     removeSessionRuleIdEntry(id1);
     const reused = await nextSessionRuleId();
     expect(reused).toBe(id1);
   });
 
-  it("does not rewind SESSION_RULE_ID_BEGIN when removed id was pre-existing (ahead of counter)", async () => {
+  it("移除 counter 之后的 id 不回退 counter", async () => {
     const id1 = await nextSessionRuleId();
     const id2 = await nextSessionRuleId();
     const id3 = await nextSessionRuleId();
@@ -109,16 +109,16 @@ describe("removeSessionRuleIdEntry", () => {
     const nextBefore = await nextSessionRuleId(); // e.g. 10001
     removeSessionRuleIdEntry(id6);
 
-    expect(await nextSessionRuleId()).toBe(nextBefore + 1); // counter unchanged, just increments normally
-    expect(await nextSessionRuleId()).toBe(nextBefore + 2); // counter unchanged, just increments normally
-    // expect(await nextSessionRuleId()).toBe(nextBefore + 3); // counter unchanged, just increments normally
-    expect(await nextSessionRuleId()).toBe(nextBefore + 4); // counter unchanged, just increments normally
-    expect(await nextSessionRuleId()).toBe(nextBefore + 5); // counter unchanged, just increments normally
+    expect(await nextSessionRuleId()).toBe(nextBefore + 1); // counter 未变，正常递增
+    expect(await nextSessionRuleId()).toBe(nextBefore + 2);
+    // expect(await nextSessionRuleId()).toBe(nextBefore + 3);
+    expect(await nextSessionRuleId()).toBe(nextBefore + 4);
+    expect(await nextSessionRuleId()).toBe(nextBefore + 5);
   });
 });
 
 describe("nextSessionRuleId limit control", () => {
-  it("locks when session rules reach the limit and unlocks when an entry is removed", async () => {
+  it("达到上限时锁定，移除条目后解锁", async () => {
     const ids = await getSessionRuleIds();
     expect(ids.size).toBeLessThan(100);
 
@@ -135,9 +135,9 @@ describe("nextSessionRuleId limit control", () => {
     const raceResult1 = await Promise.race([lockedPromise.then(() => "resolved"), sleep(5).then(() => "pending")]);
     expect(raceResult1).toBe("pending");
 
-    const m1 = Math.floor(Math.random() * (added.length - 9));
-    const p1 = added[m1];
-    const p2 = added[m1 + 6];
+    // 使用固定索引而非随机，保证测试可重复
+    const p1 = added[0];
+    const p2 = added[6];
     removeSessionRuleIdEntry(p1);
     removeSessionRuleIdEntry(p2);
 
@@ -158,7 +158,7 @@ describe("nextSessionRuleId limit control", () => {
     expect(res.size).toBeLessThan(100);
   });
 
-  it("only one lock is created even with concurrent nextSessionRuleId calls", async () => {
+  it("单次移除仅放行 1 个 waiter，其余继续等待", async () => {
     const ids = await getSessionRuleIds();
     expect(ids.size).toBeLessThan(100);
 
@@ -170,7 +170,7 @@ describe("nextSessionRuleId limit control", () => {
     }
     expect(ids.size).toBeGreaterThan(1000);
 
-    // Fire multiple concurrent calls while locked
+    // 在已达上限时发起多个并发调用
     const p1 = nextSessionRuleId();
     const p2 = nextSessionRuleId();
     const p3 = nextSessionRuleId();
@@ -181,16 +181,33 @@ describe("nextSessionRuleId limit control", () => {
     ]);
     expect(raceResult).toBe("pending");
 
-    // Single removal should unlock all waiters sequentially
-    const toRemove = [...ids].find((id) => id > 10000)!;
-    removeSessionRuleIdEntry(toRemove);
+    // 单次释放 1 个 slot: 只应放行 1 个 waiter，剩余仍挂起
+    removeSessionRuleIdEntry(added[0]);
+    const firstResolved = await Promise.race([p1.then(() => "resolved"), sleep(50).then(() => "pending")]);
+    expect(firstResolved).toBe("resolved");
 
-    // All three should eventually resolve
-    const results = await Promise.race([Promise.all([p1, p2, p3]).then((ids) => ids), sleep(50).then(() => null)]);
+    const remainingStillPending = await Promise.race([
+      Promise.all([p2, p3]).then(() => "resolved"),
+      sleep(5).then(() => "pending"),
+    ]);
+    expect(remainingStillPending).toBe("pending");
+
+    // 继续释放 2 个 slot，剩余 waiter 才能继续完成
+    removeSessionRuleIdEntry(added[1]);
+    removeSessionRuleIdEntry(added[2]);
+    const results = await Promise.race([Promise.all([p2, p3]).then((vals) => vals), sleep(50).then(() => null)]);
     expect(results).not.toBeNull();
 
+    // 任何时候 size 都不应超过 LIMIT_SESSION_RULES
+    expect(ids.size).toBeLessThanOrEqual(LIMIT_SESSION_RULES);
+
     for (const k of added) {
-      removeSessionRuleIdEntry(k);
+      if (ids.has(k)) removeSessionRuleIdEntry(k);
+    }
+    // p1/p2/p3 分配的 id 也要清理
+    const allocated = [await p1, ...(results as number[])];
+    for (const k of allocated) {
+      if (ids.has(k)) removeSessionRuleIdEntry(k);
     }
 
     const res = await getSessionRuleIds();

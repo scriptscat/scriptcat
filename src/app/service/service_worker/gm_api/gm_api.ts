@@ -78,7 +78,7 @@ type OnBeforeSendHeadersOptions = `${chrome.webRequest.OnBeforeSendHeadersOption
 type ReceiveHeaderOptions = `${chrome.webRequest.OnHeadersReceivedOptions}` &
   `${chrome.webRequest.OnResponseStartedOptions}`;
 
-// 删除关联与DNR: 不再处理 headerModifer 时清空 Map 关联 及 浏览器 Session Rule
+// 删除关联与DNR: 不再处理 headerModifier 时清空 Map 关联 及 浏览器 Session Rule
 const headersSettled = (markerID: string) => {
   const dnrRule = headerModifierMap.get(markerID);
   const ruleID = dnrRule?.rule.id;
@@ -93,7 +93,9 @@ const headersSettled = (markerID: string) => {
       () => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
+          // removeRuleIds 失败: 浏览器里仍保留该规则，本地不释放 ruleID 避免复用
           console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
+          return;
         }
         removeSessionRuleIdEntry(ruleID);
       }
@@ -738,10 +740,17 @@ export default class GMApi {
         },
       } as chrome.declarativeNetRequest.Rule;
       headerModifierMap.set(markerID, { rule, redirectNotManual });
-      await chrome.declarativeNetRequest.updateSessionRules({
-        removeRuleIds: [ruleId],
-        addRules: [rule],
-      });
+      try {
+        await chrome.declarativeNetRequest.updateSessionRules({
+          removeRuleIds: [ruleId],
+          addRules: [rule],
+        });
+      } catch (e) {
+        // addRules 失败: 回滚本地 headerModifierMap 关联并释放 ruleId，避免永久占位导致限额锁死
+        headerModifierMap.delete(markerID);
+        removeSessionRuleIdEntry(ruleId);
+        throw e;
+      }
     }
     return true;
   }

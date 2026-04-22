@@ -2,6 +2,7 @@ import EventEmitter from "eventemitter3";
 
 export default class WebRequest {
   sendHeader?: (details: chrome.webRequest.OnSendHeadersDetails) => chrome.webRequest.BlockingResponse | void;
+  responseStarted?: (details: chrome.webRequest.OnResponseStartedDetails) => void;
 
   onBeforeSendHeaders = {
     addListener: (callback: any) => {
@@ -16,8 +17,8 @@ export default class WebRequest {
   };
 
   onResponseStarted = {
-    addListener: () => {
-      // TODO
+    addListener: (callback: any) => {
+      this.responseStarted = callback;
     },
   };
 
