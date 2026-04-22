@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import registerEditor from "@App/pkg/utils/monaco-editor";
+import { registerEditor } from "@App/pkg/utils/monaco-editor/index";
 import "@arco-design/web-react/dist/css/arco.css";
 import MessageInternal from "@App/app/message/internal";
 import migrate from "@App/app/migrate";

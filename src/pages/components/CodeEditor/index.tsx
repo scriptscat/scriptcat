@@ -1,78 +1,180 @@
-import Cache from "@App/app/cache";
 import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
-import { LinterWorker } from "@App/pkg/utils/monaco-editor";
+import { LinterWorkerController, registerEditor } from "@App/pkg/utils/monaco-editor";
 import { editor, Range } from "monaco-editor";
-import React, { useEffect, useImperativeHandle, useState } from "react";
+import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 
 type Props = {
-  // eslint-disable-next-line react/require-default-props
   className?: string;
-  // eslint-disable-next-line react/require-default-props
   diffCode?: string; // 因为代码加载是异步的,diifCode有3种状态:undefined不确定,""没有diff,有diff,不确定的情况下,编辑器不会加载
-  // eslint-disable-next-line react/require-default-props
   editable?: boolean;
   id: string;
-  // eslint-disable-next-line react/require-default-props
   code?: string;
 };
+
+type TMarker = {
+  code: { value: any };
+  startLineNumber: any;
+  endLineNumber: any;
+  startColumn: any;
+  endColumn: any;
+  fix: any;
+} & Record<string, any>;
+
+type TFormattedMarker = {
+  startLineNumber: number;
+  endLineNumber: number;
+  severity: number;
+} & Record<string, any>;
 
 const CodeEditor: React.ForwardRefRenderFunction<
   { editor: editor.ICodeEditor | undefined },
   Props
 > = ({ id, className, code, diffCode, editable }, ref) => {
   const [monacoEditor, setEditor] = useState<editor.ICodeEditor>();
+  const divRef = useRef<HTMLDivElement>(null);
+
   useImperativeHandle(ref, () => ({
     editor: monacoEditor,
   }));
-  useEffect(() => {
-    if (diffCode === undefined || code === undefined) {
-      return () => {};
-    }
-    let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
-    setTimeout(() => {
-      const div = document.getElementById(id) as HTMLDivElement;
-      if (diffCode) {
-        edit = editor.createDiffEditor(div, {
-          enableSplitViewResizing: false,
-          renderSideBySide: false,
-          folding: true,
-          foldingStrategy: "indentation",
-          automaticLayout: true,
-          overviewRulerBorder: false,
-          scrollBeyondLastLine: false,
-          readOnly: true,
-          diffWordWrap: "off",
-          glyphMargin: true,
-        });
-        edit.setModel({
-          original: editor.createModel(diffCode, "javascript"),
-          modified: editor.createModel(code, "javascript"),
-        });
-      } else {
-        edit = editor.create(div, {
-          language: "javascript",
-          theme:
-            document.body.getAttribute("arco-theme") === "dark"
-              ? "vs-dark"
-              : "vs",
-          folding: true,
-          foldingStrategy: "indentation",
-          automaticLayout: true,
-          overviewRulerBorder: false,
-          scrollBeyondLastLine: false,
-          readOnly: !editable,
-          glyphMargin: true,
-        });
-        edit.setValue(code);
 
-        setEditor(edit);
-      }
-    }, 0);
+  // 注册 monaco 全局环境（只需执行一次）
+  useEffect(() => {
+    registerEditor();
+  }, []);
+
+  useEffect(() => {
+    if (diffCode === undefined || code === undefined || !divRef.current) return;
+    let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
+
+    const inlineDiv = divRef.current;
+    const commonEditorOptions = {
+      folding: true,
+      foldingStrategy: "indentation",
+      automaticLayout: true,
+      scrollbar: { alwaysConsumeMouseWheel: false },
+      overviewRulerBorder: false,
+      scrollBeyondLastLine: false,
+
+      glyphMargin: true,
+      unicodeHighlight: {
+        ambiguousCharacters: false,
+      },
+
+      // https://code.visualstudio.com/docs/editing/intellisense
+
+      // Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.
+      acceptSuggestionOnCommitCharacter: true,
+
+      // Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change
+      acceptSuggestionOnEnter: "on",
+
+      // Controls the delay in ms after which quick suggestions will show up.
+      quickSuggestionsDelay: 10,
+
+      // Controls if suggestions should automatically show up when typing trigger characters
+      suggestOnTriggerCharacters: true,
+
+      // Controls if pressing tab inserts the best suggestion and if tab cycles through other suggestions
+      tabCompletion: "off",
+
+      // Controls whether sorting favours words that appear close to the cursor
+      suggest: {
+        localityBonus: true,
+        preview: true,
+      },
+
+      // Controls how suggestions are pre-selected when showing the suggest list
+      suggestSelection: "first",
+
+      // Enable word based suggestions
+      wordBasedSuggestions: "off",
+
+      // Enable parameter hints
+      parameterHints: {
+        enabled: true,
+      },
+
+      // https://qiita.com/H-goto16/items/43802950fc5c112c316b
+      // https://zenn.dev/udonj/articles/ultimate-vscode-customization-2024
+      // https://github.com/is0383kk/VSCode
+
+      quickSuggestions: {
+        other: true,
+        comments: true,
+        strings: true,
+      },
+
+      fastScrollSensitivity: 10,
+      smoothScrolling: true,
+      inlineSuggest: {
+        enabled: true,
+      },
+      guides: {
+        indentation: true,
+      },
+      renderLineHighlightOnlyWhenFocus: true,
+      snippetSuggestions: "top",
+
+      cursorBlinking: "phase",
+      cursorSmoothCaretAnimation: "off",
+
+      autoIndent: "advanced",
+      wrappingIndent: "indent",
+      wordSegmenterLocales: ["ja", "zh-CN", "zh-Hant-TW"] as string[],
+
+      renderLineHighlight: "gutter",
+      renderWhitespace: "selection",
+      renderControlCharacters: true,
+      dragAndDrop: false,
+      emptySelectionClipboard: false,
+      copyWithSyntaxHighlighting: false,
+      bracketPairColorization: {
+        enabled: true,
+      },
+      mouseWheelZoom: true,
+      links: true,
+      accessibilitySupport: "off",
+      largeFileOptimizations: true,
+      colorDecorators: true,
+    } as const;
+    let originalModel: editor.ITextModel | undefined;
+    let modifiedModel: editor.ITextModel | undefined;
+    if (diffCode) {
+      edit = editor.createDiffEditor(inlineDiv, {
+        hideUnchangedRegions: {
+          enabled: true,
+        },
+        enableSplitViewResizing: false,
+        renderSideBySide: false,
+        readOnly: true,
+        diffWordWrap: "off",
+        ...commonEditorOptions,
+      });
+      // standalone model 不会随 editor.dispose 自动清理，需手动跟踪并在 cleanup 释放
+      originalModel = editor.createModel(diffCode, "javascript");
+      modifiedModel = editor.createModel(code, "javascript");
+      edit.setModel({
+        original: originalModel,
+        modified: modifiedModel,
+      });
+    } else {
+      edit = editor.create(inlineDiv, {
+        language: "javascript",
+        theme: document.body.getAttribute("arco-theme") === "dark" ? "vs-dark" : "vs",
+        readOnly: !editable,
+        ...commonEditorOptions,
+      });
+      edit.setValue(code);
+
+      setEditor(edit);
+    }
     return () => {
-      if (edit) {
-        edit.dispose();
-      }
+      // 目前会出现：Uncaught (in promise) Canceled: Canceled
+      // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
+      edit?.dispose();
+      originalModel?.dispose();
+      modifiedModel?.dispose();
     };
   }, [code, diffCode]);
 
@@ -93,7 +195,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
-        LinterWorker.sendLinterMessage({
+        LinterWorkerController.sendLinterMessage({
           code: model.getValue(),
           id,
           config: JSON.parse(config.eslintConfig),
@@ -102,17 +204,11 @@ const CodeEditor: React.ForwardRefRenderFunction<
     };
     // 加载完成就检测一次
     lint();
-    model.onDidChangeContent(() => {
-      lint();
-    });
+    const changeListener = model.onDidChangeContent(lint);
 
     // 在行号旁显示ESLint错误/警告图标
-    const diffEslint = (
-      makers: {
-        startLineNumber: number;
-        endLineNumber: number;
-        severity: number;
-      }[]
+    const showGlyphIcons = (
+      makers: TFormattedMarker[]
     ) => {
       // 定义glyph class
       const glyphMarginClassList = {
@@ -124,11 +220,9 @@ const CodeEditor: React.ForwardRefRenderFunction<
       const oldDecorations = model
         .getAllDecorations()
         .filter(
-          (i) =>
-            i.options.glyphMarginClassName &&
-            Object.values(glyphMarginClassList).includes(
-              i.options.glyphMarginClassName
-            )
+          (d) =>
+            d.options.glyphMarginClassName &&
+            Object.values(glyphMarginClassList).includes(d.options.glyphMarginClassName!)
         );
       monacoEditor.removeDecorations(oldDecorations.map((i) => i.id));
 
@@ -143,9 +237,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
           range: new Range(startLineNumber, 1, endLineNumber, 1),
           options: {
             isWholeLine: true,
-            // @ts-ignore
-            glyphMarginClassName: glyphMarginClassList[severity],
-
+            glyphMarginClassName: glyphMarginClassList[severity as 4 | 8],
             /* 待改进 目前monaco似乎无法满足需求
             glyphMarginHoverMessage: allMarkers.reduce(
               (prev: any, next: any) => {
@@ -168,49 +260,39 @@ const CodeEditor: React.ForwardRefRenderFunction<
       );
     };
 
-    const handler = (message: any) => {
-      if (id !== message.id) {
-        return;
-      }
-      editor.setModelMarkers(model, "ESLint", message.markers);
-      const fix = new Map();
-      // 设置fix
-      message.markers.forEach(
-        (val: {
-          code: { value: any };
-          startLineNumber: any;
-          endLineNumber: any;
-          startColumn: any;
-          endColumn: any;
-          fix: any;
-        }) => {
-          if (val.fix) {
-            fix.set(
-              `${val.code.value}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`,
-              val.fix
-            );
-          }
-        }
-      );
-      Cache.getInstance().set("eslint-fix", fix);
+    const messageHandler = (message: any) => {
+      if (id !== message.id) return;
 
-      // 在行号旁显示ESLint错误/警告图标
-      const formatMarkers = message.markers.map(
-        ({
-          startLineNumber,
-          endLineNumber,
-          severity,
-        }: {
-          startLineNumber: number;
-          endLineNumber: number;
-          severity: number;
-        }) => ({ startLineNumber, endLineNumber, severity })
-      );
-      diffEslint(formatMarkers);
+      editor.setModelMarkers(model, "ESLint", message.markers);
+
+      // 更新 eslint-fix 快取（每次替换整个 map，避免已修复问题的过期条目残留）
+      const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
+      if (eslintFixMap) {
+        eslintFixMap.clear();
+        message.markers.forEach((m: TMarker) => {
+          if (m.fix) {
+            const key = `${m.code.value}|${m.startLineNumber}|${m.endLineNumber}|${m.startColumn}|${m.endColumn}`;
+            eslintFixMap.set(key, m.fix);
+          }
+        });
+      }
+
+      // 显示 glyph 图示 (在行号旁显示ESLint错误/警告图标)
+      const formatted = message.markers.map((m: TFormattedMarker) => ({
+        startLineNumber: m.startLineNumber,
+        endLineNumber: m.endLineNumber,
+        severity: m.severity,
+      }));
+      showGlyphIcons(formatted);
     };
-    LinterWorker.hook.addListener("message", handler);
+    LinterWorkerController.hookAddListener("message", messageHandler);
     return () => {
-      LinterWorker.hook.removeListener("message", handler);
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      changeListener.dispose();
+      LinterWorkerController.hookRemoveListener("message", messageHandler);
     };
   }, [monacoEditor]);
 
@@ -226,6 +308,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
         overflow: "hidden",
       }}
       className={className}
+      ref={divRef}
     />
   );
 };

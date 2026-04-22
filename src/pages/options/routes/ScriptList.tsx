@@ -73,7 +73,7 @@ import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import SynchronizeController from "@App/app/service/synchronize/controller";
 import { useTranslation } from "react-i18next";
-import { nextTime } from "@App/pkg/utils/cron";
+import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { i18nName } from "@App/locales/locales";
 import { SystemConfig } from "@App/pkg/config/config";
@@ -319,9 +319,7 @@ function ScriptList() {
         if (item.type === SCRIPT_TYPE_BACKGROUND) {
           tooltip = t("background_script_tooltip");
         } else {
-          tooltip = `${t("scheduled_script_tooltip")} ${nextTime(
-            item.metadata.crontab[0]
-          )}`;
+          tooltip = `${t("scheduled_script_tooltip")} ${nextTimeDisplay(item.metadata!.crontab![0])}`;
         }
         return (
           <Tooltip content={tooltip}>

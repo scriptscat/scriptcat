@@ -8,29 +8,6 @@ const package = require("../package.json");
 
 // --- utils ---
 
-const MAX_CHUNK_SIZE = 3 * 1024 * 1024; // 3 MiB
-
-function addFileInChunks(zip, filePath, toDir, baseName, maxChunkSize = MAX_CHUNK_SIZE) {
-  const buffer = fs.readFileSync(filePath);
-  let offset = 0;
-
-  const chunks = [];
-  while (offset < buffer.length) {
-    const end = Math.min(offset + maxChunkSize, buffer.length);
-    const chunk = buffer.subarray(offset, end);
-    chunks.push(chunk);
-    offset = end;
-  }
-  const len = chunks.length;
-
-  for (let idx = 0; idx < len; idx += 1) {
-    const chunk = chunks[idx];
-    // e.g. src/ts.worker.js.part30, src/ts.worker.js.part31, ...
-    const chunkPath = `${toDir}${baseName}.part${idx}`;
-    zip.file(chunkPath, chunk);
-  }
-}
-
 const createJSZip = () => {
   const currDate = new Date();
   const dateWithOffset = new Date(currDate.getTime() - currDate.getTimezoneOffset() * 60000);
@@ -154,15 +131,7 @@ chrome.file("manifest.json", JSON.stringify(chromeManifest));
 firefox.file("manifest.json", JSON.stringify(firefoxManifest));
 
 addDir(chrome, "./dist/ext", "", ["manifest.json"]);
-addDir(firefox, "./dist/ext", "", ["manifest.json", "ts.worker.js"]);
-
-// Now split ts.worker.js into chunks (<4MB each) for Firefox
-addFileInChunks(
-  firefox,
-  "./dist/ext/src/ts.worker.js", // source file on disk
-  "src/",                         // folder path inside zip
-  "ts.worker.js"                  // base name for chunked file
-);
+addDir(firefox, "./dist/ext", "", ["manifest.json"]);
 
 // 导出zip包
 chrome

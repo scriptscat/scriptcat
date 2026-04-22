@@ -13,6 +13,12 @@ import { CronJob } from "cron";
 import IoC from "@App/app/ioc";
 import ExecScript from "./exec_script";
 import { BgExecScriptWarp, CATRetryError } from "./exec_warp";
+import { getISOWeek } from "@App/pkg/utils/utils";
+import { extractCronExpr } from "@App/pkg/utils/cron";
+
+const utime_1min = 60 * 1000;
+const utime_1hr = 60 * 60 * 1000;
+const utime_1day = 24 * 60 * 60 * 1000;
 
 type SandboxEvent = "enable" | "disable" | "start" | "stop";
 
@@ -99,8 +105,8 @@ export default class SandboxRuntime {
   }
 
   // 直接运行脚本
-  start(script: ScriptRunResource): Promise<boolean> {
-    return this.execScript(script, true);
+  start(script: ScriptRunResource): Promise<any> {
+    return this.execScript(script, { execOnce: true });
   }
 
   stop(scriptId: number): Promise<boolean> {
@@ -116,7 +122,7 @@ export default class SandboxRuntime {
     return Promise.resolve(true);
   }
 
-  enable(script: ScriptRunResource): Promise<boolean> {
+  enable(script: ScriptRunResource): Promise<any> {
     // 如果正在运行,先释放
     if (this.execScripts.has(script.id)) {
       this.disable(script.id);
@@ -126,7 +132,7 @@ export default class SandboxRuntime {
       case SCRIPT_TYPE_CRONTAB:
         // 定时脚本
         this.stopCronJob(script.id);
-        return this.crontabScript(script);
+        return Promise.resolve(this.crontabScript(script));
       case SCRIPT_TYPE_BACKGROUND:
         // 后台脚本, 直接执行脚本
         return this.execScript(script);
@@ -158,7 +164,42 @@ export default class SandboxRuntime {
   }
 
   // 执行脚本
-  execScript(script: ScriptRunResource, execOnce?: boolean) {
+  async execScript(script: ScriptRunResource, opts?: {
+      execOnce?: boolean;
+      cronJobOncePos?: number;
+    }): Promise<any> {
+
+    const execOnce = opts?.execOnce ?? false;
+    const cronJobOncePos = opts?.cronJobOncePos ?? 0;
+
+    if (cronJobOncePos >= 1) {
+      // 没有最后一次执行时间表示之前都没执行过,直接执行
+      if (script.lastruntime) {
+        const now = new Date();
+        const last = new Date(script.lastruntime);
+        // 根据once所在的位置去判断执行
+        const timeDiff = now.getTime() - last.getTime();
+        switch (cronJobOncePos) {
+          case 1: // 每分钟
+            if (timeDiff < 2 * utime_1min && last.getMinutes() === now.getMinutes()) return;
+            break;
+          case 2: // 每小时
+            if (timeDiff < 2 * utime_1hr && last.getHours() === now.getHours()) return;
+            break;
+          case 3: // 每天
+            if (timeDiff < 2 * utime_1day && last.getDay() === now.getDay()) return;
+            break;
+          case 4: // 每月
+            if (timeDiff < 62 * utime_1day && last.getMonth() === now.getMonth()) return;
+            break;
+          case 5: // 每周
+            if (timeDiff < 14 * utime_1day && getISOWeek(last) === getISOWeek(now)) return;
+            break;
+          default:
+        }
+      }
+    }
+
     const logger = this.logger.with({ scriptId: script.id, name: script.name });
     if (this.execScripts.has(script.id)) {
       // 释放掉资源
@@ -220,88 +261,57 @@ export default class SandboxRuntime {
   crontabScript(script: ScriptRunResource) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
-      throw new Error("错误的crontab表达式");
+      throw new Error(script.name + " - cron_invalid_expr");
     }
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);
-    let flag = false;
+
+    const ERROR_MESSAGES: Record<number, string> = {
+      0: "crontabScript: cron expression failed",
+      2: "crontabScript: onTick creation failed",
+      4: "crontabScript: create cronjob failed",
+      6: "crontabScript: cronjob start failed",
+    };
+
+    const logError = (ok: number, val: string, e: unknown) =>
+      this.logger.error(
+        ERROR_MESSAGES[ok] ?? "crontabScript: execution failed",
+        { uuid: script.id, crontab: val },
+        Logger.E(e)
+      );
+
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
-      let oncePos = 0;
-      let crontab = val;
-      if (crontab.indexOf("once") !== -1) {
-        const vals = crontab.split(" ");
-        vals.forEach((item, index) => {
-          if (item === "once") {
-            oncePos = index;
-          }
-        });
-        if (vals.length === 5) {
-          oncePos += 1;
-        }
-        crontab = crontab.replace(/once/g, "*");
-      }
+      let ok = 0;
       try {
-        const cron = new CronJob(crontab, this.crontabExec(script, oncePos));
+        const { cronExpr, oncePos } = extractCronExpr(val);
+        ok = 2;
+        const onTick = this.crontabExec(script, oncePos);
+        ok = 4;
+        const cron = new CronJob(cronExpr, onTick);
+        ok = 6;
         cron.start();
+        ok = 8;
         cronJobList.push(cron);
       } catch (e) {
-        flag = true;
-        this.logger.error("create cronjob failed", {
-          script: script.id,
-          crontab: val,
-        });
+        logError(ok, val, e);
       }
     });
-    if (cronJobList.length !== script.metadata.crontab.length) {
-      // 有表达式失败了
-      cronJobList.forEach((crontab) => {
-        crontab.stop();
-      });
-    } else {
+
+    const allSucceeded = cronJobList.length === script.metadata.crontab.length;
+    if (allSucceeded) {
       this.cronJob.set(script.id, cronJobList);
+    } else {
+      // 有表达式失败了
+      for (const crontab of cronJobList) {
+        crontab.stop();
+      }
     }
-    return Promise.resolve(!flag);
+    return allSucceeded;
   }
 
-  crontabExec(script: ScriptRunResource, oncePos: number) {
-    if (oncePos) {
-      return () => {
-        // 没有最后一次执行时间表示之前都没执行过,直接执行
-        if (!script.lastruntime) {
-          this.execScript(script);
-          return;
-        }
-        const now = new Date();
-        const last = new Date(script.lastruntime);
-        let flag = false;
-        // 根据once所在的位置去判断执行
-        switch (oncePos) {
-          case 1: // 每分钟
-            flag = last.getMinutes() !== now.getMinutes();
-            break;
-          case 2: // 每小时
-            flag = last.getHours() !== now.getHours();
-            break;
-          case 3: // 每天
-            flag = last.getDay() !== now.getDay();
-            break;
-          case 4: // 每月
-            flag = last.getMonth() !== now.getMonth();
-            break;
-          case 5: // 每周
-            flag = this.getWeek(last) !== this.getWeek(now);
-            break;
-          default:
-        }
-        if (flag) {
-          this.execScript(script);
-        }
-      };
-    }
-    return () => {
-      this.execScript(script);
-    };
+  crontabExec(script: ScriptRunResource, oncePos: number): () => Promise<any> {
+    return this.execScript.bind(this, script, { cronJobOncePos: oncePos });
   }
 
   execStop(exec: ExecScript) {
@@ -311,18 +321,5 @@ export default class SandboxRuntime {
       exec.scriptRes.id,
       SCRIPT_RUN_STATUS_COMPLETE,
     ]);
-  }
-
-  // 获取本周是第几周
-  getWeek(date: Date) {
-    const nowDate = new Date(date);
-    const firstDay = new Date(date);
-    firstDay.setMonth(0); // 设置1月
-    firstDay.setDate(1); // 设置1号
-    const diffDays = Math.ceil(
-      (nowDate.getTime() - firstDay.getTime()) / (24 * 60 * 60 * 1000)
-    );
-    const week = Math.ceil(diffDays / 7);
-    return week === 0 ? 1 : week;
   }
 }

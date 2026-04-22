@@ -2,7 +2,6 @@
 import path from "path";
 import NodePolyfillPlugin from "node-polyfill-webpack-plugin";
 import merge from "webpack-merge";
-import TerserPlugin from "terser-webpack-plugin";
 import { configWebWorker as common } from "../webpack.config";
 
 const src = path.resolve(__dirname, "../src");

@@ -1,5 +1,6 @@
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { has } from "@App/pkg/utils/lodash";
+import { sourceMapTo } from "@App/pkg/utils/utils";
 
 // 构建脚本运行代码
 export function compileScriptCode(scriptRes: ScriptRunResource): string {
@@ -14,9 +15,8 @@ export function compileScriptCode(scriptRes: ScriptRunResource): string {
     });
   }
   code = require + code;
-  return `with (context) return (async ()=>{\n${code}\n//# sourceURL=${chrome.runtime.getURL(
-    `/${encodeURI(scriptRes.name)}.user.js`
-  )}\n})()`;
+  const filepath = `${scriptRes.name}.user.js`;
+  return `with (context) return (async ()=>{\n${code}${sourceMapTo(filepath)}\n})()`;
 }
 
 // eslint-disable-next-line camelcase
@@ -284,11 +284,21 @@ export function proxyContext(
   return proxy;
 }
 
-export function addStyle(css: string): HTMLElement {
+export function addStyle(css: string): HTMLStyleElement {
   const dom = document.createElement("style");
   dom.textContent = css;
   if (document.head) {
     return document.head.appendChild(dom);
   }
   return document.documentElement.appendChild(dom);
+}
+
+export function addStyleSheet(css: string): CSSStyleSheet {
+  // see https://unarist.hatenablog.com/entry/2020/07/06/012540
+  const sheet = new CSSStyleSheet();
+  // it might return as Promise
+  sheet.replaceSync(css);
+  // adoptedStyleSheets is FrozenArray so it has to be re-assigned.
+  document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
+  return sheet;
 }

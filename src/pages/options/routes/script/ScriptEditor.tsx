@@ -1,6 +1,8 @@
+/* eslint-disable no-shadow */
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import type { IDisposable } from "monaco-editor";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { editor, KeyCode, KeyMod } from "monaco-editor";
 import {
@@ -29,14 +31,14 @@ import ScriptResource from "@App/pages/components/ScriptResource";
 import ScriptSetting from "@App/pages/components/ScriptSetting";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
+import { lazyScriptName } from "@App/pkg/config/config";
 
 const { Row } = Grid;
 const { Col } = Grid;
 
-// 声明一个Map存储Script
-const ScriptMap = new Map();
-
 type HotKey = {
+  id: string;
+  title: string;
   hotKey: number;
   action: (script: Script, codeEditor: editor.IStandaloneCodeEditor) => void;
 };
@@ -48,49 +50,67 @@ const Editor: React.FC<{
   callbackEditor: (e: editor.IStandaloneCodeEditor) => void;
   onChange: (code: string) => void;
 }> = ({ id, script, hotKeys, callbackEditor, onChange }) => {
-  const [init, setInit] = useState(false);
-  const codeEditor = useRef<{ editor: editor.IStandaloneCodeEditor }>(null);
-  // Script.uuid为key，Script为value，储存Script
-  ScriptMap.has(script.uuid) || ScriptMap.set(script.uuid, script);
-  useEffect(() => {
-    if (!codeEditor.current || !codeEditor.current.editor) {
-      setTimeout(() => {
-        setInit(true);
-      }, 200);
-      return () => {};
-    }
-    // 初始化editor时将Script的uuid绑定到editor上
-    // @ts-ignore
-    if (!codeEditor.current.editor.uuid) {
-      // @ts-ignore
-      codeEditor.current.editor.uuid = script.uuid;
-    }
-    hotKeys.forEach((item) => {
-      codeEditor.current?.editor.addCommand(item.hotKey, () => {
-        // 获取当前激活的editor（通过editor._focusTracker._hasFocus判断editor激活状态 可能有更好的方法）
-        const activeEditor = editor
-          .getEditors()
-          // @ts-ignore
-          // eslint-disable-next-line no-underscore-dangle
-          .find((i) => i._focusTracker._hasFocus);
+  const [node, setNode] = useState<{ editor: editor.IStandaloneCodeEditor }>();
+  const ref = useCallback<(node: { editor: editor.IStandaloneCodeEditor }) => void>(
+    (inlineNode) => {
+      if (inlineNode && inlineNode.editor && !node) {
+        setNode(inlineNode);
+      }
+    },
+    [node]
+  );
 
-        // 仅在获取到激活的editor时，通过editor上绑定的uuid获取Script，并指定激活的editor执行快捷键action
-        activeEditor &&
-          // @ts-ignore
-          item.action(ScriptMap.get(activeEditor.uuid), activeEditor);
-      });
+  // 用 ref 拿到最新的 hotKeys/onChange/callbackEditor，避免 stale closure
+  // 同时让 effect 仅在 editor 实例变化时重跑（不会因父组件重渲染重复 addAction）
+  const hotKeysRef = useRef(hotKeys);
+  const onChangeRef = useRef(onChange);
+  const callbackEditorRef = useRef(callbackEditor);
+  const scriptRef = useRef(script);
+  hotKeysRef.current = hotKeys;
+  onChangeRef.current = onChange;
+  callbackEditorRef.current = callbackEditor;
+  scriptRef.current = script;
+
+  useEffect(() => {
+    if (!node || !node.editor) {
+      return;
+    }
+    // @ts-ignore
+    if (!node.editor.uuid) {
+      // @ts-ignore
+      node.editor.uuid = scriptRef.current.uuid;
+    }
+    const disposables: IDisposable[] = [];
+    hotKeysRef.current.forEach((item) => {
+      disposables.push(
+        node.editor.addAction({
+          id: item.id,
+          label: item.title,
+          keybindings: [item.hotKey],
+          run(editor) {
+            // @ts-ignore
+            item.action(scriptRef.current, editor);
+          },
+        })
+      );
     });
-    codeEditor.current.editor.onKeyUp(() => {
-      onChange(codeEditor.current?.editor.getValue() || "");
-    });
-    callbackEditor(codeEditor.current.editor);
-    return () => {};
-  }, [init]);
+    disposables.push(
+      node.editor.onKeyUp(() => {
+        onChangeRef.current(node.editor.getValue() || "");
+      })
+    );
+    callbackEditorRef.current(node.editor);
+    // editor 实例本身由 CodeEditor 自身负责 dispose，这里仅清理本 effect 注册的 listener/action
+    return () => {
+      disposables.forEach((d) => d.dispose());
+    };
+  }, [node?.editor]);
 
   return (
     <CodeEditor
+      key={id}
       id={id}
-      ref={codeEditor}
+      ref={ref}
       code={script.code}
       diffCode=""
       editable
@@ -103,6 +123,7 @@ type EditorMenu = {
   tooltip?: string;
   action?: (script: Script, e: editor.IStandaloneCodeEditor) => void;
   items?: {
+    id: string;
     title: string;
     tooltip?: string;
     hotKey?: number;
@@ -116,26 +137,55 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   switch (template) {
     case "background":
       code = backgroundTpl;
+      code = lazyScriptName(code);
       break;
     case "crontab":
       code = crontabTpl;
+      code = lazyScriptName(code);
       break;
-    default:
+    default: {
       code = normalTpl;
-      if (target === "initial") {
-        const url = await new Promise<string>((resolve) => {
-          chrome.storage.local.get(["activeTabUrl"], (result) => {
-            chrome.storage.local.remove(["activeTabUrl"]);
-            if (result.activeTabUrl) {
-              resolve(result.activeTabUrl.url);
-            } else {
-              resolve("undefind");
-            }
-          });
-        });
+      const [url, icon] =
+        target === "initial"
+          ? await new Promise<string[]>((resolve) => {
+              chrome.storage.local.get(["activeTabUrl"], (result) => {
+                const lastError = chrome.runtime.lastError;
+                let retUrl = "https://*/*";
+                let retIcon = "";
+                if (lastError) {
+                  console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+                  chrome.storage.local.remove(["activeTabUrl"]);
+                } else {
+                  chrome.storage.local.remove(["activeTabUrl"]);
+                  const pageUrl = (result?.activeTabUrl as any)?.url;
+                  if (pageUrl) {
+                    try {
+                      const { protocol, pathname, hostname } = new URL(pageUrl);
+                      if (protocol && pathname && hostname) {
+                        retUrl = `${protocol}//${hostname}${pathname}`;
+                        if (protocol === "http:" || protocol === "https:") {
+                          retIcon = `https://www.google.com/s2/favicons?sz=64&domain=${hostname}`;
+                        }
+                      }
+                    } catch {
+                      // do nothing
+                    }
+                  }
+                }
+                resolve([retUrl, retIcon]);
+              });
+            })
+          : ["https://*/*", ""];
+      code = lazyScriptName(code);
+      if (icon) {
         code = code.replace("{{match}}", url);
+        code = code.replace("{{icon}}", icon);
+      } else {
+        code = code.replace("{{match}}", url);
+        code = code.replace(/[\r\n]*[^\r\n]*\{\{icon\}\}[^\r\n]*/, "");
       }
       break;
+    }
   }
   const prepareScript = await prepareScriptByCode(code, "", uuidv4());
   const { script } = prepareScript;
@@ -291,12 +341,14 @@ function ScriptEditor() {
       title: t("file"),
       items: [
         {
+          id: "save",
           title: t("save"),
           hotKey: KeyMod.CtrlCmd | KeyCode.KeyS,
           hotKeyString: "Ctrl+S",
           action: save,
         },
         {
+          id: "saveAs",
           title: t("save_as"),
           hotKey: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
           hotKeyString: "Ctrl+Shift+S",
@@ -308,7 +360,8 @@ function ScriptEditor() {
       title: t("run"),
       items: [
         {
-          title: t("debug"),
+          id: "run",
+          title: t("run"),
           hotKey: KeyMod.CtrlCmd | KeyCode.F5,
           hotKeyString: "Ctrl+F5",
           tooltip: t("only_background_scheduled_can_run"),
@@ -345,6 +398,7 @@ function ScriptEditor() {
       title: t("tools"),
       items: [
         {
+          id: "scriptStorage",
           title: t("script_storage"),
           tooltip: t("script_storage_tooltip"),
           action(script) {
@@ -354,6 +408,7 @@ function ScriptEditor() {
           },
         },
         {
+          id: "scriptResource",
           title: t("script_resource"),
           tooltip: t("script_resource_tooltip"),
           action(script) {
@@ -387,6 +442,8 @@ function ScriptEditor() {
       item.items.forEach((menuItem) => {
         if (menuItem.hotKey) {
           hotKeys.push({
+            id: menuItem.id,
+            title: menuItem.title,
             hotKey: menuItem.hotKey,
             action: menuItem.action,
           });

@@ -1,8 +1,6 @@
 /* eslint-disable no-control-regex */
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable default-case */
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
 import type { SCMetadata } from "@App/app/repo/scripts";
 import type MessageInternal from "@App/app/message/internal";
 
@@ -23,6 +21,22 @@ export function dealScript(source: string): string {
   // 兼容旧代码，头尾引号删去。
   return JSON.stringify(source).slice(1, -1);
 }
+
+export type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (v: T | PromiseLike<T>) => void;
+  reject: (e?: any) => void;
+};
+
+export const deferred = <T = void>(): Deferred<T> => {
+  let resolve!: (v: T | PromiseLike<T>) => void;
+  let reject!: (e?: any) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
 
 export function isFirefox(): boolean {
   return navigator.userAgent.includes("Firefox");
@@ -93,7 +107,8 @@ export function parseStorageValue(str: string): any {
 // 尝试重新链接和超时通知
 export function tryConnect(
   message: MessageInternal,
-  callback: (ok: boolean) => void
+  callback: (ok: boolean) => void,
+  onError: (e: any) => void
 ) {
   const ping = () => {
     return new Promise((resolve) => {
@@ -121,11 +136,7 @@ export function tryConnect(
         message.reconnect();
         callback(true);
       } catch (e) {
-        // ignore
-        LoggerCore.getLogger({ component: "utils" }).error(
-          "re connect failed",
-          Logger.E(e)
-        );
+        onError(e);
       }
     }
   }, 5000);
@@ -303,3 +314,29 @@ export function cleanFileName(name: string): string {
   // eslint-disable-next-line no-control-regex, no-useless-escape
   return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
 }
+
+export const sourceMapTo = (scriptName: string) => {
+  const url = chrome.runtime.getURL(`/${encodeURI(scriptName)}`);
+  return `\n//# sourceURL=${url}`;
+};
+
+// 获取本周是第几周
+// 遵循 ISO 8601, 一月四日为Week 1，星期一为新一周
+// 能应对每年开始和结束（不会因为踏入新一年而重新计算）
+// 见 https://wikipedia.org/wiki/ISO_week_date
+// 中文說明 https://juejin.cn/post/6921245139855736846
+export const getISOWeek = (date: Date): number => {
+  // 使用传入日期的年月日创建 UTC 日期对象，忽略本地时间部分，避免时区影响
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+
+  // 将日期调整到本周的星期四（ISO 8601 规定：周数以星期四所在周为准）
+  // 计算方式：当前日期 + 4 − 当前星期几（星期一 = 1，星期日 = 7）
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+
+  // 获取该星期四所在年份的第一天（UTC）
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+  // 计算从年初到该星期四的天数差
+  // 再换算为周数，并向上取整，得到 ISO 周数
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+};

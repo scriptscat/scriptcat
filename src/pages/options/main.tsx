@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import registerEditor from "@App/pkg/utils/monaco-editor";
+import { registerEditor } from "@App/pkg/utils/monaco-editor/index";
 // eslint-disable-next-line import/no-unresolved
 import "uno.css";
 import "./index.css";
@@ -13,6 +13,7 @@ import GMApi from "@App/runtime/background/gm_api";
 import { MessageBroadcast, MessageHander } from "@App/app/message/message";
 import IoC from "@App/app/ioc";
 import LoggerCore from "@App/app/logger/core";
+import Logger from "@App/app/logger/logger";
 import DBWriter from "@App/app/logger/db_writer";
 import { LoggerDAO } from "@App/app/repo/logger";
 import { IPermissionVerify } from "@App/runtime/background/permission_verify";
@@ -66,6 +67,12 @@ tryConnect(message, (ok: boolean) => {
   } else {
     Message.error("后台通信连接失败,请注意保存当前页面数据,尝试重新连接中...");
   }
+}, (e: any) => {
+  // ignore
+  LoggerCore.getLogger({ component: "utils" }).error(
+    "re connect failed",
+    Logger.E(e)
+  );
 });
 
 // 处理沙盒加载消息

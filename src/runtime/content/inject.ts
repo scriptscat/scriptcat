@@ -1,8 +1,8 @@
-import { ExternalMessage, ExternalWhitelist } from "@App/app/const";
 import MessageContent from "@App/app/message/content";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import ExecScript, { type ValueUpdateData } from "./exec_script";
-import { addStyle, type ScriptFunc } from "./utils";
+import { addStyleSheet, type ScriptFunc } from "./utils";
+import { onInjectPageLoaded } from "./external";
 
 // 注入脚本的沙盒环境
 export default class InjectRuntime {
@@ -54,7 +54,7 @@ export default class InjectRuntime {
     this.externalMessage();
   }
 
-  execScript(script: ScriptRunResource, scriptFunc: ScriptFunc) {
+  execScript(script: ScriptRunResource, scriptFunc: ScriptFunc): void {
     // @ts-ignore
     delete window[script.flag];
     const exec = new ExecScript(
@@ -68,7 +68,7 @@ export default class InjectRuntime {
       script.metadata["require-css"].forEach((val) => {
         const res = script.resource[val];
         if (res) {
-          addStyle(res.content);
+          addStyleSheet(res.content);
         }
       });
     }
@@ -103,41 +103,6 @@ export default class InjectRuntime {
   }
 
   externalMessage() {
-    const { message } = this;
-    // 对外接口白名单
-    for (let i = 0; i < ExternalWhitelist.length; i += 1) {
-      if (window.location.host.endsWith(ExternalWhitelist[i])) {
-        // 注入
-        (<{ external: any }>(<unknown>window)).external = window.external || {};
-        (<
-          {
-            external: {
-              Scriptcat: {
-                isInstalled: (
-                  name: string,
-                  namespace: string,
-                  callback: any
-                ) => void;
-              };
-            };
-          }
-        >(<unknown>window)).external.Scriptcat = {
-          async isInstalled(name: string, namespace: string, callback: any) {
-            const resp = await message.syncSend(ExternalMessage, {
-              action: "isInstalled",
-              name,
-              namespace,
-            });
-            callback(resp);
-          },
-        };
-        (<{ external: { Tampermonkey: any } }>(
-          (<unknown>window)
-        )).external.Tampermonkey = (<{ external: { Scriptcat: any } }>(
-          (<unknown>window)
-        )).external.Scriptcat;
-        break;
-      }
-    }
+    onInjectPageLoaded(this.message);
   }
 }

@@ -3,7 +3,7 @@
     "target": "ESNext",
     "module": "CommonJS",
     "lib": [
-      "ES2021",
+      "ES2022",
       "DOM"
     ],
     "strict": true,
