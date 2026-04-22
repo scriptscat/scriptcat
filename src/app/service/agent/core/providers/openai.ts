@@ -126,6 +126,17 @@ export function buildOpenAIRequest(
   };
 }
 
+// 返回 input 末尾与 tag 前缀匹配的最长长度（用于跨 chunk 缓存被拆开的标签残片）
+function longestTagPrefixSuffix(input: string, tag: string): number {
+  const max = Math.min(input.length, tag.length - 1);
+  for (let i = max; i > 0; i--) {
+    if (input.endsWith(tag.slice(0, i))) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 // 解析 OpenAI SSE 流，生成 ChatStreamEvent
 export function parseOpenAIStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -139,11 +150,28 @@ export function parseOpenAIStream(
   // 标记是否已通过 [DONE] 信号发出了 done 事件，避免 .then() 再次发出
   let doneSent = false;
 
+  // 跨 chunk 追踪 <think>...</think> 块状态（用于把思考混在 content 里的模型）
+  let inThinkBlock = false;
+  // 跨 chunk 保留可能属于标签前缀的残片（例如 chunk 末尾 "<th"，等待下一个 chunk 的 "ink>"）
+  let thinkTagCarry = "";
+
+  // 流结束时将未匹配到完整标签的残片原样输出，避免丢内容
+  const flushThinkCarry = () => {
+    if (thinkTagCarry.length > 0) {
+      onEvent({
+        type: inThinkBlock ? "thinking_delta" : "content_delta",
+        delta: thinkTagCarry,
+      });
+      thinkTagCarry = "";
+    }
+  };
+
   return readSSEStream(
     reader,
     signal,
     (sseEvent) => {
       if (sseEvent.data === "[DONE]") {
+        flushThinkCarry();
         doneSent = true;
         onEvent({ type: "done", usage: lastUsage });
         return true;
@@ -196,7 +224,39 @@ export function parseOpenAIStream(
                   }
                 }
               } else {
-                onEvent({ type: "content_delta", delta: delta.content });
+                // 处理 <think>...</think> 内联标签（reasoning 模型）
+                // 思考内容路由为 thinking_delta，避免裸露标签出现在对话里
+                // 标签可能被 SSE chunk 拆开（如 "<th" + "ink>"），用 carry 保留末尾可能的标签前缀
+                let remaining: string = thinkTagCarry + delta.content;
+                thinkTagCarry = "";
+
+                while (remaining.length > 0) {
+                  const tag = inThinkBlock ? "</think>" : "<think>";
+                  const idx = remaining.indexOf(tag);
+                  if (idx === -1) {
+                    // 未找到完整标签，保留末尾可能匹配标签前缀的残片
+                    const carryLen = longestTagPrefixSuffix(remaining, tag);
+                    const emittable = remaining.slice(0, remaining.length - carryLen);
+                    if (emittable.length > 0) {
+                      onEvent({
+                        type: inThinkBlock ? "thinking_delta" : "content_delta",
+                        delta: emittable,
+                      });
+                    }
+                    thinkTagCarry = remaining.slice(remaining.length - carryLen);
+                    remaining = "";
+                  } else {
+                    // 找到标签：标签前的部分按当前状态输出，之后切换状态
+                    if (idx > 0) {
+                      onEvent({
+                        type: inThinkBlock ? "thinking_delta" : "content_delta",
+                        delta: remaining.slice(0, idx),
+                      });
+                    }
+                    inThinkBlock = !inThinkBlock;
+                    remaining = remaining.slice(idx + tag.length);
+                  }
+                }
               }
             }
 
@@ -249,6 +309,7 @@ export function parseOpenAIStream(
   ).then(() => {
     // 流正常结束但没收到 [DONE]（某些 API 可能如此）
     if (!signal.aborted && !doneSent) {
+      flushThinkCarry();
       onEvent({ type: "done", usage: lastUsage });
     }
   });
