@@ -15,6 +15,7 @@ const langs = {
     quickfix: "修复 {0} 问题",
     addEslintDisableNextLine: "添加 eslint-disable-next-line 注释",
     addEslintDisable: "添加 eslint-disable 注释",
+    declareGlobal: "将 '{0}' 声明为全局变量 (/* global */)",
     prompt: {
       name: "脚本名称",
       namespace: "脚本命名空间",
@@ -84,6 +85,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     quickfix: "Fix {0} Issue",
     addEslintDisableNextLine: "Add eslint-disable-next-line Comment",
     addEslintDisable: "Add eslint-disable Comment",
+    declareGlobal: "Declare '{0}' as a global variable (/* global */)",
     prompt: {
       name: "Script name",
       namespace: "Script namespace",
@@ -146,6 +148,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     quickfix: "修復 {0} 問題",
     addEslintDisableNextLine: "新增 eslint-disable-next-line 註解",
     addEslintDisable: "新增 eslint-disable 註解",
+    declareGlobal: "將 '{0}' 宣告為全域變數 (/* global */)",
     prompt: {
       name: "腳本名稱",
       namespace: "腳本命名空間",
@@ -208,6 +211,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     quickfix: "{0} の問題を修正",
     addEslintDisableNextLine: "eslint-disable-next-line コメントを追加",
     addEslintDisable: "eslint-disable コメントを追加",
+    declareGlobal: "'{0}' をグローバル変数として宣言 (/* global */)",
     prompt: {
       name: "スクリプト名",
       namespace: "スクリプトの名前空間",
@@ -270,6 +274,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     quickfix: "{0}-Problem beheben",
     addEslintDisableNextLine: "eslint-disable-next-line Kommentar hinzufügen",
     addEslintDisable: "eslint-disable Kommentar hinzufügen",
+    declareGlobal: "'{0}' als globale Variable deklarieren (/* global */)",
     prompt: {
       name: "Skriptname",
       namespace: "Skript-Namensraum",
@@ -332,6 +337,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     quickfix: "Sửa lỗi {0}",
     addEslintDisableNextLine: "Thêm chú thích eslint-disable-next-line",
     addEslintDisable: "Thêm chú thích eslint-disable",
+    declareGlobal: "Khai báo '{0}' là biến toàn cục (/* global */)",
     prompt: {
       name: "Tên script",
       namespace: "Namespace của script",
@@ -394,6 +400,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     quickfix: "Исправить проблему {0}",
     addEslintDisableNextLine: "Добавить комментарий eslint-disable-next-line",
     addEslintDisable: "Добавить комментарий eslint-disable",
+    declareGlobal: "Объявить '{0}' как глобальную переменную (/* global */)",
     prompt: {
       name: "Имя скрипта",
       namespace: "Пространство имён скрипта",
@@ -587,7 +594,7 @@ export default function registerEditor() {
             }
 
             actions.push(<languages.CodeAction>{
-              title: `将 '${globalName}' 声明为全局变量 (/* global */)`,
+              title: multiLang.declareGlobal.replace("{0}", globalName),
               diagnostics: [val],
               kind: "quickfix",
               edit: {
