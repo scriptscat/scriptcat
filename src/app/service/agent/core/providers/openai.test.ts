@@ -426,6 +426,96 @@ describe("parseOpenAIStream", () => {
     }
   });
 
+  it("应解析单个 chunk 内的 <think>...</think> 标签", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"before<think>reasoning</think>after"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toEqual([
+      { type: "content_delta", delta: "before" },
+      { type: "thinking_delta", delta: "reasoning" },
+      { type: "content_delta", delta: "after" },
+      { type: "done" },
+    ]);
+  });
+
+  it("应处理 <think> 标签被 SSE chunk 拆开的情况", async () => {
+    // 标签跨 chunk：chunk1 以 "<th" 结尾，chunk2 以 "ink>" 开头
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"before<th"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"ink>thought</think>after"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    // 拼接所有 content_delta 与 thinking_delta 以验证内容未泄露标签片段
+    const contentParts = events.filter((e) => e.type === "content_delta").map((e: any) => e.delta);
+    const thinkingParts = events.filter((e) => e.type === "thinking_delta").map((e: any) => e.delta);
+    expect(contentParts.join("")).toBe("beforeafter");
+    expect(thinkingParts.join("")).toBe("thought");
+  });
+
+  it("应处理 </think> 标签被 SSE chunk 拆开的情况", async () => {
+    // 结束标签跨 chunk：chunk1 末尾是 "</thi"，chunk2 开头是 "nk>"
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"<think>thinking</thi"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"nk>normal"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    const contentParts = events.filter((e) => e.type === "content_delta").map((e: any) => e.delta);
+    const thinkingParts = events.filter((e) => e.type === "thinking_delta").map((e: any) => e.delta);
+    expect(contentParts.join("")).toBe("normal");
+    expect(thinkingParts.join("")).toBe("thinking");
+  });
+
+  it("应处理 <think> 标签逐字符跨 chunk 到达", async () => {
+    // 每个字符独立到达，模拟 token 级别拆分
+    const chunks = "before<think>reasoning</think>after"
+      .split("")
+      .map((ch) => `data: {"choices":[{"delta":{"content":${JSON.stringify(ch)}}}]}\n\n`);
+    chunks.push("data: [DONE]\n\n");
+    const reader = createMockReader(chunks);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    const contentParts = events.filter((e) => e.type === "content_delta").map((e: any) => e.delta);
+    const thinkingParts = events.filter((e) => e.type === "thinking_delta").map((e: any) => e.delta);
+    expect(contentParts.join("")).toBe("beforeafter");
+    expect(thinkingParts.join("")).toBe("reasoning");
+  });
+
+  it("流结束时仍停留在标签残片则原样作为 content 输出", async () => {
+    // 看起来像 <think> 的残片，但后续再也没有到达 -> 按内容输出
+    const reader = createMockReader(['data: {"choices":[{"delta":{"content":"hello <th"}}]}\n\n', "data: [DONE]\n\n"]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    const contentParts = events.filter((e) => e.type === "content_delta").map((e: any) => e.delta);
+    expect(contentParts.join("")).toBe("hello <th");
+  });
+
   it("reasoning_content 后跟 tool_calls 应都正确解析", async () => {
     const reader = createMockReader([
       'data: {"choices":[{"delta":{"role":"assistant","content":null,"reasoning_content":"分析页面"}}]}\n\n',
