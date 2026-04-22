@@ -191,7 +191,7 @@ export function registerEditor() {
             }
 
             actions.push({
-              title: `将 '${globalName}' 声明为全局变量 (/* global */)`,
+              title: multiLang.declareGlobal.replace("{0}", globalName),
               diagnostics: [val],
               kind: "quickfix",
               edit: { edits: [{ resource: model.uri, textEdit, versionId: undefined }] },
