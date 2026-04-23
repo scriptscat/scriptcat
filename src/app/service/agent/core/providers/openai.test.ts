@@ -552,7 +552,7 @@ describe("parseOpenAIStream", () => {
     }
   });
 
-  it("首 chunk 同时带 name 和 arguments='{}' 时不应污染后续 args", async () => {
+  it("首 chunk 同时带 name 和 arguments 时：start 事件 args 为空，首 chunk args 作为 delta 发出", async () => {
     const reader = createMockReader([
       // gateway / 某些 model 会先发一个 arguments="{}" 占位再送真正 JSON
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_x","function":{"name":"agent","arguments":"{}"}}]}}]}\n\n',
@@ -565,18 +565,16 @@ describe("parseOpenAIStream", () => {
 
     expect(events[0].type).toBe("tool_call_start");
     if (events[0].type === "tool_call_start") {
-      // 关键断言：start 事件里的 args 必须为空，不能是 "{}"
+      // 关键断言：start 事件里的 args 必须为空，不能是 "{}"（避免前缀污染）
       expect(events[0].toolCall.arguments).toBe("");
       expect(events[0].toolCall.name).toBe("agent");
     }
-    // 三段 delta：首 chunk 的 "{}" + 两次真实 JSON
+    // 首 chunk 的 "{}" 作为第一段 delta 原样透传（模型问题：整体非合法 JSON，但解析器不吞字符）
     const deltas = events.filter((e) => e.type === "tool_call_delta");
     expect(deltas).toHaveLength(3);
-    const joined = deltas.map((e) => (e.type === "tool_call_delta" ? e.delta : "")).join("");
-    // 拼接后应等同 LLM 真正要发的（就算首 chunk 有 "{}"，也应被后续覆盖式语义接受）
-    // 注意：如果模型真的先发 "{}" 再发别的 JSON，整体不是合法 JSON —— 这是模型问题，
-    // 但至少我们不在 start 事件里把 "{}" 当成 args 的 prefix。
-    expect(joined.startsWith("{}")).toBe(true); // 原样透传
+    expect(deltas[0].type === "tool_call_delta" && deltas[0].delta).toBe("{}");
+    expect(deltas[1].type === "tool_call_delta" && deltas[1].delta).toBe('{"description":"r"');
+    expect(deltas[2].type === "tool_call_delta" && deltas[2].delta).toBe(',"prompt":"do"}');
   });
 
   it("并发多个 tool_call（不同 index）arguments 不应互相串扰", async () => {

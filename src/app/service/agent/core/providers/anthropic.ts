@@ -248,11 +248,11 @@ export function parseAnthropicStream(
             } else if (delta?.type === "thinking_delta") {
               onEvent({ type: "thinking_delta", delta: delta.thinking });
             } else if (delta?.type === "input_json_delta") {
-              const tu = toolUseByIndex.get(json.index); // ← 新增
+              const tu = toolUseByIndex.get(json.index);
               onEvent({
                 type: "tool_call_delta",
-                id: tu?.id || "", // ← 不再固定 ""
-                index: json.index, // ← 新增
+                id: tu?.id || "",
+                index: json.index,
                 delta: delta.partial_json,
               });
             } else if (delta?.type === "image_delta" && imageBlockData) {
@@ -279,6 +279,10 @@ export function parseAnthropicStream(
               });
               imageBlockData = null;
             }
+            // tool_use block 结束后清理 index→id 映射，避免长会话下 map 持续增长
+            if (typeof json.index === "number") {
+              toolUseByIndex.delete(json.index);
+            }
             break;
           }
           case "message_delta": {
@@ -298,6 +302,7 @@ export function parseAnthropicStream(
             break;
           }
           case "message_stop": {
+            toolUseByIndex.clear();
             onEvent({ type: "done" });
             return true;
           }

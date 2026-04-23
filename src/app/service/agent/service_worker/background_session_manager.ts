@@ -62,12 +62,12 @@ export class BackgroundSessionManager {
         // 并发 tool call 时（OpenAI 用 index 区分、Anthropic 的多个 tool_use block）length-1 会把 delta 写错工具。
         if (rc.streamingState.toolCalls.length === 0) break;
 
-        let target;
-        // 1a. 按 id 配對
+        let target: ToolCall | undefined = undefined;
+        // 1a. 按 id 匹配
         if (event.id) {
           target = rc.streamingState.toolCalls.find((t) => t.id === event.id);
         }
-        // 1b. 按 index 配對（OpenAI 後續 chunk 無 id 只有 index）
+        // 1b. 按 index 匹配（OpenAI 后续 chunk 无 id 只有 index）
         if (!target && event.index !== undefined) {
           target = rc.streamingState.toolCalls[event.index];
         }

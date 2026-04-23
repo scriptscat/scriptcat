@@ -128,7 +128,6 @@ export class LLMClient {
     let content = "";
     let thinking = "";
     const toolCalls: ToolCall[] = [];
-    let currentToolCall: ToolCall | null = null;
     let usage:
       | { inputTokens: number; outputTokens: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number }
       | undefined;
@@ -157,23 +156,34 @@ export class LLMClient {
             thinking += event.delta;
             break;
           case "tool_call_start":
-            // 如果已有一个正在收集的 tool call，先保存它（多个 tool_use 并行返回时）
-            if (currentToolCall) {
-              toolCalls.push(currentToolCall);
-            }
-            currentToolCall = { ...event.toolCall, arguments: event.toolCall.arguments || "" };
+            // 并发 tool_call 时 parser 会交错发 delta，这里立即 push 到数组，
+            // 由 tool_call_delta 通过 id/index 定位目标 tool，避免串扰。
+            toolCalls.push({ ...event.toolCall, arguments: event.toolCall.arguments || "", status: "running" });
             break;
-          case "tool_call_delta":
-            if (currentToolCall) {
-              currentToolCall.arguments += event.delta;
+          case "tool_call_delta": {
+            if (!toolCalls.length) break;
+            let target: ToolCall | undefined = undefined;
+            // 1a. 按 id 匹配
+            if (event.id) {
+              target = toolCalls.find((t) => t.id === event.id);
             }
+            // 1b. 按 index 匹配（OpenAI 后续 chunk 无 id 只有 index）
+            if (!target && event.index !== undefined) {
+              target = toolCalls[event.index];
+            }
+            // 2. fallback：最新一个状态为 running 的 tool call
+            if (!target) {
+              for (let i = toolCalls.length - 1; i >= 0; i--) {
+                if (toolCalls[i].status === "running") {
+                  target = toolCalls[i];
+                  break;
+                }
+              }
+            }
+            if (target) target.arguments += event.delta;
             break;
+          }
           case "done": {
-            // 保存当前的 tool call
-            if (currentToolCall) {
-              toolCalls.push(currentToolCall);
-              currentToolCall = null;
-            }
             if (event.usage) {
               usage = event.usage;
             }
