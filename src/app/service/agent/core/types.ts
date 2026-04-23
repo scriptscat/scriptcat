@@ -155,6 +155,7 @@ export type ChatStreamEvent =
       }>;
     }
   | { type: "compact_done"; summary: string; originalCount: number }
+  | { type: "optimize_done"; optimized: string }
   | {
       type: "sync";
       streamingMessage?: { content: string; thinking?: string; toolCalls: ToolCall[] };

@@ -26,6 +26,11 @@ import {
   buildCompactUserPrompt,
   extractSummary,
 } from "@App/app/service/agent/core/compact_prompt";
+import {
+  OPTIMIZE_PROMPT_SYSTEM,
+  buildOptimizeUserPrompt,
+  extractOptimized,
+} from "@App/app/service/agent/core/optimize_prompt";
 import { createTaskTools } from "@App/app/service/agent/core/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/core/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/core/tools/sub_agent";
@@ -72,6 +77,9 @@ type ConversationChatParams = {
   // compact 模式
   compact?: boolean;
   compactInstruction?: string;
+  // optimize prompt 模式
+  optimizePrompt?: boolean;
+  optimizeInput?: string;
   // 后台运行模式
   background?: boolean;
 };
@@ -255,6 +263,12 @@ export class ChatService {
       // compact 模式：压缩对话历史
       if (params.compact) {
         await this.handleCompactChat(params, sendEvent, abortController);
+        return;
+      }
+
+      // optimizePrompt
+      if (params.optimizePrompt) {
+        await this.handleOptimizePromptChat(params, sendEvent, abortController);
         return;
       }
 
@@ -464,6 +478,46 @@ export class ChatService {
     await this.chatRepo.saveMessages(params.conversationId, [summaryMessage]);
 
     sendEvent({ type: "compact_done", summary, originalCount });
+    sendEvent({ type: "done", usage: result.usage });
+  }
+
+  /**
+   * Prompt 优化：直接调用 LLM，不走 tool loop，不持久化。
+   * 模仿 handleCompactChat 的调用方式。
+   */
+  private async handleOptimizePromptChat(
+    params: ConversationChatParams,
+    sendEvent: (event: ChatStreamEvent) => void,
+    abortController: AbortController
+  ): Promise<void> {
+    if (!params.optimizeInput?.trim()) {
+      sendEvent({ type: "error", message: "No input to optimize" });
+      return;
+    }
+
+    const model = await this.modelService.getModel(params.modelId);
+
+    const messages: ChatRequest["messages"] = [
+      { role: "system", content: OPTIMIZE_PROMPT_SYSTEM },
+      { role: "user", content: buildOptimizeUserPrompt(params.optimizeInput) },
+    ];
+
+    // 吞掉 content_delta / thinking_delta，避免把带 <optimized> 标签的原始流送给 UI
+    const silentSendEvent = (event: ChatStreamEvent) => {
+      if (event.type === "content_delta" || event.type === "thinking_delta") return;
+      sendEvent(event);
+    };
+
+    const result = await this.llmDeps.callLLM(
+      model,
+      { messages, cache: false },
+      silentSendEvent,
+      abortController.signal
+    );
+
+    const optimized = extractOptimized(result.content);
+
+    sendEvent({ type: "optimize_done", optimized } as any);
     sendEvent({ type: "done", usage: result.usage });
   }
 
