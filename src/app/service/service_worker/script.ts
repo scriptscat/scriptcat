@@ -3,8 +3,6 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
-import { cacheInstance } from "@App/app/cache";
-import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import {
   checkSilenceUpdate,
   getBrowserType,
@@ -23,7 +21,7 @@ import type {
 } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
-import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
+import { type ScriptInfo, type InstallSource, createTempCodeEntry } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
@@ -47,6 +45,7 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -371,9 +370,9 @@ export class ScriptService {
   }
 
   // 获取安装信息
-  getInstallInfo(uuid: string) {
-    const cacheKey = `${CACHE_KEY_SCRIPT_INFO}${uuid}`;
-    return cacheInstance.get<[boolean, ScriptInfo]>(cacheKey);
+  async getInstallInfo(uuid: string) {
+    const entry = await new TempStorageDAO().get(uuid);
+    return <[boolean, ScriptInfo, Record<string, any>]>entry?.value;
   }
 
   publishInstallScript(scriptFull: Script, options: any) {
@@ -910,8 +909,13 @@ export class ScriptService {
     if (!metadata) {
       throw new Error("parse script info failed");
     }
-    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata), options];
-    await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+    const si = await createTempCodeEntry(update, uuid, code, url, upsertBy, metadata, options);
+    await new TempStorageDAO().save({
+      key: uuid,
+      value: si,
+      savedAt: Date.now(),
+      type: TempStorageItemType.tempCode,
+    });
     return 1;
   }
 
