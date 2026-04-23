@@ -187,6 +187,8 @@ export function parseAnthropicStream(
   // 跟踪图片块的累积 base64 数据
   let imageBlockData: { index: number; mediaType: string; base64Chunks: string[] } | null = null;
 
+  const toolUseByIndex = new Map<number, { id: string }>();
+
   return readSSEStream(
     reader,
     signal,
@@ -212,6 +214,7 @@ export function parseAnthropicStream(
             if (block?.type === "thinking") {
               // thinking block 开始，后续通过 content_block_delta 传输内容
             } else if (block?.type === "tool_use") {
+              toolUseByIndex.set(json.index, { id: block.id });
               onEvent({
                 type: "tool_call_start",
                 toolCall: {
@@ -245,9 +248,11 @@ export function parseAnthropicStream(
             } else if (delta?.type === "thinking_delta") {
               onEvent({ type: "thinking_delta", delta: delta.thinking });
             } else if (delta?.type === "input_json_delta") {
+              const tu = toolUseByIndex.get(json.index);
               onEvent({
                 type: "tool_call_delta",
-                id: "",
+                id: tu?.id || "",
+                index: json.index,
                 delta: delta.partial_json,
               });
             } else if (delta?.type === "image_delta" && imageBlockData) {
@@ -274,6 +279,10 @@ export function parseAnthropicStream(
               });
               imageBlockData = null;
             }
+            // tool_use block 结束后清理 index→id 映射，避免长会话下 map 持续增长
+            if (typeof json.index === "number") {
+              toolUseByIndex.delete(json.index);
+            }
             break;
           }
           case "message_delta": {
@@ -293,6 +302,7 @@ export function parseAnthropicStream(
             break;
           }
           case "message_stop": {
+            toolUseByIndex.clear();
             onEvent({ type: "done" });
             return true;
           }
