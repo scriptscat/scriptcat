@@ -1,3 +1,4 @@
+import { extensionEnv, type TExtensionEnv } from "@App/app/service/extension/extension_env";
 import { randomMessageFlag } from "@App/pkg/utils/utils";
 
 // 避免页面载入后改动全域物件导致消息传递失败
@@ -40,7 +41,7 @@ export function negotiateEventFlag(messageFlag: string, readyCount: number, onIn
         break;
       case "requestEventFlag":
         // 广播通信 flag 给 inject/content
-        pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag });
+        pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag, extensionEnv });
         break;
     }
   };
@@ -51,16 +52,21 @@ export function negotiateEventFlag(messageFlag: string, readyCount: number, onIn
 }
 
 // 获取协商后的 eventFlag
-export function getEventFlag(messageFlag: string, onReady: (eventFlag: string) => void) {
+export function getEventFlag(
+  messageFlag: string,
+  onReady: (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => void
+) {
   let eventFlag = "";
+  let extensionEnv = null;
   const fnEventFlagListener: EventListener = (ev: Event) => {
     if (!(ev instanceof CustomEvent)) return;
     if (ev.detail?.action != "broadcastEventFlag") return;
     eventFlag = ev.detail.eventFlag;
+    extensionEnv = ev.detail.extensionEnv;
     pageRemoveEventListener(messageFlag, fnEventFlagListener);
     // 告知对方已收到 eventFlag
     pageDispatchCustomEvent(messageFlag, { action: "receivedEventFlag" });
-    onReady(eventFlag);
+    onReady(eventFlag, extensionEnv);
   };
 
   // 设置事件，然后对 scripting 请求 flag

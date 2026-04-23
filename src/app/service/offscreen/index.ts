@@ -39,6 +39,13 @@ export class OffscreenManager {
     this.serviceWorker.preparationOffscreen();
   }
 
+  async getExtensionEnv(data: { requireUAD: boolean }) {
+    return this.sendMessageToServiceWorker({
+      action: "getExtensionEnv",
+      data: data,
+    });
+  }
+
   sendMessageToServiceWorker(data: { action: string; data: any }) {
     return sendMessage(this.extMsgSender, `serviceWorker/${data.action}`, data.data);
   }
@@ -47,6 +54,7 @@ export class OffscreenManager {
     // 监听消息
     this.windowServer.on("logger", this.logger.bind(this));
     this.windowServer.on("preparationSandbox", this.preparationSandbox.bind(this));
+    this.windowServer.on("getExtensionEnv", this.getExtensionEnv.bind(this));
     this.windowServer.on("sendMessageToServiceWorker", this.sendMessageToServiceWorker.bind(this));
     const script = new ScriptService(
       this.windowServer.group("script"),
@@ -55,7 +63,7 @@ export class OffscreenManager {
       this.messageQueue
     );
     script.init();
-    // 转发从sandbox来的gm api请求
+    // 转发从sandbox来的请求
     forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extMsgSender);
     // 转发valueUpdate与emitEvent
     forwardMessage("sandbox", "runtime/valueUpdate", this.windowServer, this.windowMessage);
