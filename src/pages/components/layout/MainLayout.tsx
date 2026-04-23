@@ -122,6 +122,7 @@ const importByUrls = async (urls: string[]): Promise<TImportStat | undefined> =>
 const getSafePopupParent = (p: Element) => {
   p = (p.closest("button")?.parentNode as Element) || p; // 確保 ancestor 沒有 button 元素
   p = (p.closest("span")?.parentNode as Element) || p; // 確保 ancestor 沒有 span 元素
+  p = (p.closest(".arco-form-item-control-children")?.parentNode as Element) || p; // 確保 ancestor 沒有 .form-item-control-children 元素
   p = (p.closest(".arco-collapse-item-content")?.parentNode as Element) || p; // 確保 ancestor 沒有 .arco-collapse-item-content 元素
   p = (p.closest(".arco-card")?.parentNode as Element) || p; // 確保 ancestor 沒有 .arco-card 元素
   p = (p.closest("aside")?.parentNode as Element) || p; // 確保 ancestor 沒有 aside 元素
