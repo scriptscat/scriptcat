@@ -47,6 +47,7 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { addSessionRules } from "./dnr";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -299,20 +300,7 @@ export class ScriptService {
         }
       }
     );
-    chrome.declarativeNetRequest.updateSessionRules(
-      {
-        removeRuleIds: [...rules.map((rule) => rule.id)],
-        addRules: rules,
-      },
-      () => {
-        if (chrome.runtime.lastError) {
-          console.error(
-            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateSessionRules:",
-            chrome.runtime.lastError
-          );
-        }
-      }
-    );
+    addSessionRules(rules);
   }
 
   public async openInstallPageByUrl(

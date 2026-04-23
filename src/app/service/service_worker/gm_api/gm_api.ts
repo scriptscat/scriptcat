@@ -54,6 +54,7 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
+import { addSessionRules, sessionRuleDynamicAdd, sessionRuleDynamicRemove } from "../dnr";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -712,10 +713,7 @@ export default class GMApi {
         },
       } as chrome.declarativeNetRequest.Rule;
       headerModifierMap.set(markerID, { rule, redirectNotManual });
-      await chrome.declarativeNetRequest.updateSessionRules({
-        removeRuleIds: [ruleId],
-        addRules: [rule],
-      });
+      await new Promise((resolve) => sessionRuleDynamicAdd(rule, resolve));
     }
     return true;
   }
@@ -1594,32 +1592,11 @@ export default class GMApi {
                 },
               };
               headerModifierMap.set(markerID, { rule: newRule, redirectNotManual });
-              chrome.declarativeNetRequest.updateSessionRules(
-                {
-                  removeRuleIds: [rule.id],
-                  addRules: [newRule],
-                },
-                () => {
-                  const lastError = chrome.runtime.lastError;
-                  if (lastError) {
-                    console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-                  }
-                }
-              );
+              sessionRuleDynamicAdd(newRule);
             } else {
               // 删除关联与DNR
               headerModifierMap.delete(markerID);
-              chrome.declarativeNetRequest.updateSessionRules(
-                {
-                  removeRuleIds: [rule.id],
-                },
-                () => {
-                  const lastError = chrome.runtime.lastError;
-                  if (lastError) {
-                    console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-                  }
-                }
-              );
+              sessionRuleDynamicRemove(rule.id);
             }
           }
         }
@@ -1650,18 +1627,7 @@ export default class GMApi {
         tabIds: [chrome.tabs.TAB_ID_NONE], // 只限于后台 service_worker / offscreen
       },
     } as chrome.declarativeNetRequest.Rule;
-    chrome.declarativeNetRequest.updateSessionRules(
-      {
-        removeRuleIds: [ruleId],
-        addRules: [rule],
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-        }
-      }
-    );
+    addSessionRules([rule]);
   }
 
   start() {
