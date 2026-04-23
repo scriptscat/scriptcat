@@ -57,12 +57,35 @@ export class BackgroundSessionManager {
       case "tool_call_start":
         rc.streamingState.toolCalls.push({ ...event.toolCall, status: "running" });
         break;
-      case "tool_call_delta":
-        if (rc.streamingState.toolCalls.length > 0) {
-          const last = rc.streamingState.toolCalls[rc.streamingState.toolCalls.length - 1];
-          last.arguments += event.delta;
+      case "tool_call_delta": {
+        // 按 id 匹配（fallback 到最新 running 的 tc），不再盲目取 length-1。
+        // 并发 tool call 时（OpenAI 用 index 区分、Anthropic 的多个 tool_use block）length-1 会把 delta 写错工具。
+        if (rc.streamingState.toolCalls.length === 0) break;
+
+        let target: ToolCall | undefined = undefined;
+        // 1a. 按 id 匹配
+        if (event.id) {
+          target = rc.streamingState.toolCalls.find((t) => t.id === event.id);
         }
+        // 1b. 按 index 匹配（OpenAI 后续 chunk 无 id 只有 index）
+        if (!target && event.index !== undefined) {
+          target = rc.streamingState.toolCalls[event.index];
+        }
+
+        // 2. fallback：最新一个状态为 running 的 tool call
+        //    （OpenAI 后续 chunk 不带 id，但同一 index 的 tool 一定在 running）
+        if (!target) {
+          for (let i = rc.streamingState.toolCalls.length - 1; i >= 0; i--) {
+            if (rc.streamingState.toolCalls[i].status === "running") {
+              target = rc.streamingState.toolCalls[i];
+              break;
+            }
+          }
+        }
+
+        if (target) target.arguments += event.delta;
         break;
+      }
       case "tool_call_complete": {
         const tc = rc.streamingState.toolCalls.find((t) => t.id === event.id);
         if (tc) {
