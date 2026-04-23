@@ -336,33 +336,30 @@ export class ResourceService {
       throw new Error(`resource response status not 200: ${resp.status}`);
     }
     const data = await resp.blob();
-    const [hash, arrayBuffer, base64] = await Promise.all([
+    const [hash, uint8Array, base64] = await Promise.all([
       this.calculateHash(data),
       blobToUint8Array(data),
       blobToBase64(data),
     ]);
     const contentType = resp.headers.get("content-type");
-    let content: string = "";
-    const uint8Array = new Uint8Array(arrayBuffer);
-    if (isText(uint8Array)) {
-      if (type === "require" || type === "require-css") {
-        content = await readBlobContent(data, contentType); // @require和@require-css 是会转换成代码运行的，可以进行解码
-      } else {
-        content = await data.text(); // @resource 应该要保留原汁原味
-      }
-    }
-    const now = Date.now();
     const resource: Resource = {
       url: u.url,
-      content: content,
+      content: "",
       contentType: (contentType || "application/octet-stream").split(";")[0], // 保证下载成功时必定有 contentType
       hash: hash,
-      base64: base64 || "",
+      base64: "",
       link: {},
       type,
-      createtime: now,
-      updatetime: now,
+      createtime: Date.now(),
     };
+    if (isText(uint8Array)) {
+      if (type === "require" || type === "require-css") {
+        resource.content = await readBlobContent(data, contentType); // @require和@require-css 是会转换成代码运行的，可以进行解码
+      } else {
+        resource.content = await data.text(); // @resource 应该要保留原汁原味
+      }
+    }
+    resource.base64 = base64 || "";
     return resource;
   }
 
