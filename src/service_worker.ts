@@ -61,7 +61,8 @@ async function setupOffscreenDocument() {
 }
 
 export const onWakeupPing = () => {
-  console.debug("onWakeupPing"); // 不用记录在系统日志
+  //@ts-ignore
+  self.lastWakeupPing = new Date().toLocaleString("zh"); // 僅在後台DevTools debug用
 };
 
 function main() {
