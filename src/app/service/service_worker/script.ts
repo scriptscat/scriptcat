@@ -416,7 +416,7 @@ export class ScriptService {
       script.downloadUrl = "";
       script.checkUpdateUrl = "";
     }
-    // 处理 ScriptCat 旧版本进行安装时的 origin 错误 ( 1.2.x & 1.3.x & 1.4.x - 自 commit d9b0eeede1a8b114f79a43fade99d825323c63f6 @ 2025.07.23 )
+    // 处理 ScriptCat 旧版本进行安装时的 origin 错误 ( 1.0.0-beta.2 ~ 1.4.x - 自 commit d9b0eeede1a8b114f79a43fade99d825323c63f6 @ 2025.07.23 )
     if (oldScript?.origin?.startsWith("file:///*from-local*/") || oldScript?.origin?.startsWith("file://-/")) {
       oldScript.origin = "";
       oldScript.originDomain = "";
