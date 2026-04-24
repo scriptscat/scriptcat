@@ -580,7 +580,8 @@
     "prompt_description": "これは{{scriptType}}です。バックグラウンド実行を有効にすると、ブラウザを閉じた後もスクリプトの実行が続きます。",
     "enable_now": "今すぐ有効にする",
     "maybe_later": "後で",
-    "settings_hint": "設定ページでいつでも変更できます。"
+    "settings_hint": "設定ページでいつでも変更できます。",
+    "always_available_on_firefox": "バックグラウンド実行は Firefox でいつでも利用できます。"
   },
   "editor": {
     "show_script_list": "スクリプトリストを表示",

@@ -5,6 +5,7 @@ import FileSystemParams from "../FileSystemParams";
 import { systemConfig } from "@App/pages/store/global";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
+import { isFirefox } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -24,6 +25,13 @@ const RuntimeSetting: React.FC = () => {
       setFilesystemType(res.filesystem);
       setFilesystemParam(res.params[res.filesystem] || {});
     });
+
+    // Firefox 没有对 background 权限的兼容，默认即可用
+    if (isFirefox()) {
+      setEnableBackgroundState(true);
+      return;
+    }
+
     chrome.permissions.contains({ permissions: ["background"] }, (result) => {
       if (chrome.runtime.lastError) {
         console.error(chrome.runtime.lastError);
@@ -34,6 +42,12 @@ const RuntimeSetting: React.FC = () => {
   }, []);
 
   const setEnableBackground = (enable: boolean) => {
+    // Firefox doesn't support 'background' permission - it's always available
+    if (isFirefox()) {
+      Message.info(t("enable_background.always_available_on_firefox")!);
+      return;
+    }
+
     if (enable) {
       chrome.permissions.request({ permissions: ["background"] }, (granted) => {
         if (chrome.runtime.lastError) {
@@ -60,7 +74,7 @@ const RuntimeSetting: React.FC = () => {
       <Space direction="vertical" size={20} className={"tw-w-full"}>
         <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
           <div className="tw-flex tw-items-center tw-gap-2 tw-flex-1">
-            <Switch onChange={setEnableBackground} checked={enableBackground} />
+            <Switch disabled={isFirefox()} onChange={setEnableBackground} checked={enableBackground} />
             <span
               className="tw-min-w-20 tw-font-medium tw-cursor-pointer"
               onClick={() => {

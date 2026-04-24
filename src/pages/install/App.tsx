@@ -31,7 +31,7 @@ import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
-import { formatBytes } from "@App/pkg/utils/utils";
+import { formatBytes, isFirefox } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
 import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
 import { prettyUrl } from "@App/pkg/utils/url-utils";
@@ -453,6 +453,11 @@ function App() {
       return false;
     }
 
+    // Firefox 无需权限
+    if (isFirefox()) {
+      return false;
+    }
+
     // 检查是否首次安装或更新
     const hasShown = localStorage.getItem(backgroundPromptShownKey);
 
@@ -762,7 +767,7 @@ function App() {
         visible={showBackgroundPrompt}
         onOk={async () => {
           try {
-            const granted = await chrome.permissions.request({ permissions: ["background"] });
+            const granted = isFirefox() || (await chrome.permissions.request({ permissions: ["background"] }));
             if (granted) {
               Message.success(t("enable_background.title")!);
             } else {

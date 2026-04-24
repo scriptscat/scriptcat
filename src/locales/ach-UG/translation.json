@@ -558,5 +558,8 @@
   "editor": {
     "show_script_list": "Show Script List",
     "hide_script_list": "Hide Script List"
+  },
+  "enable_background": {
+    "always_available_on_firefox": "Background running tye kare weny i kom firefox."
   }
 }

@@ -580,7 +580,8 @@
     "prompt_description": "Dies ist ein {{scriptType}}. Die Aktivierung der Hintergrundausführung ermöglicht es dem Skript, nach dem Schließen des Browsers weiter zu laufen.",
     "enable_now": "Jetzt aktivieren",
     "maybe_later": "Vielleicht später",
-    "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern."
+    "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern.",
+    "always_available_on_firefox": "Die Ausführung im Hintergrund ist in Firefox immer verfügbar."
   },
   "editor": {
     "show_script_list": "Skriptliste anzeigen",
