@@ -333,15 +333,36 @@ function LoggerPage() {
               boxSizing: "border-box",
             }}
           >
-            <Typography.Text>
-              {formatUnixTime(startTime)} {t("to")} {isNow ? t("now") : formatUnixTime(endTime)}{" "}
-              {t("total_logs", { length: logs.length })}
-              {init === 4
-                ? `, ${t("filtered_logs", { length: queryLogs.length })}`
-                : `, ${t("enter_filter_conditions")}`}
+            <Typography.Text
+              style={{
+                background: "var(--color-fill-2)",
+                color: "var(--color-text-1)",
+                padding: "4px 8px",
+                borderRadius: "4px",
+              }}
+            >
+              {formatUnixTime(startTime)} {t("to")} {isNow ? t("now") : formatUnixTime(endTime)}
+            </Typography.Text>
+            <Typography.Text
+              style={{
+                color: "var(--color-text-4)",
+              }}
+            >
+              {" -- "}
+            </Typography.Text>
+            <Typography.Text
+              style={{
+                color: "var(--color-text-1)",
+              }}
+            >
+              {[
+                t("total_logs", { length: logs.length }),
+                init === 4 ? t("filtered_logs", { length: queryLogs.length }) : t("enter_filter_conditions"),
+              ].join(t("sentence-separator"))}
             </Typography.Text>
             <List
               style={{
+                marginTop: "4px",
                 height: "100%",
                 overflow: "auto",
               }}

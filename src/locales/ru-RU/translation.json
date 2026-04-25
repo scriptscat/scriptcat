@@ -1,4 +1,5 @@
 {
+  "sentence-separator": ". ",
   "import_link": "Импорт по ссылке",
   "import_link_failure": "Ошибка импорта по ссылке",
   "create_user_script": "Создать пользовательский скрипт",
@@ -106,6 +107,7 @@
   "delete_current_logs": "Удалить текущие журналы",
   "clear_completed": "Очистка завершена",
   "clear_logs": "Очистить журналы",
+  "to": " — ",
   "now": "Сейчас",
   "total_logs": "Найдено {{length}} записей журнала",
   "filtered_logs": "После фильтрации {{length}} записей журнала",

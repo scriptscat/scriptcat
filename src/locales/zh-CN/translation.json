@@ -1,4 +1,5 @@
 {
+  "sentence-separator": "。",
   "import_link": "链接导入",
   "import_link_failure": "链接导入失败",
   "create_user_script": "新建普通脚本",
@@ -106,7 +107,8 @@
   "delete_current_logs": "删除当前日志",
   "clear_completed": "清空完成",
   "clear_logs": "清空日志",
-  "now": "至今",
+  "to": "至",
+  "now": "当前",
   "total_logs": "共查询到 {{length}} 条日志",
   "filtered_logs": "筛选后 {{length}} 条日志",
   "enter_filter_conditions": "请输入筛选条件进行查询",
