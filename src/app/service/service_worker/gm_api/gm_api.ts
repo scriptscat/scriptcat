@@ -54,6 +54,7 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
+import { WakeUpCommand, wakeupPingCommand } from "@App/pkg/utils/wakeup-ping";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -799,11 +800,27 @@ export default class GMApi {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("GM_xmlhttpRequest ERROR: sender is not MessageConnect");
     }
+
+    // https://github.com/scriptscat/scriptcat/issues/1343
+    let wakeupTrigger = true;
+    wakeupPingCommand(WakeUpCommand.START);
+    const wakeupStop = () => {
+      try {
+        if (wakeupTrigger) {
+          wakeupTrigger = false;
+          wakeupPingCommand(WakeUpCommand.STOP);
+        }
+      } catch {
+        // ignored
+      }
+    };
+
     const msgConn = sender.getConnect()!;
 
     let isConnDisconnected = false;
     msgConn.onDisconnect(() => {
       isConnDisconnected = true;
+      wakeupStop();
     });
 
     // 关联自己生成的请求id与chrome.webRequest的请求id
@@ -854,6 +871,7 @@ export default class GMApi {
         useFetch = isFetch || !!redirect || anonymous || isBufferStream;
       }
       const loadendCleanUp = () => {
+        wakeupStop();
         redirectedUrls.delete(markerID);
         nwErrorResults.delete(markerID);
         const reqId = scXhrRequests.get(markerID);
@@ -905,6 +923,7 @@ export default class GMApi {
         msgConn.onDisconnect(offscreenCon.disconnect.bind(offscreenCon));
       }
     } catch (e: any) {
+      wakeupStop();
       const errorMsg = `GM_xmlhttpRequest ERROR: ${e?.message || e || "Unknown Error"}`;
       if (!isConnDisconnected) {
         msgConn.sendMessage({
