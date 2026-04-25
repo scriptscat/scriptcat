@@ -333,38 +333,21 @@ function LoggerPage() {
               boxSizing: "border-box",
             }}
           >
-            <Typography.Text
-              style={{
-                background: "var(--color-fill-2)",
-                color: "var(--color-text-1)",
-                padding: "4px 8px",
-                borderRadius: "4px",
-              }}
-            >
+            <Typography.Text className="tw-bg-[var(--color-fill-2)] tw-text-[var(--color-text-1)] tw-px-2 tw-py-1 tw-rounded">
               {formatUnixTime(startTime)}
               {t("to")}
               {isNow ? `${formatUnixTime(endTime)} (${t("now")})` : formatUnixTime(endTime)}
             </Typography.Text>
-            <Typography.Text
-              style={{
-                color: "var(--color-text-4)",
-              }}
-            >
-              {" -- "}
-            </Typography.Text>
-            <Typography.Text
-              style={{
-                color: "var(--color-text-1)",
-              }}
-            >
+            <Typography.Text className="tw-text-[var(--color-text-4)]">{" -- "}</Typography.Text>
+            <Typography.Text className="tw-text-[var(--color-text-1)]">
               {[
                 t("total_logs", { length: logs.length }),
                 init === 4 ? t("filtered_logs", { length: queryLogs.length }) : t("enter_filter_conditions"),
               ].join(t("sentence-separator"))}
             </Typography.Text>
             <List
+              className="tw-mt-1"
               style={{
-                marginTop: "4px",
                 height: "100%",
                 overflow: "auto",
               }}
