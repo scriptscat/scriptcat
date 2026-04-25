@@ -32,7 +32,7 @@ export const initializeWakeupPing = () => {
     const incrementCounter = () => {
       if (startCounter >= 1 && !isMutationPending) {
         isMutationPending = true;
-        counter = counter > 8 ? 1 : counter + 1;
+        counter = counter & 8 ? 1 : counter + 1;
         pingNode.data = `${counter}`;
       }
     };
