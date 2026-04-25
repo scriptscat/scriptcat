@@ -21,8 +21,6 @@ const channel = new BroadcastChannel("custom-ping"); // offscreen -> sw
 const channelCommand = new BroadcastChannel("custom-ping-command"); // sw -> offscreen
 let startCounter = 0;
 
-let incrementCounter = () => {};
-
 // initializeWakeupPing only execute once in offscreen
 export const initializeWakeupPing = () => {
   if (typeof frameElement === "object" && typeof document === "object" && document) {
@@ -31,7 +29,7 @@ export const initializeWakeupPing = () => {
 
     const pingNode = document.createComment("0");
 
-    incrementCounter = () => {
+    const incrementCounter = () => {
       if (startCounter >= 1 && !isMutationPending) {
         isMutationPending = true;
         counter = counter > 8 ? 1 : counter + 1;
