@@ -341,7 +341,9 @@ function LoggerPage() {
                 borderRadius: "4px",
               }}
             >
-              {formatUnixTime(startTime)} {t("to")} {isNow ? t("now") : formatUnixTime(endTime)}
+              {formatUnixTime(startTime)}
+              {t("to")}
+              {isNow ? `${formatUnixTime(endTime)} (${t("now")})` : formatUnixTime(endTime)}
             </Typography.Text>
             <Typography.Text
               style={{

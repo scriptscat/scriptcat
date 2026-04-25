@@ -107,7 +107,7 @@
   "delete_current_logs": "删除当前日志",
   "clear_completed": "清空完成",
   "clear_logs": "清空日志",
-  "to": "至",
+  "to": " 至 ",
   "now": "当前",
   "total_logs": "共查询到 {{length}} 条日志",
   "filtered_logs": "筛选后 {{length}} 条日志",
