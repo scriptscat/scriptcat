@@ -62,7 +62,7 @@ export function getEventFlag(
   onReady: (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => void
 ) {
   let eventFlag = "";
-  let extensionEnv = null;
+  let extensionEnv: TExtensionEnv | undefined = undefined;
   const fnEventFlagListener: EventListener = (ev: Event) => {
     if (!(ev instanceof CustomEvent)) return;
     if (ev.detail?.action != "broadcastEventFlag") return;
