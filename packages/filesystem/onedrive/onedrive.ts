@@ -74,28 +74,51 @@ export default class OneDriveFileSystem implements FileSystem {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
     if (!url.includes("uploadSession")) {
-      headers.append(`Authorization`, `Bearer ${this.accessToken}`);
+      headers.set(`Authorization`, `Bearer ${this.accessToken}`);
     }
     config.headers = headers;
-    const ret = fetch(url, config);
+    const doFetch = () => fetch(url, config);
+    const retryWithFreshToken = async () => {
+      const token = await AuthVerify("onedrive", true);
+      this.accessToken = token;
+      if (!url.includes("uploadSession")) {
+        headers.set(`Authorization`, `Bearer ${this.accessToken}`);
+      }
+      return doFetch();
+    };
     if (nothen) {
-      return <Promise<Response>>ret;
+      return doFetch().then(async (resp) => {
+        if (resp.status === 401 && !url.includes("uploadSession")) {
+          return retryWithFreshToken();
+        }
+        return resp;
+      });
     }
-    return ret
-      .then((data) => data.json())
+    return doFetch()
+      .then(async (resp) => {
+        if (resp.status === 401 && !url.includes("uploadSession")) {
+          resp = await retryWithFreshToken();
+        }
+        if (!resp.ok) {
+          throw new Error(await resp.text());
+        }
+        return resp.json();
+      })
       .then(async (data) => {
         if (data.error) {
           if (data.error.code === "InvalidAuthenticationToken") {
-            const token = await AuthVerify("onedrive", true);
-            this.accessToken = token;
-            headers.set(`Authorization`, `Bearer ${this.accessToken}`);
-            return fetch(url, config)
-              .then((retryData) => retryData.json())
+            return retryWithFreshToken()
+              .then(async (retryResp) => {
+                if (!retryResp.ok) {
+                  throw new Error(await retryResp.text());
+                }
+                return retryResp.json();
+              })
               .then((retryData) => {
                 if (retryData.error) {
                   throw new Error(JSON.stringify(retryData));
                 }
-                return data;
+                return retryData;
               });
           }
           throw new Error(JSON.stringify(data));
@@ -112,6 +135,9 @@ export default class OneDriveFileSystem implements FileSystem {
       },
       true
     );
+    if (resp.status === 404) {
+      return;
+    }
     if (resp.status !== 204) {
       throw new Error(await resp.text());
     }
