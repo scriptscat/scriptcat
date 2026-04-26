@@ -33,6 +33,7 @@ import { ExtVersion } from "@App/app/const";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import i18n, { i18nName } from "@App/locales/locales";
 import { InfoNotification } from "./utils";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 // type SynchronizeTarget = "local";
 
@@ -65,6 +66,8 @@ type ScriptcatSyncStatus = {
 };
 
 type PushScriptParam = TInstallScriptParams;
+
+const SYNC_SERVICE_TASK_KEY = "cloud_sync";
 
 export class SynchronizeService {
   logger: Logger;
@@ -329,6 +332,10 @@ export class SynchronizeService {
 
   // 同步一次
   async syncOnce(syncConfig: CloudSyncConfig, fs: FileSystem) {
+    return stackAsyncTask(SYNC_SERVICE_TASK_KEY, () => this.syncOnceInternal(syncConfig, fs));
+  }
+
+  private async syncOnceInternal(syncConfig: CloudSyncConfig, fs: FileSystem) {
     this.logger.info("start sync once");
     // 获取文件列表
     const list = await fs.list();
@@ -402,7 +409,7 @@ export class SynchronizeService {
               const metaObj = JSON.parse(metaJson) as SyncMeta;
               if (metaObj.isDeleted) {
                 // 删除脚本
-                this.script.deleteScript(script.uuid, "sync");
+                await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
                   i18n.t("notification.script_sync_delete"),
                   i18n.t("notification.script_sync_delete_desc", { scriptName: i18nName(script) })
@@ -410,7 +417,7 @@ export class SynchronizeService {
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name);
-                result.push(this.pushScript(fs, script));
+                await this.pushScript(fs, script);
               }
             })()
           );
@@ -436,8 +443,11 @@ export class SynchronizeService {
       // 如果脚本不存在，但文件存在，则安装脚本
       if (file.script) {
         if (!file.meta) {
-          // 如果.meta文件不存在，则删除脚本文件，并跳过
-          result.push(fs.delete(file.script.name));
+          // .meta 文件可能尚未上传完成，跳过本次以避免误删云端脚本
+          this.logger.warn("skip orphan cloud script without meta", {
+            uuid,
+            file: file.script.name,
+          });
           return;
         }
         updateScript.set(uuid, true);
@@ -616,7 +626,7 @@ export class SynchronizeService {
           script.status = status.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
         }
       }
-      this.script.installScript({
+      await this.script.installScript({
         script,
         code,
         upsertBy: "sync",
@@ -630,33 +640,37 @@ export class SynchronizeService {
   cloudSyncConfigChange(value: CloudSyncConfig) {
     if (value.enable) {
       // 开启云同步同步
-      this.buildFileSystem(value).then(async (fs) => {
-        await this.syncOnce(value, fs);
-        // 开启定时器, 一小时一次
-        chrome.alarms.get("cloudSync", (alarm) => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
-            // 非预期的异常API错误，停止处理
-          }
-          if (!alarm) {
-            chrome.alarms.create(
-              "cloudSync",
-              {
-                periodInMinutes: 60,
-              },
-              () => {
-                const lastError = chrome.runtime.lastError;
-                if (lastError) {
-                  console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-                  // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-                  console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+      this.buildFileSystem(value)
+        .then(async (fs) => {
+          await this.syncOnce(value, fs);
+          // 开启定时器, 一小时一次
+          chrome.alarms.get("cloudSync", (alarm) => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+              // 非预期的异常API错误，停止处理
+            }
+            if (!alarm) {
+              chrome.alarms.create(
+                "cloudSync",
+                {
+                  periodInMinutes: 60,
+                },
+                () => {
+                  const lastError = chrome.runtime.lastError;
+                  if (lastError) {
+                    console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+                    // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
+                    console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+                  }
                 }
-              }
-            );
-          }
+              );
+            }
+          });
+        })
+        .catch((e) => {
+          this.logger.error("cloud sync config change error", Logger.E(e));
         });
-      });
     } else {
       // 停止计时器
       chrome.alarms.clear("cloudSync");
@@ -670,9 +684,12 @@ export class SynchronizeService {
     // 判断是否开启了同步
     const config = await this.systemConfig.getCloudSync();
     if (config.enable) {
-      this.buildFileSystem(config).then(async (fs) => {
+      stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+        const fs = await this.buildFileSystem(config);
         await this.pushScript(fs, params.script);
-        this.updateFileDigest(fs);
+        await this.updateFileDigest(fs);
+      }).catch((e) => {
+        this.logger.error("push script on install error", Logger.E(e));
       });
     }
   }
@@ -681,13 +698,17 @@ export class SynchronizeService {
     // 判断是否开启了同步
     const config = await this.systemConfig.getCloudSync();
     if (config.enable) {
-      this.buildFileSystem(config).then(async (fs) => {
+      stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+        const fs = await this.buildFileSystem(config);
         for (const { uuid, deleteBy } of data) {
           if (deleteBy === "sync") {
             continue;
           }
           await this.deleteCloudScript(fs, uuid, config.syncDelete);
         }
+        await this.updateFileDigest(fs);
+      }).catch((e) => {
+        this.logger.error("delete cloud script error", Logger.E(e));
       });
     }
   }
