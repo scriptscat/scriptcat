@@ -7,11 +7,12 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { Server } from "@Packages/message/server";
 import ScriptingRuntime from "./app/service/content/scripting";
 import { negotiateEventFlag } from "@Packages/message/common";
+import { extensionEnv } from "./app/service/extension/extension_env";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
 // 将初始化流程完成后，将EventFlag通知到其他环境
-negotiateEventFlag(messageFlag, 2, (eventFlag) => {
+negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
   // 建立与service_worker页面的连接
   const extMsgComm: Message = new ExtensionMessage(false);
   // 初始化日志组件

@@ -1,4 +1,4 @@
-import { extensionEnv, type TExtensionEnv } from "@App/app/service/extension/extension_env";
+import { type TExtensionEnv } from "@App/app/service/extension/extension_env";
 import { randomMessageFlag } from "@App/pkg/utils/utils";
 
 // 避免页面载入后改动全域物件导致消息传递失败
@@ -22,7 +22,12 @@ export const pageDispatchCustomEvent = <T = any>(eventType: string, detail: T) =
 };
 
 // flag协商
-export function negotiateEventFlag(messageFlag: string, readyCount: number, onInit: (eventFlag: string) => void): void {
+export function negotiateEventFlag(
+  messageFlag: string,
+  extensionEnv: TExtensionEnv,
+  readyCount: number,
+  onInit: (eventFlag: string) => void
+): void {
   const eventFlag = randomMessageFlag();
   onInit(eventFlag);
   // 监听 inject/content 发来的请求 eventFlag 的消息
