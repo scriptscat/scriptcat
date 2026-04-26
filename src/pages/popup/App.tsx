@@ -71,7 +71,6 @@ const updateList = (list: ScriptMenu[], update: TUpdateEntryFn, options: TUpdate
 };
 
 type ScriptProvider = "scriptcat" | "greasyfork" | "openuserjs";
-type ScriptProviderKey = `get_more_script_${ScriptProvider}`;
 
 const getMoreScriptWindowOpen = (currentUrl: string, provider: ScriptProvider) => {
   let urlHost = "";
@@ -174,8 +173,6 @@ function App() {
       total: enables.length, // 总数
     };
   }, [backEnables]);
-
-  const urlHost = useMemo(() => {}, [currentUrl]);
 
   useEffect(() => {
     const hookMgr = new HookManager();
