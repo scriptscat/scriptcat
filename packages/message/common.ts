@@ -53,7 +53,7 @@ export function negotiateEventFlag(
 
   // 设置事件，然后广播通信 flag 给 inject/content
   pageAddEventListener(messageFlag, fnEventFlagRequestHandler);
-  pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag });
+  pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag, extensionEnv });
 }
 
 // 获取协商后的 eventFlag
