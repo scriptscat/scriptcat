@@ -15,6 +15,8 @@ import CustomTrans from "@App/pages/components/CustomTrans";
 import { useSystemConfig } from "./utils";
 import { subscribeMessage } from "@App/pages/store/global";
 import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config";
+import { FaviconDAO } from "@App/app/repo/favicon";
+import { clearFaviconMemoryCache } from "@App/pages/store/favicons";
 import { type TKeyValue } from "@Packages/message/message_queue";
 import { useEffect, useMemo } from "react";
 import { systemConfig } from "@App/pages/store/global";
@@ -41,6 +43,7 @@ function Setting() {
   const [badgeTextColor, setBadgeTextColor, submitBadgeTextColor] = useSystemConfig("badge_text_color");
   const [scriptMenuDisplayType, setScriptMenuDisplayType, submitScriptMenuDisplayType] =
     useSystemConfig("script_menu_display_type");
+  const [faviconService, setFaviconService, submitFaviconService] = useSystemConfig("favicon_service");
 
   const [editorTypeDefinition, setEditorTypeDefinition, submitEditorTypeDefinition] =
     useSystemConfig("editor_type_definition");
@@ -81,6 +84,7 @@ function Setting() {
       badge_background_color: setBadgeBackgroundColor,
       badge_text_color: setBadgeTextColor,
       script_menu_display_type: setScriptMenuDisplayType,
+      favicon_service: setFaviconService,
       editor_type_definition: setEditorTypeDefinition,
     } as const;
     const hookMgr = new HookManager();
@@ -305,6 +309,41 @@ function Setting() {
                 <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("auto_collapse_when_exceeds")}</span>
               </div>
             </Space>
+          </div>
+
+          {/* Favicon 服务 */}
+          <div className="tw-flex tw-items-center tw-justify-between tw-min-h-9">
+            <div className="tw-flex tw-items-center tw-gap-4 tw-flex-1">
+              <span className="tw-min-w-20">{t("favicon_service")}</span>
+              <Select
+                value={faviconService}
+                className="tw-w-40 tw-max-w-50"
+                onChange={async (value) => {
+                  submitFaviconService(value);
+                  // 清除 favicon 缓存
+                  try {
+                    const faviconDAO = new FaviconDAO();
+                    const allFavicons = await faviconDAO.find();
+                    await faviconDAO.deletes(allFavicons.map((f) => f.uuid));
+                    // 清除 OPFS 缓存：删除并重建目录
+                    const opfsRoot = await navigator.storage.getDirectory();
+                    await opfsRoot.removeEntry("cached_favicons", { recursive: true }).catch(() => {});
+                    // 清除内存中的 blob URL 缓存
+                    clearFaviconMemoryCache();
+                  } catch {
+                    // 忽略清除缓存的错误
+                  }
+                  Message.success(t("save_success")!);
+                }}
+              >
+                <Select.Option value="scriptcat">{t("favicon_service_scriptcat")}</Select.Option>
+                <Select.Option value="google">{t("favicon_service_google")}</Select.Option>
+                <Select.Option value="duckduckgo">{t("favicon_service_duckduckgo")}</Select.Option>
+                <Select.Option value="icon-horse">{t("favicon_service_icon-horse")}</Select.Option>
+                <Select.Option value="local">{t("favicon_service_local")}</Select.Option>
+              </Select>
+            </div>
+            <span className="tw-text-xs tw-ml-6 tw-flex-shrink-0">{t("favicon_service_desc")}</span>
           </div>
         </Space>
       </Card>

@@ -9,6 +9,7 @@ body {
 }
 
 body[arco-theme='dark'] {
+    --un-default-border-color: var(--color-border-2);
     --color-scrollbar-thumb: #6b6b6b;
     --color-scrollbar-track: #2d2d2d;
     --color-scrollbar-thumb-hover: #8c8c8c;

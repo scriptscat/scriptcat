@@ -1,6 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
+import { SubscribeDAO } from "@App/app/repo/subscribe";
 import { type IGetSender, type Group, GetSenderType } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend, TMessageCommAction } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
@@ -282,6 +283,7 @@ export default class GMApi {
   logger: Logger;
 
   scriptDAO: ScriptDAO = new ScriptDAO();
+  subscribeDAO: SubscribeDAO = new SubscribeDAO();
 
   constructor(
     private systemConfig: SystemConfig,
@@ -318,6 +320,13 @@ export default class GMApi {
     const script = await this.scriptDAO.get(data.uuid);
     if (!script) {
       throw new Error("script is not found");
+    }
+    // 订阅脚本的 connect 使用订阅声明的 connect 覆盖脚本自身的
+    if (script.subscribeUrl) {
+      const subscribe = await this.subscribeDAO.get(script.subscribeUrl);
+      if (subscribe?.metadata?.connect) {
+        script.metadata = { ...script.metadata, connect: subscribe.metadata.connect };
+      }
     }
     return { ...data, script } as GMApiRequest<T>;
   }

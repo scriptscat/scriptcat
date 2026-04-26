@@ -3,10 +3,25 @@ import { FaviconDAO, type FaviconFile, type FaviconRecord } from "@App/app/repo/
 import { v5 as uuidv5 } from "uuid";
 import { getFaviconRootFolder } from "@App/app/service/service_worker/utils";
 import { readBlobContent } from "@App/pkg/utils/encoding";
+import type { FaviconService } from "@App/pkg/config/config";
 
 let scriptDAO: ScriptDAO | null = null;
 let faviconDAO: FaviconDAO | null = null;
 const loadFaviconPromises = new Map<string, any>(); // 关联 iconUrl 和 blobUrl
+
+// 清除内存中的 favicon 缓存，切换服务时调用
+export const clearFaviconMemoryCache = () => {
+  loadFaviconPromises.forEach((promise) => {
+    Promise.resolve(promise)
+      .then((blobUrl) => {
+        if (typeof blobUrl === "string" && blobUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(blobUrl);
+        }
+      })
+      .catch(() => {});
+  });
+  loadFaviconPromises.clear();
+};
 
 /**
  * 从URL模式中提取域名
@@ -179,8 +194,81 @@ export async function fetchIconByDomain(domain: string): Promise<string[]> {
   return urls.filter((url) => !!url) as string[];
 }
 
+/**
+ * 根据服务类型获取 favicon URL 列表
+ *
+ * 各服务说明（包含尺寸、限制、收费、国内可用性等）：
+ */
+export async function fetchIconByService(domain: string, service: FaviconService): Promise<string[]> {
+  switch (service) {
+    case "scriptcat":
+      /**
+       * ScriptCat 图标服务
+       * - 尺寸：支持 sz 参数（如 16 / 32 / 64 / 128）
+       * - 限制：暂无公开限流说明，小规模使用稳定
+       * - 收费：免费
+       * - 中国访问：✅ 国内可正常访问（国内服务）
+       * - 缓存：可长期缓存（返回稳定）
+       * - 特点：适合国内项目，速度快
+       */
+      return [`https://ext.scriptcat.org/api/v1/open/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
+
+    case "google":
+      /**
+       * Google S2 Favicon 服务
+       * - 尺寸：支持 sz=16~256（常用 16/32/64）
+       * - 限制：无官方文档，存在隐性限流
+       * - 收费：免费
+       * - 中国访问：⚠️ 基本不可用
+       * - 缓存：强烈建议缓存（避免请求失败）
+       * - 特点：质量高，命中率高
+       */
+      return [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`];
+
+    case "duckduckgo":
+      /**
+       * DuckDuckGo 图标服务
+       * - 尺寸：固定（通常 64x64 或 ico 原始尺寸）
+       * - 限制：无官方说明
+       * - 收费：免费
+       * - 中国访问：⚠️ 不稳定 / 偶尔失败
+       * - 缓存：建议缓存
+       * - 特点：简单直接，返回 ico
+       */
+      return [`https://icons.duckduckgo.com/ip3/${encodeURI(domain)}.ico`];
+
+    case "icon-horse":
+      /**
+       * Icon Horse
+       * - 尺寸：自动适配（返回较高清 ico）
+       * - 限制：未公开限流策略
+       * - 收费：免费（轻量使用）
+       * - 中国访问：⚠️ 较慢或不稳定
+       * - 缓存：建议缓存
+       * - 特点：质量较好，支持 fallback
+       */
+      return [`https://icon.horse/icon/${encodeURI(domain)}`];
+
+    case "local":
+    default:
+      /**
+       * 本地解析 favicon
+       * - 尺寸：取决于网站（可能多尺寸）
+       * - 限制：需要自行实现抓取逻辑
+       * - 收费：无（本地逻辑）
+       * - 中国访问：✅ 完全可控
+       * - 缓存：强烈建议缓存
+       * - 特点：最可靠但实现成本高
+       */
+      return await fetchIconByDomain(domain);
+  }
+}
+
 // 获取脚本的favicon
-export const getScriptFavicon = async (uuid: string): Promise<FaviconRecord[]> => {
+export const getScriptFavicon = async (
+  uuid: string,
+  service: FaviconService = "scriptcat"
+): Promise<FaviconRecord[]> => {
   scriptDAO ||= new ScriptDAO();
   faviconDAO ||= new FaviconDAO();
   const script = await scriptDAO.get(uuid);
@@ -199,7 +287,7 @@ export const getScriptFavicon = async (uuid: string): Promise<FaviconRecord[]> =
     domains.map(async (domain) => {
       try {
         if (domain.domain) {
-          const icons = await fetchIconByDomain(domain.domain);
+          const icons = await fetchIconByService(domain.domain, service);
           const icon = icons.length > 0 ? icons[0] : "";
           return { match: domain.match, website: "http://" + domain.domain, icon };
         }
@@ -233,6 +321,11 @@ export const loadFavicon = async (iconUrl: string): Promise<string> => {
     // 文件不存在，下载并保存
     const newFileHandle = await directoryHandle.getFileHandle(filename, { create: true });
     const response = await fetch(iconUrl);
+    if (response.status >= 300) {
+      // 状态码异常，删除创建的空文件并抛出错误
+      await directoryHandle.removeEntry(filename).catch(() => {});
+      throw new Error(`Favicon fetch failed with status ${response.status}`);
+    }
     const blob = await response.blob();
     const writable = await newFileHandle.createWritable();
     await writable.write(blob);
@@ -256,9 +349,9 @@ const getFileFromOPFS = async (opfsRet: FaviconFile): Promise<File> => {
 };
 
 // 处理单个脚本的favicon
-const processScriptFavicon = async (script: Script) => {
+const processScriptFavicon = async (script: Script, service: FaviconService = "scriptcat") => {
   const favFnAsync = async () => {
-    const icons = await getScriptFavicon(script.uuid); // 恒久。不会因SW重启而失效
+    const icons = await getScriptFavicon(script.uuid, service); // 恒久。不会因SW重启而失效
     if (icons.length === 0) return [];
     const newIcons = await Promise.all(
       icons.map(async (icon) => {
@@ -305,7 +398,7 @@ type FavIconResult = {
 type TFaviconStack = { chunkResults: FavIconResult[]; pendingCount: number };
 
 // 处理favicon加载，以批次方式处理
-export const loadScriptFavicons = async function* (scripts: Script[]) {
+export const loadScriptFavicons = async function* (scripts: Script[], service: FaviconService = "scriptcat") {
   const stack: TFaviconStack[] = [];
   const asyncWaiter: { promise?: any; resolve?: any } = {};
   const createPromise = () => {
@@ -319,7 +412,7 @@ export const loadScriptFavicons = async function* (scripts: Script[]) {
   const results: FavIconResult[] = [];
   let waiting = false;
   for (const script of scripts) {
-    processScriptFavicon(script).then((result: FavIconResult) => {
+    processScriptFavicon(script, service).then((result: FavIconResult) => {
       results.push(result);
       // 下一个 MacroTask 执行。
       // 使用 requestAnimationFrame 而非setTimeout 是因为前台才要显示。而且网页绘画中时会延后这个

@@ -20,6 +20,8 @@ export type CloudSyncConfig = {
   params: { [key: string]: any };
 };
 
+export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
+
 export type CATFileStorage = {
   filesystem: FileSystemType;
   params: { [key: string]: any };
@@ -508,6 +510,14 @@ export class SystemConfig {
 
   getScriptMenuDisplayType(): Promise<"no_browser" | "all"> {
     return this._get("script_menu_display_type", "all");
+  }
+
+  getFaviconService() {
+    return this._get<FaviconService>("favicon_service", "scriptcat");
+  }
+
+  setFaviconService(val: FaviconService) {
+    return this._set("favicon_service", val);
   }
 }
 
