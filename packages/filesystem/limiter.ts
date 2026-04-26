@@ -72,7 +72,11 @@ export class RateLimiter {
   }
 
   private shouldRetry429(op: string, errorStr: string): boolean {
-    return errorStr.includes("429") && RETRYABLE_429_OPS.has(op);
+    return (
+      ((errorStr.includes("429") && /[^A-Za-z\d]429[^A-Za-z\d]/.test(` ${errorStr} `)) ||
+        errorStr.toLowerCase().includes("too many requests")) &&
+      RETRYABLE_429_OPS.has(op)
+    );
   }
 }
 
