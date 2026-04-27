@@ -67,7 +67,7 @@ type ScriptcatSyncStatus = {
 
 type PushScriptParam = TInstallScriptParams;
 
-const SYNC_SERVICE_TASK_KEY = "cloud_sync";
+const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
 export class SynchronizeService {
   logger: Logger;
@@ -332,7 +332,13 @@ export class SynchronizeService {
 
   // 同步一次
   async syncOnce(syncConfig: CloudSyncConfig, fs: FileSystem) {
-    return stackAsyncTask(SYNC_SERVICE_TASK_KEY, () => this.syncOnceInternal(syncConfig, fs));
+    return stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+      try {
+        await this.syncOnceInternal(syncConfig, fs);
+      } catch (e) {
+        this.logger.error("sync once error", Logger.E(e));
+      }
+    });
   }
 
   private async syncOnceInternal(syncConfig: CloudSyncConfig, fs: FileSystem) {
@@ -393,6 +399,9 @@ export class SynchronizeService {
     // 对比脚本列表和文件列表,进行同步
     const result: Promise<void>[] = [];
     const updateScript: Map<string, boolean> = new Map();
+    // 记录被跳过的孤儿云端脚本（仅 .user.js 无 .meta.json）
+    // 避免本机回写 scriptcat-sync.json 时丢失对应 uuid 的云端 status
+    const skippedOrphanUuids = new Set<string>();
     // 需要是同步操作，后续上传剩下的脚本
     // 最后使用 Promise.allSettled 进行等待
     uuidMap.forEach((file, uuid) => {
@@ -448,6 +457,7 @@ export class SynchronizeService {
             uuid,
             file: file.script.name,
           });
+          skippedOrphanUuids.add(uuid);
           return;
         }
         updateScript.set(uuid, true);
@@ -509,6 +519,13 @@ export class SynchronizeService {
           }
         })
       );
+      // 保留被跳过的 orphan uuid 的云端 status，避免覆盖另一台设备半上传的状态
+      skippedOrphanUuids.forEach((uuid) => {
+        const status = cloudStatus[uuid];
+        if (status) {
+          scriptcatSync.status.scripts[uuid] = status;
+        }
+      });
       // 保存脚本猫同步状态
       const syncFile = await fs.create("scriptcat-sync.json");
       await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
