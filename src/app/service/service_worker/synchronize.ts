@@ -712,15 +712,18 @@ export class SynchronizeService {
   }
 
   async scriptsDelete(data: TDeleteScript[]) {
+    // 过滤掉来源为 sync 的删除事件，避免 syncOnce 内部触发的 mq 回灌
+    // 又排一次 buildFileSystem + updateFileDigest 的空跑任务
+    const items = data.filter((d) => d.deleteBy !== "sync");
+    if (!items.length) {
+      return;
+    }
     // 判断是否开启了同步
     const config = await this.systemConfig.getCloudSync();
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
-        for (const { uuid, deleteBy } of data) {
-          if (deleteBy === "sync") {
-            continue;
-          }
+        for (const { uuid } of items) {
           await this.deleteCloudScript(fs, uuid, config.syncDelete);
         }
         await this.updateFileDigest(fs);

@@ -543,6 +543,35 @@ console.log("ok");`
     expect(order).toEqual(["sync:list", "sync:digest", "delete:from-user", "delete:digest"]);
   });
 
+  it("scriptsDelete skips enqueue when all entries are deleteBy=sync", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true }),
+      } as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    const buildSpy = vi.spyOn(service as any, "buildFileSystem");
+    const getCloudSyncSpy = (service as any).systemConfig.getCloudSync as ReturnType<typeof vi.fn>;
+
+    await service.scriptsDelete([{ uuid: "a", deleteBy: "sync" } as any, { uuid: "b", deleteBy: "sync" } as any]);
+    await flushMicrotasks();
+
+    // 全部来源是 sync（来自 syncOnce 内部的 deleteScript 回灌），应直接 return
+    // 不应去读取云同步配置，也不应建立任何文件系统连接
+    expect(getCloudSyncSpy).not.toHaveBeenCalled();
+    expect(buildSpy).not.toHaveBeenCalled();
+  });
+
   it("cloudSyncConfigChange swallows buildFileSystem error", async () => {
     const service = new SynchronizeService(
       {} as any,
