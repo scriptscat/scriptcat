@@ -3,6 +3,7 @@ import BaiduFileSystem from "./baidu";
 
 describe("BaiduFileSystem", () => {
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -11,6 +12,11 @@ describe("BaiduFileSystem", () => {
       json: async () => ({ errno: 0 }),
     });
     vi.stubGlobal("fetch", fetchMock);
+
+    // 监视 updateDynamicRules，确保不再依赖全局 DNR 规则
+    const updateDynamicRulesMock = vi.fn();
+    (chrome as any).declarativeNetRequest.updateDynamicRules = updateDynamicRulesMock;
+
     const fs = new BaiduFileSystem("/apps", "token");
 
     await expect(fs.request("https://pan.baidu.com/rest/2.0/xpan/file?method=list")).resolves.toEqual({
@@ -24,5 +30,6 @@ describe("BaiduFileSystem", () => {
         credentials: "omit",
       })
     );
+    expect(updateDynamicRulesMock).not.toHaveBeenCalled();
   });
 });
