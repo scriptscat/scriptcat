@@ -47,6 +47,7 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { createNoCSPRules, removeDynamicRulesInRange } from "@App/pkg/utils/dnr";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -313,6 +314,25 @@ export class ScriptService {
         }
       }
     );
+
+    {
+      type Config = Record<string, any>;
+      const rules = createNoCSPRules(["github.com", "facebook.com"], [`|http*`]);
+
+      const updateRules = async (newConfig: Config, oldConfig?: Config) => {
+        if (oldConfig && newConfig.csp_http_disabled === oldConfig?.csp_http_disabled) {
+          return;
+        }
+        await removeDynamicRulesInRange(2001, 2520);
+        if (newConfig.csp_http_disabled) {
+          await chrome.declarativeNetRequest.updateDynamicRules({
+            addRules: rules,
+          });
+        }
+      };
+
+      updateRules({ csp_http_disabled: true });
+    }
   }
 
   public async openInstallPageByUrl(
