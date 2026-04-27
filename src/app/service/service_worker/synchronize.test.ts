@@ -3,6 +3,7 @@ import { SynchronizeService } from "./synchronize";
 import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 initTestEnv();
 
@@ -394,5 +395,183 @@ console.log("ok");`
     expect(order).toContain("push:end");
     expect(order).toContain("digest:list");
     expect(order.indexOf("push:end")).toBeLessThan(order.indexOf("digest:list"));
+  });
+
+  it("scriptInstall enters cloud_sync queue and updates digest after push", async () => {
+    let releaseSync!: () => void;
+    const syncGate = new Promise<void>((resolve) => {
+      releaseSync = resolve;
+    });
+    const order: string[] = [];
+
+    // 第一个占用队列的 syncOnce，gate 在 updateFileDigest 阶段
+    const syncFs = createFs({
+      list: vi
+        .fn()
+        .mockImplementationOnce(async () => {
+          order.push("sync:list");
+          return [];
+        })
+        .mockImplementationOnce(async () => {
+          order.push("sync:digest");
+          await syncGate;
+          return [];
+        }),
+    });
+
+    const installFs = createFs();
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true }),
+      } as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(installFs);
+    vi.spyOn(service, "pushScript").mockImplementation(async () => {
+      order.push("install:push");
+    });
+    const realUpdateDigest = service.updateFileDigest.bind(service);
+    vi.spyOn(service, "updateFileDigest").mockImplementation(async (fs) => {
+      if (fs === installFs) {
+        order.push("install:digest");
+        return;
+      }
+      await realUpdateDigest(fs);
+    });
+
+    const syncPromise = service.syncOnce(syncConfig, syncFs);
+    await flushMicrotasks();
+    expect(order).toEqual(["sync:list", "sync:digest"]);
+
+    await service.scriptInstall({
+      script: { uuid: "u1", name: "t" } as any,
+      upsertBy: "user",
+    } as any);
+    await flushMicrotasks();
+
+    // syncOnce 还没释放，install 的 pushScript 不能跑
+    expect(order).toEqual(["sync:list", "sync:digest"]);
+
+    releaseSync();
+    await syncPromise;
+
+    // 在同一队列上排一个 barrier，barrier 完成意味着 install 任务也已完成
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+    expect(order).toEqual(["sync:list", "sync:digest", "install:push", "install:digest"]);
+  });
+
+  it("scriptsDelete enters cloud_sync queue and updates digest after deleting", async () => {
+    let releaseSync!: () => void;
+    const syncGate = new Promise<void>((resolve) => {
+      releaseSync = resolve;
+    });
+    const order: string[] = [];
+
+    const syncFs = createFs({
+      list: vi
+        .fn()
+        .mockImplementationOnce(async () => {
+          order.push("sync:list");
+          return [];
+        })
+        .mockImplementationOnce(async () => {
+          order.push("sync:digest");
+          await syncGate;
+          return [];
+        }),
+    });
+
+    const deleteFs = createFs();
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true }),
+      } as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(deleteFs);
+    vi.spyOn(service, "deleteCloudScript").mockImplementation(async (_fs: any, uuid: string) => {
+      order.push(`delete:${uuid}`);
+    });
+    const realUpdateDigest = service.updateFileDigest.bind(service);
+    vi.spyOn(service, "updateFileDigest").mockImplementation(async (fs) => {
+      if (fs === deleteFs) {
+        order.push("delete:digest");
+        return;
+      }
+      await realUpdateDigest(fs);
+    });
+
+    const syncPromise = service.syncOnce(syncConfig, syncFs);
+    await flushMicrotasks();
+    expect(order).toEqual(["sync:list", "sync:digest"]);
+
+    await service.scriptsDelete([
+      { uuid: "from-user", deleteBy: "user" } as any,
+      { uuid: "from-sync", deleteBy: "sync" } as any,
+    ]);
+    await flushMicrotasks();
+
+    // syncOnce 还没释放，delete 任务一步都不能跑
+    expect(order).toEqual(["sync:list", "sync:digest"]);
+
+    releaseSync();
+    await syncPromise;
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+    // deleteBy === "sync" 的不应触发云端删除；并且 digest 必须在删除全部完成后才更新
+    expect(order).toEqual(["sync:list", "sync:digest", "delete:from-user", "delete:digest"]);
+  });
+
+  it("cloudSyncConfigChange swallows buildFileSystem error", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    const buildErr = new Error("build fs failed");
+    vi.spyOn(service as any, "buildFileSystem").mockRejectedValue(buildErr);
+    const errorSpy = vi.spyOn(service.logger, "error").mockImplementation(() => undefined as any);
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    try {
+      service.cloudSyncConfigChange({ ...syncConfig, enable: true });
+      await flushMicrotasks();
+
+      expect(errorSpy).toHaveBeenCalledWith("cloud sync config change error", expect.anything());
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
   });
 });
