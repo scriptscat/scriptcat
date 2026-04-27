@@ -100,7 +100,8 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
     await localStorageDAO.saveValue(key, token);
   }
   // token过期或者失效
-  if (Date.now() >= token.createtime + 3600000 || invalid) {
+  const expired = Date.now() >= token.createtime + 3600000;
+  if (expired || invalid) {
     // 大于一小时刷新token
     try {
       const resp = await RefreshToken(netDiskType, token.refreshToken);
@@ -119,9 +120,10 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
       };
       // 更新token
       await localStorageDAO.saveValue(key, token);
-    } catch (_) {
-      // 报错返回原token
-      return token.accessToken;
+    } catch (e) {
+      // 已过期或已被服务端判定失效的 token 不能继续回退使用
+      console.warn(e);
+      throw e;
     }
   } else {
     return token.accessToken;
