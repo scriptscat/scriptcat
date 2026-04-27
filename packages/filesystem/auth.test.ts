@@ -1,14 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthVerify } from "./auth";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 
 describe("AuthVerify", () => {
   const localStorageDAO = new LocalStorageDAO();
   const key = "netdisk:token:onedrive";
+  let originalFetch: typeof fetch;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     await chrome.storage.local.clear();
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    vi.stubGlobal("fetch", originalFetch);
   });
 
   it("expired token refresh network failure should reject, not fallback old token", async () => {

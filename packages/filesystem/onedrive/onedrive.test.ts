@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OneDriveFileSystem from "./onedrive";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 
@@ -15,10 +15,16 @@ function createMockResponse(options: { ok?: boolean; status?: number; text?: str
 
 describe("OneDriveFileSystem", () => {
   const localStorageDAO = new LocalStorageDAO();
+  let originalFetch: typeof fetch;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     await chrome.storage.local.clear();
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    vi.stubGlobal("fetch", originalFetch);
   });
 
   it("request should return retry result after token refresh", async () => {

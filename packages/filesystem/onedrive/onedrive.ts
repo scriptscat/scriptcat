@@ -141,7 +141,6 @@ export default class OneDriveFileSystem implements FileSystem {
     if (resp.status !== 204) {
       throw new Error(await resp.text());
     }
-    return resp;
   }
 
   async list(): Promise<FileInfo[]> {
