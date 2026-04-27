@@ -262,3 +262,10 @@ vi.stubGlobal("define", "特殊关键字不能穿透沙盒");
 if (!URL.createObjectURL) URL.createObjectURL = undefined;
 //@ts-expect-error
 if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
+
+import { installOPFSMock, clearOPFSMock } from "./opfs_mock";
+
+installOPFSMock();
+
+// 导出清理函数供测试使用
+(globalThis as any).__clearOPFSMock = clearOPFSMock;

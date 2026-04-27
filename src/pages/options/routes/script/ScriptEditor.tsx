@@ -290,7 +290,7 @@ function ScriptEditor() {
         // 如果不在，从数据库读取
         const script = scriptList.find((s) => s.uuid === uuid);
         if (script) {
-          const code = await scriptCodeDAO.findByUUID(uuid);
+          const code = await scriptCodeDAO.get(uuid);
           const newEditor: EditorState = {
             script,
             code: code?.code || "",

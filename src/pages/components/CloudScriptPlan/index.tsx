@@ -123,7 +123,7 @@ const CloudScriptPlan: React.FC<{
             zip: zipFile,
             ...params,
           });
-          const code = await new ScriptCodeDAO().findByUUID(script.uuid);
+          const code = await new ScriptCodeDAO().get(script.uuid);
           if (!code) {
             Message.error(t("invalid_script_code"));
             return;
