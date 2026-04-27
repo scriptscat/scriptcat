@@ -21,6 +21,7 @@ import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { decodeRValue } from "@App/pkg/utils/message_value";
 import { extractCronExpr } from "@App/pkg/utils/cron";
 import { changeLanguage, initLanguage, t } from "@App/locales/locales";
+import { type TExtensionEnv } from "../extension/extension_env";
 
 const utime_1min = 60 * 1000;
 const utime_1hr = 60 * 60 * 1000;
@@ -40,7 +41,8 @@ export class Runtime {
 
   constructor(
     private windowMessage: WindowMessage,
-    private api: Server
+    private api: Server,
+    private readonly extensionEnvAsync: Promise<TExtensionEnv | undefined>
   ) {
     this.logger = LoggerCore.getInstance().logger({ component: "sandbox" });
     // 重试队列,5s检查一次
@@ -171,7 +173,20 @@ export class Runtime {
       // 暂未实现执行完成后立马释放,会在下一次执行时释放
       await this.stopScript(script.uuid);
     }
-    const exec = new BgExecScriptWarp(script, this.windowMessage);
+    const extensionEnv = await this.extensionEnvAsync;
+
+    // 判断 run-in
+    const runIn = script.metadata?.["run-in"]?.[0];
+    const inIncognitoContext = extensionEnv?.inIncognitoContext;
+    if (runIn && runIn !== "all" && typeof inIncognitoContext === "boolean") {
+      // 判断插件运行环境
+      const contextType = inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+      if (runIn !== contextType) {
+        return;
+      }
+    }
+
+    const exec = new BgExecScriptWarp(script, this.windowMessage, extensionEnv);
     this.execScriptMap.set(script.uuid, exec);
     proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_RUNNING });
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
