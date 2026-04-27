@@ -473,7 +473,7 @@ const MainLayout: React.FC<{
                             return;
                           }
                           systemConfig.setLanguage(value.key);
-                          Message.success(t("language_change_tip")!);
+                          Message.success(t("language_change_tip", { lng: value.key })!);
                         }}
                       >
                         {value.title}
