@@ -24,6 +24,7 @@ import { message } from "@App/pages/store/global";
 import { synchronizeClient } from "@App/pages/store/features/script";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { migrateToChromeStorage } from "@App/app/migrate";
+import CSPRuleCard from "./CSPRule";
 import { useSystemConfig } from "./utils";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { cacheInstance } from "@App/app/cache";
@@ -349,6 +350,8 @@ function Tools() {
             </Button>
           </Space>
         </Card>
+
+        <CSPRuleCard />
       </Space>
       {contextHolder}
     </>

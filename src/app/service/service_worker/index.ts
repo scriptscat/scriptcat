@@ -21,6 +21,8 @@ import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
 import { InfoNotification } from "./utils";
+import { CSPRuleService } from "./cspRule";
+import { CSPInterceptorService } from "./cspInterceptor";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -101,6 +103,15 @@ export default class ServiceWorkerManager {
       faviconDAO
     );
     system.init();
+
+    // CSP 规则管理
+    const cspInterceptor = new CSPInterceptorService();
+    const cspRule = new CSPRuleService(this.api.group("cspRule"), this.mq);
+    // 直接连接：规则变更时立即通知拦截器更新 DNR 规则（不依赖消息队列时序）
+    cspRule.setOnRulesChanged(cspInterceptor.updateRules.bind(cspInterceptor));
+    cspRule.setOnGlobalEnabledChanged(cspInterceptor.updateGlobalEnabled.bind(cspInterceptor));
+    cspRule.init();
+    cspInterceptor.init();
 
     const regularScriptUpdateCheck = async () => {
       const res = await onRegularUpdateCheckAlarm(systemConfig, script, subscribe);
