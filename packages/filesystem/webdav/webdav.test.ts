@@ -161,6 +161,16 @@ describe("WebDAVFileSystem", () => {
 
       expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt");
     });
+
+    it("应当在 404 时静默成功（幂等删除）", async () => {
+      (mockClient.deleteFile as ReturnType<typeof vi.fn>).mockRejectedValue({
+        response: { status: 404 },
+        message: "404 Not Found",
+      });
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
+    });
   });
 
   describe("list", () => {
