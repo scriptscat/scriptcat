@@ -102,7 +102,7 @@ documentation page to make modifications.
 
 ## 🤝 Contributing
 
-We welcome all forms of contributions! Please check the [Contributing Guide](./docs/CONTRIBUTING_EN.md) to learn how to
+We welcome all forms of contributions! Please check the [Contributing Guide](./CONTRIBUTING.md) to learn how to
 get started.
 
 ### 💬 Community

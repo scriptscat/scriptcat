@@ -97,7 +97,7 @@ ScriptCat は、Tampermonkey の設計思想に基づく強力なユーザース
 ## 🤝 コントリビューション
 
 あらゆる形式の貢献を歓迎します！  
-まずは [Contributing Guide](./docs/CONTRIBUTING_EN.md) をご覧ください。
+まずは [Contributing Guide](./CONTRIBUTING.md) をご覧ください。
 
 ### 💬 コミュニティ
 

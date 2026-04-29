@@ -1,111 +1,103 @@
-[English Contribution Guidelines](./docs/CONTRIBUTING_EN.md) [Руководство на русском](./docs/CONTRIBUTING_RU.md)
+[中文贡献指南](./docs/CONTRIBUTING_ZH.md) / [Руководство на русском](./docs/CONTRIBUTING_RU.md)
 
-# ScriptCat 贡献指南
+# ScriptCat Contributing Guide
 
-我们非常感谢你为 ScriptCat 做出贡献！本指南旨在帮助你以更规范的方式向 ScriptCat 提交贡献，因此请务必认真阅读。
+We greatly appreciate your contributions to ScriptCat! This guide aims to help you contribute to ScriptCat in a more standardized way, so please read it carefully.
 
-## 提交 Issue
+## Submitting Issues
 
-在提交 Issue 前，我们建议你先查看 [已有的 Issues](https://github.com/scriptscat/scriptcat/issues)，以避免重复提交。
+Before submitting an issue, we recommend that you first check the [existing Issues](https://github.com/scriptscat/scriptcat/issues) to avoid duplicate submissions.
 
-### 报告问题、故障与漏洞
+### Reporting Problems, Bugs & Vulnerabilities
 
-ScriptCat 是一个不断发展的项目。如果你在使用过程中发现问题，并且确信这些问题是由 ScriptCat 引起的，欢迎提交 Issue。在提交时，请附带详细的复现步骤和运行环境信息。
+ScriptCat is an evolving project. If you encounter problems during use and are confident that these issues are caused by ScriptCat, we welcome you to submit an Issue. When submitting, please include detailed reproduction steps and runtime environment information.
 
-### 提出新功能
+### Proposing New Features
 
-我们欢迎你在 Issue 中提出新的功能建议。为了让我们更好地理解你的需求，建议你尽可能详细地描述这个功能，并提供你认为可能的解决方案。
+We welcome you to propose new feature suggestions in Issues. To help us better understand your needs, we recommend that you describe the feature in as much detail as possible and provide what you think might be a possible solution.
 
 ## Pull Request
 
-ScriptCat 使用 [pnpm](https://pnpm.io/) 来管理项目依赖。如果你已经安装了npm，以下的命令可以帮助你快速配置开发环境：
+ScriptCat uses [pnpm](https://pnpm.io/) to manage project dependencies. If you already have npm installed, the following commands can help you quickly set up the development environment:
 
 ```bash
-# 安装 node.js 依赖
+# Install node.js dependencies
 pnpm install
 ```
 
-我们推荐使用[代理](https://pnpm.io/npmrc#https-proxy)来解决 pnpm 的网络问题，而不是使用镜像。
+We recommend using a [proxy](https://pnpm.io/npmrc#https-proxy) to solve pnpm network issues rather than using mirrors.
 
 ```bash
 pnpm config set proxy http://127.0.0.1:7890
 pnpm config set https-proxy https://127.0.0.1:7890
 ```
 
-### Commit 规范
+### Commit Guidelines
 
-我们希望每一个 commit 都能清晰地描述其目的，每个 commit 应尽可能只包含一个修改。我们的 commit message 格式遵循
-[gitmoji](https://gitmoji.dev/) 规范。例如：
+We hope that each commit can clearly describe its purpose, and each commit should ideally contain only one modification. Our commit message format follows the [gitmoji](https://gitmoji.dev/) specification. For example:
 
 ```bash
 git commit -m "✨ add login feature"
 ```
 
-这个示例表示添加了新的功能：登录功能。
+This example indicates that a new feature has been added: login functionality.
 
-### 工作流概述
+### Workflow Overview
 
-`main` 分支是 ScriptCat 的主分支。为了保持代码的完整性，请不要直接修改 `main`
-分支。你应该创建一个新的分支，并在这个分支上进行修改，然后发起一个目标分支为
-`main` 的 Pull Request。Pull Request
-的标题请尽量使用中文，以便于自动生成更新日志。
+The `main` branch is ScriptCat's primary branch. To maintain code integrity, please do not directly modify the `main` branch. You should create a new branch and make modifications on this branch, then initiate a Pull Request targeting the `main` branch. Please try to use Chinese for Pull Request titles to facilitate automatic changelog generation.
 
-如果你不是 ScriptCat 团队的成员，你可以先 fork 本仓库，然后向本仓库的 `main`
-分支发起 Pull Request。在创建 commit 时，请按照上述 commit message
-规范进行。我们将在 code review 完成后将你的贡献合并到主分支。
+If you are not a member of the ScriptCat team, you can first fork this repository and then initiate a Pull Request to the `main` branch of this repository. When creating commits, please follow the commit message guidelines mentioned above. We will merge your contributions to the main branch after code review is completed.
 
-## 撰写文档
+## Writing Documentation
 
-ScriptCat的文档在另外的仓库中：[scriptcat.org](https://docs.scriptcat.org)，使用
-[docusaurus](https://docusaurus.io/)进行撰写，这有一些 [Markdown](https://docusaurus.io/zh-CN/docs/markdown-features)
-特性可以帮助你。如果你需要在本地预览修改后的文档，可以使用以下命令安装文档依赖并启动dev server：
+ScriptCat's documentation is in a separate repository: [scriptcat.org](https://docs.scriptcat.org), written using [docusaurus](https://docusaurus.io/). There are some [Markdown](https://docusaurus.io/zh-CN/docs/markdown-features) features that can help you. If you need to preview the modified documentation locally, you can use the following commands to install documentation dependencies and start the dev server:
 
 ```bash
 pnpm install
 pnpm start
 ```
 
-### 帮助我们翻译
+### Help Us Translate
 
-ScriptCat 的翻译文件托管在 GitHub 上，欢迎通过 Pull Request 贡献翻译。
+ScriptCat's translation files are hosted on GitHub. Contributions via Pull Request are welcome.
 
-- 翻译文件位于 [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales)，每种语言对应一个 `<语言代码>/translation.json`
-- **改进已有翻译**：直接编辑对应语言的 `translation.json`
-- **新增语言**：在 `src/locales/` 下新建对应语言代码目录（如 `fr-FR`），复制 `en-US/translation.json` 作为模板进行翻译，并在 `src/locales/locales.ts` 中注册
-- 完成后向 `main` 分支提交 Pull Request 即可
+- Translation files live in [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); each language has its own `<locale>/translation.json`
+- **Improve an existing translation**: edit the corresponding `translation.json` directly
+- **Add a new language**: create a new directory under `src/locales/` (e.g. `fr-FR`), copy `en-US/translation.json` as a template and translate the strings, then register the locale in `src/locales/locales.ts`
+- Open a Pull Request against the `main` branch when you are done
 
-## 参与开发
+## Participating in Development
 
-ScriptCat 使用 ESLint 来规范代码风格，使用 Vitest 来进行单元测试。你可以使用以下命令来运行：
+ScriptCat uses ESLint to standardize code style and Vitest for unit testing. You can use the following commands to run them:
 
 ```bash
 pnpm test
 pnpm run lint
 ```
 
-ScriptCat 的页面开发使用了以下技术：
+ScriptCat's page development uses the following technologies:
 
 - [React](https://reactjs.org/)
-- UI 框架 [arco](https://arco.design)
-- CSS 框架 [unocss](https://unocss.dev/interactive/)
-- RsPack 打包工具 [rspack](https://rspack.dev/)
+- UI framework [arco](https://arco.design)
+- CSS framework [unocss](https://unocss.dev/interactive/)
+- RsPack bundling tool [rspack](https://rspack.dev/)
 
-如果你想在本地运行 ScriptCat，可以使用以下命令：
+If you want to run ScriptCat locally, you can use the following commands:
 
 ```bash
 pnpm run dev
-# 请注意，由于未知原因，如果你需要使用隐身窗口，你需要使用下面的命令进行开发
+# Please note that for unknown reasons, if you need to use incognito windows, you need to use the following command for development
 pnpm run dev:noMap
 ```
 
-如果你想打包扩展，可以使用以下命令：
+If you want to package the extension, you can use the following command:
 
 ```bash
 pnpm run pack
 ```
 
-在打包前，请确保在`dist`目录下生成了`scriptcat.pem`文件。
+Before packaging, please ensure that the `scriptcat.pem` file is generated in the `dist` directory.
 
-## 注意问题
+## Important Notes
 
-- `pnpm run dev`之后需要把`dist/ext`目录里面内容在浏览器扩展里面导入加载，然后开始改代码保存即可，浏览器是实时更新的，但是涉及到`manifest.json`、`service_worker`、`offscreen`、`sandbox`的改动需要重新加载。
+- After running `pnpm run dev`, you need to import and load the contents of the `dist/ext` directory into the browser extension, then start editing code and save. The browser updates in real-time, but changes involving `manifest.json`, `service_worker`, `offscreen`, and `sandbox` require reloading.
