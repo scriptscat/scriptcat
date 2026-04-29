@@ -467,7 +467,7 @@ const MainLayout: React.FC<{
                         key={value.key}
                         onClick={() => {
                           if (value.key === "help") {
-                            window.open("https://github.com/scriptscat/scriptcat/tree/main/src/locales", "_blank");
+                            window.open("https://github.com/scriptscat/scriptcat/discussions/531", "_blank");
                             return;
                           }
                           systemConfig.setLanguage(value.key);

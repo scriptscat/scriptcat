@@ -117,7 +117,7 @@ function Setting() {
               className="tw-w-50 tw-max-w-75"
               onChange={(value) => {
                 if (value === "help") {
-                  window.open("https://github.com/scriptscat/scriptcat/tree/main/src/locales", "_blank");
+                  window.open("https://github.com/scriptscat/scriptcat/discussions/531", "_blank");
                   return;
                 }
                 submitLanguage(value);
