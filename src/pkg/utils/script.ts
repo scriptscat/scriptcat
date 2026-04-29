@@ -12,7 +12,7 @@ import {
 } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import { SubscribeStatusType, SubscribeDAO } from "@App/app/repo/subscribe";
-import { nextTimeDisplay } from "./cron";
+import { extractCronExpr } from "./cron";
 import { parseUserConfig } from "./yaml";
 import { t as i18n_t } from "@App/locales/locales";
 import { readBlobContent } from "@App/pkg/utils/encoding";
@@ -82,7 +82,7 @@ export function parseScriptFromCode(code: string, origin: string, uuid?: string)
   if (metadata.crontab !== undefined) {
     type = SCRIPT_TYPE_CRONTAB;
     try {
-      nextTimeDisplay(metadata.crontab[0]);
+      extractCronExpr(metadata.crontab[0]);
     } catch {
       throw new Error(i18n_t("script:error_cron_invalid", { expr: metadata.crontab[0] }));
     }
@@ -137,7 +137,7 @@ export async function prepareScriptByCode(
   dao?: ScriptDAO,
   options?: {
     byEditor?: boolean; // 是否通过编辑器导入
-    byWebRequest?: boolean; // 是否通过網頁連結安裝或更新
+    byWebRequest?: boolean; // 是否通过网页连结安装或更新
   }
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
   dao = dao ?? new ScriptDAO();

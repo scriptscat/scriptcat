@@ -22,6 +22,7 @@ import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { decodeRValue } from "@App/pkg/utils/message_value";
 import { extractCronExpr } from "@App/pkg/utils/cron";
 import { changeLanguage, initLanguage, t } from "@App/locales/locales";
+import { type TExtensionEnv } from "../extension/extension_env";
 
 const utime_1min = 60 * 1000;
 const utime_1hr = 60 * 60 * 1000;
@@ -41,7 +42,8 @@ export class Runtime {
 
   constructor(
     private windowMessage: WindowMessage,
-    private api: Server
+    private api: Server,
+    private readonly extensionEnvAsync: Promise<TExtensionEnv | undefined>
   ) {
     this.logger = LoggerCore.getInstance().logger({ component: "sandbox" });
     // 重试队列,5s检查一次
@@ -172,7 +174,20 @@ export class Runtime {
       // 暂未实现执行完成后立马释放,会在下一次执行时释放
       await this.stopScript(script.uuid);
     }
-    const exec = new BgExecScriptWarp(script, this.windowMessage);
+    const extensionEnv = await this.extensionEnvAsync;
+
+    // 判断 run-in
+    const runIn = script.metadata?.["run-in"]?.[0];
+    const inIncognitoContext = extensionEnv?.inIncognitoContext;
+    if (runIn && runIn !== "all" && typeof inIncognitoContext === "boolean") {
+      // 判断插件运行环境
+      const contextType = inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+      if (runIn !== contextType) {
+        return;
+      }
+    }
+
+    const exec = new BgExecScriptWarp(script, this.windowMessage, extensionEnv);
     this.execScriptMap.set(script.uuid, exec);
     proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_RUNNING });
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
@@ -230,35 +245,49 @@ export class Runtime {
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);
     this.crontabSripts.push(script);
-    let flag = false;
+
+    const ERROR_MESSAGES: Record<number, string> = {
+      0: "crontabScript: cron expression failed",
+      2: "crontabScript: onTick creation failed",
+      4: "crontabScript: create cronjob failed",
+      6: "crontabScript: cronjob start failed",
+    };
+
+    const logError = (ok: number, val: string, e: unknown) =>
+      this.logger.error(
+        ERROR_MESSAGES[ok] ?? "crontabScript: execution failed",
+        { uuid: script.uuid, crontab: val },
+        Logger.E(e)
+      );
+
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
-      const { cronExpr, oncePos } = extractCronExpr(val);
+      let ok = 0;
       try {
-        const cron = new CronJob(cronExpr, this.crontabExec(script, oncePos));
+        const { cronExpr, oncePos } = extractCronExpr(val);
+        ok = 2;
+        const onTick = this.crontabExec(script, oncePos);
+        ok = 4;
+        const cron = new CronJob(cronExpr, onTick);
+        ok = 6;
         cron.start();
+        ok = 8;
         cronJobList.push(cron);
       } catch (e) {
-        flag = true;
-        this.logger.error(
-          "create cronjob failed",
-          {
-            uuid: script.uuid,
-            crontab: val,
-          },
-          Logger.E(e)
-        );
+        logError(ok, val, e);
       }
     });
-    if (cronJobList.length !== script.metadata.crontab.length) {
+
+    const allSucceeded = cronJobList.length === script.metadata.crontab.length;
+    if (allSucceeded) {
+      this.cronJob.set(script.uuid, cronJobList);
+    } else {
       // 有表达式失败了
       for (const crontab of cronJobList) {
         crontab.stop();
       }
-    } else {
-      this.cronJob.set(script.uuid, cronJobList);
     }
-    return !flag;
+    return allSucceeded;
   }
 
   crontabExec(script: ScriptLoadInfo, oncePos: number) {
@@ -395,7 +424,8 @@ export class Runtime {
     } as ScriptLoadInfo;
 
     // 使用 BgExecScriptWarp 执行，它会自动构建 setTimeout/setInterval 等
-    const exec = new BgExecScriptWarp(scriptLoadInfo, this.windowMessage);
+    const extensionEnv = await this.extensionEnvAsync;
+    const exec = new BgExecScriptWarp(scriptLoadInfo, this.windowMessage, extensionEnv);
     // 通过 sandboxContext 注入 args（BgExecScriptWarp 通过 globalInjection 注入了 setTimeout 等，
     // sandboxContext 已经包含了这些，再追加 args 即可）
     if ((exec as any).sandboxContext) {
