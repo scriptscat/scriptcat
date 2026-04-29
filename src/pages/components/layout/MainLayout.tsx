@@ -274,12 +274,10 @@ const MainLayout: React.FC<{
 
   // 使用 useMemo 缓存语言列表，避免每次重绘都执行循环，然后生成新的参考
   const languageList = useMemo(() => {
-    const list = Object.keys(i18n.store.data)
-      .filter((key) => key !== "ach-UG")
-      .map((key) => ({
-        key,
-        title: i18n.store.data[key].title as string,
-      }));
+    const list = Object.keys(i18n.store.data).map((key) => ({
+      key,
+      title: i18n.store.data[key].title as string,
+    }));
     return [...list, { key: "help", title: t("help_translate") }];
   }, [t]);
 
@@ -469,7 +467,7 @@ const MainLayout: React.FC<{
                         key={value.key}
                         onClick={() => {
                           if (value.key === "help") {
-                            window.open("https://crowdin.com/project/scriptcat", "_blank");
+                            window.open("https://github.com/scriptscat/scriptcat/tree/main/src/locales", "_blank");
                             return;
                           }
                           systemConfig.setLanguage(value.key);
