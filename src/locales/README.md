@@ -23,6 +23,15 @@ for example:
 }
 ```
 
+## Help Us Translate
+
+ScriptCat's translation files are hosted on GitHub — contributions via Pull Request are welcome.
+
+- Translation files live in [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); each language has its own `<locale>/translation.json`
+- **Improve an existing translation**: edit the corresponding `translation.json` directly
+- **Add a new language**: create a new directory under `src/locales/` (e.g. `fr-FR`), copy `en-US/translation.json` as a template and translate the strings, then register the locale in `src/locales/locales.ts`
+- Open a Pull Request against the `main` branch when you are done
+
 # i18n 方案
 
 i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.i18n`的原因是该方案不支持动态切换语言。但是为了某些扩展市场的要求，我们还是在`src/assets/_locales`目录下添加了`chrome.i18n`的语言文件。
@@ -44,4 +53,11 @@ i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.
 }
 ```
 
-- `src/locales`为[扩展](https://github.com/scriptscat/scriptcat)翻译文件目录
+## 帮助我们翻译
+
+ScriptCat 的翻译文件托管在 GitHub 上，欢迎通过 Pull Request 贡献翻译。
+
+- 翻译文件位于 [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales)，每种语言对应一个 `<语言代码>/translation.json`
+- **改进已有翻译**：直接编辑对应语言的 `translation.json`
+- **新增语言**：在 `src/locales/` 下新建对应语言代码目录（如 `fr-FR`），复制 `en-US/translation.json` 作为模板进行翻译，并在 `src/locales/locales.ts` 中注册
+- 完成后向 `main` 分支提交 Pull Request 即可

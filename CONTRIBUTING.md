@@ -65,6 +65,15 @@ pnpm install
 pnpm start
 ```
 
+### 帮助我们翻译
+
+ScriptCat 的翻译文件托管在 GitHub 上，欢迎通过 Pull Request 贡献翻译。
+
+- 翻译文件位于 [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales)，每种语言对应一个 `<语言代码>/translation.json`
+- **改进已有翻译**：直接编辑对应语言的 `translation.json`
+- **新增语言**：在 `src/locales/` 下新建对应语言代码目录（如 `fr-FR`），复制 `en-US/translation.json` 作为模板进行翻译，并在 `src/locales/locales.ts` 中注册
+- 完成后向 `main` 分支提交 Pull Request 即可
+
 ## 参与开发
 
 ScriptCat 使用 ESLint 来规范代码风格，使用 Vitest 来进行单元测试。你可以使用以下命令来运行：

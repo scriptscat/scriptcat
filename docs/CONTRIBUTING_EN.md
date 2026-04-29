@@ -57,6 +57,15 @@ pnpm install
 pnpm start
 ```
 
+### Help Us Translate
+
+ScriptCat's translation files are hosted on GitHub. Contributions via Pull Request are welcome.
+
+- Translation files live in [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); each language has its own `<locale>/translation.json`
+- **Improve an existing translation**: edit the corresponding `translation.json` directly
+- **Add a new language**: create a new directory under `src/locales/` (e.g. `fr-FR`), copy `en-US/translation.json` as a template and translate the strings, then register the locale in `src/locales/locales.ts`
+- Open a Pull Request against the `main` branch when you are done
+
 ## Participating in Development
 
 ScriptCat uses ESLint to standardize code style and Vitest for unit testing. You can use the following commands to run them:
