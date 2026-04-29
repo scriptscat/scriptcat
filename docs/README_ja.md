@@ -1,9 +1,9 @@
 <p align="right">
-<a href="./README_zh-CN.md">中文</a> <a href="./README.md">English</a> <a href="./README_zh-TW.md">繁體中文</a> <a href="./README_ja.md">日本語</a> <a href="./README_RU.md">Русский</a>
+<a href="./README_zh-CN.md">中文</a> <a href="../README.md">English</a> <a href="./README_zh-TW.md">繁體中文</a> <a href="./README_ja.md">日本語</a> <a href="./README_RU.md">Русский</a>
 </p>
 
 <h1 align="center">
-<img src="./src/assets/logo.png"/><br/>
+<img src="../src/assets/logo.png"/><br/>
 ScriptCat
 </h1>
 
@@ -97,7 +97,7 @@ ScriptCat は、Tampermonkey の設計思想に基づく強力なユーザース
 ## 🤝 コントリビューション
 
 あらゆる形式の貢献を歓迎します！  
-まずは [Contributing Guide](./CONTRIBUTING.md) をご覧ください。
+まずは [Contributing Guide](../CONTRIBUTING.md) をご覧ください。
 
 ### 💬 コミュニティ
 
@@ -117,7 +117,7 @@ ScriptCat に貢献してくださった開発者の皆様に感謝します。
 
 ## 📄 オープンソースライセンス
 
-このプロジェクトは [GPLv3](./LICENSE) ライセンスのもとで公開されています。  
+このプロジェクトは [GPLv3](../LICENSE) ライセンスのもとで公開されています。  
 関連するライセンス条項を遵守してください。
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)
