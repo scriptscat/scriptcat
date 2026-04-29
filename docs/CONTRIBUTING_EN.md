@@ -57,20 +57,6 @@ pnpm install
 pnpm start
 ```
 
-### Help Us Translate
-
-[Crowdin](https://crowdin.com/project/scriptcat) is an online multilingual translation platform. If you are interested in helping us translate ScriptCat-related content, you can find the ScriptCat project on Crowdin and start translation work.
-
-- `src/locales` is the translation file directory for the [extension](https://github.com/scriptscat/scriptcat)
-
-#### Enable WYSIWYG Mode for Extension
-
-> New version not yet supplemented
-
-#### Enable WYSIWYG Mode for Script Site
-
-Visit the script site at: [https://scriptcat.org/ach-UG](https://scriptcat.org/ach-UG) to enable WYSIWYG mode
-
 ## Participating in Development
 
 ScriptCat uses ESLint to standardize code style and Vitest for unit testing. You can use the following commands to run them:

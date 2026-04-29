@@ -23,13 +23,6 @@ for example:
 }
 ```
 
-### Help Us Translate
-
-[Crowdin](https://crowdin.com/project/scriptcat)
-is an online localization platform that helps us manage translations. If you're interested in helping us translate ScriptCat, you can find the project on Crowdin and start contributing.
-
-- `src/locales` is the translation file directory for the [extension](https://github.com/scriptscat/scriptcat)
-
 # i18n 方案
 
 i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.i18n`的原因是该方案不支持动态切换语言。但是为了某些扩展市场的要求，我们还是在`src/assets/_locales`目录下添加了`chrome.i18n`的语言文件。
@@ -50,10 +43,5 @@ i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.
   }
 }
 ```
-
-### 帮助我们翻译
-
-[Crowdin](https://crowdin.com/project/scriptcat)
-是一个在线的多语言翻译平台。如果您有兴趣帮助我们翻译 ScriptCat 的相关内容，您可以在 Crowdin 上找到 ScriptCat 项目，并开始进行翻译工作。
 
 - `src/locales`为[扩展](https://github.com/scriptscat/scriptcat)翻译文件目录
