@@ -78,7 +78,7 @@ export interface Script {
   checktime: number; // 脚本检查更新时间戳
   lastruntime?: number; // 脚本最后一次运行时间戳
   nextruntime?: number; // 脚本下一次运行时间戳
-  ignoreVersion?: string; // 忽略單一版本的更新檢查
+  ignoreVersion?: string; // 忽略单一版本的更新检查
 }
 
 // 分开存储脚本代码
@@ -147,31 +147,16 @@ export type TClientPageLoadInfo =
   | { ok: false };
 
 export class ScriptDAO extends Repo<Script> {
-  scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
-
   constructor() {
     super("script");
   }
 
   enableCache(): void {
     super.enableCache();
-    this.scriptCodeDAO.enableCache();
   }
 
   public save(val: Script) {
     return super._save(val.uuid, val);
-  }
-
-  findByUUID(uuid: string) {
-    return this.get(uuid);
-  }
-
-  async getAndCode(uuid: string): Promise<ScriptAndCode | undefined> {
-    const [script, code] = await Promise.all([this.get(uuid), this.scriptCodeDAO.get(uuid)]);
-    if (!script || !code) {
-      return undefined;
-    }
-    return Object.assign(script, code);
   }
 
   public findByName(name: string) {
@@ -235,7 +220,7 @@ export class ScriptDAO extends Repo<Script> {
         if (val1.length < 2) {
           return val1[0] === val2[0];
         }
-        // 無視次序
+        // 无视次序
         const s = new Set([...val1, ...val2]);
         if (s.size !== val1.length) return false;
         return true;
@@ -243,14 +228,14 @@ export class ScriptDAO extends Repo<Script> {
       return val1 === val2;
     };
     const isScriptInfoEqual = (script1: Script, script2: Script) => {
-      // @author, @copyright, @license 應該不會改
+      // @author, @copyright, @license 应该不会改
       if (!valEqual(script1.metadata.author, script2.metadata.author)) return false;
       if (!valEqual(script1.metadata.copyright, script2.metadata.copyright)) return false;
       if (!valEqual(script1.metadata.license, script2.metadata.license)) return false;
-      // @grant, @connect 應該不會改
+      // @grant, @connect 应该不会改
       if (!valEqual(script1.metadata.grant, script2.metadata.grant)) return false;
       if (!valEqual(script1.metadata.connect, script2.metadata.connect)) return false;
-      // @match @include 應該不會改
+      // @match @include 应该不会改
       if (!valEqual(script1.metadata.match, script2.metadata.match)) return false;
       if (!valEqual(script1.metadata.include, script2.metadata.include)) return false;
       return true;
@@ -293,16 +278,148 @@ export class ScriptDAO extends Repo<Script> {
 }
 
 // 为了防止脚本代码数据量过大,单独存储脚本代码
-export class ScriptCodeDAO extends Repo<ScriptCode> {
-  constructor() {
-    super("scriptCode");
+// 内部使用 OPFS 优先存储，fallback 到 chrome.storage.local（过渡期间）
+export class ScriptCodeDAO {
+  private static readonly LEGACY_PREFIX = "scriptCode:";
+  private _dirHandlePromise: Promise<FileSystemDirectoryHandle> | null = null;
+
+  private getDirHandle(): Promise<FileSystemDirectoryHandle> {
+    if (!this._dirHandlePromise) {
+      this._dirHandlePromise = navigator.storage
+        .getDirectory()
+        .then((opfsRoot) => opfsRoot.getDirectoryHandle("script_codes", { create: true }));
+    }
+    return this._dirHandlePromise;
   }
 
-  findByUUID(uuid: string) {
-    return this.get(uuid);
+  // 仅写入 OPFS，供迁移使用，避免写放大
+  public async saveToOPFS(val: ScriptCode): Promise<void> {
+    const folder = await this.getDirHandle();
+    const handle = await folder.getFileHandle(`${val.uuid}.user.js`, { create: true });
+    const writable = await handle.createWritable({ keepExistingData: false });
+    await writable.write(val.code);
+    await writable.close();
   }
 
-  public save(val: ScriptCode) {
-    return super._save(val.uuid, val);
+  public async save(val: ScriptCode): Promise<ScriptCode> {
+    // 写入 OPFS（失败不影响 chrome.storage.local）
+    try {
+      await this.saveToOPFS(val);
+    } catch {
+      // OPFS 写入失败，忽略
+    }
+    // 过渡期间同步写入 chrome.storage.local
+    await this.legacySave(val);
+    return val;
+  }
+
+  public async get(key: string): Promise<ScriptCode | undefined> {
+    // 优先从 OPFS 读取
+    try {
+      const folder = await this.getDirHandle();
+      const handle = await folder.getFileHandle(`${key}.user.js`, { create: false });
+      const code = await handle.getFile().then((f) => f.text());
+      return { uuid: key, code };
+    } catch {
+      // OPFS 没有，fallback 到 chrome.storage.local
+    }
+    const result = await this.legacyGet(key);
+    if (result) {
+      // 懒迁移：写入 OPFS
+      this.saveToOPFS(result).catch(() => {});
+    }
+    return result;
+  }
+
+  public async gets(keys: string[]): Promise<(ScriptCode | undefined)[]> {
+    return Promise.all(keys.map((key) => this.get(key)));
+  }
+
+  public async delete(key: string): Promise<void> {
+    // 删除 OPFS
+    try {
+      const folder = await this.getDirHandle();
+      await folder.removeEntry(`${key}.user.js`);
+    } catch {
+      // 忽略删除失败
+    }
+    // 过渡期间同步删除 chrome.storage.local
+    await this.legacyDelete([key]);
+  }
+
+  public async deletes(keys: string[]): Promise<void> {
+    // 删除 OPFS
+    try {
+      const folder = await this.getDirHandle();
+      await Promise.all(
+        keys.map(async (key) => {
+          try {
+            await folder.removeEntry(`${key}.user.js`);
+          } catch {
+            // 忽略
+          }
+        })
+      );
+    } catch {
+      // 忽略
+    }
+    // 过渡期间同步删除 chrome.storage.local
+    await this.legacyDelete(keys);
+  }
+
+  // --- 过渡期间 chrome.storage.local 操作，过渡结束后删除 ---
+
+  // 从 chrome.storage.local 读取所有脚本代码（仅迁移使用）
+  public all(): Promise<ScriptCode[]> {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(null, (items) => {
+        if (chrome.runtime.lastError) {
+          console.error("chrome.storage.local.get error:", chrome.runtime.lastError);
+        }
+        const result: ScriptCode[] = [];
+        for (const key in items) {
+          if (key.startsWith(ScriptCodeDAO.LEGACY_PREFIX)) {
+            result.push(items[key]);
+          }
+        }
+        resolve(result);
+      });
+    });
+  }
+
+  private legacySave(val: ScriptCode): Promise<void> {
+    const key = ScriptCodeDAO.LEGACY_PREFIX + val.uuid;
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ [key]: val }, () => {
+        if (chrome.runtime.lastError) {
+          console.error("chrome.storage.local.set error:", chrome.runtime.lastError);
+        }
+        resolve();
+      });
+    });
+  }
+
+  private legacyGet(key: string): Promise<ScriptCode | undefined> {
+    const storageKey = ScriptCodeDAO.LEGACY_PREFIX + key;
+    return new Promise((resolve) => {
+      chrome.storage.local.get(storageKey, (items) => {
+        if (chrome.runtime.lastError) {
+          console.error("chrome.storage.local.get error:", chrome.runtime.lastError);
+        }
+        resolve(items[storageKey]);
+      });
+    });
+  }
+
+  private legacyDelete(keys: string[]): Promise<void> {
+    const storageKeys = keys.map((key) => ScriptCodeDAO.LEGACY_PREFIX + key);
+    return new Promise((resolve) => {
+      chrome.storage.local.remove(storageKeys, () => {
+        if (chrome.runtime.lastError) {
+          console.error("chrome.storage.local.remove error:", chrome.runtime.lastError);
+        }
+        resolve();
+      });
+    });
   }
 }

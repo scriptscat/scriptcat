@@ -5,8 +5,8 @@ import {
   type Script,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
+  ScriptCodeDAO,
   type ScriptDAO,
-  type ScriptCodeDAO,
 } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
@@ -72,7 +72,7 @@ const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 export class SynchronizeService {
   logger: Logger;
 
-  scriptCodeDAO: ScriptCodeDAO;
+  readonly scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
 
   storage: ChromeStorage = new ChromeStorage("sync", false);
 
@@ -87,7 +87,6 @@ export class SynchronizeService {
     private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger().with({ service: "synchronize" });
-    this.scriptCodeDAO = this.scriptDAO.scriptCodeDAO;
   }
 
   // 生成备份文件到文件系统

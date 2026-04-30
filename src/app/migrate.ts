@@ -267,25 +267,43 @@ export function migrateChromeStorage() {
         );
       },
     },
+    {
+      version: 2,
+      upgrade: async () => {
+        const scriptCodeDAO = new ScriptCodeDAO();
+        // 从 chrome.storage.local 读取所有旧代码
+        const scriptCodes = await scriptCodeDAO.all();
+        // 仅写入 OPFS，避免写放大（不通过 save() 回写 chrome.storage.local）
+        await Promise.all(scriptCodes.map(async (scriptCode) => scriptCodeDAO.saveToOPFS(scriptCode)));
+      },
+    },
   ];
   const localstorageDAO = new LocalStorageDAO();
   localstorageDAO.get("migrations").then(async (item) => {
-    const migrations = item?.value || [];
+    const migrations: number[] = item?.value || [];
     for (let i = 0; i < migrationList.length; i++) {
       const m = migrationList[i];
-      if (!migrations.includes(m.version)) {
-        try {
-          await m.upgrade();
-          migrations.push(m.version);
-        } catch (e) {
-          throw new Error(`Chrome storage migration v${m.version} failed: ${e}`);
-        }
+      if (migrations.includes(m.version)) {
+        continue;
+      }
+      // 保证顺序：前一个版本必须已完成
+      if (i > 0 && !migrations.includes(migrationList[i - 1].version)) {
+        throw new Error(
+          `Chrome storage migration v${m.version} skipped: v${migrationList[i - 1].version} not completed`
+        );
+      }
+      try {
+        await m.upgrade();
+        migrations.push(m.version);
+        // 每步成功后立即持久化，避免 SW 挂起导致进度丢失
+        await localstorageDAO.save({
+          key: "migrations",
+          value: migrations,
+        });
+      } catch (e) {
+        throw new Error(`Chrome storage migration v${m.version} failed: ${e}`);
       }
     }
-    localstorageDAO.save({
-      key: "migrations",
-      value: migrations,
-    });
   });
 }
 
