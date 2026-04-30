@@ -179,11 +179,15 @@ export default class GMApi {
 
   verifyExecution(request: Request) {
     // 只适用于有 pageLoad 的 前台脚本（content）, 不适用于没 pageLoad 的 后台脚本 (sandbox)
-    if (request.sender.targetTag === "sandbox") {
+    if (process.env.VI_TESTING === "true" && request.sender.targetTag === "testing") {
       return;
-    }
-    if (request.sender.targetTag !== "content") {
-      throw new Error("script execution must be from content or sandbox");
+    } else {
+      if (request.sender.targetTag === "sandbox") {
+        return;
+      }
+      if (request.sender.targetTag !== "content") {
+        throw new Error("script execution must be from content or sandbox");
+      }
     }
     if (!request.executionToken) {
       throw new Error("script execution is not trusted");

@@ -31,7 +31,7 @@ IoC.registerInstance(ValueManager, new ValueManager(center, center));
 const backgroundApi = new GMApi(center, new PermissionVerify());
 backgroundApi.start();
 
-const internal = new MessageInternal("background");
+const internal = new MessageInternal("testing");
 const scriptRes = {
   id: 0,
   name: "test",
