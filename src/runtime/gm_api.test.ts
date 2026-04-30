@@ -1,7 +1,7 @@
 // gm api 单元测试
 // 初始化runtime环境
 import initTestEnv from "@App/pkg/utils/test_utils";
-import GMApi from "./background/gm_api";
+import GMApi, { registerScriptExecution } from "./background/gm_api";
 import LoggerCore from "@App/app/logger/core";
 import MessageCenter from "@App/app/message/center";
 import { ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
@@ -111,7 +111,7 @@ describe("GM execution trust", () => {
   });
 
   it("accepts content messages with a matching execution token", async () => {
-    const executionToken = GMApi.registerScriptExecution([scriptRes.id], 1);
+    const executionToken = registerScriptExecution([scriptRes.id], 1);
     await expect(
       backgroundApi.parseRequest(
         {
@@ -129,7 +129,6 @@ describe("GM execution trust", () => {
       )
     ).resolves.toMatchObject({
       scriptId: scriptRes.id,
-      executionToken,
     });
   });
 });

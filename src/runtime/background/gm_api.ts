@@ -50,28 +50,29 @@ export type Request = MessageRequest & {
 
 export type Api = (request: Request, connect?: Channel) => Promise<any>;
 
+const executionMap = new Map<
+  string,
+  { scriptIds: Set<number>; tabId: number }
+>();
+
+export const registerScriptExecution = (scriptIds: number[], tabId: number): string => {
+  const token = uuidv4();
+  executionMap.set(token, {
+    scriptIds: new Set(scriptIds),
+    tabId,
+  });
+  return token;
+};
+
+export const removeTabExecutions = (tabId: number) => {
+  executionMap.forEach((execution, token) => {
+    if (execution.tabId === tabId) {
+      executionMap.delete(token);
+    }
+  });
+};
+
 export default class GMApi {
-  static executionMap = new Map<
-    string,
-    { scriptIds: Set<number>; tabId: number }
-  >();
-
-  static registerScriptExecution(scriptIds: number[], tabId: number) {
-    const token = uuidv4();
-    this.executionMap.set(token, {
-      scriptIds: new Set(scriptIds),
-      tabId,
-    });
-    return token;
-  }
-
-  static removeTabExecutions(tabId: number) {
-    this.executionMap.forEach((execution, token) => {
-      if (execution.tabId === tabId) {
-        this.executionMap.delete(token);
-      }
-    });
-  }
 
   message: MessageHander;
 
@@ -191,7 +192,7 @@ export default class GMApi {
     if (!request.executionToken) {
       throw new Error("script execution is not trusted");
     }
-    const execution = GMApi.executionMap.get(request.executionToken);
+    const execution = executionMap.get(request.executionToken);
     if (!execution || !execution.scriptIds.has(request.scriptId)) {
       throw new Error("script execution is not trusted");
     }

@@ -29,7 +29,7 @@ import Manager from "@App/app/service/manager";
 import Hook from "@App/app/service/hook";
 import { i18nName } from "@App/locales/locales";
 import { compileInjectScript, compileScriptCode } from "../content/utils";
-import GMApi, { type Request } from "./gm_api";
+import GMApi, { registerScriptExecution, removeTabExecutions, type Request } from "./gm_api";
 import { genScriptMenu } from "./utils";
 
 export type RuntimeEvent = "start" | "stop" | "watchRunStatus";
@@ -285,7 +285,7 @@ export default class Runtime extends Manager {
     };
     chrome.tabs.onRemoved.addListener((tabId) => {
       runScript.delete(tabId);
-      GMApi.removeTabExecutions(tabId);
+      removeTabExecutions(tabId);
     });
     // 给popup页面获取运行脚本,与菜单
     this.message.setHandler(
@@ -432,16 +432,18 @@ export default class Runtime extends Manager {
             return;
           }
 
-          const executionToken = GMApi.registerScriptExecution(
+          const executionToken = registerScriptExecution(
             filter.map((script) => script.id),
             sender.tabId!
           );
-          const runResources = filter.map((script) => ({
-            ...script,
-            executionToken,
-          }));
 
-          resolve({ scripts: runResources });
+          const runResources = filter;
+          // const runResources = filter.map((script) => ({
+          //   ...script,
+          //   executionToken,
+          // }));
+
+          resolve({ scripts: runResources, executionToken });
 
           // 注入脚本
           runResources.forEach((script) => {

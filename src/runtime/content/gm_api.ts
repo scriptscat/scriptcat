@@ -11,6 +11,14 @@ import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { v4 as uuidv4 } from "uuid";
 import { type ValueUpdateData } from "./exec_script";
 
+// content/page 环境的变数，不储存在任何object
+let currentExecutionToken = "";
+export const assignExecutionToken = (executionToken: string) => {
+  // content/page 环境 pageLoad 时储存由 background 生成的 executionToken
+  if (currentExecutionToken) throw new Error("currentExecutionToken cannot be re-assigned");
+  currentExecutionToken = executionToken;
+};
+
 interface ApiParam {
   depend?: string[];
   listener?: () => void;
@@ -77,7 +85,7 @@ export class GM_Base {
       scriptId: this.scriptRes.id,
       params,
       runFlag: this.runFlag,
-      executionToken: this.scriptRes.executionToken,
+      executionToken: currentExecutionToken,
     });
   }
 
@@ -91,7 +99,7 @@ export class GM_Base {
       scriptId: this.scriptRes.id,
       params,
       runFlag: this.runFlag,
-      executionToken: this.scriptRes.executionToken,
+      executionToken: currentExecutionToken,
     });
     return channel;
   }
