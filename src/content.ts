@@ -30,5 +30,6 @@ internalMessage.syncSend("pageLoad", null).then((resp) => {
   logger.logger().debug("content start");
   // 通过flag与inject建立通讯
   const contentMessage = new MessageContent(scriptFlag, true);
-  new ContentRuntime(contentMessage, internalMessage).start(resp);
+  const contentRuntime = new ContentRuntime(contentMessage, internalMessage);
+  contentRuntime.start(resp);
 });

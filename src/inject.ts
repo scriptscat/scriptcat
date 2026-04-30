@@ -2,7 +2,6 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import MessageContent from "./app/message/content";
 import { type ScriptRunResource } from "./app/repo/scripts";
-import { assignExecutionToken } from "./runtime/content/gm_api";
 import InjectRuntime from "./runtime/content/inject";
 
 // 通过flag与content建立通讯,这个ScriptFlag是后端注入时候生成的
@@ -19,9 +18,8 @@ const logger = new LoggerCore({
 });
 
 
-message.setHandler("pageLoad", (_action, data: { scripts: ScriptRunResource[], executionToken?: string }) => {
-  assignExecutionToken(`${data.executionToken || ""}`);
+message.setHandler("pageLoad", (_action, resp: { scripts: ScriptRunResource[], executionToken?: string }) => {
   logger.logger().debug("inject start");
-  const runtime = new InjectRuntime(message, data.scripts, flag);
-  runtime.start();
+  const runtime = new InjectRuntime(message, flag);
+  runtime.start(resp);
 });
