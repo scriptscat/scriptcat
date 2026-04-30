@@ -1,6 +1,6 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import path from "path";
-import { Configuration } from "webpack";
+import { Configuration, DefinePlugin } from "webpack";
 import TerserPlugin from "terser-webpack-plugin";
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import ESLintPlugin from "eslint-webpack-plugin";
@@ -131,6 +131,9 @@ const configCommon: Configuration = {
     }),
     new CleanWebpackPlugin(),
     new ProgressBarPlugin({}),
+    new DefinePlugin({
+      "process.env.VI_TESTING": JSON.stringify(false),
+    }),
     new MonacoLocalesPlugin({
       languages: ["en", "zh-cn"],
       defaultLanguage: "en",
