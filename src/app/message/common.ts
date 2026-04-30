@@ -2,7 +2,7 @@
 export const MouseEventClone = MouseEvent;
 export const CustomEventClone = CustomEvent;
 
-const performanceClone = (typeof process !== "undefined" && process.env.VI_TESTING === "true"
+const performanceClone = (process.env.VI_TESTING === "true"
   ? new EventTarget()
   : performance) as Performance;
 
