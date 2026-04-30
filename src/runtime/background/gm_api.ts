@@ -181,13 +181,12 @@ export default class GMApi {
     // 只适用于有 pageLoad 的 前台脚本（content）, 不适用于没 pageLoad 的 后台脚本 (sandbox)
     if (process.env.VI_TESTING === "true" && request.sender.targetTag === "testing") {
       return;
-    } else {
-      if (request.sender.targetTag === "sandbox") {
-        return;
-      }
-      if (request.sender.targetTag !== "content") {
-        throw new Error("script execution must be from content or sandbox");
-      }
+    }
+    if (request.sender.targetTag === "sandbox") {
+      return;
+    }
+    if (request.sender.targetTag !== "content") {
+      throw new Error("script execution must be from content or sandbox");
     }
     if (!request.executionToken) {
       throw new Error("script execution is not trusted");
