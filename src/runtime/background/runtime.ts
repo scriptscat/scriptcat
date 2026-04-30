@@ -285,6 +285,7 @@ export default class Runtime extends Manager {
     };
     chrome.tabs.onRemoved.addListener((tabId) => {
       runScript.delete(tabId);
+      GMApi.removeTabExecutions(tabId);
     });
     // 给popup页面获取运行脚本,与菜单
     this.message.setHandler(
@@ -431,10 +432,19 @@ export default class Runtime extends Manager {
             return;
           }
 
-          resolve({ scripts: filter });
+          const executionToken = GMApi.registerScriptExecution(
+            filter.map((script) => script.id),
+            sender.tabId!
+          );
+          const runResources = filter.map((script) => ({
+            ...script,
+            executionToken,
+          }));
+
+          resolve({ scripts: runResources });
 
           // 注入脚本
-          filter.forEach((script) => {
+          runResources.forEach((script) => {
             let runAt = "document_idle";
             if (script.metadata["run-at"]) {
               [runAt] = script.metadata["run-at"];

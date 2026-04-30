@@ -91,6 +91,49 @@ beforeAll(async () => {
   });
 });
 
+describe("GM execution trust", () => {
+  it("rejects content messages without a registered execution token", async () => {
+    await expect(
+      backgroundApi.parseRequest(
+        {
+          api: "GM_setValue",
+          scriptId: scriptRes.id,
+          params: ["test", "test"],
+          runFlag: "test",
+        },
+        {
+          targetTag: "content",
+          tabId: 1,
+          url: window.location.href,
+        }
+      )
+    ).rejects.toThrow("script execution is not trusted");
+  });
+
+  it("accepts content messages with a matching execution token", async () => {
+    const executionToken = GMApi.registerScriptExecution([scriptRes.id], 1);
+    await expect(
+      backgroundApi.parseRequest(
+        {
+          api: "GM_setValue",
+          scriptId: scriptRes.id,
+          params: ["test", "test"],
+          runFlag: "test",
+          executionToken,
+        },
+        {
+          targetTag: "content",
+          tabId: 1,
+          url: window.location.href,
+        }
+      )
+    ).resolves.toMatchObject({
+      scriptId: scriptRes.id,
+      executionToken,
+    });
+  });
+});
+
 describe("GM value", () => {
   it("get value", () => {
     contentApi.GM_setValue("test", "test");

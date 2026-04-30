@@ -84,6 +84,7 @@ export interface ScriptRunResource extends Script {
   grantMap: { [key: string]: string };
   value: { [key: string]: Value };
   flag: string;
+  executionToken?: string;
   resource: { [key: string]: Resource };
   sourceCode: string;
 }

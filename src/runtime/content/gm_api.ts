@@ -77,6 +77,7 @@ export class GM_Base {
       scriptId: this.scriptRes.id,
       params,
       runFlag: this.runFlag,
+      executionToken: this.scriptRes.executionToken,
     });
   }
 
@@ -90,6 +91,7 @@ export class GM_Base {
       scriptId: this.scriptRes.id,
       params,
       runFlag: this.runFlag,
+      executionToken: this.scriptRes.executionToken,
     });
     return channel;
   }
@@ -121,6 +123,7 @@ export class GM_Base {
       });
     }
   }
+
 }
 
 export default class GMApi extends GM_Base {
