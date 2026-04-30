@@ -8,6 +8,7 @@ import InjectRuntime from "./runtime/content/inject";
 // eslint-disable-next-line no-undef
 const flag = ScriptFlag;
 
+// 通过flag与content建立通讯
 const message = new MessageContent(flag, false);
 
 // 加载logger组件
@@ -17,9 +18,8 @@ const logger = new LoggerCore({
   labels: { env: "inject", href: window.location.href },
 });
 
-
 message.setHandler("pageLoad", (_action, resp: { scripts: ScriptRunResource[], executionToken?: string }) => {
   logger.logger().debug("inject start");
-  const runtime = new InjectRuntime(message, flag);
+  const runtime = new InjectRuntime(message);
   runtime.start(resp);
 });

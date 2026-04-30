@@ -17,6 +17,9 @@ const logger = new LoggerCore({
 
 const scriptFlag = randomString(8);
 
+// 通过flag与inject建立通讯
+const contentMessage = new MessageContent(scriptFlag, true);
+
 // 注入运行框架
 const temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
 temp.setAttribute("type", "text/javascript");
@@ -28,8 +31,6 @@ temp.remove();
 
 internalMessage.syncSend("pageLoad", null).then((resp) => {
   logger.logger().debug("content start");
-  // 通过flag与inject建立通讯
-  const contentMessage = new MessageContent(scriptFlag, true);
   const contentRuntime = new ContentRuntime(contentMessage, internalMessage);
   contentRuntime.start(resp);
 });

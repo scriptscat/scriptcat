@@ -8,18 +8,14 @@ import { assignExecutionToken } from "./gm_api";
 // 注入脚本的沙盒环境
 export default class InjectRuntime {
 
-  flag: string;
-
   message: MessageContent;
 
   execList: ExecScript[] = [];
 
   constructor(
-    message: MessageContent,
-    flag: string
+    message: MessageContent
   ) {
     this.message = message;
-    this.flag = flag;
   }
 
   start(resp: { scripts: ScriptRunResource[], executionToken?: string }) {
