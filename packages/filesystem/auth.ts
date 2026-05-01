@@ -73,6 +73,47 @@ export type Token = {
   refreshToken: string;
   createtime: number;
 };
+const refreshTokenPromises: Partial<Record<NetDiskType, Promise<string>>> = {};
+
+function refreshAccessToken(
+  netDiskType: NetDiskType,
+  token: Token,
+  invalid: boolean | undefined,
+  key: string,
+  localStorageDAO: LocalStorageDAO
+) {
+  if (refreshTokenPromises[netDiskType]) {
+    return refreshTokenPromises[netDiskType];
+  }
+
+  const refreshPromiseFn = async () => {
+    const resp = await RefreshToken(netDiskType, token.refreshToken);
+    if (resp.code !== 0) {
+      await localStorageDAO.delete(key);
+      // 刷新失败,并且标记失效,尝试重新获取token
+      if (invalid) {
+        return await AuthVerify(netDiskType);
+      }
+      throw new WarpTokenError(new Error(resp.msg));
+    }
+    const newToken = {
+      accessToken: resp.data.token.access_token,
+      refreshToken: resp.data.token.refresh_token,
+      createtime: Date.now(),
+    };
+    // 更新token
+    await localStorageDAO.saveValue(key, newToken);
+    return newToken.accessToken;
+  };
+  const refreshPromise: Promise<string> = refreshPromiseFn().finally(() => {
+    if (refreshTokenPromises[netDiskType] === refreshPromise) {
+      delete refreshTokenPromises[netDiskType];
+    }
+  });
+
+  refreshTokenPromises[netDiskType] = refreshPromise;
+  return refreshPromise;
+}
 
 export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
   let token: Token | undefined = undefined;
@@ -99,36 +140,16 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
     invalid = false;
     await localStorageDAO.saveValue(key, token);
   }
-  // token过期或者失效
+  // token过期(大于一小时)或者失效 -> 刷新token
   const expired = Date.now() >= token.createtime + 3600000;
-  if (expired || invalid) {
-    // 大于一小时刷新token
-    try {
-      const resp = await RefreshToken(netDiskType, token.refreshToken);
-      if (resp.code !== 0) {
-        await localStorageDAO.delete(key);
-        // 刷新失败,并且标记失效,尝试重新获取token
-        if (invalid) {
-          return await AuthVerify(netDiskType);
-        }
-        throw new WarpTokenError(new Error(resp.msg));
-      }
-      token = {
-        accessToken: resp.data.token.access_token,
-        refreshToken: resp.data.token.refresh_token,
-        createtime: Date.now(),
-      };
-      // 更新token
-      await localStorageDAO.saveValue(key, token);
-    } catch (e) {
-      // 已过期或已被服务端判定失效的 token 不能继续回退使用
-      console.warn(e);
-      throw e;
-    }
-  } else {
-    return token.accessToken;
+  if (!expired && !invalid) return token.accessToken;
+  try {
+    return await refreshAccessToken(netDiskType, token, invalid, key, localStorageDAO);
+  } catch (e) {
+    // 已过期或已被服务端判定失效的 token 不能继续回退使用
+    console.warn(e);
+    throw e;
   }
-  return token.accessToken;
 }
 
 export const netDiskTypeMap: Partial<Record<FileSystemType, NetDiskType>> = {
