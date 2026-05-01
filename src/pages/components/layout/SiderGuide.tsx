@@ -54,6 +54,11 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
 
   steps.push(
     {
+      target: ".script-sort",
+      title: t("guide_script_list_sort_title"),
+      content: t("guide_script_list_sort_content"),
+    },
+    {
       content: t("guide_script_list_enable_content"),
       target: ".script-enable",
       title: t("guide_script_list_enable_title"),
@@ -62,11 +67,6 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       content: t("guide_script_list_apply_to_run_status_content"),
       target: ".apply_to_run_status",
       title: t("guide_script_list_apply_to_run_status_title"),
-    },
-    {
-      target: ".script-sort",
-      title: t("guide_script_list_sort_title"),
-      content: t("guide_script_list_sort_content"),
     },
     {
       target: ".script-updatetime",
