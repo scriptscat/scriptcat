@@ -1,7 +1,7 @@
 import React, { useEffect, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Step } from "react-joyride";
-import Joyride from "react-joyride";
+import Joyride, { STATUS } from "react-joyride";
 import type { Path } from "react-router-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import CustomTrans from "../CustomTrans";
@@ -28,6 +28,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       // 隐身模式不打开引导
       if (!chrome.extension.inIncognitoContext) {
         setRun(true);
+        setGuideMode(true);
       }
     }
   }, []);
@@ -48,11 +49,16 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       content: <CustomTrans i18nKey="guide_script_list_content" />,
       target: "#script-list",
       title: t("guide_script_list_title"),
-      placement: "auto",
+      placement: "center",
     },
   ];
 
   steps.push(
+    {
+      target: ".script-sort",
+      title: t("guide_script_list_sort_title"),
+      content: t("guide_script_list_sort_content"),
+    },
     {
       content: t("guide_script_list_enable_content"),
       target: ".script-enable",
@@ -62,11 +68,6 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       content: t("guide_script_list_apply_to_run_status_content"),
       target: ".apply_to_run_status",
       title: t("guide_script_list_apply_to_run_status_title"),
-    },
-    {
-      target: ".script-sort",
-      title: t("guide_script_list_sort_title"),
-      content: t("guide_script_list_sort_content"),
     },
     {
       target: ".script-updatetime",
@@ -147,6 +148,10 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
             search: location.search,
             hash: location.hash,
           });
+        }
+        if (data.status === STATUS.FINISHED || data.status === STATUS.SKIPPED) {
+          setGuideMode(false);
+          // finish / skip: 停在当前画面
         }
       }}
       locale={{
