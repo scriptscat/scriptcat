@@ -140,9 +140,9 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
     invalid = false;
     await localStorageDAO.saveValue(key, token);
   }
-  // token过期(大于一小时)或者失效 -> 刷新token
-  const expired = Date.now() >= token.createtime + 3600000;
-  if (!expired && !invalid) return token.accessToken;
+  // token未过期(一小时内)及有效则保留，不用刷新token
+  const unexpired = Date.now() < token.createtime + 3600000;
+  if (unexpired && !invalid) return token.accessToken;
   try {
     return await refreshAccessToken(netDiskType, token, invalid, key, localStorageDAO);
   } catch (e) {
