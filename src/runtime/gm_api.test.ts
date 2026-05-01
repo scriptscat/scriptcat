@@ -1,7 +1,7 @@
 // gm api 单元测试
 // 初始化runtime环境
 import initTestEnv from "@App/pkg/utils/test_utils";
-import GMApi from "./background/gm_api";
+import GMApi, { registerScriptExecution } from "./background/gm_api";
 import LoggerCore from "@App/app/logger/core";
 import MessageCenter from "@App/app/message/center";
 import { ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
@@ -31,7 +31,7 @@ IoC.registerInstance(ValueManager, new ValueManager(center, center));
 const backgroundApi = new GMApi(center, new PermissionVerify());
 backgroundApi.start();
 
-const internal = new MessageInternal("background");
+const internal = new MessageInternal("testing");
 const scriptRes = {
   id: 0,
   name: "test",
@@ -88,6 +88,48 @@ beforeAll(async () => {
   // 监听值变化
   internal.setHandler("valueUpdate", (_action, data: ValueUpdateData) => {
     exec.valueUpdate(data);
+  });
+});
+
+describe("GM execution trust", () => {
+  it("rejects content messages without a registered execution token", async () => {
+    await expect(
+      backgroundApi.parseRequest(
+        {
+          api: "GM_setValue",
+          scriptId: scriptRes.id,
+          params: ["test", "test"],
+          runFlag: "test",
+        },
+        {
+          targetTag: "content",
+          tabId: 1,
+          url: window.location.href,
+        }
+      )
+    ).rejects.toThrow("script execution is not trusted");
+  });
+
+  it("accepts content messages with a matching execution token", async () => {
+    const executionToken = registerScriptExecution([scriptRes.id], 1);
+    await expect(
+      backgroundApi.parseRequest(
+        {
+          api: "GM_setValue",
+          scriptId: scriptRes.id,
+          params: ["test", "test"],
+          runFlag: "test",
+          executionToken,
+        },
+        {
+          targetTag: "content",
+          tabId: 1,
+          url: window.location.href,
+        }
+      )
+    ).resolves.toMatchObject({
+      scriptId: scriptRes.id,
+    });
   });
 });
 

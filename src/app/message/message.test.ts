@@ -21,7 +21,7 @@ global.sandbox = {};
 const center = new MessageCenter();
 center.start();
 
-const content = new MessageInternal("background");
+const content = new MessageInternal("testing");
 
 describe("message center", () => {
   it("set handler", async () => {

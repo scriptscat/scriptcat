@@ -3,6 +3,7 @@ import MessageContent from "@App/app/message/content";
 import MessageInternal from "@App/app/message/internal";
 import { MessageHander, MessageManager } from "@App/app/message/message";
 import { ScriptRunResource } from "@App/app/repo/scripts";
+import { assignExecutionToken } from "./gm_api";
 
 // content页的处理
 export default class ContentRuntime {
@@ -18,7 +19,8 @@ export default class ContentRuntime {
     this.internalMessage = internalMessage;
   }
 
-  start(resp: { scripts: ScriptRunResource[] }) {
+  start(resp: { scripts: ScriptRunResource[], executionToken?: string }) {
+    assignExecutionToken(`${resp.executionToken || ""}`);
     // 由content到background
     // 转发gmApi消息
     this.contentMessage.setHandler("gmApi", (action, data) => {

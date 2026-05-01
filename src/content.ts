@@ -17,18 +17,21 @@ const logger = new LoggerCore({
 
 const scriptFlag = randomString(8);
 
+// 通过flag与inject建立通讯
+const contentMessage = new MessageContent(scriptFlag, true);
+
 // 注入运行框架
 const temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
 temp.setAttribute("type", "text/javascript");
 temp.setAttribute("charset", "UTF-8");
-temp.textContent = `(function (ScriptFlag) {\n${injectJs}\n})('${scriptFlag}')${sourceMapTo("injected.js")}`;
+const injectJsConv = injectJs.replace("{{__ScriptFlag__}}", () =>`${scriptFlag}`);
+temp.textContent = `(function () {\n${injectJsConv}\n})()${sourceMapTo("injected.js")}`;
 temp.className = "injected-js";
 document.documentElement.appendChild(temp);
 temp.remove();
 
 internalMessage.syncSend("pageLoad", null).then((resp) => {
   logger.logger().debug("content start");
-  // 通过flag与inject建立通讯
-  const contentMessage = new MessageContent(scriptFlag, true);
-  new ContentRuntime(contentMessage, internalMessage).start(resp);
+  const contentRuntime = new ContentRuntime(contentMessage, internalMessage);
+  contentRuntime.start(resp);
 });

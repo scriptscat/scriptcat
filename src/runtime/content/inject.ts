@@ -3,29 +3,24 @@ import { type ScriptRunResource } from "@App/app/repo/scripts";
 import ExecScript, { type ValueUpdateData } from "./exec_script";
 import { addStyleSheet, type ScriptFunc } from "./utils";
 import { onInjectPageLoaded } from "./external";
+import { assignExecutionToken } from "./gm_api";
 
 // 注入脚本的沙盒环境
 export default class InjectRuntime {
-  scripts: ScriptRunResource[];
-
-  flag: string;
 
   message: MessageContent;
 
   execList: ExecScript[] = [];
 
   constructor(
-    message: MessageContent,
-    scripts: ScriptRunResource[],
-    flag: string
+    message: MessageContent
   ) {
     this.message = message;
-    this.scripts = scripts;
-    this.flag = flag;
   }
 
-  start() {
-    this.scripts.forEach((script) => {
+  start(resp: { scripts: ScriptRunResource[], executionToken?: string }) {
+    assignExecutionToken(`${resp.executionToken || ""}`);
+    resp.scripts.forEach((script) => {
       // @ts-ignore
       const scriptFunc = window[script.flag];
       if (scriptFunc) {

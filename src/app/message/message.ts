@@ -26,7 +26,7 @@ export type HandlerWithChannel = (
 ) => void;
 
 export type TargetTag =
-  | "background"
+  | "testing"
   | "content"
   | "sandbox"
   | "popup"

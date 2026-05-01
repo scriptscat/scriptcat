@@ -1,12 +1,13 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import MessageContent from "./app/message/content";
+import { type ScriptRunResource } from "./app/repo/scripts";
 import InjectRuntime from "./runtime/content/inject";
 
 // 通过flag与content建立通讯,这个ScriptFlag是后端注入时候生成的
-// eslint-disable-next-line no-undef
-const flag = ScriptFlag;
+const flag = "{{__ScriptFlag__}}";
 
+// 通过flag与content建立通讯
 const message = new MessageContent(flag, false);
 
 // 加载logger组件
@@ -16,9 +17,8 @@ const logger = new LoggerCore({
   labels: { env: "inject", href: window.location.href },
 });
 
-
-message.setHandler("pageLoad", (_action, data) => {
+message.setHandler("pageLoad", (_action, resp: { scripts: ScriptRunResource[], executionToken?: string }) => {
   logger.logger().debug("inject start");
-  const runtime = new InjectRuntime(message, data.scripts, flag);
-  runtime.start();
+  const runtime = new InjectRuntime(message);
+  runtime.start(resp);
 });

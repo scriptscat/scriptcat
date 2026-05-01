@@ -39,6 +39,7 @@ export type MessageRequest = {
   scriptId: number; // 脚本id
   api: string;
   runFlag: string;
+  executionToken?: string;
   params: any[];
 };
 
@@ -49,7 +50,30 @@ export type Request = MessageRequest & {
 
 export type Api = (request: Request, connect?: Channel) => Promise<any>;
 
+const executionMap = new Map<
+  string,
+  { scriptIds: Set<number>; tabId: number }
+>();
+
+export const registerScriptExecution = (scriptIds: number[], tabId: number): string => {
+  const token = uuidv4();
+  executionMap.set(token, {
+    scriptIds: new Set(scriptIds),
+    tabId,
+  });
+  return token;
+};
+
+export const removeTabExecutions = (tabId: number) => {
+  executionMap.forEach((execution, token) => {
+    if (execution.tabId === tabId) {
+      executionMap.delete(token);
+    }
+  });
+};
+
 export default class GMApi {
+
   message: MessageHander;
 
   script: ScriptDAO;
@@ -80,18 +104,18 @@ export default class GMApi {
     this.message.setHandler(
       "gmApi",
       async (_action: string, data: MessageRequest, sender: MessageSender) => {
-        const api = PermissionVerify.apis.get(data.api);
-        if (!api) {
-          return Promise.reject(new Error("api is not found"));
-        }
-        const req = await this.parseRequest(data, sender);
         try {
+          const api = PermissionVerify.apis.get(data.api);
+          if (!api) {
+            return Promise.reject(new Error("api is not found"));
+          }
+          const req = await this.parseRequest(data, sender);
           await this.permissionVerify.verify(req, api);
+          return api.api.call(this, req);
         } catch (e) {
           this.logger.error("verify error", { api: data.api }, Logger.E(e));
           return Promise.reject(e);
         }
-        return api.api.call(this, req);
       }
     );
     this.message.setHandlerWithChannel(
@@ -102,18 +126,18 @@ export default class GMApi {
         data: MessageRequest,
         sender: MessageSender
       ) => {
-        const api = PermissionVerify.apis.get(data.api);
-        if (!api) {
-          return connect.throw("api is not found");
-        }
-        const req = await this.parseRequest(data, sender);
         try {
+          const api = PermissionVerify.apis.get(data.api);
+          if (!api) {
+            return connect.throw("api is not found");
+          }
+          const req = await this.parseRequest(data, sender);
           await this.permissionVerify.verify(req, api);
+          return api.api.call(this, req, connect);
         } catch (e: any) {
           this.logger.error("verify error", { api: data.api }, Logger.E(e));
           return connect.throw(e.message);
         }
-        return api.api.call(this, req, connect);
       }
     );
     // 只有background页才监听web请求
@@ -150,7 +174,28 @@ export default class GMApi {
     const req: Request = <Request>data;
     req.script = script;
     req.sender = sender;
+    this.verifyExecution(req);
     return Promise.resolve(req);
+  }
+
+  verifyExecution(request: Request) {
+    // 只适用于有 pageLoad 的 前台脚本（content）, 不适用于没 pageLoad 的 后台脚本 (sandbox)
+    if (process.env.VI_TESTING === "true" && request.sender.targetTag === "testing") {
+      return;
+    }
+    if (request.sender.targetTag === "sandbox") {
+      return;
+    }
+    if (request.sender.targetTag !== "content") {
+      throw new Error("script execution must be from content or sandbox");
+    }
+    if (!request.executionToken) {
+      throw new Error("script execution is not trusted");
+    }
+    const execution = executionMap.get(request.executionToken);
+    if (!execution || !execution.scriptIds.has(request.scriptId)) {
+      throw new Error("script execution is not trusted");
+    }
   }
 
   @PermissionVerify.API()
