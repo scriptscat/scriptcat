@@ -29,6 +29,7 @@ export default class MessageContent
 
   constructor(eventId: string, isContent: boolean) {
     super();
+    if (!eventId || eventId[0] === "{") throw new Error("eventId is missing");
     this.eventId = eventId;
     this.isContent = isContent;
     this.channelManager = new WarpChannelManager((data) => {

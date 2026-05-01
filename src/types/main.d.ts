@@ -1,7 +1,5 @@
 declare let sandbox: Window;
 
-declare let ScriptFlag: string;
-
 declare let browser: chrome;
 
 declare let cloneInto: ((detail: any, view: any) => any) | undefined;

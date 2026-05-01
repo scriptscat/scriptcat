@@ -5,8 +5,7 @@ import { type ScriptRunResource } from "./app/repo/scripts";
 import InjectRuntime from "./runtime/content/inject";
 
 // 通过flag与content建立通讯,这个ScriptFlag是后端注入时候生成的
-// eslint-disable-next-line no-undef
-const flag = ScriptFlag;
+const flag = "{{__ScriptFlag__}}";
 
 // 通过flag与content建立通讯
 const message = new MessageContent(flag, false);
