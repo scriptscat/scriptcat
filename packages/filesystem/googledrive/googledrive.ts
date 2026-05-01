@@ -40,6 +40,14 @@ export default class GoogleDriveFileSystem implements FileSystem {
     }
 
     const fullPath = joinPath(this.path, dir);
+    await this.ensureDirPath(fullPath);
+  }
+
+  private async ensureDirPath(fullPath: string): Promise<string> {
+    if (fullPath === "/" || fullPath === "") {
+      return "appDataFolder";
+    }
+
     const dirs = fullPath.split("/").filter(Boolean);
 
     // 从根目录开始逐级创建目录
@@ -69,7 +77,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
       parentId = folderId;
     }
 
-    return Promise.resolve();
+    return parentId;
   }
   async findFolderByName(name: string, parentId: string): Promise<{ id: string; name: string } | null> {
     const query = `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
@@ -315,24 +323,6 @@ export default class GoogleDriveFileSystem implements FileSystem {
 
   // 确保目录存在并返回目录ID，优化Writer避免重复获取
   async ensureDirExists(dirPath: string): Promise<string> {
-    if (dirPath === "/" || dirPath === "") {
-      return "appDataFolder";
-    }
-
-    // 先检查缓存
-    const cachedId = this.pathToIdCache.get(dirPath);
-    if (cachedId) {
-      return cachedId;
-    }
-
-    // 如果没有缓存，使用getFileId方法
-    const foundId = await this.getFileId(dirPath);
-    if (!foundId) {
-      throw new Error(`Failed to create or find directory: ${dirPath}`);
-    }
-
-    // 缓存结果
-    this.pathToIdCache.set(dirPath, foundId);
-    return foundId;
+    return this.ensureDirPath(dirPath);
   }
 }
