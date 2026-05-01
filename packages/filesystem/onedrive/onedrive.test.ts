@@ -93,4 +93,38 @@ describe("OneDriveFileSystem", () => {
 
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
+
+  it("createDir should create nested directories from root", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    await expect(fs.createDir("A/B/C")).resolves.toBeUndefined();
+
+    expect(requestSpy).toHaveBeenCalledTimes(3);
+    expect(requestSpy.mock.calls[0][0]).toBe("https://graph.microsoft.com/v1.0/me/drive/special/approot/children");
+    expect(requestSpy.mock.calls[1][0]).toBe("https://graph.microsoft.com/v1.0/me/drive/special/approot:/A:/children");
+    expect(requestSpy.mock.calls[2][0]).toBe(
+      "https://graph.microsoft.com/v1.0/me/drive/special/approot:/A/B:/children"
+    );
+    expect(JSON.parse((requestSpy.mock.calls[2][1] as RequestInit).body as string)).toMatchObject({
+      name: "C",
+      folder: {},
+      "@microsoft.graph.conflictBehavior": "fail",
+    });
+  });
+
+  it("createDir should continue when an intermediate directory already exists", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockRejectedValueOnce(new Error('{"error":{"code":"nameAlreadyExists"}}'))
+      .mockResolvedValueOnce({});
+
+    await expect(fs.createDir("A/B")).resolves.toBeUndefined();
+
+    expect(requestSpy).toHaveBeenCalledTimes(2);
+    expect(JSON.parse((requestSpy.mock.calls[1][1] as RequestInit).body as string)).toMatchObject({
+      name: "B",
+    });
+  });
 });
