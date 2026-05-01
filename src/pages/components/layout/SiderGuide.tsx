@@ -48,7 +48,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       content: <CustomTrans i18nKey="guide_script_list_content" />,
       target: "#script-list",
       title: t("guide_script_list_title"),
-      placement: "auto",
+      placement: "center",
     },
   ];
 
