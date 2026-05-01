@@ -1,4 +1,5 @@
 {
+  "sentence-separator": ". ",
   "import_link": "Link-Import",
   "import_link_failure": "Link-Import fehlgeschlagen",
   "create_user_script": "Neues Benutzerskript erstellen",
@@ -106,6 +107,7 @@
   "delete_current_logs": "Aktuelle Protokolle löschen",
   "clear_completed": "Bereinigung abgeschlossen",
   "clear_logs": "Protokolle bereinigen",
+  "to": " - ",
   "now": "Jetzt",
   "total_logs": "Insgesamt {{length}} Protokolle gefunden",
   "filtered_logs": "Nach Filterung {{length}} Protokolle",

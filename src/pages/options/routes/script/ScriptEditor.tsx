@@ -3,7 +3,7 @@ import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scri
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import type { editor } from "monaco-editor";
+import type { editor, IDisposable } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
 import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Space, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
@@ -53,6 +53,15 @@ const Editor: React.FC<{
     },
     [node]
   );
+  // 用 ref 拿到最新的 hotKeys/onChange/callbackEditor，避免 stale closure
+  // 同时让 effect 仅在 editor 实例变化时重跑（不会因父组件重渲染重复 addAction）
+  const hotKeysRef = useRef(hotKeys);
+  const onChangeRef = useRef(onChange);
+  const callbackEditorRef = useRef(callbackEditor);
+  hotKeysRef.current = hotKeys;
+  onChangeRef.current = onChange;
+  callbackEditorRef.current = callbackEditor;
+
   useEffect(() => {
     if (!node || !node.editor) {
       return;
@@ -62,24 +71,32 @@ const Editor: React.FC<{
       // @ts-ignore
       node.editor.uuid = id;
     }
-    hotKeys.forEach((item) => {
-      node.editor.addAction({
-        id: item.id,
-        label: item.title,
-        keybindings: [item.hotKey],
-        run(editor) {
-          const script = getScript(id);
-          if (script) {
-            item.action(script, editor);
-          }
-        },
-      });
+    const disposables: IDisposable[] = [];
+    hotKeysRef.current.forEach((item) => {
+      disposables.push(
+        node.editor.addAction({
+          id: item.id,
+          label: item.title,
+          keybindings: [item.hotKey],
+          run(editor) {
+            const script = getScript(id);
+            if (script) {
+              item.action(script, editor);
+            }
+          },
+        })
+      );
     });
-    node.editor.onKeyUp(() => {
-      onChange(node.editor.getValue() || "");
-    });
-    callbackEditor(node.editor);
-    return node.editor.dispose.bind(node.editor);
+    disposables.push(
+      node.editor.onKeyUp(() => {
+        onChangeRef.current(node.editor.getValue() || "");
+      })
+    );
+    callbackEditorRef.current(node.editor);
+    // editor 实例本身由 CodeEditor 自身负责 dispose，这里仅清理本 effect 注册的 listener/action
+    return () => {
+      disposables.forEach((d) => d.dispose());
+    };
   }, [node?.editor]);
 
   return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;

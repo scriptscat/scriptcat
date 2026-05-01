@@ -149,6 +149,8 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         colorDecorators: true,
       } as const;
 
+      let originalModel: editor.ITextModel | undefined;
+      let modifiedModel: editor.ITextModel | undefined;
       if (diffCode) {
         edit = editor.createDiffEditor(container, {
           hideUnchangedRegions: { enabled: true },
@@ -158,9 +160,12 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
           diffWordWrap: "off",
           ...commonEditorOptions,
         });
+        // standalone model 不会随 editor.dispose 自动清理，需手动跟踪并在 cleanup 释放
+        originalModel = editor.createModel(diffCode, "javascript");
+        modifiedModel = editor.createModel(code, "javascript");
         edit.setModel({
-          original: editor.createModel(diffCode, "javascript"),
-          modified: editor.createModel(code, "javascript"),
+          original: originalModel,
+          modified: modifiedModel,
         });
       } else {
         edit = editor.create(container, {
@@ -177,6 +182,8 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         // 目前会出现：Uncaught (in promise) Canceled: Canceled
         // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
         edit?.dispose();
+        originalModel?.dispose();
+        modifiedModel?.dispose();
       };
     }, [id, code, diffCode, editable]);
 

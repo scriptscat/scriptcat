@@ -264,7 +264,7 @@ export class ResourceService {
       throw new Error(`resource response status not 200: ${resp.status}`);
     }
     const data = await resp.blob();
-    const [hash, arrayBuffer, base64] = await Promise.all([
+    const [hash, uint8Array, base64] = await Promise.all([
       this.calculateHash(data),
       blobToUint8Array(data),
       blobToBase64(data),
@@ -280,7 +280,6 @@ export class ResourceService {
       type,
       createtime: Date.now(),
     };
-    const uint8Array = new Uint8Array(arrayBuffer);
     if (isText(uint8Array)) {
       if (type === "require" || type === "require-css") {
         resource.content = await readBlobContent(data, contentType); // @require和@require-css 是会转换成代码运行的，可以进行解码
