@@ -4,6 +4,7 @@ import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { md5OfText } from "@App/pkg/utils/crypto";
 
 initTestEnv();
 
@@ -397,6 +398,53 @@ console.log("ok");`
     expect(order.indexOf("push:end")).toBeLessThan(order.indexOf("digest:list"));
   });
 
+  it("keeps pushed script digest when cloud list is stale after upload", async () => {
+    const scriptCode = "// code";
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 1,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: scriptCode }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    const metaJson = JSON.stringify({
+      uuid: script.uuid,
+      origin: script.origin,
+      downloadUrl: script.downloadUrl,
+      checkUpdateUrl: script.checkUpdateUrl,
+    });
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "push-uuid.user.js": md5OfText(scriptCode),
+      "push-uuid.meta.json": md5OfText(metaJson),
+    });
+  });
+
   it("scriptInstall enters cloud_sync queue and updates digest after push", async () => {
     let releaseSync!: () => void;
     const syncGate = new Promise<void>((resolve) => {
@@ -439,6 +487,7 @@ console.log("ok");`
     vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(installFs);
     vi.spyOn(service, "pushScript").mockImplementation(async () => {
       order.push("install:push");
+      return {};
     });
     const realUpdateDigest = service.updateFileDigest.bind(service);
     vi.spyOn(service, "updateFileDigest").mockImplementation(async (fs) => {
