@@ -9,21 +9,18 @@ const scheduler_ =
     : null;
 
 // 用于扩充初始化时新增 SessionRules. FireFox 需要等一等才加，否则会失效。
-export const addSessionRules = async (rules: chrome.declarativeNetRequest.Rule[], resolve?: ResolveFn) => {
+export const addSessionRules = async (rules: chrome.declarativeNetRequest.Rule[]) => {
   await scheduler_?.yield?.();
-  chrome.declarativeNetRequest.updateSessionRules(
-    {
+  try {
+    await chrome.declarativeNetRequest.updateSessionRules({
       removeRuleIds: [...rules.map((rule) => rule.id)],
       addRules: rules,
-    },
-    () => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-      }
-      resolve?.();
-    }
-  );
+    });
+    return true;
+  } catch (e) {
+    console.error("chrome.declarativeNetRequest.updateSessionRules:", e);
+    return e;
+  }
 };
 
 export const sessionRuleDynamicAdd = async (rule: chrome.declarativeNetRequest.Rule): Promise<any> => {
@@ -34,6 +31,7 @@ export const sessionRuleDynamicAdd = async (rule: chrome.declarativeNetRequest.R
     });
     return true;
   } catch (e) {
+    console.error("chrome.declarativeNetRequest.updateSessionRules:", e);
     return e;
   }
 };
@@ -45,6 +43,7 @@ export const sessionRuleDynamicRemove = async (ruleId: number): Promise<any> => 
     });
     return true;
   } catch (e) {
+    console.error("chrome.declarativeNetRequest.updateSessionRules:", e);
     return e;
   }
 };
