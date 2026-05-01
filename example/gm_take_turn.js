@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         GM.runExclusive Demo
+// @name         GM.takeTurn Demo
 // @namespace    https://docs.scriptcat.org/
 // @version      0.1.2
-// @match        https://example.com/*?runExclusive*
-// @grant        GM.runExclusive
+// @match        https://example.com/*?takeTurn*
+// @grant        GM.takeTurn
 // @grant        GM.setValue
 // @grant        GM.getValue
 // @run-at       document-start
@@ -13,7 +13,7 @@
 (async function () {
     'use strict';
 
-    const delayMatch = location.href.match(/runExclusive(\d+)_(\d*)/);
+    const delayMatch = location.href.match(/takeTurn(\d+)_(\d*)/);
     const timeDelay = delayMatch ? +delayMatch[1] : 0;
     const timeoutValue = (delayMatch ? +delayMatch[2] : 0) || -1;
     const isWorker = !!timeDelay;
@@ -68,7 +68,7 @@
     if (!isWorker) {
         panel.style.width = "480px";
         panel.innerHTML = `
-            <h3 style="margin-top:0">GM.runExclusive Demo</h3>
+            <h3 style="margin-top:0">GM.takeTurn Demo</h3>
             <p>Pick worker durations (ms):</p>
             <div style="display:flex; flex-direction:row; gap: 4px;">
                 <input id="durations" value="1200,2400,3800,400"
@@ -107,7 +107,7 @@
 
             delays.forEach(delay => {
                 const iframe = document.createElement('iframe');
-                iframe.src = `${location.pathname}?runExclusive${delay}_${timeoutQ}`;
+                iframe.src = `${location.pathname}?takeTurn${delay}_${timeoutQ}`;
                 iframe.style.width = '100%';
                 iframe.style.height = '160px';
                 iframe.style.border = '1px solid #444';
@@ -120,7 +120,7 @@
             if (e.data?.type !== 'close-worker') return;
             const iframes = iframeContainer.querySelectorAll('iframe');
             for (const iframe of iframes) {
-                if (iframe.src.includes(`runExclusive${e.data.delay}_`)) {
+                if (iframe.src.includes(`takeTurn${e.data.delay}_`)) {
                     iframe.remove();
                     log(`Closed worker ${e.data.delay}ms`, '#ff9800');
                     return;
@@ -157,7 +157,7 @@
     const startWait = performance.now();
 
     try {
-        const result = await GM.runExclusive('demo-lock-key', async () => {
+        const result = await GM.takeTurn('demo-lock-key', async () => {
             const waited = Math.round(performance.now() - startWait);
 
             const order = (await GM.getValue('order')) + 1;

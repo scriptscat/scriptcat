@@ -306,7 +306,7 @@ declare const GM: {
   cookie(action: GMTypes.CookieAction, details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
 
   /** cross-context exclusive execution */
-  runExclusive<T>(key: string, callback: () => T | PromiseLike<T>, timeout?: number): Promise<T>;
+  takeTurn<T>(key: string, callback: () => T | PromiseLike<T>, timeout?: number): Promise<T>;
 };
 
 /**

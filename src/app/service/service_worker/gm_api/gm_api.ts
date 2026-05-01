@@ -1388,8 +1388,8 @@ export default class GMApi {
     }
   }
 
-  @PermissionVerify.API({ link: ["GM.runExclusive", "GM_runExclusive"] })
-  runExclusive(request: GMApiRequest<[string]>, sender: IGetSender) {
+  @PermissionVerify.API({ link: ["GM.takeTurn", "GM_takeTurn"] })
+  takeTurn(request: GMApiRequest<[string]>, sender: IGetSender) {
     if (!request.params || request.params.length < 1) {
       throw new Error("param is failed");
     }

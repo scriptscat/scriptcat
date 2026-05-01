@@ -1544,11 +1544,11 @@ export default class GMApi extends GM_Base {
     return this.loadScriptPromise;
   }
 
-  @GMContext.API({ alias: "GM_runExclusive" })
-  ["GM.runExclusive"]<T>(lockKey: string, cb: () => T | PromiseLike<T>, timeout: number = -1): Promise<T> {
+  @GMContext.API({ alias: "GM_takeTurn" })
+  ["GM.takeTurn"]<T>(lockKey: string, cb: () => T | PromiseLike<T>, timeout: number = -1): Promise<T> {
     lockKey = `${lockKey}`; // 转化为字串
     if (!lockKey || !this.scriptRes) {
-      throw new Error("GM.runExclusive: Invalid Calling");
+      throw new Error("GM.takeTurn: Invalid Calling");
     }
     const key = `${getStorageName(this.scriptRes).replace(/:/g, ":_")}::${lockKey.replace(/:/g, ":_")}`;
 
@@ -1563,7 +1563,7 @@ export default class GMApi extends GM_Base {
           if (error) {
             reject(error);
           } else if (state !== 2) {
-            reject(new Error("GM.runExclusive: Incomplete Action"));
+            reject(new Error("GM.takeTurn: Incomplete Action"));
           } else {
             resolve(result);
           }
@@ -1590,7 +1590,7 @@ export default class GMApi extends GM_Base {
           con.disconnect();
           onDisconnected(); // in case .disconnect() not working
         };
-        this.connect("runExclusive", [key]).then((con) => {
+        this.connect("takeTurn", [key]).then((con) => {
           if (killConn === null || state > 0) {
             // already resolved (unexpected or by timeout)
             con.disconnect();
@@ -1611,7 +1611,7 @@ export default class GMApi extends GM_Base {
         if (timeout > 0) {
           setTimeout(() => {
             if (killConn === null || state > 0) return; // 执行开始了就不进行 timeout 操作
-            error = new Error("GM.runExclusive: Timeout Error");
+            error = new Error("GM.takeTurn: Timeout Error");
             killConn?.();
             onDisconnected(); // in case .disconnect() not working
           }, timeout);
@@ -1619,7 +1619,7 @@ export default class GMApi extends GM_Base {
       });
 
     return new Promise((resolve, reject) => {
-      stackAsyncTask(`runExclusive::${key}`, async () => {
+      stackAsyncTask(`takeTurn::${key}`, async () => {
         try {
           resolve(await taskAsync());
         } catch (e) {
