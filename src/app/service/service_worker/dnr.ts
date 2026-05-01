@@ -26,33 +26,25 @@ export const addSessionRules = async (rules: chrome.declarativeNetRequest.Rule[]
   );
 };
 
-export const sessionRuleDynamicAdd = (rule: chrome.declarativeNetRequest.Rule, resolve?: ResolveFn) => {
-  chrome.declarativeNetRequest.updateSessionRules(
-    {
+export const sessionRuleDynamicAdd = async (rule: chrome.declarativeNetRequest.Rule): Promise<any> => {
+  try {
+    await chrome.declarativeNetRequest.updateSessionRules({
       removeRuleIds: [rule.id],
       addRules: [rule],
-    },
-    () => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-      }
-      resolve?.();
-    }
-  );
+    });
+    return true;
+  } catch (e) {
+    return e;
+  }
 };
 
-export const sessionRuleDynamicRemove = (ruleId: number, resolve?: ResolveFn) => {
-  chrome.declarativeNetRequest.updateSessionRules(
-    {
+export const sessionRuleDynamicRemove = async (ruleId: number): Promise<any> => {
+  try {
+    await chrome.declarativeNetRequest.updateSessionRules({
       removeRuleIds: [ruleId],
-    },
-    () => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-      }
-      resolve?.();
-    }
-  );
+    });
+    return true;
+  } catch (e) {
+    return e;
+  }
 };
