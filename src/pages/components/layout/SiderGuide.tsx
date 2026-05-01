@@ -1,7 +1,7 @@
 import React, { useEffect, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Step } from "react-joyride";
-import Joyride from "react-joyride";
+import Joyride, { STATUS } from "react-joyride";
 import type { Path } from "react-router-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import CustomTrans from "../CustomTrans";
@@ -28,6 +28,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       // 隐身模式不打开引导
       if (!chrome.extension.inIncognitoContext) {
         setRun(true);
+        setGuideMode(true);
       }
     }
   }, []);
@@ -147,6 +148,9 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
             search: location.search,
             hash: location.hash,
           });
+        }
+        if (data.status === STATUS.FINISHED || data.status === STATUS.SKIPPED) {
+          setGuideMode(false);
         }
       }}
       locale={{
