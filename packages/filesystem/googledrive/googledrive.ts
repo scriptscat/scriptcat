@@ -110,23 +110,44 @@ export default class GoogleDriveFileSystem implements FileSystem {
   request(url: string, config?: RequestInit, nothen?: boolean) {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
-    headers.append(`Authorization`, `Bearer ${this.accessToken}`);
+    headers.set(`Authorization`, `Bearer ${this.accessToken}`);
     config.headers = headers;
-    const ret = fetch(url, config);
+    const doFetch = () => fetch(url, config);
+    const retryWithFreshToken = async () => {
+      const token = await AuthVerify("googledrive", true);
+      this.accessToken = token;
+      headers.set(`Authorization`, `Bearer ${this.accessToken}`);
+      return doFetch();
+    };
     if (nothen) {
-      return <Promise<Response>>ret;
+      return doFetch().then(async (resp) => {
+        if (resp.status === 401) {
+          return retryWithFreshToken();
+        }
+        return resp;
+      });
     }
-    return ret
-      .then((data) => data.json())
+    return doFetch()
+      .then(async (resp) => {
+        if (resp.status === 401) {
+          resp = await retryWithFreshToken();
+        }
+        if (!resp.ok) {
+          throw new Error(await resp.text());
+        }
+        return resp.json();
+      })
       .then(async (data) => {
         if (data.error) {
           if (data.error.code === 401) {
             // Token可能过期，尝试刷新
-            const token = await AuthVerify("googledrive", true);
-            this.accessToken = token;
-            headers.set(`Authorization`, `Bearer ${this.accessToken}`);
-            return fetch(url, config)
-              .then((retryData) => retryData.json())
+            return retryWithFreshToken()
+              .then(async (retryResp) => {
+                if (!retryResp.ok) {
+                  throw new Error(await retryResp.text());
+                }
+                return retryResp.json();
+              })
               .then((retryData) => {
                 if (retryData.error) {
                   throw new Error(JSON.stringify(retryData));
@@ -145,7 +166,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
     // 首先，找到要删除的文件或文件夹
     const fileId = await this.getFileId(fullPath);
     if (!fileId) {
-      throw new Error(`File or directory not found: ${fullPath}`);
+      return;
     }
 
     // 删除文件或文件夹
@@ -156,6 +177,9 @@ export default class GoogleDriveFileSystem implements FileSystem {
       },
       true
     ).then(async (resp) => {
+      if (resp.status === 404) {
+        return;
+      }
       if (resp.status !== 204 && resp.status !== 200) {
         throw new Error(await resp.text());
       }

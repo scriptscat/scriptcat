@@ -404,6 +404,31 @@ export class ScriptService {
     if (updatetime) {
       script.updatetime = updatetime;
     }
+    // 拖拉安装等同本地创建脚本
+    if (script.origin?.startsWith("file:///*from-local*/")) {
+      script.origin = "";
+      script.originDomain = "";
+      script.downloadUrl = "";
+      script.checkUpdateUrl = "";
+    }
+    // 现存的脚本：以最初的安装(即 createtime)为标准，回填 origin 用于更新检查。
+    // 如果最初是从网络安装，之后拖拉安装本机档案，则保留 origin 资讯。
+    // 如果本机安装的版本号较低，则会在下次更新检查时提醒有更新。那个时候，用户可以选择更新至网络上最新版本，或忽略并保留本机版本。
+    // 跳过 ScriptCat 旧版本 (1.0.0-beta.2 ~ 1.4.x，自 commit d9b0eeede1a8b114f79a43fade99d825323c63f6 @ 2025.07.23)
+    // 误写入的 file:///*from-local*/ 与 file://-/ 前缀
+    if (
+      oldScript &&
+      script.createtime === oldScript.createtime &&
+      oldScript.origin &&
+      !script.origin &&
+      !oldScript.origin.startsWith("file:///*from-local*/") &&
+      !oldScript.origin.startsWith("file://-/")
+    ) {
+      script.origin = oldScript.origin;
+      script.originDomain = oldScript.originDomain;
+      script.downloadUrl = oldScript.downloadUrl;
+      script.checkUpdateUrl = oldScript.checkUpdateUrl;
+    }
     return this.scriptDAO
       .save(script)
       .then(async () => {

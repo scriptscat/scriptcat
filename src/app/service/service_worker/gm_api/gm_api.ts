@@ -54,6 +54,7 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
+import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller";
 import { addSessionRules, sessionRuleDynamicAdd, sessionRuleDynamicRemove } from "../dnr";
 
 let generatedUniqueMarkerIDs = "";
@@ -76,7 +77,35 @@ const generateUniqueMarkerID = () => {
 };
 
 type OnBeforeSendHeadersOptions = `${chrome.webRequest.OnBeforeSendHeadersOptions}`;
-type OnHeadersReceivedOptions = `${chrome.webRequest.OnHeadersReceivedOptions}`;
+type ReceiveHeaderOptions = `${chrome.webRequest.OnHeadersReceivedOptions}` &
+  `${chrome.webRequest.OnResponseStartedOptions}`;
+
+// 删除关联与DNR: 不再处理 headerModifier 时清空 Map 关联 及 浏览器 Session Rule
+const headersSettled = (markerID: string) => {
+  const dnrRule = headerModifierMap.get(markerID);
+  const ruleID = dnrRule?.rule.id;
+  if (markerID) {
+    headerModifierMap.delete(markerID);
+  }
+  if (ruleID) {
+    sessionRuleDynamicRemove(ruleID).then((removeResult) => {
+      // removeRuleIds 失败: 浏览器里仍保留该规则，本地不释放 ruleID 避免复用
+      if (removeResult !== true) return;
+      removeSessionRuleIdEntry(ruleID);
+    });
+  }
+};
+
+const cleanupOnAPIError = (requestId: string) => {
+  const markerID = scXhrRequests.get(requestId) as string | undefined;
+  scXhrRequests.delete(requestId);
+  if (!markerID) return;
+  redirectedUrls.delete(markerID);
+  nwErrorResults.delete(markerID);
+  scXhrRequests.delete(markerID);
+  headersReceivedMap.delete(markerID);
+  headersSettled(markerID); // 处理完毕
+};
 
 // GMExternalDependencies接口定义
 // 为了支持外部依赖注入，方便测试和扩展
@@ -695,8 +724,7 @@ export default class GMApi {
       }
       const redirectNotManual = params.redirect !== "manual";
 
-      // 使用 cacheInstance 避免SW重启造成重复 DNR Rule ID
-      const ruleId = 10000 + (await cacheInstance.incr("gmXhrRequestId", 1));
+      const ruleId = await nextSessionRuleId();
       const rule = {
         id: ruleId,
         action: {
@@ -713,7 +741,13 @@ export default class GMApi {
         },
       } as chrome.declarativeNetRequest.Rule;
       headerModifierMap.set(markerID, { rule, redirectNotManual });
-      await new Promise((resolve) => sessionRuleDynamicAdd(rule, resolve));
+      const addResult = await sessionRuleDynamicAdd(rule);
+      if (addResult !== true) {
+        // addRules 失败: 回滚本地 headerModifierMap 关联并释放 ruleId，避免永久占位导致限额锁死
+        headerModifierMap.delete(markerID);
+        removeSessionRuleIdEntry(ruleId);
+        throw addResult;
+      }
     }
     return true;
   }
@@ -858,7 +892,7 @@ export default class GMApi {
         if (reqId) scXhrRequests.delete(reqId);
         scXhrRequests.delete(markerID);
         headersReceivedMap.delete(markerID);
-        headerModifierMap.delete(markerID);
+        headersSettled(markerID); // 处理完毕
       };
       let strategy: GMXhrStrategy | undefined = undefined;
       if (useFetch) {
@@ -1417,6 +1451,7 @@ export default class GMApi {
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeRedirect:", lastError);
           // webRequest API 出错不进行后续处理
+          cleanupOnAPIError(details?.requestId);
           return undefined;
         }
         if (details.tabId === -1) {
@@ -1433,7 +1468,7 @@ export default class GMApi {
       }
     );
     const reqOpt: OnBeforeSendHeadersOptions[] = ["requestHeaders"];
-    const respOpt: OnHeadersReceivedOptions[] = ["responseHeaders"];
+    const respOpt: ReceiveHeaderOptions[] = ["responseHeaders"];
     if (!isFirefox()) {
       reqOpt.push("extraHeaders");
       respOpt.push("extraHeaders");
@@ -1445,14 +1480,16 @@ export default class GMApi {
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.webRequest.onErrorOccurred:", lastError);
           // webRequest API 出错不进行后续处理
+          cleanupOnAPIError(details?.requestId);
           return undefined;
         }
         if (details.tabId === -1) {
           const markerID = scXhrRequests.get(details.requestId);
-          if (markerID) {
-            nwErrorResults.set(markerID, details.error);
-            nwErrorResultPromises.get(markerID)?.();
-          }
+          if (!markerID) return;
+          nwErrorResults.set(markerID, details.error);
+          nwErrorResultPromises.get(markerID)?.();
+
+          headersSettled(markerID); // 错误发生，不处理 header modifiers
         }
       },
       {
@@ -1509,6 +1546,7 @@ export default class GMApi {
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeSendHeaders:", lastError);
           // webRequest API 出错不进行后续处理
+          cleanupOnAPIError(details?.requestId);
           return undefined;
         }
         if (details.tabId === -1) {
@@ -1517,7 +1555,11 @@ export default class GMApi {
           if (requestHeaders) {
             // 如 onBeforeSendHeaders 是在 modifyHeaders 前执行，可以更新一下 reqId 和 markerID 的关联
             const markerID = requestHeaders?.find((h) => h.name.toLowerCase() === "x-sc-request-marker")?.value;
-            if (markerID) scXhrRequests.set(reqId, markerID);
+            if (markerID) {
+              // 双向关联
+              scXhrRequests.set(reqId, markerID);
+              scXhrRequests.set(markerID, reqId); // 用于清理
+            }
           }
           const markerID = scXhrRequests.get(reqId);
           if (!markerID) return undefined;
@@ -1532,12 +1574,14 @@ export default class GMApi {
       },
       reqOpt
     );
+
     chrome.webRequest.onHeadersReceived.addListener(
       (details) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeSendHeaders:", lastError);
           // webRequest API 出错不进行后续处理
+          cleanupOnAPIError(details?.requestId);
           return undefined;
         }
         if (details.tabId === -1) {
@@ -1593,14 +1637,43 @@ export default class GMApi {
               };
               headerModifierMap.set(markerID, { rule: newRule, redirectNotManual });
               sessionRuleDynamicAdd(newRule);
-            } else {
-              // 删除关联与DNR
-              headerModifierMap.delete(markerID);
-              sessionRuleDynamicRemove(rule.id);
+              return;
             }
           }
         }
         return undefined;
+      },
+      {
+        urls: ["<all_urls>"],
+        types: ["xmlhttprequest"],
+      },
+      respOpt
+    );
+
+    chrome.webRequest.onResponseStarted.addListener(
+      (details) => {
+        // onResponseStarted 触发后，headers 不会再有改动
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.webRequest.onResponseStarted:", lastError);
+          // webRequest API 出错不进行后续处理
+          cleanupOnAPIError(details?.requestId);
+          return undefined;
+        }
+        if (details.tabId === -1) {
+          const reqId = details.requestId;
+
+          const markerID = scXhrRequests.get(reqId);
+          if (!markerID) return;
+          if (details.responseHeaders && details.statusCode) {
+            headersReceivedMap.set(markerID, {
+              responseHeaders: details.responseHeaders,
+              statusCode: details.statusCode,
+            });
+          }
+
+          headersSettled(markerID); // onResponseStarted 已触发，headers 已固定
+        }
       },
       {
         urls: ["<all_urls>"],

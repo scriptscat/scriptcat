@@ -93,19 +93,7 @@ h6.arco-typography {
   }
 
   .script-card-grid {
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  }
-
-  @media (max-width: 960px) {
-    .script-card-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .script-card-grid {
-      grid-template-columns: 1fr;
-    }
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 
 }

@@ -88,7 +88,14 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   async delete(path: string): Promise<void> {
-    return this.client.deleteFile(joinPath(this.basePath, path));
+    try {
+      await this.client.deleteFile(joinPath(this.basePath, path));
+    } catch (e: any) {
+      if (e.response?.status === 404 || e.message?.includes("404")) {
+        return;
+      }
+      throw e;
+    }
   }
 
   async list(): Promise<FileInfo[]> {
