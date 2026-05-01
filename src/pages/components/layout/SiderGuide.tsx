@@ -151,6 +151,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
         }
         if (data.status === STATUS.FINISHED || data.status === STATUS.SKIPPED) {
           setGuideMode(false);
+          // finish / skip: 停在当前画面
         }
       }}
       locale={{
