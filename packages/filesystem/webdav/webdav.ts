@@ -53,13 +53,40 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   async verify(): Promise<void> {
+    const verifyDir = joinPath(this.basePath, `.scriptcat-verify-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const verifyFile = joinPath(verifyDir, "probe.txt");
+    let dirCreated = false;
+    let fileCreated = false;
+
     try {
       await this.client.getQuota();
+      await this.client.getDirectoryContents(this.basePath);
+      await this.client.createDirectory(verifyDir);
+      dirCreated = true;
+      const written = await this.client.putFileContents(verifyFile, "");
+      if (!written) {
+        throw new Error("probe file write returned false");
+      }
+      fileCreated = true;
+      await this.client.deleteFile(verifyFile);
+      fileCreated = false;
+      await this.client.deleteFile(verifyDir);
+      dirCreated = false;
     } catch (e: any) {
+      await this.cleanupVerifyProbe(verifyFile, verifyDir, fileCreated, dirCreated);
       if (e.response?.status === 401) {
         throw new WarpTokenError(e);
       }
       throw new Error(`WebDAV verify failed: ${e.message}`); // 保留原始信息
+    }
+  }
+
+  private async cleanupVerifyProbe(verifyFile: string, verifyDir: string, fileCreated: boolean, dirCreated: boolean) {
+    if (fileCreated) {
+      await this.client.deleteFile(verifyFile).catch(() => undefined);
+    }
+    if (dirCreated) {
+      await this.client.deleteFile(verifyDir).catch(() => undefined);
     }
   }
 
