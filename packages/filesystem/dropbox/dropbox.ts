@@ -4,6 +4,11 @@ import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../fil
 import { joinPath } from "../utils";
 import { DropboxFileReader, DropboxFileWriter } from "./rw";
 
+function isDropboxPathNotFound(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("path_lookup/not_found") || message.includes("path/not_found");
+}
+
 export default class DropboxFileSystem implements FileSystem {
   accessToken?: string;
 
@@ -149,7 +154,7 @@ export default class DropboxFileSystem implements FileSystem {
         }),
       });
     } catch (e: any) {
-      if (e.message?.includes("path_lookup/not_found") || e.message?.includes("path/not_found")) {
+      if (isDropboxPathNotFound(e)) {
         return;
       }
       throw e;
@@ -241,8 +246,11 @@ export default class DropboxFileSystem implements FileSystem {
         }),
       });
       return true;
-    } catch (_) {
-      return false;
+    } catch (e) {
+      if (isDropboxPathNotFound(e)) {
+        return false;
+      }
+      throw e;
     }
   }
 
