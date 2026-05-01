@@ -453,10 +453,9 @@ export class ScriptService {
         // Cache更新 & 下载资源
         await Promise.all([
           compiledResourceUpdatePromise,
-          this.resourceService.updateResourceByType(script, "require"),
-          this.resourceService.updateResourceByType(script, "require-css"),
-          this.resourceService.updateResourceByType(script, "resource"),
+          this.resourceService.updateResourceByTypes(script, ["require", "require-css", "resource"]),
         ]);
+        // 资源下载失败不阻止安装，失败不影响安装
 
         // 广播一下
         // Runtime 会负责更新 CompiledResource
@@ -687,7 +686,7 @@ export class ScriptService {
     const ret = buildScriptRunResourceBasic(script);
     return Promise.all([
       this.valueService.getScriptValue(ret),
-      this.resourceService.getScriptResources(ret, true),
+      this.resourceService.getScriptResourceValue(ret),
       this.scriptCodeDAO.get(script.uuid),
     ]).then(([value, resource, code]) => {
       if (!code) {

@@ -3,6 +3,7 @@ import { ResourceService } from "./resource";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
+import { parseUrlSRI } from "./utils";
 
 initTestEnv();
 
@@ -27,7 +28,7 @@ function mockResponse(blob: Blob, status = 200, contentType?: string) {
   } as unknown as Response;
 }
 
-describe("ResourceService - loadByUrl", () => {
+describe("ResourceService - createResourceByUrlFetch", () => {
   let service: ResourceService;
 
   beforeEach(() => {
@@ -49,7 +50,7 @@ describe("ResourceService - loadByUrl", () => {
     const jsCode = "console.log('hello');";
     mockFetch.mockResolvedValue(mockResponse(textBlob(jsCode), 200, "application/javascript; charset=utf-8"));
 
-    const res = await service.loadByUrl("https://example.com/lib.js", "require");
+    const res = await service.createResourceByUrlFetch(parseUrlSRI("https://example.com/lib.js"), "require");
 
     expect(res.url).toBe("https://example.com/lib.js");
     expect(res.content).toBeTruthy();
@@ -62,7 +63,7 @@ describe("ResourceService - loadByUrl", () => {
     const text = "plain text content";
     mockFetch.mockResolvedValue(mockResponse(textBlob(text), 200, "text/plain"));
 
-    const res = await service.loadByUrl("https://example.com/data.txt", "resource");
+    const res = await service.createResourceByUrlFetch(parseUrlSRI("https://example.com/data.txt"), "resource");
 
     expect(res.content).toBe(text);
     expect(res.type).toBe("resource");
@@ -73,7 +74,7 @@ describe("ResourceService - loadByUrl", () => {
     const bytes = [0x89, 0x50, 0x4e, 0x47, 0x00, 0x00, 0x00, 0x00];
     mockFetch.mockResolvedValue(mockResponse(binaryBlob(bytes), 200, "image/png"));
 
-    const res = await service.loadByUrl("https://example.com/img.png", "resource");
+    const res = await service.createResourceByUrlFetch(parseUrlSRI("https://example.com/img.png"), "resource");
 
     expect(res.content).toBe("");
     expect(res.base64).toBeTruthy();
@@ -83,7 +84,7 @@ describe("ResourceService - loadByUrl", () => {
   it("响应非200时应抛出异常", async () => {
     mockFetch.mockResolvedValue(mockResponse(textBlob(""), 404));
 
-    await expect(service.loadByUrl("https://example.com/404", "require")).rejects.toThrow(
+    await expect(service.createResourceByUrlFetch(parseUrlSRI("https://example.com/404"), "require")).rejects.toThrow(
       "resource response status not 200: 404"
     );
   });
@@ -91,7 +92,7 @@ describe("ResourceService - loadByUrl", () => {
   it("没有 content-type 时应默认为 application/octet-stream", async () => {
     mockFetch.mockResolvedValue(mockResponse(textBlob("data"), 200));
 
-    const res = await service.loadByUrl("https://example.com/noct", "resource");
+    const res = await service.createResourceByUrlFetch(parseUrlSRI("https://example.com/noct"), "resource");
 
     expect(res.contentType).toBe("application/octet-stream");
   });

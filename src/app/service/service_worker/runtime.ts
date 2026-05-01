@@ -14,6 +14,7 @@ import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
   getUserScriptRegister,
+  parseUrlSRI,
   scriptURLPatternResults,
 } from "./utils";
 import {
@@ -691,7 +692,7 @@ export class RuntimeService {
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
-    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResources(scriptRes, true);
+    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResourceValue(scriptRes);
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
@@ -1187,8 +1188,21 @@ export class RuntimeService {
         for (const [url, [sha512, type]] of Object.entries(resourceCheck)) {
           const resourceList = scriptRes.metadata[type];
           if (!resourceList) continue;
-          const updatedResource = await this.resource.updateResource(scriptRes.uuid, url, type);
+          const u = parseUrlSRI(url);
+          if (u.hash) {
+            // 如果有 校验hash 的话，根本不用更新本地资源呀！
+            continue;
+          }
+          // 这里不用 getResourceModel 是因为上面已经跳过了有 hash 的 URL，无需 SRI 校验
+          const oldResources = await this.resource.resourceDAO.get(u.url);
+          const updatedResource = await this.resource.updateResource(scriptRes.uuid, u, type, oldResources);
+          if (!updatedResource || !updatedResource.contentType || updatedResource === oldResources) {
+            // updateResource 出错 或 下载失败则忽略
+            // 如果新旧一样也忽视吧 - 不用更新本地资源
+            continue;
+          }
           if (updatedResource.hash?.sha512 !== sha512) {
+            // updateResource 更新的是数据库，这里更新的是内存中的 scriptRes.resource 对象
             for (const uri of resourceList) {
               /** 资源键名 */
               let resourceKey = uri;
@@ -1235,7 +1249,7 @@ export class RuntimeService {
           script.value = value;
         }),
         // 加载resource
-        resource.getScriptResources(script, false).then((resource) => {
+        resource.getScriptResourceValue(script).then((resource) => {
           script.resource = resource;
           for (const name of Object.keys(resource)) {
             const res = script.resource[name];
