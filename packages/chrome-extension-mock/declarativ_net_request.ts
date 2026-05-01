@@ -47,6 +47,7 @@ export default class DeclarativeNetRequest {
       callback = arg2;
     }
     if (typeof arg1 === "object" && arg1) options = arg1;
+
     return new Promise<void>((resolve) => {
       const { addRules = [], removeRuleIds = [] } = options;
 
