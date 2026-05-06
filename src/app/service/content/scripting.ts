@@ -11,7 +11,8 @@ import type { ValueUpdateDataEncoded } from "./types";
 const PageOrContent = {
   PAGE: 1,
   CONTENT: 2,
-};
+  PAGE_AND_CONTENT: 3,
+} as const;
 
 type PageOrContent = ValueOf<typeof PageOrContent>;
 
@@ -22,7 +23,7 @@ const deliveryStorage = chrome.storage.local; // 日后再处理
 
 // scripting页的处理
 export default class ScriptingRuntime {
-  private activeStorageNames = new Map<string, PageOrContent>();
+  private activeStorageNames: Map<string, PageOrContent> | null = null;
   constructor(
     // 监听来自service_worker的消息
     private readonly extServer: Server,
@@ -40,7 +41,7 @@ export default class ScriptingRuntime {
   broadcastToPage(
     action: string,
     data?: any,
-    activeOn: PageOrContent = PageOrContent.PAGE | PageOrContent.CONTENT
+    activeOn: PageOrContent = (PageOrContent.PAGE | PageOrContent.CONTENT) as PageOrContent
   ): Promise<undefined> {
     return Promise.all([
       activeOn & PageOrContent.CONTENT && sendMessage(this.senderToContent, "content/" + action, data),
@@ -73,7 +74,10 @@ export default class ScriptingRuntime {
       const record = changes["valueUpdateDelivery"];
       if (record?.newValue) {
         const sendData = record.newValue.sendData as ValueUpdateDataEncoded;
-        const activeOn = this.activeStorageNames.get(sendData.storageName);
+        const activeOn =
+          this.activeStorageNames === null
+            ? PageOrContent.PAGE_AND_CONTENT
+            : this.activeStorageNames.get(sendData.storageName);
         if (activeOn) {
           // 转发给 content 和 inject
           this.broadcastToPage("runtime/valueUpdate", sendData, activeOn);
