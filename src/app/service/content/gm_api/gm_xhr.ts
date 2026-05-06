@@ -290,6 +290,7 @@ export function GM_xmlhttpRequest(
       onMessageHandler = null;
       doAbort = null;
       refCleanup = null;
+      connect?.disconnect(); // 确保 connect 断开
       connect = null;
     };
 
@@ -529,14 +530,22 @@ export function GM_xmlhttpRequest(
         };
         if (msgData.code === -1) {
           // 处理错误
+          const message = msgData.message || "unknown";
+          const code = msgData.code;
           LoggerCore.logger().error("GM_xmlhttpRequest error", {
-            code: msgData.code,
-            message: msgData.message,
+            code: code,
+            message,
           });
-          details.onerror?.({
-            readyState: ReadyStateCode.DONE,
-            error: msgData.message || "unknown",
-          });
+          if (!reqDone) {
+            errorOccur = message;
+            details.onerror?.({
+              readyState: ReadyStateCode.DONE,
+              error: message,
+            });
+            reqDone = true;
+            retPromiseReject?.(message);
+            refCleanup?.();
+          }
           return;
         }
         // 处理返回
