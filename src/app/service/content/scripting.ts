@@ -3,13 +3,25 @@ import { type CustomEventMessage } from "@Packages/message/custom_event_message"
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { RuntimeClient } from "../service_worker/client";
-import { makeBlobURL } from "@App/pkg/utils/utils";
+import { getStorageName, isFirefox, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
 import type { ValueUpdateDataEncoded } from "./types";
 
+const PageOrContent = {
+  PAGE: 1,
+  CONTENT: 2,
+};
+
+type PageOrContent = ValueOf<typeof PageOrContent>;
+
+// For Firefox, StorageArea.setAccessLevel is not implemented.
+// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
+const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
+
 // scripting页的处理
 export default class ScriptingRuntime {
+  private activeStorageNames = new Map<string, PageOrContent>();
   constructor(
     // 监听来自service_worker的消息
     private readonly extServer: Server,
@@ -24,10 +36,14 @@ export default class ScriptingRuntime {
   ) {}
 
   // 广播消息给 content 和 inject
-  broadcastToPage<T = any>(action: string, data?: any): Promise<T | undefined> {
+  broadcastToPage(
+    action: string,
+    data?: any,
+    activeOn: PageOrContent = PageOrContent.PAGE | PageOrContent.CONTENT
+  ): Promise<undefined> {
     return Promise.all([
-      sendMessage(this.senderToContent, "content/" + action, data),
-      sendMessage(this.senderToInject, "inject/" + action, data),
+      activeOn & PageOrContent.CONTENT && sendMessage(this.senderToContent, "content/" + action, data),
+      activeOn & PageOrContent.PAGE && sendMessage(this.senderToInject, "inject/" + action, data),
     ]).then(() => undefined);
   }
 
@@ -52,13 +68,15 @@ export default class ScriptingRuntime {
     // 类似 UDP 原理，service_worker 不会有任何「等待处理」
     // 由于 changes 会包括新旧值 (Chrome: JSON serialization, Firefox: Structured Clone)
     // 因此需要注意资讯量不要过大导致 onChanged 的触发过慢
-    chrome.storage.local.onChanged.addListener((changes) => {
-      if (changes["valueUpdateDelivery"]?.newValue) {
-        // 转发给 content 和 inject
-        this.broadcastToPage(
-          "runtime/valueUpdate",
-          changes["valueUpdateDelivery"]?.newValue.sendData as ValueUpdateDataEncoded
-        );
+    deliveryStorage.onChanged.addListener((changes) => {
+      const record = changes["valueUpdateDelivery"];
+      if (record?.newValue) {
+        const sendData = record.newValue.sendData as ValueUpdateDataEncoded;
+        const activeOn = this.activeStorageNames.get(sendData.storageName);
+        if (activeOn) {
+          // 转发给 content 和 inject
+          this.broadcastToPage("runtime/valueUpdate", sendData, activeOn);
+        }
       }
     });
 
@@ -121,6 +139,14 @@ export default class ScriptingRuntime {
     client.pageLoad().then((o) => {
       if (!o.ok) return;
       const { injectScriptList, contentScriptList, envInfo } = o;
+      const pairs = {} as Record<string, PageOrContent>;
+      for (const script of injectScriptList) {
+        pairs[getStorageName(script)] |= PageOrContent.PAGE;
+      }
+      for (const script of contentScriptList) {
+        pairs[getStorageName(script)] |= PageOrContent.CONTENT;
+      }
+      this.activeStorageNames = new Map(Object.entries(pairs));
 
       // 向页面 发送脚本列表及环境信息
       if (contentScriptList.length) {
