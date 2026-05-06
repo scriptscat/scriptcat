@@ -1255,7 +1255,7 @@ export class RuntimeService {
           if (code) {
             script.metadataStr = metadataStr;
             script.userConfigStr = userConfigStr;
-            if (userConfig) script.userConfig = userConfig;
+            script.userConfig = userConfig || undefined;
             if (scriptCodes[script.uuid] === "") {
               scriptCodes[script.uuid] = code;
             }
