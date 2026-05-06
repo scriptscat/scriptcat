@@ -3,7 +3,7 @@ import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group, IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
-import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo } from "@App/app/repo/scripts";
+import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo, UserConfig } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api/gm_api";
@@ -82,10 +82,19 @@ export type TScriptsForTab = {
   scriptmenus: ScriptMenu[];
 } | null;
 
+export type TCodeCache = {
+  code: string;
+  metadataStr: string;
+  userConfigStr: string;
+  userConfig: UserConfig | null;
+  updatetime: number;
+};
+
 export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   scriptMatchDisable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
+  readonly codeCacheMap = new Map<string, TCodeCache>(); // 不用永久保存到 Script。只在service worker活跃期间暂时存起来，避免同一脚本在多个 iframe / tab 执行时重新分析
 
   logger: Logger;
 
@@ -426,6 +435,7 @@ export class RuntimeService {
       const unregisteyUuids = [] as string[];
       for (const { uuid } of data) {
         unregisteyUuids.push(uuid);
+        this.codeCacheMap.delete(uuid);
         this.scriptMatchEnable.clearRules(uuid);
         this.scriptMatchEnable.clearRules(`${uuid}${ORIGINAL_URLMATCH_SUFFIX}`);
         this.scriptMatchDisable.clearRules(uuid);
@@ -1221,7 +1231,7 @@ export class RuntimeService {
       }
     }
 
-    const { value, resource, scriptDAO } = this;
+    const { value, resource } = this;
     await Promise.all(
       enableScriptList.flatMap((script) => [
         // 加载value
@@ -1240,17 +1250,14 @@ export class RuntimeService {
             }
           }
         }),
-        // 加载code相关的信息
-        scriptDAO.scriptCodeDAO.get(script.uuid).then((code) => {
+        // 加载 GM_info 相关信息。使用 service worker cache 避免 每个页面重复扫描 code。
+        this.getScriptInfoForCode(script).then(({ metadataStr, userConfigStr, userConfig, code }) => {
           if (code) {
-            const metadataStr = getMetadataStr(code.code) || "";
-            const userConfigStr = getUserConfigStr(code.code) || "";
-            const userConfig = parseUserConfig(userConfigStr);
             script.metadataStr = metadataStr;
             script.userConfigStr = userConfigStr;
-            script.userConfig = userConfig;
+            if (userConfig) script.userConfig = userConfig;
             if (scriptCodes[script.uuid] === "") {
-              scriptCodes[script.uuid] = code.code;
+              scriptCodes[script.uuid] = code;
             }
           }
         }),
@@ -1324,6 +1331,35 @@ export class RuntimeService {
       } as GMInfoEnv,
       scriptmenus,
     } satisfies TScriptsForTab;
+  }
+
+  private async getScriptInfoForCode(script: Script): Promise<{
+    code: string;
+    metadataStr: string;
+    userConfigStr: string;
+    userConfig: UserConfig | null;
+  }> {
+    const cached = this.codeCacheMap.get(script.uuid);
+    const updatetime = script.updatetime || 0;
+    // 兼容 updatetime 浮点数對比
+    if (cached && updatetime > 0 && cached.updatetime.toFixed(0) === updatetime.toFixed(0)) {
+      return cached;
+    }
+
+    const code = await this.script.scriptCodeDAO.get(script.uuid);
+    const codeText = code?.code || "";
+    const metadataStr = code ? getMetadataStr(codeText) || "" : "";
+    const userConfigStr = code ? getUserConfigStr(codeText) || "" : "";
+    const userConfig = (userConfigStr ? parseUserConfig(userConfigStr) : script.config) || null;
+    const ret = {
+      updatetime: updatetime,
+      code: codeText,
+      metadataStr,
+      userConfigStr,
+      userConfig,
+    };
+    this.codeCacheMap.set(script.uuid, ret);
+    return ret;
   }
 
   // 停止脚本
