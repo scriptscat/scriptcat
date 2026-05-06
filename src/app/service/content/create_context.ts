@@ -31,6 +31,8 @@ export const createContext = (
     });
   }
   let invalid = false;
+  const GM = Object.create(null);
+  GM.info = GMInfo;
   const context = createGMBase({
     prefix: envPrefix,
     message,
@@ -40,11 +42,9 @@ export const createContext = (
     EE,
     runFlag: uuidv4(),
     eventId: 10000,
-    GM: { info: GMInfo },
+    GM: GM,
     GM_info: GMInfo,
-    window: {
-      // onurlchange: null,
-    },
+    window: Object.create(null),
     grantSet: new Set(),
     loadScriptPromise,
     loadScriptResolve,
