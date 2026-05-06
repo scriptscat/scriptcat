@@ -110,6 +110,7 @@ export class GMXhrFetchStrategy implements GMXhrStrategy {
           }),
           new Promise((r) => setTimeout(r, 800)),
         ]);
+        nwErrorResultPromises.delete(this.resultParam.markerID);
         nwErr = nwErrorResults.get(this.resultParam.markerID);
       }
       if (nwErr) {

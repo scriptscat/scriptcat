@@ -1,4 +1,5 @@
 {
+  "sentence-separator": ". ",
   "import_link": "Link Import",
   "import_link_failure": "Link Import Failed",
   "create_user_script": "Create User Script",
@@ -106,6 +107,7 @@
   "delete_current_logs": "Delete Current Logs",
   "clear_completed": "Clearing Completed",
   "clear_logs": "Clear Logs",
+  "to": " - ",
   "now": "Now",
   "total_logs": "A total of {{length}} logs were queried",
   "filtered_logs": "{{length}} logs after filtering",

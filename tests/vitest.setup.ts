@@ -7,6 +7,35 @@ import { MockBlob } from "./mocks/blob";
 import { MockResponse } from "./mocks/response";
 import { mockFetch } from "./mocks/fetch";
 
+function createStorageMock(): Storage {
+  const store = new Map<string, string>();
+  return new Proxy(
+    {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(String(k), String(v)),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+      key: (i: number) => [...store.keys()][i] ?? null,
+    } as Storage,
+    {
+      get: (t, p) => (p === "length" ? store.size : p in t ? (t as any)[p] : store.get(p as string)),
+      set: (t, p, v) => (p in t ? false : (store.set(p as string, String(v)), true)),
+      deleteProperty: (_, p) => store.delete(p as string),
+      has: (t, p) => p in t || p === "length" || store.has(p as string),
+      ownKeys: () => [...store.keys()],
+      getOwnPropertyDescriptor: (_, p) =>
+        store.has(p as string)
+          ? { value: store.get(p as string), writable: true, enumerable: true, configurable: true }
+          : undefined,
+    }
+  );
+}
+
+// Ensure localStorage exists
+if (typeof window !== "undefined" && !global.localStorage?.getItem) {
+  vi.stubGlobal("localStorage", createStorageMock());
+}
+
 vi.stubGlobal("chrome", chromeMock);
 chromeMock.init();
 initTestEnv();

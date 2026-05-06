@@ -33,7 +33,9 @@ function App() {
             <>
               <Typography.Title heading={3}>{t("install_page_loading")}</Typography.Title>
               <div className="downloading">
-                <Typography.Text>{data.fetchingState.loadingStatus}</Typography.Text>
+                <Typography.Text style={{ fontFamily: "monospace" }}>
+                  {data.fetchingState.loadingStatus}
+                </Typography.Text>
                 <div className="loader"></div>
               </div>
             </>

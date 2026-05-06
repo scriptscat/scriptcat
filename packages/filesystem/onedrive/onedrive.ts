@@ -45,57 +45,86 @@ export default class OneDriveFileSystem implements FileSystem {
     if (!dir) {
       return;
     }
-    dir = joinPath(this.path, dir);
-    const dirs = dir.split("/");
-    let parent = "";
-    if (dirs.length > 2) {
-      parent = dirs.slice(0, dirs.length - 1).join("/");
-    }
+    const dirs = joinPath(this.path, dir).split("/").filter(Boolean);
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
-    if (parent !== "") {
-      parent = `:${parent}:`;
+
+    for (let i = 0; i < dirs.length; i++) {
+      const parentPath = dirs.slice(0, i).join("/");
+      const parent = parentPath ? `:/${parentPath}:` : "";
+      try {
+        await this.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot${parent}/children`, {
+          method: "POST",
+          headers: myHeaders,
+          body: JSON.stringify({
+            name: dirs[i],
+            folder: {},
+            "@microsoft.graph.conflictBehavior": "fail",
+          }),
+        });
+      } catch (error) {
+        if (this.isDirectoryAlreadyExistsError(error)) {
+          continue;
+        }
+        throw error;
+      }
     }
-    const data = await this.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot${parent}/children`, {
-      method: "POST",
-      headers: myHeaders,
-      body: JSON.stringify({
-        name: dirs[dirs.length - 1],
-        folder: {},
-        "@microsoft.graph.conflictBehavior": "replace",
-      }),
-    });
-    if (data.errno) {
-      throw new Error(JSON.stringify(data));
-    }
+  }
+
+  private isDirectoryAlreadyExistsError(error: unknown): boolean {
+    const msg = String(error);
+    return msg.includes("nameAlreadyExists") || msg.includes("itemAlreadyExists");
   }
 
   request(url: string, config?: RequestInit, nothen?: boolean): Promise<Response | any> {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
     if (!url.includes("uploadSession")) {
-      headers.append(`Authorization`, `Bearer ${this.accessToken}`);
+      headers.set(`Authorization`, `Bearer ${this.accessToken}`);
     }
     config.headers = headers;
-    const ret = fetch(url, config);
+    const doFetch = () => fetch(url, config);
+    const retryWithFreshToken = async () => {
+      const token = await AuthVerify("onedrive", true);
+      this.accessToken = token;
+      if (!url.includes("uploadSession")) {
+        headers.set(`Authorization`, `Bearer ${this.accessToken}`);
+      }
+      return doFetch();
+    };
     if (nothen) {
-      return <Promise<Response>>ret;
+      return doFetch().then(async (resp) => {
+        if (resp.status === 401 && !url.includes("uploadSession")) {
+          return retryWithFreshToken();
+        }
+        return resp;
+      });
     }
-    return ret
-      .then((data) => data.json())
+    return doFetch()
+      .then(async (resp) => {
+        if (resp.status === 401 && !url.includes("uploadSession")) {
+          resp = await retryWithFreshToken();
+        }
+        if (!resp.ok) {
+          throw new Error(await resp.text());
+        }
+        return resp.json();
+      })
       .then(async (data) => {
         if (data.error) {
           if (data.error.code === "InvalidAuthenticationToken") {
-            const token = await AuthVerify("onedrive", true);
-            this.accessToken = token;
-            headers.set(`Authorization`, `Bearer ${this.accessToken}`);
-            return fetch(url, config)
-              .then((retryData) => retryData.json())
+            return retryWithFreshToken()
+              .then(async (retryResp) => {
+                if (!retryResp.ok) {
+                  throw new Error(await retryResp.text());
+                }
+                return retryResp.json();
+              })
               .then((retryData) => {
                 if (retryData.error) {
                   throw new Error(JSON.stringify(retryData));
                 }
-                return data;
+                return retryData;
               });
           }
           throw new Error(JSON.stringify(data));
@@ -112,10 +141,12 @@ export default class OneDriveFileSystem implements FileSystem {
       },
       true
     );
+    if (resp.status === 404) {
+      return;
+    }
     if (resp.status !== 204) {
       throw new Error(await resp.text());
     }
-    return resp;
   }
 
   async list(): Promise<FileInfo[]> {
