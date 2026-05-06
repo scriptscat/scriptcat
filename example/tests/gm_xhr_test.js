@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_xmlhttpRequest Exhaustive Test Harness v3
 // @namespace    tm-gmxhr-test
-// @version      1.2.4
+// @version      1.2.5
 // @description  Comprehensive in-page tests for GM_xmlhttpRequest: normal, abnormal, and edge cases with clear pass/fail output.
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
@@ -120,8 +120,7 @@ const enableTool = true;
           gap: "8px",
         },
       },
-      h("div", { style: { fontWeight: "600" } }, "GM_xmlhttpRequest Test Harness", h("br"), `${GM.info?.version}`),
-      h("div", { id: "counts", style: { marginLeft: "auto", opacity: 0.8 } }, "…"),
+      h("div", {}, h("div", { style: { fontWeight: "500" } }, `GM_xmlhttpRequest Test Harness ${GM.info?.script?.version}`), h("div", { style: { display: "flex", flexDirection: "row" } }, h("div", { style: { fontWeight: "400" } }, `${GM.info?.scriptHandler} ${GM.info?.version}`), h("div", { id: "counts", style: { marginLeft: "auto", opacity: 0.8 } }, "…"))),
       h("button", { id: "start", style: btn() }, "Run"),
       h("button", { id: "clear", style: btn() }, "Clear")
     ),
@@ -936,6 +935,82 @@ const enableTool = true;
         } catch (e) {
           assertEq(e.kind, "timeout", "timeout path taken");
         }
+      },
+    },
+    {
+      name: "GM_xhr abort timeout onloadend events",
+      async run(fetch) {
+        const runCase = (details, { abortAfterMs } = {}) => {
+          return new Promise((resolve, reject) => {
+            const events = [];
+            const timeoutMs = Math.max((details.timeout || 0) + (abortAfterMs || 0) + 8000, 12000);
+            const timer = setTimeout(() => {
+              reject(new Error(`Expected onloadend; events=${events.join(",")}`));
+            }, timeoutMs);
+            const req = GM_xmlhttpRequest({
+              method: details.method || "GET",
+              url: details.url,
+              timeout: details.timeout,
+              fetch,
+              onload() {
+                events.push("onload");
+              },
+              onerror() {
+                events.push("onerror");
+              },
+              onabort() {
+                events.push("onabort");
+              },
+              ontimeout() {
+                events.push("ontimeout");
+              },
+              onloadend(response) {
+                events.push("onloadend");
+                clearTimeout(timer);
+                resolve({ events, response });
+              },
+            });
+            if (abortAfterMs != null) {
+              setTimeout(() => req.abort(), abortAfterMs);
+            }
+          });
+        };
+
+        const normal = await runCase({
+          url: `${HB}/get`,
+        });
+        assertDeepEq(normal.events, ["onload", "onloadend"], "normal fires onload then onloadend");
+        assertEq(normal.response.status, 200, "normal onloadend status 200");
+
+        const timeout = await runCase({
+          url: `${HB}/delay/5`,
+          timeout: 2000,
+        });
+        assertDeepEq(timeout.events, ["ontimeout", "onloadend"], "timeout fires ontimeout then onloadend");
+
+        const abort = await runCase(
+          {
+            url: `${HB}/delay/10`,
+          },
+          { abortAfterMs: 4000 }
+        );
+        assertDeepEq(abort.events, ["onabort", "onloadend"], "abort fires onabort then onloadend");
+
+        const nwError1 = await runCase(
+          {
+            url: `https://nonexistent-domain-abcxyz.test/abc.html`, // allowed domain
+          },
+          { abortAfterMs: 500 }
+        );
+        assertDeepEq(nwError1.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
+
+        // const nwError2 = await runCase(
+        //   {
+        //     url: `https://nonexistent-domain-abcxyz.reject/abc.html`, // disallowed domain
+        //   },
+        //   { abortAfterMs: 500 }
+        // );
+        // assertDeepEq(nwError2.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
       },
     },
     {
