@@ -1004,13 +1004,13 @@ const enableTool = true;
         );
         assertDeepEq(nwError1.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
 
-        // const nwError2 = await runCase(
-        //   {
-        //     url: `https://nonexistent-domain-abcxyz.reject/abc.html`, // disallowed domain
-        //   },
-        //   { abortAfterMs: 500 }
-        // );
-        // assertDeepEq(nwError2.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
+        const nwError2 = await runCase(
+          {
+            url: `https://nonexistent-domain-abcxyz.reject/abc.html`, // disallowed domain
+          },
+          { abortAfterMs: 500 }
+        );
+        assertDeepEq(nwError2.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
       },
     },
     {
