@@ -25,4 +25,38 @@ describe("GoogleDriveFileSystem", () => {
 
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
+
+  it("ensureDirExists should create missing nested directories and return final id", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const findSpy = vi.spyOn(fs, "findFolderByName").mockResolvedValue(null);
+    const createSpy = vi
+      .spyOn(fs, "createFolder")
+      .mockResolvedValueOnce({ id: "id-A", name: "A" })
+      .mockResolvedValueOnce({ id: "id-B", name: "B" });
+
+    await expect(fs.ensureDirExists("/A/B")).resolves.toBe("id-B");
+
+    expect(findSpy.mock.calls).toEqual([
+      ["A", "appDataFolder"],
+      ["B", "id-A"],
+    ]);
+    expect(createSpy.mock.calls).toEqual([
+      ["A", "appDataFolder"],
+      ["B", "id-A"],
+    ]);
+  });
+
+  it("writer should ensure directory from root when filesystem is opened in subdir", async () => {
+    const fs = new GoogleDriveFileSystem("/Base", "token");
+    const writer = await fs.create("file.txt");
+    const ensureSpy = vi.spyOn(fs, "ensureDirExists").mockResolvedValue("base-id");
+    const findSpy = vi.spyOn(fs, "findFileInDirectory").mockResolvedValue(null);
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    await expect(writer.write("content")).resolves.toBeUndefined();
+
+    expect(ensureSpy).toHaveBeenCalledWith("/Base");
+    expect(findSpy).toHaveBeenCalledWith("file.txt", "base-id");
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+  });
 });
