@@ -424,7 +424,8 @@ export class Runtime {
     } as ScriptLoadInfo;
 
     // 使用 BgExecScriptWarp 执行，它会自动构建 setTimeout/setInterval 等
-    const exec = new BgExecScriptWarp(scriptLoadInfo, this.windowMessage);
+    const extensionEnv = await this.extensionEnvAsync;
+    const exec = new BgExecScriptWarp(scriptLoadInfo, this.windowMessage, extensionEnv);
     // 通过 sandboxContext 注入 args（BgExecScriptWarp 通过 globalInjection 注入了 setTimeout 等，
     // sandboxContext 已经包含了这些，再追加 args 即可）
     if ((exec as any).sandboxContext) {
