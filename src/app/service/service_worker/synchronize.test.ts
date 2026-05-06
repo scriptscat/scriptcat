@@ -445,6 +445,112 @@ console.log("ok");`
     });
   });
 
+  it("passes script modifiedDate when pushing script and meta files", async () => {
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const createMock = vi.fn().mockResolvedValue({ write: writeMock });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 1234,
+      createtime: 1000,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+
+    await service.pushScript(fs, script as any);
+
+    expect(createMock.mock.calls[0]).toEqual(["push-uuid.user.js", { modifiedDate: 1234 }]);
+    expect(createMock.mock.calls[1]).toEqual(["push-uuid.meta.json", { modifiedDate: 1234 }]);
+  });
+
+  it("uses Date.now as modifiedDate when writing scriptcat-sync.json", async () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(9876);
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    try {
+      await service.syncOnce(syncConfig, fs);
+
+      expect(createMock).toHaveBeenCalledWith("scriptcat-sync.json", {
+        modifiedDate: 9876,
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("uses Date.now as modifiedDate when writing delete tombstone meta", async () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(6789);
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    try {
+      await service.deleteCloudScript(fs, "delete-uuid", true);
+
+      expect(createMock).toHaveBeenCalledWith("delete-uuid.meta.json", {
+        modifiedDate: 6789,
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it("preserves cloud-native digest and does not overwrite with pushed md5", async () => {
     // 各后端 digest 格式不一致（webdav/onedrive 是 etag、dropbox 是 content_hash 等），
     // 上传后再次 list 已经能拿到原生 digest 时，必须保留它，不能被本地 md5 覆盖，

@@ -66,7 +66,7 @@ type ScriptcatSyncStatus = {
   updatetime: number; // 更新时间
 };
 
-type PushScriptParam = TInstallScriptParams;
+type PushScriptParam = TInstallScriptParams & Partial<Pick<Script, "createtime" | "updatetime">>;
 
 type FileDigestMap = {
   [key: string]: string;
@@ -535,7 +535,9 @@ export class SynchronizeService {
         }
       });
       // 保存脚本猫同步状态
-      const syncFile = await fs.create("scriptcat-sync.json");
+      const syncFile = await fs.create("scriptcat-sync.json", {
+        modifiedDate: Date.now(),
+      });
       await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
       this.logger.info("sync scriptcat-sync.json file success");
     }
@@ -575,7 +577,9 @@ export class SynchronizeService {
       await fs.delete(filename);
       if (syncDelete) {
         // 留下一个.meta.json删除标记
-        const meta = await fs.create(`${uuid}.meta.json`);
+        const meta = await fs.create(`${uuid}.meta.json`, {
+          modifiedDate: Date.now(),
+        });
         await meta.write(
           JSON.stringify(<SyncMeta>{
             uuid: uuid,
@@ -606,12 +610,13 @@ export class SynchronizeService {
       file: filename,
     });
     try {
-      const w = await fs.create(filename);
+      const modifiedDate = script.updatetime || script.createtime || Date.now();
+      const w = await fs.create(filename, { modifiedDate });
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
       const scriptCode = code!.code;
       await w.write(scriptCode);
-      const meta = await fs.create(metaFilename);
+      const meta = await fs.create(metaFilename, { modifiedDate });
       const metaJson = JSON.stringify(<SyncMeta>{
         uuid: script.uuid,
         origin: script.origin,

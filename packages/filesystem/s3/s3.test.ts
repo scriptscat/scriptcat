@@ -184,6 +184,24 @@ describe("S3FileSystem", () => {
         })
       );
     });
+
+    it("S3FileWriter.write 应在传入 modifiedDate 时写入 createtime 元数据", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
+
+      const writer = await fs.create("output.txt", { modifiedDate: 1234 });
+      await writer.write("hello world");
+
+      expect(mockClient.request).toHaveBeenCalledWith(
+        "PUT",
+        "test-bucket",
+        "output.txt",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "x-amz-meta-createtime": new Date(1234).toISOString(),
+          }),
+        })
+      );
+    });
   });
 
   // ---- createDir ----
