@@ -53,9 +53,6 @@ function Setting() {
     const languageList: { key: string; title: string }[] = [];
     const i18nStoreData = i18n.store.data;
     for (const key of Object.keys(i18nStoreData)) {
-      if (key === "ach-UG") {
-        continue;
-      }
       languageList.push({
         key,
         title: `${i18nStoreData[key].title}`,
@@ -124,7 +121,7 @@ function Setting() {
               className="tw-w-50 tw-max-w-75"
               onChange={(value) => {
                 if (value === "help") {
-                  window.open("https://crowdin.com/project/scriptcat", "_blank");
+                  window.open("https://github.com/scriptscat/scriptcat/discussions/531", "_blank");
                   return;
                 }
                 submitLanguage(value);

@@ -70,14 +70,24 @@ describe("WebDAVFileSystem", () => {
   });
 
   describe("verify", () => {
-    it("应当成功验证", async () => {
+    it("应当通过列目录、写入探针文件和清理探针完成验证", async () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.verify()).resolves.toBeUndefined();
       expect(mockClient.getQuota).toHaveBeenCalled();
+      expect(mockClient.getDirectoryContents).toHaveBeenCalledWith("/");
+      expect(mockClient.createDirectory).toHaveBeenCalledWith(expect.stringMatching(/^\/\.scriptcat-verify-/));
+      expect(mockClient.putFileContents).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/\.scriptcat-verify-.+\/probe\.txt$/),
+        ""
+      );
+      expect(mockClient.deleteFile).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/\.scriptcat-verify-.+\/probe\.txt$/)
+      );
+      expect(mockClient.deleteFile).toHaveBeenCalledWith(expect.stringMatching(/^\/\.scriptcat-verify-/));
     });
 
-    it("应当在 401 时抛出 WarpTokenError", async () => {
+    it("应当在 401 时抛出 WarpTokenError 1", async () => {
       (mockClient.getQuota as ReturnType<typeof vi.fn>).mockRejectedValue({
         response: { status: 401 },
         message: "Unauthorized",
@@ -87,13 +97,47 @@ describe("WebDAVFileSystem", () => {
       await expect(fs.verify()).rejects.toBeInstanceOf(WarpTokenError);
     });
 
-    it("应当在其他错误时抛出包含原始信息的 Error", async () => {
+    it("应当在 401 时抛出 WarpTokenError 2", async () => {
+      (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue({
+        response: { status: 401 },
+        message: "Unauthorized",
+      });
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.verify()).rejects.toBeInstanceOf(WarpTokenError);
+    });
+
+    it("应当在其他错误时抛出包含原始信息的 Error 1", async () => {
       (mockClient.getQuota as ReturnType<typeof vi.fn>).mockRejectedValue({
         message: "Network error",
       });
       const fs = createTestFS(mockClient);
 
       await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Network error");
+    });
+
+    it("应当在其他错误时抛出包含原始信息的 Error 2", async () => {
+      (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue({
+        message: "Network error",
+      });
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Network error");
+    });
+
+    it("应当在无法写入探针文件时验证失败并清理探针目录", async () => {
+      (mockClient.putFileContents as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: probe file write returned false");
+      expect(mockClient.deleteFile).toHaveBeenCalledWith(expect.stringMatching(/^\/\.scriptcat-verify-/));
+    });
+
+    it("应当在删除探针文件失败时验证失败", async () => {
+      (mockClient.deleteFile as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Delete denied"));
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Delete denied");
     });
   });
 

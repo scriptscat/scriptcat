@@ -42,4 +42,30 @@ describe("AuthVerify", () => {
     await expect(AuthVerify("onedrive")).resolves.toBe("cached-access");
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("concurrent expired token verification should share one refresh request", async () => {
+    await localStorageDAO.saveValue(key, {
+      accessToken: "old-access",
+      refreshToken: "old-refresh",
+      createtime: Date.now() - 3600000 - 1000,
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
+        code: 0,
+        data: {
+          token: {
+            access_token: "new-access",
+            refresh_token: "new-refresh",
+          },
+        },
+      }),
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      Promise.all([AuthVerify("onedrive"), AuthVerify("onedrive"), AuthVerify("onedrive")])
+    ).resolves.toEqual(["new-access", "new-access", "new-access"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

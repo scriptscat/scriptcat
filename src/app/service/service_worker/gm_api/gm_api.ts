@@ -110,6 +110,7 @@ const cleanupOnAPIError = (requestId: string) => {
   if (!markerID) return;
   redirectedUrls.delete(markerID);
   nwErrorResults.delete(markerID);
+  nwErrorResultPromises.delete(markerID);
   scXhrRequests.delete(markerID);
   headersReceivedMap.delete(markerID);
   headersSettled(markerID); // 处理完毕
@@ -900,6 +901,7 @@ export default class GMApi {
       const loadendCleanUp = () => {
         redirectedUrls.delete(markerID);
         nwErrorResults.delete(markerID);
+        nwErrorResultPromises.delete(markerID);
         const reqId = scXhrRequests.get(markerID);
         if (reqId) scXhrRequests.delete(reqId);
         scXhrRequests.delete(markerID);

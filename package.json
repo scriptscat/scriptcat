@@ -23,8 +23,6 @@
     "lint:ci": "tsc --noEmit && eslint . --cache --cache-location .eslintcache",
     "lint-fix": "tsc --noEmit && eslint --fix .",
     "changlog": "node ./scripts/changlog.js",
-    "crowdin": "crowdin",
-    "crowdin:download": "node ./scripts/crowdin-download.js",
     "test:e2e": "npx playwright test",
     "test:e2e:ui": "npx playwright test --ui"
   },

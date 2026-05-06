@@ -9,7 +9,6 @@ import enUS from "./en-US/translation.json";
 import viVN from "./vi-VN/translation.json";
 import zhCN from "./zh-CN/translation.json";
 import zhTW from "./zh-TW/translation.json";
-import achUG from "./ach-UG/translation.json";
 import jaJP from "./ja-JP/translation.json";
 import deDE from "./de-DE/translation.json";
 import ruRU from "./ru-RU/translation.json";
@@ -52,7 +51,6 @@ export function initLanguage(lng: string = "en-US"): void {
       "de-DE": { title: "Deutsch", translation: deDE },
       "vi-VN": { title: "Tiếng Việt", translation: viVN },
       "ru-RU": { title: "Русский", translation: ruRU },
-      "ach-UG": { title: "伪语言", translation: achUG },
     },
   });
 
