@@ -1252,22 +1252,30 @@ export default class GMApi {
     const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
     const blobURL = params.url;
-    const respond = null;
     const downloadCallback = (o: DownloadCallback) => {
       if (o.state === "complete") {
         if (!isConnDisconnected && !reqCompleteWith) {
           reqCompleteWith = "ok";
           msgConn.sendMessage({
             action: "onload",
-            data: respond,
+            data: { loaded: o.loaded, total: o.total, mode: "native" }, // compatible with GM.download in TM
+          });
+        }
+      } else if (o.state === "save_cancelled") {
+        if (!isConnDisconnected && !reqCompleteWith) {
+          reqCompleteWith = "save_cancelled";
+          msgConn.sendMessage({
+            action: "save_cancelled",
+            data: { loaded: o.loaded, total: o.total, mode: "native" }, // compatible with GM.download in TM
           });
         }
       } else if (o.state === "interrupted") {
         if (!isConnDisconnected && !reqCompleteWith) {
           reqCompleteWith = "interrupted";
+          // 这情况须进一步确认 TM 的 GM.download 回传值
           msgConn.sendMessage({
             action: "onerror",
-            data: respond,
+            data: null,
           });
         }
       }
@@ -1289,9 +1297,10 @@ export default class GMApi {
     if (!blobURL) {
       if (!isConnDisconnected && !reqCompleteWith) {
         reqCompleteWith = "error:no_blob_url";
+        // 这情况须进一步确认 TM 的 GM.download 回传值
         msgConn.sendMessage({
           action: "onerror",
-          data: respond,
+          data: null,
         });
       }
       throw new Error("GM_download ERROR: blobURL is not provided.");
@@ -1312,9 +1321,10 @@ export default class GMApi {
     if (cDownloadId === undefined) {
       if (!isConnDisconnected && !reqCompleteWith) {
         reqCompleteWith = "error:download_api_error";
+        // 这情况须进一步确认 TM 的 GM.download 回传值
         msgConn.sendMessage({
           action: "onerror",
-          data: respond,
+          data: null,
         });
       }
     }

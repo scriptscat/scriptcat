@@ -1043,8 +1043,9 @@ export default class GMApi extends GM_Base {
           responseType: "blob",
           onloadend: async (res) => {
             if (aborted) return;
-            if (res.response instanceof Blob) {
-              const url = URL.createObjectURL(res.response); // 生命周期跟随当前 content/page 而非 offscreen
+            const response = res.response;
+            if (response instanceof Blob) {
+              const url = URL.createObjectURL(response); // 生命周期跟随当前 content/page 而非 offscreen
               const con = await a.connect("GM_download", [
                 {
                   method: details.method,
@@ -1060,30 +1061,44 @@ export default class GMApi extends GM_Base {
                 } as GMTypes.DownloadDetails<string>,
               ]);
               if (aborted) return;
+              let released = false;
+              const releaseResources = () => {
+                if (released) return;
+                released = true;
+                setTimeout(() => {
+                  // 释放不需要的 URL
+                  URL.revokeObjectURL(url);
+                }, 1);
+              };
               connect = con;
               connect.onMessage((data) => {
                 switch (data.action) {
                   case "onload":
                     details.onload?.(makeCallbackParam({ ...data.data }));
                     retPromiseResolve?.(data.data);
-                    setTimeout(() => {
-                      // 释放不需要的 URL
-                      URL.revokeObjectURL(url);
-                    }, 1);
+                    releaseResources();
+                    break;
+                  case "save_cancelled": // saveAs cancelled by user
+                    details.onload?.(makeCallbackParam({ ...data.data }));
+                    retPromiseResolve?.(data.data);
+                    releaseResources();
                     break;
                   case "ontimeout":
                     details.ontimeout?.(makeCallbackParam({}));
                     retPromiseReject?.(new Error("Timeout ERROR"));
+                    releaseResources();
                     break;
                   case "onerror":
                     details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
                     retPromiseReject?.(new Error("Unknown ERROR"));
+                    releaseResources();
                     break;
                   default:
                     LoggerCore.logger().warn("GM_download resp is error", {
                       data,
                     });
                     retPromiseReject?.(new Error("Unexpected Internal ERROR"));
+                    releaseResources();
                     break;
                 }
               });

@@ -17,7 +17,18 @@ const onDeterminingFilename = (
   let called = false;
   stackAsyncTask("browser_api_download", () => {
     try {
-      const entity = callbackMap.get(downloadItem.id);
+      const id = downloadItem.id;
+      const entity = requestMap.get(id);
+      if (entity && !responseMap.has(id)) {
+        // just before saving. totalBytes and fileSize are known. bytesReceived = 0
+        responseMap.set(id, {
+          downloadItem: {
+            bytesReceived: downloadItem.bytesReceived,
+            fileSize: downloadItem.fileSize,
+            totalBytes: downloadItem.totalBytes,
+          },
+        });
+      }
       const pendingOverride = entity?.nameOverride;
       if (pendingOverride) {
         // 文件名只需要在 onDeterminingFilename 消费一次；同一下载的后续事件仍保留 callback。
@@ -47,7 +58,7 @@ const onDeterminingFilename = (
   return true;
 };
 
-const callbackMap = new Map<
+const requestMap = new Map<
   number,
   {
     // 下载状态回调；下载完成或中断后会移除，避免 service worker 长期持有引用。
@@ -57,6 +68,13 @@ const callbackMap = new Map<
       filename: string;
       conflictAction: FilenameConflictAction;
     } | null;
+  }
+>();
+
+const responseMap = new Map<
+  number,
+  {
+    downloadItem: Partial<chrome.downloads.DownloadItem>;
   }
 >();
 
@@ -70,7 +88,9 @@ type STATE = ValueOf<typeof STATE>;
 
 export type DownloadCallback = {
   donwloadId: number;
-  state: STATE;
+  state: STATE | "save_cancelled";
+  loaded?: number;
+  total?: number;
 };
 
 const notifyDownloadCallback = async (callback: ((o: DownloadCallback) => any) | null, payload: DownloadCallback) => {
@@ -90,19 +110,37 @@ const onChangedListener = (downloadDelta: chrome.downloads.DownloadDelta) => {
   }
   stackAsyncTask("browser_api_download", async () => {
     const id = downloadDelta.id;
-    const entry = callbackMap.get(id);
+    const entry = requestMap.get(id);
     if (!entry) return;
-    if (downloadDelta.state?.current === STATE.COMPLETE) {
+    const state = downloadDelta.state?.current;
+    if (state === STATE.COMPLETE || state === STATE.INTERRUPTED) {
       detachDownloadCallback(id);
+      let filenameConfirmed = false;
+
+      if (!responseMap.has(id)) {
+        // onDeterminingFilename did not triggered. Fallback to chrome.downloads.search
+        const downloadItem = (await chrome.downloads.search({ id: id }))?.[0];
+        if (downloadItem && downloadItem.id === id) {
+          responseMap.set(id, {
+            downloadItem: {
+              bytesReceived: downloadItem.bytesReceived,
+              fileSize: downloadItem.fileSize,
+              totalBytes: downloadItem.totalBytes,
+            },
+          });
+        }
+      } else {
+        // onDeterminingFilename was triggered
+        filenameConfirmed = true;
+      }
+
+      const downloadItem = responseMap.get(id);
+
       await notifyDownloadCallback(entry.callback, {
         donwloadId: id,
-        state: STATE.COMPLETE,
-      });
-    } else if (downloadDelta.state?.current === STATE.INTERRUPTED) {
-      detachDownloadCallback(id);
-      await notifyDownloadCallback(entry.callback, {
-        donwloadId: id,
-        state: STATE.INTERRUPTED,
+        state: state === "interrupted" && filenameConfirmed ? "save_cancelled" : state,
+        loaded: downloadItem?.downloadItem?.totalBytes, // 兼容 TM，总是传回 totalBytes （与实际有否储存无关）
+        total: downloadItem?.downloadItem?.totalBytes,
       });
     }
   });
@@ -121,8 +159,8 @@ const attachDownloadCallback = async () => {
 };
 
 export const detachDownloadCallback = async (downloadId: number | undefined = undefined) => {
-  if (downloadId !== undefined) callbackMap.delete(downloadId);
-  if (callbackMap.size === 0) {
+  if (downloadId !== undefined) requestMap.delete(downloadId);
+  if (requestMap.size === 0) {
     // 没有待跟踪下载时及时卸载监听，减少后台常驻逻辑和误处理其他下载的风险。
     chrome.downloads.onDeterminingFilename.removeListener(onDeterminingFilename);
     chrome.downloads.onChanged.removeListener(onChangedListener);
@@ -134,7 +172,7 @@ export const startDownload = async (
   callback: ((o: DownloadCallback) => any) | null = null
 ) => {
   let mDownloadId: number | undefined = undefined;
-  if (callbackMap.size === 0) {
+  if (requestMap.size === 0) {
     attachDownloadCallback();
   }
   try {
@@ -143,7 +181,7 @@ export const startDownload = async (
       // 因此拿到 id 后立即登记，后续事件才能找到对应的回调和文件名覆盖信息。
       const id = await chrome.downloads.download(downloadOptions);
       id &&
-        callbackMap.set(id, {
+        requestMap.set(id, {
           callback,
           nameOverride:
             downloadOptions.filename && typeof downloadOptions.filename === "string"
