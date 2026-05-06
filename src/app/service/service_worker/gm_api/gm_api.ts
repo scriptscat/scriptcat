@@ -54,6 +54,8 @@ import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
 import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller";
+import type { DownloadCallback } from "../download";
+import { detachDownloadCallback, startDownload } from "../download";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -1244,21 +1246,15 @@ export default class GMApi {
       return this.GM_xmlhttpRequest(request satisfies GMApiRequest<[GMSend.XHRDetails?]>, sender);
     }
     let reqCompleteWith = "";
-    let cDownloadId = 0;
+    let cDownloadId: number | undefined = 0;
     let isConnDisconnected = false;
     // 替换掉windows下文件名的非法字符为 -
     const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
     const blobURL = params.url;
     const respond = null;
-    const onChangedListener = (downloadDelta: chrome.downloads.DownloadDelta) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.downloads.onChanged:", lastError);
-        return;
-      }
-      if (!cDownloadId || downloadDelta.id !== cDownloadId) return;
-      if (downloadDelta.state?.current === "complete") {
+    const downloadCallback = (o: DownloadCallback) => {
+      if (o.state === "complete") {
         if (!isConnDisconnected && !reqCompleteWith) {
           reqCompleteWith = "ok";
           msgConn.sendMessage({
@@ -1266,8 +1262,7 @@ export default class GMApi {
             data: respond,
           });
         }
-        chrome.downloads.onChanged.removeListener(onChangedListener);
-      } else if (downloadDelta.state?.current === "interrupted") {
+      } else if (o.state === "interrupted") {
         if (!isConnDisconnected && !reqCompleteWith) {
           reqCompleteWith = "interrupted";
           msgConn.sendMessage({
@@ -1275,21 +1270,20 @@ export default class GMApi {
             data: respond,
           });
         }
-        chrome.downloads.onChanged.removeListener(onChangedListener);
       }
     };
     msgConn.onDisconnect(() => {
       if (isConnDisconnected) return;
       isConnDisconnected = true;
-      if (cDownloadId > 0 && !reqCompleteWith) {
+      if (cDownloadId! > 0 && !reqCompleteWith) {
         reqCompleteWith = "disconnected";
-        chrome.downloads.cancel(cDownloadId, () => {
+        chrome.downloads.cancel(cDownloadId!, () => {
           const lastError = chrome.runtime.lastError;
           if (lastError) {
             console.error("chrome.runtime.lastError in chrome.downloads.cancel:", lastError);
           }
         });
-        chrome.downloads.onChanged.removeListener(onChangedListener);
+        detachDownloadCallback(cDownloadId);
       }
     });
     if (!blobURL) {
@@ -1314,33 +1308,16 @@ export default class GMApi {
     if (typeof params.conflictAction === "string") {
       downloadAPIOptions.conflictAction = params.conflictAction;
     }
-    chrome.downloads.onChanged.addListener(onChangedListener);
-    chrome.downloads.download(downloadAPIOptions, (downloadId: number | undefined) => {
-      const lastError = chrome.runtime.lastError;
-      let ok = true;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.downloads.download:", lastError);
-        // 下载API出现问题但继续执行
-        ok = false;
+    cDownloadId = await startDownload(downloadAPIOptions, downloadCallback);
+    if (cDownloadId === undefined) {
+      if (!isConnDisconnected && !reqCompleteWith) {
+        reqCompleteWith = "error:download_api_error";
+        msgConn.sendMessage({
+          action: "onerror",
+          data: respond,
+        });
       }
-      if (downloadId === undefined) {
-        console.error("GM_download ERROR: API Failure for chrome.downloads.download.");
-        ok = false;
-      }
-      if (ok) {
-        cDownloadId = downloadId as number;
-      }
-      if (!ok) {
-        if (!isConnDisconnected && !reqCompleteWith) {
-          reqCompleteWith = "error:download_api_error";
-          msgConn.sendMessage({
-            action: "onerror",
-            data: respond,
-          });
-        }
-        chrome.downloads.onChanged.removeListener(onChangedListener);
-      }
-    });
+    }
   }
 
   @PermissionVerify.API()
