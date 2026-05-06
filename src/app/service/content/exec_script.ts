@@ -55,7 +55,7 @@ export default class ExecScript {
       // 在不改变 Context 的情况下，以 named 传入多个全域变量
       const GM = Object.create(null);
       GM.info = GM_info;
-      this.named = { GM: { info: GM_info }, GM_info };
+      this.named = { GM, GM_info };
     } else {
       // 构建脚本GM上下文
       this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, contentMsg, grantSet);
