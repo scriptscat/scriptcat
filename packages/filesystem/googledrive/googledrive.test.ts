@@ -1,9 +1,31 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { FileSystemError, isAuthError, isConflictError, isNotFoundError, isRateLimitError } from "../error";
 import GoogleDriveFileSystem from "./googledrive";
 
+function createMockResponse(options: { ok?: boolean; status?: number; text?: string; json?: any }): Response {
+  const { ok = true, status = 200, text = "", json = {} } = options;
+  return {
+    ok,
+    status,
+    text: vi.fn().mockResolvedValue(text),
+    json: vi.fn().mockResolvedValue(json),
+    headers: new Headers(),
+  } as unknown as Response;
+}
+
 describe("GoogleDriveFileSystem", () => {
-  beforeEach(() => {
+  const localStorageDAO = new LocalStorageDAO();
+  let originalFetch: typeof fetch;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await chrome.storage.local.clear();
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    vi.stubGlobal("fetch", originalFetch);
   });
 
   it("delete should be idempotent when file id is missing", async () => {
@@ -58,5 +80,196 @@ describe("GoogleDriveFileSystem", () => {
     expect(ensureSpy).toHaveBeenCalledWith("/Base");
     expect(findSpy).toHaveBeenCalledWith("file.txt", "base-id");
     expect(requestSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("request should return retry result after token refresh", async () => {
+    await localStorageDAO.saveValue("netdisk:token:googledrive", {
+      accessToken: "expired-token",
+      refreshToken: "refresh-token",
+      createtime: Date.now(),
+    });
+
+    const fs = new GoogleDriveFileSystem("/", "expired-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 401,
+          text: JSON.stringify({
+            error: {
+              code: 401,
+              message: "Invalid Credentials",
+              status: "UNAUTHENTICATED",
+            },
+          }),
+        })
+      )
+      .mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue({
+          code: 0,
+          data: {
+            token: {
+              access_token: "fresh-token",
+              refresh_token: "fresh-refresh-token",
+            },
+          },
+        }),
+      } as unknown as Response)
+      .mockResolvedValueOnce(
+        createMockResponse({
+          json: {
+            files: [{ id: "ok" }],
+          },
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const data = await fs.request("https://www.googleapis.com/drive/v3/files");
+
+    expect(data.files).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("request should throw auth error when retry still gets 401", async () => {
+    await localStorageDAO.saveValue("netdisk:token:googledrive", {
+      accessToken: "expired-token",
+      refreshToken: "refresh-token",
+      createtime: Date.now(),
+    });
+
+    const fs = new GoogleDriveFileSystem("/", "expired-token");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(createMockResponse({ ok: false, status: 401, text: "expired" }))
+        .mockResolvedValueOnce({
+          json: vi.fn().mockResolvedValue({
+            code: 0,
+            data: {
+              token: {
+                access_token: "fresh-token",
+                refresh_token: "fresh-refresh-token",
+              },
+            },
+          }),
+        } as unknown as Response)
+        .mockResolvedValueOnce(createMockResponse({ ok: false, status: 401, text: "still expired" }))
+    );
+
+    try {
+      await fs.request("https://www.googleapis.com/drive/v3/files");
+      throw new Error("Expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(FileSystemError);
+      expect(isAuthError(error)).toBe(true);
+      expect(error).toMatchObject({
+        provider: "googledrive",
+        status: 401,
+        auth: true,
+      });
+    }
+  });
+
+  it("request should throw typed not found error", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 404,
+          text: JSON.stringify({
+            error: {
+              code: 404,
+              message: "File not found",
+              status: "NOT_FOUND",
+            },
+          }),
+        })
+      )
+    );
+
+    try {
+      await fs.request("https://www.googleapis.com/drive/v3/files/missing");
+      throw new Error("Expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(FileSystemError);
+      expect(isNotFoundError(error)).toBe(true);
+      expect(error).toMatchObject({
+        provider: "googledrive",
+        status: 404,
+        code: "NOT_FOUND",
+        notFound: true,
+      });
+    }
+  });
+
+  it.each([409, 412])("request should throw typed conflict error for status %s", async (status) => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status,
+          text: JSON.stringify({
+            error: {
+              code: status,
+              message: "Conflict",
+              status: status === 409 ? "ABORTED" : "FAILED_PRECONDITION",
+            },
+          }),
+        })
+      )
+    );
+
+    try {
+      await fs.request("https://www.googleapis.com/drive/v3/files/conflict");
+      throw new Error("Expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(FileSystemError);
+      expect(isConflictError(error)).toBe(true);
+      expect(error).toMatchObject({
+        provider: "googledrive",
+        status,
+        conflict: true,
+      });
+    }
+  });
+
+  it("request should throw typed rate-limit error", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 429,
+          text: JSON.stringify({
+            error: {
+              code: 429,
+              message: "Quota exceeded",
+              status: "RESOURCE_EXHAUSTED",
+            },
+          }),
+        })
+      )
+    );
+
+    try {
+      await fs.request("https://www.googleapis.com/drive/v3/files");
+      throw new Error("Expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(FileSystemError);
+      expect(isRateLimitError(error)).toBe(true);
+      expect(error).toMatchObject({
+        provider: "googledrive",
+        status: 429,
+        retryable: true,
+        rateLimit: true,
+      });
+    }
   });
 });

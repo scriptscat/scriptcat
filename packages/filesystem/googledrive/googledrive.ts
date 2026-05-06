@@ -1,4 +1,5 @@
 import { AuthVerify } from "../auth";
+import { FileSystemError } from "../error";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
@@ -115,6 +116,48 @@ export default class GoogleDriveFileSystem implements FileSystem {
     };
   }
 
+  private createRequestError(raw: unknown, status?: number): FileSystemError {
+    const errorBody =
+      raw && typeof raw === "object" && "error" in raw ? (raw as { error?: Record<string, unknown> }).error : undefined;
+    const googleStatus = typeof errorBody?.code === "number" ? errorBody.code : status;
+    const code =
+      typeof errorBody?.status === "string"
+        ? errorBody.status
+        : typeof errorBody?.code === "number"
+          ? String(errorBody.code)
+          : undefined;
+    const message =
+      typeof errorBody?.message === "string"
+        ? errorBody.message
+        : typeof raw === "string" && raw
+          ? raw
+          : `Google Drive request failed${googleStatus ? ` with status ${googleStatus}` : ""}`;
+
+    return new FileSystemError({
+      provider: "googledrive",
+      message,
+      status: googleStatus,
+      code,
+      auth: googleStatus === 401,
+      notFound: googleStatus === 404,
+      conflict: googleStatus === 409 || googleStatus === 412,
+      rateLimit: googleStatus === 429,
+      retryable: googleStatus === 429 || (googleStatus !== undefined && googleStatus >= 500),
+      raw,
+    });
+  }
+
+  private async createResponseError(resp: Response): Promise<FileSystemError> {
+    const text = await resp.text();
+    let raw;
+    try {
+      raw = text ? JSON.parse(text) : "";
+    } catch {
+      raw = text;
+    }
+    return this.createRequestError(raw, resp.status);
+  }
+
   request(url: string, config?: RequestInit, nothen?: boolean) {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
@@ -141,7 +184,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
           resp = await retryWithFreshToken();
         }
         if (!resp.ok) {
-          throw new Error(await resp.text());
+          throw await this.createResponseError(resp);
         }
         return resp.json();
       })
@@ -152,18 +195,18 @@ export default class GoogleDriveFileSystem implements FileSystem {
             return retryWithFreshToken()
               .then(async (retryResp) => {
                 if (!retryResp.ok) {
-                  throw new Error(await retryResp.text());
+                  throw await this.createResponseError(retryResp);
                 }
                 return retryResp.json();
               })
               .then((retryData) => {
                 if (retryData.error) {
-                  throw new Error(JSON.stringify(retryData));
+                  throw this.createRequestError(retryData);
                 }
                 return retryData;
               });
           }
-          throw new Error(JSON.stringify(data));
+          throw this.createRequestError(data);
         }
         return data;
       });
