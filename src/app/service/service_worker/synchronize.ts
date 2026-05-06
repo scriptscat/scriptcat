@@ -552,7 +552,14 @@ export class SynchronizeService {
     for (const file of newList) {
       newFileDigestMap[file.name] = file.digest;
     }
-    Object.assign(newFileDigestMap, knownFileDigestMap);
+    // 各后端 digest 格式不一（WebDAV/OneDrive/S3 是 etag、Dropbox 是 content_hash、Zip 为空，
+    // 仅 GoogleDrive/Baidu 是 md5），只在云端列表暂时漏掉刚上传的文件时用本地 md5 兜底，
+    // 不能覆盖 fs.list 已返回的原生 digest，否则下次同步比对会因格式不一致而误判
+    for (const name in knownFileDigestMap) {
+      if (!(name in newFileDigestMap)) {
+        newFileDigestMap[name] = knownFileDigestMap[name];
+      }
+    }
     await this.storage.set("file_digest", newFileDigestMap);
     return;
   }
