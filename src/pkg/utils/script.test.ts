@@ -37,6 +37,44 @@ console.log('Hello World');
     expect(result?.grant).toEqual(["none"]);
   });
 
+  it.concurrent("解析非GM标准UserScript元数据", () => {
+    // https://github.com/Tampermonkey/tampermonkey/issues/1326
+    const code = `
+// ==UserScript==
+// @name         测试脚本 TEST 💁🏼‍♀️
+// @namespace    admin@scriptcat.org
+// @version      -
+// @description  这是一个 💁🏼‍♀️ 测试脚本
+// @author       测试作者
+// @match        https://example.com/*
+//@require       https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js
+// @match        https://greasyfork.org/*/scripts*
+//@exclude       https://greasyfork.org/*/scripts/*
+// @grant        none
+//@downloadURL				https://github.com/EvilSpark/LazyScroll/blob/master/LazyScroll.js
+// ==/UserScript==
+
+// ==UserScript==
+// @match        https://no-this-domain.com/*
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本 TEST 💁🏼‍♀️"]);
+    expect(result?.namespace).toEqual(["admin@scriptcat.org"]);
+    expect(result?.version).toEqual(["-"]);
+    expect(result?.description).toEqual(["这是一个 💁🏼‍♀️ 测试脚本"]);
+    expect(result?.author).toEqual(["测试作者"]);
+    expect(result?.match).toEqual(["https://example.com/*", "https://greasyfork.org/*/scripts*"]);
+    expect(result?.require).toEqual(["https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"]);
+    expect(result?.exclude).toEqual(["https://greasyfork.org/*/scripts/*"]);
+    expect(result?.grant).toEqual(["none"]);
+    expect(result?.downloadurl).toEqual(["https://github.com/EvilSpark/LazyScroll/blob/master/LazyScroll.js"]);
+  });
+
   it.concurrent("解析最少UserScript元数据", () => {
     const code = `
 // ==UserScript==
