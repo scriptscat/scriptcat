@@ -3,7 +3,7 @@ import { type CustomEventMessage } from "@Packages/message/custom_event_message"
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { RuntimeClient } from "../service_worker/client";
-import { getStorageName, isFirefox, makeBlobURL } from "@App/pkg/utils/utils";
+import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
 import type { ValueUpdateDataEncoded } from "./types";
@@ -17,7 +17,8 @@ type PageOrContent = ValueOf<typeof PageOrContent>;
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
+// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
+const deliveryStorage = chrome.storage.local; // 日后再处理
 
 // scripting页的处理
 export default class ScriptingRuntime {

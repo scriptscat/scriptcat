@@ -21,7 +21,6 @@ import {
   getMetadataStr,
   getStorageName,
   getUserConfigStr,
-  isFirefox,
   obtainBlackList,
   sourceMapTo,
 } from "@App/pkg/utils/utils";
@@ -88,7 +87,8 @@ const bgScriptStorageNames = new Set<string>();
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
+// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
+const deliveryStorage = chrome.storage.local; // 日后再处理
 
 export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
