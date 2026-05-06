@@ -1350,7 +1350,8 @@ export class RuntimeService {
     const codeText = code?.code || "";
     const metadataStr = code ? getMetadataStr(codeText) || "" : "";
     const userConfigStr = code ? getUserConfigStr(codeText) || "" : "";
-    const userConfig = (userConfigStr ? parseUserConfig(userConfigStr) : script.config) || null;
+    const userConfig = userConfigStr ? parseUserConfig(userConfigStr) || null : null;
+    // const userConfig = (userConfigStr ? parseUserConfig(userConfigStr) : script.config) || null;
     const ret = {
       updatetime: updatetime,
       code: codeText,
