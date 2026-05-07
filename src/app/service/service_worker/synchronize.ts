@@ -74,6 +74,10 @@ type FileDigestMap = {
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
+function getScriptModifiedDate(script: PushScriptParam): number {
+  return script.updatetime || script.createtime || Date.now();
+}
+
 export class SynchronizeService {
   logger: Logger;
 
@@ -423,7 +427,9 @@ export class SynchronizeService {
                 await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
                   i18n.t("notification.script_sync_delete"),
-                  i18n.t("notification.script_sync_delete_desc", { scriptName: i18nName(script) })
+                  i18n.t("notification.script_sync_delete_desc", {
+                    scriptName: i18nName(script),
+                  })
                 );
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
@@ -535,9 +541,8 @@ export class SynchronizeService {
         }
       });
       // 保存脚本猫同步状态
-      const syncFile = await fs.create("scriptcat-sync.json", {
-        modifiedDate: Date.now(),
-      });
+      const modifiedDate = Date.now();
+      const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
       await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
       this.logger.info("sync scriptcat-sync.json file success");
     }
@@ -577,9 +582,8 @@ export class SynchronizeService {
       await fs.delete(filename);
       if (syncDelete) {
         // 留下一个.meta.json删除标记
-        const meta = await fs.create(`${uuid}.meta.json`, {
-          modifiedDate: Date.now(),
-        });
+        const modifiedDate = Date.now();
+        const meta = await fs.create(`${uuid}.meta.json`, { modifiedDate });
         await meta.write(
           JSON.stringify(<SyncMeta>{
             uuid: uuid,
@@ -610,7 +614,7 @@ export class SynchronizeService {
       file: filename,
     });
     try {
-      const modifiedDate = script.updatetime || script.createtime || Date.now();
+      const modifiedDate = getScriptModifiedDate(script);
       const w = await fs.create(filename, { modifiedDate });
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);

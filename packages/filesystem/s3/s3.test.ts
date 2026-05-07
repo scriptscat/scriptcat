@@ -185,7 +185,7 @@ describe("S3FileSystem", () => {
       );
     });
 
-    it("S3FileWriter.write 应在传入 modifiedDate 时写入 createtime 元数据", async () => {
+    it("S3FileWriter.write 应将 modifiedDate 写入兼容用的 createtime 元数据", async () => {
       (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
 
       const writer = await fs.create("output.txt", { modifiedDate: 1234 });
