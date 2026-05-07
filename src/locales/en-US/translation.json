@@ -360,7 +360,7 @@
   "script_status_tooltip": "You can control the enable status of scripts. Ordinary Tampermonkey scripts are enabled by default, and Background scripts and Scheduled scripts are disabled by default.",
   "subscribe_source_tooltip": "This is a subscription source. When you open the subscription, the subscription script will be automatically installed.",
   "get_script": "Get Script",
-  "report_issue": "Report Issue",
+  "report_issue": "Bug Report / Issue Feedback",
   "project_docs": "Project Documentation",
   "community": "Community",
   "popup": {
