@@ -225,6 +225,8 @@ const scriptDAO = new ScriptDAO();
 const scriptCodeDAO = new ScriptCodeDAO();
 
 function useScriptList() {
+  const [selectedScript, setSelectSciptButtonAndTab] = useState<string>("");
+  const [editors, setEditors] = useState<EditorState[]>([]);
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
   const [scriptList, setScriptList] = useState<Script[]>([]);
   // 监听后台消息更新状态
@@ -253,6 +255,20 @@ function useScriptList() {
       },
       deleteScripts(data: TDeleteScript[]) {
         const dels = new Set(data.map((script) => script.uuid));
+        setEditors((prev) => {
+          const newList: EditorState[] = [];
+          for (const editor of prev) {
+            if (!dels.has(editor.script.uuid)) {
+              newList.push(editor);
+            }
+          }
+          // 关键修复：确保关闭后仍有一个 Tab 是激活的
+          if (newList.length > 0 && !newList.some((e) => e.active)) {
+            newList[0] = { ...newList[0], active: true };
+            setSelectSciptButtonAndTab(newList[0].script.uuid);
+          }
+          return newList;
+        });
         setScriptList((list) => {
           return list.filter((script) => !dels.has(script.uuid));
         });
@@ -300,7 +316,16 @@ function useScriptList() {
     );
     return hookMgr.unhook;
   }, []);
-  return { scriptList, setScriptList, canLoadScript, setCanLoadScript };
+  return {
+    scriptList,
+    setScriptList,
+    canLoadScript,
+    setCanLoadScript,
+    editors,
+    setEditors,
+    selectedScript,
+    setSelectSciptButtonAndTab,
+  };
 }
 
 function ScriptEditor() {
@@ -308,7 +333,16 @@ function ScriptEditor() {
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
   const [modal, contextHolder] = Modal.useModal();
-  const [editors, setEditors] = useState<EditorState[]>([]);
+  const {
+    scriptList,
+    setScriptList,
+    canLoadScript,
+    setCanLoadScript,
+    editors,
+    setEditors,
+    selectedScript,
+    setSelectSciptButtonAndTab,
+  } = useScriptList();
   const editorsRef = useRef<EditorState[]>(editors); // 取出资料用
   // Sync during render (no useEffect needed)
   editorsRef.current = editors;
@@ -329,7 +363,6 @@ function ScriptEditor() {
     }
   };
   const [currentScript, setCurrentScript] = useState<Script>();
-  const [selectedScript, setSelectSciptButtonAndTab] = useState<string>("");
   const [rightOperationTab, setRightOperationTab] = useState<{
     key: string;
     uuid: string;
@@ -345,8 +378,6 @@ function ScriptEditor() {
 
   const navigate = useNavigate();
   const { t } = useTranslation();
-
-  const { scriptList, setScriptList, canLoadScript, setCanLoadScript } = useScriptList();
 
   // 封装：统一的打开/创建脚本逻辑 (Command Pattern)
   const openScript = useCallback(
