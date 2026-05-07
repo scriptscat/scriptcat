@@ -1,4 +1,5 @@
 import type { Script } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +26,9 @@ import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
+import type { TInstallScript, TDeleteScript, TEnableScript, TSortedScript } from "@App/app/service/queue";
+import { subscribeMessage } from "@App/pages/store/global";
+import { HookManager } from "@App/pkg/utils/hookManager";
 
 const { Row, Col } = Grid;
 
@@ -220,6 +224,85 @@ type EditorState = {
 const scriptDAO = new ScriptDAO();
 const scriptCodeDAO = new ScriptCodeDAO();
 
+function useScriptList() {
+  const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
+  const [scriptList, setScriptList] = useState<Script[]>([]);
+  // 监听后台消息更新状态
+  useEffect(() => {
+    const pageApi = {
+      async installScript(data: TInstallScript) {
+        const latest = await scriptDAO.all();
+        const latestMap = new Map(latest.map((script) => [script.uuid, script]));
+        setScriptList((list) => {
+          const newList: Script[] = [];
+          for (const entry of list) {
+            if (entry.uuid !== data.script.uuid) {
+              const latestScript = latestMap.get(entry.uuid);
+              if (latestScript) {
+                newList.push({ ...entry, sort: latestScript.sort });
+              }
+            }
+          }
+          const installedScript = latestMap.get(data.script.uuid);
+          if (installedScript) {
+            newList.push(installedScript);
+          }
+          newList.sort((a, b) => a.sort - b.sort);
+          return newList;
+        });
+      },
+      deleteScripts(data: TDeleteScript[]) {
+        const dels = new Set(data.map((script) => script.uuid));
+        setScriptList((list) => {
+          return list.filter((script) => !dels.has(script.uuid));
+        });
+      },
+      enableScripts(data: TEnableScript[]) {
+        const enableMap = new Map(data.map((e) => [e.uuid, e.enable]));
+        setScriptList((list) => {
+          const newList: Script[] = [];
+          for (const script of list) {
+            const oldEnable = script.status !== SCRIPT_STATUS_DISABLE;
+            const newEnable = enableMap.get(script.uuid);
+            if (typeof newEnable === "boolean" && oldEnable !== newEnable) {
+              newList.push({ ...script, status: newEnable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE });
+            } else {
+              newList.push(script);
+            }
+          }
+          return newList;
+        });
+      },
+      sortedScripts(sorting: TSortedScript[]) {
+        const sortMap = new Map(sorting.map((s) => [s.uuid, s.sort]));
+        setScriptList((list) => {
+          const newList: Script[] = [];
+          for (const entry of list) {
+            const sort = sortMap.get(entry.uuid);
+            if (sort! >= 0) {
+              newList.push({ ...entry, sort: sort! });
+            } else {
+              newList.push(entry);
+            }
+          }
+          newList.sort((a, b) => a.sort - b.sort);
+          return newList;
+        });
+      },
+    } as const;
+
+    const hookMgr = new HookManager();
+    hookMgr.append(
+      subscribeMessage<TInstallScript>("installScript", pageApi.installScript),
+      subscribeMessage<TDeleteScript[]>("deleteScripts", pageApi.deleteScripts),
+      subscribeMessage<TEnableScript[]>("enableScripts", pageApi.enableScripts),
+      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts)
+    );
+    return hookMgr.unhook;
+  }, []);
+  return { scriptList, setScriptList, canLoadScript, setCanLoadScript };
+}
+
 function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
@@ -245,7 +328,6 @@ function ScriptEditor() {
       setTimeout(editor.focus.bind(editor), delayMs);
     }
   };
-  const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
   const [selectedScript, setSelectSciptButtonAndTab] = useState<string>("");
   const [rightOperationTab, setRightOperationTab] = useState<{
@@ -254,7 +336,6 @@ function ScriptEditor() {
     selectSciptButtonAndTab: string;
   }>();
   const cidRef = useRef<ReturnType<typeof setTimeout>>();
-  const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
   const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(() => {
     return localStorage.getItem("hiddenEditorScriptList") === "true";
   });
@@ -264,6 +345,8 @@ function ScriptEditor() {
 
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  const { scriptList, setScriptList, canLoadScript, setCanLoadScript } = useScriptList();
 
   // 封装：统一的打开/创建脚本逻辑 (Command Pattern)
   const openScript = useCallback(
@@ -1087,7 +1170,7 @@ function ScriptEditor() {
               )}
               {filteredScriptList.map((script) => {
                 const editor = editorFindItem(script.uuid);
-                const alpha = script.status === 2 ? 0.8 : 1.0;
+                const alpha = script.status === SCRIPT_STATUS_DISABLE ? 0.66 : 1.0;
                 return (
                   <div key={`s_${script.uuid}`} className="tw-relative tw-group">
                     <Button
@@ -1097,7 +1180,6 @@ function ScriptEditor() {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        opacity: alpha,
                         color: !editor
                           ? "var(--color-text-3)"
                           : editor.isChanged
@@ -1115,7 +1197,14 @@ function ScriptEditor() {
                         openScript(script.uuid);
                       }}
                     >
-                      <span className="tw-overflow-hidden tw-text-ellipsis">{i18nName(script)}</span>
+                      <span
+                        className="tw-overflow-hidden tw-text-ellipsis"
+                        style={{
+                          opacity: alpha,
+                        }}
+                      >
+                        {i18nName(script)}
+                      </span>
                     </Button>
                     {/* 删除按钮，只在鼠标悬停时显示 */}
                     <Button
