@@ -229,6 +229,7 @@
   "cut": "Cut",
   "copy": "Copy",
   "paste": "Paste",
+  "format": "Format",
   "exclude_on": "Reinstate $0's execution",
   "exclude_off": "Exclude $0's exeuction",
   "user_config": "User Config",

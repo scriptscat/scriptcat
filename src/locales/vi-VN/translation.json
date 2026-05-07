@@ -229,6 +229,7 @@
   "cut": "Cắt",
   "copy": "Sao chép",
   "paste": "Dán",
+  "format": "Định dạng",
   "exclude_on": "Cho phép chạy lại $0",
   "exclude_off": "Loại trừ chạy $0",
   "user_config": "Cấu hình người dùng",
