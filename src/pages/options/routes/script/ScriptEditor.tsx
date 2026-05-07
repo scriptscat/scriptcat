@@ -241,7 +241,13 @@ function useScriptList() {
             if (entry.uuid !== data.script.uuid) {
               const latestScript = latestMap.get(entry.uuid);
               if (latestScript) {
-                newList.push({ ...entry, sort: latestScript.sort });
+                newList.push({
+                  ...entry,
+                  sort: latestScript.sort,
+                  name: latestScript.name,
+                  updatetime: latestScript.updatetime,
+                  status: latestScript.status,
+                });
               }
             }
           }
