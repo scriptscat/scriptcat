@@ -4,8 +4,9 @@ import chardet from "chardet";
  * 从 Content-Type header 中解析 charset
  */
 export const parseCharsetFromContentType = (ct: string | null): string => {
-  const m = ct ? /charset=([^;]+)/i.exec(ct) : null;
-  return m ? m[1].trim().toLowerCase().replace(/['"]/g, "") : "";
+  if (!ct) return "";
+  const m = /charset\s*=\s*["']?([^"';\s]+)/i.exec(ct);
+  return m ? m[1].toLowerCase() : "";
 };
 
 export const decodeUTF32 = (utf32Bytes: Uint8Array, isLE: boolean = true): string => {
@@ -16,61 +17,174 @@ export const decodeUTF32 = (utf32Bytes: Uint8Array, isLE: boolean = true): strin
   if (byteLen % 4 !== 0) {
     throw new RangeError("UTF-32 byte length must be a multiple of 4");
   }
-  const numCodePoints = byteLen >>> 2;
-  let u32;
-  if (isLE) {
-    u32 = new Uint32Array(utf32Bytes.buffer, utf32Bytes.byteOffset, numCodePoints);
-  } else {
-    const view = new DataView(utf32Bytes.buffer, utf32Bytes.byteOffset, byteLen);
-    u32 = new Uint32Array(numCodePoints);
-    for (let i = 0, j = 0; i < byteLen; i += 4) {
-      u32[j++] = view.getUint32(i, false);
+  const view = new DataView(utf32Bytes.buffer, utf32Bytes.byteOffset, byteLen);
+  let out = "";
+  let chunk: number[] = [];
+  for (let i = 0; i < byteLen; i += 4) {
+    const codePoint = view.getUint32(i, isLE);
+    if (i === 0 && codePoint === 0x0000feff) continue;
+    chunk.push(codePoint);
+    if (chunk.length >= 16384) {
+      out += String.fromCodePoint(...chunk);
+      chunk = [];
     }
   }
-  if (u32[0] === 0x0000feff) u32 = u32.subarray(1);
-  let out = "";
-  for (let i = 0; i < u32.length; i += 16384) {
-    out += String.fromCodePoint(...u32.subarray(i, i + 16384));
-  }
+  if (chunk.length) out += String.fromCodePoint(...chunk);
   return out;
 };
 
 export const bytesDecode = (charset: string, bytes: Uint8Array): string => {
-  if (charset === "utf-32le") {
+  const normalizedCharset = charset.toLowerCase();
+  if (normalizedCharset === "utf-32le") {
     return decodeUTF32(bytes, true);
-  } else if (charset === "utf-32be") {
+  } else if (normalizedCharset === "utf-32be") {
     return decodeUTF32(bytes, false);
   } else {
-    return new TextDecoder(charset).decode(bytes);
+    return new TextDecoder(normalizedCharset).decode(bytes);
   }
 };
 
-/**
- * 检测字节数组的编码
- * 优先使用 Content-Type header，失败时使用 chardet（仅对前16KB检测以提升性能）
- */
-export const detectEncoding = (data: Uint8Array, contentType: string | null): string => {
-  // 优先尝试使用 Content-Type header 中的 charset
-  const headerCharset = parseCharsetFromContentType(contentType);
-  if (headerCharset) {
-    try {
-      // 验证 charset 是否有效
-      new TextDecoder(headerCharset);
-      return headerCharset;
-    } catch (e: any) {
-      console.warn(`Invalid charset from Content-Type header: ${headerCharset}, error: ${e.message}`);
+const unicodeEncodings = new Set(["utf-8", "ascii", "utf-16le", "utf-16be", "utf-32le", "utf-32be"]);
+
+const CHECK_SIZE = 16 * 1024;
+const FULL_UTF8_VALIDATE_LIMIT = 256 * 1024;
+const MAX_UTF8_SAMPLE_RANGES = 8;
+const LEGACY_SAMPLE_LIMIT = 32 * 1024;
+const HEURISTIC_VALIDATE_LIMIT = 128 * 1024;
+
+type ByteRange = [number, number];
+
+const isUtf8ContinuationByte = (byte: number) => (byte & 0xc0) === 0x80;
+
+const addSampleRange = (ranges: ByteRange[], data: Uint8Array, start: number, end: number) => {
+  if (data.length === 0) return;
+  let rangeStart = Math.max(0, Math.min(start, data.length));
+  let rangeEnd = Math.max(rangeStart, Math.min(end, data.length));
+  while (rangeStart > 0 && isUtf8ContinuationByte(data[rangeStart])) {
+    rangeStart--;
+  }
+  while (rangeEnd < data.length && isUtf8ContinuationByte(data[rangeEnd])) {
+    rangeEnd++;
+  }
+  if (rangeStart >= rangeEnd) return;
+  if (ranges.some(([existingStart, existingEnd]) => rangeStart >= existingStart && rangeEnd <= existingEnd)) return;
+  ranges.push([rangeStart, rangeEnd]);
+};
+
+const createSampleRanges = (
+  data: Uint8Array,
+  rangeSize = CHECK_SIZE,
+  maxRanges = MAX_UTF8_SAMPLE_RANGES
+): ByteRange[] => {
+  if (data.length <= rangeSize) return [[0, data.length]];
+
+  const ranges: ByteRange[] = [];
+  addSampleRange(ranges, data, 0, rangeSize);
+  addSampleRange(
+    ranges,
+    data,
+    Math.max(0, Math.floor(data.length / 2 - rangeSize / 2)),
+    Math.min(data.length, Math.floor(data.length / 2 + rangeSize / 2))
+  );
+  addSampleRange(ranges, data, Math.max(0, data.length - rangeSize), data.length);
+
+  let nextHighByteSearchStart = rangeSize;
+  while (ranges.length < maxRanges && nextHighByteSearchStart < data.length) {
+    let highByteIndex = -1;
+    for (let i = nextHighByteSearchStart; i < data.length; i++) {
+      if (data[i] >= 0x80) {
+        highByteIndex = i;
+        break;
+      }
+    }
+    if (highByteIndex < 0) break;
+
+    const start = Math.max(0, highByteIndex - Math.floor(rangeSize / 2));
+    const end = Math.min(data.length, start + rangeSize);
+    addSampleRange(ranges, data, start, end);
+    nextHighByteSearchStart = Math.max(highByteIndex + rangeSize, end);
+  }
+
+  return ranges.sort((a, b) => a[0] - b[0]);
+};
+
+const createLegacyDetectionSample = (data: Uint8Array): Uint8Array => {
+  if (data.length <= LEGACY_SAMPLE_LIMIT) return data;
+
+  let firstHighByteIndex = -1;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] >= 0x80) {
+      firstHighByteIndex = i;
+      break;
     }
   }
 
-  // 使用 chardet 检测编码，仅检测前16KB以提升性能
-  const sampleSize = Math.min(data.length, 16 * 1024); // max 16KB
-  const sample = data.subarray(0, sampleSize);
-  const analysedResult = chardet.analyse(sample);
-  let highestConfidence = 0;
+  if (firstHighByteIndex < 0) {
+    return data.subarray(0, LEGACY_SAMPLE_LIMIT);
+  }
+
+  const sampleStart = Math.max(0, Math.min(firstHighByteIndex - 8 * 1024, data.length - LEGACY_SAMPLE_LIMIT));
+  return data.subarray(sampleStart, sampleStart + LEGACY_SAMPLE_LIMIT);
+};
+
+const assertLikelyUtf8 = (data: Uint8Array): void => {
+  if (data.length <= FULL_UTF8_VALIDATE_LIMIT) {
+    new TextDecoder("utf-8", { fatal: true }).decode(data);
+    return;
+  }
+
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  for (const [start, end] of createSampleRanges(data)) {
+    decoder.decode(data.subarray(start, end));
+  }
+};
+
+const decodeMostlyUtf8 = (data: Uint8Array): string | null => {
+  const decoded = new TextDecoder("utf-8").decode(data);
+  let replacements = 0;
+  let nonAsciiSignals = 0;
+
+  for (let i = 0; i < decoded.length; i++) {
+    const code = decoded.charCodeAt(i);
+    if (code === 0xfffd) {
+      replacements++;
+    } else if (code > 0x7f) {
+      nonAsciiSignals++;
+    }
+  }
+
+  if (nonAsciiSignals >= replacements * 4 && replacements > 0 && replacements <= 8) {
+    return decoded;
+  }
+
+  return null;
+};
+
+const hasSuspiciousDecodedControlChars = (text: string): boolean => {
+  let controls = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code === 0xfffd || code === 0) return true;
+    if (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) {
+      controls++;
+    }
+  }
+  return controls > Math.max(4, text.length * 0.02);
+};
+
+/**
+ * Legacy chardet fallback for readBlobContent.
+ * Header charset, BOM, UTF null-patterns, and valid UTF-8 are handled before this runs.
+ */
+const legacyDetectEncoding = (data: Uint8Array): string => {
+  const sample = createLegacyDetectionSample(data);
+  const analysedResult = chardet.analyse(sample).sort((a, b) => b.confidence - a.confidence);
+  let highestConfidence = -1;
   const results = [];
   let leastCharLen = Infinity;
   for (const entry of analysedResult) {
     const encoding = entry.name.toLowerCase();
+    if (unicodeEncodings.has(encoding)) continue;
     let decodedText;
     try {
       // 验证检测到的编码是否有效
@@ -79,7 +193,7 @@ export const detectEncoding = (data: Uint8Array, contentType: string | null): st
       // ignored
     }
     if (!decodedText) continue;
-    if (!highestConfidence) {
+    if (highestConfidence < 0) {
       highestConfidence = entry.confidence;
       if (highestConfidence > 90) return encoding;
     } else if (highestConfidence > 70 && entry.confidence < 30) {
@@ -105,8 +219,7 @@ export const detectEncoding = (data: Uint8Array, contentType: string | null): st
     if (charLen < leastCharLen) leastCharLen = charLen;
   }
   const ret = results.find((e) => e.charLen === leastCharLen);
-  // 没有有效charset时回退到 UTF-8
-  return ret?.encoding || "utf-8";
+  return ret?.encoding || "windows-1252";
 };
 
 const detectBOM = (u8: Uint8Array): string | null => {
@@ -138,17 +251,17 @@ function guessByNullPattern(u8: Uint8Array, size = u8.length): string | null {
   const density = total / size;
 
   // UTF-32 — expect ~75% nulls (even with many CJK chars still ~70%+)
-  if (density > 0.54) {
-    const beScore = n[0] + n[1] + n[2];
-    const leScore = n[1] + n[2] + n[3];
+  if (u8.length % 4 === 0 && density > 0.54) {
+    const laneSize = size / 4;
+    const mostlyNull = laneSize * 0.65;
+    const mostlyText = laneSize * 0.35;
 
-    if (beScore > leScore * 4.5 && beScore > size * 0.3) return "utf-32be";
-    if (leScore > beScore * 4.5 && leScore > size * 0.3) return "utf-32le";
-    return null;
+    if (n[0] < mostlyText && n[1] > mostlyNull && n[2] > mostlyNull && n[3] > mostlyNull) return "utf-32le";
+    if (n[0] > mostlyNull && n[1] > mostlyNull && n[2] > mostlyNull && n[3] < mostlyText) return "utf-32be";
   }
 
   // UTF-16 — expect ~25–50% nulls depending on script
-  if (density > 0.1) {
+  if (u8.length % 2 === 0 && density > 0.1) {
     const even = n[0] + n[2];
     const odd = n[1] + n[3];
 
@@ -161,9 +274,19 @@ function guessByNullPattern(u8: Uint8Array, size = u8.length): string | null {
   return null;
 }
 
+const validatesHeuristicEncoding = (encoding: string, data: Uint8Array): boolean => {
+  try {
+    const sample = data.subarray(0, Math.min(HEURISTIC_VALIDATE_LIMIT, data.length));
+    const decoded = bytesDecode(encoding, sample);
+    return !hasSuspiciousDecodedControlChars(decoded);
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Reads a Blob or File with reasonably good encoding detection
- * Priority: Content-Type header → BOM → strong UTF-16 heuristics → UTF-8 validation → legacy fallback ("windows-1252")
+ * Priority: Content-Type header → BOM → strong UTF-16/UTF-32 heuristics → UTF-8 validation → legacy detection
  * @param blob
  * @returns {Promise<string>}
  */
@@ -190,22 +313,28 @@ export const readBlobContent = async (blob: Blob | File | Response, contentType:
   const bomEncoding = detectBOM(uint8);
   if (bomEncoding) return bytesDecode(bomEncoding, uint8);
 
-  const checkSize = Math.min(uint8.length, 16 * 1024);
+  const checkSize = Math.min(uint8.length, CHECK_SIZE);
 
-  if (uint8.length % 2 === 0) {
-    // Heuristic detection (first 16 KB)
-    const heuristicEncoding = guessByNullPattern(uint8, checkSize);
-    if (heuristicEncoding) return bytesDecode(heuristicEncoding, uint8);
+  // Heuristic detection (first 16 KB)
+  const heuristicEncoding = guessByNullPattern(uint8, checkSize);
+  if (heuristicEncoding && validatesHeuristicEncoding(heuristicEncoding, uint8)) {
+    try {
+      return bytesDecode(heuristicEncoding, uint8);
+    } catch {
+      // Invalid full decode despite a valid sample: fall through to UTF-8/legacy.
+    }
   }
 
-  // UTF-8 validation → legacy fallback
+  // UTF-8 validation → legacy detection
   let encoding = "utf-8";
   try {
-    // Strict mode – throws on invalid sequences
-    new TextDecoder("utf-8", { fatal: true }).decode(uint8.subarray(0, checkSize));
+    assertLikelyUtf8(uint8);
   } catch {
-    // Invalid UTF-8 → most common real-world fallback
-    encoding = "windows-1252"; // OR detectEncoding(uint8, null)
+    const mostlyUtf8 = decodeMostlyUtf8(uint8);
+    if (mostlyUtf8 !== null) return mostlyUtf8;
+
+    // Invalid UTF-8 → use chardet-based legacy detection
+    encoding = legacyDetectEncoding(uint8);
   }
 
   return bytesDecode(encoding, uint8);
