@@ -57,13 +57,14 @@ type ByteRange = [number, number];
 const isUtf8ContinuationByte = (byte: number) => (byte & 0xc0) === 0x80;
 
 const addSampleRange = (ranges: ByteRange[], data: Uint8Array, start: number, end: number) => {
-  if (data.length === 0) return;
-  let rangeStart = Math.max(0, Math.min(start, data.length));
-  let rangeEnd = Math.max(rangeStart, Math.min(end, data.length));
+  const n = data.length;
+  if (n === 0) return;
+  let rangeStart = Math.max(0, Math.min(start, n));
+  let rangeEnd = Math.max(rangeStart, Math.min(end, n));
   while (rangeStart > 0 && isUtf8ContinuationByte(data[rangeStart])) {
     rangeStart--;
   }
-  while (rangeEnd < data.length && isUtf8ContinuationByte(data[rangeEnd])) {
+  while (rangeEnd < n && isUtf8ContinuationByte(data[rangeEnd])) {
     rangeEnd++;
   }
   if (rangeStart >= rangeEnd) return;
@@ -76,22 +77,20 @@ const createSampleRanges = (
   rangeSize = CHECK_SIZE,
   maxRanges = MAX_UTF8_SAMPLE_RANGES
 ): ByteRange[] => {
-  if (data.length <= rangeSize) return [[0, data.length]];
+  const n = data.length;
+  if (n <= rangeSize) return [[0, n]];
 
   const ranges: ByteRange[] = [];
+  const dk = n >>> 1;
+  const rk = rangeSize >>> 1;
   addSampleRange(ranges, data, 0, rangeSize);
-  addSampleRange(
-    ranges,
-    data,
-    Math.max(0, Math.floor(data.length / 2 - rangeSize / 2)),
-    Math.min(data.length, Math.floor(data.length / 2 + rangeSize / 2))
-  );
-  addSampleRange(ranges, data, Math.max(0, data.length - rangeSize), data.length);
+  addSampleRange(ranges, data, Math.max(0, dk - rk), Math.min(n, dk + rk));
+  addSampleRange(ranges, data, Math.max(0, n - rangeSize), n);
 
   let nextHighByteSearchStart = rangeSize;
-  while (ranges.length < maxRanges && nextHighByteSearchStart < data.length) {
+  while (ranges.length < maxRanges && nextHighByteSearchStart < n) {
     let highByteIndex = -1;
-    for (let i = nextHighByteSearchStart; i < data.length; i++) {
+    for (let i = nextHighByteSearchStart; i < n; i++) {
       if (data[i] >= 0x80) {
         highByteIndex = i;
         break;
@@ -99,7 +98,7 @@ const createSampleRanges = (
     }
     if (highByteIndex < 0) break;
 
-    const start = Math.max(0, highByteIndex - Math.floor(rangeSize / 2));
+    const start = Math.max(0, highByteIndex - rk);
     const end = Math.min(data.length, start + rangeSize);
     addSampleRange(ranges, data, start, end);
     nextHighByteSearchStart = Math.max(highByteIndex + rangeSize, end);
@@ -109,10 +108,11 @@ const createSampleRanges = (
 };
 
 const createLegacyDetectionSample = (data: Uint8Array): Uint8Array => {
-  if (data.length <= LEGACY_SAMPLE_LIMIT) return data;
+  const n = data.length;
+  if (n <= LEGACY_SAMPLE_LIMIT) return data;
 
   let firstHighByteIndex = -1;
-  for (let i = 0; i < data.length; i++) {
+  for (let i = 0; i < n; i++) {
     if (data[i] >= 0x80) {
       firstHighByteIndex = i;
       break;
@@ -123,7 +123,7 @@ const createLegacyDetectionSample = (data: Uint8Array): Uint8Array => {
     return data.subarray(0, LEGACY_SAMPLE_LIMIT);
   }
 
-  const sampleStart = Math.max(0, Math.min(firstHighByteIndex - 8 * 1024, data.length - LEGACY_SAMPLE_LIMIT));
+  const sampleStart = Math.max(0, Math.min(firstHighByteIndex - 8 * 1024, n - LEGACY_SAMPLE_LIMIT));
   return data.subarray(sampleStart, sampleStart + LEGACY_SAMPLE_LIMIT);
 };
 
