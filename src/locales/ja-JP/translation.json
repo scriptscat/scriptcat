@@ -97,7 +97,7 @@
   "last_7_days": "過去7日",
   "query": "検索",
   "labels": "ラベル",
-  "search_regex": "検索（正規表現サポート）",
+  "search_regex": "検索（正規表現対応）",
   "clean_schedule": "定期クリーニング",
   "days_ago_logs": "日前のログ",
   "delete_completed": "削除完了",
