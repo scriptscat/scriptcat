@@ -331,17 +331,20 @@
     withCleanup(
       () => {
         let count = 0;
+        let thisIsNotWindow = false;
         let eventTargetIsUnsafeWindow = false;
         const eventName = `${markerPrefix}_onresize_probe`;
 
         window.onresize = function (event) {
           count++;
+          thisIsNotWindow = this !== unsafeWindow;
           eventTargetIsUnsafeWindow = event.target === unsafeWindow;
           assertSame("resize", event.type, "事件对象应正常传入");
         };
 
         unsafeWindow.dispatchEvent(new Event("resize"));
         assertSame(1, count, "页面 resize 应触发沙盒 onresize");
+        assertSame(true, thisIsNotWindow, "onresize 回调 this 不应为 unsafeWindow");
         assertSame(true, eventTargetIsUnsafeWindow, "onresize 回调 event.target 应为 unsafeWindow");
 
         window.onresize = null;
