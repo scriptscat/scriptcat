@@ -164,7 +164,7 @@
     );
   });
 
-  await test("沙盒 window 使用空原型，但保留页面 Window 外观", () => {
+  await test("沙盒 window 使用空原型，但保留页面 Window 外观 (Issue #962)", () => {
     assertSame(
       null,
       Object.getPrototypeOf(window),
@@ -220,6 +220,84 @@
       () => {
         delete window[`${markerPrefix}_page_global`];
         delete unsafeWindow[`${markerPrefix}_page_global`];
+      },
+    ));
+
+  await test("页面 DOM named property 不应穿透为沙盒全局变量 (Issue #273, #700)", () =>
+    withCleanup(
+      () => {
+        const id = `${markerPrefix}_named_element`;
+        const div = document.createElement("div");
+        div.id = id;
+        document.body.appendChild(div);
+
+        assertSame(
+          div,
+          unsafeWindow[id],
+          "页面 window 应可通过 named property 访问元素",
+        );
+        assertSame(
+          undefined,
+          window[id],
+          "沙盒 window 不应通过 named property 访问页面元素",
+        );
+      },
+      () => {
+        document.getElementById(`${markerPrefix}_named_element`)?.remove();
+      },
+    ));
+
+  await test("删除沙盒全局变量不应删除页面同名全局变量 (Issue #522)", () =>
+    withCleanup(
+      () => {
+        const key = `${markerPrefix}_delete_page_global`;
+        unsafeWindow[key] = "page-value";
+
+        assertSame(undefined, window[key], "页面变量不应自动出现在沙盒 window");
+
+        window[key] = "sandbox-value";
+        assertSame("sandbox-value", window[key], "沙盒变量应存在");
+        assertSame("page-value", unsafeWindow[key], "页面变量应保持存在");
+
+        delete window[key];
+
+        assertSame(undefined, window[key], "删除后沙盒变量应消失");
+        assertSame(
+          "page-value",
+          unsafeWindow[key],
+          "删除沙盒变量不应删除页面变量",
+        );
+      },
+      () => {
+        window[`${markerPrefix}_delete_page_global`] = undefined;
+        delete window[`${markerPrefix}_delete_page_global`];
+        delete unsafeWindow[`${markerPrefix}_delete_page_global`];
+      },
+    ));
+
+  await test("裸 delete 沙盒全局变量不应删除页面同名全局变量", () =>
+    withCleanup(
+      () => {
+        const key = `${markerPrefix}_delete_bare_page_global`;
+        unsafeWindow[key] = "page-value";
+        window[key] = "sandbox-value";
+
+        assertSame("sandbox-value", window[key], "裸变量应读取沙盒值");
+        assertSame("page-value", unsafeWindow[key], "页面变量应保持存在");
+
+        try {
+          Function(`return delete ${key};`)(); // 半沙盒在頁面執行
+        } catch (e) {
+          throw new Error("This page cannot execute script", e);
+        }
+
+        assertSame(undefined, unsafeWindow[key], "裸 delete 后页面变量应消失");
+        assertSame("sandbox-value", window[key], "裸 delete 后沙盒变量不应消失");
+      },
+      () => {
+        window[`${markerPrefix}_delete_bare_page_global`] = undefined;
+        delete window[`${markerPrefix}_delete_bare_page_global`];
+        delete unsafeWindow[`${markerPrefix}_delete_bare_page_global`];
       },
     ));
 
@@ -296,8 +374,10 @@
 
   section("原生函数与事件代理");
 
-  await test("裸调用原生函数已绑定真实页面 window，避免 Illegal invocation", async () => {
+  await test("裸调用原生函数已绑定真实页面 window，避免 Illegal invocation (Issue #189)", async () => {
     const rawSetTimeout = setTimeout;
+    const rawSetInterval = setInterval;
+    const rawClearInterval = clearInterval;
     let called = false;
     await new Promise((resolve) => {
       rawSetTimeout(() => {
@@ -306,6 +386,16 @@
       }, 0);
     });
     assertSame(true, called, "裸调用 setTimeout 应正常执行");
+
+    let intervalCount = 0;
+    await new Promise((resolve) => {
+      const timer = rawSetInterval(() => {
+        intervalCount++;
+        rawClearInterval(timer);
+        resolve();
+      }, 0);
+    });
+    assertSame(1, intervalCount, "裸调用 setInterval 应正常执行");
 
     const rawAddEventListener = addEventListener;
     const rawRemoveEventListener = removeEventListener;
@@ -318,9 +408,51 @@
     unsafeWindow.dispatchEvent(new Event(eventName));
     rawRemoveEventListener(eventName, handler);
     assertSame(1, count, "裸调用 addEventListener 应绑定到页面 window");
+
+    if (typeof fetch === "function") {
+      const rawFetch = fetch;
+      assertSame("function", typeof rawFetch, "fetch 应可读取为裸函数");
+    }
   });
 
-  await test("getter 返回页面 window 时会替换为沙盒 window", () => {
+  await test("取出 window.addEventListener 后调用不会 Illegal invocation (Issue #773)", () =>
+    withCleanup(
+      () => {
+        const rawAddEventListener = window.addEventListener;
+        const rawRemoveEventListener = window.removeEventListener;
+        const eventName = `${markerPrefix}_window_listener`;
+        let count = 0;
+        const handler = () => {
+          count++;
+        };
+
+        rawAddEventListener(eventName, handler);
+        unsafeWindow.dispatchEvent(new Event(eventName));
+        rawRemoveEventListener(eventName, handler);
+
+        assertSame(
+          1,
+          count,
+          "window.addEventListener 取出后调用应绑定到页面 window",
+        );
+      },
+      () => {},
+    ));
+
+  await test("被 Proxy 包装的原生函数仍可安全裸调用 (Issue #1030)", async () => {
+    const proxiedSetTimeout = new Proxy(setTimeout, {});
+    let called = false;
+    await new Promise((resolve) => {
+      proxiedSetTimeout(() => {
+        called = true;
+        resolve();
+      }, 0);
+    });
+
+    assertSame(true, called, "Proxy 包装后的 setTimeout 应正常执行");
+  });
+
+  await test("getter 返回页面 window 时会替换为沙盒 window (Issue #1427)", () => {
     assertSame(window, self, "self getter 应返回沙盒 window");
     assertSame(window, parent, "parent getter 应返回沙盒 window");
     assertSame(window, top, "top getter 应返回沙盒 window");
