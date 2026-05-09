@@ -298,7 +298,7 @@ export const readRawContent = async (
   if (ArrayBuffer.isView(raw)) {
     uint8 = new Uint8Array<ArrayBuffer>(raw.buffer, raw.byteOffset, raw.byteLength);
   } else {
-    const buffer = await (raw as Blob | Response).arrayBuffer();
+    const buffer = await raw.arrayBuffer();
     uint8 = new Uint8Array<ArrayBuffer>(buffer);
   }
 
