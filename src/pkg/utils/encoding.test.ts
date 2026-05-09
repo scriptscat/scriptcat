@@ -681,8 +681,8 @@ describe.concurrent("encoding", () => {
 
     it.concurrent("handles Uint8Array", async () => {
       const text = "Uint8Array content";
-      const encoded = new TextEncoder().encode(text);
-      await expect(readRawContent(encoded, "text/plain; charset=utf-8")).resolves.toBe(text);
+      const uint8 = new TextEncoder().encode(text);
+      await expect(readRawContent(uint8, "text/plain; charset=utf-8")).resolves.toBe(text);
     });
 
     it.concurrent("handles content larger than 16KB", async () => {
