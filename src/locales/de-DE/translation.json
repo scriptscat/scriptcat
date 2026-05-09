@@ -411,7 +411,7 @@
   "guide_script_list_sort_content": "Sie können die Skriptbezeichnungen per Drag & Drop sortieren.",
   "guide_script_list_update_title": "Zuletzt aktualisiert",
   "guide_script_list_update_content": "Durch Klicken auf die Spaltenüberschrift „Zuletzt aktualisiert“ wird geprüft, ob es Aktualisierungen des Skripts gibt.",
-  "guide_script_list_action_title": "Aktion",
+  "guide_script_list_action_title": "Vorgang",
   "guide_script_list_action_content": "Die Bedienleiste ermöglicht den Zugriff auf die Skriptbearbeitung, die Steuerung der Skriptausführung und -beendigung (Hintergrundskripte) sowie auf die Einstellungen (siehe <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>). Über die Schaltflächen auf der rechten Seite können Sie auf erweiterte Filterfunktionen zugreifen und zwischen verschiedenen Ansichtsmodi wechseln.",
   "guide_tools_title": "Häufig verwendete Werkzeuge",
   "guide_tools_content": "Werkzeuge bieten Backup- und Entwicklungstools",
