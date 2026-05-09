@@ -327,22 +327,22 @@
     assertSame(window, frames, "frames getter 应返回沙盒 window");
   });
 
-  await test("onxxx 函数赋值由页面事件触发，this 为沙盒 window", () =>
+  await test("onxxx 函数赋值由页面事件触发，event.target 为 unsafeWindow", () =>
     withCleanup(
       () => {
         let count = 0;
-        let thisIsSandbox = false;
+        let eventTargetIsUnsafeWindow = false;
         const eventName = `${markerPrefix}_onresize_probe`;
 
         window.onresize = function (event) {
           count++;
-          thisIsSandbox = this === window;
+          eventTargetIsUnsafeWindow = event.target === unsafeWindow;
           assertSame("resize", event.type, "事件对象应正常传入");
         };
 
         unsafeWindow.dispatchEvent(new Event("resize"));
         assertSame(1, count, "页面 resize 应触发沙盒 onresize");
-        // assertSame(true, thisIsSandbox, "onresize 回调 this 应为沙盒 window");
+        assertSame(true, eventTargetIsUnsafeWindow, "onresize 回调 event.target 应为 unsafeWindow");
 
         window.onresize = null;
         unsafeWindow.dispatchEvent(new Event("resize"));
@@ -354,22 +354,9 @@
       },
     ));
 
-  await test("onxxx primitive 会转为 null，普通对象只保存不注册监听", () =>
+  await test("onxxx 普通对象只保存不注册监听，primitive 值应移除已注册的监听", () =>
     withCleanup(
       async () => {
-        window.onfocus = 123;
-        window.onblur = "text";
-        // assertSame(
-        //   null,
-        //   window.onfocus,
-        //   "number 赋给 onfocus 应按浏览器行为转为 null",
-        // );
-        // assertSame(
-        //   null,
-        //   window.onblur,
-        //   "string 赋给 onblur 应按浏览器行为转为 null",
-        // );
-
         let handled = false;
         const listenerObject = {
           handleEvent() {
@@ -384,6 +371,27 @@
           false,
           handled,
           "EventListenerObject 形式不应被 onxxx 代理注册",
+        );
+        handled = false;
+        const func = function () { handled = true };
+        window.onfocus = func;
+        assertSame(func, window.onfocus, "function 对象应被保存");
+        unsafeWindow.dispatchEvent(new Event("focus"));
+        await waitForEventLoop();
+        assertSame(
+          true,
+          handled,
+          "EventListener 形式应被 onxxx 代理注册",
+        );
+        handled = false;
+        window.onfocus = 123;
+        assertNotSame(func, window.onfocus, "primitive 对象时注册能被移除 (1)");
+        unsafeWindow.dispatchEvent(new Event("focus"));
+        await waitForEventLoop();
+        assertSame(
+          false,
+          handled,
+          "primitive 对象时注册能被移除 (2)",
         );
       },
       () => {
@@ -413,7 +421,7 @@
       },
     ));
 
-  // 故意只进行 window 和 top 的修改测试，不进行 self parent frames 的修改测试
+  // 测试对象仅限于 window 和 top
   await test("window/top 不能被脚本改写", () => {
     assertThrowsOrKeepsValue(
       () => {
@@ -423,14 +431,6 @@
       window,
       "window 自引用应保持不变",
     );
-    // assertThrowsOrKeepsValue(
-    //   () => {
-    //     window.self = "bad";
-    //   },
-    //   () => window.self,
-    //   window,
-    //   "self 自引用应保持不变",
-    // );
     assertThrowsOrKeepsValue(
       () => {
         window.top = "bad";
@@ -439,29 +439,14 @@
       window,
       "top 自引用应保持不变",
     );
-    // assertThrowsOrKeepsValue(
-    //   () => {
-    //     window.parent = "bad";
-    //   },
-    //   () => window.parent,
-    //   window,
-    //   "parent 自引用应保持不变",
-    // );
-    // assertThrowsOrKeepsValue(
-    //   () => {
-    //     window.frames = "bad";
-    //   },
-    //   () => window.frames,
-    //   window,
-    //   "frames 自引用应保持不变",
-    // );
   });
 
   section("GM API 注入与命名空间");
 
   await test("GM_info、GM.info 与 unsafeWindow 正确暴露", () => {
     assertSame("object", typeof GM_info, "GM_info 应可用");
-    // assertSame(GM_info, GM.info, "GM.info 应与 GM_info 指向同一份信息");
+    assertSame("object", typeof GM.info, "GM.info 应可用");
+    assertSame(JSON.stringify(GM_info), JSON.stringify(GM.info), "GM.info 应与 GM_info 一致 (JSON.stringify)");
     assertSame(
       unsafeWindow,
       window.unsafeWindow,
@@ -607,11 +592,6 @@
       typeof GM_cookie.delete,
       "GM_cookie.delete 应由兼容命名空间注入",
     );
-    // assertSame(
-    //   "function",
-    //   typeof GM.cookie,
-    //   "GM.cookie 应由 GM_cookie grant 自动补齐",
-    // );
     assertSame(
       "function",
       typeof GM.cookie.set,
