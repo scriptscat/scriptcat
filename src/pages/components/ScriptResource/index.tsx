@@ -78,7 +78,7 @@ const ScriptResource: React.FC<{
       },
     },
     {
-      title: t("operation"),
+      title: t("action"),
       render(_col, value: Resource, index) {
         return (
           <Space>

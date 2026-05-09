@@ -402,7 +402,7 @@ const TitleCell = React.memo(
   }) => {
     return (
       <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
-        <span>{t("operation")}</span>
+        <span>{t("action")}</span>
         <Space size={4}>
           <Tooltip content={sidebarOpen ? t("close_sidebar") : t("open_sidebar")}>
             <Button
@@ -963,7 +963,7 @@ const ScriptTable = ({
               >
                 {columns.map((column, index) => (
                   <Select.Option key={index} value={index}>
-                    {column.key === "action" ? t("operation") : (column.title as string)}
+                    {column.key === "action" ? t("action") : (column.title as string)}
                   </Select.Option>
                 ))}
               </Select>

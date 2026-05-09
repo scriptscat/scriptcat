@@ -251,7 +251,7 @@ function SubscribeList() {
       },
     },
     {
-      title: t("operation"),
+      title: t("action"),
       width: 120,
       align: "center",
       key: "action",

@@ -69,7 +69,7 @@ const PermissionManager: React.FC<{
       },
     },
     {
-      title: t("operation"),
+      title: t("action"),
       render(_, item: Permission) {
         return (
           <Space>

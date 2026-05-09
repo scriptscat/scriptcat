@@ -108,7 +108,7 @@ const Match: React.FC<{
       },
     },
     {
-      title: t("operation"),
+      title: t("action"),
       render(_, item: MatchItem) {
         if (item.isExclude) {
           return (
