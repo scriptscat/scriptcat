@@ -145,7 +145,7 @@ const ScriptStorage: React.FC<{
       },
     },
     {
-      title: t("action"),
+      title: t("operation"),
       render(_col, value: { key: string; value: string }) {
         return (
           <Space>
