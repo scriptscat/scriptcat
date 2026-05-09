@@ -128,7 +128,7 @@
   "home": "ホーム",
   "sorting": "ソート",
   "last_updated": "最終更新",
-  "action": "アクション",
+  "action": "操作",
   "foreground_page_script_tooltip": "フォアグラウンドページスクリプト、指定されたページで実行されます",
   "background_script_tooltip": "バックグラウンドスクリプト、有効にするとバックグラウンドで実行されます",
   "scheduled_script_tooltip": "スケジュールスクリプト、次回実行時間：",
