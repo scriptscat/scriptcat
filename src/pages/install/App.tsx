@@ -33,7 +33,7 @@ import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
 import { formatBytes } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
-import { readBlobContent } from "@App/pkg/utils/encoding";
+import { readRawContent } from "@App/pkg/utils/encoding";
 import { prettyUrl } from "@App/pkg/utils/url-utils";
 
 const backgroundPromptShownKey = "background_prompt_shown";
@@ -108,10 +108,7 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   }
 
   const contentType = response.headers.get("content-type");
-  const code = await readBlobContent(
-    new Blob([chunksAll], { type: contentType || "application/octet-stream" }),
-    contentType
-  );
+  const code = await readRawContent(chunksAll, contentType);
 
   const metadata = parseMetadata(code);
   if (!metadata) {

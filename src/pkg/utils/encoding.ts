@@ -285,14 +285,22 @@ const validatesHeuristicEncoding = (encoding: string, data: Uint8Array): boolean
 };
 
 /**
- * Reads a Blob or File with reasonably good encoding detection
+ * Reads a Blob or File or Uint8Array with reasonably good encoding detection
  * Priority: Content-Type header → BOM → strong UTF-16/UTF-32 heuristics → UTF-8 validation → legacy detection
  * @param blob
  * @returns {Promise<string>}
  */
-export const readBlobContent = async (blob: Blob | File | Response, contentType: string | null): Promise<string> => {
-  const buffer = await blob.arrayBuffer();
-  const uint8 = new Uint8Array(buffer);
+export const readRawContent = async (
+  raw: Blob | File | Response | Uint8Array,
+  contentType: string | null
+): Promise<string> => {
+  let uint8: Uint8Array;
+  if (ArrayBuffer.isView(raw)) {
+    uint8 = new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+  } else {
+    const buffer = await (raw as Blob | Response).arrayBuffer();
+    uint8 = new Uint8Array(buffer);
+  }
 
   if (uint8.length === 0) {
     return "";

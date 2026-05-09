@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { bytesDecode, decodeUTF32, parseCharsetFromContentType, readBlobContent } from "./encoding";
+import { bytesDecode, decodeUTF32, parseCharsetFromContentType, readRawContent } from "./encoding";
 
 const blobFromBytes = (bytes: Uint8Array) =>
   new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer]);
@@ -9,7 +9,7 @@ const expectReadBlobContentDecodesAs = async (
   encoding: string,
   contentType: string | null = null
 ) => {
-  await expect(readBlobContent(blobFromBytes(bytes), contentType)).resolves.toBe(bytesDecode(encoding, bytes));
+  await expect(readRawContent(blobFromBytes(bytes), contentType)).resolves.toBe(bytesDecode(encoding, bytes));
 };
 
 describe.concurrent("encoding", () => {
@@ -127,14 +127,14 @@ describe.concurrent("encoding", () => {
 
   describe.concurrent("readBlobContent", () => {
     it.concurrent("returns empty string for empty Blob", async () => {
-      await expect(readBlobContent(new Blob([]), null)).resolves.toBe("");
+      await expect(readRawContent(new Blob([]), null)).resolves.toBe("");
     });
 
     it.concurrent("decodes short UTF-8 text without charset", async () => {
       const text = "Hello World";
       const blob = new Blob([text]);
 
-      await expect(readBlobContent(blob, null)).resolves.toBe(text);
+      await expect(readRawContent(blob, null)).resolves.toBe(text);
     });
 
     it.concurrent("uses charset from valid Content-Type header", async () => {
@@ -142,14 +142,14 @@ describe.concurrent("encoding", () => {
       const gbkBytes = new Uint8Array([0xc4, 0xe3, 0xba, 0xc3, 0xca, 0xc0, 0xbd, 0xe7]);
       const blob = new Blob([gbkBytes.buffer]);
 
-      await expect(readBlobContent(blob, "text/plain; charset=gbk")).resolves.toBe(text);
+      await expect(readRawContent(blob, "text/plain; charset=gbk")).resolves.toBe(text);
     });
 
     it.concurrent("falls back when Content-Type charset is invalid", async () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       const text = "Hello World";
 
-      await expect(readBlobContent(new Blob([text]), "text/plain; charset=invalid-charset")).resolves.toBe(text);
+      await expect(readRawContent(new Blob([text]), "text/plain; charset=invalid-charset")).resolves.toBe(text);
 
       warn.mockRestore();
     });
@@ -163,7 +163,7 @@ describe.concurrent("encoding", () => {
         0xa1, 0xa3,
       ]);
 
-      await expect(readBlobContent(blobFromBytes(gbkBytes), "text/plain; charset=bogus")).resolves.toBe(text);
+      await expect(readRawContent(blobFromBytes(gbkBytes), "text/plain; charset=bogus")).resolves.toBe(text);
 
       warn.mockRestore();
     });
@@ -172,30 +172,30 @@ describe.concurrent("encoding", () => {
       const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0x48, 0x65, 0x6c, 0x6c, 0x6f]);
       const blob = new Blob([bytes.buffer]);
 
-      await expect(readBlobContent(blob, "text/plain; charset=utf-8")).resolves.toBe("Hello");
+      await expect(readRawContent(blob, "text/plain; charset=utf-8")).resolves.toBe("Hello");
     });
 
     it.concurrent("detects UTF-8 BOM", async () => {
       const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0x48, 0x65, 0x6c, 0x6c, 0x6f]);
       const blob = new Blob([bytes.buffer]);
 
-      await expect(readBlobContent(blob, null)).resolves.toBe("Hello");
+      await expect(readRawContent(blob, null)).resolves.toBe("Hello");
     });
 
     it.concurrent("detects UTF-16 BOM", async () => {
       const utf16le = new Uint8Array([0xff, 0xfe, 0x48, 0x00, 0x69, 0x00]);
       const utf16be = new Uint8Array([0xfe, 0xff, 0x00, 0x48, 0x00, 0x69]);
 
-      await expect(readBlobContent(new Blob([utf16le.buffer]), null)).resolves.toBe("Hi");
-      await expect(readBlobContent(new Blob([utf16be.buffer]), null)).resolves.toBe("Hi");
+      await expect(readRawContent(new Blob([utf16le.buffer]), null)).resolves.toBe("Hi");
+      await expect(readRawContent(new Blob([utf16be.buffer]), null)).resolves.toBe("Hi");
     });
 
     it.concurrent("detects UTF-32 BOM", async () => {
       const utf32le = new Uint8Array([0xff, 0xfe, 0x00, 0x00, 0x48, 0x00, 0x00, 0x00, 0x69, 0x00, 0x00, 0x00]);
       const utf32be = new Uint8Array([0x00, 0x00, 0xfe, 0xff, 0x00, 0x00, 0x00, 0x48, 0x00, 0x00, 0x00, 0x69]);
 
-      await expect(readBlobContent(new Blob([utf32le.buffer]), null)).resolves.toBe("Hi");
-      await expect(readBlobContent(new Blob([utf32be.buffer]), null)).resolves.toBe("Hi");
+      await expect(readRawContent(new Blob([utf32le.buffer]), null)).resolves.toBe("Hi");
+      await expect(readRawContent(new Blob([utf32be.buffer]), null)).resolves.toBe("Hi");
     });
 
     it.concurrent("detects UTF-16 without BOM via null pattern", async () => {
@@ -209,8 +209,8 @@ describe.concurrent("encoding", () => {
         be[i * 2 + 1] = text.charCodeAt(i);
       }
 
-      await expect(readBlobContent(new Blob([le.buffer]), null)).resolves.toBe(text);
-      await expect(readBlobContent(new Blob([be.buffer]), null)).resolves.toBe(text);
+      await expect(readRawContent(new Blob([le.buffer]), null)).resolves.toBe(text);
+      await expect(readRawContent(new Blob([be.buffer]), null)).resolves.toBe(text);
     });
 
     it.concurrent("detects UTF-32 without BOM via null pattern", async () => {
@@ -228,8 +228,8 @@ describe.concurrent("encoding", () => {
         be[i * 4 + 3] = text.charCodeAt(i);
       }
 
-      await expect(readBlobContent(new Blob([le.buffer]), null)).resolves.toBe(text);
-      await expect(readBlobContent(new Blob([be.buffer]), null)).resolves.toBe(text);
+      await expect(readRawContent(new Blob([le.buffer]), null)).resolves.toBe(text);
+      await expect(readRawContent(new Blob([be.buffer]), null)).resolves.toBe(text);
     });
 
     it.concurrent("falls through on invalid UTF null-pattern guesses", async () => {
@@ -241,7 +241,7 @@ describe.concurrent("encoding", () => {
         if (i + 3 < bytes.length) bytes[i + 3] = 0x00;
       }
 
-      await expect(readBlobContent(blobFromBytes(bytes), null)).resolves.toBe(bytesDecode("utf-8", bytes));
+      await expect(readRawContent(blobFromBytes(bytes), null)).resolves.toBe(bytesDecode("utf-8", bytes));
     });
 
     it.concurrent("rejects binary-looking false positive UTF-16 null patterns", async () => {
@@ -250,7 +250,7 @@ describe.concurrent("encoding", () => {
         bytes[i] = i % 2 === 0 ? 0x01 : 0x00;
       }
 
-      const result = await readBlobContent(blobFromBytes(bytes), null);
+      const result = await readRawContent(blobFromBytes(bytes), null);
 
       expect(result).not.toBe(bytesDecode("utf-16le", bytes));
       expect(result).not.toBe(bytesDecode("utf-16be", bytes));
@@ -263,7 +263,7 @@ describe.concurrent("encoding", () => {
         bytes[i] = 0;
       }
 
-      await expect(readBlobContent(blobFromBytes(bytes), null)).resolves.toBe(bytesDecode("utf-8", bytes));
+      await expect(readRawContent(blobFromBytes(bytes), null)).resolves.toBe(bytesDecode("utf-8", bytes));
     });
 
     it.concurrent("does not misclassify even-length legacy CJK bytes as UTF-16 or UTF-32", async () => {
@@ -273,7 +273,7 @@ describe.concurrent("encoding", () => {
         0xa1, 0xa3,
       ]);
 
-      await expect(readBlobContent(blobFromBytes(gbkBytes), null)).resolves.toBe(
+      await expect(readRawContent(blobFromBytes(gbkBytes), null)).resolves.toBe(
         "这是一个GBK编码测试Sentence混合12345。"
       );
     });
@@ -282,7 +282,7 @@ describe.concurrent("encoding", () => {
       const text = "Hello 世界, UTF-8 测试";
       const blob = new Blob([text]);
 
-      await expect(readBlobContent(blob, null)).resolves.toBe(text);
+      await expect(readRawContent(blob, null)).resolves.toBe(text);
     });
 
     it.concurrent("keeps mostly valid UTF-8 with a small corrupt byte as UTF-8", async () => {
@@ -295,7 +295,7 @@ describe.concurrent("encoding", () => {
       bytes[prefixBytes.length] = 0xff;
       bytes.set(suffixBytes, prefixBytes.length + 1);
 
-      await expect(readBlobContent(blobFromBytes(bytes), null)).resolves.toBe(`${prefix}\ufffd${suffix}`);
+      await expect(readRawContent(blobFromBytes(bytes), null)).resolves.toBe(`${prefix}\ufffd${suffix}`);
     });
 
     it.concurrent("handles GitHub release-like UTF-8 text without charset", async () => {
@@ -316,7 +316,7 @@ describe.concurrent("encoding", () => {
       ].join("\n");
       const blob = new Blob([text], { type: "application/octet-stream" });
 
-      const result = await readBlobContent(blob, "application/octet-stream");
+      const result = await readRawContent(blob, "application/octet-stream");
 
       expect(result).toContain("Giảm tốc độ");
       expect(result).toContain("Đã lưu!");
@@ -403,7 +403,7 @@ describe.concurrent("encoding", () => {
           `const message = ${JSON.stringify(item.text)};`,
         ].join("\n");
 
-        const result = await readBlobContent(
+        const result = await readRawContent(
           new Blob([text], { type: "application/octet-stream" }),
           "application/octet-stream"
         );
@@ -418,13 +418,13 @@ describe.concurrent("encoding", () => {
     it.concurrent("correctly decodes UTF-8 content larger than the full validation limit", async () => {
       const text = "Hello 世界 Emoji 🚀\n".repeat(20 * 1024);
 
-      await expect(readBlobContent(new Blob([text]), null)).resolves.toBe(text);
+      await expect(readRawContent(new Blob([text]), null)).resolves.toBe(text);
     });
 
     it.concurrent("keeps a UTF-8 emoji crossing a sampled range boundary intact", async () => {
       const text = `${"a".repeat(16 * 1024 - 2)}🚀${"b".repeat(300 * 1024)}`;
 
-      await expect(readBlobContent(new Blob([text]), null)).resolves.toBe(text);
+      await expect(readRawContent(new Blob([text]), null)).resolves.toBe(text);
     });
 
     it.concurrent("keeps large mostly valid UTF-8 with late corruption as UTF-8", async () => {
@@ -436,7 +436,7 @@ describe.concurrent("encoding", () => {
       bytes[prefix.length] = 0xff;
       bytes.set(suffixBytes, prefix.length + 1);
 
-      const result = await readBlobContent(blobFromBytes(bytes), null);
+      const result = await readRawContent(blobFromBytes(bytes), null);
 
       expect(result).toBe(`${prefix}\ufffd${suffix}`);
       expect(result).toContain(suffix);
@@ -455,7 +455,7 @@ describe.concurrent("encoding", () => {
       bytes.set(gbkBlock, utf8Part.length);
       bytes.set(utf8Part, utf8Part.length + gbkBlock.length);
 
-      const result = await readBlobContent(blobFromBytes(bytes), null);
+      const result = await readRawContent(blobFromBytes(bytes), null);
 
       expect(result).toContain("这是一个GBK编码测试");
     });
@@ -474,8 +474,8 @@ describe.concurrent("encoding", () => {
         0x68, 0x31, 0x32, 0x33,
       ]);
 
-      await expect(readBlobContent(new Blob([gbkBytes.buffer]), null)).resolves.toBe(gbkText);
-      await expect(readBlobContent(new Blob([shiftJisBytes.buffer]), null)).resolves.toBe(shiftJisText);
+      await expect(readRawContent(new Blob([gbkBytes.buffer]), null)).resolves.toBe(gbkText);
+      await expect(readRawContent(new Blob([shiftJisBytes.buffer]), null)).resolves.toBe(shiftJisText);
     });
 
     it.concurrent("preserves legacy fallback fixture coverage through decoded output", async () => {
@@ -585,7 +585,7 @@ describe.concurrent("encoding", () => {
       bytes.set(gbkBytes);
       bytes.set(emojiBytes, gbkBytes.length);
 
-      const result = await readBlobContent(blobFromBytes(bytes), null);
+      const result = await readRawContent(blobFromBytes(bytes), null);
 
       expect(result).toContain("这是一个GBK编码测试Sentence");
     });
@@ -632,7 +632,7 @@ describe.concurrent("encoding", () => {
       bytes.fill(0x61);
       bytes.set(shiftJisBytes, 18 * 1024);
 
-      await expect(readBlobContent(blobFromBytes(bytes), null)).resolves.toBe(
+      await expect(readRawContent(blobFromBytes(bytes), null)).resolves.toBe(
         `${"a".repeat(18 * 1024)}${shiftJisText}${"a".repeat(bytes.length - 18 * 1024 - shiftJisBytes.length)}`
       );
     });
@@ -651,7 +651,7 @@ describe.concurrent("encoding", () => {
         bytes.fill(0x61);
         bytes.set(shiftJisBytes, prefixLength);
 
-        await expect(readBlobContent(blobFromBytes(bytes), null)).resolves.toBe(
+        await expect(readRawContent(blobFromBytes(bytes), null)).resolves.toBe(
           `${"a".repeat(prefixLength)}${shiftJisText}`
         );
       }
@@ -662,7 +662,7 @@ describe.concurrent("encoding", () => {
         0x50, 0x72, 0x69, 0x63, 0x65, 0x3a, 0x20, 0x31, 0x30, 0x80, 0x20, 0x96, 0x20, 0x93, 0x73, 0x70, 0x65, 0x63,
         0x69, 0x61, 0x6c, 0x94,
       ]);
-      const result = await readBlobContent(new Blob([bytes.buffer]), null);
+      const result = await readRawContent(new Blob([bytes.buffer]), null);
 
       expect(result).toBe("Price: 10€ – “special”");
     });
@@ -676,14 +676,20 @@ describe.concurrent("encoding", () => {
         },
       } as Response;
 
-      await expect(readBlobContent(response, "text/plain; charset=utf-8")).resolves.toBe(text);
+      await expect(readRawContent(response, "text/plain; charset=utf-8")).resolves.toBe(text);
+    });
+
+    it.concurrent("handles Uint8Array", async () => {
+      const text = "Uint8Array content";
+      const encoded = new TextEncoder().encode(text);
+      await expect(readRawContent(encoded, "text/plain; charset=utf-8")).resolves.toBe(text);
     });
 
     it.concurrent("handles content larger than 16KB", async () => {
       const text = "a".repeat(20 * 1024);
       const blob = new Blob([text]);
 
-      const result = await readBlobContent(blob, null);
+      const result = await readRawContent(blob, null);
 
       expect(result).toBe(text);
       expect(result.length).toBe(20 * 1024);
