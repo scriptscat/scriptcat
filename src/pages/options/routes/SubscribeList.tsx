@@ -240,7 +240,7 @@ function SubscribeList() {
                 .catch((e) => {
                   Message.error({
                     id: "checkupdate",
-                    content: `${t("check_update_failed")}: ${e.message}`,
+                    content: `${t("update_check_failed")}: ${e.message}`,
                   });
                 });
             }}
