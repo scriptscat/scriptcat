@@ -201,49 +201,6 @@
     );
   });
 
-  await test("window/self/top/parent/frames 不能被脚本改写", () => {
-    assertThrowsOrKeepsValue(
-      () => {
-        window.window = "bad";
-      },
-      () => window.window,
-      window,
-      "window 自引用应保持不变",
-    );
-    // assertThrowsOrKeepsValue(
-    //   () => {
-    //     window.self = "bad";
-    //   },
-    //   () => window.self,
-    //   window,
-    //   "self 自引用应保持不变",
-    // );
-    assertThrowsOrKeepsValue(
-      () => {
-        window.top = "bad";
-      },
-      () => window.top,
-      window,
-      "top 自引用应保持不变",
-    );
-    // assertThrowsOrKeepsValue(
-    //   () => {
-    //     window.parent = "bad";
-    //   },
-    //   () => window.parent,
-    //   window,
-    //   "parent 自引用应保持不变",
-    // );
-    // assertThrowsOrKeepsValue(
-    //   () => {
-    //     window.frames = "bad";
-    //   },
-    //   () => window.frames,
-    //   window,
-    //   "frames 自引用应保持不变",
-    // );
-  });
-
   await test("页面全局变量不会自动穿透到沙盒 window", () =>
     withCleanup(
       () => {
@@ -363,12 +320,12 @@
     assertSame(1, count, "裸调用 addEventListener 应绑定到页面 window");
   });
 
-  // await test("getter 返回页面 window 时会替换为沙盒 window", () => {
-  //   // assertSame(window, self, "self getter 应返回沙盒 window");
-  //   // assertSame(window, parent, "parent getter 应返回沙盒 window");
-  //   // assertSame(window, top, "top getter 应返回沙盒 window");
-  //   // assertSame(window, frames, "frames getter 应返回沙盒 window");
-  // });
+  await test("getter 返回页面 window 时会替换为沙盒 window", () => {
+    assertSame(window, self, "self getter 应返回沙盒 window");
+    assertSame(window, parent, "parent getter 应返回沙盒 window");
+    assertSame(window, top, "top getter 应返回沙盒 window");
+    assertSame(window, frames, "frames getter 应返回沙盒 window");
+  });
 
   await test("onxxx 函数赋值由页面事件触发，this 为沙盒 window", () =>
     withCleanup(
@@ -455,6 +412,50 @@
         window.onhashchange = null;
       },
     ));
+
+  // 故意只进行 window 和 top 的修改测试，不进行 self parent frames 的修改测试
+  await test("window/top 不能被脚本改写", () => {
+    assertThrowsOrKeepsValue(
+      () => {
+        window.window = "bad";
+      },
+      () => window.window,
+      window,
+      "window 自引用应保持不变",
+    );
+    // assertThrowsOrKeepsValue(
+    //   () => {
+    //     window.self = "bad";
+    //   },
+    //   () => window.self,
+    //   window,
+    //   "self 自引用应保持不变",
+    // );
+    assertThrowsOrKeepsValue(
+      () => {
+        window.top = "bad";
+      },
+      () => window.top,
+      window,
+      "top 自引用应保持不变",
+    );
+    // assertThrowsOrKeepsValue(
+    //   () => {
+    //     window.parent = "bad";
+    //   },
+    //   () => window.parent,
+    //   window,
+    //   "parent 自引用应保持不变",
+    // );
+    // assertThrowsOrKeepsValue(
+    //   () => {
+    //     window.frames = "bad";
+    //   },
+    //   () => window.frames,
+    //   window,
+    //   "frames 自引用应保持不变",
+    // );
+  });
 
   section("GM API 注入与命名空间");
 
