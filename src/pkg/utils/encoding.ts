@@ -291,15 +291,15 @@ const validatesHeuristicEncoding = (encoding: string, data: Uint8Array): boolean
  * @returns {Promise<string>}
  */
 export const readRawContent = async (
-  raw: Blob | File | Response | Uint8Array,
+  raw: Blob | File | Response | Uint8Array<ArrayBuffer>,
   contentType: string | null
 ): Promise<string> => {
-  let uint8: Uint8Array;
+  let uint8: Uint8Array<ArrayBuffer>;
   if (ArrayBuffer.isView(raw)) {
-    uint8 = new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+    uint8 = new Uint8Array<ArrayBuffer>(raw.buffer, raw.byteOffset, raw.byteLength);
   } else {
     const buffer = await (raw as Blob | Response).arrayBuffer();
-    uint8 = new Uint8Array(buffer);
+    uint8 = new Uint8Array<ArrayBuffer>(buffer);
   }
 
   if (uint8.length === 0) {
