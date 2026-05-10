@@ -38,6 +38,9 @@ export const initializeWakeupPing = () => {
     };
 
     const pingTask = async () => {
+      if (startCounter < 1) {
+        return;
+      }
       channel.postMessage(true);
       incrementCounter();
     };
