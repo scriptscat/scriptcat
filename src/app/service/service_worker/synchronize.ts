@@ -636,21 +636,47 @@ export class SynchronizeService {
       name: script.name,
       file: filename,
     });
+    const writtenFiles: Array<{
+      name: string;
+      previousFile?: FileInfo;
+      previousContent?: string;
+      modifiedDate: number;
+    }> = [];
     try {
       const modifiedDate = getScriptModifiedDate(script);
-      const w = await fs.create(filename, getWriteOptions(modifiedDate, remoteFiles?.script));
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
       const scriptCode = code!.code;
-      await w.write(scriptCode);
-      const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
       const metaJson = JSON.stringify(<SyncMeta>{
         uuid: script.uuid,
         origin: script.origin,
         downloadUrl: script.downloadUrl,
         checkUpdateUrl: script.checkUpdateUrl,
       });
+
+      const previousScriptContent = remoteFiles?.script
+        ? ((await fs.open(remoteFiles.script).then((r) => r.read("string"))) as string)
+        : undefined;
+      const previousMetaContent = remoteFiles?.meta
+        ? ((await fs.open(remoteFiles.meta).then((r) => r.read("string"))) as string)
+        : undefined;
+
+      const w = await fs.create(filename, getWriteOptions(modifiedDate, remoteFiles?.script));
+      await w.write(scriptCode);
+      writtenFiles.push({
+        name: filename,
+        previousFile: remoteFiles?.script,
+        previousContent: previousScriptContent,
+        modifiedDate: remoteFiles?.script?.updatetime || modifiedDate,
+      });
+      const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
       await meta.write(metaJson);
+      writtenFiles.push({
+        name: metaFilename,
+        previousFile: remoteFiles?.meta,
+        previousContent: previousMetaContent,
+        modifiedDate: remoteFiles?.meta?.updatetime || modifiedDate,
+      });
       logger.info("push script success");
       return {
         [filename]: md5OfText(scriptCode),
@@ -658,7 +684,39 @@ export class SynchronizeService {
       };
     } catch (e) {
       logger.error("push script error", Logger.E(e));
+      await this.rollbackPushedFiles(fs, writtenFiles, logger);
       throw e;
+    }
+  }
+
+  private async rollbackPushedFiles(
+    fs: FileSystem,
+    writtenFiles: Array<{
+      name: string;
+      previousFile?: FileInfo;
+      previousContent?: string;
+      modifiedDate: number;
+    }>,
+    logger: Logger
+  ): Promise<void> {
+    for (const file of [...writtenFiles].reverse()) {
+      try {
+        if (!file.previousFile) {
+          await fs.delete(file.name);
+          continue;
+        }
+        if (file.previousContent === undefined) {
+          continue;
+        }
+        const latest = (await fs.list()).find((item) => item.name === file.name);
+        const writer = await fs.create(file.name, getWriteOptions(file.modifiedDate, latest || file.previousFile));
+        await writer.write(file.previousContent);
+      } catch (rollbackError) {
+        logger.warn("rollback pushed file failed", {
+          file: file.name,
+          error: Logger.E(rollbackError),
+        });
+      }
     }
   }
 

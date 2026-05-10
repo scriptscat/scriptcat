@@ -125,7 +125,10 @@ export class GoogleDriveFileWriter implements FileWriter {
   private async createNewFile(fileName: string, parentId: string, content: string | Blob): Promise<void> {
     // 不设置Content-Type，让浏览器自动处理multipart/form-data边界
 
+    const createOnly = this.opts?.createOnly || this.opts?.overwrite === false;
+    const generatedId = createOnly ? await this.fs.generateFileId() : undefined;
     const metadata = {
+      ...(generatedId ? { id: generatedId } : {}),
       name: fileName,
       parents: [parentId],
     };
@@ -134,8 +137,7 @@ export class GoogleDriveFileWriter implements FileWriter {
     formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
     formData.append("file", content instanceof Blob ? content : new Blob([content]));
 
-    const headers =
-      this.opts?.createOnly || this.opts?.overwrite === false ? new Headers({ "If-None-Match": "*" }) : undefined;
+    const headers = createOnly ? new Headers({ "If-None-Match": "*" }) : undefined;
 
     const created = await this.fs.request(
       `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&spaces=appDataFolder&fields=id`,
@@ -146,7 +148,7 @@ export class GoogleDriveFileWriter implements FileWriter {
       }
     );
 
-    if (this.opts?.createOnly || this.opts?.overwrite === false) {
+    if (createOnly) {
       await this.rejectDuplicateCreate(fileName, parentId, created?.id);
     }
 

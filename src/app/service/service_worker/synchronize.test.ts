@@ -451,6 +451,14 @@ console.log("ok");`
     const createMock = vi.fn().mockResolvedValue({ write: writeMock });
     const fs = createFs({
       create: createMock,
+      open: vi
+        .fn()
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue("// old code"),
+        })
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue('{"uuid":"push-uuid"}'),
+        }),
     });
     const service = new SynchronizeService(
       {} as any,
@@ -492,6 +500,14 @@ console.log("ok");`
     });
     const fs = createFs({
       create: createMock,
+      open: vi
+        .fn()
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue("// old code"),
+        })
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue('{"uuid":"push-uuid"}'),
+        }),
     });
     const service = new SynchronizeService(
       {} as any,
@@ -550,6 +566,138 @@ console.log("ok");`
       "push-uuid.meta.json",
       { modifiedDate: 1234, expectedVersion: "version-meta" },
     ]);
+  });
+
+  it("rolls back newly created script file when meta write fails", async () => {
+    const scriptWriter = { write: vi.fn().mockResolvedValue(undefined) };
+    const metaWriter = {
+      write: vi.fn().mockRejectedValue(new Error("meta write failed")),
+    };
+    const createMock = vi.fn().mockResolvedValueOnce(scriptWriter).mockResolvedValueOnce(metaWriter);
+    const fs = createFs({
+      create: createMock,
+      delete: vi.fn().mockResolvedValue(undefined),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 1234,
+      createtime: 1000,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+
+    await expect(service.pushScript(fs, script as any)).rejects.toThrow("meta write failed");
+
+    expect(fs.delete).toHaveBeenCalledWith("push-uuid.user.js");
+  });
+
+  it("restores previous script content when existing meta write fails", async () => {
+    const scriptWriter = { write: vi.fn().mockResolvedValue(undefined) };
+    const metaWriter = {
+      write: vi.fn().mockRejectedValue(new Error("meta write failed")),
+    };
+    const restoreWriter = { write: vi.fn().mockResolvedValue(undefined) };
+    const createMock = vi
+      .fn()
+      .mockResolvedValueOnce(scriptWriter)
+      .mockResolvedValueOnce(metaWriter)
+      .mockResolvedValueOnce(restoreWriter);
+    const oldScriptFile = {
+      name: "push-uuid.user.js",
+      path: "/",
+      size: 1,
+      digest: "old-digest-js",
+      version: "old-version-js",
+      createtime: 1,
+      updatetime: 1000,
+    };
+    const oldMetaFile = {
+      name: "push-uuid.meta.json",
+      path: "/",
+      size: 1,
+      digest: "old-digest-meta",
+      version: "old-version-meta",
+      createtime: 1,
+      updatetime: 1000,
+    };
+    const latestScriptFile = {
+      ...oldScriptFile,
+      digest: "latest-digest-js",
+      version: "latest-version-js",
+      updatetime: 1234,
+    };
+    const fs = createFs({
+      open: vi
+        .fn()
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue("// old code"),
+        })
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue('{"uuid":"push-uuid"}'),
+        }),
+      list: vi.fn().mockResolvedValue([latestScriptFile]),
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// new code" }),
+        },
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 1234,
+      createtime: 1000,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+
+    await expect(
+      service.pushScript(fs, script as any, {
+        script: oldScriptFile,
+        meta: oldMetaFile,
+      })
+    ).rejects.toThrow("meta write failed");
+
+    expect(createMock.mock.calls[2]).toEqual([
+      "push-uuid.user.js",
+      { modifiedDate: 1000, expectedVersion: "latest-version-js" },
+    ]);
+    expect(restoreWriter.write).toHaveBeenCalledWith("// old code");
   });
 
   it("uses Date.now as modifiedDate when writing scriptcat-sync.json", async () => {

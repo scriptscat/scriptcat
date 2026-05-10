@@ -25,13 +25,14 @@ function createMockResponse(options: {
   statusText?: string;
   text?: string;
   blob?: Blob;
+  headers?: Headers;
 }): Response {
   const { ok = true, status = 200, statusText = "OK", text = "" } = options;
   return {
     ok,
     status,
     statusText,
-    headers: new Headers(),
+    headers: options.headers || new Headers(),
     text: vi.fn().mockResolvedValue(text),
     blob: vi.fn().mockResolvedValue(options.blob ?? new Blob([text])),
   } as unknown as Response;
@@ -206,7 +207,9 @@ describe("S3FileSystem", () => {
     it("S3FileWriter.write 应按 expectedVersion 设置 If-Match", async () => {
       (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
 
-      const writer = await fs.create("output.txt", { expectedVersion: "etag-1" });
+      const writer = await fs.create("output.txt", {
+        expectedVersion: "etag-1",
+      });
       await writer.write("hello world");
 
       expect(mockClient.request).toHaveBeenCalledWith(
@@ -313,6 +316,31 @@ describe("S3FileSystem", () => {
       });
     });
 
+    it("应当从对象 metadata 读取 createtime", async () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+        <ListBucketResult>
+          <IsTruncated>false</IsTruncated>
+          <Contents>
+            <Key>file1.txt</Key>
+            <LastModified>2024-01-02T00:00:00.000Z</LastModified>
+            <ETag>"abc123"</ETag>
+            <Size>1024</Size>
+          </Contents>
+        </ListBucketResult>`;
+      const headers = new Headers({
+        "x-amz-meta-createtime": "2024-01-01T00:00:00.000Z",
+      });
+      (mockClient.request as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(createMockResponse({ text: xml }))
+        .mockResolvedValueOnce(createMockResponse({ headers }));
+
+      const files = await fs.list();
+
+      expect(files[0].createtime).toBe(new Date("2024-01-01T00:00:00.000Z").getTime());
+      expect(files[0].updatetime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
+      expect(mockClient.request).toHaveBeenCalledWith("HEAD", "test-bucket", "file1.txt");
+    });
+
     it("应当正确处理带 basePath 的目录列表", async () => {
       const subFs = new S3FileSystem("test-bucket", mockClient, "/docs");
 
@@ -391,14 +419,16 @@ describe("S3FileSystem", () => {
 
       (mockClient.request as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(createMockResponse({ text: xmlPage1 }))
-        .mockResolvedValueOnce(createMockResponse({ text: xmlPage2 }));
+        .mockResolvedValueOnce(createMockResponse({}))
+        .mockResolvedValueOnce(createMockResponse({ text: xmlPage2 }))
+        .mockResolvedValueOnce(createMockResponse({}));
 
       const files = await fs.list();
 
       expect(files).toHaveLength(2);
       expect(files[0].name).toBe("file1.txt");
       expect(files[1].name).toBe("file2.txt");
-      expect(mockClient.request).toHaveBeenCalledTimes(2);
+      expect(mockClient.request).toHaveBeenCalledTimes(4);
     });
 
     it("应当返回空数组当目录为空时", async () => {
