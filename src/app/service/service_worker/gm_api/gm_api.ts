@@ -2,7 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { type IGetSender, type Group, GetSenderType } from "@Packages/message/server";
-import type { ExtMessageSender, MessageSend, TMessageCommAction } from "@Packages/message/types";
+import type { ExtMessageSender, MessageConnect, MessageSend, TMessageCommAction } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import { type ValueService } from "@App/app/service/service_worker/value";
@@ -762,18 +762,38 @@ export default class GMApi {
       if (!msgConn) {
         throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
       }
-      const throwErrorFn = (error: string) => {
-        msgConn.sendMessage({
-          action: "onerror",
-          data: {
-            status: 0,
-            responseHeaders: "",
-            error: error,
-            readyState: 4, // ERROR. DONE.
-          },
-        });
-        return new Error(error);
-      };
+      // conn 为 nested scope 内 local 存取
+      let throwErrorFn: ((error: string) => Error) | null = ((conn: MessageConnect | null) => {
+        let errorOccur: string | null = null;
+        const doLoadEnd = () => {
+          conn?.sendMessage({
+            action: "onloadend",
+            data: {
+              status: 0,
+              responseHeaders: "",
+              error: errorOccur,
+              readyState: 4, // ERROR. DONE.
+            },
+          });
+          conn?.disconnect(); // 断开连结
+          conn = null; // 释放
+        };
+        return (error: string) => {
+          errorOccur = error;
+          conn?.sendMessage({
+            action: "onerror",
+            data: {
+              status: 0,
+              responseHeaders: "",
+              error: errorOccur,
+              readyState: 4, // ERROR. DONE.
+            },
+          });
+          // throwErrorFn 不是由通讯管控 onloadend. 需要手动处理. 排程在下一个 microTask 避免影响 throw Error 流程
+          Promise.resolve().then(doLoadEnd);
+          return new Error(errorOccur);
+        };
+      })(msgConn);
       const details = request.params[0];
       if (!details) {
         throw throwErrorFn("param is failed");
@@ -818,6 +838,8 @@ export default class GMApi {
       metadata[i18next.t("script_name")] = i18nName(request.script);
       metadata[i18next.t("request_domain")] = url.hostname;
       metadata[i18next.t("request_url")] = details.url;
+
+      throwErrorFn = null; // 确保 GC 可以释放 conn
 
       return {
         permission: "cors",
