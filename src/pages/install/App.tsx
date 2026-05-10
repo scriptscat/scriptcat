@@ -315,7 +315,9 @@ function App() {
   };
 
   useEffect(() => {
+    closingWindow = false; // reset
     !loaded && initAsync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, loaded]);
 
   const [watchFile, setWatchFile] = useState(false);
