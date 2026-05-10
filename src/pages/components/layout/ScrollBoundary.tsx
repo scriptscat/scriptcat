@@ -19,7 +19,6 @@ const handleScrollBoundaryWheel = (evt: Event) => {
   if ((evt.target as Element).closest(".monaco-editor")) {
     evt.preventDefault();
   } else {
-    evt.stopImmediatePropagation();
     evt.stopPropagation();
     // evt.preventDefault();
   }
