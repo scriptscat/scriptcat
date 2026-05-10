@@ -1334,7 +1334,7 @@ console.log("ok");`
     });
   });
 
-  it("prunes stale tombstone digest entries when updating file digest", async () => {
+  it("prunes changed tombstone digest entries but keeps entries missing from one list", async () => {
     const fs = createFs({
       list: vi.fn().mockResolvedValueOnce([
         {
@@ -1378,6 +1378,7 @@ console.log("ok");`
 
     await expect((service as any).storage.get("tombstone_digest")).resolves.toEqual({
       "keep.meta.json": "same-tombstone-digest",
+      "gone.meta.json": "gone-tombstone-digest",
     });
   });
 

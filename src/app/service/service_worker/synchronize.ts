@@ -409,23 +409,24 @@ export class SynchronizeService {
     // 储存文件摘要,用于检测文件是否有变化
     const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const tombstoneDigestMap = ((await this.storage.get(TOMBSTONE_DIGEST_STORAGE_KEY)) as FileDigestMap) || {};
-    const rememberTombstoneDigest = async (metaFile: FileInfo) => {
+    let tombstoneDigestDirty = false;
+    const rememberTombstoneDigest = (metaFile: FileInfo) => {
       if (!metaFile.digest || tombstoneDigestMap[metaFile.name] === metaFile.digest) {
         return;
       }
       // 记录“已确认是 tombstone 的 meta digest”。以后即使 provider 的 mtime 精度导致
       // meta/script 时间相等，也能继续识别并清理残留 .user.js；正常非 tombstone 不会多读远端 meta。
       tombstoneDigestMap[metaFile.name] = metaFile.digest;
-      await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, tombstoneDigestMap);
+      tombstoneDigestDirty = true;
     };
-    const forgetTombstoneDigest = async (metaFile: FileInfo) => {
+    const forgetTombstoneDigest = (metaFile: FileInfo) => {
       if (!tombstoneDigestMap[metaFile.name]) {
         return;
       }
       // 如果同名 meta 已确认不是 tombstone，旧的 tombstone 记录必须清掉；
       // 否则后续每轮都会因为缓存命中而额外读取 meta。
       delete tombstoneDigestMap[metaFile.name];
-      await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, tombstoneDigestMap);
+      tombstoneDigestDirty = true;
     };
 
     for (const file of list) {
@@ -492,7 +493,7 @@ export class SynchronizeService {
               const metaJson = (await meta.read("string")) as string;
               const metaObj = JSON.parse(metaJson) as SyncMeta;
               if (metaObj.isDeleted) {
-                await rememberTombstoneDigest(file.meta!);
+                rememberTombstoneDigest(file.meta!);
                 // 删除脚本
                 await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
@@ -502,7 +503,7 @@ export class SynchronizeService {
                   })
                 );
               } else {
-                await forgetTombstoneDigest(file.meta!);
+                forgetTombstoneDigest(file.meta!);
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name, getDeleteOptions(file.meta));
                 return await this.pushScript(fs, script);
@@ -529,7 +530,7 @@ export class SynchronizeService {
           // 这里必须先处理 tombstone，不能因为 script digest 没变而跳过，否则删除可能长期无法收敛。
           const metaObj = await readSyncMeta(fs, remoteMeta);
           if (metaObj.isDeleted) {
-            await rememberTombstoneDigest(remoteMeta);
+            rememberTombstoneDigest(remoteMeta);
             result.push(
               (async () => {
                 await this.script.deleteScript(script.uuid, "sync");
@@ -544,7 +545,7 @@ export class SynchronizeService {
             );
             continue;
           }
-          await forgetTombstoneDigest(remoteMeta);
+          forgetTombstoneDigest(remoteMeta);
         }
         // 过滤掉无变动的文件
         if (scriptDigestUnchanged) {
@@ -590,6 +591,10 @@ export class SynchronizeService {
         Object.assign(pushedFileDigestMap, ret.value);
       }
     });
+    if (tombstoneDigestDirty) {
+      // 本轮可能同时读到多个 meta，统一写一次本地 cache，避免旧记录较多时频繁 storage.set。
+      await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, tombstoneDigestMap);
+    }
     const rejected = syncResults.filter((ret) => ret.status === "rejected");
     if (rejected.length) {
       const hasConflict = rejected.some((ret) => isConflictError(ret.reason));
@@ -695,13 +700,18 @@ export class SynchronizeService {
       for (const name in tombstoneDigestMap) {
         if (listedFileDigestMap[name] === tombstoneDigestMap[name]) {
           nextTombstoneDigestMap[name] = tombstoneDigestMap[name];
+        } else if (!(name in listedFileDigestMap)) {
+          // list 在部分后端可能短暂漏文件。不要因为一次没看到 meta 就丢掉 tombstone cache，
+          // 否则残留 .user.js 的收敛会退回到 mtime 启发式。
+          nextTombstoneDigestMap[name] = tombstoneDigestMap[name];
         } else {
           changed = true;
         }
       }
       if (changed) {
         // tombstone 标记只用于“已确认删除 meta”的收敛加速。
-        // 远端 meta 不存在或 digest 已变化时，旧标记不能继续保留，避免长期缓存膨胀和额外 meta 读取。
+        // 只有同名 meta 仍在但 digest 已变化时才清理；meta 暂时没出现在 list 时先保留，
+        // 避免最终一致性/缓存导致下一轮丢失 tombstone 收敛信号。
         await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, nextTombstoneDigestMap);
       }
     }
