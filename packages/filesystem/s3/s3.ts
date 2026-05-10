@@ -231,8 +231,6 @@ export default class S3FileSystem implements FileSystem {
           if (!relativeKey) continue;
 
           const lastModified = new Date(obj.lastModified).getTime() || Date.now();
-          const metadataCreatetime = await this.getObjectCreatetime(obj.key);
-          const createtime = metadataCreatetime || lastModified;
 
           files.push({
             name: relativeKey,
@@ -240,7 +238,7 @@ export default class S3FileSystem implements FileSystem {
             size: obj.size || 0,
             digest: obj.etag?.replace(/"/g, "") || "",
             version: obj.etag || "",
-            createtime,
+            createtime: lastModified,
             updatetime: lastModified,
           });
         }
@@ -256,23 +254,6 @@ export default class S3FileSystem implements FileSystem {
     } catch (error: any) {
       if (error instanceof S3Error && error.code === "AccessDenied") {
         throw new Error(`Permission denied. Check your IAM permissions for bucket: ${this.bucket}`);
-      }
-      throw error;
-    }
-  }
-
-  private async getObjectCreatetime(key: string): Promise<number | undefined> {
-    try {
-      const response = await this.client.request("HEAD", this.bucket, key);
-      const value = response.headers.get("x-amz-meta-createtime");
-      if (!value) {
-        return undefined;
-      }
-      const timestamp = new Date(value).getTime();
-      return Number.isFinite(timestamp) ? timestamp : undefined;
-    } catch (error) {
-      if (error instanceof S3Error && error.code === "NoSuchKey") {
-        return undefined;
       }
       throw error;
     }

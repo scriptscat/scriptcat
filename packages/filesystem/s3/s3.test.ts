@@ -316,7 +316,7 @@ describe("S3FileSystem", () => {
       });
     });
 
-    it("应当从对象 metadata 读取 createtime", async () => {
+    it("list 不应为每个对象额外 HEAD 读取 metadata createtime", async () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
         <ListBucketResult>
           <IsTruncated>false</IsTruncated>
@@ -327,18 +327,13 @@ describe("S3FileSystem", () => {
             <Size>1024</Size>
           </Contents>
         </ListBucketResult>`;
-      const headers = new Headers({
-        "x-amz-meta-createtime": "2024-01-01T00:00:00.000Z",
-      });
-      (mockClient.request as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(createMockResponse({ text: xml }))
-        .mockResolvedValueOnce(createMockResponse({ headers }));
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createMockResponse({ text: xml }));
 
       const files = await fs.list();
 
-      expect(files[0].createtime).toBe(new Date("2024-01-01T00:00:00.000Z").getTime());
+      expect(files[0].createtime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
       expect(files[0].updatetime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
-      expect(mockClient.request).toHaveBeenCalledWith("HEAD", "test-bucket", "file1.txt");
+      expect(mockClient.request).toHaveBeenCalledTimes(1);
     });
 
     it("应当正确处理带 basePath 的目录列表", async () => {
@@ -419,16 +414,14 @@ describe("S3FileSystem", () => {
 
       (mockClient.request as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(createMockResponse({ text: xmlPage1 }))
-        .mockResolvedValueOnce(createMockResponse({}))
-        .mockResolvedValueOnce(createMockResponse({ text: xmlPage2 }))
-        .mockResolvedValueOnce(createMockResponse({}));
+        .mockResolvedValueOnce(createMockResponse({ text: xmlPage2 }));
 
       const files = await fs.list();
 
       expect(files).toHaveLength(2);
       expect(files[0].name).toBe("file1.txt");
       expect(files[1].name).toBe("file2.txt");
-      expect(mockClient.request).toHaveBeenCalledTimes(4);
+      expect(mockClient.request).toHaveBeenCalledTimes(2);
     });
 
     it("应当返回空数组当目录为空时", async () => {

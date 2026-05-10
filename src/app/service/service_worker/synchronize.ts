@@ -368,7 +368,7 @@ export class SynchronizeService {
     });
   }
 
-  public notifySyncFailed(hasConflict: any, rejectedCount: number) {
+  public notifySyncFailed(hasConflict: boolean, rejectedCount: number) {
     this.logger.warn("skip status and digest update because cloud sync task failed", {
       conflict: hasConflict,
       failed: rejectedCount,
@@ -673,13 +673,6 @@ export class SynchronizeService {
       name: script.name,
       file: filename,
     });
-    const writtenFiles: Array<{
-      name: string;
-      previousFile?: FileInfo;
-      previousContent?: string;
-      writtenFile?: FileInfo;
-      modifiedDate: number;
-    }> = [];
     try {
       const modifiedDate = getScriptModifiedDate(script);
       // 获取脚本代码
@@ -692,118 +685,30 @@ export class SynchronizeService {
         checkUpdateUrl: script.checkUpdateUrl,
       });
 
-      const previousScriptContent = remoteFiles?.script
-        ? ((await fs.open(remoteFiles.script).then((r) => r.read("string"))) as string)
-        : undefined;
-      const previousMetaContent = remoteFiles?.meta
-        ? ((await fs.open(remoteFiles.meta).then((r) => r.read("string"))) as string)
-        : undefined;
-
       const w = await fs.create(filename, getWriteOptions(modifiedDate, remoteFiles?.script));
       await w.write(scriptCode);
-      const writtenScriptFile = await this.getRemoteFileByName(fs, filename, remoteFiles?.script);
-      writtenFiles.push({
-        name: filename,
-        previousFile: remoteFiles?.script,
-        previousContent: previousScriptContent,
-        writtenFile: writtenScriptFile,
-        modifiedDate: remoteFiles?.script?.updatetime || modifiedDate,
-      });
       const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
       await meta.write(metaJson);
-      const writtenMetaFile = await this.getRemoteFileByName(fs, metaFilename, remoteFiles?.meta);
-      writtenFiles.push({
-        name: metaFilename,
-        previousFile: remoteFiles?.meta,
-        previousContent: previousMetaContent,
-        writtenFile: writtenMetaFile,
-        modifiedDate: remoteFiles?.meta?.updatetime || modifiedDate,
-      });
       logger.info("push script success");
       return {
         [filename]: {
-          digest: writtenScriptFile?.digest || md5OfText(scriptCode),
+          digest: md5OfText(scriptCode),
           previousDigest: remoteFiles?.script?.digest,
         },
         [metaFilename]: {
-          digest: writtenMetaFile?.digest || md5OfText(metaJson),
+          digest: md5OfText(metaJson),
           previousDigest: remoteFiles?.meta?.digest,
         },
       };
     } catch (e) {
       logger.error("push script error", Logger.E(e));
-      await this.rollbackPushedFiles(fs, writtenFiles, logger);
       throw e;
     }
-  }
-
-  private async rollbackPushedFiles(
-    fs: FileSystem,
-    writtenFiles: Array<{
-      name: string;
-      previousFile?: FileInfo;
-      previousContent?: string;
-      writtenFile?: FileInfo;
-      modifiedDate: number;
-    }>,
-    logger: Logger
-  ): Promise<void> {
-    for (const file of [...writtenFiles].reverse()) {
-      try {
-        if (!file.previousFile) {
-          const latest = (await this.listRemoteFiles(fs)).find((item) => item.name === file.name);
-          if (!this.isSameRemoteFile(latest, file.writtenFile)) {
-            continue;
-          }
-          await fs.delete(file.name);
-          continue;
-        }
-        if (file.previousContent === undefined) {
-          continue;
-        }
-        const latest = (await this.listRemoteFiles(fs)).find((item) => item.name === file.name);
-        if (!this.isSameRemoteFile(latest, file.writtenFile)) {
-          continue;
-        }
-        const writer = await fs.create(file.name, getWriteOptions(file.modifiedDate, latest || file.previousFile));
-        await writer.write(file.previousContent);
-      } catch (rollbackError) {
-        logger.warn("rollback pushed file failed", {
-          file: file.name,
-          error: Logger.E(rollbackError),
-        });
-      }
-    }
-  }
-
-  private async getRemoteFileByName(
-    fs: FileSystem,
-    name: string,
-    previousFile?: FileInfo
-  ): Promise<FileInfo | undefined> {
-    let latest = (await this.listRemoteFiles(fs)).find((item) => item.name === name);
-    if (!latest || this.isSameRemoteFile(latest, previousFile)) {
-      latest = (await this.listRemoteFiles(fs)).find((item) => item.name === name);
-    }
-    return latest;
   }
 
   private async listRemoteFiles(fs: FileSystem): Promise<FileInfo[]> {
     const list = await fs.list();
     return Array.isArray(list) ? list : [];
-  }
-
-  private isSameRemoteFile(left?: FileInfo, right?: FileInfo): boolean {
-    if (!left || !right) {
-      return false;
-    }
-    if (left.version && right.version) {
-      return left.version === right.version;
-    }
-    if (left.digest && right.digest) {
-      return left.digest === right.digest;
-    }
-    return false;
   }
 
   async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {

@@ -4,6 +4,14 @@ import type { FileCreateOptions } from "../filesystem";
 import { joinPath } from "../utils";
 import type DropboxFileSystem from "./dropbox";
 
+function isDropboxUploadConflict(error: unknown): boolean {
+  if (error instanceof FileSystemError) {
+    return error.conflict;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("409") || message.includes("conflict") || message.includes("incorrect_offset");
+}
+
 export class DropboxFileReader implements FileReader {
   file: FileInfo;
 
@@ -134,7 +142,7 @@ export class DropboxFileWriter implements FileWriter {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("409") || message.includes("conflict") || message.includes("incorrect_offset")) {
+      if (isDropboxUploadConflict(error)) {
         throw new FileSystemError({
           provider: "dropbox",
           message,
