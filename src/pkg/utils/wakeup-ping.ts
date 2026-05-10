@@ -80,7 +80,11 @@ export const listenWakeupPing = (onWakeupPing: (...args: any) => any) => {
   });
   channel.onmessage = (e) => {
     // 触发 chrome storage onChanged 使 service worker 保持活跃
-    chrome.storage.session.set({ persistentWakeup: `${e.timeStamp}` });
+    chrome.storage.session.set({ persistentWakeup: `${e.timeStamp}` }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("failed to persist wakeup ping", chrome.runtime.lastError);
+      }
+    });
   };
 };
 
