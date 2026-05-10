@@ -569,6 +569,9 @@
   "notification": {
     "script_sync_delete": "Đồng bộ xóa script",
     "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",
+    "script_sync_failed": "Đồng bộ script thất bại",
+    "script_sync_failed_desc": "Một số thay đổi đồng bộ đám mây thất bại. Trạng thái đồng bộ cục bộ chưa được cập nhật; vui lòng kiểm tra nhật ký rồi đồng bộ lại.",
+    "script_sync_conflict_desc": "Đồng bộ đám mây phát hiện xung đột từ xa. Trạng thái đồng bộ cục bộ chưa được cập nhật; vui lòng kiểm tra thay đổi trên các thiết bị khác rồi đồng bộ lại.",
     "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
     "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
   },

@@ -866,6 +866,46 @@ console.log("ok");`
     });
   });
 
+  it("retries digest list before falling back to pushed md5", async () => {
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            name: "push-uuid.user.js",
+            path: "push-uuid.user.js",
+            size: 1,
+            digest: "etag-user-js",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.updateFileDigest(fs, {
+      "push-uuid.user.js": "local-md5",
+    });
+
+    expect(fs.list).toHaveBeenCalledTimes(2);
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "push-uuid.user.js": "etag-user-js",
+    });
+  });
+
   it("skips status and digest update when a push hits remote conflict", async () => {
     const conflict = new FileSystemError({
       provider: "webdav",
@@ -903,11 +943,18 @@ console.log("ok");`
     );
     vi.spyOn(service, "pushScript").mockRejectedValue(conflict);
     const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
+    const notificationSpy = vi.spyOn(chrome.notifications, "create").mockReturnValue("notification-id" as any);
 
     await service.syncOnce(syncConfig, fs);
 
     expect(updateDigestSpy).not.toHaveBeenCalled();
     expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
+    expect(notificationSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Script Sync Failed",
+        message: expect.stringContaining("remote conflict"),
+      })
+    );
   });
 
   it("skips status and digest update when any push task fails", async () => {
@@ -942,11 +989,18 @@ console.log("ok");`
     );
     vi.spyOn(service, "pushScript").mockRejectedValue(error);
     const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
+    const notificationSpy = vi.spyOn(chrome.notifications, "create").mockReturnValue("notification-id" as any);
 
     await service.syncOnce(syncConfig, fs);
 
     expect(updateDigestSpy).not.toHaveBeenCalled();
     expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
+    expect(notificationSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Script Sync Failed",
+        message: expect.stringContaining("cloud sync changes failed"),
+      })
+    );
   });
 
   it("scriptInstall enters cloud_sync queue and updates digest after push", async () => {

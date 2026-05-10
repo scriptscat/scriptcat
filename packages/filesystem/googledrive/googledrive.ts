@@ -362,6 +362,15 @@ export default class GoogleDriveFileSystem implements FileSystem {
   // 辅助方法：在指定目录中查找文件
   async findFileInDirectory(fileName: string, parentId: string): Promise<string | null> {
     const files = await this.findFilesInDirectory(fileName, parentId);
+    if (files.length > 1) {
+      throw new FileSystemError({
+        provider: "googledrive",
+        message: `Duplicate Google Drive files found: ${fileName}`,
+        status: 409,
+        code: "nameAlreadyExists",
+        conflict: true,
+      });
+    }
     return files[0]?.id || null;
   }
 

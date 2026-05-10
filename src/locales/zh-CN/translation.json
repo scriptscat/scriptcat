@@ -569,6 +569,9 @@
   "notification": {
     "script_sync_delete": "脚本删除同步",
     "script_sync_delete_desc": "脚本 {{scriptName}} 已被删除",
+    "script_sync_failed": "脚本同步失败",
+    "script_sync_failed_desc": "部分云同步变更失败，本地同步状态未更新，请检查日志后重新同步。",
+    "script_sync_conflict_desc": "云同步检测到远端冲突，本地同步状态未更新，请检查其他设备上的变更后重新同步。",
     "subscribe_update": "订阅 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增脚本：{{newScripts}}\n删除脚本：{{deletedScripts}}"
   },

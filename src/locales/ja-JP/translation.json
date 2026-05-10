@@ -569,6 +569,9 @@
   "notification": {
     "script_sync_delete": "スクリプト同期削除",
     "script_sync_delete_desc": "スクリプト {{scriptName}} が削除されました",
+    "script_sync_failed": "スクリプト同期に失敗しました",
+    "script_sync_failed_desc": "一部のクラウド同期の変更に失敗しました。ローカルの同期状態は更新されていません。ログを確認してから再同期してください。",
+    "script_sync_conflict_desc": "クラウド同期でリモートの競合が検出されました。ローカルの同期状態は更新されていません。他のデバイスでの変更を確認してから再同期してください。",
     "subscribe_update": "サブスクリプション {{subscribeName}} が更新されました",
     "subscribe_update_desc": "新しいスクリプト: {{newScripts}}\n削除されたスクリプト: {{deletedScripts}}"
   },

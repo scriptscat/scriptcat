@@ -165,6 +165,16 @@ describe("GoogleDriveFileSystem", () => {
     });
   });
 
+  it("findFileInDirectory should reject duplicate file names", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "findFilesInDirectory").mockResolvedValue([{ id: "file-1" }, { id: "file-2" }]);
+
+    await expect(fs.findFileInDirectory("file.txt", "parent-id")).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+    });
+  });
+
   it("writer should create createOnly files with a generated Google Drive id", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     const writer = await fs.create("file.txt", { createOnly: true });

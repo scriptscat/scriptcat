@@ -505,6 +505,11 @@ export class SynchronizeService {
         conflict: hasConflict,
         failed: rejected.length,
       });
+      const title = i18n.t("notification.script_sync_failed");
+      const message = hasConflict
+        ? i18n.t("notification.script_sync_conflict_desc")
+        : i18n.t("notification.script_sync_failed_desc");
+      InfoNotification(title, message);
       return;
     }
     // 同步状态
@@ -577,7 +582,13 @@ export class SynchronizeService {
   }
 
   async updateFileDigest(fs: FileSystem, knownFileDigestMap: FileDigestMap = {}) {
-    const newList = await fs.list();
+    let newList = await fs.list();
+    if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
+      const retryList = await fs.list();
+      if (Array.isArray(retryList)) {
+        newList = retryList;
+      }
+    }
     const newFileDigestMap: FileDigestMap = {};
     for (const file of newList) {
       newFileDigestMap[file.name] = file.digest;
