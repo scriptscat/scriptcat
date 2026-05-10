@@ -142,6 +142,8 @@ const onChangedListener = (downloadDelta: chrome.downloads.DownloadDelta) => {
         loaded: downloadItem?.downloadItem?.totalBytes, // 兼容 TM，总是传回 totalBytes （与实际有否储存无关）
         total: downloadItem?.downloadItem?.totalBytes,
       });
+
+      responseMap.delete(id); // 清除缓存
     }
   });
 };
