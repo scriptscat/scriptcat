@@ -127,4 +127,55 @@ describe("OneDriveFileSystem", () => {
       name: "B",
     });
   });
+
+  it("writer should upload empty string with simple PUT", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    const writer = await fs.create("empty.txt");
+    await writer.write("");
+
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy.mock.calls[0][0]).toBe(
+      "https://graph.microsoft.com/v1.0/me/drive/special/approot:/empty.txt:/content"
+    );
+    expect(requestSpy.mock.calls[0][1]).toMatchObject({
+      method: "PUT",
+      body: "",
+    });
+  });
+
+  it("writer should upload empty Blob with simple PUT", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+    const emptyBlob = new Blob([]);
+
+    const writer = await fs.create("empty.bin");
+    await writer.write(emptyBlob);
+
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy.mock.calls[0][0]).toBe(
+      "https://graph.microsoft.com/v1.0/me/drive/special/approot:/empty.bin:/content"
+    );
+    expect((requestSpy.mock.calls[0][1] as RequestInit).body).toBe(emptyBlob);
+  });
+
+  it("writer should keep upload session for non-empty content", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockResolvedValueOnce({ uploadUrl: "https://upload.example/session" })
+      .mockResolvedValueOnce({});
+
+    const writer = await fs.create("not-empty.txt");
+    await writer.write("abc");
+
+    expect(requestSpy).toHaveBeenCalledTimes(2);
+    expect(requestSpy.mock.calls[0][0]).toBe(
+      "https://graph.microsoft.com/v1.0/me/drive/special/approot:/not-empty.txt:/createUploadSession"
+    );
+    expect(requestSpy.mock.calls[1][0]).toBe("https://upload.example/session");
+    const headers = (requestSpy.mock.calls[1][1] as RequestInit).headers as Headers;
+    expect(headers.get("Content-Range")).toBe("bytes 0-2/3");
+  });
 });
