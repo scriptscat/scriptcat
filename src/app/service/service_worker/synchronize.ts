@@ -110,6 +110,11 @@ function getDeleteOptions(remoteFile?: FileInfo) {
   return undefined;
 }
 
+async function readSyncMeta(fs: FileSystem, file: FileInfo): Promise<SyncMeta> {
+  const meta = await fs.open(file);
+  return JSON.parse((await meta.read("string")) as string) as SyncMeta;
+}
+
 export class SynchronizeService {
   logger: Logger;
 
@@ -454,7 +459,7 @@ export class SynchronizeService {
     const skippedOrphanUuids = new Set<string>();
     // 需要是同步操作，后续上传剩下的脚本
     // 最后使用 Promise.allSettled 进行等待
-    uuidMap.forEach((file, uuid) => {
+    for (const [uuid, file] of uuidMap) {
       const script = scriptMap.get(uuid);
       if (script) {
         scriptMap.delete(uuid);
@@ -482,11 +487,32 @@ export class SynchronizeService {
               }
             })()
           );
-          return;
+          continue;
+        }
+        if (file.meta && fileDigestMap[file.meta.name] !== file.meta.digest) {
+          // tombstone 是删除提交信号，优先级高于 .user.js。
+          // 如果上次删除在“写 tombstone 后、删 script 前”失败，下一轮会看到 script + tombstone。
+          // 这里必须先处理 tombstone，不能因为 script digest 没变而跳过，否则删除可能长期无法收敛。
+          const metaObj = await readSyncMeta(fs, file.meta);
+          if (metaObj.isDeleted) {
+            result.push(
+              (async () => {
+                await this.script.deleteScript(script.uuid, "sync");
+                await fs.delete(file.script!.name, getDeleteOptions(file.script));
+                InfoNotification(
+                  i18n.t("notification.script_sync_delete"),
+                  i18n.t("notification.script_sync_delete_desc", {
+                    scriptName: i18nName(script),
+                  })
+                );
+              })()
+            );
+            continue;
+          }
         }
         // 过滤掉无变动的文件
         if (fileDigestMap[file.script!.name] === file.script!.digest) {
-          return;
+          continue;
         }
         const updatetime = script.updatetime || script.createtime;
         // 对比脚本更新时间和文件更新时间
@@ -499,7 +525,7 @@ export class SynchronizeService {
           updateScript.set(uuid, true);
           result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script));
         }
-        return;
+        continue;
       }
       // 如果脚本不存在，但文件存在，则安装脚本
       if (file.script) {
@@ -510,12 +536,12 @@ export class SynchronizeService {
             file: file.script.name,
           });
           skippedOrphanUuids.add(uuid);
-          return;
+          continue;
         }
         updateScript.set(uuid, true);
         result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid]));
       }
-    });
+    }
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
       result.push(this.pushScript(fs, script));
@@ -748,6 +774,14 @@ export class SynchronizeService {
       const meta = await fs.open(file.meta);
       const metaJson = (await meta.read("string")) as string;
       const metaObj = JSON.parse(metaJson) as SyncMeta;
+      if (metaObj.isDeleted) {
+        if (existingScript) {
+          await this.script.deleteScript(existingScript.uuid, "sync");
+        }
+        await fs.delete(file.script.name, getDeleteOptions(file.script));
+        logger.info("pull tombstone delete success");
+        return;
+      }
       const { script } = await prepareScriptByCode(
         code,
         existingScript?.downloadUrl || metaObj.downloadUrl || "",

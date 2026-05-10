@@ -332,6 +332,129 @@ console.log("ok");`
     expect(order).toEqual(["delete:start", "delete:end", "digest:list"]);
   });
 
+  it("honors tombstone even when cloud script still exists and script digest is unchanged", async () => {
+    const deleteScript = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "del-uuid.user.js",
+            path: "/",
+            size: 1,
+            digest: "script-digest",
+            version: "script-version",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "del-uuid.meta.json",
+            path: "/",
+            size: 1,
+            digest: "new-meta-digest",
+            version: "meta-version",
+            createtime: 1,
+            updatetime: 2,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ uuid: "del-uuid", isDeleted: true })),
+      }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { deleteScript } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "del-uuid",
+            name: "del",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "del-uuid.user.js": "script-digest",
+      "del-uuid.meta.json": "old-meta-digest",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(deleteScript).toHaveBeenCalledWith("del-uuid", "sync");
+    expect(fs.delete).toHaveBeenCalledWith("del-uuid.user.js", {
+      expectedVersion: "script-version",
+    });
+  });
+
+  it("does not install cloud script when meta is a tombstone", async () => {
+    const installScript = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "del-uuid.user.js",
+            path: "/",
+            size: 1,
+            digest: "script-digest",
+            version: "script-version",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "del-uuid.meta.json",
+            path: "/",
+            size: 1,
+            digest: "meta-digest",
+            version: "meta-version",
+            createtime: 1,
+            updatetime: 2,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+      open: vi
+        .fn()
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue("// deleted code"),
+        })
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue(JSON.stringify({ uuid: "del-uuid", isDeleted: true })),
+        }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { installScript } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(installScript).not.toHaveBeenCalled();
+    expect(fs.delete).toHaveBeenCalledWith("del-uuid.user.js", {
+      expectedVersion: "script-version",
+    });
+  });
+
   it("waits for pushScript before updating file digest", async () => {
     let releasePush!: () => void;
     const pushGate = new Promise<void>((resolve) => {
