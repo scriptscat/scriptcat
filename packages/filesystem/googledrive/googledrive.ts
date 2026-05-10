@@ -384,21 +384,6 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return response.files || [];
   }
 
-  async generateFileId(): Promise<string> {
-    const response = await this.request(
-      "https://www.googleapis.com/drive/v3/files/generateIds?count=1&space=appDataFolder&fields=ids"
-    );
-    const id = response.ids?.[0];
-    if (!id) {
-      throw new FileSystemError({
-        provider: "googledrive",
-        message: "Google Drive did not return a generated file id",
-        retryable: true,
-      });
-    }
-    return id;
-  }
-
   clearPathCache(path?: string): void {
     if (!path) {
       this.pathToIdCache.clear();

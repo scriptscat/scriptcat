@@ -168,6 +168,8 @@ export class BaiduFileWriter implements FileWriter {
       return;
     }
 
+    // Baidu does not expose an atomic compare-and-swap upload. This digest check is best-effort only:
+    // it catches stale local state before upload, while createOnly/overwrite=false still use server-side rtype=0.
     if (this.opts?.expectedDigest && existing?.digest !== this.opts.expectedDigest) {
       throw new FileSystemError({
         provider: "baidu",

@@ -72,9 +72,7 @@ type FileDigestMap = {
   [key: string]: string;
 };
 
-type KnownFileDigestMap = {
-  [key: string]: string | { digest: string; previousDigest?: string };
-};
+type KnownFileDigestMap = Record<string, string>;
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
@@ -601,12 +599,9 @@ export class SynchronizeService {
   }
 
   async updateFileDigest(fs: FileSystem, knownFileDigestMap: KnownFileDigestMap = {}) {
-    let newList = await this.listRemoteFiles(fs);
+    let newList = await fs.list();
     if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
-      const retryList = await this.listRemoteFiles(fs);
-      if (Array.isArray(retryList)) {
-        newList = retryList;
-      }
+      newList = await fs.list();
     }
     const newFileDigestMap: FileDigestMap = {};
     for (const file of newList) {
@@ -616,10 +611,8 @@ export class SynchronizeService {
     // 仅 GoogleDrive/Baidu 是 md5），只在云端列表暂时漏掉刚上传的文件时用本地 md5 兜底，
     // 不能覆盖 fs.list 已返回的原生 digest，否则下次同步比对会因格式不一致而误判
     for (const name in knownFileDigestMap) {
-      const known = knownFileDigestMap[name];
-      const digest = typeof known === "string" ? known : known.digest;
       if (!(name in newFileDigestMap)) {
-        newFileDigestMap[name] = digest;
+        newFileDigestMap[name] = knownFileDigestMap[name];
       }
     }
     await this.storage.set("file_digest", newFileDigestMap);
@@ -691,24 +684,13 @@ export class SynchronizeService {
       await meta.write(metaJson);
       logger.info("push script success");
       return {
-        [filename]: {
-          digest: md5OfText(scriptCode),
-          previousDigest: remoteFiles?.script?.digest,
-        },
-        [metaFilename]: {
-          digest: md5OfText(metaJson),
-          previousDigest: remoteFiles?.meta?.digest,
-        },
+        [filename]: md5OfText(scriptCode),
+        [metaFilename]: md5OfText(metaJson),
       };
     } catch (e) {
       logger.error("push script error", Logger.E(e));
       throw e;
     }
-  }
-
-  private async listRemoteFiles(fs: FileSystem): Promise<FileInfo[]> {
-    const list = await fs.list();
-    return Array.isArray(list) ? list : [];
   }
 
   async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {

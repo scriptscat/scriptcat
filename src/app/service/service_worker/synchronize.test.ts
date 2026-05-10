@@ -350,7 +350,7 @@ console.log("ok");`
     const fsList = vi
       .fn()
       .mockImplementationOnce(async () => [])
-      .mockImplementationOnce(async () => {
+      .mockImplementation(async () => {
         order.push("digest:list");
         return [];
       });
@@ -990,7 +990,7 @@ console.log("ok");`
     );
 
     await service.updateFileDigest(fs, {
-      "push-uuid.user.js": { digest: "new-md5", previousDigest: "old-md5" },
+      "push-uuid.user.js": "new-md5",
     });
 
     await expect((service as any).storage.get("file_digest")).resolves.toEqual({
