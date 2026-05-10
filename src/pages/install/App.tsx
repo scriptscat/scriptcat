@@ -458,6 +458,7 @@ function App() {
   };
 
   const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
+    if (closingWindow) return;
     if (!upsertScript) {
       Message.error(t("script_info_load_failed")!);
       return;
@@ -515,6 +516,7 @@ function App() {
   };
 
   const handleClose = async (options?: { noMoreUpdates: boolean }) => {
+    if (closingWindow) return;
     const { noMoreUpdates = false } = options || {};
     if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
       await scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
