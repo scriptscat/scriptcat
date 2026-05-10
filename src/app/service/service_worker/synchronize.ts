@@ -489,16 +489,26 @@ export class SynchronizeService {
           );
           continue;
         }
-        if (file.meta && fileDigestMap[file.meta.name] !== file.meta.digest) {
+        const remoteScript = file.script;
+        const remoteMeta = file.meta;
+        const scriptDigestUnchanged = fileDigestMap[remoteScript.name] === remoteScript.digest;
+        const metaDigestUnchanged = !remoteMeta || fileDigestMap[remoteMeta.name] === remoteMeta.digest;
+        const shouldCheckMetaTombstone =
+          remoteMeta &&
+          (fileDigestMap[remoteMeta.name] !== remoteMeta.digest ||
+            // 兼容旧版本/异常中断留下的状态：digest cache 已经记录 tombstone meta，
+            // 但 .user.js 仍没删掉。meta 晚于 script 是删除标记的典型形态，才额外读一次 meta。
+            (scriptDigestUnchanged && metaDigestUnchanged && remoteMeta.updatetime > remoteScript.updatetime));
+        if (remoteMeta && shouldCheckMetaTombstone) {
           // tombstone 是删除提交信号，优先级高于 .user.js。
           // 如果上次删除在“写 tombstone 后、删 script 前”失败，下一轮会看到 script + tombstone。
           // 这里必须先处理 tombstone，不能因为 script digest 没变而跳过，否则删除可能长期无法收敛。
-          const metaObj = await readSyncMeta(fs, file.meta);
+          const metaObj = await readSyncMeta(fs, remoteMeta);
           if (metaObj.isDeleted) {
             result.push(
               (async () => {
                 await this.script.deleteScript(script.uuid, "sync");
-                await fs.delete(file.script!.name, getDeleteOptions(file.script));
+                await fs.delete(remoteScript.name, getDeleteOptions(remoteScript));
                 InfoNotification(
                   i18n.t("notification.script_sync_delete"),
                   i18n.t("notification.script_sync_delete_desc", {
@@ -511,7 +521,7 @@ export class SynchronizeService {
           }
         }
         // 过滤掉无变动的文件
-        if (fileDigestMap[file.script!.name] === file.script!.digest) {
+        if (scriptDigestUnchanged) {
           continue;
         }
         const updatetime = script.updatetime || script.createtime;
@@ -767,10 +777,7 @@ export class SynchronizeService {
       file: file.script.name,
     });
     try {
-      // 读取代码文件
-      const r = await fs.open(file.script);
-      const code = (await r.read("string")) as string;
-      // 读取meta文件
+      // 先读 meta。tombstone 是删除提交信号，命中后不需要、也不应该依赖 .user.js 仍可读取。
       const meta = await fs.open(file.meta);
       const metaJson = (await meta.read("string")) as string;
       const metaObj = JSON.parse(metaJson) as SyncMeta;
@@ -782,6 +789,9 @@ export class SynchronizeService {
         logger.info("pull tombstone delete success");
         return;
       }
+      // 只有确认不是 tombstone 后才读取脚本内容，避免删除路径被残留/已删除的 .user.js 阻塞。
+      const r = await fs.open(file.script);
+      const code = (await r.read("string")) as string;
       const { script } = await prepareScriptByCode(
         code,
         existingScript?.downloadUrl || metaObj.downloadUrl || "",
