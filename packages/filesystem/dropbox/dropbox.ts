@@ -37,8 +37,8 @@ export default class DropboxFileSystem implements FileSystem {
     return Promise.resolve(new DropboxFileSystem(joinPath(this.path, path), this.accessToken));
   }
 
-  create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
-    return Promise.resolve(new DropboxFileWriter(this, joinPath(this.path, path)));
+  create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    return Promise.resolve(new DropboxFileWriter(this, joinPath(this.path, path), opts));
   }
 
   async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
@@ -207,6 +207,7 @@ export default class DropboxFileSystem implements FileSystem {
               path: this.path,
               size: item.size || 0,
               digest: item.content_hash || "",
+              version: item.rev || "",
               createtime: new Date(item.client_modified).getTime(),
               updatetime: new Date(item.server_modified).getTime(),
             });

@@ -202,6 +202,42 @@ describe("S3FileSystem", () => {
         })
       );
     });
+
+    it("S3FileWriter.write 应按 expectedVersion 设置 If-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
+
+      const writer = await fs.create("output.txt", { expectedVersion: "etag-1" });
+      await writer.write("hello world");
+
+      expect(mockClient.request).toHaveBeenCalledWith(
+        "PUT",
+        "test-bucket",
+        "output.txt",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "If-Match": "etag-1",
+          }),
+        })
+      );
+    });
+
+    it("S3FileWriter.write 应按 createOnly 设置 If-None-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
+
+      const writer = await fs.create("output.txt", { createOnly: true });
+      await writer.write("hello world");
+
+      expect(mockClient.request).toHaveBeenCalledWith(
+        "PUT",
+        "test-bucket",
+        "output.txt",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "If-None-Match": "*",
+          }),
+        })
+      );
+    });
   });
 
   // ---- createDir ----
@@ -267,6 +303,7 @@ describe("S3FileSystem", () => {
         path: "/",
         size: 1024,
         digest: "abc123",
+        version: "abc123",
       });
       expect(files[1]).toMatchObject({
         name: "file2.txt",

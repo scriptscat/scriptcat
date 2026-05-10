@@ -98,8 +98,8 @@ export default class WebDAVFileSystem implements FileSystem {
     return WebDAVFileSystem.fromSameClient(this, joinPath(this.basePath, path));
   }
 
-  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
-    return new WebDAVFileWriter(this.client, joinPath(this.basePath, path));
+  async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    return new WebDAVFileWriter(this.client, joinPath(this.basePath, path), opts);
   }
 
   async createDir(path: string, _opts?: FileCreateOptions): Promise<void> {
@@ -143,6 +143,7 @@ export default class WebDAVFileSystem implements FileSystem {
         name: item.basename,
         path: this.basePath,
         digest: item.etag || "",
+        version: item.etag || "",
         size: item.size,
         createtime: time,
         updatetime: time,

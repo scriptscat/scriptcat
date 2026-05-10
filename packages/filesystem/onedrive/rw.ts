@@ -1,5 +1,5 @@
 import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
-import type { FileInfo, FileReader, FileWriter } from "../filesystem";
+import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import type OneDriveFileSystem from "./onedrive";
 
@@ -37,9 +37,12 @@ export class OneDriveFileWriter implements FileWriter {
 
   fs: OneDriveFileSystem;
 
-  constructor(fs: OneDriveFileSystem, path: string) {
+  opts?: FileCreateOptions;
+
+  constructor(fs: OneDriveFileSystem, path: string, opts?: FileCreateOptions) {
     this.fs = fs;
     this.path = path;
+    this.opts = opts;
   }
 
   size(content: string | Blob) {
@@ -60,21 +63,25 @@ export class OneDriveFileWriter implements FileWriter {
     // 预上传获取id
     const size = this.size(content);
     if (size === 0) {
+      const headers = this.createConditionalHeaders();
       return this.fs.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/content`, {
         method: "PUT",
         body: content,
+        ...(headers ? { headers } : {}),
       });
     }
 
     let myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
+    const conditionalHeaders = this.createConditionalHeaders(myHeaders);
     const uploadUrl = await this.fs
       .request(`https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/createUploadSession`, {
         method: "POST",
-        headers: myHeaders,
+        headers: conditionalHeaders,
         body: JSON.stringify({
           item: {
-            "@microsoft.graph.conflictBehavior": "replace",
+            "@microsoft.graph.conflictBehavior":
+              this.opts?.createOnly || this.opts?.overwrite === false ? "fail" : "replace",
             // description: "description",
             // fileSystemInfo: {
             //   "@odata.type": "microsoft.graph.fileSystemInfo",
@@ -96,5 +103,21 @@ export class OneDriveFileWriter implements FileWriter {
       body: content,
       headers: myHeaders,
     });
+  }
+
+  private createConditionalHeaders(base?: Headers): Headers | undefined {
+    const headers = base || new Headers();
+    let hasCondition = false;
+    if (this.opts?.createOnly || this.opts?.overwrite === false) {
+      headers.set("If-None-Match", "*");
+      hasCondition = true;
+    } else {
+      const expected = this.opts?.expectedVersion || this.opts?.expectedDigest;
+      if (expected) {
+        headers.set("If-Match", expected);
+        hasCondition = true;
+      }
+    }
+    return base || hasCondition ? headers : undefined;
   }
 }

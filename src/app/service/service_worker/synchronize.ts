@@ -10,11 +10,11 @@ import {
 } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
-import type { FileInfo } from "@Packages/filesystem/filesystem";
+import type { FileCreateOptions, FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
-import { isWarpTokenError } from "@Packages/filesystem/error";
+import { isConflictError, isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -76,6 +76,20 @@ const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
 function getScriptModifiedDate(script: PushScriptParam): number {
   return script.updatetime || script.createtime || Date.now();
+}
+
+function getWriteOptions(modifiedDate: number, remoteFile?: FileInfo): FileCreateOptions {
+  const opts: FileCreateOptions = { modifiedDate };
+  if (!remoteFile) {
+    opts.createOnly = true;
+    return opts;
+  }
+  if (remoteFile.version) {
+    opts.expectedVersion = remoteFile.version;
+  } else if (remoteFile.digest) {
+    opts.expectedDigest = remoteFile.digest;
+  }
+  return opts;
 }
 
 export class SynchronizeService {
@@ -449,7 +463,7 @@ export class SynchronizeService {
         if (updatetime > file.script!.updatetime || !file.meta) {
           // 如果脚本更新时间大于文件更新时间
           // 或者不存在.meta文件,则上传文件
-          result.push(this.pushScript(fs, script));
+          result.push(this.pushScript(fs, script, file));
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
           updateScript.set(uuid, true);
@@ -484,6 +498,10 @@ export class SynchronizeService {
         Object.assign(pushedFileDigestMap, ret.value);
       }
     });
+    if (syncResults.some((ret) => ret.status === "rejected" && isConflictError(ret.reason))) {
+      this.logger.warn("skip status and digest update because cloud sync hit remote conflict");
+      return;
+    }
     // 同步状态
     if (syncConfig.syncStatus) {
       const scriptlist = await this.scriptDAO.all();
@@ -542,7 +560,7 @@ export class SynchronizeService {
       });
       // 保存脚本猫同步状态
       const modifiedDate = Date.now();
-      const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
+      const syncFile = await fs.create("scriptcat-sync.json", getWriteOptions(modifiedDate, file));
       await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
       this.logger.info("sync scriptcat-sync.json file success");
     }
@@ -605,7 +623,7 @@ export class SynchronizeService {
   }
 
   // 上传脚本
-  async pushScript(fs: FileSystem, script: PushScriptParam): Promise<FileDigestMap> {
+  async pushScript(fs: FileSystem, script: PushScriptParam, remoteFiles?: Partial<SyncFiles>): Promise<FileDigestMap> {
     const filename = `${script.uuid}.user.js`;
     const metaFilename = `${script.uuid}.meta.json`;
     const logger = this.logger.with({
@@ -615,12 +633,12 @@ export class SynchronizeService {
     });
     try {
       const modifiedDate = getScriptModifiedDate(script);
-      const w = await fs.create(filename, { modifiedDate });
+      const w = await fs.create(filename, getWriteOptions(modifiedDate, remoteFiles?.script));
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
       const scriptCode = code!.code;
       await w.write(scriptCode);
-      const meta = await fs.create(metaFilename, { modifiedDate });
+      const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
       const metaJson = JSON.stringify(<SyncMeta>{
         uuid: script.uuid,
         origin: script.origin,
@@ -732,7 +750,13 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
-        const pushedFileDigestMap = await this.pushScript(fs, params.script);
+        const list = await fs.list();
+        const uuid = params.script.uuid;
+        const remoteFiles: Partial<SyncFiles> = {
+          script: list.find((file) => file.name === `${uuid}.user.js`),
+          meta: list.find((file) => file.name === `${uuid}.meta.json`),
+        };
+        const pushedFileDigestMap = await this.pushScript(fs, params.script, remoteFiles);
         await this.updateFileDigest(fs, pushedFileDigestMap);
       }).catch((e) => {
         this.logger.error("push script on install error", Logger.E(e));

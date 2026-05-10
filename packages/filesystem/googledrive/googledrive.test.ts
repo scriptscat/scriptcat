@@ -135,6 +135,34 @@ describe("GoogleDriveFileSystem", () => {
     expect(findFileSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("writer should update expected Google Drive file id with If-Match token", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", { expectedVersion: "file-1:version-7" });
+    const findSpy = vi.spyOn(fs, "findFileInDirectory");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    await expect(writer.write("content")).resolves.toBeUndefined();
+
+    expect(findSpy).not.toHaveBeenCalled();
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy.mock.calls[0][0]).toBe(
+      "https://www.googleapis.com/upload/drive/v3/files/file-1?uploadType=multipart&spaces=appDataFolder"
+    );
+    const headers = (requestSpy.mock.calls[0][1] as RequestInit).headers as Headers;
+    expect(headers.get("If-Match")).toBe("version-7");
+  });
+
+  it("writer should reject createOnly when target already exists", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", { createOnly: true });
+    vi.spyOn(fs, "findFileInDirectory").mockResolvedValue("file-1");
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+    });
+  });
+
   it("list should clear stale path cache and retry once on provider 404", async () => {
     const fs = new GoogleDriveFileSystem("/Base", "token");
     const notFoundError = new FileSystemError({
@@ -350,5 +378,30 @@ describe("GoogleDriveFileSystem", () => {
         rateLimit: true,
       });
     }
+  });
+
+  it("list should expose opaque Google Drive version token", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({
+      files: [
+        {
+          id: "file-1",
+          name: "test.user.js",
+          size: "12",
+          md5Checksum: "md5",
+          createdTime: "2024-01-01T00:00:00.000Z",
+          modifiedTime: "2024-01-02T00:00:00.000Z",
+          version: "7",
+        },
+      ],
+    });
+
+    await expect(fs.list()).resolves.toMatchObject([
+      {
+        name: "test.user.js",
+        digest: "md5",
+        version: "file-1:7",
+      },
+    ]);
   });
 });

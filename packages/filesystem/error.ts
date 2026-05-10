@@ -34,6 +34,7 @@ export type FileSystemErrorOptions = {
   auth?: boolean;
   notFound?: boolean;
   rateLimit?: boolean;
+  unsupported?: boolean;
   raw?: unknown;
 };
 
@@ -54,6 +55,8 @@ export class FileSystemError extends Error {
 
   rateLimit: boolean;
 
+  unsupported: boolean;
+
   raw?: unknown;
 
   constructor(options: FileSystemErrorOptions) {
@@ -67,6 +70,7 @@ export class FileSystemError extends Error {
     this.auth = options.auth ?? false;
     this.notFound = options.notFound ?? false;
     this.rateLimit = options.rateLimit ?? false;
+    this.unsupported = options.unsupported ?? false;
     this.raw = options.raw;
   }
 }
@@ -85,4 +89,8 @@ export function isRateLimitError(error: unknown): error is FileSystemError {
 
 export function isAuthError(error: unknown): error is FileSystemError | WarpTokenError {
   return error instanceof FileSystemError ? error.auth : isWarpTokenError(error);
+}
+
+export function isUnsupportedError(error: unknown): error is FileSystemError {
+  return error instanceof FileSystemError && error.unsupported;
 }

@@ -167,7 +167,7 @@ export default class S3FileSystem implements FileSystem {
    * @returns 文件写入器
    */
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
-    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts?.modifiedDate);
+    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts);
   }
 
   /**
@@ -237,6 +237,7 @@ export default class S3FileSystem implements FileSystem {
             path: this.basePath,
             size: obj.size || 0,
             digest: obj.etag?.replace(/"/g, "") || "",
+            version: obj.etag?.replace(/"/g, "") || "",
             createtime: lastModified,
             updatetime: lastModified,
           });

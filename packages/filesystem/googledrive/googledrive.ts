@@ -32,8 +32,8 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return Promise.resolve(new GoogleDriveFileSystem(joinPath(this.path, path), this.accessToken));
   }
 
-  create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
-    return Promise.resolve(new GoogleDriveFileWriter(this, joinPath(this.path, path)));
+  create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    return Promise.resolve(new GoogleDriveFileWriter(this, joinPath(this.path, path), opts));
   }
   async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
     if (!dir) {
@@ -173,7 +173,10 @@ export default class GoogleDriveFileSystem implements FileSystem {
     if (nothen) {
       return doFetch().then(async (resp) => {
         if (resp.status === 401) {
-          return retryWithFreshToken();
+          resp = await retryWithFreshToken();
+        }
+        if (!resp.ok) {
+          throw await this.createResponseError(resp);
         }
         return resp;
       });
@@ -221,20 +224,20 @@ export default class GoogleDriveFileSystem implements FileSystem {
     }
 
     // 删除文件或文件夹
-    await this.request(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?spaces=appDataFolder`,
-      {
-        method: "DELETE",
-      },
-      true
-    ).then(async (resp) => {
-      if (resp.status === 404) {
+    try {
+      await this.request(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?spaces=appDataFolder`,
+        {
+          method: "DELETE",
+        },
+        true
+      );
+    } catch (error) {
+      if (isNotFoundError(error)) {
         return;
       }
-      if (resp.status !== 204 && resp.status !== 200) {
-        throw new Error(await resp.text());
-      }
-    });
+      throw error;
+    }
 
     // 清除相关缓存
     this.clearRelatedCache(fullPath);
@@ -322,7 +325,10 @@ export default class GoogleDriveFileSystem implements FileSystem {
       }
       const url = new URL("https://www.googleapis.com/drive/v3/files");
       url.searchParams.set("q", query);
-      url.searchParams.set("fields", "files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime),nextPageToken");
+      url.searchParams.set(
+        "fields",
+        "files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime,version),nextPageToken"
+      );
       url.searchParams.set("spaces", "appDataFolder");
       if (pageToken) {
         url.searchParams.set("pageToken", pageToken);
@@ -337,6 +343,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
             path: this.path,
             size: item.size ? parseInt(item.size, 10) : 0,
             digest: item.md5Checksum || "",
+            version: item.version ? `${item.id}:${item.version}` : item.id,
             createtime: new Date(item.createdTime).getTime(),
             updatetime: new Date(item.modifiedTime).getTime(),
           });

@@ -1,4 +1,5 @@
 import { AuthVerify } from "../auth";
+import { FileSystemError } from "../error";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
@@ -29,7 +30,15 @@ export default class BaiduFileSystem implements FileSystem {
     return new BaiduFileSystem(joinPath(this.path, path), this.accessToken);
   }
 
-  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
+  async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    if (opts?.expectedDigest || opts?.expectedVersion || opts?.createOnly || opts?.overwrite === false) {
+      throw new FileSystemError({
+        provider: "baidu",
+        message: "Baidu filesystem does not support conditional writes",
+        code: "unsupported_conditional_write",
+        unsupported: true,
+      });
+    }
     return new BaiduFileWriter(this, joinPath(this.path, path));
   }
 
@@ -95,6 +104,9 @@ export default class BaiduFileSystem implements FileSystem {
       }
     ).then((data) => {
       if (data.errno) {
+        if (data.errno === -9 || data.errno === 12) {
+          return data;
+        }
         throw new Error(JSON.stringify(data));
       }
       return data;

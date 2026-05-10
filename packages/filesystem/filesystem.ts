@@ -8,6 +8,8 @@ export interface FileInfo {
   size: number;
   // 文件摘要
   digest: string;
+  // Provider-specific write precondition token, such as rev/etag/version.
+  version?: string;
   // 文件创建时间
   createtime: number;
   // 文件修改时间
@@ -29,6 +31,10 @@ export type FileReadWriter = FileReader & FileWriter;
 
 export type FileCreateOptions = {
   modifiedDate?: number;
+  expectedDigest?: string;
+  expectedVersion?: string;
+  createOnly?: boolean;
+  overwrite?: boolean;
 };
 
 // 文件读取

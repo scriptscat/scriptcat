@@ -32,4 +32,23 @@ describe("BaiduFileSystem", () => {
     );
     expect(updateDynamicRulesMock).not.toHaveBeenCalled();
   });
+
+  it("create should reject conditional write options as unsupported", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+
+    await expect(fs.create("test.txt", { expectedDigest: "md5" })).rejects.toMatchObject({
+      provider: "baidu",
+      unsupported: true,
+    });
+  });
+
+  it("delete should be idempotent when Baidu reports file missing", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({ errno: -9 }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const fs = new BaiduFileSystem("/apps", "token");
+
+    await expect(fs.delete("missing.txt")).resolves.toMatchObject({ errno: -9 });
+  });
 });

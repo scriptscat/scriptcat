@@ -244,6 +244,7 @@ describe("WebDAVFileSystem", () => {
         name: "test.txt",
         path: "/",
         digest: '"abc"',
+        version: '"abc"',
         size: 1024,
       });
     });
@@ -265,6 +266,32 @@ describe("WebDAVFileSystem", () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.list()).rejects.toThrow("Server Error");
+    });
+  });
+
+  describe("conditional write", () => {
+    it("应当按 expectedVersion 传入 If-Match", async () => {
+      const fs = createTestFS(mockClient);
+
+      const writer = await fs.create("test.txt", { expectedVersion: '"etag-1"' });
+      await writer.write("content");
+
+      expect(mockClient.putFileContents).toHaveBeenCalledWith("/test.txt", "content", {
+        headers: {
+          "If-Match": '"etag-1"',
+        },
+      });
+    });
+
+    it("应当按 createOnly 传入 overwrite=false", async () => {
+      const fs = createTestFS(mockClient);
+
+      const writer = await fs.create("test.txt", { createOnly: true });
+      await writer.write("content");
+
+      expect(mockClient.putFileContents).toHaveBeenCalledWith("/test.txt", "content", {
+        overwrite: false,
+      });
     });
   });
 

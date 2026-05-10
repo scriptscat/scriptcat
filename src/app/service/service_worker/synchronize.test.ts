@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SynchronizeService } from "./synchronize";
 import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
+import { FileSystemError } from "@Packages/filesystem/error";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { md5OfText } from "@App/pkg/utils/crypto";
@@ -481,8 +482,74 @@ console.log("ok");`
 
     await service.pushScript(fs, script as any);
 
-    expect(createMock.mock.calls[0]).toEqual(["push-uuid.user.js", { modifiedDate: 1234 }]);
-    expect(createMock.mock.calls[1]).toEqual(["push-uuid.meta.json", { modifiedDate: 1234 }]);
+    expect(createMock.mock.calls[0]).toEqual(["push-uuid.user.js", { modifiedDate: 1234, createOnly: true }]);
+    expect(createMock.mock.calls[1]).toEqual(["push-uuid.meta.json", { modifiedDate: 1234, createOnly: true }]);
+  });
+
+  it("passes remote versions when pushing existing script and meta files", async () => {
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 1234,
+      createtime: 1000,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+
+    await service.pushScript(fs, script as any, {
+      script: {
+        name: "push-uuid.user.js",
+        path: "/",
+        size: 1,
+        digest: "digest-js",
+        version: "version-js",
+        createtime: 1,
+        updatetime: 1,
+      },
+      meta: {
+        name: "push-uuid.meta.json",
+        path: "/",
+        size: 1,
+        digest: "digest-meta",
+        version: "version-meta",
+        createtime: 1,
+        updatetime: 1,
+      },
+    });
+
+    expect(createMock.mock.calls[0]).toEqual([
+      "push-uuid.user.js",
+      { modifiedDate: 1234, expectedVersion: "version-js" },
+    ]);
+    expect(createMock.mock.calls[1]).toEqual([
+      "push-uuid.meta.json",
+      { modifiedDate: 1234, expectedVersion: "version-meta" },
+    ]);
   });
 
   it("uses Date.now as modifiedDate when writing scriptcat-sync.json", async () => {
@@ -512,6 +579,58 @@ console.log("ok");`
 
       expect(createMock).toHaveBeenCalledWith("scriptcat-sync.json", {
         modifiedDate: 9876,
+        createOnly: true,
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("uses existing scriptcat-sync.json version as write precondition", async () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(9876);
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "scriptcat-sync.json",
+            path: "/",
+            size: 1,
+            digest: "digest-sync",
+            version: "version-sync",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ version: "1.0.0", status: { scripts: {} } })),
+      }),
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    try {
+      await service.syncOnce(syncConfig, fs);
+
+      expect(createMock).toHaveBeenCalledWith("scriptcat-sync.json", {
+        modifiedDate: 9876,
+        expectedVersion: "version-sync",
       });
     } finally {
       nowSpy.mockRestore();
@@ -597,6 +716,50 @@ console.log("ok");`
       "push-uuid.user.js": "etag-user-js",
       "push-uuid.meta.json": "etag-meta-json",
     });
+  });
+
+  it("skips status and digest update when a push hits remote conflict", async () => {
+    const conflict = new FileSystemError({
+      provider: "webdav",
+      message: "Precondition failed",
+      status: 412,
+      conflict: true,
+    });
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "push-uuid",
+            name: "push",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    vi.spyOn(service, "pushScript").mockRejectedValue(conflict);
+    const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(updateDigestSpy).not.toHaveBeenCalled();
+    expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
   });
 
   it("scriptInstall enters cloud_sync queue and updates digest after push", async () => {
