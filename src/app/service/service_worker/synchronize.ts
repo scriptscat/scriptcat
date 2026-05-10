@@ -583,9 +583,15 @@ export class SynchronizeService {
       });
       // 保存脚本猫同步状态
       const modifiedDate = Date.now();
-      const syncFile = await fs.create("scriptcat-sync.json", getWriteOptions(modifiedDate, file));
-      await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
-      this.logger.info("sync scriptcat-sync.json file success");
+      try {
+        const syncFile = await fs.create("scriptcat-sync.json", getWriteOptions(modifiedDate, file));
+        await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
+        this.logger.info("sync scriptcat-sync.json file success");
+      } catch (e) {
+        this.logger.error("sync scriptcat-sync.json file error", Logger.E(e));
+        this.notifySyncFailed(isConflictError(e), 1);
+        return;
+      }
     }
     // 重新获取文件列表,保存文件摘要
     this.logger.info("update file digest");

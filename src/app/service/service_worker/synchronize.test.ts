@@ -878,6 +878,72 @@ console.log("ok");`
     }
   });
 
+  it("notifies and skips digest update when scriptcat-sync.json hits remote conflict", async () => {
+    const conflict = new FileSystemError({
+      provider: "webdav",
+      message: "Precondition failed",
+      status: 412,
+      conflict: true,
+    });
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockRejectedValue(conflict),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const notifySpy = vi.spyOn(service, "notifySyncFailed").mockImplementation(() => {});
+    const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(createMock).toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
+    expect(updateDigestSpy).not.toHaveBeenCalled();
+    expect(notifySpy).toHaveBeenCalledWith(true, 1);
+  });
+
+  it("notifies and skips digest update when scriptcat-sync.json write fails", async () => {
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockRejectedValue(new Error("sync status write failed")),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const notifySpy = vi.spyOn(service, "notifySyncFailed").mockImplementation(() => {});
+    const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(createMock).toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
+    expect(updateDigestSpy).not.toHaveBeenCalled();
+    expect(notifySpy).toHaveBeenCalledWith(false, 1);
+  });
+
   it("uses Date.now as modifiedDate when writing delete tombstone meta", async () => {
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(6789);
     const createMock = vi.fn().mockResolvedValue({
