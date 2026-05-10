@@ -49,6 +49,7 @@ interface PermissionItem {
 
 type Permission = PermissionItem[];
 
+let closingWindow = false;
 const closeWindow = (doBackwards: boolean) => {
   if (doBackwards) {
     history.go(-1);
@@ -498,9 +499,12 @@ function App() {
       }
 
       if (shouldClose) {
-        setTimeout(() => {
-          closeWindow(doBackwards);
-        }, 500);
+        if (!closingWindow) {
+          closingWindow = true;
+          setTimeout(() => {
+            closeWindow(doBackwards);
+          }, 500);
+        }
       }
     } catch (e) {
       const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
@@ -508,12 +512,17 @@ function App() {
     }
   };
 
-  const handleClose = (options?: { noMoreUpdates: boolean }) => {
+  const handleClose = async (options?: { noMoreUpdates: boolean }) => {
     const { noMoreUpdates = false } = options || {};
     if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
-      scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
+      await scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
     }
-    closeWindow(doBackwards);
+    if (!closingWindow) {
+      closingWindow = true;
+      setTimeout(() => {
+        closeWindow(doBackwards);
+      }, 50);
+    }
   };
 
   const {
