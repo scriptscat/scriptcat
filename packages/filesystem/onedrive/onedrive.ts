@@ -1,8 +1,8 @@
 import { AuthVerify } from "../auth";
 import { FileSystemError, isNotFoundError } from "../error";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import type FileSystem from "../filesystem";
-import { joinPath } from "../utils";
+import { buildExpectedHeaders, joinPath } from "../utils";
 import { OneDriveFileReader, OneDriveFileWriter } from "./rw";
 
 export default class OneDriveFileSystem implements FileSystem {
@@ -185,12 +185,14 @@ export default class OneDriveFileSystem implements FileSystem {
       });
   }
 
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     try {
+      const expectedHeaders = buildExpectedHeaders(opts);
       await this.request(
         `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(this.path, path)}`,
         {
           method: "DELETE",
+          ...(Object.keys(expectedHeaders).length ? { headers: new Headers(expectedHeaders) } : {}),
         },
         true
       );

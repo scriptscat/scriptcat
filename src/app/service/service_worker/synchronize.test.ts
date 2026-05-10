@@ -568,7 +568,7 @@ console.log("ok");`
     ]);
   });
 
-  it("does not roll back newly created script file when meta write fails", async () => {
+  it("cleans up newly created script file with a digest guard when meta write fails", async () => {
     const scriptWriter = { write: vi.fn().mockResolvedValue(undefined) };
     const metaWriter = {
       write: vi.fn().mockRejectedValue(new Error("meta write failed")),
@@ -610,7 +610,9 @@ console.log("ok");`
 
     await expect(service.pushScript(fs, script as any)).rejects.toThrow("meta write failed");
 
-    expect(fs.delete).not.toHaveBeenCalled();
+    expect(fs.delete).toHaveBeenCalledWith("push-uuid.user.js", {
+      expectedDigest: md5OfText("// code"),
+    });
     expect(listMock).not.toHaveBeenCalled();
   });
 
@@ -683,6 +685,7 @@ console.log("ok");`
     expect(openMock).not.toHaveBeenCalled();
     expect(listMock).not.toHaveBeenCalled();
     expect(createMock).toHaveBeenCalledTimes(2);
+    expect(fs.delete).not.toHaveBeenCalled();
   });
 
   it("uses Date.now as modifiedDate when writing scriptcat-sync.json", async () => {
@@ -863,6 +866,63 @@ console.log("ok");`
 
       expect(createMock).toHaveBeenCalledWith("delete-uuid.meta.json", {
         modifiedDate: 6789,
+        createOnly: true,
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("uses remote meta precondition when writing delete tombstone meta", async () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(6789);
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    try {
+      await service.deleteCloudScript(fs, "delete-uuid", true, {
+        script: {
+          name: "delete-uuid.user.js",
+          path: "/",
+          size: 1,
+          digest: "script-digest",
+          version: "script-version",
+          createtime: 1,
+          updatetime: 1,
+        },
+        meta: {
+          name: "delete-uuid.meta.json",
+          path: "/",
+          size: 1,
+          digest: "meta-digest",
+          version: "meta-version",
+          createtime: 1,
+          updatetime: 1,
+        },
+      });
+
+      expect(fs.delete).toHaveBeenCalledWith("delete-uuid.user.js", {
+        expectedVersion: "script-version",
+      });
+      expect(createMock).toHaveBeenCalledWith("delete-uuid.meta.json", {
+        modifiedDate: 6789,
+        expectedVersion: "meta-version",
       });
     } finally {
       nowSpy.mockRestore();
@@ -1346,7 +1406,28 @@ console.log("ok");`
         }),
     });
 
-    const deleteFs = createFs();
+    const deleteFs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "from-user.user.js",
+          path: "/",
+          size: 1,
+          digest: "script-digest",
+          version: "script-version",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "from-user.meta.json",
+          path: "/",
+          size: 1,
+          digest: "meta-digest",
+          version: "meta-version",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+    });
     const service = new SynchronizeService(
       {} as any,
       {} as any,
@@ -1364,7 +1445,7 @@ console.log("ok");`
     );
 
     vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(deleteFs);
-    vi.spyOn(service, "deleteCloudScript").mockImplementation(async (_fs: any, uuid: string) => {
+    const deleteSpy = vi.spyOn(service, "deleteCloudScript").mockImplementation(async (_fs: any, uuid: string) => {
       order.push(`delete:${uuid}`);
     });
     const realUpdateDigest = service.updateFileDigest.bind(service);
@@ -1395,6 +1476,15 @@ console.log("ok");`
 
     // deleteBy === "sync" 的不应触发云端删除；并且 digest 必须在删除全部完成后才更新
     expect(order).toEqual(["sync:list", "sync:digest", "delete:from-user", "delete:digest"]);
+    expect(deleteSpy).toHaveBeenCalledWith(
+      deleteFs,
+      "from-user",
+      true,
+      expect.objectContaining({
+        script: expect.objectContaining({ version: "script-version" }),
+        meta: expect.objectContaining({ version: "meta-version" }),
+      })
+    );
   });
 
   it("scriptsDelete skips enqueue when all entries are deleteBy=sync", async () => {

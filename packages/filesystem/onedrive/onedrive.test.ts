@@ -95,6 +95,17 @@ describe("OneDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("delete should send If-Match when expectedVersion is provided", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({} as unknown as Response);
+
+    await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).resolves.toBeUndefined();
+
+    const config = requestSpy.mock.calls[0][1] as RequestInit;
+    expect(config.method).toBe("DELETE");
+    expect((config.headers as Headers).get("If-Match")).toBe('"etag-1"');
+  });
+
   it("createDir should create nested directories from root", async () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});

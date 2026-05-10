@@ -1,6 +1,7 @@
 import { AuthVerify } from "../auth";
+import { fileConflictError } from "../error";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { DropboxFileReader, DropboxFileWriter } from "./rw";
 
@@ -139,13 +140,14 @@ export default class DropboxFileSystem implements FileSystem {
       });
   }
 
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     const fullPath = joinPath(this.path, path);
 
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
     try {
+      await this.assertDeletePrecondition(fullPath, opts);
       await this.request("https://api.dropboxapi.com/2/files/delete_v2", {
         method: "POST",
         headers: myHeaders,
@@ -162,6 +164,29 @@ export default class DropboxFileSystem implements FileSystem {
 
     // 清除相关缓存
     this.clearRelatedCache(fullPath);
+  }
+
+  private async assertDeletePrecondition(path: string, opts?: FileDeleteOptions): Promise<void> {
+    const expected = opts?.expectedVersion || opts?.expectedDigest;
+    if (!expected) {
+      return;
+    }
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+    const metadata = await this.request("https://api.dropboxapi.com/2/files/get_metadata", {
+      method: "POST",
+      headers: myHeaders,
+      body: JSON.stringify({
+        path,
+      }),
+    });
+    const current = opts?.expectedVersion ? metadata.rev : metadata.content_hash;
+    if (current !== expected) {
+      throw fileConflictError("dropbox", `Dropbox file changed before delete: ${path}`, {
+        status: 412,
+        code: "versionMismatch",
+      });
+    }
   }
 
   async list(): Promise<FileInfo[]> {

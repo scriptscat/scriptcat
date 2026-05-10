@@ -1,10 +1,10 @@
 import type { FileStat, WebDAVClient, WebDAVClientOptions } from "webdav";
 import { createClient, getPatcher } from "webdav";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
-import { joinPath } from "../utils";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
+import { buildExpectedHeaders, joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
-import { WarpTokenError } from "../error";
+import { fileConflictError, WarpTokenError } from "../error";
 
 // 禁止 WebDAV 请求携带浏览器 cookies，只通过账号密码认证 (#1297)
 // 全局单次注册
@@ -114,10 +114,21 @@ export default class WebDAVFileSystem implements FileSystem {
     }
   }
 
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     try {
-      await this.client.deleteFile(joinPath(this.basePath, path));
+      const headers = buildExpectedHeaders(opts);
+      if (Object.keys(headers).length) {
+        await this.client.deleteFile(joinPath(this.basePath, path), { headers });
+      } else {
+        await this.client.deleteFile(joinPath(this.basePath, path));
+      }
     } catch (e: any) {
+      if (e.response?.status === 409 || e.response?.status === 412) {
+        throw fileConflictError("webdav", e.message || "WebDAV conditional delete failed", {
+          status: e.response.status,
+          raw: e,
+        });
+      }
       if (e.response?.status === 404 || e.message?.includes("404")) {
         return;
       }

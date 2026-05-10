@@ -92,6 +92,19 @@ function getWriteOptions(modifiedDate: number, remoteFile?: FileInfo): FileCreat
   return opts;
 }
 
+function getDeleteOptions(remoteFile?: FileInfo) {
+  if (!remoteFile) {
+    return undefined;
+  }
+  if (remoteFile.version) {
+    return { expectedVersion: remoteFile.version };
+  }
+  if (remoteFile.digest) {
+    return { expectedDigest: remoteFile.digest };
+  }
+  return undefined;
+}
+
 export class SynchronizeService {
   logger: Logger;
 
@@ -459,7 +472,7 @@ export class SynchronizeService {
                 );
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
-                await fs.delete(file.meta!.name);
+                await fs.delete(file.meta!.name, getDeleteOptions(file.meta));
                 return await this.pushScript(fs, script);
               }
             })()
@@ -618,18 +631,18 @@ export class SynchronizeService {
   }
 
   // 删除云端脚本数据
-  async deleteCloudScript(fs: FileSystem, uuid: string, syncDelete: boolean) {
+  async deleteCloudScript(fs: FileSystem, uuid: string, syncDelete: boolean, remoteFiles?: Partial<SyncFiles>) {
     const filename = `${uuid}.user.js`;
     const logger = this.logger.with({
       uuid: uuid,
       file: filename,
     });
     try {
-      await fs.delete(filename);
+      await fs.delete(filename, getDeleteOptions(remoteFiles?.script));
       if (syncDelete) {
         // 留下一个.meta.json删除标记
         const modifiedDate = Date.now();
-        const meta = await fs.create(`${uuid}.meta.json`, { modifiedDate });
+        const meta = await fs.create(`${uuid}.meta.json`, getWriteOptions(modifiedDate, remoteFiles?.meta));
         await meta.write(
           JSON.stringify(<SyncMeta>{
             uuid: uuid,
@@ -641,7 +654,7 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
-        await fs.delete(`${uuid}.meta.json`);
+        await fs.delete(`${uuid}.meta.json`, getDeleteOptions(remoteFiles?.meta));
       }
       logger.info("delete success");
     } catch (e) {
@@ -671,14 +684,26 @@ export class SynchronizeService {
         downloadUrl: script.downloadUrl,
         checkUpdateUrl: script.checkUpdateUrl,
       });
+      const scriptDigest = md5OfText(scriptCode);
+      let scriptWritten = false;
 
-      const w = await fs.create(filename, getWriteOptions(modifiedDate, remoteFiles?.script));
-      await w.write(scriptCode);
-      const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
-      await meta.write(metaJson);
+      try {
+        const w = await fs.create(filename, getWriteOptions(modifiedDate, remoteFiles?.script));
+        await w.write(scriptCode);
+        scriptWritten = true;
+        const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
+        await meta.write(metaJson);
+      } catch (e) {
+        if (scriptWritten && !remoteFiles?.script) {
+          await fs.delete(filename, { expectedDigest: scriptDigest }).catch((cleanupError) => {
+            logger.warn("cleanup newly created script after meta write failure failed", Logger.E(cleanupError));
+          });
+        }
+        throw e;
+      }
       logger.info("push script success");
       return {
-        [filename]: md5OfText(scriptCode),
+        [filename]: scriptDigest,
         [metaFilename]: md5OfText(metaJson),
       };
     } catch (e) {
@@ -808,8 +833,12 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
+        const list = await fs.list();
         for (const { uuid } of items) {
-          await this.deleteCloudScript(fs, uuid, config.syncDelete);
+          await this.deleteCloudScript(fs, uuid, config.syncDelete, {
+            script: list.find((file) => file.name === `${uuid}.user.js`),
+            meta: list.find((file) => file.name === `${uuid}.meta.json`),
+          });
         }
         await this.updateFileDigest(fs);
       }).catch((e) => {

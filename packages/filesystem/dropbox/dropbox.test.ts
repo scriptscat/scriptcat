@@ -15,6 +15,27 @@ describe("DropboxFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("delete should check rev before conditional delete", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValueOnce({ rev: "rev-1" }).mockResolvedValueOnce({});
+
+    await expect(fs.delete("test.txt", { expectedVersion: "rev-1" })).resolves.toBeUndefined();
+
+    expect(requestSpy).toHaveBeenCalledTimes(2);
+    expect(requestSpy.mock.calls[0][0]).toBe("https://api.dropboxapi.com/2/files/get_metadata");
+    expect(requestSpy.mock.calls[1][0]).toBe("https://api.dropboxapi.com/2/files/delete_v2");
+  });
+
+  it("delete should reject when conditional rev changed", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({ rev: "rev-2" });
+
+    await expect(fs.delete("test.txt", { expectedVersion: "rev-1" })).rejects.toMatchObject({
+      provider: "dropbox",
+      conflict: true,
+    });
+  });
+
   it("exists should return false on path not found", async () => {
     const fs = new DropboxFileSystem("/", "token");
     vi.spyOn(fs, "request").mockRejectedValue(

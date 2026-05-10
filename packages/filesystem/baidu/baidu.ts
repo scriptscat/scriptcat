@@ -1,7 +1,7 @@
 import { AuthVerify } from "../auth";
-import { unsupportedConditionalWriteError } from "../error";
+import { fileConflictError, unsupportedConditionalWriteError } from "../error";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
 
@@ -89,26 +89,40 @@ export default class BaiduFileSystem implements FileSystem {
       });
   }
 
-  delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
+    if (opts?.expectedVersion) {
+      throw unsupportedConditionalWriteError(
+        "baidu",
+        "Baidu filesystem does not expose a version token for conditional deletes"
+      );
+    }
+    if (opts?.expectedDigest) {
+      const targetName = path.substring(path.lastIndexOf("/") + 1);
+      const existing = (await this.list()).find((file) => file.name === targetName);
+      if (existing && existing.digest !== opts.expectedDigest) {
+        throw fileConflictError("baidu", `Baidu file digest changed before delete: ${path}`, {
+          status: 412,
+          code: "digestMismatch",
+        });
+      }
+    }
     const filelist = [joinPath(this.path, path)];
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
-    return this.request(
+    const data = await this.request(
       `https://pan.baidu.com/rest/2.0/xpan/file?method=filemanager&access_token=${this.accessToken}&opera=delete`,
       {
         method: "POST",
         body: `async=0&filelist=${encodeURIComponent(JSON.stringify(filelist))}`,
         headers: myHeaders,
       }
-    ).then((data) => {
-      if (data.errno) {
-        if (data.errno === -9 || data.errno === 12) {
-          return data;
-        }
-        throw new Error(JSON.stringify(data));
+    );
+    if (data.errno) {
+      if (data.errno === -9 || data.errno === 12) {
+        return;
       }
-      return data;
-    });
+      throw new Error(JSON.stringify(data));
+    }
   }
 
   async list(): Promise<FileInfo[]> {

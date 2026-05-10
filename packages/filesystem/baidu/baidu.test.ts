@@ -147,6 +147,52 @@ describe("BaiduFileSystem", () => {
     vi.stubGlobal("fetch", fetchMock);
     const fs = new BaiduFileSystem("/apps", "token");
 
-    await expect(fs.delete("missing.txt")).resolves.toMatchObject({ errno: -9 });
+    await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
+  });
+
+  it("delete should reject expectedVersion as unsupported", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+
+    await expect(fs.delete("test.txt", { expectedVersion: "version" })).rejects.toMatchObject({
+      provider: "baidu",
+      unsupported: true,
+    });
+  });
+
+  it("delete should reject expectedDigest when remote digest changed", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "list").mockResolvedValue([
+      {
+        name: "test.txt",
+        path: "/apps",
+        size: 1,
+        digest: "new-md5",
+        createtime: 1,
+        updatetime: 1,
+      },
+    ]);
+
+    await expect(fs.delete("test.txt", { expectedDigest: "old-md5" })).rejects.toMatchObject({
+      provider: "baidu",
+      conflict: true,
+    });
+  });
+
+  it("delete should allow best-effort expectedDigest when remote digest still matches", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "list").mockResolvedValue([
+      {
+        name: "test.txt",
+        path: "/apps",
+        size: 1,
+        digest: "old-md5",
+        createtime: 1,
+        updatetime: 1,
+      },
+    ]);
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({ errno: 0 });
+
+    await expect(fs.delete("test.txt", { expectedDigest: "old-md5" })).resolves.toBeUndefined();
+    expect(requestSpy).toHaveBeenCalledTimes(1);
   });
 });

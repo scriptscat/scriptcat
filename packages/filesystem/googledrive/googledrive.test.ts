@@ -48,6 +48,29 @@ describe("GoogleDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("delete should check version before conditional delete", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const getFileIdSpy = vi.spyOn(fs, "getFileId");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValueOnce({ version: "2" }).mockResolvedValueOnce({});
+
+    await expect(fs.delete("test.txt", { expectedVersion: "file-1:2" })).resolves.toBeUndefined();
+
+    expect(getFileIdSpy).not.toHaveBeenCalled();
+    expect(requestSpy.mock.calls[0][0]).toContain("/drive/v3/files/file-1?fields=version,md5Checksum");
+    expect(requestSpy.mock.calls[1][0]).toContain("/drive/v3/files/file-1?spaces=appDataFolder");
+  });
+
+  it("delete should reject when conditional digest changed", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue({ md5Checksum: "new-md5" });
+
+    await expect(fs.delete("test.txt", { expectedDigest: "old-md5" })).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+    });
+  });
+
   it("delete should clear stale cached id on 404 response", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     (fs as any).pathToIdCache.set("/missing.txt", "stale-file-id");

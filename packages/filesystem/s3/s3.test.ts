@@ -259,6 +259,27 @@ describe("S3FileSystem", () => {
       expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "test.txt");
     });
 
+    it("应当在条件删除时发送 If-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true, status: 204 }));
+
+      await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).resolves.toBeUndefined();
+
+      expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "test.txt", {
+        headers: { "If-Match": '"etag-1"' },
+      });
+    });
+
+    it("应当把条件删除失败转换为冲突错误", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("PreconditionFailed", "Precondition Failed", 412)
+      );
+
+      await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).rejects.toMatchObject({
+        provider: "s3",
+        conflict: true,
+      });
+    });
+
     it("应当在 NoSuchKey 时静默成功（幂等删除）", async () => {
       (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
         new S3Error("NoSuchKey", "The specified key does not exist", 404)

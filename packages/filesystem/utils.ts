@@ -1,4 +1,4 @@
-import type { FileCreateOptions } from "./filesystem";
+import type { FileCreateOptions, FileDeleteOptions } from "./filesystem";
 
 export function joinPath(...paths: string[]): string {
   let path = "";
@@ -21,6 +21,10 @@ export function buildConditionalHeaders(opts?: FileCreateOptions): Record<string
   if (opts?.createOnly) {
     return { "If-None-Match": "*" };
   }
+  return buildExpectedHeaders(opts);
+}
+
+export function buildExpectedHeaders(opts?: FileDeleteOptions): Record<string, string> {
   const expected = opts?.expectedVersion || opts?.expectedDigest;
   return expected ? { "If-Match": expected } : {};
 }

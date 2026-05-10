@@ -1,7 +1,7 @@
 import { AuthVerify } from "../auth";
 import { FileSystemError, fileConflictError, isNotFoundError } from "../error";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { GoogleDriveFileReader, GoogleDriveFileWriter } from "./rw";
 
@@ -214,13 +214,30 @@ export default class GoogleDriveFileSystem implements FileSystem {
         return data;
       });
   }
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     const fullPath = joinPath(this.path, path);
+    const expected = parseGoogleDriveDeleteVersion(opts?.expectedVersion);
 
     // 首先，找到要删除的文件或文件夹
-    const fileId = await this.getFileId(fullPath);
+    const fileId = expected?.fileId || (await this.getFileId(fullPath));
     if (!fileId) {
       return;
+    }
+    if (expected?.version || opts?.expectedDigest) {
+      const metadata = await this.request(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=version,md5Checksum&spaces=appDataFolder`
+      );
+      const currentVersion = metadata?.version ? String(metadata.version) : undefined;
+      const currentDigest = metadata?.md5Checksum ? String(metadata.md5Checksum) : undefined;
+      if (
+        (expected?.version && currentVersion !== expected.version) ||
+        (opts?.expectedDigest && currentDigest !== opts.expectedDigest)
+      ) {
+        throw fileConflictError("googledrive", `Google Drive file changed before delete: ${fullPath}`, {
+          status: 412,
+          code: "versionMismatch",
+        });
+      }
     }
 
     // 删除文件或文件夹
@@ -409,4 +426,16 @@ export default class GoogleDriveFileSystem implements FileSystem {
   async ensureDirExists(dirPath: string): Promise<string> {
     return this.ensureDirPath(dirPath);
   }
+}
+
+function parseGoogleDriveDeleteVersion(version?: string): { fileId: string; version?: string } | undefined {
+  if (!version) return undefined;
+  const index = version.indexOf(":");
+  if (index === -1) {
+    return { fileId: version };
+  }
+  return {
+    fileId: version.substring(0, index),
+    version: version.substring(index + 1) || undefined,
+  };
 }

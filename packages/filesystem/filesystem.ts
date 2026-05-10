@@ -36,6 +36,11 @@ export type FileCreateOptions = {
   createOnly?: boolean;
 };
 
+export type FileDeleteOptions = {
+  expectedDigest?: string;
+  expectedVersion?: string;
+};
+
 // 文件读取
 export default interface FileSystem {
   // 授权验证
@@ -49,7 +54,7 @@ export default interface FileSystem {
   // 创建目录
   createDir(dir: string, opts?: FileCreateOptions): Promise<void>;
   // 删除文件
-  delete(path: string): Promise<void>;
+  delete(path: string, opts?: FileDeleteOptions): Promise<void>;
   // 文件列表
   list(): Promise<FileInfo[]>;
   // getDirUrl 获取目录的url

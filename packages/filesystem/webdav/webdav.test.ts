@@ -206,6 +206,29 @@ describe("WebDAVFileSystem", () => {
       expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt");
     });
 
+    it("应当在条件删除时发送 If-Match", async () => {
+      const fs = createTestFS(mockClient);
+
+      await fs.delete("test.txt", { expectedVersion: '"etag-1"' });
+
+      expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt", {
+        headers: { "If-Match": '"etag-1"' },
+      });
+    });
+
+    it("应当把条件删除失败转换为冲突错误", async () => {
+      (mockClient.deleteFile as ReturnType<typeof vi.fn>).mockRejectedValue({
+        response: { status: 412 },
+        message: "Precondition Failed",
+      });
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).rejects.toMatchObject({
+        provider: "webdav",
+        conflict: true,
+      });
+    });
+
     it("应当在 404 时静默成功（幂等删除）", async () => {
       (mockClient.deleteFile as ReturnType<typeof vi.fn>).mockRejectedValue({
         response: { status: 404 },
