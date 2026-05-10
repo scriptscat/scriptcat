@@ -1,6 +1,7 @@
 import { S3Error, type S3Client } from "./client";
 import { FileSystemError } from "../error";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import { buildConditionalHeaders } from "../utils";
 
 /**
  * S3 文件读取器
@@ -72,14 +73,7 @@ export class S3FileWriter implements FileWriter {
       // 历史兼容：S3 侧使用 createtime 元数据保存文件时间，实际来源是 FileCreateOptions.modifiedDate。
       headers["x-amz-meta-createtime"] = new Date(this.modifiedDate).toISOString();
     }
-    if (this.opts?.createOnly || this.opts?.overwrite === false) {
-      headers["If-None-Match"] = "*";
-    } else {
-      const expected = this.opts?.expectedVersion || this.opts?.expectedDigest;
-      if (expected) {
-        headers["If-Match"] = expected;
-      }
-    }
+    Object.assign(headers, buildConditionalHeaders(this.opts));
 
     try {
       await this.client.request("PUT", this.bucket, this.key, {

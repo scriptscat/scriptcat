@@ -1,3 +1,5 @@
+import type { FileCreateOptions } from "./filesystem";
+
 export function joinPath(...paths: string[]): string {
   let path = "";
   for (let value of paths) {
@@ -13,4 +15,12 @@ export function joinPath(...paths: string[]): string {
     path += value;
   }
   return path;
+}
+
+export function buildConditionalHeaders(opts?: FileCreateOptions): Record<string, string> {
+  if (opts?.createOnly || opts?.overwrite === false) {
+    return { "If-None-Match": "*" };
+  }
+  const expected = opts?.expectedVersion || opts?.expectedDigest;
+  return expected ? { "If-Match": expected } : {};
 }

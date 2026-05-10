@@ -1,6 +1,7 @@
 import type { WebDAVClient } from "webdav";
 import { FileSystemError } from "../error";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import { buildConditionalHeaders } from "../utils";
 
 export class WebDAVFileReader implements FileReader {
   client: WebDAVClient;
@@ -43,11 +44,8 @@ export class WebDAVFileWriter implements FileWriter {
 
   async write(content: string | Blob): Promise<void> {
     const data = content instanceof Blob ? await content.arrayBuffer() : content;
-    const headers: Record<string, string> = {};
-    const expected = this.opts?.expectedVersion || this.opts?.expectedDigest;
-    if (expected && !this.opts?.createOnly && this.opts?.overwrite !== false) {
-      headers["If-Match"] = expected;
-    }
+    const headers = buildConditionalHeaders(this.opts);
+    delete headers["If-None-Match"];
     const options = {
       ...(Object.keys(headers).length ? { headers } : {}),
       ...(this.opts?.createOnly || this.opts?.overwrite === false ? { overwrite: false } : {}),

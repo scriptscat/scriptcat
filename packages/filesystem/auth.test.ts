@@ -68,4 +68,38 @@ describe("AuthVerify", () => {
     ).resolves.toEqual(["new-access", "new-access", "new-access"]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("concurrent initial token verification should share one auth request and save once", async () => {
+    vi.useFakeTimers();
+    const createSpy = vi.spyOn(chrome.tabs, "create").mockImplementation(() => Promise.resolve({ id: 1 }) as any);
+    const originalGet = (chrome.tabs as any).get;
+    (chrome.tabs as any).get = vi.fn().mockRejectedValue(new Error("closed"));
+    const saveSpy = vi.spyOn(LocalStorageDAO.prototype, "saveValue");
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
+        code: 0,
+        data: {
+          token: {
+            access_token: "initial-access",
+            refresh_token: "initial-refresh",
+          },
+        },
+      }),
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const auth = Promise.all([AuthVerify("onedrive"), AuthVerify("onedrive"), AuthVerify("onedrive")]);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(auth).resolves.toEqual(["initial-access", "initial-access", "initial-access"]);
+      expect(createSpy).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+      expect(saveSpy).toHaveBeenCalledWith(key, expect.objectContaining({ accessToken: "initial-access" }));
+    } finally {
+      (chrome.tabs as any).get = originalGet;
+      vi.useRealTimers();
+    }
+  });
 });

@@ -90,7 +90,3 @@ export function isRateLimitError(error: unknown): error is FileSystemError {
 export function isAuthError(error: unknown): error is FileSystemError | WarpTokenError {
   return error instanceof FileSystemError ? error.auth : isWarpTokenError(error);
 }
-
-export function isUnsupportedError(error: unknown): error is FileSystemError {
-  return error instanceof FileSystemError && error.unsupported;
-}

@@ -72,8 +72,6 @@ type FileDigestMap = {
   [key: string]: string;
 };
 
-type KnownFileDigestMap = Record<string, string>;
-
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
 function getScriptModifiedDate(script: PushScriptParam): number {
@@ -431,7 +429,7 @@ export class SynchronizeService {
     }
 
     // 对比脚本列表和文件列表,进行同步
-    const result: Promise<KnownFileDigestMap | void>[] = [];
+    const result: Promise<FileDigestMap | void>[] = [];
     const updateScript: Map<string, boolean> = new Map();
     // 记录被跳过的孤儿云端脚本（仅 .user.js 无 .meta.json）
     // 避免本机回写 scriptcat-sync.json 时丢失对应 uuid 的云端 status
@@ -506,7 +504,7 @@ export class SynchronizeService {
     });
     // 忽略错误
     const syncResults = await Promise.allSettled(result);
-    const pushedFileDigestMap: KnownFileDigestMap = {};
+    const pushedFileDigestMap: FileDigestMap = {};
     syncResults.forEach((ret) => {
       if (ret.status === "fulfilled" && ret.value) {
         Object.assign(pushedFileDigestMap, ret.value);
@@ -598,7 +596,7 @@ export class SynchronizeService {
     return;
   }
 
-  async updateFileDigest(fs: FileSystem, knownFileDigestMap: KnownFileDigestMap = {}) {
+  async updateFileDigest(fs: FileSystem, knownFileDigestMap: FileDigestMap = {}) {
     let newList = await fs.list();
     if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
       newList = await fs.list();
@@ -654,11 +652,7 @@ export class SynchronizeService {
   }
 
   // 上传脚本
-  async pushScript(
-    fs: FileSystem,
-    script: PushScriptParam,
-    remoteFiles?: Partial<SyncFiles>
-  ): Promise<KnownFileDigestMap> {
+  async pushScript(fs: FileSystem, script: PushScriptParam, remoteFiles?: Partial<SyncFiles>): Promise<FileDigestMap> {
     const filename = `${script.uuid}.user.js`;
     const metaFilename = `${script.uuid}.meta.json`;
     const logger = this.logger.with({

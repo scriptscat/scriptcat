@@ -1,5 +1,5 @@
 import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "../filesystem";
-import { joinPath } from "../utils";
+import { buildConditionalHeaders, joinPath } from "../utils";
 import type OneDriveFileSystem from "./onedrive";
 
 export class OneDriveFileReader implements FileReader {
@@ -99,17 +99,10 @@ export class OneDriveFileWriter implements FileWriter {
 
   private createConditionalHeaders(base?: Headers): Headers | undefined {
     const headers = base || new Headers();
-    let hasCondition = false;
-    if (this.opts?.createOnly || this.opts?.overwrite === false) {
-      headers.set("If-None-Match", "*");
-      hasCondition = true;
-    } else {
-      const expected = this.opts?.expectedVersion || this.opts?.expectedDigest;
-      if (expected) {
-        headers.set("If-Match", expected);
-        hasCondition = true;
-      }
+    const conditionalHeaders = buildConditionalHeaders(this.opts);
+    for (const [name, value] of Object.entries(conditionalHeaders)) {
+      headers.set(name, value);
     }
-    return base || hasCondition ? headers : undefined;
+    return base || Object.keys(conditionalHeaders).length > 0 ? headers : undefined;
   }
 }

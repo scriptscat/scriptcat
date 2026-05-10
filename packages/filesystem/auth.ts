@@ -135,11 +135,13 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
         if (resp.code !== 0) {
           throw new WarpTokenError(new Error(resp.msg));
         }
-        return {
+        const newToken = {
           accessToken: resp.data.token.access_token,
           refreshToken: resp.data.token.refresh_token,
           createtime: Date.now(),
         };
+        await localStorageDAO.saveValue(key, newToken);
+        return newToken;
       })().finally(() => {
         if (authTokenPromises[netDiskType] === authPromise) {
           delete authTokenPromises[netDiskType];
@@ -149,7 +151,6 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
     }
     token = await authTokenPromises[netDiskType];
     invalid = false;
-    await localStorageDAO.saveValue(key, token);
   }
   // token未过期(一小时内)及有效则保留，不用刷新token
   const unexpired = Date.now() < token.createtime + 3600000;
