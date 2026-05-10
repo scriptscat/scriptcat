@@ -1,16 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { UrlChangeEvent } from "./navigation_handle.js";
-
-// attachNavigateHandler 使用模块级 attached 单例，需要在每个测试前重置模块
-const importFresh = async () => {
-  vi.resetModules();
-  // vi.resetModules() 会清空模块缓存，后续 import 得到全新的 LoggerCore 类，
-  // 需要重新初始化以免后续测试文件中 LoggerCore.getInstance() 返回 undefined
-  // @ts-expect-error 动态 import 路径别名在 tsc nodenext 下无法解析
-  const { default: LC, EmptyWriter: EW } = await import("@App/app/logger/core");
-  new LC({ level: "trace", consoleLevel: "trace", writer: new EW(), labels: { env: "test" } });
-  return await import("./navigation_handle.js");
-};
+import { UrlChangeEvent, attachNavigateHandler, resetAttachedForTest } from "./navigation_handle";
 
 describe("UrlChangeEvent", () => {
   it.concurrent("应包含 url 属性", () => {
@@ -64,10 +53,10 @@ describe("attachNavigateHandler", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    resetAttachedForTest();
   });
 
-  it("不支持 Navigation API 时不应注册监听器", async () => {
-    const { attachNavigateHandler } = await importFresh();
+  it("不支持 Navigation API 时不应注册监听器", () => {
     const win = { location: { href: "https://example.com/" } } as any;
     attachNavigateHandler(win);
     // 没有 navigation 属性，不应报错也不应标记为 attached
@@ -77,16 +66,14 @@ describe("attachNavigateHandler", () => {
     expect(mock.win.navigation.addEventListener).toHaveBeenCalledWith("navigate", expect.any(Function), false);
   });
 
-  it("应在 win.navigation 上注册 navigate 监听器", async () => {
-    const { attachNavigateHandler } = await importFresh();
+  it("应在 win.navigation 上注册 navigate 监听器", () => {
     const mock = createMockWin();
     attachNavigateHandler(mock.win);
     expect(mock.win.navigation.addEventListener).toHaveBeenCalledTimes(1);
     expect(mock.win.navigation.addEventListener).toHaveBeenCalledWith("navigate", expect.any(Function), false);
   });
 
-  it("多次调用只注册一次", async () => {
-    const { attachNavigateHandler } = await importFresh();
+  it("多次调用只注册一次", () => {
     const mock = createMockWin();
     attachNavigateHandler(mock.win);
     attachNavigateHandler(mock.win);
@@ -95,7 +82,6 @@ describe("attachNavigateHandler", () => {
   });
 
   it("URL 变化时应派发 urlchange 事件", async () => {
-    const { attachNavigateHandler } = await importFresh();
     const mock = createMockWin("https://example.com/");
     attachNavigateHandler(mock.win);
     mock.fireNavigate("https://example.com/new");
@@ -109,7 +95,6 @@ describe("attachNavigateHandler", () => {
   });
 
   it("URL 未变化时不应派发事件", async () => {
-    const { attachNavigateHandler } = await importFresh();
     const mock = createMockWin("https://example.com/");
     attachNavigateHandler(mock.win);
     // destination.url 与当前 href 相同

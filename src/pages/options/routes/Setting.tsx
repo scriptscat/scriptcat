@@ -53,9 +53,6 @@ function Setting() {
     const languageList: { key: string; title: string }[] = [];
     const i18nStoreData = i18n.store.data;
     for (const key of Object.keys(i18nStoreData)) {
-      if (key === "ach-UG") {
-        continue;
-      }
       languageList.push({
         key,
         title: `${i18nStoreData[key].title}`,
@@ -124,11 +121,11 @@ function Setting() {
               className="tw-w-50 tw-max-w-75"
               onChange={(value) => {
                 if (value === "help") {
-                  window.open("https://crowdin.com/project/scriptcat", "_blank");
+                  window.open("https://github.com/scriptscat/scriptcat/discussions/531", "_blank");
                   return;
                 }
                 submitLanguage(value);
-                Message.success(t("language_change_tip")!);
+                Message.success(t("language_change_tip", { lng: value })!);
               }}
             >
               {languageList.map((item) => (
@@ -338,6 +335,8 @@ function Setting() {
               >
                 <Select.Option value="scriptcat">{t("favicon_service_scriptcat")}</Select.Option>
                 <Select.Option value="google">{t("favicon_service_google")}</Select.Option>
+                <Select.Option value="duckduckgo">{t("favicon_service_duckduckgo")}</Select.Option>
+                <Select.Option value="icon-horse">{t("favicon_service_icon-horse")}</Select.Option>
                 <Select.Option value="local">{t("favicon_service_local")}</Select.Option>
               </Select>
             </div>

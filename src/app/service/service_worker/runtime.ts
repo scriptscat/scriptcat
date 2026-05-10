@@ -53,6 +53,7 @@ import type { CompiledResource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { getExtensionUserAgentData } from "../extension/extension_env";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -154,26 +155,7 @@ export class RuntimeService {
   }
 
   async initUserAgentData() {
-    // @ts-ignore
-    const userAgentData = navigator.userAgentData;
-    if (userAgentData) {
-      this.userAgentData = {
-        brands: userAgentData.brands,
-        mobile: userAgentData.mobile,
-        platform: userAgentData.platform,
-      };
-      // 处理architecture和bitness
-      if (chrome.runtime.getPlatformInfo) {
-        try {
-          const platformInfo = await chrome.runtime.getPlatformInfo();
-          this.userAgentData.architecture = platformInfo.nacl_arch;
-          this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
-        } catch (e) {
-          // 避免 API 无法执行的问题。不影响整体运作
-          console.warn(e);
-        }
-      }
-    }
+    this.userAgentData = (await getExtensionUserAgentData()) || {};
   }
 
   async showUserscriptActivationGuide() {

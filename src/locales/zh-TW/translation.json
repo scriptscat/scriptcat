@@ -1,4 +1,5 @@
 {
+  "sentence-separator": "。",
   "import_link": "連結匯入",
   "import_link_failure": "連結匯入失敗",
   "create_user_script": "新建普通腳本",
@@ -106,7 +107,8 @@
   "delete_current_logs": "刪除目前紀錄",
   "clear_completed": "清除完成",
   "clear_logs": "清除紀錄",
-  "now": "至今",
+  "to": " 至 ",
+  "now": "現在",
   "total_logs": "共查詢到 {{length}} 筆紀錄",
   "filtered_logs": "篩選後 {{length}} 條紀錄",
   "enter_filter_conditions": "請輸入篩選條件進行查詢",
@@ -598,8 +600,10 @@
   "favicon_service": "圖示服務",
   "favicon_service_desc": "選擇取得網站圖示的服務",
   "favicon_service_scriptcat": "ScriptCat",
-  "favicon_service_local": "本地取得",
   "favicon_service_google": "Google",
+  "favicon_service_duckduckgo": "DuckDuckGo",
+  "favicon_service_icon-horse": "Icon Horse",
+  "favicon_service_local": "本地取得",
   "editor": {
     "show_script_list": "顯示腳本列表",
     "hide_script_list": "隱藏腳本列表"

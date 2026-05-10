@@ -6,6 +6,10 @@ export class UrlMatch<T> {
   public readonly cacheMap = new Map<string, T[]>();
   private sorter: Partial<Record<string, number>> | null = null;
 
+  constructor(private readonly maxCacheEntries: number = 4096) {
+    if (this.maxCacheEntries <= 0) throw new Error(`maxCacheEntries ${this.maxCacheEntries} <= 0`);
+  }
+
   public addRules(uuid: T, rules: URLRuleEntry[]) {
     this.cacheMap.clear();
     let map = this.rulesMap.get(uuid);
@@ -15,7 +19,12 @@ export class UrlMatch<T> {
 
   public urlMatch(url: string): T[] {
     const cacheMap = this.cacheMap;
-    if (cacheMap.has(url)) return cacheMap.get(url) as T[];
+    if (cacheMap.has(url)) {
+      const cached = cacheMap.get(url) as T[];
+      cacheMap.delete(url);
+      cacheMap.set(url, cached);
+      return cached;
+    }
     const res: T[] = [];
     for (const [uuid, rules] of this.rulesMap) {
       try {
@@ -38,6 +47,10 @@ export class UrlMatch<T> {
       });
     }
     cacheMap.set(url, res);
+    if (cacheMap.size > this.maxCacheEntries) {
+      const oldest = cacheMap.keys().next().value;
+      if (oldest !== undefined) cacheMap.delete(oldest);
+    }
     return res;
   }
 

@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - release/*
+      - feature/*
       - dev
     paths-ignore:
       - ".github/**"

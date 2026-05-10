@@ -8,6 +8,10 @@ export function preparationSandbox(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/preparationSandbox");
 }
 
+export function getExtensionEnv(windowMessage: WindowMessage) {
+  return sendMessage(windowMessage, "offscreen/getExtensionEnv", { requireUAD: true });
+}
+
 // 代理发送消息到ServiceWorker
 export function sendMessageToServiceWorker(windowMessage: WindowMessage, action: string, data?: any) {
   return sendMessage(windowMessage, "offscreen/sendMessageToServiceWorker", { action, data });

@@ -5,3 +5,7 @@ yarn.lock
 
 # Claude Code
 .claude
+
+# Docs & examples
+*.md
+example/

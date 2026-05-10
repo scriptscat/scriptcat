@@ -87,6 +87,15 @@ export class SenderRuntime {
 
   getExtMessageSender(): ExtMessageSender {
     const sender = this.sender as RuntimeMessageSender;
+    if (!sender) {
+      // postMessage 通道（如 Offscreen→SW）没有 RuntimeMessageSender
+      return {
+        windowId: -1,
+        tabId: -1,
+        frameId: undefined,
+        documentId: undefined,
+      };
+    }
     return {
       windowId: sender.tab?.windowId || -1, // -1表示后台脚本
       tabId: sender.tab?.id || -1, // -1表示后台脚本

@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { ServiceWorkerMessageSend, ServiceWorkerClientMessage, type WindowMessageBody } from "./window_message";
+import {
+  ServiceWorkerMessageSend,
+  ServiceWorkerClientMessage,
+  WindowMessage,
+  type WindowMessageBody,
+} from "./window_message";
 import { Server } from "./server";
 import type { MessageConnect } from "./types";
 
@@ -157,6 +162,38 @@ describe("ServiceWorkerClientMessage", () => {
 
     expect((clientMsg as any).sw).not.toBeNull();
     expect((clientMsg as any).sw.postMessage).toBe(readyPostMessage);
+  });
+});
+
+describe("WindowMessage.connect", () => {
+  it("connect 返回的连接 sendMessage 应带 '*' targetOrigin", async () => {
+    // 模拟 target window，验证 postMessage 被调用时带 "*"
+    const targetPostMessage = vi.fn();
+    const sourceWindow = {
+      addEventListener: vi.fn(),
+    } as unknown as Window;
+    const targetWindow = {
+      postMessage: targetPostMessage,
+    } as unknown as Window;
+
+    const wm = new WindowMessage(sourceWindow, targetWindow);
+
+    const con = await wm.connect({ action: "test/connect", data: "init" });
+
+    // connect() 本身会调用一次 postMessage（发送 connect 消息）
+    expect(targetPostMessage).toHaveBeenCalledTimes(1);
+    expect(targetPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "connect" }), "*");
+
+    targetPostMessage.mockClear();
+
+    // 通过返回的连接发送消息，也应该带 "*"
+    con.sendMessage({ action: "test/msg", data: "hello" });
+
+    expect(targetPostMessage).toHaveBeenCalledTimes(1);
+    expect(targetPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "connectMessage", data: { action: "test/msg", data: "hello" } }),
+      "*"
+    );
   });
 });
 

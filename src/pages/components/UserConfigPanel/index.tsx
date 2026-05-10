@@ -20,6 +20,7 @@ import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { encodeRValue } from "@App/pkg/utils/message_value";
+import "./index.css";
 
 const FormItem = Form.Item;
 
@@ -52,6 +53,7 @@ const UserConfigPanel: React.FC<{
   return (
     <Modal
       visible={visible}
+      className={"modal-config"}
       title={`${script.name} ${t("config")}`} // 替换为键值对应的英文文本
       okText={<Popover content={t("save_only_current_group")}>{t("save")}</Popover>}
       cancelText={t("close")} // 替换为键值对应的英文文本

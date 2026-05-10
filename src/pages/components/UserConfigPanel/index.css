@@ -1,0 +1,12 @@
+.modal-config .arco-tabs {
+  position: static;
+}
+
+.modal-config .arco-tabs-pane {
+  max-height: calc(100vh - 400px);
+  overflow: auto;
+}
+
+.modal-config .arco-form-item:last-child {
+  margin-bottom: 0;
+}
