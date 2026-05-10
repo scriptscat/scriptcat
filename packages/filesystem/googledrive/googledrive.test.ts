@@ -163,6 +163,25 @@ describe("GoogleDriveFileSystem", () => {
     });
   });
 
+  it("writer should rollback and reject createOnly when Google Drive creates a duplicate name", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", { createOnly: true });
+    vi.spyOn(fs, "findFileInDirectory").mockResolvedValue(null);
+    vi.spyOn(fs, "findFilesInDirectory").mockResolvedValue([{ id: "other-file" }, { id: "created-file" }]);
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValueOnce({ id: "created-file" }).mockResolvedValueOnce({});
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+    });
+
+    expect(requestSpy).toHaveBeenCalledTimes(2);
+    expect(requestSpy.mock.calls[1][0]).toBe(
+      "https://www.googleapis.com/drive/v3/files/created-file?spaces=appDataFolder"
+    );
+    expect((requestSpy.mock.calls[1][1] as RequestInit).method).toBe("DELETE");
+  });
+
   it("list should clear stale path cache and retry once on provider 404", async () => {
     const fs = new GoogleDriveFileSystem("/Base", "token");
     const notFoundError = new FileSystemError({

@@ -361,15 +361,17 @@ export default class GoogleDriveFileSystem implements FileSystem {
 
   // 辅助方法：在指定目录中查找文件
   async findFileInDirectory(fileName: string, parentId: string): Promise<string | null> {
+    const files = await this.findFilesInDirectory(fileName, parentId);
+    return files[0]?.id || null;
+  }
+
+  async findFilesInDirectory(fileName: string, parentId: string): Promise<Array<{ id: string }>> {
     const query = `name='${fileName}' and '${parentId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
     const response = await this.request(
       `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&spaces=appDataFolder`
     );
 
-    if (response.files && response.files.length > 0) {
-      return response.files[0].id;
-    }
-    return null;
+    return response.files || [];
   }
 
   clearPathCache(path?: string): void {

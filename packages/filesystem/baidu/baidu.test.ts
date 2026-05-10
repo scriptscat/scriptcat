@@ -33,12 +33,54 @@ describe("BaiduFileSystem", () => {
     expect(updateDynamicRulesMock).not.toHaveBeenCalled();
   });
 
-  it("create should reject conditional write options as unsupported", async () => {
+  it("create should reject expectedVersion as unsupported", async () => {
     const fs = new BaiduFileSystem("/apps", "token");
 
-    await expect(fs.create("test.txt", { expectedDigest: "md5" })).rejects.toMatchObject({
+    await expect(fs.create("test.txt", { expectedVersion: "version" })).rejects.toMatchObject({
       provider: "baidu",
       unsupported: true,
+    });
+  });
+
+  it("writer should reject createOnly when target already exists", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "list").mockResolvedValue([
+      {
+        name: "test.txt",
+        path: "/apps",
+        size: 1,
+        digest: "md5",
+        createtime: 1,
+        updatetime: 1,
+      },
+    ]);
+
+    const writer = await fs.create("test.txt", { createOnly: true });
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "baidu",
+      conflict: true,
+    });
+  });
+
+  it("writer should reject expectedDigest when remote digest changed", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "list").mockResolvedValue([
+      {
+        name: "test.txt",
+        path: "/apps",
+        size: 1,
+        digest: "new-md5",
+        createtime: 1,
+        updatetime: 1,
+      },
+    ]);
+
+    const writer = await fs.create("test.txt", { expectedDigest: "old-md5" });
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "baidu",
+      conflict: true,
     });
   });
 

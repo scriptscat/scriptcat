@@ -762,6 +762,45 @@ console.log("ok");`
     expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
   });
 
+  it("skips status and digest update when any push task fails", async () => {
+    const error = new Error("network failed after partial write");
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "push-uuid",
+            name: "push",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    vi.spyOn(service, "pushScript").mockRejectedValue(error);
+    const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(updateDigestSpy).not.toHaveBeenCalled();
+    expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
+  });
+
   it("scriptInstall enters cloud_sync queue and updates digest after push", async () => {
     let releaseSync!: () => void;
     const syncGate = new Promise<void>((resolve) => {

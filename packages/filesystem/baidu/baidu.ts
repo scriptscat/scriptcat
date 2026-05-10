@@ -31,15 +31,15 @@ export default class BaiduFileSystem implements FileSystem {
   }
 
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
-    if (opts?.expectedDigest || opts?.expectedVersion || opts?.createOnly || opts?.overwrite === false) {
+    if (opts?.expectedVersion) {
       throw new FileSystemError({
         provider: "baidu",
-        message: "Baidu filesystem does not support conditional writes",
+        message: "Baidu filesystem does not expose a version token for conditional writes",
         code: "unsupported_conditional_write",
         unsupported: true,
       });
     }
-    return new BaiduFileWriter(this, joinPath(this.path, path));
+    return new BaiduFileWriter(this, joinPath(this.path, path), opts);
   }
 
   async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {

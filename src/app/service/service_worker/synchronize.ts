@@ -498,8 +498,13 @@ export class SynchronizeService {
         Object.assign(pushedFileDigestMap, ret.value);
       }
     });
-    if (syncResults.some((ret) => ret.status === "rejected" && isConflictError(ret.reason))) {
-      this.logger.warn("skip status and digest update because cloud sync hit remote conflict");
+    const rejected = syncResults.filter((ret) => ret.status === "rejected");
+    if (rejected.length) {
+      const hasConflict = rejected.some((ret) => isConflictError(ret.reason));
+      this.logger.warn("skip status and digest update because cloud sync task failed", {
+        conflict: hasConflict,
+        failed: rejected.length,
+      });
       return;
     }
     // 同步状态

@@ -1,4 +1,5 @@
-import type { FileInfo, FileReader, FileWriter } from "../filesystem";
+import { FileSystemError } from "../error";
+import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "../filesystem";
 import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
 import type BaiduFileSystem from "./baidu";
 
@@ -38,9 +39,12 @@ export class BaiduFileWriter implements FileWriter {
 
   fs: BaiduFileSystem;
 
-  constructor(fs: BaiduFileSystem, path: string) {
+  opts?: FileCreateOptions;
+
+  constructor(fs: BaiduFileSystem, path: string, opts?: FileCreateOptions) {
     this.fs = fs;
     this.path = path;
+    this.opts = opts;
   }
 
   size(content: string | Blob) {
@@ -58,6 +62,8 @@ export class BaiduFileWriter implements FileWriter {
   }
 
   async write(content: string | Blob): Promise<void> {
+    await this.checkWritePrecondition();
+
     // 预上传获取id
     const size = this.size(content).toString();
     const md5 = await this.md5(content);
@@ -122,6 +128,37 @@ export class BaiduFileWriter implements FileWriter {
     );
     if (data.errno) {
       throw new Error(JSON.stringify(data));
+    }
+  }
+
+  private async checkWritePrecondition(): Promise<void> {
+    if (!this.opts?.expectedDigest && !this.opts?.createOnly && this.opts?.overwrite !== false) {
+      return;
+    }
+    const targetName = this.path.substring(this.path.lastIndexOf("/") + 1);
+    const existing = (await this.fs.list()).find((file) => file.name === targetName);
+
+    if (this.opts?.createOnly || this.opts?.overwrite === false) {
+      if (existing) {
+        throw new FileSystemError({
+          provider: "baidu",
+          message: `File already exists: ${this.path}`,
+          status: 409,
+          code: "nameAlreadyExists",
+          conflict: true,
+        });
+      }
+      return;
+    }
+
+    if (this.opts?.expectedDigest && existing?.digest !== this.opts.expectedDigest) {
+      throw new FileSystemError({
+        provider: "baidu",
+        message: `Baidu file digest changed before write: ${this.path}`,
+        status: 412,
+        code: "digestMismatch",
+        conflict: true,
+      });
     }
   }
 }

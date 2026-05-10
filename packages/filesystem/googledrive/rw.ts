@@ -137,8 +137,8 @@ export class GoogleDriveFileWriter implements FileWriter {
     const headers =
       this.opts?.createOnly || this.opts?.overwrite === false ? new Headers({ "If-None-Match": "*" }) : undefined;
 
-    await this.fs.request(
-      `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&spaces=appDataFolder`,
+    const created = await this.fs.request(
+      `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&spaces=appDataFolder&fields=id`,
       {
         method: "POST",
         body: formData,
@@ -146,7 +146,35 @@ export class GoogleDriveFileWriter implements FileWriter {
       }
     );
 
+    if (this.opts?.createOnly || this.opts?.overwrite === false) {
+      await this.rejectDuplicateCreate(fileName, parentId, created?.id);
+    }
+
     return Promise.resolve();
+  }
+
+  private async rejectDuplicateCreate(fileName: string, parentId: string, createdId?: string): Promise<void> {
+    if (!createdId) {
+      return;
+    }
+    const files = await this.fs.findFilesInDirectory(fileName, parentId);
+    if (!files.length || (files.length === 1 && files[0].id === createdId)) {
+      return;
+    }
+    try {
+      await this.fs.request(`https://www.googleapis.com/drive/v3/files/${createdId}?spaces=appDataFolder`, {
+        method: "DELETE",
+      });
+    } catch {
+      // Best-effort cleanup. The conflict still prevents local digest/status from being advanced.
+    }
+    throw new FileSystemError({
+      provider: "googledrive",
+      message: `Duplicate Google Drive file detected after create: ${this.path}`,
+      status: 409,
+      code: "nameAlreadyExists",
+      conflict: true,
+    });
   }
 }
 
