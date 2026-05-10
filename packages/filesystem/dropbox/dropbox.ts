@@ -171,6 +171,8 @@ export default class DropboxFileSystem implements FileSystem {
     if (!expected) {
       return;
     }
+    // Dropbox delete_v2 不接受 rev/content_hash 条件参数，这里只能先读 metadata 再删除。
+    // 这不是原子删除：metadata 检查和 delete_v2 之间仍可能被其他设备更新。
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
     const metadata = await this.request("https://api.dropboxapi.com/2/files/get_metadata", {

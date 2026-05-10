@@ -162,8 +162,8 @@ export class BaiduFileWriter implements FileWriter {
       return;
     }
 
-    // Baidu does not expose an atomic compare-and-swap upload. This digest check is best-effort only:
-    // it catches stale local state before upload, while createOnly still uses server-side rtype=0.
+    // 百度网盘没有原子 compare-and-swap 上传能力；这个 digest 检查只是 best-effort。
+    // 它只能在上传前发现本地快照已过期；createOnly 仍依赖服务端 rtype=0 来拒绝同名覆盖。
     if (this.opts?.expectedDigest && existing?.digest !== this.opts.expectedDigest) {
       throw fileConflictError("baidu", `Baidu file digest changed before write: ${this.path}`, {
         status: 412,

@@ -224,6 +224,8 @@ export default class GoogleDriveFileSystem implements FileSystem {
       return;
     }
     if (expected?.version || opts?.expectedDigest) {
+      // Google Drive delete 没有使用服务端 If-Match；这里先读 version/md5Checksum 再删除。
+      // 这只能发现删除前已经过期的本地快照，不能消除检查后到删除前的并发更新窗口。
       const metadata = await this.request(
         `https://www.googleapis.com/drive/v3/files/${fileId}?fields=version,md5Checksum&spaces=appDataFolder`
       );
@@ -361,8 +363,8 @@ export default class GoogleDriveFileSystem implements FileSystem {
             path: this.path,
             size: item.size ? parseInt(item.size, 10) : 0,
             digest: item.md5Checksum || "",
-            // Encodes the target id with Drive's version for best-effort stale-write detection.
-            // The writer still performs a preflight check, not an atomic server-side compare-and-swap update.
+            // 将 fileId 和 Drive version 编进 version，供写入/删除前做 best-effort 过期检查。
+            // 这不是服务端原子 CAS；Google Drive 路径仍然只能降低风险，不能完全消除并发窗口。
             version: item.version ? `${item.id}:${item.version}` : item.id,
             createtime: new Date(item.createdTime).getTime(),
             updatetime: new Date(item.modifiedTime).getTime(),

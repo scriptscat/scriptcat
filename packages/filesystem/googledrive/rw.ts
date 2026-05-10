@@ -96,8 +96,8 @@ export class GoogleDriveFileWriter implements FileWriter {
 
   private async updateFile(fileId: string, content: string | Blob, expectedVersion?: string): Promise<void> {
     if (expectedVersion) {
-      // Google Drive does not give this writer an atomic compare-and-swap update path.
-      // This preflight catches stale local state before PATCH, but it is not a server-side write condition.
+      // Google Drive writer 没有原子 compare-and-swap 更新路径。
+      // 这里的 preflight 只能在 PATCH 前发现本地快照已过期，不是服务端写入条件。
       await this.assertVersion(fileId, expectedVersion);
     }
     // 不设置Content-Type，让浏览器自动处理multipart/form-data边界
@@ -174,7 +174,7 @@ export class GoogleDriveFileWriter implements FileWriter {
         method: "DELETE",
       });
     } catch {
-      // Best-effort cleanup. The conflict still prevents local digest/status from being advanced.
+      // best-effort 清理。即使清理失败，冲突仍会阻止本地 digest/status 推进。
     }
     throw fileConflictError("googledrive", `Duplicate Google Drive file detected after create: ${this.path}`, {
       status: 409,

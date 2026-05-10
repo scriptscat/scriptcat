@@ -81,9 +81,12 @@ function getScriptModifiedDate(script: PushScriptParam): number {
 function getWriteOptions(modifiedDate: number, remoteFile?: FileInfo): FileCreateOptions {
   const opts: FileCreateOptions = { modifiedDate };
   if (!remoteFile) {
+    // 新文件必须用 createOnly，避免 list 短暂漏文件时把另一台设备刚创建的同名文件覆盖掉。
     opts.createOnly = true;
     return opts;
   }
+  // 优先使用 provider 暴露的原生版本 token（etag/rev/version），没有版本时才退到 digest。
+  // 部分 provider 的 digest 不是 MD5，调用方不能把 expectedDigest 当成跨 provider 的强一致 CAS。
   if (remoteFile.version) {
     opts.expectedVersion = remoteFile.version;
   } else if (remoteFile.digest) {
@@ -96,6 +99,8 @@ function getDeleteOptions(remoteFile?: FileInfo) {
   if (!remoteFile) {
     return undefined;
   }
+  // 删除也尽量使用远端快照里的版本 token；这能让 S3/WebDAV/OneDrive 走服务端 If-Match。
+  // Baidu/Dropbox/Google Drive 只能做删除前校验，仍然不是原子删除，详见各 provider 注释。
   if (remoteFile.version) {
     return { expectedVersion: remoteFile.version };
   }
@@ -611,6 +616,8 @@ export class SynchronizeService {
 
   async updateFileDigest(fs: FileSystem, knownFileDigestMap: FileDigestMap = {}) {
     let newList = await fs.list();
+    // 有些远端在刚上传后 list 会短暂漏掉新对象；只在“文件名完全没出现”时重试一次。
+    // 如果文件名出现但 digest 还是旧值，仍保留 provider 返回值，避免用本地 MD5 污染 etag/rev/hash。
     if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
       newList = await fs.list();
     }
@@ -638,11 +645,15 @@ export class SynchronizeService {
       file: filename,
     });
     try {
+      // 只有调用方没有远端快照，或快照明确看到 script 时才删除。
+      // 如果快照存在但没看到文件，跳过删除，避免最终一致性/list 缓存漏文件时退化成无条件删除。
       if (!remoteFiles || remoteFiles.script) {
         await fs.delete(filename, getDeleteOptions(remoteFiles?.script));
       }
       if (syncDelete) {
-        // 留下一个.meta.json删除标记
+        // 删除协议仍以 .meta.json tombstone 作为对其他设备的提交信号。
+        // 注意：当前不是事务写入。script 已删但 tombstone 写失败时，上层会报错且不推进 digest，
+        // 但远端仍可能短暂处于半提交状态；彻底解决需要 manifest/commit 协议。
         const modifiedDate = Date.now();
         const meta = await fs.create(`${uuid}.meta.json`, getWriteOptions(modifiedDate, remoteFiles?.meta));
         await meta.write(
@@ -656,6 +667,7 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
+        // 同 script 删除一样，快照存在但没看到 meta 时不做无条件删除。
         if (!remoteFiles || remoteFiles.meta) {
           await fs.delete(`${uuid}.meta.json`, getDeleteOptions(remoteFiles?.meta));
         }
@@ -699,6 +711,9 @@ export class SynchronizeService {
         await meta.write(metaJson);
       } catch (e) {
         if (scriptWritten && !remoteFiles?.script) {
+          // 只清理“本次新建 script 成功但 meta 写失败”的孤儿文件，且必须带 digest 守卫。
+          // 这个 digest 是本地 MD5，部分 provider 的远端 digest/etag 不同，清理可能失败；
+          // 清理失败只会留下 orphan，下次同步会跳过 orphan，不应为了清理而改成无条件删除。
           await fs.delete(filename, { expectedDigest: scriptDigest }).catch((cleanupError) => {
             logger.warn("cleanup newly created script after meta write failure failed", Logger.E(cleanupError));
           });
