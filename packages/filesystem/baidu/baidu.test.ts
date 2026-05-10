@@ -114,6 +114,30 @@ describe("BaiduFileSystem", () => {
     });
   });
 
+  it("writer should allow expectedDigest when remote digest still matches", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "list").mockResolvedValue([
+      {
+        name: "test.txt",
+        path: "/apps",
+        size: 1,
+        digest: "old-md5",
+        createtime: 1,
+        updatetime: 1,
+      },
+    ]);
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockResolvedValueOnce({ errno: 0, uploadid: "upload-id" })
+      .mockResolvedValueOnce({ errno: 0 })
+      .mockResolvedValueOnce({ errno: 0 });
+
+    const writer = await fs.create("test.txt", { expectedDigest: "old-md5" });
+
+    await expect(writer.write("content")).resolves.toBeUndefined();
+    expect(requestSpy).toHaveBeenCalledTimes(3);
+  });
+
   it("delete should be idempotent when Baidu reports file missing", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: async () => ({ errno: -9 }),
