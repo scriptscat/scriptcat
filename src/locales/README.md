@@ -23,12 +23,14 @@ for example:
 }
 ```
 
-### Help Us Translate
+## Help Us Translate
 
-[Crowdin](https://crowdin.com/project/scriptcat)
-is an online localization platform that helps us manage translations. If you're interested in helping us translate ScriptCat, you can find the project on Crowdin and start contributing.
+ScriptCat's translation files are hosted on GitHub — contributions via Pull Request are welcome.
 
-- `src/locales` is the translation file directory for the [extension](https://github.com/scriptscat/scriptcat)
+- Translation files live in [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); each language has its own `<locale>/translation.json`
+- **Improve an existing translation**: edit the corresponding `translation.json` directly
+- **Add a new language**: create a new directory under `src/locales/` (e.g. `fr-FR`), copy `en-US/translation.json` as a template and translate the strings, then register the locale in `src/locales/locales.ts`
+- Open a Pull Request against the `main` branch when you are done
 
 # i18n 方案
 
@@ -51,9 +53,11 @@ i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.
 }
 ```
 
-### 帮助我们翻译
+## 帮助我们翻译
 
-[Crowdin](https://crowdin.com/project/scriptcat)
-是一个在线的多语言翻译平台。如果您有兴趣帮助我们翻译 ScriptCat 的相关内容，您可以在 Crowdin 上找到 ScriptCat 项目，并开始进行翻译工作。
+ScriptCat 的翻译文件托管在 GitHub 上，欢迎通过 Pull Request 贡献翻译。
 
-- `src/locales`为[扩展](https://github.com/scriptscat/scriptcat)翻译文件目录
+- 翻译文件位于 [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales)，每种语言对应一个 `<语言代码>/translation.json`
+- **改进已有翻译**：直接编辑对应语言的 `translation.json`
+- **新增语言**：在 `src/locales/` 下新建对应语言代码目录（如 `fr-FR`），复制 `en-US/translation.json` 作为模板进行翻译，并在 `src/locales/locales.ts` 中注册
+- 完成后向 `main` 分支提交 Pull Request 即可

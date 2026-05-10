@@ -4,6 +4,11 @@ import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../fil
 import { joinPath } from "../utils";
 import { DropboxFileReader, DropboxFileWriter } from "./rw";
 
+function isDropboxPathNotFound(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("path_lookup/not_found") || message.includes("path/not_found");
+}
+
 export default class DropboxFileSystem implements FileSystem {
   accessToken?: string;
 
@@ -78,14 +83,28 @@ export default class DropboxFileSystem implements FileSystem {
   request(url: string, config?: RequestInit, nothen?: boolean) {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
-    headers.append(`Authorization`, `Bearer ${this.accessToken}`);
+    headers.set(`Authorization`, `Bearer ${this.accessToken}`);
     config.headers = headers;
-    const ret = fetch(url, config);
+    const doFetch = () => fetch(url, config);
+    const retryWithFreshToken = async () => {
+      const token = await AuthVerify("dropbox", true);
+      this.accessToken = token;
+      headers.set(`Authorization`, `Bearer ${this.accessToken}`);
+      return doFetch();
+    };
     if (nothen) {
-      return <Promise<Response>>ret;
+      return doFetch().then(async (resp) => {
+        if (resp.status === 401) {
+          return retryWithFreshToken();
+        }
+        return resp;
+      });
     }
-    return ret
+    return doFetch()
       .then(async (response) => {
+        if (response.status === 401) {
+          response = await retryWithFreshToken();
+        }
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Dropbox API Error: ${response.status} - ${errorText}`);
@@ -126,13 +145,20 @@ export default class DropboxFileSystem implements FileSystem {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
-    await this.request("https://api.dropboxapi.com/2/files/delete_v2", {
-      method: "POST",
-      headers: myHeaders,
-      body: JSON.stringify({
-        path: fullPath,
-      }),
-    });
+    try {
+      await this.request("https://api.dropboxapi.com/2/files/delete_v2", {
+        method: "POST",
+        headers: myHeaders,
+        body: JSON.stringify({
+          path: fullPath,
+        }),
+      });
+    } catch (e: any) {
+      if (isDropboxPathNotFound(e)) {
+        return;
+      }
+      throw e;
+    }
 
     // 清除相关缓存
     this.clearRelatedCache(fullPath);
@@ -220,8 +246,11 @@ export default class DropboxFileSystem implements FileSystem {
         }),
       });
       return true;
-    } catch (_) {
-      return false;
+    } catch (e) {
+      if (isDropboxPathNotFound(e)) {
+        return false;
+      }
+      throw e;
     }
   }
 

@@ -7,13 +7,15 @@ import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { onInjectPageLoaded } from "./external";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
+import { type TExtensionEnv } from "../extension/extension_env";
 
 export class ScriptRuntime {
   constructor(
     private readonly scripEnvTag: ScriptEnvTag,
     private readonly server: Server,
     private readonly msg: Message,
-    private readonly scriptExecutor: ScriptExecutor
+    private readonly scriptExecutor: ScriptExecutor,
+    private readonly extensionEnv: TExtensionEnv | undefined
   ) {}
 
   // content环境的特殊初始化
@@ -66,8 +68,13 @@ export class ScriptRuntime {
       this.startScripts(data.scripts, data.envInfo);
     });
 
+    // 用于 early-start 的扩充参数
+    const { inIncognitoContext } = this.extensionEnv || {};
+    const initialEnvInfo = { ...initEnvInfo };
+    if (typeof inIncognitoContext === "boolean") initialEnvInfo.isIncognito = inIncognitoContext;
+
     // 检查early-start的脚本
-    this.scriptExecutor.checkEarlyStartScript(this.scripEnvTag, initEnvInfo);
+    this.scriptExecutor.checkEarlyStartScript(this.scripEnvTag, initialEnvInfo);
   }
 
   startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {

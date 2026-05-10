@@ -40,6 +40,14 @@ export default class GoogleDriveFileSystem implements FileSystem {
     }
 
     const fullPath = joinPath(this.path, dir);
+    await this.ensureDirPath(fullPath);
+  }
+
+  private async ensureDirPath(fullPath: string): Promise<string> {
+    if (fullPath === "/" || fullPath === "") {
+      return "appDataFolder";
+    }
+
     const dirs = fullPath.split("/").filter(Boolean);
 
     // 从根目录开始逐级创建目录
@@ -69,7 +77,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
       parentId = folderId;
     }
 
-    return Promise.resolve();
+    return parentId;
   }
   async findFolderByName(name: string, parentId: string): Promise<{ id: string; name: string } | null> {
     const query = `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
@@ -110,23 +118,44 @@ export default class GoogleDriveFileSystem implements FileSystem {
   request(url: string, config?: RequestInit, nothen?: boolean) {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
-    headers.append(`Authorization`, `Bearer ${this.accessToken}`);
+    headers.set(`Authorization`, `Bearer ${this.accessToken}`);
     config.headers = headers;
-    const ret = fetch(url, config);
+    const doFetch = () => fetch(url, config);
+    const retryWithFreshToken = async () => {
+      const token = await AuthVerify("googledrive", true);
+      this.accessToken = token;
+      headers.set(`Authorization`, `Bearer ${this.accessToken}`);
+      return doFetch();
+    };
     if (nothen) {
-      return <Promise<Response>>ret;
+      return doFetch().then(async (resp) => {
+        if (resp.status === 401) {
+          return retryWithFreshToken();
+        }
+        return resp;
+      });
     }
-    return ret
-      .then((data) => data.json())
+    return doFetch()
+      .then(async (resp) => {
+        if (resp.status === 401) {
+          resp = await retryWithFreshToken();
+        }
+        if (!resp.ok) {
+          throw new Error(await resp.text());
+        }
+        return resp.json();
+      })
       .then(async (data) => {
         if (data.error) {
           if (data.error.code === 401) {
             // Token可能过期，尝试刷新
-            const token = await AuthVerify("googledrive", true);
-            this.accessToken = token;
-            headers.set(`Authorization`, `Bearer ${this.accessToken}`);
-            return fetch(url, config)
-              .then((retryData) => retryData.json())
+            return retryWithFreshToken()
+              .then(async (retryResp) => {
+                if (!retryResp.ok) {
+                  throw new Error(await retryResp.text());
+                }
+                return retryResp.json();
+              })
               .then((retryData) => {
                 if (retryData.error) {
                   throw new Error(JSON.stringify(retryData));
@@ -145,7 +174,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
     // 首先，找到要删除的文件或文件夹
     const fileId = await this.getFileId(fullPath);
     if (!fileId) {
-      throw new Error(`File or directory not found: ${fullPath}`);
+      return;
     }
 
     // 删除文件或文件夹
@@ -156,6 +185,9 @@ export default class GoogleDriveFileSystem implements FileSystem {
       },
       true
     ).then(async (resp) => {
+      if (resp.status === 404) {
+        return;
+      }
       if (resp.status !== 204 && resp.status !== 200) {
         throw new Error(await resp.text());
       }
@@ -291,24 +323,6 @@ export default class GoogleDriveFileSystem implements FileSystem {
 
   // 确保目录存在并返回目录ID，优化Writer避免重复获取
   async ensureDirExists(dirPath: string): Promise<string> {
-    if (dirPath === "/" || dirPath === "") {
-      return "appDataFolder";
-    }
-
-    // 先检查缓存
-    const cachedId = this.pathToIdCache.get(dirPath);
-    if (cachedId) {
-      return cachedId;
-    }
-
-    // 如果没有缓存，使用getFileId方法
-    const foundId = await this.getFileId(dirPath);
-    if (!foundId) {
-      throw new Error(`Failed to create or find directory: ${dirPath}`);
-    }
-
-    // 缓存结果
-    this.pathToIdCache.set(dirPath, foundId);
-    return foundId;
+    return this.ensureDirPath(dirPath);
   }
 }

@@ -21,6 +21,7 @@ import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
 import { InfoNotification } from "./utils";
+import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -36,8 +37,17 @@ export default class ServiceWorkerManager {
     dao.save(data);
   }
 
+  async getExtensionEnv(data: { requireUAD: boolean }) {
+    const result = { ...extensionEnv };
+    if (data.requireUAD) {
+      result.userAgentData = await getExtensionUserAgentData();
+    }
+    return result;
+  }
+
   initManager() {
     this.api.on("logger", this.logger.bind(this));
+    this.api.on("getExtensionEnv", this.getExtensionEnv.bind(this));
     this.api.on("preparationOffscreen", async () => {
       // 准备好环境
       await this.sender.init();

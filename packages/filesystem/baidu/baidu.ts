@@ -59,29 +59,9 @@ export default class BaiduFileSystem implements FileSystem {
   async request(url: string, config?: RequestInit) {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
-    // 处理请求匿名不发送cookie
-    await chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds: [100],
-      addRules: [
-        {
-          id: 100,
-          action: {
-            type: "modifyHeaders",
-            responseHeaders: [
-              {
-                operation: "remove",
-                header: "cookie",
-              },
-            ],
-          },
-          condition: {
-            urlFilter: url,
-            resourceTypes: ["xmlhttprequest"],
-          },
-        },
-      ],
-    });
     config.headers = headers;
+    // 对百度网盘请求显式禁用 cookie，避免依赖全局 DNR 规则造成并发竞态
+    config.credentials = "omit";
     return fetch(url, config)
       .then((data) => data.json())
       .then(async (data) => {
@@ -99,11 +79,6 @@ export default class BaiduFileSystem implements FileSystem {
             });
         }
         return data;
-      })
-      .finally(() => {
-        chrome.declarativeNetRequest.updateDynamicRules({
-          removeRuleIds: [100],
-        });
       });
   }
 

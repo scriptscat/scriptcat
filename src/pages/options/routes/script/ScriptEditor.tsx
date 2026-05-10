@@ -1,9 +1,10 @@
 import type { Script } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import type { editor } from "monaco-editor";
+import type { editor, IDisposable } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
 import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Space, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
@@ -25,6 +26,9 @@ import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
+import type { TInstallScript, TDeleteScript, TEnableScript, TSortedScript } from "@App/app/service/queue";
+import { subscribeMessage } from "@App/pages/store/global";
+import { HookManager } from "@App/pkg/utils/hookManager";
 
 const { Row, Col } = Grid;
 
@@ -53,6 +57,15 @@ const Editor: React.FC<{
     },
     [node]
   );
+  // 用 ref 拿到最新的 hotKeys/onChange/callbackEditor，避免 stale closure
+  // 同时让 effect 仅在 editor 实例变化时重跑（不会因父组件重渲染重复 addAction）
+  const hotKeysRef = useRef(hotKeys);
+  const onChangeRef = useRef(onChange);
+  const callbackEditorRef = useRef(callbackEditor);
+  hotKeysRef.current = hotKeys;
+  onChangeRef.current = onChange;
+  callbackEditorRef.current = callbackEditor;
+
   useEffect(() => {
     if (!node || !node.editor) {
       return;
@@ -62,24 +75,32 @@ const Editor: React.FC<{
       // @ts-ignore
       node.editor.uuid = id;
     }
-    hotKeys.forEach((item) => {
-      node.editor.addAction({
-        id: item.id,
-        label: item.title,
-        keybindings: [item.hotKey],
-        run(editor) {
-          const script = getScript(id);
-          if (script) {
-            item.action(script, editor);
-          }
-        },
-      });
+    const disposables: IDisposable[] = [];
+    hotKeysRef.current.forEach((item) => {
+      disposables.push(
+        node.editor.addAction({
+          id: item.id,
+          label: item.title,
+          keybindings: [item.hotKey],
+          run(editor) {
+            const script = getScript(id);
+            if (script) {
+              item.action(script, editor);
+            }
+          },
+        })
+      );
     });
-    node.editor.onKeyUp(() => {
-      onChange(node.editor.getValue() || "");
-    });
-    callbackEditor(node.editor);
-    return node.editor.dispose.bind(node.editor);
+    disposables.push(
+      node.editor.onKeyUp(() => {
+        onChangeRef.current(node.editor.getValue() || "");
+      })
+    );
+    callbackEditorRef.current(node.editor);
+    // editor 实例本身由 CodeEditor 自身负责 dispose，这里仅清理本 effect 注册的 listener/action
+    return () => {
+      disposables.forEach((d) => d.dispose());
+    };
   }, [node?.editor]);
 
   return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;
@@ -203,12 +224,131 @@ type EditorState = {
 const scriptDAO = new ScriptDAO();
 const scriptCodeDAO = new ScriptCodeDAO();
 
+function useScriptList() {
+  const [selectedScript, setSelectSciptButtonAndTab] = useState<string>("");
+  const [editors, setEditors] = useState<EditorState[]>([]);
+  const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
+  const [scriptList, setScriptList] = useState<Script[]>([]);
+  // 监听后台消息更新状态
+  useEffect(() => {
+    const pageApi = {
+      async installScript(data: TInstallScript) {
+        const latest = await scriptDAO.all();
+        const latestMap = new Map(latest.map((script) => [script.uuid, script]));
+        setScriptList((list) => {
+          const newList: Script[] = [];
+          for (const entry of list) {
+            if (entry.uuid !== data.script.uuid) {
+              const latestScript = latestMap.get(entry.uuid);
+              if (latestScript) {
+                newList.push({
+                  ...entry,
+                  sort: latestScript.sort,
+                  name: latestScript.name,
+                  updatetime: latestScript.updatetime,
+                  status: latestScript.status,
+                });
+              }
+            }
+          }
+          const installedScript = latestMap.get(data.script.uuid);
+          if (installedScript) {
+            newList.push(installedScript);
+          }
+          newList.sort((a, b) => a.sort - b.sort);
+          return newList;
+        });
+      },
+      deleteScripts(data: TDeleteScript[]) {
+        const dels = new Set(data.map((script) => script.uuid));
+        setEditors((prev) => {
+          const newList: EditorState[] = [];
+          for (const editor of prev) {
+            if (!dels.has(editor.script.uuid)) {
+              newList.push(editor);
+            }
+          }
+          // 关键修复：确保关闭后仍有一个 Tab 是激活的
+          if (newList.length > 0 && !newList.some((e) => e.active)) {
+            newList[0] = { ...newList[0], active: true };
+            setSelectSciptButtonAndTab(newList[0].script.uuid);
+          }
+          return newList;
+        });
+        setScriptList((list) => {
+          return list.filter((script) => !dels.has(script.uuid));
+        });
+      },
+      enableScripts(data: TEnableScript[]) {
+        const enableMap = new Map(data.map((e) => [e.uuid, e.enable]));
+        setScriptList((list) => {
+          const newList: Script[] = [];
+          for (const script of list) {
+            const oldEnable = script.status !== SCRIPT_STATUS_DISABLE;
+            const newEnable = enableMap.get(script.uuid);
+            if (typeof newEnable === "boolean" && oldEnable !== newEnable) {
+              newList.push({ ...script, status: newEnable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE });
+            } else {
+              newList.push(script);
+            }
+          }
+          return newList;
+        });
+      },
+      sortedScripts(sorting: TSortedScript[]) {
+        const sortMap = new Map(sorting.map((s) => [s.uuid, s.sort]));
+        setScriptList((list) => {
+          const newList: Script[] = [];
+          for (const entry of list) {
+            const sort = sortMap.get(entry.uuid);
+            if (sort! >= 0) {
+              newList.push({ ...entry, sort: sort! });
+            } else {
+              newList.push(entry);
+            }
+          }
+          newList.sort((a, b) => a.sort - b.sort);
+          return newList;
+        });
+      },
+    } as const;
+
+    const hookMgr = new HookManager();
+    hookMgr.append(
+      subscribeMessage<TInstallScript>("installScript", pageApi.installScript),
+      subscribeMessage<TDeleteScript[]>("deleteScripts", pageApi.deleteScripts),
+      subscribeMessage<TEnableScript[]>("enableScripts", pageApi.enableScripts),
+      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts)
+    );
+    return hookMgr.unhook;
+  }, []);
+  return {
+    scriptList,
+    setScriptList,
+    canLoadScript,
+    setCanLoadScript,
+    editors,
+    setEditors,
+    selectedScript,
+    setSelectSciptButtonAndTab,
+  };
+}
+
 function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
   const [modal, contextHolder] = Modal.useModal();
-  const [editors, setEditors] = useState<EditorState[]>([]);
+  const {
+    scriptList,
+    setScriptList,
+    canLoadScript,
+    setCanLoadScript,
+    editors,
+    setEditors,
+    selectedScript,
+    setSelectSciptButtonAndTab,
+  } = useScriptList();
   const editorsRef = useRef<EditorState[]>(editors); // 取出资料用
   // Sync during render (no useEffect needed)
   editorsRef.current = editors;
@@ -228,16 +368,13 @@ function ScriptEditor() {
       setTimeout(editor.focus.bind(editor), delayMs);
     }
   };
-  const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
-  const [selectedScript, setSelectSciptButtonAndTab] = useState<string>("");
   const [rightOperationTab, setRightOperationTab] = useState<{
     key: string;
     uuid: string;
     selectSciptButtonAndTab: string;
   }>();
   const cidRef = useRef<ReturnType<typeof setTimeout>>();
-  const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
   const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(() => {
     return localStorage.getItem("hiddenEditorScriptList") === "true";
   });
@@ -1070,7 +1207,7 @@ function ScriptEditor() {
               )}
               {filteredScriptList.map((script) => {
                 const editor = editorFindItem(script.uuid);
-                const alpha = script.status === 2 ? 0.8 : 1.0;
+                const alpha = script.status === SCRIPT_STATUS_DISABLE ? 0.66 : 1.0;
                 return (
                   <div key={`s_${script.uuid}`} className="tw-relative tw-group">
                     <Button
@@ -1080,7 +1217,6 @@ function ScriptEditor() {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        opacity: alpha,
                         color: !editor
                           ? "var(--color-text-3)"
                           : editor.isChanged
@@ -1098,7 +1234,14 @@ function ScriptEditor() {
                         openScript(script.uuid);
                       }}
                     >
-                      <span className="tw-overflow-hidden tw-text-ellipsis">{i18nName(script)}</span>
+                      <span
+                        className="tw-overflow-hidden tw-text-ellipsis"
+                        style={{
+                          opacity: alpha,
+                        }}
+                      >
+                        {i18nName(script)}
+                      </span>
                     </Button>
                     {/* 删除按钮，只在鼠标悬停时显示 */}
                     <Button

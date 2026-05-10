@@ -36,6 +36,7 @@ yarn.lock
 .claude
 
 CLAUDE.md
+.omc
 
 test-results
 playwright-report

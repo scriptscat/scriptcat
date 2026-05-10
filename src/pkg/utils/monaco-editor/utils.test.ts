@@ -42,7 +42,7 @@ describe("findGlobalInsertionInfo", () => {
   });
 
   it("应该处理包含global关键字的多行块注释", () => {
-    const model = createMockModel(["/* global jQuery,", "   axios */", "const x = 1;"]);
+    const model = createMockModel(["/* global jQuery,", "   moment */", "const x = 1;"]);
     const result = findGlobalInsertionInfo(model);
     expect(result).toEqual({ insertLine: 3, globalLine: 1 });
   });
@@ -106,8 +106,8 @@ describe("updateGlobalCommentLine", () => {
 
   it("应该在注释末尾添加新的全局变量", () => {
     const line = "/* global jQuery */";
-    const result = updateGlobalCommentLine(line, "axios");
-    expect(result).toBe("/* global jQuery, axios */");
+    const result = updateGlobalCommentLine(line, "moment");
+    expect(result).toBe("/* global jQuery, moment */");
   });
 
   it("应该在只有global关键字的注释后添加变量", () => {
@@ -118,8 +118,8 @@ describe("updateGlobalCommentLine", () => {
 
   it("应该处理以逗号结尾的注释", () => {
     const line = "/* global jQuery, */";
-    const result = updateGlobalCommentLine(line, "axios");
-    expect(result).toBe("/* global jQuery, axios */");
+    const result = updateGlobalCommentLine(line, "moment");
+    expect(result).toBe("/* global jQuery, moment */");
   });
 
   it("应该处理多个已存在的全局变量", () => {
@@ -130,18 +130,18 @@ describe("updateGlobalCommentLine", () => {
 
   it("应该处理注释后有额外内容的情况", () => {
     const line = "/* global jQuery */ // some comment";
-    const result = updateGlobalCommentLine(line, "axios");
-    expect(result).toBe("/* global jQuery, axios */ // some comment");
+    const result = updateGlobalCommentLine(line, "moment");
+    expect(result).toBe("/* global jQuery, moment */ // some comment");
   });
 
   it("应该处理格式不正确的注释（缺少*/）", () => {
     const line = "/* global jQuery";
-    const result = updateGlobalCommentLine(line, "axios");
-    expect(result).toBe("/* global jQuery, axios");
+    const result = updateGlobalCommentLine(line, "moment");
+    expect(result).toBe("/* global jQuery, moment");
   });
 
   it("应该避免重复添加相同的全局变量", () => {
-    const line = "/* global jQuery, axios */";
+    const line = "/* global jQuery, moment */";
     const result = updateGlobalCommentLine(line, "jQuery");
     expect(result).toBe(line);
   });

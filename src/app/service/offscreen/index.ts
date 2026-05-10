@@ -35,6 +35,13 @@ export class OffscreenManager {
     sendMessage(this.msgSender, "serviceWorker/preparationOffscreen");
   }
 
+  async getExtensionEnv(data: { requireUAD: boolean }) {
+    return this.sendMessageToServiceWorker({
+      action: "getExtensionEnv",
+      data: data,
+    });
+  }
+
   sendMessageToServiceWorker(data: { action: string; data: any }) {
     return sendMessage(this.msgSender, `serviceWorker/${data.action}`, data.data);
   }
@@ -43,6 +50,7 @@ export class OffscreenManager {
     // 监听消息
     this.windowServer.on("logger", this.logger.bind(this));
     this.windowServer.on("preparationSandbox", this.preparationSandbox.bind(this));
+    this.windowServer.on("getExtensionEnv", this.getExtensionEnv.bind(this));
     this.windowServer.on("sendMessageToServiceWorker", this.sendMessageToServiceWorker.bind(this));
     const script = new ScriptService(
       this.windowServer.group("script"),
