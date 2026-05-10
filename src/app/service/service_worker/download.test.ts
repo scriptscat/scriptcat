@@ -95,7 +95,7 @@ describe("startDownload", () => {
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({
-        donwloadId: id,
+        downloadId: id,
         state: "complete",
       })
     );
@@ -150,7 +150,7 @@ describe("startDownload", () => {
 
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({
-        donwloadId: id,
+        downloadId: id,
         state: expect.stringMatching(/interrupted|save_cancelled/), // 仅模拟错误
       })
     );

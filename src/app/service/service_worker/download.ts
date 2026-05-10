@@ -87,7 +87,7 @@ const STATE = {
 type STATE = ValueOf<typeof STATE>;
 
 export type DownloadCallback = {
-  donwloadId: number;
+  downloadId: number;
   state: STATE | "save_cancelled";
   loaded?: number;
   total?: number;
@@ -137,7 +137,7 @@ const onChangedListener = (downloadDelta: chrome.downloads.DownloadDelta) => {
       const downloadItem = responseMap.get(id);
 
       await notifyDownloadCallback(entry.callback, {
-        donwloadId: id,
+        downloadId: id,
         state: state === "interrupted" && filenameConfirmed ? "save_cancelled" : state,
         loaded: downloadItem?.downloadItem?.totalBytes, // 兼容 TM，总是传回 totalBytes （与实际有否储存无关）
         total: downloadItem?.downloadItem?.totalBytes,
