@@ -1,5 +1,5 @@
 import { S3Error, type S3Client } from "./client";
-import { FileSystemError } from "../error";
+import { fileConflictError } from "../error";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { buildConditionalHeaders } from "../utils";
 
@@ -82,12 +82,9 @@ export class S3FileWriter implements FileWriter {
       });
     } catch (error) {
       if (error instanceof S3Error && (error.statusCode === 409 || error.statusCode === 412)) {
-        throw new FileSystemError({
-          provider: "s3",
-          message: error.message,
+        throw fileConflictError("s3", error.message, {
           status: error.statusCode,
           code: error.code,
-          conflict: true,
           raw: error,
         });
       }

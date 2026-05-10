@@ -34,7 +34,6 @@ export type FileCreateOptions = {
   expectedDigest?: string;
   expectedVersion?: string;
   createOnly?: boolean;
-  overwrite?: boolean;
 };
 
 // 文件读取

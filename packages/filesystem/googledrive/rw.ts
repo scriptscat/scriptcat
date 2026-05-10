@@ -1,4 +1,4 @@
-import { FileSystemError, isNotFoundError } from "../error";
+import { fileConflictError, isNotFoundError } from "../error";
 import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import type GoogleDriveFileSystem from "./googledrive";
@@ -80,13 +80,10 @@ export class GoogleDriveFileWriter implements FileWriter {
     const existingFileId = expected?.fileId || (await this.fs.findFileInDirectory(fileName, parentId));
 
     if (existingFileId) {
-      if (this.opts?.createOnly || this.opts?.overwrite === false) {
-        throw new FileSystemError({
-          provider: "googledrive",
-          message: `File already exists: ${this.path}`,
+      if (this.opts?.createOnly) {
+        throw fileConflictError("googledrive", `File already exists: ${this.path}`, {
           status: 409,
           code: "nameAlreadyExists",
-          conflict: true,
         });
       }
       // 如果文件存在，则更新
@@ -130,12 +127,9 @@ export class GoogleDriveFileWriter implements FileWriter {
     );
     const currentVersion = metadata?.version ? String(metadata.version) : undefined;
     if (currentVersion !== expectedVersion) {
-      throw new FileSystemError({
-        provider: "googledrive",
-        message: `Google Drive file changed before write: ${this.path}`,
+      throw fileConflictError("googledrive", `Google Drive file changed before write: ${this.path}`, {
         status: 412,
         code: "versionMismatch",
-        conflict: true,
       });
     }
   }
@@ -160,7 +154,7 @@ export class GoogleDriveFileWriter implements FileWriter {
       }
     );
 
-    if (this.opts?.createOnly || this.opts?.overwrite === false) {
+    if (this.opts?.createOnly) {
       await this.rejectDuplicateCreate(fileName, parentId, created?.id);
     }
 
@@ -182,12 +176,9 @@ export class GoogleDriveFileWriter implements FileWriter {
     } catch {
       // Best-effort cleanup. The conflict still prevents local digest/status from being advanced.
     }
-    throw new FileSystemError({
-      provider: "googledrive",
-      message: `Duplicate Google Drive file detected after create: ${this.path}`,
+    throw fileConflictError("googledrive", `Duplicate Google Drive file detected after create: ${this.path}`, {
       status: 409,
       code: "nameAlreadyExists",
-      conflict: true,
     });
   }
 }

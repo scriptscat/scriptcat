@@ -1,5 +1,5 @@
 import { AuthVerify } from "../auth";
-import { FileSystemError } from "../error";
+import { unsupportedConditionalWriteError } from "../error";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
@@ -32,12 +32,10 @@ export default class BaiduFileSystem implements FileSystem {
 
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
     if (opts?.expectedVersion) {
-      throw new FileSystemError({
-        provider: "baidu",
-        message: "Baidu filesystem does not expose a version token for conditional writes",
-        code: "unsupported_conditional_write",
-        unsupported: true,
-      });
+      throw unsupportedConditionalWriteError(
+        "baidu",
+        "Baidu filesystem does not expose a version token for conditional writes"
+      );
     }
     return new BaiduFileWriter(this, joinPath(this.path, path), opts);
   }

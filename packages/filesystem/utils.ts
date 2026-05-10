@@ -18,7 +18,7 @@ export function joinPath(...paths: string[]): string {
 }
 
 export function buildConditionalHeaders(opts?: FileCreateOptions): Record<string, string> {
-  if (opts?.createOnly || opts?.overwrite === false) {
+  if (opts?.createOnly) {
     return { "If-None-Match": "*" };
   }
   const expected = opts?.expectedVersion || opts?.expectedDigest;

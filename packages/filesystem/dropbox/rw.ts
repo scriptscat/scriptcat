@@ -1,4 +1,4 @@
-import { FileSystemError } from "../error";
+import { FileSystemError, fileConflictError, unsupportedConditionalWriteError } from "../error";
 import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import type { FileCreateOptions } from "../filesystem";
 import { joinPath } from "../utils";
@@ -73,14 +73,12 @@ export class DropboxFileWriter implements FileWriter {
 
   async write(content: string | Blob): Promise<void> {
     if (this.opts?.expectedDigest && !this.opts.expectedVersion) {
-      throw new FileSystemError({
-        provider: "dropbox",
-        message: "Dropbox conditional writes require expectedVersion (rev), not expectedDigest",
-        code: "unsupported_conditional_write",
-        unsupported: true,
-      });
+      throw unsupportedConditionalWriteError(
+        "dropbox",
+        "Dropbox conditional writes require expectedVersion (rev), not expectedDigest"
+      );
     }
-    if (this.opts?.createOnly || this.opts?.overwrite === false) {
+    if (this.opts?.createOnly) {
       return this.createNewFile(content);
     }
     if (this.opts?.expectedVersion) {
@@ -134,11 +132,8 @@ export class DropboxFileWriter implements FileWriter {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (isDropboxUploadConflict(error)) {
-        throw new FileSystemError({
-          provider: "dropbox",
-          message,
+        throw fileConflictError("dropbox", message, {
           status: message.includes("409") ? 409 : undefined,
-          conflict: true,
           raw: error,
         });
       }

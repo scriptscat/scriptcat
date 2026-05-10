@@ -1,5 +1,5 @@
 import type { WebDAVClient } from "webdav";
-import { FileSystemError } from "../error";
+import { fileConflictError } from "../error";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { buildConditionalHeaders } from "../utils";
 
@@ -48,18 +48,15 @@ export class WebDAVFileWriter implements FileWriter {
     delete headers["If-None-Match"];
     const options = {
       ...(Object.keys(headers).length ? { headers } : {}),
-      ...(this.opts?.createOnly || this.opts?.overwrite === false ? { overwrite: false } : {}),
+      ...(this.opts?.createOnly ? { overwrite: false } : {}),
     };
     let resp;
     try {
       resp = await this.client.putFileContents(this.path, data, options);
     } catch (error: any) {
       if (error.response?.status === 409 || error.response?.status === 412) {
-        throw new FileSystemError({
-          provider: "webdav",
-          message: error.message || "WebDAV conditional write failed",
+        throw fileConflictError("webdav", error.message || "WebDAV conditional write failed", {
           status: error.response.status,
-          conflict: true,
           raw: error,
         });
       }

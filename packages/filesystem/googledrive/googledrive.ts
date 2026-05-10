@@ -1,5 +1,5 @@
 import { AuthVerify } from "../auth";
-import { FileSystemError, isNotFoundError } from "../error";
+import { FileSystemError, fileConflictError, isNotFoundError } from "../error";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
@@ -344,6 +344,8 @@ export default class GoogleDriveFileSystem implements FileSystem {
             path: this.path,
             size: item.size ? parseInt(item.size, 10) : 0,
             digest: item.md5Checksum || "",
+            // Encodes the target id with Drive's version for best-effort stale-write detection.
+            // The writer still performs a preflight check, not an atomic server-side compare-and-swap update.
             version: item.version ? `${item.id}:${item.version}` : item.id,
             createtime: new Date(item.createdTime).getTime(),
             updatetime: new Date(item.modifiedTime).getTime(),
@@ -364,12 +366,9 @@ export default class GoogleDriveFileSystem implements FileSystem {
   async findFileInDirectory(fileName: string, parentId: string): Promise<string | null> {
     const files = await this.findFilesInDirectory(fileName, parentId);
     if (files.length > 1) {
-      throw new FileSystemError({
-        provider: "googledrive",
-        message: `Duplicate Google Drive files found: ${fileName}`,
+      throw fileConflictError("googledrive", `Duplicate Google Drive files found: ${fileName}`, {
         status: 409,
         code: "nameAlreadyExists",
-        conflict: true,
       });
     }
     return files[0]?.id || null;

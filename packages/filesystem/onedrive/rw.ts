@@ -72,8 +72,7 @@ export class OneDriveFileWriter implements FileWriter {
         headers: conditionalHeaders,
         body: JSON.stringify({
           item: {
-            "@microsoft.graph.conflictBehavior":
-              this.opts?.createOnly || this.opts?.overwrite === false ? "fail" : "replace",
+            "@microsoft.graph.conflictBehavior": this.opts?.createOnly ? "fail" : "replace",
             // description: "description",
             // fileSystemInfo: {
             //   "@odata.type": "microsoft.graph.fileSystemInfo",

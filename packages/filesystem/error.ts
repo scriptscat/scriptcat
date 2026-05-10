@@ -75,6 +75,28 @@ export class FileSystemError extends Error {
   }
 }
 
+export function fileConflictError(
+  provider: FileSystemProvider,
+  message: string,
+  options: Omit<FileSystemErrorOptions, "provider" | "message" | "conflict"> = {}
+): FileSystemError {
+  return new FileSystemError({
+    ...options,
+    provider,
+    message,
+    conflict: true,
+  });
+}
+
+export function unsupportedConditionalWriteError(provider: FileSystemProvider, message: string): FileSystemError {
+  return new FileSystemError({
+    provider,
+    message,
+    code: "unsupported_conditional_write",
+    unsupported: true,
+  });
+}
+
 export function isNotFoundError(error: unknown): error is FileSystemError {
   return error instanceof FileSystemError && error.notFound;
 }
