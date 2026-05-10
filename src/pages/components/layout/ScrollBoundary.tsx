@@ -1,10 +1,9 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type { ReactNode } from "react";
 
-// Props extend native div attributes so callers can pass className, style, etc.
 type ScrollBoundaryProps = {
   children: ReactNode;
   parentNodeSelector: string;
-} & HTMLAttributes<HTMLDivElement>;
+};
 
 /**
  * Handles wheel events bubbling up to the scroll boundary.
