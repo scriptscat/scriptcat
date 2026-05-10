@@ -5,7 +5,9 @@ export function joinPath(...paths: string[]): string {
       continue;
     }
     if (!value.startsWith("/")) {
-      value = `/${value}`;
+      if (path) {
+        value = `/${value}`;
+      }
     }
     if (value.endsWith("/")) {
       value = value.substring(0, value.length - 1);
