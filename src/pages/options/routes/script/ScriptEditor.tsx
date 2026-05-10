@@ -92,7 +92,7 @@ const Editor: React.FC<{
       );
     });
     disposables.push(
-      node.editor.onKeyUp(() => {
+      node.editor.onDidChangeModelContent(() => {
         onChangeRef.current(node.editor.getValue() || "");
       })
     );
@@ -708,6 +708,19 @@ function ScriptEditor() {
           hotKeyString: "Ctrl+A",
           action(_script, e) {
             e.trigger("menu", "editor.action.selectAll", null);
+          },
+        },
+        { divider: true },
+        {
+          id: "format",
+          title: t("format"),
+          hotKey: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
+          hotKeyString: "Ctrl+Shift+F",
+          action(_script, e) {
+            const selection = e.getSelection();
+            const actionId =
+              selection && !selection.isEmpty() ? "editor.action.formatSelection" : "editor.action.formatDocument";
+            e.getAction(actionId)?.run();
           },
         },
       ],

@@ -229,6 +229,7 @@
   "cut": "切り取り",
   "copy": "コピー",
   "paste": "貼り付け",
+  "format": "フォーマット",
   "exclude_on": "$0の実行を復元",
   "exclude_off": "$0の実行を除外",
   "user_config": "ユーザー設定",

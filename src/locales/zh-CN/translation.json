@@ -229,6 +229,7 @@
   "cut": "剪切",
   "copy": "复制",
   "paste": "粘贴",
+  "format": "格式化",
   "exclude_on": "恢复在 $0 上执行",
   "exclude_off": "排除在 $0 上执行",
   "user_config": "用户配置",
