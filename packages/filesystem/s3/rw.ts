@@ -65,7 +65,7 @@ export class S3FileWriter implements FileWriter {
       "content-type": "application/octet-stream",
     };
     if (this.modifiedDate) {
-      // 通过自定义元数据保存创建时间（ISO 8601 格式）
+      // 历史兼容：S3 侧使用 createtime 元数据保存文件时间，实际来源是 FileCreateOptions.modifiedDate。
       headers["x-amz-meta-createtime"] = new Date(this.modifiedDate).toISOString();
     }
 
