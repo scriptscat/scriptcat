@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FileSystemError, isAuthError, isConflictError, isNotFoundError, isRateLimitError } from "../error";
+import { joinPath } from "../utils";
 import GoogleDriveFileSystem from "./googledrive";
 
 function createMockResponse(options: { ok?: boolean; status?: number; text?: string; json?: any }): Response {
@@ -80,6 +81,21 @@ describe("GoogleDriveFileSystem", () => {
     expect(ensureSpy).toHaveBeenCalledWith("/Base");
     expect(findSpy).toHaveBeenCalledWith("file.txt", "base-id");
     expect(requestSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("create should normalize double slashes in paths", async () => {
+    const fs = new GoogleDriveFileSystem("/ScriptCat//sync", "token");
+
+    const writer = await fs.create("dir//file.user.js");
+
+    expect((writer as any).path).toBe("/ScriptCat/sync/dir/file.user.js");
+  });
+
+  it("clearPathCache should accept normalized paths derived from duplicate slashes", () => {
+    const fs = new GoogleDriveFileSystem("/ScriptCat//sync", "token");
+
+    expect(joinPath("/ScriptCat//sync", "dir//file.user.js")).toBe("/ScriptCat/sync/dir/file.user.js");
+    expect(() => fs.clearPathCache("/ScriptCat//sync/dir")).not.toThrow();
   });
 
   it("writer should clear stale path cache and retry once on provider 404", async () => {

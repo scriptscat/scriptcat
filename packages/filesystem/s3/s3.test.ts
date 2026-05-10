@@ -202,6 +202,14 @@ describe("S3FileSystem", () => {
         })
       );
     });
+
+    it("normalizes double slashes in object keys", async () => {
+      const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
+
+      const writer = await subFs.create("dir//file.user.js");
+
+      expect((writer as any).key).toBe("ScriptCat/sync/dir/file.user.js");
+    });
   });
 
   // ---- createDir ----
@@ -234,6 +242,15 @@ describe("S3FileSystem", () => {
       );
 
       await expect(fs.delete("test.txt")).rejects.toThrow();
+    });
+
+    it("normalizes double slashes in object keys", async () => {
+      const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true, status: 204 }));
+
+      await subFs.delete("dir//file.user.js");
+
+      expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "ScriptCat/sync/dir/file.user.js");
     });
   });
 

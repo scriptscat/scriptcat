@@ -206,6 +206,17 @@ describe("WebDAVFileSystem", () => {
       expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt");
     });
 
+    it("normalizes double slashes in paths", async () => {
+      const fs = WebDAVFileSystem.fromSameClient(
+        { client: mockClient, url: "https://dav.example.com", basePath: "/ScriptCat//sync" } as any,
+        "/ScriptCat//sync"
+      );
+
+      await fs.delete("dir//file.user.js");
+
+      expect(mockClient.deleteFile).toHaveBeenCalledWith("/ScriptCat/sync/dir/file.user.js");
+    });
+
     it("应当在 404 时静默成功（幂等删除）", async () => {
       (mockClient.deleteFile as ReturnType<typeof vi.fn>).mockRejectedValue({
         response: { status: 404 },
@@ -214,6 +225,19 @@ describe("WebDAVFileSystem", () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
+    });
+  });
+
+  describe("create", () => {
+    it("normalizes double slashes in paths", async () => {
+      const fs = WebDAVFileSystem.fromSameClient(
+        { client: mockClient, url: "https://dav.example.com", basePath: "/ScriptCat//sync" } as any,
+        "/ScriptCat//sync"
+      );
+
+      const writer = await fs.create("dir//file.user.js");
+
+      expect((writer as any).path).toBe("/ScriptCat/sync/dir/file.user.js");
     });
   });
 
