@@ -1119,6 +1119,169 @@ console.log("ok");`
     expect(notifySpy).toHaveBeenCalledWith(false, 1);
   });
 
+  it("skips status and digest update when pullScript fails", async () => {
+    const error = new Error("install failed during pull");
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([
+        {
+          name: "pull-uuid.user.js",
+          path: "/",
+          size: 1,
+          digest: "d1",
+          createtime: 1,
+          updatetime: 2,
+        },
+        {
+          name: "pull-uuid.meta.json",
+          path: "/",
+          size: 1,
+          digest: "d2",
+          createtime: 1,
+          updatetime: 2,
+        },
+      ]),
+      open: vi.fn().mockImplementation(async (file) => ({
+        read: vi.fn().mockResolvedValue(
+          file.name.endsWith(".user.js")
+            ? `// ==UserScript==
+// @name Pull Test
+// @namespace sync-test
+// @match https://example.com/*
+// ==/UserScript==
+console.log("ok");`
+            : JSON.stringify({ uuid: "pull-uuid" })
+        ),
+      })),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { installScript: vi.fn().mockRejectedValue(error) } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
+    const notifySpy = vi.spyOn(service, "notifySyncFailed").mockImplementation(() => {});
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(updateDigestSpy).not.toHaveBeenCalled();
+    expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
+    expect(notifySpy).toHaveBeenCalledWith(false, 1);
+  });
+
+  it("skips digest update when status sync fails", async () => {
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([
+        {
+          name: "status-uuid.user.js",
+          path: "/",
+          size: 1,
+          digest: "d1",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "status-uuid.meta.json",
+          path: "/",
+          size: 1,
+          digest: "d2",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "scriptcat-sync.json",
+          path: "/",
+          size: 1,
+          digest: "sync-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            version: "1.0.0",
+            status: {
+              scripts: {
+                "status-uuid": {
+                  enable: false,
+                  sort: 0,
+                  updatetime: 2,
+                },
+              },
+            },
+          })
+        ),
+      }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {
+        enableScript: vi.fn().mockRejectedValue(new Error("enable failed")),
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        update: vi.fn(),
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "status-uuid",
+            name: "status",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    const notifySpy = vi.spyOn(service, "notifySyncFailed").mockImplementation(() => {});
+    const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
+    await (service as any).storage.set("file_digest", {
+      "status-uuid.user.js": "d1",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(updateDigestSpy).not.toHaveBeenCalled();
+    expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
+    expect(notifySpy).toHaveBeenCalledWith(false, 1);
+  });
+
+  it("deleteCloudScript rejects delete failures so caller can notify", async () => {
+    const fs = createFs({
+      delete: vi.fn().mockRejectedValue(new Error("delete failed")),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await expect(service.deleteCloudScript(fs, "delete-uuid", true)).rejects.toThrow("delete failed");
+  });
+
   it("scriptInstall enters cloud_sync queue and updates digest after push", async () => {
     let releaseSync!: () => void;
     const syncGate = new Promise<void>((resolve) => {

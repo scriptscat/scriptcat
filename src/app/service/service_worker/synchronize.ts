@@ -523,7 +523,7 @@ export class SynchronizeService {
     // 同步状态
     if (syncConfig.syncStatus) {
       const scriptlist = await this.scriptDAO.all();
-      await Promise.allSettled(
+      const statusResults = await Promise.allSettled(
         scriptlist.map(async (script) => {
           // 判断云端状态是否与本地状态一致
           const status = cloudStatus[script.uuid];
@@ -569,6 +569,11 @@ export class SynchronizeService {
           }
         })
       );
+      const rejectedStatus = statusResults.filter((ret) => ret.status === "rejected");
+      if (rejectedStatus.length) {
+        this.notifySyncFailed(false, rejectedStatus.length);
+        return;
+      }
       // 保留被跳过的 orphan uuid 的云端 status，避免覆盖另一台设备半上传的状态
       skippedOrphanUuids.forEach((uuid) => {
         const status = cloudStatus[uuid];
@@ -647,6 +652,7 @@ export class SynchronizeService {
       logger.info("delete success");
     } catch (e) {
       logger.error("delete file error", Logger.E(e));
+      throw e;
     }
     return;
   }
@@ -800,6 +806,7 @@ export class SynchronizeService {
       logger.info("pull script success");
     } catch (e) {
       logger.error("pull script error", Logger.E(e));
+      throw e;
     }
   }
 
@@ -862,6 +869,7 @@ export class SynchronizeService {
         await this.updateFileDigest(fs, pushedFileDigestMap);
       }).catch((e) => {
         this.logger.error("push script on install error", Logger.E(e));
+        this.notifySyncFailed(isConflictError(e), 1);
       });
     }
   }
@@ -884,6 +892,7 @@ export class SynchronizeService {
         await this.updateFileDigest(fs);
       }).catch((e) => {
         this.logger.error("delete cloud script error", Logger.E(e));
+        this.notifySyncFailed(isConflictError(e), 1);
       });
     }
   }
