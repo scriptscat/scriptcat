@@ -321,6 +321,7 @@ export class Runtime {
   }
 
   valueUpdate(data: ValueUpdateDataEncoded) {
+    // runtime/valueUpdate
     const dataEntries = data.entries;
     // 转发给脚本
     this.execScriptMap.forEach((val) => {

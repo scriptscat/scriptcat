@@ -46,6 +46,7 @@ export class ScriptExecutor {
   }
 
   valueUpdate(data: ValueUpdateDataEncoded) {
+    // runtime/valueUpdate
     const { uuid, storageName } = data;
     for (const val of this.execScriptMap.values()) {
       if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
