@@ -618,6 +618,7 @@ export class SynchronizeService {
     let newList = await fs.list();
     // 有些远端在刚上传后 list 会短暂漏掉新对象；只在“文件名完全没出现”时重试一次。
     // 如果文件名出现但 digest 还是旧值，仍保留 provider 返回值，避免用本地 MD5 污染 etag/rev/hash。
+    // 这个取舍可能导致下一轮重复同步或误判变更，但不会把 provider 原生 digest 缓存成错误格式。
     if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
       newList = await fs.list();
     }
@@ -654,6 +655,7 @@ export class SynchronizeService {
         // 删除协议仍以 .meta.json tombstone 作为对其他设备的提交信号。
         // 注意：当前不是事务写入。script 已删但 tombstone 写失败时，上层会报错且不推进 digest，
         // 但远端仍可能短暂处于半提交状态；彻底解决需要 manifest/commit 协议。
+        // 不在这里补偿恢复 script：恢复也是一次写入，可能覆盖另一台设备在失败窗口内的新版本。
         const modifiedDate = Date.now();
         const meta = await fs.create(`${uuid}.meta.json`, getWriteOptions(modifiedDate, remoteFiles?.meta));
         await meta.write(
@@ -714,6 +716,7 @@ export class SynchronizeService {
           // 只清理“本次新建 script 成功但 meta 写失败”的孤儿文件，且必须带 digest 守卫。
           // 这个 digest 是本地 MD5，部分 provider 的远端 digest/etag 不同，清理可能失败；
           // 清理失败只会留下 orphan，下次同步会跳过 orphan，不应为了清理而改成无条件删除。
+          // 这里不影响正常删除操作：cleanup 只发生在 push 失败路径，失败也会保留原始错误继续上抛。
           await fs.delete(filename, { expectedDigest: scriptDigest }).catch((cleanupError) => {
             logger.warn("cleanup newly created script after meta write failure failed", Logger.E(cleanupError));
           });

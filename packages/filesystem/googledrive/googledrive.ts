@@ -226,6 +226,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
     if (expected?.version || opts?.expectedDigest) {
       // Google Drive delete 没有使用服务端 If-Match；这里先读 version/md5Checksum 再删除。
       // 这只能发现删除前已经过期的本地快照，不能消除检查后到删除前的并发更新窗口。
+      // 典型残留窗口：A 读 version 通过后，B 更新文件，A 的 DELETE 仍可能删除 B 的新内容。
       const metadata = await this.request(
         `https://www.googleapis.com/drive/v3/files/${fileId}?fields=version,md5Checksum&spaces=appDataFolder`
       );

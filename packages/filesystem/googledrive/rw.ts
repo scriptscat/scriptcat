@@ -98,6 +98,7 @@ export class GoogleDriveFileWriter implements FileWriter {
     if (expectedVersion) {
       // Google Drive writer 没有原子 compare-and-swap 更新路径。
       // 这里的 preflight 只能在 PATCH 前发现本地快照已过期，不是服务端写入条件。
+      // 残留窗口：A assertVersion 通过后，B 写入新内容，A 随后的 PATCH 仍可能覆盖 B。
       await this.assertVersion(fileId, expectedVersion);
     }
     // 不设置Content-Type，让浏览器自动处理multipart/form-data边界

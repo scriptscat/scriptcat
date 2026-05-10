@@ -99,6 +99,7 @@ export default class BaiduFileSystem implements FileSystem {
     if (opts?.expectedDigest) {
       // 百度网盘删除接口不支持服务端 If-Match/CAS，只能先 list 比对 digest 再删除。
       // 这只能降低 stale 删除风险，不能关闭“检查后、删除前被其他设备更新”的 TOCTOU 窗口。
+      // 典型残留窗口：A list 通过后，B 更新同名文件，A 随后 delete 仍可能删除 B 的新内容。
       const targetName = path.substring(path.lastIndexOf("/") + 1);
       const existing = (await this.list()).find((file) => file.name === targetName);
       if (existing && existing.digest !== opts.expectedDigest) {
