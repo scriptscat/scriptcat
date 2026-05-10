@@ -45,7 +45,7 @@ describe("SynchronizeService", () => {
     chrome.storage.local.clear();
   });
 
-  it("skips missing selected scripts during backup export", async () => {
+  it("fails selected backup export when any requested script is missing", async () => {
     const service = new SynchronizeService(
       {} as any,
       {} as any,
@@ -75,10 +75,9 @@ describe("SynchronizeService", () => {
       } as any
     );
 
-    const backup = await service.getScriptBackupData(["missing", "existing"]);
-
-    expect(backup).toHaveLength(1);
-    expect(backup[0]!.options!.meta.uuid).toBe("existing");
+    await expect(service.getScriptBackupData(["missing", "existing"])).rejects.toThrow(
+      "Failed to export 1 selected script(s)"
+    );
   });
 
   it("serializes concurrent syncOnce calls", async () => {

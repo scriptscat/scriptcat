@@ -187,11 +187,15 @@ export class SynchronizeService {
           return this.generateScriptBackupData(script);
         })
       );
-      results.forEach((ret) => {
-        if (ret.status === "rejected") {
-          this.logger.warn("skip missing script during backup export", Logger.E(ret.reason));
-        }
+      const failed = results.filter((ret): ret is PromiseRejectedResult => ret.status === "rejected");
+      failed.forEach((ret) => {
+        this.logger.warn("failed to export selected script", Logger.E(ret.reason));
       });
+      if (failed.length) {
+        // 用户明确选择导出 uuid 时，缺失/失败不能静默跳过；
+        // 否则会生成不完整备份而用户无感。这里先收集并记录所有失败，再让导出整体失败。
+        throw new Error(`Failed to export ${failed.length} selected script(s)`);
+      }
       return results
         .filter((ret): ret is PromiseFulfilledResult<ScriptBackupData> => ret.status === "fulfilled")
         .map((ret) => ret.value);
@@ -260,7 +264,6 @@ export class SynchronizeService {
     }
     return ret;
   }
-
   importResources(data: {
     uuid: string;
     requires: ResourceBackup[];
@@ -617,6 +620,8 @@ export class SynchronizeService {
     });
     if (tombstoneDigestDirty) {
       // 本轮可能同时读到多个 meta，统一写一次本地 cache，避免旧记录较多时频繁 storage.set。
+      // 即使后续同步任务失败也可以写入：这是“某个 meta digest 已确认是 tombstone”的辅助事实，
+      // 不会推进 file_digest 或 scriptcat-sync.json 成功状态，只帮助下一轮继续收敛残留删除。
       await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, tombstoneDigestMap);
     }
     const rejected = syncResults.filter((ret) => ret.status === "rejected");
