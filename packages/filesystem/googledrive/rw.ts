@@ -67,6 +67,15 @@ export class GoogleDriveFileWriter implements FileWriter {
   }
 
   private async writeWithResolvedParent(content: string | Blob): Promise<void> {
+    if (this.opts?.createOnly || this.opts?.overwrite === false) {
+      throw new FileSystemError({
+        provider: "googledrive",
+        message: "Google Drive does not enforce unique file names for atomic createOnly writes",
+        code: "unsupported_atomic_create",
+        unsupported: true,
+      });
+    }
+
     // 解析文件路径和文件名
     const pathParts = this.path.split("/").filter(Boolean);
     const fileName = pathParts.pop() || ""; // 获取文件名
@@ -80,15 +89,6 @@ export class GoogleDriveFileWriter implements FileWriter {
     const existingFileId = expected?.fileId || (await this.fs.findFileInDirectory(fileName, parentId));
 
     if (existingFileId) {
-      if (this.opts?.createOnly || this.opts?.overwrite === false) {
-        throw new FileSystemError({
-          provider: "googledrive",
-          message: `File already exists: ${this.path}`,
-          status: 409,
-          code: "nameAlreadyExists",
-          conflict: true,
-        });
-      }
       // 如果文件存在，则更新
       return this.updateFile(existingFileId, content, expected?.matchToken || this.opts?.expectedDigest);
     } else {

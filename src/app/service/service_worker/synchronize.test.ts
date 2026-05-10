@@ -1326,4 +1326,40 @@ console.log("ok");`
       process.off("unhandledRejection", unhandled);
     }
   });
+
+  it.each(["baidu-netdsik", "googledrive"] as const)(
+    "buildFileSystem disables unsafe atomic cloud sync provider %s",
+    async (filesystem) => {
+      const setCloudSync = vi.fn();
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { setCloudSync } as any,
+        {
+          scriptCodeDAO: {},
+          all: vi.fn().mockResolvedValue([]),
+        } as any
+      );
+      const config = {
+        ...syncConfig,
+        filesystem,
+        params: {
+          [filesystem]: {},
+        },
+      } as CloudSyncConfig;
+
+      await expect(service.buildFileSystem(config)).rejects.toMatchObject({
+        unsupported: true,
+        code: "unsupported_atomic_cloud_sync",
+      });
+      expect(setCloudSync).toHaveBeenCalledWith({
+        ...config,
+        enable: false,
+      });
+    }
+  );
 });

@@ -170,15 +170,16 @@ describe("GoogleDriveFileSystem", () => {
     expect(headers.get("If-Match")).toBe("version-7");
   });
 
-  it("writer should reject createOnly when target already exists", async () => {
+  it("writer should reject createOnly because Google Drive has no atomic name uniqueness", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     const writer = await fs.create("file.txt", { createOnly: true });
-    vi.spyOn(fs, "findFileInDirectory").mockResolvedValue("file-1");
+    const requestSpy = vi.spyOn(fs, "request");
 
     await expect(writer.write("content")).rejects.toMatchObject({
       provider: "googledrive",
-      conflict: true,
+      unsupported: true,
     });
+    expect(requestSpy).not.toHaveBeenCalled();
   });
 
   it("findFileInDirectory should reject duplicate file names", async () => {
@@ -191,49 +192,28 @@ describe("GoogleDriveFileSystem", () => {
     });
   });
 
-  it("writer should create createOnly files with a generated Google Drive id", async () => {
+  it("writer should reject overwrite=false because Google Drive has no atomic name uniqueness", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
-    const writer = await fs.create("file.txt", { createOnly: true });
-    vi.spyOn(fs, "findFileInDirectory").mockResolvedValue(null);
-    vi.spyOn(fs, "findFilesInDirectory").mockResolvedValue([{ id: "generated-file" }]);
-    const requestSpy = vi
-      .spyOn(fs, "request")
-      .mockResolvedValueOnce({ ids: ["generated-file"] })
-      .mockResolvedValueOnce({ id: "generated-file" });
-
-    await expect(writer.write("content")).resolves.toBeUndefined();
-
-    expect(requestSpy.mock.calls[0][0]).toBe(
-      "https://www.googleapis.com/drive/v3/files/generateIds?count=1&space=appDataFolder&fields=ids"
-    );
-    const createOptions = requestSpy.mock.calls[1][1] as RequestInit;
-    const headers = createOptions.headers as Headers;
-    expect(headers.get("If-None-Match")).toBe("*");
-    const formData = createOptions.body as FormData;
-    expect(formData.get("metadata")).toBeTruthy();
-  });
-
-  it("writer should rollback and reject createOnly when Google Drive creates a duplicate name", async () => {
-    const fs = new GoogleDriveFileSystem("/", "token");
-    const writer = await fs.create("file.txt", { createOnly: true });
-    vi.spyOn(fs, "findFileInDirectory").mockResolvedValue(null);
-    vi.spyOn(fs, "findFilesInDirectory").mockResolvedValue([{ id: "other-file" }, { id: "created-file" }]);
-    const requestSpy = vi
-      .spyOn(fs, "request")
-      .mockResolvedValueOnce({ ids: ["generated-file"] })
-      .mockResolvedValueOnce({ id: "created-file" })
-      .mockResolvedValueOnce({});
+    const writer = await fs.create("file.txt", { overwrite: false });
+    const requestSpy = vi.spyOn(fs, "request");
 
     await expect(writer.write("content")).rejects.toMatchObject({
       provider: "googledrive",
-      conflict: true,
+      unsupported: true,
     });
+    expect(requestSpy).not.toHaveBeenCalled();
+  });
 
-    expect(requestSpy).toHaveBeenCalledTimes(3);
-    expect(requestSpy.mock.calls[2][0]).toBe(
-      "https://www.googleapis.com/drive/v3/files/created-file?spaces=appDataFolder"
-    );
-    expect((requestSpy.mock.calls[2][1] as RequestInit).method).toBe("DELETE");
+  it("writer should not use generateIds as a createOnly workaround", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", { createOnly: true });
+    const generateSpy = vi.spyOn(fs, "generateFileId");
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "googledrive",
+      unsupported: true,
+    });
+    expect(generateSpy).not.toHaveBeenCalled();
   });
 
   it("list should clear stale path cache and retry once on provider 404", async () => {
