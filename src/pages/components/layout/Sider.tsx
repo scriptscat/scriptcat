@@ -4,7 +4,7 @@ import ScriptList from "@App/pages/options/routes/ScriptList";
 import Setting from "@App/pages/options/routes/Setting";
 import SubscribeList from "@App/pages/options/routes/SubscribeList";
 import Tools from "@App/pages/options/routes/Tools";
-import { Layout, Menu } from "@arco-design/web-react";
+import { Layout, Menu, Tooltip } from "@arco-design/web-react";
 import {
   IconCode,
   IconFile,
@@ -53,29 +53,45 @@ const Sider: React.FC = () => {
         <div className="tw-flex tw-flex-col tw-justify-between tw-h-full">
           <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
             <CustomLink to="/">
-              <MenuItem key="/" className="menu-script">
-                <IconCode /> {t("installed_scripts")}
-              </MenuItem>
+              <Tooltip
+                position="tl"
+                mini
+                content={`${t("installed_scripts")}`}
+                popupHoverStay={false}
+                disabled={collapsed}
+              >
+                <MenuItem key="/" className="menu-script">
+                  <IconCode /> {t("installed_scripts")}
+                </MenuItem>
+              </Tooltip>
             </CustomLink>
             <CustomLink to="/subscribe">
-              <MenuItem key="/subscribe">
-                <IconSubscribe /> {t("subscribe")}
-              </MenuItem>
+              <Tooltip position="tl" mini content={`${t("subscribe")}`} popupHoverStay={false} disabled={collapsed}>
+                <MenuItem key="/subscribe">
+                  <IconSubscribe /> {t("subscribe")}
+                </MenuItem>
+              </Tooltip>
             </CustomLink>
             <CustomLink to="/logger">
-              <MenuItem key="/logger">
-                <IconFile /> {t("logs")}
-              </MenuItem>
+              <Tooltip position="tl" mini content={`${t("logs")}`} popupHoverStay={false} disabled={collapsed}>
+                <MenuItem key="/logger">
+                  <IconFile /> {t("logs")}
+                </MenuItem>
+              </Tooltip>
             </CustomLink>
             <CustomLink to="/tools" className="menu-tools">
-              <MenuItem key="/tools">
-                <IconTool /> {t("tools")}
-              </MenuItem>
+              <Tooltip position="tl" mini content={`${t("tools")}`} popupHoverStay={false} disabled={collapsed}>
+                <MenuItem key="/tools">
+                  <IconTool /> {t("tools")}
+                </MenuItem>
+              </Tooltip>
             </CustomLink>
             <CustomLink to="/setting" className="menu-setting">
-              <MenuItem key="/setting">
-                <IconSettings /> {t("settings")}
-              </MenuItem>
+              <Tooltip position="tl" mini content={`${t("settings")}`} popupHoverStay={false} disabled={collapsed}>
+                <MenuItem key="/setting">
+                  <IconSettings /> {t("settings")}
+                </MenuItem>
+              </Tooltip>
             </CustomLink>
           </Menu>
           <Menu
@@ -85,84 +101,95 @@ const Sider: React.FC = () => {
             onClickMenuItem={handleMenuClick}
             mode="pop"
           >
-            <Menu.SubMenu
-              key="/help"
-              title={
-                <>
-                  <IconQuestion /> {t("helpcenter")}
-                </>
-              }
-              triggerProps={{
-                trigger: "hover",
-              }}
-            >
+            <Tooltip position="tl" mini content={`${t("helpcenter")}`} popupHoverStay={false} disabled={collapsed}>
               <Menu.SubMenu
-                key="/external_links"
+                key="/help"
                 title={
                   <>
-                    <RiLinkM /> <span className="tw-grow">{t("external_links")}</span>
+                    <IconQuestion /> {t("helpcenter")}
                   </>
                 }
+                triggerProps={{
+                  trigger: "hover",
+                }}
               >
-                <Menu.Item key="scriptcat/docs/dev/">
-                  <a href={`${DocumentationSite}${localePath}/docs/dev/`} target="_blank" rel="noreferrer">
-                    <RiFileCodeLine /> {t("api_docs")}
-                  </a>
+                <Menu.SubMenu
+                  key="/external_links"
+                  title={
+                    <>
+                      <RiLinkM /> <span className="tw-grow">{t("external_links")}</span>
+                    </>
+                  }
+                >
+                  <Menu.Item key="scriptcat/docs/dev/">
+                    <a href={`${DocumentationSite}${localePath}/docs/dev/`} target="_blank" rel="noreferrer">
+                      <RiFileCodeLine /> {t("api_docs")}
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="scriptcat/docs/learn/">
+                    <a href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/" target="_blank" rel="noreferrer">
+                      <RiFileCodeLine /> {t("development_guide")}
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="scriptcat/userscript">
+                    <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
+                      <IconLink /> {t("script_gallery")}
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="tampermonkey/bbs">
+                    <a href="https://bbs.tampermonkey.net.cn/" target="_blank" rel="noreferrer">
+                      <IconLink /> {t("community_forum")}
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="GitHub">
+                    <a href="https://github.com/scriptscat/scriptcat" target="_blank" rel="noreferrer">
+                      <IconGithub /> {"GitHub"}
+                    </a>
+                  </Menu.Item>
+                </Menu.SubMenu>
+                <Menu.Item
+                  key="/guide"
+                  onClick={() => {
+                    guideRef.current?.open();
+                  }}
+                >
+                  <RiGuideLine /> {t("guide")}
                 </Menu.Item>
-                <Menu.Item key="scriptcat/docs/learn/">
-                  <a href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/" target="_blank" rel="noreferrer">
-                    <RiFileCodeLine /> {t("development_guide")}
-                  </a>
-                </Menu.Item>
-                <Menu.Item key="scriptcat/userscript">
-                  <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
-                    <IconLink /> {t("script_gallery")}
-                  </a>
-                </Menu.Item>
-                <Menu.Item key="tampermonkey/bbs">
-                  <a href="https://bbs.tampermonkey.net.cn/" target="_blank" rel="noreferrer">
-                    <IconLink /> {t("community_forum")}
-                  </a>
-                </Menu.Item>
-                <Menu.Item key="GitHub">
-                  <a href="https://github.com/scriptscat/scriptcat" target="_blank" rel="noreferrer">
-                    <IconGithub /> {"GitHub"}
+                <Menu.Item key="scriptcat/docs/use/">
+                  <a href={`${DocumentationSite}${localePath}/docs/use/use/`} target="_blank" rel="noreferrer">
+                    <RiFileCodeLine /> {t("user_guide")}
                   </a>
                 </Menu.Item>
               </Menu.SubMenu>
-              <Menu.Item
-                key="/guide"
+            </Tooltip>
+            <Tooltip
+              position="tl"
+              mini
+              content={`${collapsed ? t("show_main_sidebar") : t("hide_main_sidebar")}`}
+              popupHoverStay={false}
+              disabled={collapsed}
+              className={`${collapsed ? "!tw-hidden" : ""}` /* 否则 expand -> disabled 生效 -> 永久显示 */}
+            >
+              <MenuItem
+                key="/collapsible"
                 onClick={() => {
-                  guideRef.current?.open();
+                  localStorage.collapsed = !collapsed;
+                  setCollapsed(!collapsed);
                 }}
               >
-                <RiGuideLine /> {t("guide")}
-              </Menu.Item>
-              <Menu.Item key="scriptcat/docs/use/">
-                <a href={`${DocumentationSite}${localePath}/docs/use/use/`} target="_blank" rel="noreferrer">
-                  <RiFileCodeLine /> {t("user_guide")}
-                </a>
-              </Menu.Item>
-            </Menu.SubMenu>
-            <MenuItem
-              key="/collapsible"
-              onClick={() => {
-                localStorage.collapsed = !collapsed;
-                setCollapsed(!collapsed);
-              }}
-            >
-              {collapsed ? (
-                <>
-                  <IconRight />
-                  {t("show_main_sidebar")}
-                </>
-              ) : (
-                <>
-                  <IconLeft />
-                  {t("hide_main_sidebar")}
-                </>
-              )}
-            </MenuItem>
+                {collapsed ? (
+                  <>
+                    <IconRight />
+                    {t("show_main_sidebar")}
+                  </>
+                ) : (
+                  <>
+                    <IconLeft />
+                    {t("hide_main_sidebar")}
+                  </>
+                )}
+              </MenuItem>
+            </Tooltip>
           </Menu>
         </div>
       </Layout.Sider>

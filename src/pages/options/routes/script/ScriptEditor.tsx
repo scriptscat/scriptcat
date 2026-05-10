@@ -875,7 +875,7 @@ function ScriptEditor() {
         </div>
       </div>
       <Row
-        className="tw-flex tw-flex-grow tw-flex-1"
+        className="tw-flex tw-flex-grow tw-flex-1 tw-overscroll-none"
         style={{
           overflow: "hidden",
         }}

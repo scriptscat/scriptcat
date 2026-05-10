@@ -33,7 +33,7 @@ import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { cacheInstance } from "@App/app/cache";
 import { formatBytes } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
-import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
+import { readRawContent } from "@App/pkg/utils/encoding";
 import { prettyUrl } from "@App/pkg/utils/url-utils";
 
 const backgroundPromptShownKey = "background_prompt_shown";
@@ -107,19 +107,8 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
     position += chunk.length;
   }
 
-  // 检测编码：优先使用 Content-Type，回退到 chardet（仅检测前16KB）
   const contentType = response.headers.get("content-type");
-  const encode = detectEncoding(chunksAll, contentType);
-
-  // 使用检测到的 charset 解码
-  let code;
-  try {
-    code = bytesDecode(encode, chunksAll);
-  } catch (e: any) {
-    console.warn(`Failed to decode response with charset ${encode}: ${e.message}`);
-    // 回退到 UTF-8
-    code = new TextDecoder("utf-8").decode(chunksAll);
-  }
+  const code = await readRawContent(chunksAll, contentType);
 
   const metadata = parseMetadata(code);
   if (!metadata) {
