@@ -234,6 +234,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
       );
     } catch (error) {
       if (isNotFoundError(error)) {
+        this.clearRelatedCache(fullPath);
         return;
       }
       throw error;

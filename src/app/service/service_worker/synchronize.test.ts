@@ -577,6 +577,16 @@ console.log("ok");`
     const fs = createFs({
       create: createMock,
       delete: vi.fn().mockResolvedValue(undefined),
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "push-uuid.user.js",
+          path: "/",
+          size: 1,
+          digest: md5OfText("// code"),
+          createtime: 1,
+          updatetime: 1234,
+        },
+      ]),
     });
     const service = new SynchronizeService(
       {} as any,
@@ -642,7 +652,7 @@ console.log("ok");`
     };
     const latestScriptFile = {
       ...oldScriptFile,
-      digest: "latest-digest-js",
+      digest: md5OfText("// new code"),
       version: "latest-version-js",
       updatetime: 1234,
     };
@@ -698,6 +708,84 @@ console.log("ok");`
       { modifiedDate: 1000, expectedVersion: "latest-version-js" },
     ]);
     expect(restoreWriter.write).toHaveBeenCalledWith("// old code");
+  });
+
+  it("skips rollback restore when another device changed the file after our write", async () => {
+    const scriptWriter = { write: vi.fn().mockResolvedValue(undefined) };
+    const metaWriter = {
+      write: vi.fn().mockRejectedValue(new Error("meta write failed")),
+    };
+    const createMock = vi.fn().mockResolvedValueOnce(scriptWriter).mockResolvedValueOnce(metaWriter);
+    const oldScriptFile = {
+      name: "push-uuid.user.js",
+      path: "/",
+      size: 1,
+      digest: "old-digest-js",
+      version: "old-version-js",
+      createtime: 1,
+      updatetime: 1000,
+    };
+    const oldMetaFile = {
+      name: "push-uuid.meta.json",
+      path: "/",
+      size: 1,
+      digest: "old-digest-meta",
+      version: "old-version-meta",
+      createtime: 1,
+      updatetime: 1000,
+    };
+    const fs = createFs({
+      open: vi
+        .fn()
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue("// old code"),
+        })
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue('{"uuid":"push-uuid"}'),
+        }),
+      list: vi.fn().mockResolvedValue([
+        {
+          ...oldScriptFile,
+          digest: "other-device-digest",
+          version: "other-device-version",
+          updatetime: 2000,
+        },
+      ]),
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// new code" }),
+        },
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      updatetime: 1234,
+      createtime: 1000,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+
+    await expect(
+      service.pushScript(fs, script as any, {
+        script: oldScriptFile,
+        meta: oldMetaFile,
+      })
+    ).rejects.toThrow("meta write failed");
+
+    expect(createMock).toHaveBeenCalledTimes(2);
   });
 
   it("uses Date.now as modifiedDate when writing scriptcat-sync.json", async () => {
@@ -905,6 +993,43 @@ console.log("ok");`
       "push-uuid.user.js": "etag-user-js",
     });
   });
+
+  it("uses pushed digest when cloud list returns previous digest after overwrite", async () => {
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([
+        {
+          name: "push-uuid.user.js",
+          path: "push-uuid.user.js",
+          size: 1,
+          digest: "old-md5",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.updateFileDigest(fs, {
+      "push-uuid.user.js": { digest: "new-md5", previousDigest: "old-md5" },
+    });
+
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "push-uuid.user.js": "new-md5",
+    });
+  });
+
   it("skips status and digest update when a push hits remote conflict", async () => {
     const conflict = new FileSystemError({
       provider: "webdav",

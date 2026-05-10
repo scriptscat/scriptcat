@@ -33,10 +33,14 @@ describe("BaiduFileSystem", () => {
     expect(updateDynamicRulesMock).not.toHaveBeenCalled();
   });
 
-  it("create should reject expectedVersion as unsupported", async () => {
+  it("create should reject conditional writes as unsupported", async () => {
     const fs = new BaiduFileSystem("/apps", "token");
 
     await expect(fs.create("test.txt", { expectedVersion: "version" })).rejects.toMatchObject({
+      provider: "baidu",
+      unsupported: true,
+    });
+    await expect(fs.create("test.txt", { expectedDigest: "digest" })).rejects.toMatchObject({
       provider: "baidu",
       unsupported: true,
     });
@@ -63,20 +67,29 @@ describe("BaiduFileSystem", () => {
     });
   });
 
-  it("writer should reject expectedDigest when remote digest changed", async () => {
+  it("writer should ask Baidu to fail server-side createOnly collisions", async () => {
     const fs = new BaiduFileSystem("/apps", "token");
-    vi.spyOn(fs, "list").mockResolvedValue([
-      {
-        name: "test.txt",
-        path: "/apps",
-        size: 1,
-        digest: "new-md5",
-        createtime: 1,
-        updatetime: 1,
-      },
-    ]);
+    vi.spyOn(fs, "list").mockResolvedValue([]);
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockResolvedValueOnce({ errno: 0, uploadid: "upload-id" })
+      .mockResolvedValueOnce({ errno: 0 })
+      .mockResolvedValueOnce({ errno: 0 });
 
-    const writer = await fs.create("test.txt", { expectedDigest: "old-md5" });
+    const writer = await fs.create("test.txt", { createOnly: true });
+
+    await expect(writer.write("content")).resolves.toBeUndefined();
+
+    expect(String((requestSpy.mock.calls[0][1] as RequestInit).body)).toContain("rtype=0");
+    expect(String((requestSpy.mock.calls[2][1] as RequestInit).body)).toContain("rtype=0");
+  });
+
+  it("writer should surface Baidu createOnly rejection as conflict", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "list").mockResolvedValue([]);
+    vi.spyOn(fs, "request").mockResolvedValueOnce({ errno: -8, errmsg: "file exists" });
+
+    const writer = await fs.create("test.txt", { createOnly: true });
 
     await expect(writer.write("content")).rejects.toMatchObject({
       provider: "baidu",

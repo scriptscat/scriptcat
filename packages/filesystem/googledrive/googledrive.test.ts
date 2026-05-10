@@ -48,6 +48,22 @@ describe("GoogleDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("delete should clear stale cached id on 404 response", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    (fs as any).pathToIdCache.set("/missing.txt", "stale-file-id");
+    const notFoundError = new FileSystemError({
+      provider: "googledrive",
+      message: "File not found",
+      status: 404,
+      notFound: true,
+    });
+    vi.spyOn(fs, "request").mockRejectedValue(notFoundError);
+
+    await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
+
+    expect((fs as any).pathToIdCache.has("/missing.txt")).toBe(false);
+  });
+
   it("ensureDirExists should create missing nested directories and return final id", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     const findSpy = vi.spyOn(fs, "findFolderByName").mockResolvedValue(null);

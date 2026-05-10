@@ -31,10 +31,10 @@ export default class BaiduFileSystem implements FileSystem {
   }
 
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
-    if (opts?.expectedVersion) {
+    if (opts?.expectedVersion || opts?.expectedDigest) {
       throw new FileSystemError({
         provider: "baidu",
-        message: "Baidu filesystem does not expose a version token for conditional writes",
+        message: "Baidu filesystem does not expose an atomic token for conditional writes",
         code: "unsupported_conditional_write",
         unsupported: true,
       });

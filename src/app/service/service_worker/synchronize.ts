@@ -72,6 +72,10 @@ type FileDigestMap = {
   [key: string]: string;
 };
 
+type KnownFileDigestMap = {
+  [key: string]: string | { digest: string; previousDigest?: string };
+};
+
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
 function getScriptModifiedDate(script: PushScriptParam): number {
@@ -429,7 +433,7 @@ export class SynchronizeService {
     }
 
     // 对比脚本列表和文件列表,进行同步
-    const result: Promise<FileDigestMap | void>[] = [];
+    const result: Promise<KnownFileDigestMap | void>[] = [];
     const updateScript: Map<string, boolean> = new Map();
     // 记录被跳过的孤儿云端脚本（仅 .user.js 无 .meta.json）
     // 避免本机回写 scriptcat-sync.json 时丢失对应 uuid 的云端 status
@@ -504,7 +508,7 @@ export class SynchronizeService {
     });
     // 忽略错误
     const syncResults = await Promise.allSettled(result);
-    const pushedFileDigestMap: FileDigestMap = {};
+    const pushedFileDigestMap: KnownFileDigestMap = {};
     syncResults.forEach((ret) => {
       if (ret.status === "fulfilled" && ret.value) {
         Object.assign(pushedFileDigestMap, ret.value);
@@ -585,7 +589,7 @@ export class SynchronizeService {
     return;
   }
 
-  async updateFileDigest(fs: FileSystem, knownFileDigestMap: FileDigestMap = {}) {
+  async updateFileDigest(fs: FileSystem, knownFileDigestMap: KnownFileDigestMap = {}) {
     let newList = await fs.list();
     if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
       const retryList = await fs.list();
@@ -601,8 +605,13 @@ export class SynchronizeService {
     // 仅 GoogleDrive/Baidu 是 md5），只在云端列表暂时漏掉刚上传的文件时用本地 md5 兜底，
     // 不能覆盖 fs.list 已返回的原生 digest，否则下次同步比对会因格式不一致而误判
     for (const name in knownFileDigestMap) {
+      const known = knownFileDigestMap[name];
+      const digest = typeof known === "string" ? known : known.digest;
+      const previousDigest = typeof known === "string" ? undefined : known.previousDigest;
       if (!(name in newFileDigestMap)) {
-        newFileDigestMap[name] = knownFileDigestMap[name];
+        newFileDigestMap[name] = digest;
+      } else if (previousDigest && newFileDigestMap[name] === previousDigest) {
+        newFileDigestMap[name] = digest;
       }
     }
     await this.storage.set("file_digest", newFileDigestMap);
@@ -643,7 +652,11 @@ export class SynchronizeService {
   }
 
   // 上传脚本
-  async pushScript(fs: FileSystem, script: PushScriptParam, remoteFiles?: Partial<SyncFiles>): Promise<FileDigestMap> {
+  async pushScript(
+    fs: FileSystem,
+    script: PushScriptParam,
+    remoteFiles?: Partial<SyncFiles>
+  ): Promise<KnownFileDigestMap> {
     const filename = `${script.uuid}.user.js`;
     const metaFilename = `${script.uuid}.meta.json`;
     const logger = this.logger.with({
@@ -655,6 +668,7 @@ export class SynchronizeService {
       name: string;
       previousFile?: FileInfo;
       previousContent?: string;
+      writtenDigest?: string;
       modifiedDate: number;
     }> = [];
     try {
@@ -682,6 +696,7 @@ export class SynchronizeService {
         name: filename,
         previousFile: remoteFiles?.script,
         previousContent: previousScriptContent,
+        writtenDigest: md5OfText(scriptCode),
         modifiedDate: remoteFiles?.script?.updatetime || modifiedDate,
       });
       const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
@@ -690,12 +705,13 @@ export class SynchronizeService {
         name: metaFilename,
         previousFile: remoteFiles?.meta,
         previousContent: previousMetaContent,
+        writtenDigest: md5OfText(metaJson),
         modifiedDate: remoteFiles?.meta?.updatetime || modifiedDate,
       });
       logger.info("push script success");
       return {
-        [filename]: md5OfText(scriptCode),
-        [metaFilename]: md5OfText(metaJson),
+        [filename]: { digest: md5OfText(scriptCode), previousDigest: remoteFiles?.script?.digest },
+        [metaFilename]: { digest: md5OfText(metaJson), previousDigest: remoteFiles?.meta?.digest },
       };
     } catch (e) {
       logger.error("push script error", Logger.E(e));
@@ -710,6 +726,7 @@ export class SynchronizeService {
       name: string;
       previousFile?: FileInfo;
       previousContent?: string;
+      writtenDigest?: string;
       modifiedDate: number;
     }>,
     logger: Logger
@@ -717,6 +734,10 @@ export class SynchronizeService {
     for (const file of [...writtenFiles].reverse()) {
       try {
         if (!file.previousFile) {
+          const latest = (await fs.list()).find((item) => item.name === file.name);
+          if (!latest?.digest || latest.digest !== file.writtenDigest) {
+            continue;
+          }
           await fs.delete(file.name);
           continue;
         }
@@ -724,6 +745,9 @@ export class SynchronizeService {
           continue;
         }
         const latest = (await fs.list()).find((item) => item.name === file.name);
+        if (!latest?.digest || latest.digest !== file.writtenDigest) {
+          continue;
+        }
         const writer = await fs.create(file.name, getWriteOptions(file.modifiedDate, latest || file.previousFile));
         await writer.write(file.previousContent);
       } catch (rollbackError) {
