@@ -595,9 +595,9 @@ export class SynchronizeService {
   }
 
   async updateFileDigest(fs: FileSystem, knownFileDigestMap: KnownFileDigestMap = {}) {
-    let newList = await fs.list();
+    let newList = await this.listRemoteFiles(fs);
     if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
-      const retryList = await fs.list();
+      const retryList = await this.listRemoteFiles(fs);
       if (Array.isArray(retryList)) {
         newList = retryList;
       }
@@ -612,10 +612,7 @@ export class SynchronizeService {
     for (const name in knownFileDigestMap) {
       const known = knownFileDigestMap[name];
       const digest = typeof known === "string" ? known : known.digest;
-      const previousDigest = typeof known === "string" ? undefined : known.previousDigest;
       if (!(name in newFileDigestMap)) {
-        newFileDigestMap[name] = digest;
-      } else if (previousDigest && newFileDigestMap[name] === previousDigest) {
         newFileDigestMap[name] = digest;
       }
     }
@@ -674,7 +671,7 @@ export class SynchronizeService {
       name: string;
       previousFile?: FileInfo;
       previousContent?: string;
-      writtenDigest?: string;
+      writtenFile?: FileInfo;
       modifiedDate: number;
     }> = [];
     try {
@@ -698,26 +695,34 @@ export class SynchronizeService {
 
       const w = await fs.create(filename, getWriteOptions(modifiedDate, remoteFiles?.script));
       await w.write(scriptCode);
+      const writtenScriptFile = await this.getRemoteFileByName(fs, filename, remoteFiles?.script);
       writtenFiles.push({
         name: filename,
         previousFile: remoteFiles?.script,
         previousContent: previousScriptContent,
-        writtenDigest: md5OfText(scriptCode),
+        writtenFile: writtenScriptFile,
         modifiedDate: remoteFiles?.script?.updatetime || modifiedDate,
       });
       const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
       await meta.write(metaJson);
+      const writtenMetaFile = await this.getRemoteFileByName(fs, metaFilename, remoteFiles?.meta);
       writtenFiles.push({
         name: metaFilename,
         previousFile: remoteFiles?.meta,
         previousContent: previousMetaContent,
-        writtenDigest: md5OfText(metaJson),
+        writtenFile: writtenMetaFile,
         modifiedDate: remoteFiles?.meta?.updatetime || modifiedDate,
       });
       logger.info("push script success");
       return {
-        [filename]: { digest: md5OfText(scriptCode), previousDigest: remoteFiles?.script?.digest },
-        [metaFilename]: { digest: md5OfText(metaJson), previousDigest: remoteFiles?.meta?.digest },
+        [filename]: {
+          digest: writtenScriptFile?.digest || md5OfText(scriptCode),
+          previousDigest: remoteFiles?.script?.digest,
+        },
+        [metaFilename]: {
+          digest: writtenMetaFile?.digest || md5OfText(metaJson),
+          previousDigest: remoteFiles?.meta?.digest,
+        },
       };
     } catch (e) {
       logger.error("push script error", Logger.E(e));
@@ -732,7 +737,7 @@ export class SynchronizeService {
       name: string;
       previousFile?: FileInfo;
       previousContent?: string;
-      writtenDigest?: string;
+      writtenFile?: FileInfo;
       modifiedDate: number;
     }>,
     logger: Logger
@@ -740,8 +745,8 @@ export class SynchronizeService {
     for (const file of [...writtenFiles].reverse()) {
       try {
         if (!file.previousFile) {
-          const latest = (await fs.list()).find((item) => item.name === file.name);
-          if (!latest?.digest || latest.digest !== file.writtenDigest) {
+          const latest = (await this.listRemoteFiles(fs)).find((item) => item.name === file.name);
+          if (!this.isSameRemoteFile(latest, file.writtenFile)) {
             continue;
           }
           await fs.delete(file.name);
@@ -750,8 +755,8 @@ export class SynchronizeService {
         if (file.previousContent === undefined) {
           continue;
         }
-        const latest = (await fs.list()).find((item) => item.name === file.name);
-        if (!latest?.digest || latest.digest !== file.writtenDigest) {
+        const latest = (await this.listRemoteFiles(fs)).find((item) => item.name === file.name);
+        if (!this.isSameRemoteFile(latest, file.writtenFile)) {
           continue;
         }
         const writer = await fs.create(file.name, getWriteOptions(file.modifiedDate, latest || file.previousFile));
@@ -763,6 +768,36 @@ export class SynchronizeService {
         });
       }
     }
+  }
+
+  private async getRemoteFileByName(
+    fs: FileSystem,
+    name: string,
+    previousFile?: FileInfo
+  ): Promise<FileInfo | undefined> {
+    let latest = (await this.listRemoteFiles(fs)).find((item) => item.name === name);
+    if (!latest || this.isSameRemoteFile(latest, previousFile)) {
+      latest = (await this.listRemoteFiles(fs)).find((item) => item.name === name);
+    }
+    return latest;
+  }
+
+  private async listRemoteFiles(fs: FileSystem): Promise<FileInfo[]> {
+    const list = await fs.list();
+    return Array.isArray(list) ? list : [];
+  }
+
+  private isSameRemoteFile(left?: FileInfo, right?: FileInfo): boolean {
+    if (!left || !right) {
+      return false;
+    }
+    if (left.version && right.version) {
+      return left.version === right.version;
+    }
+    if (left.digest && right.digest) {
+      return left.digest === right.digest;
+    }
+    return false;
   }
 
   async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {

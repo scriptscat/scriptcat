@@ -414,7 +414,7 @@ console.log("ok");`
       metadata: {},
     };
     const fs = createFs({
-      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValue([]),
     });
     const service = new SynchronizeService(
       {} as any,
@@ -734,6 +734,18 @@ console.log("ok");`
       createtime: 1,
       updatetime: 1000,
     };
+    const writtenScriptFile = {
+      ...oldScriptFile,
+      digest: "written-digest",
+      version: "written-version",
+      updatetime: 1234,
+    };
+    const otherDeviceScriptFile = {
+      ...oldScriptFile,
+      digest: "other-device-digest",
+      version: "other-device-version",
+      updatetime: 2000,
+    };
     const fs = createFs({
       open: vi
         .fn()
@@ -743,14 +755,7 @@ console.log("ok");`
         .mockResolvedValueOnce({
           read: vi.fn().mockResolvedValue('{"uuid":"push-uuid"}'),
         }),
-      list: vi.fn().mockResolvedValue([
-        {
-          ...oldScriptFile,
-          digest: "other-device-digest",
-          version: "other-device-version",
-          updatetime: 2000,
-        },
-      ]),
+      list: vi.fn().mockResolvedValueOnce([writtenScriptFile]).mockResolvedValueOnce([otherDeviceScriptFile]),
       create: createMock,
     });
     const service = new SynchronizeService(
@@ -928,7 +933,12 @@ console.log("ok");`
       { name: "push-uuid.meta.json", digest: "etag-meta-json", updatetime: 1 },
     ];
     const fs = createFs({
-      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(cloudListAfterPush),
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(cloudListAfterPush)
+        .mockResolvedValueOnce(cloudListAfterPush)
+        .mockResolvedValue(cloudListAfterPush),
     });
     const service = new SynchronizeService(
       {} as any,
@@ -994,7 +1004,7 @@ console.log("ok");`
     });
   });
 
-  it("uses pushed digest when cloud list returns previous digest after overwrite", async () => {
+  it("keeps cloud digest when cloud list returns previous digest after overwrite", async () => {
     const fs = createFs({
       list: vi.fn().mockResolvedValueOnce([
         {
@@ -1026,7 +1036,7 @@ console.log("ok");`
     });
 
     await expect((service as any).storage.get("file_digest")).resolves.toEqual({
-      "push-uuid.user.js": "new-md5",
+      "push-uuid.user.js": "old-md5",
     });
   });
 

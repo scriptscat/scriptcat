@@ -239,7 +239,7 @@ export default class S3FileSystem implements FileSystem {
             path: this.basePath,
             size: obj.size || 0,
             digest: obj.etag?.replace(/"/g, "") || "",
-            version: obj.etag?.replace(/"/g, "") || "",
+            version: obj.etag || "",
             createtime,
             updatetime: lastModified,
           });

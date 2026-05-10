@@ -151,23 +151,42 @@ describe("GoogleDriveFileSystem", () => {
     expect(findFileSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("writer should update expected Google Drive file id with If-Match token", async () => {
+  it("writer should validate expected Google Drive version before update", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     const writer = await fs.create("file.txt", {
       expectedVersion: "file-1:version-7",
     });
     const findSpy = vi.spyOn(fs, "findFileInDirectory");
-    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockResolvedValueOnce({ version: "version-7" })
+      .mockResolvedValueOnce({});
 
     await expect(writer.write("content")).resolves.toBeUndefined();
 
     expect(findSpy).not.toHaveBeenCalled();
-    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy).toHaveBeenCalledTimes(2);
     expect(requestSpy.mock.calls[0][0]).toBe(
+      "https://www.googleapis.com/drive/v3/files/file-1?fields=version&spaces=appDataFolder"
+    );
+    expect(requestSpy.mock.calls[1][0]).toBe(
       "https://www.googleapis.com/upload/drive/v3/files/file-1?uploadType=multipart&spaces=appDataFolder"
     );
-    const headers = (requestSpy.mock.calls[0][1] as RequestInit).headers as Headers;
-    expect(headers.get("If-Match")).toBe("version-7");
+    expect((requestSpy.mock.calls[1][1] as RequestInit).headers).toBeUndefined();
+  });
+
+  it("writer should reject update when Google Drive version changed", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", {
+      expectedVersion: "file-1:version-7",
+    });
+    vi.spyOn(fs, "request").mockResolvedValueOnce({ version: "version-8" });
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+      status: 412,
+    });
   });
 
   it("writer should reject createOnly when target already exists", async () => {

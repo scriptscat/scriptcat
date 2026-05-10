@@ -306,7 +306,7 @@ describe("S3FileSystem", () => {
         path: "/",
         size: 1024,
         digest: "abc123",
-        version: "abc123",
+        version: '"abc123"',
       });
       expect(files[1]).toMatchObject({
         name: "file2.txt",

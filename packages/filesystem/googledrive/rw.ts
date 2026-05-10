@@ -90,14 +90,17 @@ export class GoogleDriveFileWriter implements FileWriter {
         });
       }
       // 如果文件存在，则更新
-      return this.updateFile(existingFileId, content, expected?.matchToken || this.opts?.expectedDigest);
+      return this.updateFile(existingFileId, content, expected?.version);
     } else {
       // 如果文件不存在，则创建
       return this.createNewFile(fileName, parentId, content);
     }
   }
 
-  private async updateFile(fileId: string, content: string | Blob, expected?: string): Promise<void> {
+  private async updateFile(fileId: string, content: string | Blob, expectedVersion?: string): Promise<void> {
+    if (expectedVersion) {
+      await this.assertVersion(fileId, expectedVersion);
+    }
     // 不设置Content-Type，让浏览器自动处理multipart/form-data边界
 
     const metadata = {
@@ -108,18 +111,31 @@ export class GoogleDriveFileWriter implements FileWriter {
     formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
     formData.append("file", content instanceof Blob ? content : new Blob([content]));
 
-    const headers = expected ? new Headers({ "If-Match": expected }) : undefined;
-
     await this.fs.request(
       `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&spaces=appDataFolder`,
       {
         method: "PATCH",
         body: formData,
-        ...(headers ? { headers } : {}),
       }
     );
 
     return Promise.resolve();
+  }
+
+  private async assertVersion(fileId: string, expectedVersion: string): Promise<void> {
+    const metadata = await this.fs.request(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=version&spaces=appDataFolder`
+    );
+    const currentVersion = metadata?.version ? String(metadata.version) : undefined;
+    if (currentVersion !== expectedVersion) {
+      throw new FileSystemError({
+        provider: "googledrive",
+        message: `Google Drive file changed before write: ${this.path}`,
+        status: 412,
+        code: "versionMismatch",
+        conflict: true,
+      });
+    }
   }
 
   private async createNewFile(fileName: string, parentId: string, content: string | Blob): Promise<void> {
@@ -180,7 +196,7 @@ export class GoogleDriveFileWriter implements FileWriter {
   }
 }
 
-function parseGoogleDriveVersion(version?: string): { fileId: string; matchToken?: string } | undefined {
+function parseGoogleDriveVersion(version?: string): { fileId: string; version?: string } | undefined {
   if (!version) return undefined;
   const index = version.indexOf(":");
   if (index === -1) {
@@ -188,6 +204,6 @@ function parseGoogleDriveVersion(version?: string): { fileId: string; matchToken
   }
   return {
     fileId: version.substring(0, index),
-    matchToken: version.substring(index + 1) || undefined,
+    version: version.substring(index + 1) || undefined,
   };
 }
