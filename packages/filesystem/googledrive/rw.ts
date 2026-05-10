@@ -99,6 +99,8 @@ export class GoogleDriveFileWriter implements FileWriter {
 
   private async updateFile(fileId: string, content: string | Blob, expectedVersion?: string): Promise<void> {
     if (expectedVersion) {
+      // Google Drive does not give this writer an atomic compare-and-swap update path.
+      // This preflight catches stale local state before PATCH, but it is not a server-side write condition.
       await this.assertVersion(fileId, expectedVersion);
     }
     // 不设置Content-Type，让浏览器自动处理multipart/form-data边界

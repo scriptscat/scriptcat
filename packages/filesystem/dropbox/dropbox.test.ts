@@ -88,6 +88,22 @@ describe("DropboxFileSystem", () => {
     });
   });
 
+  it("writer should use overwrite mode for normal writes without metadata preflight", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    const existsSpy = vi.spyOn(fs, "exists");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    const writer = await fs.create("test.txt");
+    await writer.write("content");
+
+    expect(existsSpy).not.toHaveBeenCalled();
+    const headers = (requestSpy.mock.calls[0][1] as RequestInit).headers as Headers;
+    expect(JSON.parse(headers.get("Dropbox-API-Arg")!)).toMatchObject({
+      path: "/test.txt",
+      mode: "overwrite",
+    });
+  });
+
   it("writer should reject expectedDigest without Dropbox rev", async () => {
     const fs = new DropboxFileSystem("/", "token");
     const writer = await fs.create("test.txt", { expectedDigest: "content-hash" });

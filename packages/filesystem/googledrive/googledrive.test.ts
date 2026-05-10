@@ -151,7 +151,7 @@ describe("GoogleDriveFileSystem", () => {
     expect(findFileSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("writer should validate expected Google Drive version before update", async () => {
+  it("writer should best-effort validate expected Google Drive version before update", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     const writer = await fs.create("file.txt", {
       expectedVersion: "file-1:version-7",

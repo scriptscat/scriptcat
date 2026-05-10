@@ -1,4 +1,3 @@
-import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
 import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import type OneDriveFileSystem from "./onedrive";
@@ -50,13 +49,6 @@ export class OneDriveFileWriter implements FileWriter {
       return content.size;
     }
     return new Blob([content]).size;
-  }
-
-  async md5(content: string | Blob) {
-    if (content instanceof Blob) {
-      return calculateMd5(content);
-    }
-    return md5OfText(content);
   }
 
   async write(content: string | Blob): Promise<void> {

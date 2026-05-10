@@ -87,16 +87,7 @@ export class DropboxFileWriter implements FileWriter {
       return this.updateFile(content, this.opts.expectedVersion);
     }
 
-    // 检查文件是否存在
-    const exists = await this.fs.exists(this.path);
-
-    if (exists) {
-      // 如果文件存在，则更新
-      return this.updateFile(content);
-    } else {
-      // 如果文件不存在，则创建
-      return this.createNewFile(content);
-    }
+    return this.updateFile(content);
   }
 
   private async updateFile(content: string | Blob, rev?: string): Promise<void> {

@@ -114,7 +114,7 @@ describe("BaiduFileSystem", () => {
     });
   });
 
-  it("writer should allow expectedDigest when remote digest still matches", async () => {
+  it("writer should allow best-effort expectedDigest when remote digest still matches", async () => {
     const fs = new BaiduFileSystem("/apps", "token");
     vi.spyOn(fs, "list").mockResolvedValue([
       {
@@ -136,6 +136,8 @@ describe("BaiduFileSystem", () => {
 
     await expect(writer.write("content")).resolves.toBeUndefined();
     expect(requestSpy).toHaveBeenCalledTimes(3);
+    expect(String((requestSpy.mock.calls[0][1] as RequestInit).body)).toContain("rtype=3");
+    expect(String((requestSpy.mock.calls[2][1] as RequestInit).body)).toContain("rtype=3");
   });
 
   it("delete should be idempotent when Baidu reports file missing", async () => {
