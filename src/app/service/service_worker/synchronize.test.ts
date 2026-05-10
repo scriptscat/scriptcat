@@ -396,6 +396,9 @@ console.log("ok");`
     expect(fs.delete).toHaveBeenCalledWith("del-uuid.user.js", {
       expectedVersion: "script-version",
     });
+    await expect((service as any).storage.get("tombstone_digest")).resolves.toEqual({
+      "del-uuid.meta.json": "new-meta-digest",
+    });
   });
 
   it("honors cached tombstone meta when cloud script still exists", async () => {
@@ -420,7 +423,7 @@ console.log("ok");`
             digest: "tombstone-meta-digest",
             version: "meta-version",
             createtime: 1,
-            updatetime: 2,
+            updatetime: 1,
           },
         ])
         .mockResolvedValueOnce([]),
@@ -453,6 +456,9 @@ console.log("ok");`
     );
     await (service as any).storage.set("file_digest", {
       "del-uuid.user.js": "script-digest",
+      "del-uuid.meta.json": "tombstone-meta-digest",
+    });
+    await (service as any).storage.set("tombstone_digest", {
       "del-uuid.meta.json": "tombstone-meta-digest",
     });
 

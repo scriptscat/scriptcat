@@ -73,6 +73,7 @@ type FileDigestMap = {
 };
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
+const TOMBSTONE_DIGEST_STORAGE_KEY = "tombstone_digest";
 
 function getScriptModifiedDate(script: PushScriptParam): number {
   return script.updatetime || script.createtime || Date.now();
@@ -407,6 +408,16 @@ export class SynchronizeService {
     const uuidMap = new Map<string, Partial<SyncFiles>>();
     // 储存文件摘要,用于检测文件是否有变化
     const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
+    const tombstoneDigestMap = ((await this.storage.get(TOMBSTONE_DIGEST_STORAGE_KEY)) as FileDigestMap) || {};
+    const rememberTombstoneDigest = async (metaFile: FileInfo) => {
+      if (!metaFile.digest || tombstoneDigestMap[metaFile.name] === metaFile.digest) {
+        return;
+      }
+      // 记录“已确认是 tombstone 的 meta digest”。以后即使 provider 的 mtime 精度导致
+      // meta/script 时间相等，也能继续识别并清理残留 .user.js；正常非 tombstone 不会多读远端 meta。
+      tombstoneDigestMap[metaFile.name] = metaFile.digest;
+      await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, tombstoneDigestMap);
+    };
 
     for (const file of list) {
       if (file.name.endsWith(".user.js")) {
@@ -472,6 +483,7 @@ export class SynchronizeService {
               const metaJson = (await meta.read("string")) as string;
               const metaObj = JSON.parse(metaJson) as SyncMeta;
               if (metaObj.isDeleted) {
+                await rememberTombstoneDigest(file.meta!);
                 // 删除脚本
                 await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
@@ -495,9 +507,11 @@ export class SynchronizeService {
         const metaDigestUnchanged = !remoteMeta || fileDigestMap[remoteMeta.name] === remoteMeta.digest;
         const shouldCheckMetaTombstone =
           remoteMeta &&
-          (fileDigestMap[remoteMeta.name] !== remoteMeta.digest ||
-            // 兼容旧版本/异常中断留下的状态：digest cache 已经记录 tombstone meta，
+          (tombstoneDigestMap[remoteMeta.name] === remoteMeta.digest ||
+            fileDigestMap[remoteMeta.name] !== remoteMeta.digest ||
+            // 兼容没有 tombstone_digest 记录的旧版本/异常中断状态：digest cache 已经记录 tombstone meta，
             // 但 .user.js 仍没删掉。meta 晚于 script 是删除标记的典型形态，才额外读一次 meta。
+            // 这是启发式兜底，不作为严格协议；严格收敛依赖上面的 tombstone digest 记录。
             (scriptDigestUnchanged && metaDigestUnchanged && remoteMeta.updatetime > remoteScript.updatetime));
         if (remoteMeta && shouldCheckMetaTombstone) {
           // tombstone 是删除提交信号，优先级高于 .user.js。
@@ -505,6 +519,7 @@ export class SynchronizeService {
           // 这里必须先处理 tombstone，不能因为 script digest 没变而跳过，否则删除可能长期无法收敛。
           const metaObj = await readSyncMeta(fs, remoteMeta);
           if (metaObj.isDeleted) {
+            await rememberTombstoneDigest(remoteMeta);
             result.push(
               (async () => {
                 await this.script.deleteScript(script.uuid, "sync");
