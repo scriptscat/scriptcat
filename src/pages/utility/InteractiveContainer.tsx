@@ -1,9 +1,7 @@
-import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 type InteractiveContainerProps = {
   children: ReactNode;
-  className?: string;
-  style?: CSSProperties;
 } & HTMLAttributes<HTMLDivElement>;
 
 const handleContainerWheel = (evt: Event) => {
@@ -16,19 +14,10 @@ const handleContainerWheel = (evt: Event) => {
   }
 };
 
-const attachMainHandler = (target: Node) => {
+const attachMainHandler = (target: Node | null) => {
   const o = { capture: false, passive: false, once: false };
-  target.removeEventListener("wheel", handleContainerWheel, o);
-  target.addEventListener("wheel", handleContainerWheel, o);
-};
-
-const weakSet = new WeakSet();
-
-const setRef = (div: HTMLDivElement) => {
-  if (!div) return;
-  if (weakSet.has(div)) return;
-  weakSet.add(div);
-  attachMainHandler(div);
+  target?.removeEventListener("wheel", handleContainerWheel, o);
+  target?.addEventListener("wheel", handleContainerWheel, o);
 };
 
 /**
@@ -41,17 +30,7 @@ const setRef = (div: HTMLDivElement) => {
  * - Outside Monaco, stop propagation so parent/page-level handlers do not
  *   react to wheel gestures from this container.
  */
-export default function InteractiveContainer({ children, className, style, ...props }: InteractiveContainerProps) {
-  return (
-    <div
-      {...props}
-      className={["interactive-container", className].filter(Boolean).join(" ")}
-      style={{
-        ...style,
-      }}
-      ref={setRef}
-    >
-      {children}
-    </div>
-  );
+export default function InteractiveContainer({ children }: InteractiveContainerProps) {
+  attachMainHandler(document.getElementById("root"));
+  return <>{children}</>;
 }
