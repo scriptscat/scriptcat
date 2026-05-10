@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OneDriveFileSystem from "./onedrive";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { FileSystemError, isAuthError, isConflictError, isNotFoundError, isRateLimitError } from "../error";
 
 function createMockResponse(options: { ok?: boolean; status?: number; text?: string; json?: any }): Response {
   const { ok = true, status = 200, text = "", json = {} } = options;
@@ -117,7 +118,16 @@ describe("OneDriveFileSystem", () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi
       .spyOn(fs, "request")
-      .mockRejectedValueOnce(new Error('{"error":{"code":"nameAlreadyExists"}}'))
+      .mockRejectedValueOnce(
+        new FileSystemError({
+          provider: "onedrive",
+          message: "already exists",
+          status: 409,
+          code: "nameAlreadyExists",
+          conflict: true,
+          raw: { error: { code: "nameAlreadyExists" } },
+        })
+      )
       .mockResolvedValueOnce({});
 
     await expect(fs.createDir("A/B")).resolves.toBeUndefined();
@@ -126,6 +136,149 @@ describe("OneDriveFileSystem", () => {
     expect(JSON.parse((requestSpy.mock.calls[1][1] as RequestInit).body as string)).toMatchObject({
       name: "B",
     });
+  });
+
+  it("request should throw auth error when retry still gets 401", async () => {
+    await localStorageDAO.saveValue("netdisk:token:onedrive", {
+      accessToken: "expired-token",
+      refreshToken: "refresh-token",
+      createtime: Date.now(),
+    });
+
+    const fs = new OneDriveFileSystem("/", "expired-token");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(createMockResponse({ ok: false, status: 401, text: "expired" }))
+        .mockResolvedValueOnce({
+          json: vi.fn().mockResolvedValue({
+            code: 0,
+            data: {
+              token: {
+                access_token: "fresh-token",
+                refresh_token: "fresh-refresh-token",
+              },
+            },
+          }),
+        } as unknown as Response)
+        .mockResolvedValueOnce(createMockResponse({ ok: false, status: 401, text: "still expired" }))
+    );
+
+    try {
+      await fs.request("https://graph.microsoft.com/v1.0/me/drive/special/approot/children");
+      throw new Error("Expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(FileSystemError);
+      expect(isAuthError(error)).toBe(true);
+      expect(error).toMatchObject({
+        provider: "onedrive",
+        status: 401,
+        auth: true,
+      });
+    }
+  });
+
+  it("request should throw typed not found error", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 404,
+          text: JSON.stringify({
+            error: {
+              code: "itemNotFound",
+              message: "Item not found",
+            },
+          }),
+        })
+      )
+    );
+
+    try {
+      await fs.request("https://graph.microsoft.com/v1.0/me/drive/special/approot:/missing");
+      throw new Error("Expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(FileSystemError);
+      expect(isNotFoundError(error)).toBe(true);
+      expect(error).toMatchObject({
+        provider: "onedrive",
+        status: 404,
+        code: "itemNotFound",
+        notFound: true,
+      });
+    }
+  });
+
+  it.each([
+    [409, "nameAlreadyExists"],
+    [412, "PreconditionFailed"],
+  ])("request should throw typed conflict error for status %s", async (status, code) => {
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status,
+          text: JSON.stringify({
+            error: {
+              code,
+              message: "Conflict",
+            },
+          }),
+        })
+      )
+    );
+
+    try {
+      await fs.request("https://graph.microsoft.com/v1.0/me/drive/special/approot:/conflict");
+      throw new Error("Expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(FileSystemError);
+      expect(isConflictError(error)).toBe(true);
+      expect(error).toMatchObject({
+        provider: "onedrive",
+        status,
+        code,
+        conflict: true,
+      });
+    }
+  });
+
+  it("request should throw typed rate-limit error", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 429,
+          text: JSON.stringify({
+            error: {
+              code: "TooManyRequests",
+              message: "Too many requests",
+            },
+          }),
+        })
+      )
+    );
+
+    try {
+      await fs.request("https://graph.microsoft.com/v1.0/me/drive/special/approot/children");
+      throw new Error("Expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(FileSystemError);
+      expect(isRateLimitError(error)).toBe(true);
+      expect(error).toMatchObject({
+        provider: "onedrive",
+        status: 429,
+        retryable: true,
+        rateLimit: true,
+      });
+    }
   });
 
   it("writer should upload empty string with simple PUT", async () => {
