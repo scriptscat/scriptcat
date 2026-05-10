@@ -82,6 +82,85 @@ describe("GoogleDriveFileSystem", () => {
     expect(requestSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("writer should clear stale path cache and retry once on provider 404", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const notFoundError = new FileSystemError({
+      provider: "googledrive",
+      message: "Parent not found",
+      status: 404,
+      notFound: true,
+    });
+    const findFolderSpy = vi
+      .spyOn(fs, "findFolderByName")
+      .mockResolvedValueOnce({ id: "stale-base-id", name: "Base" })
+      .mockResolvedValueOnce({ id: "fresh-base-id", name: "Base" });
+
+    await fs.ensureDirExists("/Base");
+
+    const writer = await fs.create("Base/file.txt");
+    const findFileSpy = vi
+      .spyOn(fs, "findFileInDirectory")
+      .mockRejectedValueOnce(notFoundError)
+      .mockResolvedValueOnce(null);
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    await expect(writer.write("content")).resolves.toBeUndefined();
+
+    expect(findFolderSpy.mock.calls).toEqual([
+      ["Base", "appDataFolder"],
+      ["Base", "appDataFolder"],
+    ]);
+    expect(findFileSpy.mock.calls).toEqual([
+      ["file.txt", "stale-base-id"],
+      ["file.txt", "fresh-base-id"],
+    ]);
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("writer should not retry non-404 provider errors", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const conflictError = new FileSystemError({
+      provider: "googledrive",
+      message: "Conflict",
+      status: 409,
+      conflict: true,
+    });
+    const writer = await fs.create("Base/file.txt");
+    const ensureSpy = vi.spyOn(fs, "ensureDirExists").mockResolvedValue("base-id");
+    const findFileSpy = vi.spyOn(fs, "findFileInDirectory").mockRejectedValue(conflictError);
+
+    await expect(writer.write("content")).rejects.toBe(conflictError);
+
+    expect(ensureSpy).toHaveBeenCalledTimes(1);
+    expect(findFileSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("list should clear stale path cache and retry once on provider 404", async () => {
+    const fs = new GoogleDriveFileSystem("/Base", "token");
+    const notFoundError = new FileSystemError({
+      provider: "googledrive",
+      message: "Folder not found",
+      status: 404,
+      notFound: true,
+    });
+    const findFolderSpy = vi.spyOn(fs, "findFolderByName").mockResolvedValueOnce({ id: "stale-base-id", name: "Base" });
+
+    await fs.ensureDirExists("/Base");
+
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockRejectedValueOnce(notFoundError)
+      .mockResolvedValueOnce({ files: [{ id: "fresh-base-id", name: "Base" }] })
+      .mockResolvedValueOnce({ files: [] });
+
+    await expect(fs.list()).resolves.toEqual([]);
+
+    expect(findFolderSpy).toHaveBeenCalledTimes(1);
+    expect(String(requestSpy.mock.calls[0][0])).toContain("stale-base-id");
+    expect(String(requestSpy.mock.calls[1][0])).toContain("name%3D'Base'");
+    expect(String(requestSpy.mock.calls[2][0])).toContain("fresh-base-id");
+  });
+
   it("request should return retry result after token refresh", async () => {
     await localStorageDAO.saveValue("netdisk:token:googledrive", {
       accessToken: "expired-token",

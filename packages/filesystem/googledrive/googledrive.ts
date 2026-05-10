@@ -1,5 +1,5 @@
 import { AuthVerify } from "../auth";
-import { FileSystemError } from "../error";
+import { FileSystemError, isNotFoundError } from "../error";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
@@ -284,6 +284,18 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return parentId;
   }
   async list(): Promise<FileInfo[]> {
+    try {
+      return await this.listWithResolvedFolder();
+    } catch (error) {
+      if (this.path === "/" || !isNotFoundError(error)) {
+        throw error;
+      }
+      this.clearPathCache();
+      return this.listWithResolvedFolder();
+    }
+  }
+
+  private async listWithResolvedFolder(): Promise<FileInfo[]> {
     let folderId = "appDataFolder";
 
     // 获取当前目录的ID
@@ -353,11 +365,22 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return null;
   }
 
+  clearPathCache(path?: string): void {
+    if (!path) {
+      this.pathToIdCache.clear();
+      return;
+    }
+
+    const fullPath = joinPath(path);
+    const pathsToRemove = Array.from(this.pathToIdCache.keys()).filter(
+      (p) => p === fullPath || p.startsWith(`${fullPath}/`)
+    );
+    pathsToRemove.forEach((p) => this.pathToIdCache.delete(p));
+  }
+
   // 清除相关缓存
   clearRelatedCache(path: string): void {
-    // 清除路径缓存
-    const pathsToRemove = Array.from(this.pathToIdCache.keys()).filter((p) => p.startsWith(path));
-    pathsToRemove.forEach((p) => this.pathToIdCache.delete(p));
+    this.clearPathCache(path);
   }
 
   async getDirUrl(): Promise<string> {

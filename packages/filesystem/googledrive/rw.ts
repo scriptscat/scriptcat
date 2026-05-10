@@ -1,3 +1,4 @@
+import { isNotFoundError } from "../error";
 import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import type GoogleDriveFileSystem from "./googledrive";
@@ -51,6 +52,18 @@ export class GoogleDriveFileWriter implements FileWriter {
   }
 
   async write(content: string | Blob): Promise<void> {
+    try {
+      return await this.writeWithResolvedParent(content);
+    } catch (error) {
+      if (!isNotFoundError(error)) {
+        throw error;
+      }
+      this.fs.clearPathCache();
+      return await this.writeWithResolvedParent(content);
+    }
+  }
+
+  private async writeWithResolvedParent(content: string | Blob): Promise<void> {
     // 解析文件路径和文件名
     const pathParts = this.path.split("/").filter(Boolean);
     const fileName = pathParts.pop() || ""; // 获取文件名
