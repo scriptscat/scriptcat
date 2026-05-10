@@ -929,6 +929,80 @@ console.log("ok");`
     }
   });
 
+  it("does not downgrade missing remote script snapshot to unconditional delete", async () => {
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.deleteCloudScript(fs, "delete-uuid", true, {
+      meta: {
+        name: "delete-uuid.meta.json",
+        path: "/",
+        size: 1,
+        digest: "meta-digest",
+        version: "meta-version",
+        createtime: 1,
+        updatetime: 1,
+      },
+    });
+
+    expect(fs.delete).not.toHaveBeenCalledWith("delete-uuid.user.js", undefined);
+    expect(createMock).toHaveBeenCalledWith(
+      "delete-uuid.meta.json",
+      expect.objectContaining({ expectedVersion: "meta-version" })
+    );
+  });
+
+  it("does not downgrade missing remote meta snapshot to unconditional delete", async () => {
+    const fs = createFs();
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.deleteCloudScript(fs, "delete-uuid", false, {
+      script: {
+        name: "delete-uuid.user.js",
+        path: "/",
+        size: 1,
+        digest: "script-digest",
+        version: "script-version",
+        createtime: 1,
+        updatetime: 1,
+      },
+    });
+
+    expect(fs.delete).toHaveBeenCalledTimes(1);
+    expect(fs.delete).toHaveBeenCalledWith("delete-uuid.user.js", {
+      expectedVersion: "script-version",
+    });
+  });
+
   it("preserves cloud-native digest and does not overwrite with pushed md5", async () => {
     // 各后端 digest 格式不一致（webdav/onedrive 是 etag、dropbox 是 content_hash 等），
     // 上传后再次 list 已经能拿到原生 digest 时，必须保留它，不能被本地 md5 覆盖，

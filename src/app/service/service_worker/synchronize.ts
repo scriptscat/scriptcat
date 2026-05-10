@@ -638,7 +638,9 @@ export class SynchronizeService {
       file: filename,
     });
     try {
-      await fs.delete(filename, getDeleteOptions(remoteFiles?.script));
+      if (!remoteFiles || remoteFiles.script) {
+        await fs.delete(filename, getDeleteOptions(remoteFiles?.script));
+      }
       if (syncDelete) {
         // 留下一个.meta.json删除标记
         const modifiedDate = Date.now();
@@ -654,7 +656,9 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
-        await fs.delete(`${uuid}.meta.json`, getDeleteOptions(remoteFiles?.meta));
+        if (!remoteFiles || remoteFiles.meta) {
+          await fs.delete(`${uuid}.meta.json`, getDeleteOptions(remoteFiles?.meta));
+        }
       }
       logger.info("delete success");
     } catch (e) {
