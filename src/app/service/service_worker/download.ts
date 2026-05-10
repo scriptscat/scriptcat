@@ -2,6 +2,7 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 type FilenameConflictAction = `${chrome.downloads.FilenameConflictAction}`;
 type DownloadOptions = chrome.downloads.DownloadOptions;
+type InterruptReason = `${chrome.downloads.InterruptReason}`;
 
 // https://developer.chrome.com/docs/extensions/reference/api/downloads?hl=en#event-onDeterminingFilename
 const onDeterminingFilename = (
@@ -115,30 +116,42 @@ const onChangedListener = (downloadDelta: chrome.downloads.DownloadDelta) => {
     const state = downloadDelta.state?.current;
     if (state === STATE.COMPLETE || state === STATE.INTERRUPTED) {
       detachDownloadCallback(id);
-      let filenameConfirmed = false;
 
-      if (!responseMap.has(id)) {
-        // onDeterminingFilename did not triggered. Fallback to chrome.downloads.search
+      // 查询最终的 DownloadItem，以便：
+      //  1) 在 responseMap 尚未填充时补齐 totalBytes/fileSize/bytesReceived；
+      //  2) 拿到权威的 error 字段，用于区分用户取消(saveAs / 主动取消)与其他中断。
+      // 仅当本次 delta 携带 error 信息或 responseMap 未填充时才发起 search，
+      // 避免对每个 delta 都额外调用 chrome.downloads.search 造成不必要开销。
+      let interruptError: InterruptReason | undefined = downloadDelta.error?.current as InterruptReason | undefined;
+      const needSearch = !responseMap.has(id) || (state === STATE.INTERRUPTED && interruptError === undefined);
+      if (needSearch) {
         const downloadItem = (await chrome.downloads.search({ id: id }))?.[0];
         if (downloadItem && downloadItem.id === id) {
-          responseMap.set(id, {
-            downloadItem: {
-              bytesReceived: downloadItem.bytesReceived,
-              fileSize: downloadItem.fileSize,
-              totalBytes: downloadItem.totalBytes,
-            },
-          });
+          if (!responseMap.has(id)) {
+            responseMap.set(id, {
+              downloadItem: {
+                bytesReceived: downloadItem.bytesReceived,
+                fileSize: downloadItem.fileSize,
+                totalBytes: downloadItem.totalBytes,
+              },
+            });
+          }
+          if (state === STATE.INTERRUPTED && interruptError === undefined && downloadItem.error) {
+            interruptError = downloadItem.error as InterruptReason;
+          }
         }
-      } else {
-        // onDeterminingFilename was triggered
-        filenameConfirmed = true;
       }
 
       const downloadItem = responseMap.get(id);
 
+      // save_cancelled 仅在 chrome 报告 USER_CANCELED 时回报。
+      // 早期版本用 “interrupted + 已触发过 onDeterminingFilename” 推断，但
+      // onDeterminingFilename 对普通下载也会先触发，NETWORK_FAILED 等中断会被误报。
+      const isSaveCancelled = state === STATE.INTERRUPTED && interruptError === "USER_CANCELED";
+
       await notifyDownloadCallback(entry.callback, {
         downloadId: id,
-        state: state === "interrupted" && filenameConfirmed ? "save_cancelled" : state,
+        state: isSaveCancelled ? "save_cancelled" : state,
         loaded: downloadItem?.downloadItem?.totalBytes, // 兼容 TM，总是传回 totalBytes （与实际有否储存无关）
         total: downloadItem?.downloadItem?.totalBytes,
       });
@@ -161,7 +174,10 @@ const attachDownloadCallback = async () => {
 };
 
 export const detachDownloadCallback = async (downloadId: number | undefined = undefined) => {
-  if (downloadId !== undefined) requestMap.delete(downloadId);
+  if (downloadId !== undefined) {
+    requestMap.delete(downloadId);
+    responseMap.delete(downloadId);
+  }
   if (requestMap.size === 0) {
     // 没有待跟踪下载时及时卸载监听，减少后台常驻逻辑和误处理其他下载的风险。
     chrome.downloads.onDeterminingFilename.removeListener(onDeterminingFilename);
@@ -199,9 +215,15 @@ export const startDownload = async (
     console.error(e);
   }
   if (chrome.runtime.lastError) {
-    mDownloadId = undefined;
     console.error("chrome.runtime.lastError in chrome.downloads.download", chrome.runtime.lastError);
+    // 若 chrome 在拿到 id 后又设置了 lastError（罕见但可能的实现差异），
+    // 仍需把已登记的 id 从 requestMap/responseMap 中清理，避免监听挂住。
+    // detachDownloadCallback(id) 会 delete 对应条目，并在 requestMap 清空时移除全局监听。
+    if (mDownloadId !== undefined) {
+      await detachDownloadCallback(mDownloadId);
+    }
+    mDownloadId = undefined;
   }
-  if (mDownloadId == undefined) detachDownloadCallback();
+  if (mDownloadId === undefined) await detachDownloadCallback();
   return mDownloadId;
 };
