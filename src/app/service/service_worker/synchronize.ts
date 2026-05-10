@@ -14,7 +14,7 @@ import type { FileCreateOptions, FileInfo } from "@Packages/filesystem/filesyste
 import type FileSystem from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
-import { FileSystemError, isConflictError, isUnsupportedError, isWarpTokenError } from "@Packages/filesystem/error";
+import { isConflictError, isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -77,18 +77,6 @@ type KnownFileDigestMap = {
 };
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
-const UNSAFE_ATOMIC_SYNC_FILESYSTEMS: Partial<
-  Record<FileSystemType, { provider: "baidu" | "googledrive"; message: string }>
-> = {
-  "baidu-netdsik": {
-    provider: "baidu",
-    message: "Baidu cloud sync is disabled because Baidu does not provide atomic conditional writes",
-  },
-  googledrive: {
-    provider: "googledrive",
-    message: "Google Drive cloud sync is disabled because Google Drive does not enforce unique file names",
-  },
-};
 
 function getScriptModifiedDate(script: PushScriptParam): number {
   return script.updatetime || script.createtime || Date.now();
@@ -344,15 +332,6 @@ export class SynchronizeService {
   async buildFileSystem(config: CloudSyncConfig) {
     let fs: FileSystem;
     try {
-      const unsupported = UNSAFE_ATOMIC_SYNC_FILESYSTEMS[config.filesystem];
-      if (unsupported) {
-        throw new FileSystemError({
-          provider: unsupported.provider,
-          message: unsupported.message,
-          code: "unsupported_atomic_cloud_sync",
-          unsupported: true,
-        });
-      }
       fs = await FileSystemFactory.create(config.filesystem, config.params[config.filesystem]);
       // 创建base目录
       await FileSystemFactory.mkdirAll(fs, "ScriptCat/sync");
@@ -363,7 +342,7 @@ export class SynchronizeService {
       });
       // 判断错误是不是网络类型的错误, 网络类型的错误不做任何处理
       // 如果是token失效之类的错误,通知用户并关闭云同步
-      if (isWarpTokenError(e) || isUnsupportedError(e)) {
+      if (isWarpTokenError(e)) {
         InfoNotification(
           `${t("sync_system_connect_failed")}, ${t("sync_system_closed")}`,
           `${t("sync_system_closed_description")}\n${errorMsg(e)}`
