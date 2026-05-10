@@ -36,7 +36,7 @@ import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL } from "@App/pkg/utils/utils";
-import InteractiveContainer from "@App/pages/utility/InteractiveContainer";
+import ScrollBoundary from "@App/pages/components/layout/ScrollBoundary";
 
 // --- 工具函数移出组件外，避免每次 Render 重新定义 ---
 
@@ -298,7 +298,7 @@ const MainLayout: React.FC<{
   };
 
   return (
-    <InteractiveContainer>
+    <ScrollBoundary parentNodeSelector="#root">
       <ConfigProvider
         renderEmpty={() => {
           return <Empty description={t("no_data")} />;
@@ -508,7 +508,7 @@ const MainLayout: React.FC<{
           </Layout>
         </Layout>
       </ConfigProvider>
-    </InteractiveContainer>
+    </ScrollBoundary>
   );
 };
 
