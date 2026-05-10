@@ -857,7 +857,10 @@ export default class GMApi {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("GM_xmlhttpRequest ERROR: sender is not MessageConnect");
     }
-    const msgConn = sender.getConnect()!;
+    const msgConn = sender.getConnect();
+    if (!msgConn) {
+      throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
+    }
 
     let isConnDisconnected = false;
     msgConn.onDisconnect(() => {
