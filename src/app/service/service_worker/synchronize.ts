@@ -418,6 +418,15 @@ export class SynchronizeService {
       tombstoneDigestMap[metaFile.name] = metaFile.digest;
       await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, tombstoneDigestMap);
     };
+    const forgetTombstoneDigest = async (metaFile: FileInfo) => {
+      if (!tombstoneDigestMap[metaFile.name]) {
+        return;
+      }
+      // 如果同名 meta 已确认不是 tombstone，旧的 tombstone 记录必须清掉；
+      // 否则后续每轮都会因为缓存命中而额外读取 meta。
+      delete tombstoneDigestMap[metaFile.name];
+      await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, tombstoneDigestMap);
+    };
 
     for (const file of list) {
       if (file.name.endsWith(".user.js")) {
@@ -493,6 +502,7 @@ export class SynchronizeService {
                   })
                 );
               } else {
+                await forgetTombstoneDigest(file.meta!);
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name, getDeleteOptions(file.meta));
                 return await this.pushScript(fs, script);
@@ -534,6 +544,7 @@ export class SynchronizeService {
             );
             continue;
           }
+          await forgetTombstoneDigest(remoteMeta);
         }
         // 过滤掉无变动的文件
         if (scriptDigestUnchanged) {
@@ -673,10 +684,28 @@ export class SynchronizeService {
     if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
       newList = await fs.list();
     }
-    const newFileDigestMap: FileDigestMap = {};
+    const listedFileDigestMap: FileDigestMap = {};
     for (const file of newList) {
-      newFileDigestMap[file.name] = file.digest;
+      listedFileDigestMap[file.name] = file.digest;
     }
+    const tombstoneDigestMap = ((await this.storage.get(TOMBSTONE_DIGEST_STORAGE_KEY)) as FileDigestMap) || {};
+    if (Object.keys(tombstoneDigestMap).length) {
+      let changed = false;
+      const nextTombstoneDigestMap: FileDigestMap = {};
+      for (const name in tombstoneDigestMap) {
+        if (listedFileDigestMap[name] === tombstoneDigestMap[name]) {
+          nextTombstoneDigestMap[name] = tombstoneDigestMap[name];
+        } else {
+          changed = true;
+        }
+      }
+      if (changed) {
+        // tombstone 标记只用于“已确认删除 meta”的收敛加速。
+        // 远端 meta 不存在或 digest 已变化时，旧标记不能继续保留，避免长期缓存膨胀和额外 meta 读取。
+        await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, nextTombstoneDigestMap);
+      }
+    }
+    const newFileDigestMap: FileDigestMap = { ...listedFileDigestMap };
     // 各后端 digest 格式不一（WebDAV/OneDrive/S3 是 etag、Dropbox 是 content_hash、Zip 为空，
     // 仅 GoogleDrive/Baidu 是 md5），只在云端列表暂时漏掉刚上传的文件时用本地 md5 兜底，
     // 不能覆盖 fs.list 已返回的原生 digest，否则下次同步比对会因格式不一致而误判

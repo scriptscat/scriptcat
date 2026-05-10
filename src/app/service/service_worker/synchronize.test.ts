@@ -357,7 +357,17 @@ console.log("ok");`
             updatetime: 2,
           },
         ])
-        .mockResolvedValueOnce([]),
+        .mockResolvedValueOnce([
+          {
+            name: "del-uuid.meta.json",
+            path: "/",
+            size: 1,
+            digest: "new-meta-digest",
+            version: "meta-version",
+            createtime: 1,
+            updatetime: 2,
+          },
+        ]),
       open: vi.fn().mockResolvedValue({
         read: vi.fn().mockResolvedValue(JSON.stringify({ uuid: "del-uuid", isDeleted: true })),
       }),
@@ -1321,6 +1331,53 @@ console.log("ok");`
 
     await expect((service as any).storage.get("file_digest")).resolves.toEqual({
       "push-uuid.user.js": "old-md5",
+    });
+  });
+
+  it("prunes stale tombstone digest entries when updating file digest", async () => {
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([
+        {
+          name: "keep.meta.json",
+          path: "keep.meta.json",
+          size: 1,
+          digest: "same-tombstone-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "changed.meta.json",
+          path: "changed.meta.json",
+          size: 1,
+          digest: "new-meta-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    await (service as any).storage.set("tombstone_digest", {
+      "keep.meta.json": "same-tombstone-digest",
+      "changed.meta.json": "old-tombstone-digest",
+      "gone.meta.json": "gone-tombstone-digest",
+    });
+
+    await service.updateFileDigest(fs);
+
+    await expect((service as any).storage.get("tombstone_digest")).resolves.toEqual({
+      "keep.meta.json": "same-tombstone-digest",
     });
   });
 
