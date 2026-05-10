@@ -905,7 +905,6 @@ console.log("ok");`
       "push-uuid.user.js": "etag-user-js",
     });
   });
-
   it("skips status and digest update when a push hits remote conflict", async () => {
     const conflict = new FileSystemError({
       provider: "webdav",
@@ -941,20 +940,16 @@ console.log("ok");`
         ]),
       } as any
     );
+
     vi.spyOn(service, "pushScript").mockRejectedValue(conflict);
     const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
-    const notificationSpy = vi.spyOn(chrome.notifications, "create").mockReturnValue("notification-id" as any);
+    const notifySpy = vi.spyOn(service, "notifySyncFailed").mockImplementation(() => {});
 
     await service.syncOnce(syncConfig, fs);
 
     expect(updateDigestSpy).not.toHaveBeenCalled();
     expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
-    expect(notificationSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Script Sync Failed",
-        message: expect.stringContaining("remote conflict"),
-      })
-    );
+    expect(notifySpy).toHaveBeenCalledWith(true, 1);
   });
 
   it("skips status and digest update when any push task fails", async () => {
@@ -987,20 +982,16 @@ console.log("ok");`
         ]),
       } as any
     );
+
     vi.spyOn(service, "pushScript").mockRejectedValue(error);
     const updateDigestSpy = vi.spyOn(service, "updateFileDigest");
-    const notificationSpy = vi.spyOn(chrome.notifications, "create").mockReturnValue("notification-id" as any);
+    const notifySpy = vi.spyOn(service, "notifySyncFailed").mockImplementation(() => {});
 
     await service.syncOnce(syncConfig, fs);
 
     expect(updateDigestSpy).not.toHaveBeenCalled();
     expect(fs.create).not.toHaveBeenCalledWith("scriptcat-sync.json", expect.anything());
-    expect(notificationSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Script Sync Failed",
-        message: expect.stringContaining("cloud sync changes failed"),
-      })
-    );
+    expect(notifySpy).toHaveBeenCalledWith(false, 1);
   });
 
   it("scriptInstall enters cloud_sync queue and updates digest after push", async () => {

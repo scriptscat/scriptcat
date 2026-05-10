@@ -364,6 +364,18 @@ export class SynchronizeService {
     });
   }
 
+  public notifySyncFailed(hasConflict: any, rejectedCount: number) {
+    this.logger.warn("skip status and digest update because cloud sync task failed", {
+      conflict: hasConflict,
+      failed: rejectedCount,
+    });
+    const title = i18n.t("notification.script_sync_failed");
+    const message = hasConflict
+      ? i18n.t("notification.script_sync_conflict_desc")
+      : i18n.t("notification.script_sync_failed_desc");
+    InfoNotification(title, message);
+  }
+
   private async syncOnceInternal(syncConfig: CloudSyncConfig, fs: FileSystem) {
     this.logger.info("start sync once");
     // 获取文件列表
@@ -501,15 +513,7 @@ export class SynchronizeService {
     const rejected = syncResults.filter((ret) => ret.status === "rejected");
     if (rejected.length) {
       const hasConflict = rejected.some((ret) => isConflictError(ret.reason));
-      this.logger.warn("skip status and digest update because cloud sync task failed", {
-        conflict: hasConflict,
-        failed: rejected.length,
-      });
-      const title = i18n.t("notification.script_sync_failed");
-      const message = hasConflict
-        ? i18n.t("notification.script_sync_conflict_desc")
-        : i18n.t("notification.script_sync_failed_desc");
-      InfoNotification(title, message);
+      this.notifySyncFailed(hasConflict, rejected.length);
       return;
     }
     // 同步状态
