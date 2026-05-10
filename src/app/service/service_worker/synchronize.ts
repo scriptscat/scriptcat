@@ -73,7 +73,11 @@ type FileDigestMap = {
 };
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
+const FILE_DIGEST_STORAGE_KEY = "file_digest";
 const TOMBSTONE_DIGEST_STORAGE_KEY = "tombstone_digest";
+const SCRIPTCAT_SYNC_FILENAME = "scriptcat-sync.json";
+const SCRIPT_FILE_SUFFIX = ".user.js";
+const META_FILE_SUFFIX = ".meta.json";
 
 function getScriptModifiedDate(script: PushScriptParam): number {
   return script.updatetime || script.createtime || Date.now();
@@ -116,6 +120,29 @@ async function readSyncMeta(fs: FileSystem, file: FileInfo): Promise<SyncMeta> {
   return JSON.parse((await meta.read("string")) as string) as SyncMeta;
 }
 
+function groupFilesByUuid(list: FileInfo[]): Map<string, Partial<SyncFiles>> {
+  const uuidMap = new Map<string, Partial<SyncFiles>>();
+  const getOrCreate = (uuid: string) => {
+    let files = uuidMap.get(uuid);
+    if (!files) {
+      files = {};
+      uuidMap.set(uuid, files);
+    }
+    return files;
+  };
+
+  for (const file of list) {
+    if (file.name.endsWith(SCRIPT_FILE_SUFFIX)) {
+      const uuid = file.name.slice(0, -SCRIPT_FILE_SUFFIX.length);
+      getOrCreate(uuid).script = file;
+    } else if (file.name.endsWith(META_FILE_SUFFIX)) {
+      const uuid = file.name.slice(0, -META_FILE_SUFFIX.length);
+      getOrCreate(uuid).meta = file;
+    }
+  }
+  return uuidMap;
+}
+
 export class SynchronizeService {
   logger: Logger;
 
@@ -151,18 +178,23 @@ export class SynchronizeService {
   // 获取脚本备份数据
   async getScriptBackupData(uuids?: string[]) {
     if (uuids) {
-      const rets: Promise<ScriptBackupData>[] = [];
-      uuids.forEach((uuid) => {
-        rets.push(
-          this.scriptDAO.get(uuid).then((script) => {
-            if (script) {
-              return this.generateScriptBackupData(script);
-            }
-            return Promise.reject(new Error(`Script ${uuid} not found`));
-          })
-        );
+      const results = await Promise.allSettled(
+        uuids.map(async (uuid) => {
+          const script = await this.scriptDAO.get(uuid);
+          if (!script) {
+            throw new Error(`Script ${uuid} not found`);
+          }
+          return this.generateScriptBackupData(script);
+        })
+      );
+      results.forEach((ret) => {
+        if (ret.status === "rejected") {
+          this.logger.warn("skip missing script during backup export", Logger.E(ret.reason));
+        }
       });
-      return Promise.all(rets); // 不处理 Promise.reject ?
+      return results
+        .filter((ret): ret is PromiseFulfilledResult<ScriptBackupData> => ret.status === "fulfilled")
+        .map((ret) => ret.value);
     }
     // 获取所有脚本
     const list = await this.scriptDAO.all();
@@ -405,9 +437,9 @@ export class SynchronizeService {
     // 获取文件列表
     const list = await fs.list();
     // 根据文件名生成一个map
-    const uuidMap = new Map<string, Partial<SyncFiles>>();
+    const uuidMap = groupFilesByUuid(list);
     // 储存文件摘要,用于检测文件是否有变化
-    const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
+    const fileDigestMap = ((await this.storage.get(FILE_DIGEST_STORAGE_KEY)) as FileDigestMap) || {};
     const tombstoneDigestMap = ((await this.storage.get(TOMBSTONE_DIGEST_STORAGE_KEY)) as FileDigestMap) || {};
     let tombstoneDigestDirty = false;
     const rememberTombstoneDigest = (metaFile: FileInfo) => {
@@ -429,26 +461,6 @@ export class SynchronizeService {
       tombstoneDigestDirty = true;
     };
 
-    for (const file of list) {
-      if (file.name.endsWith(".user.js")) {
-        const uuid = file.name.substring(0, file.name.length - 8);
-        let files = uuidMap.get(uuid);
-        if (!files) {
-          files = {};
-          uuidMap.set(uuid, files);
-        }
-        files.script = file;
-      } else if (file.name.endsWith(".meta.json")) {
-        const uuid = file.name.substring(0, file.name.length - 10);
-        let files = uuidMap.get(uuid);
-        if (!files) {
-          files = {};
-          uuidMap.set(uuid, files);
-        }
-        files.meta = file;
-      }
-    }
-
     // 获取脚本列表
     const scriptList = await this.scriptDAO.all();
     // 遍历脚本列表生成一个map
@@ -458,18 +470,29 @@ export class SynchronizeService {
     });
 
     // 判断文件系统是否有脚本猫同步文件
-    const file = list.find((file) => file.name === "scriptcat-sync.json");
-    const scriptcatSync = {
+    const syncStatusFile = list.find((file) => file.name === SCRIPTCAT_SYNC_FILENAME);
+    let scriptcatSync = {
       version: ExtVersion,
       status: {
         scripts: {},
       },
     } as ScriptcatSync;
     let cloudStatus: ScriptcatSync["status"]["scripts"] = {};
-    if (file) {
+    if (syncStatusFile) {
       // 如果有,则读取文件内容
-      const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
-      cloudStatus = cloudScriptCatSync.status.scripts;
+      const cloudScriptCatSync = JSON.parse(
+        await fs.open(syncStatusFile).then((f) => f.read("string"))
+      ) as ScriptcatSync;
+      cloudStatus = cloudScriptCatSync.status?.scripts || {};
+      // 保留云端 manifest 的未知字段，避免未来扩展字段被本机同步覆盖掉。
+      scriptcatSync = {
+        ...cloudScriptCatSync,
+        version: ExtVersion,
+        status: {
+          ...cloudScriptCatSync.status,
+          scripts: {},
+        },
+      };
     }
 
     // 对比脚本列表和文件列表,进行同步
@@ -480,20 +503,20 @@ export class SynchronizeService {
     const skippedOrphanUuids = new Set<string>();
     // 需要是同步操作，后续上传剩下的脚本
     // 最后使用 Promise.allSettled 进行等待
-    for (const [uuid, file] of uuidMap) {
+    for (const [uuid, remoteFiles] of uuidMap) {
       const script = scriptMap.get(uuid);
       if (script) {
         scriptMap.delete(uuid);
         // 脚本存在但是文件不存在,则读取.meta.json内容判断是否需要删除脚本
-        if (!file.script) {
+        if (!remoteFiles.script) {
           result.push(
             (async () => {
               // 读取meta文件
-              const meta = await fs.open(file.meta!);
+              const meta = await fs.open(remoteFiles.meta!);
               const metaJson = (await meta.read("string")) as string;
               const metaObj = JSON.parse(metaJson) as SyncMeta;
               if (metaObj.isDeleted) {
-                rememberTombstoneDigest(file.meta!);
+                rememberTombstoneDigest(remoteFiles.meta!);
                 // 删除脚本
                 await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
@@ -503,17 +526,18 @@ export class SynchronizeService {
                   })
                 );
               } else {
-                forgetTombstoneDigest(file.meta!);
+                forgetTombstoneDigest(remoteFiles.meta!);
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
-                await fs.delete(file.meta!.name, getDeleteOptions(file.meta));
+                await fs.delete(remoteFiles.meta!.name, getDeleteOptions(remoteFiles.meta));
                 return await this.pushScript(fs, script);
               }
             })()
           );
           continue;
         }
-        const remoteScript = file.script;
-        const remoteMeta = file.meta;
+        const remoteScript = remoteFiles.script;
+        const remoteMeta = remoteFiles.meta;
+        let checkedMetaObj: SyncMeta | undefined;
         const scriptDigestUnchanged = fileDigestMap[remoteScript.name] === remoteScript.digest;
         const metaDigestUnchanged = !remoteMeta || fileDigestMap[remoteMeta.name] === remoteMeta.digest;
         const shouldCheckMetaTombstone =
@@ -528,8 +552,8 @@ export class SynchronizeService {
           // tombstone 是删除提交信号，优先级高于 .user.js。
           // 如果上次删除在“写 tombstone 后、删 script 前”失败，下一轮会看到 script + tombstone。
           // 这里必须先处理 tombstone，不能因为 script digest 没变而跳过，否则删除可能长期无法收敛。
-          const metaObj = await readSyncMeta(fs, remoteMeta);
-          if (metaObj.isDeleted) {
+          checkedMetaObj = await readSyncMeta(fs, remoteMeta);
+          if (checkedMetaObj.isDeleted) {
             rememberTombstoneDigest(remoteMeta);
             result.push(
               (async () => {
@@ -553,30 +577,30 @@ export class SynchronizeService {
         }
         const updatetime = script.updatetime || script.createtime;
         // 对比脚本更新时间和文件更新时间
-        if (updatetime > file.script!.updatetime || !file.meta) {
+        if (updatetime > remoteFiles.script!.updatetime || !remoteFiles.meta) {
           // 如果脚本更新时间大于文件更新时间
           // 或者不存在.meta文件,则上传文件
-          result.push(this.pushScript(fs, script, file));
+          result.push(this.pushScript(fs, script, remoteFiles));
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
           updateScript.set(uuid, true);
-          result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script));
+          result.push(this.pullScript(fs, remoteFiles as SyncFiles, cloudStatus[uuid], script, checkedMetaObj));
         }
         continue;
       }
       // 如果脚本不存在，但文件存在，则安装脚本
-      if (file.script) {
-        if (!file.meta) {
+      if (remoteFiles.script) {
+        if (!remoteFiles.meta) {
           // .meta 文件可能尚未上传完成，跳过本次以避免误删云端脚本
           this.logger.warn("skip orphan cloud script without meta", {
             uuid,
-            file: file.script.name,
+            file: remoteFiles.script.name,
           });
           skippedOrphanUuids.add(uuid);
           continue;
         }
         updateScript.set(uuid, true);
-        result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid]));
+        result.push(this.pullScript(fs, remoteFiles as SyncFiles, cloudStatus[uuid]));
       }
     }
     // 上传剩下的脚本
@@ -598,14 +622,17 @@ export class SynchronizeService {
     const rejected = syncResults.filter((ret) => ret.status === "rejected");
     if (rejected.length) {
       const hasConflict = rejected.some((ret) => isConflictError(ret.reason));
+      rejected.forEach((ret, idx) => {
+        this.logger.warn(`sync task #${idx} failed`, Logger.E(ret.reason));
+      });
       this.notifySyncFailed(hasConflict, rejected.length);
       return;
     }
     // 同步状态
     if (syncConfig.syncStatus) {
-      const scriptlist = await this.scriptDAO.all();
+      const latestScriptList = await this.scriptDAO.all();
       const statusResults = await Promise.allSettled(
-        scriptlist.map(async (script) => {
+        latestScriptList.map(async (script) => {
           // 判断云端状态是否与本地状态一致
           const status = cloudStatus[script.uuid];
           const updatetime = script.updatetime || script.createtime;
@@ -665,7 +692,7 @@ export class SynchronizeService {
       // 保存脚本猫同步状态
       const modifiedDate = Date.now();
       try {
-        const syncFile = await fs.create("scriptcat-sync.json", getWriteOptions(modifiedDate, file));
+        const syncFile = await fs.create(SCRIPTCAT_SYNC_FILENAME, getWriteOptions(modifiedDate, syncStatusFile));
         await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
         this.logger.info("sync scriptcat-sync.json file success");
       } catch (e) {
@@ -724,7 +751,7 @@ export class SynchronizeService {
         newFileDigestMap[name] = knownFileDigestMap[name];
       }
     }
-    await this.storage.set("file_digest", newFileDigestMap);
+    await this.storage.set(FILE_DIGEST_STORAGE_KEY, newFileDigestMap);
     return;
   }
 
@@ -824,7 +851,13 @@ export class SynchronizeService {
     }
   }
 
-  async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {
+  async pullScript(
+    fs: FileSystem,
+    file: SyncFiles,
+    status: ScriptcatSyncStatus | undefined,
+    existingScript?: Script,
+    knownMetaObj?: SyncMeta
+  ) {
     const logger = this.logger.with({
       uuid: existingScript?.uuid || "",
       name: existingScript?.name || "",
@@ -832,9 +865,7 @@ export class SynchronizeService {
     });
     try {
       // 先读 meta。tombstone 是删除提交信号，命中后不需要、也不应该依赖 .user.js 仍可读取。
-      const meta = await fs.open(file.meta);
-      const metaJson = (await meta.read("string")) as string;
-      const metaObj = JSON.parse(metaJson) as SyncMeta;
+      const metaObj = knownMetaObj || (await readSyncMeta(fs, file.meta));
       if (metaObj.isDeleted) {
         if (existingScript) {
           await this.script.deleteScript(existingScript.uuid, "sync");

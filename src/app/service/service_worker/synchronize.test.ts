@@ -45,6 +45,42 @@ describe("SynchronizeService", () => {
     chrome.storage.local.clear();
   });
 
+  it("skips missing selected scripts during backup export", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getScriptValueDetails: vi.fn().mockResolvedValue([{}, undefined]),
+      } as any,
+      {
+        getResourceByType: vi.fn().mockResolvedValue({}),
+      } as any,
+      {} as any,
+      {} as any,
+      {
+        get: vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+          uuid: "existing",
+          name: "Existing",
+          downloadUrl: "https://example.com/existing.user.js",
+          updatetime: 1,
+          createtime: 1,
+          status: 1,
+          sort: 0,
+          metadata: {},
+        }),
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+      } as any
+    );
+
+    const backup = await service.getScriptBackupData(["missing", "existing"]);
+
+    expect(backup).toHaveLength(1);
+    expect(backup[0]!.options!.meta.uuid).toBe("existing");
+  });
+
   it("serializes concurrent syncOnce calls", async () => {
     let releaseFirst!: () => void;
     const firstGate = new Promise<void>((resolve) => {
@@ -478,6 +514,78 @@ console.log("ok");`
     expect(fs.delete).toHaveBeenCalledWith("del-uuid.user.js", {
       expectedVersion: "script-version",
     });
+  });
+
+  it("reuses meta read when tombstone precheck falls through to pull", async () => {
+    const installScript = vi.fn().mockResolvedValue(undefined);
+    const metaFile = {
+      name: "pull-uuid.meta.json",
+      path: "/",
+      size: 1,
+      digest: "new-meta-digest",
+      version: "meta-version",
+      createtime: 1,
+      updatetime: 2,
+    };
+    const scriptFile = {
+      name: "pull-uuid.user.js",
+      path: "/",
+      size: 1,
+      digest: "new-script-digest",
+      version: "script-version",
+      createtime: 1,
+      updatetime: 2,
+    };
+    const openMock = vi.fn().mockImplementation(async (file) => ({
+      read: vi.fn().mockResolvedValue(
+        file.name.endsWith(".meta.json")
+          ? JSON.stringify({ uuid: "pull-uuid", origin: "origin" })
+          : `// ==UserScript==
+// @name Pull Test
+// @namespace sync-test
+// @match https://example.com/*
+// ==/UserScript==
+console.log("ok");`
+      ),
+    }));
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([scriptFile, metaFile]).mockResolvedValueOnce([scriptFile, metaFile]),
+      open: openMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { installScript } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "pull-uuid",
+            name: "local",
+            downloadUrl: "",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "pull-uuid.user.js": "old-script-digest",
+      "pull-uuid.meta.json": "old-meta-digest",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(installScript).toHaveBeenCalledTimes(1);
+    expect(openMock.mock.calls.filter(([file]) => file.name.endsWith(".meta.json"))).toHaveLength(1);
+    expect(openMock.mock.calls.filter(([file]) => file.name.endsWith(".user.js"))).toHaveLength(1);
   });
 
   it("does not install cloud script when meta is a tombstone", async () => {
@@ -973,6 +1081,58 @@ console.log("ok");`
     } finally {
       nowSpy.mockRestore();
     }
+  });
+
+  it("preserves unknown scriptcat-sync.json fields when writing status", async () => {
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "scriptcat-sync.json",
+            path: "/",
+            size: 1,
+            digest: "digest-sync",
+            version: "version-sync",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            version: "old-version",
+            schemaVersion: 2,
+            status: { scripts: {} },
+          })
+        ),
+      }),
+      create: vi.fn().mockResolvedValue({
+        write: writeMock,
+      }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.syncOnce(syncConfig, fs);
+
+    const written = JSON.parse(writeMock.mock.calls[0][0]);
+    expect(written.schemaVersion).toBe(2);
+    expect(written.version).not.toBe("old-version");
+    expect(written.status).toEqual({ scripts: {} });
   });
 
   it("notifies and skips digest update when scriptcat-sync.json hits remote conflict", async () => {
