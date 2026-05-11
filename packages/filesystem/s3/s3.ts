@@ -2,10 +2,10 @@ import { XMLParser } from "fast-xml-parser";
 import { S3Client, S3Error } from "./client";
 import type { S3ClientConfig } from "./client";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
-import { joinPath } from "../utils";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
+import { buildExpectedHeaders, joinPath } from "../utils";
 import { S3FileReader, S3FileWriter } from "./rw";
-import { WarpTokenError } from "../error";
+import { fileConflictError, WarpTokenError } from "../error";
 
 // ---- ListObjectsV2 XML 解析 ----
 
@@ -167,7 +167,7 @@ export default class S3FileSystem implements FileSystem {
    * @returns 文件写入器
    */
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
-    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts?.modifiedDate);
+    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts);
   }
 
   /**
@@ -182,10 +182,22 @@ export default class S3FileSystem implements FileSystem {
    * 此操作幂等——删除不存在的文件也会成功
    * @param path 相对于当前 basePath 的文件路径
    */
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     try {
-      await this.client.request("DELETE", this.bucket, joinPath(this.basePath, path).substring(1));
+      const headers = buildExpectedHeaders(opts);
+      if (Object.keys(headers).length) {
+        await this.client.request("DELETE", this.bucket, joinPath(this.basePath, path).substring(1), { headers });
+      } else {
+        await this.client.request("DELETE", this.bucket, joinPath(this.basePath, path).substring(1));
+      }
     } catch (error: any) {
+      if (error instanceof S3Error && (error.statusCode === 409 || error.statusCode === 412)) {
+        throw fileConflictError("s3", error.message, {
+          status: error.statusCode,
+          code: error.code,
+          raw: error,
+        });
+      }
       // S3 delete 是幂等的，key 不存在时也视为成功
       if (error instanceof S3Error && error.code === "NoSuchKey") {
         return;
@@ -237,6 +249,7 @@ export default class S3FileSystem implements FileSystem {
             path: this.basePath,
             size: obj.size || 0,
             digest: obj.etag?.replace(/"/g, "") || "",
+            version: obj.etag || "",
             createtime: lastModified,
             updatetime: lastModified,
           });

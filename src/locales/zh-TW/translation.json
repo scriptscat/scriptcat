@@ -569,6 +569,9 @@
   "notification": {
     "script_sync_delete": "腳本刪除同步",
     "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",
+    "script_sync_failed": "腳本同步失敗",
+    "script_sync_failed_desc": "部分雲端同步變更失敗，本機同步狀態未更新，請檢查日誌後重新同步。",
+    "script_sync_conflict_desc": "雲端同步偵測到遠端衝突，本機同步狀態未更新，請檢查其他裝置上的變更後重新同步。",
     "subscribe_update": "訂閱 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}"
   },

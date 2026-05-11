@@ -206,6 +206,29 @@ describe("WebDAVFileSystem", () => {
       expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt");
     });
 
+    it("应当在条件删除时发送 If-Match", async () => {
+      const fs = createTestFS(mockClient);
+
+      await fs.delete("test.txt", { expectedVersion: '"etag-1"' });
+
+      expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt", {
+        headers: { "If-Match": '"etag-1"' },
+      });
+    });
+
+    it("应当把条件删除失败转换为冲突错误", async () => {
+      (mockClient.deleteFile as ReturnType<typeof vi.fn>).mockRejectedValue({
+        response: { status: 412 },
+        message: "Precondition Failed",
+      });
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).rejects.toMatchObject({
+        provider: "webdav",
+        conflict: true,
+      });
+    });
+
     it("应当在 404 时静默成功（幂等删除）", async () => {
       (mockClient.deleteFile as ReturnType<typeof vi.fn>).mockRejectedValue({
         response: { status: 404 },
@@ -244,6 +267,7 @@ describe("WebDAVFileSystem", () => {
         name: "test.txt",
         path: "/",
         digest: '"abc"',
+        version: '"abc"',
         size: 1024,
       });
     });
@@ -265,6 +289,32 @@ describe("WebDAVFileSystem", () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.list()).rejects.toThrow("Server Error");
+    });
+  });
+
+  describe("conditional write", () => {
+    it("应当按 expectedVersion 传入 If-Match", async () => {
+      const fs = createTestFS(mockClient);
+
+      const writer = await fs.create("test.txt", { expectedVersion: '"etag-1"' });
+      await writer.write("content");
+
+      expect(mockClient.putFileContents).toHaveBeenCalledWith("/test.txt", "content", {
+        headers: {
+          "If-Match": '"etag-1"',
+        },
+      });
+    });
+
+    it("应当按 createOnly 传入 overwrite=false", async () => {
+      const fs = createTestFS(mockClient);
+
+      const writer = await fs.create("test.txt", { createOnly: true });
+      await writer.write("content");
+
+      expect(mockClient.putFileContents).toHaveBeenCalledWith("/test.txt", "content", {
+        overwrite: false,
+      });
     });
   });
 

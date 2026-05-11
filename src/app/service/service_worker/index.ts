@@ -142,11 +142,10 @@ export default class ServiceWorkerManager {
           break;
         case "cloudSync":
           // 进行一次云同步
-          systemConfig.getCloudSync().then((config) => {
-            synchronize.buildFileSystem(config).then((fs) => {
-              synchronize.syncOnce(config, fs);
-            });
-          });
+          systemConfig
+            .getCloudSync()
+            .then((config) => synchronize.buildFileSystem(config).then((fs) => synchronize.syncOnce(config, fs)))
+            .catch((e) => console.error("cloudSync alarm error", e));
           break;
         case "checkUpdate":
           // 检查扩展更新

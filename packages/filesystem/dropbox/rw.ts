@@ -1,6 +1,16 @@
+import { FileSystemError, fileConflictError, unsupportedConditionalWriteError } from "../error";
 import type { FileInfo, FileReader, FileWriter } from "../filesystem";
+import type { FileCreateOptions } from "../filesystem";
 import { joinPath } from "../utils";
 import type DropboxFileSystem from "./dropbox";
+
+function isDropboxUploadConflict(error: unknown): boolean {
+  if (error instanceof FileSystemError) {
+    return error.conflict;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("409") || message.includes("conflict") || message.includes("incorrect_offset");
+}
 
 export class DropboxFileReader implements FileReader {
   file: FileInfo;
@@ -53,41 +63,44 @@ export class DropboxFileWriter implements FileWriter {
 
   fs: DropboxFileSystem;
 
-  constructor(fs: DropboxFileSystem, path: string) {
+  opts?: FileCreateOptions;
+
+  constructor(fs: DropboxFileSystem, path: string, opts?: FileCreateOptions) {
     this.fs = fs;
     this.path = path;
+    this.opts = opts;
   }
 
   async write(content: string | Blob): Promise<void> {
-    // 检查文件是否存在
-    const exists = await this.fs.exists(this.path);
-
-    if (exists) {
-      // 如果文件存在，则更新
-      return this.updateFile(content);
-    } else {
-      // 如果文件不存在，则创建
+    if (this.opts?.expectedDigest && !this.opts.expectedVersion) {
+      throw unsupportedConditionalWriteError(
+        "dropbox",
+        "Dropbox conditional writes require expectedVersion (rev), not expectedDigest"
+      );
+    }
+    if (this.opts?.createOnly) {
       return this.createNewFile(content);
     }
+    if (this.opts?.expectedVersion) {
+      return this.updateFile(content, this.opts.expectedVersion);
+    }
+
+    return this.updateFile(content);
   }
 
-  private async updateFile(content: string | Blob): Promise<void> {
+  private async updateFile(content: string | Blob, rev?: string): Promise<void> {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/octet-stream");
     myHeaders.append(
       "Dropbox-API-Arg",
       JSON.stringify({
         path: this.path,
-        mode: "overwrite",
+        mode: rev ? { ".tag": "update", update: rev } : "overwrite",
         autorename: false,
       })
     );
 
-    await this.fs.request("https://content.dropboxapi.com/2/files/upload", {
-      method: "POST",
-      headers: myHeaders,
-      body: content instanceof Blob ? content : new Blob([content]),
-    });
+    await this.upload(myHeaders, content);
 
     return Promise.resolve();
   }
@@ -104,12 +117,27 @@ export class DropboxFileWriter implements FileWriter {
       })
     );
 
-    await this.fs.request("https://content.dropboxapi.com/2/files/upload", {
-      method: "POST",
-      headers: myHeaders,
-      body: content instanceof Blob ? content : new Blob([content]),
-    });
+    await this.upload(myHeaders, content);
 
     return Promise.resolve();
+  }
+
+  private async upload(headers: Headers, content: string | Blob): Promise<void> {
+    try {
+      await this.fs.request("https://content.dropboxapi.com/2/files/upload", {
+        method: "POST",
+        headers,
+        body: content instanceof Blob ? content : new Blob([content]),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (isDropboxUploadConflict(error)) {
+        throw fileConflictError("dropbox", message, {
+          status: message.includes("409") ? 409 : undefined,
+          raw: error,
+        });
+      }
+      throw error;
+    }
   }
 }

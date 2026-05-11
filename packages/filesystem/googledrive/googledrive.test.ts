@@ -48,6 +48,45 @@ describe("GoogleDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("delete should check version before conditional delete", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const getFileIdSpy = vi.spyOn(fs, "getFileId");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValueOnce({ version: "2" }).mockResolvedValueOnce({});
+
+    await expect(fs.delete("test.txt", { expectedVersion: "file-1:2" })).resolves.toBeUndefined();
+
+    expect(getFileIdSpy).not.toHaveBeenCalled();
+    expect(requestSpy.mock.calls[0][0]).toContain("/drive/v3/files/file-1?fields=version,md5Checksum");
+    expect(requestSpy.mock.calls[1][0]).toContain("/drive/v3/files/file-1?spaces=appDataFolder");
+  });
+
+  it("delete should reject when conditional digest changed", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue({ md5Checksum: "new-md5" });
+
+    await expect(fs.delete("test.txt", { expectedDigest: "old-md5" })).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+    });
+  });
+
+  it("delete should clear stale cached id on 404 response", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    (fs as any).pathToIdCache.set("/missing.txt", "stale-file-id");
+    const notFoundError = new FileSystemError({
+      provider: "googledrive",
+      message: "File not found",
+      status: 404,
+      notFound: true,
+    });
+    vi.spyOn(fs, "request").mockRejectedValue(notFoundError);
+
+    await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
+
+    expect((fs as any).pathToIdCache.has("/missing.txt")).toBe(false);
+  });
+
   it("ensureDirExists should create missing nested directories and return final id", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     const findSpy = vi.spyOn(fs, "findFolderByName").mockResolvedValue(null);
@@ -133,6 +172,103 @@ describe("GoogleDriveFileSystem", () => {
 
     expect(ensureSpy).toHaveBeenCalledTimes(1);
     expect(findFileSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("writer should best-effort validate expected Google Drive version before update", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", {
+      expectedVersion: "file-1:version-7",
+    });
+    const findSpy = vi.spyOn(fs, "findFileInDirectory");
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockResolvedValueOnce({ version: "version-7" })
+      .mockResolvedValueOnce({});
+
+    await expect(writer.write("content")).resolves.toBeUndefined();
+
+    expect(findSpy).not.toHaveBeenCalled();
+    expect(requestSpy).toHaveBeenCalledTimes(2);
+    expect(requestSpy.mock.calls[0][0]).toBe(
+      "https://www.googleapis.com/drive/v3/files/file-1?fields=version&spaces=appDataFolder"
+    );
+    expect(requestSpy.mock.calls[1][0]).toBe(
+      "https://www.googleapis.com/upload/drive/v3/files/file-1?uploadType=multipart&spaces=appDataFolder"
+    );
+    expect((requestSpy.mock.calls[1][1] as RequestInit).headers).toBeUndefined();
+  });
+
+  it("writer should reject update when Google Drive version changed", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", {
+      expectedVersion: "file-1:version-7",
+    });
+    vi.spyOn(fs, "request").mockResolvedValueOnce({ version: "version-8" });
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+      status: 412,
+    });
+  });
+
+  it("writer should reject createOnly when target already exists", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", { createOnly: true });
+    vi.spyOn(fs, "findFileInDirectory").mockResolvedValue("file-1");
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+    });
+  });
+
+  it("findFileInDirectory should reject duplicate file names", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "findFilesInDirectory").mockResolvedValue([{ id: "file-1" }, { id: "file-2" }]);
+
+    await expect(fs.findFileInDirectory("file.txt", "parent-id")).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+    });
+  });
+
+  it("writer should create createOnly files without generating a Google Drive id", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", { createOnly: true });
+    vi.spyOn(fs, "findFileInDirectory").mockResolvedValue(null);
+    vi.spyOn(fs, "findFilesInDirectory").mockResolvedValue([{ id: "created-file" }]);
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValueOnce({ id: "created-file" });
+
+    await expect(writer.write("content")).resolves.toBeUndefined();
+
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy.mock.calls[0][0]).toBe(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&spaces=appDataFolder&fields=id"
+    );
+    const createOptions = requestSpy.mock.calls[0][1] as RequestInit;
+    expect(createOptions.headers).toBeUndefined();
+    const formData = createOptions.body as FormData;
+    expect(formData.get("metadata")).toBeTruthy();
+  });
+
+  it("writer should rollback and reject createOnly when Google Drive creates a duplicate name", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    const writer = await fs.create("file.txt", { createOnly: true });
+    vi.spyOn(fs, "findFileInDirectory").mockResolvedValue(null);
+    vi.spyOn(fs, "findFilesInDirectory").mockResolvedValue([{ id: "other-file" }, { id: "created-file" }]);
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValueOnce({ id: "created-file" }).mockResolvedValueOnce({});
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "googledrive",
+      conflict: true,
+    });
+
+    expect(requestSpy).toHaveBeenCalledTimes(2);
+    expect(requestSpy.mock.calls[1][0]).toBe(
+      "https://www.googleapis.com/drive/v3/files/created-file?spaces=appDataFolder"
+    );
+    expect((requestSpy.mock.calls[1][1] as RequestInit).method).toBe("DELETE");
   });
 
   it("list should clear stale path cache and retry once on provider 404", async () => {
@@ -350,5 +486,30 @@ describe("GoogleDriveFileSystem", () => {
         rateLimit: true,
       });
     }
+  });
+
+  it("list should expose opaque Google Drive version token", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({
+      files: [
+        {
+          id: "file-1",
+          name: "test.user.js",
+          size: "12",
+          md5Checksum: "md5",
+          createdTime: "2024-01-01T00:00:00.000Z",
+          modifiedTime: "2024-01-02T00:00:00.000Z",
+          version: "7",
+        },
+      ],
+    });
+
+    await expect(fs.list()).resolves.toMatchObject([
+      {
+        name: "test.user.js",
+        digest: "md5",
+        version: "file-1:7",
+      },
+    ]);
   });
 });

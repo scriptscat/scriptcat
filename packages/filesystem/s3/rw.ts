@@ -1,5 +1,7 @@
-import type { S3Client } from "./client";
-import type { FileReader, FileWriter } from "../filesystem";
+import { S3Error, type S3Client } from "./client";
+import { fileConflictError } from "../error";
+import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import { buildConditionalHeaders } from "../utils";
 
 /**
  * S3 文件读取器
@@ -46,11 +48,14 @@ export class S3FileWriter implements FileWriter {
 
   modifiedDate?: number;
 
-  constructor(client: S3Client, bucket: string, key: string, modifiedDate?: number) {
+  opts?: FileCreateOptions;
+
+  constructor(client: S3Client, bucket: string, key: string, opts?: FileCreateOptions) {
     this.client = client;
     this.bucket = bucket;
     this.key = key;
-    this.modifiedDate = modifiedDate;
+    this.modifiedDate = opts?.modifiedDate;
+    this.opts = opts;
   }
 
   /**
@@ -68,10 +73,22 @@ export class S3FileWriter implements FileWriter {
       // 历史兼容：S3 侧使用 createtime 元数据保存文件时间，实际来源是 FileCreateOptions.modifiedDate。
       headers["x-amz-meta-createtime"] = new Date(this.modifiedDate).toISOString();
     }
+    Object.assign(headers, buildConditionalHeaders(this.opts));
 
-    await this.client.request("PUT", this.bucket, this.key, {
-      body: typeof body === "string" ? body : body,
-      headers,
-    });
+    try {
+      await this.client.request("PUT", this.bucket, this.key, {
+        body: typeof body === "string" ? body : body,
+        headers,
+      });
+    } catch (error) {
+      if (error instanceof S3Error && (error.statusCode === 409 || error.statusCode === 412)) {
+        throw fileConflictError("s3", error.message, {
+          status: error.statusCode,
+          code: error.code,
+          raw: error,
+        });
+      }
+      throw error;
+    }
   }
 }

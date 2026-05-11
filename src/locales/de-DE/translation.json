@@ -569,6 +569,9 @@
   "notification": {
     "script_sync_delete": "Skript-Löschsynchronisation",
     "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",
+    "script_sync_failed": "Skriptsynchronisierung fehlgeschlagen",
+    "script_sync_failed_desc": "Einige Cloud-Synchronisierungsänderungen sind fehlgeschlagen. Der lokale Synchronisierungsstatus wurde nicht aktualisiert; bitte prüfen Sie die Protokolle und synchronisieren Sie erneut.",
+    "script_sync_conflict_desc": "Die Cloud-Synchronisierung hat einen Remote-Konflikt erkannt. Der lokale Synchronisierungsstatus wurde nicht aktualisiert; bitte prüfen Sie Änderungen auf anderen Geräten und synchronisieren Sie erneut.",
     "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
     "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}"
   },

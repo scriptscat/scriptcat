@@ -1,6 +1,7 @@
 import { AuthVerify } from "../auth";
+import { fileConflictError } from "../error";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { DropboxFileReader, DropboxFileWriter } from "./rw";
 
@@ -37,8 +38,8 @@ export default class DropboxFileSystem implements FileSystem {
     return Promise.resolve(new DropboxFileSystem(joinPath(this.path, path), this.accessToken));
   }
 
-  create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
-    return Promise.resolve(new DropboxFileWriter(this, joinPath(this.path, path)));
+  create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    return Promise.resolve(new DropboxFileWriter(this, joinPath(this.path, path), opts));
   }
 
   async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
@@ -139,13 +140,14 @@ export default class DropboxFileSystem implements FileSystem {
       });
   }
 
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     const fullPath = joinPath(this.path, path);
 
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
     try {
+      await this.assertDeletePrecondition(fullPath, opts);
       await this.request("https://api.dropboxapi.com/2/files/delete_v2", {
         method: "POST",
         headers: myHeaders,
@@ -162,6 +164,32 @@ export default class DropboxFileSystem implements FileSystem {
 
     // 清除相关缓存
     this.clearRelatedCache(fullPath);
+  }
+
+  private async assertDeletePrecondition(path: string, opts?: FileDeleteOptions): Promise<void> {
+    const expected = opts?.expectedVersion || opts?.expectedDigest;
+    if (!expected) {
+      return;
+    }
+    // Dropbox delete_v2 不接受 rev/content_hash 条件参数，这里只能先读 metadata 再删除。
+    // 这不是原子删除：metadata 检查和 delete_v2 之间仍可能被其他设备更新。
+    // 典型残留窗口：A get_metadata 通过后，B 更新文件，A 的 delete_v2 仍可能删除 B 的新内容。
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+    const metadata = await this.request("https://api.dropboxapi.com/2/files/get_metadata", {
+      method: "POST",
+      headers: myHeaders,
+      body: JSON.stringify({
+        path,
+      }),
+    });
+    const current = opts?.expectedVersion ? metadata.rev : metadata.content_hash;
+    if (current !== expected) {
+      throw fileConflictError("dropbox", `Dropbox file changed before delete: ${path}`, {
+        status: 412,
+        code: "versionMismatch",
+      });
+    }
   }
 
   async list(): Promise<FileInfo[]> {
@@ -207,6 +235,7 @@ export default class DropboxFileSystem implements FileSystem {
               path: this.path,
               size: item.size || 0,
               digest: item.content_hash || "",
+              version: item.rev || "",
               createtime: new Date(item.client_modified).getTime(),
               updatetime: new Date(item.server_modified).getTime(),
             });

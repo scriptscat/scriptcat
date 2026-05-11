@@ -140,6 +140,13 @@ describe("LimiterFileSystem", () => {
     expect(fs.delete).toHaveBeenCalledTimes(1);
   });
 
+  it("should pass FileDeleteOptions through delete", async () => {
+    const fs = createFs();
+    const limiter = new LimiterFileSystem(fs);
+    await limiter.delete(file.path, { expectedVersion: "etag-1" });
+    expect(fs.delete).toHaveBeenCalledWith(file.path, { expectedVersion: "etag-1" });
+  });
+
   it("should not retry createDir on 429", async () => {
     const fs = createFs();
     vi.mocked(fs.createDir).mockRejectedValueOnce(new Error("429 Too Many Requests"));

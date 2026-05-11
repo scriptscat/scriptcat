@@ -10,11 +10,11 @@ import {
 } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
-import type { FileInfo } from "@Packages/filesystem/filesystem";
+import type { FileCreateOptions, FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
-import { isWarpTokenError } from "@Packages/filesystem/error";
+import { isConflictError, isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -73,9 +73,74 @@ type FileDigestMap = {
 };
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
+const FILE_DIGEST_STORAGE_KEY = "file_digest";
+const TOMBSTONE_DIGEST_STORAGE_KEY = "tombstone_digest";
+const SCRIPTCAT_SYNC_FILENAME = "scriptcat-sync.json";
+const SCRIPT_FILE_SUFFIX = ".user.js";
+const META_FILE_SUFFIX = ".meta.json";
 
 function getScriptModifiedDate(script: PushScriptParam): number {
   return script.updatetime || script.createtime || Date.now();
+}
+
+function getWriteOptions(modifiedDate: number, remoteFile?: FileInfo): FileCreateOptions {
+  const opts: FileCreateOptions = { modifiedDate };
+  if (!remoteFile) {
+    // 新文件必须用 createOnly，避免 list 短暂漏文件时把另一台设备刚创建的同名文件覆盖掉。
+    opts.createOnly = true;
+    return opts;
+  }
+  // 优先使用 provider 暴露的原生版本 token（etag/rev/version），没有版本时才退到 digest。
+  // 部分 provider 的 digest 不是 MD5，调用方不能把 expectedDigest 当成跨 provider 的强一致 CAS。
+  if (remoteFile.version) {
+    opts.expectedVersion = remoteFile.version;
+  } else if (remoteFile.digest) {
+    opts.expectedDigest = remoteFile.digest;
+  }
+  return opts;
+}
+
+function getDeleteOptions(remoteFile?: FileInfo) {
+  if (!remoteFile) {
+    return undefined;
+  }
+  // 删除也尽量使用远端快照里的版本 token；这能让 S3/WebDAV/OneDrive 走服务端 If-Match。
+  // Baidu/Dropbox/Google Drive 只能做删除前校验，仍然不是原子删除，详见各 provider 注释。
+  if (remoteFile.version) {
+    return { expectedVersion: remoteFile.version };
+  }
+  if (remoteFile.digest) {
+    return { expectedDigest: remoteFile.digest };
+  }
+  return undefined;
+}
+
+async function readSyncMeta(fs: FileSystem, file: FileInfo): Promise<SyncMeta> {
+  const meta = await fs.open(file);
+  return JSON.parse((await meta.read("string")) as string) as SyncMeta;
+}
+
+function groupFilesByUuid(list: FileInfo[]): Map<string, Partial<SyncFiles>> {
+  const uuidMap = new Map<string, Partial<SyncFiles>>();
+  const getOrCreate = (uuid: string) => {
+    let files = uuidMap.get(uuid);
+    if (!files) {
+      files = {};
+      uuidMap.set(uuid, files);
+    }
+    return files;
+  };
+
+  for (const file of list) {
+    if (file.name.endsWith(SCRIPT_FILE_SUFFIX)) {
+      const uuid = file.name.slice(0, -SCRIPT_FILE_SUFFIX.length);
+      getOrCreate(uuid).script = file;
+    } else if (file.name.endsWith(META_FILE_SUFFIX)) {
+      const uuid = file.name.slice(0, -META_FILE_SUFFIX.length);
+      getOrCreate(uuid).meta = file;
+    }
+  }
+  return uuidMap;
 }
 
 export class SynchronizeService {
@@ -113,18 +178,27 @@ export class SynchronizeService {
   // 获取脚本备份数据
   async getScriptBackupData(uuids?: string[]) {
     if (uuids) {
-      const rets: Promise<ScriptBackupData>[] = [];
-      uuids.forEach((uuid) => {
-        rets.push(
-          this.scriptDAO.get(uuid).then((script) => {
-            if (script) {
-              return this.generateScriptBackupData(script);
-            }
-            return Promise.reject(new Error(`Script ${uuid} not found`));
-          })
-        );
+      const results = await Promise.allSettled(
+        uuids.map(async (uuid) => {
+          const script = await this.scriptDAO.get(uuid);
+          if (!script) {
+            throw new Error(`Script ${uuid} not found`);
+          }
+          return this.generateScriptBackupData(script);
+        })
+      );
+      const failed = results.filter((ret): ret is PromiseRejectedResult => ret.status === "rejected");
+      failed.forEach((ret) => {
+        this.logger.warn("failed to export selected script", Logger.E(ret.reason));
       });
-      return Promise.all(rets); // 不处理 Promise.reject ?
+      if (failed.length) {
+        // 用户明确选择导出 uuid 时，缺失/失败不能静默跳过；
+        // 否则会生成不完整备份而用户无感。这里先收集并记录所有失败，再让导出整体失败。
+        throw new Error(`Failed to export ${failed.length} selected script(s)`);
+      }
+      return results
+        .filter((ret): ret is PromiseFulfilledResult<ScriptBackupData> => ret.status === "fulfilled")
+        .map((ret) => ret.value);
     }
     // 获取所有脚本
     const list = await this.scriptDAO.all();
@@ -190,7 +264,6 @@ export class SynchronizeService {
     }
     return ret;
   }
-
   importResources(data: {
     uuid: string;
     requires: ResourceBackup[];
@@ -350,34 +423,46 @@ export class SynchronizeService {
     });
   }
 
+  public notifySyncFailed(hasConflict: boolean, rejectedCount: number) {
+    this.logger.warn("skip status and digest update because cloud sync task failed", {
+      conflict: hasConflict,
+      failed: rejectedCount,
+    });
+    const title = i18n.t("notification.script_sync_failed");
+    const message = hasConflict
+      ? i18n.t("notification.script_sync_conflict_desc")
+      : i18n.t("notification.script_sync_failed_desc");
+    InfoNotification(title, message);
+  }
+
   private async syncOnceInternal(syncConfig: CloudSyncConfig, fs: FileSystem) {
     this.logger.info("start sync once");
     // 获取文件列表
     const list = await fs.list();
     // 根据文件名生成一个map
-    const uuidMap = new Map<string, Partial<SyncFiles>>();
+    const uuidMap = groupFilesByUuid(list);
     // 储存文件摘要,用于检测文件是否有变化
-    const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
-
-    for (const file of list) {
-      if (file.name.endsWith(".user.js")) {
-        const uuid = file.name.substring(0, file.name.length - 8);
-        let files = uuidMap.get(uuid);
-        if (!files) {
-          files = {};
-          uuidMap.set(uuid, files);
-        }
-        files.script = file;
-      } else if (file.name.endsWith(".meta.json")) {
-        const uuid = file.name.substring(0, file.name.length - 10);
-        let files = uuidMap.get(uuid);
-        if (!files) {
-          files = {};
-          uuidMap.set(uuid, files);
-        }
-        files.meta = file;
+    const fileDigestMap = ((await this.storage.get(FILE_DIGEST_STORAGE_KEY)) as FileDigestMap) || {};
+    const tombstoneDigestMap = ((await this.storage.get(TOMBSTONE_DIGEST_STORAGE_KEY)) as FileDigestMap) || {};
+    let tombstoneDigestDirty = false;
+    const rememberTombstoneDigest = (metaFile: FileInfo) => {
+      if (!metaFile.digest || tombstoneDigestMap[metaFile.name] === metaFile.digest) {
+        return;
       }
-    }
+      // 记录“已确认是 tombstone 的 meta digest”。以后即使 provider 的 mtime 精度导致
+      // meta/script 时间相等，也能继续识别并清理残留 .user.js；正常非 tombstone 不会多读远端 meta。
+      tombstoneDigestMap[metaFile.name] = metaFile.digest;
+      tombstoneDigestDirty = true;
+    };
+    const forgetTombstoneDigest = (metaFile: FileInfo) => {
+      if (!tombstoneDigestMap[metaFile.name]) {
+        return;
+      }
+      // 如果同名 meta 已确认不是 tombstone，旧的 tombstone 记录必须清掉；
+      // 否则后续每轮都会因为缓存命中而额外读取 meta。
+      delete tombstoneDigestMap[metaFile.name];
+      tombstoneDigestDirty = true;
+    };
 
     // 获取脚本列表
     const scriptList = await this.scriptDAO.all();
@@ -388,18 +473,29 @@ export class SynchronizeService {
     });
 
     // 判断文件系统是否有脚本猫同步文件
-    const file = list.find((file) => file.name === "scriptcat-sync.json");
-    const scriptcatSync = {
+    const syncStatusFile = list.find((file) => file.name === SCRIPTCAT_SYNC_FILENAME);
+    let scriptcatSync = {
       version: ExtVersion,
       status: {
         scripts: {},
       },
     } as ScriptcatSync;
     let cloudStatus: ScriptcatSync["status"]["scripts"] = {};
-    if (file) {
+    if (syncStatusFile) {
       // 如果有,则读取文件内容
-      const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
-      cloudStatus = cloudScriptCatSync.status.scripts;
+      const cloudScriptCatSync = JSON.parse(
+        await fs.open(syncStatusFile).then((f) => f.read("string"))
+      ) as ScriptcatSync;
+      cloudStatus = cloudScriptCatSync.status?.scripts || {};
+      // 保留云端 manifest 的未知字段，避免未来扩展字段被本机同步覆盖掉。
+      scriptcatSync = {
+        ...cloudScriptCatSync,
+        version: ExtVersion,
+        status: {
+          ...cloudScriptCatSync.status,
+          scripts: {},
+        },
+      };
     }
 
     // 对比脚本列表和文件列表,进行同步
@@ -410,19 +506,20 @@ export class SynchronizeService {
     const skippedOrphanUuids = new Set<string>();
     // 需要是同步操作，后续上传剩下的脚本
     // 最后使用 Promise.allSettled 进行等待
-    uuidMap.forEach((file, uuid) => {
+    for (const [uuid, remoteFiles] of uuidMap) {
       const script = scriptMap.get(uuid);
       if (script) {
         scriptMap.delete(uuid);
         // 脚本存在但是文件不存在,则读取.meta.json内容判断是否需要删除脚本
-        if (!file.script) {
+        if (!remoteFiles.script) {
           result.push(
             (async () => {
               // 读取meta文件
-              const meta = await fs.open(file.meta!);
+              const meta = await fs.open(remoteFiles.meta!);
               const metaJson = (await meta.read("string")) as string;
               const metaObj = JSON.parse(metaJson) as SyncMeta;
               if (metaObj.isDeleted) {
+                rememberTombstoneDigest(remoteFiles.meta!);
                 // 删除脚本
                 await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
@@ -432,46 +529,83 @@ export class SynchronizeService {
                   })
                 );
               } else {
+                forgetTombstoneDigest(remoteFiles.meta!);
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
-                await fs.delete(file.meta!.name);
+                await fs.delete(remoteFiles.meta!.name, getDeleteOptions(remoteFiles.meta));
                 return await this.pushScript(fs, script);
               }
             })()
           );
-          return;
+          continue;
+        }
+        const remoteScript = remoteFiles.script;
+        const remoteMeta = remoteFiles.meta;
+        let checkedMetaObj: SyncMeta | undefined;
+        const scriptDigestUnchanged = fileDigestMap[remoteScript.name] === remoteScript.digest;
+        const metaDigestUnchanged = !remoteMeta || fileDigestMap[remoteMeta.name] === remoteMeta.digest;
+        const shouldCheckMetaTombstone =
+          remoteMeta &&
+          (tombstoneDigestMap[remoteMeta.name] === remoteMeta.digest ||
+            fileDigestMap[remoteMeta.name] !== remoteMeta.digest ||
+            // 兼容没有 tombstone_digest 记录的旧版本/异常中断状态：digest cache 已经记录 tombstone meta，
+            // 但 .user.js 仍没删掉。meta 晚于 script 是删除标记的典型形态，才额外读一次 meta。
+            // 这是启发式兜底，不作为严格协议；严格收敛依赖上面的 tombstone digest 记录。
+            (scriptDigestUnchanged && metaDigestUnchanged && remoteMeta.updatetime > remoteScript.updatetime));
+        if (remoteMeta && shouldCheckMetaTombstone) {
+          // tombstone 是删除提交信号，优先级高于 .user.js。
+          // 如果上次删除在“写 tombstone 后、删 script 前”失败，下一轮会看到 script + tombstone。
+          // 这里必须先处理 tombstone，不能因为 script digest 没变而跳过，否则删除可能长期无法收敛。
+          checkedMetaObj = await readSyncMeta(fs, remoteMeta);
+          if (checkedMetaObj.isDeleted) {
+            rememberTombstoneDigest(remoteMeta);
+            result.push(
+              (async () => {
+                await this.script.deleteScript(script.uuid, "sync");
+                await fs.delete(remoteScript.name, getDeleteOptions(remoteScript));
+                InfoNotification(
+                  i18n.t("notification.script_sync_delete"),
+                  i18n.t("notification.script_sync_delete_desc", {
+                    scriptName: i18nName(script),
+                  })
+                );
+              })()
+            );
+            continue;
+          }
+          forgetTombstoneDigest(remoteMeta);
         }
         // 过滤掉无变动的文件
-        if (fileDigestMap[file.script!.name] === file.script!.digest) {
-          return;
+        if (scriptDigestUnchanged) {
+          continue;
         }
         const updatetime = script.updatetime || script.createtime;
         // 对比脚本更新时间和文件更新时间
-        if (updatetime > file.script!.updatetime || !file.meta) {
+        if (updatetime > remoteFiles.script!.updatetime || !remoteFiles.meta) {
           // 如果脚本更新时间大于文件更新时间
           // 或者不存在.meta文件,则上传文件
-          result.push(this.pushScript(fs, script));
+          result.push(this.pushScript(fs, script, remoteFiles));
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
           updateScript.set(uuid, true);
-          result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script));
+          result.push(this.pullScript(fs, remoteFiles as SyncFiles, cloudStatus[uuid], script, checkedMetaObj));
         }
-        return;
+        continue;
       }
       // 如果脚本不存在，但文件存在，则安装脚本
-      if (file.script) {
-        if (!file.meta) {
+      if (remoteFiles.script) {
+        if (!remoteFiles.meta) {
           // .meta 文件可能尚未上传完成，跳过本次以避免误删云端脚本
           this.logger.warn("skip orphan cloud script without meta", {
             uuid,
-            file: file.script.name,
+            file: remoteFiles.script.name,
           });
           skippedOrphanUuids.add(uuid);
-          return;
+          continue;
         }
         updateScript.set(uuid, true);
-        result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid]));
+        result.push(this.pullScript(fs, remoteFiles as SyncFiles, cloudStatus[uuid]));
       }
-    });
+    }
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
       result.push(this.pushScript(fs, script));
@@ -484,11 +618,26 @@ export class SynchronizeService {
         Object.assign(pushedFileDigestMap, ret.value);
       }
     });
+    if (tombstoneDigestDirty) {
+      // 本轮可能同时读到多个 meta，统一写一次本地 cache，避免旧记录较多时频繁 storage.set。
+      // 即使后续同步任务失败也可以写入：这是“某个 meta digest 已确认是 tombstone”的辅助事实，
+      // 不会推进 file_digest 或 scriptcat-sync.json 成功状态，只帮助下一轮继续收敛残留删除。
+      await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, tombstoneDigestMap);
+    }
+    const rejected = syncResults.filter((ret) => ret.status === "rejected");
+    if (rejected.length) {
+      const hasConflict = rejected.some((ret) => isConflictError(ret.reason));
+      rejected.forEach((ret, idx) => {
+        this.logger.warn(`sync task #${idx} failed`, Logger.E(ret.reason));
+      });
+      this.notifySyncFailed(hasConflict, rejected.length);
+      return;
+    }
     // 同步状态
     if (syncConfig.syncStatus) {
-      const scriptlist = await this.scriptDAO.all();
-      await Promise.allSettled(
-        scriptlist.map(async (script) => {
+      const latestScriptList = await this.scriptDAO.all();
+      const statusResults = await Promise.allSettled(
+        latestScriptList.map(async (script) => {
           // 判断云端状态是否与本地状态一致
           const status = cloudStatus[script.uuid];
           const updatetime = script.updatetime || script.createtime;
@@ -533,6 +682,11 @@ export class SynchronizeService {
           }
         })
       );
+      const rejectedStatus = statusResults.filter((ret) => ret.status === "rejected");
+      if (rejectedStatus.length) {
+        this.notifySyncFailed(false, rejectedStatus.length);
+        return;
+      }
       // 保留被跳过的 orphan uuid 的云端 status，避免覆盖另一台设备半上传的状态
       skippedOrphanUuids.forEach((uuid) => {
         const status = cloudStatus[uuid];
@@ -542,9 +696,15 @@ export class SynchronizeService {
       });
       // 保存脚本猫同步状态
       const modifiedDate = Date.now();
-      const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
-      await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
-      this.logger.info("sync scriptcat-sync.json file success");
+      try {
+        const syncFile = await fs.create(SCRIPTCAT_SYNC_FILENAME, getWriteOptions(modifiedDate, syncStatusFile));
+        await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
+        this.logger.info("sync scriptcat-sync.json file success");
+      } catch (e) {
+        this.logger.error("sync scriptcat-sync.json file error", Logger.E(e));
+        this.notifySyncFailed(isConflictError(e), 1);
+        return;
+      }
     }
     // 重新获取文件列表,保存文件摘要
     this.logger.info("update file digest");
@@ -554,11 +714,40 @@ export class SynchronizeService {
   }
 
   async updateFileDigest(fs: FileSystem, knownFileDigestMap: FileDigestMap = {}) {
-    const newList = await fs.list();
-    const newFileDigestMap: FileDigestMap = {};
-    for (const file of newList) {
-      newFileDigestMap[file.name] = file.digest;
+    let newList = await fs.list();
+    // 有些远端在刚上传后 list 会短暂漏掉新对象；只在“文件名完全没出现”时重试一次。
+    // 如果文件名出现但 digest 还是旧值，仍保留 provider 返回值，避免用本地 MD5 污染 etag/rev/hash。
+    // 这个取舍可能导致下一轮重复同步或误判变更，但不会把 provider 原生 digest 缓存成错误格式。
+    if (Object.keys(knownFileDigestMap).some((name) => !newList.some((file) => file.name === name))) {
+      newList = await fs.list();
     }
+    const listedFileDigestMap: FileDigestMap = {};
+    for (const file of newList) {
+      listedFileDigestMap[file.name] = file.digest;
+    }
+    const tombstoneDigestMap = ((await this.storage.get(TOMBSTONE_DIGEST_STORAGE_KEY)) as FileDigestMap) || {};
+    if (Object.keys(tombstoneDigestMap).length) {
+      let changed = false;
+      const nextTombstoneDigestMap: FileDigestMap = {};
+      for (const name in tombstoneDigestMap) {
+        if (listedFileDigestMap[name] === tombstoneDigestMap[name]) {
+          nextTombstoneDigestMap[name] = tombstoneDigestMap[name];
+        } else if (!(name in listedFileDigestMap)) {
+          // list 在部分后端可能短暂漏文件。不要因为一次没看到 meta 就丢掉 tombstone cache，
+          // 否则残留 .user.js 的收敛会退回到 mtime 启发式。
+          nextTombstoneDigestMap[name] = tombstoneDigestMap[name];
+        } else {
+          changed = true;
+        }
+      }
+      if (changed) {
+        // tombstone 标记只用于“已确认删除 meta”的收敛加速。
+        // 只有同名 meta 仍在但 digest 已变化时才清理；meta 暂时没出现在 list 时先保留，
+        // 避免最终一致性/缓存导致下一轮丢失 tombstone 收敛信号。
+        await this.storage.set(TOMBSTONE_DIGEST_STORAGE_KEY, nextTombstoneDigestMap);
+      }
+    }
+    const newFileDigestMap: FileDigestMap = { ...listedFileDigestMap };
     // 各后端 digest 格式不一（WebDAV/OneDrive/S3 是 etag、Dropbox 是 content_hash、Zip 为空，
     // 仅 GoogleDrive/Baidu 是 md5），只在云端列表暂时漏掉刚上传的文件时用本地 md5 兜底，
     // 不能覆盖 fs.list 已返回的原生 digest，否则下次同步比对会因格式不一致而误判
@@ -567,23 +756,30 @@ export class SynchronizeService {
         newFileDigestMap[name] = knownFileDigestMap[name];
       }
     }
-    await this.storage.set("file_digest", newFileDigestMap);
+    await this.storage.set(FILE_DIGEST_STORAGE_KEY, newFileDigestMap);
     return;
   }
 
   // 删除云端脚本数据
-  async deleteCloudScript(fs: FileSystem, uuid: string, syncDelete: boolean) {
+  async deleteCloudScript(fs: FileSystem, uuid: string, syncDelete: boolean, remoteFiles?: Partial<SyncFiles>) {
     const filename = `${uuid}.user.js`;
     const logger = this.logger.with({
       uuid: uuid,
       file: filename,
     });
     try {
-      await fs.delete(filename);
+      // 只有调用方没有远端快照，或快照明确看到 script 时才删除。
+      // 如果快照存在但没看到文件，跳过删除，避免最终一致性/list 缓存漏文件时退化成无条件删除。
+      if (!remoteFiles || remoteFiles.script) {
+        await fs.delete(filename, getDeleteOptions(remoteFiles?.script));
+      }
       if (syncDelete) {
-        // 留下一个.meta.json删除标记
+        // 删除协议仍以 .meta.json tombstone 作为对其他设备的提交信号。
+        // 注意：当前不是事务写入。script 已删但 tombstone 写失败时，上层会报错且不推进 digest，
+        // 但远端仍可能短暂处于半提交状态；彻底解决需要 manifest/commit 协议。
+        // 不在这里补偿恢复 script：恢复也是一次写入，可能覆盖另一台设备在失败窗口内的新版本。
         const modifiedDate = Date.now();
-        const meta = await fs.create(`${uuid}.meta.json`, { modifiedDate });
+        const meta = await fs.create(`${uuid}.meta.json`, getWriteOptions(modifiedDate, remoteFiles?.meta));
         await meta.write(
           JSON.stringify(<SyncMeta>{
             uuid: uuid,
@@ -595,17 +791,21 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
-        await fs.delete(`${uuid}.meta.json`);
+        // 同 script 删除一样，快照存在但没看到 meta 时不做无条件删除。
+        if (!remoteFiles || remoteFiles.meta) {
+          await fs.delete(`${uuid}.meta.json`, getDeleteOptions(remoteFiles?.meta));
+        }
       }
       logger.info("delete success");
     } catch (e) {
       logger.error("delete file error", Logger.E(e));
+      throw e;
     }
     return;
   }
 
   // 上传脚本
-  async pushScript(fs: FileSystem, script: PushScriptParam): Promise<FileDigestMap> {
+  async pushScript(fs: FileSystem, script: PushScriptParam, remoteFiles?: Partial<SyncFiles>): Promise<FileDigestMap> {
     const filename = `${script.uuid}.user.js`;
     const metaFilename = `${script.uuid}.meta.json`;
     const logger = this.logger.with({
@@ -615,22 +815,39 @@ export class SynchronizeService {
     });
     try {
       const modifiedDate = getScriptModifiedDate(script);
-      const w = await fs.create(filename, { modifiedDate });
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
       const scriptCode = code!.code;
-      await w.write(scriptCode);
-      const meta = await fs.create(metaFilename, { modifiedDate });
       const metaJson = JSON.stringify(<SyncMeta>{
         uuid: script.uuid,
         origin: script.origin,
         downloadUrl: script.downloadUrl,
         checkUpdateUrl: script.checkUpdateUrl,
       });
-      await meta.write(metaJson);
+      const scriptDigest = md5OfText(scriptCode);
+      let scriptWritten = false;
+
+      try {
+        const w = await fs.create(filename, getWriteOptions(modifiedDate, remoteFiles?.script));
+        await w.write(scriptCode);
+        scriptWritten = true;
+        const meta = await fs.create(metaFilename, getWriteOptions(modifiedDate, remoteFiles?.meta));
+        await meta.write(metaJson);
+      } catch (e) {
+        if (scriptWritten && !remoteFiles?.script) {
+          // 只清理“本次新建 script 成功但 meta 写失败”的孤儿文件，且必须带 digest 守卫。
+          // 这个 digest 是本地 MD5，部分 provider 的远端 digest/etag 不同，清理可能失败；
+          // 清理失败只会留下 orphan，下次同步会跳过 orphan，不应为了清理而改成无条件删除。
+          // 这里不影响正常删除操作：cleanup 只发生在 push 失败路径，失败也会保留原始错误继续上抛。
+          await fs.delete(filename, { expectedDigest: scriptDigest }).catch((cleanupError) => {
+            logger.warn("cleanup newly created script after meta write failure failed", Logger.E(cleanupError));
+          });
+        }
+        throw e;
+      }
       logger.info("push script success");
       return {
-        [filename]: md5OfText(scriptCode),
+        [filename]: scriptDigest,
         [metaFilename]: md5OfText(metaJson),
       };
     } catch (e) {
@@ -639,20 +856,32 @@ export class SynchronizeService {
     }
   }
 
-  async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {
+  async pullScript(
+    fs: FileSystem,
+    file: SyncFiles,
+    status: ScriptcatSyncStatus | undefined,
+    existingScript?: Script,
+    knownMetaObj?: SyncMeta
+  ) {
     const logger = this.logger.with({
       uuid: existingScript?.uuid || "",
       name: existingScript?.name || "",
       file: file.script.name,
     });
     try {
-      // 读取代码文件
+      // 先读 meta。tombstone 是删除提交信号，命中后不需要、也不应该依赖 .user.js 仍可读取。
+      const metaObj = knownMetaObj || (await readSyncMeta(fs, file.meta));
+      if (metaObj.isDeleted) {
+        if (existingScript) {
+          await this.script.deleteScript(existingScript.uuid, "sync");
+        }
+        await fs.delete(file.script.name, getDeleteOptions(file.script));
+        logger.info("pull tombstone delete success");
+        return;
+      }
+      // 只有确认不是 tombstone 后才读取脚本内容，避免删除路径被残留/已删除的 .user.js 阻塞。
       const r = await fs.open(file.script);
       const code = (await r.read("string")) as string;
-      // 读取meta文件
-      const meta = await fs.open(file.meta);
-      const metaJson = (await meta.read("string")) as string;
-      const metaObj = JSON.parse(metaJson) as SyncMeta;
       const { script } = await prepareScriptByCode(
         code,
         existingScript?.downloadUrl || metaObj.downloadUrl || "",
@@ -680,6 +909,7 @@ export class SynchronizeService {
       logger.info("pull script success");
     } catch (e) {
       logger.error("pull script error", Logger.E(e));
+      throw e;
     }
   }
 
@@ -732,10 +962,17 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
-        const pushedFileDigestMap = await this.pushScript(fs, params.script);
+        const list = await fs.list();
+        const uuid = params.script.uuid;
+        const remoteFiles: Partial<SyncFiles> = {
+          script: list.find((file) => file.name === `${uuid}.user.js`),
+          meta: list.find((file) => file.name === `${uuid}.meta.json`),
+        };
+        const pushedFileDigestMap = await this.pushScript(fs, params.script, remoteFiles);
         await this.updateFileDigest(fs, pushedFileDigestMap);
       }).catch((e) => {
         this.logger.error("push script on install error", Logger.E(e));
+        this.notifySyncFailed(isConflictError(e), 1);
       });
     }
   }
@@ -752,12 +989,17 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
+        const list = await fs.list();
         for (const { uuid } of items) {
-          await this.deleteCloudScript(fs, uuid, config.syncDelete);
+          await this.deleteCloudScript(fs, uuid, config.syncDelete, {
+            script: list.find((file) => file.name === `${uuid}.user.js`),
+            meta: list.find((file) => file.name === `${uuid}.meta.json`),
+          });
         }
         await this.updateFileDigest(fs);
       }).catch((e) => {
         this.logger.error("delete cloud script error", Logger.E(e));
+        this.notifySyncFailed(isConflictError(e), 1);
       });
     }
   }

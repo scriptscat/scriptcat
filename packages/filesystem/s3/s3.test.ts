@@ -25,13 +25,14 @@ function createMockResponse(options: {
   statusText?: string;
   text?: string;
   blob?: Blob;
+  headers?: Headers;
 }): Response {
   const { ok = true, status = 200, statusText = "OK", text = "" } = options;
   return {
     ok,
     status,
     statusText,
-    headers: new Headers(),
+    headers: options.headers || new Headers(),
     text: vi.fn().mockResolvedValue(text),
     blob: vi.fn().mockResolvedValue(options.blob ?? new Blob([text])),
   } as unknown as Response;
@@ -202,6 +203,44 @@ describe("S3FileSystem", () => {
         })
       );
     });
+
+    it("S3FileWriter.write 应按 expectedVersion 设置 If-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
+
+      const writer = await fs.create("output.txt", {
+        expectedVersion: "etag-1",
+      });
+      await writer.write("hello world");
+
+      expect(mockClient.request).toHaveBeenCalledWith(
+        "PUT",
+        "test-bucket",
+        "output.txt",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "If-Match": "etag-1",
+          }),
+        })
+      );
+    });
+
+    it("S3FileWriter.write 应按 createOnly 设置 If-None-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
+
+      const writer = await fs.create("output.txt", { createOnly: true });
+      await writer.write("hello world");
+
+      expect(mockClient.request).toHaveBeenCalledWith(
+        "PUT",
+        "test-bucket",
+        "output.txt",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "If-None-Match": "*",
+          }),
+        })
+      );
+    });
   });
 
   // ---- createDir ----
@@ -218,6 +257,27 @@ describe("S3FileSystem", () => {
 
       await expect(fs.delete("test.txt")).resolves.toBeUndefined();
       expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "test.txt");
+    });
+
+    it("应当在条件删除时发送 If-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true, status: 204 }));
+
+      await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).resolves.toBeUndefined();
+
+      expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "test.txt", {
+        headers: { "If-Match": '"etag-1"' },
+      });
+    });
+
+    it("应当把条件删除失败转换为冲突错误", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("PreconditionFailed", "Precondition Failed", 412)
+      );
+
+      await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).rejects.toMatchObject({
+        provider: "s3",
+        conflict: true,
+      });
     });
 
     it("应当在 NoSuchKey 时静默成功（幂等删除）", async () => {
@@ -267,6 +327,7 @@ describe("S3FileSystem", () => {
         path: "/",
         size: 1024,
         digest: "abc123",
+        version: '"abc123"',
       });
       expect(files[1]).toMatchObject({
         name: "file2.txt",
@@ -274,6 +335,26 @@ describe("S3FileSystem", () => {
         size: 2048,
         digest: "def456",
       });
+    });
+
+    it("list 不应为每个对象额外 HEAD 读取 metadata createtime", async () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+        <ListBucketResult>
+          <IsTruncated>false</IsTruncated>
+          <Contents>
+            <Key>file1.txt</Key>
+            <LastModified>2024-01-02T00:00:00.000Z</LastModified>
+            <ETag>"abc123"</ETag>
+            <Size>1024</Size>
+          </Contents>
+        </ListBucketResult>`;
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createMockResponse({ text: xml }));
+
+      const files = await fs.list();
+
+      expect(files[0].createtime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
+      expect(files[0].updatetime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
+      expect(mockClient.request).toHaveBeenCalledTimes(1);
     });
 
     it("应当正确处理带 basePath 的目录列表", async () => {
