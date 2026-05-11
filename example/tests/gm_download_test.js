@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_download / GM.download Test Harness
 // @namespace    tm-gmdl-test
-// @version      0.1.0
+// @version      0.2.0
 // @description  Comprehensive in-page tests for GM_download / GM.download — covers downloadMode native/browser, url types (string / blob / Blob obj), callbacks, abort, conflictAction, and edge cases.
 // @author       you
 // @match        *://*/*?GM_DOWNLOAD_TEST_SC
@@ -14,8 +14,8 @@
 // @connect      httpbun.com
 // @connect      raw.githubusercontent.com
 // @connect      cdn.jsdelivr.net
-// @connect      nonexistent-domain-abcxyz.test
 // @connect      ipv4.download.thinkbroadband.com
+// @connect      nonexistent-domain-abcxyz.test
 // @noframes
 // ==/UserScript==
 
@@ -47,8 +47,17 @@
   so a forgotten test can never hang the runner):
     • saveAs: true — dialog appears, user saves
     • saveAs: true — user cancels → must NOT trigger onerror (the bug evaluated above)
-    • cancel from chrome://downloads while in-progress → must NOT silently succeed
+    • native + handle.abort() while downloading → no onload, no onerror after abort
+    • browser mode + cancel from chrome://downloads → must arrive as onload (save_cancelled),
+      NOT onerror (this is the regression the download.ts fix guards against)
     • visual content check — open the file, confirm contents match
+
+  Why two cancel tests, not one?
+    In `downloadMode: "native"` the Service Worker fetches the whole file via xhr
+    BEFORE chrome.downloads sees anything, so chrome://downloads never shows a
+    real in-progress entry — you can't cancel it from there in time. So:
+      - native mode  → test handle.abort() instead
+      - browser mode → test the chrome://downloads Cancel button (real timing)
 
   HOW TO USE
   ----------
@@ -196,6 +205,8 @@ const enableTool = true;
           h("div", { id: "awaitingLabel", style: { fontSize: "12px", opacity: .85, marginTop: "2px" } }, "")
         ),
         h("div", { id: "awaitingTimer", style: { fontSize: "12px", opacity: .85, fontFamily: "ui-monospace, monospace" } }, ""),
+        // Optional in-flight action button (e.g. "🛑 Abort download"); tests register a handler via showAwaitingAction().
+        h("button", { id: "awaitingAction", style: { ...btnStyle("#0ea5e9"), display: "none" } }, ""),
         h("button", { id: "awaitingPass", style: btnStyle("#16a34a") }, "✓ Mark Pass"),
         h("button", { id: "awaitingFail", style: btnStyle("#dc2626") }, "✗ Mark Fail"),
         h("button", { id: "awaitingSkip", style: btnStyle("#475569") }, "Skip")
@@ -253,6 +264,7 @@ const enableTool = true;
   const $awaitingPass = panel.querySelector("#awaitingPass");
   const $awaitingFail = panel.querySelector("#awaitingFail");
   const $awaitingSkip = panel.querySelector("#awaitingSkip");
+  const $awaitingAction = panel.querySelector("#awaitingAction");
 
   panel.querySelector("#clear").addEventListener("click", () => {
     $log.textContent = "";
@@ -367,6 +379,10 @@ const enableTool = true;
     $awaitingLabel.innerHTML = "";
     $awaitingTimer.textContent = "";
     if (_verdictTimerId) { clearInterval(_verdictTimerId); _verdictTimerId = null; }
+    // Tear down any registered action button so it doesn't leak into the next test.
+    $awaitingAction.style.display = "none";
+    $awaitingAction.textContent = "";
+    $awaitingAction.onclick = null;
   }
   function resolveVerdict(v) {
     if (!_verdictResolve) return;
@@ -393,6 +409,22 @@ const enableTool = true;
       _verdictResolve = resolve;
       showAwaiting(promptHtml, deadlineSecs);
     });
+  }
+
+  /**
+   * Register an in-flight action button on the awaiting bar.
+   * Use to expose things like "🛑 Abort download" while we wait for a verdict.
+   * The button auto-hides when the verdict resolves (or the next showAwaiting() is called).
+   * @param {string} label  Button text.
+   * @param {() => void} onClick  Click handler. Stays attached until the bar hides.
+   */
+  function showAwaitingAction(label, onClick) {
+    $awaitingAction.textContent = label;
+    $awaitingAction.style.display = "";
+    $awaitingAction.onclick = (ev) => {
+      ev.preventDefault();
+      try { onClick(); } catch (e) { console.error("awaiting action handler threw:", e); }
+    };
   }
 
 
@@ -899,32 +931,95 @@ const enableTool = true;
     if (!sawOnload && !sawOnerror) logLine(`<b style="color:#fbbf24">note: neither onload nor onerror fired — implementation may swallow the cancel silently</b>`);
   });
 
-  manualTest("Cancel via chrome://downloads while in-progress — must NOT silently succeed", async () => {
-    const name = nameFor("manual-cancel-inprogress", "bin");
-    // 64 MiB through httpbun gives ~10+ seconds even on a fast connection.
+  // Note on cancel testing:
+  //   In `downloadMode: "native"` (the default), SC first fetches the file via
+  //   the Service Worker, only handing it to chrome.downloads at the very end.
+  //   That means chrome://downloads never shows a real in-progress entry — by
+  //   the time it appears, the download is essentially done. You CANNOT cancel
+  //   it from there in time. To test cancel-while-in-progress, we either:
+  //     (a) use `downloadMode: "browser"` so chrome.downloads handles the network
+  //         itself and chrome://downloads gets a real progress bar, or
+  //     (b) call handle.abort() from the test (skips the human entirely on the
+  //         "press Cancel in time" race).
+  // We cover both.
+
+  manualTest("Abort handle during native download — no onload, no onerror", async () => {
+    const name = nameFor("manual-abort-native", "bin");
+    // 100 MB over plain HTTP, with a cache-buster.
     const url = `http://ipv4.download.thinkbroadband.com/100MB.zip?t=${Date.now()}`;
-    logLine(`▶ <b>Manual #3</b>: <i>${escapeHtml(name)}</i>`);
-    logLine(`→ A 64 MiB download is about to start. Open <code>chrome://downloads</code> in a new tab.`);
-    logLine(`→ When you see it appear there, click <b>Cancel</b> on the entry.`);
-    logLine(`→ Expected: an onerror callback (or no callback at all) — NOT an onload "success".`);
-    let sawOnload = false, sawOnerror = false, lastProgress = null;
-    GM_download({
+    logLine(`▶ <b>Manual #3a</b>: <i>${escapeHtml(name)}</i>`);
+    logLine(`→ A 100 MB download (native mode) starts. Wait until you see <code>onprogress</code> events streaming.`);
+    logLine(`→ Click the <b style="color:#0ea5e9">🛑 Abort download</b> button. Then Mark Pass.`);
+    logLine(`→ Contract: after abort(), <b>no onload</b> and <b>no onerror</b> should fire.`);
+    let sawOnload = false, sawOnerror = false, lastProgress = null, abortCalledAt = 0;
+    const handle = GM_download({
       url,
       name,
       downloadMode: "native",
-      onprogress: (p) => { lastProgress = p; updateProgress(p.loaded ?? p.done ?? 0, p.total ?? p.totalSize ?? -1); },
-      onload: (d) => { sawOnload = true; logLine(`<b style="color:#f87171">→ event: onload ${JSON.stringify(d)}</b>`); },
-      onerror: (e) => { sawOnerror = true; logLine(`→ event: onerror ${JSON.stringify(e)}`); },
+      onprogress: (p) => {
+        lastProgress = p;
+        updateProgress(p.loaded ?? p.done ?? 0, p.total ?? p.totalSize ?? -1);
+      },
+      onload: (d) => { sawOnload = true; logLine(`<b style="color:#f87171">→ event: onload AFTER ABORT — regression: ${JSON.stringify(d)}</b>`); },
+      onerror: (e) => {
+        // Some implementations DO surface onerror on abort. We log it but don't fail on that alone.
+        sawOnerror = true;
+        const sinceAbort = abortCalledAt ? `${(performance.now() - abortCalledAt) | 0}ms after abort()` : "BEFORE abort() — that's a different bug";
+        logLine(`→ event: onerror (${sinceAbort}): ${JSON.stringify(e)}`);
+      },
     });
-    showProgress("downloading 64 MiB (cancel me)");
+    showProgress("downloading 100 MB (abort me)");
+    showAwaitingAction("🛑 Abort download", () => {
+      if (abortCalledAt) { logLine("→ abort already requested"); return; }
+      abortCalledAt = performance.now();
+      logLine(`→ calling handle.abort()`);
+      try { handle.abort(); } catch (e) { logLine(`<b style="color:#f87171">abort threw: ${escapeHtml(String(e))}</b>`); }
+    });
     const v = await awaitVerdict(
-      "Open chrome://downloads, click Cancel on the entry, then Mark Pass. (Mark Fail if onload fired anyway.)",
+      "Wait for progress events, click 🛑 Abort download, then Mark Pass. (Mark Fail if onload fires after abort.)",
       300
     );
     hideProgress();
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror}, progress=${lastProgress ? `${lastProgress.loaded}/${lastProgress.total}` : "none"})`);
-    if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror})`);
-    if (sawOnload) throw new Error("you marked Pass but onload fired — cancel was not honored");
+    const ctx = `aborted=${!!abortCalledAt}, sawOnload=${sawOnload}, sawOnerror=${sawOnerror}, lastProgress=${lastProgress ? `${lastProgress.loaded}/${lastProgress.total}` : "none"}`;
+    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (${ctx})`);
+    if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (${ctx})`);
+    if (!abortCalledAt) logLine(`<b style="color:#fbbf24">note: you marked Pass without clicking Abort — test was inconclusive</b>`);
+    // The strong invariant: no successful onload after the user asked for abort.
+    if (sawOnload && abortCalledAt) throw new Error(`onload fired after abort — cancel was not honored (${ctx})`);
+  });
+
+  manualTest("Cancel via chrome://downloads (browser mode) — must arrive as onload (save_cancelled), NOT onerror", async () => {
+    const name = nameFor("manual-cancel-inprogress-browser", "bin");
+    // browser mode hands the HTTP fetch to chrome.downloads itself, so the
+    // entry shows up in chrome://downloads with a real progress bar and a
+    // working Cancel button. 100 MB on plain HTTP from thinkbroadband gives
+    // a few seconds of real network time on most connections.
+    const url = `http://ipv4.download.thinkbroadband.com/100MB.zip?t=${Date.now()}`;
+    logLine(`▶ <b>Manual #3b</b>: <i>${escapeHtml(name)}</i>`);
+    logLine(`→ A 100 MB download (<b>browser mode</b>) starts — chrome://downloads will show it with a real progress bar.`);
+    logLine(`→ Open <code>chrome://downloads</code>, find the entry, click <b>Cancel</b>.`);
+    logLine(`→ Contract: SC treats user-cancel as <code>save_cancelled</code> and routes it to <b>onload</b>, NOT <code>onerror</code>.`);
+    let sawOnload = false, sawOnerror = false, onloadData = null;
+    GM_download({
+      url,
+      name,
+      downloadMode: "browser",
+      onprogress: (p) => updateProgress(p.loaded ?? p.done ?? 0, p.total ?? p.totalSize ?? -1),
+      onload: (d) => { sawOnload = true; onloadData = d; logLine(`→ event: onload ${JSON.stringify(d)}`); },
+      onerror: (e) => { sawOnerror = true; logLine(`<b style="color:#f87171">→ event: onerror ${JSON.stringify(e)}</b>`); },
+    });
+    showProgress("downloading 100 MB (cancel from chrome://downloads)");
+    const v = await awaitVerdict(
+      "Cancel the download from chrome://downloads, then Mark Pass if you saw onload (and no onerror).",
+      300
+    );
+    hideProgress();
+    const ctx = `sawOnload=${sawOnload}, sawOnerror=${sawOnerror}, onloadData=${JSON.stringify(onloadData)}`;
+    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (${ctx})`);
+    if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (${ctx})`);
+    // The exact regression this guards: onerror on user-cancel is the bug evaluated above.
+    if (sawOnerror) throw new Error(`onerror fired on user-cancel — that's the save_cancelled regression (${ctx})`);
+    if (!sawOnload) logLine(`<b style="color:#fbbf24">note: neither onload nor onerror fired — did you actually cancel? Marking Pass anyway because user said so.</b>`);
   });
 
   manualTest("Verify last download wrote a real file (visual check)", async () => {
