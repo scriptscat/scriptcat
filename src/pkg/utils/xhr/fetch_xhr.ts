@@ -199,21 +199,16 @@ export class FetchXHR {
       }
 
       let customStatus = null;
-      if (res.body === null) {
-        if (res.type === "opaqueredirect") {
-          customStatus = 301;
-        } else {
-          throw new Error("Response Body is null");
-        }
-      } else if (res.body !== null) {
+      const resBody = res.body;
+      if (resBody !== null) {
         // Stream body for progress
         let streamReader;
         let streamReadable;
         if (textDecoderStream) {
-          streamReadable = res.body?.pipeThrough(textDecoderStream);
+          streamReadable = resBody?.pipeThrough(textDecoderStream);
           if (!streamReadable) throw new Error("streamReadable is undefined.");
         } else {
-          streamReader = res.body?.getReader();
+          streamReader = resBody?.getReader();
           if (!streamReader) throw new Error("streamReader is undefined.");
         }
 
@@ -342,6 +337,12 @@ export class FetchXHR {
             pushBuffer(data);
           }
         }
+      } else if (res.type === "opaqueredirect") {
+        customStatus = 301;
+      } else if (this.method.toUpperCase() === "HEAD") {
+        // for Firefox, HEAD request gives body null
+      } else {
+        throw new Error("Response Body is null");
       }
 
       this.status = customStatus || res.status;

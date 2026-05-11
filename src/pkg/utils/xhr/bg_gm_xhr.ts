@@ -1,10 +1,11 @@
-import type { GMXhrStrategy } from "@App/app/service/service_worker/gm_api/gm_xhr";
+import { type GMXhrStrategy } from "@App/app/service/service_worker/gm_api/gm_xhr";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { chunkUint8, uint8ToBase64 } from "@App/pkg/utils/datatype";
 import type { MessageConnect, TMessageCommAction } from "@Packages/message/types";
 import { dataDecode } from "./xhr_data";
 import { FetchXHR } from "./fetch_xhr";
 import { normalizeResponseHeaders } from "../utils";
+import { gmXhrRequestLinker } from "@App/app/service/service_worker/gm_api/mv3_utils";
 
 export type RequestResultParams = {
   statusCode: number;
@@ -147,7 +148,8 @@ export class BgGMXhr {
     private details: GMSend.XHRDetails,
     private resultParams: RequestResultParams,
     private msgConn: MessageConnect,
-    private strategy?: GMXhrStrategy
+    private strategy: GMXhrStrategy | null,
+    private readonly markerID: string
   ) {
     this.taskId = `${Date.now()}:${Math.random()}`;
     this.isConnDisconnected = false;
@@ -476,8 +478,7 @@ export class BgGMXhr {
         rawData = new Blob([rawData], { type: "application/octet-stream" });
       }
 
-      // Send data (if any)
-      baseXHR.send(rawData ?? null);
+      await gmXhrRequestLinker.send(baseXHR, rawData ?? null, { markerID: this.markerID, url });
     };
 
     await prepareXHR();

@@ -1,4 +1,4 @@
-import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage } from "./types";
+import type { Message, MessageConnect, IOffscreenSend, RuntimeMessageSender, TMessage } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import EventEmitter from "eventemitter3";
 
@@ -163,7 +163,7 @@ export class WindowMessageConnect implements MessageConnect {
 // service_worker和offscreen同时监听消息,会导致消息被两边同时接收,但是返回结果时会产生问题,导致报错
 // 不进行监听的话又无法从service_worker主动发送消息
 // 所以service_worker与offscreen使用ServiceWorker的方式进行通信
-export class ServiceWorkerMessageSend implements MessageSend {
+export class ServiceWorkerMessageSend implements IOffscreenSend {
   EE = new EventEmitter<string, any>();
 
   private target: PostMessage | undefined = undefined;
