@@ -569,6 +569,9 @@
   "notification": {
     "script_sync_delete": "Script Sync Delete",
     "script_sync_delete_desc": "Script {{scriptName}} has been deleted",
+    "script_sync_failed": "Script Sync Failed",
+    "script_sync_failed_desc": "Some cloud sync changes failed. Local sync state was not updated; please check the logs and try syncing again.",
+    "script_sync_conflict_desc": "Cloud sync detected a remote conflict. Local sync state was not updated; please review changes on other devices and sync again.",
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
     "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
   },

@@ -95,6 +95,17 @@ describe("OneDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("delete should send If-Match when expectedVersion is provided", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({} as unknown as Response);
+
+    await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).resolves.toBeUndefined();
+
+    const config = requestSpy.mock.calls[0][1] as RequestInit;
+    expect(config.method).toBe("DELETE");
+    expect((config.headers as Headers).get("If-Match")).toBe('"etag-1"');
+  });
+
   it("createDir should create nested directories from root", async () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
@@ -109,6 +120,21 @@ describe("OneDriveFileSystem", () => {
     );
     expect(JSON.parse((requestSpy.mock.calls[2][1] as RequestInit).body as string)).toMatchObject({
       name: "C",
+      folder: {},
+      "@microsoft.graph.conflictBehavior": "fail",
+    });
+  });
+
+  it("createDir should strip ScriptCat prefix when called with sync root", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    await expect(fs.createDir("ScriptCat/sync")).resolves.toBeUndefined();
+
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy.mock.calls[0][0]).toBe("https://graph.microsoft.com/v1.0/me/drive/special/approot/children");
+    expect(JSON.parse((requestSpy.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
+      name: "sync",
       folder: {},
       "@microsoft.graph.conflictBehavior": "fail",
     });
@@ -298,6 +324,17 @@ describe("OneDriveFileSystem", () => {
     });
   });
 
+  it("writer should send If-Match on simple PUT when expectedVersion is provided", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    const writer = await fs.create("empty.txt", { expectedVersion: "etag-1" });
+    await writer.write("");
+
+    const headers = (requestSpy.mock.calls[0][1] as RequestInit).headers as Headers;
+    expect(headers.get("If-Match")).toBe("etag-1");
+  });
+
   it("writer should upload empty Blob with simple PUT", async () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
@@ -330,5 +367,47 @@ describe("OneDriveFileSystem", () => {
     expect(requestSpy.mock.calls[1][0]).toBe("https://upload.example/session");
     const headers = (requestSpy.mock.calls[1][1] as RequestInit).headers as Headers;
     expect(headers.get("Content-Range")).toBe("bytes 0-2/3");
+  });
+
+  it("writer should send If-None-Match and fail conflict behavior for createOnly upload session", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockResolvedValueOnce({ uploadUrl: "https://upload.example/session" })
+      .mockResolvedValueOnce({});
+
+    const writer = await fs.create("not-empty.txt", { createOnly: true });
+    await writer.write("abc");
+
+    const headers = (requestSpy.mock.calls[0][1] as RequestInit).headers as Headers;
+    expect(headers.get("If-None-Match")).toBe("*");
+    expect(JSON.parse((requestSpy.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
+      item: {
+        "@microsoft.graph.conflictBehavior": "fail",
+      },
+    });
+  });
+
+  it("list should expose eTag as version", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({
+      value: [
+        {
+          name: "test.user.js",
+          size: 1,
+          eTag: "etag-1",
+          createdDateTime: "2024-01-01T00:00:00.000Z",
+          lastModifiedDateTime: "2024-01-02T00:00:00.000Z",
+        },
+      ],
+    });
+
+    await expect(fs.list()).resolves.toMatchObject([
+      {
+        name: "test.user.js",
+        digest: "etag-1",
+        version: "etag-1",
+      },
+    ]);
   });
 });

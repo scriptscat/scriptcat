@@ -1,8 +1,8 @@
 import { AuthVerify } from "../auth";
-import { FileSystemError } from "../error";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import { FileSystemError, isNotFoundError } from "../error";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import type FileSystem from "../filesystem";
-import { joinPath } from "../utils";
+import { buildExpectedHeaders, joinPath } from "../utils";
 import { OneDriveFileReader, OneDriveFileWriter } from "./rw";
 
 export default class OneDriveFileSystem implements FileSystem {
@@ -32,8 +32,8 @@ export default class OneDriveFileSystem implements FileSystem {
     return new OneDriveFileSystem(joinPath(this.path, path), this.accessToken);
   }
 
-  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
-    return new OneDriveFileWriter(this, joinPath(this.path, path));
+  async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    return new OneDriveFileWriter(this, joinPath(this.path, path), opts);
   }
 
   async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
@@ -144,7 +144,10 @@ export default class OneDriveFileSystem implements FileSystem {
     if (nothen) {
       return doFetch().then(async (resp) => {
         if (resp.status === 401 && !url.includes("uploadSession")) {
-          return retryWithFreshToken();
+          resp = await retryWithFreshToken();
+        }
+        if (!resp.ok) {
+          throw await this.createResponseError(resp);
         }
         return resp;
       });
@@ -182,19 +185,22 @@ export default class OneDriveFileSystem implements FileSystem {
       });
   }
 
-  async delete(path: string): Promise<void> {
-    const resp = await this.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(this.path, path)}`,
-      {
-        method: "DELETE",
-      },
-      true
-    );
-    if (resp.status === 404) {
-      return;
-    }
-    if (resp.status !== 204) {
-      throw new Error(await resp.text());
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
+    try {
+      const expectedHeaders = buildExpectedHeaders(opts);
+      await this.request(
+        `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(this.path, path)}`,
+        {
+          method: "DELETE",
+          ...(Object.keys(expectedHeaders).length ? { headers: new Headers(expectedHeaders) } : {}),
+        },
+        true
+      );
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return;
+      }
+      throw error;
     }
   }
 
@@ -225,6 +231,7 @@ export default class OneDriveFileSystem implements FileSystem {
             path: this.path,
             size: val.size,
             digest: val.eTag,
+            version: val.eTag,
             createtime: new Date(val.createdDateTime).getTime(),
             updatetime: new Date(val.lastModifiedDateTime).getTime(),
           });

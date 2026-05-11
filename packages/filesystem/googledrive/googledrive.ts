@@ -1,7 +1,7 @@
 import { AuthVerify } from "../auth";
-import { FileSystemError, isNotFoundError } from "../error";
+import { FileSystemError, fileConflictError, isNotFoundError } from "../error";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { GoogleDriveFileReader, GoogleDriveFileWriter } from "./rw";
 
@@ -32,8 +32,8 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return Promise.resolve(new GoogleDriveFileSystem(joinPath(this.path, path), this.accessToken));
   }
 
-  create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
-    return Promise.resolve(new GoogleDriveFileWriter(this, joinPath(this.path, path)));
+  create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    return Promise.resolve(new GoogleDriveFileWriter(this, joinPath(this.path, path), opts));
   }
   async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
     if (!dir) {
@@ -173,7 +173,10 @@ export default class GoogleDriveFileSystem implements FileSystem {
     if (nothen) {
       return doFetch().then(async (resp) => {
         if (resp.status === 401) {
-          return retryWithFreshToken();
+          resp = await retryWithFreshToken();
+        }
+        if (!resp.ok) {
+          throw await this.createResponseError(resp);
         }
         return resp;
       });
@@ -211,30 +214,51 @@ export default class GoogleDriveFileSystem implements FileSystem {
         return data;
       });
   }
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     const fullPath = joinPath(this.path, path);
+    const expected = parseGoogleDriveDeleteVersion(opts?.expectedVersion);
 
     // 首先，找到要删除的文件或文件夹
-    const fileId = await this.getFileId(fullPath);
+    const fileId = expected?.fileId || (await this.getFileId(fullPath));
     if (!fileId) {
       return;
     }
+    if (expected?.version || opts?.expectedDigest) {
+      // Google Drive delete 没有使用服务端 If-Match；这里先读 version/md5Checksum 再删除。
+      // 这只能发现删除前已经过期的本地快照，不能消除检查后到删除前的并发更新窗口。
+      // 典型残留窗口：A 读 version 通过后，B 更新文件，A 的 DELETE 仍可能删除 B 的新内容。
+      const metadata = await this.request(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=version,md5Checksum&spaces=appDataFolder`
+      );
+      const currentVersion = metadata?.version ? String(metadata.version) : undefined;
+      const currentDigest = metadata?.md5Checksum ? String(metadata.md5Checksum) : undefined;
+      if (
+        (expected?.version && currentVersion !== expected.version) ||
+        (opts?.expectedDigest && currentDigest !== opts.expectedDigest)
+      ) {
+        throw fileConflictError("googledrive", `Google Drive file changed before delete: ${fullPath}`, {
+          status: 412,
+          code: "versionMismatch",
+        });
+      }
+    }
 
     // 删除文件或文件夹
-    await this.request(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?spaces=appDataFolder`,
-      {
-        method: "DELETE",
-      },
-      true
-    ).then(async (resp) => {
-      if (resp.status === 404) {
+    try {
+      await this.request(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?spaces=appDataFolder`,
+        {
+          method: "DELETE",
+        },
+        true
+      );
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        this.clearRelatedCache(fullPath);
         return;
       }
-      if (resp.status !== 204 && resp.status !== 200) {
-        throw new Error(await resp.text());
-      }
-    });
+      throw error;
+    }
 
     // 清除相关缓存
     this.clearRelatedCache(fullPath);
@@ -322,7 +346,10 @@ export default class GoogleDriveFileSystem implements FileSystem {
       }
       const url = new URL("https://www.googleapis.com/drive/v3/files");
       url.searchParams.set("q", query);
-      url.searchParams.set("fields", "files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime),nextPageToken");
+      url.searchParams.set(
+        "fields",
+        "files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime,version),nextPageToken"
+      );
       url.searchParams.set("spaces", "appDataFolder");
       if (pageToken) {
         url.searchParams.set("pageToken", pageToken);
@@ -337,6 +364,9 @@ export default class GoogleDriveFileSystem implements FileSystem {
             path: this.path,
             size: item.size ? parseInt(item.size, 10) : 0,
             digest: item.md5Checksum || "",
+            // 将 fileId 和 Drive version 编进 version，供写入/删除前做 best-effort 过期检查。
+            // 这不是服务端原子 CAS；Google Drive 路径仍然只能降低风险，不能完全消除并发窗口。
+            version: item.version ? `${item.id}:${item.version}` : item.id,
             createtime: new Date(item.createdTime).getTime(),
             updatetime: new Date(item.modifiedTime).getTime(),
           });
@@ -354,15 +384,23 @@ export default class GoogleDriveFileSystem implements FileSystem {
 
   // 辅助方法：在指定目录中查找文件
   async findFileInDirectory(fileName: string, parentId: string): Promise<string | null> {
+    const files = await this.findFilesInDirectory(fileName, parentId);
+    if (files.length > 1) {
+      throw fileConflictError("googledrive", `Duplicate Google Drive files found: ${fileName}`, {
+        status: 409,
+        code: "nameAlreadyExists",
+      });
+    }
+    return files[0]?.id || null;
+  }
+
+  async findFilesInDirectory(fileName: string, parentId: string): Promise<Array<{ id: string }>> {
     const query = `name='${fileName}' and '${parentId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
     const response = await this.request(
       `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&spaces=appDataFolder`
     );
 
-    if (response.files && response.files.length > 0) {
-      return response.files[0].id;
-    }
-    return null;
+    return response.files || [];
   }
 
   clearPathCache(path?: string): void {
@@ -391,4 +429,16 @@ export default class GoogleDriveFileSystem implements FileSystem {
   async ensureDirExists(dirPath: string): Promise<string> {
     return this.ensureDirPath(dirPath);
   }
+}
+
+function parseGoogleDriveDeleteVersion(version?: string): { fileId: string; version?: string } | undefined {
+  if (!version) return undefined;
+  const index = version.indexOf(":");
+  if (index === -1) {
+    return { fileId: version };
+  }
+  return {
+    fileId: version.substring(0, index),
+    version: version.substring(index + 1) || undefined,
+  };
 }

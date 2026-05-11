@@ -1,5 +1,5 @@
 import type FileSystem from "./filesystem";
-import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "./filesystem";
+import type { FileCreateOptions, FileDeleteOptions, FileInfo, FileReader, FileWriter } from "./filesystem";
 
 const RETRYABLE_429_OPS = new Set(["verify", "open", "read", "openDir", "list", "getDirUrl"]);
 
@@ -127,8 +127,8 @@ export default class LimiterFileSystem implements FileSystem {
     return this.limiter.execute(() => this.fs.createDir(dir, opts), "createDir");
   }
 
-  delete(path: string): Promise<void> {
-    return this.limiter.execute(() => this.fs.delete(path), "delete");
+  delete(path: string, opts?: FileDeleteOptions): Promise<void> {
+    return this.limiter.execute(() => this.fs.delete(path, opts), "delete");
   }
 
   list(): Promise<FileInfo[]> {

@@ -1,4 +1,5 @@
-import type { FileInfo, FileReader, FileWriter } from "../filesystem";
+import { fileConflictError } from "../error";
+import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "../filesystem";
 import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
 import type BaiduFileSystem from "./baidu";
 
@@ -38,9 +39,12 @@ export class BaiduFileWriter implements FileWriter {
 
   fs: BaiduFileSystem;
 
-  constructor(fs: BaiduFileSystem, path: string) {
+  opts?: FileCreateOptions;
+
+  constructor(fs: BaiduFileSystem, path: string, opts?: FileCreateOptions) {
     this.fs = fs;
     this.path = path;
+    this.opts = opts;
   }
 
   size(content: string | Blob) {
@@ -58,6 +62,8 @@ export class BaiduFileWriter implements FileWriter {
   }
 
   async write(content: string | Blob): Promise<void> {
+    await this.checkWritePrecondition();
+
     // 预上传获取id
     const size = this.size(content).toString();
     const md5 = await this.md5(content);
@@ -67,7 +73,7 @@ export class BaiduFileWriter implements FileWriter {
     urlencoded.append("size", size);
     urlencoded.append("isdir", "0");
     urlencoded.append("autoinit", "1");
-    urlencoded.append("rtype", "3");
+    urlencoded.append("rtype", this.opts?.createOnly ? "0" : "3");
     urlencoded.append("block_list", JSON.stringify(blockList));
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
@@ -80,6 +86,7 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
+      this.throwCreateOnlyConflict(data);
       throw new Error(JSON.stringify(data));
     }
     const uploadid = data.uploadid;
@@ -102,6 +109,7 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
+      this.throwCreateOnlyConflict(data);
       throw new Error(JSON.stringify(data));
     }
     // 创建文件
@@ -111,7 +119,7 @@ export class BaiduFileWriter implements FileWriter {
     urlencoded.append("isdir", "0");
     urlencoded.append("block_list", JSON.stringify(blockList));
     urlencoded.append("uploadid", uploadid);
-    urlencoded.append("rtype", "3");
+    urlencoded.append("rtype", this.opts?.createOnly ? "0" : "3");
     data = await this.fs.request(
       `https://pan.baidu.com/rest/2.0/xpan/file?method=create&access_token=${this.fs.accessToken}`,
       {
@@ -121,7 +129,46 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
+      this.throwCreateOnlyConflict(data);
       throw new Error(JSON.stringify(data));
+    }
+  }
+
+  private throwCreateOnlyConflict(data: any): void {
+    if (!this.opts?.createOnly) {
+      return;
+    }
+    throw fileConflictError("baidu", `File already exists or createOnly write was rejected: ${this.path}`, {
+      status: 409,
+      code: String(data.errno),
+      raw: data,
+    });
+  }
+
+  private async checkWritePrecondition(): Promise<void> {
+    if (!this.opts?.expectedDigest && !this.opts?.createOnly) {
+      return;
+    }
+    const targetName = this.path.substring(this.path.lastIndexOf("/") + 1);
+    const existing = (await this.fs.list()).find((file) => file.name === targetName);
+
+    if (this.opts?.createOnly) {
+      if (existing) {
+        throw fileConflictError("baidu", `File already exists: ${this.path}`, {
+          status: 409,
+          code: "nameAlreadyExists",
+        });
+      }
+      return;
+    }
+
+    // 百度网盘没有原子 compare-and-swap 上传能力；这个 digest 检查只是 best-effort。
+    // 它只能在上传前发现本地快照已过期；createOnly 仍依赖服务端 rtype=0 来拒绝同名覆盖。
+    if (this.opts?.expectedDigest && existing?.digest !== this.opts.expectedDigest) {
+      throw fileConflictError("baidu", `Baidu file digest changed before write: ${this.path}`, {
+        status: 412,
+        code: "digestMismatch",
+      });
     }
   }
 }

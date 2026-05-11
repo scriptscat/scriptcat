@@ -1,6 +1,7 @@
 import { AuthVerify } from "../auth";
+import { fileConflictError, unsupportedConditionalWriteError } from "../error";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
 
@@ -29,8 +30,14 @@ export default class BaiduFileSystem implements FileSystem {
     return new BaiduFileSystem(joinPath(this.path, path), this.accessToken);
   }
 
-  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
-    return new BaiduFileWriter(this, joinPath(this.path, path));
+  async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    if (opts?.expectedVersion) {
+      throw unsupportedConditionalWriteError(
+        "baidu",
+        "Baidu filesystem does not expose a version token for conditional writes"
+      );
+    }
+    return new BaiduFileWriter(this, joinPath(this.path, path), opts);
   }
 
   async createDir(dir: string, _opts?: FileCreateOptions): Promise<void> {
@@ -82,23 +89,43 @@ export default class BaiduFileSystem implements FileSystem {
       });
   }
 
-  delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
+    if (opts?.expectedVersion) {
+      throw unsupportedConditionalWriteError(
+        "baidu",
+        "Baidu filesystem does not expose a version token for conditional deletes"
+      );
+    }
+    if (opts?.expectedDigest) {
+      // 百度网盘删除接口不支持服务端 If-Match/CAS，只能先 list 比对 digest 再删除。
+      // 这只能降低 stale 删除风险，不能关闭“检查后、删除前被其他设备更新”的 TOCTOU 窗口。
+      // 典型残留窗口：A list 通过后，B 更新同名文件，A 随后 delete 仍可能删除 B 的新内容。
+      const targetName = path.substring(path.lastIndexOf("/") + 1);
+      const existing = (await this.list()).find((file) => file.name === targetName);
+      if (existing && existing.digest !== opts.expectedDigest) {
+        throw fileConflictError("baidu", `Baidu file digest changed before delete: ${path}`, {
+          status: 412,
+          code: "digestMismatch",
+        });
+      }
+    }
     const filelist = [joinPath(this.path, path)];
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
-    return this.request(
+    const data = await this.request(
       `https://pan.baidu.com/rest/2.0/xpan/file?method=filemanager&access_token=${this.accessToken}&opera=delete`,
       {
         method: "POST",
         body: `async=0&filelist=${encodeURIComponent(JSON.stringify(filelist))}`,
         headers: myHeaders,
       }
-    ).then((data) => {
-      if (data.errno) {
-        throw new Error(JSON.stringify(data));
+    );
+    if (data.errno) {
+      if (data.errno === -9 || data.errno === 12) {
+        return;
       }
-      return data;
-    });
+      throw new Error(JSON.stringify(data));
+    }
   }
 
   async list(): Promise<FileInfo[]> {
