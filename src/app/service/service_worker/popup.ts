@@ -100,6 +100,7 @@ export class PopupService {
   // 将 ScriptMenu[] 转为 Chrome contextMenus.CreateProperties[]；同一 groupKey 仅保留一个实际显示项。
   genScriptMenuByTabMap(menuEntries: chrome.contextMenus.CreateProperties[], menu: ScriptMenu[]) {
     for (const { uuid, name, menus } of menu) {
+      let withLevel1 = false;
       const subMenuEntries = [] as chrome.contextMenus.CreateProperties[];
       let withMenuItem = false;
       const groupKeys = new Map<string, { name: string; mSeparator?: boolean; nested?: boolean }>();
@@ -128,6 +129,7 @@ export class PopupService {
         }
         if (nested) {
           createProperties.parentId = `scriptMenu_${uuid}`; // 上层是 `scriptMenu_${uuid}`
+          withLevel1 = true;
         } else {
           createProperties.parentId = `scriptMenu`;
         }
@@ -135,15 +137,15 @@ export class PopupService {
       }
       if (withMenuItem) {
         // 创建脚本菜单
-        menuEntries.push(
-          {
+        if (withLevel1) {
+          menuEntries.push({
             id: `scriptMenu_${uuid}`,
             title: name,
             contexts: ["all"],
             parentId: "scriptMenu",
-          },
-          ...subMenuEntries
-        );
+          });
+        }
+        menuEntries.push(...subMenuEntries);
       }
     }
   }
