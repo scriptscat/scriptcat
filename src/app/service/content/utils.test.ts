@@ -205,7 +205,7 @@ describe("utils", () => {
 
       expect(result).toBeDefined();
       expect(result).toContain(
-        `GM_registerMenuCommand(("ScriptCat's demo for \\"context-menu\\""), ()=>{\nlet GM_registerMenuCommand=GM.registerMenuCommand=undefined;console.log(567); // testing\n}, {nested:false});\n`
+        `GM_registerMenuCommand(("ScriptCat's demo for \\"context-menu\\""), ()=>{let GM_registerMenuCommand=window.GM_registerMenuCommand=GM.registerMenuCommand=undefined;\nconsole.log(567); // testing\n}, {nested:false});\n`
       );
     });
   });
