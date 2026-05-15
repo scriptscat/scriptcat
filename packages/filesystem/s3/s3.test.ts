@@ -240,88 +240,83 @@ describe("S3FileSystem", () => {
           }),
         })
       );
-      it("normalizes double slashes in object keys", async () => {
-        const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
+    });
+    it("normalizes double slashes in object keys", async () => {
+      const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
 
-        const writer = await subFs.create("dir//file.user.js");
+      const writer = await subFs.create("dir//file.user.js");
 
-        expect((writer as any).key).toBe("ScriptCat/sync/dir/file.user.js");
+      expect((writer as any).key).toBe("ScriptCat/sync/dir/file.user.js");
+    });
+  });
+
+  // ---- createDir ----
+  describe("createDir", () => {
+    it("应当静默成功（S3 中目录是隐式的）", async () => {
+      await expect(fs.createDir("new-dir")).resolves.toBeUndefined();
+    });
+  });
+
+  // ---- delete ----
+  describe("delete", () => {
+    it("应当成功删除文件", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true, status: 204 }));
+
+      await expect(fs.delete("test.txt")).resolves.toBeUndefined();
+      expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "test.txt");
+    });
+
+    it("应当在条件删除时发送 If-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true, status: 204 }));
+
+      await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).resolves.toBeUndefined();
+
+      expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "test.txt", {
+        headers: { "If-Match": '"etag-1"' },
       });
     });
 
-    // ---- createDir ----
-    describe("createDir", () => {
-      it("应当静默成功（S3 中目录是隐式的）", async () => {
-        await expect(fs.createDir("new-dir")).resolves.toBeUndefined();
+    it("应当把条件删除失败转换为冲突错误", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("PreconditionFailed", "Precondition Failed", 412)
+      );
+
+      await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).rejects.toMatchObject({
+        provider: "s3",
+        conflict: true,
       });
     });
 
-    // ---- delete ----
-    describe("delete", () => {
-      it("应当成功删除文件", async () => {
-        (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(
-          createMockResponse({ ok: true, status: 204 })
-        );
+    it("应当在 NoSuchKey 时静默成功（幂等删除）", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("NoSuchKey", "The specified key does not exist", 404)
+      );
 
-        await expect(fs.delete("test.txt")).resolves.toBeUndefined();
-        expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "test.txt");
-      });
-
-      it("应当在条件删除时发送 If-Match", async () => {
-        (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(
-          createMockResponse({ ok: true, status: 204 })
-        );
-
-        await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).resolves.toBeUndefined();
-
-        expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "test.txt", {
-          headers: { "If-Match": '"etag-1"' },
-        });
-      });
-
-      it("应当把条件删除失败转换为冲突错误", async () => {
-        (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
-          new S3Error("PreconditionFailed", "Precondition Failed", 412)
-        );
-
-        await expect(fs.delete("test.txt", { expectedVersion: '"etag-1"' })).rejects.toMatchObject({
-          provider: "s3",
-          conflict: true,
-        });
-      });
-
-      it("应当在 NoSuchKey 时静默成功（幂等删除）", async () => {
-        (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
-          new S3Error("NoSuchKey", "The specified key does not exist", 404)
-        );
-
-        await expect(fs.delete("nonexistent.txt")).resolves.toBeUndefined();
-      });
-
-      it("应当在其它 S3 错误时抛出异常", async () => {
-        (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
-          new S3Error("AccessDenied", "Access Denied", 403)
-        );
-
-        await expect(fs.delete("test.txt")).rejects.toThrow();
-      });
-
-      it("normalizes double slashes in object keys", async () => {
-        const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
-        (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(
-          createMockResponse({ ok: true, status: 204 })
-        );
-
-        await subFs.delete("dir//file.user.js");
-
-        expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "ScriptCat/sync/dir/file.user.js");
-      });
+      await expect(fs.delete("nonexistent.txt")).resolves.toBeUndefined();
     });
 
-    // ---- list ----
-    describe("list", () => {
-      it("应当列出当前目录下的文件", async () => {
-        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    it("应当在其它 S3 错误时抛出异常", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("AccessDenied", "Access Denied", 403)
+      );
+
+      await expect(fs.delete("test.txt")).rejects.toThrow();
+    });
+
+    it("normalizes double slashes in object keys", async () => {
+      const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true, status: 204 }));
+
+      await subFs.delete("dir//file.user.js");
+
+      expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "ScriptCat/sync/dir/file.user.js");
+    });
+  });
+
+  // ---- list ----
+  describe("list", () => {
+    it("应当列出当前目录下的文件", async () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
         <ListBucketResult>
           <IsTruncated>false</IsTruncated>
           <Contents>
@@ -338,28 +333,28 @@ describe("S3FileSystem", () => {
           </Contents>
         </ListBucketResult>`;
 
-        (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ text: xml }));
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ text: xml }));
 
-        const files = await fs.list();
+      const files = await fs.list();
 
-        expect(files).toHaveLength(2);
-        expect(files[0]).toMatchObject({
-          name: "file1.txt",
-          path: "/",
-          size: 1024,
-          digest: "abc123",
-          version: '"abc123"',
-        });
-        expect(files[1]).toMatchObject({
-          name: "file2.txt",
-          path: "/",
-          size: 2048,
-          digest: "def456",
-        });
+      expect(files).toHaveLength(2);
+      expect(files[0]).toMatchObject({
+        name: "file1.txt",
+        path: "/",
+        size: 1024,
+        digest: "abc123",
+        version: '"abc123"',
       });
+      expect(files[1]).toMatchObject({
+        name: "file2.txt",
+        path: "/",
+        size: 2048,
+        digest: "def456",
+      });
+    });
 
-      it("list 不应为每个对象额外 HEAD 读取 metadata createtime", async () => {
-        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    it("list 不应为每个对象额外 HEAD 读取 metadata createtime", async () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
         <ListBucketResult>
           <IsTruncated>false</IsTruncated>
           <Contents>
@@ -369,19 +364,19 @@ describe("S3FileSystem", () => {
             <Size>1024</Size>
           </Contents>
         </ListBucketResult>`;
-        (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createMockResponse({ text: xml }));
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createMockResponse({ text: xml }));
 
-        const files = await fs.list();
+      const files = await fs.list();
 
-        expect(files[0].createtime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
-        expect(files[0].updatetime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
-        expect(mockClient.request).toHaveBeenCalledTimes(1);
-      });
+      expect(files[0].createtime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
+      expect(files[0].updatetime).toBe(new Date("2024-01-02T00:00:00.000Z").getTime());
+      expect(mockClient.request).toHaveBeenCalledTimes(1);
+    });
 
-      it("应当正确处理带 basePath 的目录列表", async () => {
-        const subFs = new S3FileSystem("test-bucket", mockClient, "/docs");
+    it("应当正确处理带 basePath 的目录列表", async () => {
+      const subFs = new S3FileSystem("test-bucket", mockClient, "/docs");
 
-        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
         <ListBucketResult>
           <IsTruncated>false</IsTruncated>
           <Contents>
@@ -392,20 +387,20 @@ describe("S3FileSystem", () => {
           </Contents>
         </ListBucketResult>`;
 
-        (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ text: xml }));
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ text: xml }));
 
-        const files = await subFs.list();
+      const files = await subFs.list();
 
-        expect(files).toHaveLength(1);
-        expect(files[0]).toMatchObject({
-          name: "readme.md",
-          path: "/docs",
-          size: 512,
-        });
+      expect(files).toHaveLength(1);
+      expect(files[0]).toMatchObject({
+        name: "readme.md",
+        path: "/docs",
+        size: 512,
       });
+    });
 
-      it("应当跳过目录占位符（以 / 结尾的 key）", async () => {
-        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    it("应当跳过目录占位符（以 / 结尾的 key）", async () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
         <ListBucketResult>
           <IsTruncated>false</IsTruncated>
           <Contents>
@@ -422,16 +417,16 @@ describe("S3FileSystem", () => {
           </Contents>
         </ListBucketResult>`;
 
-        (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ text: xml }));
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ text: xml }));
 
-        const files = await fs.list();
+      const files = await fs.list();
 
-        expect(files).toHaveLength(1);
-        expect(files[0].name).toBe("file.txt");
-      });
+      expect(files).toHaveLength(1);
+      expect(files[0].name).toBe("file.txt");
+    });
 
-      it("应当处理分页（isTruncated + continuationToken）", async () => {
-        const xmlPage1 = `<?xml version="1.0" encoding="UTF-8"?>
+    it("应当处理分页（isTruncated + continuationToken）", async () => {
+      const xmlPage1 = `<?xml version="1.0" encoding="UTF-8"?>
         <ListBucketResult>
           <IsTruncated>true</IsTruncated>
           <NextContinuationToken>token123</NextContinuationToken>
@@ -443,7 +438,7 @@ describe("S3FileSystem", () => {
           </Contents>
         </ListBucketResult>`;
 
-        const xmlPage2 = `<?xml version="1.0" encoding="UTF-8"?>
+      const xmlPage2 = `<?xml version="1.0" encoding="UTF-8"?>
         <ListBucketResult>
           <IsTruncated>false</IsTruncated>
           <Contents>
@@ -454,81 +449,80 @@ describe("S3FileSystem", () => {
           </Contents>
         </ListBucketResult>`;
 
-        (mockClient.request as ReturnType<typeof vi.fn>)
-          .mockResolvedValueOnce(createMockResponse({ text: xmlPage1 }))
-          .mockResolvedValueOnce(createMockResponse({ text: xmlPage2 }));
+      (mockClient.request as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(createMockResponse({ text: xmlPage1 }))
+        .mockResolvedValueOnce(createMockResponse({ text: xmlPage2 }));
 
-        const files = await fs.list();
+      const files = await fs.list();
 
-        expect(files).toHaveLength(2);
-        expect(files[0].name).toBe("file1.txt");
-        expect(files[1].name).toBe("file2.txt");
-        expect(mockClient.request).toHaveBeenCalledTimes(2);
-      });
+      expect(files).toHaveLength(2);
+      expect(files[0].name).toBe("file1.txt");
+      expect(files[1].name).toBe("file2.txt");
+      expect(mockClient.request).toHaveBeenCalledTimes(2);
+    });
 
-      it("应当返回空数组当目录为空时", async () => {
-        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    it("应当返回空数组当目录为空时", async () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
         <ListBucketResult>
           <IsTruncated>false</IsTruncated>
         </ListBucketResult>`;
 
-        (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ text: xml }));
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ text: xml }));
 
-        const files = await fs.list();
-        expect(files).toHaveLength(0);
-      });
-
-      it("应当在 AccessDenied 时抛出权限错误", async () => {
-        (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
-          new S3Error("AccessDenied", "Access Denied", 403)
-        );
-
-        await expect(fs.list()).rejects.toThrow("Permission denied");
-      });
+      const files = await fs.list();
+      expect(files).toHaveLength(0);
     });
 
-    // ---- openDir ----
-    describe("openDir", () => {
-      it("应当返回新的 S3FileSystem 实例并拼接路径", async () => {
-        const subFs = (await fs.openDir("subdir")) as S3FileSystem;
+    it("应当在 AccessDenied 时抛出权限错误", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("AccessDenied", "Access Denied", 403)
+      );
 
-        expect(subFs).toBeInstanceOf(S3FileSystem);
-        expect(subFs.bucket).toBe("test-bucket");
-        expect(subFs.basePath).toBe("/subdir");
-      });
+      await expect(fs.list()).rejects.toThrow("Permission denied");
+    });
+  });
 
-      it("应当支持嵌套 openDir", async () => {
-        const sub1 = (await fs.openDir("a")) as S3FileSystem;
-        const sub2 = (await sub1.openDir("b")) as S3FileSystem;
+  // ---- openDir ----
+  describe("openDir", () => {
+    it("应当返回新的 S3FileSystem 实例并拼接路径", async () => {
+      const subFs = (await fs.openDir("subdir")) as S3FileSystem;
 
-        expect(sub2.basePath).toBe("/a/b");
-      });
+      expect(subFs).toBeInstanceOf(S3FileSystem);
+      expect(subFs.bucket).toBe("test-bucket");
+      expect(subFs.basePath).toBe("/subdir");
     });
 
-    // ---- getDirUrl ----
-    describe("getDirUrl", () => {
-      it("自定义 endpoint 应当返回 endpoint + bucket/prefix 路径", async () => {
-        const customClient = createMockClient({
-          hasCustomEndpoint: vi.fn().mockReturnValue(true),
-          getEndpointUrl: vi.fn().mockReturnValue("https://minio.example.com"),
-        });
-        const customFs = new S3FileSystem("my-bucket", customClient, "/data");
+    it("应当支持嵌套 openDir", async () => {
+      const sub1 = (await fs.openDir("a")) as S3FileSystem;
+      const sub2 = (await sub1.openDir("b")) as S3FileSystem;
 
-        const url = await customFs.getDirUrl();
-        expect(url).toBe("https://minio.example.com/my-bucket/data");
-      });
+      expect(sub2.basePath).toBe("/a/b");
+    });
+  });
 
-      it("AWS S3 应当返回控制台 URL", async () => {
-        const url = await fs.getDirUrl();
-        expect(url).toContain("s3.console.aws.amazon.com");
-        expect(url).toContain("test-bucket");
-        expect(url).toContain("us-east-1");
+  // ---- getDirUrl ----
+  describe("getDirUrl", () => {
+    it("自定义 endpoint 应当返回 endpoint + bucket/prefix 路径", async () => {
+      const customClient = createMockClient({
+        hasCustomEndpoint: vi.fn().mockReturnValue(true),
+        getEndpointUrl: vi.fn().mockReturnValue("https://minio.example.com"),
       });
+      const customFs = new S3FileSystem("my-bucket", customClient, "/data");
 
-      it("根目录时 prefix 应为空", async () => {
-        const url = await fs.getDirUrl();
-        expect(url).toContain("prefix=&");
-      });
+      const url = await customFs.getDirUrl();
+      expect(url).toBe("https://minio.example.com/my-bucket/data");
+    });
+
+    it("AWS S3 应当返回控制台 URL", async () => {
+      const url = await fs.getDirUrl();
+      expect(url).toContain("s3.console.aws.amazon.com");
+      expect(url).toContain("test-bucket");
+      expect(url).toContain("us-east-1");
+    });
+
+    it("根目录时 prefix 应为空", async () => {
+      const url = await fs.getDirUrl();
+      expect(url).toContain("prefix=&");
     });
   });
 });
