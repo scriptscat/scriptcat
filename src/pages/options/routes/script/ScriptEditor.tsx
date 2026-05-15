@@ -368,6 +368,97 @@ function ScriptEditor() {
       setTimeout(editor.focus.bind(editor), delayMs);
     }
   };
+  const getSelectedText = (editor: editor.ICodeEditor) => {
+    const model = editor.getModel();
+    if (!model) return "";
+
+    const selections = editor.getSelections()?.filter((selection) => !selection.isEmpty()) || [];
+    return selections.map((selection) => model.getValueInRange(selection)).join(model.getEOL());
+  };
+  const writeClipboardText = async (text: string) => {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch {
+        // 失败时回落到下方的 execCommand 分支
+      }
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand("copy");
+    textarea.remove();
+    if (!ok) throw new Error("copy failed");
+  };
+  const copyEditorSelection = (editor: editor.ICodeEditor) => {
+    const text = getSelectedText(editor);
+    if (!text) return;
+    writeClipboardText(text)
+      .catch((err) => {
+        LoggerCore.logger(Logger.E(err)).debug("copy editor selection error");
+      })
+      .finally(() => {
+        editor.focus();
+      });
+  };
+  const cutEditorSelection = (editor: editor.ICodeEditor) => {
+    const model = editor.getModel();
+    if (!model) return;
+    const selections = editor.getSelections()?.filter((selection) => !selection.isEmpty()) || [];
+    if (!selections.length) return;
+    const text = selections.map((selection) => model.getValueInRange(selection)).join(model.getEOL());
+    writeClipboardText(text)
+      .then(() => {
+        editor.pushUndoStop();
+        editor.executeEdits(
+          "menu",
+          selections.map((selection) => ({ range: selection, text: "" }))
+        );
+        editor.pushUndoStop();
+      })
+      .catch((err) => {
+        LoggerCore.logger(Logger.E(err)).debug("cut editor selection error");
+      })
+      .finally(() => {
+        editor.focus();
+      });
+  };
+  const pasteEditorClipboard = (editor: editor.ICodeEditor) => {
+    if (!navigator.clipboard?.readText) {
+      editor.focus();
+      editor.getAction("editor.action.clipboardPasteAction")?.run();
+      return;
+    }
+    navigator.clipboard
+      .readText()
+      .then((text) => {
+        if (!text) return;
+        editor.focus();
+        editor.trigger("keyboard", "paste", {
+          text,
+          pasteOnNewLine: false,
+          multicursorText: null,
+          mode: null,
+        });
+      })
+      .catch((err) => {
+        LoggerCore.logger(Logger.E(err)).debug("paste editor clipboard error");
+        editor.focus();
+        editor.getAction("editor.action.clipboardPasteAction")?.run();
+      });
+  };
+  const triggerEditorCommand = (editor: editor.ICodeEditor, handlerId: string) => {
+    editor.focus();
+    editor.trigger("menu", handlerId, null);
+    requestAnimationFrame(() => editor.focus());
+  };
   const [currentScript, setCurrentScript] = useState<Script>();
   const [rightOperationTab, setRightOperationTab] = useState<{
     key: string;
@@ -647,7 +738,7 @@ function ScriptEditor() {
           title: t("undo"),
           hotKeyString: "Ctrl+Z",
           action(_script, e) {
-            e.trigger("menu", "undo", null);
+            triggerEditorCommand(e, "undo");
           },
         },
         {
@@ -655,7 +746,7 @@ function ScriptEditor() {
           title: t("redo"),
           hotKeyString: "Ctrl+Shift+Z",
           action(_script, e) {
-            e.trigger("menu", "redo", null);
+            triggerEditorCommand(e, "redo");
           },
         },
         { divider: true },
@@ -664,7 +755,7 @@ function ScriptEditor() {
           title: t("cut"),
           hotKeyString: "Ctrl+X",
           action(_script, e) {
-            e.trigger("menu", "editor.action.clipboardCutAction", null);
+            cutEditorSelection(e);
           },
         },
         {
@@ -672,7 +763,7 @@ function ScriptEditor() {
           title: t("copy"),
           hotKeyString: "Ctrl+C",
           action(_script, e) {
-            e.trigger("menu", "editor.action.clipboardCopyAction", null);
+            copyEditorSelection(e);
           },
         },
         {
@@ -680,7 +771,7 @@ function ScriptEditor() {
           title: t("paste"),
           hotKeyString: "Ctrl+V",
           action(_script, e) {
-            e.trigger("menu", "editor.action.clipboardPasteAction", null);
+            pasteEditorClipboard(e);
           },
         },
         { divider: true },
