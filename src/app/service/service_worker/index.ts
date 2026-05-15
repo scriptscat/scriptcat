@@ -22,6 +22,7 @@ import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
 import { InfoNotification } from "./utils";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
+import { cleanupStaleTempStorageEntries } from "./temp";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -139,6 +140,7 @@ export default class ServiceWorkerManager {
       pendingOpen = 0;
     });
 
+    const initTime = Date.now();
     // 定时器处理
     chrome.alarms.onAlarm.addListener((alarm) => {
       const lastError = chrome.runtime.lastError;
@@ -146,6 +148,10 @@ export default class ServiceWorkerManager {
         console.error("chrome.runtime.lastError in chrome.alarms.onAlarm:", lastError);
         // 非预期的异常API错误，停止处理
       }
+      const now = Date.now();
+      const isJustInit = now - initTime < 30_000; // 浏览器刚开
+      const isCarryoverAlarm = alarm.scheduledTime < initTime; // Alarm排程早于SW初始化
+      const needsWarmupDelay = isJustInit || isCarryoverAlarm;
       switch (alarm.name) {
         case "checkScriptUpdate":
           regularScriptUpdateCheck();
@@ -161,6 +167,10 @@ export default class ServiceWorkerManager {
         case "checkUpdate":
           // 检查扩展更新
           regularExtensionUpdateCheck();
+          break;
+        case "cleanupTempStorage":
+          // 避免浏览器打开时立即清除。先等tabs载入一下
+          setTimeout(cleanupStaleTempStorageEntries, needsWarmupDelay ? 45_000 : 100);
           break;
       }
     });
@@ -194,6 +204,9 @@ export default class ServiceWorkerManager {
     systemConfig.watch("cloud_sync", (value) => {
       synchronize.cloudSyncConfigChange(value);
     });
+
+    // 定期清理过期的临时安装信息
+    chrome.alarms.create("cleanupTempStorage", { periodInMinutes: 30 });
 
     // 一些只需启动时运行一次的任务
     cacheInstance.getOrSet("extension_initialized", () => {

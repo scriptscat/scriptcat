@@ -20,7 +20,8 @@ import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scrip
 import type { Subscribe } from "@App/app/repo/subscribe";
 import { i18nDescription, i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import { createScriptInfo, type ScriptInfo } from "@App/pkg/utils/scriptInstall";
+import { createScriptInfoLocal, createTempCodeEntry, type ScriptInfo } from "@App/pkg/utils/scriptInstall";
+import { getTempCode } from "@App/pkg/utils/scriptInstall";
 import { parseMetadata, prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient } from "../store/features/script";
@@ -29,12 +30,11 @@ import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/fileha
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
-import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
-import { cacheInstance } from "@App/app/cache";
 import { formatBytes, isPermissionOk } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
 import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
 import { prettyUrl } from "@App/pkg/utils/url-utils";
+import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 
 const backgroundPromptShownKey = "background_prompt_shown";
 
@@ -129,51 +129,22 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   return { code, metadata };
 };
 
-const cleanupStaleInstallInfo = (uuid: string) => {
-  // 页面打开时不清除当前uuid，每30秒更新一次记录
-  const f = () => {
-    cacheInstance.tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
-      val = val || {};
-      val[uuid] = Date.now();
-      tx.set(val);
-    });
-  };
-  f();
-  setInterval(f, 30_000);
+const cIdKey = `(cid_${Math.random()})`;
 
-  // 页面打开后清除旧记录
-  const delay = Math.floor(5000 * Math.random()) + 10000; // 使用随机时间避免浏览器重启时大量Tabs同时执行清除
-  timeoutExecution(
-    `${cIdKey}cleanupStaleInstallInfo`,
-    () => {
-      cacheInstance
-        .tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
-          const now = Date.now();
-          const keeps = new Set<string>();
-          const out: Record<string, number> = {};
-          for (const [k, ts] of Object.entries(val ?? {})) {
-            if (ts > 0 && now - ts < 60_000) {
-              keeps.add(`${CACHE_KEY_SCRIPT_INFO}${k}`);
-              out[k] = ts;
-            }
-          }
-          tx.set(out);
-          return keeps;
-        })
-        .then(async (keeps) => {
-          const list = await cacheInstance.list();
-          const filtered = list.filter((key) => key.startsWith(CACHE_KEY_SCRIPT_INFO) && !keeps.has(key));
-          if (filtered.length) {
-            // 清理缓存
-            cacheInstance.dels(filtered);
-          }
-        });
-    },
-    delay
-  );
+let activeSessionKey = "";
+let keepAliveTimerId: ReturnType<typeof setTimeout> | number = 0;
+
+const updateSessionTimestamp = () => {
+  new TempStorageDAO().update(activeSessionKey, { savedAt: Date.now() });
 };
 
-const cIdKey = `(cid_${Math.random()})`;
+const startKeepAlive = (key: string) => {
+  activeSessionKey = key;
+  // 页面打开时不清除当前uuid，每30秒更新一次记录
+  updateSessionTimestamp();
+  clearInterval(keepAliveTimerId);
+  keepAliveTimerId = setInterval(updateSessionTimestamp, 30_000);
+};
 
 function App() {
   const [enable, setEnable] = useState<boolean>(false);
@@ -235,14 +206,19 @@ function App() {
 
       let paramOptions = {};
       if (uuid) {
+        startKeepAlive(uuid);
         const cachedInfo = await scriptClient.getInstallInfo(uuid);
-        cleanupStaleInstallInfo(uuid);
         if (cachedInfo?.[0]) isKnownUpdate = true;
         info = cachedInfo?.[1] || undefined;
         paramOptions = cachedInfo?.[2] || {};
         if (!info) {
           throw new Error("fetch script info failed");
         }
+        const code = await getTempCode(uuid);
+        if (code === undefined) {
+          throw new Error("failed to load script code from temp storage");
+        }
+        info.code = code;
       } else {
         // 检查是不是本地文件安装
         if (!fid) {
@@ -272,7 +248,8 @@ function App() {
         if (!metadata) {
           throw new Error("parse script info failed");
         }
-        info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
+        const uuid = uuidv4();
+        info = await createScriptInfoLocal(uuid, code, `file:///*from-local*/${file.name}`, "user", metadata);
       }
 
       let prepare:
@@ -693,9 +670,13 @@ function App() {
 
       // 3. 处理数据与缓存
       const uuid = uuidv4();
-      const scriptData = [false, createScriptInfo(uuid, code, url, "user", metadata)];
-
-      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, scriptData);
+      const si = await createTempCodeEntry(false, uuid, code, url, "user", metadata, {});
+      await new TempStorageDAO().save({
+        key: uuid,
+        value: si,
+        savedAt: Date.now(),
+        type: TempStorageItemType.tempCode,
+      });
 
       // 4. 更新导向
       setSearchParams(new URLSearchParams(`?uuid=${uuid}`), { replace: true });
