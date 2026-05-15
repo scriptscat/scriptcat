@@ -28,7 +28,7 @@ import { errorMsg, makeBlobURL } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { type ScriptService } from "./script";
-import { prepareScriptByCode } from "@App/pkg/utils/script";
+import { parseScriptFromCode, prepareScriptByCode } from "@App/pkg/utils/script";
 import { ExtVersion } from "@App/app/const";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import i18n, { i18nName } from "@App/locales/locales";
@@ -424,7 +424,7 @@ export class SynchronizeService {
   }
 
   public notifySyncFailed(hasConflict: boolean, rejectedCount: number) {
-    this.logger.warn("skip status and digest update because cloud sync task failed", {
+    this.logger.warn("cloud sync task failed", {
       conflict: hasConflict,
       failed: rejectedCount,
     });
@@ -630,6 +630,13 @@ export class SynchronizeService {
       rejected.forEach((ret, idx) => {
         this.logger.warn(`sync task #${idx} failed`, Logger.E(ret.reason));
       });
+      if (Object.keys(pushedFileDigestMap).length) {
+        try {
+          await this.updateFileDigest(fs, pushedFileDigestMap);
+        } catch (e) {
+          this.logger.warn("update digest for successful sync tasks failed", Logger.E(e));
+        }
+      }
       this.notifySyncFailed(hasConflict, rejected.length);
       return;
     }
@@ -684,8 +691,10 @@ export class SynchronizeService {
       );
       const rejectedStatus = statusResults.filter((ret) => ret.status === "rejected");
       if (rejectedStatus.length) {
+        rejectedStatus.forEach((ret, idx) => {
+          this.logger.warn(`status sync task #${idx} failed`, Logger.E(ret.reason));
+        });
         this.notifySyncFailed(false, rejectedStatus.length);
-        return;
       }
       // 保留被跳过的 orphan uuid 的云端 status，避免覆盖另一台设备半上传的状态
       skippedOrphanUuids.forEach((uuid) => {
@@ -870,7 +879,16 @@ export class SynchronizeService {
     });
     try {
       // 先读 meta。tombstone 是删除提交信号，命中后不需要、也不应该依赖 .user.js 仍可读取。
-      const metaObj = knownMetaObj || (await readSyncMeta(fs, file.meta));
+      let metaObj: SyncMeta;
+      try {
+        metaObj = knownMetaObj || (await readSyncMeta(fs, file.meta));
+      } catch (e) {
+        if (e instanceof SyntaxError) {
+          logger.warn("skip corrupt remote meta", Logger.E(e));
+          return;
+        }
+        throw e;
+      }
       if (metaObj.isDeleted) {
         if (existingScript) {
           await this.script.deleteScript(existingScript.uuid, "sync");
@@ -882,11 +900,22 @@ export class SynchronizeService {
       // 只有确认不是 tombstone 后才读取脚本内容，避免删除路径被残留/已删除的 .user.js 阻塞。
       const r = await fs.open(file.script);
       const code = (await r.read("string")) as string;
-      const { script } = await prepareScriptByCode(
+      try {
+        parseScriptFromCode(
+          code,
+          existingScript?.downloadUrl || metaObj.downloadUrl || "",
+          existingScript?.uuid || metaObj.uuid
+        );
+      } catch (e) {
+        logger.warn("skip corrupt remote script", Logger.E(e));
+        return;
+      }
+      const preparedScript = await prepareScriptByCode(
         code,
         existingScript?.downloadUrl || metaObj.downloadUrl || "",
         existingScript?.uuid || metaObj.uuid
       );
+      const { script } = preparedScript;
       script.origin = script.origin || metaObj.origin;
       if (status) {
         if (existingScript) {
@@ -990,13 +1019,27 @@ export class SynchronizeService {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
         const list = await fs.list();
+        const failures: Array<{ uuid: string; error: unknown }> = [];
         for (const { uuid } of items) {
-          await this.deleteCloudScript(fs, uuid, config.syncDelete, {
-            script: list.find((file) => file.name === `${uuid}.user.js`),
-            meta: list.find((file) => file.name === `${uuid}.meta.json`),
-          });
+          try {
+            await this.deleteCloudScript(fs, uuid, config.syncDelete, {
+              script: list.find((file) => file.name === `${uuid}.user.js`),
+              meta: list.find((file) => file.name === `${uuid}.meta.json`),
+            });
+          } catch (e) {
+            failures.push({ uuid, error: e });
+          }
         }
         await this.updateFileDigest(fs);
+        if (failures.length) {
+          failures.forEach(({ uuid, error }) => {
+            this.logger.warn("delete cloud script task failed", Logger.E(error), { uuid });
+          });
+          this.notifySyncFailed(
+            failures.some(({ error }) => isConflictError(error)),
+            failures.length
+          );
+        }
       }).catch((e) => {
         this.logger.error("delete cloud script error", Logger.E(e));
         this.notifySyncFailed(isConflictError(e), 1);

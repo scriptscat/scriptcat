@@ -135,14 +135,19 @@ export class BaiduFileWriter implements FileWriter {
   }
 
   private throwCreateOnlyConflict(data: any): void {
-    if (!this.opts?.createOnly) {
+    if (!this.opts?.createOnly || !this.isBaiduCreateConflict(data)) {
       return;
     }
-    throw fileConflictError("baidu", `File already exists or createOnly write was rejected: ${this.path}`, {
+    throw fileConflictError("baidu", `File already exists: ${this.path}`, {
       status: 409,
       code: String(data.errno),
       raw: data,
     });
+  }
+
+  private isBaiduCreateConflict(data: any): boolean {
+    const errno = String(data?.errno);
+    return errno === "-8" || errno === "31061";
   }
 
   private async checkWritePrecondition(): Promise<void> {

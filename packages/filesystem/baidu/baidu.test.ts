@@ -100,15 +100,50 @@ describe("BaiduFileSystem", () => {
     expect(String((requestSpy.mock.calls[2][1] as RequestInit).body)).toContain("rtype=0");
   });
 
-  it("writer should surface Baidu createOnly rejection as conflict", async () => {
+  it("writer should surface Baidu createOnly exists rejection as conflict", async () => {
     const fs = new BaiduFileSystem("/apps", "token");
     vi.spyOn(fs, "list").mockResolvedValue([]);
-    vi.spyOn(fs, "request").mockResolvedValueOnce({ errno: -8, errmsg: "file exists" });
+    vi.spyOn(fs, "request").mockResolvedValueOnce({
+      errno: -8,
+      errmsg: "file exists",
+    });
 
     const writer = await fs.create("test.txt", { createOnly: true });
 
     await expect(writer.write("content")).rejects.toMatchObject({
       provider: "baidu",
+      conflict: true,
+    });
+  });
+
+  it("writer should surface Baidu createOnly duplicate name rejection as conflict", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "list").mockResolvedValue([]);
+    vi.spyOn(fs, "request").mockResolvedValueOnce({
+      errno: 31061,
+      errmsg: "duplicate name",
+    });
+
+    const writer = await fs.create("test.txt", { createOnly: true });
+
+    await expect(writer.write("content")).rejects.toMatchObject({
+      provider: "baidu",
+      conflict: true,
+      code: "31061",
+    });
+  });
+
+  it("writer should not classify non-exists Baidu createOnly errno as conflict", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "list").mockResolvedValue([]);
+    vi.spyOn(fs, "request").mockResolvedValueOnce({
+      errno: 111,
+      errmsg: "quota exceeded",
+    });
+
+    const writer = await fs.create("test.txt", { createOnly: true });
+
+    await expect(writer.write("content")).rejects.not.toMatchObject({
       conflict: true,
     });
   });
