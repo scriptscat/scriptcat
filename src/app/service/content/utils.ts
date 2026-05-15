@@ -9,6 +9,7 @@ export type CompileScriptCodeResource = {
   name: string;
   code: string;
   require: Array<{ url: string; content: string }>;
+  isContextMenu: boolean;
 };
 
 // 参考了tm的实现
@@ -80,6 +81,7 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
     name: scriptRes.name,
     code: scriptCode,
     require: requireArray,
+    isContextMenu: isContextMenuScript(scriptRes.metadata),
   });
 }
 
@@ -104,13 +106,17 @@ const addTryCatch = (code: string) =>
 export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
   const requireCode = resource.require.map((r) => r.content).join("\n;");
   const preCode = requireCode; // 不需要 async 封装
-  const code = resource.code; // 需要 async 封装, 可top-level await
+  let code = resource.code; // 需要 async 封装, 可top-level await
   // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
   // this = context: globalThis
   // arguments = [named: Object, scriptName: string]
   // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用于全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
   // 在UserScripts API中，由于执行不是在物件导向里呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
+
+  if (resource.isContextMenu) {
+    code = `GM_registerMenuCommand((${JSON.stringify(resource.name)}), ()=>{let GM_registerMenuCommand=window.GM_registerMenuCommand=GM.registerMenuCommand=undefined;\n${code}\n}, {nested:false});\n`;
+  }
 
   const joinedCode = [
     "with(arguments[0]||this.$){",
@@ -235,6 +241,10 @@ export function addStyleSheet(css: string): CSSStyleSheet {
 export function metadataBlankOrTrue(metadata: SCMetadata, key: string): boolean {
   const s = metadata[key]?.[0];
   return s === "" || s === "true";
+}
+
+export function isContextMenuScript(metadata: SCMetadata): boolean {
+  return metadata["run-at"]?.[0] === "context-menu";
 }
 
 export function isEarlyStartScript(metadata: SCMetadata): boolean {
