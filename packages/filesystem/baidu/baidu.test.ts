@@ -33,6 +33,26 @@ describe("BaiduFileSystem", () => {
     expect(updateDynamicRulesMock).not.toHaveBeenCalled();
   });
 
+  it("create should normalize double slashes in paths", async () => {
+    const fs = new BaiduFileSystem("/apps//ScriptCat", "token");
+
+    const writer = await fs.create("dir//file.user.js");
+
+    expect((writer as any).path).toBe("/apps/ScriptCat/dir/file.user.js");
+  });
+
+  it("delete should normalize double slashes in filelist payload", async () => {
+    const fs = new BaiduFileSystem("/apps//ScriptCat", "token");
+    const request = vi.spyOn(fs, "request").mockResolvedValue({ errno: 0 });
+
+    await fs.delete("dir//file.user.js");
+
+    const [, config] = request.mock.calls[0];
+    expect((config as RequestInit).body).toBe(
+      `async=0&filelist=${encodeURIComponent(JSON.stringify(["/apps/ScriptCat/dir/file.user.js"]))}`
+    );
+  });
+
   it("create should reject expectedVersion as unsupported", async () => {
     const fs = new BaiduFileSystem("/apps", "token");
 

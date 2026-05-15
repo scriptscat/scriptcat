@@ -32,6 +32,7 @@ import type { CompileScriptCodeResource } from "../content/utils";
 import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
+  isContextMenuScript,
   isEarlyStartScript,
   isInjectIntoContent,
   trimScriptInfo,
@@ -803,6 +804,7 @@ export class RuntimeService {
         name: result.name,
         code: originalCode?.code || "",
         require,
+        isContextMenu: isContextMenuScript(script.metadata),
       })
     );
   }

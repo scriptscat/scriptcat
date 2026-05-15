@@ -95,6 +95,27 @@ describe("OneDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("create should normalize double slashes in paths", async () => {
+    const fs = new OneDriveFileSystem("/ScriptCat//sync", "token");
+
+    const writer = await fs.create("dir//file.user.js");
+
+    expect((writer as any).path).toBe("/ScriptCat/sync/dir/file.user.js");
+  });
+
+  it("delete should normalize double slashes in URL paths", async () => {
+    const fs = new OneDriveFileSystem("/ScriptCat//sync", "token");
+    const request = vi.spyOn(fs, "request").mockResolvedValue({ status: 204 });
+
+    await fs.delete("dir//file.user.js");
+
+    expect(request).toHaveBeenCalledWith(
+      "https://graph.microsoft.com/v1.0/me/drive/special/approot:/ScriptCat/sync/dir/file.user.js",
+      { method: "DELETE" },
+      true
+    );
+  });
+
   it("delete should send If-Match when expectedVersion is provided", async () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({} as unknown as Response);
