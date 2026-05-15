@@ -381,7 +381,7 @@ function ScriptEditor() {
         await navigator.clipboard.writeText(text);
         return;
       } catch {
-        // Fall through to execCommand fallback below.
+        // 失败时回落到下方的 execCommand 分支
       }
     }
 
@@ -409,9 +409,11 @@ function ScriptEditor() {
       });
   };
   const cutEditorSelection = (editor: editor.ICodeEditor) => {
-    const text = getSelectedText(editor);
+    const model = editor.getModel();
+    if (!model) return;
     const selections = editor.getSelections()?.filter((selection) => !selection.isEmpty()) || [];
-    if (!text || !selections.length) return;
+    if (!selections.length) return;
+    const text = selections.map((selection) => model.getValueInRange(selection)).join(model.getEOL());
     writeClipboardText(text)
       .then(() => {
         editor.pushUndoStop();
