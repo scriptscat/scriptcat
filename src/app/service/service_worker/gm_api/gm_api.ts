@@ -1308,9 +1308,9 @@ export default class GMApi {
     msgConn.onDisconnect(() => {
       if (isConnDisconnected) return;
       isConnDisconnected = true;
-      if (cDownloadId! > 0 && !reqCompleteWith) {
+      if (typeof cDownloadId === "number" && cDownloadId > 0 && !reqCompleteWith) {
         reqCompleteWith = "disconnected";
-        chrome.downloads.cancel(cDownloadId!, () => {
+        chrome.downloads.cancel(cDownloadId, () => {
           const lastError = chrome.runtime.lastError;
           if (lastError) {
             console.error("chrome.runtime.lastError in chrome.downloads.cancel:", lastError);

@@ -1015,6 +1015,10 @@ export default class GMApi extends GM_Base {
               details.onload?.(makeCallbackParam({ ...data.data }));
               retPromiseResolve?.(data.data);
               break;
+            case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
+              details.onload?.(makeCallbackParam({ ...data.data }));
+              retPromiseResolve?.(data.data);
+              break;
             case "onprogress":
               details.onprogress?.(makeCallbackParam({ ...data.data, mode: "browser" }));
               retPromiseReject?.(new Error("Timeout ERROR"));
@@ -1106,7 +1110,7 @@ export default class GMApi extends GM_Base {
                   retPromiseResolve?.(data.data);
                   releaseResources();
                   break;
-                case "save_cancelled": // saveAs cancelled by user
+                case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
                   details.onload?.(makeCallbackParam({ ...data.data }));
                   retPromiseResolve?.(data.data);
                   releaseResources();

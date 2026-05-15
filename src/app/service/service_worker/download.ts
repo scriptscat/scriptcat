@@ -115,48 +115,48 @@ const onChangedListener = (downloadDelta: chrome.downloads.DownloadDelta) => {
     if (!entry) return;
     const state = downloadDelta.state?.current;
     if (state === STATE.COMPLETE || state === STATE.INTERRUPTED) {
-      detachDownloadCallback(id);
-
-      // 查询最终的 DownloadItem，以便：
-      //  1) 在 responseMap 尚未填充时补齐 totalBytes/fileSize/bytesReceived；
-      //  2) 拿到权威的 error 字段，用于区分用户取消(saveAs / 主动取消)与其他中断。
-      // 仅当本次 delta 携带 error 信息或 responseMap 未填充时才发起 search，
-      // 避免对每个 delta 都额外调用 chrome.downloads.search 造成不必要开销。
-      let interruptError: InterruptReason | undefined = downloadDelta.error?.current as InterruptReason | undefined;
-      const needSearch = !responseMap.has(id) || (state === STATE.INTERRUPTED && interruptError === undefined);
-      if (needSearch) {
-        const downloadItem = (await chrome.downloads.search({ id: id }))?.[0];
-        if (downloadItem && downloadItem.id === id) {
-          if (!responseMap.has(id)) {
-            responseMap.set(id, {
-              downloadItem: {
-                bytesReceived: downloadItem.bytesReceived,
-                fileSize: downloadItem.fileSize,
-                totalBytes: downloadItem.totalBytes,
-              },
-            });
-          }
-          if (state === STATE.INTERRUPTED && interruptError === undefined && downloadItem.error) {
-            interruptError = downloadItem.error as InterruptReason;
+      try {
+        // 查询最终的 DownloadItem，以便：
+        //  1) 在 responseMap 尚未填充时补齐 totalBytes/fileSize/bytesReceived；
+        //  2) 拿到权威的 error 字段，用于区分用户取消(saveAs / 主动取消)与其他中断。
+        // 仅当本次 delta 携带 error 信息或 responseMap 未填充时才发起 search，
+        // 避免对每个 delta 都额外调用 chrome.downloads.search 造成不必要开销。
+        let interruptError: InterruptReason | undefined = downloadDelta.error?.current as InterruptReason | undefined;
+        const needSearch = !responseMap.has(id) || (state === STATE.INTERRUPTED && interruptError === undefined);
+        if (needSearch) {
+          const downloadItem = (await chrome.downloads.search({ id: id }))?.[0];
+          if (downloadItem && downloadItem.id === id) {
+            if (!responseMap.has(id)) {
+              responseMap.set(id, {
+                downloadItem: {
+                  bytesReceived: downloadItem.bytesReceived,
+                  fileSize: downloadItem.fileSize,
+                  totalBytes: downloadItem.totalBytes,
+                },
+              });
+            }
+            if (state === STATE.INTERRUPTED && interruptError === undefined && downloadItem.error) {
+              interruptError = downloadItem.error as InterruptReason;
+            }
           }
         }
+
+        const downloadItem = responseMap.get(id);
+
+        // save_cancelled 仅在 chrome 报告 USER_CANCELED 时回报。
+        // 早期版本用 “interrupted + 已触发过 onDeterminingFilename” 推断，但
+        // onDeterminingFilename 对普通下载也会先触发，NETWORK_FAILED 等中断会被误报。
+        const isSaveCancelled = state === STATE.INTERRUPTED && interruptError === "USER_CANCELED";
+
+        await notifyDownloadCallback(entry.callback, {
+          downloadId: id,
+          state: isSaveCancelled ? "save_cancelled" : state,
+          loaded: downloadItem?.downloadItem?.totalBytes, // 兼容 TM，总是传回 totalBytes （与实际有否储存无关）
+          total: downloadItem?.downloadItem?.totalBytes,
+        });
+      } finally {
+        detachDownloadCallback(id); // 通知完成后再清理 requestMap/responseMap
       }
-
-      const downloadItem = responseMap.get(id);
-
-      // save_cancelled 仅在 chrome 报告 USER_CANCELED 时回报。
-      // 早期版本用 “interrupted + 已触发过 onDeterminingFilename” 推断，但
-      // onDeterminingFilename 对普通下载也会先触发，NETWORK_FAILED 等中断会被误报。
-      const isSaveCancelled = state === STATE.INTERRUPTED && interruptError === "USER_CANCELED";
-
-      await notifyDownloadCallback(entry.callback, {
-        downloadId: id,
-        state: isSaveCancelled ? "save_cancelled" : state,
-        loaded: downloadItem?.downloadItem?.totalBytes, // 兼容 TM，总是传回 totalBytes （与实际有否储存无关）
-        total: downloadItem?.downloadItem?.totalBytes,
-      });
-
-      responseMap.delete(id); // 清除缓存
     }
   });
 };
