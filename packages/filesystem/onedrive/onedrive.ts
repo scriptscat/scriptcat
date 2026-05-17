@@ -1,4 +1,5 @@
 import { AuthVerify } from "../auth";
+import { FileSystemError } from "../error";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import type FileSystem from "../filesystem";
 import { joinPath } from "../utils";
@@ -72,8 +73,56 @@ export default class OneDriveFileSystem implements FileSystem {
   }
 
   private isDirectoryAlreadyExistsError(error: unknown): boolean {
+    if (error instanceof FileSystemError && error.conflict) {
+      return true;
+    }
     const msg = String(error);
     return msg.includes("nameAlreadyExists") || msg.includes("itemAlreadyExists");
+  }
+
+  private createRequestError(raw: unknown, status?: number): FileSystemError {
+    const errorBody =
+      raw && typeof raw === "object" && "error" in raw ? (raw as { error?: Record<string, unknown> }).error : undefined;
+    const code = typeof errorBody?.code === "string" ? errorBody.code : undefined;
+    const message =
+      typeof errorBody?.message === "string"
+        ? errorBody.message
+        : typeof raw === "string" && raw
+          ? raw
+          : `OneDrive request failed${status ? ` with status ${status}` : ""}`;
+    const auth = status === 401 || code === "InvalidAuthenticationToken";
+    const notFound = status === 404 || code === "itemNotFound";
+    const conflict =
+      status === 409 ||
+      status === 412 ||
+      code === "nameAlreadyExists" ||
+      code === "itemAlreadyExists" ||
+      code === "PreconditionFailed";
+    const rateLimit = status === 429;
+
+    return new FileSystemError({
+      provider: "onedrive",
+      message,
+      status,
+      code,
+      auth,
+      notFound,
+      conflict,
+      rateLimit,
+      retryable: rateLimit || (status !== undefined && status >= 500),
+      raw,
+    });
+  }
+
+  private async createResponseError(resp: Response): Promise<FileSystemError> {
+    const text = await resp.text();
+    let raw;
+    try {
+      raw = text ? JSON.parse(text) : "";
+    } catch {
+      raw = text;
+    }
+    return this.createRequestError(raw, resp.status);
   }
 
   request(url: string, config?: RequestInit, nothen?: boolean): Promise<Response | any> {
@@ -106,7 +155,7 @@ export default class OneDriveFileSystem implements FileSystem {
           resp = await retryWithFreshToken();
         }
         if (!resp.ok) {
-          throw new Error(await resp.text());
+          throw await this.createResponseError(resp);
         }
         return resp.json();
       })
@@ -116,18 +165,18 @@ export default class OneDriveFileSystem implements FileSystem {
             return retryWithFreshToken()
               .then(async (retryResp) => {
                 if (!retryResp.ok) {
-                  throw new Error(await retryResp.text());
+                  throw await this.createResponseError(retryResp);
                 }
                 return retryResp.json();
               })
               .then((retryData) => {
                 if (retryData.error) {
-                  throw new Error(JSON.stringify(retryData));
+                  throw this.createRequestError(retryData);
                 }
                 return retryData;
               });
           }
-          throw new Error(JSON.stringify(data));
+          throw this.createRequestError(data);
         }
         return data;
       });

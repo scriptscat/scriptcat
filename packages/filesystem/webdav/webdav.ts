@@ -53,40 +53,17 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   async verify(): Promise<void> {
-    const verifyDir = joinPath(this.basePath, `.scriptcat-verify-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    const verifyFile = joinPath(verifyDir, "probe.txt");
-    let dirCreated = false;
-    let fileCreated = false;
-
+    // 只做只读校验：凭据 + URL 可达性。
+    // 写权限不在此处探测——不同 basePath 写策略不同（坚果云等根目录不可写的服务会被误杀，见 #1444），
+    // 真正的写操作会在 backupToCloud / buildFileSystem 中由 createDir 立即触发并报错。
     try {
       await this.client.getQuota();
       await this.client.getDirectoryContents(this.basePath);
-      await this.client.createDirectory(verifyDir);
-      dirCreated = true;
-      const written = await this.client.putFileContents(verifyFile, "");
-      if (!written) {
-        throw new Error("probe file write returned false");
-      }
-      fileCreated = true;
-      await this.client.deleteFile(verifyFile);
-      fileCreated = false;
-      await this.client.deleteFile(verifyDir);
-      dirCreated = false;
     } catch (e: any) {
-      await this.cleanupVerifyProbe(verifyFile, verifyDir, fileCreated, dirCreated);
       if (e.response?.status === 401) {
         throw new WarpTokenError(e);
       }
       throw new Error(`WebDAV verify failed: ${e.message}`); // 保留原始信息
-    }
-  }
-
-  private async cleanupVerifyProbe(verifyFile: string, verifyDir: string, fileCreated: boolean, dirCreated: boolean) {
-    if (fileCreated) {
-      await this.client.deleteFile(verifyFile).catch(() => undefined);
-    }
-    if (dirCreated) {
-      await this.client.deleteFile(verifyDir).catch(() => undefined);
     }
   }
 

@@ -1,10 +1,8 @@
 import { parseMetadata } from "@App/pkg/utils/script";
-import { detectEncoding, bytesDecode } from "@App/pkg/utils/encoding";
+import { readRawContent } from "@App/pkg/utils/encoding";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
-import { cacheInstance } from "@App/app/cache";
-import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
-import { timeoutExecution } from "@App/pkg/utils/timer";
 import type { SCMetadata } from "@App/app/repo/scripts";
+import { TempStorageDAO } from "@App/app/repo/tempStorage";
 
 export const cIdKey = `(cid_${Math.random()})`;
 
@@ -77,19 +75,8 @@ export const fetchScriptBody = async (url: string, { onProgress }: { [key: strin
     position += chunk.length;
   }
 
-  // 检测编码：优先使用 Content-Type，回退到 chardet（仅检测前16KB）
   const contentType = response.headers.get("content-type");
-  const encode = detectEncoding(chunksAll, contentType);
-
-  // 使用检测到的 charset 解码
-  let code;
-  try {
-    code = bytesDecode(encode, chunksAll);
-  } catch (e: any) {
-    console.warn(`Failed to decode response with charset ${encode}: ${e.message}`);
-    // 回退到 UTF-8
-    code = new TextDecoder("utf-8").decode(chunksAll);
-  }
+  const code = await readRawContent(chunksAll, contentType);
 
   const metadata = parseMetadata(code);
   // 如果不是 UserScript，检测是否为 SkillScript
@@ -104,46 +91,20 @@ export const fetchScriptBody = async (url: string, { onProgress }: { [key: strin
   return { code, metadata };
 };
 
-export const cleanupStaleInstallInfo = (uuid: string) => {
-  // 页面打开时不清除当前uuid，每30秒更新一次记录
-  const f = () => {
-    cacheInstance.tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
-      val = val || {};
-      val[uuid] = Date.now();
-      tx.set(val);
-    });
-  };
-  f();
-  setInterval(f, 30_000);
+let activeSessionKey = "";
+let keepAliveTimerId: ReturnType<typeof setInterval> | number = 0;
 
-  // 页面打开后清除旧记录
-  const delay = Math.floor(5000 * Math.random()) + 10000; // 使用随机时间避免浏览器重启时大量Tabs同时执行清除
-  timeoutExecution(
-    `${cIdKey}cleanupStaleInstallInfo`,
-    () => {
-      cacheInstance
-        .tx(`scriptInfoKeeps`, (val: Record<string, number> | undefined, tx) => {
-          const now = Date.now();
-          const keeps = new Set<string>();
-          const out: Record<string, number> = {};
-          for (const [k, ts] of Object.entries(val ?? {})) {
-            if (ts > 0 && now - ts < 60_000) {
-              keeps.add(`${CACHE_KEY_SCRIPT_INFO}${k}`);
-              out[k] = ts;
-            }
-          }
-          tx.set(out);
-          return keeps;
-        })
-        .then(async (keeps) => {
-          const list = await cacheInstance.list();
-          const filtered = list.filter((key) => key.startsWith(CACHE_KEY_SCRIPT_INFO) && !keeps.has(key));
-          if (filtered.length) {
-            // 清理缓存
-            cacheInstance.dels(filtered);
-          }
-        });
-    },
-    delay
-  );
+const updateSessionTimestamp = () => {
+  if (!activeSessionKey) {
+    return;
+  }
+  new TempStorageDAO().update(activeSessionKey, { savedAt: Date.now() });
+};
+
+export const startKeepAlive = (key: string) => {
+  activeSessionKey = key;
+  // 页面打开时不清除当前uuid，每30秒更新一次记录
+  updateSessionTimestamp();
+  clearInterval(keepAliveTimerId);
+  keepAliveTimerId = setInterval(updateSessionTimestamp, 30_000);
 };

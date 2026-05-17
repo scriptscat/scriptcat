@@ -18,7 +18,6 @@
     "dev:react-devtools": "cross-env NODE_ENV=development REACT_DEVTOOLS=true rspack",
     "dev:noMap": "cross-env NODE_ENV=development NO_MAP=true rspack",
     "pack": "node ./scripts/pack.js",
-    "format": "prettier --write .",
     "lint": "tsc --noEmit && eslint .",
     "lint:ci": "tsc --noEmit && eslint . --cache --cache-location .eslintcache",
     "lint-fix": "tsc --noEmit && eslint --fix .",

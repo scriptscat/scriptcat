@@ -82,8 +82,8 @@ describe("ValueService - setValue 方法测试", () => {
     } as any;
     valueService.valueDAO = mockValueDAO;
 
-    // Mock pushValueToTab 方法
-    valueService.pushValueToTab = vi.fn();
+    // Mock pushValueUpdate 方法
+    valueService.pushValueUpdate = vi.fn();
 
     // Mock mq.emit 方法
     mockMessageQueue.emit = vi.fn();
@@ -118,9 +118,10 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
-    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
-    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
       1,
+      mockScript,
       expect.objectContaining({
         entries: expect.any(Object),
         id: "testId-4021",
@@ -133,8 +134,6 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
-    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
-    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: true });
 
     // 验证保存的数据结构
     const saveCall = vi.mocked(mockValueDAO.save).mock.calls[0];
@@ -171,9 +170,10 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
-    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
-    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
       1,
+      mockScript,
       expect.objectContaining({
         entries: expect.any(Object),
         id: "testId-4022",
@@ -186,8 +186,6 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
-    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
-    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: true });
 
     // 验证保存的数据结构
     const saveCall = vi.mocked(mockValueDAO.save).mock.calls[0];
@@ -233,9 +231,10 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
-    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
-    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
       1,
+      mockScript,
       expect.objectContaining({
         entries: expect.any(Object),
         id: "testId-4023",
@@ -248,11 +247,6 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
-    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
-    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", {
-      script: mockScript,
-      valueUpdated: true,
-    });
 
     // 验证保存的数据被正确更新
     const saveCall = vi.mocked(mockValueDAO.save).mock.calls[0];
@@ -294,9 +288,10 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).not.toHaveBeenCalled(); // 值未改变，不应该保存
-    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
-    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
       1,
+      mockScript,
       expect.objectContaining({
         entries: expect.any(Object),
         id: "testId-4024",
@@ -309,8 +304,6 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: false,
       })
     ); // 值未改变
-    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
-    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: false }); // 值未改变
   });
 
   it("当设置值为undefined时应该删除该键", async () => {
@@ -375,7 +368,7 @@ describe("ValueService - setValue 方法测试", () => {
     // 验证不会执行后续操作
     expect(mockValueDAO.get).not.toHaveBeenCalled();
     expect(mockValueDAO.save).not.toHaveBeenCalled();
-    expect(valueService.pushValueToTab).not.toHaveBeenCalled();
+    expect(valueService.pushValueUpdate).not.toHaveBeenCalled();
     expect(mockMessageQueue.emit).toHaveBeenCalledTimes(0);
   });
 
@@ -394,7 +387,7 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
     expect(mockScriptDAO.get).toHaveBeenCalledTimes(0);
     expect(mockValueDAO.save).toHaveBeenCalledTimes(0);
-    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(0);
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(0);
 
     // 并发执行两个setValue操作
     const keyValuePairs1 = [[key1, encodeRValue(value1)]] satisfies TKeyValuePair[];
@@ -419,9 +412,10 @@ describe("ValueService - setValue 方法测试", () => {
     // 验证两个操作都被调用
     expect(mockScriptDAO.get).toHaveBeenCalledTimes(2);
     expect(mockValueDAO.save).toHaveBeenCalledTimes(2);
-    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(2);
-    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(2);
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
       1,
+      mockScript,
       expect.objectContaining({
         entries: expect.any(Object),
         id: "testId-4041",
@@ -434,8 +428,9 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
-    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
       2,
+      mockScript,
       expect.objectContaining({
         entries: expect.any(Object),
         id: "testId-4042",
@@ -448,8 +443,5 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
-    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(2);
-    expect(mockMessageQueue.emit).toHaveBeenNthCalledWith(1, "valueUpdate", { script: mockScript, valueUpdated: true });
-    expect(mockMessageQueue.emit).toHaveBeenNthCalledWith(2, "valueUpdate", { script: mockScript, valueUpdated: true });
   });
 });

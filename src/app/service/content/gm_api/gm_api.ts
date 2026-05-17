@@ -1029,6 +1029,10 @@ export default class GMApi extends GM_Base {
               details.onload?.(makeCallbackParam({ ...data.data }));
               retPromiseResolve?.(data.data);
               break;
+            case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
+              details.onload?.(makeCallbackParam({ ...data.data }));
+              retPromiseResolve?.(data.data);
+              break;
             case "onprogress":
               details.onprogress?.(makeCallbackParam({ ...data.data, mode: "browser" }));
               retPromiseReject?.(new Error("Timeout ERROR"));
@@ -1057,9 +1061,26 @@ export default class GMApi extends GM_Base {
           responseType: "blob",
           onloadend: async (res) => {
             if (aborted) return;
-            if (res.response instanceof Blob) {
-              const url = URL.createObjectURL(res.response); // 生命周期跟随当前 content/page 而非 offscreen
-              const con = await a.connect("GM_download", [
+            const response = res.response;
+            if (!(response instanceof Blob)) return;
+
+            // 1. 先创建 blob URL，并立即就地准备好释放函数 + 标志位。
+            //    这样后续任何抛错/aborted/disconnect 路径都能复用同一处释放逻辑，
+            //    避免 a.connect 失败或 aborted 短路时 URL 永远不被 revoke。
+            const url = URL.createObjectURL(response); // 生命周期跟随当前 content/page 而非 offscreen
+            let released = false;
+            const releaseResources = () => {
+              if (released) return;
+              released = true;
+              setTimeout(() => {
+                // 释放不需要的 URL
+                URL.revokeObjectURL(url);
+              }, 1);
+            };
+
+            let con: MessageConnect;
+            try {
+              con = await a.connect("GM_download", [
                 {
                   method: details.method,
                   downloadMode: "browser",
@@ -1073,35 +1094,66 @@ export default class GMApi extends GM_Base {
                   anonymous: details.anonymous,
                 } as GMTypes.DownloadDetails<string>,
               ]);
-              if (aborted) return;
-              connect = con;
-              connect.onMessage((data) => {
-                switch (data.action) {
-                  case "onload":
-                    details.onload?.(makeCallbackParam({ ...data.data }));
-                    retPromiseResolve?.(data.data);
-                    setTimeout(() => {
-                      // 释放不需要的 URL
-                      URL.revokeObjectURL(url);
-                    }, 1);
-                    break;
-                  case "ontimeout":
-                    details.ontimeout?.(makeCallbackParam({}));
-                    retPromiseReject?.(new Error("Timeout ERROR"));
-                    break;
-                  case "onerror":
-                    details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
-                    retPromiseReject?.(new Error("Unknown ERROR"));
-                    break;
-                  default:
-                    LoggerCore.logger().warn("GM_download resp is error", {
-                      data,
-                    });
-                    retPromiseReject?.(new Error("Unexpected Internal ERROR"));
-                    break;
-                }
-              });
+            } catch (e) {
+              // 后台连接失败：释放 URL，并通过 onerror / reject 通知调用方，
+              // 行为与 “onMessage 收到 onerror” 一致，保持外层 contract 不变。
+              releaseResources();
+              if (!aborted) {
+                details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+                retPromiseReject?.(e instanceof Error ? e : new Error("GM_download connect ERROR"));
+              }
+              return;
             }
+
+            // a.connect 期间可能已被 abort：立即释放 URL，并关闭多余的连接。
+            if (aborted) {
+              releaseResources();
+              try {
+                con.disconnect();
+              } catch {
+                // ignored
+              }
+              return;
+            }
+
+            connect = con;
+            connect.onMessage((data) => {
+              switch (data.action) {
+                case "onload":
+                  details.onload?.(makeCallbackParam({ ...data.data }));
+                  retPromiseResolve?.(data.data);
+                  releaseResources();
+                  break;
+                case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
+                  details.onload?.(makeCallbackParam({ ...data.data }));
+                  retPromiseResolve?.(data.data);
+                  releaseResources();
+                  break;
+                case "ontimeout":
+                  details.ontimeout?.(makeCallbackParam({}));
+                  retPromiseReject?.(new Error("Timeout ERROR"));
+                  releaseResources();
+                  break;
+                case "onerror":
+                  details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+                  retPromiseReject?.(new Error("Unknown ERROR"));
+                  releaseResources();
+                  break;
+                default:
+                  LoggerCore.logger().warn("GM_download resp is error", {
+                    data,
+                  });
+                  retPromiseReject?.(new Error("Unexpected Internal ERROR"));
+                  releaseResources();
+                  break;
+              }
+            });
+
+            // 后台主动断连（例如 SW 重启、扩展更新）也释放 URL，避免长尾泄漏。
+            // releaseResources 通过 released 标志位幂等，与 onMessage 内部的释放调用顺序无关。
+            connect.onDisconnect(() => {
+              releaseResources();
+            });
           },
           onload: () => {
             // details.onload?.(makeCallbackParam({}))

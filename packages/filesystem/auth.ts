@@ -74,6 +74,7 @@ export type Token = {
   createtime: number;
 };
 const refreshTokenPromises: Partial<Record<NetDiskType, Promise<string>>> = {};
+const authTokenPromises: Partial<Record<NetDiskType, Promise<Token>>> = {};
 
 function refreshAccessToken(
   netDiskType: NetDiskType,
@@ -126,19 +127,30 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
   }
   // token不存在,或者没有accessToken,重新获取
   if (!token || !token.accessToken) {
-    // 强制重新获取token
-    await NetDisk(netDiskType);
-    const resp = await GetNetDiskToken(netDiskType);
-    if (resp.code !== 0) {
-      throw new WarpTokenError(new Error(resp.msg));
+    if (!authTokenPromises[netDiskType]) {
+      const authPromise = (async () => {
+        // 强制重新获取token
+        await NetDisk(netDiskType);
+        const resp = await GetNetDiskToken(netDiskType);
+        if (resp.code !== 0) {
+          throw new WarpTokenError(new Error(resp.msg));
+        }
+        const newToken = {
+          accessToken: resp.data.token.access_token,
+          refreshToken: resp.data.token.refresh_token,
+          createtime: Date.now(),
+        };
+        await localStorageDAO.saveValue(key, newToken);
+        return newToken;
+      })().finally(() => {
+        if (authTokenPromises[netDiskType] === authPromise) {
+          delete authTokenPromises[netDiskType];
+        }
+      });
+      authTokenPromises[netDiskType] = authPromise;
     }
-    token = {
-      accessToken: resp.data.token.access_token,
-      refreshToken: resp.data.token.refresh_token,
-      createtime: Date.now(),
-    };
+    token = await authTokenPromises[netDiskType];
     invalid = false;
-    await localStorageDAO.saveValue(key, token);
   }
   // token未过期(一小时内)及有效则保留，不用刷新token
   const unexpired = Date.now() < token.createtime + 3600000;

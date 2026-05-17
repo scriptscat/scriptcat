@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Message, Typography } from "@arco-design/web-react";
@@ -6,7 +6,7 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
-import { createScriptInfo, type ScriptInfo } from "@App/pkg/utils/scriptInstall";
+import { createScriptInfoLocal, createTempCodeEntry, getTempCode, type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import { parseMetadata, prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient, agentClient } from "../store/features/script";
@@ -14,18 +14,17 @@ import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/fi
 import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/filehandle-db";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
-import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
-import { cacheInstance } from "@App/app/cache";
-import { formatBytes } from "@App/pkg/utils/utils";
+import { formatBytes, isPermissionOk } from "@App/pkg/utils/utils";
 import { i18nName } from "@App/locales/locales";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import type { SkillScriptMetadata } from "@App/app/service/agent/core/types";
+import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 import {
   cIdKey,
   backgroundPromptShownKey,
   closeWindow,
   fetchScriptBody,
-  cleanupStaleInstallInfo,
+  startKeepAlive,
   type Permission,
 } from "./utils";
 
@@ -48,6 +47,7 @@ export function useInstallData() {
   const [doBackwards, setDoBackwards] = useState<boolean>(false);
   const [skillScriptMetadata, setSkillScriptMetadata] = useState<SkillScriptMetadata | null>(null);
   const [watchFile, setWatchFile] = useState(false);
+  const closingWindowRef = useRef(false);
 
   // Skill 安装相关状态
   const skillInstallUuid = searchParams.get("skill");
@@ -91,9 +91,8 @@ export function useInstallData() {
     }
     const hasShown = localStorage.getItem(backgroundPromptShownKey);
     if (hasShown !== "true") {
-      if (!(await chrome.permissions.contains({ permissions: ["background"] }))) {
-        return true;
-      }
+      const permission = await isPermissionOk("background");
+      if (permission === false) return true;
     }
     return false;
   };
@@ -152,14 +151,19 @@ export function useInstallData() {
 
       let paramOptions = {};
       if (uuid) {
+        startKeepAlive(uuid);
         const cachedInfo = await scriptClient.getInstallInfo(uuid);
-        cleanupStaleInstallInfo(uuid);
         if (cachedInfo?.[0]) isKnownUpdate = true;
         info = cachedInfo?.[1] || undefined;
         paramOptions = cachedInfo?.[2] || {};
         if (!info) {
           throw new Error("fetch script info failed");
         }
+        const code = await getTempCode(uuid);
+        if (code === undefined) {
+          throw new Error("failed to load script code from temp storage");
+        }
+        info.code = code;
       } else {
         // 检查是不是本地文件安装
         if (!fid) {
@@ -190,10 +194,16 @@ export function useInstallData() {
           if (!skillScriptMeta) {
             throw new Error("parse script info failed");
           }
-          info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", {} as SCMetadata);
+          info = await createScriptInfoLocal(
+            uuidv4(),
+            code,
+            `file:///*from-local*/${file.name}`,
+            "user",
+            {} as SCMetadata
+          );
           info.skillScript = true;
         } else {
-          info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
+          info = await createScriptInfoLocal(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
         }
       }
 
@@ -255,6 +265,7 @@ export function useInstallData() {
   };
 
   useEffect(() => {
+    closingWindowRef.current = false;
     if (loaded) return;
     if (skillInstallUuid) {
       initSkillFromCache(skillInstallUuid);
@@ -391,6 +402,7 @@ export function useInstallData() {
   }, [upsertScript]);
 
   const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
+    if (closingWindowRef.current) return;
     if (!upsertScript) {
       Message.error(t("script_info_load_failed")!);
       return;
@@ -428,9 +440,12 @@ export function useInstallData() {
       }
 
       if (shouldClose) {
-        setTimeout(() => {
-          closeWindow(doBackwards);
-        }, 500);
+        if (!closingWindowRef.current) {
+          closingWindowRef.current = true;
+          setTimeout(() => {
+            closeWindow(doBackwards);
+          }, 500);
+        }
       }
     } catch (e) {
       const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
@@ -438,12 +453,18 @@ export function useInstallData() {
     }
   };
 
-  const handleClose = (options?: { noMoreUpdates: boolean }) => {
+  const handleClose = async (options?: { noMoreUpdates: boolean }) => {
+    if (closingWindowRef.current) return;
     const { noMoreUpdates = false } = options || {};
     if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
-      scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
+      await scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
     }
-    closeWindow(doBackwards);
+    if (!closingWindowRef.current) {
+      closingWindowRef.current = true;
+      setTimeout(() => {
+        closeWindow(doBackwards);
+      }, 50);
+    }
   };
 
   const handleInstallBasic = () => handleInstall();
@@ -593,13 +614,17 @@ export function useInstallData() {
       const isSkillScript = "skillScript" in result && result.skillScript === true;
 
       const uuid = uuidv4();
-      const info = createScriptInfo(uuid, code, url, "user", metadata);
+      const scriptData = await createTempCodeEntry(false, uuid, code, url, "user", metadata, {});
+      const info = scriptData[1];
       if (isSkillScript) {
         info.skillScript = true;
       }
-      const scriptData = [false, info];
-
-      await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, scriptData);
+      await new TempStorageDAO().save({
+        key: uuid,
+        value: scriptData,
+        savedAt: Date.now(),
+        type: TempStorageItemType.tempCode,
+      });
 
       setSearchParams(new URLSearchParams(`?uuid=${uuid}`), { replace: true });
     } catch (err: any) {
