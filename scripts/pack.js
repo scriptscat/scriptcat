@@ -50,7 +50,7 @@ if (process.env.GITHUB_REF_TYPE === "branch") {
   await fs.writeFile("./src/app/const.ts", configSystem);
 }
 
-execSync("npm run build", { stdio: "inherit" });
+execSync("pnpm run build", { stdio: "inherit" });
 
 // logo 在 rspack.config.ts 处理
 

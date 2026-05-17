@@ -26,7 +26,9 @@ const chromeMock = {
   extension: new Extension(),
   userScripts: new MockUserScripts(),
   action: new Action(),
-  init() {},
+  init() {
+    this.downloads.reset();
+  },
 };
 
 export default chromeMock;

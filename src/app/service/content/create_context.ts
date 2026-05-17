@@ -341,7 +341,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     };
   }
 
-  for (const key of ["window", "self", "globalThis", "top", "parent"]) {
+  for (const key of ["window", "self", "globalThis", "top", "parent", "frames"]) {
     const desc = ownDescs[key];
     if (desc?.value === global) {
       // globalThis

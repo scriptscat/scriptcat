@@ -32,7 +32,7 @@ import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 import { useSearchParams } from "react-router-dom";
 import { formatBytes, isPermissionOk } from "@App/pkg/utils/utils";
 import { ScriptIcons } from "../options/routes/utils";
-import { bytesDecode, detectEncoding } from "@App/pkg/utils/encoding";
+import { readRawContent } from "@App/pkg/utils/encoding";
 import { prettyUrl } from "@App/pkg/utils/url-utils";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 
@@ -49,6 +49,7 @@ interface PermissionItem {
 
 type Permission = PermissionItem[];
 
+let closingWindow = false;
 const closeWindow = (doBackwards: boolean) => {
   if (doBackwards) {
     history.go(-1);
@@ -107,19 +108,8 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
     position += chunk.length;
   }
 
-  // 检测编码：优先使用 Content-Type，回退到 chardet（仅检测前16KB）
   const contentType = response.headers.get("content-type");
-  const encode = detectEncoding(chunksAll, contentType);
-
-  // 使用检测到的 charset 解码
-  let code;
-  try {
-    code = bytesDecode(encode, chunksAll);
-  } catch (e: any) {
-    console.warn(`Failed to decode response with charset ${encode}: ${e.message}`);
-    // 回退到 UTF-8
-    code = new TextDecoder("utf-8").decode(chunksAll);
-  }
+  const code = await readRawContent(chunksAll, contentType);
 
   const metadata = parseMetadata(code);
   if (!metadata) {
@@ -302,7 +292,9 @@ function App() {
   };
 
   useEffect(() => {
+    closingWindow = false; // reset
     !loaded && initAsync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, loaded]);
 
   const [watchFile, setWatchFile] = useState(false);
@@ -442,6 +434,7 @@ function App() {
   };
 
   const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
+    if (closingWindow) return;
     if (!upsertScript) {
       Message.error(t("script_info_load_failed")!);
       return;
@@ -485,9 +478,12 @@ function App() {
       }
 
       if (shouldClose) {
-        setTimeout(() => {
-          closeWindow(doBackwards);
-        }, 500);
+        if (!closingWindow) {
+          closingWindow = true;
+          setTimeout(() => {
+            closeWindow(doBackwards);
+          }, 500);
+        }
       }
     } catch (e) {
       const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
@@ -495,12 +491,18 @@ function App() {
     }
   };
 
-  const handleClose = (options?: { noMoreUpdates: boolean }) => {
+  const handleClose = async (options?: { noMoreUpdates: boolean }) => {
+    if (closingWindow) return;
     const { noMoreUpdates = false } = options || {};
     if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
-      scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
+      await scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
     }
-    closeWindow(doBackwards);
+    if (!closingWindow) {
+      closingWindow = true;
+      setTimeout(() => {
+        closeWindow(doBackwards);
+      }, 50);
+    }
   };
 
   const {

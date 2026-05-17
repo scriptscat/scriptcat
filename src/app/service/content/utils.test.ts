@@ -200,6 +200,23 @@ describe("utils", () => {
       expect(result).toBeDefined();
       expect(result).toContain("try {");
     });
+
+    it.concurrent("应该处理 @run-at context-menu", () => {
+      const scriptRes = createMockScriptRes({
+        name: 'ScriptCat\'s demo for "context-menu"',
+        code: "console.log(567); // testing",
+        metadata: {
+          "run-at": ["context-menu"],
+        },
+      });
+
+      const result = compileScriptCode(scriptRes);
+
+      expect(result).toBeDefined();
+      expect(result).toContain(
+        `GM_registerMenuCommand(("ScriptCat's demo for \\"context-menu\\""), ()=>{let GM_registerMenuCommand=window.GM_registerMenuCommand=GM.registerMenuCommand=undefined;\nconsole.log(567); // testing\n}, {nested:false});\n`
+      );
+    });
   });
 
   describe("compileScript", () => {
