@@ -401,6 +401,7 @@ export class Runtime {
       name: params.name,
       code: params.code,
       require: params.requires || [],
+      isContextMenu: false,
     });
 
     // 构造最小化的 ScriptLoadInfo
