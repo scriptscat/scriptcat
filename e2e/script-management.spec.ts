@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures";
 import type { BrowserContext, Page } from "@playwright/test";
-import { openEditorPage, openOptionsPage } from "./utils";
+import { openEditorPage, openOptionsPage, saveCurrentEditor } from "./utils";
 
 /**
  * Helper: create a script via the editor, then open the options page.
@@ -14,21 +14,7 @@ async function createScriptAndGoToList(context: BrowserContext, extensionId: str
     timeout: 15_000,
   });
 
-  // Click inside editor to ensure focus, then save
-  await editorPage.locator(".monaco-editor .view-lines").click();
-  await editorPage.waitForTimeout(500);
-  await editorPage.keyboard.press("ControlOrMeta+s");
-
-  // Wait for success message, retry once if needed
-  try {
-    await expect(editorPage.locator(".arco-message").first()).toBeVisible({ timeout: 10_000 });
-  } catch {
-    // Retry: click editor again and resave
-    await editorPage.locator(".monaco-editor .view-lines").click();
-    await editorPage.waitForTimeout(500);
-    await editorPage.keyboard.press("ControlOrMeta+s");
-    await expect(editorPage.locator(".arco-message").first()).toBeVisible({ timeout: 15_000 });
-  }
+  await saveCurrentEditor(context, extensionId, editorPage);
 
   // Open the options page (script list)
   const page = await openOptionsPage(context, extensionId);
@@ -56,11 +42,11 @@ test.describe("Script Management", () => {
     // Get initial state
     const initialChecked = await scriptSwitch.getAttribute("aria-checked");
 
-    // Click to toggle
-    await scriptSwitch.click();
-    await page.waitForTimeout(1000);
+    // Click to toggle. Use DOM click because the current layout can intercept
+    // Playwright's pointer event even when the switch itself is visible.
+    await scriptSwitch.evaluate((element) => (element as HTMLElement).click());
+    await expect(scriptSwitch).not.toHaveAttribute("aria-checked", initialChecked || "", { timeout: 10_000 });
 
-    // The state should have changed
     const newChecked = await scriptSwitch.getAttribute("aria-checked");
     expect(newChecked).not.toBe(initialChecked);
   });

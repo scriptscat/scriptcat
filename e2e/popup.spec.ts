@@ -43,11 +43,21 @@ test.describe("Popup Page", () => {
     const settingsBtn = iconButtons.first();
     await expect(settingsBtn).toBeVisible();
 
-    // Click the settings button - it should open a new page
-    const [newPage] = await Promise.all([context.waitForEvent("page"), settingsBtn.click()]);
+    const existingPages = new Set(context.pages());
+    await settingsBtn.click();
 
-    // The new page should be the options page
-    await expect(newPage).toHaveURL(/options\.html/);
+    // Startup guide pages may open around the same time; assert on the
+    // settings page specifically instead of whichever page event arrives first.
+    await expect
+      .poll(
+        () =>
+          context
+            .pages()
+            .find((p) => !existingPages.has(p) && /options\.html/.test(p.url()))
+            ?.url() || "",
+        { timeout: 10_000 }
+      )
+      .toMatch(/options\.html/);
   });
 
   test("should show more menu dropdown with items", async ({ context, extensionId }) => {

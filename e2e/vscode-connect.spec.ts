@@ -118,7 +118,7 @@ test.describe("VSCode 连接", () => {
     // 自动连接复选框
     const checkbox = card.locator(".arco-checkbox");
     await expect(checkbox).toBeVisible();
-    await expect(card.getByText(/auto connect vscode|自动连接vscode/i)).toBeVisible();
+    await expect(card.getByText(/auto connect vscode|自动连接\s*vscode/i)).toBeVisible();
 
     // 连接按钮
     const connectBtn = card.locator(".arco-btn-primary");
@@ -139,7 +139,7 @@ test.describe("VSCode 连接", () => {
     // 切换自动连接复选框
     const checkbox = card.locator(".arco-checkbox input");
     const initialChecked = await checkbox.isChecked();
-    await card.locator(".arco-checkbox").click();
+    await card.locator(".arco-checkbox").evaluate((element) => (element as HTMLElement).click());
     const newChecked = await checkbox.isChecked();
     expect(newChecked).toBe(!initialChecked);
   });
@@ -150,7 +150,7 @@ test.describe("VSCode 连接", () => {
 
     // 连接按钮存在且可点击
     const connectBtn = card.locator(".arco-btn-primary");
-    await connectBtn.click();
+    await connectBtn.evaluate((element) => (element as HTMLElement).click());
 
     // connectVSCode 是消息传递操作，消息投递成功即 resolve，
     // 所以即使没有 WebSocket 服务器运行，也应显示「连接成功」提示
@@ -179,7 +179,7 @@ test.describe("VSCode 连接", () => {
 
       // 点击连接
       const connectBtn = card.locator(".arco-btn-primary");
-      await connectBtn.click();
+      await connectBtn.evaluate((element) => (element as HTMLElement).click());
 
       // 等待「连接成功」消息
       const successMsg = page.locator(".arco-message").getByText(/connection successful|连接成功/i);

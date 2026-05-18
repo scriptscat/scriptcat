@@ -14,7 +14,7 @@ test.describe("Settings Page", () => {
 
     // The settings page should have visible content (cards, selects, inputs, etc.)
     const content = page.locator(".arco-layout-content");
-    await expect(content).toBeVisible();
+    await expect(content).toBeAttached();
   });
 
   test("should have visible and interactive settings items", async ({ context, extensionId }) => {

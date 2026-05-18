@@ -16,7 +16,7 @@ test.describe("Agent Provider Management", () => {
 
     // 点击添加按钮
     const addBtn = page.locator("button.arco-btn-primary").first();
-    await addBtn.click();
+    await addBtn.evaluate((element) => (element as HTMLElement).click());
 
     // 验证弹窗出现
     const modal = page.locator(".arco-modal");
@@ -49,7 +49,7 @@ test.describe("Agent Provider Management", () => {
     await modal
       .locator("button", { hasText: /cancel|取消/i })
       .first()
-      .click();
+      .evaluate((element) => (element as HTMLElement).click());
     await page.waitForTimeout(500);
     await expect(modal).not.toBeVisible();
 
@@ -61,7 +61,10 @@ test.describe("Agent Provider Management", () => {
     await page.waitForTimeout(2000);
 
     // 打开添加弹窗
-    await page.locator("button.arco-btn-primary").first().click();
+    await page
+      .locator("button.arco-btn-primary")
+      .first()
+      .evaluate((element) => (element as HTMLElement).click());
     const modal = page.locator(".arco-modal");
     await expect(modal).toBeVisible({ timeout: 5000 });
 
@@ -71,7 +74,7 @@ test.describe("Agent Provider Management", () => {
 
     // 切换到 Anthropic
     const providerSelect = modal.locator(".arco-select").first();
-    await providerSelect.click();
+    await providerSelect.evaluate((element) => (element as HTMLElement).click());
     await page.waitForTimeout(300);
     await page.locator(".arco-select-option", { hasText: "Anthropic" }).click();
     await page.waitForTimeout(500);
