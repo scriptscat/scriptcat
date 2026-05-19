@@ -341,14 +341,14 @@ function MoreMenu({
 // ========== Search ==========
 function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className="px-4 py-2 border-b border-border">
+    <div className="px-3 py-1 bg-card">
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={t("script:search_scripts", { defaultValue: "搜索脚本..." })}
-          className="h-8 pl-8 text-[13px]"
+          className="h-8 pl-8 text-[13px] bg-muted border-transparent shadow-none focus-visible:ring-1"
         />
       </div>
     </div>
