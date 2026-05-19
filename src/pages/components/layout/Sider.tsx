@@ -264,7 +264,7 @@ const Sider: React.FC = () => {
           borderLeft: "1px solid var(--color-bg-5)",
           // overflow: "hidden", //fix: 避免 tooltip 被遮挡
           padding: 0,
-          height: "100%",
+          height: "auto",
           boxSizing: "border-box",
           position: "relative",
         }}
