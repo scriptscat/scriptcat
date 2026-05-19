@@ -2,13 +2,17 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Background</title>
   </head>
   <body>
     <iframe
       src="/src/sandbox.html"
       name="sandbox"
-      sandbox="allow-scripts"
-      style="display: none"
+      sandbox="allow-same-origin allow-scripts"
+      hidden
+      aria-hidden="true"
+      tabindex="-1"
     ></iframe>
   </body>
 </html>

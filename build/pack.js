@@ -75,8 +75,8 @@ const chromeManifest = { ...manifest };
 delete chromeManifest.content_security_policy;
 
 delete firefoxManifest.sandbox;
-// firefoxManifest.content_security_policy 是为了支持动态组合的 ts.worker.js Blob URL
-firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
+// 配置 Firefox 的 CSP，以支持在 sandbox 中动态执行 background script 代码
+firefoxManifest.content_security_policy = "script-src 'self' blob: 'unsafe-eval'; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: {
     id: `{${

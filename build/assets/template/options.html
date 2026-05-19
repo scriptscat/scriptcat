@@ -10,8 +10,10 @@
     <iframe
       src="/src/sandbox.html"
       name="sandbox"
-      sandbox="allow-scripts"
-      style="display: none"
+      sandbox="allow-same-origin allow-scripts"
+      hidden
+      aria-hidden="true"
+      tabindex="-1"
     ></iframe>
   </body>
   <style>
