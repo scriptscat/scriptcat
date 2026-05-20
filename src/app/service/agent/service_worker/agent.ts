@@ -151,6 +151,8 @@ export class AgentService {
     this.group.on("conversation", this.handleConversation.bind(this));
     // 流式聊天（UI 和 Sandbox 共用）
     this.group.on("conversationChat", this.handleConversationChat.bind(this));
+    // Prompt 优化（ephemeral 单次调用，复用 conversationChat 路径）
+    this.group.on("optimizePrompt", this.handleOptimizePrompt.bind(this));
     // 附加到后台运行中的会话
     this.group.on("attachToConversation", this.handleAttachToConversation.bind(this));
     // 获取正在运行的会话 ID 列表
@@ -392,6 +394,20 @@ export class AgentService {
     sender: IGetSender
   ) {
     return this.chatService.handleConversationChat(params, sender);
+  }
+
+  // Prompt 优化入口：无状态 ephemeral 调用，复用 ChatService.handleConversationChat
+  private async handleOptimizePrompt(params: { modelId: string; input: string }, sender: IGetSender) {
+    return this.chatService.handleConversationChat(
+      {
+        conversationId: `__optimize_${Date.now()}`,
+        message: "",
+        modelId: params.modelId,
+        optimizePrompt: true,
+        optimizeInput: params.input,
+      },
+      sender
+    );
   }
 
   // 对内容做摘要/提取（供 tab 工具使用）
