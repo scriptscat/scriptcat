@@ -2,7 +2,7 @@ import { systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
 import { editor, languages, MarkerSeverity, type IRange } from "monaco-editor";
 import { findGlobalInsertionInfo, updateGlobalCommentLine } from "./utils";
-import type { EditorLangCode, EditorPrompt } from "./langs";
+import type { EditorLangCode, EditorLangEntry } from "./langs";
 import { asEditorLangEntry, editorLangs } from "./langs";
 import { deferred } from "../utils";
 
@@ -42,12 +42,23 @@ type ScriptcatMonacoEnvironment = typeof window.MonacoEnvironment & {
 const linterWorkerDeferred = deferred<ILinterWorker>();
 const langPromise = systemConfig.getLanguage();
 
-let multiLang = asEditorLangEntry("en-US");
+let multiLang: EditorLangEntry;
+type EditorLangEntryPrompt = typeof multiLang.prompt;
+let promptByLowerCase: EditorLangEntryPrompt;
+
+const loadEditorLangEntry = (key: EditorLangCode) => {
+  multiLang = asEditorLangEntry(key);
+  promptByLowerCase = Object.fromEntries(
+    Object.entries(multiLang.prompt).map(([key, value]) => [key.toLowerCase(), value])
+  ) as typeof multiLang.prompt;
+};
+
+loadEditorLangEntry("en-US");
 
 const updateLang = (lang: string) => {
   lang = `${lang || ""}` as EditorLangCode | "";
   const key = ((Object.hasOwn(editorLangs, lang) && lang) || "en-US") as EditorLangCode;
-  multiLang = asEditorLangEntry(key);
+  loadEditorLangEntry(key);
 };
 
 langPromise.then((res) => updateLang(res));
@@ -193,7 +204,7 @@ const getConnectMetadataFixes = ({ prefix, tag, spacing, value, suffix }: Metada
   const hostName = value.slice(2);
   if (!/\.\w{2,}$/.test(hostName) || !isSimpleValidHost(hostName)) return [];
 
-  const titleTemplate = multiLang.replaceConnectWildcard;
+  const titleTemplate = multiLang.removeConnectWildcard;
   return [createMetadataFix(titleTemplate, hostName, `${prefix}${tag}${spacing}${hostName}${suffix}`)];
 };
 
@@ -215,7 +226,7 @@ const getMatchMetadataFixes = ({
   const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
   const tldValue = `${match[1]}://${hostName}.tld${match[3] || ""}`;
 
-  const titleTemplate = multiLang.replaceMatchWildcard;
+  const titleTemplate = multiLang.replaceMatchTldWildcardWithInclude;
   return [
     createMetadataFix(titleTemplate, tldValue, `${prefix}include${includeSpacing}${tldValue}${suffix}`),
     createMetadataFix(titleTemplate, value, `${prefix}include${includeSpacing}${value}${suffix}`),
@@ -234,7 +245,7 @@ const getIncludeMetadataFixes = ({
   if (!match || !host || host.endsWith(".*") || host.includes("**") || host.endsWith(".tld")) return [];
   if (host.split(".").every((e) => e === "*" || /^[\w-]+$/.test(e))) {
     const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
-    const titleTemplate = multiLang.replaceToMatch;
+    const titleTemplate = multiLang.replaceIncludeWithMatch;
     return [createMetadataFix(titleTemplate, value, `${prefix}match  ${includeSpacing}${value}${suffix}`)];
   }
   return [];
@@ -478,11 +489,11 @@ export function registerEditor() {
       const match = metaLinePattern.exec(line);
 
       if (match) {
-        const key = match[1] as keyof EditorPrompt;
+        const key = match[1].toLowerCase() as keyof EditorLangEntryPrompt;
         return {
           contents: [
             {
-              value: multiLang.prompt[key] || multiLang.undefinedPrompt,
+              value: promptByLowerCase[key] || multiLang.undefinedPrompt,
               supportHtml: true,
             },
           ],
