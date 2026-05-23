@@ -235,23 +235,21 @@ const getMetadataLineFixes = (line: string): MetadataLineFix[] => {
 };
 
 const getMetadataLineActions = (
-  actions: languages.CodeAction[],
   model: editor.ITextModel,
   lineNumber: number,
   line: string,
   markers: editor.IMarkerData[]
-) => {
+): languages.CodeAction[] => {
   const fixes = getMetadataLineFixes(line);
-  if (fixes.length === 0) return;
+  if (fixes.length === 0) return [];
 
   const diagnostics = markers.filter(
     (marker) => marker.source === scriptcatMarkerOwner && marker.startLineNumber === lineNumber
   );
 
-  for (let index = 0; index < fixes.length; index += 1) {
-    const fix = fixes[index];
-    actions.push(createLineReplacementAction(model, fix.title, diagnostics, lineNumber, line, fix.text, index === 0));
-  }
+  return fixes.map((fix, index) =>
+    createLineReplacementAction(model, fix.title, diagnostics, lineNumber, line, fix.text, index === 0)
+  );
 };
 
 const getNoUndefGlobalName = (marker: editor.IMarkerData) => {
@@ -285,14 +283,15 @@ const getGlobalDeclarationTextEdit = (model: editor.ITextModel, globalName: stri
   };
 };
 
-const appendMarkerCodeActions = (
-  actions: languages.CodeAction[],
+const getMarkerCodeActions = (
   model: editor.ITextModel,
   marker: editor.IMarkerData,
   eslintFixMap?: Map<string, EslintFix>
-) => {
+): languages.CodeAction[] => {
   const code = getMarkerCode(marker);
-  if (!code) return;
+  if (!code) return [];
+
+  const actions: languages.CodeAction[] = [];
 
   const fix = eslintFixMap?.get(getEslintFixKey(marker, code));
   if (fix) {
@@ -355,6 +354,8 @@ const appendMarkerCodeActions = (
       true
     )
   );
+
+  return actions;
 };
 
 const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
@@ -464,13 +465,10 @@ export function registerEditor() {
       provideCodeActions: (model /** ITextModel */, range /** Range */, context /** CodeActionContext */) => {
         const eslintFixMap = getMonacoEnvironment()?.eslintFixMap;
         const line = model.getLineContent(range.startLineNumber);
-        const actions: languages.CodeAction[] = [];
-
-        getMetadataLineActions(actions, model, range.startLineNumber, line, context.markers);
-
-        for (const marker of context.markers) {
-          appendMarkerCodeActions(actions, model, marker, eslintFixMap);
-        }
+        const actions = [
+          ...getMetadataLineActions(model, range.startLineNumber, line, context.markers),
+          ...context.markers.flatMap((marker) => getMarkerCodeActions(model, marker, eslintFixMap)),
+        ];
 
         return { actions, dispose: noop };
       },
