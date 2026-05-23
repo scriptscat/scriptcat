@@ -311,35 +311,49 @@ const getMarkerCodeActions = (
     );
   }
 
-  const globalName = code === "no-undef" ? getNoUndefGlobalName(marker) : null;
-  if (globalName) {
+  let canApplyEslintSingleLineDisable = true;
+
+  switch (code) {
+    case "no-undef": {
+      const globalName = getNoUndefGlobalName(marker);
+      if (globalName) {
+        actions.push(
+          createTextEditAction(
+            model,
+            multiLang.declareGlobal.replace("{0}", globalName),
+            [marker],
+            getGlobalDeclarationTextEdit(model, globalName),
+            false
+          )
+        );
+      }
+      break;
+    }
+    case "userscripts/better-use-match":
+    case "userscripts/no-invalid-headers":
+      canApplyEslintSingleLineDisable = false;
+  }
+
+  if (canApplyEslintSingleLineDisable) {
     actions.push(
       createTextEditAction(
         model,
-        multiLang.declareGlobal.replace("{0}", globalName),
+        multiLang.addEslintDisableNextLine,
         [marker],
-        getGlobalDeclarationTextEdit(model, globalName),
-        false
+        {
+          range: {
+            startLineNumber: marker.startLineNumber,
+            endLineNumber: marker.startLineNumber,
+            startColumn: 1,
+            endColumn: 1,
+          },
+          text: `// eslint-disable-next-line ${code}\n`,
+        },
+        true
       )
     );
   }
-
   actions.push(
-    createTextEditAction(
-      model,
-      multiLang.addEslintDisableNextLine,
-      [marker],
-      {
-        range: {
-          startLineNumber: marker.startLineNumber,
-          endLineNumber: marker.startLineNumber,
-          startColumn: 1,
-          endColumn: 1,
-        },
-        text: `// eslint-disable-next-line ${code}\n`,
-      },
-      true
-    ),
     createTextEditAction(
       model,
       multiLang.addEslintDisable,
