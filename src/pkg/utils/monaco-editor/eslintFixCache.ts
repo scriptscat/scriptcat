@@ -10,19 +10,12 @@ type EslintFixMarkerPosition = Pick<
   "startLineNumber" | "endLineNumber" | "startColumn" | "endColumn"
 >;
 
-export const getEslintFixKey = (
-  modelUri: string,
-  eslintRuleId: string,
-  marker: EslintFixMarkerPosition
-) => {
+export const getEslintFixKey = (modelUri: string, eslintRuleId: string, marker: EslintFixMarkerPosition) => {
   return `${modelUri}|${eslintRuleId}|${marker.startLineNumber}|${marker.endLineNumber}|${marker.startColumn}|${marker.endColumn}`;
 };
 
-export const getModelEslintFixKey = (
-  model: editor.ITextModel,
-  eslintRuleId: string,
-  marker: EslintFixMarkerPosition
-) => getEslintFixKey(model.uri.toString(), eslintRuleId, marker);
+export const getModelEslintFixKey = (model: editor.ITextModel, eslintRuleId: string, marker: EslintFixMarkerPosition) =>
+  getEslintFixKey(model.uri.toString(), eslintRuleId, marker);
 
 export const clearModelEslintFixes = (eslintFixMap: Map<string, EslintFix>, model: editor.ITextModel) => {
   const prefix = `${model.uri.toString()}|`;
