@@ -120,6 +120,7 @@ const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-m
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
+const metadataHoverPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]*)(.*)$/;
 const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match|include)([ \t]+)(\S+)(.*)$/i;
 const metadataAlignmentPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]+)(.*)$/;
 const userscriptHeaderPattern = /^\s*\/\/[ \t]*==UserScript==[ \t]*$/;
@@ -137,6 +138,42 @@ const ensureEslintFixMap = (environment: ScriptcatMonacoEnvironment) => {
 const getMarkerCode = (marker: editor.IMarkerData) => {
   if (!marker.code) return "";
   return typeof marker.code === "string" ? marker.code : marker.code.value;
+};
+
+const normalizeGrantValue = (grantValue: string) => {
+  switch (grantValue) {
+    case "GM.xmlHttpRequest":
+      return "GM_xmlhttpRequest";
+    case "GM.cookie":
+      return "GM_cookie";
+    default:
+      return grantValue.startsWith("GM.") ? grantValue.replace("GM.", "GM_") : grantValue;
+  }
+};
+
+const getGrantValueHoverPrompt = (lineText: string, column: number) => {
+  const match = metadataHoverPattern.exec(lineText);
+  if (!match) return null;
+
+  const [, prefix, tag, spacing, value] = match;
+  if (tag.toLowerCase() !== "grant") return null;
+
+  const grantValueMatch = /^\S+/.exec(value);
+  if (!grantValueMatch) return null;
+
+  const valueStartColumn = prefix.length + tag.length + spacing.length + 1;
+  const valueEndColumn = valueStartColumn + grantValueMatch[0].length;
+  if (column < valueStartColumn || column > valueEndColumn) return null;
+
+  const grantValue = grantValueMatch[0];
+  const prompt =
+    currentEditorLang.grantValuePrompts[grantValue as keyof typeof currentEditorLang.grantValuePrompts] ??
+    currentEditorLang.grantValuePrompts[
+      normalizeGrantValue(grantValue) as keyof typeof currentEditorLang.grantValuePrompts
+    ];
+  if (!prompt) return null;
+
+  return `\`${grantValue}\`<br>${prompt}`;
 };
 
 const createTextEditAction = (
@@ -737,6 +774,18 @@ export function registerEditor() {
   languages.registerHoverProvider("javascript", {
     provideHover: (model, position) => {
       const lineText = model.getLineContent(position.lineNumber);
+      const grantValuePrompt = getGrantValueHoverPrompt(lineText, position.column);
+      if (grantValuePrompt) {
+        return {
+          contents: [
+            {
+              value: grantValuePrompt,
+              supportHtml: true,
+            },
+          ],
+        };
+      }
+
       const metadataCommentMatch = metaLinePattern.exec(lineText);
 
       if (metadataCommentMatch) {
