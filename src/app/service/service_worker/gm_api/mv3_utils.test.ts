@@ -72,7 +72,6 @@ describe("GM XHR request linker", () => {
   });
 
   it("links Firefox requestId to markerID via webRequest.onBeforeRequest", async () => {
-    scXhrRequests.clear();
     //@ts-ignore
     chrome.runtime.__mockGetURLToExtensionTest = true;
     const RID_1 = "9470";
