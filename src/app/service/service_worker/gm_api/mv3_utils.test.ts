@@ -73,9 +73,10 @@ describe("GM XHR request linker", () => {
 
   it("links Firefox requestId to markerID via webRequest.onBeforeRequest", async () => {
     scXhrRequests.clear();
-    const originalGetURL = chrome.runtime.getURL;
-    chrome.runtime.getURL = vi.fn((path: string) => `https://extension.test${path}`);
-
+    //@ts-ignore
+    chrome.runtime.__mockGetURLToExtensionTest = true;
+    const RID_1 = "9470";
+    const documentUrl = chrome.runtime.getURL("/_generated_background_page.html");
     try {
       const linker = new FirefoxWebRequestLinker();
       linker.setup({ cleanupOnAPIError: () => undefined });
@@ -89,19 +90,20 @@ describe("GM XHR request linker", () => {
       const wbr = chrome.webRequest.onBeforeRequest as any;
       wbr.EE.emit("onBeforeRequest", {
         tabId: -1,
-        requestId: "RID_1",
+        requestId: RID_1,
         url,
-        documentUrl: chrome.runtime.getURL("/"),
-        originUrl: chrome.runtime.getURL("/"),
+        documentUrl: documentUrl,
+        originUrl: documentUrl,
         timeStamp: Date.now(),
       });
 
       await sendPromise;
 
-      expect(scXhrRequests.get("RID_1")).toBe(markerID);
-      expect(scXhrRequests.get(markerID)).toBe("RID_1");
+      expect(scXhrRequests.get(RID_1)).toBe(markerID);
+      expect(scXhrRequests.get(markerID)).toBe(RID_1);
     } finally {
-      chrome.runtime.getURL = originalGetURL;
+      //@ts-ignore
+      chrome.runtime.__mockGetURLToExtensionTest = false;
     }
   });
 });
