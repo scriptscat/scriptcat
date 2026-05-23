@@ -329,6 +329,7 @@ const getMarkerCodeActions = (
       }
       break;
     }
+    case "userscripts/align-attributes":
     case "userscripts/better-use-match":
     case "userscripts/no-invalid-headers":
       canApplyEslintSingleLineDisable = false;
