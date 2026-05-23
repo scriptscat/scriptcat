@@ -1,19 +1,15 @@
 import { systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
-import { editor, languages, MarkerSeverity, type IRange } from "monaco-editor";
+import { editor, languages, MarkerSeverity } from "monaco-editor";
 import { findGlobalInsertionInfo, updateGlobalCommentLine } from "./utils";
 import type { EditorLangCode, EditorLangEntry } from "./langs";
 import { asEditorLangEntry, editorLangs } from "./langs";
 import { deferred } from "../utils";
+import { type EslintFix, getModelEslintFixKey } from "./eslintFixCache";
 
 interface ILinterWorker extends Worker {
   myLinterHook: EventEmitter<string, any>;
 }
-
-type EslintFix = {
-  range: IRange;
-  text: string;
-};
 
 type MetadataLineParts = {
   prefix: string;
@@ -112,10 +108,6 @@ const ensureEslintFixMap = (environment: ScriptcatMonacoEnvironment) => {
 const getMarkerCode = (marker: editor.IMarkerData) => {
   if (!marker.code) return "";
   return typeof marker.code === "string" ? marker.code : marker.code.value;
-};
-
-const getEslintFixKey = (marker: editor.IMarkerData, eslintRuleId: string) => {
-  return `${eslintRuleId}|${marker.startLineNumber}|${marker.endLineNumber}|${marker.startColumn}|${marker.endColumn}`;
 };
 
 const createTextEditAction = (
@@ -361,7 +353,7 @@ const getMarkerCodeActions = (
 
   const actions: languages.CodeAction[] = [];
 
-  const eslintFix = eslintFixMap?.get(getEslintFixKey(marker, eslintRuleId));
+  const eslintFix = eslintFixMap?.get(getModelEslintFixKey(model, eslintRuleId, marker));
   if (eslintFix) {
     actions.push(
       createTextEditAction(
