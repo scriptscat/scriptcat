@@ -254,7 +254,7 @@ const getIncludeMetadataFixes = ({
 }: MetadataLineParts): MetadataLineFix[] => {
   const metadataValueMatch = matchMetadataPattern.exec(value);
   const hostPattern = metadataValueMatch?.[2];
-  const wildcardNormalizedHost = normalizeHost(hostPattern);
+  const wildcardNormalizedHost = hostPattern ? normalizeHost(hostPattern) : "";
   if (
     !metadataValueMatch ||
     !hostPattern ||
