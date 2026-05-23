@@ -82,6 +82,7 @@ export class LinterWorkerController {
 let isRegisterEditorDone = false;
 
 const scriptcatMarkerOwner = "ScriptCat";
+const eslintMarkerOwner = "ESLint";
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
@@ -288,6 +289,7 @@ const getMarkerCodeActions = (
   marker: editor.IMarkerData,
   eslintFixMap?: Map<string, EslintFix>
 ): languages.CodeAction[] => {
+  if (marker.source !== eslintMarkerOwner) return [];
   const code = getMarkerCode(marker);
   if (!code) return [];
 
