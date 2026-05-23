@@ -40,31 +40,32 @@ type ScriptcatMonacoEnvironment = typeof window.MonacoEnvironment & {
 
 // 注册 eslint worker（全局单例）
 const linterWorkerDeferred = deferred<ILinterWorker>();
-const langPromise = systemConfig.getLanguage();
+const configuredLanguagePromise = systemConfig.getLanguage();
 
-let multiLang: EditorLangEntry;
-type EditorLangEntryPrompt = typeof multiLang.prompt;
-let promptByLowerCase: EditorLangEntryPrompt;
+let currentEditorLang: EditorLangEntry;
+type EditorLangEntryPrompt = typeof currentEditorLang.prompt;
+let promptByMetadataTag: EditorLangEntryPrompt;
 
-const loadEditorLangEntry = (key: EditorLangCode) => {
-  multiLang = asEditorLangEntry(key);
-  promptByLowerCase = Object.fromEntries(
-    Object.entries(multiLang.prompt).map(([key, value]) => [key.toLowerCase(), value])
-  ) as typeof multiLang.prompt;
+const loadEditorLangEntry = (languageCode: EditorLangCode) => {
+  currentEditorLang = asEditorLangEntry(languageCode);
+  promptByMetadataTag = Object.fromEntries(
+    Object.entries(currentEditorLang.prompt).map(([metadataTag, prompt]) => [metadataTag.toLowerCase(), prompt])
+  ) as typeof currentEditorLang.prompt;
 };
 
 loadEditorLangEntry("en-US");
 
-const updateLang = (lang: string) => {
-  lang = `${lang || ""}` as EditorLangCode | "";
-  const key = ((Object.hasOwn(editorLangs, lang) && lang) || "en-US") as EditorLangCode;
-  loadEditorLangEntry(key);
+const updateEditorLang = (language: string) => {
+  const requestedLanguageCode = `${language || ""}` as EditorLangCode | "";
+  const supportedLanguageCode = ((Object.hasOwn(editorLangs, requestedLanguageCode) && requestedLanguageCode) ||
+    "en-US") as EditorLangCode;
+  loadEditorLangEntry(supportedLanguageCode);
 };
 
-langPromise.then((res) => updateLang(res));
+configuredLanguagePromise.then((language) => updateEditorLang(language));
 
-systemConfig.addListener("language", (lang) => {
-  updateLang(lang);
+systemConfig.addListener("language", (language) => {
+  updateEditorLang(language);
 });
 
 export class LinterWorkerController {
@@ -90,7 +91,7 @@ export class LinterWorkerController {
   }
 }
 
-let isRegisterEditorDone = false;
+let isEditorRegistered = false;
 
 const scriptcatMarkerOwner = "ScriptCat";
 const eslintMarkerOwner = "ESLint";
@@ -113,8 +114,8 @@ const getMarkerCode = (marker: editor.IMarkerData) => {
   return typeof marker.code === "string" ? marker.code : marker.code.value;
 };
 
-const getEslintFixKey = (marker: editor.IMarkerData, code: string) => {
-  return `${code}|${marker.startLineNumber}|${marker.endLineNumber}|${marker.startColumn}|${marker.endColumn}`;
+const getEslintFixKey = (marker: editor.IMarkerData, eslintRuleId: string) => {
+  return `${eslintRuleId}|${marker.startLineNumber}|${marker.endLineNumber}|${marker.startColumn}|${marker.endColumn}`;
 };
 
 const createTextEditAction = (
@@ -140,7 +141,7 @@ const createLineReplacementAction = (
   title: string,
   diagnostics: editor.IMarkerData[],
   lineNumber: number,
-  line: string,
+  lineText: string,
   text: string,
   isPreferred: boolean
 ) => {
@@ -153,7 +154,7 @@ const createLineReplacementAction = (
         startLineNumber: lineNumber,
         startColumn: 1,
         endLineNumber: lineNumber,
-        endColumn: line.length + 1,
+        endColumn: lineText.length + 1,
       },
       text,
     },
@@ -171,11 +172,12 @@ const isSimpleValidHost = (hostName: string) => {
   }
 };
 
-const parseMetadataLine = (line: string): MetadataLineParts | null => {
-  const match = metadataFixPattern.exec(line);
-  if (!match) return null;
+const parseMetadataLine = (lineText: string): MetadataLineParts | null => {
+  if (lineText.length < 6 || !lineText.includes("@")) return null;
+  const metadataMatch = metadataFixPattern.exec(lineText);
+  if (!metadataMatch) return null;
 
-  const [, prefix, tag, spacing, value, suffix] = match;
+  const [, prefix, tag, spacing, value, suffix] = metadataMatch;
   return {
     prefix,
     tag,
@@ -204,7 +206,7 @@ const getConnectMetadataFixes = ({ prefix, tag, spacing, value, suffix }: Metada
   const hostName = value.slice(2);
   if (!/\.\w{2,}$/.test(hostName) || !isSimpleValidHost(hostName)) return [];
 
-  const titleTemplate = multiLang.removeConnectWildcard;
+  const titleTemplate = currentEditorLang.removeConnectWildcard;
   return [createMetadataFix(titleTemplate, hostName, `${prefix}${tag}${spacing}${hostName}${suffix}`)];
 };
 
@@ -216,17 +218,22 @@ const getMatchMetadataFixes = ({
   suffix,
 }: MetadataLineParts): MetadataLineFix[] => {
   if (!value || value.startsWith("/")) return [];
-  const match = matchMetadataPattern.exec(value);
-  const host = match?.[2];
-  if (!match || !host?.endsWith(".*") || host.includes("**") || host.includes("\\")) return [];
+  const metadataValueMatch = matchMetadataPattern.exec(value);
+  if (!metadataValueMatch || !metadataValueMatch[2]) return [];
+  const hostPattern = metadataValueMatch[2];
+  const wildcardNormalizedHost = hostPattern
+    .split(".")
+    .map((hostSegment) => (hostSegment.includes("*") ? "*" : hostSegment))
+    .join(".");
+  if (!wildcardNormalizedHost.endsWith(".*") || hostPattern.includes("**") || hostPattern.includes("\\")) return [];
 
-  const hostName = host.slice(0, -2);
+  const hostName = hostPattern.slice(0, -2);
   if (!isSimpleValidHost(hostName.replace(/\*/g, "x"))) return [];
 
   const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
-  const tldValue = `${match[1]}://${hostName}.tld${match[3] || ""}`;
+  const tldValue = `${metadataValueMatch[1]}://${hostName}.tld${metadataValueMatch[3] || ""}`;
 
-  const titleTemplate = multiLang.replaceMatchTldWildcardWithInclude;
+  const titleTemplate = currentEditorLang.replaceMatchTldWildcardWithInclude;
   return [
     createMetadataFix(titleTemplate, tldValue, `${prefix}include${includeSpacing}${tldValue}${suffix}`),
     createMetadataFix(titleTemplate, value, `${prefix}include${includeSpacing}${value}${suffix}`),
@@ -240,19 +247,26 @@ const getIncludeMetadataFixes = ({
   value,
   suffix,
 }: MetadataLineParts): MetadataLineFix[] => {
-  const match = matchMetadataPattern.exec(value);
-  const host = match?.[2];
-  if (!match || !host || host.endsWith(".*") || host.includes("**") || host.endsWith(".tld")) return [];
-  if (host.split(".").every((e) => e === "*" || /^[\w-]+$/.test(e))) {
+  const metadataValueMatch = matchMetadataPattern.exec(value);
+  const hostPattern = metadataValueMatch?.[2];
+  if (
+    !metadataValueMatch ||
+    !hostPattern ||
+    hostPattern.endsWith(".*") ||
+    hostPattern.includes("**") ||
+    hostPattern.endsWith(".tld")
+  )
+    return [];
+  if (hostPattern.split(".").every((hostSegment) => hostSegment === "*" || /^[\w-]+$/.test(hostSegment))) {
     const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
-    const titleTemplate = multiLang.replaceIncludeWithMatch;
+    const titleTemplate = currentEditorLang.replaceIncludeWithMatch;
     return [createMetadataFix(titleTemplate, value, `${prefix}match  ${includeSpacing}${value}${suffix}`)];
   }
   return [];
 };
 
-const getMetadataLineFixes = (line: string): MetadataLineFix[] => {
-  const parts = parseMetadataLine(line);
+const getMetadataLineFixes = (lineText: string): MetadataLineFix[] => {
+  const parts = parseMetadataLine(lineText);
   if (!parts) return [];
 
   switch (parts.normalizedTag) {
@@ -270,18 +284,26 @@ const getMetadataLineFixes = (line: string): MetadataLineFix[] => {
 const getMetadataLineActions = (
   model: editor.ITextModel,
   lineNumber: number,
-  line: string,
+  lineText: string,
   markers: editor.IMarkerData[]
 ): languages.CodeAction[] => {
-  const fixes = getMetadataLineFixes(line);
-  if (fixes.length === 0) return [];
+  const metadataFixes = getMetadataLineFixes(lineText);
+  if (metadataFixes.length === 0) return [];
 
   const diagnostics = markers.filter(
     (marker) => marker.source === scriptcatMarkerOwner && marker.startLineNumber === lineNumber
   );
 
-  return fixes.map((fix, index) =>
-    createLineReplacementAction(model, fix.title, diagnostics, lineNumber, line, fix.text, index === 0)
+  return metadataFixes.map((metadataFix, index) =>
+    createLineReplacementAction(
+      model,
+      metadataFix.title,
+      diagnostics,
+      lineNumber,
+      lineText,
+      metadataFix.text,
+      index === 0
+    )
   );
 };
 
@@ -304,15 +326,15 @@ const getGlobalDeclarationTextEdit = (model: editor.ITextModel, globalName: stri
     };
   }
 
-  const oldLine = model.getLineContent(globalLine);
+  const existingGlobalLineText = model.getLineContent(globalLine);
   return {
     range: {
       startLineNumber: globalLine,
       startColumn: 1,
       endLineNumber: globalLine,
-      endColumn: oldLine.length + 1,
+      endColumn: existingGlobalLineText.length + 1,
     },
-    text: updateGlobalCommentLine(oldLine, globalName),
+    text: updateGlobalCommentLine(existingGlobalLineText, globalName),
   };
 };
 
@@ -322,37 +344,37 @@ const getMarkerCodeActions = (
   eslintFixMap?: Map<string, EslintFix>
 ): languages.CodeAction[] => {
   if (marker.source !== eslintMarkerOwner) return [];
-  const code = getMarkerCode(marker);
-  if (!code) return [];
+  const eslintRuleId = getMarkerCode(marker);
+  if (!eslintRuleId) return [];
 
   const actions: languages.CodeAction[] = [];
 
-  const fix = eslintFixMap?.get(getEslintFixKey(marker, code));
-  if (fix) {
+  const eslintFix = eslintFixMap?.get(getEslintFixKey(marker, eslintRuleId));
+  if (eslintFix) {
     actions.push(
       createTextEditAction(
         model,
-        multiLang.quickfix.replace("{0}", code),
+        currentEditorLang.quickfix.replace("{0}", eslintRuleId),
         [marker],
         {
-          range: fix.range,
-          text: fix.text,
+          range: eslintFix.range,
+          text: eslintFix.text,
         },
         true
       )
     );
   }
 
-  let canApplyEslintSingleLineDisable = true;
+  let canAddEslintDisableNextLine = true;
 
-  switch (code) {
+  switch (eslintRuleId) {
     case "no-undef": {
       const globalName = getNoUndefGlobalName(marker);
       if (globalName) {
         actions.push(
           createTextEditAction(
             model,
-            multiLang.declareGlobal.replace("{0}", globalName),
+            currentEditorLang.declareGlobal.replace("{0}", globalName),
             [marker],
             getGlobalDeclarationTextEdit(model, globalName),
             false
@@ -364,14 +386,14 @@ const getMarkerCodeActions = (
     case "userscripts/align-attributes":
     case "userscripts/better-use-match":
     case "userscripts/no-invalid-headers":
-      canApplyEslintSingleLineDisable = false;
+      canAddEslintDisableNextLine = false;
   }
 
-  if (canApplyEslintSingleLineDisable) {
+  if (canAddEslintDisableNextLine) {
     actions.push(
       createTextEditAction(
         model,
-        multiLang.addEslintDisableNextLine,
+        currentEditorLang.addEslintDisableNextLine,
         [marker],
         {
           range: {
@@ -380,7 +402,7 @@ const getMarkerCodeActions = (
             startColumn: 1,
             endColumn: 1,
           },
-          text: `// eslint-disable-next-line ${code}\n`,
+          text: `// eslint-disable-next-line ${eslintRuleId}\n`,
         },
         true
       )
@@ -389,7 +411,7 @@ const getMarkerCodeActions = (
   actions.push(
     createTextEditAction(
       model,
-      multiLang.addEslintDisable,
+      currentEditorLang.addEslintDisable,
       [marker],
       {
         range: {
@@ -398,7 +420,7 @@ const getMarkerCodeActions = (
           endLineNumber: 1,
           endColumn: 1,
         },
-        text: `/* eslint-disable ${code} */\n`,
+        text: `/* eslint-disable ${eslintRuleId} */\n`,
       },
       true
     )
@@ -413,8 +435,8 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   const markers: editor.IMarkerData[] = [];
   const lineCount = model.getLineCount();
   for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
-    const line = model.getLineContent(lineNumber);
-    const metadataLineFixes = getMetadataLineFixes(line);
+    const lineText = model.getLineContent(lineNumber);
+    const metadataLineFixes = getMetadataLineFixes(lineText);
     if (metadataLineFixes.length === 0) continue;
 
     markers.push({
@@ -424,7 +446,7 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
       startLineNumber: lineNumber,
       startColumn: 1,
       endLineNumber: lineNumber,
-      endColumn: line.length + 1,
+      endColumn: lineText.length + 1,
     });
   }
 
@@ -432,15 +454,15 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
 };
 
 const registerScriptcatMetadataMarkerProvider = () => {
-  const registerModel = (model: editor.ITextModel) => {
+  const registerMetadataModel = (model: editor.ITextModel) => {
     updateScriptcatMetadataMarkers(model);
     model.onDidChangeContent(() => {
       updateScriptcatMetadataMarkers(model);
     });
   };
 
-  editor.getModels().forEach(registerModel);
-  editor.onDidCreateModel(registerModel);
+  editor.getModels().forEach(registerMetadataModel);
+  editor.onDidCreateModel(registerMetadataModel);
 };
 
 /**
@@ -449,8 +471,8 @@ const registerScriptcatMetadataMarkerProvider = () => {
  */
 export function registerEditor() {
   // 避免重复注册
-  if (isRegisterEditorDone) return;
-  isRegisterEditorDone = true;
+  if (isEditorRegistered) return;
+  isEditorRegistered = true;
 
   // worker 初始化：复用已有 worker 或创建新的
   const existingEnvironment = getMonacoEnvironment();
@@ -485,23 +507,23 @@ export function registerEditor() {
 
   languages.registerHoverProvider("javascript", {
     provideHover: (model, position) => {
-      const line = model.getLineContent(position.lineNumber);
-      const match = metaLinePattern.exec(line);
+      const lineText = model.getLineContent(position.lineNumber);
+      const metadataCommentMatch = metaLinePattern.exec(lineText);
 
-      if (match) {
-        const key = match[1].toLowerCase() as keyof EditorLangEntryPrompt;
+      if (metadataCommentMatch) {
+        const metadataTag = metadataCommentMatch[1].toLowerCase() as keyof EditorLangEntryPrompt;
         return {
           contents: [
             {
-              value: promptByLowerCase[key] || multiLang.undefinedPrompt,
+              value: promptByMetadataTag[metadataTag] || currentEditorLang.undefinedPrompt,
               supportHtml: true,
             },
           ],
         };
       }
 
-      if (/==UserScript==/.test(line)) {
-        return { contents: [{ value: multiLang.thisIsAUserScript }] };
+      if (/==UserScript==/.test(lineText)) {
+        return { contents: [{ value: currentEditorLang.thisIsAUserScript }] };
       }
 
       return null;
@@ -513,9 +535,9 @@ export function registerEditor() {
     {
       provideCodeActions: (model /** ITextModel */, range /** Range */, context /** CodeActionContext */) => {
         const eslintFixMap = getMonacoEnvironment()?.eslintFixMap;
-        const line = model.getLineContent(range.startLineNumber);
+        const lineText = model.getLineContent(range.startLineNumber);
         const actions = [
-          ...getMetadataLineActions(model, range.startLineNumber, line, context.markers),
+          ...getMetadataLineActions(model, range.startLineNumber, lineText, context.markers),
           ...context.markers.flatMap((marker) => getMarkerCodeActions(model, marker, eslintFixMap)),
         ];
 
