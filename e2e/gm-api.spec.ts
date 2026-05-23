@@ -152,12 +152,18 @@ test.describe("GM API", () => {
   // Two-phase launch + script install + network fetches + permission dialogs
   test.setTimeout(300_000);
 
-  test("GM_ sync API tests (gm_api_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(context, extensionId, "gm_api_test.js", TARGET_URL, 90_000);
+  test("GM_ sync API tests (gm_api_sync_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_api_sync_test.js",
+      `${TARGET_URL}?gm_api_sync`,
+      90_000
+    );
 
-    console.log(`[gm_api_test] passed=${passed}, failed=${failed}`);
+    console.log(`[gm_api_sync_test] passed=${passed}, failed=${failed}`);
     if (failed !== 0) {
-      console.log("[gm_api_test] logs:", logs.join("\n"));
+      console.log("[gm_api_sync_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some GM_ sync API tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
@@ -168,7 +174,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "gm_api_async_test.js",
-      TARGET_URL,
+      `${TARGET_URL}?gm_api_async`,
       90_000
     );
 
@@ -185,7 +191,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "inject_content_test.js",
-      TARGET_URL,
+      `${TARGET_URL}?inject_content`,
       60_000
     );
 
