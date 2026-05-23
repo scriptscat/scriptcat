@@ -1,6 +1,6 @@
 import { systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
-import { editor, languages, MarkerSeverity } from "monaco-editor";
+import { editor, languages, MarkerSeverity, type IRange } from "monaco-editor";
 import { findGlobalInsertionInfo, updateGlobalCommentLine } from "./utils";
 import type { EditorLangCode, EditorPrompt } from "./langs";
 import { asEditorLangEntry, editorLangs } from "./langs";
@@ -9,6 +9,34 @@ import { deferred } from "../utils";
 interface ILinterWorker extends Worker {
   myLinterHook: EventEmitter<string, any>;
 }
+
+type EslintFix = {
+  range: IRange;
+  text: string;
+};
+
+type MetadataLineParts = {
+  prefix: string;
+  tag: string;
+  normalizedTag: MetadataTag;
+  spacing: string;
+  value: string;
+  suffix: string;
+};
+
+type MetadataTag = "connect" | "match";
+
+type MetadataLineFix = {
+  title: string;
+  text: string;
+};
+
+type TextEdit = languages.IWorkspaceTextEdit["textEdit"];
+
+type ScriptcatMonacoEnvironment = typeof window.MonacoEnvironment & {
+  myLinterWorker?: ILinterWorker;
+  eslintFixMap?: Map<string, EslintFix>;
+};
 
 // 注册 eslint worker（全局单例）
 const linterWorkerDeferred = deferred<ILinterWorker>();
@@ -54,59 +82,279 @@ export class LinterWorkerController {
 let isRegisterEditorDone = false;
 
 const scriptcatMarkerOwner = "ScriptCat";
+const quickfixKind = "quickfix";
+const noop = () => {};
+const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
+const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match)([ \t]+)(\S+)(.*)$/i;
+const matchMetadataPattern = /^(\*|[-a-z]+|http\*):\/\/([^/]+)(\/.*)?$/i;
+const noUndefMessagePattern = /^[^']*'([^']+)'[^']*$/;
 
-const isSimpleValidHost = (hostName: string) => {
-  let ret = false;
-  try {
-    ret = hostName.length > 0 && new URL(`https://${hostName}.com/path`).origin === `https://${hostName}.com`;
-  } catch {
-    // ignored
-  }
-  return ret;
+const getMonacoEnvironment = () => window.MonacoEnvironment as ScriptcatMonacoEnvironment | undefined;
+
+const ensureEslintFixMap = (environment: ScriptcatMonacoEnvironment) => {
+  environment.eslintFixMap ??= new Map();
+  return environment.eslintFixMap;
 };
 
-const getMetadataLineFixes = (line: string) => {
-  const match = /^(\s*\/\/[ \t]*@)(connect|match)([ \t]+)(\S+)(.*)$/i.exec(line);
-  if (!match) return [];
+const getMarkerCode = (marker: editor.IMarkerData) => {
+  if (!marker.code) return "";
+  return typeof marker.code === "string" ? marker.code : marker.code.value;
+};
+
+const getEslintFixKey = (marker: editor.IMarkerData, code: string) => {
+  return `${code}|${marker.startLineNumber}|${marker.endLineNumber}|${marker.startColumn}|${marker.endColumn}`;
+};
+
+const createTextEditAction = (
+  model: editor.ITextModel,
+  title: string,
+  diagnostics: editor.IMarkerData[],
+  textEdit: TextEdit,
+  isPreferred: boolean
+) => {
+  return {
+    title,
+    diagnostics,
+    kind: quickfixKind,
+    edit: {
+      edits: [{ resource: model.uri, textEdit, versionId: undefined }],
+    },
+    isPreferred,
+  } satisfies languages.CodeAction;
+};
+
+const createLineReplacementAction = (
+  model: editor.ITextModel,
+  title: string,
+  diagnostics: editor.IMarkerData[],
+  lineNumber: number,
+  line: string,
+  text: string,
+  isPreferred: boolean
+) => {
+  return createTextEditAction(
+    model,
+    title,
+    diagnostics,
+    {
+      range: {
+        startLineNumber: lineNumber,
+        startColumn: 1,
+        endLineNumber: lineNumber,
+        endColumn: line.length + 1,
+      },
+      text,
+    },
+    isPreferred
+  );
+};
+
+const isSimpleValidHost = (hostName: string) => {
+  if (!hostName) return false;
+  try {
+    hostName = hostName.toLowerCase();
+    return new URL(`https://${hostName}.com/path`).origin === `https://${hostName}.com`;
+  } catch {
+    return false;
+  }
+};
+
+const parseMetadataLine = (line: string): MetadataLineParts | null => {
+  const match = metadataFixPattern.exec(line);
+  if (!match) return null;
 
   const [, prefix, tag, spacing, value, suffix] = match;
-  if (tag === "connect" && value.length > 2 && value.startsWith("*.")) {
-    const hostName = value.slice(2);
-    if (/\.\w{2,}$/.test(hostName) && isSimpleValidHost(hostName)) {
-      return [
+  return {
+    prefix,
+    tag,
+    normalizedTag: tag.toLowerCase() as MetadataTag,
+    spacing,
+    value,
+    suffix,
+  };
+};
+
+const createMetadataFix = (titleTemplate: string, titleValue: string, text: string): MetadataLineFix => {
+  return {
+    title: titleTemplate.replace("{0}", titleValue),
+    text,
+  };
+};
+
+const getIncludeSpacing = (spacing: string, tag: string) => {
+  const lenDiff = "include".length - tag.length;
+  return lenDiff > 0 && spacing.length > lenDiff ? spacing.slice(0, -lenDiff) : spacing;
+};
+
+const getConnectMetadataFixes = ({ prefix, tag, spacing, value, suffix }: MetadataLineParts): MetadataLineFix[] => {
+  if (!value.startsWith("*.") || value.includes("**")) return [];
+
+  const hostName = value.slice(2);
+  if (!/\.\w{2,}$/.test(hostName) || !isSimpleValidHost(hostName)) return [];
+
+  const titleTemplate = multiLang.replaceConnectWildcard;
+  return [createMetadataFix(titleTemplate, hostName, `${prefix}${tag}${spacing}${hostName}${suffix}`)];
+};
+
+const getMatchMetadataFixes = ({
+  prefix,
+  normalizedTag,
+  spacing,
+  value,
+  suffix,
+}: MetadataLineParts): MetadataLineFix[] => {
+  const match = matchMetadataPattern.exec(value);
+  const host = match?.[2];
+  if (!match || !host?.endsWith(".*") || host.includes("**")) return [];
+
+  const hostName = host.slice(0, -2);
+  if (!isSimpleValidHost(hostName.replace(/\*/g, "x"))) return [];
+
+  const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
+  const tldValue = `${match[1]}://${hostName}.tld${match[3] || ""}`;
+
+  const titleTemplate = multiLang.replaceMatchWildcard;
+  return [
+    createMetadataFix(titleTemplate, tldValue, `${prefix}include${includeSpacing}${tldValue}${suffix}`),
+    createMetadataFix(titleTemplate, value, `${prefix}include${includeSpacing}${value}${suffix}`),
+  ];
+};
+
+const getMetadataLineFixes = (line: string): MetadataLineFix[] => {
+  const parts = parseMetadataLine(line);
+  if (!parts) return [];
+
+  switch (parts.normalizedTag) {
+    case "connect":
+      return getConnectMetadataFixes(parts);
+    case "match":
+      return getMatchMetadataFixes(parts);
+    default:
+      return [];
+  }
+};
+
+const getMetadataLineActions = (
+  actions: languages.CodeAction[],
+  model: editor.ITextModel,
+  lineNumber: number,
+  line: string,
+  markers: editor.IMarkerData[]
+) => {
+  const fixes = getMetadataLineFixes(line);
+  if (fixes.length === 0) return;
+
+  const diagnostics = markers.filter(
+    (marker) => marker.source === scriptcatMarkerOwner && marker.startLineNumber === lineNumber
+  );
+
+  for (let index = 0; index < fixes.length; index += 1) {
+    const fix = fixes[index];
+    actions.push(createLineReplacementAction(model, fix.title, diagnostics, lineNumber, line, fix.text, index === 0));
+  }
+};
+
+const getNoUndefGlobalName = (marker: editor.IMarkerData) => {
+  return noUndefMessagePattern.exec(marker.message)?.[1] || null;
+};
+
+const getGlobalDeclarationTextEdit = (model: editor.ITextModel, globalName: string): TextEdit => {
+  const { insertLine, globalLine } = findGlobalInsertionInfo(model);
+
+  if (globalLine == null) {
+    return {
+      range: {
+        startLineNumber: insertLine,
+        startColumn: 1,
+        endLineNumber: insertLine,
+        endColumn: 1,
+      },
+      text: `/* global ${globalName} */\n`,
+    };
+  }
+
+  const oldLine = model.getLineContent(globalLine);
+  return {
+    range: {
+      startLineNumber: globalLine,
+      startColumn: 1,
+      endLineNumber: globalLine,
+      endColumn: oldLine.length + 1,
+    },
+    text: updateGlobalCommentLine(oldLine, globalName),
+  };
+};
+
+const appendMarkerCodeActions = (
+  actions: languages.CodeAction[],
+  model: editor.ITextModel,
+  marker: editor.IMarkerData,
+  eslintFixMap?: Map<string, EslintFix>
+) => {
+  const code = getMarkerCode(marker);
+  if (!code) return;
+
+  const fix = eslintFixMap?.get(getEslintFixKey(marker, code));
+  if (fix) {
+    actions.push(
+      createTextEditAction(
+        model,
+        multiLang.quickfix.replace("{0}", code),
+        [marker],
         {
-          title: multiLang.replaceConnectWildcard.replace("{0}", hostName),
-          text: `${prefix}${tag}${spacing}${hostName}${suffix}`,
+          range: fix.range,
+          text: fix.text,
         },
-      ];
-    }
+        true
+      )
+    );
   }
 
-  if (tag === "match") {
-    const matchPattern = /^(\*|[-a-z]+|http\*):\/\/([^/]+)(\/.*)?$/i.exec(value);
-    const host = matchPattern?.[2];
-    if (host && host.endsWith(".*")) {
-      const hostName = host.slice(0, -2);
-      if (isSimpleValidHost(hostName)) {
-        const lenDiff = "include".length - tag.length;
-        let s = spacing;
-        if (lenDiff > 0 && s.length > lenDiff) s = s.slice(0, -lenDiff);
-        const tldValue = `${matchPattern[1]}://${hostName}.tld${matchPattern[3] || ""}`;
-        return [
-          {
-            title: multiLang.replaceMatchWildcard.replace("{0}", value),
-            text: `${prefix}include${s}${value}${suffix}`,
-          },
-          {
-            title: multiLang.replaceMatchWildcard.replace("{0}", tldValue),
-            text: `${prefix}include${s}${tldValue}${suffix}`,
-          },
-        ];
-      }
-    }
+  const globalName = code === "no-undef" ? getNoUndefGlobalName(marker) : null;
+  if (globalName) {
+    actions.push(
+      createTextEditAction(
+        model,
+        multiLang.declareGlobal.replace("{0}", globalName),
+        [marker],
+        getGlobalDeclarationTextEdit(model, globalName),
+        false
+      )
+    );
   }
 
-  return [];
+  actions.push(
+    createTextEditAction(
+      model,
+      multiLang.addEslintDisableNextLine,
+      [marker],
+      {
+        range: {
+          startLineNumber: marker.startLineNumber,
+          endLineNumber: marker.startLineNumber,
+          startColumn: 1,
+          endColumn: 1,
+        },
+        text: `// eslint-disable-next-line ${code}\n`,
+      },
+      true
+    ),
+    createTextEditAction(
+      model,
+      multiLang.addEslintDisable,
+      [marker],
+      {
+        range: {
+          startLineNumber: 1,
+          startColumn: 1,
+          endLineNumber: 1,
+          endColumn: 1,
+        },
+        text: `/* eslint-disable ${code} */\n`,
+      },
+      true
+    )
+  );
 };
 
 const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
@@ -155,8 +403,10 @@ export function registerEditor() {
   isRegisterEditorDone = true;
 
   // worker 初始化：复用已有 worker 或创建新的
-  if ((window.MonacoEnvironment as any)?.myLinterWorker) {
-    linterWorkerDeferred.resolve((window.MonacoEnvironment as any)?.myLinterWorker);
+  const existingEnvironment = getMonacoEnvironment();
+  if (existingEnvironment?.myLinterWorker) {
+    ensureEslintFixMap(existingEnvironment);
+    linterWorkerDeferred.resolve(existingEnvironment.myLinterWorker);
   } else {
     const linterWorker = new Worker("/src/linter.worker.js") as ILinterWorker;
     linterWorker.myLinterHook = new EventEmitter<string, any>();
@@ -166,51 +416,45 @@ export function registerEditor() {
     };
 
     window.MonacoEnvironment = {
-      getWorkerUrl(moduleId: any, label: any) {
+      ...existingEnvironment,
+      getWorkerUrl(_moduleId: unknown, label: string) {
         if (label === "typescript" || label === "javascript") {
           return "/src/ts.worker.js";
         }
         return "/src/editor.worker.js";
       },
-    };
-
-    Object.assign(window.MonacoEnvironment, {
       myLinterWorker: linterWorker,
-      eslintFixMap: new Map(),
-    });
+      eslintFixMap: new Map<string, EslintFix>(),
+    } as ScriptcatMonacoEnvironment;
 
     linterWorkerDeferred.resolve(linterWorker);
   }
 
   // provider 注册始终执行，不受 worker 复用影响
-  const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
-
   registerScriptcatMetadataMarkerProvider();
 
   languages.registerHoverProvider("javascript", {
     provideHover: (model, position) => {
-      return new Promise((resolve) => {
-        const line = model.getLineContent(position.lineNumber);
-        const m = META_LINE.exec(line);
-        if (m) {
-          const key = m[1] as keyof EditorPrompt;
-          const prompt = multiLang.prompt;
-          resolve({
-            contents: [
-              {
-                value: prompt[key] || multiLang.undefinedPrompt,
-                supportHtml: true,
-              },
-            ],
-          });
-        } else if (/==UserScript==/.test(line)) {
-          resolve({
-            contents: [{ value: multiLang.thisIsAUserScript }],
-          });
-        } else {
-          resolve(null);
-        }
-      });
+      const line = model.getLineContent(position.lineNumber);
+      const match = metaLinePattern.exec(line);
+
+      if (match) {
+        const key = match[1] as keyof EditorPrompt;
+        return {
+          contents: [
+            {
+              value: multiLang.prompt[key] || multiLang.undefinedPrompt,
+              supportHtml: true,
+            },
+          ],
+        };
+      }
+
+      if (/==UserScript==/.test(line)) {
+        return { contents: [{ value: multiLang.thisIsAUserScript }] };
+      }
+
+      return null;
     },
   });
 
@@ -218,191 +462,17 @@ export function registerEditor() {
     "javascript",
     {
       provideCodeActions: (model /** ITextModel */, range /** Range */, context /** CodeActionContext */) => {
+        const eslintFixMap = getMonacoEnvironment()?.eslintFixMap;
+        const line = model.getLineContent(range.startLineNumber);
         const actions: languages.CodeAction[] = [];
-        const eslintFixMap = <Map<string, any>>(window.MonacoEnvironment as any)?.eslintFixMap;
-        const metadataLineFixes = getMetadataLineFixes(model.getLineContent(range.startLineNumber));
-        const scriptcatDiagnostics = context.markers.filter(
-          (marker) => marker.source === scriptcatMarkerOwner && marker.startLineNumber === range.startLineNumber
-        );
 
-        if (metadataLineFixes.length > 0) {
-          const line = model.getLineContent(range.startLineNumber);
-          metadataLineFixes.forEach((metadataLineFix, index) =>
-            actions.push({
-              title: metadataLineFix.title,
-              diagnostics: scriptcatDiagnostics,
-              kind: "quickfix",
-              edit: {
-                edits: [
-                  {
-                    resource: model.uri,
-                    textEdit: {
-                      range: {
-                        startLineNumber: range.startLineNumber,
-                        startColumn: 1,
-                        endLineNumber: range.startLineNumber,
-                        endColumn: line.length + 1,
-                      },
-                      text: metadataLineFix.text,
-                    },
-                    versionId: undefined,
-                  },
-                ],
-              },
-              isPreferred: index === 0,
-            } satisfies languages.CodeAction)
-          );
+        getMetadataLineActions(actions, model, range.startLineNumber, line, context.markers);
+
+        for (const marker of context.markers) {
+          appendMarkerCodeActions(actions, model, marker, eslintFixMap);
         }
 
-        for (let i = 0; i < context.markers.length; i++) {
-          // 判断有没有修复方案
-          const val = context.markers[i];
-          if (!val.code) continue;
-          const code = typeof val.code === "string" ? val.code : val.code!.value;
-
-          // 1. eslint-fix
-          const baseKey = `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`;
-          const fix = eslintFixMap?.get(baseKey);
-          if (fix) {
-            actions.push({
-              title: multiLang.quickfix.replace("{0}", code),
-              diagnostics: [val],
-              kind: "quickfix",
-              edit: {
-                edits: [
-                  {
-                    resource: model.uri,
-                    textEdit: {
-                      range: fix.range,
-                      text: fix.text,
-                    },
-                    versionId: undefined,
-                  },
-                ],
-              },
-              isPreferred: true,
-            } satisfies languages.CodeAction);
-          }
-
-          // 2. no-undef → /* global */
-          if (code === "no-undef") {
-            const message = val.message || "";
-            const match = message.match(/^[^']*'([^']+)'[^']*$/);
-            const globalName = match?.[1];
-
-            if (globalName) {
-              const { insertLine, globalLine } = findGlobalInsertionInfo(model);
-              let textEdit: languages.IWorkspaceTextEdit["textEdit"];
-
-              if (globalLine != null) {
-                // there is already a /* global ... */ line → update it
-                const oldLine = model.getLineContent(globalLine);
-                const newLine = updateGlobalCommentLine(oldLine, globalName);
-                textEdit = {
-                  range: {
-                    startLineNumber: globalLine,
-                    startColumn: 1,
-                    endLineNumber: globalLine,
-                    endColumn: oldLine.length + 1,
-                  },
-                  text: newLine,
-                };
-              } else {
-                // no global line yet → insert a new one
-                textEdit = {
-                  range: {
-                    startLineNumber: insertLine,
-                    startColumn: 1,
-                    endLineNumber: insertLine,
-                    endColumn: 1,
-                  },
-                  text: `/* global ${globalName} */\n`,
-                };
-              }
-
-              actions.push({
-                title: multiLang.declareGlobal.replace("{0}", globalName),
-                diagnostics: [val],
-                kind: "quickfix",
-                edit: {
-                  edits: [{ resource: model.uri, textEdit, versionId: undefined }],
-                },
-                isPreferred: false,
-              } satisfies languages.CodeAction);
-            }
-          }
-
-          // 3. disable-next-line / disable
-          actions.push({
-            title: multiLang.addEslintDisableNextLine,
-            diagnostics: [val],
-            kind: "quickfix",
-            edit: {
-              edits: [
-                {
-                  resource: model.uri,
-                  textEdit: {
-                    range: {
-                      startLineNumber: val.startLineNumber,
-                      endLineNumber: val.startLineNumber,
-                      startColumn: 1,
-                      endColumn: 1,
-                    },
-                    text: `// eslint-disable-next-line ${code}\n`,
-                  },
-                  versionId: undefined,
-                },
-              ],
-            },
-            isPreferred: true,
-          } satisfies languages.CodeAction);
-
-          actions.push({
-            title: multiLang.addEslintDisable,
-            diagnostics: [val],
-            kind: "quickfix",
-            edit: {
-              edits: [
-                {
-                  resource: model.uri,
-                  textEdit: {
-                    range: {
-                      startLineNumber: 1,
-                      startColumn: 1,
-                      endLineNumber: 1,
-                      endColumn: 1,
-                    },
-                    text: `/* eslint-disable ${code} */\n`,
-                  },
-                  versionId: undefined,
-                },
-              ],
-            },
-            isPreferred: true,
-          } satisfies languages.CodeAction);
-        }
-
-        // const actions = context.markers.map((error) => {
-        //   const edit: languages.IWorkspaceTextEdit = {
-        //     resource: model.uri,
-        //     textEdit: {
-        //       range,
-        //       text: "console.log(1)",
-        //     },
-        //     versionId: undefined,
-        //   };
-        //   return <languages.CodeAction>{
-        //     title: ``,
-        //     diagnostics: [error],
-        //     kind: "quickfix",
-        //     edit: {
-        //       edits: [edit],
-        //     },
-        //     isPreferred: true,
-        //   };
-        // });
-
-        return { actions, dispose: () => {} };
+        return { actions, dispose: noop };
       },
     },
     { providedCodeActionKinds: ["quickfix"] }
