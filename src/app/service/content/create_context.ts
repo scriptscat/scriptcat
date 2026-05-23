@@ -199,7 +199,15 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
       descsCache.add(key); // 必须：子类属性覆盖父类属性
     } else if (!(key in initOwnDescs) && !Object.hasOwn(global, key)) {
       if (!protoBaseDescs[key]) {
-        protoBaseDescs[key] = { ...desc };
+        if (typeof value === "function") {
+          const boundValue = value.bind(global);
+          protoBaseDescs[key] = {
+            ...desc,
+            value: boundValue,
+          };
+        } else {
+          protoBaseDescs[key] = { ...desc };
+        }
       }
     }
   } else {
