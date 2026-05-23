@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { configs } = require("eslint-plugin-userscripts");
+import { configs } from "eslint-plugin-userscripts";
 
 // 默认规则
 const config = {
@@ -81,7 +80,7 @@ const config = {
     "use-isnan": ["error"],
     "valid-typeof": ["error"],
     ...configs.recommended.rules,
-  },
+  } as Record<string, any>,
   env: {
     es6: true,
     browser: true,
@@ -92,6 +91,14 @@ const config = {
 // 调整规则
 config.rules["userscripts/align-attributes"] = ["warn", 2];
 config.rules["userscripts/require-download-url"] = ["warn"];
+
+// ScriptCat 不适用 - 有必要存在的用法
+// 不是所有 @include 都要改为 @match。改用自定义处理
+config.rules["userscripts/better-use-match"] = [];
+// 不是 @name @name:en @name:zh-CN @name:zh-TW @name:ja 都要放在最前。这个连 warning 也很无谓
+config.rules["userscripts/require-name"] = [];
+// ScriptCat 不用指定 ==UserScript== 放最前。在 ==UserScript== 前面可以写其他注释, 例如是 License。 不视为 invalid
+config.rules["userscripts/no-invalid-metadata"] = [];
 
 // 以文本形式导出默认规则
 export const defaultConfig = JSON.stringify(config, null, 2);

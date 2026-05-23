@@ -5,29 +5,9 @@ import { rules } from "eslint-plugin-userscripts";
 
 const linter = new Linter({ configType: "eslintrc" });
 
-// ScriptCat 不适用 - 有必要存在的用法
-const omitKeys = new Set([
-  // 不是所有 @include 都要改为 @match
-  "better-use-match",
-  // 不是 @name @name:en @name:zh-CN @name:zh-TW @name:ja 都要放在最前
-  "require-name",
-  // ScriptCat 不用指定 ==UserScript== 放最前。在 ==UserScript== 前面可以写其他注释, 例如是 License
-  "no-invalid-metadata",
-]);
-
 // 额外定义 userscripts 规则
 const formatRules: typeof rules = Object.fromEntries(
-  Object.entries(rules).map(([key, metas]) => [
-    "userscripts/" + key,
-    omitKeys.has(key)
-      ? {
-          meta: {},
-          create() {
-            return { CallExpression() {} };
-          },
-        }
-      : metas,
-  ])
+  Object.entries(rules).map(([key, metas]) => ["userscripts/" + key, metas])
 );
 linter.defineRules(formatRules);
 
