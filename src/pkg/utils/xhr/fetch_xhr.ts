@@ -394,7 +394,6 @@ export class FetchXHR {
         this.onerror?.({ type: "error" }, (err || "Unknown Error") as Error | string);
       }
     } finally {
-      resolve();
       this.controller = null;
       if (this.timeoutId != null) {
         clearTimeout(this.timeoutId);
