@@ -10,9 +10,9 @@ const linter = new Linter({ configType: "eslintrc" });
 const omitKeys = new Set([
   // 不是所有 @include 都要改为 @match
   "better-use-match",
-  // 不是所有语言的 @name 都要放在最前
+  // 不是 @name @name:en @name:zh-CN @name:zh-TW @name:ja 都要放在最前
   "require-name",
-  // ScriptCat 不用指定 ==UserScript== 放最前。在 ==UserScript== 前面可以写其他注释
+  // ScriptCat 不用指定 ==UserScript== 放最前。在 ==UserScript== 前面可以写其他注释, 例如是 License
   "no-invalid-metadata",
 ]);
 
