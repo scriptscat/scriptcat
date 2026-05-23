@@ -296,20 +296,26 @@ const getMatchMetadataFixes = ({
   const tldValue = `${metadataValueMatch[1]}://${hostName}.tld${metadataValueMatch[3] || ""}`;
 
   const titleTemplate = currentEditorLang.replaceMatchTldWildcardWithInclude;
-  return [
-    createMetadataFix(
-      scriptcatReplaceMatchTldWildcardRuleId,
-      titleTemplate,
-      tldValue,
-      `${prefix}include${includeSpacing}${tldValue}${suffix}`
-    ),
+  const actions = [];
+  if (hostPattern.endsWith(".*")) {
+    actions.push(
+      createMetadataFix(
+        scriptcatReplaceMatchTldWildcardRuleId,
+        titleTemplate,
+        tldValue,
+        `${prefix}include${includeSpacing}${tldValue}${suffix}`
+      )
+    );
+  }
+  actions.push(
     createMetadataFix(
       scriptcatReplaceMatchTldWildcardRuleId,
       titleTemplate,
       value,
       `${prefix}include${includeSpacing}${value}${suffix}`
-    ),
-  ];
+    )
+  );
+  return actions;
 };
 
 const getIncludeMetadataFixes = ({
