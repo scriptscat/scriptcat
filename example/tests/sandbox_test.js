@@ -893,13 +893,19 @@
       () => {},
     ));
 
-  await test("eval 保持可用，并在当前沙盒内解析全局", () => {
-    const key = `${markerPrefix}_eval`;
-    eval(`window["${key}"] = "from-eval";`);
-    assertSame("from-eval", window[key], "eval 应能写入沙盒 window");
-    assertSame(undefined, unsafeWindow[key], "eval 写入不应穿透页面 window");
-    delete window[key];
-  });
+  if (location.origin.includes("content-security-policy")) {
+    // CSP 不测试 eval
+  } else {
+    // eval 不一定能通过
+    // 这跟沙盒无关。不应进行此测试
+    await test("eval 保持可用，并在当前沙盒内解析全局", () => {
+      const key = `${markerPrefix}_eval`;
+      eval(`window["${key}"] = "from-eval";`);
+      assertSame("from-eval", window[key], "eval 应能写入沙盒 window");
+      assertSame(undefined, unsafeWindow[key], "eval 写入不应穿透页面 window");
+      delete window[key];
+    });
+  }
 
   console.log(
     "\n%c=== 测试完成 ===",
