@@ -307,6 +307,7 @@ export const editorLangs = {
     removeConnectWildcard: "移除 @connect 通配符，改为 {0}",
     replaceMatchTldWildcardWithInclude: "将 @match 顶级域名通配符改为 @include {0}",
     replaceIncludeWithMatch: "将 @include 改为 @match {0}",
+    grantConflict: "@grant none 不能和 GM API 同时使用；请移除 none 或所有 GM API。",
     grantValuePrompts: grantValuePromptsZhCN,
     prompt: {
       name: "脚本名称",
@@ -394,6 +395,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     removeConnectWildcard: "Remove @connect wildcard: {0}",
     replaceMatchTldWildcardWithInclude: "Replace @match TLD wildcard with @include {0}",
     replaceIncludeWithMatch: "Replace @include with @match {0}",
+    grantConflict: "@grant none cannot be used with GM APIs. Remove none or all GM APIs.",
     grantValuePrompts: grantValuePromptsEnUS,
     prompt: {
       name: "Script name",
@@ -480,6 +482,7 @@ tracking: This script tracks your user information`.replace(/\n/g, "<br>"),
     removeConnectWildcard: "移除 @connect 萬用字元，改為 {0}",
     replaceMatchTldWildcardWithInclude: "將 @match 頂級網域萬用字元改為 @include {0}",
     replaceIncludeWithMatch: "將 @include 改為 @match {0}",
+    grantConflict: "@grant none 不能和 GM API 同時使用；請移除 none 或所有 GM API。",
     grantValuePrompts: grantValuePromptsZhTW,
     prompt: {
       name: "腳本名稱",
@@ -566,6 +569,7 @@ tracking：此腳本會追蹤您的使用者資訊`.replace(/\n/g, "<br>"),
     removeConnectWildcard: "@connect のワイルドカードを削除: {0}",
     replaceMatchTldWildcardWithInclude: "@match の TLD ワイルドカードを @include {0} に置換",
     replaceIncludeWithMatch: "@include を @match {0} に置換",
+    grantConflict: "@grant none は GM API と同時に使えません。none またはすべての GM API を削除してください。",
     grantValuePrompts: grantValuePromptsJaJP,
     prompt: {
       name: "スクリプト名",
@@ -652,6 +656,8 @@ tracking：このスクリプトはユーザー情報を追跡します`.replace
     removeConnectWildcard: "@connect-Wildcard entfernen: {0}",
     replaceMatchTldWildcardWithInclude: "@match-TLD-Wildcard durch @include {0} ersetzen",
     replaceIncludeWithMatch: "@include durch @match {0} ersetzen",
+    grantConflict:
+      "@grant none kann nicht zusammen mit GM-APIs verwendet werden. Entfernen Sie none oder alle GM-APIs.",
     grantValuePrompts: grantValuePromptsDeDE,
     prompt: {
       name: "Skriptname",
@@ -739,6 +745,7 @@ tracking: Dieses Skript verfolgt Ihre Benutzerinformationen`.replace(/\n/g, "<br
     removeConnectWildcard: "Bỏ ký tự đại diện @connect: {0}",
     replaceMatchTldWildcardWithInclude: "Thay wildcard TLD @match bằng @include {0}",
     replaceIncludeWithMatch: "Thay @include bằng @match {0}",
+    grantConflict: "@grant none không thể dùng cùng GM API. Hãy xóa none hoặc tất cả GM API.",
     grantValuePrompts: grantValuePromptsViVN,
     prompt: {
       name: "Tên script",
@@ -825,6 +832,7 @@ tracking: Script này theo dõi thông tin người dùng của bạn`.replace(/
     removeConnectWildcard: "Удалить wildcard @connect: {0}",
     replaceMatchTldWildcardWithInclude: "Заменить TLD wildcard @match на @include {0}",
     replaceIncludeWithMatch: "Заменить @include на @match {0}",
+    grantConflict: "@grant none нельзя использовать вместе с GM API. Удалите none или все GM API.",
     grantValuePrompts: grantValuePromptsRuRU,
     prompt: {
       name: "Имя скрипта",

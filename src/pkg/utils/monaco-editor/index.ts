@@ -117,6 +117,7 @@ const scriptcatMetadataAlignmentRuleId = "scriptcat/align-metadata-attributes";
 const scriptcatRemoveConnectWildcardRuleId = "scriptcat/remove-connect-wildcard";
 const scriptcatReplaceMatchTldWildcardRuleId = "scriptcat/replace-match-tld-wildcard-with-include";
 const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-match";
+const scriptcatGrantNoneConflictRuleId = "scriptcat/grant-none-conflict";
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
@@ -175,6 +176,8 @@ const getGrantValueHoverPrompt = (lineText: string, column: number) => {
 
   return `\`${grantValue}\`<br>${prompt}`;
 };
+
+const getMetadataValueToken = (value: string) => /^\S+/.exec(value)?.[0] || "";
 
 const createTextEditAction = (
   model: editor.ITextModel,
@@ -558,6 +561,38 @@ const getMetadataAlignmentActions = (
   ];
 };
 
+const getGrantNoneConflictMarkers = (model: editor.ITextModel): editor.IMarkerData[] => {
+  const markers: editor.IMarkerData[] = [];
+
+  for (const block of getMetadataAlignmentBlocks(model)) {
+    const grantLines = block.lines
+      .map((line) => ({
+        ...line,
+        grantValue: getMetadataValueToken(line.value),
+      }))
+      .filter((line) => line.tag.toLowerCase() === "grant" && line.grantValue);
+    const hasNone = grantLines.some((line) => line.grantValue === "none");
+    const hasGmApi = grantLines.some((line) => line.grantValue.startsWith("GM"));
+    if (!hasNone || !hasGmApi) continue;
+
+    for (const line of grantLines) {
+      if (line.grantValue !== "none" && !line.grantValue.startsWith("GM")) continue;
+      markers.push({
+        severity: MarkerSeverity.Warning,
+        message: currentEditorLang.grantConflict,
+        source: scriptcatMarkerOwner,
+        code: scriptcatGrantNoneConflictRuleId,
+        startLineNumber: line.lineNumber,
+        startColumn: 1,
+        endLineNumber: line.lineNumber,
+        endColumn: line.lineText.length + 1,
+      });
+    }
+  }
+
+  return markers;
+};
+
 const getNoUndefGlobalName = (marker: editor.IMarkerData) => {
   return noUndefMessagePattern.exec(marker.message)?.[1] || null;
 };
@@ -684,6 +719,8 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   if (model.getLanguageId() !== "javascript") return;
 
   const markers: editor.IMarkerData[] = [];
+  markers.push(...getGrantNoneConflictMarkers(model));
+
   for (const block of getMetadataAlignmentBlocks(model)) {
     if (isMetadataAlignmentBlockAligned(block)) continue;
     markers.push({
