@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { ChromiumHeaderMarkerLinker, normalizeBackgroundRequestUrl } from "./mv3_utils";
+import { ChromiumHeaderMarkerLinker, FirefoxWebRequestLinker, normalizeBackgroundRequestUrl } from "./mv3_utils";
+import { scXhrRequests } from "./gm_xhr";
 
 describe("GM XHR request linker", () => {
   it("keep query strings when normalizing Firefox background request URLs", () => {
@@ -71,32 +72,36 @@ describe("GM XHR request linker", () => {
   });
 
   it("links Firefox requestId to markerID via webRequest.onBeforeRequest", async () => {
-    const { FirefoxWebRequestLinker } = await import("./mv3_utils");
-    const { scXhrRequests } = await import("./gm_xhr");
-
     scXhrRequests.clear();
+    const originalGetURL = chrome.runtime.getURL;
+    chrome.runtime.getURL = vi.fn((path: string) => `https://extension.test${path}`);
 
-    const linker = new FirefoxWebRequestLinker();
-    linker.setup({ cleanupOnAPIError: () => undefined });
+    try {
+      const linker = new FirefoxWebRequestLinker();
+      linker.setup({ cleanupOnAPIError: () => undefined });
 
-    const xhr = { send: vi.fn() } as unknown as XMLHttpRequest;
-    const markerID = "MARKER::abc";
-    const url = "https://example.com/api/search?q=one";
-    const sendPromise = linker.send(xhr, null, { markerID, url });
+      const xhr = { send: vi.fn() } as unknown as XMLHttpRequest;
+      const markerID = "MARKER::abc";
+      const url = "https://example.com/api/search?q=one";
+      const sendPromise = linker.send(xhr, null, { markerID, url });
 
-    // trigger mock webRequest event
-    const wbr = chrome.webRequest.onBeforeRequest as any;
-    wbr.EE.emit("onBeforeRequest", {
-      tabId: -1,
-      requestId: "RID_1",
-      url,
-      initiator: `chrome-extension://${chrome.runtime.id}`,
-      timeStamp: Date.now(),
-    });
+      // trigger mock webRequest event
+      const wbr = chrome.webRequest.onBeforeRequest as any;
+      wbr.EE.emit("onBeforeRequest", {
+        tabId: -1,
+        requestId: "RID_1",
+        url,
+        documentUrl: chrome.runtime.getURL("/"),
+        originUrl: chrome.runtime.getURL("/"),
+        timeStamp: Date.now(),
+      });
 
-    await sendPromise;
+      await sendPromise;
 
-    expect(scXhrRequests.get("RID_1")).toBe(markerID);
-    expect(scXhrRequests.get(markerID)).toBe("RID_1");
+      expect(scXhrRequests.get("RID_1")).toBe(markerID);
+      expect(scXhrRequests.get(markerID)).toBe("RID_1");
+    } finally {
+      chrome.runtime.getURL = originalGetURL;
+    }
   });
 });
