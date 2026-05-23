@@ -23,6 +23,7 @@ type MetadataLineParts = {
 type MetadataTag = "connect" | "match" | "include";
 
 type MetadataLineFix = {
+  code: string;
   title: string;
   text: string;
 };
@@ -113,6 +114,9 @@ let isEditorRegistered = false;
 const scriptcatMarkerOwner = "ScriptCat";
 const eslintMarkerOwner = "ESLint";
 const scriptcatMetadataAlignmentRuleId = "scriptcat/align-metadata-attributes";
+const scriptcatRemoveConnectWildcardRuleId = "scriptcat/remove-connect-wildcard";
+const scriptcatReplaceMatchTldWildcardRuleId = "scriptcat/replace-match-tld-wildcard-with-include";
+const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-match";
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
@@ -227,8 +231,9 @@ const parseMetadataLine = (lineText: string): MetadataLineParts | null => {
   };
 };
 
-const createMetadataFix = (titleTemplate: string, titleValue: string, text: string): MetadataLineFix => {
+const createMetadataFix = (code: string, titleTemplate: string, titleValue: string, text: string): MetadataLineFix => {
   return {
+    code,
     title: titleTemplate.replace("{0}", titleValue),
     text,
   };
@@ -254,7 +259,14 @@ const getConnectMetadataFixes = ({ prefix, tag, spacing, value, suffix }: Metada
   if (!/\.\w{2,}$/.test(hostName) || !isSimpleValidHost(hostName)) return [];
 
   const titleTemplate = currentEditorLang.removeConnectWildcard;
-  return [createMetadataFix(titleTemplate, hostName, `${prefix}${tag}${spacing}${hostName}${suffix}`)];
+  return [
+    createMetadataFix(
+      scriptcatRemoveConnectWildcardRuleId,
+      titleTemplate,
+      hostName,
+      `${prefix}${tag}${spacing}${hostName}${suffix}`
+    ),
+  ];
 };
 
 const getMatchMetadataFixes = ({
@@ -285,8 +297,18 @@ const getMatchMetadataFixes = ({
 
   const titleTemplate = currentEditorLang.replaceMatchTldWildcardWithInclude;
   return [
-    createMetadataFix(titleTemplate, tldValue, `${prefix}include${includeSpacing}${tldValue}${suffix}`),
-    createMetadataFix(titleTemplate, value, `${prefix}include${includeSpacing}${value}${suffix}`),
+    createMetadataFix(
+      scriptcatReplaceMatchTldWildcardRuleId,
+      titleTemplate,
+      tldValue,
+      `${prefix}include${includeSpacing}${tldValue}${suffix}`
+    ),
+    createMetadataFix(
+      scriptcatReplaceMatchTldWildcardRuleId,
+      titleTemplate,
+      value,
+      `${prefix}include${includeSpacing}${value}${suffix}`
+    ),
   ];
 };
 
@@ -311,7 +333,14 @@ const getIncludeMetadataFixes = ({
   if (wildcardNormalizedHost.split(".").every((hostSegment) => hostSegment === "*" || /^[\w-]+$/.test(hostSegment))) {
     const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
     const titleTemplate = currentEditorLang.replaceIncludeWithMatch;
-    return [createMetadataFix(titleTemplate, value, `${prefix}match  ${includeSpacing}${value}${suffix}`)];
+    return [
+      createMetadataFix(
+        scriptcatReplaceIncludeWithMatchRuleId,
+        titleTemplate,
+        value,
+        `${prefix}match  ${includeSpacing}${value}${suffix}`
+      ),
+    ];
   }
   return [];
 };
@@ -341,15 +370,16 @@ const getMetadataLineActions = (
   const metadataFixes = getMetadataLineFixes(lineText);
   if (metadataFixes.length === 0) return [];
 
-  const diagnostics = markers.filter(
-    (marker) => marker.source === scriptcatMarkerOwner && marker.startLineNumber === lineNumber
-  );
-
   return metadataFixes.map((metadataFix, index) =>
     createLineReplacementAction(
       model,
       metadataFix.title,
-      diagnostics,
+      markers.filter(
+        (marker) =>
+          marker.source === scriptcatMarkerOwner &&
+          marker.startLineNumber === lineNumber &&
+          getMarkerCode(marker) === metadataFix.code
+      ),
       lineNumber,
       lineText,
       metadataFix.text,
@@ -635,6 +665,7 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
       severity: MarkerSeverity.Warning,
       message: metadataLineFixes[0].title,
       source: scriptcatMarkerOwner,
+      code: metadataLineFixes[0].code,
       startLineNumber: lineNumber,
       startColumn: 1,
       endLineNumber: lineNumber,
