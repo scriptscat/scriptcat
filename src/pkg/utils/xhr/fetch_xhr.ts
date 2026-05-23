@@ -99,13 +99,13 @@ export class FetchXHR {
     }
   };
 
-  async send(body?: BodyInit | null) {
+  async sendAsync(resolve: (value: void | PromiseLike<void>) => void) {
     if (this.readyState !== FetchXHR.OPENED || !this.method || !this.url) {
+      resolve();
       throw new Error("Invalid state: call open() first.");
     }
     this.reqDone = false;
 
-    this.body = body ?? null;
     this.controller = new AbortController();
 
     // Setup timeout if specified
@@ -124,6 +124,7 @@ export class FetchXHR {
       this.extraOptsFn?.(opts);
       this.onloadstart?.({ type: "loadstart" });
       const res = await fetch(this.url, opts);
+      resolve();
 
       // Update status + headers
       this.status = res.status;
@@ -364,6 +365,7 @@ export class FetchXHR {
       this._emitReadyStateChange();
       this.onload?.({ type: "load" });
     } catch (err) {
+      resolve();
       this.controller = null;
       if (this.timeoutId != null) {
         clearTimeout(this.timeoutId);
@@ -392,6 +394,7 @@ export class FetchXHR {
         this.onerror?.({ type: "error" }, (err || "Unknown Error") as Error | string);
       }
     } finally {
+      resolve();
       this.controller = null;
       if (this.timeoutId != null) {
         clearTimeout(this.timeoutId);
@@ -400,6 +403,14 @@ export class FetchXHR {
       this.reqDone = true;
       this.onloadend?.({ type: "loadend" });
     }
+  }
+
+  send(body?: BodyInit | null) {
+    if (this.body !== null) {
+      throw new Error("Repeated Calls to send()");
+    }
+    this.body = body ?? null;
+    return new Promise<void>((resolve) => this.sendAsync(resolve));
   }
 
   abort() {
