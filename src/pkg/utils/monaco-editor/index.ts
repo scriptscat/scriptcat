@@ -24,7 +24,7 @@ type MetadataLineParts = {
   suffix: string;
 };
 
-type MetadataTag = "connect" | "match";
+type MetadataTag = "connect" | "match" | "include";
 
 type MetadataLineFix = {
   title: string;
@@ -86,7 +86,7 @@ const eslintMarkerOwner = "ESLint";
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
-const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match)([ \t]+)(\S+)(.*)$/i;
+const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match|include)([ \t]+)(\S+)(.*)$/i;
 const matchMetadataPattern = /^(\*|[-a-z]+|http\*):\/\/([^/]+)(\/.*)?$/i;
 const noUndefMessagePattern = /^[^']*'([^']+)'[^']*$/;
 
@@ -221,6 +221,24 @@ const getMatchMetadataFixes = ({
   ];
 };
 
+const getIncludeMetadataFixes = ({
+  prefix,
+  normalizedTag,
+  spacing,
+  value,
+  suffix,
+}: MetadataLineParts): MetadataLineFix[] => {
+  const match = matchMetadataPattern.exec(value);
+  const host = match?.[2];
+  if (!match || !host || host.endsWith(".*") || host.includes("**")) return [];
+  if (host.split(".").every((e) => e === "*" || /^[\w-]+$/.test(e))) {
+    const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
+    const titleTemplate = multiLang.replaceToMatch;
+    return [createMetadataFix(titleTemplate, value, `${prefix}match  ${includeSpacing}${value}${suffix}`)];
+  }
+  return [];
+};
+
 const getMetadataLineFixes = (line: string): MetadataLineFix[] => {
   const parts = parseMetadataLine(line);
   if (!parts) return [];
@@ -230,6 +248,8 @@ const getMetadataLineFixes = (line: string): MetadataLineFix[] => {
       return getConnectMetadataFixes(parts);
     case "match":
       return getMatchMetadataFixes(parts);
+    case "include":
+      return getIncludeMetadataFixes(parts);
     default:
       return [];
   }

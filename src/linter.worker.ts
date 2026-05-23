@@ -6,8 +6,23 @@ const { rules } = require("eslint-plugin-userscripts");
 
 const linter = new Linter({ configType: "eslintrc" });
 
+// ScriptCat 不适用 - 有必要存在的用法
+const omitKeys = new Set(["better-use-match"]);
+
 // 额外定义 userscripts 规则
-const formatRules = Object.fromEntries(Object.entries(rules).map(([key, metas]) => ["userscripts/" + key, metas]));
+const formatRules = Object.fromEntries(
+  Object.entries(rules).map(([key, metas]) => [
+    "userscripts/" + key,
+    omitKeys.has(key)
+      ? {
+          meta: {},
+          create() {
+            return { CallExpression() {} };
+          },
+        }
+      : metas,
+  ])
+);
 linter.defineRules(formatRules as any);
 
 const getRules = linter.getRules();
