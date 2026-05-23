@@ -69,4 +69,34 @@ describe("GM XHR request linker", () => {
     expect(result).toBe("sent");
     expect(xhr.send).toHaveBeenCalledWith("body");
   });
+
+  it("links Firefox requestId to markerID via webRequest.onBeforeRequest", async () => {
+    const { FirefoxWebRequestLinker } = await import("./mv3_utils");
+    const { scXhrRequests } = await import("./gm_xhr");
+
+    scXhrRequests.clear();
+
+    const linker = new FirefoxWebRequestLinker();
+    linker.setup({ cleanupOnAPIError: () => undefined });
+
+    const xhr = { send: vi.fn() } as unknown as XMLHttpRequest;
+    const markerID = "MARKER::abc";
+    const url = "https://example.com/api/search?q=one";
+    const sendPromise = linker.send(xhr, null, { markerID, url });
+
+    // trigger mock webRequest event
+    const wbr = chrome.webRequest.onBeforeRequest as any;
+    wbr.EE.emit("onBeforeRequest", {
+      tabId: -1,
+      requestId: "RID_1",
+      url,
+      initiator: `chrome-extension://${chrome.runtime.id}`,
+      timeStamp: Date.now(),
+    });
+
+    await sendPromise;
+
+    expect(scXhrRequests.get("RID_1")).toBe(markerID);
+    expect(scXhrRequests.get(markerID)).toBe("RID_1");
+  });
 });
