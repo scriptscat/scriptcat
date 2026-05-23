@@ -99,7 +99,7 @@ export class FetchXHR {
     }
   };
 
-  async sendAsync(resolve: (value: void | PromiseLike<void>) => void) {
+  private readonly sendAsync = async (resolve: (value: void | PromiseLike<void>) => void) => {
     if (this.readyState !== FetchXHR.OPENED || !this.method || !this.url) {
       resolve();
       throw new Error("Invalid state: call open() first.");
@@ -403,14 +403,14 @@ export class FetchXHR {
       this.reqDone = true;
       this.onloadend?.({ type: "loadend" });
     }
-  }
+  };
 
   send(body?: BodyInit | null) {
     if (this.body !== null) {
       throw new Error("Repeated Calls to send()");
     }
     this.body = body ?? null;
-    return new Promise<void>((resolve) => this.sendAsync(resolve));
+    return new Promise<void>(this.sendAsync);
   }
 
   abort() {
