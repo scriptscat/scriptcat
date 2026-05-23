@@ -17,6 +17,7 @@ const compatMap = {
     storageName: [],
     "early-start": [],
     "require-css": [],
+    "allFrames": [],
   },
 };
 
