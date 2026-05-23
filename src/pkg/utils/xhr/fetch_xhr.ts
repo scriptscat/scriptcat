@@ -339,8 +339,13 @@ export class FetchXHR {
         }
       } else if (res.type === "opaqueredirect") {
         customStatus = 301;
-      } else if (this.method.toUpperCase() === "HEAD") {
-        // for Firefox, HEAD request gives body null
+      } else if (
+        this.method.toUpperCase() === "HEAD" ||
+        res.status === 204 ||
+        res.status === 205 ||
+        res.status === 304
+      ) {
+        // No body is expected for these responses.
       } else {
         throw new Error("Response Body is null");
       }
