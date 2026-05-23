@@ -200,6 +200,14 @@ const getIncludeSpacing = (spacing: string, tag: string) => {
   return lenDiff > 0 && spacing.length > lenDiff ? spacing.slice(0, -lenDiff) : spacing;
 };
 
+const normalizeHost = (hostPattern: string) => {
+  const wildcardNormalizedHost = hostPattern
+    .split(".")
+    .map((hostSegment) => (hostSegment.includes("*") ? "*" : hostSegment))
+    .join(".");
+  return wildcardNormalizedHost;
+};
+
 const getConnectMetadataFixes = ({ prefix, tag, spacing, value, suffix }: MetadataLineParts): MetadataLineFix[] => {
   if (!value.startsWith("*.") || value.includes("**")) return [];
 
@@ -221,10 +229,7 @@ const getMatchMetadataFixes = ({
   const metadataValueMatch = matchMetadataPattern.exec(value);
   if (!metadataValueMatch || !metadataValueMatch[2]) return [];
   const hostPattern = metadataValueMatch[2];
-  const wildcardNormalizedHost = hostPattern
-    .split(".")
-    .map((hostSegment) => (hostSegment.includes("*") ? "*" : hostSegment))
-    .join(".");
+  const wildcardNormalizedHost = normalizeHost(hostPattern);
   if (!wildcardNormalizedHost.endsWith(".*") || hostPattern.includes("**") || hostPattern.includes("\\")) return [];
 
   const hostName = hostPattern.slice(0, -2);
@@ -249,15 +254,16 @@ const getIncludeMetadataFixes = ({
 }: MetadataLineParts): MetadataLineFix[] => {
   const metadataValueMatch = matchMetadataPattern.exec(value);
   const hostPattern = metadataValueMatch?.[2];
+  const wildcardNormalizedHost = normalizeHost(hostPattern);
   if (
     !metadataValueMatch ||
     !hostPattern ||
-    hostPattern.endsWith(".*") ||
+    wildcardNormalizedHost.endsWith(".*") ||
     hostPattern.includes("**") ||
     hostPattern.endsWith(".tld")
   )
     return [];
-  if (hostPattern.split(".").every((hostSegment) => hostSegment === "*" || /^[\w-]+$/.test(hostSegment))) {
+  if (wildcardNormalizedHost.split(".").every((hostSegment) => hostSegment === "*" || /^[\w-]+$/.test(hostSegment))) {
     const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
     const titleTemplate = currentEditorLang.replaceIncludeWithMatch;
     return [createMetadataFix(titleTemplate, value, `${prefix}match  ${includeSpacing}${value}${suffix}`)];
