@@ -8,7 +8,7 @@ export const editorLangs = {
     addEslintDisable: "添加 eslint-disable 注释",
     declareGlobal: "将 '{0}' 声明为全局变量 (/* global */)",
     replaceConnectWildcard: "替换为 @connect {0}",
-    replaceMatchWildcard: "替换为 @include {0}",
+    replaceMatchWildcard: "将通配符 @match 替换为 @include {0}",
     replaceToMatch: "替换为 @match {0}",
     prompt: {
       name: "脚本名称",
@@ -56,9 +56,28 @@ miner：该脚本存在利用用户资源但不为用户产生收益或收益极
 membership：该脚本需要注册会员/关注公众号才能正常使用
 tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       updateURL: "脚本检查更新的 url",
+      updateurl: "脚本检查更新的 url",
       downloadURL: "脚本更新的下载地址",
+      downloadurl: "脚本更新的下载地址",
       supportURL: "支持站点、bug 反馈页面",
+      supporturl: "支持站点、bug 反馈页面",
       source: "脚本源码页",
+      homepageurl: "脚本主页",
+      iconurl: "脚本图标",
+      icon64url: "64x64 大小的脚本图标",
+      scriptUrl: "订阅脚本中引用的用户脚本地址",
+      scripturl: "订阅脚本中引用的用户脚本地址",
+      storageName: "脚本值存储空间名称，用于让多个脚本共享同一个存储空间",
+      storagename: "脚本值存储空间名称，用于让多个脚本共享同一个存储空间",
+      tag: "脚本标签，多个标签可用逗号或空格分隔",
+      cloudCat: "标记脚本支持导出为 CloudCat 云端脚本包",
+      cloudcat: "标记脚本支持导出为 CloudCat 云端脚本包",
+      cloudServer: "脚本使用的 CloudCat 云端服务",
+      cloudserver: "脚本使用的 CloudCat 云端服务",
+      exportValue: "导出为云端脚本时需要导出的脚本存储值",
+      exportvalue: "导出为云端脚本时需要导出的脚本存储值",
+      exportCookie: "导出为云端脚本时需要导出的 Cookie",
+      exportcookie: "导出为云端脚本时需要导出的 Cookie",
       crontab: `定时脚本 crontab 参考（不适用于云端脚本）
 * * * * * * 每秒运行一次
 * * * * * 每分钟运行一次
@@ -87,7 +106,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisable: "Add eslint-disable Comment",
     declareGlobal: "Declare '{0}' as a global variable (/* global */)",
     replaceConnectWildcard: "Replace with @connect {0}",
-    replaceMatchWildcard: "Replace with @include {0}",
+    replaceMatchWildcard: "Replace wildcard @match with @include {0}",
     replaceToMatch: "Replace with @match {0}",
     prompt: {
       name: "Script name",
@@ -126,11 +145,36 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "Makes the user script bypass sandbox wrapping and be injected and executed directly in the page’s native global scope. <br>The script can directly access and modify the page’s real global variables, but will not be able to use user script privileged APIs such as GM.*. <br>Commonly used in scenarios that require deep interaction with native page scripts or when migrating from regular page scripts.",
       definition: "ScriptCat-only: URL of a `.d.ts` file used for editor auto-completion",
-      antifeature: "For script markets: describe any unwanted or controversial features",
+      antifeature: `Related to script markets: unwanted features should include this description value
+referral-link: This script modifies or redirects to the author's referral link
+ads: This script inserts ads on the pages you visit
+payment: This script requires payment to be used properly
+miner: This script engages in mining activities
+membership: This script requires registration as a member to be used properly
+tracking: This script tracks your user information`.replace(/\n/g, "<br>"),
       updateURL: "URL used to check for script updates",
+      updateurl: "URL used to check for script updates",
       downloadURL: "URL used to download script updates",
+      downloadurl: "URL used to download script updates",
       supportURL: "Support site / bug report page",
+      supporturl: "Support site / bug report page",
       source: "Script source code page",
+      homepageurl: "Script homepage",
+      iconurl: "Script icon",
+      icon64url: "64x64 script icon",
+      scriptUrl: "User script URL referenced by a subscription script",
+      scripturl: "User script URL referenced by a subscription script",
+      storageName: "Script value storage name, used to share one storage area across multiple scripts",
+      storagename: "Script value storage name, used to share one storage area across multiple scripts",
+      tag: "Script tags, separated by commas or spaces",
+      cloudCat: "Marks the script as exportable to a CloudCat cloud script package",
+      cloudcat: "Marks the script as exportable to a CloudCat cloud script package",
+      cloudServer: "CloudCat cloud service used by the script",
+      cloudserver: "CloudCat cloud service used by the script",
+      exportValue: "Script storage values to export when exporting as a cloud script",
+      exportvalue: "Script storage values to export when exporting as a cloud script",
+      exportCookie: "Cookies to export when exporting as a cloud script",
+      exportcookie: "Cookies to export when exporting as a cloud script",
       crontab: `Scheduled script crontab examples (not for cloud scripts)
 * * * * * * Run every second
 * * * * * Run every minute
@@ -159,7 +203,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisable: "新增 eslint-disable 註解",
     declareGlobal: "將 '{0}' 宣告為全域變數 (/* global */)",
     replaceConnectWildcard: "替換為 @connect {0}",
-    replaceMatchWildcard: "替換為 @include {0}",
+    replaceMatchWildcard: "將萬用字元 @match 替換為 @include {0}",
     replaceToMatch: "替換為 @match {0}",
     prompt: {
       name: "腳本名稱",
@@ -198,11 +242,36 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "讓使用者腳本不經過沙箱封裝，直接注入並執行於頁面的原生全域作用域中。<br>腳本可直接存取並修改頁面真實的全域變數，但將無法使用 GM.* 等使用者腳本的特權 API。<br>常用於需要與頁面原生腳本深度互動，或從一般頁面腳本遷移的場景。",
       definition: "ScriptCat 特有功能：一個 `.d.ts` 檔案的引用網址，可啟用編輯器自動提示",
-      antifeature: "與腳本市場相關，不受歡迎的功能需要在此描述",
+      antifeature: `與腳本市場相關，不受歡迎的功能需要加上此描述值
+referral-link：此腳本會修改或重新導向至作者的返傭連結
+ads：此腳本會在您存取的頁面上插入廣告
+payment：此腳本需要您付費才能正常使用
+miner：此腳本存在挖礦行為
+membership：此腳本需要註冊會員才能正常使用
+tracking：此腳本會追蹤您的使用者資訊`.replace(/\n/g, "<br>"),
       updateURL: "腳本檢查更新的 url",
+      updateurl: "腳本檢查更新的 url",
       downloadURL: "腳本更新的下載網址",
+      downloadurl: "腳本更新的下載網址",
       supportURL: "支援站點、錯誤回報頁面",
+      supporturl: "支援站點、錯誤回報頁面",
       source: "腳本原始碼頁面",
+      homepageurl: "腳本首頁",
+      iconurl: "腳本圖示",
+      icon64url: "64x64 大小的腳本圖示",
+      scriptUrl: "訂閱腳本中引用的使用者腳本網址",
+      scripturl: "訂閱腳本中引用的使用者腳本網址",
+      storageName: "腳本值儲存空間名稱，用於讓多個腳本共享同一個儲存空間",
+      storagename: "腳本值儲存空間名稱，用於讓多個腳本共享同一個儲存空間",
+      tag: "腳本標籤，多個標籤可用逗號或空格分隔",
+      cloudCat: "標記腳本支援匯出為 CloudCat 雲端腳本套件",
+      cloudcat: "標記腳本支援匯出為 CloudCat 雲端腳本套件",
+      cloudServer: "腳本使用的 CloudCat 雲端服務",
+      cloudserver: "腳本使用的 CloudCat 雲端服務",
+      exportValue: "匯出為雲端腳本時需要匯出的腳本儲存值",
+      exportvalue: "匯出為雲端腳本時需要匯出的腳本儲存值",
+      exportCookie: "匯出為雲端腳本時需要匯出的 Cookie",
+      exportcookie: "匯出為雲端腳本時需要匯出的 Cookie",
       crontab: `排程腳本 crontab 參考（不適用於雲端腳本）
 * * * * * * 每秒執行一次
 * * * * * 每分鐘執行一次
@@ -231,7 +300,7 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisable: "eslint-disable コメントを追加",
     declareGlobal: "'{0}' をグローバル変数として宣言 (/* global */)",
     replaceConnectWildcard: "@connect {0} に置換",
-    replaceMatchWildcard: "@include {0} に置換",
+    replaceMatchWildcard: "ワイルドカード @match を @include {0} に置換",
     replaceToMatch: "@match {0} に置換",
     prompt: {
       name: "スクリプト名",
@@ -270,11 +339,36 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "ユーザースクリプトをサンドボックスでラップせず、ページのネイティブなグローバルスコープに直接注入して実行します。<br>スクリプトはページの実際のグローバル変数に直接アクセスおよび変更できますが、GM.* などのユーザースクリプトの特権 API は使用できなくなります。<br>ページのネイティブスクリプトとの深い連携が必要な場合や、通常のページスクリプトから移行する際によく使用されます。",
       definition: "ScriptCat 専用機能：`.d.ts` ファイルの URL。エディタの補完を有効にします。",
-      antifeature: "スクリプトマーケット向け：好まれない機能がある場合、ここに説明を記載します。",
+      antifeature: `スクリプトマーケットに関連します。好まれない機能にはこの説明値を追加する必要があります
+referral-link：このスクリプトは作者のアフィリエイトリンクに変更またはリダイレクトします
+ads：このスクリプトはアクセスしたページに広告を挿入します
+payment：このスクリプトは正常に使用するために支払いが必要です
+miner：このスクリプトにはマイニング動作があります
+membership：このスクリプトは正常に使用するためにメンバー登録が必要です
+tracking：このスクリプトはユーザー情報を追跡します`.replace(/\n/g, "<br>"),
       updateURL: "スクリプト更新を確認する URL",
+      updateurl: "スクリプト更新を確認する URL",
       downloadURL: "スクリプト更新をダウンロードする URL",
+      downloadurl: "スクリプト更新をダウンロードする URL",
       supportURL: "サポートサイト・バグ報告ページ",
+      supporturl: "サポートサイト・バグ報告ページ",
       source: "スクリプトのソースコードページ",
+      homepageurl: "スクリプトのホームページ",
+      iconurl: "スクリプトのアイコン",
+      icon64url: "64x64 サイズのスクリプトアイコン",
+      scriptUrl: "サブスクリプションスクリプトで参照するユーザースクリプト URL",
+      scripturl: "サブスクリプションスクリプトで参照するユーザースクリプト URL",
+      storageName: "複数のスクリプトで同じ保存領域を共有するためのスクリプト値ストレージ名",
+      storagename: "複数のスクリプトで同じ保存領域を共有するためのスクリプト値ストレージ名",
+      tag: "スクリプトタグ。複数のタグはカンマまたはスペースで区切ります",
+      cloudCat: "スクリプトを CloudCat クラウドスクリプトパッケージとしてエクスポート可能にする印",
+      cloudcat: "スクリプトを CloudCat クラウドスクリプトパッケージとしてエクスポート可能にする印",
+      cloudServer: "スクリプトが使用する CloudCat クラウドサービス",
+      cloudserver: "スクリプトが使用する CloudCat クラウドサービス",
+      exportValue: "クラウドスクリプトとしてエクスポートする際に出力するスクリプト保存値",
+      exportvalue: "クラウドスクリプトとしてエクスポートする際に出力するスクリプト保存値",
+      exportCookie: "クラウドスクリプトとしてエクスポートする際に出力する Cookie",
+      exportcookie: "クラウドスクリプトとしてエクスポートする際に出力する Cookie",
       crontab: `スケジュールスクリプトの crontab 例（クラウドスクリプトには非対応）
 * * * * * * 毎秒実行
 * * * * * 毎分実行
@@ -303,7 +397,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisable: "eslint-disable Kommentar hinzufügen",
     declareGlobal: "'{0}' als globale Variable deklarieren (/* global */)",
     replaceConnectWildcard: "Durch @connect {0} ersetzen",
-    replaceMatchWildcard: "Durch @include {0} ersetzen",
+    replaceMatchWildcard: "Wildcard-@match durch @include {0} ersetzen",
+    replaceToMatch: "Durch @match {0} ersetzen",
     prompt: {
       name: "Skriptname",
       namespace: "Skript-Namensraum",
@@ -341,11 +436,36 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "Ermöglicht es, das Benutzerskript ohne Sandbox-Kapselung direkt in den nativen globalen Gültigkeitsbereich der Seite zu injizieren und auszuführen. <br>Das Skript kann direkt auf die tatsächlichen globalen Variablen der Seite zugreifen und diese verändern, kann jedoch keine privilegierten Benutzerskript-APIs wie GM.* verwenden. <br>Wird häufig in Szenarien eingesetzt, die eine tiefe Interaktion mit nativen Seitenskripten erfordern oder bei der Migration von normalen Seitenskripten.",
       definition: "Nur für ScriptCat: URL zu einer `.d.ts`-Datei für Editor-Autovervollständigung",
-      antifeature: "Für Script-Marktplätze: hier unerwünschte oder kontroverse Funktionen beschreiben",
+      antifeature: `Bezieht sich auf Script-Marktplätze: unerwünschte Funktionen sollten diesen Beschreibungswert enthalten
+referral-link: Dieses Skript modifiziert oder leitet zu den Affiliate-Links des Autors um
+ads: Dieses Skript fügt Werbung auf den von Ihnen besuchten Seiten ein
+payment: Dieses Skript erfordert eine Zahlung für die normale Nutzung
+miner: Dieses Skript hat Mining-Verhalten
+membership: Dieses Skript erfordert eine Mitgliedschaftsregistrierung für die normale Nutzung
+tracking: Dieses Skript verfolgt Ihre Benutzerinformationen`.replace(/\n/g, "<br>"),
       updateURL: "URL zur Aktualisierungsprüfung des Skripts",
+      updateurl: "URL zur Aktualisierungsprüfung des Skripts",
       downloadURL: "URL zum Herunterladen von Skriptaktualisierungen",
+      downloadurl: "URL zum Herunterladen von Skriptaktualisierungen",
       supportURL: "Support-Seite / Bugtracker",
+      supporturl: "Support-Seite / Bugtracker",
       source: "Quellcode-Seite des Skripts",
+      homepageurl: "Skript-Homepage",
+      iconurl: "Skript-Symbol",
+      icon64url: "64x64 Skript-Symbol",
+      scriptUrl: "Benutzerskript-URL, die von einem Abonnement-Skript referenziert wird",
+      scripturl: "Benutzerskript-URL, die von einem Abonnement-Skript referenziert wird",
+      storageName: "Speichername für Skriptwerte, um einen Speicherbereich mit mehreren Skripten zu teilen",
+      storagename: "Speichername für Skriptwerte, um einen Speicherbereich mit mehreren Skripten zu teilen",
+      tag: "Skript-Tags, getrennt durch Kommas oder Leerzeichen",
+      cloudCat: "Markiert das Skript als exportierbar in ein CloudCat-Cloud-Skriptpaket",
+      cloudcat: "Markiert das Skript als exportierbar in ein CloudCat-Cloud-Skriptpaket",
+      cloudServer: "Vom Skript verwendeter CloudCat-Clouddienst",
+      cloudserver: "Vom Skript verwendeter CloudCat-Clouddienst",
+      exportValue: "Skript-Speicherwerte, die beim Export als Cloud-Skript exportiert werden",
+      exportvalue: "Skript-Speicherwerte, die beim Export als Cloud-Skript exportiert werden",
+      exportCookie: "Cookies, die beim Export als Cloud-Skript exportiert werden",
+      exportcookie: "Cookies, die beim Export als Cloud-Skript exportiert werden",
       crontab: `Beispiele für geplante Skripte (crontab, nicht für Cloud-Skripte)
 * * * * * * Jede Sekunde ausführen
 * * * * * Jede Minute ausführen
@@ -374,7 +494,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisable: "Thêm chú thích eslint-disable",
     declareGlobal: "Khai báo '{0}' là biến toàn cục (/* global */)",
     replaceConnectWildcard: "Thay bằng @connect {0}",
-    replaceMatchWildcard: "Thay bằng @include {0}",
+    replaceMatchWildcard: "Thay @match có ký tự đại diện bằng @include {0}",
+    replaceToMatch: "Thay bằng @match {0}",
     prompt: {
       name: "Tên script",
       namespace: "Namespace của script",
@@ -412,11 +533,36 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "Cho phép script người dùng bỏ qua sandbox và được chèn, thực thi trực tiếp trong phạm vi toàn cục gốc của trang. <br>Script có thể trực tiếp truy cập và chỉnh sửa các biến toàn cục thực sự của trang, nhưng sẽ không thể sử dụng các API đặc quyền của user script như GM.*. <br>Thường được dùng trong các trường hợp cần tương tác sâu với script gốc của trang hoặc khi chuyển đổi từ script trang thông thường.",
       definition: "Tính năng riêng của ScriptCat: URL tới tệp `.d.ts` giúp bật gợi ý tự động trong trình soạn thảo",
-      antifeature: "Dùng cho chợ script: mô tả các tính năng không được người dùng ưa thích",
+      antifeature: `Liên quan đến chợ script: các tính năng không được ưa thích cần thêm giá trị mô tả này
+referral-link: Script này sửa đổi hoặc chuyển hướng đến liên kết giới thiệu của tác giả
+ads: Script này chèn quảng cáo vào các trang bạn truy cập
+payment: Script này yêu cầu thanh toán để sử dụng đúng cách
+miner: Script này tham gia vào các hoạt động đào coin
+membership: Script này yêu cầu đăng ký làm thành viên để sử dụng đúng cách
+tracking: Script này theo dõi thông tin người dùng của bạn`.replace(/\n/g, "<br>"),
       updateURL: "URL dùng để kiểm tra cập nhật script",
+      updateurl: "URL dùng để kiểm tra cập nhật script",
       downloadURL: "URL tải về bản cập nhật script",
+      downloadurl: "URL tải về bản cập nhật script",
       supportURL: "Trang hỗ trợ / báo lỗi",
+      supporturl: "Trang hỗ trợ / báo lỗi",
       source: "Trang mã nguồn script",
+      homepageurl: "Trang chủ script",
+      iconurl: "Biểu tượng script",
+      icon64url: "Biểu tượng script kích thước 64x64",
+      scriptUrl: "URL user script được tham chiếu bởi script đăng ký",
+      scripturl: "URL user script được tham chiếu bởi script đăng ký",
+      storageName: "Tên vùng lưu trữ giá trị script, dùng để chia sẻ cùng một vùng lưu trữ giữa nhiều script",
+      storagename: "Tên vùng lưu trữ giá trị script, dùng để chia sẻ cùng một vùng lưu trữ giữa nhiều script",
+      tag: "Thẻ script, phân tách bằng dấu phẩy hoặc khoảng trắng",
+      cloudCat: "Đánh dấu script có thể xuất thành gói cloud script CloudCat",
+      cloudcat: "Đánh dấu script có thể xuất thành gói cloud script CloudCat",
+      cloudServer: "Dịch vụ CloudCat cloud mà script sử dụng",
+      cloudserver: "Dịch vụ CloudCat cloud mà script sử dụng",
+      exportValue: "Giá trị lưu trữ script cần xuất khi xuất thành cloud script",
+      exportvalue: "Giá trị lưu trữ script cần xuất khi xuất thành cloud script",
+      exportCookie: "Cookie cần xuất khi xuất thành cloud script",
+      exportcookie: "Cookie cần xuất khi xuất thành cloud script",
       crontab: `Ví dụ crontab cho script chạy định kỳ (không áp dụng cho script trên cloud)
 * * * * * * Chạy mỗi giây
 * * * * * Chạy mỗi phút
@@ -445,7 +591,8 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisable: "Добавить комментарий eslint-disable",
     declareGlobal: "Объявить '{0}' как глобальную переменную (/* global */)",
     replaceConnectWildcard: "Заменить на @connect {0}",
-    replaceMatchWildcard: "Заменить на @include {0}",
+    replaceMatchWildcard: "Заменить wildcard @match на @include {0}",
+    replaceToMatch: "Заменить на @match {0}",
     prompt: {
       name: "Имя скрипта",
       namespace: "Пространство имён скрипта",
@@ -483,11 +630,36 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "Позволяет пользовательскому скрипту обходить песочницу и напрямую внедряться и выполняться в нативной глобальной области видимости страницы. <br>Скрипт может напрямую получать доступ к реальным глобальным переменным страницы и изменять их, однако не сможет использовать привилегированные API пользовательских скриптов, такие как GM.*. <br>Обычно используется в сценариях, требующих глубокой интеграции с нативными скриптами страницы или при миграции с обычных скриптов страницы.",
       definition: "Особенность ScriptCat: URL файла `.d.ts`, используемого для автодополнения в редакторе",
-      antifeature: "Для маркетплейсов скриптов: опишите здесь нежелательные / спорные функции",
+      antifeature: `Связано с маркетплейсами скриптов: для нежелательных функций следует добавить это значение описания
+referral-link: Этот скрипт изменяет или перенаправляет на реферальную ссылку автора
+ads: Этот скрипт вставляет рекламу на посещаемые вами страницы
+payment: Этот скрипт требует оплаты для нормального использования
+miner: Этот скрипт содержит функции майнинга
+membership: Этот скрипт требует регистрации членства для нормального использования
+tracking: Этот скрипт отслеживает информацию о пользователе`.replace(/\n/g, "<br>"),
       updateURL: "URL для проверки обновлений скрипта",
+      updateurl: "URL для проверки обновлений скрипта",
       downloadURL: "URL для загрузки обновлений скрипта",
+      downloadurl: "URL для загрузки обновлений скрипта",
       supportURL: "Страница поддержки / отчёта об ошибках",
+      supporturl: "Страница поддержки / отчёта об ошибках",
       source: "Страница с исходным кодом скрипта",
+      homepageurl: "Домашняя страница скрипта",
+      iconurl: "Иконка скрипта",
+      icon64url: "Иконка скрипта 64x64",
+      scriptUrl: "URL пользовательского скрипта, на который ссылается скрипт подписки",
+      scripturl: "URL пользовательского скрипта, на который ссылается скрипт подписки",
+      storageName: "Имя хранилища значений скрипта для совместного использования одного хранилища несколькими скриптами",
+      storagename: "Имя хранилища значений скрипта для совместного использования одного хранилища несколькими скриптами",
+      tag: "Теги скрипта, разделённые запятыми или пробелами",
+      cloudCat: "Отмечает, что скрипт можно экспортировать в пакет облачного скрипта CloudCat",
+      cloudcat: "Отмечает, что скрипт можно экспортировать в пакет облачного скрипта CloudCat",
+      cloudServer: "Облачный сервис CloudCat, используемый скриптом",
+      cloudserver: "Облачный сервис CloudCat, используемый скриптом",
+      exportValue: "Значения хранилища скрипта для экспорта при экспорте как облачного скрипта",
+      exportvalue: "Значения хранилища скрипта для экспорта при экспорте как облачного скрипта",
+      exportCookie: "Cookie для экспорта при экспорте как облачного скрипта",
+      exportcookie: "Cookie для экспорта при экспорте как облачного скрипта",
       crontab: `Примеры crontab для планового запуска скриптов (не для облачных скриптов)
 * * * * * * Запуск каждую секунду
 * * * * * Запуск каждую минуту
