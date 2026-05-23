@@ -6,7 +6,7 @@ test.describe("Popup Page", () => {
     const page = await openPopupPage(context, extensionId);
 
     // The popup should show "ScriptCat" title in the card header
-    await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 720 });
   });
 
   test("should show global script enable/disable switch", async ({ context, extensionId }) => {
@@ -14,7 +14,7 @@ test.describe("Popup Page", () => {
 
     // The switch for enabling/disabling scripts should be present
     const globalSwitch = page.locator(".arco-switch").first();
-    await expect(globalSwitch).toBeVisible({ timeout: 10_000 });
+    await expect(globalSwitch).toBeVisible({ timeout: 720 });
   });
 
   test("should render Collapse sections for scripts", async ({ context, extensionId }) => {
@@ -22,7 +22,7 @@ test.describe("Popup Page", () => {
 
     // Wait for the collapse component to render
     const collapse = page.locator(".arco-collapse");
-    await expect(collapse).toBeVisible({ timeout: 10_000 });
+    await expect(collapse).toBeVisible({ timeout: 720 });
 
     // Should have at least one collapse item (current page scripts)
     const collapseItems = page.locator(".arco-collapse-item");
@@ -34,7 +34,7 @@ test.describe("Popup Page", () => {
     const page = await openPopupPage(context, extensionId);
 
     // Wait for the popup to fully load
-    await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 720 });
 
     // Find the settings button - it's an icon-only button in the header
     // The order is: Switch, Settings, Notification, MoreMenu
@@ -54,7 +54,7 @@ test.describe("Popup Page", () => {
     const page = await openPopupPage(context, extensionId);
 
     // Wait for popup to load
-    await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 720 });
 
     // The more menu button is the last icon-only button
     const iconButtons = page.locator(".arco-btn-icon-only");
