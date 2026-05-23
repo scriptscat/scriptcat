@@ -130,10 +130,10 @@ async function runTestScript(
     page.on("console", (msg) => {
       const text = msg.text();
       logs.push(text);
-      const passMatch = text.match(/通过[:：]\s*(\d+)/);
-      const failMatch = text.match(/失败[:：]\s*(\d+)/);
-      if (passMatch) passed = parseInt(passMatch[1], 10);
-      if (failMatch) failed = parseInt(failMatch[1], 10);
+      const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
+      const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
+      if (passMatch) passed = parseInt(passMatch[2], 10);
+      if (failMatch) failed = parseInt(failMatch[2], 10);
       if (passed >= 0 && failed >= 0) resolve();
     });
   });
@@ -200,6 +200,23 @@ test.describe("GM API", () => {
       console.log("[inject_content_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some content inject tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("WindowMessage Transport Test (window_message_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "window_message_test.js",
+      `${TARGET_URL}?WINDOW_MESSAGE_TEST_SC`,
+      8_000
+    );
+
+    console.log(`[window_message_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[window_message_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });
