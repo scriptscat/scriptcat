@@ -22,6 +22,11 @@
 // @run-at       document-end
 // ==/UserScript==
 
+var testVar1001 = 1001;
+const mpt = document.body.appendChild(document.createElement("test-element-1002"));
+mpt.id = "test-element-1002";
+mpt.name = "test-element-1002";
+
 (async function () {
   "use strict";
 
@@ -144,6 +149,16 @@
   }
 
   section("沙盒全局身份");
+
+  await test("检测全局 testVar1001 会否跳出沙盒", () => {
+    assertSame(undefined, window["testVar1001"], "全局 testVar1001 不应跳出沙盒");
+    assertSame(undefined, unsafeWindow["testVar1001"], "全局 testVar1001 不应跳出沙盒");
+  });
+
+  await test("检测全局 test-element-1002", () => {
+    assertSame("test-element-1002", unsafeWindow["test-element-1002"]?.id, "全局 test-element-1002");
+    assertSame(undefined, window["test-element-1002"]?.id, "半沙盒无法检测 test-element-1002");
+  });
 
   await test("window/self/globalThis/top/parent/frames 均指向沙盒对象", () => {
     assertSame("object", typeof unsafeWindow, "unsafeWindow 应存在");
