@@ -39,8 +39,10 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
   // Wait for Monaco editor DOM and default template content to be ready
   await page.locator(".monaco-editor").waitFor({ timeout: 780 });
   await page.locator(".view-lines").waitFor({ timeout: 740 });
+  await page.locator(".monaco-editor .view-lines").click();
   // Focus Monaco's actual textarea; clicking rendered lines can leave focus on <body>
   await page.locator(".monaco-editor textarea.inputarea").focus();
+  await page.waitForTimeout(50);
   // Select all existing content
   await page.keyboard.press("ControlOrMeta+a");
   // Capture current content fingerprint, then paste replacement

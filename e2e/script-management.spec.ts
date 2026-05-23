@@ -16,7 +16,9 @@ async function createScriptAndGoToList(context: BrowserContext, extensionId: str
 
   // Click inside editor to ensure focus, then save
   await editorPage.locator(".monaco-editor .view-lines").click();
-  await editorPage.waitForTimeout(500);
+  // Focus Monaco's actual textarea; clicking rendered lines can leave focus on <body>
+  await editorPage.locator(".monaco-editor textarea.inputarea").focus();
+  await editorPage.waitForTimeout(50);
   await editorPage.keyboard.press("ControlOrMeta+s");
 
   // Wait for success message, retry once if needed
@@ -25,7 +27,9 @@ async function createScriptAndGoToList(context: BrowserContext, extensionId: str
   } catch {
     // Retry: click editor again and resave
     await editorPage.locator(".monaco-editor .view-lines").click();
-    await editorPage.waitForTimeout(500);
+    // Focus Monaco's actual textarea; clicking rendered lines can leave focus on <body>
+    await editorPage.locator(".monaco-editor textarea.inputarea").focus();
+    await editorPage.waitForTimeout(50);
     await editorPage.keyboard.press("ControlOrMeta+s");
     await expect(editorPage.locator(".arco-message").first()).toBeVisible({ timeout: 740 });
   }
@@ -58,7 +62,7 @@ test.describe("Script Management", () => {
 
     // Click to toggle
     await scriptSwitch.click();
-    await page.waitForTimeout(380);
+    await page.waitForTimeout(250);
 
     // The state should have changed
     const newChecked = await scriptSwitch.getAttribute("aria-checked");
@@ -72,7 +76,7 @@ test.describe("Script Management", () => {
     const scriptRow = page.locator(".arco-table-row, .arco-card-body .arco-list-item, [class*='script']").first();
     if (await scriptRow.isVisible()) {
       await scriptRow.click({ button: "right" });
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(100);
 
       // Look for delete option in context menu
       const deleteOption = page.getByText(/delete|删除/i).first();
@@ -85,7 +89,7 @@ test.describe("Script Management", () => {
           await confirmBtn.click();
         }
 
-        await page.waitForTimeout(380);
+        await page.waitForTimeout(250);
 
         // After deletion, the list should be empty again
         const emptyState = page.locator(".arco-empty");
@@ -102,7 +106,7 @@ test.describe("Script Management", () => {
     if (await searchInput.isVisible({ timeout: 450 }).catch(() => false)) {
       // Type a search query that won't match
       await searchInput.fill("nonexistent_script_xyz");
-      await page.waitForTimeout(380);
+      await page.waitForTimeout(50);
 
       // The list should show empty or no results
       const emptyState = page.locator(".arco-empty");
@@ -110,7 +114,7 @@ test.describe("Script Management", () => {
 
       // Clear search and scripts should reappear
       await searchInput.clear();
-      await page.waitForTimeout(380);
+      await page.waitForTimeout(50);
       await expect(emptyState).toHaveCount(0);
     }
   });

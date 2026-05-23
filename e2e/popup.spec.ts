@@ -63,7 +63,7 @@ test.describe("Popup Page", () => {
     await moreBtn.click();
 
     // Wait for the dropdown to appear
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(250);
 
     // The dropdown menu items use role="menuitem"
     const menuItems = page.locator('[role="menuitem"]');

@@ -32,7 +32,9 @@ test.describe("Script Editor", () => {
 
     // Click inside the editor to ensure it has focus
     await page.locator(".monaco-editor .view-lines").click();
-    await page.waitForTimeout(500);
+    // Focus Monaco's actual textarea; clicking rendered lines can leave focus on <body>
+    await page.locator(".monaco-editor textarea.inputarea").focus();
+    await page.waitForTimeout(50);
 
     // Save the script using Ctrl+S
     await page.keyboard.press("ControlOrMeta+s");
@@ -54,7 +56,9 @@ test.describe("Script Editor", () => {
 
     // Click inside editor to ensure focus, then save
     await editorPage.locator(".monaco-editor .view-lines").click();
-    await editorPage.waitForTimeout(500);
+    // Focus Monaco's actual textarea; clicking rendered lines can leave focus on <body>
+    await editorPage.locator(".monaco-editor textarea.inputarea").focus();
+    await editorPage.waitForTimeout(50);
     await editorPage.keyboard.press("ControlOrMeta+s");
     await expect(editorPage.locator(".arco-message").first()).toBeVisible({ timeout: 740 });
 
