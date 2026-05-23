@@ -29,6 +29,27 @@ type MetadataLineFix = {
 
 type TextEdit = languages.IWorkspaceTextEdit["textEdit"];
 
+type MetadataAlignmentLine = {
+  lineNumber: number;
+  lineText: string;
+  prefix: string;
+  tag: string;
+  spacing: string;
+  value: string;
+  valueColumn: number;
+};
+
+type MetadataAlignmentBlock = {
+  startLineNumber: number;
+  endLineNumber: number;
+  lines: MetadataAlignmentLine[];
+};
+
+type MetadataAlignmentFix = {
+  range: TextEdit["range"];
+  text: string;
+};
+
 type ScriptcatMonacoEnvironment = typeof window.MonacoEnvironment & {
   myLinterWorker?: ILinterWorker;
   eslintFixMap?: Map<string, EslintFix>;
@@ -91,10 +112,14 @@ let isEditorRegistered = false;
 
 const scriptcatMarkerOwner = "ScriptCat";
 const eslintMarkerOwner = "ESLint";
+const scriptcatMetadataAlignmentRuleId = "scriptcat/align-metadata-attributes";
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
 const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match|include)([ \t]+)(\S+)(.*)$/i;
+const metadataAlignmentPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]+)(.*)$/;
+const userscriptHeaderPattern = /^\s*\/\/[ \t]*==UserScript==[ \t]*$/;
+const userscriptEndPattern = /^\s*\/\/[ \t]*==\/UserScript==[ \t]*$/;
 const matchMetadataPattern = /^(\*|[-a-z]+|http\*):\/\/([^/]+)(\/.*)?$/i;
 const noUndefMessagePattern = /^[^']*'([^']+)'[^']*$/;
 
@@ -123,6 +148,28 @@ const createTextEditAction = (
     kind: quickfixKind,
     edit: {
       edits: [{ resource: model.uri, textEdit, versionId: undefined }],
+    },
+    isPreferred,
+  } satisfies languages.CodeAction;
+};
+
+const createTextEditsAction = (
+  model: editor.ITextModel,
+  title: string,
+  diagnostics: editor.IMarkerData[],
+  textEdits: TextEdit[],
+  isPreferred: boolean
+) => {
+  return {
+    title,
+    diagnostics,
+    kind: quickfixKind,
+    edit: {
+      edits: textEdits.map((textEdit) => ({
+        resource: model.uri,
+        textEdit,
+        versionId: undefined,
+      })),
     },
     isPreferred,
   } satisfies languages.CodeAction;
@@ -311,6 +358,133 @@ const getMetadataLineActions = (
   );
 };
 
+const getMetadataAlignmentLine = (lineNumber: number, lineText: string): MetadataAlignmentLine | null => {
+  const match = metadataAlignmentPattern.exec(lineText);
+  if (!match) return null;
+
+  const [, prefix, tag, spacing, value] = match;
+  return {
+    lineNumber,
+    lineText,
+    prefix,
+    tag,
+    spacing,
+    value,
+    valueColumn: prefix.length + tag.length + spacing.length,
+  };
+};
+
+const getMetadataAlignmentBlocks = (model: editor.ITextModel): MetadataAlignmentBlock[] => {
+  const blocks: MetadataAlignmentBlock[] = [];
+  const lineCount = model.getLineCount();
+  let currentBlock: MetadataAlignmentBlock | null = null;
+
+  const finishBlock = (endLineNumber: number) => {
+    if (!currentBlock) return;
+    currentBlock.endLineNumber = endLineNumber;
+    blocks.push(currentBlock);
+    currentBlock = null;
+  };
+
+  for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
+    const lineText = model.getLineContent(lineNumber);
+
+    if (userscriptHeaderPattern.test(lineText)) {
+      finishBlock(lineNumber - 1);
+      currentBlock = {
+        startLineNumber: lineNumber,
+        endLineNumber: lineNumber,
+        lines: [],
+      };
+      continue;
+    }
+
+    if (!currentBlock) continue;
+
+    const alignmentLine = getMetadataAlignmentLine(lineNumber, lineText);
+    if (alignmentLine) {
+      currentBlock.lines.push(alignmentLine);
+    }
+
+    if (userscriptEndPattern.test(lineText)) {
+      finishBlock(lineNumber);
+    }
+  }
+
+  finishBlock(lineCount);
+  return blocks;
+};
+
+const getMetadataAlignmentTargetColumn = (lines: MetadataAlignmentLine[]) =>
+  Math.max(...lines.map((line) => line.prefix.length + line.tag.length + 1));
+
+const isMetadataAlignmentBlockAligned = (block: MetadataAlignmentBlock) => {
+  if (block.lines.length < 2) return true;
+  const firstValueColumn = block.lines[0].valueColumn;
+  return block.lines.every((line) => line.valueColumn === firstValueColumn);
+};
+
+const getMetadataAlignmentFix = (model: editor.ITextModel, block: MetadataAlignmentBlock): MetadataAlignmentFix => {
+  const targetColumn = getMetadataAlignmentTargetColumn(block.lines);
+  const lineFixes = new Map(
+    block.lines.map((line) => {
+      const spacing = " ".repeat(Math.max(1, targetColumn - line.prefix.length - line.tag.length));
+      return [line.lineNumber, `${line.prefix}${line.tag}${spacing}${line.value}`];
+    })
+  );
+  const blockLines: string[] = [];
+
+  for (let lineNumber = block.startLineNumber; lineNumber <= block.endLineNumber; lineNumber += 1) {
+    blockLines.push(lineFixes.get(lineNumber) ?? model.getLineContent(lineNumber));
+  }
+
+  return {
+    range: {
+      startLineNumber: block.startLineNumber,
+      startColumn: 1,
+      endLineNumber: block.endLineNumber,
+      endColumn: model.getLineContent(block.endLineNumber).length + 1,
+    },
+    text: blockLines.join("\n"),
+  };
+};
+
+const getMetadataAlignmentBlockAtLine = (model: editor.ITextModel, lineNumber: number) =>
+  getMetadataAlignmentBlocks(model).find(
+    (block) =>
+      block.startLineNumber <= lineNumber &&
+      lineNumber <= block.endLineNumber &&
+      !isMetadataAlignmentBlockAligned(block)
+  );
+
+const getMetadataAlignmentActions = (
+  model: editor.ITextModel,
+  lineNumber: number,
+  markers: editor.IMarkerData[]
+): languages.CodeAction[] => {
+  const alignmentMarkers = markers.filter(
+    (marker) =>
+      marker.source === scriptcatMarkerOwner &&
+      getMarkerCode(marker) === scriptcatMetadataAlignmentRuleId &&
+      marker.startLineNumber <= lineNumber &&
+      lineNumber <= marker.endLineNumber
+  );
+  if (alignmentMarkers.length === 0) return [];
+
+  const block = getMetadataAlignmentBlockAtLine(model, lineNumber);
+  if (!block) return [];
+
+  return [
+    createTextEditsAction(
+      model,
+      currentEditorLang.quickfix.replace("{0}", scriptcatMetadataAlignmentRuleId),
+      alignmentMarkers,
+      [getMetadataAlignmentFix(model, block)],
+      true
+    ),
+  ];
+};
+
 const getNoUndefGlobalName = (marker: editor.IMarkerData) => {
   return noUndefMessagePattern.exec(marker.message)?.[1] || null;
 };
@@ -437,6 +611,20 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   if (model.getLanguageId() !== "javascript") return;
 
   const markers: editor.IMarkerData[] = [];
+  for (const block of getMetadataAlignmentBlocks(model)) {
+    if (isMetadataAlignmentBlockAligned(block)) continue;
+    markers.push({
+      severity: MarkerSeverity.Warning,
+      message: currentEditorLang.quickfix.replace("{0}", scriptcatMetadataAlignmentRuleId),
+      source: scriptcatMarkerOwner,
+      code: scriptcatMetadataAlignmentRuleId,
+      startLineNumber: block.startLineNumber,
+      startColumn: 1,
+      endLineNumber: block.endLineNumber,
+      endColumn: model.getLineContent(block.endLineNumber).length + 1,
+    });
+  }
+
   const lineCount = model.getLineCount();
   for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
     const lineText = model.getLineContent(lineNumber);
@@ -542,6 +730,7 @@ export function registerEditor() {
         const lineText = model.getLineContent(range.startLineNumber);
         const actions = [
           ...getMetadataLineActions(model, range.startLineNumber, lineText, context.markers),
+          ...getMetadataAlignmentActions(model, range.startLineNumber, context.markers),
           ...context.markers.flatMap((marker) => getMarkerCodeActions(model, marker, eslintFixMap)),
         ];
 

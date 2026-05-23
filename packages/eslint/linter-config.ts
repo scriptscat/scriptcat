@@ -89,7 +89,9 @@ const config = {
 };
 
 // 调整规则
-config.rules["userscripts/align-attributes"] = ["warn", 2];
+// ScriptCat 在 Monaco 侧用自定义检查处理 metadata 对齐：
+// 只要求 value 起始列一致，不要求固定空格数。
+config.rules["userscripts/align-attributes"] = [];
 config.rules["userscripts/require-download-url"] = ["warn"];
 
 // ScriptCat 不适用 - 有必要存在的用法
