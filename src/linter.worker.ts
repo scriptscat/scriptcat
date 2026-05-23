@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Linter } = require("eslint-linter-browserify");
-const { rules } = require("eslint-plugin-userscripts");
+import { Linter } from "eslint-linter-browserify";
+import { rules } from "eslint-plugin-userscripts";
 
 // eslint语法检查,使用webworker
 
@@ -17,7 +16,7 @@ const omitKeys = new Set([
 ]);
 
 // 额外定义 userscripts 规则
-const formatRules = Object.fromEntries(
+const formatRules: typeof rules = Object.fromEntries(
   Object.entries(rules).map(([key, metas]) => [
     "userscripts/" + key,
     omitKeys.has(key)
@@ -30,7 +29,7 @@ const formatRules = Object.fromEntries(
       : metas,
   ])
 );
-linter.defineRules(formatRules as any);
+linter.defineRules(formatRules);
 
 const getRules = linter.getRules();
 
