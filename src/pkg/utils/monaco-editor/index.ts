@@ -230,9 +230,15 @@ const getMatchMetadataFixes = ({
   if (!metadataValueMatch || !metadataValueMatch[2]) return [];
   const hostPattern = metadataValueMatch[2];
   const wildcardNormalizedHost = normalizeHost(hostPattern);
-  if (!wildcardNormalizedHost.endsWith(".*") || hostPattern.includes("**") || hostPattern.includes("\\")) return [];
+  if (
+    !wildcardNormalizedHost.endsWith(".*") ||
+    !hostPattern.includes(".") ||
+    hostPattern.includes("**") ||
+    hostPattern.includes("\\")
+  )
+    return [];
 
-  const hostName = hostPattern.slice(0, -2);
+  const hostName = hostPattern.slice(0, hostPattern.lastIndexOf("."));
   if (!isSimpleValidHost(hostName.replace(/\*/g, "x"))) return [];
 
   const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
