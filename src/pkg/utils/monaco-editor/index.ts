@@ -204,9 +204,10 @@ const getMatchMetadataFixes = ({
   value,
   suffix,
 }: MetadataLineParts): MetadataLineFix[] => {
+  if (!value || value.startsWith("/")) return [];
   const match = matchMetadataPattern.exec(value);
   const host = match?.[2];
-  if (!match || !host?.endsWith(".*") || host.includes("**")) return [];
+  if (!match || !host?.endsWith(".*") || host.includes("**") || host.includes("\\")) return [];
 
   const hostName = host.slice(0, -2);
   if (!isSimpleValidHost(hostName.replace(/\*/g, "x"))) return [];
@@ -230,7 +231,7 @@ const getIncludeMetadataFixes = ({
 }: MetadataLineParts): MetadataLineFix[] => {
   const match = matchMetadataPattern.exec(value);
   const host = match?.[2];
-  if (!match || !host || host.endsWith(".*") || host.includes("**")) return [];
+  if (!match || !host || host.endsWith(".*") || host.includes("**") || host.endsWith(".tld")) return [];
   if (host.split(".").every((e) => e === "*" || /^[\w-]+$/.test(e))) {
     const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
     const titleTemplate = multiLang.replaceToMatch;
