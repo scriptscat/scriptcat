@@ -91,16 +91,16 @@ const config = {
 // 调整规则
 // ScriptCat 在 Monaco 侧用自定义检查处理 metadata 对齐：
 // 只要求 value 起始列一致，不要求固定空格数。
-config.rules["userscripts/align-attributes"] = [];
+config.rules["userscripts/align-attributes"] = ["off"];
 config.rules["userscripts/require-download-url"] = ["warn"];
 
 // ScriptCat 不适用 - 有必要存在的用法
 // 不是所有 @include 都要改为 @match。改用自定义处理
-config.rules["userscripts/better-use-match"] = [];
+config.rules["userscripts/better-use-match"] = ["off"];
 // 不是 @name @name:en @name:zh-CN @name:zh-TW @name:ja 都要放在最前。这个连 warning 也很无谓
-config.rules["userscripts/require-name"] = [];
+config.rules["userscripts/require-name"] = ["off"];
 // ScriptCat 不用指定 ==UserScript== 放最前。在 ==UserScript== 前面可以写其他注释, 例如是 License。 不视为 invalid
-config.rules["userscripts/no-invalid-metadata"] = [];
+config.rules["userscripts/no-invalid-metadata"] = ["off"];
 
 // 以文本形式导出默认规则
 export const defaultConfig = JSON.stringify(config, null, 2);

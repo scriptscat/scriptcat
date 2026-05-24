@@ -124,6 +124,7 @@ const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
 const metadataHoverPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]*)(.*)$/;
 const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match|include)([ \t]+)(\S+)(.*)$/i;
 const metadataAlignmentPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]+)(.*)$/;
+const metadataLineStartPattern = /^\s*\/\/[ \t]*@/;
 const userscriptHeaderPattern = /^\s*\/\/[ \t]*==UserScript==[ \t]*$/;
 const userscriptEndPattern = /^\s*\/\/[ \t]*==\/UserScript==[ \t]*$/;
 const matchMetadataPattern = /^(\*|[-a-z]+|http\*):\/\/([^/]+)(\/.*)?$/i;
@@ -281,7 +282,9 @@ const createMetadataFix = (code: string, titleTemplate: string, titleValue: stri
 
 const getIncludeSpacing = (spacing: string, tag: string) => {
   const lenDiff = "include".length - tag.length;
-  return lenDiff > 0 && spacing.length > lenDiff ? spacing.slice(0, -lenDiff) : spacing;
+  if (lenDiff <= 0) return spacing;
+  const targetLength = Math.max(1, spacing.length - lenDiff);
+  return spacing.slice(0, targetLength);
 };
 
 const normalizeHost = (hostPattern: string) => {
@@ -376,7 +379,7 @@ const getIncludeMetadataFixes = ({
     hostPattern.endsWith(".tld")
   )
     return [];
-  if (wildcardNormalizedHost.split(".").every((hostSegment) => hostSegment === "*" || /^[\w-]+$/.test(hostSegment))) {
+  if (isSimpleValidHost(wildcardNormalizedHost.replace(/\*/g, "x"))) {
     const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
     const titleTemplate = currentEditorLang.replaceIncludeWithMatch;
     return [
@@ -561,22 +564,29 @@ const getMetadataAlignmentActions = (
   ];
 };
 
-const getGrantNoneConflictMarkers = (model: editor.ITextModel): editor.IMarkerData[] => {
+const getGrantNoneConflictMarkers = (blocks: MetadataAlignmentBlock[]): editor.IMarkerData[] => {
   const markers: editor.IMarkerData[] = [];
 
-  for (const block of getMetadataAlignmentBlocks(model)) {
-    const grantLines = block.lines
-      .map((line) => ({
-        ...line,
-        grantValue: getMetadataValueToken(line.value),
-      }))
-      .filter((line) => line.tag.toLowerCase() === "grant" && line.grantValue);
-    const hasNone = grantLines.some((line) => line.grantValue === "none");
-    const hasGmApi = grantLines.some((line) => line.grantValue.startsWith("GM"));
+  for (const block of blocks) {
+    const grantLines: Array<{ line: MetadataAlignmentLine; grantValue: string }> = [];
+    let hasNone = false;
+    let hasGmApi = false;
+
+    for (const line of block.lines) {
+      if (line.tag.toLowerCase() !== "grant") continue;
+
+      const grantValue = getMetadataValueToken(line.value);
+      if (!grantValue) continue;
+
+      grantLines.push({ line, grantValue });
+      hasNone ||= grantValue === "none";
+      hasGmApi ||= grantValue.startsWith("GM");
+    }
+
     if (!hasNone || !hasGmApi) continue;
 
-    for (const line of grantLines) {
-      if (line.grantValue !== "none" && !line.grantValue.startsWith("GM")) continue;
+    for (const { line, grantValue } of grantLines) {
+      if (grantValue !== "none" && !grantValue.startsWith("GM")) continue;
       markers.push({
         severity: MarkerSeverity.Warning,
         message: currentEditorLang.grantConflict,
@@ -715,13 +725,47 @@ const getMarkerCodeActions = (
   return actions;
 };
 
+const lineCanAffectMetadataMarkers = (lineText: string) =>
+  metadataLineStartPattern.test(lineText) ||
+  userscriptHeaderPattern.test(lineText) ||
+  userscriptEndPattern.test(lineText);
+
+const commentEditCanAffectMetadataMarkers = (lineText: string, change: editor.IModelContentChange) =>
+  /^\s*\/\//.test(lineText) || (change.rangeLength > 0 && change.range.startColumn <= 12);
+
+const contentChangeCanAffectMetadataMarkers = (model: editor.ITextModel, event: editor.IModelContentChangedEvent) => {
+  if (event.isFlush || event.isEolChange) return true;
+
+  for (const change of event.changes) {
+    if (
+      change.range.startLineNumber !== change.range.endLineNumber ||
+      change.text.includes("\n") ||
+      change.text.includes("@") ||
+      change.text.includes("UserScript")
+    ) {
+      return true;
+    }
+
+    const lineText = model.getLineContent(change.range.startLineNumber);
+    if (lineCanAffectMetadataMarkers(lineText) || commentEditCanAffectMetadataMarkers(lineText, change)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
-  if (model.getLanguageId() !== "javascript") return;
+  if (model.getLanguageId() !== "javascript") {
+    editor.setModelMarkers(model, scriptcatMarkerOwner, []);
+    return;
+  }
 
+  const metadataBlocks = getMetadataAlignmentBlocks(model);
   const markers: editor.IMarkerData[] = [];
-  markers.push(...getGrantNoneConflictMarkers(model));
+  markers.push(...getGrantNoneConflictMarkers(metadataBlocks));
 
-  for (const block of getMetadataAlignmentBlocks(model)) {
+  for (const block of metadataBlocks) {
     if (isMetadataAlignmentBlockAligned(block)) continue;
     markers.push({
       severity: MarkerSeverity.Warning,
@@ -735,22 +779,22 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
     });
   }
 
-  const lineCount = model.getLineCount();
-  for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
-    const lineText = model.getLineContent(lineNumber);
-    const metadataLineFixes = getMetadataLineFixes(lineText);
-    if (metadataLineFixes.length === 0) continue;
+  for (const block of metadataBlocks) {
+    for (const line of block.lines) {
+      const metadataLineFixes = getMetadataLineFixes(line.lineText);
+      if (metadataLineFixes.length === 0) continue;
 
-    markers.push({
-      severity: MarkerSeverity.Warning,
-      message: metadataLineFixes[0].title,
-      source: scriptcatMarkerOwner,
-      code: metadataLineFixes[0].code,
-      startLineNumber: lineNumber,
-      startColumn: 1,
-      endLineNumber: lineNumber,
-      endColumn: lineText.length + 1,
-    });
+      markers.push({
+        severity: MarkerSeverity.Warning,
+        message: metadataLineFixes[0].title,
+        source: scriptcatMarkerOwner,
+        code: metadataLineFixes[0].code,
+        startLineNumber: line.lineNumber,
+        startColumn: 1,
+        endLineNumber: line.lineNumber,
+        endColumn: line.lineText.length + 1,
+      });
+    }
   }
 
   editor.setModelMarkers(model, scriptcatMarkerOwner, markers);
@@ -759,7 +803,13 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
 const registerScriptcatMetadataMarkerProvider = () => {
   const registerMetadataModel = (model: editor.ITextModel) => {
     updateScriptcatMetadataMarkers(model);
-    model.onDidChangeContent(() => {
+    model.onDidChangeContent((event) => {
+      if (model.getLanguageId() !== "javascript") return;
+      if (contentChangeCanAffectMetadataMarkers(model, event)) {
+        updateScriptcatMetadataMarkers(model);
+      }
+    });
+    model.onDidChangeLanguage(() => {
       updateScriptcatMetadataMarkers(model);
     });
   };
