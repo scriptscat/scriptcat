@@ -1282,6 +1282,10 @@ export class ScriptService {
     return scripts;
   }
 
+  async getScriptAndCode(uuid: string) {
+    return this.scriptDAO.getAndCode(uuid);
+  }
+
   // 脚本排序，after为排序后的uuid列表
   async sortScript({ after }: { before: string[]; after: string[] }) {
     const daoAll = await this.scriptDAO.all();
