@@ -54,7 +54,11 @@ export class SWRequestResultParams {
   }
 
   get finalUrl() {
-    this.resultParamFinalUrl = redirectedUrls.get(this.markerID) || "";
+    const markerID = this.markerID;
+    if (!markerID) {
+      console.error("[gm_xhr.ts] SWRequestResultParams::finalUrl", "no markerID");
+    }
+    this.resultParamFinalUrl = redirectedUrls.get(markerID) || "";
     return this.resultParamFinalUrl;
   }
 }

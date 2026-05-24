@@ -130,10 +130,10 @@ async function runTestScript(
     page.on("console", (msg) => {
       const text = msg.text();
       logs.push(text);
-      const passMatch = text.match(/通过[:：]\s*(\d+)/);
-      const failMatch = text.match(/失败[:：]\s*(\d+)/);
-      if (passMatch) passed = parseInt(passMatch[1], 10);
-      if (failMatch) failed = parseInt(failMatch[1], 10);
+      const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
+      const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
+      if (passMatch) passed = parseInt(passMatch[2], 10);
+      if (failMatch) failed = parseInt(failMatch[2], 10);
       if (passed >= 0 && failed >= 0) resolve();
     });
   });
@@ -152,12 +152,18 @@ test.describe("GM API", () => {
   // Two-phase launch + script install + network fetches + permission dialogs
   test.setTimeout(300_000);
 
-  test("GM_ sync API tests (gm_api_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(context, extensionId, "gm_api_test.js", TARGET_URL, 90_000);
+  test("GM_ sync API tests (gm_api_sync_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_api_sync_test.js",
+      `${TARGET_URL}?gm_api_sync`,
+      90_000
+    );
 
-    console.log(`[gm_api_test] passed=${passed}, failed=${failed}`);
+    console.log(`[gm_api_sync_test] passed=${passed}, failed=${failed}`);
     if (failed !== 0) {
-      console.log("[gm_api_test] logs:", logs.join("\n"));
+      console.log("[gm_api_sync_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some GM_ sync API tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
@@ -168,7 +174,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "gm_api_async_test.js",
-      TARGET_URL,
+      `${TARGET_URL}?gm_api_async`,
       90_000
     );
 
@@ -185,7 +191,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "inject_content_test.js",
-      TARGET_URL,
+      `${TARGET_URL}?inject_content`,
       60_000
     );
 
@@ -194,6 +200,23 @@ test.describe("GM API", () => {
       console.log("[inject_content_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some content inject tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("WindowMessage Transport Test (window_message_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "window_message_test.js",
+      `${TARGET_URL}?WINDOW_MESSAGE_TEST_SC`,
+      8_000
+    );
+
+    console.log(`[window_message_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[window_message_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some window message tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
@@ -210,7 +233,7 @@ test.describe("GM API", () => {
     if (failed !== 0) {
       console.log("[sandbox_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some tests failed").toBe(0);
+    expect(failed, "Some sandbox tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });
