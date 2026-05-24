@@ -216,7 +216,24 @@ test.describe("GM API", () => {
     if (failed !== 0) {
       console.log("[window_message_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some tests failed").toBe(0);
+    expect(failed, "Some window message tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("Sandbox Test (sandbox_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "sandbox_test.js",
+      `${TARGET_URL}?SANDBOX_TEST_SC`,
+      8_000
+    );
+
+    console.log(`[sandbox_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[sandbox_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some sandbox tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });
