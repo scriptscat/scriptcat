@@ -578,10 +578,12 @@
   });
 
   await test("TM半沙盒：把祖先类别继承直接写在半沙盒上 (Issue #1462 PR #1463)", async () => {
-    assertSame(true, Object.hasOwn(unsafeWindow, "addEventListener"), "unsafeWindow 继承 Object.hasOwn");
-    assertSame(true, Reflect.has(unsafeWindow, "addEventListener"), "unsafeWindow 继承 Reflect.has");
-    assertSame(false, Object.hasOwn(window, "addEventListener"), "window 属性 Object.hasOwn");
-    assertSame(true, Reflect.has(window, "addEventListener"), "window 属性 Reflect.has");
+    const trueWindow = unsafeWindow;
+    const sandboxWindow = window;
+    assertSame(false, Object.hasOwn(trueWindow, "addEventListener"), "unsafeWindow 继承 Object.hasOwn");
+    assertSame(true, Reflect.has(trueWindow, "addEventListener"), "unsafeWindow 继承 Reflect.has");
+    assertSame(true, Object.hasOwn(sandboxWindow, "addEventListener"), "window 属性 Object.hasOwn");
+    assertSame(true, Reflect.has(sandboxWindow, "addEventListener"), "window 属性 Reflect.has");
   });
 
   section("GM API 注入与命名空间");
