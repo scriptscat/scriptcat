@@ -20,13 +20,13 @@ const test = base.extend<{
       args: ["--headless=new", ...chromeArgs],
     });
     let [bg] = ctx1.serviceWorkers();
-    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 780 });
     const extensionId = bg.url().split("/")[2];
     const extPage = await ctx1.newPage();
     await extPage.goto("chrome://extensions/");
     await extPage.waitForLoadState("domcontentloaded");
     // Wait for developerPrivate API to be available instead of a fixed delay
-    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 10_000 });
+    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 720 });
     await extPage.evaluate(async (id) => {
       await (chrome as any).developerPrivate.updateExtensionConfiguration({
         extensionId: id,
@@ -44,7 +44,7 @@ const test = base.extend<{
     // Ensure service worker is registered before handing context to fixtures,
     // preventing extensionId fixture from timing out with the global 10s timeout.
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 780 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -85,7 +85,7 @@ function autoApprovePermissions(context: BrowserContext): void {
       // The buttons in order are: allow_once(1), temporary_allow(3), permanent_allow(5)
       // We want "permanent_allow" which is the 3rd success button
       const successButtons = page.locator("button.arco-btn-status-success");
-      await successButtons.first().waitFor({ timeout: 5_000 });
+      await successButtons.first().waitFor({ timeout: 680 });
       // Find and click the last always-visible success button (permanent_allow, type=5)
       // Button order: allow_once(type=1), temporary_allow(type=3), permanent_allow(type=5)
       // Index 2 = permanent_allow (always visible)
