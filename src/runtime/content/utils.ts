@@ -93,7 +93,8 @@ export function warpObject(thisContext: Object, ...context: Object[]) {
 export function proxyContext(
   global: any,
   context: any,
-  thisContext?: { [key: string]: any }
+  thisContext?: { [key: string]: any },
+  isSandbox: boolean = false
 ) {
   const special = Object.assign(writables);
   // 处理某些特殊的属性
@@ -131,10 +132,15 @@ export function proxyContext(
           return proxy;
         case "top":
         case "parent":
+          if (isSandbox) return proxy;
           if (global[name] === global.self) {
             return special.global || proxy;
           }
           return global[name];
+        // eslint-disable-next-line no-fallthrough
+        case "frameElement":
+          if (isSandbox) return null;
+        // eslint-disable-next-line no-fallthrough
         default:
           break;
       }
@@ -195,6 +201,10 @@ export function proxyContext(
         case "top":
         case "parent":
           return true;
+        // eslint-disable-next-line no-fallthrough
+        case "frameElement":
+          if (isSandbox) return true;
+        // eslint-disable-next-line no-fallthrough
         default:
           break;
       }
@@ -233,6 +243,13 @@ export function proxyContext(
         case "self":
         case "globalThis":
           return false;
+        case "top":
+        case "parent":
+          if (isSandbox) return false;
+        // eslint-disable-next-line no-fallthrough
+        case "frameElement":
+          if (isSandbox) return false;
+        // eslint-disable-next-line no-fallthrough
         default:
       }
       if (has(special, name)) {

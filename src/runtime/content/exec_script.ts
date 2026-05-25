@@ -51,6 +51,7 @@ export default class ExecScript {
     });
     this.GM_info = GMApi.GM_info(this.scriptRes);
     this.proxyMessage = new ProxyMessageManager(message);
+    let isSandbox = false;
     if (scriptFunc) {
       this.scriptFunc = scriptFunc;
     } else {
@@ -58,6 +59,7 @@ export default class ExecScript {
       const scriptType = this.scriptRes.type;
       let scriptCode = this.scriptRes.code;
       if ((scriptType === 2 || scriptType === 3) && scriptCode.length > 0) {
+        isSandbox = true;
         // background script / scheduled script
         // we need to remove the access to chrome or browser in FirefoxMV2
         // since sandbox manifest support is still missing.
@@ -65,7 +67,10 @@ export default class ExecScript {
         for (let i = 0, l = arr.length; i < l; i++) {
           const t = arr[i].trim();
           if (!t || t.startsWith("//")) continue;
-          arr.splice(i, 0, "let chrome = {}, browser = undefined;")
+          const codeGen = (target: string, property: string, value: string): string => {
+            return `try { Object.defineProperty(${target}, "${property}", { get() { return ${value}; }, configurable: false }); } catch {}`;
+          };
+          arr.splice(i, 0, `let chrome = {}, browser = undefined, frameElement = null, parent = window, top = window; try { window.parent = window; } catch {} ${codeGen("window", "parent", "this")} ${codeGen("window", "top", "this")} ${codeGen("window", "chrome", "{}")} ${codeGen("window", "browser", "undefined")} ${codeGen("window", "frameElement", "null")}`)
           scriptCode = arr.join("\n");
           break;
         }
@@ -85,7 +90,8 @@ export default class ExecScript {
       this.proxyContent = proxyContext(
         global,
         this.sandboxContent,
-        thisContext
+        thisContext,
+        isSandbox
       );
     }
   }
