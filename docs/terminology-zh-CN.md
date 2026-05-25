@@ -36,7 +36,7 @@
 | page script | `页面脚本` | `page_script`, `foreground_page_script_tooltip`, `guide_script_list_enable_content` | 表示在指定页面运行的脚本。 |
 | background script | `后台脚本` | `create_background_script`, `background_script`, `enable_background.description` | 表示后台运行能力及脚本类型。 |
 | scheduled script | `定时脚本` | `create_scheduled_script`, `scheduled_script`, `scheduled_script_description_title` | 表示按计划执行的脚本类型。 |
-| script marketplace / site | `脚本站` / `脚本市场` | `script_gallery`, `guide_script_list_title` | 两者现用于不同入口或引导标题；新文案应与所指页面名称一致。 |
+| ScriptCat script-browsing destination | `脚本站` / `脚本市场` | `script_gallery`, `guide_script_list_title`, `guide_script_list_content`, README | README 将指向 `https://scriptcat.org/search` 的入口称为 `脚本站`；引导界面的脚本发现与安装区域使用 `脚本市场`。按显示位置沿用名称，不自动互换。 |
 | script synchronization | `脚本同步` | `script_sync`, `guide_setting_sync_title`, `sync_status` | 与同步相关的功能名称沿用现行产品用语。 |
 | deletion synchronization | `同步删除` / `同步脚本删除` | `sync_delete`, `notification.script_sync_delete`, `guide_setting_sync_content` | CodFrm 在 PR #1421 中明确选择此写法；具体行为由右侧帮助说明解释，不在标签中扩写为 `删除状态`。 |
 | script subscription | `订阅` / `脚本订阅` | `subscribe`, `subscribe_url`, `subscribe_import_progress` | 对象为订阅，不使用英文式动词名词混写。 |

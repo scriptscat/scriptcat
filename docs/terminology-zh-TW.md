@@ -2,7 +2,7 @@
 
 本文件是 ScriptCat 繁體中文（`zh-TW`）介面與文件的用語依據。翻譯或修改繁體中文時，目標是讓台灣使用者自然理解，並維持台灣軟體產品介面常見的語氣。
 
-盤點來源：`src/locales/zh-TW/translation.json`
+盤點來源：`src/locales/zh-TW/translation.json`、`docs/README_zh-TW.md`
 
 產品互動參考：[PR #1421 討論](https://github.com/scriptscat/scriptcat/pull/1421)。CodFrm 對相同同步刪除設定確認應以簡短標籤呈現，詳細行為由旁側說明交代；此項產品決策在 `zh-TW` 對應為 `同步刪除` / `同步腳本刪除`，不代表其他 `zh-CN` 詞彙偏好應套用至繁中。
 
@@ -63,6 +63,7 @@
 | `退出瀏覽器` | quit/close browser 通常用 `關閉瀏覽器`，必要時可用 `結束瀏覽器`。 | `enable_background.description` |
 | `前臺` / `後臺` | foreground/background 用 `前景` / `背景`；frontend/backend 用 `前端` / `後端`；管理系統語境才可能用 `前台` / `後台`。 | `error_script_type_mismatch` |
 | `本地` / `本機` | 兩者皆為台灣可用寫法，不應只因 `zh-TW` 在地化而互相取代。`本地` 適合表達 local source / local creation 等與遠端來源相對的概念；`本機` 適合強調目前裝置或與雲端相對的儲存、匯入位置。同一功能流程內應維持一致。 | `source_local_script`, `by_manual_creation`, `local`, `import_by_local`, `import_local_failure`, `import_local_success`, `local_creation`, `sync_delete_desc`, `guide_tools_backup_content` |
+| `腳本站` / `腳本網站` / `腳本中心` | README 將指向 `https://scriptcat.org/zh-TW/search` 的入口稱為 `腳本站`；介面另有 `腳本網站` 與用於尋找、安裝腳本的 `腳本中心`。依顯示位置沿用名稱，不自動互換。 | `script_gallery`, `guide_script_list_title`, `guide_script_list_content`, README |
 | `查詢` / `搜尋` | 兩者皆可用；紀錄或資料條件查詢的欄位可保留 `查詢`，搜尋動作與正規表達式搜尋使用 `搜尋`。不因 `zh-CN` 對 `查詢` 的偏好而全域統一。 | `query`, `search_regex`, `search_scripts`, `enter_search_value` |
 | `同步刪除` / `同步腳本刪除` | 依 CodFrm 對同一設定的產品文案決策，設定標籤與通知標題保留短稱；刪除狀態的傳播行為由說明文字呈現，不在標籤中擴寫。 | `sync_delete`, `notification.script_sync_delete`, `guide_setting_sync_content`, `sync_delete_desc` |
 | `腳本同步儲存空間` | 權限對話框標題使用 `儲存空間` 即可；同步用途由周邊功能語境與說明文字交代。 | `script_operation_title`, `script_operation_description` |

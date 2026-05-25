@@ -35,7 +35,7 @@
 | scheduled script | `Скрипт по расписанию` | `create_scheduled_script`, `scheduled_script` | Предпочтительно для нового текста; сохраняет смысл планового запуска. |
 | script synchronization | `Синхронизация скриптов` | `script_sync`, `sync_status` | Для удаления следует уточнять синхронизацию состояния удаления. |
 | subscription | `Подписка` | `subscribe_url`, `install_subscribe`, `subscribe_import_progress` | `Подписаться` использовать только для действия. |
-| script repository / gallery / market | `Хранилище скриптов` / `Галерея скриптов` / `Магазин скриптов` | `script_gallery`, `guide_script_list_title`, README | В документации `Хранилище скриптов` обозначает каталог на `scriptcat.org/ru/search`; для UI выбирать название фактического раздела назначения. |
+| script browsing destination / gallery / market | `Хранилище скриптов` / `Галерея скриптов` / `Магазин скриптов` | `script_gallery`, `guide_script_list_title`, README | В документации `Хранилище скриптов` обозначает переход к `scriptcat.org/ru/search`; для UI выбирать название фактического раздела назначения. |
 
 ## B. Действия и состояния интерфейса
 
