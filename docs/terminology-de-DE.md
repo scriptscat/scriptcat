@@ -29,7 +29,7 @@ Geprüfte Verwendungsquelle: `src/locales/de-DE/translation.json`
 | --- | --- | --- | --- |
 | ScriptCat browser extension | `ScriptCat-Erweiterung` | `start_guide_title`, `ext_update_notification` | Produktname als `ScriptCat` schreiben. |
 | generic user script | `Benutzerskript` | `create_user_script`, `guide_script_list_content` | Allgemeine Bezeichnung für ein Userscript. |
-| Tampermonkey-compatible script type | `Tampermonkey-Skript` | `script_status_tooltip` | Nicht zu einem allgemeinen Skripttyp verkurzen. |
+| Tampermonkey-compatible script type | `Tampermonkey-Skript` | `script_status_tooltip` | Nicht zu einem allgemeinen Skripttyp verkürzen. |
 | page script | `Seitenskript` | `page_script`, `foreground_page_script_tooltip` | Skript, das auf angegebenen Seiten ausgeführt wird. |
 | background script | `Hintergrundskript` | `create_background_script`, `background_script` | Produkttyp für Ausführung im Hintergrund. |
 | scheduled script | `Geplantes Skript` | `create_scheduled_script`, `scheduled_script` | Produkttyp für geplante Ausführung; nicht ohne Kontext in `Cron-Skript` umbenennen. |
@@ -55,10 +55,10 @@ Geprüfte Verwendungsquelle: `src/locales/de-DE/translation.json`
 
 ## C. Kontextabhängige Begriffe
 
-| Konzept | Mogliche Formulierung | Entscheidungsregel | Aktuelle Beispiel-Keys |
+| Konzept | Mögliche Formulierung | Entscheidungsregel | Aktuelle Beispiel-Keys |
 | --- | --- | --- | --- |
 | local / cloud | `Lokal` / `Cloud` | Für Quelle, Speicherort oder Synchronisationsziel verwenden; bei Bedarf Objekt ergänzen. | `local`, `cloud`, `source_local_script` |
-| panel / console | `Panel` / `Konsole` | Bedienoberflache als `Panel`, Entwicklerausgabe als `Konsole` benennen. | `scheduled_script_description_title`, `build_success_message` |
+| panel / console | `Panel` / `Konsole` | Bedienoberfläche als `Panel`, Entwicklerausgabe als `Konsole` benennen. | `scheduled_script_description_title`, `build_success_message` |
 | source | `Quelle`, `Installationsquelle`, `Abonnementquelle` | Benennen, was die Quelle liefert. | `source`, `install_source`, `subscribe_source_tooltip` |
 | storage | `Speicher`, `Speicherplatz`, `Speicher-API` | Nach Datenablage, zugewiesenem Speicherplatz oder API unterscheiden. | `script_storage`, `script_operation_description`, `storage_api` |
 | sync deletion | `Löschstatus synchronisieren` / `Löschungen synchronisieren` | Erst nach Bestätigung des tatsächlichen Verhaltens vereinheitlichen. | `sync_delete`, `sync_delete_desc`, `notification.script_sync_delete` |
@@ -67,7 +67,7 @@ Geprüfte Verwendungsquelle: `src/locales/de-DE/translation.json`
 
 | Konzept | Verwenden | Aktuelle Beispiel-Keys | Grund |
 | --- | --- | --- | --- |
-| regular expression | `Regex` / `regularer Ausdruck` | `search_regex` | Etablierter Entwicklerbegriff. |
+| regular expression | `Regex` / `regulärer Ausdruck` | `search_regex` | Etablierter Entwicklerbegriff. |
 | cron expression | `Cron-Ausdruck` | `cron_invalid_expr`, `error_cron_invalid` | Bezeichnet die akzeptierte Syntax präzise. |
 | expression | `Ausdruck` | `value_export_expression`, `expression_format_error` | Technische Bedeutung eines eingegebenen oder ausgewerteten Ausdrucks. |
 | watch file changes | `Datei überwachen` / `Überwachung stoppen` | `watch_file`, `stop_watch_file` | Bezeichnet die laufende Dateibeobachtung. |
@@ -82,12 +82,12 @@ Die folgenden Einträge beschreiben bereits vorhandene Auffälligkeiten. Dieses 
 | --- | --- | --- | --- |
 | browser tabs | Die Ausführungsumgebung enthält `Alle Bezeichnungen`, während Schließen-Aktionen `Tab` verwenden. | Falls `script_run_env` Browser-Tabs bezeichnet, durchgängig `Alle Tabs`, `Normale Tabs`, `Inkognito-Tabs` verwenden. | `script_run_env.all`, `close_current_tab` |
 | scheduled script expression label | `Geplante Aufgaben-Ausdruck` ist grammatisch unklar. | Nach Bestätigung der Funktion etwa `Ausdruck für geplante Aufgabe` verwenden. | `scheduled_script_description_description_expr` |
-| ScriptCat capitalization | Einige Einstiegstexte konnen eine abweichende Produkt-Schreibung enthalten. | Produktnamen stets als `ScriptCat` schreiben. | `start_guide_title`, `ext_update_notification` |
+| ScriptCat capitalization | Einige Einstiegstexte können eine abweichende Produkt-Schreibung enthalten. | Produktnamen stets als `ScriptCat` schreiben. | `start_guide_title`, `ext_update_notification` |
 | documentation link locale | Deutsche UI-Texte verweisen teilweise auf `/en/`-Dokumentation. | Nur ändern, wenn ein entsprechendes deutsches Ziel verfügbar ist. | `guide_script_list_content`, `develop_mode_guide` |
 
 ## Checkliste für AI und Mitwirkende
 
-Beim Hinzufugen oder Bearbeiten deutscher Texte:
+Beim Hinzufügen oder Bearbeiten deutscher Texte:
 
 1. Prüfe, dass das Ziel-Locale `de-DE` ist, und lies diese Richtlinie sowie benachbarte bestehende Strings.
 2. Bewahre die Unterscheidung der Skripttypen und verwende für gleiche Funktionen dieselben Produktbegriffe.

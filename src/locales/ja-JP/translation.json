@@ -415,7 +415,7 @@
   "guide_script_list_update_title": "最終更新",
   "guide_script_list_update_content": "「最終更新」列ラベルをクリックすると、スクリプトの更新がチェックされます。",
   "guide_script_list_action_title": "操作",
-  "guide_script_list_action_content": "操作バーでは、スクリプトの編集、制御スクリプトの実行と終了（バックグラウンドスクリプト）、および設定（<Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link> を参照）にアクセスできます。右側のボタンからは、高度な絞り込みや表示モードの切り替えにアクセスできます。",
+  "guide_script_list_action_content": "操作バーでは、スクリプトの編集、スクリプトの実行・停止（バックグラウンドスクリプト）、および設定（<Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link> を参照）にアクセスできます。右側のボタンからは、高度な絞り込みや表示モードの切り替えにアクセスできます。",
   "guide_tools_title": "常用ツール",
   "guide_tools_content": "ツールにはバックアップと開発のツールが提供されています",
   "guide_tools_backup_title": "バックアップ",

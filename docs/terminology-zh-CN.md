@@ -4,6 +4,8 @@
 
 用例参考来源：`src/locales/zh-CN/translation.json`、`docs/README_zh-CN.md`
 
+作者确认参考：[PR #1421 讨论](https://github.com/scriptscat/scriptcat/pull/1421)。其中 CodFrm 明确确认了 `同步删除`、`同步脚本删除`、`查询`，并建议将存储权限标题写为 `脚本正在尝试访问存储空间`。
+
 ## 使用原则
 
 1. 优先使用简体中文软件界面中常见且清晰的表达，例如 `设置`、`保存`、`加载`、`目录`、`连接`、`扩展`。
@@ -35,7 +37,8 @@
 | background script | `后台脚本` | `create_background_script`, `background_script`, `enable_background.description` | 表示后台运行能力及脚本类型。 |
 | scheduled script | `定时脚本` | `create_scheduled_script`, `scheduled_script`, `scheduled_script_description_title` | 表示按计划执行的脚本类型。 |
 | script marketplace / site | `脚本站` / `脚本市场` | `script_gallery`, `guide_script_list_title` | 两者现用于不同入口或引导标题；新文案应与所指页面名称一致。 |
-| script synchronization | `脚本同步` | `script_sync`, `guide_setting_sync_title`, `sync_status` | 涉及删除同步时应说明是同步删除状态或删除操作。 |
+| script synchronization | `脚本同步` | `script_sync`, `guide_setting_sync_title`, `sync_status` | 与同步相关的功能名称沿用现行产品用语。 |
+| deletion synchronization | `同步删除` / `同步脚本删除` | `sync_delete`, `notification.script_sync_delete`, `guide_setting_sync_content` | CodFrm 在 PR #1421 中明确选择此写法；具体行为由右侧帮助说明解释，不在标签中扩写为 `删除状态`。 |
 | script subscription | `订阅` / `脚本订阅` | `subscribe`, `subscribe_url`, `subscribe_import_progress` | 对象为订阅，不使用英文式动词名词混写。 |
 
 ## B. 界面操作与状态标准表达
@@ -54,13 +57,14 @@
 | load / reload | `加载` / `重新加载` | `loading`, `install_page_loading`, `click_to_reload` | 与现行 UI 一致。 |
 | directory | `目录` | `open_directory`, `open_backup_dir` | 文件系统操作的常用表达。 |
 | tabs | `标签页` | `close_current_tab`, `close_other_tabs` | 指浏览器 tab 时使用完整的 `标签页`。 |
+| log query | `查询` | `query`, `total_logs`, `filtered_logs`, `enter_filter_conditions` | CodFrm 在 PR #1421 中明确偏好 `查询`；日志筛选说明可继续使用 `筛选`。 |
 
 ## C. 需结合语境判断的词汇
 
 | 概念 | 可用表达 | 判断标准 | 当前用例 key |
 | --- | --- | --- | --- |
 | local / cloud | `本地` / `云端` | 保存位置、导入来源与同步目的地使用现行成对表达。 | `local`, `cloud`, `source_local_script`, `guide_tools_backup_content` |
-| storage | `存储` / `储存` | 面向大陆用户的新技术/UI 文案优先 `存储`；现有混用列入审查，不直接全局替换。 | `storage_api`, `script_operation_title`, `script_storage`, `storage_error` |
+| storage | `存储` / `储存` / `存储空间` | 权限对话框标题使用 CodFrm 建议的 `脚本正在尝试访问存储空间`；API 名使用 `存储 API`。其他既有混用列入审查，不直接全局替换。 | `storage_api`, `script_operation_title`, `script_storage`, `storage_error` |
 | panel / console | `面板` / `控制台` | 操作面板使用 `面板`；开发者工具输出位置使用 `控制台`。 | `background_script_description`, `build_success_message` |
 | source | `来源` / `安装来源` / `订阅源` | 依据是一般来源、安装出处还是提供订阅内容的源来选择。 | `source`, `install_source`, `subscribe_source_tooltip` |
 | permission / authorization | `权限` / `授权` | 能力类别与请求使用 `权限`；给予脚本访问权或已授权项使用 `授权`。 | `permission`, `request_permission`, `permission_management`, `confirm_delete_permission` |
@@ -85,10 +89,9 @@
 
 | 对象 | 当前情况 | 建议方向 | 当前用例 key |
 | --- | --- | --- | --- |
-| `存储` / `储存` | API、权限标题与 S3 使用 `存储`，脚本数据和迁移文案使用 `储存`。 | 确认产品词后，面向大陆用户的技术/UI 文案优先统一为 `存储`。 | `storage_api`, `script_operation_title`, `script_storage`, `storage_error`, `migration_confirm_message` |
+| `存储` / `储存` | API 与权限标题使用 `存储` / `存储空间`，脚本数据和迁移文案仍有 `储存`。 | `script_operation_title` 已按作者建议使用 `存储空间`；其余是否统一需单独确认。 | `storage_api`, `script_operation_title`, `script_storage`, `storage_error`, `migration_confirm_message` |
 | browser tabs | 关闭操作使用 `标签页`，运行环境使用 `标签`。 | 若 `script_run_env` 表示浏览器 tab，应改用 `所有标签页`、`普通标签页`、`隐身标签页`。 | `close_current_tab`, `script_run_env.all`, `script_run_env.normal-tabs`, `script_run_env.incognito-tabs` |
 | script type boundaries | 界面同时存在 `普通脚本`、`普通油猴脚本`、`用户脚本` 和 `页面脚本`。 | 在确认类型模型前保留各自现行含义；新文案不要擅自合并类别。 | `create_user_script`, `script_status_tooltip`, `guide_script_list_content`, `page_script` |
-| synchronization deletion label | `同步删除` 可能被理解为立即执行删除。 | 依据实际交互确认是否应明确为 `同步删除状态` 或在说明中补足行为。 | `sync_delete`, `sync_delete_desc`, `notification.script_sync_delete` |
 | UI spacing around Latin identifiers | 部分字符串写成 `API文档`、`ESLint规则`、`Cookie域`、`@connect标签`。 | 新增文案优先在中文与英文/标识符之间保留空格，既有内容应在单独审查中统一。 | `api_docs`, `eslint_rules`, `cookie_domain`, `confirm_operation_description` |
 
 ## 常用标准词
