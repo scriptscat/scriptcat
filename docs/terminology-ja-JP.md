@@ -85,7 +85,7 @@
 | source | `ソース` / `インストール元` | 外部リソースや出所一般は `ソース`、導入元を明示する欄では `インストール元` を使用しています。 | `source`, `install_source`, `install_from_legitimate_sources_warning` |
 | query / filter | `検索` / `絞り込み` / `クエリ` | ログ検索 UI の操作名は `検索`、結果を条件で狭める説明は `絞り込み` を優先します。API や問い合わせ言語など技術文脈では `クエリ` を使用できます。 | `query`, `enter_filter_conditions`, `filtered_logs` |
 | match / exclude | `対象` / `除外`、ラベルでは `対象サイト（@match）` / `除外サイト（@exclude）` | ユーザー向け操作では現行の `対象` / `除外` を優先します。`@match` / `@exclude` は識別子として保持します。現行の `マッチ` 文言は後日レビュー対象です。 | `add_match`, `add_exclude`, `website_match`, `website_exclude`, `match` |
-| storage access / operation | `同期ストレージにアクセス` / `ストレージ` | 許可ダイアログのタイトルでは対象への `アクセス` を明確にし、説明文で具体的操作を補います。API 名や保存領域の機能名では `ストレージ` を維持します。 | `script_operation_title`, `script_storage`, `storage_api` |
+| storage access / operation | `ストレージにアクセス` / `ストレージ` | 許可ダイアログは一般のファイルストレージへのアクセス確認であり、同期機能に限定しません。タイトルでは対象への `アクセス` を明確にし、説明文で具体的操作を補います。 | `script_operation_title`, `script_storage`, `storage_api` |
 
 ## D. 固定して扱う技術用語
 
@@ -96,7 +96,7 @@
 | expression（入力・エラー文言） | `式` | `value_export_expression`, `cookie_export_expression`, `expression_format_error` | 入力欄と形式エラーでは現行の `式` を維持します。スケジュール説明のラベルは後日レビュー対象です。 |
 | watch file changes | `監視` | `watch_file_description`, `watch_file`, `stop_watch_file` | ファイル変更の watch 機能は `監視` として統一されています。 |
 | metadata declaration | `宣言` | `error_metadata_line_duplicated` | metadata 行の declaration を示す技術用語です。 |
-| storage | `ストレージ` | `script_storage`, `storage_api`, `script_operation_title` | API・同期保存領域の機能名として使用します。 |
+| storage | `ストレージ` | `script_storage`, `storage_api`, `script_operation_title` | API・保存領域の機能名として使用します。 |
 | background execution | `バックグラウンド実行` | `enable_background.title`, `enable_background.description` | バックグラウンドスクリプトと関連する機能名として維持します。 |
 | ESLint / VSCode / API names | 原文の固有名を維持 | `enable_eslint`, `eslint_rules`, `vscode_url`, `storage_api` | 製品名・API 名は翻訳せず、必要に応じて周辺文言のみ調整します。 |
 

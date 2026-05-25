@@ -380,7 +380,7 @@
   "access_cookie_content": "スクリプトがウェブサイトのCookieコンテンツにアクセスしようとしています",
   "confirm_script_operation": "スクリプトがこの操作を実行することを許可するかどうか確認してください。Cookieは重要なユーザーデータですので、信頼できるスクリプトにのみ許可してください。",
   "cookie_domain": "Cookieドメイン",
-  "script_operation_title": "スクリプトが同期ストレージにアクセスしようとしています",
+  "script_operation_title": "スクリプトがストレージにアクセスしようとしています",
   "script_operation_description": "スクリプトがこの操作を実行することを許可するかどうか確認してください。許可すると、スクリプトが設定したストレージスペースの操作が許可され、スクリプトはストレージスペース下にapp/${dir}ディレクトリを作成して使用します",
   "script_permission_content": "スクリプト",
   "sync_system_connect_failed": "同期システムの接続に失敗しました",
