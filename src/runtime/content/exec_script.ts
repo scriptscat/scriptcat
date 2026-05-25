@@ -55,7 +55,22 @@ export default class ExecScript {
       this.scriptFunc = scriptFunc;
     } else {
       // 构建脚本资源
-      this.scriptFunc = compileScript(this.scriptRes.code);
+      const scriptType = this.scriptRes.type;
+      let scriptCode = this.scriptRes.code;
+      if ((scriptType === 2 || scriptType === 3) && scriptCode.length > 0) {
+        // background script / scheduled script
+        // we need to remove the access to chrome or browser in FirefoxMV2
+        // since sandbox manifest support is still missing.
+        const arr = scriptCode.split("\n");
+        for (let i = 0, l = arr.length; i < l; i++) {
+          const t = arr[i].trim();
+          if (!t || t.startsWith("//")) continue;
+          arr.splice(i, 0, "let chrome = {}, browser = undefined;")
+          scriptCode = arr.join("\n");
+          break;
+        }
+      }
+      this.scriptFunc = compileScript(scriptCode);
     }
     if (scriptRes.grantMap.none) {
       // 不注入任何GM api
