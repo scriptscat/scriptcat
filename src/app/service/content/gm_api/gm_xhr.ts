@@ -306,7 +306,7 @@ export function GM_xmlhttpRequest(
       onMessageHandler = null;
       doAbort = null;
       refCleanup = null;
-      connect?.disconnect(); // 确保 connect 断开
+      connect?.disconnect(true); // 确保 connect 断开
       connect = null;
     };
 

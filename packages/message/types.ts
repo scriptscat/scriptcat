@@ -49,7 +49,7 @@ export interface MessageSend {
 export interface MessageConnect {
   onMessage(callback: (data: TMessage) => void): void;
   sendMessage(data: TMessage): void;
-  disconnect(): void;
+  disconnect(ignoreAlreadyDisconnected?: boolean): void;
   onDisconnect(callback: (isSelfDisconnected: boolean) => void): void;
 }
 
