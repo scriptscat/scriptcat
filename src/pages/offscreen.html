@@ -4,8 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Offscreen</title>
+    <style>
+      .sandbox-iframe {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        border: 0;
+        padding: 0;
+        margin: 0;
+        opacity: 0;
+        pointer-events: none;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+    </style>
   </head>
   <body>
-    <iframe src="/src/sandbox.html" name="sandbox" style="display: none"></iframe>
+    <iframe 
+      src="/src/sandbox.html" 
+      name="sandbox" 
+      class="sandbox-iframe"
+      aria-hidden="true"
+      tabindex="-1"
+    ></iframe>
   </body>
 </html>
