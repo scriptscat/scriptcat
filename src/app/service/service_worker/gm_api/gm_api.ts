@@ -807,12 +807,17 @@ export default class GMApi {
         const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
         throw throwErrorFn(msg);
       }
-      const originPattern = `${url.origin}/*`;
       let hasOriginPermission = false;
-      try {
-        hasOriginPermission = await chrome.permissions.contains({ origins: [originPattern] });
-      } catch (e) {
-        console.warn(e);
+      let originPattern = "";
+      if (!url.origin || url.origin === "null") {
+        hasOriginPermission = true; // TBC
+      } else {
+        originPattern = `${url.origin}/*`;
+        try {
+          hasOriginPermission = await chrome.permissions.contains({ origins: [originPattern] });
+        } catch (e) {
+          console.warn(e);
+        }
       }
       const extensionSiteAccessOrigins = hasOriginPermission ? undefined : [originPattern];
       const confirmExtensionSiteAccess = (): ConfirmParam => {
