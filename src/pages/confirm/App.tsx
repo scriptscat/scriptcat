@@ -45,6 +45,21 @@ function App() {
     return async () => {
       if (!uuid) return;
       try {
+        if (allow && confirm?.extensionSiteAccessOrigins?.length) {
+          const granted = await chrome.permissions.request({
+            origins: confirm.extensionSiteAccessOrigins,
+          });
+          if (!granted) {
+            await permissionClient
+              .confirm(uuid, {
+                allow: false,
+                type,
+              })
+              .catch(() => {});
+            window.close();
+            return;
+          }
+        }
         await permissionClient.confirm(uuid, {
           allow,
           type,
@@ -60,6 +75,7 @@ function App() {
   };
 
   const metadata = useMemo(() => (confirm && confirm.metadata && Object.keys(confirm.metadata)) || [], [confirm]);
+  const isExtensionSiteAccessConfirm = confirm?.permission === "extension-site-access";
 
   return (
     <div className="tw-h-full">
@@ -71,73 +87,85 @@ function App() {
           </span>
         ))}
         <span className="tw-text-xl tw-font-500">{confirm?.describe}</span>
-        <div>
-          <Button type="primary" onClick={handleConfirm(false, 1)}>
-            {`${t("ignore")} (${second})`}
-          </Button>
-        </div>
-        <div>
-          <Space>
-            <Button onClick={handleConfirm(true, 1)} status="success">
-              {t("allow_once")}
-            </Button>
-            <Button onClick={handleConfirm(true, 3)} status="success">
-              {t("temporary_allow", {
-                permissionContent: confirm?.permissionContent,
-              })}
-            </Button>
-            {likeNum > 2 && (
-              <Button onClick={handleConfirm(true, 2)} status="success">
-                {t("temporary_allow_all", {
-                  permissionContent: confirm?.permissionContent,
-                })}
+        {isExtensionSiteAccessConfirm ? (
+          <>
+            <div>
+              <Button type="primary" onClick={handleConfirm(true, 1)}>
+                {t("request_permission")}
               </Button>
-            )}
-            <Button onClick={handleConfirm(true, 5)} status="success">
-              {t("permanent_allow", {
-                permissionContent: confirm?.permissionContent,
-              })}
-            </Button>
-            {likeNum > 2 && (
-              <Button onClick={handleConfirm(true, 4)} status="success">
-                {t("permanent_allow_all", {
-                  permissionContent: confirm?.permissionContent,
-                })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <Button type="primary" onClick={handleConfirm(false, 1)}>
+                {`${t("ignore")} (${second})`}
               </Button>
-            )}
-          </Space>
-        </div>
-        <div>
-          <Space>
-            <Button onClick={handleConfirm(false, 1)} status="danger">
-              {t("deny_once")}
-            </Button>
-            <Button onClick={handleConfirm(false, 3)} status="danger">
-              {t("temporary_deny", {
-                permissionContent: confirm?.permissionContent,
-              })}
-            </Button>
-            {likeNum > 2 && (
-              <Button onClick={handleConfirm(false, 2)} status="danger">
-                {t("temporary_deny_all", {
-                  permissionContent: confirm?.permissionContent,
-                })}
-              </Button>
-            )}
-            <Button onClick={handleConfirm(false, 5)} status="danger">
-              {t("permanent_deny", {
-                permissionContent: confirm?.permissionContent,
-              })}
-            </Button>
-            {likeNum > 2 && (
-              <Button onClick={handleConfirm(false, 4)} status="danger">
-                {t("permanent_deny_all", {
-                  permissionContent: confirm?.permissionContent,
-                })}
-              </Button>
-            )}
-          </Space>
-        </div>
+            </div>
+            <div>
+              <Space>
+                <Button onClick={handleConfirm(true, 1)} status="success">
+                  {t("allow_once")}
+                </Button>
+                <Button onClick={handleConfirm(true, 3)} status="success">
+                  {t("temporary_allow", {
+                    permissionContent: confirm?.permissionContent,
+                  })}
+                </Button>
+                {likeNum > 2 && (
+                  <Button onClick={handleConfirm(true, 2)} status="success">
+                    {t("temporary_allow_all", {
+                      permissionContent: confirm?.permissionContent,
+                    })}
+                  </Button>
+                )}
+                <Button onClick={handleConfirm(true, 5)} status="success">
+                  {t("permanent_allow", {
+                    permissionContent: confirm?.permissionContent,
+                  })}
+                </Button>
+                {likeNum > 2 && (
+                  <Button onClick={handleConfirm(true, 4)} status="success">
+                    {t("permanent_allow_all", {
+                      permissionContent: confirm?.permissionContent,
+                    })}
+                  </Button>
+                )}
+              </Space>
+            </div>
+            <div>
+              <Space>
+                <Button onClick={handleConfirm(false, 1)} status="danger">
+                  {t("deny_once")}
+                </Button>
+                <Button onClick={handleConfirm(false, 3)} status="danger">
+                  {t("temporary_deny", {
+                    permissionContent: confirm?.permissionContent,
+                  })}
+                </Button>
+                {likeNum > 2 && (
+                  <Button onClick={handleConfirm(false, 2)} status="danger">
+                    {t("temporary_deny_all", {
+                      permissionContent: confirm?.permissionContent,
+                    })}
+                  </Button>
+                )}
+                <Button onClick={handleConfirm(false, 5)} status="danger">
+                  {t("permanent_deny", {
+                    permissionContent: confirm?.permissionContent,
+                  })}
+                </Button>
+                {likeNum > 2 && (
+                  <Button onClick={handleConfirm(false, 4)} status="danger">
+                    {t("permanent_deny_all", {
+                      permissionContent: confirm?.permissionContent,
+                    })}
+                  </Button>
+                )}
+              </Space>
+            </div>
+          </>
+        )}
       </Space>
     </div>
   );
