@@ -200,8 +200,9 @@ export class ExtensionMessageConnect implements MessageConnect {
     listenerMgr.addListener(`onMessage:${this.listenerId}`, callback);
   }
 
-  disconnect() {
+  disconnect(ignoreAlreadyDisconnected?: boolean) {
     if (!this.con) {
+      if (ignoreAlreadyDisconnected) return;
       console.warn("Attempted to disconnect on a disconnected port.");
       // 重复 disconnect() 不应该屏蔽错误
       throw new Error("Attempted to disconnect on a disconnected port.");

@@ -774,10 +774,11 @@ export default class GMApi {
         throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
       }
       // conn 为 nested scope 内 local 存取
-      let throwErrorFn: ((error: string) => Error) | null = ((conn: MessageConnect | null) => {
+      let throwErrorFn: ((error: string) => Error) | null = ((conn: MessageConnect) => {
+        let myConn: MessageConnect | null = conn;
         let errorOccur: string | null = null;
         const doLoadEnd = () => {
-          conn?.sendMessage({
+          myConn?.sendMessage({
             action: "onloadend",
             data: {
               status: 0,
@@ -786,12 +787,12 @@ export default class GMApi {
               readyState: 4, // ERROR. DONE.
             },
           });
-          conn?.disconnect(); // 断开连结
-          conn = null; // 释放
+          myConn?.disconnect(); // 断开连结
+          myConn = null; // 释放
         };
         return (error: string) => {
           errorOccur = error;
-          conn?.sendMessage({
+          myConn?.sendMessage({
             action: "onerror",
             data: {
               status: 0,

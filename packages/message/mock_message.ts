@@ -3,23 +3,49 @@ import EventEmitter from "eventemitter3";
 import { sleep } from "@App/pkg/utils/utils";
 
 export class MockMessageConnect implements MessageConnect {
-  constructor(protected EE: EventEmitter<string, any>) {}
+  EE: EventEmitter<string, any> | null;
+  constructor(EE: EventEmitter<string, any>) {
+    this.EE = EE;
+  }
 
   onMessage(callback: (data: TMessage) => void): void {
+    if (!this.EE) {
+      console.error("onMessage Invalid MockConnection");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onMessage Invalid MockConnection");
+    }
     this.EE.on("message", (data: any) => {
       callback(data);
     });
   }
 
   sendMessage(data: TMessage): void {
+    if (!this.EE) {
+      console.warn("Attempted to sendMessage on a disconnected MockConnection.");
+      // 無法 sendMessage 不应该屏蔽错误
+      throw new Error("Attempted to sendMessage on a disconnected MockConnection.");
+    }
     this.EE.emit("message", data);
   }
 
-  disconnect(): void {
-    this.EE.emit("disconnect", true); // MockMessageConnect 未有模拟由另一端触发 disconnect() 的情况
+  disconnect(ignoreAlreadyDisconnected?: boolean): void {
+    if (!this.EE) {
+      if (ignoreAlreadyDisconnected) return;
+      console.warn("Attempted to disconnect on a disconnected MockConnection.");
+      // 重复 disconnect() 不应该屏蔽错误
+      throw new Error("Attempted to disconnect on a disconnected MockConnection.");
+    }
+    const EE = this.EE;
+    this.EE = null;
+    EE?.emit("disconnect", true); // MockMessageConnect 未有模拟由另一端触发 disconnect() 的情况
   }
 
   onDisconnect(callback: (isSelfDisconnected: boolean) => void) {
+    if (!this.EE) {
+      console.error("onDisconnect Invalid MockConnection.");
+      // 無法監聽的話不应该屏蔽错误
+      throw new Error("onDisconnect Invalid MockConnection.");
+    }
     this.EE.once("disconnect", callback);
   }
 }
