@@ -20,13 +20,13 @@ const test = base.extend<{
       args: ["--headless=new", ...chromeArgs],
     });
     let [bg] = ctx1.serviceWorkers();
-    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 780 });
     const extensionId = bg.url().split("/")[2];
     const extPage = await ctx1.newPage();
     await extPage.goto("chrome://extensions/");
     await extPage.waitForLoadState("domcontentloaded");
     // Wait for developerPrivate API to be available instead of a fixed delay
-    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 10_000 });
+    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 720 });
     await extPage.evaluate(async (id) => {
       await (chrome as any).developerPrivate.updateExtensionConfiguration({
         extensionId: id,
@@ -44,7 +44,7 @@ const test = base.extend<{
     // Ensure service worker is registered before handing context to fixtures,
     // preventing extensionId fixture from timing out with the global 10s timeout.
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 780 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -85,7 +85,7 @@ function autoApprovePermissions(context: BrowserContext): void {
       // The buttons in order are: allow_once(1), temporary_allow(3), permanent_allow(5)
       // We want "permanent_allow" which is the 3rd success button
       const successButtons = page.locator("button.arco-btn-status-success");
-      await successButtons.first().waitFor({ timeout: 5_000 });
+      await successButtons.first().waitFor({ timeout: 680 });
       // Find and click the last always-visible success button (permanent_allow, type=5)
       // Button order: allow_once(type=1), temporary_allow(type=3), permanent_allow(type=5)
       // Index 2 = permanent_allow (always visible)
@@ -130,10 +130,10 @@ async function runTestScript(
     page.on("console", (msg) => {
       const text = msg.text();
       logs.push(text);
-      const passMatch = text.match(/通过[:：]\s*(\d+)/);
-      const failMatch = text.match(/失败[:：]\s*(\d+)/);
-      if (passMatch) passed = parseInt(passMatch[1], 10);
-      if (failMatch) failed = parseInt(failMatch[1], 10);
+      const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
+      const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
+      if (passMatch) passed = parseInt(passMatch[2], 10);
+      if (failMatch) failed = parseInt(failMatch[2], 10);
       if (passed >= 0 && failed >= 0) resolve();
     });
   });
@@ -152,12 +152,18 @@ test.describe("GM API", () => {
   // Two-phase launch + script install + network fetches + permission dialogs
   test.setTimeout(300_000);
 
-  test("GM_ sync API tests (gm_api_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(context, extensionId, "gm_api_test.js", TARGET_URL, 90_000);
+  test("GM_ sync API tests (gm_api_sync_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_api_sync_test.js",
+      `${TARGET_URL}?gm_api_sync`,
+      90_000
+    );
 
-    console.log(`[gm_api_test] passed=${passed}, failed=${failed}`);
+    console.log(`[gm_api_sync_test] passed=${passed}, failed=${failed}`);
     if (failed !== 0) {
-      console.log("[gm_api_test] logs:", logs.join("\n"));
+      console.log("[gm_api_sync_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some GM_ sync API tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
@@ -168,7 +174,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "gm_api_async_test.js",
-      TARGET_URL,
+      `${TARGET_URL}?gm_api_async`,
       90_000
     );
 
@@ -185,7 +191,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "inject_content_test.js",
-      TARGET_URL,
+      `${TARGET_URL}?inject_content`,
       60_000
     );
 
@@ -211,6 +217,40 @@ test.describe("GM API", () => {
       console.log("[unwrap_e2e_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some unwrap scriptlet tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("WindowMessage Transport Test (window_message_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "window_message_test.js",
+      `${TARGET_URL}?WINDOW_MESSAGE_TEST_SC`,
+      8_000
+    );
+
+    console.log(`[window_message_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[window_message_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some window message tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("Sandbox Test (sandbox_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "sandbox_test.js",
+      `${TARGET_URL}?SANDBOX_TEST_SC`,
+      8_000
+    );
+
+    console.log(`[sandbox_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[sandbox_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some sandbox tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });

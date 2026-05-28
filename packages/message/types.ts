@@ -46,6 +46,10 @@ export interface MessageSend {
   sendMessage<T = any>(data: TMessage): Promise<T>;
 }
 
+export interface IOffscreenSend extends MessageSend {
+  init(): Promise<void> | void;
+}
+
 export interface MessageConnect {
   onMessage(callback: (data: TMessage) => void): void;
   sendMessage(data: TMessage): void;

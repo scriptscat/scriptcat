@@ -10,7 +10,7 @@ test.describe("Settings Page", () => {
     await page.waitForLoadState("domcontentloaded");
 
     // Wait for the settings page to render
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(380);
 
     // The settings page should have visible content (cards, selects, inputs, etc.)
     const content = page.locator(".arco-layout-content");
@@ -23,7 +23,7 @@ test.describe("Settings Page", () => {
     // Navigate to settings
     await page.goto(`chrome-extension://${extensionId}/src/options.html#/setting`);
     await page.waitForLoadState("domcontentloaded");
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(380);
 
     // Check that at least one Select component or Input is visible
     const selects = page.locator(".arco-select");
