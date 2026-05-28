@@ -809,7 +809,7 @@ export default class GMApi {
       }
       let hasOriginPermission = false;
       let originPattern = "";
-      if (!url.origin || url.origin === "null") {
+      if (!url.origin || url.origin === "null" || !url.protocol || !url.protocol.startsWith("http")) {
         hasOriginPermission = true; // TBC
       } else {
         originPattern = `${url.origin}/*`;
