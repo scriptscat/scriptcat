@@ -110,7 +110,7 @@ firefoxManifest.commands = {
 // 避免将 Chrome 特有权限添加到 Firefox 的 manifest
 firefoxManifest.permissions = firefoxManifest.permissions?.filter((permission) => permission !== "background");
 firefoxManifest.optional_permissions = firefoxManifest.optional_permissions?.filter(
-  (permission) => permission !== "background",
+  (permission) => permission !== "background"
 );
 
 const chrome = createJSZip();
