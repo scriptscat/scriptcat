@@ -1,5 +1,4 @@
-import type { JSZipObject } from "jszip";
-import type { JSZipFileOptions, JSZipFile } from "@App/pkg/utils/jszip-x";
+import type { JSZipFileOptions, JSZipFile, JSZipObject } from "@App/pkg/utils/jszip-x";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 
 export class ZipFileReader implements FileReader {
@@ -29,13 +28,13 @@ export class ZipFileWriter implements FileWriter {
     }
   }
 
-  async write(content: string): Promise<void> {
+  async write(content: string | Blob): Promise<void> {
     const opts = {} as JSZipFileOptions;
     if (this.modifiedDate) {
-      const date = new Date(this.modifiedDate);
-      const dateWithOffset = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-      opts.date = dateWithOffset;
+      opts.date = new Date(this.modifiedDate);
+      // fflate does not require timezone adjustment to UTC Date
     }
-    this.zip.file(this.path, content, opts);
+    const fileData = typeof content === "string" ? content : new Uint8Array(await content.arrayBuffer());
+    this.zip.file(this.path, fileData, opts);
   }
 }
