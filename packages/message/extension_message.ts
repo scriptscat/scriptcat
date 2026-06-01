@@ -38,35 +38,43 @@ export class ExtensionMessage implements Message {
   };
 
   onConnect(callback: (data: TMessage, con: MessageConnect) => void) {
-    chrome.runtime.onConnect.addListener((port: chrome.runtime.Port | null) => {
+    chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
+      let myPort: chrome.runtime.Port | null = port;
       const lastError = chrome.runtime.lastError;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.runtime.onConnect", lastError);
         // 消息API发生错误因此不继续执行
       }
       const handler = (msg: TMessage) => {
-        port!.onMessage.removeListener(handler);
-        callback(msg, new ExtensionMessageConnect(port!));
-        port = null;
+        const port = myPort;
+        if (port !== null) {
+          myPort = null;
+          port.onMessage.removeListener(handler);
+          callback(msg, new ExtensionMessageConnect(port));
+        }
       };
-      port!.onMessage.addListener(handler);
+      myPort.onMessage.addListener(handler);
     });
 
     if (this.backgroundPrimary) {
       let addUserScriptConnectionListener: (() => void) | null = () => {
         try {
           // 监听用户脚本的连接
-          chrome.runtime.onUserScriptConnect.addListener((port: chrome.runtime.Port | null) => {
+          chrome.runtime.onUserScriptConnect.addListener((port: chrome.runtime.Port) => {
+            let myPort: chrome.runtime.Port | null = port;
             const lastError = chrome.runtime.lastError;
             if (lastError) {
               console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptConnect:", lastError);
             }
             const handler = (msg: TMessage) => {
-              port!.onMessage.removeListener(handler);
-              callback(msg, new ExtensionMessageConnect(port!));
-              port = null;
+              const port = myPort;
+              if (port !== null) {
+                myPort = null;
+                port.onMessage.removeListener(handler);
+                callback(msg, new ExtensionMessageConnect(port));
+              }
             };
-            port!.onMessage.addListener(handler);
+            myPort.onMessage.addListener(handler);
           });
           addUserScriptConnectionListener = null;
         } catch {
@@ -157,8 +165,9 @@ export class ExtensionMessageConnect implements MessageConnect {
     const handler = (msg: TMessage, _con: chrome.runtime.Port) => {
       listenerMgr.emit(`onMessage:${this.listenerId}`, msg);
     };
-    const cleanup = (con: chrome.runtime.Port) => {
-      if (this.con) {
+    const cleanup = () => {
+      const con = this.con;
+      if (con !== null) {
         this.con = null;
         listenerMgr.removeAllListeners(`cleanup:${this.listenerId}`);
         con.onMessage.removeListener(handler);
@@ -179,7 +188,7 @@ export class ExtensionMessageConnect implements MessageConnect {
       // 無法 sendMessage 不应该屏蔽错误
       throw new Error("Attempted to sendMessage on a disconnected port.");
     }
-    this.con?.postMessage(data);
+    this.con.postMessage(data);
   }
 
   onMessage(callback: (data: TMessage) => void) {
@@ -191,8 +200,9 @@ export class ExtensionMessageConnect implements MessageConnect {
     listenerMgr.addListener(`onMessage:${this.listenerId}`, callback);
   }
 
-  disconnect() {
+  disconnect(ignoreAlreadyDisconnected?: boolean) {
     if (!this.con) {
+      if (ignoreAlreadyDisconnected) return;
       console.warn("Attempted to disconnect on a disconnected port.");
       // 重复 disconnect() 不应该屏蔽错误
       throw new Error("Attempted to disconnect on a disconnected port.");

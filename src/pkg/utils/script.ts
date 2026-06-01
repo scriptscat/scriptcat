@@ -15,7 +15,7 @@ import { SubscribeStatusType, SubscribeDAO } from "@App/app/repo/subscribe";
 import { extractCronExpr } from "./cron";
 import { parseUserConfig } from "./yaml";
 import { t as i18n_t } from "@App/locales/locales";
-import { readBlobContent } from "@App/pkg/utils/encoding";
+import { readRawContent } from "@App/pkg/utils/encoding";
 
 const HEADER_BLOCK = /\/\/[ \t]*==User(Script|Subscribe)==([\s\S]+?)\/\/[ \t]*==\/User\1==/m;
 const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/gm;
@@ -59,7 +59,7 @@ export async function fetchScriptBody(url: string, signal?: AbortSignal): Promis
   if (resp.headers.get("content-type")?.includes("text/html")) {
     throw new Error("url is html");
   }
-  const body = await readBlobContent(resp, resp.headers.get("content-type"));
+  const body = await readRawContent(resp, resp.headers.get("content-type"));
   return body;
 }
 

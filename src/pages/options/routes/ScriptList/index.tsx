@@ -261,7 +261,7 @@ function ScriptList() {
   return (
     <Card id="script-list" className="script-list" style={{ height: "100%", overflowY: "auto" }}>
       <div className="tw-flex tw-flex-col">
-        <div className="tw-flex tw-flex-row tw-relative">
+        <div className="tw-flex tw-flex-row tw-relative tw-overscroll-none">
           <ScriptListSidebar
             open={sidebarOpen}
             filterItems={filterItems}

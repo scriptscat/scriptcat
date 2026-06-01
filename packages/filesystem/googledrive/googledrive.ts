@@ -1,4 +1,5 @@
 import { AuthVerify } from "../auth";
+import { FileSystemError, isNotFoundError } from "../error";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
@@ -40,6 +41,14 @@ export default class GoogleDriveFileSystem implements FileSystem {
     }
 
     const fullPath = joinPath(this.path, dir);
+    await this.ensureDirPath(fullPath);
+  }
+
+  private async ensureDirPath(fullPath: string): Promise<string> {
+    if (fullPath === "/" || fullPath === "") {
+      return "appDataFolder";
+    }
+
     const dirs = fullPath.split("/").filter(Boolean);
 
     // 从根目录开始逐级创建目录
@@ -69,7 +78,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
       parentId = folderId;
     }
 
-    return Promise.resolve();
+    return parentId;
   }
   async findFolderByName(name: string, parentId: string): Promise<{ id: string; name: string } | null> {
     const query = `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
@@ -107,6 +116,48 @@ export default class GoogleDriveFileSystem implements FileSystem {
     };
   }
 
+  private createRequestError(raw: unknown, status?: number): FileSystemError {
+    const errorBody =
+      raw && typeof raw === "object" && "error" in raw ? (raw as { error?: Record<string, unknown> }).error : undefined;
+    const googleStatus = typeof errorBody?.code === "number" ? errorBody.code : status;
+    const code =
+      typeof errorBody?.status === "string"
+        ? errorBody.status
+        : typeof errorBody?.code === "number"
+          ? String(errorBody.code)
+          : undefined;
+    const message =
+      typeof errorBody?.message === "string"
+        ? errorBody.message
+        : typeof raw === "string" && raw
+          ? raw
+          : `Google Drive request failed${googleStatus ? ` with status ${googleStatus}` : ""}`;
+
+    return new FileSystemError({
+      provider: "googledrive",
+      message,
+      status: googleStatus,
+      code,
+      auth: googleStatus === 401,
+      notFound: googleStatus === 404,
+      conflict: googleStatus === 409 || googleStatus === 412,
+      rateLimit: googleStatus === 429,
+      retryable: googleStatus === 429 || (googleStatus !== undefined && googleStatus >= 500),
+      raw,
+    });
+  }
+
+  private async createResponseError(resp: Response): Promise<FileSystemError> {
+    const text = await resp.text();
+    let raw;
+    try {
+      raw = text ? JSON.parse(text) : "";
+    } catch {
+      raw = text;
+    }
+    return this.createRequestError(raw, resp.status);
+  }
+
   request(url: string, config?: RequestInit, nothen?: boolean) {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
@@ -133,7 +184,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
           resp = await retryWithFreshToken();
         }
         if (!resp.ok) {
-          throw new Error(await resp.text());
+          throw await this.createResponseError(resp);
         }
         return resp.json();
       })
@@ -144,18 +195,18 @@ export default class GoogleDriveFileSystem implements FileSystem {
             return retryWithFreshToken()
               .then(async (retryResp) => {
                 if (!retryResp.ok) {
-                  throw new Error(await retryResp.text());
+                  throw await this.createResponseError(retryResp);
                 }
                 return retryResp.json();
               })
               .then((retryData) => {
                 if (retryData.error) {
-                  throw new Error(JSON.stringify(retryData));
+                  throw this.createRequestError(retryData);
                 }
                 return retryData;
               });
           }
-          throw new Error(JSON.stringify(data));
+          throw this.createRequestError(data);
         }
         return data;
       });
@@ -233,6 +284,18 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return parentId;
   }
   async list(): Promise<FileInfo[]> {
+    try {
+      return await this.listWithResolvedFolder();
+    } catch (error) {
+      if (this.path === "/" || !isNotFoundError(error)) {
+        throw error;
+      }
+      this.clearPathCache();
+      return this.listWithResolvedFolder();
+    }
+  }
+
+  private async listWithResolvedFolder(): Promise<FileInfo[]> {
     let folderId = "appDataFolder";
 
     // 获取当前目录的ID
@@ -302,11 +365,22 @@ export default class GoogleDriveFileSystem implements FileSystem {
     return null;
   }
 
+  clearPathCache(path?: string): void {
+    if (!path) {
+      this.pathToIdCache.clear();
+      return;
+    }
+
+    const fullPath = joinPath(path);
+    const pathsToRemove = Array.from(this.pathToIdCache.keys()).filter(
+      (p) => p === fullPath || p.startsWith(`${fullPath}/`)
+    );
+    pathsToRemove.forEach((p) => this.pathToIdCache.delete(p));
+  }
+
   // 清除相关缓存
   clearRelatedCache(path: string): void {
-    // 清除路径缓存
-    const pathsToRemove = Array.from(this.pathToIdCache.keys()).filter((p) => p.startsWith(path));
-    pathsToRemove.forEach((p) => this.pathToIdCache.delete(p));
+    this.clearPathCache(path);
   }
 
   async getDirUrl(): Promise<string> {
@@ -315,24 +389,6 @@ export default class GoogleDriveFileSystem implements FileSystem {
 
   // 确保目录存在并返回目录ID，优化Writer避免重复获取
   async ensureDirExists(dirPath: string): Promise<string> {
-    if (dirPath === "/" || dirPath === "") {
-      return "appDataFolder";
-    }
-
-    // 先检查缓存
-    const cachedId = this.pathToIdCache.get(dirPath);
-    if (cachedId) {
-      return cachedId;
-    }
-
-    // 如果没有缓存，使用getFileId方法
-    const foundId = await this.getFileId(dirPath);
-    if (!foundId) {
-      throw new Error(`Failed to create or find directory: ${dirPath}`);
-    }
-
-    // 缓存结果
-    this.pathToIdCache.set(dirPath, foundId);
-    return foundId;
+    return this.ensureDirPath(dirPath);
   }
 }

@@ -19,7 +19,7 @@ test.describe("Install Page", () => {
     // Wait for the script to be fetched and metadata to be displayed
     // The install page shows script name, version, description, etc.
     // Wait for either the metadata to load or an error message
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(380);
 
     // Check that the page has loaded content (not just blank)
     const body = page.locator("body");

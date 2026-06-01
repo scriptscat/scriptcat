@@ -2,8 +2,8 @@ import { type Script, ScriptDAO } from "@App/app/repo/scripts";
 import { FaviconDAO, type FaviconFile, type FaviconRecord } from "@App/app/repo/favicon";
 import { v5 as uuidv5 } from "uuid";
 import { getFaviconRootFolder } from "@App/app/service/service_worker/utils";
-import { readBlobContent } from "@App/pkg/utils/encoding";
 import type { FaviconService } from "@App/pkg/config/config";
+import { readRawContent } from "@App/pkg/utils/encoding";
 
 let scriptDAO: ScriptDAO | null = null;
 let faviconDAO: FaviconDAO | null = null;
@@ -164,7 +164,7 @@ export async function fetchIconByDomain(domain: string): Promise<string[]> {
 
   // 获取页面HTML
   const response = await fetch(url, { signal: timeoutAbortSignal(timeout) });
-  const html = await readBlobContent(response, response.headers.get("content-type"));
+  const html = await readRawContent(response, response.headers.get("content-type"));
   const resolvedPageUrl = response.url;
   const resolvedUrl = new URL(resolvedPageUrl);
   const resolvedOrigin = resolvedUrl.origin;

@@ -1,4 +1,5 @@
 import { AuthVerify } from "../auth";
+import { FileSystemError } from "../error";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import type FileSystem from "../filesystem";
 import { joinPath } from "../utils";
@@ -45,29 +46,83 @@ export default class OneDriveFileSystem implements FileSystem {
     if (!dir) {
       return;
     }
-    dir = joinPath(this.path, dir);
-    const dirs = dir.split("/");
-    let parent = "";
-    if (dirs.length > 2) {
-      parent = dirs.slice(0, dirs.length - 1).join("/");
-    }
+    const dirs = joinPath(this.path, dir).split("/").filter(Boolean);
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
-    if (parent !== "") {
-      parent = `:${parent}:`;
+
+    for (let i = 0; i < dirs.length; i++) {
+      const parentPath = dirs.slice(0, i).join("/");
+      const parent = parentPath ? `:/${parentPath}:` : "";
+      try {
+        await this.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot${parent}/children`, {
+          method: "POST",
+          headers: myHeaders,
+          body: JSON.stringify({
+            name: dirs[i],
+            folder: {},
+            "@microsoft.graph.conflictBehavior": "fail",
+          }),
+        });
+      } catch (error) {
+        if (this.isDirectoryAlreadyExistsError(error)) {
+          continue;
+        }
+        throw error;
+      }
     }
-    const data = await this.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot${parent}/children`, {
-      method: "POST",
-      headers: myHeaders,
-      body: JSON.stringify({
-        name: dirs[dirs.length - 1],
-        folder: {},
-        "@microsoft.graph.conflictBehavior": "replace",
-      }),
+  }
+
+  private isDirectoryAlreadyExistsError(error: unknown): boolean {
+    if (error instanceof FileSystemError && error.conflict) {
+      return true;
+    }
+    const msg = String(error);
+    return msg.includes("nameAlreadyExists") || msg.includes("itemAlreadyExists");
+  }
+
+  private createRequestError(raw: unknown, status?: number): FileSystemError {
+    const errorBody =
+      raw && typeof raw === "object" && "error" in raw ? (raw as { error?: Record<string, unknown> }).error : undefined;
+    const code = typeof errorBody?.code === "string" ? errorBody.code : undefined;
+    const message =
+      typeof errorBody?.message === "string"
+        ? errorBody.message
+        : typeof raw === "string" && raw
+          ? raw
+          : `OneDrive request failed${status ? ` with status ${status}` : ""}`;
+    const auth = status === 401 || code === "InvalidAuthenticationToken";
+    const notFound = status === 404 || code === "itemNotFound";
+    const conflict =
+      status === 409 ||
+      status === 412 ||
+      code === "nameAlreadyExists" ||
+      code === "itemAlreadyExists" ||
+      code === "PreconditionFailed";
+    const rateLimit = status === 429;
+
+    return new FileSystemError({
+      provider: "onedrive",
+      message,
+      status,
+      code,
+      auth,
+      notFound,
+      conflict,
+      rateLimit,
+      retryable: rateLimit || (status !== undefined && status >= 500),
+      raw,
     });
-    if (data.errno) {
-      throw new Error(JSON.stringify(data));
+  }
+
+  private async createResponseError(resp: Response): Promise<FileSystemError> {
+    const text = await resp.text();
+    let raw;
+    try {
+      raw = text ? JSON.parse(text) : "";
+    } catch {
+      raw = text;
     }
+    return this.createRequestError(raw, resp.status);
   }
 
   request(url: string, config?: RequestInit, nothen?: boolean): Promise<Response | any> {
@@ -100,7 +155,7 @@ export default class OneDriveFileSystem implements FileSystem {
           resp = await retryWithFreshToken();
         }
         if (!resp.ok) {
-          throw new Error(await resp.text());
+          throw await this.createResponseError(resp);
         }
         return resp.json();
       })
@@ -110,18 +165,18 @@ export default class OneDriveFileSystem implements FileSystem {
             return retryWithFreshToken()
               .then(async (retryResp) => {
                 if (!retryResp.ok) {
-                  throw new Error(await retryResp.text());
+                  throw await this.createResponseError(retryResp);
                 }
                 return retryResp.json();
               })
               .then((retryData) => {
                 if (retryData.error) {
-                  throw new Error(JSON.stringify(retryData));
+                  throw this.createRequestError(retryData);
                 }
                 return retryData;
               });
           }
-          throw new Error(JSON.stringify(data));
+          throw this.createRequestError(data);
         }
         return data;
       });

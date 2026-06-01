@@ -36,6 +36,7 @@ import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL } from "@App/pkg/utils/utils";
+import ScrollBoundary from "@App/pages/components/layout/ScrollBoundary";
 
 // --- 工具函数移出组件外，避免每次 Render 重新定义 ---
 
@@ -274,12 +275,10 @@ const MainLayout: React.FC<{
 
   // 使用 useMemo 缓存语言列表，避免每次重绘都执行循环，然后生成新的参考
   const languageList = useMemo(() => {
-    const list = Object.keys(i18n.store.data)
-      .filter((key) => key !== "ach-UG")
-      .map((key) => ({
-        key,
-        title: i18n.store.data[key].title as string,
-      }));
+    const list = Object.keys(i18n.store.data).map((key) => ({
+      key,
+      title: i18n.store.data[key].title as string,
+    }));
     return [...list, { key: "help", title: t("help_translate") }];
   }, [t]);
 
@@ -299,112 +298,147 @@ const MainLayout: React.FC<{
   };
 
   return (
-    <ConfigProvider
-      renderEmpty={() => {
-        return <Empty description={t("no_data")} />;
-      }}
-      locale={arcoLocale(i18n.language)}
-      componentConfig={{
-        Select: {
-          getPopupContainer: (node) => {
-            return getSafePopupParent(node as Element);
+    <ScrollBoundary parentNodeSelector="#root">
+      <ConfigProvider
+        renderEmpty={() => {
+          return <Empty description={t("no_data")} />;
+        }}
+        locale={arcoLocale(i18n.language)}
+        componentConfig={{
+          Select: {
+            getPopupContainer: (node) => {
+              return getSafePopupParent(node as Element);
+            },
           },
-        },
-      }}
-      getPopupContainer={(node) => {
-        return getSafePopupParent(node.parentNode as Element);
-      }}
-    >
-      {contextHolder}
-      <Layout className={"tw-min-h-screen"}>
-        <Layout.Header
-          style={{
-            height: "50px",
-            borderBottom: "1px solid var(--color-neutral-3)",
-          }}
-          className="tw-flex tw-items-center tw-justify-between tw-px-4"
-        >
-          <Modal
-            title={t("import_link")}
-            visible={importVisible}
-            onOk={handleImport}
-            onCancel={() => {
-              setImportVisible(false);
+        }}
+        getPopupContainer={(node) => {
+          return getSafePopupParent(node.parentNode as Element);
+        }}
+      >
+        {contextHolder}
+        <Layout className={"tw-min-h-screen"}>
+          <Layout.Header
+            style={{
+              height: "50px",
+              borderBottom: "1px solid var(--color-neutral-3)",
             }}
+            className="tw-flex tw-items-center tw-justify-between tw-px-4"
           >
-            <Input.TextArea
-              ref={importRef}
-              rows={8}
-              placeholder={t("import_script_placeholder")}
-              defaultValue=""
-              onKeyDown={(e) => {
-                if (e.ctrlKey && e.key === "Enter") {
-                  e.preventDefault();
-                  handleImport();
-                }
+            <Modal
+              title={t("import_link")}
+              visible={importVisible}
+              onOk={handleImport}
+              onCancel={() => {
+                setImportVisible(false);
               }}
-            />
-          </Modal>
-          <div className="tw-flex tw-flex-row tw-items-center">
-            <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
-            <Typography.Title heading={4} className="!tw-m-0">
-              {"ScriptCat"}
-            </Typography.Title>
-          </div>
-          <Space size="small" className="action-tools">
-            {pageName === "options" && (
+            >
+              <Input.TextArea
+                ref={importRef}
+                rows={8}
+                placeholder={t("import_script_placeholder")}
+                defaultValue=""
+                onKeyDown={(e) => {
+                  if (e.ctrlKey && e.key === "Enter") {
+                    e.preventDefault();
+                    handleImport();
+                  }
+                }}
+              />
+            </Modal>
+            <div className="tw-flex tw-flex-row tw-items-center">
+              <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
+              <Typography.Title heading={4} className="!tw-m-0">
+                {"ScriptCat"}
+              </Typography.Title>
+            </div>
+            <Space size="small" className="action-tools">
+              {pageName === "options" && (
+                <Dropdown
+                  droplist={
+                    <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
+                      <Menu.Item key="/script/editor">
+                        <a href="#/script/editor">
+                          <RiFileCodeLine /> {t("create_user_script")}
+                        </a>
+                      </Menu.Item>
+                      <Menu.Item key="background">
+                        <a href="#/script/editor?template=background">
+                          <RiTerminalBoxLine /> {t("create_background_script")}
+                        </a>
+                      </Menu.Item>
+                      <Menu.Item key="crontab">
+                        <a href="#/script/editor?template=crontab">
+                          <RiTimerLine /> {t("create_scheduled_script")}
+                        </a>
+                      </Menu.Item>
+                      <Menu.Item
+                        key="import_local"
+                        onClick={() => {
+                          if ("showOpenFilePicker" in window) {
+                            // 使用新的文件打开接口，解决无法监听本地文件的问题
+                            //@ts-ignore
+                            window
+                              .showOpenFilePicker({
+                                multiple: true,
+                                types: [
+                                  {
+                                    description: "JavaScript",
+                                    accept: { "text/javascript": [".js"] },
+                                  },
+                                ],
+                              })
+                              .then((handles: any) => {
+                                onDrop(handles as FileWithPath[]);
+                              });
+                          } else {
+                            // 旧的方式，无法监听本地文件变更
+                            document.getElementById("import-local")?.click();
+                          }
+                        }}
+                      >
+                        <RiImportLine /> {t("import_by_local")}
+                      </Menu.Item>
+                      <Menu.Item
+                        key="link"
+                        onClick={() => {
+                          setImportVisible(true);
+                        }}
+                      >
+                        <IconLink /> {t("import_link")}
+                      </Menu.Item>
+                    </Menu>
+                  }
+                  position="bl"
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    style={{
+                      color: "var(--color-text-1)",
+                    }}
+                    className="!tw-text-size-sm"
+                  >
+                    <RiPlayListAddLine /> {t("create_script")} <IconDown />
+                  </Button>
+                </Dropdown>
+              )}
               <Dropdown
                 droplist={
-                  <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
-                    <Menu.Item key="/script/editor">
-                      <a href="#/script/editor">
-                        <RiFileCodeLine /> {t("create_user_script")}
-                      </a>
+                  <Menu
+                    onClickMenuItem={(key) => {
+                      const theme = key as "auto" | "light" | "dark";
+                      updateColorTheme(theme);
+                    }}
+                    selectedKeys={[colorThemeState]}
+                  >
+                    <Menu.Item key="light">
+                      <IconSunFill /> {t("light")}
                     </Menu.Item>
-                    <Menu.Item key="background">
-                      <a href="#/script/editor?template=background">
-                        <RiTerminalBoxLine /> {t("create_background_script")}
-                      </a>
+                    <Menu.Item key="dark">
+                      <IconMoonFill /> {t("dark")}
                     </Menu.Item>
-                    <Menu.Item key="crontab">
-                      <a href="#/script/editor?template=crontab">
-                        <RiTimerLine /> {t("create_scheduled_script")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item
-                      key="import_local"
-                      onClick={() => {
-                        if ("showOpenFilePicker" in window) {
-                          // 使用新的文件打开接口，解决无法监听本地文件的问题
-                          //@ts-ignore
-                          window
-                            .showOpenFilePicker({
-                              multiple: true,
-                              types: [
-                                {
-                                  description: "JavaScript",
-                                  accept: { "text/javascript": [".js"] },
-                                },
-                              ],
-                            })
-                            .then((handles: any) => {
-                              onDrop(handles as FileWithPath[]);
-                            });
-                        } else {
-                          // 旧的方式，无法监听本地文件变更
-                          document.getElementById("import-local")?.click();
-                        }
-                      }}
-                    >
-                      <RiImportLine /> {t("import_by_local")}
-                    </Menu.Item>
-                    <Menu.Item
-                      key="link"
-                      onClick={() => {
-                        setImportVisible(true);
-                      }}
-                    >
-                      <IconLink /> {t("import_link")}
+                    <Menu.Item key="auto">
+                      <IconDesktop /> {t("system_follow")}
                     </Menu.Item>
                   </Menu>
                 }
@@ -413,101 +447,68 @@ const MainLayout: React.FC<{
                 <Button
                   type="text"
                   size="small"
-                  style={{
-                    color: "var(--color-text-1)",
-                  }}
-                  className="!tw-text-size-sm"
-                >
-                  <RiPlayListAddLine /> {t("create_script")} <IconDown />
-                </Button>
-              </Dropdown>
-            )}
-            <Dropdown
-              droplist={
-                <Menu
-                  onClickMenuItem={(key) => {
-                    const theme = key as "auto" | "light" | "dark";
-                    updateColorTheme(theme);
-                  }}
-                  selectedKeys={[colorThemeState]}
-                >
-                  <Menu.Item key="light">
-                    <IconSunFill /> {t("light")}
-                  </Menu.Item>
-                  <Menu.Item key="dark">
-                    <IconMoonFill /> {t("dark")}
-                  </Menu.Item>
-                  <Menu.Item key="auto">
-                    <IconDesktop /> {t("system_follow")}
-                  </Menu.Item>
-                </Menu>
-              }
-              position="bl"
-            >
-              <Button
-                type="text"
-                size="small"
-                icon={
-                  <>
-                    {colorThemeState === "auto" && <IconDesktop />}
-                    {colorThemeState === "light" && <IconSunFill />}
-                    {colorThemeState === "dark" && <IconMoonFill />}
-                  </>
-                }
-                style={{
-                  color: "var(--color-text-1)",
-                }}
-                className="!tw-text-lg"
-              />
-            </Dropdown>
-            {showLanguage && (
-              <Dropdown
-                droplist={
-                  <Menu>
-                    {languageList.map((value) => (
-                      <Menu.Item
-                        key={value.key}
-                        onClick={() => {
-                          if (value.key === "help") {
-                            window.open("https://crowdin.com/project/scriptcat", "_blank");
-                            return;
-                          }
-                          systemConfig.setLanguage(value.key);
-                          Message.success(t("language_change_tip", { lng: value.key })!);
-                        }}
-                      >
-                        {value.title}
-                      </Menu.Item>
-                    ))}
-                  </Menu>
-                }
-              >
-                <Button
-                  type="text"
-                  size="small"
-                  iconOnly
-                  icon={<IconLanguage />}
+                  icon={
+                    <>
+                      {colorThemeState === "auto" && <IconDesktop />}
+                      {colorThemeState === "light" && <IconSunFill />}
+                      {colorThemeState === "dark" && <IconMoonFill />}
+                    </>
+                  }
                   style={{
                     color: "var(--color-text-1)",
                   }}
                   className="!tw-text-lg"
-                ></Button>
+                />
               </Dropdown>
-            )}
-          </Space>
-        </Layout.Header>
-        <Layout
-          className={`tw-bottom-0 tw-w-full ${className}`}
-          style={{ background: "var(--color-fill-2)" }}
-          {...getRootProps({})}
-        >
-          <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
-          {/* 性能关键：抽离遮罩组件，只有 active 变化时此小组件重绘 */}
-          <DropzoneOverlay active={isDragActive} text={t("drag_script_here_to_upload")} />
-          {children}
+              {showLanguage && (
+                <Dropdown
+                  droplist={
+                    <Menu>
+                      {languageList.map((value) => (
+                        <Menu.Item
+                          key={value.key}
+                          onClick={() => {
+                            if (value.key === "help") {
+                              window.open("https://github.com/scriptscat/scriptcat/discussions/531", "_blank");
+                              return;
+                            }
+                            systemConfig.setLanguage(value.key);
+                            Message.success(t("language_change_tip", { lng: value.key })!);
+                          }}
+                        >
+                          {value.title}
+                        </Menu.Item>
+                      ))}
+                    </Menu>
+                  }
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    iconOnly
+                    icon={<IconLanguage />}
+                    style={{
+                      color: "var(--color-text-1)",
+                    }}
+                    className="!tw-text-lg"
+                  ></Button>
+                </Dropdown>
+              )}
+            </Space>
+          </Layout.Header>
+          <Layout
+            className={`tw-bottom-0 tw-w-full ${className}`}
+            style={{ background: "var(--color-fill-2)" }}
+            {...getRootProps({})}
+          >
+            <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
+            {/* 性能关键：抽离遮罩组件，只有 active 变化时此小组件重绘 */}
+            <DropzoneOverlay active={isDragActive} text={t("drag_script_here_to_upload")} />
+            {children}
+          </Layout>
         </Layout>
-      </Layout>
-    </ConfigProvider>
+      </ConfigProvider>
+    </ScrollBoundary>
   );
 };
 

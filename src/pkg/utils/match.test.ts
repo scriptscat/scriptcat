@@ -42,6 +42,20 @@ describe.concurrent("UrlMatch-internal1", () => {
   });
 });
 
+describe.concurrent("UrlMatch-cache", () => {
+  it.concurrent("limits cached URL entries and refreshes recently used entries", () => {
+    const url = new UrlMatch<string>(2);
+    url.addMatch("*://*/*", "ok");
+
+    expect(url.urlMatch("https://a.example/")).toEqual(["ok"]);
+    expect(url.urlMatch("https://b.example/")).toEqual(["ok"]);
+    expect(url.urlMatch("https://a.example/")).toEqual(["ok"]);
+    expect(url.urlMatch("https://c.example/")).toEqual(["ok"]);
+
+    expect([...url.cacheMap.keys()]).toEqual(["https://a.example/", "https://c.example/"]);
+  });
+});
+
 describe.concurrent("UrlMatch-internal2", () => {
   const url = new UrlMatch<string>();
   url.addInclude("*gro???***???.com*", "ok1");

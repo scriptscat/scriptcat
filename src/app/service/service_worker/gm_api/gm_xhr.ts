@@ -54,7 +54,11 @@ export class SWRequestResultParams {
   }
 
   get finalUrl() {
-    this.resultParamFinalUrl = redirectedUrls.get(this.markerID) || "";
+    const markerID = this.markerID;
+    if (!markerID) {
+      console.error("[gm_xhr.ts] SWRequestResultParams::finalUrl", "no markerID");
+    }
+    this.resultParamFinalUrl = redirectedUrls.get(markerID) || "";
     return this.resultParamFinalUrl;
   }
 }
@@ -110,6 +114,7 @@ export class GMXhrFetchStrategy implements GMXhrStrategy {
           }),
           new Promise((r) => setTimeout(r, 800)),
         ]);
+        nwErrorResultPromises.delete(this.resultParam.markerID);
         nwErr = nwErrorResults.get(this.resultParam.markerID);
       }
       if (nwErr) {

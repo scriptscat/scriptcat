@@ -53,8 +53,12 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   async verify(): Promise<void> {
+    // 只做只读校验：凭据 + URL 可达性。
+    // 写权限不在此处探测——不同 basePath 写策略不同（坚果云等根目录不可写的服务会被误杀，见 #1444），
+    // 真正的写操作会在 backupToCloud / buildFileSystem 中由 createDir 立即触发并报错。
     try {
       await this.client.getQuota();
+      await this.client.getDirectoryContents(this.basePath);
     } catch (e: any) {
       if (e.response?.status === 401) {
         throw new WarpTokenError(e);

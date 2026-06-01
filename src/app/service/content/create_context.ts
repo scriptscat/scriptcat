@@ -9,6 +9,8 @@ import { ListenerManager } from "./listener_manager";
 import { createGMBase } from "./gm_api/gm_api";
 import { attachNavigateHandler, type UrlChangeEvent } from "./gm_api/navigation_handle";
 
+// 不要使用 {}, 改使用 Object.create(null) - 避免在页面生成沙盒时，受到 Object.prototype 被注入的影响
+
 // 构建沙盒上下文
 export const createContext = (
   scriptRes: TScriptInfo,
@@ -30,6 +32,8 @@ export const createContext = (
     });
   }
   let invalid = false;
+  const GM = Object.create(null);
+  GM.info = GMInfo;
   const context = createGMBase({
     prefix: envPrefix,
     message,
@@ -39,11 +43,9 @@ export const createContext = (
     EE,
     runFlag: uuidv4(),
     eventId: 10000,
-    GM: { info: GMInfo },
+    GM: GM,
     GM_info: GMInfo,
-    window: {
-      // onurlchange: null,
-    },
+    window: Object.create(null),
     grantSet: new Set(),
     loadScriptPromise,
     loadScriptResolve,
@@ -63,7 +65,7 @@ export const createContext = (
       return invalid;
     },
   });
-  const grantedAPIs: { [key: string]: any } = {};
+  const grantedAPIs: { [key: string]: any } = Object.create(null);
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
     const s = GMContextApiGet(grant);
@@ -99,7 +101,7 @@ export const createContext = (
     for (let i = 0; i < m; i++) {
       const part = fnKeyArray[i];
       s += `${i ? "." : ""}${part}`;
-      g = g[part] || (g[part] = grantedAPIs[s] || {});
+      g = g[part] || (g[part] = grantedAPIs[s] || Object.create(null));
     }
   }
   context.unsafeWindow = window;
@@ -171,10 +173,13 @@ const initOwnDescs = Object.getOwnPropertyDescriptors(global);
 
 // overridedDescs将以物件OwnPropertyDescriptor方式进行物件属性修改
 // 覆盖原有的 OwnPropertyDescriptor定义 或 父类的PropertyDescriptor定义
-const overridedDescs: Record<string, PropertyDescriptor> = {};
+const overridedDescs: Record<string, PropertyDescriptor> = Object.create(null);
 
 // 记录原生 onxxxxx 的 PropertyDescriptor
-const eventDescs: Record<string, PropertyDescriptor> = {};
+const eventDescs: Record<string, PropertyDescriptor> = Object.create(null);
+
+// 在 USE_PSEUDO_WINDOW 情况下，由于没有 类的prototype, 父类的成员要手动传下去
+const protoBaseDescs: Record<string, PropertyDescriptor> = Object.create(null);
 
 // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
 // 主要是找出哪些 function值， setter/getter 需要替换 global window
@@ -197,6 +202,18 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
         value: boundValue,
       };
       descsCache.add(key); // 必须：子类属性覆盖父类属性
+    } else if (!(key in initOwnDescs) && !Object.hasOwn(global, key)) {
+      if (!protoBaseDescs[key]) {
+        if (typeof value === "function") {
+          const boundValue = value.bind(global);
+          protoBaseDescs[key] = {
+            ...desc,
+            value: boundValue,
+          };
+        } else {
+          protoBaseDescs[key] = { ...desc };
+        }
+      }
     }
   } else {
     if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
@@ -251,6 +268,7 @@ Object.defineProperty(PseudoWindowPrototype, "__proto__", {
 
 const sharedInitCopy = USE_PSEUDO_WINDOW
   ? Object.create(null, {
+      ...protoBaseDescs, // 较快的 @unwrap 注入时有机会改变 EventTarget.prototype
       ...Object.getOwnPropertyDescriptors(PseudoWindowPrototype),
       ...initOwnDescs,
       ...overridedDescs,
@@ -339,7 +357,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     };
   }
 
-  for (const key of ["window", "self", "globalThis", "top", "parent"]) {
+  for (const key of ["window", "self", "globalThis", "top", "parent", "frames"]) {
     const desc = ownDescs[key];
     if (desc?.value === global) {
       // globalThis

@@ -9,30 +9,34 @@ async function createScriptAndGoToList(context: BrowserContext, extensionId: str
   const editorPage = await openEditorPage(context, extensionId);
 
   // Wait for Monaco editor
-  await expect(editorPage.locator(".monaco-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(editorPage.locator(".monaco-editor")).toBeVisible({ timeout: 780 });
   await expect(editorPage.locator(".view-lines")).toContainText("==UserScript==", {
-    timeout: 15_000,
+    timeout: 740,
   });
 
   // Click inside editor to ensure focus, then save
   await editorPage.locator(".monaco-editor .view-lines").click();
-  await editorPage.waitForTimeout(500);
+  // Focus Monaco's actual textarea; clicking rendered lines can leave focus on <body>
+  await editorPage.locator(".monaco-editor textarea.inputarea").focus();
+  await editorPage.waitForTimeout(50);
   await editorPage.keyboard.press("ControlOrMeta+s");
 
   // Wait for success message, retry once if needed
   try {
-    await expect(editorPage.locator(".arco-message").first()).toBeVisible({ timeout: 10_000 });
+    await expect(editorPage.locator(".arco-message").first()).toBeVisible({ timeout: 720 });
   } catch {
     // Retry: click editor again and resave
     await editorPage.locator(".monaco-editor .view-lines").click();
-    await editorPage.waitForTimeout(500);
+    // Focus Monaco's actual textarea; clicking rendered lines can leave focus on <body>
+    await editorPage.locator(".monaco-editor textarea.inputarea").focus();
+    await editorPage.waitForTimeout(50);
     await editorPage.keyboard.press("ControlOrMeta+s");
-    await expect(editorPage.locator(".arco-message").first()).toBeVisible({ timeout: 15_000 });
+    await expect(editorPage.locator(".arco-message").first()).toBeVisible({ timeout: 740 });
   }
 
   // Open the options page (script list)
   const page = await openOptionsPage(context, extensionId);
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(380);
 
   return page;
 }
@@ -51,14 +55,14 @@ test.describe("Script Management", () => {
 
     // Find the switch/toggle in the script list
     const scriptSwitch = page.locator(".arco-switch").first();
-    await expect(scriptSwitch).toBeVisible({ timeout: 10_000 });
+    await expect(scriptSwitch).toBeVisible({ timeout: 720 });
 
     // Get initial state
     const initialChecked = await scriptSwitch.getAttribute("aria-checked");
 
     // Click to toggle
     await scriptSwitch.click();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(250);
 
     // The state should have changed
     const newChecked = await scriptSwitch.getAttribute("aria-checked");
@@ -72,24 +76,24 @@ test.describe("Script Management", () => {
     const scriptRow = page.locator(".arco-table-row, .arco-card-body .arco-list-item, [class*='script']").first();
     if (await scriptRow.isVisible()) {
       await scriptRow.click({ button: "right" });
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(100);
 
       // Look for delete option in context menu
       const deleteOption = page.getByText(/delete|删除/i).first();
-      if (await deleteOption.isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (await deleteOption.isVisible({ timeout: 380 }).catch(() => false)) {
         await deleteOption.click();
 
         // Confirm deletion if a modal appears
         const confirmBtn = page.locator(".arco-modal .arco-btn-primary");
-        if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        if (await confirmBtn.isVisible({ timeout: 380 }).catch(() => false)) {
           await confirmBtn.click();
         }
 
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(250);
 
         // After deletion, the list should be empty again
         const emptyState = page.locator(".arco-empty");
-        await expect(emptyState).toBeVisible({ timeout: 10_000 });
+        await expect(emptyState).toBeVisible({ timeout: 720 });
       }
     }
   });
@@ -99,18 +103,18 @@ test.describe("Script Management", () => {
 
     // Look for a search input
     const searchInput = page.locator('input[type="text"], .arco-input').first();
-    if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await searchInput.isVisible({ timeout: 450 }).catch(() => false)) {
       // Type a search query that won't match
       await searchInput.fill("nonexistent_script_xyz");
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(50);
 
       // The list should show empty or no results
       const emptyState = page.locator(".arco-empty");
-      await expect(emptyState).toBeVisible({ timeout: 5000 });
+      await expect(emptyState).toBeVisible({ timeout: 680 });
 
       // Clear search and scripts should reappear
       await searchInput.clear();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(50);
       await expect(emptyState).toHaveCount(0);
     }
   });

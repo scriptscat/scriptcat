@@ -34,6 +34,8 @@ import { dayFormat } from "@App/pkg/utils/day_format";
 import i18n, { i18nName } from "@App/locales/locales";
 import { InfoNotification } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { md5OfText } from "@App/pkg/utils/crypto";
+import { startDownload } from "./download";
 
 // type SynchronizeTarget = "local";
 
@@ -65,9 +67,17 @@ type ScriptcatSyncStatus = {
   updatetime: number; // 更新时间
 };
 
-type PushScriptParam = TInstallScriptParams;
+type PushScriptParam = TInstallScriptParams & Partial<Pick<Script, "createtime" | "updatetime">>;
+
+type FileDigestMap = {
+  [key: string]: string;
+};
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
+
+function getScriptModifiedDate(script: PushScriptParam): number {
+  return script.updatetime || script.createtime || Date.now();
+}
 
 export class SynchronizeService {
   logger: Logger;
@@ -264,7 +274,7 @@ export class SynchronizeService {
     const url = await makeBlobURL({ blob: zipOutput, persistence: false }, (params) =>
       createObjectURL(this.msgSender, params)
     );
-    chrome.downloads.download({
+    startDownload({
       url,
       saveAs: true,
       filename: `scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`,
@@ -350,10 +360,7 @@ export class SynchronizeService {
     // 根据文件名生成一个map
     const uuidMap = new Map<string, Partial<SyncFiles>>();
     // 储存文件摘要,用于检测文件是否有变化
-    const fileDigestMap =
-      ((await this.storage.get("file_digest")) as {
-        [key: string]: string;
-      }) || {};
+    const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
 
     for (const file of list) {
       if (file.name.endsWith(".user.js")) {
@@ -399,7 +406,7 @@ export class SynchronizeService {
     }
 
     // 对比脚本列表和文件列表,进行同步
-    const result: Promise<void>[] = [];
+    const result: Promise<FileDigestMap | void>[] = [];
     const updateScript: Map<string, boolean> = new Map();
     // 记录被跳过的孤儿云端脚本（仅 .user.js 无 .meta.json）
     // 避免本机回写 scriptcat-sync.json 时丢失对应 uuid 的云端 status
@@ -423,12 +430,14 @@ export class SynchronizeService {
                 await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
                   i18n.t("notification.script_sync_delete"),
-                  i18n.t("notification.script_sync_delete_desc", { scriptName: i18nName(script) })
+                  i18n.t("notification.script_sync_delete_desc", {
+                    scriptName: i18nName(script),
+                  })
                 );
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name);
-                await this.pushScript(fs, script);
+                return await this.pushScript(fs, script);
               }
             })()
           );
@@ -471,7 +480,13 @@ export class SynchronizeService {
       result.push(this.pushScript(fs, script));
     });
     // 忽略错误
-    await Promise.allSettled(result);
+    const syncResults = await Promise.allSettled(result);
+    const pushedFileDigestMap: FileDigestMap = {};
+    syncResults.forEach((ret) => {
+      if (ret.status === "fulfilled" && ret.value) {
+        Object.assign(pushedFileDigestMap, ret.value);
+      }
+    });
     // 同步状态
     if (syncConfig.syncStatus) {
       const scriptlist = await this.scriptDAO.all();
@@ -529,22 +544,31 @@ export class SynchronizeService {
         }
       });
       // 保存脚本猫同步状态
-      const syncFile = await fs.create("scriptcat-sync.json");
+      const modifiedDate = Date.now();
+      const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
       await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
       this.logger.info("sync scriptcat-sync.json file success");
     }
     // 重新获取文件列表,保存文件摘要
     this.logger.info("update file digest");
-    await this.updateFileDigest(fs);
+    await this.updateFileDigest(fs, pushedFileDigestMap);
     this.logger.info("sync complete");
     return;
   }
 
-  async updateFileDigest(fs: FileSystem) {
+  async updateFileDigest(fs: FileSystem, knownFileDigestMap: FileDigestMap = {}) {
     const newList = await fs.list();
-    const newFileDigestMap: { [key: string]: string } = {};
+    const newFileDigestMap: FileDigestMap = {};
     for (const file of newList) {
       newFileDigestMap[file.name] = file.digest;
+    }
+    // 各后端 digest 格式不一（WebDAV/OneDrive/S3 是 etag、Dropbox 是 content_hash、Zip 为空，
+    // 仅 GoogleDrive/Baidu 是 md5），只在云端列表暂时漏掉刚上传的文件时用本地 md5 兜底，
+    // 不能覆盖 fs.list 已返回的原生 digest，否则下次同步比对会因格式不一致而误判
+    for (const name in knownFileDigestMap) {
+      if (!(name in newFileDigestMap)) {
+        newFileDigestMap[name] = knownFileDigestMap[name];
+      }
     }
     await this.storage.set("file_digest", newFileDigestMap);
     return;
@@ -561,7 +585,8 @@ export class SynchronizeService {
       await fs.delete(filename);
       if (syncDelete) {
         // 留下一个.meta.json删除标记
-        const meta = await fs.create(`${uuid}.meta.json`);
+        const modifiedDate = Date.now();
+        const meta = await fs.create(`${uuid}.meta.json`, { modifiedDate });
         await meta.write(
           JSON.stringify(<SyncMeta>{
             uuid: uuid,
@@ -583,33 +608,38 @@ export class SynchronizeService {
   }
 
   // 上传脚本
-  async pushScript(fs: FileSystem, script: PushScriptParam) {
+  async pushScript(fs: FileSystem, script: PushScriptParam): Promise<FileDigestMap> {
     const filename = `${script.uuid}.user.js`;
+    const metaFilename = `${script.uuid}.meta.json`;
     const logger = this.logger.with({
       uuid: script.uuid,
       name: script.name,
       file: filename,
     });
     try {
-      const w = await fs.create(filename);
+      const modifiedDate = getScriptModifiedDate(script);
+      const w = await fs.create(filename, { modifiedDate });
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
-      await w.write(code!.code);
-      const meta = await fs.create(`${script.uuid}.meta.json`);
-      await meta.write(
-        JSON.stringify(<SyncMeta>{
-          uuid: script.uuid,
-          origin: script.origin,
-          downloadUrl: script.downloadUrl,
-          checkUpdateUrl: script.checkUpdateUrl,
-        })
-      );
+      const scriptCode = code!.code;
+      await w.write(scriptCode);
+      const meta = await fs.create(metaFilename, { modifiedDate });
+      const metaJson = JSON.stringify(<SyncMeta>{
+        uuid: script.uuid,
+        origin: script.origin,
+        downloadUrl: script.downloadUrl,
+        checkUpdateUrl: script.checkUpdateUrl,
+      });
+      await meta.write(metaJson);
       logger.info("push script success");
+      return {
+        [filename]: md5OfText(scriptCode),
+        [metaFilename]: md5OfText(metaJson),
+      };
     } catch (e) {
       logger.error("push script error", Logger.E(e));
       throw e;
     }
-    return;
   }
 
   async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {
@@ -705,8 +735,8 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
-        await this.pushScript(fs, params.script);
-        await this.updateFileDigest(fs);
+        const pushedFileDigestMap = await this.pushScript(fs, params.script);
+        await this.updateFileDigest(fs, pushedFileDigestMap);
       }).catch((e) => {
         this.logger.error("push script on install error", Logger.E(e));
       });

@@ -1,4 +1,4 @@
-[中文](CONTRIBUTING.md) / [English](./docs/CONTRIBUTING_EN.md) / Русский
+[English](../CONTRIBUTING.md) / [中文](./CONTRIBUTING_ZH.md) / Русский
 
 # Руководство по внесению вклада в ScriptCat
 
@@ -65,18 +65,12 @@ pnpm start
 
 ### Помощь с переводом
 
-[Crowdin](https://crowdin.com/project/scriptcat) — это онлайн-платформа для многозначного перевода. Если вы заинтересованы помочь нам
-с переводом контента, связанного с ScriptCat, вы можете найти проект ScriptCat на Crowdin и начать работу по переводу.
+Файлы перевода ScriptCat размещены на GitHub. Мы приветствуем вклад через Pull Request.
 
-- `src/locales` — каталог файлов перевода для [расширения](https://github.com/scriptscat/scriptcat)
-
-#### Включение режима WYSIWYG для расширения
-
-> В новой версии еще не добавлено
-
-#### Включение режима WYSIWYG для хранилища скриптов
-
-Перейдите на страницу хранилища скриптов: [https://scriptcat.org/ach-UG](https://scriptcat.org/ach-UG) чтобы включить режим WYSIWYG (What You See Is What You Get).
+- Файлы перевода находятся в каталоге [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); для каждого языка есть отдельный файл `<язык>/translation.json`
+- **Улучшение существующего перевода**: отредактируйте соответствующий `translation.json` напрямую
+- **Добавление нового языка**: создайте каталог в `src/locales/` (например, `fr-FR`), скопируйте `en-US/translation.json` в качестве шаблона и переведите строки, затем зарегистрируйте локаль в `src/locales/locales.ts`
+- По завершении создайте Pull Request в ветку `main`
 
 ## Участие в разработке
 

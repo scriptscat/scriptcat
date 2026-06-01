@@ -70,14 +70,19 @@ describe("WebDAVFileSystem", () => {
   });
 
   describe("verify", () => {
-    it("应当成功验证", async () => {
+    it("应当通过 getQuota 与列目录完成只读校验", async () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.verify()).resolves.toBeUndefined();
       expect(mockClient.getQuota).toHaveBeenCalled();
+      expect(mockClient.getDirectoryContents).toHaveBeenCalledWith("/");
+      // 不应在 verify 阶段尝试写探针（坚果云等根目录不可写的服务会被误杀）
+      expect(mockClient.createDirectory).not.toHaveBeenCalled();
+      expect(mockClient.putFileContents).not.toHaveBeenCalled();
+      expect(mockClient.deleteFile).not.toHaveBeenCalled();
     });
 
-    it("应当在 401 时抛出 WarpTokenError", async () => {
+    it("应当在 getQuota 401 时抛出 WarpTokenError", async () => {
       (mockClient.getQuota as ReturnType<typeof vi.fn>).mockRejectedValue({
         response: { status: 401 },
         message: "Unauthorized",
@@ -87,8 +92,27 @@ describe("WebDAVFileSystem", () => {
       await expect(fs.verify()).rejects.toBeInstanceOf(WarpTokenError);
     });
 
-    it("应当在其他错误时抛出包含原始信息的 Error", async () => {
+    it("应当在 getDirectoryContents 401 时抛出 WarpTokenError", async () => {
+      (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue({
+        response: { status: 401 },
+        message: "Unauthorized",
+      });
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.verify()).rejects.toBeInstanceOf(WarpTokenError);
+    });
+
+    it("应当在 getQuota 其他错误时抛出包含原始信息的 Error", async () => {
       (mockClient.getQuota as ReturnType<typeof vi.fn>).mockRejectedValue({
+        message: "Network error",
+      });
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Network error");
+    });
+
+    it("应当在 getDirectoryContents 其他错误时抛出包含原始信息的 Error", async () => {
+      (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue({
         message: "Network error",
       });
       const fs = createTestFS(mockClient);
@@ -162,6 +186,17 @@ describe("WebDAVFileSystem", () => {
       expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt");
     });
 
+    it("normalizes double slashes in paths", async () => {
+      const fs = WebDAVFileSystem.fromSameClient(
+        { client: mockClient, url: "https://dav.example.com", basePath: "/ScriptCat//sync" } as any,
+        "/ScriptCat//sync"
+      );
+
+      await fs.delete("dir//file.user.js");
+
+      expect(mockClient.deleteFile).toHaveBeenCalledWith("/ScriptCat/sync/dir/file.user.js");
+    });
+
     it("应当在 404 时静默成功（幂等删除）", async () => {
       (mockClient.deleteFile as ReturnType<typeof vi.fn>).mockRejectedValue({
         response: { status: 404 },
@@ -170,6 +205,19 @@ describe("WebDAVFileSystem", () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
+    });
+  });
+
+  describe("create", () => {
+    it("normalizes double slashes in paths", async () => {
+      const fs = WebDAVFileSystem.fromSameClient(
+        { client: mockClient, url: "https://dav.example.com", basePath: "/ScriptCat//sync" } as any,
+        "/ScriptCat//sync"
+      );
+
+      const writer = await fs.create("dir//file.user.js");
+
+      expect((writer as any).path).toBe("/ScriptCat/sync/dir/file.user.js");
     });
   });
 

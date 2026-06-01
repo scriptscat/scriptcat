@@ -56,6 +56,21 @@ export type GMXHRResponseType = {
   error?: string;
 };
 
+type TXhrCallBackArg = {
+  //
+  finalUrl: string;
+  readyState: ReadyStateCode;
+  status: number;
+  statusText: string;
+  responseHeaders: string;
+  error?: string;
+  //
+  useFetch: boolean;
+  eventType: string;
+  ok: boolean;
+  contentType: string;
+};
+
 export type GMXHRResponseTypeWithError = GMXHRResponseType & Required<Pick<GMXHRResponseType, "error">>;
 
 export const toBlobURL = (a: GMApi, blob: Blob): Promise<string> | string => {
@@ -209,7 +224,7 @@ export function GM_xmlhttpRequest(
   }
   let connect: MessageConnect | null;
   const responseTypeOriginal = details.responseType?.toLocaleLowerCase() || "";
-  let doAbort: any = null;
+  let doAbort: ((o: TXhrCallBackArg) => void) | null = null;
   (async () => {
     const [urlResolved, dataResolved] = await Promise.all([urlPromiseLike, dataPromise]);
     const u = new URL(urlResolved, window.location.href);
@@ -285,11 +300,13 @@ export function GM_xmlhttpRequest(
     }
 
     let refCleanup: (() => void) | null = () => {
+      // 执行此操作会使连结断开。因此 fetch error, timeout 等出现后不能立即执行，应留待 onloadend 后呼叫
       // 清掉函数参考，避免各变数参考无法GC
       makeXHRCallbackParam = null;
       onMessageHandler = null;
       doAbort = null;
       refCleanup = null;
+      connect?.disconnect(true); // 确保 connect 断开
       connect = null;
     };
 
@@ -418,22 +435,7 @@ export function GM_xmlhttpRequest(
       return retParamObject;
     };
 
-    const makeXHRCallbackParam_ = (
-      res: {
-        //
-        finalUrl: string;
-        readyState: ReadyStateCode;
-        status: number;
-        statusText: string;
-        responseHeaders: string;
-        error?: string;
-        //
-        useFetch: boolean;
-        eventType: string;
-        ok: boolean;
-        contentType: string;
-      } & Record<string, any>
-    ) => {
+    const makeXHRCallbackParam_ = (res: TXhrCallBackArg) => {
       if ((res.readyState === 4 || reqDone) && res.eventType !== "progress") allowResponse = true;
       let resError: Record<string, any> | null = null;
       if (
@@ -501,12 +503,33 @@ export function GM_xmlhttpRequest(
       return makeResponseRet(retParam, addGetters, res.contentType);
     };
     let makeXHRCallbackParam: typeof makeXHRCallbackParam_ | null = makeXHRCallbackParam_;
-    doAbort = (data: any) => {
+    let loadendCalled = false;
+    const doLoadEnd = (data: TXhrCallBackArg) => {
+      if (!loadendCalled) {
+        loadendCalled = true;
+        reqDone = true;
+        responseText = false;
+        finalResultBuffers = null;
+        finalResultText = null;
+        const xhrResponse = makeXHRCallbackParam?.(data) ?? {};
+        details.onloadend?.(xhrResponse);
+        if (errorOccur === null) {
+          retPromiseResolve?.(xhrResponse);
+        } else {
+          retPromiseReject?.(errorOccur);
+        }
+        refCleanup?.();
+      }
+    };
+    doAbort = (data: TXhrCallBackArg) => {
       if (!reqDone) {
         errorOccur = "AbortError";
         details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
         reqDone = true;
-        refCleanup?.();
+        // 不要进行 refCleanup ！要等待最后的 onloadend
+        // refCleanup?.();
+        // doAbort 不是由通讯管控 onloadend. 需要手动处理. 排程在下一个 microTask 避免影响 Abort 流程
+        Promise.resolve({ ...data, type: "loadend" }).then(doLoadEnd);
       }
       doAbort = null;
     };
@@ -529,14 +552,31 @@ export function GM_xmlhttpRequest(
         };
         if (msgData.code === -1) {
           // 处理错误
+          const message = msgData.message || "unknown";
+          const code = msgData.code;
           LoggerCore.logger().error("GM_xmlhttpRequest error", {
-            code: msgData.code,
-            message: msgData.message,
+            code: code,
+            message,
           });
-          details.onerror?.({
-            readyState: ReadyStateCode.DONE,
-            error: msgData.message || "unknown",
-          });
+          if (!reqDone) {
+            errorOccur = message;
+            details.onerror?.({
+              readyState: ReadyStateCode.DONE,
+              error: message,
+            });
+            reqDone = true;
+            // 不要进行 refCleanup ！要等待最后的 onloadend
+            // refCleanup?.();
+
+            // 此错误多为 API 非正常执行，估计不会有 loadend 触发。见 Aborted 处理
+            Promise.resolve({
+              error: "loadend",
+              responseHeaders: "",
+              readyState: 0,
+              status: 0,
+              statusText: "",
+            } as TXhrCallBackArg).then(doLoadEnd);
+          }
           return;
         }
         // 处理返回
@@ -612,18 +652,7 @@ export function GM_xmlhttpRequest(
             details.onload?.(makeXHRCallbackParam?.(data) ?? {});
             break;
           case "onloadend": {
-            reqDone = true;
-            responseText = false;
-            finalResultBuffers = null;
-            finalResultText = null;
-            const xhrResponse = makeXHRCallbackParam?.(data) ?? {};
-            details.onloadend?.(xhrResponse);
-            if (errorOccur === null) {
-              retPromiseResolve?.(xhrResponse);
-            } else {
-              retPromiseReject?.(errorOccur);
-            }
-            refCleanup?.();
+            doLoadEnd(data);
             break;
           }
           case "onloadstart":
@@ -660,7 +689,8 @@ export function GM_xmlhttpRequest(
               errorOccur = "TimeoutError";
               details.ontimeout?.(makeXHRCallbackParam?.(data) ?? {});
               reqDone = true;
-              refCleanup?.();
+              // 不要进行 refCleanup ！要等待最后的 onloadend
+              // refCleanup?.();
             }
             break;
           case "onerror":
@@ -669,7 +699,8 @@ export function GM_xmlhttpRequest(
               errorOccur = data.error;
               details.onerror?.((makeXHRCallbackParam?.(data) ?? {}) as GMXHRResponseTypeWithError);
               reqDone = true;
-              refCleanup?.();
+              // 不要进行 refCleanup ！要等待最后的 onloadend
+              // refCleanup?.();
             }
             break;
           case "onabort":
@@ -694,7 +725,7 @@ export function GM_xmlhttpRequest(
     retPromise,
     abort: () => {
       if (connect) {
-        connect.disconnect();
+        connect.disconnect(true); // 断开连结(容忍已断开)
         connect = null;
       }
       if (doAbort && details.onabort && !reqDone) {
@@ -706,7 +737,7 @@ export function GM_xmlhttpRequest(
           readyState: 0,
           status: 0,
           statusText: "",
-        }) as GMXHRResponseType;
+        } as TXhrCallBackArg);
         reqDone = true;
       }
     },
