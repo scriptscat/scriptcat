@@ -156,9 +156,9 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
                   const pageUrl = result?.activeTabUrl?.url;
                   if (pageUrl) {
                     try {
-                      const { protocol, pathname, hostname } = new URL(pageUrl);
+                      const { protocol, pathname, hostname, search } = new URL(pageUrl);
                       if (protocol && pathname && hostname) {
-                        retUrl = `${protocol}//${hostname}${pathname}`;
+                        retUrl = `${protocol}//${hostname}${pathname}${search.length > 1 ? search : ""}`;
                         if (protocol === "http:" || protocol === "https:") {
                           retIcon = `https://www.google.com/s2/favicons?sz=64&domain=${hostname}`;
                         }
