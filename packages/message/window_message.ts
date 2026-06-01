@@ -185,7 +185,7 @@ export class WindowMessageConnect implements MessageConnect {
     listenerMgr.addListener(`onMessage:${this.listenerId}`, callback);
   }
 
-  disconnect(ignoreAlreadyDisconnected: boolean = false) {
+  disconnect(ignoreAlreadyDisconnected: boolean) {
     if (!this.target) {
       if (ignoreAlreadyDisconnected) return;
       console.warn("Attempted to disconnect on a disconnected Target.");

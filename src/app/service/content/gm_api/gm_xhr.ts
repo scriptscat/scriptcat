@@ -725,7 +725,7 @@ export function GM_xmlhttpRequest(
     retPromise,
     abort: () => {
       if (connect) {
-        connect.disconnect();
+        connect.disconnect(true); // 断开连结(容忍已断开)
         connect = null;
       }
       if (doAbort && details.onabort && !reqDone) {

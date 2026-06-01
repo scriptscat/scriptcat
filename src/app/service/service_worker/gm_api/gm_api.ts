@@ -787,7 +787,7 @@ export default class GMApi {
               readyState: 4, // ERROR. DONE.
             },
           });
-          myConn?.disconnect(); // 断开连结
+          myConn?.disconnect(true); // 断开连结(容忍已断开)
           myConn = null; // 释放
         };
         return (error: string) => {
