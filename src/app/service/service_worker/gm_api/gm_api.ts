@@ -54,6 +54,9 @@ import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
 import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller";
+import type { DownloadCallback } from "../download";
+import { detachDownloadCallback, startDownload } from "../download";
+import { isRequestInitiatorOriginMatched, gmXhrRequestLinker, type IWebRequestDetails } from "./mv3_utils";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -627,12 +630,7 @@ export default class GMApi {
     const headers = params.headers || (params.headers = {});
     const { anonymous, cookie } = params;
 
-    // HTTP/1.1 and HTTP/2
-    // https://www.rfc-editor.org/rfc/rfc7540#section-8.1.2
-    // https://datatracker.ietf.org/doc/html/rfc6648
-    // All header names in HTTP/2 are lower case, and CF will convert if needed.
-    // All headers comparisons in HTTP/1.1 should be case insensitive.
-    headers["x-sc-request-marker"] = `${markerID}`;
+    gmXhrRequestLinker.prepareRequest(params, headers, markerID);
 
     // 关联 reqID 方法
     // 1) 尝试在 onBeforeRequest 进行关连
@@ -933,7 +931,7 @@ export default class GMApi {
         strategy = new GMXhrXhrStrategy(resultParam);
       }
       if (strategy) {
-        const bgGmXhr = new BgGMXhr(details, resultParam, msgConn, strategy);
+        const bgGmXhr = new BgGMXhr(details, resultParam, msgConn, strategy, markerID);
         bgGmXhr.onLoaded(loadendCleanUp);
         bgGmXhr.do();
       } else {
@@ -1269,44 +1267,44 @@ export default class GMApi {
       return this.GM_xmlhttpRequest(request satisfies GMApiRequest<[GMSend.XHRDetails?]>, sender);
     }
     let reqCompleteWith = "";
-    let cDownloadId = 0;
+    let cDownloadId: number | undefined = 0;
     let isConnDisconnected = false;
     // 替换掉windows下文件名的非法字符为 -
     const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
     const blobURL = params.url;
-    const respond = null;
-    const onChangedListener = (downloadDelta: chrome.downloads.DownloadDelta) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.downloads.onChanged:", lastError);
-        return;
-      }
-      if (!cDownloadId || downloadDelta.id !== cDownloadId) return;
-      if (downloadDelta.state?.current === "complete") {
+    const downloadCallback = (o: DownloadCallback) => {
+      if (o.state === "complete") {
         if (!isConnDisconnected && !reqCompleteWith) {
           reqCompleteWith = "ok";
           msgConn.sendMessage({
             action: "onload",
-            data: respond,
+            data: { loaded: o.loaded, total: o.total, mode: "native" }, // compatible with GM.download in TM
           });
         }
-        chrome.downloads.onChanged.removeListener(onChangedListener);
-      } else if (downloadDelta.state?.current === "interrupted") {
+      } else if (o.state === "save_cancelled") {
+        if (!isConnDisconnected && !reqCompleteWith) {
+          reqCompleteWith = "save_cancelled";
+          msgConn.sendMessage({
+            action: "save_cancelled",
+            data: { loaded: o.loaded, total: o.total, mode: "native" }, // compatible with GM.download in TM
+          });
+        }
+      } else if (o.state === "interrupted") {
         if (!isConnDisconnected && !reqCompleteWith) {
           reqCompleteWith = "interrupted";
+          // 这情况须进一步确认 TM 的 GM.download 回传值
           msgConn.sendMessage({
             action: "onerror",
-            data: respond,
+            data: null,
           });
         }
-        chrome.downloads.onChanged.removeListener(onChangedListener);
       }
     };
     msgConn.onDisconnect(() => {
       if (isConnDisconnected) return;
       isConnDisconnected = true;
-      if (cDownloadId > 0 && !reqCompleteWith) {
+      if (typeof cDownloadId === "number" && cDownloadId > 0 && !reqCompleteWith) {
         reqCompleteWith = "disconnected";
         chrome.downloads.cancel(cDownloadId, () => {
           const lastError = chrome.runtime.lastError;
@@ -1314,15 +1312,16 @@ export default class GMApi {
             console.error("chrome.runtime.lastError in chrome.downloads.cancel:", lastError);
           }
         });
-        chrome.downloads.onChanged.removeListener(onChangedListener);
+        detachDownloadCallback(cDownloadId);
       }
     });
     if (!blobURL) {
       if (!isConnDisconnected && !reqCompleteWith) {
         reqCompleteWith = "error:no_blob_url";
+        // 这情况须进一步确认 TM 的 GM.download 回传值
         msgConn.sendMessage({
           action: "onerror",
-          data: respond,
+          data: null,
         });
       }
       throw new Error("GM_download ERROR: blobURL is not provided.");
@@ -1339,33 +1338,17 @@ export default class GMApi {
     if (typeof params.conflictAction === "string") {
       downloadAPIOptions.conflictAction = params.conflictAction;
     }
-    chrome.downloads.onChanged.addListener(onChangedListener);
-    chrome.downloads.download(downloadAPIOptions, (downloadId: number | undefined) => {
-      const lastError = chrome.runtime.lastError;
-      let ok = true;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.downloads.download:", lastError);
-        // 下载API出现问题但继续执行
-        ok = false;
+    cDownloadId = await startDownload(downloadAPIOptions, downloadCallback);
+    if (cDownloadId === undefined) {
+      if (!isConnDisconnected && !reqCompleteWith) {
+        reqCompleteWith = "error:download_api_error";
+        // 这情况须进一步确认 TM 的 GM.download 回传值
+        msgConn.sendMessage({
+          action: "onerror",
+          data: null,
+        });
       }
-      if (downloadId === undefined) {
-        console.error("GM_download ERROR: API Failure for chrome.downloads.download.");
-        ok = false;
-      }
-      if (ok) {
-        cDownloadId = downloadId as number;
-      }
-      if (!ok) {
-        if (!isConnDisconnected && !reqCompleteWith) {
-          reqCompleteWith = "error:download_api_error";
-          msgConn.sendMessage({
-            action: "onerror",
-            data: respond,
-          });
-        }
-        chrome.downloads.onChanged.removeListener(onChangedListener);
-      }
-    });
+    }
   }
 
   @PermissionVerify.API()
@@ -1475,6 +1458,11 @@ export default class GMApi {
 
   // 处理GM_xmlhttpRequest请求
   handlerGmXhr() {
+    gmXhrRequestLinker.setup({ cleanupOnAPIError });
+    const currentOrigin: string = new URL(chrome.runtime.getURL("/")).origin;
+    const isInitiatedBySC = (details: IWebRequestDetails) => {
+      return details.tabId === -1 && isRequestInitiatorOriginMatched(details, currentOrigin);
+    };
     chrome.webRequest.onBeforeRedirect.addListener(
       (details) => {
         const lastError = chrome.runtime.lastError;
@@ -1484,7 +1472,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const markerID = scXhrRequests.get(details.requestId);
           if (markerID) {
             redirectedUrls.set(markerID, details.redirectUrl);
@@ -1513,7 +1501,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const markerID = scXhrRequests.get(details.requestId);
           if (!markerID) return;
           nwErrorResults.set(markerID, details.error);
@@ -1579,7 +1567,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const reqId = details.requestId;
           const requestHeaders = details.requestHeaders;
           if (requestHeaders) {
@@ -1614,7 +1602,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const reqId = details.requestId;
 
           const markerID = scXhrRequests.get(reqId);
@@ -1701,7 +1689,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const reqId = details.requestId;
 
           const markerID = scXhrRequests.get(reqId);
@@ -1721,37 +1709,6 @@ export default class GMApi {
         types: ["xmlhttprequest"],
       },
       respOpt
-    );
-
-    const ruleId = 999;
-    const rule = {
-      id: ruleId,
-      action: {
-        type: "modifyHeaders",
-        requestHeaders: [
-          {
-            header: "x-sc-request-marker",
-            operation: "remove",
-          },
-        ] satisfies chrome.declarativeNetRequest.ModifyHeaderInfo[],
-      },
-      priority: 1,
-      condition: {
-        resourceTypes: ["xmlhttprequest"],
-        tabIds: [chrome.tabs.TAB_ID_NONE], // 只限于后台 service_worker / offscreen
-      },
-    } as chrome.declarativeNetRequest.Rule;
-    chrome.declarativeNetRequest.updateSessionRules(
-      {
-        removeRuleIds: [ruleId],
-        addRules: [rule],
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-        }
-      }
     );
   }
 

@@ -9,11 +9,12 @@ import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
 import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
+import { localizeObject } from "./global";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
   scriptFlag: string;
-  envInfo: any;
+  envInfo: GMInfoEnv;
   scriptFunc: any;
 };
 
@@ -138,7 +139,9 @@ export class ScriptExecutor {
   }
 
   execScriptEntry(scriptEntry: ExecScriptEntry) {
-    const { scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
+    const { scriptFunc } = scriptEntry;
+    const envInfo = localizeObject(scriptEntry.envInfo);
+    const scriptLoadInfo = localizeObject(scriptEntry.scriptLoadInfo);
 
     const execScript = new ExecScript(scriptLoadInfo, {
       envPrefix: "scripting",

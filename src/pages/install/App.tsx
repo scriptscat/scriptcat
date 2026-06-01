@@ -49,6 +49,7 @@ interface PermissionItem {
 
 type Permission = PermissionItem[];
 
+let closingWindow = false;
 const closeWindow = (doBackwards: boolean) => {
   if (doBackwards) {
     history.go(-1);
@@ -314,7 +315,9 @@ function App() {
   };
 
   useEffect(() => {
+    closingWindow = false; // reset
     !loaded && initAsync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, loaded]);
 
   const [watchFile, setWatchFile] = useState(false);
@@ -455,6 +458,7 @@ function App() {
   };
 
   const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
+    if (closingWindow) return;
     if (!upsertScript) {
       Message.error(t("script_info_load_failed")!);
       return;
@@ -498,9 +502,12 @@ function App() {
       }
 
       if (shouldClose) {
-        setTimeout(() => {
-          closeWindow(doBackwards);
-        }, 500);
+        if (!closingWindow) {
+          closingWindow = true;
+          setTimeout(() => {
+            closeWindow(doBackwards);
+          }, 500);
+        }
       }
     } catch (e) {
       const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
@@ -508,12 +515,18 @@ function App() {
     }
   };
 
-  const handleClose = (options?: { noMoreUpdates: boolean }) => {
+  const handleClose = async (options?: { noMoreUpdates: boolean }) => {
+    if (closingWindow) return;
     const { noMoreUpdates = false } = options || {};
     if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
-      scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
+      await scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
     }
-    closeWindow(doBackwards);
+    if (!closingWindow) {
+      closingWindow = true;
+      setTimeout(() => {
+        closeWindow(doBackwards);
+      }, 50);
+    }
   };
 
   const {

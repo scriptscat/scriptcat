@@ -6,7 +6,7 @@ import { mightPrepareSetClipboard, setClipboard } from "../service_worker/clipbo
 export const nativePageXHR = async (details: GMSend.XHRDetails, sender: IGetSender) => {
   const con = sender.getConnect(); // con can be undefined
   if (!con) throw new Error("offscreen xmlHttpRequest: Connection is undefined");
-  const bgGmXhr = new BgGMXhr(details, { statusCode: 0, finalUrl: "", responseHeaders: "" }, con);
+  const bgGmXhr = new BgGMXhr(details, { statusCode: 0, finalUrl: "", responseHeaders: "" }, con, null, "");
   bgGmXhr.do();
 };
 

@@ -35,6 +35,7 @@ import i18n, { i18nName } from "@App/locales/locales";
 import { InfoNotification } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { md5OfText } from "@App/pkg/utils/crypto";
+import { startDownload } from "./download";
 
 // type SynchronizeTarget = "local";
 
@@ -344,7 +345,7 @@ export class SynchronizeService {
     const url = await makeBlobURL({ blob: zipOutput, persistence: false }, (params) =>
       createObjectURL(this.msgSender, params)
     );
-    chrome.downloads.download({
+    startDownload({
       url,
       saveAs: true,
       filename: `scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`,

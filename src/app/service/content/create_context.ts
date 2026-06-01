@@ -173,6 +173,9 @@ const overridedDescs: Record<string, PropertyDescriptor> = Object.create(null);
 // 记录原生 onxxxxx 的 PropertyDescriptor
 const eventDescs: Record<string, PropertyDescriptor> = Object.create(null);
 
+// 在 USE_PSEUDO_WINDOW 情况下，由于没有 类的prototype, 父类的成员要手动传下去
+const protoBaseDescs: Record<string, PropertyDescriptor> = Object.create(null);
+
 // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
 // 主要是找出哪些 function值， setter/getter 需要替换 global window
 getAllPropertyDescriptors(global, ([key, desc]) => {
@@ -194,6 +197,18 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
         value: boundValue,
       };
       descsCache.add(key); // 必须：子类属性覆盖父类属性
+    } else if (!(key in initOwnDescs) && !Object.hasOwn(global, key)) {
+      if (!protoBaseDescs[key]) {
+        if (typeof value === "function") {
+          const boundValue = value.bind(global);
+          protoBaseDescs[key] = {
+            ...desc,
+            value: boundValue,
+          };
+        } else {
+          protoBaseDescs[key] = { ...desc };
+        }
+      }
     }
   } else {
     if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
@@ -248,6 +263,7 @@ Object.defineProperty(PseudoWindowPrototype, "__proto__", {
 
 const sharedInitCopy = USE_PSEUDO_WINDOW
   ? Object.create(null, {
+      ...protoBaseDescs, // 较快的 @unwrap 注入时有机会改变 EventTarget.prototype
       ...Object.getOwnPropertyDescriptors(PseudoWindowPrototype),
       ...initOwnDescs,
       ...overridedDescs,

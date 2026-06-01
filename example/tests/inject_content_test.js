@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         注入到 content 环境测试
+// @name         Inject-into content 环境测试
 // @namespace    https://docs.scriptcat.org/
 // @version      0.1.0
 // @description  脚本注入到content环境，应该可以绕过CSP检测，但无法访问页面的window
-// @match        https://content-security-policy.com/
+// @match        https://content-security-policy.com/?inject_content
 // @inject-into  content
 // @grant        GM_addElement
 // @grant        GM_addStyle

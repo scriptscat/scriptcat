@@ -1,4 +1,5 @@
 import chromeMock from "@Packages/chrome-extension-mock";
+import type Runtime from "@Packages/chrome-extension-mock/runtime";
 import { initTestEnv } from "./utils";
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
@@ -40,7 +41,8 @@ vi.stubGlobal("chrome", chromeMock);
 chromeMock.init();
 initTestEnv();
 
-chromeMock.runtime.getURL = vi.fn().mockImplementation((path: string) => {
+chromeMock.runtime.getURL = vi.fn().mockImplementation(function (this: Runtime, path: string) {
+  if (this.__mockGetURLToExtensionTest) return `https://extension.test${path}`;
   return `chrome-extension://${chrome.runtime.id}${path}`;
 });
 
