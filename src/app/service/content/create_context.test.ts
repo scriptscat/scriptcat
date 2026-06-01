@@ -232,4 +232,9 @@ describe.concurrent("createProxyContext", () => {
     sandbox.onload = null;
     expect(removeEventListener).toHaveBeenCalledWith("load", eventObject);
   });
+
+  it.concurrent("TM半沙盒：把祖先类别继承直接写在半沙盒上 ( #1462 #1463 )", () => {
+    const sandbox = createProxyContext(createTestContext([]));
+    expect(Object.hasOwn(sandbox, "addEventListener")).toBe(true);
+  });
 });

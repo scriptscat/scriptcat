@@ -4,7 +4,7 @@
 // @version      1.0.0
 // @description  全面测试ScriptCat的所有GM.* (异步Promise版本) API功能
 // @author       ScriptCat
-// @match        https://content-security-policy.com/
+// @match        https://content-security-policy.com/?gm_api_async
 // @grant        GM.getValue
 // @grant        GM.setValue
 // @grant        GM.deleteValue
