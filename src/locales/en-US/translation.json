@@ -380,7 +380,7 @@
   "access_cookie_content": "The script is attempting to access website cookie content",
   "confirm_script_operation": "Please confirm if you allow the script to perform this operation. Cookies contain important user data, so only grant access to trusted scripts.",
   "cookie_domain": "Cookie Domain",
-  "script_operation_title": "Script is attempting to access script synchronization storage",
+  "script_operation_title": "Script is attempting to access storage space",
   "script_operation_description": "Please confirm whether you allow the script to perform this operation. If allowed, the script will be able to access the storage space you have set up and create a directory app/${dir} within it.",
   "script_permission_content": "Script",
   "sync_system_connect_failed": "Sync system connection failed",
