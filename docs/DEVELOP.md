@@ -23,7 +23,7 @@ pnpm run typecheck        # tsc --noEmit
 pnpm run test:e2e:install # install Playwright Chromium (first run only)
 pnpm run test:e2e         # Playwright (e2e/*.spec.ts, 1 worker)
 pnpm run lint             # tsc --noEmit + eslint
-pnpm run lint-fix         # eslint --fix (also applies Prettier via eslint-plugin-prettier)
+pnpm run lint-fix         # tsc --noEmit + eslint --fix (also applies Prettier via eslint-plugin-prettier)
 ```
 
 No standalone `format` script — formatting is part of `lint-fix`. Husky pre-commit runs `pnpm run lint-fix` and re-stages the files it touched.

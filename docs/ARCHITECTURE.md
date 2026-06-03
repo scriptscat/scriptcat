@@ -57,7 +57,7 @@ Three ideas explain almost everything in the codebase:
                           ┌──────────────────────┐         ┌──────────────────────────┐
                           │     CONTENT SCRIPT    │         │     OFFSCREEN DOCUMENT    │
                           │  bridges SW ↔ inject  │         │  DOM-capable background   │
-                          │  Server("content")    │         │  Server-less manager      │
+                          │  Server("content")    │         │  Server("offscreen")      │
                           └──────────┬───────────┘         └─────────────┬────────────┘
                        CustomEventMessage                        WindowMessage
                        (DOM CustomEvent)                         (window.postMessage)
@@ -198,9 +198,10 @@ changed.
 ### 3.4 Testing the bus
 
 [`MockMessage`](../packages/message/mock_message.ts) implements the full `Message` interface with an in-memory
-`EventEmitter3` and no browser APIs, so message-driven services can be unit-tested. It is exposed through
-[`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock) and registered in
-[`tests/vitest.setup.ts`](../tests/vitest.setup.ts).
+`EventEmitter3` and no browser APIs, so message-driven services can be unit-tested. Tests wire it up directly —
+e.g. [`tests/utils.ts`](../tests/utils.ts) builds the SW/offscreen mock buses from it. The separate `chrome.*`
+mock ([`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock)) is what
+[`tests/vitest.setup.ts`](../tests/vitest.setup.ts) registers globally.
 
 ---
 
@@ -322,7 +323,8 @@ Design notes:
 | `ResourceDAO` | [`resource.ts`](../src/app/repo/resource.ts) | `Resource` (`@require`/`@resource`) | Overrides `joinKey` to hash URLs; `CompiledResourceDAO` caches compiled deps with a version namespace |
 | `PermissionDAO` | [`permission.ts`](../src/app/repo/permission.ts) | `Permission` | Composite key `<uuid>:<permission>:<value>` |
 | `SubscribeDAO` | [`subscribe.ts`](../src/app/repo/subscribe.ts) | `Subscribe` | Keyed by feed URL |
-| `LoggerDAO`, `FaviconDAO`, `LocalStorageDAO`, `ExportDAO` | `src/app/repo/*.ts` | misc | Same pattern |
+| `FaviconDAO`, `LocalStorageDAO`, `ExportDAO` | `src/app/repo/*.ts` | misc | Same `Repo<T>` pattern |
+| `LoggerDAO` | [`logger.ts`](../src/app/repo/logger.ts) | `Logger` | Extends `DAO<T>` (Dexie/IndexedDB), **not** `Repo<T>` — logs need indexed queries |
 
 ### 5.3 Adding an entity is tiny
 
@@ -475,14 +477,17 @@ workers         : editor.worker · ts.worker (Monaco) · linter.worker
 
 Output goes to `dist/ext/src/[name].js` (cleaned each build). Notable behavior:
 
-- **Path aliases** mirror `tsconfig.json`: `@App → src`, `@Packages → packages`, `@Tests → tests`.
+- **Path aliases** mirror `tsconfig.json`: `@App → src`, `@Packages → packages` (the `@Tests → tests` alias is
+  test-only — defined in `vitest.config.ts` / `tsconfig.json`, not in the Rspack build).
 - **Dev vs prod** via `NODE_ENV`: dev enables watch + inline source maps (skipped when `NO_MAP=true`, needed
   for incognito); prod minifies with SWC + Lightning CSS and drops debug.
 - **Code splitting** pulls big libs into named `lib_*` chunks (react, monaco, arco, dnd-kit, eslint, message),
   but **never splits** `service_worker`, `content`, `inject`, `scripting`, or the workers — MV3 requires those
   to be single self-contained files.
-- **`CopyRspackPlugin`** copies and rewrites [`src/manifest.json`](../src/manifest.json) (version, beta name,
-  `_locales`, logos); **`HtmlRspackPlugin`** generates the page HTML shells.
+- **`CopyRspackPlugin`** copies [`src/manifest.json`](../src/manifest.json) — its `transform` rewrites the beta
+  name (dev/beta) and, for react-tools builds, the CSP — and copies `_locales` and logos. The **version is not**
+  stamped here; that happens at pack time (see [§8.3](#83-packaging--pnpm-run-pack)). **`HtmlRspackPlugin`**
+  generates the page HTML shells.
 
 The dist layout:
 
@@ -514,7 +519,8 @@ dist/ext/
 alpha/beta into internal version codes), runs the production build, then **emits browser-specific manifests** —
 the Chrome variant strips the Firefox `scripts`/CSP bits, while the Firefox variant drops `service_worker` and
 `sandbox`, adds `browser_specific_settings` (Gecko ID, min Firefox 136), and filters Chrome-only permissions.
-It produces per-browser zips and a `.crx` signed with `dist/scriptcat.pem` (which you must supply locally).
+By default it writes the Chrome zip and a `.crx` signed with `dist/scriptcat.pem` (which you must supply
+locally); the Firefox zip is gated behind the `PACK_FIREFOX` flag (`false` by default — testers flip it locally).
 
 ---
 
@@ -525,7 +531,7 @@ It produces per-browser zips and a `.crx` signed with `dist/scriptcat.pem` (whic
 | Package | Purpose |
 |---|---|
 | [`message`](../packages/message) | The cross-context RPC + pub/sub layer (this doc, [§3](#3-message-passing)). Ships its own mocks. |
-| [`filesystem`](../packages/filesystem) | Pluggable FS adapters for sync/backup — WebDAV, local, and cloud drives. |
+| [`filesystem`](../packages/filesystem) | Pluggable FS adapters for sync/backup — WebDAV, cloud drives (OneDrive, Google Drive, Dropbox, Baidu, S3), and zip archives. |
 | [`cloudscript`](../packages/cloudscript) | Cloud-script integration. |
 | [`eslint`](../packages/eslint) | The ESLint config + globals shipped to the in-editor linter for userscripts (`CAT_*`, `GM_*`, `CATRetryError`, …). |
 | [`chrome-extension-mock`](../packages/chrome-extension-mock) | A mock `chrome.*` + message bus for Vitest. |

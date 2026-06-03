@@ -113,13 +113,16 @@ copy that file's inline fixture and helpers into your scratch script rather than
 The canonical way to verify GM APIs / injection is a userscript that **runs assertions in the page and prints a
 summary line**, which the harness parses from the console. The bundled scripts in
 [`example/tests/`](../example/tests/) (e.g. `gm_api_sync_test.js`, `gm_api_async_test.js`,
-`inject_content_test.js`, `sandbox_test.js`, `window_message_test.js`) do exactly this — each prints:
+`inject_content_test.js`, `sandbox_test.js`, `window_message_test.js`) do exactly this. The exact line varies by
+script — what matters is that each emits a `通过`/`Passed` and a `失败`/`Failed` count the harness can parse:
 
 ```
-总计: 12 | 通过: 12 | 失败: 0
+总计: 12 | 通过: 12 | 失败: 0        # inject_content_test.js / sandbox_test.js (combined line)
+总测试数: 12 / 通过: 12 / 失败: 0     # gm_api_sync_test.js / gm_api_async_test.js (counts on separate lines)
+Total: 12 | Passed: 12 | Failed: 0   # window_message_test.js (English)
 ```
 
-Collect and assert on it from your scratch script:
+Collect and assert on it from your scratch script (the regex below matches all three layouts):
 
 ```ts
 const logs: string[] = [];
