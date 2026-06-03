@@ -17,7 +17,7 @@
 | 文档 | 说明 |
 | --- | --- |
 | [`translation/README.md`](./translation/README.md) | 翻译 / 本地化指南(单一信息源):术语与修改规则、工作流、提取翻译提示词。**翻译前先读。** |
-| [`translation/terminology-<locale>.md`](./translation/) | 各语言地区术语与界面文案规范(en-US / zh-CN / zh-TW / ja-JP / ru-RU / de-DE / vi-VN)。 |
+| [`translation/README.md` 术语规范表](./translation/README.md#各语言术语规范--per-locale-terminology) | 各语言地区术语与界面文案规范 `terminology-<locale>.md`(en-US / zh-CN / zh-TW / ja-JP / ru-RU / de-DE / vi-VN)。 |
 
 ## 贡献指南 / Contributing
 

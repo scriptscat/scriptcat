@@ -53,11 +53,15 @@ These are non-negotiable and apply to every change, regardless of what `docs/DEV
 
 ```
 Service Worker (src/service_worker.ts)
-  ├── ExtensionMessage ──→ Content Script (src/content.ts)
-  │                            └── CustomEventMessage ──→ Inject Script (src/inject.ts)
-  └── WindowMessage ──→ Offscreen (src/offscreen.ts)
-                             └── WindowMessage ──→ Sandbox (src/sandbox.ts)
+  ├── ExtensionMessage ──────────────→ Content Script (src/content.ts)
+  │                                        └── CustomEventMessage ──→ Inject Script (src/inject.ts)
+  └── ServiceWorkerMessageSend ──────→ Offscreen (src/offscreen.ts)   (Chrome; Firefox uses EventPageOffscreenManager)
+                                           └── WindowMessage ──→ Sandbox (src/sandbox.ts)
 ```
+
+> SW → Offscreen uses `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage`) on Chrome and
+> `EventPageOffscreenManager` on Firefox MV3; Offscreen replies to SW over `ExtensionMessage`. `WindowMessage`
+> is the Offscreen ↔ Sandbox channel.
 
 - **Service Worker** — central hub: script CRUD, chrome APIs, permission verification, resource caching, message routing
 - **Content** — bridges SW and inject script
@@ -68,7 +72,7 @@ Service Worker (src/service_worker.ts)
 Execution paths: page scripts → `chrome.userScripts`; background → SW → Offscreen → Sandbox; scheduled → cron in Sandbox.
 
 ### Message Passing (`packages/message/`)
-`ExtensionMessage` (chrome.runtime), `WindowMessage` (postMessage), `CustomEventMessage` (CustomEvent), `MessageQueue` (cross-context broadcast).
+`ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `WindowMessage` (postMessage — Offscreen ↔ Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage` — SW → Offscreen on Chrome), `CustomEventMessage` (CustomEvent — Content ↔ Inject), `MessageQueue` (cross-context broadcast).
 
 ### Service & Data Layers
 - Services in `src/app/service/<context>/` — split by execution context. Constructor-injected `Group`, `IMessageQueue`, DAOs.
