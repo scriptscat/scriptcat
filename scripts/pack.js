@@ -1,6 +1,6 @@
 /* global process */
 import { promises as fs } from "fs";
-import { strToU8, zipSync } from "fflate";
+import { ZipWriter } from "web-jszipp";
 import ChromeExtension from "crx";
 import { execSync } from "child_process";
 import manifest from "../src/manifest.json" with { type: "json" };
@@ -17,8 +17,12 @@ const PACK_FIREFOX = false;
 
 const zipMtime = new Date();
 
-const addZipFile = (zip, path, content) => {
-  zip[path] = [typeof content === "string" ? strToU8(content) : content, { mtime: zipMtime }];
+const addZipFile = async (zip, path, content) => {
+  await zip.add({
+    path,
+    data: content,
+    meta: { modifiedAt: zipMtime },
+  });
 };
 
 // 判断是否为beta版本
@@ -110,8 +114,8 @@ firefoxManifest.optional_permissions = firefoxManifest.optional_permissions?.fil
   (permission) => permission !== "background"
 );
 
-const chrome = {};
-const firefox = {};
+const chrome = new ZipWriter({ outputAs: "uint8array" });
+const firefox = new ZipWriter({ outputAs: "uint8array" });
 
 async function addDir(zip, localDir, toDir, filters) {
   const sub = async (localDir, toDir) => {
@@ -126,15 +130,15 @@ async function addDir(zip, localDir, toDir, filters) {
       if (stats.isDirectory()) {
         await sub(localPath, `${toPath}/`);
       } else {
-        addZipFile(zip, toPath, await fs.readFile(localPath));
+        await addZipFile(zip, toPath, await fs.readFile(localPath));
       }
     }
   };
   await sub(localDir, toDir);
 }
 
-addZipFile(chrome, "manifest.json", JSON.stringify(chromeManifest));
-addZipFile(firefox, "manifest.json", JSON.stringify(firefoxManifest));
+await addZipFile(chrome, "manifest.json", JSON.stringify(chromeManifest));
+await addZipFile(firefox, "manifest.json", JSON.stringify(firefoxManifest));
 
 await Promise.all([
   addDir(chrome, "./dist/ext", "", ["manifest.json"]),
@@ -142,10 +146,10 @@ await Promise.all([
 ]);
 
 // 导出zip包
-await fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.zip`, zipSync(chrome));
+await fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.zip`, await chrome.close());
 
 PACK_FIREFOX &&
-  (await fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-firefox.zip`, zipSync(firefox)));
+  (await fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-firefox.zip`, await firefox.close()));
 
 // 处理crx
 const crx = new ChromeExtension({

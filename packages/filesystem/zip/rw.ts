@@ -32,7 +32,7 @@ export class ZipFileWriter implements FileWriter {
     const opts = {} as JSZipFileOptions;
     if (this.modifiedDate) {
       opts.date = new Date(this.modifiedDate);
-      // fflate does not require timezone adjustment to UTC Date
+      // jszipp does not require timezone adjustment to UTC Date
     }
     const fileData = typeof content === "string" ? content : new Uint8Array(await content.arrayBuffer());
     this.zip.file(this.path, fileData, opts);
