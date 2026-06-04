@@ -390,7 +390,7 @@
   "access_cookie_content": "Skript versucht auf Website-Cookie-Inhalte zuzugreifen",
   "confirm_script_operation": "Bitte bestätigen Sie, ob Sie dem Skript erlauben, diese Operation durchzuführen. Cookies sind wichtige Benutzerdaten, bitte autorisieren Sie nur vertrauenswürdige Skripte.",
   "cookie_domain": "Cookie-Domain",
-  "script_operation_title": "Skript versucht, auf den Skript-Synchronisierungsspeicher zuzugreifen",
+  "script_operation_title": "Skript versucht, auf den Speicherplatz zuzugreifen",
   "script_operation_description": "Bitte bestätigen Sie, ob Sie dem Skript erlauben, diese Operation durchzuführen. Nach der Erlaubnis kann das Skript den von Ihnen eingestellten Speicherplatz bearbeiten. Das Skript erstellt ein app/${dir}-Verzeichnis unter dem Speicherplatz zur Verwendung",
   "script_permission_content": "Skript",
   "sync_system_connect_failed": "Synchronisationssystem-Verbindung fehlgeschlagen",

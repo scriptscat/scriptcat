@@ -69,5 +69,5 @@ export default [
       "react-hooks/rules-of-hooks": "off",
     },
   },
-  { ignores: ["dist/", "example/", ".claude/"] },
+  { ignores: ["dist/", "example/", ".claude/", "playwright-report/", "test-results/"] },
 ];
