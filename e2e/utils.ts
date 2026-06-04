@@ -167,7 +167,7 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
   await page.keyboard.press("ControlOrMeta+v");
   // Wait for Monaco to finish rendering the pasted content (content will differ from template)
   await page.waitForFunction((init) => document.querySelector(".view-lines")?.textContent !== init, initialText, {
-    timeout: 10_000,
+    timeout: 400,
   });
   // Save
   await saveCurrentEditor(context, extensionId, page);

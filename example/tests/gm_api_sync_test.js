@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         GM API 完整测试
+// @name         GM API 完整测试 (同步版本)
 // @namespace    https://docs.scriptcat.org/
 // @version      1.1.0
 // @description  全面测试ScriptCat的所有GM API功能
 // @author       ScriptCat
-// @match        https://content-security-policy.com/
+// @match        https://content-security-policy.com/?gm_api_sync
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue

@@ -88,14 +88,19 @@ testWithUserScripts.describe("GM API", () => {
   // Two-phase launch + script install + network fetches + permission dialogs
   testWithUserScripts.setTimeout(300_000);
 
-  testWithUserScripts("GM_ sync API tests (gm_api_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(context, extensionId, "gm_api_test.js", TARGET_URL, 90_000, {
-      patchCode,
-    });
+  testWithUserScripts("GM_ sync API tests (gm_api_sync_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_api_sync_test.js",
+      `${TARGET_URL}?gm_api_sync`,
+      90_000,
+      { patchCode }
+    );
 
-    console.log(`[gm_api_test] passed=${passed}, failed=${failed}`);
+    console.log(`[gm_api_sync_test] passed=${passed}, failed=${failed}`);
     if (failed !== 0) {
-      console.log("[gm_api_test] logs:", logs.join("\n"));
+      console.log("[gm_api_sync_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some GM_ sync API tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
@@ -106,7 +111,7 @@ testWithUserScripts.describe("GM API", () => {
       context,
       extensionId,
       "gm_api_async_test.js",
-      TARGET_URL,
+      `${TARGET_URL}?gm_api_async`,
       90_000,
       { patchCode }
     );
@@ -124,7 +129,7 @@ testWithUserScripts.describe("GM API", () => {
       context,
       extensionId,
       "inject_content_test.js",
-      TARGET_URL,
+      `${TARGET_URL}?inject_content`,
       60_000
     );
 
@@ -150,6 +155,40 @@ testWithUserScripts.describe("GM API", () => {
       console.log("[unwrap_e2e_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some unwrap scriptlet tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  testWithUserScripts("WindowMessage Transport Test (window_message_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "window_message_test.js",
+      `${TARGET_URL}?WINDOW_MESSAGE_TEST_SC`,
+      8_000
+    );
+
+    console.log(`[window_message_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[window_message_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some window message tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  testWithUserScripts("Sandbox Test (sandbox_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "sandbox_test.js",
+      `${TARGET_URL}?SANDBOX_TEST_SC`,
+      8_000
+    );
+
+    console.log(`[sandbox_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[sandbox_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some sandbox tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });

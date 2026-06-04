@@ -5,7 +5,7 @@ import { ScriptService } from "./script";
 import { ResourceService } from "./resource";
 import { ValueService } from "./value";
 import { RuntimeService } from "./runtime";
-import { type ServiceWorkerMessageSend } from "@Packages/message/window_message";
+import { type IOffscreenSend } from "@Packages/message/types";
 import { PopupService } from "./popup";
 import { SystemConfig } from "@App/pkg/config/config";
 import { SynchronizeService } from "./synchronize";
@@ -30,7 +30,7 @@ export default class ServiceWorkerManager {
   constructor(
     private api: Server,
     private mq: IMessageQueue,
-    private sender: ServiceWorkerMessageSend
+    private offscreenSend: IOffscreenSend
   ) {}
 
   logger(data: Logger) {
@@ -52,10 +52,10 @@ export default class ServiceWorkerManager {
     this.api.on("getExtensionEnv", this.getExtensionEnv.bind(this));
     this.api.on("preparationOffscreen", async () => {
       // 准备好环境
-      await this.sender.init();
+      await this.offscreenSend.init();
       this.mq.emit("preparationOffscreen", {});
     });
-    this.sender.init();
+    this.offscreenSend.init();
 
     const faviconDAO = new FaviconDAO();
 
@@ -79,7 +79,7 @@ export default class ServiceWorkerManager {
     const runtime = new RuntimeService(
       systemConfig,
       this.api.group("runtime"),
-      this.sender,
+      this.offscreenSend,
       this.mq,
       value,
       script,
@@ -92,7 +92,7 @@ export default class ServiceWorkerManager {
     popup.init();
     value.init(runtime, popup);
     const synchronize = new SynchronizeService(
-      this.sender,
+      this.offscreenSend,
       this.api.group("synchronize"),
       script,
       value,
@@ -107,13 +107,13 @@ export default class ServiceWorkerManager {
     const system = new SystemService(
       systemConfig,
       this.api.group("system"),
-      this.sender,
+      this.offscreenSend,
       this.mq,
       scriptDAO,
       faviconDAO
     );
     system.init();
-    const agent = new AgentService(this.api.group("agent"), this.sender, resource);
+    const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
 
     // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道

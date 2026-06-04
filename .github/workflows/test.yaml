@@ -80,7 +80,7 @@ jobs:
 
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
+        run: pnpm test:e2e:install
 
       - name: Build extension
         run: pnpm build

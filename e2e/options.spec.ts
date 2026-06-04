@@ -62,7 +62,7 @@ test.describe("Options Page", () => {
 
     // Verify dropdown with theme options appears - use role="menuitem"
     const menuItems = page.locator('[role="menuitem"]');
-    await expect(menuItems.first()).toBeVisible({ timeout: 5000 });
+    await expect(menuItems.first()).toBeVisible({ timeout: 680 });
     const count = await menuItems.count();
     expect(count).toBeGreaterThanOrEqual(3);
   });
@@ -76,7 +76,7 @@ test.describe("Options Page", () => {
 
     // Verify dropdown menu appears - use role="menuitem"
     const menuItems = page.locator('[role="menuitem"]');
-    await expect(menuItems.first()).toBeVisible({ timeout: 5000 });
+    await expect(menuItems.first()).toBeVisible({ timeout: 680 });
     const count = await menuItems.count();
     expect(count).toBeGreaterThanOrEqual(3);
   });
@@ -85,10 +85,10 @@ test.describe("Options Page", () => {
     const page = await openOptionsPage(context, extensionId);
 
     // Wait for the content area to load
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(380);
 
     // The empty state component from arco-design should be visible
     const emptyState = page.locator(".arco-empty");
-    await expect(emptyState).toBeVisible({ timeout: 10_000 });
+    await expect(emptyState).toBeVisible({ timeout: 720 });
   });
 });
