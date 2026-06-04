@@ -52,7 +52,7 @@
     "react-router-dom": "^7.13.0",
     "string-similarity-js": "^2.1.4",
     "uuid": "^11.1.0",
-    "web-jszipp": "^1.0.3",
+    "web-jszipp": "^1.0.5",
     "webdav": "^5.9.0",
     "yaml": "^2.8.3"
   },
