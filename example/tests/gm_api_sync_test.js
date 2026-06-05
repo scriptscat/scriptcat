@@ -316,7 +316,7 @@
               assert(true, !!response.responseText, "响应内容不应为空");
               const data = JSON.parse(response.responseText);
               assert("object", typeof data, "应该返回有效的 JSON 对象");
-              assert(true, data.url, "响应应该包含 url 字段");
+              assert("https://httpbun.com/get", data.url, "响应应该包含 url 字段");
               console.log("httpbun 响应信息:", data.url);
               resolve();
             } catch (error) {
