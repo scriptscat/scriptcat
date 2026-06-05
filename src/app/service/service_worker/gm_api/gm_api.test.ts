@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
-import { ConnectMatch, getConnectMatched } from "./gm_api";
+import { ConnectMatch, getConnectMatched, getExtensionSiteAccessOriginPattern } from "./gm_api";
 
 // 小工具：建立假的 IGetSender
 const makeSender = (url?: string): IGetSender => ({
@@ -96,5 +96,17 @@ describe.concurrent("isConnectMatched", () => {
     expect(getConnectMatched(["example.com"], req, makeSender())).toBe(ConnectMatch.DOMAIN);
     expect(getConnectMatched(["EXAMPLE.COM"], req, makeSender())).toBe(ConnectMatch.DOMAIN);
     expect(getConnectMatched(["Api.Example.com"], req, makeSender())).toBe(ConnectMatch.DOMAIN);
+  });
+});
+
+describe.concurrent("getExtensionSiteAccessOriginPattern", () => {
+  it.concurrent("应生成不带端口的扩展站点访问权限 pattern", () => {
+    expect(getExtensionSiteAccessOriginPattern(new URL("http://127.0.0.1:3000/get"))).toBe("http://127.0.0.1/*");
+    expect(getExtensionSiteAccessOriginPattern(new URL("https://example.com:8443/path"))).toBe("https://example.com/*");
+  });
+
+  it.concurrent("应忽略非 http/https 协议", () => {
+    expect(getExtensionSiteAccessOriginPattern(new URL("data:text/plain,hello"))).toBeUndefined();
+    expect(getExtensionSiteAccessOriginPattern(new URL("file:///tmp/test.txt"))).toBeUndefined();
   });
 });

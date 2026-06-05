@@ -237,6 +237,13 @@ export const getConnectMatched = (
   return ConnectMatch.NONE;
 };
 
+export const getExtensionSiteAccessOriginPattern = (url: URL): string | undefined => {
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return undefined;
+  }
+  return `${url.protocol}//${url.hostname}/*`;
+};
+
 type NotificationData = {
   uuid: string;
   details: GMTypes.NotificationDetails;
@@ -807,14 +814,42 @@ export default class GMApi {
         const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
         throw throwErrorFn(msg);
       }
+      let hasOriginPermission = false;
+      const originPattern = getExtensionSiteAccessOriginPattern(url);
+      if (!originPattern) {
+        hasOriginPermission = true; // TBC
+      } else {
+        try {
+          hasOriginPermission = await chrome.permissions.contains({ origins: [originPattern] });
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+      const extensionSiteAccessOrigins = hasOriginPermission ? undefined : [originPattern];
+      const confirmExtensionSiteAccess = (): ConfirmParam => {
+        const metadata: { [key: string]: string } = {};
+        metadata[i18next.t("script_name")] = i18nName(request.script);
+        metadata[i18next.t("request_domain")] = url.hostname;
+        metadata[i18next.t("request_url")] = details.url;
+        throwErrorFn = null; // 确保 GC 可以释放 conn
+        return {
+          permission: "extension-site-access",
+          permissionValue: originPattern,
+          title: i18next.t("extension_site_access_title"),
+          metadata,
+          describe: i18next.t("extension_site_access_description"),
+          permissionContent: i18next.t("extension_site_access_content"),
+          extensionSiteAccessOrigins,
+        } as ConfirmParam;
+      };
       const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
       if (connectMatched === ConnectMatch.ALL) {
         // SC: 有 @connect * 就不询问
-        return true;
+        return hasOriginPermission ? true : confirmExtensionSiteAccess();
       } else {
         // 如果 @connect 有匹配到就放行
         if (connectMatched > 0) {
-          return true;
+          return hasOriginPermission ? true : confirmExtensionSiteAccess();
         }
         // @connect 没有匹配，但有列明 @connect 的话，则自动拒绝
         if (request.script.metadata.connect?.find((e) => !!e)) {
@@ -825,7 +860,7 @@ export default class GMApi {
             wildcard: true,
           });
           if (ret && ret.allow) {
-            return true;
+            return hasOriginPermission ? true : confirmExtensionSiteAccess();
           }
           const msg = `Refused to connect to "${details.url}": This domain is not a part of the @connect list`;
           throw throwErrorFn(msg);
@@ -839,6 +874,14 @@ export default class GMApi {
 
       throwErrorFn = null; // 确保 GC 可以释放 conn
 
+      const ret = await GMApiInstance.permissionVerify.queryPermission(request, {
+        permission: "cors",
+        permissionValue: url.hostname,
+        wildcard: true,
+      });
+      if (ret?.allow && !hasOriginPermission) {
+        return confirmExtensionSiteAccess();
+      }
       return {
         permission: "cors",
         permissionValue: url.hostname,
@@ -847,6 +890,7 @@ export default class GMApi {
         describe: i18next.t("confirm_operation_description"),
         wildcard: true,
         permissionContent: i18next.t("domain"),
+        extensionSiteAccessOrigins,
       } as ConfirmParam;
     },
     alias: ["GM.xmlHttpRequest"],
