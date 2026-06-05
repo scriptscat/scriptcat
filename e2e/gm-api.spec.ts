@@ -1,8 +1,18 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { createServer } from "http";
+import type { AddressInfo } from "net";
 import { test as base, expect, chromium, type BrowserContext } from "@playwright/test";
 import { installScriptByCode } from "./utils";
+
+const HTTPBUN_GET_URL = "https://httpbun.com/get";
+const MOCK_CONNECT_HOST = "127.0.0.1";
+
+type GMApiMockServer = {
+  origin: string;
+  close: () => Promise<void>;
+};
 
 const test = base.extend<{
   context: BrowserContext;
@@ -69,6 +79,58 @@ function patchScriptCode(code: string): string {
     .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\//g, "https://unpkg.com/");
 }
 
+async function startGMApiMockServer(): Promise<GMApiMockServer> {
+  const server = createServer((req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    if (req.url === "/get") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          url: `http://${req.headers.host}${req.url}`,
+        })
+      );
+      return;
+    }
+
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("not found");
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error) => reject(error);
+    server.once("error", onError);
+    server.listen(0, MOCK_CONNECT_HOST, () => {
+      server.off("error", onError);
+      resolve();
+    });
+  });
+
+  const address = server.address() as AddressInfo;
+  return {
+    origin: `http://${MOCK_CONNECT_HOST}:${address.port}`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      }),
+  };
+}
+
+function patchGMApiTestCode(code: string, mockOrigin: string): string {
+  return code
+    .replace(/^\/\/\s*@connect\s+httpbun\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
+    .replace(new RegExp(HTTPBUN_GET_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), `${mockOrigin}/get`);
+}
+
 /**
  * Auto-approve permission confirm dialogs opened by the extension.
  * Listens for new pages matching confirm.html and clicks the
@@ -110,10 +172,12 @@ async function runTestScript(
   extensionId: string,
   scriptFile: string,
   targetUrl: string,
-  timeoutMs: number
+  timeoutMs: number,
+  options?: { patchCode?: (code: string) => string }
 ): Promise<{ passed: number; failed: number; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
+  code = options?.patchCode ? options.patchCode(code) : code;
 
   await installScriptByCode(context, extensionId, code);
 
@@ -149,6 +213,20 @@ async function runTestScript(
 const TARGET_URL = "https://content-security-policy.com/";
 
 test.describe("GM API", () => {
+  let gmApiMockServer: GMApiMockServer;
+
+  test.beforeAll(async () => {
+    gmApiMockServer = await startGMApiMockServer();
+  });
+
+  test.afterAll(async () => {
+    await gmApiMockServer.close();
+  });
+
+  function patchCode(code: string): string {
+    return patchGMApiTestCode(code, gmApiMockServer.origin);
+  }
+
   // Two-phase launch + script install + network fetches + permission dialogs
   test.setTimeout(300_000);
 
@@ -158,7 +236,8 @@ test.describe("GM API", () => {
       extensionId,
       "gm_api_sync_test.js",
       `${TARGET_URL}?gm_api_sync`,
-      90_000
+      90_000,
+      { patchCode }
     );
 
     console.log(`[gm_api_sync_test] passed=${passed}, failed=${failed}`);
@@ -175,7 +254,8 @@ test.describe("GM API", () => {
       extensionId,
       "gm_api_async_test.js",
       `${TARGET_URL}?gm_api_async`,
-      90_000
+      90_000,
+      { patchCode }
     );
 
     console.log(`[gm_api_async_test] passed=${passed}, failed=${failed}`);
