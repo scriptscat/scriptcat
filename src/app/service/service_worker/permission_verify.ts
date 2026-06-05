@@ -29,6 +29,8 @@ export interface ConfirmParam {
   wildcard?: boolean;
   // 权限内容
   permissionContent?: string;
+  // 需要在确认页面通过用户手势请求的扩展站点访问权限
+  extensionSiteAccessOrigins?: string[];
 }
 
 export interface UserConfirm {
