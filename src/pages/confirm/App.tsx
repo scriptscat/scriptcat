@@ -53,7 +53,7 @@ function App() {
             await permissionClient
               .confirm(uuid, {
                 allow: false,
-                type,
+                type: 0,
               })
               .catch(() => {});
             window.close();

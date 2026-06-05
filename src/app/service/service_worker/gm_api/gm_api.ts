@@ -237,6 +237,13 @@ export const getConnectMatched = (
   return ConnectMatch.NONE;
 };
 
+export const getExtensionSiteAccessOriginPattern = (url: URL): string | undefined => {
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return undefined;
+  }
+  return `${url.protocol}//${url.hostname}/*`;
+};
+
 type NotificationData = {
   uuid: string;
   details: GMTypes.NotificationDetails;
@@ -808,11 +815,10 @@ export default class GMApi {
         throw throwErrorFn(msg);
       }
       let hasOriginPermission = false;
-      let originPattern = "";
-      if (!url.origin || url.origin === "null" || !url.protocol || !url.protocol.startsWith("http")) {
+      const originPattern = getExtensionSiteAccessOriginPattern(url);
+      if (!originPattern) {
         hasOriginPermission = true; // TBC
       } else {
-        originPattern = `${url.origin}/*`;
         try {
           hasOriginPermission = await chrome.permissions.contains({ origins: [originPattern] });
         } catch (e) {
