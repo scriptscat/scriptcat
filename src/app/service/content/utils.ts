@@ -234,13 +234,18 @@ export function compilePreInjectScript(
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
+  return `{
+  const et = EventTarget.prototype,
+  dispatchEvent = et.dispatchEvent,
+  addEventListener = et.addEventListener;
+  window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
   c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,
-  f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c)),
+  f = () => dispatchEvent.call(performance, new CustomEvent('${evScriptLoad}', c)),
   needWait = f();
-  if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
+  if (needWait) addEventListener.call(performance, '${evEnvLoad}', f, { once: true });
+}
 }
 `;
 }

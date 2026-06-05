@@ -3,14 +3,17 @@ import {
   compileScriptCode,
   compileScript,
   compileInjectScript,
+  compilePreInjectScript,
   compileScriptletCode,
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
 } from "./utils";
-import type { ScriptRunResource } from "@App/app/repo/scripts";
+import type { ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { DefinedFlags } from "../service_worker/runtime.consts";
+import { ScriptEnvTag } from "@Packages/message/consts";
 
 // 设置 console mock 来避免测试输出污染
 vi.spyOn(console, "error").mockImplementation(() => {});
@@ -560,6 +563,82 @@ describe("utils", () => {
 
     it.concurrent("@unwrap 为 false 时返回 false", () => {
       expect(isScriptletUnwrap({ unwrap: ["false"] })).toBe(false);
+    });
+  });
+
+  describe.concurrent("compilePreInjectScript", () => {
+    const createMockScript = (overrides: Partial<ScriptLoadInfo> = {}): ScriptLoadInfo => ({
+      uuid: "test-uuid",
+      name: "Early Start Script",
+      namespace: "test.namespace",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "complete",
+      createtime: Date.now(),
+      checktime: Date.now(),
+      code: "console.log('early');",
+      value: {},
+      flag: "test-flag",
+      resource: {},
+      metadata: { "early-start": [""], "run-at": ["document-start"] },
+      originalMetadata: {},
+      metadataStr: "",
+      userConfigStr: "",
+      ...overrides,
+    });
+
+    it.concurrent("页面篡改 performance 实例方法时仍能发出加载事件", () => {
+      const script = createMockScript();
+      const code = compilePreInjectScript(script, script.code);
+      const fakeWindow: Record<string, unknown> = {};
+      class FakeCustomEvent {
+        defaultPrevented = false;
+
+        constructor(
+          public type: string,
+          public init: CustomEventInit
+        ) {}
+
+        preventDefault() {
+          this.defaultPrevented = true;
+        }
+      }
+      class FakeEventTarget {
+        listeners = new Map<string, Array<(ev: FakeCustomEvent) => void>>();
+
+        dispatchEvent(ev: FakeCustomEvent) {
+          this.listeners.get(ev.type)?.forEach((listener) => listener(ev));
+          return !ev.defaultPrevented;
+        }
+
+        addEventListener(type: string, listener: (ev: FakeCustomEvent) => void) {
+          this.listeners.set(type, [...(this.listeners.get(type) || []), listener]);
+        }
+      }
+      const fakePerformance = new FakeEventTarget() as FakeEventTarget & {
+        dispatchEvent: FakeEventTarget["dispatchEvent"];
+        addEventListener: FakeEventTarget["addEventListener"];
+      };
+      const eventName = `evt${process.env.SC_RANDOM_KEY}.${ScriptEnvTag.inject}${DefinedFlags.scriptLoadComplete}`;
+      const listener = vi.fn((ev: FakeCustomEvent) => ev.preventDefault());
+      const safeDispatchEvent = vi.spyOn(FakeEventTarget.prototype, "dispatchEvent");
+
+      FakeEventTarget.prototype.addEventListener.call(fakePerformance, eventName, listener);
+      fakePerformance.dispatchEvent = vi.fn(() => true);
+      fakePerformance.addEventListener = vi.fn();
+
+      new Function("window", "performance", "CustomEvent", "EventTarget", code)(
+        fakeWindow,
+        fakePerformance,
+        FakeCustomEvent,
+        FakeEventTarget
+      );
+
+      expect(safeDispatchEvent).toHaveBeenCalledTimes(1);
+      expect(safeDispatchEvent.mock.calls[0][0].type).toBe(eventName);
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(fakePerformance.dispatchEvent).not.toHaveBeenCalled();
     });
   });
 
