@@ -7,9 +7,11 @@ import { test as base, expect, chromium, type BrowserContext } from "@playwright
 import { installScriptByCode } from "./utils";
 
 const MOCK_CONNECT_HOST = "127.0.0.1";
+const CSP_TARGET_HOST = "content-security-policy.test";
 
 type GMApiMockServer = {
   origin: string;
+  cspOrigin: string;
   close: () => Promise<void>;
 };
 
@@ -21,7 +23,11 @@ const test = base.extend<{
   context: async ({}, use) => {
     const pathToExtension = path.resolve(__dirname, "../dist/ext");
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-ext-"));
-    const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
+    const chromeArgs = [
+      `--disable-extensions-except=${pathToExtension}`,
+      `--load-extension=${pathToExtension}`,
+      `--host-resolver-rules=MAP ${CSP_TARGET_HOST} ${MOCK_CONNECT_HOST},EXCLUDE localhost`,
+    ];
 
     // Phase 1: Enable user scripts permission
     const ctx1 = await chromium.launchPersistentContext(userDataDir, {
@@ -132,6 +138,12 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
+    if (req.headers.host?.startsWith(CSP_TARGET_HOST)) {
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'none'; script-src 'none'; style-src 'none'; img-src 'self'; connect-src 'self'"
+      );
+    }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(
       '<!doctype html><html><head><title>ScriptCat E2E</title></head><body><main class="container"><div class="masthead">ScriptCat E2E</div></main></body></html>'
@@ -150,6 +162,7 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
   const address = server.address() as AddressInfo;
   return {
     origin: `http://${MOCK_CONNECT_HOST}:${address.port}`,
+    cspOrigin: `http://${CSP_TARGET_HOST}:${address.port}`,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((error) => {
@@ -278,12 +291,29 @@ test.describe("GM API", () => {
   // Two-phase launch + script install + network fetches + permission dialogs
   test.setTimeout(300_000);
 
+  test("local CSP target blocks page inline scripts", async ({ context }) => {
+    const page = await context.newPage();
+    await page.goto(`${gmApiMockServer.cspOrigin}/?csp_probe`, { waitUntil: "domcontentloaded" });
+
+    const inlineRan = await page.evaluate(async () => {
+      const key = `__scriptcat_csp_probe_${Date.now()}`;
+      const script = document.createElement("script");
+      script.textContent = `window["${key}"] = true;`;
+      document.head.appendChild(script);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return Boolean(window[key as keyof Window]);
+    });
+
+    await page.close();
+    expect(inlineRan, "The local target page must enforce script-src CSP").toBe(false);
+  });
+
   test("GM_ sync API tests (gm_api_sync_test.js)", async ({ context, extensionId }) => {
     const { passed, failed, logs } = await runTestScript(
       context,
       extensionId,
       "gm_api_sync_test.js",
-      `${gmApiMockServer.origin}/?gm_api_sync`,
+      `${gmApiMockServer.cspOrigin}/?gm_api_sync`,
       90_000,
       { patchCode }
     );
@@ -301,7 +331,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "gm_api_async_test.js",
-      `${gmApiMockServer.origin}/?gm_api_async`,
+      `${gmApiMockServer.cspOrigin}/?gm_api_async`,
       90_000,
       { patchCode }
     );
@@ -319,7 +349,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "inject_content_test.js",
-      `${gmApiMockServer.origin}/?inject_content`,
+      `${gmApiMockServer.cspOrigin}/?inject_content`,
       60_000
     );
 
@@ -336,7 +366,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "window_message_test.js",
-      `${gmApiMockServer.origin}/?WINDOW_MESSAGE_TEST_SC`,
+      `${gmApiMockServer.cspOrigin}/?WINDOW_MESSAGE_TEST_SC`,
       8_000,
       { patchCode }
     );
@@ -354,7 +384,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "sandbox_test.js",
-      `${gmApiMockServer.origin}/?SANDBOX_TEST_SC`,
+      `${gmApiMockServer.cspOrigin}/?SANDBOX_TEST_SC`,
       8_000
     );
 
