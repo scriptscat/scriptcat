@@ -58,6 +58,7 @@ import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller
 import type { DownloadCallback } from "../download";
 import { detachDownloadCallback, startDownload } from "../download";
 import { isRequestInitiatorOriginMatched, gmXhrRequestLinker, type IWebRequestDetails } from "./mv3_utils";
+import { addSessionRules, sessionRuleDynamicAdd, sessionRuleDynamicRemove } from "../dnr";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -90,20 +91,11 @@ const headersSettled = (markerID: string) => {
     headerModifierMap.delete(markerID);
   }
   if (ruleID) {
-    chrome.declarativeNetRequest.updateSessionRules(
-      {
-        removeRuleIds: [ruleID],
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          // removeRuleIds 失败: 浏览器里仍保留该规则，本地不释放 ruleID 避免复用
-          console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-          return;
-        }
-        removeSessionRuleIdEntry(ruleID);
-      }
-    );
+    sessionRuleDynamicRemove(ruleID).then((removeResult) => {
+      // removeRuleIds 失败: 浏览器里仍保留该规则，本地不释放 ruleID 避免复用
+      if (removeResult !== true) return;
+      removeSessionRuleIdEntry(ruleID);
+    });
   }
 };
 
@@ -748,16 +740,12 @@ export default class GMApi {
         },
       } as chrome.declarativeNetRequest.Rule;
       headerModifierMap.set(markerID, { rule, redirectNotManual });
-      try {
-        await chrome.declarativeNetRequest.updateSessionRules({
-          removeRuleIds: [ruleId],
-          addRules: [rule],
-        });
-      } catch (e) {
+      const addResult = await sessionRuleDynamicAdd(rule);
+      if (addResult !== true) {
         // addRules 失败: 回滚本地 headerModifierMap 关联并释放 ruleId，避免永久占位导致限额锁死
         headerModifierMap.delete(markerID);
         removeSessionRuleIdEntry(ruleId);
-        throw e;
+        throw addResult;
       }
     }
     return true;
@@ -1664,18 +1652,7 @@ export default class GMApi {
                 },
               };
               headerModifierMap.set(markerID, { rule: newRule, redirectNotManual });
-              chrome.declarativeNetRequest.updateSessionRules(
-                {
-                  removeRuleIds: [rule.id],
-                  addRules: [newRule],
-                },
-                () => {
-                  const lastError = chrome.runtime.lastError;
-                  if (lastError) {
-                    console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-                  }
-                }
-              );
+              sessionRuleDynamicAdd(newRule);
               return;
             }
           }

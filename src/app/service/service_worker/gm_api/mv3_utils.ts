@@ -2,6 +2,7 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { isFirefox } from "@App/pkg/utils/utils";
 import { type FetchXHR } from "@App/pkg/utils/xhr/fetch_xhr";
 import { scXhrRequests } from "./gm_xhr";
+import { sessionRuleDynamicAdd } from "../dnr";
 
 const bFirefox = isFirefox();
 type TbgMarkerMapEntry = {
@@ -175,18 +176,7 @@ export class ChromiumHeaderMarkerLinker implements GmXhrRequestLinker {
         tabIds: [chrome.tabs.TAB_ID_NONE], // 只限于后台 service_worker / offscreen
       },
     } as chrome.declarativeNetRequest.Rule;
-    chrome.declarativeNetRequest.updateSessionRules(
-      {
-        removeRuleIds: [ruleId],
-        addRules: [rule],
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-        }
-      }
-    );
+    sessionRuleDynamicAdd(rule);
   }
 
   prepareRequest(_details: GMSend.XHRDetails, headers: { [key: string]: string }, markerID: string) {
