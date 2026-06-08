@@ -17,7 +17,7 @@ interface InputByType {
 
 type InputFileFormat = InputByType[keyof InputByType] | Promise<InputByType[keyof InputByType]>;
 
-type ZipEntryData = string | Uint8Array | ArrayBuffer | Blob;
+type ZipEntryData = string | Uint8Array<ArrayBuffer> | ArrayBuffer | Blob;
 
 export interface JSZipFileOptions {
   date?: Date;
@@ -110,11 +110,11 @@ export class JSZippZipFile {
 
   generateAsync(options: JSZipGenerateOptions & { type: "blob" }): Promise<Blob>;
 
-  generateAsync(options: JSZipGenerateOptions & { type: "uint8array" }): Promise<Uint8Array>;
+  generateAsync(options: JSZipGenerateOptions & { type: "uint8array" }): Promise<Uint8Array<ArrayBuffer>>;
 
   generateAsync(options: JSZipGenerateOptions & { type: "arraybuffer" }): Promise<ArrayBuffer>;
 
-  async generateAsync(options: JSZipGenerateOptions): Promise<Blob | Uint8Array | ArrayBuffer> {
+  async generateAsync(options: JSZipGenerateOptions): Promise<Blob | Uint8Array<ArrayBuffer> | ArrayBuffer> {
     const method = getCompressionMethod(options);
     const writer = new ZipWriter({
       outputAs: options.type as ZipWriterOutput,
@@ -125,13 +125,13 @@ export class JSZippZipFile {
     for (const [path, file] of Object.entries(this.files)) {
       await writer.add({
         path,
-        data: file.getContent() as any,
+        data: file.getContent(),
         method,
         meta: { modifiedAt: file.date },
       });
     }
 
-    return writer.close() as Promise<Blob | Uint8Array | ArrayBuffer>;
+    return writer.close() as Promise<Blob | Uint8Array<ArrayBuffer> | ArrayBuffer>;
   }
 }
 
