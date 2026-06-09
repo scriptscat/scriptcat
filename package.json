@@ -98,7 +98,7 @@
     "unocss": "66.5.4",
     "vitest": "^4.0.18"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@10.34.1",
   "sideEffects": [
     "**/*.css",
     "**/*.scss",
