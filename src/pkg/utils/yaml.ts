@@ -9,7 +9,7 @@ export function parseUserConfig(code: string): UserConfig | undefined {
   }
 
   const configs = config[1].trim().split(/[-]{3,}/);
-  const ret: UserConfig = {};
+  const ret = Object.create(null) as UserConfig;
 
   const sortSet = new Set<string>();
 
@@ -20,6 +20,10 @@ export function parseUserConfig(code: string): UserConfig | undefined {
     }
     // 验证是否符合分组规范：group -> config -> properties
     for (const [groupKey, groupValue] of Object.entries(obj)) {
+      if (["__proto__", "constructor", "prototype"].includes(groupKey)) {
+        throw new Error(`UserConfig group "${groupKey}" is not a valid object.`);
+      }
+
       if (!groupValue || typeof groupValue !== "object") {
         // 如果分组值不是对象，说明不符合规范
         throw new Error(`UserConfig group "${groupKey}" is not a valid object.`);
