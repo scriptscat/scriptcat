@@ -3,6 +3,7 @@ import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { systemConfig } from "@App/pages/store/global";
 import { LinterWorkerController, registerEditor } from "@App/pkg/utils/monaco-editor";
 import { fnPlaceHolder } from "@App/pages/store/AppContext";
+import { clearModelEslintFixes, getModelEslintFixKey } from "@App/pkg/utils/monaco-editor/eslintFixCache";
 
 fnPlaceHolder.setEditorTheme = (theme: string) => editor.setTheme(theme);
 
@@ -259,13 +260,13 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
 
         editor.setModelMarkers(model, "ESLint", message.markers);
 
-        // 更新 eslint-fix 快取（每次替换整个 map，避免已修复问题的过期条目残留）
+        // 更新当前 model 的 eslint-fix 快取，避免多个脚本编辑器互相覆盖 quick-fix。
         const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
         if (eslintFixMap) {
-          eslintFixMap.clear();
+          clearModelEslintFixes(eslintFixMap, model);
           message.markers.forEach((m: TMarker) => {
             if (m.fix) {
-              const key = `${m.code.value}|${m.startLineNumber}|${m.endLineNumber}|${m.startColumn}|${m.endColumn}`;
+              const key = getModelEslintFixKey(model, m.code.value, m);
               eslintFixMap.set(key, m.fix);
             }
           });
@@ -288,6 +289,10 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
           timer = null;
         }
         changeListener.dispose();
+        const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
+        if (eslintFixMap) {
+          clearModelEslintFixes(eslintFixMap, model);
+        }
         LinterWorkerController.hookRemoveListener("message", messageHandler);
       };
     }, [monacoEditor, enableEslint, eslintConfig, id]);
