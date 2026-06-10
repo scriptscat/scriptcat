@@ -20,8 +20,10 @@ export function parseUserConfig(code: string): UserConfig | undefined {
     }
     // 验证是否符合分组规范：group -> config -> properties
     for (const [groupKey, groupValue] of Object.entries(obj)) {
-      if (["__proto__", "constructor", "prototype"].includes(groupKey)) {
-        throw new Error(`UserConfig group "${groupKey}" is not a valid object.`);
+      // Reject keys inherited from Object.prototype (e.g. __proto__, constructor,
+      // valueOf, toString) so untrusted userscript metadata can't pollute lookups.
+      if (Reflect.has(Object.prototype, groupKey)) {
+        throw new Error(`UserConfig key "${groupKey}" is not valid.`);
       }
 
       if (!groupValue || typeof groupValue !== "object") {
