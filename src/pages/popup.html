@@ -17,6 +17,12 @@
         min-height: 150px;
         max-height: 500px;
       }
+      /* 暗色系统下，JS 设置 arco-theme 前的兜底背景，避免白屏闪烁 (issue #1497) */
+      @media (prefers-color-scheme: dark) {
+        body:not([arco-theme]) {
+          background-color: #232324;
+        }
+      }
     </style>
   </head>
 

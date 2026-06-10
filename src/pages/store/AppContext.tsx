@@ -54,7 +54,9 @@ const setAppColorTheme = (theme: "light" | "dark" | "auto") => {
       break;
     case "light":
       document.documentElement.classList.remove("dark");
-      document.body.removeAttribute("arco-theme");
+      // 显式设置 light 而不是移除属性：模板内联 CSS 依赖 body:not([arco-theme])
+      // 识别"主题未初始化"状态来做暗色兜底，避免白屏闪烁 (issue #1497)
+      document.body.setAttribute("arco-theme", "light");
       fnPlaceHolder.setEditorTheme?.("vs");
       break;
   }
