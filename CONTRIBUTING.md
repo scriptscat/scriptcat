@@ -12,6 +12,8 @@ Before submitting an issue, we recommend that you first check the [existing Issu
 
 ScriptCat is an evolving project. If you encounter problems during use and are confident that these issues are caused by ScriptCat, we welcome you to submit an Issue. When submitting, please include detailed reproduction steps and runtime environment information.
 
+**Security vulnerabilities are an exception — do not open a public Issue.** Report them privately following our [Security Policy](SECURITY.md), so a fix can be prepared before the issue is disclosed.
+
 ### Proposing New Features
 
 We welcome you to propose new feature suggestions in Issues. To help us better understand your needs, we recommend that you describe the feature in as much detail as possible and provide what you think might be a possible solution.
