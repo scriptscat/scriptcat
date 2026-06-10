@@ -9,6 +9,7 @@ import MessageWriter from "@App/app/logger/message_writer.ts";
 import "@arco-design/web-react/dist/css/arco.css";
 import "@App/locales/locales";
 import "@App/index.css";
+import "@App/pages/common.ts";
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
