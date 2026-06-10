@@ -52,6 +52,7 @@
     "react-router-dom": "^7.13.0",
     "string-similarity-js": "^2.1.4",
     "uuid": "^11.1.0",
+    "web-jszipp": "^1.0.8",
     "webdav": "^5.9.0",
     "yaml": "^2.8.3"
   },
@@ -101,7 +102,7 @@
     "unocss": "66.5.4",
     "vitest": "^4.0.18"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@10.34.1",
   "sideEffects": [
     "**/*.css",
     "**/*.scss",

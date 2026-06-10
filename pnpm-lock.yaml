@@ -83,6 +83,9 @@ importers:
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
+      web-jszipp:
+        specifier: ^1.0.8
+        version: 1.0.8
       webdav:
         specifier: ^5.9.0
         version: 5.9.0
@@ -3872,6 +3875,10 @@ packages:
 
   wbuf@1.7.3:
     resolution: {integrity: sha512-O84QOnr0icsbFGLS0O3bI5FswxzRr8/gHwWkDlQFskhSPryQXvrTMxjxGP4+iWYoauLoBvfDpkrOauZ+0iZpDA==}
+
+  web-jszipp@1.0.8:
+    resolution: {integrity: sha512-Gnk+hsa7PQC+JT89ROxEZcYMJQTVxqr8WMljSYydum2oiixXfDUmneK5Y/ueL4xnWRsB3xL/16a050Cd9XDF5A==}
+    engines: {node: '>=20', pnpm: '>=10.33.2'}
 
   web-streams-polyfill@3.3.3:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
@@ -7987,6 +7994,8 @@ snapshots:
   wbuf@1.7.3:
     dependencies:
       minimalistic-assert: 1.0.1
+
+  web-jszipp@1.0.8: {}
 
   web-streams-polyfill@3.3.3: {}
 
