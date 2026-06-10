@@ -6,7 +6,6 @@ import { AppProvider } from "../store/AppContext.tsx";
 import "@arco-design/web-react/dist/css/arco.css";
 import "@App/locales/locales";
 import "@App/index.css";
-import "@App/pages/common.ts";
 import "./index.css";
 import LoggerCore from "@App/app/logger/core.ts";
 import { LoggerDAO } from "@App/app/repo/logger.ts";

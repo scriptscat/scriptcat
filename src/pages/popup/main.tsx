@@ -7,7 +7,6 @@ import MessageWriter from "@App/app/logger/message_writer.ts";
 import "@arco-design/web-react/dist/css/arco.css";
 import "@App/locales/locales";
 import "@App/index.css";
-import "@App/pages/common.ts";
 import "./index.css";
 import PopupLayout from "../components/layout/PopupLayout.tsx";
 import { AppProvider } from "../store/AppContext.tsx";
