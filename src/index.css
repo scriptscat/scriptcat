@@ -6,6 +6,21 @@
     scrollbar-color: inherit;
 }
 
+html {
+  --body-background-color: #fff;
+  --body-text-color: #1d2129;
+}
+
+html.dark {
+  --body-background-color: #232324;
+  --body-text-color: #ffffffe6;
+}
+
+html, body { /* lowest priority */
+  background-color: var(--color-bg-2, var(--body-background-color));
+  color: var(--color-text-1, var(--body-text-color));
+}
+
 body {
     scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
 }
