@@ -28,6 +28,7 @@ const chunkExcludeSet = new Set([
   "content",
   "inject",
   "scripting",
+  "common",
 ]);
 
 export default {
@@ -53,6 +54,7 @@ export default {
     content: `${src}/content.ts`,
     scripting: `${src}/scripting.ts`,
     inject: `${src}/inject.ts`,
+    common: `${src}/pages/common.ts`,
     popup: `${src}/pages/popup/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
     batchupdate: `${src}/pages/batchupdate/main.tsx`,

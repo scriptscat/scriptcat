@@ -1,3 +1,4 @@
+// this is a standalone script to load as fast as possible in extension pages.
 let inited = false;
 if (!inited) {
   inited = true;
