@@ -4,6 +4,8 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import { parseUrlSRI } from "./utils";
+import type { Script } from "@App/app/repo/scripts";
+import { SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 
 initTestEnv();
 
@@ -95,5 +97,33 @@ describe("ResourceService - createResourceByUrlFetch", () => {
     const res = await service.createResourceByUrlFetch(parseUrlSRI("https://example.com/noct"), "resource");
 
     expect(res.contentType).toBe("application/octet-stream");
+  });
+
+  it("已下载成功的远程资源在24小时内不应重复 fetch", async () => {
+    const url = "https://example.com/cache-ttl.js";
+    const script = {
+      uuid: "resource-cache-ttl-test",
+      name: "resource-cache-ttl-test",
+      namespace: "test",
+      metadata: {
+        require: [url],
+      },
+      type: SCRIPT_TYPE_NORMAL,
+      status: SCRIPT_STATUS_ENABLE,
+      sort: 0,
+      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+      createtime: Date.now(),
+      checktime: 0,
+    } as Script;
+
+    mockFetch.mockResolvedValue(mockResponse(textBlob("console.log('cache');"), 200, "application/javascript"));
+
+    await service.updateResourceByTypes(script, ["require"]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    mockFetch.mockClear();
+    await service.updateResourceByTypes(script, ["require"]);
+
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

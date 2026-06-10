@@ -59,6 +59,26 @@ describe("Semaphore", () => {
     expect(maxConcurrent).toBe(limit);
   });
 
+  it("释放槽位后新请求不能插队导致并发数超过限制", async () => {
+    const sem = new Semaphore(1);
+    let concurrent = 0;
+    let maxConcurrent = 0;
+
+    const enter = async () => {
+      await sem.acquire();
+      concurrent++;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+    };
+
+    await enter();
+    const queued = enter();
+    sem.release();
+    await enter();
+    await queued;
+
+    expect(maxConcurrent).toBe(1);
+  });
+
   it.concurrent("按 FIFO 顺序唤醒等待者", async () => {
     const sem = new Semaphore(1);
     const order: number[] = [];
