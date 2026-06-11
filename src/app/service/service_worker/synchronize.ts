@@ -508,73 +508,77 @@ export class SynchronizeService {
     });
     // 同步状态
     if (syncConfig.syncStatus && preserveDigestFiles.size === 0) {
-      const scriptlist = await this.scriptDAO.all();
-      await Promise.allSettled(
-        scriptlist.map(async (script) => {
-          // 判断云端状态是否与本地状态一致
-          const status = cloudStatus[script.uuid];
-          const updatetime = script.updatetime || script.createtime;
-          if (!status) {
-            scriptcatSync.status.scripts[script.uuid] = {
-              enable: script.status === SCRIPT_STATUS_ENABLE,
-              sort: script.sort,
-              updatetime: updatetime,
-            };
-          } else {
-            if (updateScript.has(script.uuid)) {
-              // 脚本已经更新过了,跳过状态同步
-              scriptcatSync.status.scripts[script.uuid] = status;
-              return;
-            }
-            // 判断时间
-            // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
-            if (status.updatetime < updatetime) {
+      try {
+        const scriptlist = await this.scriptDAO.all();
+        await Promise.allSettled(
+          scriptlist.map(async (script) => {
+            // 判断云端状态是否与本地状态一致
+            const status = cloudStatus[script.uuid];
+            const updatetime = script.updatetime || script.createtime;
+            if (!status) {
               scriptcatSync.status.scripts[script.uuid] = {
                 enable: script.status === SCRIPT_STATUS_ENABLE,
                 sort: script.sort,
                 updatetime: updatetime,
               };
-              return;
+            } else {
+              if (updateScript.has(script.uuid)) {
+                // 脚本已经更新过了,跳过状态同步
+                scriptcatSync.status.scripts[script.uuid] = status;
+                return;
+              }
+              // 判断时间
+              // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
+              if (status.updatetime < updatetime) {
+                scriptcatSync.status.scripts[script.uuid] = {
+                  enable: script.status === SCRIPT_STATUS_ENABLE,
+                  sort: script.sort,
+                  updatetime: updatetime,
+                };
+                return;
+              }
+              // 否则采用云端状态
+              scriptcatSync.status.scripts[script.uuid] = status;
+              // 脚本顺序
+              if (status.sort !== script.sort) {
+                await this.scriptDAO.update(script.uuid, {
+                  sort: status.sort,
+                });
+              }
+              // 脚本状态
+              if (status.enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
+                // 开启脚本
+                await this.script.enableScript({
+                  uuid: script.uuid,
+                  enable: status.enable,
+                });
+              }
             }
-            // 否则采用云端状态
-            scriptcatSync.status.scripts[script.uuid] = status;
-            // 脚本顺序
-            if (status.sort !== script.sort) {
-              await this.scriptDAO.update(script.uuid, {
-                sort: status.sort,
-              });
-            }
-            // 脚本状态
-            if (status.enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
-              // 开启脚本
-              await this.script.enableScript({
-                uuid: script.uuid,
-                enable: status.enable,
-              });
-            }
-          }
-        })
-      );
-      // 保留被跳过的 orphan uuid 的云端 status，避免覆盖另一台设备半上传的状态
-      skippedOrphanUuids.forEach((uuid) => {
-        const status = cloudStatus[uuid];
-        if (status) {
-          scriptcatSync.status.scripts[uuid] = status;
-        }
-      });
-      if (file) {
-        const latestCloudStatus = await this.readScriptcatSyncStatus(fs, file);
-        scriptcatSync.status.scripts = this.mergeScriptcatSyncStatus(
-          cloudStatus,
-          latestCloudStatus,
-          scriptcatSync.status.scripts
+          })
         );
+        // 保留被跳过的 orphan uuid 的云端 status，避免覆盖另一台设备半上传的状态
+        skippedOrphanUuids.forEach((uuid) => {
+          const status = cloudStatus[uuid];
+          if (status) {
+            scriptcatSync.status.scripts[uuid] = status;
+          }
+        });
+        if (file) {
+          const latestCloudStatus = await this.readScriptcatSyncStatus(fs, file);
+          scriptcatSync.status.scripts = this.mergeScriptcatSyncStatus(
+            cloudStatus,
+            latestCloudStatus,
+            scriptcatSync.status.scripts
+          );
+        }
+        // 保存脚本猫同步状态
+        const modifiedDate = Date.now();
+        const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
+        await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
+        this.logger.info("sync scriptcat-sync.json file success");
+      } catch (e) {
+        this.logger.warn("sync scriptcat-sync.json file failed", Logger.E(e));
       }
-      // 保存脚本猫同步状态
-      const modifiedDate = Date.now();
-      const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
-      await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
-      this.logger.info("sync scriptcat-sync.json file success");
     } else if (syncConfig.syncStatus) {
       this.logger.warn("skip scriptcat-sync.json write because some sync tasks failed", {
         failedFiles: [...preserveDigestFiles],
