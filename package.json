@@ -56,6 +56,7 @@
     "remark-gfm": "^4.0.1",
     "string-similarity-js": "^2.1.4",
     "uuid": "^11.1.0",
+    "web-jszipp": "^1.0.8",
     "webdav": "^5.9.0",
     "yaml": "^2.8.3"
   },
@@ -91,7 +92,6 @@
     "husky": "^9.1.7",
     "iconv-lite": "^0.7.2",
     "jsdom": "^26.1.0",
-    "jszip": "^3.10.1",
     "magic-string": "^0.30.21",
     "mock-xmlhttprequest": "^8.4.1",
     "postcss": "^8.5.6",
@@ -105,7 +105,7 @@
     "unocss": "66.5.4",
     "vitest": "^4.0.18"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@10.34.1",
   "sideEffects": [
     "**/*.css",
     "**/*.scss",
