@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { isConflictError } from "../error";
 import S3FileSystem from "./s3";
 import { S3Client, S3Error } from "./client";
 import type { FileInfo } from "../filesystem";
@@ -270,6 +271,16 @@ describe("S3FileSystem", () => {
       );
     });
 
+    it("createOnly 写入遇到 412 时应当抛出 typed conflict 错误", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("PreconditionFailed", "At least one precondition failed", 412)
+      );
+
+      const writer = await (fs as any).create("new.txt", { createOnly: true });
+
+      await expect(writer.write("hello world")).rejects.toSatisfy(isConflictError);
+    });
+
     it("normalizes double slashes in object keys", async () => {
       const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
 
@@ -335,6 +346,14 @@ describe("S3FileSystem", () => {
           },
         })
       );
+    });
+
+    it("条件删除遇到 412 时应当抛出 typed conflict 错误", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("PreconditionFailed", "At least one precondition failed", 412)
+      );
+
+      await expect((fs as any).delete("test.txt", { expectedDigest: "abc123" })).rejects.toSatisfy(isConflictError);
     });
   });
 
