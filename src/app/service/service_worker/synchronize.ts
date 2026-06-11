@@ -15,7 +15,7 @@ import type FileSystem from "@Packages/filesystem/filesystem";
 import { getFileSystemCapabilities } from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
-import { isWarpTokenError } from "@Packages/filesystem/error";
+import { FileSystemError, isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -85,6 +85,8 @@ type SyncTask = {
   promise: Promise<FileDigestMap | void>;
   preserveDigestFiles: string[];
 };
+
+type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported" | "fatal";
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
@@ -526,6 +528,7 @@ export class SynchronizeService {
         failedSyncUuids.add(result[index].uuid);
         result[index].preserveDigestFiles.forEach((name) => preserveDigestFiles.add(name));
         this.logger.warn("sync task failed", Logger.E(ret.reason), {
+          errorKind: this.classifySyncError(ret.reason),
           files: result[index].preserveDigestFiles,
         });
       }
@@ -615,6 +618,31 @@ export class SynchronizeService {
     await this.updateFileDigest(fs, pushedFileDigestMap, preserveDigestFiles);
     this.logger.info("sync complete");
     return;
+  }
+
+  private classifySyncError(error: unknown): SyncErrorKind {
+    if (error instanceof FileSystemError) {
+      if (error.conflict) {
+        return "conflict";
+      }
+      if (error.rateLimit || error.retryable) {
+        return "transient";
+      }
+      if (error.notFound) {
+        return "stale_snapshot";
+      }
+      if (error.auth) {
+        return "fatal";
+      }
+      return "fatal";
+    }
+    if (isWarpTokenError(error)) {
+      return "fatal";
+    }
+    if (error instanceof Error && /\bunsupported\b/i.test(error.message)) {
+      return "unsupported";
+    }
+    return "fatal";
   }
 
   private async readScriptcatSyncStatus(fs: FileSystem, file: FileInfo): Promise<ScriptcatSync["status"]["scripts"]> {
