@@ -402,12 +402,18 @@ export class SynchronizeService {
       },
     } as ScriptcatSync;
     let cloudStatus: ScriptcatSync["status"]["scripts"] = {};
+    let canWriteScriptcatSync = true;
     if (file) {
-      // 如果有,则读取文件内容
-      const cloudScriptCatSync = JSON.parse(
-        await fs.open(file).then((f) => f.read("string"))
-      ) as Partial<ScriptcatSync>;
-      cloudStatus = cloudScriptCatSync.status?.scripts || {};
+      try {
+        // 如果有,则读取文件内容
+        const cloudScriptCatSync = JSON.parse(
+          await fs.open(file).then((f) => f.read("string"))
+        ) as Partial<ScriptcatSync>;
+        cloudStatus = cloudScriptCatSync.status?.scripts || {};
+      } catch (e) {
+        canWriteScriptcatSync = false;
+        this.logger.warn("read scriptcat-sync.json file failed", Logger.E(e));
+      }
     }
 
     // 对比脚本列表和文件列表,进行同步
@@ -507,7 +513,7 @@ export class SynchronizeService {
       }
     });
     // 同步状态
-    if (syncConfig.syncStatus && preserveDigestFiles.size === 0) {
+    if (syncConfig.syncStatus && preserveDigestFiles.size === 0 && canWriteScriptcatSync) {
       try {
         const scriptlist = await this.scriptDAO.all();
         await Promise.allSettled(
@@ -579,6 +585,8 @@ export class SynchronizeService {
       } catch (e) {
         this.logger.warn("sync scriptcat-sync.json file failed", Logger.E(e));
       }
+    } else if (syncConfig.syncStatus && preserveDigestFiles.size === 0 && !canWriteScriptcatSync) {
+      this.logger.warn("skip scriptcat-sync.json write because cloud status could not be read");
     } else if (syncConfig.syncStatus) {
       this.logger.warn("skip scriptcat-sync.json write because some sync tasks failed", {
         failedFiles: [...preserveDigestFiles],
