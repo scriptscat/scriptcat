@@ -63,6 +63,48 @@ export class ResourceService {
     this.resourceDAO.enableCache();
   }
 
+  public async getResource(
+    uuid: string,
+    url: string,
+    type: ResourceType,
+    forceUpdate = false
+  ): Promise<Resource | undefined> {
+    const u = parseUrlSRI(url);
+    const oldResource = await this.getResourceModel(u);
+
+    if (forceUpdate) {
+      return this.updateResource(uuid, u, type, oldResource);
+    }
+
+    if (!oldResource) {
+      return undefined;
+    }
+
+    // 读取过但失败的资源加载也会被放在缓存，避免执行期重复加载资源。
+    if (!oldResource.contentType) {
+      return undefined;
+    }
+
+    const shouldUpdate =
+      u.url.startsWith("file:///") ||
+      !oldResource.updatetime ||
+      oldResource.updatetime <= Date.now() - RESOURCE_CACHE_TTL_MS;
+
+    if (shouldUpdate) {
+      return this.updateResource(uuid, u, type, oldResource);
+    }
+
+    // TTL 命中：内容无需重新下载，但仍要登记当前脚本对该资源的引用。
+    if (!oldResource.link[uuid]) {
+      const updated = await this.resourceDAO.update(u.url, { link: { ...oldResource.link, [uuid]: true } });
+      if (updated) {
+        return updated;
+      }
+    }
+
+    return oldResource;
+  }
+
   public async getScriptResourceValue(script: Script): Promise<{ [key: string]: Resource }> {
     const [require, require_css, resource] = await this.getResourceByTypes(script, [
       "require",

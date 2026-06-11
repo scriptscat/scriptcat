@@ -1,6 +1,6 @@
 import type { SkillConfigField, SkillMetadata } from "@App/app/service/agent/core/types";
 import { parse as parseYaml } from "yaml";
-import { loadAsyncJSZip } from "./jszip-x";
+import { loadAsyncJSZip, type JSZipObject } from "./jszip-x";
 
 // 校验并规范化单个 config 字段
 function normalizeConfigField(raw: Record<string, unknown>): SkillConfigField {
@@ -85,9 +85,8 @@ export async function parseSkillZip(data: ArrayBuffer): Promise<{
   references: Array<{ name: string; content: string }>;
 }> {
   const zip = await loadAsyncJSZip(data);
-  const files: Record<string, any> = {};
-  // @ts-ignore JSZip forEach
-  zip.forEach((relativePath: string, file: any) => {
+  const files: Record<string, JSZipObject> = {};
+  zip.forEach((relativePath, file) => {
     files[relativePath] = file;
   });
 
@@ -123,12 +122,12 @@ export async function parseSkillZip(data: ArrayBuffer): Promise<{
   const scripts: Array<{ name: string; code: string }> = [];
   const scriptsDir = prefix + "scripts/";
   for (const [path, file] of Object.entries(files)) {
-    if ((file as any).dir) continue;
+    if (file.dir) continue;
     const normalized = path.replace(/\\/g, "/");
     if (normalized.startsWith(scriptsDir) && normalized.endsWith(".js")) {
       const name = normalized.slice(scriptsDir.length);
       if (name && !name.includes("/")) {
-        const code: string = await (file as any).async("string");
+        const code = await file.async("string");
         scripts.push({ name, code });
       }
     }
@@ -138,12 +137,12 @@ export async function parseSkillZip(data: ArrayBuffer): Promise<{
   const references: Array<{ name: string; content: string }> = [];
   const refsDir = prefix + "references/";
   for (const [path, file] of Object.entries(files)) {
-    if ((file as any).dir) continue;
+    if (file.dir) continue;
     const normalized = path.replace(/\\/g, "/");
     if (normalized.startsWith(refsDir)) {
       const name = normalized.slice(refsDir.length);
       if (name && !name.includes("/")) {
-        const content: string = await (file as any).async("string");
+        const content = await file.async("string");
         references.push({ name, content });
       }
     }

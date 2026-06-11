@@ -224,3 +224,124 @@ describe("ResourceService - createResourceByUrlFetch", () => {
     }
   });
 });
+
+describe("ResourceService - getResource", () => {
+  let service: ResourceService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const mockGroup = {} as Group;
+    const mockMQ = {} as IMessageQueue;
+    service = new ResourceService(mockGroup, mockMQ);
+  });
+
+  it("缓存命中且未过期时应返回旧资源并不触发更新", async () => {
+    const url = "https://example.com/cached.js";
+    const oldResource = resourceModel(url, "cached");
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateResource = vi.spyOn(service, "updateResource");
+    const resourceDAOUpdate = vi.spyOn(service.resourceDAO, "update").mockResolvedValue({
+      ...oldResource,
+      link: { ...oldResource.link, "new-script": true },
+    });
+
+    const res = await service.getResource("old-script", url, "require");
+
+    expect(res).toBe(oldResource);
+    expect(updateResource).not.toHaveBeenCalled();
+    expect(resourceDAOUpdate).not.toHaveBeenCalled();
+  });
+
+  it("缓存命中且未过期时应补登记当前 uuid 的 link", async () => {
+    const url = "https://example.com/shared.js";
+    const oldResource = resourceModel(url, "shared");
+    const updatedResource = {
+      ...oldResource,
+      link: { ...oldResource.link, "new-script": true },
+    };
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const resourceDAOUpdate = vi.spyOn(service.resourceDAO, "update").mockResolvedValue(updatedResource);
+
+    const res = await service.getResource("new-script", url, "require");
+
+    expect(resourceDAOUpdate).toHaveBeenCalledWith(url, { link: updatedResource.link });
+    expect(res).toBe(updatedResource);
+  });
+
+  it("缓存中为空资源记录时应返回 undefined 且不重复更新", async () => {
+    const url = "https://example.com/failed.js";
+    const oldResource = {
+      ...resourceModel(url, ""),
+      contentType: "",
+    };
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateResource = vi.spyOn(service, "updateResource");
+
+    const res = await service.getResource("new-script", url, "require");
+
+    expect(res).toBeUndefined();
+    expect(updateResource).not.toHaveBeenCalled();
+  });
+
+  it("forceUpdate 为 true 时应复用 updateResource 更新资源", async () => {
+    const url = "https://example.com/force.js";
+    const oldResource = resourceModel(url, "old");
+    const updatedResource = {
+      ...oldResource,
+      content: "new",
+      link: { ...oldResource.link, "new-script": true },
+    };
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateResource = vi.spyOn(service, "updateResource").mockResolvedValue(updatedResource);
+
+    const res = await service.getResource("new-script", url, "require", true);
+
+    expect(updateResource).toHaveBeenCalledWith("new-script", expect.objectContaining({ url }), "require", oldResource);
+    expect(res).toBe(updatedResource);
+  });
+
+  it("缓存缺失且非 forceUpdate 时应返回 undefined", async () => {
+    const url = "https://example.com/missing.js";
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(undefined);
+    const updateResource = vi.spyOn(service, "updateResource");
+
+    const res = await service.getResource("new-script", url, "require");
+
+    expect(res).toBeUndefined();
+    expect(updateResource).not.toHaveBeenCalled();
+  });
+
+  it("缓存已过期时应复用 updateResource 更新资源", async () => {
+    const url = "https://example.com/expired.js";
+    const oldResource = resourceModel(url, "old", Date.now() - 86_400_000 - 1000);
+    const updatedResource = {
+      ...oldResource,
+      content: "new",
+      updatetime: Date.now(),
+    };
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateResource = vi.spyOn(service, "updateResource").mockResolvedValue(updatedResource);
+
+    const res = await service.getResource("new-script", url, "require");
+
+    expect(updateResource).toHaveBeenCalledWith("new-script", expect.objectContaining({ url }), "require", oldResource);
+    expect(res).toBe(updatedResource);
+  });
+
+  it("file 协议资源即使未过期也应复用 updateResource 更新资源", async () => {
+    const url = "file:///tmp/require.js";
+    const oldResource = resourceModel(url, "old");
+    const updatedResource = {
+      ...oldResource,
+      content: "new",
+      updatetime: Date.now(),
+    };
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateResource = vi.spyOn(service, "updateResource").mockResolvedValue(updatedResource);
+
+    const res = await service.getResource("new-script", url, "require");
+
+    expect(updateResource).toHaveBeenCalledWith("new-script", expect.objectContaining({ url }), "require", oldResource);
+    expect(res).toBe(updatedResource);
+  });
+});
