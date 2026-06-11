@@ -187,6 +187,185 @@ describe("SynchronizeService", () => {
     expect(written.status.scripts.orphan).toEqual(orphanStatus);
   });
 
+  it("写回 scriptcat-sync.json 前重新读取远端状态，避免覆盖其他设备更新", async () => {
+    const initialStatus = { enable: false, sort: 7, updatetime: 200 };
+    const latestStatus = { enable: true, sort: 9, updatetime: 300 };
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const syncFile = {
+      name: "scriptcat-sync.json",
+      path: "scriptcat-sync.json",
+      size: 1,
+      digest: "sync-digest",
+      createtime: 1,
+      updatetime: 1,
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "status-uuid.user.js",
+          path: "status-uuid.user.js",
+          size: 1,
+          digest: "script-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "status-uuid.meta.json",
+          path: "status-uuid.meta.json",
+          size: 1,
+          digest: "meta-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        syncFile,
+      ]),
+      open: vi
+        .fn()
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue(
+            JSON.stringify({
+              version: "1.0.0",
+              status: { scripts: { "status-uuid": initialStatus } },
+            })
+          ),
+        })
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue(
+            JSON.stringify({
+              version: "1.0.0",
+              status: { scripts: { "status-uuid": latestStatus } },
+            })
+          ),
+        }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const scriptDAO = {
+      scriptCodeDAO: {},
+      all: vi.fn().mockResolvedValue([
+        {
+          uuid: "status-uuid",
+          name: "status",
+          updatetime: 100,
+          createtime: 1,
+          status: 1,
+          sort: 1,
+          metadata: {},
+        },
+      ]),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {
+        enableScript: vi.fn().mockResolvedValue(undefined),
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      scriptDAO as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "status-uuid.user.js": "script-digest",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(fs.open).toHaveBeenCalledTimes(2);
+    const written = JSON.parse(writeMock.mock.calls[0][0] as string);
+    expect(written.status.scripts["status-uuid"]).toEqual(latestStatus);
+  });
+
+  it("写回 scriptcat-sync.json 时本地较新的状态仍覆盖远端旧状态", async () => {
+    const initialStatus = { enable: false, sort: 7, updatetime: 100 };
+    const latestStatus = { enable: false, sort: 8, updatetime: 150 };
+    const localStatus = { enable: true, sort: 1, updatetime: 200 };
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "status-uuid.user.js",
+          path: "status-uuid.user.js",
+          size: 1,
+          digest: "script-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "status-uuid.meta.json",
+          path: "status-uuid.meta.json",
+          size: 1,
+          digest: "meta-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "scriptcat-sync.json",
+          path: "scriptcat-sync.json",
+          size: 1,
+          digest: "sync-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+      open: vi
+        .fn()
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue(
+            JSON.stringify({
+              version: "1.0.0",
+              status: { scripts: { "status-uuid": initialStatus } },
+            })
+          ),
+        })
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue(
+            JSON.stringify({
+              version: "1.0.0",
+              status: { scripts: { "status-uuid": latestStatus } },
+            })
+          ),
+        }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {
+        enableScript: vi.fn().mockResolvedValue(undefined),
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "status-uuid",
+            name: "status",
+            updatetime: localStatus.updatetime,
+            createtime: 1,
+            status: 1,
+            sort: localStatus.sort,
+            metadata: {},
+          },
+        ]),
+        update: vi.fn().mockResolvedValue(undefined),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "status-uuid.user.js": "script-digest",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(fs.open).toHaveBeenCalledTimes(2);
+    const written = JSON.parse(writeMock.mock.calls[0][0] as string);
+    expect(written.status.scripts["status-uuid"]).toEqual(localStatus);
+  });
+
   it("waits for installScript during pullScript", async () => {
     let releaseInstall!: () => void;
     const installGate = new Promise<void>((resolve) => {
