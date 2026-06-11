@@ -1629,6 +1629,7 @@ console.log("ok");`
       } as any
     );
     vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(fs);
+    const warnSpy = vi.spyOn(service.logger, "warn");
     await (service as any).storage.set("file_digest", {
       "fail.user.js": "fail-user-old",
       "fail.meta.json": "fail-meta-old",
@@ -1638,6 +1639,11 @@ console.log("ok");`
     await stackAsyncTask("cloud_sync_queue", async () => "barrier");
 
     expect(deleteCalls).toEqual(["fail.user.js", "ok.user.js", "ok.meta.json"]);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "delete cloud script item failed",
+      expect.objectContaining({ error: "delete failed" }),
+      expect.objectContaining({ uuid: "fail", errorKind: "fatal" })
+    );
     await expect((service as any).storage.get("file_digest")).resolves.toEqual({
       "fail.user.js": "fail-user-old",
       "fail.meta.json": "fail-meta-old",
@@ -1976,7 +1982,8 @@ console.log("ok");`
     expect(updateSpy).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalledWith(
       "push script on install error",
-      expect.objectContaining({ error: "Service unavailable" })
+      expect.objectContaining({ error: "Service unavailable" }),
+      expect.objectContaining({ errorKind: "transient" })
     );
     await expect((service as any).storage.get("file_digest")).resolves.toEqual({
       "install-uuid.user.js": "old-user-digest",

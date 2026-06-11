@@ -929,7 +929,9 @@ export class SynchronizeService {
         const pushedFileDigestMap = await this.pushScript(fs, params.script);
         await this.updateFileDigest(fs, pushedFileDigestMap);
       }).catch((e) => {
-        this.logger.error("push script on install error", Logger.E(e));
+        this.logger.error("push script on install error", Logger.E(e), {
+          errorKind: this.classifySyncError(e),
+        });
       });
     }
   }
@@ -955,6 +957,7 @@ export class SynchronizeService {
             preserveDigestFiles.add(`${uuid}.meta.json`);
             this.logger.warn("delete cloud script item failed", Logger.E(e), {
               uuid,
+              errorKind: this.classifySyncError(e),
             });
           }
         }
