@@ -31,8 +31,28 @@ export type FileCreateOptions = {
   modifiedDate?: number;
 };
 
+export type FileSystemCapabilities = {
+  supportsAtomicCompareAndSwap: boolean;
+  supportsCreateOnly: boolean;
+  supportsConditionalDelete: boolean;
+};
+
+export const DEFAULT_FILE_SYSTEM_CAPABILITIES: FileSystemCapabilities = {
+  supportsAtomicCompareAndSwap: false,
+  supportsCreateOnly: false,
+  supportsConditionalDelete: false,
+};
+
+export function getFileSystemCapabilities(fs: FileSystem): FileSystemCapabilities {
+  return {
+    ...DEFAULT_FILE_SYSTEM_CAPABILITIES,
+    ...fs.capabilities,
+  };
+}
+
 // 文件读取
 export default interface FileSystem {
+  readonly capabilities?: Partial<FileSystemCapabilities>;
   // 授权验证
   verify(): Promise<void>;
   // 打开文件

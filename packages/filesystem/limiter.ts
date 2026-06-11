@@ -1,5 +1,6 @@
 import type FileSystem from "./filesystem";
 import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "./filesystem";
+import { getFileSystemCapabilities, type FileSystemCapabilities } from "./filesystem";
 import { FileSystemError } from "./error";
 
 const RETRYABLE_429_OPS = new Set(["verify", "open", "read", "openDir", "list", "getDirUrl"]);
@@ -95,6 +96,10 @@ export default class LimiterFileSystem implements FileSystem {
   constructor(fs: FileSystem, limiter?: RateLimiter) {
     this.fs = fs;
     this.limiter = limiter || new RateLimiter();
+  }
+
+  get capabilities(): FileSystemCapabilities {
+    return getFileSystemCapabilities(this.fs);
   }
 
   verify(): Promise<void> {

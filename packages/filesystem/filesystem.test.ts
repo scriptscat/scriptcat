@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type FileSystem from "./filesystem";
-import * as filesystemModule from "./filesystem";
+import { getFileSystemCapabilities } from "./filesystem";
 import LimiterFileSystem from "./limiter";
-
-const getFileSystemCapabilities = (filesystemModule as Record<string, unknown>).getFileSystemCapabilities as (
-  fs: FileSystem
-) => unknown;
 
 function createFs(overrides: Partial<FileSystem> = {}): FileSystem {
   return {
@@ -37,7 +33,7 @@ describe("FileSystem capabilities", () => {
       capabilities: {
         supportsCreateOnly: true,
       },
-    } as Partial<FileSystem>);
+    });
 
     expect(getFileSystemCapabilities(fs)).toEqual({
       supportsAtomicCompareAndSwap: false,
@@ -52,7 +48,7 @@ describe("FileSystem capabilities", () => {
         supportsAtomicCompareAndSwap: true,
         supportsConditionalDelete: true,
       },
-    } as Partial<FileSystem>);
+    });
     const limiter = new LimiterFileSystem(fs);
 
     expect(getFileSystemCapabilities(limiter)).toEqual({
