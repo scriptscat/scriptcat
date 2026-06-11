@@ -126,7 +126,8 @@ describe("Semaphore", () => {
     expect(order).toEqual([1, 2, 3]);
   });
 
-  it.concurrent("double release 输出警告", () => {
+  // 不用 it.concurrent：spy 全局 console.warn，并发执行会污染其它用例
+  it("double release 输出警告", () => {
     const sem = new Semaphore(1);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -169,7 +170,8 @@ describe("withTimeoutNotify", () => {
     expect(calls).toEqual([{ settled: true, err: error }]);
   });
 
-  it.concurrent("超时后回调被调用，promise 完成后再次调用", async () => {
+  // 不用 it.concurrent：vi.useFakeTimers() 修改全局计时器，并发执行会与其它用例互相干扰
+  it("超时后回调被调用，promise 完成后再次调用", async () => {
     vi.useFakeTimers();
     let resolvePromise: (v: string) => void;
     const promise = new Promise<string>((r) => {
@@ -199,7 +201,8 @@ describe("withTimeoutNotify", () => {
     vi.useRealTimers();
   });
 
-  it.concurrent("超时后 promise 失败，回调也被调用两次", async () => {
+  // 不用 it.concurrent：vi.useFakeTimers() 修改全局计时器，并发执行会与其它用例互相干扰
+  it("超时后 promise 失败，回调也被调用两次", async () => {
     vi.useFakeTimers();
     let rejectPromise: (e: Error) => void;
     const promise = new Promise<string>((_, reject) => {

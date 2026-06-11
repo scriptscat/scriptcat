@@ -177,7 +177,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -366,7 +366,7 @@ test.describe("GM API", () => {
       context,
       extensionId,
       "unwrap_e2e_test.js",
-      TARGET_URL,
+      `${gmApiMockServer.cspOrigin}/?unwrap_e2e_test`,
       60_000
     );
 
