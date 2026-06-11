@@ -1935,6 +1935,55 @@ console.log("ok");`
     expect(order).toEqual(["sync:list", "sync:digest", "install:push", "install:digest"]);
   });
 
+  it("scriptInstall 触发 push transient 失败时不污染 file_digest", async () => {
+    const fs = createFs();
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true }),
+      } as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const transientError = new FileSystemError({
+      provider: "webdav",
+      message: "Service unavailable",
+      status: 503,
+      retryable: true,
+    });
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(fs);
+    vi.spyOn(service, "pushScript").mockRejectedValue(transientError);
+    const updateSpy = vi.spyOn(service, "updateFileDigest");
+    const errorSpy = vi.spyOn(service.logger, "error").mockImplementation(() => undefined as any);
+    await (service as any).storage.set("file_digest", {
+      "install-uuid.user.js": "old-user-digest",
+      "install-uuid.meta.json": "old-meta-digest",
+    });
+
+    await service.scriptInstall({
+      script: { uuid: "install-uuid", name: "install" } as any,
+      upsertBy: "user",
+    } as any);
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "push script on install error",
+      expect.objectContaining({ error: "Service unavailable" })
+    );
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "install-uuid.user.js": "old-user-digest",
+      "install-uuid.meta.json": "old-meta-digest",
+    });
+  });
+
   it("scriptsDelete enters cloud_sync queue and updates digest after deleting", async () => {
     let releaseSync!: () => void;
     const syncGate = new Promise<void>((resolve) => {
