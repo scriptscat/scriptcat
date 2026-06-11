@@ -445,6 +445,225 @@ console.log("ok");`
     });
   });
 
+  it("部分 push 失败时只推进成功文件 digest 并保留失败文件旧 digest", async () => {
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            name: "ok.user.js",
+            path: "ok.user.js",
+            size: 1,
+            digest: "cloud-ok-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "bad.user.js",
+            path: "bad.user.js",
+            size: 1,
+            digest: "cloud-bad-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "bad.meta.json",
+            path: "bad.meta.json",
+            size: 1,
+            digest: "cloud-bad-meta-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "ok",
+            name: "ok",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+          {
+            uuid: "bad",
+            name: "bad",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 1,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    vi.spyOn(service, "pushScript").mockImplementation(async (_fs, script: any) => {
+      if (script.uuid === "bad") {
+        throw new Error("push failed");
+      }
+      return {
+        "ok.user.js": "ok-user-new",
+        "ok.meta.json": "ok-meta-new",
+      };
+    });
+    await (service as any).storage.set("file_digest", {
+      "bad.user.js": "bad-user-old",
+      "bad.meta.json": "bad-meta-old",
+    });
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "ok.user.js": "cloud-ok-new",
+      "bad.user.js": "bad-user-old",
+      "bad.meta.json": "bad-meta-old",
+      "ok.meta.json": "ok-meta-new",
+    });
+  });
+
+  it("pullScript 失败时不推进对应云端 digest", async () => {
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "pull-uuid.user.js",
+            path: "pull-uuid.user.js",
+            size: 1,
+            digest: "cloud-user-new",
+            createtime: 1,
+            updatetime: 10,
+          },
+          {
+            name: "pull-uuid.meta.json",
+            path: "pull-uuid.meta.json",
+            size: 1,
+            digest: "cloud-meta-new",
+            createtime: 1,
+            updatetime: 10,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            name: "pull-uuid.user.js",
+            path: "pull-uuid.user.js",
+            size: 1,
+            digest: "cloud-user-new",
+            createtime: 1,
+            updatetime: 10,
+          },
+          {
+            name: "pull-uuid.meta.json",
+            path: "pull-uuid.meta.json",
+            size: 1,
+            digest: "cloud-meta-new",
+            createtime: 1,
+            updatetime: 10,
+          },
+        ]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockRejectedValue(new Error("read failed")),
+      }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {
+        installScript: vi.fn().mockResolvedValue(undefined),
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "pull-uuid.user.js": "user-old",
+      "pull-uuid.meta.json": "meta-old",
+    });
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "pull-uuid.user.js": "user-old",
+      "pull-uuid.meta.json": "meta-old",
+    });
+  });
+
+  it("批量删除单条云端删除失败时继续处理后续脚本并保留失败 digest", async () => {
+    const deleteCalls: string[] = [];
+    const fs = createFs({
+      delete: vi.fn().mockImplementation(async (path: string) => {
+        deleteCalls.push(path);
+        if (path === "fail.user.js") {
+          throw new Error("delete failed");
+        }
+      }),
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "fail.user.js",
+          path: "fail.user.js",
+          size: 1,
+          digest: "fail-user-new",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "fail.meta.json",
+          path: "fail.meta.json",
+          size: 1,
+          digest: "fail-meta-new",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true, syncDelete: false }),
+      } as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(fs);
+    await (service as any).storage.set("file_digest", {
+      "fail.user.js": "fail-user-old",
+      "fail.meta.json": "fail-meta-old",
+    });
+
+    await service.scriptsDelete([{ uuid: "fail", deleteBy: "user" } as any, { uuid: "ok", deleteBy: "user" } as any]);
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+    expect(deleteCalls).toEqual(["fail.user.js", "ok.user.js", "ok.meta.json"]);
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "fail.user.js": "fail-user-old",
+      "fail.meta.json": "fail-meta-old",
+    });
+  });
+
   it("passes script modifiedDate when pushing script and meta files", async () => {
     const writeMock = vi.fn().mockResolvedValue(undefined);
     const createMock = vi.fn().mockResolvedValue({ write: writeMock });
