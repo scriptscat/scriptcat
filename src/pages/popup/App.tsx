@@ -401,6 +401,7 @@ function App() {
     <>
       <PopupWarnings isBlacklist={isBlacklist} />
       <Card
+        className={"popup-div"}
         size="small"
         title={
           <div className="tw-flex tw-justify-between">
@@ -496,6 +497,7 @@ function App() {
           }
         />
         <Collapse
+          className={"popup-body"}
           bordered={false}
           activeKey={collapseActiveKey}
           onChange={(_, keys) => {
@@ -535,7 +537,7 @@ function App() {
             />
           </CollapseItem>
         </Collapse>
-        <div className="tw-flex tw-flex-row arco-card-header !tw-h-6">
+        <div className="popup-footer tw-flex tw-flex-row arco-card-header !tw-h-6">
           {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS ? (
             <Tooltip content={`${t("popup.new_version_available")} (v${checkUpdate.version})`}>
               <span
