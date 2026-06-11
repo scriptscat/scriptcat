@@ -81,6 +81,7 @@ type PushScriptOptions = {
 };
 
 type SyncTask = {
+  uuid: string;
   promise: Promise<FileDigestMap | void>;
   preserveDigestFiles: string[];
 };
@@ -434,6 +435,7 @@ export class SynchronizeService {
     // 最后使用 Promise.allSettled 进行等待
     const addSyncTask = (uuid: string, promise: Promise<FileDigestMap | void>, files?: string[]) => {
       result.push({
+        uuid,
         promise,
         preserveDigestFiles: files || [`${uuid}.user.js`, `${uuid}.meta.json`],
       });
@@ -516,10 +518,12 @@ export class SynchronizeService {
     const syncResults = await Promise.allSettled(result.map((item) => item.promise));
     const pushedFileDigestMap: FileDigestMap = {};
     const preserveDigestFiles = new Set<string>();
+    const failedSyncUuids = new Set<string>();
     syncResults.forEach((ret, index) => {
       if (ret.status === "fulfilled" && ret.value) {
         Object.assign(pushedFileDigestMap, ret.value);
       } else if (ret.status === "rejected") {
+        failedSyncUuids.add(result[index].uuid);
         result[index].preserveDigestFiles.forEach((name) => preserveDigestFiles.add(name));
         this.logger.warn("sync task failed", Logger.E(ret.reason), {
           files: result[index].preserveDigestFiles,
@@ -527,11 +531,15 @@ export class SynchronizeService {
       }
     });
     // 同步状态
-    if (syncConfig.syncStatus && preserveDigestFiles.size === 0 && canWriteScriptcatSync) {
+    if (syncConfig.syncStatus && canWriteScriptcatSync) {
       try {
         const scriptlist = await this.scriptDAO.all();
         await Promise.allSettled(
           scriptlist.map(async (script) => {
+            if (failedSyncUuids.has(script.uuid)) {
+              scriptcatSync.status.scripts[script.uuid] = cloudStatus[script.uuid];
+              return;
+            }
             // 判断云端状态是否与本地状态一致
             const status = cloudStatus[script.uuid];
             const updatetime = script.updatetime || script.createtime;
@@ -599,12 +607,8 @@ export class SynchronizeService {
       } catch (e) {
         this.logger.warn("sync scriptcat-sync.json file failed", Logger.E(e));
       }
-    } else if (syncConfig.syncStatus && preserveDigestFiles.size === 0 && !canWriteScriptcatSync) {
+    } else if (syncConfig.syncStatus && !canWriteScriptcatSync) {
       this.logger.warn("skip scriptcat-sync.json write because cloud status could not be read");
-    } else if (syncConfig.syncStatus) {
-      this.logger.warn("skip scriptcat-sync.json write because some sync tasks failed", {
-        failedFiles: [...preserveDigestFiles],
-      });
     }
     // 重新获取文件列表,保存文件摘要
     this.logger.info("update file digest");
