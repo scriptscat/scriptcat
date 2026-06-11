@@ -366,6 +366,92 @@ describe("SynchronizeService", () => {
     expect(written.status.scripts["status-uuid"]).toEqual(localStatus);
   });
 
+  it("syncStatus 单个脚本排序更新失败时不阻塞整轮同步", async () => {
+    const cloudStatus = { enable: true, sort: 9, updatetime: 200 };
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "status-uuid.user.js",
+          path: "status-uuid.user.js",
+          size: 1,
+          digest: "script-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "status-uuid.meta.json",
+          path: "status-uuid.meta.json",
+          size: 1,
+          digest: "meta-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "scriptcat-sync.json",
+          path: "scriptcat-sync.json",
+          size: 1,
+          digest: "sync-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            version: "1.0.0",
+            status: { scripts: { "status-uuid": cloudStatus } },
+          })
+        ),
+      }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const scriptDAO = {
+      scriptCodeDAO: {},
+      all: vi.fn().mockResolvedValue([
+        {
+          uuid: "status-uuid",
+          name: "status",
+          updatetime: 100,
+          createtime: 1,
+          status: 1,
+          sort: 1,
+          metadata: {},
+        },
+      ]),
+      update: vi.fn().mockRejectedValue(new Error("sort update failed")),
+    };
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {
+        enableScript: vi.fn().mockResolvedValue(undefined),
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      scriptDAO as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "status-uuid.user.js": "script-digest",
+      "status-uuid.meta.json": "meta-digest",
+      "scriptcat-sync.json": "sync-digest",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(scriptDAO.update).toHaveBeenCalledWith("status-uuid", { sort: cloudStatus.sort });
+    expect(writeMock).toHaveBeenCalledTimes(1);
+    const written = JSON.parse(writeMock.mock.calls[0][0] as string);
+    expect(written.status.scripts["status-uuid"]).toEqual(cloudStatus);
+    await expect((service as any).storage.get("file_digest")).resolves.toMatchObject({
+      "status-uuid.user.js": "script-digest",
+      "status-uuid.meta.json": "meta-digest",
+      "scriptcat-sync.json": "sync-digest",
+    });
+  });
+
   it("waits for installScript during pullScript", async () => {
     let releaseInstall!: () => void;
     const installGate = new Promise<void>((resolve) => {
