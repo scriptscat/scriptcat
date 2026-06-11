@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { WebDAVClient } from "webdav";
 import { getPatcher } from "webdav";
 import WebDAVFileSystem from "./webdav";
-import { WarpTokenError } from "../error";
+import { isConflictError, WarpTokenError } from "../error";
 
 /** 创建 mock WebDAVClient */
 function createMockClient(overrides?: Partial<WebDAVClient>): WebDAVClient {
@@ -272,6 +272,14 @@ describe("WebDAVFileSystem", () => {
           overwrite: false,
         })
       );
+    });
+
+    it("createOnly 冲突返回 false 时应当抛出 typed conflict 错误", async () => {
+      (mockClient.putFileContents as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+      const fs = createTestFS(mockClient);
+      const writer = await (fs as any).create("exists.txt", { createOnly: true });
+
+      await expect(writer.write("content")).rejects.toSatisfy(isConflictError);
     });
   });
 
