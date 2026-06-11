@@ -837,6 +837,69 @@ console.log("ok");`
     });
   });
 
+  it("scriptcat-sync.json 写回失败时仍推进已成功脚本 digest", async () => {
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            name: "ok.user.js",
+            path: "ok.user.js",
+            size: 1,
+            digest: "cloud-ok-user",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "ok.meta.json",
+            path: "ok.meta.json",
+            size: 1,
+            digest: "cloud-ok-meta",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ]),
+      create: vi.fn().mockResolvedValue({
+        write: vi.fn().mockRejectedValue(new Error("status write failed")),
+      }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "ok",
+            name: "ok",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    vi.spyOn(service, "pushScript").mockResolvedValue({
+      "ok.user.js": "pushed-ok-user",
+      "ok.meta.json": "pushed-ok-meta",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "ok.user.js": "cloud-ok-user",
+      "ok.meta.json": "cloud-ok-meta",
+    });
+  });
+
   it("pullScript 失败时不推进对应云端 digest", async () => {
     const fs = createFs({
       list: vi
