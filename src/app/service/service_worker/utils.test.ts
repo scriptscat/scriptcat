@@ -63,10 +63,10 @@ describe.concurrent("parseUrlSRI", () => {
     expect(result.hash).toBeUndefined();
   });
   it.concurrent("不规则的SRI", () => {
-    const url = "https://example.com/script.js#sha256";
+    const url = "https://example.com/script.js#sha256"; // 格式错误不视为哈希值
     const result = parseUrlSRI(url);
     expect(result.url).toEqual("https://example.com/script.js");
-    expect(result.hash).toEqual({});
+    expect(result.hash).toBeUndefined();
     const url2 = "https://example.com/script.js#sha256=abc123==,md5";
     const result2 = parseUrlSRI(url2);
     expect(result2.url).toEqual("https://example.com/script.js");
