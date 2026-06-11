@@ -1,5 +1,6 @@
 import type { S3Client } from "./client";
 import type { FileReader, FileWriter } from "../filesystem";
+import { createS3FileSystemError } from "./error";
 
 /**
  * S3 文件读取器
@@ -25,11 +26,15 @@ export class S3FileReader implements FileReader {
    * @throws {S3Error} 文件不存在或读取失败
    */
   async read(type: "string" | "blob" = "blob"): Promise<string | Blob> {
-    const response = await this.client.request("GET", this.bucket, this.key);
-    if (type === "string") {
-      return response.text();
+    try {
+      const response = await this.client.request("GET", this.bucket, this.key);
+      if (type === "string") {
+        return response.text();
+      }
+      return response.blob();
+    } catch (error) {
+      throw createS3FileSystemError(error);
     }
-    return response.blob();
   }
 }
 
@@ -69,9 +74,13 @@ export class S3FileWriter implements FileWriter {
       headers["x-amz-meta-createtime"] = new Date(this.modifiedDate).toISOString();
     }
 
-    await this.client.request("PUT", this.bucket, this.key, {
-      body: typeof body === "string" ? body : body,
-      headers,
-    });
+    try {
+      await this.client.request("PUT", this.bucket, this.key, {
+        body: typeof body === "string" ? body : body,
+        headers,
+      });
+    } catch (error) {
+      throw createS3FileSystemError(error);
+    }
   }
 }
