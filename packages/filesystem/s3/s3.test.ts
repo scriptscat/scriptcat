@@ -47,6 +47,14 @@ describe("S3FileSystem", () => {
     fs = new S3FileSystem("test-bucket", mockClient);
   });
 
+  it("应当声明支持原子条件写入和条件删除能力", () => {
+    expect((fs as any).capabilities).toMatchObject({
+      supportsAtomicCompareAndSwap: true,
+      supportsCreateOnly: true,
+      supportsConditionalDelete: true,
+    });
+  });
+
   // ---- verify ----
   describe("verify", () => {
     it("应当成功验证 bucket", async () => {
@@ -226,6 +234,42 @@ describe("S3FileSystem", () => {
       );
     });
 
+    it("条件写入应当将 expectedDigest 转成 If-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
+
+      const writer = await (fs as any).create("output.txt", { expectedDigest: "abc123" });
+      await writer.write("hello world");
+
+      expect(mockClient.request).toHaveBeenCalledWith(
+        "PUT",
+        "test-bucket",
+        "output.txt",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "if-match": '"abc123"',
+          }),
+        })
+      );
+    });
+
+    it("createOnly 写入应当使用 If-None-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
+
+      const writer = await (fs as any).create("new.txt", { createOnly: true });
+      await writer.write("hello world");
+
+      expect(mockClient.request).toHaveBeenCalledWith(
+        "PUT",
+        "test-bucket",
+        "new.txt",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "if-none-match": "*",
+          }),
+        })
+      );
+    });
+
     it("normalizes double slashes in object keys", async () => {
       const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
 
@@ -274,6 +318,23 @@ describe("S3FileSystem", () => {
       await subFs.delete("dir//file.user.js");
 
       expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "ScriptCat/sync/dir/file.user.js");
+    });
+
+    it("条件删除应当将 expectedDigest 转成 If-Match", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true, status: 204 }));
+
+      await (fs as any).delete("test.txt", { expectedDigest: "abc123" });
+
+      expect(mockClient.request).toHaveBeenCalledWith(
+        "DELETE",
+        "test-bucket",
+        "test.txt",
+        expect.objectContaining({
+          headers: {
+            "if-match": '"abc123"',
+          },
+        })
+      );
     });
   });
 
