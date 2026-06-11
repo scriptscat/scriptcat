@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SynchronizeService } from "./synchronize";
 import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
+import { FileSystemError } from "@Packages/filesystem/error";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { md5OfText } from "@App/pkg/utils/crypto";
@@ -1266,6 +1267,94 @@ console.log("ok");`
       "bad.user.js": "bad-user-old",
       "bad.meta.json": "bad-meta-old",
       "ok.meta.json": "ok-meta-new",
+    });
+  });
+
+  it("单文件同步遇到 typed conflict 时应在日志中标记 conflict 分类", async () => {
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            name: "ok.user.js",
+            path: "ok.user.js",
+            size: 1,
+            digest: "cloud-ok-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "bad.user.js",
+            path: "bad.user.js",
+            size: 1,
+            digest: "cloud-bad-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "ok",
+            name: "ok",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+          {
+            uuid: "bad",
+            name: "bad",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 1,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    const warnSpy = vi.spyOn(service.logger, "warn");
+    vi.spyOn(service, "pushScript").mockImplementation(async (_fs, script: any) => {
+      if (script.uuid === "bad") {
+        throw new FileSystemError({
+          provider: "s3",
+          message: "Precondition failed",
+          status: 412,
+          conflict: true,
+        });
+      }
+      return { "ok.user.js": "ok-user-new" };
+    });
+    await (service as any).storage.set("file_digest", {
+      "bad.user.js": "bad-user-old",
+    });
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "sync task failed",
+      expect.objectContaining({ error: "Precondition failed" }),
+      expect.objectContaining({
+        errorKind: "conflict",
+        files: ["bad.user.js", "bad.meta.json"],
+      })
+    );
+    await expect((service as any).storage.get("file_digest")).resolves.toMatchObject({
+      "ok.user.js": "cloud-ok-new",
+      "bad.user.js": "bad-user-old",
     });
   });
 
