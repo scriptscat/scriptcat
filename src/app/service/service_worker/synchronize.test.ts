@@ -1347,6 +1347,68 @@ console.log("ok");`
     });
   });
 
+  it("deleteCloudScript 支持条件删除时应当传 expectedDigest", async () => {
+    const fs = createFs({
+      capabilities: {
+        supportsConditionalDelete: true,
+      },
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "delete-uuid.user.js": "old-user-digest",
+      "delete-uuid.meta.json": "old-meta-digest",
+    });
+
+    await service.deleteCloudScript(fs, "delete-uuid", false);
+
+    expect(fs.delete).toHaveBeenCalledWith(
+      "delete-uuid.user.js",
+      expect.objectContaining({ expectedDigest: "old-user-digest" })
+    );
+    expect(fs.delete).toHaveBeenCalledWith(
+      "delete-uuid.meta.json",
+      expect.objectContaining({ expectedDigest: "old-meta-digest" })
+    );
+  });
+
+  it("deleteCloudScript 无条件删除能力时不应传 expectedDigest", async () => {
+    const fs = createFs();
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "delete-uuid.user.js": "old-user-digest",
+      "delete-uuid.meta.json": "old-meta-digest",
+    });
+
+    await service.deleteCloudScript(fs, "delete-uuid", false);
+
+    expect((fs.delete as any).mock.calls[0]).toEqual(["delete-uuid.user.js"]);
+    expect((fs.delete as any).mock.calls[1]).toEqual(["delete-uuid.meta.json"]);
+  });
+
   it("passes script modifiedDate when pushing script and meta files", async () => {
     const writeMock = vi.fn().mockResolvedValue(undefined);
     const createMock = vi.fn().mockResolvedValue({ write: writeMock });
