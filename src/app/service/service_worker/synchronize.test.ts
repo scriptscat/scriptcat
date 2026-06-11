@@ -569,6 +569,122 @@ describe("SynchronizeService", () => {
     });
   });
 
+  it("脚本文件同步失败时仍可回写其它脚本的 syncStatus 并保留失败脚本云端状态", async () => {
+    const failedCloudStatus = { enable: false, sort: 3, updatetime: 300 };
+    const okCloudStatus = { enable: false, sort: 1, updatetime: 100 };
+    const okLocalStatus = { enable: true, sort: 9, updatetime: 200 };
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "failed.user.js",
+          path: "failed.user.js",
+          size: 1,
+          digest: "failed-new-digest",
+          createtime: 1,
+          updatetime: 300,
+        },
+        {
+          name: "failed.meta.json",
+          path: "failed.meta.json",
+          size: 1,
+          digest: "failed-meta-digest",
+          createtime: 1,
+          updatetime: 300,
+        },
+        {
+          name: "ok.user.js",
+          path: "ok.user.js",
+          size: 1,
+          digest: "ok-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "ok.meta.json",
+          path: "ok.meta.json",
+          size: 1,
+          digest: "ok-meta-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "scriptcat-sync.json",
+          path: "scriptcat-sync.json",
+          size: 1,
+          digest: "sync-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+      open: vi.fn().mockImplementation((file) => {
+        if (file.name === "scriptcat-sync.json") {
+          return Promise.resolve({
+            read: vi.fn().mockResolvedValue(
+              JSON.stringify({
+                version: "1.0.0",
+                status: {
+                  scripts: {
+                    failed: failedCloudStatus,
+                    ok: okCloudStatus,
+                  },
+                },
+              })
+            ),
+          });
+        }
+        return Promise.reject(new Error("read failed"));
+      }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "failed",
+            name: "failed",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 1,
+            metadata: {},
+          },
+          {
+            uuid: "ok",
+            name: "ok",
+            updatetime: okLocalStatus.updatetime,
+            createtime: 1,
+            status: 1,
+            sort: okLocalStatus.sort,
+            metadata: {},
+          },
+        ]),
+        update: vi.fn().mockResolvedValue(undefined),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "failed.user.js": "failed-old-digest",
+      "failed.meta.json": "failed-meta-digest",
+      "ok.user.js": "ok-digest",
+      "ok.meta.json": "ok-meta-digest",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(writeMock).toHaveBeenCalledTimes(1);
+    const written = JSON.parse(writeMock.mock.calls[0][0] as string);
+    expect(written.status.scripts.failed).toEqual(failedCloudStatus);
+    expect(written.status.scripts.ok).toEqual(okLocalStatus);
+  });
+
   it("waits for installScript during pullScript", async () => {
     let releaseInstall!: () => void;
     const installGate = new Promise<void>((resolve) => {
