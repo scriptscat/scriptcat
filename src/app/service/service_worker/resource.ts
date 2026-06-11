@@ -168,7 +168,15 @@ export class ResourceService {
             const updateTime = oldResources.updatetime;
             // 资源最后更新是24小时内则不更新
             // 这里是假设 resources 都是 static. 使用者应该加 ?d=xxxx 之类的方式提示SC要更新资源
-            if (updateTime && updateTime > Date.now() - RESOURCE_CACHE_TTL_MS) return;
+            if (updateTime && updateTime > Date.now() - RESOURCE_CACHE_TTL_MS) {
+              // TTL 命中：内容无需重新下载，但仍要登记当前脚本对该资源的引用，
+              // 否则多个脚本复用同一 URL 时，删除其中一个脚本会把仍被其它脚本使用的资源一并删除。
+              // 只更新 link 字段：oldResources 可能因 SRI 校验失败被改写过 content，不能整份写回。
+              if (!oldResources.link[uuid]) {
+                await this.resourceDAO.update(u.url, { link: { ...oldResources.link, [uuid]: true } });
+              }
+              return;
+            }
           }
           // 旧资源或没有资源记录或本地档案，尝试更新
           await this.updateResource(uuid, u, type, oldResources);

@@ -151,6 +151,30 @@ describe("ResourceService - createResourceByUrlFetch", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("多个脚本复用同一 URL 时, TTL 命中也应登记当前脚本的 link", async () => {
+    const url = "https://example.com/shared-lib.js";
+    const scriptA = normalScript("shared-script-a", { require: [url] });
+    const scriptB = normalScript("shared-script-b", { require: [url] });
+
+    mockFetch.mockResolvedValue(mockResponse(textBlob("console.log('shared');"), 200, "application/javascript"));
+
+    // A 安装：实际下载并登记 link
+    await service.updateResourceByTypes(scriptA, ["require"]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // B 安装：24 小时内 TTL 命中，不应重新 fetch
+    mockFetch.mockClear();
+    await service.updateResourceByTypes(scriptB, ["require"]);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    // 但 B 仍应被登记到该资源的 link，否则删除 A 时会误删仍被 B 使用的资源
+    const stored = await service.resourceDAO.get(url);
+    expect(stored?.link).toMatchObject({
+      "shared-script-a": true,
+      "shared-script-b": true,
+    });
+  });
+
   it("已过期的远程资源应重新 fetch 并更新内容", async () => {
     const url = "https://example.com/expired.css";
     const script = normalScript("resource-expired-test", { resource: [`expired ${url}`] });
