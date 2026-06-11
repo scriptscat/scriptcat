@@ -684,16 +684,18 @@ export class SynchronizeService {
   // 删除云端脚本数据
   async deleteCloudScript(fs: FileSystem, uuid: string, syncDelete: boolean) {
     const filename = `${uuid}.user.js`;
+    const metaFilename = `${uuid}.meta.json`;
+    const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const logger = this.logger.with({
       uuid: uuid,
       file: filename,
     });
     try {
-      await fs.delete(filename);
+      await this.deleteCloudFile(fs, filename, fileDigestMap);
       if (syncDelete) {
         // 留下一个.meta.json删除标记
         const modifiedDate = Date.now();
-        const meta = await fs.create(`${uuid}.meta.json`, { modifiedDate });
+        const meta = await fs.create(metaFilename, { modifiedDate });
         await meta.write(
           JSON.stringify(<SyncMeta>{
             uuid: uuid,
@@ -705,7 +707,7 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
-        await fs.delete(`${uuid}.meta.json`);
+        await this.deleteCloudFile(fs, metaFilename, fileDigestMap);
       }
       logger.info("delete success");
     } catch (e) {
@@ -713,6 +715,26 @@ export class SynchronizeService {
       throw e;
     }
     return;
+  }
+
+  private buildDeleteOptions(fs: FileSystem, filename: string, fileDigestMap: FileDigestMap) {
+    if (!getFileSystemCapabilities(fs).supportsConditionalDelete) {
+      return undefined;
+    }
+    const expectedDigest = fileDigestMap[filename];
+    if (!expectedDigest) {
+      return undefined;
+    }
+    return { expectedDigest };
+  }
+
+  private async deleteCloudFile(fs: FileSystem, filename: string, fileDigestMap: FileDigestMap) {
+    const opts = this.buildDeleteOptions(fs, filename, fileDigestMap);
+    if (opts) {
+      await fs.delete(filename, opts);
+      return;
+    }
+    await fs.delete(filename);
   }
 
   // 上传脚本
