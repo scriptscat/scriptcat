@@ -226,6 +226,84 @@ describe("SynchronizeService", () => {
     expect(written.status.scripts).toEqual({});
   });
 
+  it("scriptcat-sync.json 损坏时不阻塞脚本同步且不覆盖状态文件", async () => {
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "scriptcat-sync.json",
+            path: "scriptcat-sync.json",
+            size: 1,
+            digest: "sync-digest",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            name: "ok.user.js",
+            path: "ok.user.js",
+            size: 1,
+            digest: "cloud-ok-user",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "ok.meta.json",
+            path: "ok.meta.json",
+            size: 1,
+            digest: "cloud-ok-meta",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue("{"),
+      }),
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "ok",
+            name: "ok",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    vi.spyOn(service, "pushScript").mockResolvedValue({
+      "ok.user.js": "pushed-ok-user",
+      "ok.meta.json": "pushed-ok-meta",
+    });
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(service.pushScript).toHaveBeenCalledTimes(1);
+    expect(createMock).not.toHaveBeenCalled();
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "ok.user.js": "cloud-ok-user",
+      "ok.meta.json": "cloud-ok-meta",
+    });
+  });
+
   it("写回 scriptcat-sync.json 前重新读取远端状态，避免覆盖其他设备更新", async () => {
     const initialStatus = { enable: false, sort: 7, updatetime: 200 };
     const latestStatus = { enable: true, sort: 9, updatetime: 300 };
