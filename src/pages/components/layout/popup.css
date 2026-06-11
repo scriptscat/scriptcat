@@ -14,6 +14,10 @@
     height: 16px;
 }
 
+.popup-list-item .arco-space-item:last-child {
+    margin-right: 16px;
+}
+
 .popup-list-item .arco-avatar-square {
     display: inline-flex !important;
     flex-direction: column !important;
@@ -25,10 +29,6 @@
 }
 
 .popup-list-item .arco-space-item {
-    display: inline-flex !important;
-}
-
-.popup-list-item .arco-space-item > span {
     display: inline-flex !important;
 }
 
