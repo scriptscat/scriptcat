@@ -1358,6 +1358,98 @@ console.log("ok");`
     });
   });
 
+  it.each([
+    {
+      title: "typed transient",
+      error: new FileSystemError({
+        provider: "webdav",
+        message: "Service unavailable",
+        status: 503,
+        retryable: true,
+      }),
+      expectedKind: "transient",
+      expectedMessage: "Service unavailable",
+    },
+    {
+      title: "typed stale snapshot",
+      error: new FileSystemError({
+        provider: "onedrive",
+        message: "File moved",
+        status: 404,
+        notFound: true,
+      }),
+      expectedKind: "stale_snapshot",
+      expectedMessage: "File moved",
+    },
+    {
+      title: "unsupported",
+      error: new Error("unsupported conditional write"),
+      expectedKind: "unsupported",
+      expectedMessage: "unsupported conditional write",
+    },
+  ])(
+    "单文件同步遇到 $title 错误时应在日志中标记 $expectedKind 分类",
+    async ({ error, expectedKind, expectedMessage }) => {
+      const fs = createFs({
+        list: vi
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            {
+              name: "bad.user.js",
+              path: "bad.user.js",
+              size: 1,
+              digest: "cloud-bad-new",
+              createtime: 1,
+              updatetime: 1,
+            },
+          ]),
+      });
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          scriptCodeDAO: {},
+          all: vi.fn().mockResolvedValue([
+            {
+              uuid: "bad",
+              name: "bad",
+              updatetime: 1,
+              createtime: 1,
+              status: 1,
+              sort: 0,
+              metadata: {},
+            },
+          ]),
+        } as any
+      );
+      const warnSpy = vi.spyOn(service.logger, "warn");
+      vi.spyOn(service, "pushScript").mockRejectedValue(error);
+      await (service as any).storage.set("file_digest", {
+        "bad.user.js": "bad-user-old",
+      });
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        "sync task failed",
+        expect.objectContaining({ error: expectedMessage }),
+        expect.objectContaining({
+          errorKind: expectedKind,
+          files: ["bad.user.js", "bad.meta.json"],
+        })
+      );
+      await expect((service as any).storage.get("file_digest")).resolves.toMatchObject({
+        "bad.user.js": "bad-user-old",
+      });
+    }
+  );
+
   it("scriptcat-sync.json 写回失败时仍推进已成功脚本 digest", async () => {
     const fs = createFs({
       list: vi
