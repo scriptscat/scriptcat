@@ -10,8 +10,9 @@ import {
 } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
-import type { FileInfo } from "@Packages/filesystem/filesystem";
+import type { FileCreateOptions, FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
+import { getFileSystemCapabilities } from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
 import { isWarpTokenError } from "@Packages/filesystem/error";
@@ -71,6 +72,12 @@ type PushScriptParam = TInstallScriptParams & Partial<Pick<Script, "createtime" 
 
 type FileDigestMap = {
   [key: string]: string;
+};
+
+type PushScriptOptions = {
+  fileDigestMap?: FileDigestMap;
+  scriptFile?: FileInfo;
+  metaFile?: FileInfo;
 };
 
 type SyncTask = {
@@ -459,7 +466,7 @@ export class SynchronizeService {
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name);
-                return await this.pushScript(fs, script);
+                return await this.pushScript(fs, script, { fileDigestMap });
               }
             })(),
             [file.meta!.name, `${uuid}.user.js`]
@@ -475,7 +482,10 @@ export class SynchronizeService {
         if (updatetime > file.script!.updatetime || !file.meta) {
           // 如果脚本更新时间大于文件更新时间
           // 或者不存在.meta文件,则上传文件
-          addSyncTask(uuid, this.pushScript(fs, script));
+          addSyncTask(
+            uuid,
+            this.pushScript(fs, script, { fileDigestMap, scriptFile: file.script, metaFile: file.meta })
+          );
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
           updateScript.set(uuid, true);
@@ -500,7 +510,7 @@ export class SynchronizeService {
     });
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
-      addSyncTask(script.uuid, this.pushScript(fs, script));
+      addSyncTask(script.uuid, this.pushScript(fs, script, { fileDigestMap }));
     });
     // 忽略错误
     const syncResults = await Promise.allSettled(result.map((item) => item.promise));
@@ -706,7 +716,7 @@ export class SynchronizeService {
   }
 
   // 上传脚本
-  async pushScript(fs: FileSystem, script: PushScriptParam): Promise<FileDigestMap> {
+  async pushScript(fs: FileSystem, script: PushScriptParam, opts: PushScriptOptions = {}): Promise<FileDigestMap> {
     const filename = `${script.uuid}.user.js`;
     const metaFilename = `${script.uuid}.meta.json`;
     const logger = this.logger.with({
@@ -716,12 +726,18 @@ export class SynchronizeService {
     });
     try {
       const modifiedDate = getScriptModifiedDate(script);
-      const w = await fs.create(filename, { modifiedDate });
+      const w = await fs.create(
+        filename,
+        this.buildPushCreateOptions(fs, filename, modifiedDate, opts.scriptFile, opts.fileDigestMap)
+      );
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
       const scriptCode = code!.code;
       await w.write(scriptCode);
-      const meta = await fs.create(metaFilename, { modifiedDate });
+      const meta = await fs.create(
+        metaFilename,
+        this.buildPushCreateOptions(fs, metaFilename, modifiedDate, opts.metaFile, opts.fileDigestMap)
+      );
       const metaJson = JSON.stringify(<SyncMeta>{
         uuid: script.uuid,
         origin: script.origin,
@@ -738,6 +754,28 @@ export class SynchronizeService {
       logger.error("push script error", Logger.E(e));
       throw e;
     }
+  }
+
+  private buildPushCreateOptions(
+    fs: FileSystem,
+    filename: string,
+    modifiedDate: number,
+    existingFile?: FileInfo,
+    fileDigestMap?: FileDigestMap
+  ): FileCreateOptions {
+    const capabilities = getFileSystemCapabilities(fs);
+    const createOptions: FileCreateOptions = { modifiedDate };
+    if (!existingFile) {
+      if (capabilities.supportsCreateOnly) {
+        createOptions.createOnly = true;
+      }
+      return createOptions;
+    }
+    const expectedDigest = fileDigestMap?.[filename];
+    if (expectedDigest && capabilities.supportsAtomicCompareAndSwap) {
+      createOptions.expectedDigest = expectedDigest;
+    }
+    return createOptions;
   }
 
   async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {
