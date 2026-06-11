@@ -52,4 +52,38 @@ describe("BaiduFileSystem", () => {
       `async=0&filelist=${encodeURIComponent(JSON.stringify(["/apps/ScriptCat/dir/file.user.js"]))}`
     );
   });
+
+  it("创建目录遇到明确已存在 errno 时才标记为冲突", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({ errno: 31061, errmsg: "file already exists" });
+
+    await expect(fs.createDir("ScriptCat")).rejects.toMatchObject({
+      provider: "baidu",
+      code: "31061",
+      conflict: true,
+    });
+  });
+
+  it("创建目录遇到普通 errno 时不能误标记为冲突", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({ errno: 2, errmsg: "access denied" });
+
+    await expect(fs.createDir("ScriptCat")).rejects.toMatchObject({
+      provider: "baidu",
+      code: "2",
+      conflict: false,
+    });
+  });
+
+  it("写入预创建失败时保留普通 errno 的非冲突语义", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({ errno: 2, errmsg: "access denied" });
+    const writer = await fs.create("dir/file.user.js");
+
+    await expect(writer.write("code")).rejects.toMatchObject({
+      provider: "baidu",
+      code: "2",
+      conflict: false,
+    });
+  });
 });
