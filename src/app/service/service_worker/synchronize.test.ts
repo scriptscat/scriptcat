@@ -895,6 +895,176 @@ console.log("ok");`
     });
   });
 
+  it("push 已有云端文件时应当用旧 digest 作为 expectedDigest", async () => {
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 10,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const fs = createFs({
+      capabilities: {
+        supportsAtomicCompareAndSwap: true,
+      },
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "push-uuid.user.js",
+            path: "push-uuid.user.js",
+            size: 1,
+            digest: "cloud-user-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "push-uuid.meta.json",
+            path: "push-uuid.meta.json",
+            size: 1,
+            digest: "cloud-meta-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "push-uuid.user.js": "old-user-digest",
+      "push-uuid.meta.json": "old-meta-digest",
+    });
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(fs.create).toHaveBeenCalledWith(
+      "push-uuid.user.js",
+      expect.objectContaining({ expectedDigest: "old-user-digest" })
+    );
+    expect(fs.create).toHaveBeenCalledWith(
+      "push-uuid.meta.json",
+      expect.objectContaining({ expectedDigest: "old-meta-digest" })
+    );
+  });
+
+  it("push 云端缺失文件时应当使用 createOnly，避免覆盖并发新增", async () => {
+    const script = {
+      uuid: "new-uuid",
+      name: "new",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 10,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const fs = createFs({
+      capabilities: {
+        supportsCreateOnly: true,
+      },
+      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(fs.create).toHaveBeenCalledWith("new-uuid.user.js", expect.objectContaining({ createOnly: true }));
+    expect(fs.create).toHaveBeenCalledWith("new-uuid.meta.json", expect.objectContaining({ createOnly: true }));
+  });
+
+  it("没有能力声明时 push 不应传条件写入参数", async () => {
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 10,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "push-uuid.user.js",
+            path: "push-uuid.user.js",
+            size: 1,
+            digest: "cloud-user-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "push-uuid.user.js": "old-user-digest",
+    });
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(fs.create).toHaveBeenCalledWith(
+      "push-uuid.user.js",
+      expect.not.objectContaining({
+        expectedDigest: expect.anything(),
+        createOnly: expect.anything(),
+      })
+    );
+  });
+
   it("部分 push 失败时只推进成功文件 digest 并保留失败文件旧 digest", async () => {
     const fs = createFs({
       list: vi
