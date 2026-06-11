@@ -1,12 +1,59 @@
 import { AuthVerify } from "../auth";
+import { FileSystemError, isConflictError, isNotFoundError } from "../error";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { DropboxFileReader, DropboxFileWriter } from "./rw";
 
-function isDropboxPathNotFound(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes("path_lookup/not_found") || message.includes("path/not_found");
+type DropboxErrorBody = {
+  error_summary?: string;
+  error?: {
+    ".tag"?: string;
+  };
+};
+
+function parseDropboxError(raw: unknown): { summary?: string; raw: unknown } {
+  let parsed = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { summary: raw, raw };
+    }
+  }
+
+  if (parsed && typeof parsed === "object") {
+    const body = parsed as DropboxErrorBody;
+    if (typeof body.error_summary === "string") {
+      return { summary: body.error_summary, raw: parsed };
+    }
+    if (typeof body.error?.[".tag"] === "string") {
+      return { summary: body.error[".tag"], raw: parsed };
+    }
+  }
+
+  return { raw: parsed };
+}
+
+function toDropboxFileSystemError(status: number, raw: unknown): FileSystemError {
+  const { summary, raw: parsed } = parseDropboxError(raw);
+  const code = summary;
+  const notFound = summary?.includes("path_lookup/not_found") === true || summary?.includes("path/not_found") === true;
+  const conflict = !notFound && (status === 409 || summary?.includes("path/conflict") === true);
+  const rateLimit = status === 429;
+  const auth = status === 401 || summary?.includes("invalid_access_token") === true;
+  return new FileSystemError({
+    provider: "dropbox",
+    message: `Dropbox API Error${status ? `: ${status}` : ""}${summary ? ` - ${summary}` : ""}`,
+    status,
+    code,
+    notFound,
+    conflict,
+    rateLimit,
+    auth,
+    retryable: rateLimit || status >= 500,
+    raw: parsed,
+  });
 }
 
 export default class DropboxFileSystem implements FileSystem {
@@ -69,7 +116,7 @@ export default class DropboxFileSystem implements FileSystem {
       this.pathCache.add(fullPath);
     } catch (error: any) {
       // 如果目录已存在，Dropbox 会返回错误，但这是正常情况
-      if (error.message && error.message.includes("path/conflict")) {
+      if (isConflictError(error)) {
         // 目录已存在，不需要报错
         this.pathCache.add(fullPath);
         return;
@@ -107,7 +154,7 @@ export default class DropboxFileSystem implements FileSystem {
         }
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Dropbox API Error: ${response.status} - ${errorText}`);
+          throw toDropboxFileSystemError(response.status, errorText);
         }
         return response.json();
       })
@@ -122,18 +169,18 @@ export default class DropboxFileSystem implements FileSystem {
               .then(async (retryResponse) => {
                 if (!retryResponse.ok) {
                   const errorText = await retryResponse.text();
-                  throw new Error(`Dropbox API Error: ${retryResponse.status} - ${errorText}`);
+                  throw toDropboxFileSystemError(retryResponse.status, errorText);
                 }
                 return retryResponse.json();
               })
               .then((retryData) => {
                 if (retryData.error) {
-                  throw new Error(JSON.stringify(retryData));
+                  throw toDropboxFileSystemError(200, retryData);
                 }
                 return retryData;
               });
           }
-          throw new Error(JSON.stringify(data));
+          throw toDropboxFileSystemError(200, data);
         }
         return data;
       });
@@ -154,7 +201,7 @@ export default class DropboxFileSystem implements FileSystem {
         }),
       });
     } catch (e: any) {
-      if (isDropboxPathNotFound(e)) {
+      if (isNotFoundError(e)) {
         return;
       }
       throw e;
@@ -182,7 +229,7 @@ export default class DropboxFileSystem implements FileSystem {
         path: folderPath,
       }),
     }).catch((e) => {
-      if (e.message.includes("path/not_found")) {
+      if (isNotFoundError(e)) {
         return { entries: [], has_more: false }; // 返回空数组以避免后续错误
       }
       throw e;
@@ -247,7 +294,7 @@ export default class DropboxFileSystem implements FileSystem {
       });
       return true;
     } catch (e) {
-      if (isDropboxPathNotFound(e)) {
+      if (isNotFoundError(e)) {
         return false;
       }
       throw e;
