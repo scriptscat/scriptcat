@@ -79,6 +79,30 @@ describe("DropboxFileSystem", () => {
     });
   });
 
+  it("读取文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({
+      status: 429,
+      text: vi.fn().mockResolvedValue(JSON.stringify({ error_summary: "too_many_requests/..." })),
+    } as unknown as Response);
+    const reader = await fs.open({
+      name: "limited.user.js",
+      path: "/",
+      size: 1,
+      digest: "digest",
+      createtime: 1,
+      updatetime: 1,
+    });
+
+    await expect(reader.read("string")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 429,
+      code: "too_many_requests/...",
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
   it("delete should be idempotent on path not found", async () => {
     const fs = new DropboxFileSystem("/", "token");
     vi.spyOn(fs, "request").mockRejectedValue(
