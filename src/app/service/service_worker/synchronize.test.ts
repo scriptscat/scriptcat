@@ -187,6 +187,45 @@ describe("SynchronizeService", () => {
     expect(written.status.scripts.orphan).toEqual(orphanStatus);
   });
 
+  it("兼容缺少 status.scripts 的旧版 scriptcat-sync.json", async () => {
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "scriptcat-sync.json",
+          path: "scriptcat-sync.json",
+          size: 1,
+          digest: "sync-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ version: "1.0.0" })),
+      }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.syncOnce(syncConfig, fs);
+
+    expect(writeMock).toHaveBeenCalledTimes(1);
+    const written = JSON.parse(writeMock.mock.calls[0][0] as string);
+    expect(written.status.scripts).toEqual({});
+  });
+
   it("写回 scriptcat-sync.json 前重新读取远端状态，避免覆盖其他设备更新", async () => {
     const initialStatus = { enable: false, sort: 7, updatetime: 200 };
     const latestStatus = { enable: true, sort: 9, updatetime: 300 };
