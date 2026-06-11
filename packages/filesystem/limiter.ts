@@ -3,7 +3,16 @@ import type { FileCreateOptions, FileDeleteOptions, FileInfo, FileReader, FileWr
 import { getFileSystemCapabilities, type FileSystemCapabilities } from "./filesystem";
 import { FileSystemError } from "./error";
 
-const RETRYABLE_429_OPS = new Set(["verify", "open", "read", "openDir", "list", "getDirUrl"]);
+const RETRYABLE_429_OPS = new Set([
+  "verify",
+  "open",
+  "read",
+  "openDir",
+  "list",
+  "getDirUrl",
+  "conditionalWrite",
+  "conditionalDelete",
+]);
 
 /**
  * 速率限制器
@@ -125,8 +134,9 @@ export default class LimiterFileSystem implements FileSystem {
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
     return this.limiter.execute(async () => {
       const writer = await this.fs.create(path, opts);
+      const writeOp = opts?.expectedDigest || opts?.createOnly ? "conditionalWrite" : "write";
       return {
-        write: (content) => this.limiter.execute(() => writer.write(content), "write"),
+        write: (content) => this.limiter.execute(() => writer.write(content), writeOp),
       };
     }, "create");
   }
@@ -136,7 +146,8 @@ export default class LimiterFileSystem implements FileSystem {
   }
 
   delete(path: string, opts?: FileDeleteOptions): Promise<void> {
-    return this.limiter.execute(() => this.fs.delete(path, opts), "delete");
+    const op = opts?.expectedDigest ? "conditionalDelete" : "delete";
+    return this.limiter.execute(() => this.fs.delete(path, opts), op);
   }
 
   list(): Promise<FileInfo[]> {
