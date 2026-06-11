@@ -49,6 +49,57 @@ describe("GoogleDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("删除文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 429,
+        text: JSON.stringify({
+          error: {
+            code: 429,
+            message: "Quota exceeded",
+            status: "RESOURCE_EXHAUSTED",
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("limited.txt")).rejects.toMatchObject({
+      provider: "googledrive",
+      status: 429,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
+  it("读取文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 429,
+        text: JSON.stringify({
+          error: {
+            code: 429,
+            message: "Quota exceeded",
+            status: "RESOURCE_EXHAUSTED",
+          },
+        }),
+      })
+    );
+    const reader = await fs.open({ name: "limited.txt", path: "/", size: 0, digest: "", createtime: 0, updatetime: 0 });
+
+    await expect(reader.read("string")).rejects.toMatchObject({
+      provider: "googledrive",
+      status: 429,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
   it("ensureDirExists should create missing nested directories and return final id", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     const findSpy = vi.spyOn(fs, "findFolderByName").mockResolvedValue(null);

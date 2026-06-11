@@ -95,6 +95,53 @@ describe("OneDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("删除文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 429,
+        text: JSON.stringify({
+          error: {
+            code: "TooManyRequests",
+            message: "Too many requests",
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("limited.txt")).rejects.toMatchObject({
+      provider: "onedrive",
+      status: 429,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
+  it("读取文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 429,
+        text: JSON.stringify({
+          error: {
+            code: "TooManyRequests",
+            message: "Too many requests",
+          },
+        }),
+      })
+    );
+    const reader = await fs.open({ name: "limited.txt", path: "/", size: 0, digest: "", createtime: 0, updatetime: 0 });
+
+    await expect(reader.read("string")).rejects.toMatchObject({
+      provider: "onedrive",
+      status: 429,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
   it("create should normalize double slashes in paths", async () => {
     const fs = new OneDriveFileSystem("/ScriptCat//sync", "token");
 
