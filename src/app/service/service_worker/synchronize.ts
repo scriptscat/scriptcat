@@ -422,6 +422,7 @@ export class SynchronizeService {
     // 记录被跳过的孤儿云端脚本（仅 .user.js 无 .meta.json）
     // 避免本机回写 scriptcat-sync.json 时丢失对应 uuid 的云端 status
     const skippedOrphanUuids = new Set<string>();
+    let hasNotifiedSyncDelete = false;
     // 需要是同步操作，后续上传剩下的脚本
     // 最后使用 Promise.allSettled 进行等待
     const addSyncTask = (uuid: string, promise: Promise<FileDigestMap | void>, files?: string[]) => {
@@ -446,12 +447,15 @@ export class SynchronizeService {
               if (metaObj.isDeleted) {
                 // 删除脚本
                 await this.script.deleteScript(script.uuid, "sync");
-                InfoNotification(
-                  i18n.t("notification.script_sync_delete"),
-                  i18n.t("notification.script_sync_delete_desc", {
-                    scriptName: i18nName(script),
-                  })
-                );
+                if (!hasNotifiedSyncDelete) {
+                  hasNotifiedSyncDelete = true;
+                  InfoNotification(
+                    i18n.t("notification.script_sync_delete"),
+                    i18n.t("notification.script_sync_delete_desc", {
+                      scriptName: i18nName(script),
+                    })
+                  );
+                }
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name);
