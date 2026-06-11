@@ -183,16 +183,25 @@ type FileDigestMap = {
 
 ## Provider 实现差异
 
-当前 `FileSystem` 接口只有 `create(path, { modifiedDate })` 和 `delete(path)`，没有 capabilities、conditional write/delete 或 opaque provider token。
+当前 `FileSystem` 接口已经有最小 capabilities，并允许 `create()` / `delete()` 接收条件参数：
+
+- `supportsAtomicCompareAndSwap`
+- `supportsCreateOnly`
+- `supportsConditionalDelete`
+- `FileCreateOptions.expectedDigest`
+- `FileCreateOptions.createOnly`
+- `FileDeleteOptions.expectedDigest`
+
+同步层只在 provider 显式声明能力时传条件参数；未声明能力的 provider 继续保持旧覆盖语义，避免把 best-effort preflight 伪装成 atomic CAS。
 
 | Provider | `list()` digest | `create()` 当前语义 | `delete()` 当前语义 | 关键差异 |
 | --- | --- | --- | --- | --- |
-| WebDAV | `etag` | `putFileContents` 覆盖写 | 404 幂等成功 | 天然可扩展 `If-Match` / create-only，但当前未暴露 |
-| S3 | 去引号 ETag | PUT 覆盖写，可写 `x-amz-meta-createtime` | DELETE 幂等，`NoSuchKey` 成功 | 可用 conditional request；当前未传条件头 |
-| OneDrive | `eTag` | simple/upload session，conflictBehavior replace | raw Response 路径，404 成功，其他错误字符串化 | 有 typed request error，但 `nothen=true` 调用点仍需审计 |
-| Google Drive | `md5Checksum` | 查同名后 PATCH 或 POST | 先查 fileId 再 DELETE，404 成功 | 无通用原子 CAS；path cache 和同名文件会影响正确性；`nothen=true` 错误类型化不完整 |
-| Dropbox | `content_hash` | 先 `exists()`，存在 overwrite，不存在 add | `delete_v2`，not_found 字符串判断为成功 | rev 未暴露；冲突/不存在多靠 message string |
-| Baidu | `md5` | precreate/upload/create，`rtype=3` 覆盖 | filemanager delete，非 0 errno 抛普通 Error | 可用 md5 preflight，但不是 atomic；errno 分类必须精确 |
+| WebDAV | `etag` | `putFileContents` 覆盖写；有能力时支持 `If-Match` / `overwrite=false` | 404 幂等成功；有能力时支持 `If-Match` | 原生条件写/删；create-only false 响应已转 typed conflict |
+| S3 | 去引号 ETag | PUT 覆盖写；有能力时支持 `If-Match` / `If-None-Match` | DELETE 幂等，`NoSuchKey` 成功；有能力时支持 `If-Match` | 原生条件请求；412 / `PreconditionFailed` 归类为 typed conflict |
+| OneDrive | `eTag` | simple/upload session；有能力时传 `If-Match` / `If-None-Match` | raw Response 路径，404 成功；有能力时传 `If-Match` | 原生条件请求；`nothen=true` raw response 路径已覆盖 429/404/409/412 typed error 测试 |
+| Google Drive | `md5Checksum` | 查同名后 PATCH 或 POST | 先查 fileId 再 DELETE，404 成功 | 未声明 atomic/create-only/conditional delete；path cache 和同名文件仍是主要风险 |
+| Dropbox | `content_hash` | 先 `exists()`，存在 overwrite，不存在 add | `delete_v2`，typed not_found 幂等成功 | rev 未暴露；request 层已把 not_found/conflict/rate-limit 转 typed error |
+| Baidu | `md5` | precreate/upload/create，`rtype=3` 覆盖 | filemanager delete，非 0 errno 转 typed error | 未声明 atomic 能力；只有明确 file-exists errno 才标记 conflict |
 | Zip | 空或 JSZip 元数据 | 本地 zip 写入 | 删除 zip entry | 备份用途，不应强行接入云端 CAS 语义 |
 
 `LimiterFileSystem` 当前只对白名单读类操作的 429 自动重试：`verify/open/read/openDir/list/getDirUrl`。`create/createDir/write/delete` 遇到 429 不重试。这是保守的，避免重复非幂等写；后续若要支持写重试，应结合 create-only/CAS 或 provider 幂等能力。
@@ -200,13 +209,13 @@ type FileDigestMap = {
 ## 已确认问题
 
 1. 静默覆盖：`fs.create()` 默认覆盖，两个设备基于旧快照修改同一文件时后写覆盖先写。
-2. 失败后状态污染：push/pull/delete 失败后仍可能写 `file_digest` 或 `scriptcat-sync.json`。
-3. `pullScript()` 吞错：下载、JSON parse、userscript parse、安装失败都无法被上层区分。
-4. `deleteCloudScript()` 吞错：删除或 tombstone 写失败后调用方仍会推进 digest。
+2. 失败后状态污染：本分支已修复主要路径，push/pull/delete 失败文件保留旧 `file_digest`；失败 uuid 的 status 回写会保留云端状态。
+3. `pullScript()` 吞错：本分支已改为让真实失败向上表现为单文件任务失败。
+4. `deleteCloudScript()` 吞错：本分支已改为删除或 tombstone 写失败时向上抛错，批量删除调用方逐条 catch。
 5. orphan `.user.js`：当前已跳过且保留 status，这是正确方向；后续不能回退成删除或覆盖。
-6. `scriptcat-sync.json` 覆盖写：可能覆盖其他设备刚更新的 enable/sort。
-7. provider 能力不一致：不能用同一个 `expectedVersion` 语义假装所有 provider 都支持 atomic CAS。
-8. 错误类型不完整：部分 provider 有 `FileSystemError`，部分仍抛普通 Error 或字符串。
+6. `scriptcat-sync.json` 覆盖写：本分支已在写回前重新读取并合并远端最新状态；仍需真实 provider 环境验证竞态窗口。
+7. provider 能力不一致：本分支用 capabilities 控制条件操作，未把 Google Drive / Baidu preflight 声明为 atomic。
+8. 错误类型不完整：WebDAV/S3/OneDrive/GoogleDrive/Dropbox/Baidu 的关键 404/409/412/429/5xx 路径已有 typed error 覆盖；普通网络错误仍可能保持原始 Error。
 9. transient 写失败无有限 retry：429/5xx 在 write/delete 上当前直接失败。
 10. 通知策略未分层：安装/删除触发的 transient 同步失败不一定应该马上打扰用户。
 
@@ -321,14 +330,16 @@ type FileSystemCapabilities = {
 type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported" | "fatal";
 ```
 
+本分支当前已实现 capabilities、provider typed error 的关键路径，以及 read 类 429/5xx 有限 retry；还没有把 `SyncErrorKind` 作为同步层显式类型落地。
+
 ### Phase 5：provider 条件操作 follow-up
 
 分 provider 小步提交：
 
-- WebDAV / S3 / OneDrive：优先用 If-Match / ETag。
-- Dropbox：request 层 typed error，rev 作为 opaque token。
-- Google Drive：providerToken 保存 fileId/version；preflight 明确 best-effort。
-- Baidu：只把明确 file-exists errno 判 conflict；md5 preflight 明确 best-effort。
+- WebDAV / S3 / OneDrive：已优先用 If-Match / ETag，并有条件写/删测试。
+- Dropbox：request 层 typed error 已落地；rev 作为 opaque token 尚未实现。
+- Google Drive：仍不声明 atomic 能力；若未来做 preflight，必须明确 best-effort。
+- Baidu：只把明确 file-exists errno 判 conflict 已落地；md5 preflight 尚未实现，且只能标记 best-effort。
 - Zip：保持简单，不参与云端 CAS。
 
 ### Phase 6：重试和通知
