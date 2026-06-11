@@ -1,6 +1,7 @@
 import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
 import type BaiduFileSystem from "./baidu";
+import { createBaiduFileSystemError } from "./error";
 
 export class BaiduFileReader implements FileReader {
   file: FileInfo;
@@ -80,7 +81,7 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
-      throw new Error(JSON.stringify(data));
+      throw createBaiduFileSystemError(data);
     }
     const uploadid = data.uploadid;
     const body = new FormData();
@@ -102,7 +103,7 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
-      throw new Error(JSON.stringify(data));
+      throw createBaiduFileSystemError(data);
     }
     // 创建文件
     urlencoded = new URLSearchParams();
@@ -121,7 +122,7 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
-      throw new Error(JSON.stringify(data));
+      throw createBaiduFileSystemError(data);
     }
   }
 }

@@ -2,6 +2,7 @@ import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
+import { createBaiduFileSystemError } from "./error";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
 
 export default class BaiduFileSystem implements FileSystem {
@@ -52,7 +53,7 @@ export default class BaiduFileSystem implements FileSystem {
       }
     );
     if (data.errno) {
-      throw new Error(JSON.stringify(data));
+      throw createBaiduFileSystemError(data);
     }
   }
 
@@ -73,7 +74,7 @@ export default class BaiduFileSystem implements FileSystem {
             .then((data2) => data2.json())
             .then((data2) => {
               if (data2.errno === 111 || data2.errno === -6) {
-                throw new Error(JSON.stringify(data2));
+                throw createBaiduFileSystemError(data2);
               }
               return data2;
             });
@@ -95,7 +96,7 @@ export default class BaiduFileSystem implements FileSystem {
       }
     ).then((data) => {
       if (data.errno) {
-        throw new Error(JSON.stringify(data));
+        throw createBaiduFileSystemError(data);
       }
       return data;
     });
@@ -126,7 +127,7 @@ export default class BaiduFileSystem implements FileSystem {
         if (data.errno === -9) {
           break;
         }
-        throw new Error(JSON.stringify(data));
+        throw createBaiduFileSystemError(data);
       }
 
       if (!data.list || data.list.length === 0) {
