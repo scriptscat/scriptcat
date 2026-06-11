@@ -32,6 +32,16 @@ describe("WebDAVFileSystem", () => {
     mockClient = createMockClient();
   });
 
+  it("应当声明支持原子条件写入和条件删除能力", () => {
+    const fs = createTestFS(mockClient);
+
+    expect((fs as any).capabilities).toMatchObject({
+      supportsAtomicCompareAndSwap: true,
+      supportsCreateOnly: true,
+      supportsConditionalDelete: true,
+    });
+  });
+
   describe("initWebDAVPatch", () => {
     it("应当通过 getPatcher 注册 fetch patch，设置 credentials 为 omit", () => {
       // fromCredentials 内部调用 initWebDAVPatch，验证 patcher 已注册 fetch
@@ -206,6 +216,18 @@ describe("WebDAVFileSystem", () => {
 
       await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
     });
+
+    it("条件删除应当将 expectedDigest 转成 If-Match", async () => {
+      const fs = createTestFS(mockClient);
+
+      await (fs as any).delete("test.txt", { expectedDigest: '"abc123"' });
+
+      expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt", {
+        headers: {
+          "If-Match": '"abc123"',
+        },
+      });
+    });
   });
 
   describe("create", () => {
@@ -218,6 +240,38 @@ describe("WebDAVFileSystem", () => {
       const writer = await fs.create("dir//file.user.js");
 
       expect((writer as any).path).toBe("/ScriptCat/sync/dir/file.user.js");
+    });
+
+    it("条件写入应当将 expectedDigest 转成 If-Match", async () => {
+      const fs = createTestFS(mockClient);
+      const writer = await (fs as any).create("test.txt", { expectedDigest: '"abc123"' });
+
+      await writer.write("content");
+
+      expect(mockClient.putFileContents).toHaveBeenCalledWith(
+        "/test.txt",
+        "content",
+        expect.objectContaining({
+          headers: {
+            "If-Match": '"abc123"',
+          },
+        })
+      );
+    });
+
+    it("createOnly 写入应当使用 WebDAV overwrite=false", async () => {
+      const fs = createTestFS(mockClient);
+      const writer = await (fs as any).create("new.txt", { createOnly: true });
+
+      await writer.write("content");
+
+      expect(mockClient.putFileContents).toHaveBeenCalledWith(
+        "/new.txt",
+        "content",
+        expect.objectContaining({
+          overwrite: false,
+        })
+      );
     });
   });
 
