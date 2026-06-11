@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FileSystemError } from "../error";
 import DropboxFileSystem from "./dropbox";
 
 describe("DropboxFileSystem", () => {
@@ -6,10 +7,88 @@ describe("DropboxFileSystem", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("request should throw typed not found error", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: async () =>
+          JSON.stringify({
+            error_summary: "path_lookup/not_found/...",
+            error: { ".tag": "path_lookup", path_lookup: { ".tag": "not_found" } },
+          }),
+      })
+    );
+
+    await expect(fs.request("https://api.dropboxapi.com/2/files/get_metadata")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 409,
+      code: "path_lookup/not_found/...",
+      notFound: true,
+      conflict: false,
+    });
+  });
+
+  it("request should throw typed conflict error", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: async () =>
+          JSON.stringify({
+            error_summary: "path/conflict/folder/...",
+            error: { ".tag": "path", path: { ".tag": "conflict" } },
+          }),
+      })
+    );
+
+    await expect(fs.request("https://api.dropboxapi.com/2/files/create_folder_v2")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 409,
+      code: "path/conflict/folder/...",
+      conflict: true,
+      notFound: false,
+    });
+  });
+
+  it("request should throw typed rate-limit error", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        text: async () => JSON.stringify({ error_summary: "too_many_requests/..." }),
+      })
+    );
+
+    await expect(fs.request("https://api.dropboxapi.com/2/files/list_folder")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 429,
+      code: "too_many_requests/...",
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
   it("delete should be idempotent on path not found", async () => {
     const fs = new DropboxFileSystem("/", "token");
     vi.spyOn(fs, "request").mockRejectedValue(
-      new Error('Dropbox API Error: 409 - {"error_summary":"path_lookup/not_found/..."}')
+      new FileSystemError({
+        provider: "dropbox",
+        message: "not found",
+        status: 409,
+        code: "path_lookup/not_found/...",
+        notFound: true,
+      })
     );
 
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
@@ -18,7 +97,13 @@ describe("DropboxFileSystem", () => {
   it("exists should return false on path not found", async () => {
     const fs = new DropboxFileSystem("/", "token");
     vi.spyOn(fs, "request").mockRejectedValue(
-      new Error('Dropbox API Error: 409 - {"error_summary":"path/not_found/..."}')
+      new FileSystemError({
+        provider: "dropbox",
+        message: "not found",
+        status: 409,
+        code: "path/not_found/...",
+        notFound: true,
+      })
     );
 
     await expect(fs.exists("/missing.txt")).resolves.toBe(false);
