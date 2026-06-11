@@ -560,6 +560,14 @@ export class SynchronizeService {
           scriptcatSync.status.scripts[uuid] = status;
         }
       });
+      if (file) {
+        const latestCloudStatus = await this.readScriptcatSyncStatus(fs, file);
+        scriptcatSync.status.scripts = this.mergeScriptcatSyncStatus(
+          cloudStatus,
+          latestCloudStatus,
+          scriptcatSync.status.scripts
+        );
+      }
       // 保存脚本猫同步状态
       const modifiedDate = Date.now();
       const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
@@ -575,6 +583,40 @@ export class SynchronizeService {
     await this.updateFileDigest(fs, pushedFileDigestMap, preserveDigestFiles);
     this.logger.info("sync complete");
     return;
+  }
+
+  private async readScriptcatSyncStatus(fs: FileSystem, file: FileInfo): Promise<ScriptcatSync["status"]["scripts"]> {
+    const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as Partial<ScriptcatSync>;
+    return cloudScriptCatSync.status?.scripts || {};
+  }
+
+  private mergeScriptcatSyncStatus(
+    initialStatus: ScriptcatSync["status"]["scripts"],
+    latestStatus: ScriptcatSync["status"]["scripts"],
+    candidateStatus: ScriptcatSync["status"]["scripts"]
+  ): ScriptcatSync["status"]["scripts"] {
+    const merged: ScriptcatSync["status"]["scripts"] = { ...latestStatus };
+    for (const uuid of Object.keys(candidateStatus)) {
+      const candidate = candidateStatus[uuid];
+      if (!candidate) {
+        continue;
+      }
+      const initial = initialStatus[uuid];
+      const latest = latestStatus[uuid];
+      const candidateOnlyPreservedInitial =
+        initial &&
+        candidate.enable === initial.enable &&
+        candidate.sort === initial.sort &&
+        candidate.updatetime === initial.updatetime;
+      if (candidateOnlyPreservedInitial) {
+        merged[uuid] = latest || candidate;
+        continue;
+      }
+      if (!latest || candidate.updatetime >= latest.updatetime) {
+        merged[uuid] = candidate;
+      }
+    }
+    return merged;
   }
 
   async updateFileDigest(
