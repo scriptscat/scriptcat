@@ -1,5 +1,6 @@
 import type { WebDAVClient } from "webdav";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import { FileSystemError } from "../error";
 import { createWebDAVFileSystemError } from "./error";
 
 const quoteETag = (digest: string) => (digest.startsWith('"') && digest.endsWith('"') ? digest : `"${digest}"`);
@@ -61,6 +62,14 @@ export class WebDAVFileWriter implements FileWriter {
       throw createWebDAVFileSystemError(error);
     }
     if (!resp) {
+      if (this.opts?.createOnly) {
+        throw new FileSystemError({
+          provider: "webdav",
+          message: "WebDAV create-only write conflict",
+          status: 412,
+          conflict: true,
+        });
+      }
       throw new Error("write error");
     }
   }
