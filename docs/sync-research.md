@@ -204,7 +204,7 @@ type FileDigestMap = {
 | Baidu | `md5` | precreate/upload/create，`rtype=3` 覆盖 | filemanager delete，非 0 errno 转 typed error | 未声明 atomic 能力；只有明确 file-exists errno 才标记 conflict |
 | Zip | 空或 JSZip 元数据 | 本地 zip 写入 | 删除 zip entry | 备份用途，不应强行接入云端 CAS 语义 |
 
-`LimiterFileSystem` 当前只对白名单读类操作的 429 自动重试：`verify/open/read/openDir/list/getDirUrl`。`create/createDir/write/delete` 遇到 429 不重试。这是保守的，避免重复非幂等写；后续若要支持写重试，应结合 create-only/CAS 或 provider 幂等能力。
+`LimiterFileSystem` 当前只对白名单操作的 transient 错误自动重试：`verify/open/read/openDir/list/getDirUrl`，以及受 `expectedDigest` / `createOnly` 保护的 `write` 和受 `expectedDigest` 保护的 `delete`。普通 `create/createDir/write/delete` 仍不重试，避免重复非幂等写。
 
 ## 已确认问题
 
@@ -216,7 +216,7 @@ type FileDigestMap = {
 6. `scriptcat-sync.json` 覆盖写：本分支已在写回前重新读取并合并远端最新状态；仍需真实 provider 环境验证竞态窗口。
 7. provider 能力不一致：本分支用 capabilities 控制条件操作，未把 Google Drive / Baidu preflight 声明为 atomic。
 8. 错误类型不完整：WebDAV/S3/OneDrive/GoogleDrive/Dropbox/Baidu 的关键 404/409/412/429/5xx 路径已有 typed error 覆盖；普通网络错误仍可能保持原始 Error。
-9. transient 写失败无有限 retry：429/5xx 在 write/delete 上当前直接失败。
+9. transient 写失败有限 retry：本分支只对有条件保护的 `write/delete` 开启 retry；无条件写/删仍直接失败。
 10. 通知策略未分层：安装/删除触发的 transient 同步失败不一定应该马上打扰用户。
 
 ## PR #1439 分析
@@ -330,7 +330,7 @@ type FileSystemCapabilities = {
 type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported" | "fatal";
 ```
 
-本分支当前已实现 capabilities、provider typed error 的关键路径，以及 read 类 429/5xx 有限 retry；还没有把 `SyncErrorKind` 作为同步层显式类型落地。
+本分支当前已实现 capabilities、provider typed error 的关键路径、同步层 `SyncErrorKind` 日志分类，以及读类和受条件保护写/删的 transient 有限 retry。
 
 ### Phase 5：provider 条件操作 follow-up
 
@@ -344,7 +344,7 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 
 ### Phase 6：重试和通知
 
-- transient 429/5xx 有限 retry/backoff。
+- transient 429/5xx 有限 retry/backoff 已在 `LimiterFileSystem` 落地，范围限于读类操作和受条件保护的写/删。
 - install/delete 触发路径优先日志和下轮 sync 兜底，最终失败再聚合通知。
 - 通知包含失败数量和首个错误类型，不逐文件弹。
 
@@ -385,7 +385,7 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 4. Dropbox typed conflict。
 5. Google Drive best-effort preflight race。
 6. Baidu errno 分类。
-7. Limiter 对 read 429 重试、write/delete 429 不重复非幂等操作。
+7. Limiter 对 read 类 transient 错误重试；只对受条件保护的 write/delete transient 错误重试，普通 write/delete 不重复非幂等操作。
 
 ## 风险清单
 

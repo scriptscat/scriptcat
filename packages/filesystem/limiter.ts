@@ -3,7 +3,7 @@ import type { FileCreateOptions, FileDeleteOptions, FileInfo, FileReader, FileWr
 import { getFileSystemCapabilities, type FileSystemCapabilities } from "./filesystem";
 import { FileSystemError } from "./error";
 
-const RETRYABLE_429_OPS = new Set([
+const RETRYABLE_TRANSIENT_OPS = new Set([
   "verify",
   "open",
   "read",
@@ -32,7 +32,7 @@ export class RateLimiter {
   /**
    * 执行限速操作
    * @param fn 要执行的操作函数
-   * @param op 操作类型，用于在遇到 429 时判断是否允许自动重试。默认值 "unknown" 不在白名单内，会被视为不可重试
+   * @param op 操作类型，用于判断 transient 错误是否允许自动重试。默认值 "unknown" 不在白名单内，会被视为不可重试
    * @returns 操作结果
    */
   async execute<T>(fn: () => Promise<T>, op = "unknown"): Promise<T> {
@@ -57,9 +57,9 @@ export class RateLimiter {
   }
 
   /**
-   * 执行操作并处理 429 错误重试
+   * 执行操作并处理 transient 错误重试
    * @param fn 要执行的操作函数
-   * @param op 操作类型，用于判定该操作在遇到 429 时是否进入指数退避重试
+   * @param op 操作类型，用于判定该操作在遇到 transient 错误时是否进入指数退避重试
    * @returns 操作结果
    */
   private async executeWithRetry<T>(fn: () => Promise<T>, op: string): Promise<T> {
@@ -84,7 +84,7 @@ export class RateLimiter {
   }
 
   private shouldRetryTransient(op: string, error: unknown): boolean {
-    if (!RETRYABLE_429_OPS.has(op)) {
+    if (!RETRYABLE_TRANSIENT_OPS.has(op)) {
       return false;
     }
     if (error instanceof FileSystemError) {
