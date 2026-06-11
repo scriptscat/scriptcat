@@ -9,14 +9,19 @@ export class Semaphore {
   async acquire() {
     if (this.active >= this.limit) {
       await new Promise<void>((resolve) => this.queue.push(resolve));
+      return;
     }
     this.active++;
   }
 
   release() {
     if (this.active > 0) {
+      const next = this.queue.shift();
+      if (next) {
+        next();
+        return;
+      }
       this.active--;
-      this.queue.shift()?.();
     } else {
       console.warn("Semaphore double release detected");
     }

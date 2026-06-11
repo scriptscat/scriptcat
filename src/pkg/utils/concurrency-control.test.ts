@@ -63,20 +63,42 @@ describe("Semaphore", () => {
     const sem = new Semaphore(1);
     let concurrent = 0;
     let maxConcurrent = 0;
+    const order: number[] = [];
+    let releaseQueued: (() => void) | undefined;
 
-    const enter = async () => {
+    const run = async (id: number, wait?: Promise<void>) => {
       await sem.acquire();
       concurrent++;
       maxConcurrent = Math.max(maxConcurrent, concurrent);
+      order.push(id);
+      await wait;
+      concurrent--;
+      sem.release();
     };
 
-    await enter();
-    const queued = enter();
+    await sem.acquire();
+    concurrent++;
+    maxConcurrent = Math.max(maxConcurrent, concurrent);
+
+    const queuedWait = new Promise<void>((resolve) => {
+      releaseQueued = resolve;
+    });
+    const queued = run(2, queuedWait);
+    concurrent--;
     sem.release();
-    await enter();
+
+    await Promise.resolve();
+    const newcomer = run(3);
+    await Promise.resolve();
+
+    expect(order).toEqual([2]);
+
+    releaseQueued!();
     await queued;
+    await newcomer;
 
     expect(maxConcurrent).toBe(1);
+    expect(order).toEqual([2, 3]);
   });
 
   it.concurrent("按 FIFO 顺序唤醒等待者", async () => {

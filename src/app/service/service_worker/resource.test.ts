@@ -6,6 +6,7 @@ import type { IMessageQueue } from "@Packages/message/message_queue";
 import { parseUrlSRI } from "./utils";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
+import type { Resource } from "@App/app/repo/resource";
 
 initTestEnv();
 
@@ -28,6 +29,41 @@ function mockResponse(blob: Blob, status = 200, contentType?: string) {
     blob: () => Promise.resolve(blob),
     headers: new Headers(contentType ? { "content-type": contentType } : {}),
   } as unknown as Response;
+}
+
+function normalScript(uuid: string, metadata: Script["metadata"]): Script {
+  return {
+    uuid,
+    name: uuid,
+    namespace: "test",
+    metadata,
+    type: SCRIPT_TYPE_NORMAL,
+    status: SCRIPT_STATUS_ENABLE,
+    sort: 0,
+    runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+    createtime: Date.now(),
+    checktime: 0,
+  } as Script;
+}
+
+function resourceModel(url: string, content: string, updatetime = Date.now()): Resource {
+  return {
+    url,
+    content,
+    contentType: "text/plain",
+    hash: {
+      md5: "mock-md5",
+      sha1: "",
+      sha256: "",
+      sha384: "",
+      sha512: "",
+    },
+    base64: btoa(content),
+    link: { "old-script": true },
+    type: "resource",
+    createtime: updatetime,
+    updatetime,
+  };
 }
 
 describe("ResourceService - createResourceByUrlFetch", () => {
@@ -59,6 +95,7 @@ describe("ResourceService - createResourceByUrlFetch", () => {
     expect(res.contentType).toBe("application/javascript");
     expect(res.base64).toBeTruthy();
     expect(res.type).toBe("require");
+    expect(res.updatetime).toEqual(expect.any(Number));
   });
 
   it("加载文本资源(resource)时应通过 blob.text() 设置 content", async () => {
@@ -101,20 +138,7 @@ describe("ResourceService - createResourceByUrlFetch", () => {
 
   it("已下载成功的远程资源在24小时内不应重复 fetch", async () => {
     const url = "https://example.com/cache-ttl.js";
-    const script = {
-      uuid: "resource-cache-ttl-test",
-      name: "resource-cache-ttl-test",
-      namespace: "test",
-      metadata: {
-        require: [url],
-      },
-      type: SCRIPT_TYPE_NORMAL,
-      status: SCRIPT_STATUS_ENABLE,
-      sort: 0,
-      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
-      createtime: Date.now(),
-      checktime: 0,
-    } as Script;
+    const script = normalScript("resource-cache-ttl-test", { require: [url] });
 
     mockFetch.mockResolvedValue(mockResponse(textBlob("console.log('cache');"), 200, "application/javascript"));
 
@@ -125,5 +149,54 @@ describe("ResourceService - createResourceByUrlFetch", () => {
     await service.updateResourceByTypes(script, ["require"]);
 
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("已过期的远程资源应重新 fetch 并更新内容", async () => {
+    const url = "https://example.com/expired.css";
+    const script = normalScript("resource-expired-test", { resource: [`expired ${url}`] });
+    const oldResource = resourceModel(url, "old", Date.now() - 86_400_000 - 1000);
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateResource = vi.spyOn(service, "updateResource").mockResolvedValue({
+      ...oldResource,
+      content: "new",
+      updatetime: Date.now(),
+    });
+
+    await service.updateResourceByTypes(script, ["resource"]);
+
+    expect(updateResource).toHaveBeenCalledWith(script.uuid, expect.objectContaining({ url }), "resource", oldResource);
+  });
+
+  it("file 协议资源即使未过期也应尝试更新", async () => {
+    const url = "file:///tmp/scriptcat-resource.txt";
+    const script = normalScript("resource-file-test", { resource: [`localFile ${url}`] });
+    const oldResource = resourceModel(url, "old");
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateResource = vi.spyOn(service, "updateResource").mockResolvedValue({
+      ...oldResource,
+      content: "new",
+      updatetime: Date.now(),
+    });
+
+    await service.updateResourceByTypes(script, ["resource"]);
+
+    expect(updateResource).toHaveBeenCalledWith(script.uuid, expect.objectContaining({ url }), "resource", oldResource);
+  });
+
+  it("已有旧资源时下载失败应返回旧资源", async () => {
+    const url = "https://example.com/fallback.css";
+    const oldResource = resourceModel(url, "old-content");
+    vi.spyOn(service, "createResourceByUrlFetch").mockRejectedValue(new Error("network failed"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const loggerError = vi.spyOn(service.logger, "error").mockImplementation(() => {});
+
+    try {
+      const res = await service.updateResource("resource-fallback-test", parseUrlSRI(url), "resource", oldResource);
+
+      expect(res).toBe(oldResource);
+    } finally {
+      loggerError.mockRestore();
+      consoleError.mockRestore();
+    }
   });
 });

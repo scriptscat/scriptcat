@@ -336,6 +336,7 @@ export class ResourceService {
       throw new Error(`resource response status not 200: ${resp.status}`);
     }
     const data = await resp.blob();
+    const now = Date.now();
     const [hash, uint8Array, base64] = await Promise.all([
       this.calculateHash(data),
       blobToUint8Array(data),
@@ -350,7 +351,8 @@ export class ResourceService {
       base64: "",
       link: {},
       type,
-      createtime: Date.now(),
+      createtime: now,
+      updatetime: now,
     };
     if (isText(uint8Array)) {
       if (type === "require" || type === "require-css") {
