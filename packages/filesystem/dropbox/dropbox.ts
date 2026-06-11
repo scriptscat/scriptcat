@@ -186,6 +186,10 @@ export default class DropboxFileSystem implements FileSystem {
       });
   }
 
+  async createResponseError(resp: Response): Promise<FileSystemError> {
+    return toDropboxFileSystemError(resp.status, await resp.text());
+  }
+
   async delete(path: string): Promise<void> {
     const fullPath = joinPath(this.path, path);
 
