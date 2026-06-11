@@ -713,6 +713,74 @@ console.log("ok");`
     expect(order).toEqual(["delete:start", "delete:end", "digest:list"]);
   });
 
+  it("同一轮同步多个远端删除标记只发送一条删除通知", async () => {
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "first.meta.json",
+            path: "first.meta.json",
+            size: 1,
+            digest: "d1",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "second.meta.json",
+            path: "second.meta.json",
+            size: 1,
+            digest: "d2",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+      open: vi.fn().mockImplementation(async (file) => ({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ uuid: file.name.replace(".meta.json", ""), isDeleted: true })),
+      })),
+    });
+    const deleteScript = vi.fn().mockResolvedValue(undefined);
+    const notificationSpy = vi.spyOn(chrome.notifications, "create");
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { deleteScript } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "first",
+            name: "first",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+          {
+            uuid: "second",
+            name: "second",
+            updatetime: 1,
+            createtime: 1,
+            status: 1,
+            sort: 1,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(deleteScript).toHaveBeenCalledTimes(2);
+    expect(notificationSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("waits for pushScript before updating file digest", async () => {
     let releasePush!: () => void;
     const pushGate = new Promise<void>((resolve) => {
