@@ -330,7 +330,7 @@ type FileSystemCapabilities = {
 type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported" | "fatal";
 ```
 
-本分支当前已实现 capabilities、provider typed error 的关键路径、同步层 `SyncErrorKind` 日志分类，以及读类和受条件保护写/删的 transient 有限 retry。
+本分支当前已实现 capabilities、provider typed error 的关键路径、同步层 `SyncErrorKind` 日志分类（包括 `syncOnce` per-file 失败、`scriptInstall` 排队 push 失败、`scriptsDelete` 单项删除失败），以及读类和受条件保护写/删的 transient 有限 retry。
 
 ### Phase 5：provider 条件操作 follow-up
 
@@ -338,7 +338,8 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 
 - WebDAV / S3 / OneDrive：已优先用 If-Match / ETag，并有条件写/删测试。
 - Dropbox：request 层 typed error 已落地；rev 作为 opaque token 尚未实现。
-- Google Drive：仍不声明 atomic 能力；若未来做 preflight，必须明确 best-effort。
+- Google Drive：仍不声明 atomic 能力；若未来做 preflight，必须明确 best-effort。当前 `nothen=true` raw `Response` 路径只用于 read/delete，request 层会在 401 后刷新 token 并返回重试后的 `Response`。
+- OneDrive：read/delete 使用 `nothen=true` raw `Response` 路径；request 层覆盖 401 token refresh，upload session 不带 bearer token 的路径保持原有语义。
 - Baidu：只把明确 file-exists errno 判 conflict 已落地；md5 preflight 尚未实现，且只能标记 best-effort。
 - Zip：保持简单，不参与云端 CAS。
 
