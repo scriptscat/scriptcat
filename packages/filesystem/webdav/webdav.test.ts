@@ -221,6 +221,29 @@ describe("WebDAVFileSystem", () => {
     });
   });
 
+  describe("open", () => {
+    it("读取文件遇到 503 时应当抛出 typed 可重试错误", async () => {
+      const err = new Error("Service Unavailable");
+      (err as any).response = { status: 503 };
+      (mockClient.getFileContents as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+      const fs = createTestFS(mockClient);
+      const reader = await fs.open({
+        name: "busy.user.js",
+        path: "/",
+        size: 1,
+        digest: "digest",
+        createtime: 1,
+        updatetime: 1,
+      });
+
+      await expect(reader.read("string")).rejects.toMatchObject({
+        provider: "webdav",
+        status: 503,
+        retryable: true,
+      });
+    });
+  });
+
   describe("list", () => {
     it("应当列出文件并过滤目录", async () => {
       (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockResolvedValue([
@@ -269,6 +292,20 @@ describe("WebDAVFileSystem", () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.list()).rejects.toThrow("Server Error");
+    });
+
+    it("列目录遇到 429 时应当抛出 typed 限流错误", async () => {
+      const err = new Error("Too Many Requests");
+      (err as any).response = { status: 429 };
+      (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.list()).rejects.toMatchObject({
+        provider: "webdav",
+        status: 429,
+        rateLimit: true,
+        retryable: true,
+      });
     });
   });
 
