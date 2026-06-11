@@ -20,7 +20,7 @@ export class OneDriveFileReader implements FileReader {
       true
     );
     if (data.status !== 200) {
-      throw new Error(await data.text());
+      throw await this.fs.createResponseError(data);
     }
     switch (type) {
       case "string":

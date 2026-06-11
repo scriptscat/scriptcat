@@ -114,7 +114,7 @@ export default class OneDriveFileSystem implements FileSystem {
     });
   }
 
-  private async createResponseError(resp: Response): Promise<FileSystemError> {
+  async createResponseError(resp: Response): Promise<FileSystemError> {
     const text = await resp.text();
     let raw;
     try {
@@ -194,7 +194,7 @@ export default class OneDriveFileSystem implements FileSystem {
       return;
     }
     if (resp.status !== 204) {
-      throw new Error(await resp.text());
+      throw await this.createResponseError(resp);
     }
   }
 
