@@ -83,22 +83,9 @@ export class ResourceService {
     const ret: { [key: string]: Resource } = {};
     await Promise.allSettled(
       script.metadata[type].map(async (uri) => {
-        /** 资源键名 */
-        let resourceKey = uri;
-        /** 文件路径 */
-        let path: string | null = uri;
-        if (type === "resource") {
-          // @resource xxx https://...
-          const split = uri.split(/\s+/);
-          if (split.length === 2) {
-            resourceKey = split[0];
-            path = split[1].trim();
-          } else {
-            path = null;
-          }
-        }
+        const { resourceKey, path } = parseResourceMetadataItem(uri, type);
         if (path) {
-          if (uri.startsWith("file:///")) {
+          if (path.startsWith("file:///")) {
             // 如果是file://协议，则每次请求更新一下文件
             const res = await this.updateResource(script.uuid, path, type);
             ret[resourceKey] = res;
@@ -364,4 +351,25 @@ export class ResourceService {
       });
     });
   }
+}
+
+export function parseResourceMetadataItem(
+  uri: string,
+  type: ResourceType
+): { resourceKey: string; path: string | null } {
+  /** 资源键名 */
+  let resourceKey = uri;
+  /** 文件路径 */
+  let path: string | null = uri;
+  if (type === "resource") {
+    // @resource xxx https://...
+    const split = uri.split(/\s+/);
+    if (split.length === 2) {
+      resourceKey = split[0];
+      path = split[1].trim();
+    } else {
+      path = null;
+    }
+  }
+  return { resourceKey, path };
 }
