@@ -404,8 +404,10 @@ export class SynchronizeService {
     let cloudStatus: ScriptcatSync["status"]["scripts"] = {};
     if (file) {
       // 如果有,则读取文件内容
-      const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
-      cloudStatus = cloudScriptCatSync.status.scripts;
+      const cloudScriptCatSync = JSON.parse(
+        await fs.open(file).then((f) => f.read("string"))
+      ) as Partial<ScriptcatSync>;
+      cloudStatus = cloudScriptCatSync.status?.scripts || {};
     }
 
     // 对比脚本列表和文件列表,进行同步
