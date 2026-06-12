@@ -368,11 +368,11 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
    - Baidu reader filemetas errno/空列表转 typed notFound。
    - 不为 Google Drive / Baidu 添加伪 atomic 语义。
 
-### 剩余可做 commit
+### 已完成的验证记录 commit
 
 1. `docs(sync): record manual verification result`
-   - 真实扩展和真实 provider 验证后记录观察结果。
-   - 若无法验证，明确写未验证原因。
+   - 已记录本地 unit/type/lint/build 验证结果。
+   - 真实 provider 验证需要 OAuth/账号和云端夹具；未执行的路径明确列为未验证。
 
 ### 暂不进入本轮
 
@@ -408,6 +408,30 @@ file_digest after:
 scriptcat-sync.json after:
 result:
 ```
+
+### 当前验证记录
+
+本地可运行验证：
+
+- `pnpm test --run src/app/service/service_worker/synchronize.test.ts packages/filesystem/baidu/baidu.test.ts packages/filesystem/googledrive/googledrive.test.ts packages/filesystem/dropbox/dropbox.test.ts packages/filesystem/onedrive/onedrive.test.ts packages/filesystem/s3/s3.test.ts packages/filesystem/webdav/webdav.test.ts packages/filesystem/limiter.test.ts packages/filesystem/filesystem.test.ts`
+  - 9 个 test files，189 个 tests 通过。
+- `pnpm test --run packages/filesystem/baidu/baidu.test.ts packages/filesystem/googledrive/googledrive.test.ts`
+  - 修正 Baidu test fixture 类型后重跑，2 个 test files，27 个 tests 通过。
+- `pnpm run typecheck`
+  - 通过。
+- `pnpm run lint`
+  - 通过，仍有 12 个既有 React hooks warning，均不在同步修复范围。
+- `pnpm run build`
+  - production build 通过；Rspack 输出既有 bundle size、CSS order、Monaco dynamic require warnings。
+
+尚未执行的真实 provider 验证：
+
+- WebDAV / S3 / OneDrive 真实 If-Match / ETag mismatch。
+- Dropbox 真实 structured conflict / rate-limit。
+- Google Drive 真实 path cache stale、同名文件和 best-effort race。
+- Baidu 真实 `filemetas` 缺失、errno 分类和覆盖写行为。
+
+未执行原因：当前本地环境没有可用于 OAuth/云端账号的 provider 凭据，也没有预置云端夹具目录；不能把 mock/unit/build 结果宣称为真实云端验证。
 
 ## 测试矩阵
 
