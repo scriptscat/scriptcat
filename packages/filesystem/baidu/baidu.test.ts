@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { initTestEnv } from "@Tests/utils";
-import { isNotFoundError } from "../error";
+import { isNotFoundError, isRateLimitError } from "../error";
 import { getFileSystemCapabilities } from "../filesystem";
 import BaiduFileSystem from "./baidu";
 
@@ -24,6 +24,8 @@ describe("BaiduFileSystem", () => {
 
   it("request should omit credentials without using global DNR rules", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
       json: async () => ({ errno: 0 }),
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -50,6 +52,38 @@ describe("BaiduFileSystem", () => {
       })
     );
     expect(updateDynamicRulesMock).not.toHaveBeenCalled();
+  });
+
+  it("request 遇到 HTTP 429 时应抛出 typed rate-limit 错误", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      statusText: "Too Many Requests",
+      json: async () => ({ errno: 0, errmsg: "rate limited" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const fs = new BaiduFileSystem("/apps", "token");
+
+    await expect(fs.request("https://pan.baidu.com/rest/2.0/xpan/file?method=list")).rejects.toSatisfy(
+      isRateLimitError
+    );
+  });
+
+  it("request 遇到 HTTP 5xx 时应抛出 typed retryable 错误", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      json: async () => ({ errno: 0, errmsg: "service unavailable" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const fs = new BaiduFileSystem("/apps", "token");
+
+    await expect(fs.request("https://pan.baidu.com/rest/2.0/xpan/file?method=list")).rejects.toMatchObject({
+      provider: "baidu",
+      status: 503,
+      retryable: true,
+    });
   });
 
   it("create should normalize double slashes in paths", async () => {
