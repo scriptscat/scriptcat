@@ -349,6 +349,43 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 - install/delete 触发路径优先日志和下轮 sync 兜底，最终失败再聚合通知。
 - 通知包含失败数量和首个错误类型，不逐文件弹。
 
+## 剩余 rollout checklist
+
+后续提交应继续保持小步、可回滚，并按“测试先行、实现随后、文档同步”的顺序推进。
+
+### 必须继续验证
+
+1. queued delete 的 typed `transient` / `conflict` 分类：已覆盖 fatal，仍需确认 provider typed error 在 `scriptsDelete()` 单项失败路径中保持 per-item best-effort。
+2. provider token opaque：继续用测试确认 WebDAV/S3/OneDrive/Dropbox 的 digest/token 只作为 provider 回传值使用，不在同步层解析成通用 version。
+3. `scriptcat-sync.json` 真实 provider 竞态：当前已有重新读取合并逻辑，仍需要真实 WebDAV/S3/OneDrive 环境手工验证。
+4. 旧数据兼容回归：旧 `.user.js` + `.meta.json`、旧 `file_digest` string map、缺字段 `scriptcat-sync.json` 必须持续可读。
+
+### 可以做的小步 commit
+
+1. `✅ test(sync): cover queued delete typed failures`
+   - 只补 `scriptsDelete()` 单项 `FileSystemError` transient/conflict 测试。
+   - 验证失败 uuid 保留旧 digest，后续 uuid 继续处理，日志含 `errorKind`。
+2. `🐛 fix(sync): preserve queued delete error kinds`
+   - 仅在测试暴露缺口时提交。
+   - 不改变队列、digest、status 合并语义。
+3. `✅ test(fs): cover provider opaque tokens`
+   - 补 provider digest/token 不被同步层改写的回归测试。
+   - 不引入 Google Drive `fileId:version`。
+4. `🐛 fix(fs): harden provider typed conflicts`
+   - 只修测试证明的 typed error 漏洞。
+   - 优先 Dropbox raw error shape、OneDrive 409/412、WebDAV/S3 412。
+5. `docs(sync): document manual verification path`
+   - 写清真实扩展手工验证步骤和旧云目录样例。
+   - 不增加新 runtime 行为。
+
+### 暂不进入本轮
+
+1. Dropbox `rev` CAS：需要独立设计，不能把 `content_hash` 当 rev。
+2. Google Drive / Baidu atomic CAS：没有原生条件写时只能 best-effort preflight。
+3. `tombstone_digest`：没有 GC 设计前不新增。
+4. 通知聚合 UI：先保留日志和定时同步兜底，避免扩大 UI / i18n 范围。
+5. 既有 React hooks lint warning：与同步修复无关。
+
 ## 测试矩阵
 
 ### 同步任务级别
