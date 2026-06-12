@@ -23,6 +23,34 @@ ScriptCat
 [![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 [![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 
+## ❤️ 赞助商
+
+> [想出现在这里？](mailto:codfrm@gmail.com)
+
+<details open>
+<summary>点击折叠</summary>
+
+[![OpenModel](./assets/sponsors/openmodel-banner-1.jpg)](https://www.openmodel.ai?ref=pyGPw93M)
+
+**DeepSeek-V4-Flash 在 OpenModel 上限时免费！**
+
+一个 API，用遍所有顶级 AI 模型。
+
+OpenModel 是一个高可用、高可靠的 AI 模型调用平台，让你的应用快速稳定运行：自动故障转移、重试不重复扣费、每个 Key 可单独设额度与限频。换模型只改一个参数，新模型发布当天即可用，还能直接对接 Claude Code、Codex 和 Gemini CLI。
+
+[点此链接注册](https://www.openmodel.ai?ref=pyGPw93M)，立即开始使用！
+
+---
+
+<table>
+<tr>
+<td width="180"><a href="https://www.packyapi.com/register?aff=BOKa"><img src="./assets/sponsors/packycode-banner.png" alt="PackyCode" width="150"></a></td>
+<td>PackyCode 是一家稳定、高效的 API 中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。具备自动故障转移、智能路由和无限并发等多种功能，让 AI 编程成为真正的生产力工具。<a href="https://www.packyapi.com/register?aff=BOKa">点此链接注册</a>，立即开始使用！</td>
+</tr>
+</table>
+
+</details>
+
 ## 关于
 
 ScriptCat（脚本猫）是一个功能强大的用户脚本管理器，基于油猴的设计理念，完全兼容油猴脚本。它不仅支持传统的用户脚本，还创新性地实现了后台脚本运行框架，提供丰富的API扩展，让脚本能够完成更多强大的功能。内置优秀的代码编辑器，支持智能补全和语法检查，让脚本开发更加高效流畅。
