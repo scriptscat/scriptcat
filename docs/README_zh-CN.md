@@ -41,7 +41,7 @@ ScriptCat
 <td>
 <strong>OpenModel</strong><br>
 一个高可用的 AI 模型 API 平台，支持自动故障转移、按 Key 设置额度与频率限制，并可直接对接 Claude Code、Codex 和 Gemini CLI。<br>
-<img src="./assets/sponsors/openmodel-banner-zhCN.jpg" alt="OpenModel" width="340">
+<img src="./assets/sponsors/openmodel-banner-zhCN.png" alt="OpenModel" width="540">
 <br>
 <a href="https://www.openmodel.ai?ref=pyGPw93M">了解更多</a>
 
