@@ -2,6 +2,23 @@ import fs from "fs";
 import path from "path";
 import type { BrowserContext, Page } from "@playwright/test";
 
+export function getExtensionBaseUrl(extensionId: string): string {
+  if (extensionId.startsWith("moz-extension://") || extensionId.startsWith("chrome-extension://")) {
+    return extensionId.replace(/\/$/, "");
+  }
+  if (extensionId.startsWith("file://")) {
+    return extensionId.replace(/\/$/, "");
+  }
+  return `chrome-extension://${extensionId}`;
+}
+
+async function newExtensionPage(context: BrowserContext, extensionId: string): Promise<Page> {
+  if (extensionId.startsWith("moz-extension://")) {
+    return context.pages()[0] || (await context.newPage());
+  }
+  return context.newPage();
+}
+
 /** Strip SRI hashes and replace slow CDN with faster alternative */
 export function patchScriptCode(code: string): string {
   return code
@@ -88,34 +105,55 @@ export async function runInlineTestScript(
 
 /** Open the options page and wait for it to load */
 export async function openOptionsPage(context: BrowserContext, extensionId: string): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/options.html`);
+  const page = await newExtensionPage(context, extensionId);
+  await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html`);
   await page.waitForLoadState("domcontentloaded");
   return page;
 }
 
 /** Open the popup page and wait for it to load */
 export async function openPopupPage(context: BrowserContext, extensionId: string): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/popup.html`);
+  const page = await newExtensionPage(context, extensionId);
+  await page.goto(`${getExtensionBaseUrl(extensionId)}/src/popup.html`);
   await page.waitForLoadState("domcontentloaded");
   return page;
 }
 
 /** Open the install page with a script URL parameter */
 export async function openInstallPage(context: BrowserContext, extensionId: string, scriptUrl: string): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/install.html?url=${encodeURIComponent(scriptUrl)}`);
+  const page = await newExtensionPage(context, extensionId);
+  await page.goto(`${getExtensionBaseUrl(extensionId)}/src/install.html?url=${encodeURIComponent(scriptUrl)}`);
   await page.waitForLoadState("domcontentloaded");
   return page;
 }
 
 /** Open the script editor page */
 export async function openEditorPage(context: BrowserContext, extensionId: string, params?: string): Promise<Page> {
-  const page = await context.newPage();
+  const page = await newExtensionPage(context, extensionId);
   const hash = params ? `#/script/editor?${params}` : "#/script/editor";
-  await page.goto(`chrome-extension://${extensionId}/src/options.html${hash}`);
+  if (extensionId.startsWith("file://")) {
+    await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html${hash}`);
+    await page.waitForLoadState("domcontentloaded");
+    const editorVisible = await page
+      .locator(".monaco-editor")
+      .waitFor({ state: "visible", timeout: 2_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (editorVisible) return page;
+
+    await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html`);
+    await page.waitForLoadState("domcontentloaded");
+    await page.locator(".action-tools button").first().click();
+    await page.locator(`a[href="${hash}"]`).click();
+    await page.locator(".monaco-editor").waitFor({ state: "visible", timeout: 15_000 });
+    return page;
+  }
+  await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html${hash}`);
   await page.waitForLoadState("domcontentloaded");
+  await page
+    .locator(".monaco-editor")
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .catch(() => undefined);
   return page;
 }
 
@@ -189,16 +227,16 @@ console.log("E2E Test Script loaded");
 
 /** Open the agent chat page */
 export async function openAgentChatPage(context: BrowserContext, extensionId: string): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/options.html#/agent/chat`);
+  const page = await newExtensionPage(context, extensionId);
+  await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html#/agent/chat`);
   await page.waitForLoadState("domcontentloaded");
   return page;
 }
 
 /** Open the agent provider page */
 export async function openAgentProviderPage(context: BrowserContext, extensionId: string): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/options.html#/agent/provider`);
+  const page = await newExtensionPage(context, extensionId);
+  await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html#/agent/provider`);
   await page.waitForLoadState("domcontentloaded");
   return page;
 }

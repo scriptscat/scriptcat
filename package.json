@@ -24,6 +24,7 @@
     "changlog": "node ./scripts/changlog.js",
     "test:e2e:install": "pnpm exec playwright install chromium",
     "test:e2e": "pnpm exec playwright test",
+    "test:e2e:firefox": "cross-env PACK_FIREFOX=true pnpm run pack && cross-env E2E_BROWSER=firefox pnpm exec playwright test --config playwright.firefox.config.ts",
     "test:e2e:ui": "pnpm exec playwright test --ui"
   },
   "dependencies": {

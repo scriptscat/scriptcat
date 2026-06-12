@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { openOptionsPage } from "./utils";
+import { getExtensionBaseUrl, openOptionsPage } from "./utils";
 import type { Page } from "@playwright/test";
 import { WebSocketServer, type WebSocket } from "ws";
 
@@ -10,7 +10,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 /** 打开 Tools 页面 */
 async function openToolsPage(context: Parameters<typeof openOptionsPage>[0], extensionId: string): Promise<Page> {
   const page = await openOptionsPage(context, extensionId);
-  await page.goto(`chrome-extension://${extensionId}/src/options.html#/tools`);
+  await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html#/tools`);
   await page.waitForLoadState("domcontentloaded");
   return page;
 }

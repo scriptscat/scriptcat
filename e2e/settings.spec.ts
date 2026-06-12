@@ -1,12 +1,12 @@
 import { test, expect } from "./fixtures";
-import { openOptionsPage } from "./utils";
+import { getExtensionBaseUrl, openOptionsPage } from "./utils";
 
 test.describe("Settings Page", () => {
   test("should render the settings page", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
 
     // Navigate to settings via hash route
-    await page.goto(`chrome-extension://${extensionId}/src/options.html#/setting`);
+    await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html#/setting`);
     await page.waitForLoadState("domcontentloaded");
 
     // Wait for the settings page to render
@@ -21,7 +21,7 @@ test.describe("Settings Page", () => {
     const page = await openOptionsPage(context, extensionId);
 
     // Navigate to settings
-    await page.goto(`chrome-extension://${extensionId}/src/options.html#/setting`);
+    await page.goto(`${getExtensionBaseUrl(extensionId)}/src/options.html#/setting`);
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(380);
 
