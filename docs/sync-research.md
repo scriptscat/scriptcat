@@ -386,6 +386,33 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 4. 通知聚合 UI：先保留日志和定时同步兜底，避免扩大 UI / i18n 范围。
 5. 既有 React hooks lint warning：与同步修复无关。
 
+## 手工验证路径
+
+手工验证应遵循 [`VERIFICATION.md`](./VERIFICATION.md)：先跑 cheap signals，再用 `e2e/scratch/` 一次性脚本加载真实 `dist/ext`，验证完删除 scratch 脚本。不要为了本同步修复新增永久 E2E。
+
+建议按以下云目录夹具逐项验证：
+
+1. 旧格式完整脚本：云端只有 `<uuid>.user.js` 和旧 `<uuid>.meta.json`，无新增字段；预期可正常 pull/install，`file_digest` 写入 provider 原生 digest。
+2. 旧 `file_digest`：本地 storage 只有 `{ "uuid.user.js": "digest" }` string map；预期 push/delete 条件参数只在 provider 声明能力且旧 digest 存在时传递。
+3. 旧 `scriptcat-sync.json`：缺少未来字段或缺少 `status.scripts`；预期不崩溃，写回仍保留可读 status。
+4. orphan `.user.js`：云端只有 `<uuid>.user.js`；预期跳过，不删除云端文件，不清空对应远端 status。
+5. 单文件 pull 失败：让一个 `.meta.json` 损坏或源码无法解析；预期只阻塞该 uuid，其他脚本继续同步，失败文件 digest 不推进。
+6. 单文件 delete 失败：让 provider 对某个 uuid 删除返回 412/429/5xx；预期后续 uuid 继续处理，失败 uuid digest 保留，日志含 `errorKind`。
+7. `scriptcat-sync.json` 并发状态：两端分别更新不同脚本 enable/sort；预期写回前合并远端最新状态，不覆盖另一端较新 status。
+
+每次手工验证记录：
+
+```text
+provider:
+initial cloud files:
+local scripts:
+action:
+observed logs:
+file_digest after:
+scriptcat-sync.json after:
+result:
+```
+
 ## 测试矩阵
 
 ### 同步任务级别
