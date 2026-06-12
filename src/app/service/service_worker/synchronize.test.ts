@@ -1650,6 +1650,97 @@ console.log("ok");`
     });
   });
 
+  it.each([
+    {
+      title: "transient",
+      error: new FileSystemError({
+        provider: "webdav",
+        message: "Service unavailable",
+        status: 503,
+        retryable: true,
+      }),
+      expectedKind: "transient",
+      expectedMessage: "Service unavailable",
+    },
+    {
+      title: "conflict",
+      error: new FileSystemError({
+        provider: "s3",
+        message: "Precondition failed",
+        status: 412,
+        conflict: true,
+      }),
+      expectedKind: "conflict",
+      expectedMessage: "Precondition failed",
+    },
+  ])(
+    "批量删除遇到 typed $title 失败时只阻塞对应脚本并标记 $expectedKind",
+    async ({ error, expectedKind, expectedMessage }) => {
+      const deleteCalls: string[] = [];
+      const fs = createFs({
+        delete: vi.fn().mockImplementation(async (path: string) => {
+          deleteCalls.push(path);
+          if (path === "fail.user.js") {
+            throw error;
+          }
+        }),
+        list: vi.fn().mockResolvedValue([
+          {
+            name: "fail.user.js",
+            path: "fail.user.js",
+            size: 1,
+            digest: "fail-user-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+          {
+            name: "fail.meta.json",
+            path: "fail.meta.json",
+            size: 1,
+            digest: "fail-meta-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ]),
+      });
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true, syncDelete: false }),
+        } as any,
+        {
+          scriptCodeDAO: {},
+          all: vi.fn().mockResolvedValue([]),
+        } as any
+      );
+      vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(fs);
+      const warnSpy = vi.spyOn(service.logger, "warn");
+      await (service as any).storage.set("file_digest", {
+        "fail.user.js": "fail-user-old",
+        "fail.meta.json": "fail-meta-old",
+      });
+
+      await service.scriptsDelete([{ uuid: "fail", deleteBy: "user" } as any, { uuid: "ok", deleteBy: "user" } as any]);
+      await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+      expect(deleteCalls).toEqual(["fail.user.js", "ok.user.js", "ok.meta.json"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "delete cloud script item failed",
+        expect.objectContaining({ error: expectedMessage }),
+        expect.objectContaining({ uuid: "fail", errorKind: expectedKind })
+      );
+      await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+        "fail.user.js": "fail-user-old",
+        "fail.meta.json": "fail-meta-old",
+      });
+    }
+  );
+
   it("deleteCloudScript 支持条件删除时应当传 expectedDigest", async () => {
     const fs = createFs({
       capabilities: {
