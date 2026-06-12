@@ -23,31 +23,43 @@ ScriptCat
 [![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 [![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 
-## ❤️ 赞助商
+## ❤️ 赞助商与支持者
 
-> [想出现在这里？](mailto:codfrm@gmail.com)
+感谢赞助商对 ScriptCat 开发和社区建设的支持。  
+有兴趣赞助 ScriptCat？请联系 [codfrm@gmail.com](mailto:codfrm@gmail.com)。
 
 <details open>
-<summary>点击折叠</summary>
-
-[![OpenModel](./assets/sponsors/openmodel-banner-1.jpg)](https://www.openmodel.ai?ref=pyGPw93M)
-
-**DeepSeek-V4-Flash 在 OpenModel 上限时免费！**
-
-一个 API，用遍所有顶级 AI 模型。
-
-OpenModel 是一个高可用、高可靠的 AI 模型调用平台，让你的应用快速稳定运行：自动故障转移、重试不重复扣费、每个 Key 可单独设额度与限频。换模型只改一个参数，新模型发布当天即可用，还能直接对接 Claude Code、Codex 和 Gemini CLI。
-
-[点此链接注册](https://www.openmodel.ai?ref=pyGPw93M)，立即开始使用！
-
----
+<summary>查看赞助商</summary>
 
 <table>
 <tr>
-<td width="180"><a href="https://www.packyapi.com/register?aff=BOKa"><img src="./assets/sponsors/packycode-banner.png" alt="PackyCode" width="150"></a></td>
-<td>PackyCode 是一家稳定、高效的 API 中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。具备自动故障转移、智能路由和无限并发等多种功能，让 AI 编程成为真正的生产力工具。<a href="https://www.packyapi.com/register?aff=BOKa">点此链接注册</a>，立即开始使用！</td>
+<td width="180" align="center">
+<a href="https://www.openmodel.ai?ref=pyGPw93M">
+<img src="./assets/sponsors/openmodel-banner-1.jpg" alt="OpenModel" width="160">
+</a>
+</td>
+<td>
+<strong>OpenModel</strong><br>
+一个高可用的 AI 模型 API 平台，支持自动故障转移、按 Key 设置额度与频率限制，并可直接对接 Claude Code、Codex 和 Gemini CLI。<br>
+<a href="https://www.openmodel.ai?ref=pyGPw93M">了解更多</a>
+</td>
+</tr>
+
+<tr>
+<td width="180" align="center">
+<a href="https://www.packyapi.com/register?aff=BOKa">
+<img src="./assets/sponsors/packycode-banner.png" alt="PackyCode" width="160">
+</a>
+</td>
+<td>
+<strong>PackyCode</strong><br>
+稳定高效的 API 中转服务商，支持 Claude Code、Codex、Gemini 等多种 AI 编程工具，提供自动故障转移、智能路由和高并发能力。<br>
+<a href="https://www.packyapi.com/register?aff=BOKa">了解更多</a>
+</td>
 </tr>
 </table>
+
+<sub>赞助链接可能包含推荐参数。赞助收入将用于支持 ScriptCat 的持续开发。</sub>
 
 </details>
 
