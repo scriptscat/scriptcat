@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { initTestEnv } from "@Tests/utils";
+import { isNotFoundError } from "../error";
 import { getFileSystemCapabilities } from "../filesystem";
 import BaiduFileSystem from "./baidu";
 
@@ -103,5 +104,21 @@ describe("BaiduFileSystem", () => {
       code: "2",
       conflict: false,
     });
+  });
+
+  it("读取文件元数据缺失时应抛出 typed not found 错误", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({ errno: -9, errmsg: "file not found" });
+    const reader = await fs.open({
+      fsid: 123,
+      name: "missing.user.js",
+      path: "/apps",
+      size: 0,
+      digest: "",
+      createtime: 0,
+      updatetime: 0,
+    });
+
+    await expect(reader.read("string")).rejects.toSatisfy(isNotFoundError);
   });
 });

@@ -20,8 +20,11 @@ export class BaiduFileReader implements FileReader {
         this.fs.accessToken
       }&fsids=[${this.file.fsid!}]&dlink=1`
     );
-    if (!data.list.length) {
-      throw new Error("file not found");
+    if (data.errno) {
+      throw createBaiduFileSystemError(data);
+    }
+    if (!data.list?.length) {
+      throw createBaiduFileSystemError({ errno: -9, errmsg: "file not found" });
     }
     const resp = await fetch(`${data.list[0].dlink}&access_token=${this.fs.accessToken}`);
     switch (type) {
