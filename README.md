@@ -35,12 +35,14 @@ Interested in sponsoring ScriptCat? Contact [codfrm@gmail.com](mailto:codfrm@gma
 <tr>
 <td width="180" align="center">
 <a href="https://www.openmodel.ai?ref=pyGPw93M">
-<img src="./docs/assets/sponsors/openmodel-banner-2.jpg" alt="OpenModel" width="160">
+<img src="./docs/assets/sponsors/openmodel-logo.jpg" alt="OpenModel" width="160">
 </a>
 </td>
 <td>
 <strong>OpenModel</strong><br>
 A high-availability AI model API platform with automatic failover, per-key quotas, and integrations for Claude Code, Codex, and Gemini CLI.<br>
+<img src="./assets/sponsors/openmodel-banner-en.jpg" alt="OpenModel" width="340">
+<br>
 <a href="https://www.openmodel.ai?ref=pyGPw93M">Learn more</a>
 </td>
 </tr>
@@ -48,7 +50,7 @@ A high-availability AI model API platform with automatic failover, per-key quota
 <tr>
 <td width="180" align="center">
 <a href="https://www.packyapi.com/register?aff=BOKa">
-<img src="./docs/assets/sponsors/packycode-banner.png" alt="PackyCode" width="160">
+<img src="./docs/assets/sponsors/packycode-logo.png" alt="PackyCode" width="160">
 </a>
 </td>
 <td>
