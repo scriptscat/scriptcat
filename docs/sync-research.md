@@ -199,9 +199,9 @@ type FileDigestMap = {
 | WebDAV | `etag` | `putFileContents` 覆盖写；有能力时支持 `If-Match` / `overwrite=false` | 404 幂等成功；有能力时支持 `If-Match` | 原生条件写/删；create-only false 响应已转 typed conflict |
 | S3 | 去引号 ETag | PUT 覆盖写；有能力时支持 `If-Match` / `If-None-Match` | DELETE 幂等，`NoSuchKey` 成功；有能力时支持 `If-Match` | 原生条件请求；412 / `PreconditionFailed` 归类为 typed conflict |
 | OneDrive | `eTag` | simple/upload session；有能力时传 `If-Match` / `If-None-Match` | raw Response 路径，404 成功；有能力时传 `If-Match` | 原生条件请求；`nothen=true` raw response 路径已覆盖 429/404/409/412 typed error 测试 |
-| Google Drive | `md5Checksum` | 查同名后 PATCH 或 POST | 先查 fileId 再 DELETE，404 成功 | 未声明 atomic/create-only/conditional delete；path cache 和同名文件仍是主要风险 |
-| Dropbox | `content_hash` | 先 `exists()`，存在 overwrite，不存在 add | `delete_v2`，typed not_found 幂等成功 | rev 未暴露；request 层已把 not_found/conflict/rate-limit 转 typed error |
-| Baidu | `md5` | precreate/upload/create，`rtype=3` 覆盖 | filemanager delete，非 0 errno 转 typed error | 未声明 atomic 能力；只有明确 file-exists errno 才标记 conflict |
+| Google Drive | `md5Checksum` | 查同名后 PATCH 或 POST | 先查 fileId 再 DELETE，404 成功 | 已测试不声明 atomic/create-only/conditional delete；path cache 和同名文件仍是主要风险 |
+| Dropbox | `content_hash` | 先 `exists()`，存在 overwrite，不存在 add | `delete_v2`，typed not_found 幂等成功 | 已测试不声明 atomic 能力；rev 未暴露；request 层已把 not_found/conflict/rate-limit 转 typed error |
+| Baidu | `md5` | precreate/upload/create，`rtype=3` 覆盖 | filemanager delete，非 0 errno 转 typed error | 已测试不声明 atomic 能力；只有明确 file-exists errno 才标记 conflict |
 | Zip | 空或 JSZip 元数据 | 本地 zip 写入 | 删除 zip entry | 备份用途，不应强行接入云端 CAS 语义 |
 
 `LimiterFileSystem` 当前只对白名单操作的 transient 错误自动重试：`verify/open/read/openDir/list/getDirUrl`，以及受 `expectedDigest` / `createOnly` 保护的 `write` 和受 `expectedDigest` 保护的 `delete`。普通 `create/createDir/write/delete` 仍不重试，避免重复非幂等写。
@@ -338,9 +338,9 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 
 - WebDAV / S3 / OneDrive：已优先用 If-Match / ETag，并有条件写/删测试。
 - Dropbox：request 层 typed error 已落地，覆盖 `error_summary` 和 structured `path_lookup` / `path` 形态；`content_hash` 作为 opaque digest 保留。rev 作为 opaque CAS token 尚未实现。
-- Google Drive：仍不声明 atomic 能力；若未来做 preflight，必须明确 best-effort。当前 `nothen=true` raw `Response` 路径只用于 read/delete，request 层会在 401 后刷新 token 并返回重试后的 `Response`。
+- Google Drive：仍不声明 atomic 能力，并已有 capability 测试锁定；若未来做 preflight，必须明确 best-effort。当前 `nothen=true` raw `Response` 路径只用于 read/delete，request 层会在 401 后刷新 token 并返回重试后的 `Response`。
 - OneDrive：read/delete 使用 `nothen=true` raw `Response` 路径；request 层覆盖 401 token refresh，upload session 不带 bearer token 的路径保持原有语义。
-- Baidu：只把明确 file-exists errno 判 conflict 已落地；md5 preflight 尚未实现，且只能标记 best-effort。
+- Baidu：不声明 atomic 能力已有 capability 测试锁定；只把明确 file-exists errno 判 conflict 已落地；md5 preflight 尚未实现，且只能标记 best-effort。
 - Zip：保持简单，不参与云端 CAS。
 
 ### Phase 6：重试和通知
