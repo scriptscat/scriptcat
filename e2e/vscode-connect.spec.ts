@@ -174,11 +174,9 @@ test.describe("VSCode 连接", () => {
       // 在点击连接之前就开始监听 hello 消息，避免竞态
       const helloPromise = server.waitForAction("hello", 30_000);
 
-      // 等待 offscreen 文档就绪（service worker 启动后异步创建）
-      await page.waitForTimeout(2000);
-
       // 点击连接
       const connectBtn = card.locator(".arco-btn-primary");
+      await expect(connectBtn).toBeVisible({ timeout: 10_000 });
       await connectBtn.evaluate((element) => (element as HTMLElement).click());
 
       // 等待「连接成功」消息

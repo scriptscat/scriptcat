@@ -4,7 +4,6 @@ import { openAgentProviderPage } from "./utils";
 test.describe("Agent Provider Management", () => {
   test("should show empty state when no models configured", async ({ context, extensionId }) => {
     const page = await openAgentProviderPage(context, extensionId);
-    await page.waitForTimeout(2000);
 
     await expect(page.locator(".arco-empty")).toBeVisible({ timeout: 10000 });
     await page.close();
@@ -12,10 +11,10 @@ test.describe("Agent Provider Management", () => {
 
   test("should open add model dialog with correct form fields", async ({ context, extensionId }) => {
     const page = await openAgentProviderPage(context, extensionId);
-    await page.waitForTimeout(2000);
 
     // 点击添加按钮
     const addBtn = page.locator("button.arco-btn-primary").first();
+    await expect(addBtn).toBeVisible({ timeout: 10_000 });
     await addBtn.evaluate((element) => (element as HTMLElement).click());
 
     // 验证弹窗出现
@@ -50,7 +49,6 @@ test.describe("Agent Provider Management", () => {
       .locator("button", { hasText: /cancel|取消/i })
       .first()
       .evaluate((element) => (element as HTMLElement).click());
-    await page.waitForTimeout(500);
     await expect(modal).not.toBeVisible();
 
     await page.close();
@@ -58,13 +56,11 @@ test.describe("Agent Provider Management", () => {
 
   test("should switch provider between OpenAI and Anthropic", async ({ context, extensionId }) => {
     const page = await openAgentProviderPage(context, extensionId);
-    await page.waitForTimeout(2000);
 
     // 打开添加弹窗
-    await page
-      .locator("button.arco-btn-primary")
-      .first()
-      .evaluate((element) => (element as HTMLElement).click());
+    const addBtn = page.locator("button.arco-btn-primary").first();
+    await expect(addBtn).toBeVisible({ timeout: 10_000 });
+    await addBtn.evaluate((element) => (element as HTMLElement).click());
     const modal = page.locator(".arco-modal");
     await expect(modal).toBeVisible({ timeout: 5000 });
 
@@ -75,9 +71,9 @@ test.describe("Agent Provider Management", () => {
     // 切换到 Anthropic
     const providerSelect = modal.locator(".arco-select").first();
     await providerSelect.evaluate((element) => (element as HTMLElement).click());
-    await page.waitForTimeout(300);
-    await page.locator(".arco-select-option", { hasText: "Anthropic" }).click();
-    await page.waitForTimeout(500);
+    const anthropicOption = page.locator(".arco-select-option", { hasText: "Anthropic" });
+    await expect(anthropicOption).toBeVisible({ timeout: 10_000 });
+    await anthropicOption.click();
 
     // placeholder 应变为 anthropic.com
     const anthropicInput = modal.locator('input[placeholder*="anthropic"]');

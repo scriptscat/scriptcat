@@ -247,20 +247,20 @@ async function runTestScript(
   let passed = -1;
   let failed = -1;
 
-  const resultReady = new Promise<void>((resolve) => {
-    page.on("console", (msg) => {
-      const text = msg.text();
-      logs.push(text);
-      const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
-      const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
-      if (passMatch) passed = parseInt(passMatch[2], 10);
-      if (failMatch) failed = parseInt(failMatch[2], 10);
-      if (passed >= 0 && failed >= 0) resolve();
-    });
+  page.on("console", (msg) => {
+    const text = msg.text();
+    logs.push(text);
+    const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
+    const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
+    if (passMatch) passed = parseInt(passMatch[2], 10);
+    if (failMatch) failed = parseInt(failMatch[2], 10);
   });
 
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  await Promise.race([resultReady, page.waitForTimeout(timeoutMs)]);
+  await expect
+    .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+    .toBe(true)
+    .catch(() => undefined);
 
   await page.close();
   return { passed, failed, logs };

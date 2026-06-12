@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { BrowserContext, Page } from "@playwright/test";
+import { expect, type BrowserContext, type Page } from "@playwright/test";
 
 /** Strip SRI hashes and replace slow CDN with faster alternative */
 export function patchScriptCode(code: string): string {
@@ -67,20 +67,20 @@ export async function runInlineTestScript(
   let passed = -1;
   let failed = -1;
 
-  const resultReady = new Promise<void>((resolve) => {
-    page.on("console", (msg) => {
-      const text = msg.text();
-      logs.push(text);
-      const passMatch = text.match(/通过[:：]\s*(\d+)/);
-      const failMatch = text.match(/失败[:：]\s*(\d+)/);
-      if (passMatch) passed = parseInt(passMatch[1], 10);
-      if (failMatch) failed = parseInt(failMatch[1], 10);
-      if (passed >= 0 && failed >= 0) resolve();
-    });
+  page.on("console", (msg) => {
+    const text = msg.text();
+    logs.push(text);
+    const passMatch = text.match(/通过[:：]\s*(\d+)/);
+    const failMatch = text.match(/失败[:：]\s*(\d+)/);
+    if (passMatch) passed = parseInt(passMatch[1], 10);
+    if (failMatch) failed = parseInt(failMatch[1], 10);
   });
 
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  await Promise.race([resultReady, page.waitForTimeout(timeoutMs)]);
+  await expect
+    .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+    .toBe(true)
+    .catch(() => undefined);
 
   await page.close();
   return { passed, failed, logs };
@@ -167,7 +167,7 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
   await page.keyboard.press("ControlOrMeta+v");
   // Wait for Monaco to finish rendering the pasted content (content will differ from template)
   await page.waitForFunction((init) => document.querySelector(".view-lines")?.textContent !== init, initialText, {
-    timeout: 400,
+    timeout: 5_000,
   });
   // Save
   await saveCurrentEditor(context, extensionId, page);
