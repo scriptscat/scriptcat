@@ -10,7 +10,7 @@
 | [`DEVELOP.md`](./DEVELOP.md) | 开发规范:命令、目录结构、编码风格、UI/主题、测试机制、i18n、提交/PR 流程。**写代码前先读。** |
 | [`VERIFICATION.md`](./VERIFICATION.md) | 功能验证指南:用一次性 scratch 脚本驱动真实扩展做端到端验证(不跑全量 E2E、不加永久用例)。**验证改动是否真正跑通时读。** |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 内部原理深入:多进程模型、消息传递、服务/数据层、GM API、脚本执行、构建管线。 |
-| [`sync-research.md`](./sync-research.md) | 云同步一致性研究:现有同步架构、PR #1439 讨论整理、生产兼容原则、分阶段修复计划和测试矩阵。 |
+| [`CLOUD-SYNC.md`](./CLOUD-SYNC.md) | 云同步实现说明:同步文件语义、主流程、状态合并、provider 差异、错误分类、retry 策略和维护注意事项。 |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | 文档维护与事实核对指南:组织规则、逐条核对清单、一键校验脚本。**改/审文档前先读。** |
 
 ## 翻译 / Translation
