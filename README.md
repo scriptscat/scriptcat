@@ -41,7 +41,7 @@ Interested in sponsoring ScriptCat? Contact [codfrm@gmail.com](mailto:codfrm@gma
 <td>
 <strong>OpenModel</strong><br>
 A high-availability AI model API platform with automatic failover, per-key quotas, and integrations for Claude Code, Codex, and Gemini CLI.<br>
-<img src="./assets/sponsors/openmodel-banner-en.jpg" alt="OpenModel" width="340">
+<img src="./docs/assets/sponsors/openmodel-banner-en.jpg" alt="OpenModel" width="340">
 <br>
 <a href="https://www.openmodel.ai?ref=pyGPw93M">Learn more</a>
 </td>
