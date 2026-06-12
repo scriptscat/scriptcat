@@ -337,7 +337,7 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 分 provider 小步提交：
 
 - WebDAV / S3 / OneDrive：已优先用 If-Match / ETag，并有条件写/删测试。
-- Dropbox：request 层 typed error 已落地；rev 作为 opaque token 尚未实现。
+- Dropbox：request 层 typed error 已落地，覆盖 `error_summary` 和 structured `path_lookup` / `path` 形态；`content_hash` 作为 opaque digest 保留。rev 作为 opaque CAS token 尚未实现。
 - Google Drive：仍不声明 atomic 能力；若未来做 preflight，必须明确 best-effort。当前 `nothen=true` raw `Response` 路径只用于 read/delete，request 层会在 401 后刷新 token 并返回重试后的 `Response`。
 - OneDrive：read/delete 使用 `nothen=true` raw `Response` 路径；request 层覆盖 401 token refresh，upload session 不带 bearer token 的路径保持原有语义。
 - Baidu：只把明确 file-exists errno 判 conflict 已落地；md5 preflight 尚未实现，且只能标记 best-effort。
@@ -355,28 +355,21 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 
 ### 必须继续验证
 
-1. queued delete 的 typed `transient` / `conflict` 分类：已覆盖 fatal，仍需确认 provider typed error 在 `scriptsDelete()` 单项失败路径中保持 per-item best-effort。
-2. provider token opaque：继续用测试确认 WebDAV/S3/OneDrive/Dropbox 的 digest/token 只作为 provider 回传值使用，不在同步层解析成通用 version。
-3. `scriptcat-sync.json` 真实 provider 竞态：当前已有重新读取合并逻辑，仍需要真实 WebDAV/S3/OneDrive 环境手工验证。
-4. 旧数据兼容回归：旧 `.user.js` + `.meta.json`、旧 `file_digest` string map、缺字段 `scriptcat-sync.json` 必须持续可读。
+1. `scriptcat-sync.json` 真实 provider 竞态：当前已有重新读取合并逻辑，仍需要真实 WebDAV/S3/OneDrive 环境手工验证。
+2. 旧数据兼容回归：旧 `.user.js` + `.meta.json`、旧 `file_digest` string map、缺字段 `scriptcat-sync.json` 必须持续可读。
+3. Google Drive / Baidu best-effort 风险：仍需手工确认不会被误标成 atomic CAS。
 
 ### 可以做的小步 commit
 
-1. `✅ test(sync): cover queued delete typed failures`
-   - 只补 `scriptsDelete()` 单项 `FileSystemError` transient/conflict 测试。
-   - 验证失败 uuid 保留旧 digest，后续 uuid 继续处理，日志含 `errorKind`。
-2. `🐛 fix(sync): preserve queued delete error kinds`
-   - 仅在测试暴露缺口时提交。
-   - 不改变队列、digest、status 合并语义。
-3. `✅ test(fs): cover provider opaque tokens`
-   - 补 provider digest/token 不被同步层改写的回归测试。
-   - 不引入 Google Drive `fileId:version`。
-4. `🐛 fix(fs): harden provider typed conflicts`
-   - 只修测试证明的 typed error 漏洞。
-   - 优先 Dropbox raw error shape、OneDrive 409/412、WebDAV/S3 412。
-5. `docs(sync): document manual verification path`
-   - 写清真实扩展手工验证步骤和旧云目录样例。
-   - 不增加新 runtime 行为。
+1. `docs(sync): keep rollout checklist current`
+   - 每完成一组测试/实现后同步文档状态。
+   - 不增加 runtime 行为。
+2. `✅ test(fs): cover remaining provider typed gaps`
+   - 只补明确缺口；当前重点是手工审计中发现的 provider raw error shape。
+   - 不为 Google Drive / Baidu 添加伪 atomic 测试。
+3. `docs(sync): record manual verification result`
+   - 真实扩展和真实 provider 验证后记录观察结果。
+   - 若无法验证，明确写未验证原因。
 
 ### 暂不进入本轮
 
