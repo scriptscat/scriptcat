@@ -81,6 +81,28 @@ describe("DropboxFileSystem", () => {
     });
   });
 
+  it("request should classify structured path conflict without error_summary", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: async () =>
+          JSON.stringify({
+            error: { ".tag": "path", path: { ".tag": "conflict" } },
+          }),
+      })
+    );
+
+    await expect(fs.request("https://api.dropboxapi.com/2/files/create_folder_v2")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 409,
+      conflict: true,
+      notFound: false,
+    });
+  });
+
   it("request should throw typed rate-limit error", async () => {
     const fs = new DropboxFileSystem("/", "token");
     vi.stubGlobal(
