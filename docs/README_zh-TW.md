@@ -35,7 +35,7 @@ ScriptCat
 <tr>
 <td width="180" align="center">
 <a href="https://www.openmodel.ai?ref=pyGPw93M">
-<img src="./assets/sponsors/openmodel-logo.jpg" alt="OpenModel" width="160">
+<img src="./assets/sponsors/openmodel-logo.png" alt="OpenModel" width="160">
 </a>
 </td>
 <td>

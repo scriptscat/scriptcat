@@ -35,7 +35,7 @@ Interested in sponsoring ScriptCat? Contact [codfrm@gmail.com](mailto:codfrm@gma
 <tr>
 <td width="180" align="center">
 <a href="https://www.openmodel.ai?ref=pyGPw93M">
-<img src="./docs/assets/sponsors/openmodel-logo.jpg" alt="OpenModel" width="160">
+<img src="./docs/assets/sponsors/openmodel-logo.png" alt="OpenModel" width="160">
 </a>
 </td>
 <td>
