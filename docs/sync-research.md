@@ -433,6 +433,19 @@ result:
 
 未执行原因：当前本地环境没有可用于 OAuth/云端账号的 provider 凭据，也没有预置云端夹具目录；不能把 mock/unit/build 结果宣称为真实云端验证。
 
+### 真实 provider 验证记录
+
+本轮未能执行真实云端验证。阻塞条件是本地环境没有可用的 provider OAuth 凭据、S3/WebDAV 测试账号、Dropbox/Google Drive/Baidu/OneDrive 授权会话，也没有预置的云端夹具目录。由于同步修复涉及生产数据兼容，不能用 mock 响应替代真实 provider 结论。
+
+真实验证恢复条件：
+
+1. 每个 provider 准备独立测试目录，目录内只放一次性夹具数据。
+2. 预置旧格式 `<uuid>.user.js`、`<uuid>.meta.json`、旧 `file_digest` string map、缺字段 `scriptcat-sync.json`。
+3. 至少两端配置同一 provider，用于验证 `scriptcat-sync.json` 合并写和 per-file best-effort。
+4. 对 WebDAV/S3/OneDrive 准备 ETag/If-Match mismatch 场景。
+5. 对 Google Drive/Baidu 明确记录 best-effort 行为，不把 preflight 当 atomic CAS。
+6. 每次验证后保存 provider、初始云端文件、操作、日志、`file_digest`、`scriptcat-sync.json` 和结果。
+
 ## 测试矩阵
 
 ### 同步任务级别
