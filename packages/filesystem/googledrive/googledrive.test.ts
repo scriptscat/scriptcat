@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FileSystemError, isAuthError, isConflictError, isNotFoundError, isRateLimitError } from "../error";
+import { getFileSystemCapabilities } from "../filesystem";
 import { joinPath } from "../utils";
 import GoogleDriveFileSystem from "./googledrive";
 
@@ -27,6 +28,16 @@ describe("GoogleDriveFileSystem", () => {
 
   afterEach(() => {
     vi.stubGlobal("fetch", originalFetch);
+  });
+
+  it("不应声明原子条件写入能力", () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+
+    expect(getFileSystemCapabilities(fs)).toEqual({
+      supportsAtomicCompareAndSwap: false,
+      supportsCreateOnly: false,
+      supportsConditionalDelete: false,
+    });
   });
 
   it("delete should be idempotent when file id is missing", async () => {

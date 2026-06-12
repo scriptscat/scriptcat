@@ -1,10 +1,24 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+import { initTestEnv } from "@Tests/utils";
+import { getFileSystemCapabilities } from "../filesystem";
 import BaiduFileSystem from "./baidu";
+
+initTestEnv();
 
 describe("BaiduFileSystem", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("不应声明原子条件写入能力", () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+
+    expect(getFileSystemCapabilities(fs)).toEqual({
+      supportsAtomicCompareAndSwap: false,
+      supportsCreateOnly: false,
+      supportsConditionalDelete: false,
+    });
   });
 
   it("request should omit credentials without using global DNR rules", async () => {
@@ -15,7 +29,11 @@ describe("BaiduFileSystem", () => {
 
     // 监视 updateDynamicRules，确保不再依赖全局 DNR 规则
     const updateDynamicRulesMock = vi.fn();
-    (chrome as any).declarativeNetRequest.updateDynamicRules = updateDynamicRulesMock;
+    vi.stubGlobal("chrome", {
+      declarativeNetRequest: {
+        updateDynamicRules: updateDynamicRulesMock,
+      },
+    });
 
     const fs = new BaiduFileSystem("/apps", "token");
 
