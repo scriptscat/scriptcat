@@ -342,7 +342,7 @@ export class PopupService {
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
     const { url, tabId } = req;
     const [matchingResult, runScripts, backScriptList] = await Promise.all([
-      this.runtime.getPageScriptMatchingResultByUrl(url, true, true),
+      this.runtime.getPopupPageScriptMatchingResultByUrl(url),
       this.getScriptMenu(tabId),
       this.getScriptMenu(-1),
     ]);

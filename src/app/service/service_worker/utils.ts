@@ -19,6 +19,8 @@ import {
 } from "@App/pkg/utils/url_matcher";
 import { cacheInstance } from "@App/app/cache";
 
+type RegisteredUserScriptWithJsCode = RequireField<chrome.userScripts.RegisteredUserScript, "js">;
+
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle
   const runAt = runAts[0] as string | undefined;
@@ -196,7 +198,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
     scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE)
   );
 
-  const registerScript: chrome.userScripts.RegisteredUserScript = {
+  const registerScript: RegisteredUserScriptWithJsCode = {
     id: scriptMatchInfo.uuid,
     js: [{ code: "" }],
     matches: matches, // primary

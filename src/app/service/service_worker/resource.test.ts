@@ -3,6 +3,7 @@ import { ResourceService } from "./resource";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
+import type { Resource } from "@App/app/repo/resource";
 
 initTestEnv();
 
@@ -94,5 +95,55 @@ describe("ResourceService - loadByUrl", () => {
     const res = await service.loadByUrl("https://example.com/noct", "resource");
 
     expect(res.contentType).toBe("application/octet-stream");
+  });
+});
+
+describe("ResourceService - getScriptResources", () => {
+  let service: ResourceService;
+
+  const createResource = (url: string): Resource => ({
+    url,
+    content: "local content",
+    contentType: "text/plain",
+    hash: {
+      md5: "",
+      sha1: "",
+      sha256: "",
+      sha384: "",
+      sha512: "sha512",
+    },
+    base64: "",
+    link: {},
+    type: "resource",
+    createtime: 1,
+    updatetime: 1,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const mockGroup = {} as Group;
+    const mockMQ = {} as IMessageQueue;
+    service = new ResourceService(mockGroup, mockMQ);
+  });
+
+  it("命名 @resource 使用 file:/// 时应立即刷新本地文件", async () => {
+    const url = "file:///tmp/local.txt";
+    const resource = createResource(url);
+    const updateResource = vi.spyOn(service, "updateResource").mockResolvedValue(resource);
+    const getResource = vi.spyOn(service, "getResource");
+
+    const result = await service.getScriptResources(
+      {
+        uuid: "script-uuid",
+        metadata: {
+          resource: [`asset ${url}`],
+        },
+      } as any,
+      false
+    );
+
+    expect(updateResource).toHaveBeenCalledWith("script-uuid", url, "resource");
+    expect(getResource).not.toHaveBeenCalled();
+    expect(result.asset).toBe(resource);
   });
 });
