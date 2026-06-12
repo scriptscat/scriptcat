@@ -35,6 +35,28 @@ describe("DropboxFileSystem", () => {
     });
   });
 
+  it("request should classify structured path_lookup not_found without error_summary", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: async () =>
+          JSON.stringify({
+            error: { ".tag": "path_lookup", path_lookup: { ".tag": "not_found" } },
+          }),
+      })
+    );
+
+    await expect(fs.request("https://api.dropboxapi.com/2/files/get_metadata")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 409,
+      notFound: true,
+      conflict: false,
+    });
+  });
+
   it("request should throw typed conflict error", async () => {
     const fs = new DropboxFileSystem("/", "token");
     vi.stubGlobal(

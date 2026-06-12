@@ -9,6 +9,12 @@ type DropboxErrorBody = {
   error_summary?: string;
   error?: {
     ".tag"?: string;
+    path_lookup?: {
+      ".tag"?: string;
+    };
+    path?: {
+      ".tag"?: string;
+    };
   };
 };
 
@@ -26,6 +32,12 @@ function parseDropboxError(raw: unknown): { summary?: string; raw: unknown } {
     const body = parsed as DropboxErrorBody;
     if (typeof body.error_summary === "string") {
       return { summary: body.error_summary, raw: parsed };
+    }
+    if (typeof body.error?.path_lookup?.[".tag"] === "string") {
+      return { summary: `path_lookup/${body.error.path_lookup[".tag"]}`, raw: parsed };
+    }
+    if (typeof body.error?.path?.[".tag"] === "string") {
+      return { summary: `path/${body.error.path[".tag"]}`, raw: parsed };
     }
     if (typeof body.error?.[".tag"] === "string") {
       return { summary: body.error[".tag"], raw: parsed };
