@@ -140,6 +140,31 @@ describe("DropboxFileSystem", () => {
     await expect(fs.exists("/test.txt")).rejects.toThrow("invalid_access_token");
   });
 
+  it("list should preserve Dropbox content_hash as opaque digest", async () => {
+    const fs = new DropboxFileSystem("/ScriptCat/sync", "token");
+    vi.spyOn(fs, "request").mockResolvedValue({
+      entries: [
+        {
+          ".tag": "file",
+          name: "script.user.js",
+          size: 10,
+          content_hash: "dropbox-content-hash",
+          client_modified: "2026-01-01T00:00:00Z",
+          server_modified: "2026-01-01T00:00:01Z",
+        },
+      ],
+      has_more: false,
+    });
+
+    await expect(fs.list()).resolves.toMatchObject([
+      {
+        name: "script.user.js",
+        path: "/sync",
+        digest: "dropbox-content-hash",
+      },
+    ]);
+  });
+
   it("create should normalize double slashes after the Dropbox app root", async () => {
     const fs = new DropboxFileSystem("/ScriptCat//sync", "token");
 
