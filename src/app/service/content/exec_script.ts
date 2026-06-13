@@ -2,7 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
 import { createContext, createProxyContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
-import { compileScript } from "./utils";
+import { compileScript, isContextMenuScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
@@ -49,11 +49,17 @@ export default class ExecScript {
       this.scriptFunc = code;
     }
     const grantSet = new Set(scriptRes.metadata.grant || []);
+    if (isContextMenuScript(scriptRes.metadata)) {
+      grantSet.add("GM_registerMenuCommand");
+      grantSet.delete("none");
+    }
     if (grantSet.has("none")) {
       // 不注入任何GM api
       // ScriptCat行为：GM.info 和 GM_info 同时注入
       // 在不改变 Context 的情况下，以 named 传入多个全域变量
-      this.named = { GM: { info: GM_info }, GM_info };
+      const GM = Object.create(null);
+      GM.info = GM_info;
+      this.named = { GM, GM_info };
     } else {
       // 构建脚本GM上下文
       this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, contentMsg, grantSet);

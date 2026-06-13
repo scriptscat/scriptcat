@@ -7,18 +7,20 @@ import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo } fr
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api/gm_api";
-import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortedScript } from "../queue";
+import type { TDeleteScript, TEnableScript, TInstallScript, TSortedScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
   getUserScriptRegister,
+  parseUrlSRI,
   scriptURLPatternResults,
 } from "./utils";
 import {
   checkUserScriptsAvailable,
   getMetadataStr,
+  getStorageName,
   getUserConfigStr,
   obtainBlackList,
   sourceMapTo,
@@ -33,6 +35,7 @@ import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
   compileScriptletCode,
+  isContextMenuScript,
   isEarlyStartScript,
   isInjectIntoContent,
   isScriptletUnwrap,
@@ -44,7 +47,7 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { type ResourceService } from "./resource";
 import { type LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
-import type { GMInfoEnv } from "../content/types";
+import type { GMInfoEnv, ValueUpdateDataEncoded } from "../content/types";
 import { initLocalesPromise, localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
@@ -85,6 +88,13 @@ export type TScriptsForTab = {
   envInfo: GMInfoEnv;
   scriptmenus: ScriptMenu[];
 } | null;
+
+const bgScriptStorageNames = new Set<string>();
+
+// For Firefox, StorageArea.setAccessLevel is not implemented.
+// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
+// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
+const deliveryStorage = chrome.storage.local; // 日后再处理
 
 export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
@@ -353,7 +363,48 @@ export class RuntimeService {
     await this.loadPageScript(script, apiScript!);
   }
 
+  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
+    try {
+      // 前台腳本 （推送值到tab）
+      await deliveryStorage!.set({
+        valueUpdateDelivery: {
+          rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 deliveryStorage.onChanged 必能触发
+          sendData,
+        },
+      });
+
+      // 後台腳本
+      if (bgScriptStorageNames.has(sendData.storageName)) {
+        // 推送到offscreen中
+        await sendMessage(this.msgSender, "offscreen/runtime/valueUpdate", sendData);
+      }
+
+      // valueUpdate 消息用于 early script 的处理
+      if (sendData.valueUpdated) {
+        if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
+          // 如果是预加载脚本，需要更新脚本代码重新注册
+          // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
+          await this.updateResourceOnScriptChange(script);
+        }
+      }
+    } catch (e) {
+      console.error("pushValueUpdate error", e);
+    }
+  }
+
+  async setSessionAccessLevel() {
+    try {
+      // 让 scripting 存取 chrome.storage.session
+      await chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" });
+    } catch (e) {
+      console.error("unable to call chrome.storage.session.setAccessLevel", e);
+    }
+  }
+
   init() {
+    if (deliveryStorage === chrome.storage.session) {
+      this.setSessionAccessLevel();
+    }
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     this.gmApi = new GMApi(
@@ -423,6 +474,8 @@ export class RuntimeService {
           // 还是要建立 CompiledResoure, 否则 Popup 看不到 Script
           await this.buildAndSaveCompiledResourceFromScript(script, false);
         }
+      } else {
+        bgScriptStorageNames.add(getStorageName(script));
       }
     });
 
@@ -454,6 +507,7 @@ export class RuntimeService {
           if (script.type === SCRIPT_TYPE_NORMAL) {
             continue;
           }
+          bgScriptStorageNames.add(getStorageName(script));
           res.push({
             uuid: script.uuid,
             enable: script.status === SCRIPT_STATUS_ENABLE,
@@ -469,17 +523,6 @@ export class RuntimeService {
       this.systemConfig.addListener("language", (lng) => {
         this.mq.publish("setSandboxLanguage", lng);
       });
-    });
-
-    // 监听脚本值变更
-    this.mq.subscribe<TScriptValueUpdate>("valueUpdate", async ({ script, valueUpdated }: TScriptValueUpdate) => {
-      if (valueUpdated) {
-        if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
-          // 如果是预加载脚本，需要更新脚本代码重新注册
-          // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
-          await this.updateResourceOnScriptChange(script);
-        }
-      }
     });
 
     if (chrome.extension.inIncognitoContext) {
@@ -696,7 +739,7 @@ export class RuntimeService {
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
-    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResources(scriptRes, true);
+    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResourceValue(scriptRes);
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
@@ -773,6 +816,7 @@ export class RuntimeService {
         name: result.name,
         code: originalCode?.code || "",
         require,
+        isContextMenu: isContextMenuScript(script.metadata),
       })
     );
   }
@@ -984,22 +1028,6 @@ export class RuntimeService {
     runtimeGlobal.registerState = failed ? RuntimeRegisterCode.UNSET : RuntimeRegisterCode.REGISTER_DONE;
   }
 
-  // 给指定tab发送消息
-  sendMessageToTab(to: ExtMessageSender, action: string, data: any) {
-    if (to.tabId === -1) {
-      // 如果是-1, 代表给offscreen发送消息
-      return sendMessage(this.msgSender, "offscreen/runtime/" + action, data);
-    }
-    return sendMessage(
-      new ExtensionContentMessageSend(to.tabId, {
-        documentId: to.documentId,
-        frameId: to.frameId,
-      }),
-      "scripting/runtime/" + action,
-      data
-    );
-  }
-
   // 给指定脚本触发事件
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest) {
     if (to.tabId === -1) {
@@ -1192,8 +1220,21 @@ export class RuntimeService {
         for (const [url, [sha512, type]] of Object.entries(resourceCheck)) {
           const resourceList = scriptRes.metadata[type];
           if (!resourceList) continue;
-          const updatedResource = await this.resource.updateResource(scriptRes.uuid, url, type);
+          const u = parseUrlSRI(url);
+          if (u.hash) {
+            // 如果有 校验hash 的话，根本不用更新本地资源呀！
+            continue;
+          }
+          // 这里不用 getResourceModel 是因为上面已经跳过了有 hash 的 URL，无需 SRI 校验
+          const oldResources = await this.resource.resourceDAO.get(u.url);
+          const updatedResource = await this.resource.updateResource(scriptRes.uuid, u, type, oldResources);
+          if (!updatedResource || !updatedResource.contentType || updatedResource === oldResources) {
+            // updateResource 出错 或 下载失败则忽略
+            // 如果新旧一样也忽视吧 - 不用更新本地资源
+            continue;
+          }
           if (updatedResource.hash?.sha512 !== sha512) {
+            // updateResource 更新的是数据库，这里更新的是内存中的 scriptRes.resource 对象
             for (const uri of resourceList) {
               /** 资源键名 */
               let resourceKey = uri;
@@ -1240,7 +1281,7 @@ export class RuntimeService {
           script.value = value;
         }),
         // 加载resource
-        resource.getScriptResources(script, false).then((resource) => {
+        resource.getScriptResourceValue(script).then((resource) => {
           script.resource = resource;
           for (const name of Object.keys(resource)) {
             const res = script.resource[name];

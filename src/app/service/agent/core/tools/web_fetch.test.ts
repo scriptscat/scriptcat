@@ -48,14 +48,19 @@ describe("WebFetchExecutor", () => {
     await expect(executor.execute({})).rejects.toThrow('缺少必填参数 "url"');
   });
 
+  it("should throw for missing prompt", async () => {
+    const executor = new WebFetchExecutor(mockSender);
+    await expect(executor.execute({ url: "https://example.com" })).rejects.toThrow('缺少必填参数 "prompt"');
+  });
+
   it("should throw for invalid url", async () => {
     const executor = new WebFetchExecutor(mockSender);
-    await expect(executor.execute({ url: "not-a-url" })).rejects.toThrow("Invalid URL");
+    await expect(executor.execute({ url: "not-a-url", prompt: "fetch" })).rejects.toThrow("Invalid URL");
   });
 
   it("should throw for non-http protocol", async () => {
     const executor = new WebFetchExecutor(mockSender);
-    await expect(executor.execute({ url: "ftp://example.com" })).rejects.toThrow("Only http/https");
+    await expect(executor.execute({ url: "ftp://example.com", prompt: "fetch" })).rejects.toThrow("Only http/https");
   });
 
   it("should handle JSON response", async () => {
@@ -67,7 +72,9 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://api.example.com/data" })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://api.example.com/data", prompt: "extract data" })) as string
+    );
 
     expect(result.content_type).toBe("json");
     expect(JSON.parse(result.content)).toEqual({ key: "value" });
@@ -84,7 +91,9 @@ describe("WebFetchExecutor", () => {
     mockExtractReturnValue = "Hello World long content here for testing extracted properly by offscreen";
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://example.com", prompt: "extract content" })) as string
+    );
 
     expect(result.content_type).toBe("html");
     expect(result.content).toContain("Hello World");
@@ -100,7 +109,9 @@ describe("WebFetchExecutor", () => {
     mockExtractReturnValue = null;
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://example.com", prompt: "extract content" })) as string
+    );
 
     expect(result.content_type).toBe("text");
     expect(result.content).toBe("Simple text");
@@ -115,7 +126,9 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com", max_length: 50 })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://example.com", prompt: "extract content", max_length: 50 })) as string
+    );
 
     expect(result.content.length).toBe(50);
     expect(result.truncated).toBe(true);
@@ -130,7 +143,7 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    await expect(executor.execute({ url: "https://example.com" })).rejects.toThrow("HTTP 404");
+    await expect(executor.execute({ url: "https://example.com", prompt: "fetch" })).rejects.toThrow("HTTP 404");
   });
 
   it("should fallback to stripHtmlTags when offscreen extraction throws", async () => {
@@ -143,7 +156,9 @@ describe("WebFetchExecutor", () => {
     mockExtractShouldThrow = true;
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://example.com", prompt: "extract content" })) as string
+    );
 
     expect(result.content_type).toBe("text");
     expect(result.content).toBe("Fallback content");
@@ -159,7 +174,9 @@ describe("WebFetchExecutor", () => {
     mockExtractReturnValue = "Hi"; // shorter than 50 chars
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://example.com", prompt: "extract content" })) as string
+    );
 
     expect(result.content_type).toBe("text");
     expect(result.content).toBe("Hi");
@@ -174,7 +191,9 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://api.example.com" })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://api.example.com", prompt: "extract data" })) as string
+    );
 
     // Should fall back to text
     expect(result.content_type).toBe("text");
@@ -193,7 +212,9 @@ describe("WebFetchExecutor", () => {
     mockExtractReturnValue = "Long enough content for extraction to work properly and pass the threshold";
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://example.com", prompt: "extract content" })) as string
+    );
 
     expect(result.content_type).toBe("html");
     expect(mockSender.sendMessage).toHaveBeenCalled();
@@ -208,7 +229,9 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com/file.txt" })) as string);
+    const result = JSON.parse(
+      (await executor.execute({ url: "https://example.com/file.txt", prompt: "extract content" })) as string
+    );
 
     expect(result.content_type).toBe("text");
     expect(result.content).toBe("Just plain text");
@@ -224,7 +247,7 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    await executor.execute({ url: "https://example.com" });
+    await executor.execute({ url: "https://example.com", prompt: "fetch" });
 
     expect(mockFetch).toHaveBeenCalledWith("https://example.com", {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; ScriptCat Agent)" },
@@ -242,7 +265,7 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+    const result = JSON.parse((await executor.execute({ url: "https://example.com", prompt: "fetch" })) as string);
 
     expect(result.final_url).toBe("https://example.com/redirected");
   });
@@ -257,7 +280,7 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+    const result = JSON.parse((await executor.execute({ url: "https://example.com", prompt: "fetch" })) as string);
 
     expect(result.final_url).toBeUndefined();
   });
@@ -272,7 +295,7 @@ describe("WebFetchExecutor", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const executor = new WebFetchExecutor(mockSender);
-    const result = JSON.parse((await executor.execute({ url: "https://example.com" })) as string);
+    const result = JSON.parse((await executor.execute({ url: "https://example.com", prompt: "fetch" })) as string);
 
     expect(result.content.length).toBe(15000);
     expect(result.truncated).toBe(false);

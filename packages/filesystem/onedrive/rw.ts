@@ -58,7 +58,14 @@ export class OneDriveFileWriter implements FileWriter {
 
   async write(content: string | Blob): Promise<void> {
     // 预上传获取id
-    const size = this.size(content).toString();
+    const size = this.size(content);
+    if (size === 0) {
+      return this.fs.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/content`, {
+        method: "PUT",
+        body: content,
+      });
+    }
+
     let myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
     const uploadUrl = await this.fs
@@ -83,7 +90,7 @@ export class OneDriveFileWriter implements FileWriter {
         return data.uploadUrl;
       });
     myHeaders = new Headers();
-    myHeaders.append("Content-Range", `bytes 0-${parseInt(size, 10) - 1}/${size}`);
+    myHeaders.append("Content-Range", `bytes 0-${size - 1}/${size}`);
     return this.fs.request(uploadUrl, {
       method: "PUT",
       body: content,

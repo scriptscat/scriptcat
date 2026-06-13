@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         GM API 完整测试
+// @name         GM API 完整测试 (同步版本)
 // @namespace    https://docs.scriptcat.org/
-// @version      1.1.0
+// @version      1.1.1
 // @description  全面测试ScriptCat的所有GM API功能
 // @author       ScriptCat
-// @match        https://content-security-policy.com/
+// @match        https://content-security-policy.com/?gm_api_sync
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
@@ -28,7 +28,7 @@
 // @grant        unsafeWindow
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js#sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK
 // @resource     testCSS https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css#sha256=62f74b1cf824a89f03554c638e719594c309b4d8a627a758928c0516fa7890ab
-// @connect      api.github.com
+// @connect      httpbun.com
 // @connect      example.com
 // @run-at       document-start
 // ==/UserScript==
@@ -308,15 +308,16 @@
       return new Promise((resolve, reject) => {
         GM_xmlhttpRequest({
           method: "GET",
-          url: "https://api.github.com/repos/scriptscat/scriptcat",
+          url: "https://httpbun.com/get",
           timeout: 10000,
           onload: (response) => {
             try {
               assert(200, response.status, `请求状态码应该是 200`);
               assert(true, !!response.responseText, "响应内容不应为空");
               const data = JSON.parse(response.responseText);
-              assert("scriptcat", data.name, "应该返回 scriptcat 仓库信息");
-              console.log("GitHub 仓库信息:", data.name, data.description);
+              assert("object", typeof data, "应该返回有效的 JSON 对象");
+              assert("https://httpbun.com/get", data.url, "响应应该包含 url 字段");
+              console.log("httpbun 响应信息:", data.url);
               resolve();
             } catch (error) {
               reject(error);

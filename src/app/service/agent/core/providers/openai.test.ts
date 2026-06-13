@@ -361,20 +361,25 @@ describe("parseOpenAIStream", () => {
 
     await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
 
-    expect(events).toHaveLength(3);
+    expect(events).toHaveLength(4);
     expect(events[0].type).toBe("tool_call_start");
     if (events[0].type === "tool_call_start") {
       expect(events[0].toolCall.name).toBe("dom_read_page");
-      expect(events[0].toolCall.arguments).toBe('{"tabId":123');
+      // 新行为：start 事件的 args 永远为空，首 chunk 的 args 通过 delta 发出
+      expect(events[0].toolCall.arguments).toBe("");
     }
-    // 关键：最后的 tool_call_delta 不应被 usage 检查吞掉
     expect(events[1].type).toBe("tool_call_delta");
     if (events[1].type === "tool_call_delta") {
-      expect(events[1].delta).toBe(',"mode":"summary"}');
+      expect(events[1].delta).toBe('{"tabId":123'); // 故意的 — 模拟 streaming 还没收完的状态
     }
-    expect(events[2].type).toBe("done");
-    if (events[2].type === "done") {
-      expect(events[2].usage).toEqual({ inputTokens: 40010, outputTokens: 154 });
+    // 关键：最后的 tool_call_delta 不应被 usage 检查吞掉
+    expect(events[2].type).toBe("tool_call_delta");
+    if (events[2].type === "tool_call_delta") {
+      expect(events[2].delta).toBe(',"mode":"summary"}');
+    }
+    expect(events[3].type).toBe("done");
+    if (events[3].type === "done") {
+      expect(events[3].usage).toEqual({ inputTokens: 40010, outputTokens: 154 });
     }
   });
 
@@ -426,6 +431,96 @@ describe("parseOpenAIStream", () => {
     }
   });
 
+  it("应解析单个 chunk 内的 <think>...</think> 标签", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"before<think>reasoning</think>after"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toEqual([
+      { type: "content_delta", delta: "before" },
+      { type: "thinking_delta", delta: "reasoning" },
+      { type: "content_delta", delta: "after" },
+      { type: "done" },
+    ]);
+  });
+
+  it("应处理 <think> 标签被 SSE chunk 拆开的情况", async () => {
+    // 标签跨 chunk：chunk1 以 "<th" 结尾，chunk2 以 "ink>" 开头
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"before<th"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"ink>thought</think>after"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    // 拼接所有 content_delta 与 thinking_delta 以验证内容未泄露标签片段
+    const contentParts = events.filter((e) => e.type === "content_delta").map((e: any) => e.delta);
+    const thinkingParts = events.filter((e) => e.type === "thinking_delta").map((e: any) => e.delta);
+    expect(contentParts.join("")).toBe("beforeafter");
+    expect(thinkingParts.join("")).toBe("thought");
+  });
+
+  it("应处理 </think> 标签被 SSE chunk 拆开的情况", async () => {
+    // 结束标签跨 chunk：chunk1 末尾是 "</thi"，chunk2 开头是 "nk>"
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"<think>thinking</thi"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"nk>normal"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    const contentParts = events.filter((e) => e.type === "content_delta").map((e: any) => e.delta);
+    const thinkingParts = events.filter((e) => e.type === "thinking_delta").map((e: any) => e.delta);
+    expect(contentParts.join("")).toBe("normal");
+    expect(thinkingParts.join("")).toBe("thinking");
+  });
+
+  it("应处理 <think> 标签逐字符跨 chunk 到达", async () => {
+    // 每个字符独立到达，模拟 token 级别拆分
+    const chunks = "before<think>reasoning</think>after"
+      .split("")
+      .map((ch) => `data: {"choices":[{"delta":{"content":${JSON.stringify(ch)}}}]}\n\n`);
+    chunks.push("data: [DONE]\n\n");
+    const reader = createMockReader(chunks);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    const contentParts = events.filter((e) => e.type === "content_delta").map((e: any) => e.delta);
+    const thinkingParts = events.filter((e) => e.type === "thinking_delta").map((e: any) => e.delta);
+    expect(contentParts.join("")).toBe("beforeafter");
+    expect(thinkingParts.join("")).toBe("reasoning");
+  });
+
+  it("流结束时仍停留在标签残片则原样作为 content 输出", async () => {
+    // 看起来像 <think> 的残片，但后续再也没有到达 -> 按内容输出
+    const reader = createMockReader(['data: {"choices":[{"delta":{"content":"hello <th"}}]}\n\n', "data: [DONE]\n\n"]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    const contentParts = events.filter((e) => e.type === "content_delta").map((e: any) => e.delta);
+    expect(contentParts.join("")).toBe("hello <th");
+  });
+
   it("reasoning_content 后跟 tool_calls 应都正确解析", async () => {
     const reader = createMockReader([
       'data: {"choices":[{"delta":{"role":"assistant","content":null,"reasoning_content":"分析页面"}}]}\n\n',
@@ -439,13 +534,84 @@ describe("parseOpenAIStream", () => {
 
     await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
 
-    expect(events).toHaveLength(4);
+    expect(events).toHaveLength(5);
     expect(events[0]).toEqual({ type: "thinking_delta", delta: "分析页面" });
     expect(events[1]).toEqual({ type: "thinking_delta", delta: "结构" });
     expect(events[2].type).toBe("tool_call_start");
-    expect(events[3].type).toBe("done");
-    if (events[3].type === "done") {
-      expect(events[3].usage).toEqual({ inputTokens: 500, outputTokens: 50 });
+    if (events[2].type === "tool_call_start") {
+      expect(events[2].toolCall.name).toBe("dom_read_page");
+      expect(events[2].toolCall.arguments).toBe("");
     }
+    expect(events[3].type).toBe("tool_call_delta");
+    if (events[3].type === "tool_call_delta") {
+      expect(events[3].delta).toBe('{"selector":".item"}');
+    }
+    expect(events[4].type).toBe("done");
+    if (events[4].type === "done") {
+      expect(events[4].usage).toEqual({ inputTokens: 500, outputTokens: 50 });
+    }
+  });
+
+  it("首 chunk 同时带 name 和 arguments 时：start 事件 args 为空，首 chunk args 作为 delta 发出", async () => {
+    const reader = createMockReader([
+      // gateway / 某些 model 会先发一个 arguments="{}" 占位再送真正 JSON
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_x","function":{"name":"agent","arguments":"{}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"description\\":\\"r\\""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":",\\"prompt\\":\\"do\\"}"}}]}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+    const events: ChatStreamEvent[] = [];
+    await parseOpenAIStream(reader, (e) => events.push(e), new AbortController().signal);
+
+    expect(events[0].type).toBe("tool_call_start");
+    if (events[0].type === "tool_call_start") {
+      // 关键断言：start 事件里的 args 必须为空，不能是 "{}"（避免前缀污染）
+      expect(events[0].toolCall.arguments).toBe("");
+      expect(events[0].toolCall.name).toBe("agent");
+    }
+    // 首 chunk 的 "{}" 作为第一段 delta 原样透传（模型问题：整体非合法 JSON，但解析器不吞字符）
+    const deltas = events.filter((e) => e.type === "tool_call_delta");
+    expect(deltas).toHaveLength(3);
+    expect(deltas[0].type === "tool_call_delta" && deltas[0].delta).toBe("{}");
+    expect(deltas[1].type === "tool_call_delta" && deltas[1].delta).toBe('{"description":"r"');
+    expect(deltas[2].type === "tool_call_delta" && deltas[2].delta).toBe(',"prompt":"do"}');
+  });
+
+  it("并发多个 tool_call（不同 index）arguments 不应互相串扰", async () => {
+    const reader = createMockReader([
+      // 两个 tool 同时开始
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"f1","arguments":""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"b","function":{"name":"f2","arguments":""}}]}}]}\n\n',
+      // 然后交错发 arguments delta（只带 index，不带 id）
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"x\\":1}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\\"y\\":2}"}}]}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+    const events: ChatStreamEvent[] = [];
+    await parseOpenAIStream(reader, (e) => events.push(e), new AbortController().signal);
+    // 基础断言：两个 start + 两个 delta + done
+    const starts = events.filter((e) => e.type === "tool_call_start");
+    expect(starts).toHaveLength(2);
+    // （完整的 index 匹配需要 ChatStreamEvent 增加 index 字段，这里先确保 parser 不丢 event）
+  });
+
+  it("并行 tool_call 按 index 正确分派 arguments", async () => {
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"f1","arguments":""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"b","function":{"name":"f2","arguments":""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\\"y\\":2}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"x\\":1}"}}]}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+    const events: ChatStreamEvent[] = [];
+    await parseOpenAIStream(reader, (e) => events.push(e), new AbortController().signal);
+
+    const deltas = events.filter((e) => e.type === "tool_call_delta");
+    expect(deltas).toHaveLength(2);
+    // 第一个 delta 对应 index=1（因为到达顺序）
+    expect((deltas[0] as any).index).toBe(1);
+    expect((deltas[0] as any).delta).toBe('{"y":2}');
+    expect((deltas[1] as any).index).toBe(0);
+    expect((deltas[1] as any).delta).toBe('{"x":1}');
   });
 });

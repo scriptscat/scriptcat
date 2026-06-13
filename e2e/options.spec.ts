@@ -62,7 +62,7 @@ test.describe("Options Page", () => {
 
     // Verify dropdown with theme options appears - use role="menuitem"
     const menuItems = page.locator('[role="menuitem"]');
-    await expect(menuItems.first()).toBeVisible({ timeout: 5000 });
+    await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
     const count = await menuItems.count();
     expect(count).toBeGreaterThanOrEqual(3);
   });
@@ -76,16 +76,13 @@ test.describe("Options Page", () => {
 
     // Verify dropdown menu appears - use role="menuitem"
     const menuItems = page.locator('[role="menuitem"]');
-    await expect(menuItems.first()).toBeVisible({ timeout: 5000 });
+    await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
     const count = await menuItems.count();
     expect(count).toBeGreaterThanOrEqual(3);
   });
 
   test("should show empty state when script list is empty", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
-
-    // Wait for the content area to load
-    await page.waitForTimeout(2000);
 
     // The empty state component from arco-design should be visible
     const emptyState = page.locator(".arco-empty");

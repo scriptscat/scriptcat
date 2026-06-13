@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
-import { ConnectMatch, getConnectMatched } from "./gm_api";
+import { ConnectMatch, getConnectMatched, getExtensionSiteAccessOriginPattern } from "./gm_api";
 import { PermissionVerifyApiGet } from "../permission_verify";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
 import "./gm_api";
@@ -115,5 +115,17 @@ describe.concurrent("GM API 注册完整性", () => {
     for (const name of agentApis) {
       expect(PermissionVerifyApiGet(name), `${name} 应已注册`).toBeDefined();
     }
+  });
+});
+
+describe.concurrent("getExtensionSiteAccessOriginPattern", () => {
+  it.concurrent("应生成不带端口的扩展站点访问权限 pattern", () => {
+    expect(getExtensionSiteAccessOriginPattern(new URL("http://127.0.0.1:3000/get"))).toBe("http://127.0.0.1/*");
+    expect(getExtensionSiteAccessOriginPattern(new URL("https://example.com:8443/path"))).toBe("https://example.com/*");
+  });
+
+  it.concurrent("应忽略非 http/https 协议", () => {
+    expect(getExtensionSiteAccessOriginPattern(new URL("data:text/plain,hello"))).toBeUndefined();
+    expect(getExtensionSiteAccessOriginPattern(new URL("file:///tmp/test.txt"))).toBeUndefined();
   });
 });

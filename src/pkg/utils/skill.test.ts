@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import JSZip from "jszip";
+import { createJSZip } from "./jszip-x";
 import { parseSkillMd, parseSkillZip } from "./skill";
 import { parseSkillScriptMetadata } from "./skill_script";
 
 // 辅助函数：创建测试用 ZIP ArrayBuffer
 async function createTestZip(files: Record<string, string>): Promise<ArrayBuffer> {
-  const zip = new JSZip();
+  const zip = createJSZip();
   for (const [path, content] of Object.entries(files)) {
     zip.file(path, content);
   }

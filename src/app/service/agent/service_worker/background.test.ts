@@ -410,6 +410,21 @@ describe("handleAttachToConversation 重连逻辑", () => {
 
     (service as any).bgSessionManager.delete("conv-empty");
   });
+
+  it("tool_call_delta 按 index 分派給正確的 tool call", () => {
+    const { service } = createTestService();
+    const rc = createRunningConversation();
+    const upd = (service as any).bgSessionManager.updateStreamingState.bind((service as any).bgSessionManager);
+
+    upd(rc, { type: "tool_call_start", toolCall: { id: "a", name: "f1", arguments: "" } });
+    upd(rc, { type: "tool_call_start", toolCall: { id: "b", name: "f2", arguments: "" } });
+    // 交錯到達
+    upd(rc, { type: "tool_call_delta", id: "", index: 1, delta: '{"y":2}' });
+    upd(rc, { type: "tool_call_delta", id: "", index: 0, delta: '{"x":1}' });
+
+    expect(rc.streamingState.toolCalls[0].arguments).toBe('{"x":1}');
+    expect(rc.streamingState.toolCalls[1].arguments).toBe('{"y":2}');
+  });
 });
 
 // ---- 后台运行会话 集成测试 ----

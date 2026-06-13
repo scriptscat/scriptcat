@@ -555,4 +555,24 @@ describe("parseAnthropicStream", () => {
     expect(events).toHaveLength(2);
     expect(events[0]).toEqual({ type: "content_delta", delta: "ok" });
   });
+
+  it("tool_use block 的 input_json_delta 應帶上 id 和 index", async () => {
+    const reader = createMockReader([
+      'event: content_block_start\ndata: {"index":1,"content_block":{"type":"tool_use","id":"toolu_X","name":"f"}}\n\n',
+      'event: content_block_delta\ndata: {"index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"a\\":1}"}}\n\n',
+      "event: message_stop\ndata: {}\n\n",
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+
+    const d = events.find((e) => e.type === "tool_call_delta");
+    expect(d).toBeDefined();
+    if (d && d.type === "tool_call_delta") {
+      expect(d.id).toBe("toolu_X");
+      expect(d.index).toBe(1);
+    }
+  });
 });

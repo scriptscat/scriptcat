@@ -83,6 +83,31 @@ describe("buildSystemPrompt", () => {
     // 不应出现连续三个换行（即空段落）
     expect(result).not.toContain("\n\n\n");
   });
+
+  // P1: sub-agent result validation section
+  it("P1: Sub-Agent 段包含结果验证指引", () => {
+    const result = buildSystemPrompt({});
+    expect(result).toContain("### Receiving Sub-Agent Results");
+    expect(result).toContain("Check for issues first");
+    expect(result).toContain("Partial results are not successes");
+    expect(result).toContain("validate each result independently");
+  });
+
+  // P3: userscript in irreversible actions
+  it("P3: Safety 段包含 userscript 安装确认要求", () => {
+    const result = buildSystemPrompt({});
+    expect(result).toContain("installing or modifying userscripts");
+    expect(result).toContain("@match");
+    expect(result).toContain("runs on every matching page");
+  });
+
+  // P6: parallel agent fallback
+  it("P6: Sub-Agent 段包含并行任务 fallback 指引", () => {
+    const result = buildSystemPrompt({});
+    expect(result).toContain("fallback instructions for dependent tasks");
+    expect(result).toContain("If the file does not exist, report that clearly and do not proceed");
+    expect(result).toContain("Never assume upstream succeeded");
+  });
 });
 
 describe("buildSubAgentSystemPrompt", () => {
@@ -185,5 +210,45 @@ describe("buildSubAgentSystemPrompt", () => {
     const result = buildSubAgentSystemPrompt(config, tools);
 
     expect(result).toContain("## OPFS Workspace");
+  });
+
+  it.concurrent("sub-agent Tool Usage 段 budget 强调子任务独立性", () => {
+    const config = SUB_AGENT_TYPES.general;
+    const result = buildSubAgentSystemPrompt(config, allTools);
+
+    expect(result).toContain("covers this subtask only");
+    expect(result).toContain("independent of the parent agent");
+    expect(result).toContain("giving up prematurely");
+    // 不应再有旧的 "limited number of tool calls. Use them wisely" 措辞
+    expect(result).not.toContain("Use them wisely");
+  });
+
+  it.concurrent("researcher role 包含置信度分层要求", () => {
+    const config = SUB_AGENT_TYPES.researcher;
+    const tools = config.allowedTools || [];
+    const result = buildSubAgentSystemPrompt(config, tools);
+
+    expect(result).toContain("Distinguish confidence levels");
+    expect(result).toContain("Source X states");
+    expect(result).toContain("it appears");
+    expect(result).toContain("I could not confirm");
+  });
+
+  it.concurrent("page_operator role 包含动作与结果分离要求", () => {
+    const config = SUB_AGENT_TYPES.page_operator;
+    const tools = config.allowedTools || [];
+    const result = buildSubAgentSystemPrompt(config, tools);
+
+    expect(result).toContain("Separate action from outcome");
+    expect(result).toContain("verify the outcome");
+    expect(result).toContain("get_tab_content");
+  });
+
+  it.concurrent("general role 包含 tradeoff 汇报和失败诚实要求", () => {
+    const config = SUB_AGENT_TYPES.general;
+    const result = buildSubAgentSystemPrompt(config, allTools);
+
+    expect(result).toContain("briefly note the tradeoff");
+    expect(result).toContain("do not reframe it as partial success");
   });
 });

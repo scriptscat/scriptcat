@@ -37,7 +37,7 @@ function formatSearchResults(
       warning: `Result extraction failed or timed out (engine: ${engine}). Try a different search engine or rephrase the query.`,
     });
   }
-  return JSON.stringify(results);
+  return JSON.stringify({ results });
 }
 
 /** 搜索结果条目类型 */
@@ -135,6 +135,6 @@ export class WebSearchExecutor implements ToolExecutor {
       snippet: item.snippet || "",
     }));
 
-    return JSON.stringify(results.slice(0, maxResults));
+    return formatSearchResults(results.slice(0, maxResults), false, "Google");
   }
 }

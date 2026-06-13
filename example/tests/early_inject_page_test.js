@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         早期脚本
+// @name         Early-start Test (page 环境)
 // @namespace    https://docs.scriptcat.org/
 // @version      0.1.0
-// @description  早期脚本可以比页面更早到执行
-// @match        https://content-security-policy.com/
+// @description  early-start 可以比 document-start 更早执行
+// @match        https://content-security-policy.com/?early_inject_page
 // @early-start
 // @grant        GM_addElement
 // @grant        GM_addStyle

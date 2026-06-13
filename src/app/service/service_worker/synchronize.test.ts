@@ -4,6 +4,7 @@ import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { md5OfText } from "@App/pkg/utils/crypto";
 
 initTestEnv();
 
@@ -397,6 +398,207 @@ console.log("ok");`
     expect(order.indexOf("push:end")).toBeLessThan(order.indexOf("digest:list"));
   });
 
+  it("keeps pushed script digest when cloud list is stale after upload", async () => {
+    const scriptCode = "// code";
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 1,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: scriptCode }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    const metaJson = JSON.stringify({
+      uuid: script.uuid,
+      origin: script.origin,
+      downloadUrl: script.downloadUrl,
+      checkUpdateUrl: script.checkUpdateUrl,
+    });
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "push-uuid.user.js": md5OfText(scriptCode),
+      "push-uuid.meta.json": md5OfText(metaJson),
+    });
+  });
+
+  it("passes script modifiedDate when pushing script and meta files", async () => {
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const createMock = vi.fn().mockResolvedValue({ write: writeMock });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 1234,
+      createtime: 1000,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+
+    await service.pushScript(fs, script as any);
+
+    expect(createMock.mock.calls[0]).toEqual(["push-uuid.user.js", { modifiedDate: 1234 }]);
+    expect(createMock.mock.calls[1]).toEqual(["push-uuid.meta.json", { modifiedDate: 1234 }]);
+  });
+
+  it("uses Date.now as modifiedDate when writing scriptcat-sync.json", async () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(9876);
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    try {
+      await service.syncOnce(syncConfig, fs);
+
+      expect(createMock).toHaveBeenCalledWith("scriptcat-sync.json", {
+        modifiedDate: 9876,
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("uses Date.now as modifiedDate when writing delete tombstone meta", async () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(6789);
+    const createMock = vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+    const fs = createFs({
+      create: createMock,
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    try {
+      await service.deleteCloudScript(fs, "delete-uuid", true);
+
+      expect(createMock).toHaveBeenCalledWith("delete-uuid.meta.json", {
+        modifiedDate: 6789,
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("preserves cloud-native digest and does not overwrite with pushed md5", async () => {
+    // 各后端 digest 格式不一致（webdav/onedrive 是 etag、dropbox 是 content_hash 等），
+    // 上传后再次 list 已经能拿到原生 digest 时，必须保留它，不能被本地 md5 覆盖，
+    // 否则下次同步比对会因格式不一致而把未变动的脚本判定为已变动并触发不必要的拉取/推送
+    const scriptCode = "// code";
+    const script = {
+      uuid: "push-uuid",
+      name: "push",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 1,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const cloudListAfterPush = [
+      { name: "push-uuid.user.js", digest: "etag-user-js", updatetime: 1 },
+      { name: "push-uuid.meta.json", digest: "etag-meta-json", updatetime: 1 },
+    ];
+    const fs = createFs({
+      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(cloudListAfterPush),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: scriptCode }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    await expect((service as any).storage.get("file_digest")).resolves.toEqual({
+      "push-uuid.user.js": "etag-user-js",
+      "push-uuid.meta.json": "etag-meta-json",
+    });
+  });
+
   it("scriptInstall enters cloud_sync queue and updates digest after push", async () => {
     let releaseSync!: () => void;
     const syncGate = new Promise<void>((resolve) => {
@@ -439,6 +641,7 @@ console.log("ok");`
     vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(installFs);
     vi.spyOn(service, "pushScript").mockImplementation(async () => {
       order.push("install:push");
+      return {};
     });
     const realUpdateDigest = service.updateFileDigest.bind(service);
     vi.spyOn(service, "updateFileDigest").mockImplementation(async (fs) => {

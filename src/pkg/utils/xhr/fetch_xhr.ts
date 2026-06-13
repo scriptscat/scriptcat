@@ -99,13 +99,13 @@ export class FetchXHR {
     }
   };
 
-  async send(body?: BodyInit | null) {
+  private readonly sendAsync = async (resolve: (value: void | PromiseLike<void>) => void) => {
     if (this.readyState !== FetchXHR.OPENED || !this.method || !this.url) {
+      resolve();
       throw new Error("Invalid state: call open() first.");
     }
     this.reqDone = false;
 
-    this.body = body ?? null;
     this.controller = new AbortController();
 
     // Setup timeout if specified
@@ -124,6 +124,7 @@ export class FetchXHR {
       this.extraOptsFn?.(opts);
       this.onloadstart?.({ type: "loadstart" });
       const res = await fetch(this.url, opts);
+      resolve();
 
       // Update status + headers
       this.status = res.status;
@@ -199,21 +200,16 @@ export class FetchXHR {
       }
 
       let customStatus = null;
-      if (res.body === null) {
-        if (res.type === "opaqueredirect") {
-          customStatus = 301;
-        } else {
-          throw new Error("Response Body is null");
-        }
-      } else if (res.body !== null) {
+      const resBody = res.body;
+      if (resBody !== null) {
         // Stream body for progress
         let streamReader;
         let streamReadable;
         if (textDecoderStream) {
-          streamReadable = res.body?.pipeThrough(textDecoderStream);
+          streamReadable = resBody?.pipeThrough(textDecoderStream);
           if (!streamReadable) throw new Error("streamReadable is undefined.");
         } else {
-          streamReader = res.body?.getReader();
+          streamReader = resBody?.getReader();
           if (!streamReader) throw new Error("streamReader is undefined.");
         }
 
@@ -342,6 +338,17 @@ export class FetchXHR {
             pushBuffer(data);
           }
         }
+      } else if (res.type === "opaqueredirect") {
+        customStatus = 301;
+      } else if (
+        this.method.toUpperCase() === "HEAD" ||
+        res.status === 204 ||
+        res.status === 205 ||
+        res.status === 304
+      ) {
+        // No body is expected for these responses.
+      } else {
+        throw new Error("Response Body is null");
       }
 
       this.status = customStatus || res.status;
@@ -358,6 +365,7 @@ export class FetchXHR {
       this._emitReadyStateChange();
       this.onload?.({ type: "load" });
     } catch (err) {
+      resolve();
       this.controller = null;
       if (this.timeoutId != null) {
         clearTimeout(this.timeoutId);
@@ -394,6 +402,14 @@ export class FetchXHR {
       this.reqDone = true;
       this.onloadend?.({ type: "loadend" });
     }
+  };
+
+  send(body?: BodyInit | null) {
+    if (this.body !== null) {
+      throw new Error("Repeated Calls to send()");
+    }
+    this.body = body ?? null;
+    return new Promise<void>(this.sendAsync);
   }
 
   abort() {

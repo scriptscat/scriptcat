@@ -30,6 +30,7 @@ const chunkExcludeSet = new Set([
   "content",
   "inject",
   "scripting",
+  "common",
 ]);
 
 export default {
@@ -55,6 +56,7 @@ export default {
     content: `${src}/content.ts`,
     scripting: `${src}/scripting.ts`,
     inject: `${src}/inject.ts`,
+    common: `${src}/pages/common.ts`,
     popup: `${src}/pages/popup/main.tsx`,
     options: `${src}/pages/options/main.tsx`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",

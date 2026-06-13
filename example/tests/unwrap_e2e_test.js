@@ -4,7 +4,7 @@
 // @version      1.0.0
 // @description  E2E 测试 @unwrap 功能
 // @author       ScriptCat
-// @match        https://content-security-policy.com/*
+// @match        https://content-security-policy.com/?unwrap_e2e_test
 // @grant        GM_setValue
 // @unwrap
 // ==/UserScript==

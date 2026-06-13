@@ -337,6 +337,7 @@ export class Runtime {
   }
 
   valueUpdate(data: ValueUpdateDataEncoded) {
+    // runtime/valueUpdate
     const dataEntries = data.entries;
     // 转发给脚本
     this.execScriptMap.forEach((val) => {
@@ -400,6 +401,7 @@ export class Runtime {
       name: params.name,
       code: params.code,
       require: params.requires || [],
+      isContextMenu: false,
     });
 
     // 构造最小化的 ScriptLoadInfo

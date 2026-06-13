@@ -12,6 +12,7 @@ import Queue from "@App/pkg/utils/queue";
 import { type TDeleteScript } from "../queue";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import type GMApi from "./gm_api/gm_api";
+import { isContextMenuScript } from "../content/utils";
 
 export interface ConfirmParam {
   // 权限名
@@ -30,6 +31,8 @@ export interface ConfirmParam {
   permissionContent?: string;
   // 仅接受持久化（DB 存储）的授权，忽略临时缓存
   persistentOnly?: boolean;
+  // 需要在确认页面通过用户手势请求的扩展站点访问权限
+  extensionSiteAccessOrigins?: string[];
 }
 
 export interface UserConfirm {
@@ -127,6 +130,9 @@ export default class PermissionVerify {
   ): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
+      return true;
+    }
+    if (request.api === "GM_registerMenuCommand" && isContextMenuScript(request.script.metadata)) {
       return true;
     }
     // 没有其它条件,从metadata.grant中判断

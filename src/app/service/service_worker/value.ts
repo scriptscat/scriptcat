@@ -7,7 +7,6 @@ import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender } from "../content/types";
-import type { TScriptValueUpdate } from "../queue";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
@@ -75,30 +74,8 @@ export class ValueService {
     return this.getScriptValueDetails(script).then((res) => res[0]);
   }
 
-  // 推送值到tab
-  async pushValueToTab<T extends ValueUpdateDataEncoded>(sendData: T) {
-    chrome.storage.local.set(
-      {
-        valueUpdateDelivery: {
-          rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 chrome.storage.local.onChanged 必能触发
-          sendData,
-        },
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.set", lastError);
-        }
-      }
-    );
-    // 推送到offscreen中
-    this.runtime!.sendMessageToTab(
-      {
-        tabId: -1,
-      },
-      "valueUpdate",
-      sendData
-    );
+  async pushValueUpdate<T extends ValueUpdateDataEncoded>(script: Script, sendData: T) {
+    return this.runtime!.pushValueUpdate(script, sendData);
   }
 
   // 批量设置
@@ -180,16 +157,15 @@ export class ValueService {
     });
     // 推送到所有加载了本脚本的tab中
     const valueUpdated = entries.length > 0;
-    this.pushValueToTab({
+    const sendData = {
       id,
       entries: entries,
       uuid,
       storageName,
       sender: valueSender,
       valueUpdated,
-    } as ValueUpdateDataEncoded);
-    // valueUpdate 消息用于 early script 的处理
-    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script, valueUpdated });
+    } as ValueUpdateDataEncoded;
+    this.pushValueUpdate(script, sendData);
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {

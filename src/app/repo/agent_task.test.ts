@@ -141,13 +141,21 @@ describe("AgentTaskRunRepo", () => {
 
   it("appendRun 超过 MAX_RUNS_PER_TASK 时裁剪最老记录", async () => {
     const taskId = "task-ring";
-    for (let i = 0; i < 105; i++) {
+    // 预填 500 条数据（最新在前），避免逐条 append 超时
+    const prefilled: AgentTaskRun[] = [];
+    for (let i = 499; i >= 0; i--) {
+      prefilled.push(makeRun({ id: `rr-${i}`, taskId, starttime: i }));
+    }
+    await (repo as any).writeJsonFile(`${taskId}.json`, prefilled);
+
+    // 再 append 5 条（id rr-500 ~ rr-504），触发裁剪
+    for (let i = 500; i < 505; i++) {
       await repo.appendRun(makeRun({ id: `rr-${i}`, taskId, starttime: i }));
     }
-    const runs = await repo.listRuns(taskId, 200);
-    expect(runs.length).toBe(100);
+    const runs = await repo.listRuns(taskId, 600);
+    expect(runs.length).toBe(500);
     // 最新的在前，最老 5 条被裁剪掉（rr-0 ~ rr-4）
-    expect(runs[0].id).toBe("rr-104");
-    expect(runs[99].id).toBe("rr-5");
+    expect(runs[0].id).toBe("rr-504");
+    expect(runs[499].id).toBe("rr-5");
   });
 });

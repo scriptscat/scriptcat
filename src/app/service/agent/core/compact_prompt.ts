@@ -15,9 +15,9 @@ Include the following sections in your <summary>:
    - Key outputs or artifacts produced
 
 3. **User Messages**
-   - List ALL user messages that are not tool results
-   - These are critical for understanding the user's feedback and changing intent
-   - Include any mid-conversation corrections or preference changes
+   - List ALL user messages that are not tool results, in order
+   - **Mid-task corrections are highest priority** — if the user interrupted an ongoing operation with a correction (e.g. "stop", "do it differently", "that's wrong"), record these verbatim. These messages are the most commonly lost in long conversations and the most damaging to skip: a resumed agent will repeat the exact mistake that was already corrected.
+   - Include preference changes, clarifications, and any instruction that overrides an earlier one
 
 4. **Errors and Fixes**
    - All errors encountered and how they were resolved

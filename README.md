@@ -1,5 +1,5 @@
 <p align="right">
-<a href="./README_zh-CN.md">中文</a> <a href="./README.md">English</a> <a href="./README_zh-TW.md">繁體中文</a> <a href="./README_ja.md">日本語</a> <a href="./README_RU.md">Русский</a>
+<a href="./docs/README_zh-CN.md">中文</a> <a href="./README.md">English</a> <a href="./docs/README_zh-TW.md">繁體中文</a> <a href="./docs/README_ja.md">日本語</a> <a href="./docs/README_RU.md">Русский</a>
 </p>
 
 <h1 align="center">
@@ -23,6 +23,35 @@ ScriptCat
 [![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 [![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/en/firefox/addon/scriptcat/)
 
+## ❤️ Sponsor
+
+> [Want to appear here?](mailto:codfrm@gmail.com)
+
+<details open>
+<summary>Click to collapse</summary>
+
+[![OpenModel](./docs/assets/sponsors/openmodel-banner-2.jpg)](https://www.openmodel.ai?ref=pyGPw93M)
+
+**DeepSeek-V4-Flash is now free on OpenModel for a limited time!**
+
+One API, every top AI model.
+
+OpenModel is a high-availability AI model platform built to keep your apps fast and reliable: automatic failover, no
+double-charging on retries, and per-key rate limits and quotas. Switch models by changing a single parameter, use new
+models the day they launch, and plug straight into Claude Code, Codex, and Gemini CLI.
+
+[Register via this link](https://www.openmodel.ai?ref=pyGPw93M) and get started!
+
+---
+
+<table>
+<tr>
+<td width="180"><a href="https://www.packyapi.com/register?aff=BOKa"><img src="./docs/assets/sponsors/packycode-banner.png" alt="PackyCode" width="150"></a></td>
+<td>PackyCode is a stable, high-performance API relay provider, offering relay services for Claude Code, Codex, Gemini, and more. With automatic failover, smart routing, and unlimited concurrency, it turns AI programming into a real productivity tool. <a href="https://www.packyapi.com/register?aff=BOKa">Register via this link</a> and get started!</td>
+</tr>
+</table>
+
+</details>
 
 ## About ScriptCat
 
@@ -103,7 +132,7 @@ documentation page to make modifications.
 
 ## 🤝 Contributing
 
-We welcome all forms of contributions! Please check the [Contributing Guide](./docs/CONTRIBUTING_EN.md) to learn how to
+We welcome all forms of contributions! Please check the [Contributing Guide](./CONTRIBUTING.md) to learn how to
 get started.
 
 ### 💬 Community

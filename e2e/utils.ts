@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { BrowserContext, Page } from "@playwright/test";
+import { expect, type BrowserContext, type Page } from "@playwright/test";
 
 /** Strip SRI hashes and replace slow CDN with faster alternative */
 export function patchScriptCode(code: string): string {
@@ -42,10 +42,12 @@ export async function runTestScript(
   extensionId: string,
   scriptFile: string,
   targetUrl: string,
-  timeoutMs: number
+  timeoutMs: number,
+  options?: { patchCode?: (code: string) => string }
 ): Promise<{ passed: number; failed: number; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
+  code = options?.patchCode ? options.patchCode(code) : code;
   return runInlineTestScript(context, extensionId, code, targetUrl, timeoutMs);
 }
 
@@ -65,20 +67,20 @@ export async function runInlineTestScript(
   let passed = -1;
   let failed = -1;
 
-  const resultReady = new Promise<void>((resolve) => {
-    page.on("console", (msg) => {
-      const text = msg.text();
-      logs.push(text);
-      const passMatch = text.match(/通过[:：]\s*(\d+)/);
-      const failMatch = text.match(/失败[:：]\s*(\d+)/);
-      if (passMatch) passed = parseInt(passMatch[1], 10);
-      if (failMatch) failed = parseInt(failMatch[1], 10);
-      if (passed >= 0 && failed >= 0) resolve();
-    });
+  page.on("console", (msg) => {
+    const text = msg.text();
+    logs.push(text);
+    const passMatch = text.match(/通过[:：]\s*(\d+)/);
+    const failMatch = text.match(/失败[:：]\s*(\d+)/);
+    if (passMatch) passed = parseInt(passMatch[1], 10);
+    if (failMatch) failed = parseInt(failMatch[1], 10);
   });
 
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  await Promise.race([resultReady, page.waitForTimeout(timeoutMs)]);
+  await expect
+    .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+    .toBe(true)
+    .catch(() => undefined);
 
   await page.close();
   return { passed, failed, logs };
@@ -117,17 +119,46 @@ export async function openEditorPage(context: BrowserContext, extensionId: strin
   return page;
 }
 
+async function focusMonacoEditor(page: Page): Promise<void> {
+  await page.locator(".monaco-editor").waitFor({ timeout: 30_000 });
+  await page.locator(".view-lines").waitFor({ timeout: 15_000 });
+  await page.locator(".monaco-editor textarea.inputarea").waitFor({ state: "attached", timeout: 5_000 });
+  await page.locator(".monaco-editor textarea.inputarea").focus();
+}
+
+async function waitForSavedScriptInList(context: BrowserContext, extensionId: string): Promise<void> {
+  const listPage = await openOptionsPage(context, extensionId);
+  try {
+    await listPage.locator("#script-list").waitFor({ timeout: 15_000 });
+    await listPage
+      .locator("#script-list .arco-table-row, #script-list .script-list-card")
+      .first()
+      .waitFor({ state: "visible", timeout: 30_000 });
+  } finally {
+    await listPage.close();
+  }
+}
+
+export async function saveCurrentEditor(context: BrowserContext, extensionId: string, page: Page): Promise<void> {
+  await focusMonacoEditor(page);
+  await page.keyboard.press("ControlOrMeta+s");
+
+  const messageAppeared = await page
+    .locator(".arco-message")
+    .first()
+    .waitFor({ timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (messageAppeared) return;
+
+  await waitForSavedScriptInList(context, extensionId);
+}
+
 /** Install a script by injecting code into the Monaco editor and saving */
 export async function installScriptByCode(context: BrowserContext, extensionId: string, code: string): Promise<void> {
   const page = await openEditorPage(context, extensionId);
   // Wait for Monaco editor DOM and default template content to be ready
-  await page.locator(".monaco-editor").waitFor({ timeout: 30_000 });
-  await page.locator(".view-lines").waitFor({ timeout: 15_000 });
-  // Click to focus editor; headless Chrome 下光标可能不会变为 visible，改用 focused 状态判断
-  await page.locator(".monaco-editor .view-lines").click();
-  // 等待编辑器获得焦点（textarea 获得 focus 即表示可交互）
-  await page.locator(".monaco-editor textarea.inputarea").waitFor({ state: "attached", timeout: 5_000 });
-  await page.locator(".monaco-editor textarea.inputarea").focus();
+  await focusMonacoEditor(page);
   // Select all existing content
   await page.keyboard.press("ControlOrMeta+a");
   // Capture current content fingerprint, then paste replacement
@@ -136,26 +167,10 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
   await page.keyboard.press("ControlOrMeta+v");
   // Wait for Monaco to finish rendering the pasted content (content will differ from template)
   await page.waitForFunction((init) => document.querySelector(".view-lines")?.textContent !== init, initialText, {
-    timeout: 10_000,
+    timeout: 5_000,
   });
   // Save
-  await page.keyboard.press("ControlOrMeta+s");
-  // Wait for save: try arco-message first, then verify via script list
-  const saved = await page
-    .locator(".arco-message")
-    .first()
-    .waitFor({ timeout: 10_000 })
-    .then(() => true)
-    .catch(() => false);
-  if (!saved) {
-    // For scripts with @require/@resource, the message may not appear.
-    // Verify save by checking the script list on the options page.
-    const listPage = await openOptionsPage(context, extensionId);
-    const emptyState = listPage.locator(".arco-empty");
-    // Wait until at least one script appears (no empty state), up to 30s
-    await emptyState.waitFor({ state: "detached", timeout: 30_000 }).catch(() => {});
-    await listPage.close();
-  }
+  await saveCurrentEditor(context, extensionId, page);
   await page.close();
 }
 

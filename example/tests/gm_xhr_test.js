@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_xmlhttpRequest Exhaustive Test Harness v3
 // @namespace    tm-gmxhr-test
-// @version      1.2.4
+// @version      1.3.0
 // @description  Comprehensive in-page tests for GM_xmlhttpRequest: normal, abnormal, and edge cases with clear pass/fail output.
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
@@ -85,6 +85,8 @@ const enableTool = true;
     return `${a};r=${b1};t=${b2};x=${b3}`;
   };
 
+  const isFirefox = typeof mozInnerScreenX === "number";
+
   // ---------- Test Panel ----------
   const panel = h(
     "div",
@@ -120,8 +122,7 @@ const enableTool = true;
           gap: "8px",
         },
       },
-      h("div", { style: { fontWeight: "600" } }, "GM_xmlhttpRequest Test Harness", h("br"), `${GM.info?.version}`),
-      h("div", { id: "counts", style: { marginLeft: "auto", opacity: 0.8 } }, "…"),
+      h("div", {}, h("div", { style: { fontWeight: "500" } }, `GM_xmlhttpRequest Test Harness ${GM.info?.script?.version}`), h("div", { style: { display: "flex", flexDirection: "row" } }, h("div", { style: { fontWeight: "400" } }, `${GM.info?.scriptHandler} ${GM.info?.version}`), h("div", { id: "counts", style: { marginLeft: "auto", opacity: 0.8 } }, "…"))),
       h("button", { id: "start", style: btn() }, "Run"),
       h("button", { id: "clear", style: btn() }, "Clear")
     ),
@@ -190,6 +191,201 @@ const enableTool = true;
   }
   function setQueue(items) {
     $queue.textContent = items.length ? items.map((t, i) => `${i + 1}. ${t}`).join("\n") : "(none)";
+  }
+
+  // ---------- Pretty Stack -----------
+  function prettyStack(errorOrStack, options = {}) {
+    const {
+      stripQuery = true,
+      decode = true,
+      maxUrlLength = 90,
+      dropExtensionUuid = true,
+      pathSegments = 2,
+      indent = "  ",
+      minFnWidth = 8,
+      maxFnWidth = 48,
+      minLocWidth = 5,
+      maxLocWidth = 12,
+      maxLines = -1,
+    } = options;
+
+    const rawStack =
+      typeof errorOrStack === "string"
+        ? errorOrStack
+        : errorOrStack && errorOrStack.stack
+          ? errorOrStack.stack
+          : String(errorOrStack);
+
+    const lines = rawStack.split(/\r?\n/).filter(Boolean);
+
+    const frames = lines
+      .filter((line, j) => maxLines > 0 ? j < maxLines : true)
+      .map(parseStackLine)
+      .filter(Boolean)
+      .map(frame => ({
+        ...frame,
+        fn: cleanFunctionName(frame.fn),
+        file: cleanFileName(frame.file, {
+          stripQuery,
+          decode,
+          maxUrlLength,
+          dropExtensionUuid,
+          pathSegments,
+        }),
+      }));
+
+    if (!frames.length) return rawStack;
+
+    const fnWidth = clamp(
+      frames.reduce((max, f) => Math.max(max, f.fn.length), minFnWidth),
+      minFnWidth,
+      maxFnWidth
+    );
+
+    const locWidth = clamp(
+      frames.reduce((max, f) => {
+        return Math.max(max, `${f.line}:${f.col}`.length);
+      }, minLocWidth),
+      minLocWidth,
+      maxLocWidth
+    );
+
+    return frames
+      .map(f => {
+        const fn = padRight(truncateMiddle(f.fn, fnWidth), fnWidth);
+        const loc = padLeft(`${f.line}:${f.col}`, locWidth);
+        return `${indent}${fn}  ${loc}  ${f.file}`;
+      })
+      .join("\n");
+  }
+
+  function parseStackLine(line) {
+    const s = line.trim();
+
+    // Chrome / V8:
+    // at fn (file:line:col)
+    //
+    // Examples:
+    // at run (https://example.com/app.js:10:5)
+    // at async runAll (https://example.com/app.js:20:9)
+    // at new Foo (https://example.com/app.js:30:11)
+    let m = s.match(/^at\s+(.+?)\s+\((.+):(\d+):(\d+)\)$/);
+    if (m) {
+      return {
+        fn: m[1],
+        file: m[2],
+        line: Number(m[3]),
+        col: Number(m[4]),
+      };
+    }
+
+    // Chrome / V8 anonymous:
+    // at file:line:col
+    m = s.match(/^at\s+(.+):(\d+):(\d+)$/);
+    if (m) {
+      return {
+        fn: "<anonymous>",
+        file: m[1],
+        line: Number(m[2]),
+        col: Number(m[3]),
+      };
+    }
+
+    // Firefox:
+    // fn@file:line:col
+    // async*fn@file:line:col
+    // setTimeout handler*fn@file:line:col
+    //
+    // Use a greedy file capture so the last two numeric groups win.
+    m = s.match(/^(.*?)@(.+):(\d+):(\d+)$/);
+    if (m) {
+      return {
+        fn: m[1] || "<anonymous>",
+        file: m[2],
+        line: Number(m[3]),
+        col: Number(m[4]),
+      };
+    }
+
+    return null;
+  }
+
+  function cleanFunctionName(fn) {
+    let s = String(fn).trim();
+
+    if (!s) return "<anonymous>";
+    if (s === "<anonymous>") return s;
+
+    return s
+      .replace(/^async\*/, "async ")
+      .replace(/^setTimeout handler\*/, "timer ")
+      .replace(/^promise callback\*/, "promise ")
+      .replace(/\["#-[^"]+"\]/g, "[userscript]")
+      .replace(/\/</g, " › ")
+      .replace(/>+/g, "")
+      .replace(/\s+/g, " ")
+      .trim() || "<anonymous>";
+  }
+
+  function cleanFileName(file, options) {
+    let s = String(file);
+
+    if (options.stripQuery) {
+      s = s.replace(/[?#].*$/, "");
+    }
+
+    if (options.dropExtensionUuid) {
+      s = s.replace(
+        /^(?:moz|chrome)-extension:\/\/[^/]+\//,
+        "extension://"
+      );
+    }
+
+    let parts = s.split("/");
+
+    if (options.pathSegments > 0) {
+      parts = parts.slice(-options.pathSegments);
+    }
+
+    if (options.decode) {
+      parts = parts.map(part => {
+        try {
+          return decodeURIComponent(part);
+        } catch {
+          return part;
+        }
+      });
+    }
+
+    s = parts.join("/");
+
+    return truncateMiddle(s, options.maxUrlLength);
+  }
+
+  function truncateMiddle(value, max) {
+    const str = String(value);
+
+    if (!Number.isFinite(max) || max <= 0) return "";
+    if (str.length <= max) return str;
+    if (max <= 3) return str.slice(0, max);
+
+    const available = max - 1;
+    const left = Math.ceil(available / 2);
+    const right = Math.floor(available / 2);
+
+    return `${str.slice(0, left)}…${str.slice(-right)}`;
+  }
+
+  function padRight(value, width) {
+    return String(value).padEnd(width, " ");
+  }
+
+  function padLeft(value, width) {
+    return String(value).padStart(width, " ");
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
   }
 
   // ---------- Assertion & request helpers ----------
@@ -939,6 +1135,82 @@ const enableTool = true;
       },
     },
     {
+      name: "GM_xhr abort timeout onloadend events",
+      async run(fetch) {
+        const runCase = (details, { abortAfterMs } = {}) => {
+          return new Promise((resolve, reject) => {
+            const events = [];
+            const timeoutMs = Math.max((details.timeout || 0) + (abortAfterMs || 0) + 8000, 12000);
+            const timer = setTimeout(() => {
+              reject(new Error(`Expected onloadend; events=${events.join(",")}`));
+            }, timeoutMs);
+            const req = GM_xmlhttpRequest({
+              method: details.method || "GET",
+              url: details.url,
+              timeout: details.timeout,
+              fetch,
+              onload() {
+                events.push("onload");
+              },
+              onerror() {
+                events.push("onerror");
+              },
+              onabort() {
+                events.push("onabort");
+              },
+              ontimeout() {
+                events.push("ontimeout");
+              },
+              onloadend(response) {
+                events.push("onloadend");
+                clearTimeout(timer);
+                resolve({ events, response });
+              },
+            });
+            if (abortAfterMs != null) {
+              setTimeout(() => req.abort(), abortAfterMs);
+            }
+          });
+        };
+
+        const normal = await runCase({
+          url: `${HB}/get`,
+        });
+        assertDeepEq(normal.events, ["onload", "onloadend"], "normal fires onload then onloadend");
+        assertEq(normal.response.status, 200, "normal onloadend status 200");
+
+        const timeout = await runCase({
+          url: `${HB}/delay/5`,
+          timeout: 2000,
+        });
+        assertDeepEq(timeout.events, ["ontimeout", "onloadend"], "timeout fires ontimeout then onloadend");
+
+        const abort = await runCase(
+          {
+            url: `${HB}/delay/10`,
+          },
+          { abortAfterMs: 4000 }
+        );
+        assertDeepEq(abort.events, ["onabort", "onloadend"], "abort fires onabort then onloadend");
+
+        const nwError1 = await runCase(
+          {
+            url: `https://nonexistent-domain-abcxyz.test/abc.html`, // allowed domain
+          },
+          { abortAfterMs: 500 }
+        );
+        assertDeepEq(nwError1.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
+
+        const nwError2 = await runCase(
+          {
+            url: `https://nonexistent-domain-abcxyz.reject/abc.html`, // disallowed domain
+          },
+          { abortAfterMs: 500 }
+        );
+        assertDeepEq(nwError2.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
+      },
+    },
+    {
       name: "onprogress fires while downloading [arraybuffer]",
       async run(fetch) {
         let progressEvents = 0;
@@ -1461,11 +1733,11 @@ const enableTool = true;
               "onreadystatechange 2.200;r=missing;t=missing;x=missing",
               "onreadystatechange 3.200;r=missing;t=missing;x=missing",
               "onprogress 3.200;r=missing;t=missing;x=missing",
-              "onprogress 4.200;r=missing;t=missing;x=missing",
+              isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
               "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
               "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
               "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
-            ],
+            ].filter(Boolean),
             "standard-type GMXhr OK"
           );
         } else {
@@ -1525,11 +1797,11 @@ const enableTool = true;
               "onreadystatechange 2.200;r=missing;t=missing;x=missing",
               "onreadystatechange 3.200;r=missing;t=missing;x=missing",
               "onprogress 3.200;r=missing;t=missing;x=missing",
-              "onprogress 4.200;r=missing;t=missing;x=missing",
+              isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
               "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
               "onload 4.200;r=object;t=string;x=XMLDocument",
               "onloadend 4.200;r=object;t=string;x=XMLDocument",
-            ],
+            ].filter(Boolean),
             "standard-type GMXhr OK"
           );
         } else {
@@ -1720,16 +1992,18 @@ const enableTool = true;
 
     for (let i = 0; i < tests.length; i++) {
       const t = tests[i];
-      const title = `• ${t.name}`;
+      const tName = `${t.useFetch ? "[fetch]" : "[xhr]"} ${t.name}`;
+      const title = `• ${tName}`;
       const t0 = performance.now();
-      setStatus(`running (${i + 1}/${tests.length}): ${t.name}`);
+      setStatus(`running (${i + 1}/${tests.length}): ${tName}`);
       try {
-        logLine(`▶️ <b>${escapeHtml(t.name)}</b> (queued: ${tests.length - i - 1} remaining)`);
+        logLine(`▶️ <b>${escapeHtml(tName)}</b> (queued: ${tests.length - i - 1} remaining)`);
         await t.run(t.useFetch ? true : false);
         pass(`${title}  (${fmtMs(performance.now() - t0)})`);
       } catch (e) {
-        const extra = e && e.stack ? e.stack : String(e);
-        fail(`${title}  (${fmtMs(performance.now() - t0)})`, extra);
+        console.error(e);
+        const extra = e && e.stack ? prettyStack(e, { maxLines: 4 }) : null;
+        fail(`${title}  (${fmtMs(performance.now() - t0)})`, [e?.message, extra].filter(Boolean).join("\n"));
       } finally {
         // update pending list
         setQueue(names.slice(i + 1));
