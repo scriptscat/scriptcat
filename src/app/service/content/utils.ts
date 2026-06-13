@@ -281,6 +281,10 @@ export function isScriptletUnwrap(metadata: SCMetadata): boolean {
   return metadataBlankOrTrue(metadata, "unwrap");
 }
 
+export function isScriptModule(metadata: SCMetadata): boolean {
+  return metadataBlankOrTrue(metadata, "script-module") && !isInjectIntoContent(metadata);
+}
+
 export function isInjectIntoContent(metadata: SCMetadata): boolean {
   return metadata["inject-into"]?.[0] === "content";
 }
