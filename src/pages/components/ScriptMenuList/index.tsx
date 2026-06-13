@@ -33,6 +33,7 @@ import type {
   ScriptMenuItemOption,
 } from "@App/app/service/service_worker/types";
 import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/features/script";
+import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { i18nName } from "@App/locales/locales";
 
 // 用于读取 metadata
@@ -245,8 +246,9 @@ const ListMenuItem = React.memo(
               className="tw-text-left"
               type="secondary"
               icon={<IconEdit />}
-              onClick={() => {
-                window.open(`/src/options.html#/script/editor/${item.uuid}`, "_blank");
+              onClick={async () => {
+                // 经由扩展 API 打开，兼容 Edge Android（移动端 window.open 打不开内部页，#686）
+                await openInCurrentTab(`/src/options.html#/script/editor/${item.uuid}`);
                 window.close();
               }}
             >
@@ -297,8 +299,9 @@ const ListMenuItem = React.memo(
               key="config"
               type="secondary"
               icon={<IconSettings />}
-              onClick={() => {
-                window.open(`/src/options.html#/?userConfig=${item.uuid}`, "_blank");
+              onClick={async () => {
+                // 经由扩展 API 打开，兼容 Edge Android（移动端 window.open 打不开内部页，#686）
+                await openInCurrentTab(`/src/options.html#/?userConfig=${item.uuid}`);
                 window.close();
               }}
             >
