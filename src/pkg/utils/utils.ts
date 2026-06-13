@@ -111,7 +111,7 @@ export async function getTab(tabId: number) {
 }
 
 // 在当前页后打开一个新页面，如果指定tabId则在该tab后打开
-export async function openInCurrentTab(url: string, tabId?: number) {
+export async function openInCurrentTab(url: string, tabId?: number): Promise<chrome.tabs.Tab | undefined> {
   const tab = await (tabId ? getTab(tabId) : getCurrentTab());
   const createProperties: chrome.tabs.CreateProperties = { url };
   if (tab) {
@@ -128,8 +128,7 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   }
   // 先尝试以 openerTabId 和 windowId 打开
   try {
-    await chrome.tabs.create(createProperties);
-    return;
+    return await chrome.tabs.create(createProperties);
   } catch (e: any) {
     console.error("Error opening tab:", e);
   }
@@ -137,11 +136,11 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   delete createProperties.openerTabId;
   delete createProperties.windowId;
   try {
-    await chrome.tabs.create(createProperties);
-    return;
+    return await chrome.tabs.create(createProperties);
   } catch (e: any) {
     console.error("Retry opeing tab error:", e);
   }
+  return undefined;
 }
 
 // 检查订阅规则是否改变,是否能够静默更新

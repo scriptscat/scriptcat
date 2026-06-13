@@ -28,7 +28,7 @@ import { useSystemConfig } from "./utils";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
-import { makeBlobURL } from "@App/pkg/utils/utils";
+import { makeBlobURL, openInCurrentTab } from "@App/pkg/utils/utils";
 
 const openImportWindow = async (filename: string, file: Blob) => {
   // 打开导入窗口，用cache实现数据交互
@@ -39,8 +39,8 @@ const openImportWindow = async (filename: string, file: Blob) => {
     filename: filename,
     url: url,
   });
-  // 打开导入窗口，用cache实现数据交互
-  window.open(chrome.runtime.getURL(`/src/import.html?uuid=${uuid}`), "_blank");
+  // 打开导入窗口，用cache实现数据交互（经由扩展 API，兼容 Edge Android）
+  await openInCurrentTab(`/src/import.html?uuid=${uuid}`);
 };
 
 function Tools() {
