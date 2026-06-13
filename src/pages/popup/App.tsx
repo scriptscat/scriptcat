@@ -22,7 +22,7 @@ import { popupClient, requestOpenBatchUpdatePage } from "@App/pages/store/featur
 import type { ScriptMenu, TPopupScript } from "@App/app/service/service_worker/types";
 import { systemConfig } from "@App/pages/store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
-import { getCurrentTab } from "@App/pkg/utils/utils";
+import { getCurrentTab, openInCurrentTab } from "@App/pkg/utils/utils";
 import { subscribeMessage } from "@App/pages/store/global";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
@@ -343,8 +343,9 @@ function App() {
       systemConfig.setEnableScript(val);
     },
     handleSettingsClick: () => {
-      // 使用 window.open 而非 <a> 连结：避免 Vivaldi 等浏览器偶发崩溃
-      window.open("/src/options.html", "_blank");
+      // 经由扩展 API 打开（而非 window.open / <a>）：既避免 Vivaldi 偶发崩溃，
+      // 也兼容 Edge Android —— 移动端 window.open 打不开 chrome-extension:// 内部页（#686）
+      openInCurrentTab("/src/options.html");
     },
     handleNotificationClick: () => {
       setShowAlert((prev) => !prev);
@@ -381,7 +382,7 @@ function App() {
         await chrome.storage.local.set({
           activeTabUrl: { url: currentUrl },
         });
-        window.open("/src/options.html#/script/editor?target=initial", "_blank");
+        await openInCurrentTab("/src/options.html#/script/editor?target=initial");
         break;
       case "checkUpdate":
         requestOpenBatchUpdatePage(getUrlDomain(currentUrl));
