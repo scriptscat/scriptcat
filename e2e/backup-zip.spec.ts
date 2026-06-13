@@ -77,18 +77,31 @@ test.describe("Backup zip export/import round-trip (#1479)", () => {
     expect(buf[1]).toBe(0x4b); // 'K'
 
     // 3) 导入：点击“导入文件”→ 触发隐藏 file input 的 click（filechooser），选中刚导出的 zip，
-    //    openImportWindow 会把文件写入 cache 并 window.open 导入页（弹窗），从弹窗 URL 取 uuid
+    //    openImportWindow 会把文件写入 cache 并经扩展 API 新开导入页标签，从该标签 URL 取 uuid。
+    //    注意：扩展首启且 userScripts 未开启时会异步用 chrome.tabs.create 打开「开启开发者模式」
+    //    引导页，它与导入页同为新标签页。故收集所有新标签并按 URL 过滤，只认 import.html 目标页，
+    //    避免 waitForEvent("page") 因时序竞态误捕引导页（CI 时序早开不命中、本地时序晚开命中）。
+    const openedPages: Page[] = [];
+    context.on("page", (p) => openedPages.push(p));
     page.on("filechooser", (fc) => fc.setFiles(zipPath).catch(() => {}));
-    const popupPromise = context.waitForEvent("page", { timeout: 15_000 });
     await page
       .locator("button", { hasText: /导入文件|Import File/ })
       .first()
       .click();
-    const popup = await popupPromise;
-    await popup.waitForLoadState("domcontentloaded").catch(() => {});
-    const importUrl = popup.url();
+    let popup: Page | undefined;
+    await expect
+      .poll(
+        () => {
+          popup = openedPages.find((p) => p.url().includes("import.html"));
+          return !!popup;
+        },
+        { timeout: 15_000, intervals: [100, 250, 500, 1_000] }
+      )
+      .toBe(true);
+    await popup!.waitForLoadState("domcontentloaded").catch(() => {});
+    const importUrl = popup!.url();
     expect(importUrl).toContain("import.html?uuid=");
-    await popup.close().catch(() => {});
+    await popup!.close().catch(() => {});
 
     // 4) 以普通标签页打开同一 import URL，loadAsyncJSZip 解析 cache 中的 zip 后应列出脚本名
     const importPage: Page = await context.newPage();
