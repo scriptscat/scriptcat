@@ -36,7 +36,7 @@ import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode, parseMetadata } from "@App/pkg/utils/script";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
-import { makeBlobURL } from "@App/pkg/utils/utils";
+import { makeBlobURL, openInCurrentTab } from "@App/pkg/utils/utils";
 import ScrollBoundary from "@App/pages/components/layout/ScrollBoundary";
 
 // --- 工具函数移出组件外，避免每次 Render 重新定义 ---
@@ -273,9 +273,9 @@ const MainLayout: React.FC<{
           }
           const fid = checkOk[1].value;
           await saveHandle(fid, fileHandle); // fileHandle以DB方式传送至安装页面
-          // 打开安装页面
-          const installWindow = window.open(`/src/install.html?file=${fid}`, "_blank");
-          if (!installWindow) {
+          // 打开安装页面（经由扩展 API，兼容 Edge Android —— 移动端 window.open 打不开内部页，#686）
+          const installTab = await openInCurrentTab(`/src/install.html?file=${fid}`);
+          if (!installTab) {
             throw new Error(t("install_page_open_failed"));
           }
           stat.success++;
