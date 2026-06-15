@@ -11,8 +11,8 @@ import { toChromeVersion } from "./version.js";
 // ============================================================================
 
 // 目前 ScriptCat MV3 未正式支持 Firefox，
-// 测试人员可修改 PACK_FIREFOX 为 true 作个人测试用途
-const PACK_FIREFOX = false;
+// 测试人员可设置 PACK_FIREFOX=true 作个人测试用途。
+const PACK_FIREFOX = process.env.PACK_FIREFOX === "true";
 
 // ============================================================================
 
