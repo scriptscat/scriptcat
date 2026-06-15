@@ -5,6 +5,7 @@ declare module "*.yaml";
 declare module "@App/app/types.d.ts";
 
 type Override<T, U> = Omit<T, keyof U> & U;
+type RequireField<T, K extends keyof T> = T & Required<Pick<T, K>>;
 type ValueOf<T> = T[keyof T];
 type ReactStateSetter<T> = (value: T | ((prev: T) => T)) => void;
 

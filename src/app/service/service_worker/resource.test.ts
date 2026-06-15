@@ -95,4 +95,27 @@ describe("ResourceService - loadByUrl", () => {
 
     expect(res.contentType).toBe("application/octet-stream");
   });
+
+  it("命名 @resource 的 file:/// path 应按 path 判断并立即更新", async () => {
+    const fileResource = {
+      url: "file:///tmp/local.txt",
+      content: "local",
+      base64: "",
+      hash: { md5: "mock-md5", sha1: "", sha256: "", sha384: "", sha512: "sha" },
+      type: "resource" as const,
+      link: {},
+      contentType: "text/plain",
+      createtime: Date.now(),
+    };
+    const updateSpy = vi.spyOn(service, "updateResource").mockResolvedValue(fileResource);
+
+    const res = await service.getResourceByType(
+      { uuid: "script-1", metadata: { resource: ["data file:///tmp/local.txt"] } } as any,
+      "resource",
+      false
+    );
+
+    expect(updateSpy).toHaveBeenCalledWith("script-1", "file:///tmp/local.txt", "resource");
+    expect(res.data).toBe(fileResource);
+  });
 });

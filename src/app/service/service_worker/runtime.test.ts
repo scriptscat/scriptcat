@@ -63,13 +63,12 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     };
   };
 
-  beforeEach(() => {
-    // 创建所有必需的mock对象
-    mockSystemConfig = {
+  const createRuntimeTestContext = () => {
+    const localMockSystemConfig = {
       getBlacklist: vi.fn().mockReturnValue(""),
     };
 
-    mockScriptService = {
+    const localMockScriptService = {
       buildScriptRunResource: vi.fn(),
     };
 
@@ -91,22 +90,37 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     } as unknown as IMessageQueue;
     const mockValueService = {} as ValueService;
     const mockResourceService = {} as ResourceService;
-    const mockScriptDAO = {
+    const localMockScriptDAO = {
       all: vi.fn().mockResolvedValue([]),
-    } as unknown as ScriptDAO;
+    };
     const mockLocalStorageDAO = new LocalStorageDAO();
 
-    runtime = new RuntimeService(
-      mockSystemConfig as unknown as SystemConfig,
+    const localRuntime = new RuntimeService(
+      localMockSystemConfig as unknown as SystemConfig,
       mockGroup,
       mockSender,
       mockMessageQueue,
       mockValueService,
-      mockScriptService as unknown as ScriptService,
+      localMockScriptService as unknown as ScriptService,
       mockResourceService,
-      mockScriptDAO,
+      localMockScriptDAO as unknown as ScriptDAO,
       mockLocalStorageDAO
     );
+
+    return {
+      runtime: localRuntime,
+      mockSystemConfig: localMockSystemConfig,
+      mockScriptService: localMockScriptService,
+      mockScriptDAO: localMockScriptDAO,
+    };
+  };
+
+  beforeEach(() => {
+    // 创建所有必需的mock对象
+    const context = createRuntimeTestContext();
+    runtime = context.runtime;
+    mockSystemConfig = context.mockSystemConfig;
+    mockScriptService = context.mockScriptService;
   });
 
   describe.concurrent("脚本匹配基础功能", () => {
@@ -157,7 +171,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       const defaultResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path");
 
       // 测试包含无效匹配的查询
-      const allResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path", true, true);
+      const allResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path", true);
 
       // Assert
       // expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
@@ -235,11 +249,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       // 测试被include但也被exclude的URL
       const excludeResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/admin/panel");
       // 测试被include但也被exclude的URL（包含无效匹配）
-      const excludeAllResult = runtime.getPageScriptMatchingResultByUrl(
-        "https://www.example.com/admin/panel",
-        true,
-        true
-      );
+      const excludeAllResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/admin/panel", true);
 
       // Assert
       expect(includeResult.has(script.uuid)).toBe(true);
@@ -286,6 +296,10 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
   describe.concurrent("includeDisabled 选项", () => {
     it.concurrent("当 includeDisabled=false 时不返回禁用脚本；当 includeDisabled=true 时返回禁用脚本", async () => {
       // Arrange
+      // The top-level suite is concurrent, so this test must not use the shared
+      // runtime/mockScriptDAO variables while awaiting Popup's lazy disabled matcher.
+      const { runtime, mockScriptDAO, mockScriptService } = createRuntimeTestContext();
+
       // 启用脚本
       const enabledScript = createMockScript({
         metadata: {
@@ -310,17 +324,18 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
         .mockReturnValueOnce(disabledRunResource);
 
       // Act
-      // 先应用匹配信息（内部应分别记录到 enable/disable 的匹配器中）
+      // Enabled rules are written eagerly; disabled rules are built lazily from DAO for Popup.
       const enabledMatchInfo = await runtime.applyScriptMatchInfo(enabledRunResource);
       const disabledMatchInfo = await runtime.applyScriptMatchInfo(disabledRunResource);
+      mockScriptDAO.all.mockResolvedValue([disabledScript]);
 
       expect(enabledMatchInfo).toBeDefined();
       expect(disabledMatchInfo).toBeDefined();
 
       // 默认查询（不包含禁用）
       const defaultResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path");
-      // 包含禁用脚本的查询
-      const withDisabledResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path", true);
+      // Popup 查询包含禁用脚本
+      const withDisabledResult = await runtime.getPopupPageScriptMatchingResultByUrl("https://www.example.com/path");
 
       // Assert
       // 默认不包含禁用脚本
@@ -335,6 +350,93 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       expect(withDisabledResult.has(disabledScript.uuid)).toBe(true);
       // 禁用脚本在匹配器中同样是“命中”的，故 effective=true
       expect(withDisabledResult.get(disabledScript.uuid)?.effective).toBe(true);
+    });
+  });
+
+  describe("redo matcher cache behavior", () => {
+    it("安装或排序更新后，已缓存 URL 的下一次匹配顺序应立即反映新 sort", async () => {
+      const { runtime } = createRuntimeTestContext();
+      const slowScript = createMockScript({ sort: 20 });
+      const fastScript = createMockScript({ sort: 10 });
+      await runtime.applyScriptMatchInfo(createScriptRunResource(slowScript));
+      await runtime.applyScriptMatchInfo(createScriptRunResource(fastScript));
+
+      const url = "https://www.example.com/path";
+      expect([...runtime.getPageScriptMatchingResultByUrl(url).keys()]).toEqual([slowScript.uuid, fastScript.uuid]);
+
+      (runtime as any).updateSorter((next: Record<string, number>) => {
+        (runtime as any).setScriptSort(next, slowScript);
+        (runtime as any).setScriptSort(next, fastScript);
+      });
+
+      expect([...runtime.getPageScriptMatchingResultByUrl(url).keys()]).toEqual([fastScript.uuid, slowScript.uuid]);
+    });
+
+    it("两个 RuntimeService 实例的 sorter 互不影响", async () => {
+      const { runtime, mockSystemConfig, mockScriptService, mockScriptDAO } = createRuntimeTestContext();
+      const scriptA = createMockScript({ sort: 2 });
+      const scriptB = createMockScript({ sort: 1 });
+      const anotherRuntime = new RuntimeService(
+        mockSystemConfig as unknown as SystemConfig,
+        { use: vi.fn().mockReturnThis() } as unknown as Group,
+        {} as ServiceWorkerMessageSend,
+        { group: vi.fn().mockReturnValue({ use: vi.fn().mockReturnThis() }) } as unknown as IMessageQueue,
+        {} as ValueService,
+        mockScriptService as unknown as ScriptService,
+        {} as ResourceService,
+        mockScriptDAO as unknown as ScriptDAO,
+        new LocalStorageDAO()
+      );
+
+      await runtime.applyScriptMatchInfo(createScriptRunResource(scriptA));
+      await runtime.applyScriptMatchInfo(createScriptRunResource(scriptB));
+      await anotherRuntime.applyScriptMatchInfo(createScriptRunResource(scriptA));
+      await anotherRuntime.applyScriptMatchInfo(createScriptRunResource(scriptB));
+
+      (runtime as any).updateSorter((next: Record<string, number>) => {
+        (runtime as any).setScriptSort(next, scriptA);
+        (runtime as any).setScriptSort(next, scriptB);
+      });
+
+      const url = "https://www.example.com/path";
+      expect([...runtime.getPageScriptMatchingResultByUrl(url).keys()]).toEqual([scriptB.uuid, scriptA.uuid]);
+      expect([...anotherRuntime.getPageScriptMatchingResultByUrl(url).keys()]).toEqual([scriptA.uuid, scriptB.uuid]);
+    });
+  });
+
+  describe("Popup disabled matcher lazy cache", () => {
+    it("构建 disabled matcher 期间失效不会丢失，本次 Popup 会重取最新快照", async () => {
+      const { runtime, mockScriptDAO } = createRuntimeTestContext();
+      const staleDisabled = createMockScript({ status: SCRIPT_STATUS_DISABLE, name: "stale" });
+      const latestDisabled = createMockScript({ status: SCRIPT_STATUS_DISABLE, name: "latest" });
+      let resolveFirst!: (scripts: Script[]) => void;
+      mockScriptDAO.all
+        .mockImplementationOnce(() => new Promise<Script[]>((resolve) => (resolveFirst = resolve)))
+        .mockResolvedValueOnce([latestDisabled]);
+
+      const popupResult = runtime.getPopupPageScriptMatchingResultByUrl("https://www.example.com/path");
+      (runtime as any).invalidateDisabledMatcher();
+      resolveFirst([staleDisabled]);
+
+      const result = await popupResult;
+      expect(result.has(staleDisabled.uuid)).toBe(false);
+      expect(result.has(latestDisabled.uuid)).toBe(true);
+      expect(mockScriptDAO.all).toHaveBeenCalledTimes(2);
+    });
+
+    it("并发 Popup 请求共享同一次 disabled matcher 构建", async () => {
+      const { runtime, mockScriptDAO } = createRuntimeTestContext();
+      const disabledScript = createMockScript({ status: SCRIPT_STATUS_DISABLE });
+      mockScriptDAO.all.mockResolvedValue([disabledScript]);
+
+      const [first, second] = await Promise.all([
+        runtime.getPopupPageScriptMatchingResultByUrl("https://www.example.com/path"),
+        runtime.getPopupPageScriptMatchingResultByUrl("https://www.example.com/path"),
+      ]);
+
+      expect(first.has(disabledScript.uuid)).toBe(true);
+      expect(second.has(disabledScript.uuid)).toBe(true);
+      expect(mockScriptDAO.all).toHaveBeenCalledTimes(1);
     });
   });
 
