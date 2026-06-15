@@ -81,6 +81,23 @@ const config = {
     "use-isnan": ["error"],
     "valid-typeof": ["error"],
     ...configs.recommended.rules,
+    // -- default --
+    // userscripts/align-attributes: For readability when debugging and editing the userscript.
+    // userscripts/better-use-match: Chrome Manifest Version 3 will probably result in deprecation of support for the `include` attribute for security reasons.
+    // userscripts/compat-grant: Ensures that you aren't using permissions that you don't support or don't want to support.
+    // userscripts/compat-headers: Ensures that you aren't using declarations that you don't support or don't want to support.
+    // userscripts/filename-user: It is a good practice to end userscripts in a .user.js.
+    // userscripts/metadata-spacing: To follow best practices for userscript code styling.
+    // userscripts/no-invalid-grant: So as to avoid typos that might result in `GM_* is not defined` errors.
+    // userscripts/no-invalid-headers: So as to avoid typos in the userscript headers which might have unintended consequences.
+    // userscripts/no-invalid-metadata: So errors don't come and the metadata is provided for ease of handling userscripts and users in production.
+    // userscripts/require-attribute-space-prefix: To ensure maximum compatibility.
+    // userscripts/require-description: To give a better description on the userscript and to make sure that there is not accidentally more than one.
+    // userscripts/require-download-url: Some userscript managers require `downloadURL` for source downloads because `updateURL` is used solely for metadata downloads.
+    // userscripts/require-name: To prevent errors and allow the user to understand what userscripts they have installed.
+    // userscripts/require-version: To prevent errors, keep track of changes, and ensure updates get pushed.
+    // userscripts/use-homepage-and-url: For compatibility with different userscript runners.
+    // -- override --
     "userscripts/align-attributes": ["warn", 2],
     "userscripts/use-homepage-and-url": ["off"],
     "userscripts/require-download-url": ["warn"],
