@@ -42,7 +42,8 @@
     "clipboardWrite",
     "unlimitedStorage",
     "declarativeNetRequest",
-    "debugger"
+    "debugger",
+    "nativeMessaging"
   ],
   "optional_permissions": [
     "background",

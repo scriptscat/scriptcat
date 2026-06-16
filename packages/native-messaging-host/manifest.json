@@ -1,0 +1,9 @@
+﻿{
+    "name":  "com.scriptcat.native_host",
+    "description":  "ScriptCat Native Messaging Host",
+    "path":  "C:\\Users\\Administrator\\ScriptCat\\packages\\native-messaging-host\\dist\\native-host.bat",
+    "type":  "stdio",
+    "allowed_origins":  [
+                            "chrome-extension://nfeceabbbdpobdgbgpnjooobkknchemm/"
+                        ]
+}

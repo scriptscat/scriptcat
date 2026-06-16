@@ -2,6 +2,7 @@ import { DocumentationSite, ExtServer, ExtVersion } from "@App/app/const";
 import { type Server } from "@Packages/message/server";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { ScriptService } from "./script";
+import { NativeMessageHandler } from "./native_msg";
 import { ResourceService } from "./resource";
 import { ValueService } from "./value";
 import { RuntimeService } from "./runtime";
@@ -76,6 +77,13 @@ export default class ServiceWorkerManager {
     const value = new ValueService(this.api.group("value"), this.mq);
     const script = new ScriptService(systemConfig, this.api.group("script"), this.mq, value, resource, scriptDAO);
     script.init();
+
+    // 初始化 Native Messaging（MCP/CLI 桥接）
+    // Native Messaging requires the nativeMessaging permission in manifest.json
+    if (typeof chrome.runtime?.connectNative === "function") {
+      const nativeHandler = new NativeMessageHandler(script);
+      nativeHandler.start();
+    }
     const runtime = new RuntimeService(
       systemConfig,
       this.api.group("runtime"),
