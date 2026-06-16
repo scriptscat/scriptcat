@@ -126,6 +126,7 @@ export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
 
+  private readonly disabledMatcherTaskKey = `runtime_disabled_matcher:${Math.random()}`;
   private disabledMatcher: UrlMatch<string> | null = null;
   private disabledMatcherVersion = 0;
   private sorter: Record<string, number> = {};
@@ -581,6 +582,9 @@ export class RuntimeService {
 
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
+      // Explicit early invalidation ensures stale disabled-matcher is cleared before any await,
+      // even though updateSorter() below also calls invalidateDisabledMatcher(). The pattern
+      // mirrors installScript where the explicit call is required (updateSorter is after an await).
       this.invalidateDisabledMatcher();
       const unregisterUuids = [] as string[];
       this.updateSorter((next) => {
@@ -1148,7 +1152,7 @@ export class RuntimeService {
   }
 
   /**
-   * internal call only. require disabledMatcherVersion intergrity check.
+   * internal call only. require disabledMatcherVersion integrity check.
    */
   private async buildDisabledMatcher() {
     const matcher = new UrlMatch<string>();
@@ -1168,7 +1172,7 @@ export class RuntimeService {
   }
 
   private getDisabledMatcher(): Promise<UrlMatch<string>> {
-    return stackAsyncTask<UrlMatch<string>>("runtime_disabled_matcher", async () => {
+    return stackAsyncTask<UrlMatch<string>>(this.disabledMatcherTaskKey, async () => {
       let matcher = this.disabledMatcher;
       if (matcher) return matcher;
       let buildVersion;
