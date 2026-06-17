@@ -11,6 +11,7 @@ import AgentSkills from "./routes/AgentSkills";
 import AgentProvider from "./routes/AgentProvider";
 import AgentMcp from "./routes/AgentMcp";
 import AgentTasks from "./routes/AgentTasks";
+import AgentOPFS from "./routes/AgentOPFS";
 import { t } from "@App/locales/locales";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import MobileHeader from "./layout/MobileHeader";
@@ -79,7 +80,7 @@ export default function App() {
             <Route path="skills" element={<AgentSkills />} />
             <Route path="mcp" element={<AgentMcp />} />
             <Route path="tasks" element={<AgentTasks />} />
-            <Route path="opfs" element={<PlaceholderPage title={t("agent:opfs")} />} />
+            <Route path="opfs" element={<AgentOPFS />} />
             <Route path="settings" element={<PlaceholderPage title={t("agent:settings")} />} />
           </Route>
           <Route path="logs" element={<Logger />} />
