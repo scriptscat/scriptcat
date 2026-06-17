@@ -60,6 +60,7 @@ export default {
     popup: `${src}/pages/popup/main.tsx`,
     options: `${src}/pages/options/main.tsx`,
     confirm: `${src}/pages/confirm/main.tsx`,
+    batchupdate: `${src}/pages/batchupdate/main.tsx`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
     "linter.worker": `${src}/linter.worker.ts`,
@@ -190,6 +191,14 @@ export default {
       title: "ScriptCat",
       minify: true,
       chunks: ["confirm"],
+    }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/batchupdate.html`,
+      template: `${src}/pages/batchupdate.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: true,
+      chunks: ["batchupdate"],
     }),
     new rspack.HtmlRspackPlugin({
       filename: `${dist}/ext/src/offscreen.html`,

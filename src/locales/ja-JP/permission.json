@@ -21,5 +21,22 @@
   "extension_site_access_description": "ScriptCat がこのリクエストを実行できるように、このオリジンへのブラウザーのサイトアクセス権限を許可してください。これは拡張機能のサイトアクセス設定を変更します。",
   "extension_site_access_content": "サイト",
   "request_permission": "権限をリクエストする",
-  "allow_user_script_guide": "現在「ユーザー スクリプトを許可する」が有効ではないため、スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉有効化の方法はこちら</a>"
+  "allow_user_script_guide": "現在「ユーザー スクリプトを許可する」が有効ではないため、スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉有効化の方法はこちら</a>",
+  "user_script_type": "ユーザースクリプト",
+  "auth_duration": "許可の有効期間",
+  "duration_once": "今回のみ",
+  "duration_temporary": "一時的",
+  "duration_permanent": "永続的",
+  "apply_to_all_domains": "リクエストするすべてのドメインに適用",
+  "apply_to_all_domains_desc": "このスクリプトのすべてのリクエストに適用されます（ワイルドカード）",
+  "allow_action": "許可",
+  "deny_action": "拒否",
+  "ignore_action": "無視",
+  "cancel_action": "キャンセル",
+  "loading_confirm": "許可リクエストを読み込んでいます…",
+  "cookie_warning_title": "高機密性の権限",
+  "cookie_warning_desc": "Cookie にはログイン状態などの機密データが含まれます。信頼できるスクリプトにのみ許可してください。",
+  "confirm_expired_title": "許可リクエストの有効期限が切れました",
+  "confirm_expired_desc": "この許可リクエストはタイムアウトしたか、すでに処理されています。ページに戻ってもう一度実行してください。",
+  "auto_close_in": "{{second}} 秒後にウィンドウが自動的に閉じます"
 }

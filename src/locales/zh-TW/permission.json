@@ -21,5 +21,22 @@
   "extension_site_access_description": "請授予瀏覽器對此來源的網站存取權限，讓 ScriptCat 可以完成本次請求。這會修改擴充功能的網站存取設定。",
   "extension_site_access_content": "網站",
   "request_permission": "要求權限",
-  "allow_user_script_guide": "目前尚未啟用「允許使用者指令碼」，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉點此查看啟用方式</a>"
+  "allow_user_script_guide": "目前尚未啟用「允許使用者指令碼」，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉點此查看啟用方式</a>",
+  "user_script_type": "使用者腳本",
+  "auth_duration": "授權時長",
+  "duration_once": "僅此次",
+  "duration_temporary": "暫時",
+  "duration_permanent": "永久",
+  "apply_to_all_domains": "套用至所有請求網域",
+  "apply_to_all_domains_desc": "對此腳本的全部請求生效（萬用字元）",
+  "allow_action": "允許",
+  "deny_action": "拒絕",
+  "ignore_action": "忽略",
+  "cancel_action": "取消",
+  "loading_confirm": "正在讀取授權請求…",
+  "cookie_warning_title": "高敏感權限",
+  "cookie_warning_desc": "Cookie 包含登入狀態等敏感資料，請僅授權可信任的腳本。",
+  "confirm_expired_title": "授權請求已失效",
+  "confirm_expired_desc": "此次授權請求已逾時或已被處理。請返回頁面重新觸發該操作。",
+  "auto_close_in": "{{second}} 秒後自動關閉視窗"
 }

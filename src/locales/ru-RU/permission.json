@@ -21,5 +21,22 @@
   "extension_site_access_description": "Разрешите браузеру доступ к сайту для этого источника, чтобы ScriptCat мог выполнить запрос. Это изменит настройку доступа к сайтам для расширения.",
   "extension_site_access_content": "Сайт",
   "request_permission": "Запрос разрешения",
-  "allow_user_script_guide": "«Разрешить пользовательские скрипты» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать, как включить</a>"
+  "allow_user_script_guide": "«Разрешить пользовательские скрипты» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать, как включить</a>",
+  "user_script_type": "Пользовательский скрипт",
+  "auth_duration": "Срок действия разрешения",
+  "duration_once": "Только сейчас",
+  "duration_temporary": "Временно",
+  "duration_permanent": "Постоянно",
+  "apply_to_all_domains": "Применить ко всем запрашиваемым доменам",
+  "apply_to_all_domains_desc": "Действует для всех запросов этого скрипта (подстановка)",
+  "allow_action": "Разрешить",
+  "deny_action": "Отклонить",
+  "ignore_action": "Игнорировать",
+  "cancel_action": "Отмена",
+  "loading_confirm": "Загрузка запроса разрешения…",
+  "cookie_warning_title": "Особо чувствительное разрешение",
+  "cookie_warning_desc": "Cookie содержат конфиденциальные данные, например состояние входа. Разрешайте только доверенным скриптам.",
+  "confirm_expired_title": "Запрос разрешения истёк",
+  "confirm_expired_desc": "Этот запрос разрешения превысил время ожидания или уже был обработан. Вернитесь на страницу и вызовите его снова.",
+  "auto_close_in": "Окно закроется автоматически через {{second}} с"
 }

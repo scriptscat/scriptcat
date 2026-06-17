@@ -47,9 +47,9 @@ function BrandMark() {
         className="flex size-6 items-center justify-center rounded-md text-sm font-bold text-white"
         style={{ backgroundColor: BRAND }}
       >
-        S
+        {"S"}
       </div>
-      <span className="text-[15px] font-semibold text-foreground">ScriptCat</span>
+      <span className="text-[15px] font-semibold text-foreground">{"ScriptCat"}</span>
     </div>
   );
 }
@@ -336,7 +336,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
               </Button>
             </div>
             <Button variant="ghost" size="lg" className="w-full text-muted-foreground" onClick={ignore}>
-              {t("permission:ignore_action")} ({second})
+              {`${t("permission:ignore_action")} (${second})`}
             </Button>
           </div>
         )}

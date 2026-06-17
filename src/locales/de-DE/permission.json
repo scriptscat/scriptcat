@@ -21,5 +21,22 @@
   "extension_site_access_description": "Gewähren Sie dem Browser Website-Zugriff auf diesen Ursprung, damit ScriptCat die Anfrage ausführen kann. Dadurch wird die Website-Zugriffseinstellung der Erweiterung geändert.",
   "extension_site_access_content": "Website",
   "request_permission": "Beantragen Sie Genehmigungen",
-  "allow_user_script_guide": "'Nutzerskripts zulassen' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um zu erfahren, wie man es aktiviert</a>"
+  "allow_user_script_guide": "'Nutzerskripts zulassen' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um zu erfahren, wie man es aktiviert</a>",
+  "user_script_type": "Benutzerskript",
+  "auth_duration": "Autorisierungsdauer",
+  "duration_once": "Nur dieses Mal",
+  "duration_temporary": "Temporär",
+  "duration_permanent": "Dauerhaft",
+  "apply_to_all_domains": "Auf alle angefragten Domains anwenden",
+  "apply_to_all_domains_desc": "Gilt für alle Anfragen dieses Skripts (Platzhalter)",
+  "allow_action": "Erlauben",
+  "deny_action": "Verweigern",
+  "ignore_action": "Ignorieren",
+  "cancel_action": "Abbrechen",
+  "loading_confirm": "Autorisierungsanfrage wird geladen…",
+  "cookie_warning_title": "Hochsensible Berechtigung",
+  "cookie_warning_desc": "Cookies enthalten sensible Daten wie den Anmeldestatus. Autorisieren Sie nur vertrauenswürdige Skripte.",
+  "confirm_expired_title": "Autorisierungsanfrage abgelaufen",
+  "confirm_expired_desc": "Diese Autorisierungsanfrage ist abgelaufen oder wurde bereits bearbeitet. Bitte kehren Sie zur Seite zurück und lösen Sie sie erneut aus.",
+  "auto_close_in": "Das Fenster wird in {{second}}s automatisch geschlossen"
 }

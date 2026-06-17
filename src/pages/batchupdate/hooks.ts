@@ -1,0 +1,178 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { TBatchUpdateRecord } from "@App/app/service/service_worker/types";
+import { BatchUpdateListActionCode, UpdateStatusCode } from "@App/app/service/service_worker/types";
+import { requestBatchUpdateListAction, requestCheckScriptUpdate, scriptClient } from "@App/pages/store/features/script";
+import { subscribeMessage } from "@App/pages/store/global";
+import { assembleRecord, categorize, type UpdateItem } from "./logic";
+import type { BatchUpdateViewProps } from "./components";
+
+/** 服务端 onScriptUpdateCheck 广播的消息体 */
+interface UpdateCheckMessage {
+  status?: number;
+  checktime?: number;
+  refreshRecord?: boolean;
+}
+
+/** 解析 URL 上的 autoclose 参数；> 0 时返回秒数，否则返回 null（不自动关闭） */
+function parseAutoClose(): number | null {
+  const raw = new URLSearchParams(window.location.search).get("autoclose");
+  const n = raw === null ? NaN : parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** 批量更新页面的数据与交互逻辑 */
+export function useBatchUpdate(): BatchUpdateViewProps {
+  const [records, setRecords] = useState<TBatchUpdateRecord[]>([]);
+  const [checktime, setChecktime] = useState(0);
+  const [checking, setChecking] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [autoClose, setAutoClose] = useState<number | null>(() => parseAutoClose());
+
+  const loadingRef = useRef(false);
+
+  const loadRecord = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    try {
+      const obj = await assembleRecord((i) => scriptClient.getBatchUpdateRecordLite(i));
+      setRecords(obj?.list ?? []);
+      if (typeof obj?.checktime === "number") setChecktime(obj.checktime);
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }, []);
+
+  // 初始化：订阅状态广播、上报页面已打开、拉取当前状态与记录
+  useEffect(() => {
+    const unsub = subscribeMessage<UpdateCheckMessage>("onScriptUpdateCheck", (msg) => {
+      if (typeof msg.status === "number") {
+        setChecking((msg.status & UpdateStatusCode.CHECKING_UPDATE) !== 0);
+      }
+      if (typeof msg.checktime === "number") setChecktime(msg.checktime);
+      const finished = typeof msg.status === "number" && (msg.status & UpdateStatusCode.CHECKING_UPDATE) === 0;
+      if (msg.refreshRecord || finished) {
+        void loadRecord();
+      }
+    });
+    void scriptClient.fetchCheckUpdateStatus();
+    void scriptClient.sendUpdatePageOpened();
+    void loadRecord();
+    return unsub;
+  }, [loadRecord]);
+
+  // 自动关闭倒计时：每秒递减一次（标签页不可见或已取消时不动）
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setAutoClose((s) => (s === null || document.hidden ? s : s - 1));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  useEffect(() => {
+    if (autoClose !== null && autoClose <= 0) window.close();
+  }, [autoClose]);
+
+  const cancelAutoClose = useCallback(() => setAutoClose(null), []);
+
+  const { updates, ignored } = useMemo(() => categorize(records), [records]);
+
+  const onUpdate = useCallback(
+    (item: UpdateItem) => {
+      cancelAutoClose();
+      void requestBatchUpdateListAction({
+        actionCode: BatchUpdateListActionCode.UPDATE,
+        actionPayload: [{ uuid: item.uuid }],
+      });
+    },
+    [cancelAutoClose]
+  );
+
+  const onIgnore = useCallback(
+    (item: UpdateItem) => {
+      cancelAutoClose();
+      void requestBatchUpdateListAction({
+        actionCode: BatchUpdateListActionCode.IGNORE,
+        actionPayload: [{ uuid: item.uuid, ignoreVersion: item.newVersion }],
+      });
+    },
+    [cancelAutoClose]
+  );
+
+  const onUpdateSelected = useCallback(() => {
+    cancelAutoClose();
+    const payload = updates.filter((u) => selected.has(u.uuid)).map((u) => ({ uuid: u.uuid }));
+    if (payload.length) {
+      void requestBatchUpdateListAction({ actionCode: BatchUpdateListActionCode.UPDATE, actionPayload: payload });
+    }
+    setSelected(new Set());
+  }, [updates, selected, cancelAutoClose]);
+
+  const onIgnoreSelected = useCallback(() => {
+    cancelAutoClose();
+    const payload = updates
+      .filter((u) => selected.has(u.uuid))
+      .map((u) => ({ uuid: u.uuid, ignoreVersion: u.newVersion }));
+    if (payload.length) {
+      void requestBatchUpdateListAction({ actionCode: BatchUpdateListActionCode.IGNORE, actionPayload: payload });
+    }
+    setSelected(new Set());
+  }, [updates, selected, cancelAutoClose]);
+
+  const onRestoreAll = useCallback(() => {
+    cancelAutoClose();
+    const payload = ignored.map((u) => ({ uuid: u.uuid }));
+    if (payload.length) {
+      void requestBatchUpdateListAction({ actionCode: BatchUpdateListActionCode.UPDATE, actionPayload: payload });
+    }
+  }, [ignored, cancelAutoClose]);
+
+  const onCheckNow = useCallback(() => {
+    cancelAutoClose();
+    void requestCheckScriptUpdate({ checkType: "user" });
+  }, [cancelAutoClose]);
+
+  const onToggle = useCallback(
+    (uuid: string) => {
+      cancelAutoClose();
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(uuid)) next.delete(uuid);
+        else next.add(uuid);
+        return next;
+      });
+    },
+    [cancelAutoClose]
+  );
+
+  const onToggleAll = useCallback(() => {
+    cancelAutoClose();
+    setSelected((prev) => {
+      if (updates.length > 0 && updates.every((u) => prev.has(u.uuid))) return new Set();
+      return new Set(updates.map((u) => u.uuid));
+    });
+  }, [updates, cancelAutoClose]);
+
+  const onClose = useCallback(() => window.close(), []);
+
+  return {
+    updates,
+    ignored,
+    totalChecked: records.length,
+    checktime,
+    checking,
+    loading,
+    selected,
+    autoClose,
+    onToggle,
+    onToggleAll,
+    onUpdate,
+    onIgnore,
+    onRestore: onUpdate,
+    onUpdateSelected,
+    onIgnoreSelected,
+    onRestoreAll,
+    onCheckNow,
+    onClose,
+  };
+}
