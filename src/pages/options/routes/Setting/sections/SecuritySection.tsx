@@ -1,0 +1,54 @@
+import { useEffect, useState } from "react";
+import { SettingCard } from "../../../components/SettingCard";
+import { Textarea } from "@App/pages/components/ui/textarea";
+import { useSystemConfig } from "../../../hooks/useSystemConfig";
+import { blackListSelfCheck } from "@App/pkg/utils/match";
+import { t } from "@App/locales/locales";
+import { toast } from "sonner";
+
+export function SecuritySection({
+  register,
+}: {
+  register: (id: string) => (el: HTMLElement | null) => void;
+}) {
+  const [blacklist, setBlacklist] = useSystemConfig("blacklist");
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (blacklist !== undefined) setDraft(blacklist as string);
+  }, [blacklist]);
+
+  const save = () => {
+    const lines = draft
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const result = blackListSelfCheck(lines);
+    if (!result.ok) {
+      toast.error(`${t("settings:expression_format_error")}: ${result.line}`);
+      return;
+    }
+    setBlacklist(draft);
+  };
+
+  return (
+    <SettingCard
+      id="security"
+      title={t("settings:security")}
+      description={t("settings:blacklist_pages_desc")}
+      register={register}
+    >
+      <div className="text-[13px] font-medium text-foreground">
+        {t("settings:blacklist_pages")}
+      </div>
+      <Textarea
+        aria-label="blacklist_textarea"
+        placeholder={t("settings:blacklist_placeholder") ?? ""}
+        className="min-h-[120px] font-mono text-xs"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+      />
+    </SettingCard>
+  );
+}
