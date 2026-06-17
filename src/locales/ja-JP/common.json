@@ -114,5 +114,15 @@
   "dark": "ダークモード",
   "enter_search_value": "{{search}}を入力して検索してください",
   "no_message_content": "メッセージ内容なし",
-  "loading": "読み込み中..."
+  "loading": "読み込み中...",
+  "auth_type": "認証タイプ",
+  "url": "URL",
+  "username": "ユーザー名",
+  "password": "パスワード",
+  "access_token_bearer": "アクセストークン（Bearer）",
+  "s3_bucket_name": "バケット名",
+  "s3_region": "リージョン",
+  "s3_access_key_id": "アクセスキーID",
+  "s3_secret_access_key": "シークレットアクセスキー",
+  "s3_custom_endpoint": "カスタムエンドポイント（オプション）"
 }

@@ -114,5 +114,15 @@
   "dark": "暗色模式",
   "enter_search_value": "請輸入 {{search}} 進行搜尋",
   "no_message_content": "無訊息內容",
-  "loading": "加載中..."
+  "loading": "加載中...",
+  "auth_type": "驗證類型",
+  "url": "網址",
+  "username": "使用者名稱",
+  "password": "密碼",
+  "access_token_bearer": "存取權杖（Bearer）",
+  "s3_bucket_name": "儲存貯體名稱",
+  "s3_region": "區域",
+  "s3_access_key_id": "存取金鑰 ID",
+  "s3_secret_access_key": "私密存取金鑰",
+  "s3_custom_endpoint": "自訂端點（選用）"
 }

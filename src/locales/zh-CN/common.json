@@ -114,5 +114,15 @@
   "dark": "暗色模式",
   "enter_search_value": "请输入 {{search}} 进行搜索",
   "no_message_content": "无消息内容",
-  "loading": "加载中..."
+  "loading": "加载中...",
+  "auth_type": "鉴权类型",
+  "url": "URL",
+  "username": "用户名",
+  "password": "密码",
+  "access_token_bearer": "访问令牌（Bearer）",
+  "s3_bucket_name": "存储桶名称",
+  "s3_region": "区域",
+  "s3_access_key_id": "访问密钥 ID",
+  "s3_secret_access_key": "访问密钥密文",
+  "s3_custom_endpoint": "自定义端点（可选）"
 }

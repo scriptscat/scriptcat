@@ -114,5 +114,15 @@
   "dark": "Tối",
   "enter_search_value": "Nhập {{search}} để tìm kiếm",
   "no_message_content": "Không có nội dung tin nhắn",
-  "loading": "Đang tải..."
+  "loading": "Đang tải...",
+  "auth_type": "Loại xác thực",
+  "url": "Url",
+  "username": "Tên người dùng",
+  "password": "Mật khẩu",
+  "access_token_bearer": "Mã truy cập (Bearer)",
+  "s3_bucket_name": "Tên Bucket",
+  "s3_region": "Vùng",
+  "s3_access_key_id": "ID Khóa Truy Cập",
+  "s3_secret_access_key": "Khóa Truy Cập Bí Mật",
+  "s3_custom_endpoint": "Điểm Cuối Tùy Chỉnh (Tùy Chọn)"
 }
