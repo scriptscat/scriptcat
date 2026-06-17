@@ -6,15 +6,23 @@ import ScriptEditor from "./routes/ScriptEditor";
 import Logger from "./routes/Logger";
 import Setting from "./routes/Setting";
 import Tools from "./routes/Tools";
+import AgentChat from "./routes/AgentChat";
+import AgentSkills from "./routes/AgentSkills";
+import AgentProvider from "./routes/AgentProvider";
 import { t } from "@App/locales/locales";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import MobileHeader from "./layout/MobileHeader";
 import BottomTabBar from "./layout/BottomTabBar";
+import { useScriptDropzone } from "./layout/useScriptDropzone";
+import { DropOverlay } from "./layout/DropOverlay";
+import { handleImportFiles } from "./routes/ScriptList/importHandler";
 
 export function Layout() {
   const isMobile = useIsMobile();
   // 编辑器在移动端为全屏布局，自带顶栏/底栏，不显示全局 MobileHeader/BottomTabBar
   const isFullscreen = useLocation().pathname.startsWith("/script/editor");
+  // 全窗拖拽安装:拖入 .js 脚本/订阅、.zip Skill 包即打开安装页(桌面)
+  const { isDragActive } = useScriptDropzone(handleImportFiles);
   if (isMobile) {
     if (isFullscreen) {
       return (
@@ -34,12 +42,15 @@ export function Layout() {
     );
   }
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <Sidebar />
-      <main className="flex-1 min-w-0 overflow-auto scrollbar-custom">
-        <Outlet />
-      </main>
-    </div>
+    <>
+      <div className="flex h-screen bg-background text-foreground">
+        <Sidebar />
+        <main className="flex-1 min-w-0 overflow-auto scrollbar-custom">
+          <Outlet />
+        </main>
+      </div>
+      <DropOverlay active={isDragActive} />
+    </>
   );
 }
 
@@ -61,9 +72,9 @@ export default function App() {
           <Route path="subscribe" element={<SubscribeList />} />
           <Route path="agent">
             <Route index element={<Navigate to="/agent/chat" replace />} />
-            <Route path="chat" element={<PlaceholderPage title={t("agent:chat")} />} />
-            <Route path="provider" element={<PlaceholderPage title={t("agent:provider")} />} />
-            <Route path="skills" element={<PlaceholderPage title={t("agent:skills")} />} />
+            <Route path="chat" element={<AgentChat />} />
+            <Route path="provider" element={<AgentProvider />} />
+            <Route path="skills" element={<AgentSkills />} />
             <Route path="mcp" element={<PlaceholderPage title={t("agent:mcp")} />} />
             <Route path="tasks" element={<PlaceholderPage title={t("agent:tasks")} />} />
             <Route path="opfs" element={<PlaceholderPage title={t("agent:opfs")} />} />
