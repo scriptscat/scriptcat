@@ -1,6 +1,4 @@
 {
-  "cloud_sync_account_verification": "Cloud-Sync-Kontoinformationen werden überprüft...",
-  "cloud_sync_verification_failed": "Cloud-Sync-Kontoinformationen-Überprüfung fehlgeschlagen",
   "development_tool": "Entwicklungstool",
   "vscode_url": "VSCode-Adresse",
   "auto_connect_vscode_service": "Automatisch mit VSCode-Service verbinden",

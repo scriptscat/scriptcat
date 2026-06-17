@@ -1,6 +1,4 @@
 {
-  "cloud_sync_account_verification": "云同步账号信息验证中...",
-  "cloud_sync_verification_failed": "云同步账号信息验证失败",
   "development_tool": "开发工具",
   "vscode_url": "VSCode地址",
   "auto_connect_vscode_service": "自动连接vscode服务",

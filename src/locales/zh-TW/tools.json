@@ -1,6 +1,4 @@
 {
-  "cloud_sync_account_verification": "雲端同步帳號資訊驗證中...",
-  "cloud_sync_verification_failed": "雲端同步帳號資訊驗證失敗",
   "development_tool": "開發工具",
   "vscode_url": "VSCode網址",
   "auto_connect_vscode_service": "自動連接VSCode服務",

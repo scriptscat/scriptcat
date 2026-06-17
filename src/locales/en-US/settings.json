@@ -113,5 +113,7 @@
   "favicon_service_google": "Google",
   "favicon_service_duckduckgo": "DuckDuckGo",
   "favicon_service_icon-horse": "Icon Horse",
-  "favicon_service_local": "Local Fetch"
+  "favicon_service_local": "Local Fetch",
+  "cloud_sync_account_verification": "Cloud Sync Account Verification in Progress...",
+  "cloud_sync_verification_failed": "Cloud Sync Account Verification Failed"
 }
