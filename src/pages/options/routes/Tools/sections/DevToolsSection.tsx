@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { HelpCircle } from "lucide-react";
 import { SettingCard } from "../../../components/SettingCard";
 import { SettingRow } from "../../../components/SettingRow";
 import { Input } from "@App/pages/components/ui/input";
@@ -32,6 +33,17 @@ export function DevToolsSection({ register }: { register: (id: string) => (el: H
     <SettingCard
       id="dev-tools"
       title={t("tools:development_tool")}
+      titleAction={
+        <a
+          href="https://www.bilibili.com/video/BV16q4y157CP"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="vscode_help"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <HelpCircle className="size-4" />
+        </a>
+      }
       description={t("tools:vscode_url")}
       register={register}
     >

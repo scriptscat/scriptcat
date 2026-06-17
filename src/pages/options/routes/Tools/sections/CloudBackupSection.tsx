@@ -154,7 +154,7 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
                     {t("tools:restore")}
                   </Button>
                   <Popconfirm
-                    description={`${t("script:confirm_delete")}${item.name}?`}
+                    description={`${t("settings:confirm_delete_backup_file")} ${item.name}?`}
                     confirmText={t("confirm")}
                     cancelText={t("editor:cancel")}
                     destructive

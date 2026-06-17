@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, within, cleanup } from "@testing-library/react";
 import { initLanguage } from "@App/locales/locales";
 
 const { get, set } = vi.hoisted(() => ({
@@ -45,8 +45,9 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("工具页", () => {
-  it("渲染 5 个分类导航项", async () => {
+  it("渲染 5 个分类导航项", () => {
     render(<Tools />);
-    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThanOrEqual(5));
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).getAllByRole("button")).toHaveLength(5);
   });
 });

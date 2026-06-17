@@ -24,7 +24,9 @@ vi.mock("@Packages/filesystem/auth", () => ({
   ClearNetDiskToken: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("@App/pages/store/features/script", () => ({ synchronizeClient: { backupToCloud } }));
-vi.mock("../openImportWindow", () => ({ openImportWindow: vi.fn(() => Promise.resolve()) }));
+
+const { openImport } = vi.hoisted(() => ({ openImport: vi.fn(() => Promise.resolve()) }));
+vi.mock("../openImportWindow", () => ({ openImportWindow: openImport }));
 
 const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
 vi.mock("@App/pages/store/global", () => ({ systemConfig: { get, set }, subscribeMessage: () => () => {} }));
@@ -45,7 +47,26 @@ afterEach(() => {
   create.mockReset();
   backupToCloud.mockReset();
   backupToCloud.mockResolvedValue(undefined);
+  openImport.mockClear();
 });
+
+// 构造 create → openDir → {list, open, delete} 文件系统链
+function mockFs(items: { name: string; updatetime: number }[]) {
+  const fileReader = { read: vi.fn(() => Promise.resolve(new Blob(["zip"]))) };
+  const fsDir = {
+    list: vi.fn(() => Promise.resolve(items)),
+    open: vi.fn(() => Promise.resolve(fileReader)),
+    delete: vi.fn(() => Promise.resolve()),
+  };
+  const fsRoot = { openDir: vi.fn(() => Promise.resolve(fsDir)) };
+  create.mockResolvedValue(fsRoot);
+  return { fsRoot, fsDir, fileReader };
+}
+
+async function openBackupList() {
+  const btn = await screen.findByLabelText("tools_backup_list");
+  fireEvent.click(btn);
+}
 
 describe("云端备份分区", () => {
   it("点击备份写入配置并上传云端", async () => {
@@ -78,5 +99,30 @@ describe("云端备份分区", () => {
     expect(await screen.findByText("a.zip")).toBeInTheDocument();
     expect(screen.getByText("b.zip")).toBeInTheDocument();
     expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
+  });
+
+  it("点击恢复从云端读取文件并打开导入窗口", async () => {
+    const { fsDir, fileReader } = mockFs([{ name: "a.zip", updatetime: 2000 }]);
+    mockBackup();
+    render(<CloudBackupSection register={() => () => {}} />);
+    await openBackupList();
+    const restore = await screen.findByLabelText("tools_restore");
+    fireEvent.click(restore);
+    await waitFor(() => expect(fsDir.open).toHaveBeenCalledWith({ name: "a.zip", updatetime: 2000 }));
+    await waitFor(() => expect(fileReader.read).toHaveBeenCalledWith("blob"));
+    await waitFor(() => expect(openImport).toHaveBeenCalledWith("a.zip", expect.any(Blob)));
+  });
+
+  it("确认删除后从云端删除文件并移出列表", async () => {
+    const { fsDir } = mockFs([{ name: "a.zip", updatetime: 2000 }]);
+    mockBackup();
+    render(<CloudBackupSection register={() => () => {}} />);
+    await openBackupList();
+    fireEvent.click(await screen.findByLabelText("tools_delete"));
+    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThan(2));
+    const buttons = screen.getAllByRole("button");
+    fireEvent.click(buttons[buttons.length - 1]); // 气泡确认
+    await waitFor(() => expect(fsDir.delete).toHaveBeenCalledWith("a.zip"));
+    await waitFor(() => expect(screen.queryByText("a.zip")).not.toBeInTheDocument());
   });
 });
