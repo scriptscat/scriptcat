@@ -163,6 +163,7 @@
   "tasks_notify": "Notify on Complete",
   "tasks_no_tasks": "No scheduled tasks",
   "tasks_no_tasks_desc": "Create your first scheduled task to run the agent automatically",
+  "tasks_no_runs": "No run history yet",
   "tasks_delete_confirm": "Are you sure to delete this task?",
   "tasks_clear_runs": "Clear History",
   "tasks_clear_runs_confirm": "Are you sure to clear the run history?",

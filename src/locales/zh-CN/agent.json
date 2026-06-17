@@ -163,6 +163,7 @@
   "tasks_notify": "完成通知",
   "tasks_no_tasks": "暂无定时任务",
   "tasks_no_tasks_desc": "创建第一个定时任务，让 Agent 按计划自动执行",
+  "tasks_no_runs": "暂无运行记录",
   "tasks_delete_confirm": "确定要删除此定时任务吗？",
   "tasks_clear_runs": "清除历史",
   "tasks_clear_runs_confirm": "确定要清除此任务的运行历史吗？",
