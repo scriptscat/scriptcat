@@ -2,6 +2,7 @@ import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
 import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import type OneDriveFileSystem from "./onedrive";
+import { quoteETag } from "./utils";
 
 export class OneDriveFileReader implements FileReader {
   file: FileInfo;
@@ -113,7 +114,7 @@ export class OneDriveFileWriter implements FileWriter {
   private buildConditionalHeaders(): Headers | undefined {
     if (this.opts?.expectedDigest) {
       const headers = new Headers();
-      headers.set("If-Match", this.opts.expectedDigest);
+      headers.set("If-Match", quoteETag(this.opts.expectedDigest));
       return headers;
     }
     if (this.opts?.createOnly) {

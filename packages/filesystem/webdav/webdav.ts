@@ -7,6 +7,7 @@ import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";
 import { createWebDAVFileSystemError } from "./error";
 import type { FileDeleteOptions } from "../filesystem";
+import { quoteETag } from "./utils";
 
 // 禁止 WebDAV 请求携带浏览器 cookies，只通过账号密码认证 (#1297)
 // 全局单次注册
@@ -24,8 +25,6 @@ const initWebDAVPatch = () => {
     });
   });
 };
-
-const quoteETag = (digest: string) => (digest.startsWith('"') && digest.endsWith('"') ? digest : `"${digest}"`);
 
 export default class WebDAVFileSystem implements FileSystem {
   readonly capabilities = {

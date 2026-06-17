@@ -484,6 +484,95 @@ describe("SynchronizeService", () => {
     expect(written.status.scripts["status-uuid"]).toEqual(localStatus);
   });
 
+  it("写回 scriptcat-sync.json 时远端已删除的 uuid 不应被复活", async () => {
+    const initialStatus = { enable: true, sort: 1, updatetime: 100 };
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "kept-uuid.user.js",
+          path: "kept-uuid.user.js",
+          size: 1,
+          digest: "d",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "kept-uuid.meta.json",
+          path: "kept-uuid.meta.json",
+          size: 1,
+          digest: "d",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "scriptcat-sync.json",
+          path: "scriptcat-sync.json",
+          size: 1,
+          digest: "sync-d",
+          createtime: 1,
+          updatetime: 1,
+        },
+      ]),
+      open: vi
+        .fn()
+        // initial read: both uuids present
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue(
+            JSON.stringify({
+              version: "1.0.0",
+              status: {
+                scripts: {
+                  "kept-uuid": initialStatus,
+                  "deleted-uuid": initialStatus,
+                },
+              },
+            })
+          ),
+        })
+        // latest re-read: deleted-uuid removed by another device
+        .mockResolvedValueOnce({
+          read: vi.fn().mockResolvedValue(
+            JSON.stringify({
+              version: "1.0.0",
+              status: { scripts: { "kept-uuid": initialStatus } },
+            })
+          ),
+        }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { enableScript: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "kept-uuid",
+            name: "kept",
+            updatetime: 100,
+            createtime: 1,
+            status: 1,
+            sort: 1,
+            metadata: {},
+          },
+        ]),
+        update: vi.fn().mockResolvedValue(undefined),
+      } as any
+    );
+
+    await service.syncOnce(syncConfig, fs);
+
+    const written = JSON.parse(writeMock.mock.calls[0][0] as string);
+    expect(written.status.scripts).not.toHaveProperty("deleted-uuid");
+    expect(written.status.scripts).toHaveProperty("kept-uuid");
+  });
+
   it("syncStatus 单个脚本排序更新失败时不阻塞整轮同步", async () => {
     const cloudStatus = { enable: true, sort: 9, updatetime: 200 };
     const writeMock = vi.fn().mockResolvedValue(undefined);

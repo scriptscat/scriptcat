@@ -1,10 +1,7 @@
 import type { S3Client } from "./client";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { createS3FileSystemError } from "./error";
-
-function quoteETag(digest: string): string {
-  return digest.startsWith('"') && digest.endsWith('"') ? digest : `"${digest}"`;
-}
+import { quoteETag } from "./utils";
 
 /**
  * S3 文件读取器

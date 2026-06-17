@@ -7,6 +7,7 @@ import { joinPath } from "../utils";
 import { S3FileReader, S3FileWriter } from "./rw";
 import { WarpTokenError } from "../error";
 import { createS3FileSystemError } from "./error";
+import { quoteETag } from "./utils";
 
 // ---- ListObjectsV2 XML 解析 ----
 
@@ -25,10 +26,6 @@ const xmlParser = new XMLParser({
   // 不将单个元素包装成数组，后续手动处理
   isArray: (name) => name === "Contents",
 });
-
-function quoteETag(digest: string): string {
-  return digest.startsWith('"') && digest.endsWith('"') ? digest : `"${digest}"`;
-}
 
 /** 从 ListObjectsV2 XML 响应中解析对象列表 */
 function parseListObjectsV2(xml: string): ListObjectsV2Result {

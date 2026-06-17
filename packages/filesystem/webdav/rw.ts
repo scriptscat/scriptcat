@@ -2,8 +2,7 @@ import type { WebDAVClient } from "webdav";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { FileSystemError } from "../error";
 import { createWebDAVFileSystemError } from "./error";
-
-const quoteETag = (digest: string) => (digest.startsWith('"') && digest.endsWith('"') ? digest : `"${digest}"`);
+import { quoteETag } from "./utils";
 
 export class WebDAVFileReader implements FileReader {
   client: WebDAVClient;
@@ -70,7 +69,12 @@ export class WebDAVFileWriter implements FileWriter {
           conflict: true,
         });
       }
-      throw new Error("write error");
+      throw new FileSystemError({
+        provider: "webdav",
+        message: "WebDAV write failed",
+        status: 500,
+        retryable: false,
+      });
     }
   }
 

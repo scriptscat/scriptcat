@@ -669,7 +669,10 @@ export class SynchronizeService {
         candidate.sort === initial.sort &&
         candidate.updatetime === initial.updatetime;
       if (candidateOnlyPreservedInitial) {
-        merged[uuid] = latest || candidate;
+        // Defer to remote: if another device deleted this uuid, respect the deletion
+        if (latest !== undefined) {
+          merged[uuid] = latest;
+        }
         continue;
       }
       if (!latest || candidate.updatetime >= latest.updatetime) {

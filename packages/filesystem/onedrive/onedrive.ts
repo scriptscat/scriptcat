@@ -4,6 +4,7 @@ import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWr
 import type FileSystem from "../filesystem";
 import { joinPath } from "../utils";
 import { OneDriveFileReader, OneDriveFileWriter } from "./rw";
+import { quoteETag } from "./utils";
 
 export default class OneDriveFileSystem implements FileSystem {
   readonly capabilities = {
@@ -194,7 +195,7 @@ export default class OneDriveFileSystem implements FileSystem {
     };
     if (opts?.expectedDigest) {
       config.headers = {
-        "If-Match": opts.expectedDigest,
+        "If-Match": quoteETag(opts.expectedDigest),
       };
     }
     const resp = await this.request(

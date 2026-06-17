@@ -184,7 +184,7 @@ describe("OneDriveFileSystem", () => {
       {
         method: "DELETE",
         headers: expect.objectContaining({
-          "If-Match": "abc123",
+          "If-Match": '"abc123"',
         }),
       },
       true
@@ -439,7 +439,7 @@ describe("OneDriveFileSystem", () => {
     await writer.write("abc");
 
     const headers = (requestSpy.mock.calls[0][1] as RequestInit).headers as Headers;
-    expect(headers.get("If-Match")).toBe("abc123");
+    expect(headers.get("If-Match")).toBe('"abc123"');
   });
 
   it("createOnly 写入应当将 If-None-Match 传给 upload session 并使用 fail 语义", async () => {
