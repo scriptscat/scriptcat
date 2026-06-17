@@ -2,7 +2,15 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { initLanguage } from "@App/locales/locales";
 
-const { get, set } = vi.hoisted(() => ({ get: vi.fn(() => Promise.resolve("scriptcat")), set: vi.fn() }));
+const { get, set } = vi.hoisted(() => ({
+  get: vi.fn((key: string) => {
+    if (key === "cloud_sync")
+      return Promise.resolve({ enable: false, syncDelete: false, syncStatus: true, filesystem: "webdav", params: {} });
+    if (key === "cat_file_storage") return Promise.resolve({ status: "unset", filesystem: "webdav", params: {} });
+    return Promise.resolve("scriptcat");
+  }),
+  set: vi.fn(),
+}));
 vi.mock("@App/pages/store/global", () => ({ systemConfig: { get, set }, subscribeMessage: () => () => {} }));
 
 import Setting from "./index";
