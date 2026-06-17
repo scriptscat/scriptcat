@@ -16,7 +16,7 @@ export function GeneralSection({ register }: { register: (id: string) => (el: HT
       register={register}
     >
       <SettingRow label={t("settings:language")} description={t("settings:select_interface_language")}>
-        <Select value={language as string} onValueChange={(v) => setLanguage(v as never)}>
+        <Select value={language ?? ""} onValueChange={(v) => setLanguage(v)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>

@@ -5,6 +5,7 @@ import { Switch } from "@App/pages/components/ui/switch";
 import { Input } from "@App/pages/components/ui/input";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { t } from "@App/locales/locales";
+import type { FaviconService } from "@App/pkg/config/config";
 
 export function InterfaceSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const [badgeType, setBadgeType] = useSystemConfig("badge_number_type");
@@ -23,7 +24,7 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
     >
       <div className="text-[13px] font-semibold text-foreground">{t("settings:extension_icon_badge")}</div>
       <SettingRow label={t("settings:display_type")} description={t("settings:extension_icon_badge_type")}>
-        <Select value={badgeType as string} onValueChange={(v) => setBadgeType(v as never)}>
+        <Select value={badgeType ?? ""} onValueChange={(v) => setBadgeType(v as "none" | "run_count" | "script_count")}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
@@ -38,7 +39,7 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
         <input
           type="color"
           value={(bgColor as string) ?? "#4e5969"}
-          onChange={(e) => setBgColor(e.target.value as never)}
+          onChange={(e) => setBgColor(e.target.value)}
           className="h-8 w-12 rounded border border-border bg-transparent"
         />
       </SettingRow>
@@ -46,7 +47,7 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
         <input
           type="color"
           value={(textColor as string) ?? "#ffffff"}
-          onChange={(e) => setTextColor(e.target.value as never)}
+          onChange={(e) => setTextColor(e.target.value)}
           className="h-8 w-12 rounded border border-border bg-transparent"
         />
       </SettingRow>
@@ -55,22 +56,19 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
         label={t("settings:display_right_click_menu")}
         description={t("settings:display_right_click_menu_desc")}
       >
-        <Switch
-          checked={menuType === "all"}
-          onCheckedChange={(c) => setMenuType((c ? "all" : "no_browser") as never)}
-        />
+        <Switch checked={menuType === "all"} onCheckedChange={(c) => setMenuType(c ? "all" : "no_browser")} />
       </SettingRow>
       <SettingRow label={t("settings:expand_count")} description={t("settings:auto_collapse_when_exceeds")}>
         <Input
           type="number"
           className="w-20"
           value={(expandNum as number) ?? 0}
-          onChange={(e) => setExpandNum(Number(e.target.value) as never)}
+          onChange={(e) => setExpandNum(Number(e.target.value))}
         />
       </SettingRow>
       <div className="text-[13px] font-semibold text-foreground pt-1">{t("settings:favicon_service")}</div>
       <SettingRow label={t("settings:favicon_service")} description={t("settings:favicon_service_desc")}>
-        <Select value={favicon as string} onValueChange={(v) => setFavicon(v as never)}>
+        <Select value={favicon ?? ""} onValueChange={(v) => setFavicon(v as FaviconService)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>

@@ -21,7 +21,7 @@ export function UpdateSection({ register }: { register: (id: string) => (el: HTM
         label={t("settings:script_update_check_frequency")}
         description={t("settings:script_auto_update_frequency")}
       >
-        <Select value={String(cycle ?? 86400)} onValueChange={(v) => setCycle(Number(v) as never)}>
+        <Select value={String(cycle ?? 86400)} onValueChange={(v) => setCycle(Number(v))}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
@@ -38,11 +38,11 @@ export function UpdateSection({ register }: { register: (id: string) => (el: HTM
         <Switch
           aria-label="update_disabled_scripts_switch"
           checked={!!updateDisabled}
-          onCheckedChange={(c) => setUpdateDisabled(c as never)}
+          onCheckedChange={(c) => setUpdateDisabled(c)}
         />
       </SettingRow>
       <SettingRow label={t("settings:silent_update_non_critical_changes")}>
-        <Switch checked={!!silence} onCheckedChange={(c) => setSilence(c as never)} />
+        <Switch checked={!!silence} onCheckedChange={(c) => setSilence(c)} />
       </SettingRow>
     </SettingCard>
   );
