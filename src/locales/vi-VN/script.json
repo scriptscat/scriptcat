@@ -99,5 +99,17 @@
   "error_old_script_code_missing": "Không tìm thấy mã script cũ",
   "error_subscribe_name_required": "Tên đăng ký là bắt buộc",
   "error_grant_conflict": "@grant khai báo đồng thời 'none' và GM API",
-  "error_metadata_line_duplicated": "Có các khai báo trùng lặp trong metadata."
+  "error_metadata_line_duplicated": "Có các khai báo trùng lặp trong metadata.",
+  "create_group": "Tạo mới",
+  "import_group": "Nhập",
+  "import_local_script": "Nhập script cục bộ",
+  "link_import": "Nhập từ URL",
+  "import_skill": "Nhập Skill",
+  "link_import_desc": "Dán URL script / đăng ký, mỗi dòng một URL",
+  "link_import_placeholder": "https://example.com/script.user.js",
+  "link_import_hint": "Hỗ trợ URL script người dùng / đăng ký / Skill",
+  "not_a_valid_script": "Không phải script người dùng hoặc SkillScript hợp lệ",
+  "import_done": "Nhập hoàn tất: thành công {{success}} · thất bại {{fail}}",
+  "drop_to_install": "Kéo thả script hoặc Skill vào đây để cài đặt",
+  "drop_to_install_hint": "Kéo thả script .js / đăng ký · gói Skill .zip"
 }

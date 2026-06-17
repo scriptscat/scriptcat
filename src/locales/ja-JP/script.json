@@ -99,5 +99,17 @@
   "error_old_script_code_missing": "既存スクリプトのコードが見つかりません",
   "error_subscribe_name_required": "サブスクライブ名は必須です",
   "error_grant_conflict": "@grant に 'none' と GM API の両方が指定されています",
-  "error_metadata_line_duplicated": "メタデータ内に重複した宣言があります。"
+  "error_metadata_line_duplicated": "メタデータ内に重複した宣言があります。",
+  "create_group": "新規作成",
+  "import_group": "インポート",
+  "import_local_script": "ローカルスクリプトをインポート",
+  "link_import": "URLからインポート",
+  "import_skill": "Skillをインポート",
+  "link_import_desc": "スクリプト / サブスクライブのURLを貼り付けてください（1行に1つ）",
+  "link_import_placeholder": "https://example.com/script.user.js",
+  "link_import_hint": "ユーザースクリプト / サブスクライブ / Skill URLに対応",
+  "not_a_valid_script": "有効なユーザースクリプトまたはSkillScriptではありません",
+  "import_done": "インポート完了: 成功 {{success}} · 失敗 {{fail}}",
+  "drop_to_install": "スクリプトまたはSkillをここにドロップしてインストール",
+  "drop_to_install_hint": ".jsユーザースクリプト / サブスクライブ · .zip Skillパッケージをドロップ"
 }

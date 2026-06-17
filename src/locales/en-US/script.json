@@ -99,5 +99,17 @@
   "error_old_script_code_missing": "Previous script code not found",
   "error_subscribe_name_required": "Subscription name is required",
   "error_grant_conflict": "@grant declares both 'none' and GM API",
-  "error_metadata_line_duplicated": "There are duplicate declarations in the metadata."
+  "error_metadata_line_duplicated": "There are duplicate declarations in the metadata.",
+  "create_group": "Create",
+  "import_group": "Import",
+  "import_local_script": "Import Local Script",
+  "link_import": "Import from URL",
+  "import_skill": "Import Skill",
+  "link_import_desc": "Paste script / subscription URLs, one per line",
+  "link_import_placeholder": "https://example.com/script.user.js",
+  "link_import_hint": "Supports user scripts / subscriptions / Skill URLs",
+  "not_a_valid_script": "Not a valid user script or SkillScript",
+  "import_done": "Import done: {{success}} succeeded · {{fail}} failed",
+  "drop_to_install": "Drop scripts or Skills here to install",
+  "drop_to_install_hint": "Drop .js user scripts / subscriptions · .zip Skill packages"
 }

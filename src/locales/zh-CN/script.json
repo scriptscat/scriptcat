@@ -99,5 +99,17 @@
   "error_old_script_code_missing": "旧的脚本代码不存在",
   "error_subscribe_name_required": "订阅名不能为空",
   "error_grant_conflict": "@grant 同时声明了 none 和 GM API",
-  "error_metadata_line_duplicated": "Metadata 中有重复的声明。"
+  "error_metadata_line_duplicated": "Metadata 中有重复的声明。",
+  "create_group": "新建",
+  "import_group": "导入",
+  "import_local_script": "导入本地脚本",
+  "link_import": "链接导入",
+  "import_skill": "导入 Skill",
+  "link_import_desc": "粘贴脚本 / 订阅链接,每行一个",
+  "link_import_placeholder": "https://example.com/script.user.js",
+  "link_import_hint": "支持用户脚本 / 订阅 / Skill 链接",
+  "not_a_valid_script": "不是有效的用户脚本或 SkillScript",
+  "import_done": "导入完成:成功 {{success}} · 失败 {{fail}}",
+  "drop_to_install": "拖拽脚本或 Skill 到此处安装",
+  "drop_to_install_hint": "拖拽 .js 用户脚本 / 订阅 · .zip Skill 包"
 }

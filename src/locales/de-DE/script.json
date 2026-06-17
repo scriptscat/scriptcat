@@ -99,5 +99,17 @@
   "error_old_script_code_missing": "Alter Skriptcode nicht gefunden",
   "error_subscribe_name_required": "Abonnementname ist erforderlich",
   "error_grant_conflict": "@grant deklariert sowohl 'none' als auch GM API",
-  "error_metadata_line_duplicated": "In den Metadaten befinden sich doppelte Deklarationen."
+  "error_metadata_line_duplicated": "In den Metadaten befinden sich doppelte Deklarationen.",
+  "create_group": "Erstellen",
+  "import_group": "Importieren",
+  "import_local_script": "Lokales Skript importieren",
+  "link_import": "Per Link importieren",
+  "import_skill": "Skill importieren",
+  "link_import_desc": "Skript- / Abonnement-Links einfügen, einer pro Zeile",
+  "link_import_placeholder": "https://example.com/script.user.js",
+  "link_import_hint": "Unterstützt Benutzerskripte / Abonnements / Skill-Links",
+  "not_a_valid_script": "Kein gültiges Benutzerskript oder SkillScript",
+  "import_done": "Import abgeschlossen: {{success}} erfolgreich · {{fail}} fehlgeschlagen",
+  "drop_to_install": "Skripte oder Skills hierher ziehen, um sie zu installieren",
+  "drop_to_install_hint": ".js Benutzerskripte / Abonnements · .zip Skill-Pakete hierher ziehen"
 }

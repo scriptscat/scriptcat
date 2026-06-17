@@ -99,5 +99,17 @@
   "error_old_script_code_missing": "Предыдущий код скрипта не найден",
   "error_subscribe_name_required": "Имя подписки обязательно",
   "error_grant_conflict": "@grant одновременно объявляет 'none' и GM API",
-  "error_metadata_line_duplicated": "В метаданных есть повторяющиеся объявления."
+  "error_metadata_line_duplicated": "В метаданных есть повторяющиеся объявления.",
+  "create_group": "Создать",
+  "import_group": "Импорт",
+  "import_local_script": "Импортировать локальный скрипт",
+  "link_import": "Импорт по ссылке",
+  "import_skill": "Импортировать Skill",
+  "link_import_desc": "Вставьте ссылки на скрипты / подписки, по одной на строку",
+  "link_import_placeholder": "https://example.com/script.user.js",
+  "link_import_hint": "Поддерживает ссылки на пользовательские скрипты / подписки / Skill",
+  "not_a_valid_script": "Не является допустимым пользовательским скриптом или SkillScript",
+  "import_done": "Импорт завершён: успешно {{success}} · ошибок {{fail}}",
+  "drop_to_install": "Перетащите скрипты или Skill для установки",
+  "drop_to_install_hint": "Перетащите .js скрипты / подписки · .zip пакеты Skill"
 }

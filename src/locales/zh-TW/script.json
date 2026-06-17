@@ -99,5 +99,17 @@
   "error_old_script_code_missing": "舊的腳本程式碼不存在",
   "error_subscribe_name_required": "訂閱名稱不可為空",
   "error_grant_conflict": "@grant 同時宣告了 none 與 GM API",
-  "error_metadata_line_duplicated": "Metadata 裡有重覆的聲明。"
+  "error_metadata_line_duplicated": "Metadata 裡有重覆的聲明。",
+  "create_group": "新建",
+  "import_group": "匯入",
+  "import_local_script": "匯入本機腳本",
+  "link_import": "連結匯入",
+  "import_skill": "匯入 Skill",
+  "link_import_desc": "貼上腳本 / 訂閱連結，每行一個",
+  "link_import_placeholder": "https://example.com/script.user.js",
+  "link_import_hint": "支援使用者腳本 / 訂閱 / Skill 連結",
+  "not_a_valid_script": "不是有效的使用者腳本或 SkillScript",
+  "import_done": "匯入完成：成功 {{success}} · 失敗 {{fail}}",
+  "drop_to_install": "拖曳腳本或 Skill 到此處安裝",
+  "drop_to_install_hint": "拖曳 .js 使用者腳本 / 訂閱 · .zip Skill 包"
 }
