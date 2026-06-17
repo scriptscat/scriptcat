@@ -1,11 +1,5 @@
 import { useMemo } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@App/pages/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@App/pages/components/ui/dialog";
 import type { FileKind } from "./opfs_fs";
 
 export function PreviewDialog({

@@ -19,27 +19,21 @@ function noop() {}
 
 describe("McpCard MCP 服务器卡片", () => {
   it("展示名称与 URL", () => {
-    render(
-      <McpCard server={server} onEdit={noop} onDelete={noop} onTest={noop} onToggle={noop} onDetail={noop} />
-    );
+    render(<McpCard server={server} onEdit={noop} onDelete={noop} onTest={noop} onToggle={noop} onDetail={noop} />);
     expect(screen.getByText("本地工具")).toBeInTheDocument();
     expect(screen.getByText("http://localhost:8080/mcp")).toBeInTheDocument();
   });
 
   it("点击开关触发 onToggle", () => {
     const onToggle = vi.fn();
-    render(
-      <McpCard server={server} onEdit={noop} onDelete={noop} onTest={noop} onToggle={onToggle} onDetail={noop} />
-    );
+    render(<McpCard server={server} onEdit={noop} onDelete={noop} onTest={noop} onToggle={onToggle} onDetail={noop} />);
     fireEvent.click(screen.getByTestId("mcp-toggle"));
     expect(onToggle).toHaveBeenCalledWith(false);
   });
 
   it("菜单删除触发 onDelete", () => {
     const onDelete = vi.fn();
-    render(
-      <McpCard server={server} onEdit={noop} onDelete={onDelete} onTest={noop} onToggle={noop} onDetail={noop} />
-    );
+    render(<McpCard server={server} onEdit={noop} onDelete={onDelete} onTest={noop} onToggle={noop} onDetail={noop} />);
     fireEvent.pointerDown(screen.getByTestId("card-menu"), { button: 0 });
     fireEvent.click(screen.getByTestId("card-menu-delete"));
     expect(onDelete).toHaveBeenCalled();

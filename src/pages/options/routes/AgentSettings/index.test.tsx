@@ -4,7 +4,12 @@ import { initLanguage, t } from "@App/locales/locales";
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
 vi.mock("@App/pages/options/hooks/useScrollSpy", () => ({
-  useScrollSpy: () => ({ activeId: "model", register: () => () => {}, scrollContainerRef: { current: null }, scrollTo: vi.fn() }),
+  useScrollSpy: () => ({
+    activeId: "model",
+    register: () => () => {},
+    scrollContainerRef: { current: null },
+    scrollTo: vi.fn(),
+  }),
 }));
 
 const { getSearchConfigMock } = vi.hoisted(() => ({ getSearchConfigMock: vi.fn() }));

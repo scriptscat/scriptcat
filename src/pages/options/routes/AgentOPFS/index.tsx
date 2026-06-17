@@ -20,7 +20,16 @@ import { cn } from "@App/pkg/utils/cn";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
 import { AgentEmptyState } from "../_agent/AgentEmptyState";
 import { PreviewDialog } from "./PreviewDialog";
-import { listDir, removeEntry, readFileText, getFileBlob, formatSize, fileKind, type FileEntry, type FileKind } from "./opfs_fs";
+import {
+  listDir,
+  removeEntry,
+  readFileText,
+  getFileBlob,
+  formatSize,
+  fileKind,
+  type FileEntry,
+  type FileKind,
+} from "./opfs_fs";
 
 type PreviewState = { open: boolean; name: string; kind: FileKind; text?: string; imageUrl?: string };
 
@@ -159,7 +168,13 @@ export default function AgentOPFS() {
                       {entry.size != null ? formatSize(entry.size) : "—"}
                     </span>
                   )}
-                  <RowActions entry={entry} onPreview={openEntry} onDownload={handleDownload} onDelete={handleDelete} t={t} />
+                  <RowActions
+                    entry={entry}
+                    onPreview={openEntry}
+                    onDownload={handleDownload}
+                    onDelete={handleDelete}
+                    t={t}
+                  />
                 </div>
               );
             })}
@@ -201,7 +216,13 @@ export default function AgentOPFS() {
                     {entry.lastModified ? formatUnixTime(Math.floor(entry.lastModified / 1000)) : "—"}
                   </span>
                   <div className="flex w-28 justify-end">
-                    <RowActions entry={entry} onPreview={openEntry} onDownload={handleDownload} onDelete={handleDelete} t={t} />
+                    <RowActions
+                      entry={entry}
+                      onPreview={openEntry}
+                      onDownload={handleDownload}
+                      onDelete={handleDelete}
+                      t={t}
+                    />
                   </div>
                 </div>
               );
@@ -260,7 +281,12 @@ function RowActions({
           <Download className="size-4" />
         </button>
       )}
-      <Popconfirm description={t("agent:opfs_delete_confirm")} onConfirm={() => onDelete(entry)} destructive align="end">
+      <Popconfirm
+        description={t("agent:opfs_delete_confirm")}
+        onConfirm={() => onDelete(entry)}
+        destructive
+        align="end"
+      >
         <button
           type="button"
           data-testid={`delete-${entry.name}`}

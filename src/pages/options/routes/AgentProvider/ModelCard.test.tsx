@@ -19,7 +19,14 @@ const model = {
 describe("ModelCard 模型卡片", () => {
   it("展示名称、模型 ID 与默认徽章", () => {
     render(
-      <ModelCard model={model} isDefault onEdit={() => {}} onCopy={() => {}} onSetDefault={() => {}} onDelete={() => {}} />
+      <ModelCard
+        model={model}
+        isDefault
+        onEdit={() => {}}
+        onCopy={() => {}}
+        onSetDefault={() => {}}
+        onDelete={() => {}}
+      />
     );
     expect(screen.getByText("GPT-4o")).toBeInTheDocument();
     expect(screen.getByText("gpt-4o")).toBeInTheDocument();

@@ -33,9 +33,7 @@ describe("TaskHistorySheet 运行历史抽屉", () => {
 
   it("确认清空历史触发 onClear", () => {
     const onClear = vi.fn();
-    render(
-      <TaskHistorySheet open task={task} runs={runs} loading={false} onClear={onClear} onOpenChange={() => {}} />
-    );
+    render(<TaskHistorySheet open task={task} runs={runs} loading={false} onClear={onClear} onOpenChange={() => {}} />);
     fireEvent.click(screen.getByTestId("history-clear"));
     fireEvent.click(screen.getByText("确定"));
     expect(onClear).toHaveBeenCalled();

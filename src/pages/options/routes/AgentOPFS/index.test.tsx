@@ -7,7 +7,13 @@ vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() =>
 import AgentOPFS from "./index";
 
 function fileHandle(name: string, content = "x"): any {
-  return { kind: "file", name, async getFile() { return { size: content.length, lastModified: 0, text: async () => content }; } };
+  return {
+    kind: "file",
+    name,
+    async getFile() {
+      return { size: content.length, lastModified: 0, text: async () => content };
+    },
+  };
 }
 function dirHandle(name: string, children: Record<string, any> = {}): any {
   return {

@@ -1,12 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Loader2, Trash2 } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@App/pages/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@App/pages/components/ui/sheet";
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { formatUnixTime } from "@App/pkg/utils/day_format";

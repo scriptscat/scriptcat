@@ -56,11 +56,7 @@ export function McpCard({
           <span className="truncate text-sm font-semibold text-foreground">{server.name}</span>
           <span className="truncate font-mono text-xs text-muted-foreground">{server.url}</span>
         </div>
-        <Switch
-          data-testid="mcp-toggle"
-          checked={server.enabled}
-          onCheckedChange={(v) => onToggle(v)}
-        />
+        <Switch data-testid="mcp-toggle" checked={server.enabled} onCheckedChange={(v) => onToggle(v)} />
         <AgentCardMenu items={menuItems} />
       </div>
       <div className="flex flex-wrap items-center gap-1.5">

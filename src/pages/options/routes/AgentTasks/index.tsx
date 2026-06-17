@@ -76,7 +76,11 @@ export default function AgentTasks() {
 
   const handleRunNow = async (task: AgentTask) => {
     try {
-      await chrome.runtime.sendMessage({ channel: "agent", action: "agentTask", data: { action: "runNow", id: task.id } });
+      await chrome.runtime.sendMessage({
+        channel: "agent",
+        action: "agentTask",
+        data: { action: "runNow", id: task.id },
+      });
       toast.success(t("agent:tasks_run_now"));
     } catch {
       // 调度器会在下次 tick 执行

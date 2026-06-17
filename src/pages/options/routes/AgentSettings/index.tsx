@@ -37,15 +37,13 @@ export default function AgentSettings() {
   const [searchConfig, setSearchConfig] = useState<SearchEngineConfig>({ engine: "bing" });
 
   useEffect(() => {
-    Promise.all([
-      agentClient.listModels(),
-      agentClient.getSummaryModelId(),
-      agentClient.getSearchConfig(),
-    ]).then(([m, sid, sc]) => {
-      setModels(m);
-      setSummaryModelId(sid);
-      setSearchConfig(sc || { engine: "bing" });
-    });
+    Promise.all([agentClient.listModels(), agentClient.getSummaryModelId(), agentClient.getSearchConfig()]).then(
+      ([m, sid, sc]) => {
+        setModels(m);
+        setSummaryModelId(sid);
+        setSearchConfig(sc || { engine: "bing" });
+      }
+    );
   }, []);
 
   const handleSummaryChange = async (v: string) => {
@@ -96,10 +94,7 @@ export default function AgentSettings() {
 
           <SettingCard id="search" title={t("agent:search_settings")} register={register}>
             <SettingRow label={t("agent:search_engine")}>
-              <Select
-                value={searchConfig.engine}
-                onValueChange={(v) => updateSearch({ engine: v as Engine })}
-              >
+              <Select value={searchConfig.engine} onValueChange={(v) => updateSearch({ engine: v as Engine })}>
                 <SelectTrigger data-testid="search-engine" className="w-[220px]">
                   <SelectValue />
                 </SelectTrigger>

@@ -8,9 +8,7 @@ afterEach(() => cleanup());
 
 function setup(props: Record<string, unknown> = {}) {
   const onSubmit = vi.fn();
-  render(
-    <TaskFormDialog open value={null} models={[]} onOpenChange={() => {}} onSubmit={onSubmit} {...props} />
-  );
+  render(<TaskFormDialog open value={null} models={[]} onOpenChange={() => {}} onSubmit={onSubmit} {...props} />);
   return { onSubmit };
 }
 

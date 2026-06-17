@@ -1,12 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@App/pages/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@App/pages/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@App/pages/components/ui/tabs";
 import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/service/agent/core/types";
 

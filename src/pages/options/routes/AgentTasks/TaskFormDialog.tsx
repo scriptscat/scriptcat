@@ -102,12 +102,10 @@ export function TaskFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>{t("agent:tasks_mode_internal")} / {t("agent:tasks_mode_event")}</Label>
-            <RadioGroup
-              className="flex gap-6"
-              value={mode}
-              onValueChange={(v) => setMode(v as "internal" | "event")}
-            >
+            <Label>
+              {t("agent:tasks_mode_internal")} / {t("agent:tasks_mode_event")}
+            </Label>
+            <RadioGroup className="flex gap-6" value={mode} onValueChange={(v) => setMode(v as "internal" | "event")}>
               <div className="flex items-center gap-2">
                 <RadioGroupItem id="task-mode-internal" data-testid="task-mode-internal" value="internal" />
                 <Label htmlFor="task-mode-internal" className="font-normal">
@@ -188,9 +186,7 @@ export function TaskFormDialog({
             </>
           )}
 
-          {mode === "event" && (
-            <p className="text-xs text-muted-foreground">{t("agent:tasks_event_hint")}</p>
-          )}
+          {mode === "event" && <p className="text-xs text-muted-foreground">{t("agent:tasks_event_hint")}</p>}
 
           <div className="flex items-center justify-between">
             <Label htmlFor="task-notify">{t("agent:tasks_notify")}</Label>

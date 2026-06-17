@@ -14,12 +14,7 @@ const DOT_TONES: Record<DotTone, { pill: string; dot: string }> = {
 export function StatusDot({ tone, children }: { tone: DotTone; children: ReactNode }) {
   const t = DOT_TONES[tone];
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium",
-        t.pill
-      )}
-    >
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium", t.pill)}>
       <span className={cn("size-1.5 rounded-full", t.dot)} />
       {children}
     </span>
@@ -48,10 +43,7 @@ export function CapabilityTag({
 }) {
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
-        CAP_TONES[tone]
-      )}
+      className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium", CAP_TONES[tone])}
     >
       {Icon && <Icon className="size-3" />}
       {children}

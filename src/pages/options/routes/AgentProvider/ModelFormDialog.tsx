@@ -13,13 +13,7 @@ import { Button } from "@App/pages/components/ui/button";
 import { Input } from "@App/pages/components/ui/input";
 import { Label } from "@App/pages/components/ui/label";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@App/pages/components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@App/pages/components/ui/select";
 import { cn } from "@App/pkg/utils/cn";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { getDefaultBaseUrl } from "./provider_api";
@@ -113,10 +107,7 @@ export function ModelFormDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label>{t("agent:provider_select")}</Label>
-            <Select
-              value={form.provider}
-              onValueChange={(v) => update("provider", v as AgentModelConfig["provider"])}
-            >
+            <Select value={form.provider} onValueChange={(v) => update("provider", v as AgentModelConfig["provider"])}>
               <SelectTrigger data-testid="model-provider">
                 <SelectValue />
               </SelectTrigger>

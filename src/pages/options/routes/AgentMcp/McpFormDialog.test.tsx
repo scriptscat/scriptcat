@@ -24,9 +24,7 @@ describe("parseHeaders 解析自定义请求头", () => {
 describe("McpFormDialog MCP 表单弹窗", () => {
   it("填写名称与 URL 后保存，回调带解析后的请求头", () => {
     const onSubmit = vi.fn();
-    render(
-      <McpFormDialog open value={null} onOpenChange={() => {}} onSubmit={onSubmit} onTest={vi.fn()} />
-    );
+    render(<McpFormDialog open value={null} onOpenChange={() => {}} onSubmit={onSubmit} onTest={vi.fn()} />);
     fireEvent.change(screen.getByTestId("mcp-name"), { target: { value: "远程工具" } });
     fireEvent.change(screen.getByTestId("mcp-url"), { target: { value: "https://x/mcp" } });
     fireEvent.change(screen.getByTestId("mcp-headers"), { target: { value: "X-Key: v" } });
