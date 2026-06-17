@@ -9,5 +9,9 @@
   "import_error": "Lỗi nhập",
   "pulling_data_from_cloud": "Đang tải dữ liệu từ đám mây",
   "pull_failed": "Tải thất bại",
-  "restore": "Khôi phục"
+  "restore": "Khôi phục",
+  "local_backup": "Sao lưu cục bộ",
+  "cloud_backup": "Sao lưu đám mây",
+  "auto_backup": "Sao lưu tự động",
+  "data_migration": "Di chuyển dữ liệu"
 }

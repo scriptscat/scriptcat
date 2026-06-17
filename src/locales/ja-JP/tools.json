@@ -9,5 +9,9 @@
   "import_error": "インポートエラー",
   "pulling_data_from_cloud": "クラウドからデータを取得中",
   "pull_failed": "取得に失敗しました",
-  "restore": "復元"
+  "restore": "復元",
+  "local_backup": "ローカルバックアップ",
+  "cloud_backup": "クラウドバックアップ",
+  "auto_backup": "自動バックアップ",
+  "data_migration": "データ移行"
 }

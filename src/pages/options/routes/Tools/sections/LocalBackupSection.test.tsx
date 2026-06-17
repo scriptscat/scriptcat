@@ -1,0 +1,34 @@
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+
+const { exportFn } = vi.hoisted(() => ({ exportFn: vi.fn(() => Promise.resolve()) }));
+vi.mock("@App/pages/store/features/script", () => ({ synchronizeClient: { export: exportFn } }));
+
+const { openImport } = vi.hoisted(() => ({ openImport: vi.fn(() => Promise.resolve()) }));
+vi.mock("../openImportWindow", () => ({ openImportWindow: openImport }));
+
+import { LocalBackupSection } from "./LocalBackupSection";
+
+afterEach(() => {
+  cleanup();
+  exportFn.mockClear();
+  openImport.mockClear();
+});
+
+describe("本地备份分区", () => {
+  it("点击导出触发备份导出", async () => {
+    render(<LocalBackupSection register={() => () => {}} />);
+    fireEvent.click(screen.getByLabelText("tools_export"));
+    await waitFor(() => expect(exportFn).toHaveBeenCalled());
+  });
+
+  it("选择文件后通过导入窗口处理", async () => {
+    render(<LocalBackupSection register={() => () => {}} />);
+    fireEvent.click(screen.getByLabelText("tools_import")); // 绑定 onchange
+    const input = screen.getByLabelText("tools_import_file") as HTMLInputElement;
+    const file = new File(["x"], "backup.zip", { type: "application/zip" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    fireEvent.change(input);
+    await waitFor(() => expect(openImport).toHaveBeenCalledWith("backup.zip", file));
+  });
+});

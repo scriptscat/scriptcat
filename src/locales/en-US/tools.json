@@ -9,5 +9,9 @@
   "import_error": "Import Error",
   "pulling_data_from_cloud": "Pulling Data from Cloud",
   "pull_failed": "Pull Failed",
-  "restore": "Restore"
+  "restore": "Restore",
+  "local_backup": "Local Backup",
+  "cloud_backup": "Cloud Backup",
+  "auto_backup": "Auto Backup",
+  "data_migration": "Data Migration"
 }

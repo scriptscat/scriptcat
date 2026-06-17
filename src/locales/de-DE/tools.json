@@ -9,5 +9,9 @@
   "import_error": "Import-Fehler",
   "pulling_data_from_cloud": "Daten werden aus der Cloud abgerufen",
   "pull_failed": "Abrufen fehlgeschlagen",
-  "restore": "Wiederherstellen"
+  "restore": "Wiederherstellen",
+  "local_backup": "Lokale Sicherung",
+  "cloud_backup": "Cloud-Sicherung",
+  "auto_backup": "Automatische Sicherung",
+  "data_migration": "Datenmigration"
 }

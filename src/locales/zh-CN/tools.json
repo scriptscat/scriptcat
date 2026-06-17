@@ -9,5 +9,9 @@
   "import_error": "导入错误",
   "pulling_data_from_cloud": "正在从云端拉取数据",
   "pull_failed": "拉取失败",
-  "restore": "恢复"
+  "restore": "恢复",
+  "local_backup": "本地备份",
+  "cloud_backup": "云端备份",
+  "auto_backup": "自动备份",
+  "data_migration": "数据迁移"
 }
