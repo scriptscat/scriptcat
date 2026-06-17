@@ -22,10 +22,17 @@ async function pick(types: PickerType[], inputAccept: string): Promise<ImportIte
     input.type = "file";
     input.accept = inputAccept;
     input.multiple = true;
-    input.onchange = () => {
-      const files = Array.from(input.files || []);
-      resolve(files.map((file) => ({ file, handle: null })));
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("focus", onFocus);
+      resolve(Array.from(input.files || []).map((file) => ({ file, handle: null })));
     };
+    // 取消时多数浏览器不触发 change,靠窗口重获焦点兜底(延时让 change 先于 focus 落地)
+    const onFocus = () => setTimeout(finish, 300);
+    input.onchange = finish;
+    window.addEventListener("focus", onFocus);
     input.click();
   });
 }

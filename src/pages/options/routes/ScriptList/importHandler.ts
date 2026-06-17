@@ -45,7 +45,9 @@ async function installLocalFile(file: File, handle: FileSystemFileHandle | null)
     await openInCurrentTab(`/src/install.html?file=${fid}`);
   } else {
     // 无 handle(<input> 选择等):走 blob URL,由 SW 打开安装页
-    const url = makeBlobURL({ blob: new Blob([code], { type: "text/javascript" }), persistence: false }) as string;
+    const url = await Promise.resolve(
+      makeBlobURL({ blob: new Blob([code], { type: "text/javascript" }), persistence: false })
+    );
     const result = await scriptClient.importByUrl(url);
     if (!result.success) throw new Error(result.msg);
   }

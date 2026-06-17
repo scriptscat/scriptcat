@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
@@ -31,12 +32,12 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
   const importLocal = async () => {
     close();
     const items = await pickScriptFiles();
-    if (items.length) handleImportFiles(items);
+    if (items.length) await handleImportFiles(items);
   };
   const importSkill = async () => {
     close();
     const items = await pickSkillZip();
-    if (items.length) handleImportFiles(items);
+    if (items.length) await handleImportFiles(items);
   };
 
   return (
@@ -61,6 +62,9 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
           )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" {...contentProps}>
+          <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+            {t("script:create_group")}
+          </DropdownMenuLabel>
           <DropdownMenuItem onClick={() => handleCreate("/script/editor")}>
             {t("script:create_user_script")}
           </DropdownMenuItem>
@@ -71,6 +75,9 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
             {t("script:create_scheduled_script")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+            {t("script:import_group")}
+          </DropdownMenuLabel>
           <DropdownMenuItem onClick={importLocal}>{t("script:import_local_script")}</DropdownMenuItem>
           <DropdownMenuItem onClick={() => { close(); setLinkOpen(true); }}>
             {t("script:link_import")}

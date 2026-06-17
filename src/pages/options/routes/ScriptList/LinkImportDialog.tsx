@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import {
   Dialog,
@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from "@App/pages/components/ui/dialog";
 import { Button } from "@App/pages/components/ui/button";
+import { Textarea } from "@App/pages/components/ui/textarea";
 import { t } from "@App/locales/locales";
 
 export function LinkImportDialog({
@@ -21,6 +22,10 @@ export function LinkImportDialog({
   onSubmit: (urls: string[]) => void;
 }) {
   const [text, setText] = useState("");
+  // 关闭后清空,避免下次打开残留旧链接(取消/Esc/点遮罩仅触发 onOpenChange)
+  useEffect(() => {
+    if (!open) setText("");
+  }, [open]);
   const submit = () => {
     const urls = text.split("\n").map((s) => s.trim()).filter(Boolean);
     if (urls.length) onSubmit(urls);
@@ -34,9 +39,9 @@ export function LinkImportDialog({
           <DialogTitle>{t("script:link_import")}</DialogTitle>
           <DialogDescription>{t("script:link_import_desc")}</DialogDescription>
         </DialogHeader>
-        <textarea
+        <Textarea
           data-testid="link-import-textarea"
-          className="h-36 w-full resize-none rounded-md border border-input bg-muted/40 p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="h-36 resize-none font-mono text-xs"
           placeholder={t("script:link_import_placeholder")}
           value={text}
           onChange={(e) => setText(e.target.value)}
