@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 import {
@@ -35,8 +35,17 @@ import {
   DropdownMenuSubContent,
 } from "../components/ui/dropdown-menu";
 import { Popconfirm } from "../components/ui/popconfirm";
-import { usePopupData, getVisibleMenuItems, ExtVersion, VersionCompare, versionCompare } from "./usePopupData";
+import {
+  usePopupData,
+  getVisibleMenuItems,
+  ExtVersion,
+  VersionCompare,
+  versionCompare,
+  type ScriptProvider,
+} from "./usePopupData";
 import type { ScriptMenu, ScriptMenuItem } from "@App/app/service/service_worker/types";
+import { ScriptIcon } from "@App/pages/options/routes/ScriptList/components";
+import PopupWarnings from "./PopupWarnings";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_ERROR } from "@App/app/repo/scripts";
 import { Discord, DocumentationSite } from "@App/app/const";
 import { isChineseUser, localePath, t } from "@App/locales/locales";
@@ -44,12 +53,8 @@ import { isChineseUser, localePath, t } from "@App/locales/locales";
 export default function App() {
   const data = usePopupData();
 
-  // accessKey 键盘快捷键
-  const { handleMenuClick } = data;
-  const allScripts = useMemo(
-    () => [...data.scriptList, ...data.backScriptList],
-    [data.scriptList, data.backScriptList]
-  );
+  // accessKey 键盘快捷键：基于全量脚本注册，确保对被截断/搜索过滤掉的脚本同样生效
+  const { handleMenuClick, allScripts } = data;
   useEffect(() => {
     const checkItems = new Map<string, { uuid: string; key: string; menus: ScriptMenuItem[] }>();
     for (const script of allScripts) {
@@ -79,51 +84,57 @@ export default function App() {
 
   if (data.loading) {
     return (
-      <div className="w-[380px] flex items-center justify-center bg-background text-foreground py-20">
+      <div className="w-full flex items-center justify-center bg-background text-foreground py-20">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="w-[380px] flex flex-col bg-background text-foreground">
-      {/* 黑名单警告 */}
-      {data.isBlacklist && (
-        <div className="px-4 py-2 bg-warning-bg text-warning-fg text-[12px] font-medium border-b border-border">
-          {t("blacklist_warning", { defaultValue: "当前网址在黑名单中，所有脚本已被禁止运行" })}
-        </div>
-      )}
-      <Header
-        isEnableScript={data.isEnableScript}
-        onToggleEnableScript={data.handleToggleEnableScript}
-        onOpenSettings={data.handleOpenSettings}
-        checkUpdate={data.checkUpdate}
-        onNotificationClick={data.handleNotificationClick}
-        host={data.host}
-        onCreateScript={data.handleCreateScript}
-        onMenuCheckUpdate={data.handleMenuCheckUpdate}
-      />
-      {/* 错误提示 */}
-      {data.errorMessage && (
-        <div className="px-4 py-2 border-b border-border bg-destructive/10 text-destructive text-[12px]">
-          {data.errorMessage}
-        </div>
-      )}
-      {/* 通知公告面板 */}
-      {data.showAlert && (
-        <div className="px-4 py-2 border-b border-border bg-primary-light">
-          {data.checkUpdate.notice ? (
-            <div
-              className="text-[12px] text-foreground"
-              dangerouslySetInnerHTML={{ __html: data.checkUpdate.notice }}
-            />
-          ) : (
-            <div className="text-[12px] text-muted-foreground">{t("no_data")}</div>
-          )}
-        </div>
-      )}
-      {data.showSearch && <SearchBar value={data.searchQuery} onChange={data.handleSearch} />}
-      <div className="max-h-[500px] overflow-auto">
+    <div className="w-full max-h-[600px] flex flex-col bg-background text-foreground overflow-hidden">
+      {/* 固定顶部区域：警告、黑名单、Header、错误/公告、搜索（不参与滚动） */}
+      <div className="shrink-0">
+        {/* 顶部警告区：UserScripts API 不可用引导 / 申请权限 / Edge 移动端二维码 / 黑名单 */}
+        <PopupWarnings />
+        {/* 黑名单警告 */}
+        {data.isBlacklist && (
+          <div className="px-4 py-2 bg-warning-bg text-warning-fg text-[12px] font-medium border-b border-border">
+            {t("popup:page_in_blacklist")}
+          </div>
+        )}
+        <Header
+          isEnableScript={data.isEnableScript}
+          onToggleEnableScript={data.handleToggleEnableScript}
+          onOpenSettings={data.handleOpenSettings}
+          checkUpdate={data.checkUpdate}
+          onNotificationClick={data.handleNotificationClick}
+          onCreateScript={data.handleCreateScript}
+          onMenuCheckUpdate={data.handleMenuCheckUpdate}
+          onGetMoreScript={data.handleGetMoreScript}
+        />
+        {/* 错误提示 */}
+        {data.errorMessage && (
+          <div className="px-4 py-2 border-b border-border bg-destructive/10 text-destructive text-[12px]">
+            {data.errorMessage}
+          </div>
+        )}
+        {/* 通知公告面板 */}
+        {data.showAlert && (
+          <div className="px-4 py-2 border-b border-border bg-primary-light">
+            {data.checkUpdate.notice ? (
+              <div
+                className="text-[12px] text-foreground"
+                dangerouslySetInnerHTML={{ __html: data.checkUpdate.notice }}
+              />
+            ) : (
+              <div className="text-[12px] text-muted-foreground">{t("no_data")}</div>
+            )}
+          </div>
+        )}
+        {data.showSearch && <SearchBar value={data.searchQuery} onChange={data.handleSearch} />}
+      </div>
+      {/* 唯一滚动区域：脚本列表（占据剩余空间） */}
+      <div className="flex-1 min-h-0 overflow-auto scrollbar-custom">
         <AccordionPrimitive.Root
           type="multiple"
           defaultValue={data.fullBackScriptCount > 0 ? ["current", "background"] : ["current"]}
@@ -149,8 +160,12 @@ export default function App() {
                 onMenuClick={data.handleMenuClick}
               />
             ))}
-            {data.remainingCurrentCount > 0 && (
-              <ShowMoreButton count={data.remainingCurrentCount} onClick={() => data.handleToggleExpand("current")} />
+            {data.canExpandCurrent && (
+              <ShowMoreButton
+                count={data.remainingCurrentCount}
+                expanded={data.isCurrentExpanded}
+                onClick={() => data.handleToggleExpand("current")}
+              />
             )}
             {data.fullScriptCount === 0 && <EmptyHint>{t("no_data")}</EmptyHint>}
           </Section>
@@ -181,8 +196,12 @@ export default function App() {
                 onStop={data.handleStopScript}
               />
             ))}
-            {data.remainingBackCount > 0 && (
-              <ShowMoreButton count={data.remainingBackCount} onClick={() => data.handleToggleExpand("background")} />
+            {data.canExpandBack && (
+              <ShowMoreButton
+                count={data.remainingBackCount}
+                expanded={data.isBackExpanded}
+                onClick={() => data.handleToggleExpand("background")}
+              />
             )}
             {data.fullBackScriptCount === 0 && <EmptyHint>{t("no_data")}</EmptyHint>}
           </Section>
@@ -204,18 +223,18 @@ function Header({
   onOpenSettings,
   checkUpdate,
   onNotificationClick,
-  host,
   onCreateScript,
   onMenuCheckUpdate,
+  onGetMoreScript,
 }: {
   isEnableScript: boolean;
   onToggleEnableScript: (val: boolean) => void;
   onOpenSettings: () => void;
   checkUpdate: { notice: string; isRead: boolean };
   onNotificationClick: () => void;
-  host: string;
   onCreateScript: () => void;
   onMenuCheckUpdate: () => void;
+  onGetMoreScript: (provider?: ScriptProvider) => void;
 }) {
   const hasUnreadNotice = !checkUpdate.isRead;
 
@@ -230,7 +249,11 @@ function Header({
       <HeaderIconButton aria-label="通知" badge={hasUnreadNotice} onClick={onNotificationClick}>
         <Bell className="w-4 h-4" />
       </HeaderIconButton>
-      <MoreMenu host={host} onCreateScript={onCreateScript} onMenuCheckUpdate={onMenuCheckUpdate} />
+      <MoreMenu
+        onCreateScript={onCreateScript}
+        onMenuCheckUpdate={onMenuCheckUpdate}
+        onGetMoreScript={onGetMoreScript}
+      />
     </header>
   );
 }
@@ -254,13 +277,13 @@ function HeaderIconButton({
 
 // ========== More Menu (匹配设计稿 DropdownPanel - More Menu) ==========
 function MoreMenu({
-  host,
   onCreateScript,
   onMenuCheckUpdate,
+  onGetMoreScript,
 }: {
-  host: string;
   onCreateScript: () => void;
   onMenuCheckUpdate: () => void;
+  onGetMoreScript: (provider?: ScriptProvider) => void;
 }) {
   return (
     <DropdownMenu>
@@ -282,22 +305,17 @@ function MoreMenu({
           <DropdownMenuSubTrigger
             onClick={(e) => {
               e.stopPropagation();
-              window.open(`https://scriptcat.org/search?domain=${host}`, "_blank");
+              // 父级点击：打开记忆的脚本站点
+              onGetMoreScript();
             }}
           >
             <Search className="w-4 h-4" />
             {t("get_script")}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            <DropdownMenuItem onClick={() => window.open(`https://scriptcat.org/search?domain=${host}`, "_blank")}>
-              {"ScriptCat"}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.open(`https://greasyfork.org/scripts/by-site/${host}`, "_blank")}>
-              {"Greasy Fork"}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.open(`https://openuserjs.org/?q=${host}`, "_blank")}>
-              {"OpenUserJS"}
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onGetMoreScript("scriptcat")}>{"ScriptCat"}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onGetMoreScript("greasyfork")}>{"Greasy Fork"}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onGetMoreScript("openuserjs")}>{"OpenUserJS"}</DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
@@ -392,15 +410,15 @@ function Divider() {
   return <div className="h-px bg-border" />;
 }
 
-function ShowMoreButton({ count, onClick }: { count: number; onClick: () => void }) {
+function ShowMoreButton({ count, expanded, onClick }: { count: number; expanded: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className="flex items-center justify-center gap-1 h-8 w-full text-[12px] text-primary hover:bg-accent transition-colors"
     >
-      {`+${count} 个脚本`}
-      <ChevronDown className="w-3 h-3" />
+      {expanded ? t("collapse") : t("popup:show_more_scripts", { count })}
+      <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
     </button>
   );
 }
@@ -463,7 +481,12 @@ function ScriptRow({
     <CollapsiblePrimitive.Root open={isActive} onOpenChange={setIsActive}>
       <div className="flex items-center gap-2.5 h-11 px-4 hover:bg-accent transition-colors">
         <CollapsiblePrimitive.Trigger className="flex flex-1 items-center gap-2.5 min-w-0 text-left focus:outline-none">
-          <ScriptIcon enable={script.enable} />
+          <ScriptIcon
+            name={script.name}
+            iconUrl={script.icon}
+            size={20}
+            className={script.enable ? undefined : "opacity-40"}
+          />
           <span
             className={`text-[13px] font-medium truncate ${script.runNum > 0 ? "text-foreground" : "text-muted-foreground"}`}
             title={runTitle}
@@ -539,6 +562,7 @@ function ScriptRow({
               <ActionItem
                 key={menuItem.groupKey}
                 icon={<MenuIcon className="w-3.5 h-3.5" />}
+                title={menuItem.options?.title}
                 onClick={() => {
                   const sameGroup = script.menus.filter(
                     (m) => m.groupKey === menuItem.groupKey && !m.options?.inputType
@@ -580,10 +604,10 @@ function ScriptRow({
 
 function getStatusBadge(script: ScriptMenu): React.ReactNode {
   if (script.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-    return <Tag variant="info">{"运行中"}</Tag>;
+    return <Tag variant="info">{t("script:running")}</Tag>;
   }
   if (script.runStatus === SCRIPT_RUN_STATUS_ERROR) {
-    return <Tag variant="destructive">{"错误"}</Tag>;
+    return <Tag variant="destructive">{t("error")}</Tag>;
   }
   return null;
 }
@@ -608,44 +632,36 @@ function InputMenuItem({
     onMenuClick(uuid, sameGroup, value);
   };
 
-  if (opts.inputType === "boolean") {
-    return (
-      <div className="h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px]">
-        <MenuIcon className="w-3.5 h-3.5" />
-        <span className="flex-1 truncate">{opts.inputLabel || menuItem.name}</span>
-        <Switch
-          size="sm"
-          checked={!!value}
-          onCheckedChange={(checked) => {
-            setValue(checked);
-            const sameGroup = allMenus.filter((m) => m.groupKey === menuItem.groupKey);
-            onMenuClick(uuid, sameGroup, checked);
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-1 px-2 py-1">
-      <span className="text-[11px] text-muted-foreground">{opts.inputLabel || menuItem.name}</span>
-      <div className="flex gap-1.5">
-        <Input
-          type={opts.inputType === "number" ? "number" : "text"}
-          value={String(value)}
-          onChange={(e) => setValue(opts.inputType === "number" ? Number(e.target.value) : e.target.value)}
-          placeholder={opts.inputPlaceholder}
-          className="h-7 text-[12px] flex-1"
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-        />
-        <button
-          type="button"
-          onClick={submit}
-          className="h-7 px-2.5 rounded-md bg-primary text-primary-foreground text-[11px] font-medium hover:bg-primary-hover transition-colors"
-        >
-          {"确认"}
-        </button>
-      </div>
+    <div className="flex flex-col gap-0.5">
+      {/* 菜单名按钮：点击即以当前输入值提交（与旧版一致，菜单名按钮本身就是提交动作） */}
+      <ActionItem icon={<MenuIcon className="w-3.5 h-3.5" />} title={opts.title} onClick={submit}>
+        {menuItem.name}
+        {opts.accessKey && (
+          <span className="ml-auto text-[10px] text-muted-foreground">{`(${opts.accessKey.toUpperCase()})`}</span>
+        )}
+      </ActionItem>
+      {/* 输入控件（位于菜单名下方） */}
+      {opts.inputType === "boolean" ? (
+        <div className="flex items-center gap-2 pl-7 pr-2 py-0.5">
+          {opts.inputLabel && (
+            <span className="flex-1 truncate text-[11px] text-muted-foreground">{opts.inputLabel}</span>
+          )}
+          <Switch size="sm" checked={!!value} onCheckedChange={(checked) => setValue(checked)} />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1 pl-7 pr-2 py-0.5">
+          {opts.inputLabel && <span className="text-[11px] text-muted-foreground">{opts.inputLabel}</span>}
+          <Input
+            type={opts.inputType === "number" ? "number" : "text"}
+            value={String(value)}
+            onChange={(e) => setValue(opts.inputType === "number" ? Number(e.target.value) : e.target.value)}
+            placeholder={opts.inputPlaceholder}
+            className="h-7 text-[12px]"
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -657,10 +673,19 @@ interface ActionItemProps {
   danger?: boolean;
   warn?: boolean;
   success?: boolean;
+  title?: string;
   onClick?: () => void;
 }
 
-function ActionItem({ icon, children, danger = false, warn = false, success = false, onClick }: ActionItemProps) {
+function ActionItem({
+  icon,
+  children,
+  danger = false,
+  warn = false,
+  success = false,
+  title,
+  onClick,
+}: ActionItemProps) {
   const color = danger
     ? "text-destructive hover:text-destructive"
     : warn
@@ -671,6 +696,7 @@ function ActionItem({ icon, children, danger = false, warn = false, success = fa
   return (
     <button
       type="button"
+      title={title}
       className={`h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-left transition-colors hover:bg-accent ${color}`}
       onClick={onClick}
     >
@@ -700,11 +726,6 @@ function Tag({ variant, children }: TagProps) {
   );
 }
 
-// ========== ScriptIcon ==========
-function ScriptIcon({ enable }: { enable: boolean }) {
-  return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${enable ? "bg-success" : "bg-muted-foreground"}`} />;
-}
-
 // ========== Footer ==========
 function Footer({
   checkUpdate,
@@ -718,11 +739,11 @@ function Footer({
   const hasNewVersion = versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS;
 
   return (
-    <footer className="h-9 px-4 flex items-center border-t border-border">
+    <footer className="h-9 shrink-0 px-4 flex items-center border-t border-border">
       {hasNewVersion ? (
         <span
           onClick={() => window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`)}
-          title={`${t("popup.new_version_available")} (v${checkUpdate.version})`}
+          title={`${t("popup:new_version_available")} (v${checkUpdate.version})`}
           className="text-[12px] font-medium text-primary underline underline-offset-2 cursor-pointer"
         >{`v${ExtVersion}`}</span>
       ) : checkUpdateStatus === 0 ? (

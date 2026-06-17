@@ -481,7 +481,7 @@ Output goes to `dist/ext/src/[name].js` (cleaned each build). Notable behavior:
   test-only — defined in `vitest.config.ts` / `tsconfig.json`, not in the Rspack build).
 - **Dev vs prod** via `NODE_ENV`: dev enables watch + inline source maps (skipped when `NO_MAP=true`, needed
   for incognito); prod minifies with SWC + Lightning CSS and drops debug.
-- **Code splitting** pulls big libs into named `lib_*` chunks (react, monaco, arco, dnd-kit, eslint, message),
+- **Code splitting** pulls big libs into named `lib_*` chunks (react, monaco, radix-ui, dnd-kit, eslint, message),
   but **never splits** `service_worker`, `content`, `inject`, `scripting`, or the workers — MV3 requires those
   to be single self-contained files.
 - **`CopyRspackPlugin`** copies [`src/manifest.json`](../src/manifest.json) — its `transform` rewrites the beta

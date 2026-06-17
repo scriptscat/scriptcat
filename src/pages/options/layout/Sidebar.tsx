@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useHoverMenu } from "../../components/ui/use-hover-menu";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Package,
   Rss,
@@ -18,6 +18,15 @@ import {
   FileCode,
   Store,
   MessageCircle,
+  Bot,
+  ChevronRight,
+  MessageSquare,
+  Server,
+  Sparkles,
+  Plug,
+  CalendarClock,
+  FolderTree,
+  SlidersHorizontal,
 } from "lucide-react";
 import { GithubIcon } from "../../components/icons/GithubIcon";
 import {
@@ -37,6 +46,17 @@ import { localePath, t } from "@App/locales/locales";
 const mainNav = [
   { to: "/", icon: Package, label: () => t("script:installed_scripts") },
   { to: "/subscribe", icon: Rss, label: () => t("script:subscribe") },
+];
+
+/** AI Agent 子导航项 */
+const agentNav = [
+  { to: "/agent/chat", icon: MessageSquare, label: () => t("agent:chat") },
+  { to: "/agent/provider", icon: Server, label: () => t("agent:provider") },
+  { to: "/agent/skills", icon: Sparkles, label: () => t("agent:skills") },
+  { to: "/agent/mcp", icon: Plug, label: () => t("agent:mcp") },
+  { to: "/agent/tasks", icon: CalendarClock, label: () => t("agent:tasks") },
+  { to: "/agent/opfs", icon: FolderTree, label: () => t("agent:opfs") },
+  { to: "/agent/settings", icon: SlidersHorizontal, label: () => t("agent:settings") },
 ];
 
 /** 辅助导航项 */
@@ -70,17 +90,24 @@ export default function Sidebar() {
     <aside
       className={`flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-[width] duration-200 ${collapsed ? "w-14" : "w-[200px]"}`}
     >
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 h-14 px-4 shrink-0">
+      {/* Logo（点击回到首页） */}
+      <NavLink
+        to="/"
+        end
+        className={`flex items-center gap-2.5 h-14 shrink-0 transition-opacity hover:opacity-80 ${
+          collapsed ? "justify-center px-0" : "px-4"
+        }`}
+      >
         <img src={chrome.runtime.getURL("assets/logo.png")} alt="ScriptCat" className="w-7 h-7 shrink-0" />
         {!collapsed && <span className="text-[16px] font-semibold text-foreground truncate">{"ScriptCat"}</span>}
-      </div>
+      </NavLink>
 
       {/* 主导航 */}
       <nav className="flex flex-col gap-0.5 px-2 py-1">
         {mainNav.map((item) => (
           <SidebarItem key={item.to} {...item} label={item.label()} collapsed={collapsed} />
         ))}
+        <AgentMenu collapsed={collapsed} />
       </nav>
 
       {/* 分隔线 */}
@@ -146,6 +173,98 @@ function SidebarItem({
       <Icon className="w-[18px] h-[18px] shrink-0" />
       {!collapsed && <span className="truncate">{label}</span>}
     </NavLink>
+  );
+}
+
+// ========== AI Agent 子菜单 ==========
+function AgentMenu({ collapsed }: { collapsed: boolean }) {
+  const isAgentActive = useLocation().pathname.startsWith("/agent");
+  const [open, setOpen] = useState(isAgentActive);
+
+  // 进入 /agent 路由时自动展开（不在离开时强制收起，尊重用户手动操作）
+  useEffect(() => {
+    if (isAgentActive) setOpen(true);
+  }, [isAgentActive]);
+
+  if (collapsed) {
+    return <AgentMenuCollapsed isActive={isAgentActive} />;
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        className={`flex items-center gap-2.5 h-9 w-full rounded-md text-[14px] px-3 transition-colors ${
+          isAgentActive
+            ? "text-sidebar-primary font-medium"
+            : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        }`}
+      >
+        <Bot className="w-[18px] h-[18px] shrink-0" />
+        <span className="truncate flex-1 text-left">{t("agent:title")}</span>
+        <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && (
+        <div data-testid="sidebar-agent-submenu" className="flex flex-col gap-0.5 mt-0.5">
+          {agentNav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 h-8 rounded-md text-[13px] pl-9 pr-3 transition-colors ${
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-primary font-medium"
+                    : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                }`
+              }
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{item.label()}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 折叠态下以 hover 浮层展示 AI Agent 子项
+function AgentMenuCollapsed({ isActive }: { isActive: boolean }) {
+  const navigate = useNavigate();
+  const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
+
+  return (
+    <DropdownMenu {...rootProps}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          {...hoverProps}
+          className={`flex items-center justify-center h-9 w-full rounded-md transition-colors ${
+            isActive
+              ? "text-sidebar-primary"
+              : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          }`}
+        >
+          <Bot className="w-[18px] h-[18px] shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" className="w-44" {...contentProps}>
+        {agentNav.map((item) => (
+          <DropdownMenuItem
+            key={item.to}
+            onClick={() => {
+              close();
+              navigate(item.to);
+            }}
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label()}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -1,6 +1,7 @@
 import type { Script, ScriptCode, ScriptRunResource, TClientPageLoadInfo } from "@App/app/repo/scripts";
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
+import { type Logger } from "@App/app/repo/logger";
 import { type Permission } from "@App/app/repo/permission";
 import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction } from "./types";
 import { Client } from "@Packages/message/client";
@@ -304,6 +305,11 @@ export class SubscribeClient extends Client {
     super(msgSender, "serviceWorker/subscribe");
   }
 
+  // 订阅数量通常不多，但与 getAllScripts 一致，直接从 serviceWorker 内存读取
+  getAllSubscribe(): Promise<Subscribe[]> {
+    return this.doThrow("getAllSubscribe");
+  }
+
   install(subscribe: Subscribe) {
     return this.do("install", { subscribe });
   }
@@ -318,6 +324,24 @@ export class SubscribeClient extends Client {
 
   enable(url: string, enable: boolean) {
     return this.do("enable", { url, enable });
+  }
+}
+
+export class LogClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/log");
+  }
+
+  getLogs(start: number, end: number): Promise<Logger[]> {
+    return this.doThrow("getLogs", { start, end });
+  }
+
+  deleteLogs(ids: number[]): Promise<void> {
+    return this.doThrow("deleteLogs", ids);
+  }
+
+  clearLogs(): Promise<void> {
+    return this.doThrow("clearLogs");
   }
 }
 

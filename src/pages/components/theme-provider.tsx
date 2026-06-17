@@ -10,7 +10,9 @@ export interface ThemeContextValue {
 
 const ThemeContext = React.createContext<ThemeContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "scriptcat-theme";
+// 与 src/pages/common.ts 的预渲染脚本及 release/v1.4 (AppContext) 共用同一个键，
+// 否则刷新时预渲染脚本读不到已保存主题，非 auto 用户会出现主题闪烁。
+const STORAGE_KEY = "lightMode";
 
 const getSystemTheme = (): "light" | "dark" => {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";

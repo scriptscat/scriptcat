@@ -12,13 +12,13 @@ The contributor docs describe a living codebase, so two failure modes recur:
   examples caught in review: docs named the offscreen GM API `OffscreenGMApi` (no such class — it is `GMApi`),
   and claimed "8 locales" when there were 7.
 - **Branch leakage** — work that only lives on a feature branch gets documented as if it ships on `main`.
-  Example: the Agent Subsystem only lives on its feature branch and is not committed to `main`; describing it
-  in `main`'s quick-map misleads readers into expecting code that is not there.
+  Example: a subsystem committed only on a feature branch (not on `main`) gets written into `main`'s
+  quick-map, misleading readers into expecting code that is not there.
 
 **Rule of thumb: if you can't `git grep` it in the committed code on this branch, don't claim it.** Verify with
 git-aware commands (`git grep`, `git ls-files`, `git ls-tree`) — never a plain `rg`/`ls`, which also match
 **untracked** files in your working tree, so feature-branch code sitting in your checkout but not committed to
-`main` will masquerade as shipped (this is exactly how the Agent Subsystem above sneaks into a `main` doc).
+`main` will masquerade as shipped (this is exactly how a feature-branch-only subsystem sneaks into a `main` doc).
 Aspirational / feature-branch content belongs in that branch's docs, or is clearly marked as planned.
 
 ## Doc set & responsibilities (don't duplicate — cross-link)

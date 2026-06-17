@@ -17,6 +17,9 @@
   "script_operation_title": "Skript versucht den Skript-Sync-Speicherplatz zu bearbeiten",
   "script_operation_description": "Bitte bestätigen Sie, ob Sie dem Skript erlauben, diese Operation durchzuführen. Nach der Erlaubnis kann das Skript den von Ihnen eingestellten Speicherplatz bearbeiten. Das Skript erstellt ein app/${dir}-Verzeichnis unter dem Speicherplatz zur Verwendung",
   "script_permission_content": "Skript",
+  "extension_site_access_title": "ScriptCat benötigt Website-Zugriff",
+  "extension_site_access_description": "Gewähren Sie dem Browser Website-Zugriff auf diesen Ursprung, damit ScriptCat die Anfrage ausführen kann. Dadurch wird die Website-Zugriffseinstellung der Erweiterung geändert.",
+  "extension_site_access_content": "Website",
   "request_permission": "Beantragen Sie Genehmigungen",
   "allow_user_script_guide": "'Nutzerskripts zulassen' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um zu erfahren, wie man es aktiviert</a>"
 }

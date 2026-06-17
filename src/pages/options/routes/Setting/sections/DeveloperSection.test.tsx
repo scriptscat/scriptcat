@@ -25,9 +25,6 @@ describe("开发者分区", () => {
     await waitFor(() => expect(get).toHaveBeenCalledWith("editor_type_definition"));
     fireEvent.change(ta, { target: { value: "declare const x: any;" } });
     fireEvent.blur(ta);
-    expect(set).toHaveBeenCalledWith(
-      "editor_type_definition",
-      "declare const x: any;"
-    );
+    expect(set).toHaveBeenCalledWith("editor_type_definition", "declare const x: any;");
   });
 });

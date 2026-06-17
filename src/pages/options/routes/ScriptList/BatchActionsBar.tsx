@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { t } from "@App/locales/locales";
+import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 
 export interface BatchActionsBarProps {
   selectedCount: number;
@@ -60,9 +61,15 @@ export default function BatchActionsBar({
       <BatchBtn color="muted" onClick={onBatchExport}>
         {t("export")}
       </BatchBtn>
-      <BatchBtn color="destructive" onClick={onBatchDelete}>
-        {t("delete")}
-      </BatchBtn>
+      <Popconfirm
+        description={t("script:confirm_delete_scripts_content", { count: selectedCount })}
+        destructive
+        confirmText={t("delete")}
+        cancelText={t("editor:cancel")}
+        onConfirm={onBatchDelete}
+      >
+        <BatchBtn color="destructive">{t("delete")}</BatchBtn>
+      </Popconfirm>
       <BatchBtn color="muted" onClick={onBatchPinTop}>
         {t("pin_to_top")}
       </BatchBtn>
@@ -88,7 +95,7 @@ function BatchBtn({
   children,
 }: {
   color: "primary" | "muted" | "destructive";
-  onClick: () => void;
+  onClick?: () => void;
   children: React.ReactNode;
 }) {
   return (

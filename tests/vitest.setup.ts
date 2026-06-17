@@ -46,6 +46,16 @@ chromeMock.runtime.getURL = vi.fn().mockImplementation(function (this: Runtime, 
   return `chrome-extension://${chrome.runtime.id}${path}`;
 });
 
+const runtimeWithManifest = chromeMock.runtime as typeof chromeMock.runtime & {
+  getManifest: ReturnType<typeof vi.fn>;
+};
+
+runtimeWithManifest.getManifest = vi.fn().mockReturnValue({
+  optional_permissions: [],
+  permissions: [],
+  host_permissions: [],
+});
+
 // ---- 修正 vitest 4.x.x 错误的 adoptedStyleSheets ----
 let fixAdoptedStyleSheets = false;
 if (!document.adoptedStyleSheets) fixAdoptedStyleSheets = true;

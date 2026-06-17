@@ -43,6 +43,10 @@
   /* Switch 关闭态 track（对应设计稿 $border-default） */
   --switch-off: #d0d0d0;
 
+  /* 滚动条（半透明，随明暗背景自适应） */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
+
   /* 交互色 */
   --destructive: #e7000b;
   --destructive-foreground: #ffffff;
@@ -107,6 +111,10 @@
 
   /* Switch 关闭态 track（对应设计稿 $dark-toggle-off） */
   --switch-off: #3a3a3a;
+
+  /* 滚动条（半透明，随明暗背景自适应） */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
 
   /* 交互色 */
   --destructive: #ff6669e6;
@@ -216,8 +224,12 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
-  button:focus:not(:focus-visible),
-  [role="button"]:focus:not(:focus-visible) {
+  /* 统一屏蔽浏览器默认的焦点 outline（含键盘 :focus-visible 与 Radix 关闭弹层后程序化回焦），
+     覆盖原生 button、role=button、以及渲染成 <a> 的导航/链接（NavLink/Link）。
+     需要焦点指示的组件（shadcn Button/Input 等）自带 box-shadow 的 ring，不依赖 outline，故不受影响。 */
+  button:focus,
+  [role="button"]:focus,
+  a:focus {
     outline: none;
   }
 }
@@ -254,4 +266,31 @@
 @utility animate-collapse-bar {
   animation: collapse-bar 200ms ease-out forwards;
   overflow: hidden;
+}
+
+/*
+  自定义滚动条：细、圆角、半透明轨道透明。
+  颜色取自 --scrollbar-thumb*，由 :root / .dark 提供，明暗主题自动切换。
+  同时覆盖 Firefox 标准属性（scrollbar-width/color）与 WebKit/Chromium 伪元素。
+*/
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+.scrollbar-custom::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  /* 透明边框 + padding-box 裁剪：让滑块两侧留白，视觉更细更精致 */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
 }

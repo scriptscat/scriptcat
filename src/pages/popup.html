@@ -3,7 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="common.js"></script>
     <title>ScriptCat</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        width: 320px;
+        min-height: 150px;
+        max-height: 600px;
+      }
+      /* 桌面端 popup 的视口宽度恒等于 body 宽度(320px)，永远不会命中此查询，行为不变；
+         移动端(如 Edge Android)popup 被强制撑满设备宽度(≥360px)，命中后填满外层容器，
+         消除右侧留白(#686)。阈值取 340px：高于桌面 320px、低于最小手机宽度。 */
+      @media (min-width: 340px) {
+        html,
+        body {
+          width: 100%;
+          max-height: none;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

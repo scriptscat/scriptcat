@@ -2,7 +2,7 @@
 
 本文档是 ScriptCat 简体中文（`zh-CN`）界面与文档的用语依据。翻译或修改简体中文时，目标是让中国大陆用户自然理解，同时保留 ScriptCat 已建立的脚本类型、功能名称和开发者术语。
 
-用例参考来源：`src/locales/zh-CN/translation.json`、`docs/README_zh-CN.md`
+用例参考来源：`src/locales/zh-CN/*.json`、`docs/README_zh-CN.md`
 
 作者确认参考：[PR #1421 讨论](https://github.com/scriptscat/scriptcat/pull/1421)。其中 CodFrm 明确确认了 `同步删除`、`同步脚本删除`、`查询`，并建议将存储权限标题写为 `脚本正在尝试访问存储空间`。
 
@@ -85,7 +85,7 @@
 
 ## E. 后续审查项目
 
-以下内容记录当前文案中需要确认或统一的地方。本规范的建立本身不要求同时修改 `translation.json`。
+以下内容记录当前文案中需要确认或统一的地方。本规范的建立本身不要求同时修改 `*.json`。
 
 | 对象 | 当前情况 | 建议方向 | 当前用例 key |
 | --- | --- | --- | --- |

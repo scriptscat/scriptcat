@@ -1,21 +1,6 @@
-import React, { createContext, useCallback, useContext, useMemo } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  Search,
-  Table2,
-  LayoutGrid,
-  Plus,
-  ChevronDown,
-  GripVertical,
-  Pencil,
-  Play,
-  Square,
-  Ellipsis,
-  Trash2,
-  Settings,
-  RefreshCw,
-  Loader2,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, GripVertical, Loader2 } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
@@ -26,27 +11,13 @@ import {
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  SCRIPT_STATUS_DISABLE,
-  SCRIPT_RUN_STATUS_RUNNING,
-  SCRIPT_TYPE_BACKGROUND,
-  SCRIPT_TYPE_CRONTAB,
-} from "@App/app/repo/scripts";
-import { requestEnableScript, scriptClient } from "@App/pages/store/features/script";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/app/repo/scripts";
+import { requestEnableScript } from "@App/pages/store/features/script";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import type { SCMetadata } from "@App/app/repo/scripts";
-import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@App/pages/components/ui/dropdown-menu";
-import { useHoverMenu } from "@App/pages/components/ui/use-hover-menu";
 import { cn } from "@App/pkg/utils/cn";
 import { t } from "@App/locales/locales";
 import { i18nName } from "@App/locales/locales";
@@ -57,21 +28,27 @@ import {
   FaviconDots,
   RunStatusBadge,
   UpdateTimeCell,
+  SourceTag,
   scriptTypeLabel,
   getTagColor,
+  ScriptRowActions,
 } from "./components";
 import type { SearchFilterRequest } from "./SearchFilter";
+import { nextSortState, sortScriptList } from "./sort";
+import type { SortKey, SortState } from "./sort";
 import FilterBar from "./FilterBar";
 import type { FilterBarProps } from "./FilterBar";
 import BatchActionsBar from "./BatchActionsBar";
+import { Toolbar } from "./Toolbar";
 
 // ========== 拖拽上下文 ==========
 type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
 const SortableDragCtx = createContext<DragCtx>(null);
 
-function DraggableRow({ id, children }: { id: string; children: React.ReactNode }) {
+function DraggableRow({ id, disabled, children }: { id: string; disabled?: boolean; children: React.ReactNode }) {
   const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging, attributes } = useSortable({
     id,
+    disabled,
   });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform) ?? undefined,
@@ -79,7 +56,11 @@ function DraggableRow({ id, children }: { id: string; children: React.ReactNode 
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : "auto",
   };
-  const ctxValue = useMemo(() => ({ listeners, setActivatorNodeRef }), [listeners, setActivatorNodeRef]);
+  // 排序激活时禁用拖拽：ctx 置空，RowDragHandle 渲染不可拖拽的占位手柄
+  const ctxValue = useMemo(
+    () => (disabled ? null : { listeners, setActivatorNodeRef }),
+    [disabled, listeners, setActivatorNodeRef]
+  );
   return (
     <SortableDragCtx.Provider value={ctxValue}>
       <div ref={setNodeRef} style={style} {...attributes}>
@@ -100,6 +81,45 @@ function RowDragHandle() {
     >
       <GripVertical className="w-4 h-4 text-muted-foreground" />
     </span>
+  );
+}
+
+// ========== 可排序表头 ==========
+function SortHeader({
+  label,
+  sortKey,
+  sortState,
+  onSort,
+  className,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sortState: SortState;
+  onSort: (key: SortKey) => void;
+  className?: string;
+}) {
+  const active = sortState.key === sortKey;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      className={cn(
+        "flex items-center gap-1 max-w-full hover:text-foreground transition-colors",
+        active && "text-foreground",
+        className
+      )}
+    >
+      <span className="truncate">{label}</span>
+      {active ? (
+        sortState.order === "asc" ? (
+          <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+        )
+      ) : (
+        <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-30" />
+      )}
+    </button>
   );
 }
 
@@ -168,16 +188,23 @@ export default function ScriptTable({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const sortableIds = useMemo(() => scriptList.map((s) => s.uuid), [scriptList]);
+  // 列头点击排序（瞬时视图排序，不持久化；激活时禁用手动拖拽）
+  const [sortState, setSortState] = useState<SortState>({ key: null, order: "asc" });
+  const handleSort = useCallback((key: SortKey) => setSortState((s) => nextSortState(s, key)), []);
+  const isSorted = sortState.key !== null;
+  const displayList = useMemo(() => sortScriptList(scriptList, sortState), [scriptList, sortState]);
+
+  const sortableIds = useMemo(() => displayList.map((s) => s.uuid), [displayList]);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      if (isSorted) return;
       const { active, over } = event;
       if (over && active.id !== over.id) {
         scriptListSortOrderMove({ active: `${active.id}`, over: `${over.id}` });
       }
     },
-    [scriptListSortOrderMove]
+    [scriptListSortOrderMove, isSorted]
   );
 
   const a11y = useMemo(() => ({ container: document.body }), []);
@@ -190,10 +217,10 @@ export default function ScriptTable({
       {/* 顶栏 */}
       <Toolbar
         totalCount={totalCount}
+        viewMode="table"
         setViewMode={setViewMode}
         searchRequest={searchRequest}
         setSearchRequest={setSearchRequest}
-        navigate={navigate}
       />
 
       {/* 筛选栏 */}
@@ -212,7 +239,7 @@ export default function ScriptTable({
       />
 
       {/* 表格 */}
-      <div className="flex-1 overflow-auto px-6 pb-6">
+      <div className="flex-1 overflow-auto scrollbar-custom px-6 pb-6">
         {/* 表头 */}
         <div className="flex items-center h-10 px-3 text-xs font-medium text-muted-foreground border-b border-border sticky top-0 bg-background z-10">
           <div className="w-8 flex justify-center">
@@ -222,12 +249,24 @@ export default function ScriptTable({
             />
           </div>
           <div className="w-8" />
-          <div className="w-12">{t("script_list.sidebar.status")}</div>
-          <div className="flex-1 min-w-0">{t("name")}</div>
+          <div className="w-12">
+            <SortHeader
+              label={t("script:script_list.sidebar.status")}
+              sortKey="status"
+              sortState={sortState}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <SortHeader label={t("name")} sortKey="name" sortState={sortState} onSort={handleSort} />
+          </div>
+          <div className="w-[76px]">{t("source")}</div>
           <div className="w-[100px]">{t("script:tags")}</div>
           <div className="w-[140px]">{t("script:apply_to_run_status")}</div>
-          <div className="w-[100px]">{t("logs:last_updated")}</div>
-          <div className="w-[120px] text-right">{t("action")}</div>
+          <div className="w-[132px]">
+            <SortHeader label={t("logs:last_updated")} sortKey="updatetime" sortState={sortState} onSort={handleSort} />
+          </div>
+          <div className="w-[192px] text-right">{t("action")}</div>
         </div>
 
         {/* 加载状态 */}
@@ -246,7 +285,7 @@ export default function ScriptTable({
         )}
 
         {/* 脚本行（带拖拽排序） */}
-        {!loadingList && scriptList.length > 0 && (
+        {!loadingList && displayList.length > 0 && (
           <DndContext
             sensors={sensors}
             onDragEnd={handleDragEnd}
@@ -255,8 +294,8 @@ export default function ScriptTable({
             accessibility={a11y}
           >
             <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-              {scriptList.map((script) => (
-                <DraggableRow key={script.uuid} id={script.uuid}>
+              {displayList.map((script) => (
+                <DraggableRow key={script.uuid} id={script.uuid} disabled={isSorted}>
                   <ScriptRow
                     script={script}
                     selected={selectedUuids.has(script.uuid)}
@@ -276,97 +315,6 @@ export default function ScriptTable({
   );
 }
 
-// ========== 新建脚本下拉菜单（hover 触发） ==========
-function CreateScriptMenu({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
-  const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
-
-  const handleCreate = (path: string) => {
-    close();
-    navigate(path);
-  };
-
-  return (
-    <DropdownMenu {...rootProps}>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm" className="gap-1.5 h-[34px] px-4" {...hoverProps}>
-          <Plus className="w-4 h-4" />
-          <span className="text-[13px] font-medium">{t("script:create_script")}</span>
-          <ChevronDown className="w-3.5 h-3.5 opacity-70" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" {...contentProps}>
-        <DropdownMenuItem onClick={() => handleCreate("/script/editor")}>
-          {t("script:create_user_script")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleCreate("/script/editor?template=background")}>
-          {t("script:create_background_script")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleCreate("/script/editor?template=crontab")}>
-          {t("script:create_scheduled_script")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-// ========== 顶栏 ==========
-function Toolbar({
-  totalCount,
-  setViewMode,
-  searchRequest,
-  setSearchRequest,
-  navigate,
-}: {
-  totalCount: number;
-  setViewMode: (mode: "table" | "card") => void;
-  searchRequest: SearchFilterRequest;
-  setSearchRequest: (req: SearchFilterRequest) => void;
-  navigate: ReturnType<typeof useNavigate>;
-}) {
-  return (
-    <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
-      {/* 标题 + 数量 */}
-      <div className="flex items-center gap-2 shrink-0">
-        <h1 className="text-base font-semibold">{t("script:installed_scripts")}</h1>
-        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium font-mono text-primary tabular-nums">
-          {totalCount}
-        </span>
-      </div>
-
-      {/* 搜索框 */}
-      <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg bg-muted/50 px-3 h-9">
-        <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-        <input
-          className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
-          placeholder={t("script:search_scripts")}
-          value={searchRequest.keyword}
-          onChange={(e) => setSearchRequest({ ...searchRequest, keyword: e.target.value })}
-        />
-        <kbd className="hidden sm:inline-flex items-center rounded bg-border/60 px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
-          {"⌘K"}
-        </kbd>
-      </div>
-
-      {/* 视图切换 */}
-      <div className="flex items-center border border-border rounded-lg h-8 overflow-hidden">
-        <button type="button" className="flex items-center justify-center px-2.5 h-full bg-primary/10 text-primary">
-          <Table2 className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          className="flex items-center justify-center px-2.5 h-full text-muted-foreground hover:bg-accent/50 transition-colors"
-          onClick={() => setViewMode("card")}
-        >
-          <LayoutGrid className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* 新建脚本 */}
-      <CreateScriptMenu navigate={navigate} />
-    </div>
-  );
-}
-
 // ========== 脚本行 ==========
 interface ScriptRowProps {
   script: ScriptLoading;
@@ -381,7 +329,6 @@ interface ScriptRowProps {
 function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunStop, navigate }: ScriptRowProps) {
   const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
   const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
-  const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
   const version = script.metadata?.version?.[0] || "";
   const author = script.metadata?.author?.[0] || "";
   const name = i18nName(script);
@@ -425,6 +372,11 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
         </div>
       </div>
 
+      {/* 来源 */}
+      <div className="w-[76px]">
+        <SourceTag script={script} />
+      </div>
+
       {/* 标签 */}
       <div className="w-[100px]">
         <TagBadges metadata={script.metadata} selfMetadata={script.selfMetadata} />
@@ -436,50 +388,18 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
       </div>
 
       {/* 最后更新 */}
-      <div className="w-[100px]">
+      <div className="w-[132px]">
         <UpdateTimeCell script={script} />
       </div>
 
-      {/* 操作 */}
-      <div className="w-[120px] flex items-center justify-end gap-1 opacity-[0.55] group-hover/row:opacity-100">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => navigate(`/script/editor/${script.uuid}`)}
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("edit")}</TooltipContent>
-        </Tooltip>
-
-        {isBackground && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-7 w-7",
-                  isRunning
-                    ? "group-hover/row:text-red-500 hover:text-red-600"
-                    : "group-hover/row:text-primary group-hover/row:bg-primary/10 hover:bg-primary/15 hover:text-primary"
-                )}
-                onClick={() => onRunStop(script)}
-                disabled={script.actionLoading}
-              >
-                {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{isRunning ? t("script:stopping_script") : t("script:starting_script")}</TooltipContent>
-          </Tooltip>
-        )}
-
-        <MoreMenu script={script} onDelete={onDelete} navigate={navigate} />
-      </div>
+      {/* 操作（行内图标按钮，已去掉 ⋯ 更多菜单） */}
+      <ScriptRowActions
+        script={script}
+        navigate={navigate}
+        onDelete={onDelete}
+        onRunStop={onRunStop}
+        className="w-[192px] justify-end opacity-[0.55] group-hover/row:opacity-100"
+      />
     </div>
   );
 }
@@ -517,48 +437,5 @@ function TagBadges({ metadata, selfMetadata }: { metadata: SCMetadata; selfMetad
       })}
       {tags.length > 2 && <span className="text-[10px] text-muted-foreground">+{tags.length - 2}</span>}
     </div>
-  );
-}
-
-// ========== 更多菜单 ==========
-function MoreMenu({
-  script,
-  onDelete,
-  navigate,
-}: {
-  script: ScriptLoading;
-  onDelete: (script: ScriptLoading) => void;
-  navigate: ReturnType<typeof useNavigate>;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7">
-          <Ellipsis className="w-3.5 h-3.5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem onClick={() => navigate(`/script/editor/${script.uuid}`)}>
-          <Pencil className="w-4 h-4" />
-          {t("edit")}
-        </DropdownMenuItem>
-        {script.config && (
-          <DropdownMenuItem onClick={() => navigate(`/?userConfig=${script.uuid}`)}>
-            <Settings className="w-4 h-4" />
-            {t("settings")}
-          </DropdownMenuItem>
-        )}
-        {script.checkUpdateUrl && (
-          <DropdownMenuItem onClick={() => scriptClient.requestCheckUpdate(script.uuid)}>
-            <RefreshCw className="w-4 h-4" />
-            {t("check_update")}
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(script)}>
-          <Trash2 className="w-4 h-4" />
-          {t("delete")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

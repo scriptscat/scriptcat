@@ -20,7 +20,11 @@ describe("设置卡片原语", () => {
   });
 
   it("SettingRow 渲染标签/描述与右侧控件", () => {
-    render(<SettingRow label="语言" description="界面语言"><button>ctrl</button></SettingRow>);
+    render(
+      <SettingRow label="语言" description="界面语言">
+        <button>ctrl</button>
+      </SettingRow>
+    );
     expect(screen.getByText("语言")).toBeInTheDocument();
     expect(screen.getByText("界面语言")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ctrl" })).toBeInTheDocument();

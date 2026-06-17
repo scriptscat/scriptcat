@@ -51,14 +51,18 @@ Use strict TypeScript, React JSX runtime, 2-space indentation, semicolons, doubl
 
 ## UI
 
-React 18 + Arco Design + UnoCSS + React Router. Pages in `src/pages/`.
+React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 + React Router. Pages in
+`src/pages/`; shared primitives in `src/pages/components/ui/` (config in `components.json`).
 
-- Use `tw-` UnoCSS utilities; avoid inline `style={{}}`.
+- Compose styles with Tailwind utility classes joined via `cn()` (`src/pkg/utils/cn.ts` — clsx + tailwind-merge);
+  avoid inline `style={{}}`. Build component variants with `class-variance-authority`; icons from `lucide-react`.
 - **Hover/focus visuals → CSS pseudo-classes (`hover:`, `focus:`)**, not React state. State is for data/logic.
-- **Theme** (light/dark/auto, persisted as `lightMode`, state in `src/pages/store/AppContext.tsx`) — every UI change must work in both themes:
-  - Arco vars (`var(--color-fill-1)`, `var(--color-text-1)`, `var(--color-border-2)`) — auto-adapt.
-  - UnoCSS `dark:tw-*` (configured `dark: "class"`).
-  - `body[arco-theme="dark"]` selector for custom CSS overrides.
+- **Theme** (light/dark/auto) — managed by `src/pages/components/theme-provider.tsx` and applied as the `.dark`
+  class on `document.documentElement` (`src/pages/common.ts` sets the initial class before React mounts to avoid a
+  flash). Every UI change must work in both themes:
+  - Use the design-system CSS variables defined in `src/index.css` (`bg-background`, `text-foreground`,
+    `border-border`, `bg-primary`, `text-muted-foreground`, …) — they auto-adapt per theme.
+  - Use Tailwind's `dark:` variant for dark-only overrides (`@custom-variant dark` in `src/index.css`).
   - No hard-coded colors.
 
 ## Testing
@@ -80,7 +84,7 @@ Vitest + jsdom, 500ms timeout, isolation disabled. Chrome APIs mocked via `@Pack
 
 ## i18n
 
-i18next, 7 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. For localization, edit `src/locales/<locale>/translation.json`; new locales must also be registered in `src/locales/locales.ts`.
+i18next, 7 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
 
 **Before translating, read [`docs/translation/README.md`](translation/README.md)** — the translation/localization guide (terminology rules + per-locale `terminology-<locale>.md` specs).
 

@@ -1,11 +1,7 @@
 import { SettingCard } from "../../../components/SettingCard";
 import { t } from "@App/locales/locales";
 
-export function SyncSection({
-  register,
-}: {
-  register: (id: string) => (el: HTMLElement | null) => void;
-}) {
+export function SyncSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   return (
     <SettingCard
       id="sync"

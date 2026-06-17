@@ -8,11 +8,7 @@ import { t } from "@App/locales/locales";
 import { toast } from "sonner";
 import type { CATFileStorage } from "@App/pkg/config/config";
 
-export function RuntimeSection({
-  register,
-}: {
-  register: (id: string) => (el: HTMLElement | null) => void;
-}) {
+export function RuntimeSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const [bg, setBg] = useState(false);
   const [storage] = useSystemConfig("cat_file_storage");
 
@@ -52,11 +48,7 @@ export function RuntimeSection({
         : t("editor:not_set");
 
   return (
-    <SettingCard
-      id="runtime"
-      title={t("logs:runtime")}
-      register={register}
-    >
+    <SettingCard id="runtime" title={t("logs:runtime")} register={register}>
       <SettingRow
         label={t("settings:enable_background.title")}
         description={t("settings:enable_background.description")}

@@ -429,8 +429,8 @@ export class SynchronizeService {
                 // 删除脚本
                 await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
-                  i18n.t("notification.script_sync_delete"),
-                  i18n.t("notification.script_sync_delete_desc", {
+                  i18n.t("settings:notification.script_sync_delete"),
+                  i18n.t("settings:notification.script_sync_delete_desc", {
                     scriptName: i18nName(script),
                   })
                 );

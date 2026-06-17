@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import type { SCRIPT_STATUS, SCMetadata } from "@App/app/repo/scripts";
 import {
   SCRIPT_STATUS_ENABLE,
@@ -10,10 +10,24 @@ import { scriptClient, type ScriptLoading } from "@App/pages/store/features/scri
 import { Switch } from "@App/pages/components/ui/switch";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
+import { Button } from "@App/pages/components/ui/button";
+import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { semTime } from "@App/pkg/utils/dayjs";
-import { t } from "@App/locales/locales";
+import { i18nName, t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
-import { Globe, RefreshCw } from "lucide-react";
+import {
+  Globe,
+  RefreshCw,
+  House,
+  Settings,
+  UploadCloud,
+  Pencil,
+  Play,
+  Square,
+  Trash2,
+  CircleArrowUp,
+  Check,
+} from "lucide-react";
 
 // 基于字符串生成稳定的 HSL 颜色
 function hashToHsl(str: string): string {
@@ -77,19 +91,32 @@ function getScriptIconUrl(metadata?: SCMetadata): string | undefined {
   return url;
 }
 
-export function ScriptIcon({ name, metadata, className }: { name: string; metadata?: SCMetadata; className?: string }) {
-  const iconUrl = getScriptIconUrl(metadata);
+export function ScriptIcon({
+  name,
+  metadata,
+  iconUrl,
+  size = 28,
+  className,
+}: {
+  name: string;
+  metadata?: SCMetadata;
+  /** 直接指定图标 URL，优先于从 metadata 提取（popup 等场景已预先抽取好图标） */
+  iconUrl?: string;
+  size?: number;
+  className?: string;
+}) {
+  const resolvedIcon = iconUrl ?? getScriptIconUrl(metadata);
   const [imgError, setImgError] = useState(false);
   const handleError = useCallback(() => setImgError(true), []);
 
-  if (iconUrl && !imgError) {
+  if (resolvedIcon && !imgError) {
     return (
       <img
-        src={iconUrl}
+        src={resolvedIcon}
         alt={name}
         onError={handleError}
         className={cn("rounded-md object-cover shrink-0", className)}
-        style={{ width: 28, height: 28 }}
+        style={{ width: size, height: size }}
       />
     );
   }
@@ -98,8 +125,8 @@ export function ScriptIcon({ name, metadata, className }: { name: string; metada
   const letter = name.charAt(0).toUpperCase();
   return (
     <div
-      className={cn("flex items-center justify-center rounded-full text-white text-xs font-medium shrink-0", className)}
-      style={{ backgroundColor: color, width: 28, height: 28 }}
+      className={cn("flex items-center justify-center rounded-md text-white text-xs font-medium shrink-0", className)}
+      style={{ backgroundColor: color, width: size, height: size }}
     >
       {letter}
     </div>
@@ -169,45 +196,186 @@ export function RunStatusBadge({ runStatus }: { runStatus?: string }) {
 }
 
 // ========== UpdateTimeCell ==========
-export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading }) => {
-  const [checking, setChecking] = useState(false);
+// 检查更新就近放在「最后更新」列：默认常驻可见的刷新图标（不再 opacity-0 隐藏），
+// 点击后依次进入 检查中 → 已是最新（2s 后恢复）/ 存在新版本 状态。
+type CheckUpdateState = "idle" | "checking" | "latest" | "has-update";
 
-  const handleCheck = () => {
-    if (checking || !script.checkUpdateUrl) return;
-    setChecking(true);
+export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading }) => {
+  const [state, setState] = useState<CheckUpdateState>("idle");
+
+  const handleCheck = useCallback(() => {
+    if (state === "checking" || !script.checkUpdateUrl) return;
+    setState("checking");
     scriptClient
       .requestCheckUpdate(script.uuid)
-      .then((res) => {
-        if (res) {
-          // TODO: toast
-        }
-      })
-      .finally(() => setChecking(false));
-  };
+      // res 为 true 时已自动打开更新页，并就近提示「存在新版本」；为 false 表示已是最新版本
+      .then((res) => setState(res ? "has-update" : "latest"))
+      .catch(() => setState("idle"));
+  }, [state, script.uuid, script.checkUpdateUrl]);
+
+  // 「已是最新」短暂提示后恢复默认
+  useEffect(() => {
+    if (state !== "latest") return;
+    const id = setTimeout(() => setState("idle"), 2000);
+    return () => clearTimeout(id);
+  }, [state]);
+
+  const time = script.updatetime ? semTime(new Date(script.updatetime)) : "-";
 
   return (
     <div className="flex items-center gap-1">
-      <span className="text-xs text-muted-foreground">
-        {script.updatetime ? semTime(new Date(script.updatetime)) : "-"}
-      </span>
-      {script.checkUpdateUrl && (
+      {state === "latest" ? (
+        <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+          <Check className="w-3 h-3" />
+          {t("script:latest_version")}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">{time}</span>
+      )}
+      {/* 检查到新版本：在时间旁展示「存在新版本」入口，点击可再次触发更新 */}
+      {state === "has-update" ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
+              aria-label={t("check_update")}
               onClick={handleCheck}
-              className="opacity-0 group-hover/row:opacity-50 hover:!opacity-100 transition-opacity"
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/15"
             >
-              <RefreshCw className={cn("w-3 h-3 text-muted-foreground", checking && "animate-spin")} />
+              <CircleArrowUp className="w-3 h-3" />
+              {t("script:new_version_available")}
             </button>
           </TooltipTrigger>
           <TooltipContent>{t("check_update")}</TooltipContent>
         </Tooltip>
+      ) : (
+        script.checkUpdateUrl &&
+        state !== "latest" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("check_update")}
+                onClick={handleCheck}
+                className="text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100"
+              >
+                <RefreshCw className={cn("w-3 h-3", state === "checking" && "animate-spin")} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("check_update")}</TooltipContent>
+          </Tooltip>
+        )
       )}
     </div>
   );
 });
 UpdateTimeCell.displayName = "UpdateTimeCell";
+
+// ========== 行内操作 ==========
+// 取代原 ⋯ 更多菜单：主页 / 用户配置 / 云端 / 运行·停止 / 编辑 / 删除，均按条件出现，右对齐。
+// 表格与卡片复用同一套，确保行为一致。检查更新不在此处（见 UpdateTimeCell）。
+function ActionButton({
+  label,
+  onClick,
+  destructive,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick?: () => void;
+  destructive?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={label}
+          onClick={onClick}
+          disabled={disabled}
+          className={cn("h-7 w-7", destructive && "hover:text-destructive focus-visible:text-destructive")}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+export function ScriptRowActions({
+  script,
+  navigate,
+  onDelete,
+  onRunStop,
+  className,
+}: {
+  script: ScriptLoading;
+  navigate: (to: string) => void;
+  onDelete: (script: ScriptLoading) => void;
+  onRunStop: (script: ScriptLoading) => void;
+  className?: string;
+}) {
+  const home = getScriptHomePage(script.metadata);
+  const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
+  const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
+  return (
+    <div className={cn("flex items-center gap-1", className)}>
+      {home && (
+        <ActionButton label={t("script:homepage")} onClick={() => window.open(home, "_blank")}>
+          <House className="w-3.5 h-3.5" />
+        </ActionButton>
+      )}
+      {script.config && (
+        <ActionButton label={t("editor:user_config")} onClick={() => navigate(`/?userConfig=${script.uuid}`)}>
+          <Settings className="w-3.5 h-3.5" />
+        </ActionButton>
+      )}
+      {script.metadata?.cloudcat && (
+        <ActionButton label={t("editor:upload_to_cloud")} onClick={() => navigate(`/?cloud=${script.uuid}`)}>
+          <UploadCloud className="w-3.5 h-3.5" />
+        </ActionButton>
+      )}
+      {isBackground && (
+        <ActionButton
+          label={isRunning ? t("stop") : t("editor:run")}
+          onClick={() => onRunStop(script)}
+          disabled={script.actionLoading}
+        >
+          {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+        </ActionButton>
+      )}
+      <ActionButton label={t("edit")} onClick={() => navigate(`/script/editor/${script.uuid}`)}>
+        <Pencil className="w-3.5 h-3.5" />
+      </ActionButton>
+      <Popconfirm
+        description={t("script:confirm_delete_script_content", { name: i18nName(script) })}
+        destructive
+        confirmText={t("delete")}
+        cancelText={t("editor:cancel")}
+        onConfirm={() => onDelete(script)}
+      >
+        <ActionButton label={t("delete")} destructive>
+          <Trash2 className="w-3.5 h-3.5" />
+        </ActionButton>
+      </Popconfirm>
+    </div>
+  );
+}
+
+// ========== 脚本主页链接 ==========
+// 取脚本主页/支持链接（优先 homepage，其次 homepageurl / website / source / supporturl）
+export function getScriptHomePage(metadata?: SCMetadata): string | undefined {
+  if (!metadata) return undefined;
+  for (const key of ["homepage", "homepageurl", "website", "source", "supporturl"] as const) {
+    const url = metadata[key]?.[0];
+    if (url) return url;
+  }
+  return undefined;
+}
 
 // ========== SourceTag ==========
 export const SourceTag = React.memo(
@@ -248,6 +416,6 @@ SourceTag.displayName = "SourceTag";
 
 // ========== 脚本类型标签文本 ==========
 export function scriptTypeLabel(type: number): string {
-  if (type === SCRIPT_TYPE_NORMAL) return t("script_list.sidebar.normal_script");
+  if (type === SCRIPT_TYPE_NORMAL) return t("script:script_list.sidebar.normal_script");
   return t("script:background_script");
 }

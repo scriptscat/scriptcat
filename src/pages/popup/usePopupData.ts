@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { ScriptMenu, ScriptMenuItem, TPopupScript } from "@App/app/service/service_worker/types";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { popupClient, scriptClient, runtimeClient, requestOpenBatchUpdatePage } from "../store/features/script";
@@ -6,7 +6,8 @@ import { subscribeMessage, systemConfig } from "../store/global";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import { ExtVersion, ExtServer } from "@App/app/const";
 import { sanitizeHTML } from "@App/pkg/utils/sanitize";
-import { getCurrentTab } from "@App/pkg/utils/utils";
+import { getCurrentTab, openInCurrentTab } from "@App/pkg/utils/utils";
+import { cacheInstance } from "@App/app/cache";
 export { ExtVersion } from "@App/app/const";
 export { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
 
@@ -18,6 +19,40 @@ export function extractHost(url: string): string {
     return new URL(url).host;
   } catch {
     return "";
+  }
+}
+
+export type ScriptProvider = "scriptcat" | "greasyfork" | "openuserjs";
+
+/** 根据当前页面 URL 与脚本站点生成「获取更多脚本」的链接。无有效 host 时回退到站点首页。 */
+export function getMoreScriptUrl(currentUrl: string, provider: ScriptProvider): string {
+  let urlHost = "";
+  if (currentUrl) {
+    try {
+      const url = new URL(currentUrl);
+      // 仅 http(s) 页面才提取 host，扩展页/about: 等忽略
+      if (url.hostname && url.protocol.startsWith("http")) {
+        urlHost = url.hostname;
+      }
+    } catch {
+      // 容错：URL 解析失败时按无 host 处理
+    }
+  }
+  if (provider === "greasyfork") {
+    // www.google.com -> google.com
+    urlHost = /[^.]+\.[^.]+$/.exec(urlHost)?.[0] || urlHost;
+  }
+  switch (provider) {
+    case "scriptcat":
+      return urlHost
+        ? `https://scriptcat.org/search?domain=${encodeURIComponent(urlHost)}`
+        : "https://scriptcat.org/search";
+    case "greasyfork":
+      return urlHost
+        ? `https://greasyfork.org/scripts/by-site/${encodeURI(urlHost)}`
+        : "https://greasyfork.org/scripts/";
+    case "openuserjs":
+      return urlHost ? `https://openuserjs.org/?q=${encodeURIComponent(urlHost)}` : "https://openuserjs.org/";
   }
 }
 
@@ -70,6 +105,7 @@ export function usePopupData() {
   const [checkUpdateStatus, setCheckUpdateStatus] = useState(0); // 0=idle, 1=checking, 2=latest
   const [showAlert, setShowAlert] = useState(false);
   const [menuExpandNum, setMenuExpandNum] = useState(5);
+  const [defaultScriptProvider, setDefaultScriptProvider] = useState<ScriptProvider>("scriptcat");
 
   // ref 保存最新值，避免 async 回调中的闭包过期
   const stateRef = useRef({ currentUrl, currentTabId });
@@ -98,15 +134,17 @@ export function usePopupData() {
   useEffect(() => {
     (async () => {
       try {
-        const [tab, enableScript, checkUpdateData, expandNum] = await Promise.all([
+        const [tab, enableScript, checkUpdateData, expandNum, provider] = await Promise.all([
           getCurrentTab(),
           systemConfig.getEnableScript(),
           systemConfig.getCheckUpdate({ sanitizeHTML }),
           systemConfig.getMenuExpandNum(),
+          cacheInstance.get<ScriptProvider>("default_script_provider"),
         ]);
         setIsEnableScript(enableScript);
         setCheckUpdate(checkUpdateData);
         setMenuExpandNum(expandNum);
+        if (provider) setDefaultScriptProvider(provider);
         if (tab?.id && tab.url) {
           setCurrentTabId(tab.id);
           setCurrentUrl(tab.url);
@@ -222,13 +260,14 @@ export function usePopupData() {
     [showError]
   );
 
-  const handleOpenEditor = useCallback((uuid: string) => {
-    chrome.tabs.create({ url: chrome.runtime.getURL(`/src/options.html#/script/editor/${uuid}`) });
+  const handleOpenEditor = useCallback(async (uuid: string) => {
+    // 经由扩展 API 打开（而非 window.open / chrome.tabs.create 绝对 URL）：兼容 Edge Android（移动端打不开内部页，#686）
+    await openInCurrentTab(`/src/options.html#/script/editor/${uuid}`);
     window.close();
   }, []);
 
-  const handleOpenUserConfig = useCallback((uuid: string) => {
-    chrome.tabs.create({ url: chrome.runtime.getURL(`/src/options.html#/?userConfig=${uuid}`) });
+  const handleOpenUserConfig = useCallback(async (uuid: string) => {
+    await openInCurrentTab(`/src/options.html#/?userConfig=${uuid}`);
     window.close();
   }, []);
 
@@ -274,12 +313,26 @@ export function usePopupData() {
 
   const handleCreateScript = useCallback(async () => {
     await chrome.storage.local.set({ activeTabUrl: { url: stateRef.current.currentUrl } });
-    window.open("/src/options.html#/script/editor?target=initial", "_blank");
+    // 使用 openInCurrentTab 而非 window.open，避免 Edge Android 等移动端打开异常（#686）
+    openInCurrentTab("/src/options.html#/script/editor?target=initial");
   }, []);
 
   const handleOpenSettings = useCallback(() => {
-    window.open("/src/options.html", "_blank");
+    openInCurrentTab("/src/options.html");
   }, []);
+
+  // 「获取更多脚本」：记忆上次选择的脚本站点，父级点击时打开记忆的站点
+  const handleGetMoreScript = useCallback(
+    (provider?: ScriptProvider) => {
+      const target = provider ?? defaultScriptProvider;
+      if (provider && provider !== defaultScriptProvider) {
+        cacheInstance.set<ScriptProvider>("default_script_provider", provider);
+        setDefaultScriptProvider(provider);
+      }
+      window.open(getMoreScriptUrl(stateRef.current.currentUrl, target), "_blank");
+    },
+    [defaultScriptProvider]
+  );
 
   const handleToggleEnableScript = useCallback((val: boolean) => {
     setIsEnableScript(val);
@@ -322,15 +375,21 @@ export function usePopupData() {
 
   const displayScriptList = expandedSections.current ? filteredScriptList : filteredScriptList.slice(0, EXPAND_LIMIT);
   const remainingCurrentCount = filteredScriptList.length - displayScriptList.length;
+  // 超过展示上限即可展开/收起：折叠时显示「显示更多」，展开时显示「收起」
+  const canExpandCurrent = filteredScriptList.length > EXPAND_LIMIT;
 
   const displayBackScriptList = expandedSections.background
     ? filteredBackScriptList
     : filteredBackScriptList.slice(0, EXPAND_LIMIT);
   const remainingBackCount = filteredBackScriptList.length - displayBackScriptList.length;
+  const canExpandBack = filteredBackScriptList.length > EXPAND_LIMIT;
 
   const backRunningCount = backScriptList.filter((s) => s.runStatus === SCRIPT_RUN_STATUS_RUNNING).length;
   const enabledScriptCount = scriptList.filter((s) => s.enable).length;
   const enabledBackScriptCount = backScriptList.filter((s) => s.enable).length;
+
+  // 全量脚本（未经搜索过滤/分段截断）：用于 accessKey 快捷键注册，确保对所有脚本生效
+  const allScripts = useMemo(() => [...scriptList, ...backScriptList], [scriptList, backScriptList]);
 
   return {
     loading,
@@ -338,10 +397,15 @@ export function usePopupData() {
     host,
     scriptList: displayScriptList,
     backScriptList: displayBackScriptList,
+    allScripts,
     fullScriptCount: filteredScriptList.length,
     fullBackScriptCount: filteredBackScriptList.length,
     remainingCurrentCount,
     remainingBackCount,
+    canExpandCurrent,
+    canExpandBack,
+    isCurrentExpanded: expandedSections.current,
+    isBackExpanded: expandedSections.background,
     totalScriptCount,
     backRunningCount,
     enabledScriptCount,
@@ -364,6 +428,8 @@ export function usePopupData() {
     handleNotificationClick,
     handleVersionClick,
     handleMenuCheckUpdate,
+    defaultScriptProvider,
+    handleGetMoreScript,
     isEnableScript,
     checkUpdate,
     checkUpdateStatus,

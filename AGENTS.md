@@ -14,8 +14,8 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 
 > **Before any translation/localization work, read [`docs/translation/README.md`](docs/translation/README.md)** —
 > the single source of truth for translation. Whenever you add or change localized content
-> (`src/locales/<locale>/translation.json`, per-language docs, UI copy, or test snapshots), you must first read
-> that guide and follow the matching `docs/translation/terminology-<locale>.md` if it exists.
+> (`src/locales/<locale>/*.json` namespace files, per-language docs, UI copy, or test snapshots), you must first
+> read that guide and follow the matching `docs/translation/terminology-<locale>.md` if it exists.
 
 > **Before adding, editing, reorganizing, or reviewing any contributor doc (this file or `docs/*`), read
 > [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md)** — keep the doc set organized (links resolve, index
@@ -27,7 +27,11 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 
 ## Project Overview
 
-ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible user scripts. TypeScript + React 18 + Rspack. Package manager is **pnpm** (preinstall enforces).
+ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible user scripts. TypeScript + React 19 + Rspack. Package manager is **pnpm** (preinstall enforces).
+
+> **UI stack.** The presentation layer (`src/pages/`) is built with **shadcn/ui + Tailwind CSS v4** on
+> **React 19** (migrated from Arco Design + UnoCSS). The concrete UI/theme rules live in
+> [`docs/DEVELOP.md`](docs/DEVELOP.md).
 
 ## Engineering Principles
 

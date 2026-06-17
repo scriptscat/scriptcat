@@ -47,6 +47,8 @@
   "value": "値",
   "add": "追加",
   "type": "タイプ",
+  "size": "サイズ",
+  "download": "ダウンロード",
   "edit_value": "値を編集",
   "add_value": "値を追加",
   "update_success": "変更に成功しました",

@@ -47,6 +47,8 @@
   "value": "Value",
   "add": "Add",
   "type": "Type",
+  "size": "Size",
+  "download": "Download",
   "edit_value": "Edit Value",
   "add_value": "Add Value",
   "update_success": "Update Successful",

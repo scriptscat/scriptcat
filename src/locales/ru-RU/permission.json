@@ -17,6 +17,9 @@
   "script_operation_title": "Скрипт пытается работать с пространством синхронизации скриптов",
   "script_operation_description": "Пожалуйста, подтвердите, разрешаете ли вы скрипту выполнить эту операцию. После разрешения скрипт сможет работать с настроенным вами пространством хранения. Скрипт создаст папку app/${dir} в пространстве хранения для использования",
   "script_permission_content": "скрипт",
+  "extension_site_access_title": "ScriptCat требуется доступ к сайту",
+  "extension_site_access_description": "Разрешите браузеру доступ к сайту для этого источника, чтобы ScriptCat мог выполнить запрос. Это изменит настройку доступа к сайтам для расширения.",
+  "extension_site_access_content": "Сайт",
   "request_permission": "Запрос разрешения",
   "allow_user_script_guide": "«Разрешить пользовательские скрипты» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать, как включить</a>"
 }

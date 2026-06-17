@@ -17,6 +17,9 @@
   "script_operation_title": "Script is attempting to access script synchronization storage",
   "script_operation_description": "Please confirm whether you allow the script to perform this operation. If allowed, the script will be able to access the storage space you have set up and create a directory app/${dir} within it.",
   "script_permission_content": "Script",
+  "extension_site_access_title": "ScriptCat needs site access",
+  "extension_site_access_description": "Grant browser site access to this origin so ScriptCat can perform the request. This changes the extension's site access setting.",
+  "extension_site_access_content": "Site",
   "request_permission": "Request Permission",
   "allow_user_script_guide": "'Allow User Scripts' is currently not enabled, so the scripts cannot run properly. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉tap to learn how to enable</a>"
 }

@@ -36,40 +36,41 @@ export default function FilterBar({ filterItems, selectedFilters, setSelectedFil
 
   return (
     <div className="flex items-center gap-2 h-11 px-6 border-b border-border shrink-0">
-      <FilterChip
-        group="status"
-        label={t("script_list.sidebar.status")}
-        items={filterItems.statusItems}
-        selectedKey={selectedFilters.status}
-        onSelect={(key) => handleSelect("status", key)}
-      />
-      <FilterChip
-        group="type"
-        label={t("type")}
-        items={filterItems.typeItems}
-        selectedKey={selectedFilters.type}
-        onSelect={(key) => handleSelect("type", key)}
-      />
-      <FilterChip
-        group="tags"
-        label={t("script:tags")}
-        items={filterItems.tagItems}
-        selectedKey={selectedFilters.tags}
-        onSelect={(key) => handleSelect("tags", key)}
-      />
-      <FilterChip
-        group="source"
-        label={t("source")}
-        items={filterItems.sourceItems}
-        selectedKey={selectedFilters.source}
-        onSelect={(key) => handleSelect("source", key)}
-      />
-      <div className="flex-1" />
+      <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto scrollbar-custom">
+        <FilterChip
+          group="status"
+          label={t("script:script_list.sidebar.status")}
+          items={filterItems.statusItems}
+          selectedKey={selectedFilters.status}
+          onSelect={(key) => handleSelect("status", key)}
+        />
+        <FilterChip
+          group="type"
+          label={t("type")}
+          items={filterItems.typeItems}
+          selectedKey={selectedFilters.type}
+          onSelect={(key) => handleSelect("type", key)}
+        />
+        <FilterChip
+          group="tags"
+          label={t("script:tags")}
+          items={filterItems.tagItems}
+          selectedKey={selectedFilters.tags}
+          onSelect={(key) => handleSelect("tags", key)}
+        />
+        <FilterChip
+          group="source"
+          label={t("source")}
+          items={filterItems.sourceItems}
+          selectedKey={selectedFilters.source}
+          onSelect={(key) => handleSelect("source", key)}
+        />
+      </div>
       {hasActiveFilter && (
         <button
           type="button"
           onClick={handleClear}
-          className="text-xs text-primary hover:text-primary/80 transition-colors"
+          className="shrink-0 text-xs text-primary hover:text-primary/80 transition-colors"
         >
           {t("clear_filter", { defaultValue: "清除筛选" })}
         </button>
@@ -101,7 +102,7 @@ function FilterChip({
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors",
+            "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors shrink-0",
             isActive
               ? "bg-primary text-primary-foreground font-medium"
               : "border border-border text-muted-foreground hover:bg-accent/50"
@@ -112,7 +113,7 @@ function FilterChip({
           {!isActive && <ChevronDown className="w-3 h-3" />}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-40 max-h-60 overflow-auto">
+      <DropdownMenuContent align="start" className="w-40 max-h-60 overflow-auto scrollbar-custom">
         {items.map((item) => {
           const Icon = item.icon;
           return (

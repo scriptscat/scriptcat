@@ -6,6 +6,7 @@ import { message } from "../store/global.ts";
 import MessageWriter from "@App/app/logger/message_writer.ts";
 import { ThemeProvider } from "../components/theme-provider.tsx";
 import { TooltipProvider } from "../components/ui/tooltip.tsx";
+import { Toaster } from "../components/ui/sonner.tsx";
 import "@App/index.css";
 
 // 初始化日志组件
@@ -20,6 +21,7 @@ const Root = (
   <ThemeProvider>
     <TooltipProvider>
       <App />
+      <Toaster />
     </TooltipProvider>
   </ThemeProvider>
 );

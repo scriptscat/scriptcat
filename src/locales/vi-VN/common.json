@@ -47,6 +47,8 @@
   "value": "Giá trị",
   "add": "Thêm",
   "type": "Loại",
+  "size": "Kích thước",
+  "download": "Tải xuống",
   "edit_value": "Sửa giá trị",
   "add_value": "Thêm giá trị",
   "update_success": "Cập nhật thành công",

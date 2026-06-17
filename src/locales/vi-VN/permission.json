@@ -17,6 +17,9 @@
   "script_operation_title": "Script đang cố gắng truy cập bộ nhớ đồng bộ script",
   "script_operation_description": "Vui lòng xác nhận xem bạn có cho phép script thực hiện thao tác này không. Nếu được phép, script sẽ có thể truy cập không gian lưu trữ bạn đã thiết lập và tạo một thư mục app/${dir} trong đó.",
   "script_permission_content": "Script",
+  "extension_site_access_title": "ScriptCat cần quyền truy cập trang web",
+  "extension_site_access_description": "Cấp quyền truy cập trang web của trình duyệt cho nguồn này để ScriptCat có thể thực hiện yêu cầu. Thao tác này thay đổi cài đặt truy cập trang web của tiện ích.",
+  "extension_site_access_content": "Trang web",
   "request_permission": "Yêu cầu quyền",
   "allow_user_script_guide": "'Cho phép tập lệnh người dùng' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấn để xem cách bật</a>"
 }

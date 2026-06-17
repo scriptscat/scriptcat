@@ -1,21 +1,11 @@
 import { SettingCard } from "../../../components/SettingCard";
 import { SettingRow } from "../../../components/SettingRow";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@App/pages/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { Switch } from "@App/pages/components/ui/switch";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { t } from "@App/locales/locales";
 
-export function UpdateSection({
-  register,
-}: {
-  register: (id: string) => (el: HTMLElement | null) => void;
-}) {
+export function UpdateSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const [cycle, setCycle] = useSystemConfig("check_script_update_cycle");
   const [updateDisabled, setUpdateDisabled] = useSystemConfig("update_disable_script");
   const [silence, setSilence] = useSystemConfig("silence_update_script");
@@ -31,10 +21,7 @@ export function UpdateSection({
         label={t("settings:script_update_check_frequency")}
         description={t("settings:script_auto_update_frequency")}
       >
-        <Select
-          value={String(cycle ?? 86400)}
-          onValueChange={(v) => setCycle(Number(v) as never)}
-        >
+        <Select value={String(cycle ?? 86400)} onValueChange={(v) => setCycle(Number(v) as never)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
@@ -55,10 +42,7 @@ export function UpdateSection({
         />
       </SettingRow>
       <SettingRow label={t("settings:silent_update_non_critical_changes")}>
-        <Switch
-          checked={!!silence}
-          onCheckedChange={(c) => setSilence(c as never)}
-        />
+        <Switch checked={!!silence} onCheckedChange={(c) => setSilence(c as never)} />
       </SettingRow>
     </SettingCard>
   );

@@ -222,7 +222,7 @@ export function useScriptFilters(
     const { counts, tagMap, originMap } = stats;
 
     const statusItems: FilterItem[] = [
-      { key: null, label: t("script_list.sidebar.all"), icon: Code, count: scriptList.length },
+      { key: null, label: t("script:script_list.sidebar.all"), icon: Code, count: scriptList.length },
       { key: SCRIPT_STATUS_ENABLE, label: t("enable"), icon: Play, count: counts.enable, color: "text-green-500" },
       { key: SCRIPT_STATUS_DISABLE, label: t("disable"), icon: Pause, count: counts.disable, color: "text-red-500" },
       {
@@ -234,7 +234,7 @@ export function useScriptFilters(
       },
       {
         key: SCRIPT_RUN_STATUS_COMPLETE,
-        label: t("script_list.sidebar.stopped"),
+        label: t("script:script_list.sidebar.stopped"),
         icon: Square,
         count: counts.stopped,
         color: "text-muted-foreground",
@@ -242,10 +242,10 @@ export function useScriptFilters(
     ];
 
     const typeItems: FilterItem[] = [
-      { key: null, label: t("script_list.sidebar.all"), icon: Code, count: scriptList.length },
+      { key: null, label: t("script:script_list.sidebar.all"), icon: Code, count: scriptList.length },
       {
         key: SCRIPT_TYPE_NORMAL,
-        label: t("script_list.sidebar.normal_script"),
+        label: t("script:script_list.sidebar.normal_script"),
         icon: Code,
         count: counts.normal,
         color: "text-blue-500",
@@ -267,7 +267,7 @@ export function useScriptFilters(
     ];
 
     const tagItems: FilterItem[] = [
-      { key: null, label: t("script_list.sidebar.all"), icon: Tag, count: Object.keys(tagMap).length },
+      { key: null, label: t("script:script_list.sidebar.all"), icon: Tag, count: Object.keys(tagMap).length },
       ...Object.keys(tagMap)
         .sort()
         .map((tag) => ({
@@ -279,7 +279,7 @@ export function useScriptFilters(
     ];
 
     const sourceItems: FilterItem[] = [
-      { key: null, label: t("script_list.sidebar.all"), icon: Link, count: Object.keys(originMap).length },
+      { key: null, label: t("script:script_list.sidebar.all"), icon: Link, count: Object.keys(originMap).length },
       ...Object.keys(originMap)
         .sort()
         .map((src) => ({

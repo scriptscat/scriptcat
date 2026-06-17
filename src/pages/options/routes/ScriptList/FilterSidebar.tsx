@@ -31,7 +31,7 @@ export default function FilterSidebar({ open, filterItems, selectedFilters, setS
     <aside className="w-[200px] shrink-0 border-r border-border pr-2 mr-4">
       <div className="flex flex-col gap-1 py-2">
         <FilterGroup
-          title={t("script_list.sidebar.status")}
+          title={t("script:script_list.sidebar.status")}
           items={filterItems.statusItems}
           selectedKey={selectedFilters.status}
           onSelect={(key) => handleSelect("status", key)}

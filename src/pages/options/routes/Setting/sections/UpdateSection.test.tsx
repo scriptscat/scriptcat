@@ -19,8 +19,6 @@ describe("更新分区", () => {
     render(<UpdateSection register={() => () => {}} />);
     const sw = await screen.findByLabelText("update_disabled_scripts_switch");
     fireEvent.click(sw);
-    await waitFor(() =>
-      expect(set).toHaveBeenCalledWith("update_disable_script", expect.any(Boolean))
-    );
+    await waitFor(() => expect(set).toHaveBeenCalledWith("update_disable_script", expect.any(Boolean)));
   });
 });

@@ -47,6 +47,8 @@
   "value": "Wert",
   "add": "Hinzufügen",
   "type": "Typ",
+  "size": "Größe",
+  "download": "Herunterladen",
   "edit_value": "Wert bearbeiten",
   "add_value": "Wert hinzufügen",
   "update_success": "Änderung erfolgreich",

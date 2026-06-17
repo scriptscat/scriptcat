@@ -6,11 +6,7 @@ import { blackListSelfCheck } from "@App/pkg/utils/match";
 import { t } from "@App/locales/locales";
 import { toast } from "sonner";
 
-export function SecuritySection({
-  register,
-}: {
-  register: (id: string) => (el: HTMLElement | null) => void;
-}) {
+export function SecuritySection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const [blacklist, setBlacklist] = useSystemConfig("blacklist");
   const [draft, setDraft] = useState("");
 
@@ -38,9 +34,7 @@ export function SecuritySection({
       description={t("settings:blacklist_pages_desc")}
       register={register}
     >
-      <div className="text-[13px] font-medium text-foreground">
-        {t("settings:blacklist_pages")}
-      </div>
+      <div className="text-[13px] font-medium text-foreground">{t("settings:blacklist_pages")}</div>
       <Textarea
         aria-label="blacklist_textarea"
         placeholder={t("settings:blacklist_placeholder") ?? ""}

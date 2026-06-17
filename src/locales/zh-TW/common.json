@@ -47,6 +47,8 @@
   "value": "值",
   "add": "新增",
   "type": "類型",
+  "size": "大小",
+  "download": "下載",
   "edit_value": "編輯值",
   "add_value": "新增值",
   "update_success": "修改成功",

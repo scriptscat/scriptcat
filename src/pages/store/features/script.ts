@@ -1,6 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import {
   AgentClient,
+  LogClient,
   PermissionClient,
   PopupClient,
   ResourceClient,
@@ -23,6 +24,7 @@ export const valueClient = new ValueClient(message);
 export const resourceClient = new ResourceClient(message);
 export const synchronizeClient = new SynchronizeClient(message);
 export const agentClient = new AgentClient(message);
+export const logClient = new LogClient(message);
 
 export const fetchScriptList = async () => {
   return await scriptClient.getAllScripts();
