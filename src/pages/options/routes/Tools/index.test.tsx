@@ -42,6 +42,15 @@ import Tools from "./index";
 
 beforeEach(() => {
   initLanguage("en-US");
+  // jsdom 未实现 matchMedia(useIsMobile 用),固定返回 desktop
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }));
   // @ts-expect-error test stub
   globalThis.IntersectionObserver = class {
     observe() {}
