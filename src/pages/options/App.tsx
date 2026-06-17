@@ -5,6 +5,7 @@ import SubscribeList from "./routes/SubscribeList";
 import ScriptEditor from "./routes/ScriptEditor";
 import Logger from "./routes/Logger";
 import Setting from "./routes/Setting";
+import Tools from "./routes/Tools";
 import { t } from "@App/locales/locales";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import MobileHeader from "./layout/MobileHeader";
@@ -69,7 +70,7 @@ export default function App() {
             <Route path="settings" element={<PlaceholderPage title={t("agent:settings")} />} />
           </Route>
           <Route path="logs" element={<Logger />} />
-          <Route path="tools" element={<PlaceholderPage title={t("tools")} />} />
+          <Route path="tools" element={<Tools />} />
           <Route path="settings" element={<Setting />} />
           <Route path="script/editor/:uuid?" element={<ScriptEditor />} />
         </Route>
