@@ -35,7 +35,12 @@ export function LocalBackupSection({ register }: { register: (id: string) => (el
   };
 
   return (
-    <SettingCard id="local-backup" title={t("tools:local_backup")} description={t("settings:local")} register={register}>
+    <SettingCard
+      id="local-backup"
+      title={t("tools:local_backup")}
+      description={t("settings:local")}
+      register={register}
+    >
       <input type="file" ref={fileRef} className="hidden" accept=".zip" aria-label="tools_import_file" />
       <div className="flex flex-wrap gap-2">
         <Button aria-label="tools_export" size="sm" disabled={exporting} onClick={exportFile}>

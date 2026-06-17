@@ -35,7 +35,8 @@ import { CloudBackupSection } from "./CloudBackupSection";
 
 function mockBackup(over: Record<string, unknown> = {}) {
   get.mockImplementation((key: string) => {
-    if (key === "backup") return Promise.resolve({ filesystem: "webdav", params: { webdav: { url: "https://dav" } }, ...over });
+    if (key === "backup")
+      return Promise.resolve({ filesystem: "webdav", params: { webdav: { url: "https://dav" } }, ...over });
     return Promise.resolve("");
   });
 }

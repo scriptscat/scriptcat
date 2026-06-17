@@ -3,13 +3,7 @@ import { SettingCard } from "../../../components/SettingCard";
 import FileSystemParams from "../../../components/FileSystemParams";
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@App/pages/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@App/pages/components/ui/sheet";
 import { systemConfig } from "@App/pages/store/global";
 import { synchronizeClient } from "@App/pages/store/features/script";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
@@ -111,7 +105,12 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
   };
 
   return (
-    <SettingCard id="cloud-backup" title={t("tools:cloud_backup")} description={t("settings:cloud")} register={register}>
+    <SettingCard
+      id="cloud-backup"
+      title={t("tools:cloud_backup")}
+      description={t("settings:cloud")}
+      register={register}
+    >
       {draft && (
         <FileSystemParams
           headerContent={<span className="text-sm text-muted-foreground">{t("settings:backup_to")}</span>}

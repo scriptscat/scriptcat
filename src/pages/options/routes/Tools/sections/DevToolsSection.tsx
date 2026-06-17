@@ -56,11 +56,7 @@ export function DevToolsSection({ register }: { register: (id: string) => (el: H
         />
       </SettingRow>
       <label className="flex items-center gap-2 text-sm">
-        <Checkbox
-          aria-label="vscode_reconnect"
-          checked={reconnect}
-          onCheckedChange={(c) => setReconnect(c === true)}
-        />
+        <Checkbox aria-label="vscode_reconnect" checked={reconnect} onCheckedChange={(c) => setReconnect(c === true)} />
         {t("tools:auto_connect_vscode_service")}
       </label>
       <div>

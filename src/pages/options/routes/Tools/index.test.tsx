@@ -20,7 +20,17 @@ vi.mock("@App/pages/store/features/script", () => ({ synchronizeClient: { export
 vi.mock("@App/app/migrate", () => ({ migrateToChromeStorage: vi.fn() }));
 vi.mock("@App/app/service/service_worker/client", () => ({ SystemClient: vi.fn() }));
 vi.mock("@Packages/filesystem/factory", () => ({
-  default: { create: vi.fn(), params: () => ({ webdav: { url: { title: "url" } }, "baidu-netdsik": {}, onedrive: {}, googledrive: {}, dropbox: {}, s3: {} }) },
+  default: {
+    create: vi.fn(),
+    params: () => ({
+      webdav: { url: { title: "url" } },
+      "baidu-netdsik": {},
+      onedrive: {},
+      googledrive: {},
+      dropbox: {},
+      s3: {},
+    }),
+  },
 }));
 vi.mock("@Packages/filesystem/auth", () => ({
   netDiskTypeMap: {},
