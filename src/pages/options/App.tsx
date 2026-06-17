@@ -12,7 +12,7 @@ import AgentProvider from "./routes/AgentProvider";
 import AgentMcp from "./routes/AgentMcp";
 import AgentTasks from "./routes/AgentTasks";
 import AgentOPFS from "./routes/AgentOPFS";
-import { t } from "@App/locales/locales";
+import AgentSettings from "./routes/AgentSettings";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import MobileHeader from "./layout/MobileHeader";
 import BottomTabBar from "./layout/BottomTabBar";
@@ -57,15 +57,6 @@ export function Layout() {
   );
 }
 
-// 占位页面（后续逐步实现）
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center h-full text-muted-foreground">
-      <span className="text-lg">{title}</span>
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <HashRouter>
@@ -81,7 +72,7 @@ export default function App() {
             <Route path="mcp" element={<AgentMcp />} />
             <Route path="tasks" element={<AgentTasks />} />
             <Route path="opfs" element={<AgentOPFS />} />
-            <Route path="settings" element={<PlaceholderPage title={t("agent:settings")} />} />
+            <Route path="settings" element={<AgentSettings />} />
           </Route>
           <Route path="logs" element={<Logger />} />
           <Route path="tools" element={<Tools />} />
