@@ -9,6 +9,7 @@ import Tools from "./routes/Tools";
 import AgentChat from "./routes/AgentChat";
 import AgentSkills from "./routes/AgentSkills";
 import AgentProvider from "./routes/AgentProvider";
+import AgentMcp from "./routes/AgentMcp";
 import { t } from "@App/locales/locales";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import MobileHeader from "./layout/MobileHeader";
@@ -75,7 +76,7 @@ export default function App() {
             <Route path="chat" element={<AgentChat />} />
             <Route path="provider" element={<AgentProvider />} />
             <Route path="skills" element={<AgentSkills />} />
-            <Route path="mcp" element={<PlaceholderPage title={t("agent:mcp")} />} />
+            <Route path="mcp" element={<AgentMcp />} />
             <Route path="tasks" element={<PlaceholderPage title={t("agent:tasks")} />} />
             <Route path="opfs" element={<PlaceholderPage title={t("agent:opfs")} />} />
             <Route path="settings" element={<PlaceholderPage title={t("agent:settings")} />} />
