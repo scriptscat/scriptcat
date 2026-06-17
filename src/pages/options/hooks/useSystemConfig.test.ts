@@ -29,4 +29,10 @@ describe("配置 Hook useSystemConfig", () => {
     expect(set).toHaveBeenCalledWith("favicon_service", "google");
     expect(result.current[0]).toBe("google");
   });
+
+  it("getter 返回同步值时 hook 依然能正确填充", async () => {
+    get.mockReturnValueOnce("declare const x: any;" as never);
+    const { result } = renderHook(() => useSystemConfig("editor_type_definition" as never));
+    await waitFor(() => expect(result.current[0]).toBe("declare const x: any;"));
+  });
 });

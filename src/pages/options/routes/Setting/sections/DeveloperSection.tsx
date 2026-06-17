@@ -18,27 +18,17 @@ function useDraft(value: string | undefined) {
   return [draft, setDraft] as const;
 }
 
-export function DeveloperSection({
-  register,
-}: {
-  register: (id: string) => (el: HTMLElement | null) => void;
-}) {
+export function DeveloperSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const [enableEslint, setEnableEslint] = useSystemConfig("enable_eslint");
   const [eslintCfg, setEslintCfg] = useSystemConfig("eslint_config");
   const [editorCfg, setEditorCfg] = useSystemConfig("editor_config");
   const [typeDef, setTypeDef] = useSystemConfig("editor_type_definition");
 
-  const [eslintDraft, setEslintDraft] = useDraft(eslintCfg as string);
-  const [editorDraft, setEditorDraft] = useDraft(editorCfg as string);
-  const [typeDraft, setTypeDraft] = useDraft(typeDef as string);
+  const [eslintDraft, setEslintDraft] = useDraft(eslintCfg);
+  const [editorDraft, setEditorDraft] = useDraft(editorCfg);
+  const [typeDraft, setTypeDraft] = useDraft(typeDef);
 
-  const saveJson = (
-    val: string,
-    write: (v: string) => void,
-    resetKey: string,
-    savedKey: string,
-    errKey: string
-  ) => {
+  const saveJson = (val: string, write: (v: string) => void, resetKey: string, savedKey: string, errKey: string) => {
     prettier
       .format(val, { parser: "json", plugins: [prettierPluginEstree, babel] })
       .then((formatted) => {
@@ -55,21 +45,13 @@ export function DeveloperSection({
       description={t("settings:check_script_code_quality")}
       register={register}
     >
-      <SettingRow
-        label={t("settings:enable_eslint")}
-        description={t("settings:check_script_code_quality")}
-      >
-        <Switch
-          checked={!!enableEslint}
-          onCheckedChange={(c) => setEnableEslint(c)}
-        />
+      <SettingRow label={t("settings:enable_eslint")} description={t("settings:check_script_code_quality")}>
+        <Switch checked={!!enableEslint} onCheckedChange={(c) => setEnableEslint(c)} />
       </SettingRow>
 
       {enableEslint && (
         <div className="flex flex-col gap-2">
-          <div className="text-[13px] font-medium text-foreground">
-            {t("settings:eslint_rules")}
-          </div>
+          <div className="text-[13px] font-medium text-foreground">{t("settings:eslint_rules")}</div>
           <Textarea
             aria-label="eslint_rules_textarea"
             className="min-h-[120px] font-mono text-xs"
@@ -89,9 +71,7 @@ export function DeveloperSection({
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="text-[13px] font-medium text-foreground">
-          {t("editor:editor_config")}
-        </div>
+        <div className="text-[13px] font-medium text-foreground">{t("editor:editor_config")}</div>
         <Textarea
           aria-label="editor_config_textarea"
           className="min-h-[120px] font-mono text-xs"
@@ -110,9 +90,7 @@ export function DeveloperSection({
       </div>
 
       <div className="flex flex-col gap-2">
-        <div className="text-[13px] font-medium text-foreground">
-          {t("editor:editor_type_definition")}
-        </div>
+        <div className="text-[13px] font-medium text-foreground">{t("editor:editor_type_definition")}</div>
         <Textarea
           aria-label="editor_type_definition_textarea"
           className="min-h-[120px] font-mono text-xs"
@@ -120,11 +98,7 @@ export function DeveloperSection({
           onChange={(e) => setTypeDraft(e.target.value)}
           onBlur={() => {
             toast.success(
-              t(
-                typeDraft === ""
-                  ? "editor:editor_type_definition_reset"
-                  : "editor:editor_type_definition_saved"
-              ) ?? ""
+              t(typeDraft === "" ? "editor:editor_type_definition_reset" : "editor:editor_type_definition_saved") ?? ""
             );
             setTypeDef(typeDraft);
           }}
