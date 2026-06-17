@@ -112,10 +112,7 @@ export default function FileSystemParams({
             <div key={key} className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">{props.title}</span>
               {props.type === "select" ? (
-                <Select
-                  value={fileSystemParams[key] || props.options![0]}
-                  onValueChange={(value) => setParam(value)}
-                >
+                <Select value={fileSystemParams[key] || props.options![0]} onValueChange={(value) => setParam(value)}>
                   <SelectTrigger style={{ minWidth: props.minWidth }} aria-label={props.title}>
                     <SelectValue />
                   </SelectTrigger>

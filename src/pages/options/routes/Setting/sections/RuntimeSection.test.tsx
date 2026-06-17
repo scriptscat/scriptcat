@@ -2,7 +2,11 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 
 const { create } = vi.hoisted(() => ({
-  create: vi.fn(() => Promise.resolve({ openDir: vi.fn(() => Promise.resolve({ getDirUrl: vi.fn(() => Promise.resolve("https://dir")) })) })),
+  create: vi.fn(() =>
+    Promise.resolve({
+      openDir: vi.fn(() => Promise.resolve({ getDirUrl: vi.fn(() => Promise.resolve("https://dir")) })),
+    })
+  ),
 }));
 vi.mock("@Packages/filesystem/factory", () => ({
   default: {
