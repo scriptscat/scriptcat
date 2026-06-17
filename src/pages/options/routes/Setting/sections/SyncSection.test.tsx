@@ -95,4 +95,13 @@ describe("同步分区", () => {
     fireEvent.click(screen.getByLabelText("cloud_sync_save"));
     await waitFor(() => expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncDelete: true })));
   });
+
+  it("切换同步状态复选框后保存写入新值", async () => {
+    mockCloudSync({ enable: false, syncStatus: true });
+    render(<SyncSection register={() => () => {}} />);
+    const cb = await screen.findByLabelText("cloud_sync_sync_status");
+    fireEvent.click(cb);
+    fireEvent.click(screen.getByLabelText("cloud_sync_save"));
+    await waitFor(() => expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncStatus: false })));
+  });
 });

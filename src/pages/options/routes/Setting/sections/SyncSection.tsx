@@ -35,12 +35,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
   };
 
   return (
-    <SettingCard
-      id="sync"
-      title={t("settings:script_sync")}
-      description={t("settings:enable_script_sync_to")}
-      register={register}
-    >
+    <SettingCard id="sync" title={t("settings:script_sync")} register={register}>
       {draft && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">

@@ -95,4 +95,19 @@ describe("运行时分区-存储配置", () => {
       expect(set).toHaveBeenCalledWith("cat_file_storage", { status: "unset", filesystem: "webdav", params: {} })
     );
   });
+
+  it("打开目录时校验账号并打开返回的目录地址", async () => {
+    const getDirUrl = vi.fn(() => Promise.resolve("https://dir/scriptcat"));
+    const openDir = vi.fn(() => Promise.resolve({ getDirUrl }));
+    create.mockResolvedValue({ openDir });
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockStorage({ status: "success", filesystem: "webdav", params: { webdav: { url: "https://dav" } } });
+    render(<RuntimeSection register={() => () => {}} />);
+    const open = await screen.findByLabelText("cat_storage_open");
+    fireEvent.click(open);
+    await waitFor(() => expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" }));
+    await waitFor(() => expect(openDir).toHaveBeenCalledWith("ScriptCat/app"));
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith("https://dir/scriptcat", "_blank"));
+    openSpy.mockRestore();
+  });
 });

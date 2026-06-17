@@ -134,7 +134,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
           <span
             className={
               storage.status === "success"
-                ? "text-xs text-green-600 dark:text-green-500"
+                ? "text-xs text-success-fg"
                 : storage.status === "error"
                   ? "text-xs text-destructive"
                   : "text-xs text-muted-foreground"
