@@ -131,7 +131,7 @@ export class RuntimeService {
   private disabledMatcherVersion = 0;
   private sorter: Record<string, number> = {};
   private readonly codeCacheMap = new Map<string, TCodeCache>();
-  public readonly pageLoadCaches = new Map<string, TPageLoadScriptCache>();
+  private readonly pageLoadCaches = new Map<string, TPageLoadScriptCache>();
   private readonly cachedPatterns = new Map<
     string,
     { scriptUrlPatterns: URLRuleEntry[]; originalUrlPatterns: URLRuleEntry[] }

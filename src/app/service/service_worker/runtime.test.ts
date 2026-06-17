@@ -4,7 +4,7 @@ import { vi, describe, it, expect, beforeEach, type MockedFunction } from "vites
 import { randomUUID } from "crypto";
 import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
-import { getCombinedMeta } from "./utils";
+import { getCombinedMeta, scriptURLPatternResults } from "./utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { Group } from "@Packages/message/server";
 import type { ServiceWorkerMessageSend, WindowMessageBody } from "@Packages/message/window_message";
@@ -16,6 +16,7 @@ import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { obtainBlackList } from "@App/pkg/utils/utils";
+import type { CompiledResource } from "@App/app/repo/resource";
 
 initTestEnv();
 
@@ -437,6 +438,115 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       expect(first.has(disabledScript.uuid)).toBe(true);
       expect(second.has(disabledScript.uuid)).toBe(true);
       expect(mockScriptDAO.all).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("getScriptsForTab 页面脚本加载与缓存", () => {
+    const pageUrl = "https://www.example.com/path";
+
+    const createCacheTestContext = () => {
+      const { runtime, mockScriptDAO } = createRuntimeTestContext();
+
+      const script = createMockScript({
+        metadata: { match: ["https://www.example.com/*"] },
+        status: SCRIPT_STATUS_ENABLE,
+        createtime: 1000,
+        updatetime: 2000,
+      });
+
+      const scriptRes = createScriptRunResource(script);
+      const patterns = scriptURLPatternResults(scriptRes)!;
+      const compiledResource: CompiledResource = {
+        name: script.name,
+        flag: "",
+        uuid: script.uuid,
+        require: [],
+        matches: ["https://www.example.com/*"],
+        includeGlobs: [],
+        excludeMatches: [],
+        excludeGlobs: [],
+        allFrames: false,
+        world: "USER_SCRIPT",
+        runAt: "document-idle",
+        scriptUrlPatterns: patterns.scriptUrlPatterns,
+        originalUrlPatterns: null,
+      };
+
+      const mockCompiledResourceDAO = {
+        gets: vi.fn().mockResolvedValue([compiledResource]),
+        get: vi.fn().mockResolvedValue(compiledResource),
+        save: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const mockScriptCodeDAO = {
+        get: vi.fn().mockResolvedValue({ code: "// test code" }),
+      };
+
+      const mockResourceService = {
+        getScriptResources: vi.fn().mockResolvedValue({}),
+      };
+
+      const mockValueService = {
+        getScriptValue: vi.fn().mockResolvedValue({}),
+      };
+
+      (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);
+      (mockScriptDAO as any).scriptCodeDAO = mockScriptCodeDAO;
+      runtime.compiledResourceDAO = mockCompiledResourceDAO as any;
+      (runtime as any).resource = mockResourceService;
+      (runtime as any).value = mockValueService;
+
+      return {
+        runtime,
+        script,
+        scriptRes,
+        compiledResource,
+        mockCompiledResourceDAO,
+        mockScriptCodeDAO,
+        mockResourceService,
+        mockValueService,
+        mockScriptDAO,
+      };
+    };
+
+    it("首次加载时从 compiledResourceDAO 获取 compiledResource 并写入缓存，返回脚本信息", async () => {
+      const { runtime, script, scriptRes, mockCompiledResourceDAO, mockScriptCodeDAO, mockValueService } =
+        createCacheTestContext();
+      await runtime.applyScriptMatchInfo(scriptRes);
+
+      const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+      expect(result).not.toBeNull();
+      expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(1);
+      expect(mockScriptCodeDAO.get).toHaveBeenCalledWith(script.uuid);
+      expect(mockValueService.getScriptValue).toHaveBeenCalledTimes(1);
+      expect(result!.injectScriptList.length + result!.contentScriptList.length).toBe(1);
+    });
+
+    it("第二次请求命中缓存，不再调用 compiledResourceDAO，但每次都重新加载 value", async () => {
+      const { runtime, scriptRes, mockCompiledResourceDAO, mockScriptCodeDAO, mockValueService } =
+        createCacheTestContext();
+      await runtime.applyScriptMatchInfo(scriptRes);
+
+      await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+      await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+      expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(1);
+      expect(mockScriptCodeDAO.get).toHaveBeenCalledTimes(1);
+      expect(mockValueService.getScriptValue).toHaveBeenCalledTimes(2);
+    });
+
+    it("deleteScriptRuntimeCache 后下一次请求重新从 DAO 获取 compiledResource", async () => {
+      const { runtime, script, scriptRes, mockCompiledResourceDAO } = createCacheTestContext();
+      await runtime.applyScriptMatchInfo(scriptRes);
+
+      await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+      expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(1);
+
+      (runtime as any).deleteScriptRuntimeCache(script.uuid);
+
+      await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+      expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(2);
     });
   });
 
