@@ -14,6 +14,7 @@
   "settings": "Cài đặt",
   "hide_main_sidebar": "Thu gọn thanh bên",
   "show_main_sidebar": "Mở rộng thanh bên",
+  "menu": "Menu",
   "guide": "Hướng dẫn",
   "helpcenter": "Trung tâm trợ giúp",
   "save": "Lưu",
@@ -124,5 +125,6 @@
   "s3_region": "Vùng",
   "s3_access_key_id": "ID Khóa Truy Cập",
   "s3_secret_access_key": "Khóa Truy Cập Bí Mật",
-  "s3_custom_endpoint": "Điểm Cuối Tùy Chỉnh (Tùy Chọn)"
+  "s3_custom_endpoint": "Điểm Cuối Tùy Chỉnh (Tùy Chọn)",
+  "cancel": "Hủy"
 }

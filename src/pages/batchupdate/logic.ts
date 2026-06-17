@@ -1,3 +1,5 @@
+import type { SCMetadata } from "@App/app/repo/scripts";
+import { i18nName } from "@App/locales/locales";
 import type { TBatchUpdateRecord, TBatchUpdateRecordObject } from "@App/app/service/service_worker/types";
 
 export type UpdateRisk = "major" | "noticeable" | "tiny";
@@ -11,8 +13,24 @@ export interface UpdateItem {
   similarity: number;
   risk: UpdateRisk;
   withNewConnect: boolean;
+  /** 新版本相比旧版本新增的 @connect 域名 */
+  newConnects: string[];
   source: string;
+  /** 脚本图标 URL（@icon / @iconURL / @icon64 / @icon64URL），无则为空串 */
+  iconUrl: string;
   ignored: boolean;
+}
+
+/** 从 metadata 提取脚本图标 URL（与脚本列表 ScriptIcon 取值规则一致） */
+function pickIconUrl(metadata: SCMetadata): string {
+  const [url] = metadata.icon || metadata.iconurl || metadata.icon64 || metadata.icon64url || [];
+  return url || "";
+}
+
+/** 计算新版本相比旧版本新增的连接域名（旧的里没有的） */
+function diffConnects(oldConnects: string[] | undefined, newConnects: string[] | undefined): string[] {
+  const old = new Set(oldConnects || []);
+  return (newConnects || []).filter((c) => !old.has(c));
 }
 
 export function riskLevel(similarity: number): UpdateRisk {
@@ -40,14 +58,16 @@ export function toUpdateItem(record: TBatchUpdateRecord): UpdateItem | null {
 
   return {
     uuid: record.uuid,
-    name: record.script.name,
+    name: i18nName(record.script),
     enabled: record.script.status === 1,
     oldVersion,
     newVersion,
     similarity: record.codeSimilarity,
     risk: riskLevel(record.codeSimilarity),
     withNewConnect: record.withNewConnect,
+    newConnects: diffConnects(record.script.metadata.connect, record.newMeta.connect),
     source: getSource(record),
+    iconUrl: pickIconUrl(record.script.metadata),
     ignored: record.script.ignoreVersion === newVersion,
   };
 }

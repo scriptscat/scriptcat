@@ -10,9 +10,7 @@ const repoRoot = process.cwd();
 const pagesDir = path.join(repoRoot, "src/pages");
 
 // 走主题（ThemeProvider + index.css 设计令牌）的可见页面，需要预渲染脚本。
-// 新 UI 重写尚未移植 install.html（脚本安装页，manifest 与 service_worker 已引用
-// /src/install.html）；待其落地后必须一并加入此列表并在 <head> 引入 common.js。
-const themedPages = ["options.html", "popup.html"];
+const themedPages = ["options.html", "popup.html", "install.html", "import.html"];
 
 describe("初始加载白屏闪烁修复（#1497）", () => {
   it("主题化页面应在 <head> 中加载 common.js 预渲染脚本", () => {

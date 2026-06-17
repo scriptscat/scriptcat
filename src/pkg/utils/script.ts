@@ -45,10 +45,23 @@ export function parseMetadata(code: string): SCMetadata | null {
   return metadata;
 }
 
+// 下载进度:已接收字节数,以及(若服务端提供 Content-Length)总字节数
+export interface FetchScriptProgress {
+  receivedLength: number;
+  totalLength?: number;
+}
+
 // 从网址取得脚本代码
-export async function fetchScriptBody(url: string, signal?: AbortSignal): Promise<string> {
+export async function fetchScriptBody(
+  url: string,
+  signal?: AbortSignal,
+  onProgress?: (info: FetchScriptProgress) => void
+): Promise<string> {
   const resp = await fetch(url, {
     signal,
+    // 以脚本来源作为 referrer(部分站点据此做反盗链);Origin/Accept-Encoding 是
+    // 禁止修改的请求头,浏览器会忽略,故不在此设置,由浏览器自行协商
+    referrer: new URL(url).origin + "/",
     headers: {
       "Cache-Control": "no-cache",
     },
@@ -56,11 +69,38 @@ export async function fetchScriptBody(url: string, signal?: AbortSignal): Promis
   if (resp.status !== 200) {
     throw new Error("fetch script info failed");
   }
-  if (resp.headers.get("content-type")?.includes("text/html")) {
+  const contentType = resp.headers.get("content-type");
+  if (contentType?.includes("text/html")) {
     throw new Error("url is html");
   }
-  const body = await readRawContent(resp, resp.headers.get("content-type"));
-  return body;
+  // 无进度回调或环境不支持流式读取时,沿用一次性读取(保留原行为)
+  if (!onProgress || !resp.body) {
+    return readRawContent(resp, contentType);
+  }
+  // 流式读取:逐块累加并上报进度,最后合并交给 readRawContent 做编码识别
+  // 压缩响应(gzip/br 等)的 Content-Length 是压缩后大小,而 reader 读到的是解压后字节,
+  // 两者不可比,故此时不报告总大小(交由调用方退回仅显示已接收字节)
+  const contentEncoding = resp.headers.get("content-encoding");
+  const compressed = !!contentEncoding && contentEncoding !== "identity";
+  const totalLength = compressed ? undefined : Number(resp.headers.get("content-length")) || undefined;
+  const reader = resp.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedLength = 0;
+  onProgress({ receivedLength, totalLength });
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    receivedLength += value.length;
+    onProgress({ receivedLength, totalLength });
+  }
+  const merged = new Uint8Array(receivedLength);
+  let position = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, position);
+    position += chunk.length;
+  }
+  return readRawContent(merged, contentType);
 }
 
 // 通过代码解析出脚本基本信息 (不含数据库查询)

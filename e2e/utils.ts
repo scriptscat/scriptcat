@@ -11,8 +11,9 @@ export function patchScriptCode(code: string): string {
 
 /**
  * Auto-approve permission confirm dialogs opened by the extension.
- * Listens for new pages matching confirm.html and clicks the
- * "permanent allow all" button (type=4, allow=true).
+ * Listens for new pages matching confirm.html (new-ui / shadcn) and grants the request:
+ * site-access variant → click "request permission"; otherwise pick "permanent" duration
+ * then click "allow". Selectors are data-testid based, so they are language-agnostic.
  */
 export function autoApprovePermissions(context: BrowserContext): void {
   context.on("page", async (page) => {
@@ -21,13 +22,20 @@ export function autoApprovePermissions(context: BrowserContext): void {
 
     try {
       await page.waitForLoadState("domcontentloaded");
-      const successButtons = page.locator("button.arco-btn-status-success");
-      await successButtons.first().waitFor({ timeout: 5_000 });
-      const count = await successButtons.count();
-      if (count >= 3) {
-        await successButtons.nth(2).click();
+      const request = page.getByTestId("confirm-request");
+      const allow = page.getByTestId("confirm-allow");
+      await allow.or(request).first().waitFor({ timeout: 5_000 });
+      if (await request.count()) {
+        await request.first().click();
       } else {
-        await successButtons.last().click();
+        // 尽量永久授权，避免同一测试内重复弹窗
+        const permanent = page.getByTestId("confirm-duration-permanent");
+        if (await permanent.count())
+          await permanent
+            .first()
+            .click()
+            .catch(() => {});
+        await allow.first().click();
       }
       console.log("[autoApprove] Permission approved on confirm page");
     } catch (e) {
@@ -129,9 +137,10 @@ async function focusMonacoEditor(page: Page): Promise<void> {
 async function waitForSavedScriptInList(context: BrowserContext, extensionId: string): Promise<void> {
   const listPage = await openOptionsPage(context, extensionId);
   try {
-    await listPage.locator("#script-list").waitFor({ timeout: 15_000 });
+    // new-ui 列表页加载完成的稳定信号（桌面工具栏 view-toggle / 移动搜索栏）
     await listPage
-      .locator("#script-list .arco-table-row, #script-list .script-list-card")
+      .getByTestId("view-toggle")
+      .or(listPage.getByTestId("mobile-search"))
       .first()
       .waitFor({ state: "visible", timeout: 30_000 });
   } finally {
@@ -143,13 +152,14 @@ export async function saveCurrentEditor(context: BrowserContext, extensionId: st
   await focusMonacoEditor(page);
   await page.keyboard.press("ControlOrMeta+s");
 
-  const messageAppeared = await page
-    .locator(".arco-message")
+  // new-ui 保存成功为 sonner toast
+  const toastAppeared = await page
+    .locator("[data-sonner-toast]")
     .first()
     .waitFor({ timeout: 10_000 })
     .then(() => true)
     .catch(() => false);
-  if (messageAppeared) return;
+  if (toastAppeared) return;
 
   await waitForSavedScriptInList(context, extensionId);
 }

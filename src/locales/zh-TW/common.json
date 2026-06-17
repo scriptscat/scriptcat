@@ -14,6 +14,7 @@
   "settings": "設定",
   "hide_main_sidebar": "摺疊側邊欄",
   "show_main_sidebar": "展開側邊欄",
+  "menu": "選單",
   "guide": "新手指南",
   "helpcenter": "幫助中心",
   "save": "儲存",
@@ -124,5 +125,6 @@
   "s3_region": "區域",
   "s3_access_key_id": "存取金鑰 ID",
   "s3_secret_access_key": "私密存取金鑰",
-  "s3_custom_endpoint": "自訂端點（選用）"
+  "s3_custom_endpoint": "自訂端點（選用）",
+  "cancel": "取消"
 }

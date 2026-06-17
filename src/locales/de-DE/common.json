@@ -14,6 +14,7 @@
   "settings": "Einstellungen",
   "hide_main_sidebar": "Seitenleiste einklappen",
   "show_main_sidebar": "Seitenleiste ausklappen",
+  "menu": "Menü",
   "guide": "Einsteigeranleitung",
   "helpcenter": "Hilfezentrum",
   "save": "Speichern",
@@ -124,5 +125,6 @@
   "s3_region": "Region",
   "s3_access_key_id": "Zugriffs-Schlüssel-ID",
   "s3_secret_access_key": "Geheimer Zugriffsschlüssel",
-  "s3_custom_endpoint": "Benutzerdefinierter Endpunkt (optional)"
+  "s3_custom_endpoint": "Benutzerdefinierter Endpunkt (optional)",
+  "cancel": "Abbrechen"
 }

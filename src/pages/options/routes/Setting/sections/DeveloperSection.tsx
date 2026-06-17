@@ -39,12 +39,7 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
   };
 
   return (
-    <SettingCard
-      id="developer"
-      title={t("settings:development_tools")}
-      description={t("settings:check_script_code_quality")}
-      register={register}
-    >
+    <SettingCard id="developer" title={t("settings:development_tools")} register={register}>
       <SettingRow label={t("settings:enable_eslint")} description={t("settings:check_script_code_quality")}>
         <Switch checked={!!enableEslint} onCheckedChange={(c) => setEnableEslint(c)} />
       </SettingRow>

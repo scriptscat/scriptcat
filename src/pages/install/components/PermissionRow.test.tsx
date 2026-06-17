@@ -1,0 +1,72 @@
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, cleanup, within } from "@testing-library/react";
+import { initLanguage } from "@App/locales/locales";
+import { PermissionRow } from "./PermissionRow";
+
+afterEach(cleanup);
+
+describe("PermissionRow 权限行", () => {
+  it("渲染跨域访问类别标签、摘要与全部取值 chip", () => {
+    initLanguage("zh-CN");
+    render(
+      <PermissionRow row={{ kind: "connect", risk: "warn", values: ["api.a.com", "api.b.com"], sensitive: [] }} />
+    );
+    expect(screen.getByText("跨域访问")).toBeInTheDocument();
+    expect(screen.getByText("可向以下域名发送请求、读取其数据")).toBeInTheDocument();
+    expect(screen.getByText("api.a.com")).toBeInTheDocument();
+    expect(screen.getByText("api.b.com")).toBeInTheDocument();
+  });
+
+  it("danger 风险在行根节点标记 data-risk=danger", () => {
+    initLanguage("zh-CN");
+    render(<PermissionRow row={{ kind: "connect", risk: "danger", values: ["*"], sensitive: [] }} />);
+    expect(screen.getByTestId("permission-row")).toHaveAttribute("data-risk", "danger");
+  });
+
+  it("warn 风险在行根节点标记 data-risk=warn", () => {
+    initLanguage("zh-CN");
+    render(<PermissionRow row={{ kind: "grant", risk: "warn", values: ["GM_setValue"], sensitive: [] }} />);
+    expect(screen.getByTestId("permission-row")).toHaveAttribute("data-risk", "warn");
+  });
+
+  it("敏感取值额外标记 data-sensitive", () => {
+    initLanguage("zh-CN");
+    render(
+      <PermissionRow
+        row={{ kind: "grant", risk: "warn", values: ["GM_setValue", "GM_cookie"], sensitive: ["GM_cookie"] }}
+      />
+    );
+    const cookie = screen.getByText("GM_cookie");
+    const chip = cookie.closest("[data-chip]")!;
+    expect(chip).toHaveAttribute("data-sensitive", "true");
+    const setValue = screen.getByText("GM_setValue").closest("[data-chip]")!;
+    expect(setValue).not.toHaveAttribute("data-sensitive", "true");
+  });
+
+  it("外部资源 URL 过长时 chip 限宽且文本可断行,避免横向溢出", () => {
+    initLanguage("zh-CN");
+    const longUrl =
+      "https://cdn.jsdelivr.net/npm/some-really-long-package-name@1.2.3/dist/path/to/very/long/file.min.js";
+    render(<PermissionRow row={{ kind: "require", risk: "normal", values: [longUrl], sensitive: [] }} />);
+    const text = screen.getByText(longUrl);
+    // URL 文本允许在任意字符处断行
+    expect(text).toHaveClass("break-all");
+    // chip 不得超出容器宽度
+    expect(text.closest("[data-chip]")!).toHaveClass("max-w-full");
+  });
+
+  it("取值超过 maxVisible 时折叠为 +N", () => {
+    initLanguage("zh-CN");
+    render(
+      <PermissionRow
+        row={{ kind: "match", risk: "normal", values: ["a", "b", "c", "d", "e"], sensitive: [] }}
+        maxVisible={3}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByText("a")).toBeInTheDocument();
+    expect(within(row).getByText("c")).toBeInTheDocument();
+    expect(within(row).queryByText("d")).not.toBeInTheDocument();
+    expect(within(row).getByText("+2")).toBeInTheDocument();
+  });
+});

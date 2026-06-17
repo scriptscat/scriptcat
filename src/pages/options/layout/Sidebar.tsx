@@ -2,11 +2,6 @@ import { useEffect, useState } from "react";
 import { useHoverMenu } from "../../components/ui/use-hover-menu";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  Package,
-  Rss,
-  ScrollText,
-  Wrench,
-  Settings,
   LifeBuoy,
   PanelLeftClose,
   PanelLeftOpen,
@@ -20,13 +15,6 @@ import {
   MessageCircle,
   Bot,
   ChevronRight,
-  MessageSquare,
-  Server,
-  Sparkles,
-  Plug,
-  CalendarClock,
-  FolderTree,
-  SlidersHorizontal,
 } from "lucide-react";
 import { GithubIcon } from "../../components/icons/GithubIcon";
 import {
@@ -41,30 +29,7 @@ import {
 import { useTheme, type Theme } from "../../components/theme-provider";
 import { DocumentationSite } from "@App/app/const";
 import { localePath, t } from "@App/locales/locales";
-
-/** 主导航项 */
-const mainNav = [
-  { to: "/", icon: Package, label: () => t("script:installed_scripts") },
-  { to: "/subscribe", icon: Rss, label: () => t("script:subscribe") },
-];
-
-/** AI Agent 子导航项 */
-const agentNav = [
-  { to: "/agent/chat", icon: MessageSquare, label: () => t("agent:chat") },
-  { to: "/agent/provider", icon: Server, label: () => t("agent:provider") },
-  { to: "/agent/skills", icon: Sparkles, label: () => t("agent:skills") },
-  { to: "/agent/mcp", icon: Plug, label: () => t("agent:mcp") },
-  { to: "/agent/tasks", icon: CalendarClock, label: () => t("agent:tasks") },
-  { to: "/agent/opfs", icon: FolderTree, label: () => t("agent:opfs") },
-  { to: "/agent/settings", icon: SlidersHorizontal, label: () => t("agent:settings") },
-];
-
-/** 辅助导航项 */
-const auxNav = [
-  { to: "/logs", icon: ScrollText, label: () => t("logs") },
-  { to: "/tools", icon: Wrench, label: () => t("tools") },
-  { to: "/settings", icon: Settings, label: () => t("settings") },
-];
+import { mainNav, agentNav, auxNav } from "./nav-items";
 
 const SIDEBAR_KEY = "scriptcat-sidebar-collapsed";
 

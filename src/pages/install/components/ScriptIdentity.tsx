@@ -1,0 +1,156 @@
+import { useTranslation } from "react-i18next";
+import { User, Globe, ArrowRight, Timer, Power, FileCode } from "lucide-react";
+import { Switch } from "@App/pages/components/ui/switch";
+import { cn } from "@App/pkg/utils/cn";
+import type { VersionDisplay, AntifeatureType, ScheduleInfo } from "../model";
+
+const ANTIFEATURE_TITLE_KEY: Record<AntifeatureType, string> = {
+  "referral-link": "install:referral_link_title",
+  ads: "install:ads_title",
+  payment: "install:payment_title",
+  miner: "install:miner_title",
+  membership: "install:membership_title",
+  tracking: "install:tracking_title",
+};
+
+function Tag({ tone, children }: { tone: "green" | "amber"; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium",
+        tone === "green" ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+export interface ScriptIdentityProps {
+  name: string;
+  iconUrl?: string;
+  version: VersionDisplay;
+  author?: string;
+  source: string;
+  antifeatures: AntifeatureType[];
+  schedule: ScheduleInfo;
+  scheduleNextRun?: string;
+  description?: string;
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+}
+
+export function ScriptIdentity({
+  name,
+  iconUrl,
+  version,
+  author,
+  source,
+  antifeatures,
+  schedule,
+  scheduleNextRun,
+  description,
+  enabled,
+  onEnabledChange,
+}: ScriptIdentityProps) {
+  const { t } = useTranslation(["install", "common"]);
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-4">
+      <div className="flex gap-4">
+        <div className="flex size-[52px] shrink-0 items-center justify-center rounded-xl bg-primary-light">
+          {iconUrl ? (
+            <img src={iconUrl} alt="" className="size-9 rounded-md object-contain" />
+          ) : (
+            <FileCode className="size-7 text-primary" />
+          )}
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-[22px] font-semibold leading-tight text-foreground">{name}</h1>
+            {version.kind === "install" ? (
+              <span
+                data-testid="version-single"
+                className="rounded-md bg-input px-1.5 py-0.5 font-mono text-xs text-foreground"
+              >
+                {`v${version.version}`}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <span data-testid="version-old" className="font-mono text-xs text-muted-foreground line-through">
+                  {`v${version.oldVersion}`}
+                </span>
+                <ArrowRight className="size-3 text-muted-foreground" />
+                <span
+                  data-testid="version-new"
+                  className="rounded-md bg-primary-light px-1.5 py-0.5 font-mono text-xs text-primary"
+                >
+                  {`v${version.newVersion}`}
+                </span>
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {author && (
+              <span className="flex items-center gap-1">
+                <User className="size-3.5" />
+                {author}
+              </span>
+            )}
+            <span className="flex min-w-0 items-center gap-1">
+              <Globe className="size-3.5 shrink-0" />
+              <span className="truncate">{source}</span>
+            </span>
+          </div>
+
+          {(schedule || antifeatures.length > 0) && (
+            <div className="flex flex-wrap gap-1.5">
+              {schedule?.kind === "background" && <Tag tone="green">{t("install:badge_background")}</Tag>}
+              {schedule?.kind === "cron" && <Tag tone="green">{t("install:badge_scheduled")}</Tag>}
+              {antifeatures.map((a) => (
+                <Tag tone="amber" key={a}>
+                  {t(ANTIFEATURE_TITLE_KEY[a])}
+                </Tag>
+              ))}
+            </div>
+          )}
+
+          {description && (
+            <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{description}</p>
+          )}
+
+          {schedule?.kind === "cron" && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-success-bg px-3 py-2 text-xs text-success-fg">
+              <span className="flex items-center gap-1 font-medium">
+                <Timer className="size-3.5" />
+                {t("install:schedule_cron_label")}
+              </span>
+              <span className="rounded bg-card px-1.5 py-0.5 font-mono">{schedule.expression}</span>
+              {scheduleNextRun && (
+                <>
+                  <span aria-hidden>{"·"}</span>
+                  <span>{t("install:schedule_next_run")}</span>
+                  <span className="font-mono">{scheduleNextRun}</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {schedule?.kind === "background" && (
+            <div className="flex items-center gap-1.5 rounded-lg bg-success-bg px-3 py-2 text-xs text-success-fg">
+              <Power className="size-3.5" />
+              {t("install:schedule_background_desc")}
+            </div>
+          )}
+        </div>
+
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <Switch checked={enabled} onCheckedChange={onEnabledChange} />
+          <span className="text-xs text-muted-foreground">{t("install:enabled_label")}</span>
+        </div>
+      </div>
+    </section>
+  );
+}

@@ -40,6 +40,16 @@ describe("StoragePane 储存面板", () => {
     expect(screen.getByText("object")).toBeInTheDocument();
   });
 
+  it("类型徽章应按值类型着色（string/number/boolean/object 各异）", async () => {
+    render(<StoragePane uuid="u1" />);
+    await screen.findByText("token");
+    // 每种值类型对应设计稿独立的胶囊配色令牌
+    expect(screen.getByText("string")).toHaveClass("text-type-string-fg");
+    expect(screen.getByText("number")).toHaveClass("text-type-number-fg");
+    expect(screen.getByText("boolean")).toHaveClass("text-type-boolean-fg");
+    expect(screen.getByText("object")).toHaveClass("text-type-object-fg");
+  });
+
   it("删除应以 undefined 调用 setScriptValue 并移除该行", async () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("token");

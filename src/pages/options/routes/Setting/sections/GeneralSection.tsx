@@ -9,12 +9,7 @@ export function GeneralSection({ register }: { register: (id: string) => (el: HT
   const [language, setLanguage] = useSystemConfig("language");
   const langs = Object.keys(i18n.store.data);
   return (
-    <SettingCard
-      id="general"
-      title={t("settings:general")}
-      description={t("settings:select_interface_language")}
-      register={register}
-    >
+    <SettingCard id="general" title={t("settings:general")} register={register}>
       <SettingRow label={t("settings:language")} description={t("settings:select_interface_language")}>
         <Select value={language ?? ""} onValueChange={(v) => setLanguage(v)}>
           <SelectTrigger className="w-[180px]">

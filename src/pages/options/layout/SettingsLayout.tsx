@@ -33,7 +33,7 @@ export function SettingsLayout({ title, categories, children }: SettingsLayoutPr
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="flex items-center h-14 px-6 border-b border-border shrink-0">
+      <div className="flex items-center h-14 px-6 border-b border-border shrink-0 bg-card">
         <span className="text-base font-semibold text-foreground">{title}</span>
       </div>
 
@@ -65,7 +65,7 @@ export function SettingsLayout({ title, categories, children }: SettingsLayoutPr
       <div className="flex flex-1 min-h-0">
         {/* 桌面端:左侧竖向分类导航 */}
         {!isMobile && (
-          <nav className="w-[220px] shrink-0 border-r border-border p-2.5 flex flex-col gap-0.5 overflow-y-auto">
+          <nav className="w-[220px] shrink-0 border-r border-border p-2.5 flex flex-col gap-0.5 overflow-y-auto bg-card">
             {categories.map((c) => {
               const Icon = c.icon;
               const active = c.id === activeId;

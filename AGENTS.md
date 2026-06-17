@@ -31,7 +31,8 @@ ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible us
 
 > **UI stack.** The presentation layer (`src/pages/`) is built with **shadcn/ui + Tailwind CSS v4** on
 > **React 19** (migrated from Arco Design + UnoCSS). The concrete UI/theme rules live in
-> [`docs/DEVELOP.md`](docs/DEVELOP.md).
+> [`docs/DEVELOP.md`](docs/DEVELOP.md); the design system (color tokens, components, layout/motion/state
+> patterns, new-page recipe) lives in [`docs/DESIGN.md`](docs/DESIGN.md) — read it before building any page.
 
 ## Engineering Principles
 

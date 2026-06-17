@@ -15,15 +15,21 @@ function dragEvent(type: string, opts: { types?: string[]; files?: File[] } = {}
 describe("useScriptDropzone", () => {
   it("拖入文件时 isDragActive 为 true,离开后为 false", () => {
     const { result } = renderHook(() => useScriptDropzone(() => {}));
-    act(() => { window.dispatchEvent(dragEvent("dragenter", { types: ["Files"] })); });
+    act(() => {
+      window.dispatchEvent(dragEvent("dragenter", { types: ["Files"] }));
+    });
     expect(result.current.isDragActive).toBe(true);
-    act(() => { window.dispatchEvent(dragEvent("dragleave", { types: ["Files"] })); });
+    act(() => {
+      window.dispatchEvent(dragEvent("dragleave", { types: ["Files"] }));
+    });
     expect(result.current.isDragActive).toBe(false);
   });
 
   it("拖入非文件(元素排序)不激活遮罩", () => {
     const { result } = renderHook(() => useScriptDropzone(() => {}));
-    act(() => { window.dispatchEvent(dragEvent("dragenter", { types: ["text/plain"] })); });
+    act(() => {
+      window.dispatchEvent(dragEvent("dragenter", { types: ["text/plain"] }));
+    });
     expect(result.current.isDragActive).toBe(false);
   });
 

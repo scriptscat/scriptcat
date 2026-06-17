@@ -79,7 +79,12 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
             {t("script:import_group")}
           </DropdownMenuLabel>
           <DropdownMenuItem onClick={importLocal}>{t("script:import_local_script")}</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => { close(); setLinkOpen(true); }}>
+          <DropdownMenuItem
+            onClick={() => {
+              close();
+              setLinkOpen(true);
+            }}
+          >
             {t("script:link_import")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={importSkill}>{t("script:import_skill")}</DropdownMenuItem>

@@ -16,12 +16,7 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
   const [favicon, setFavicon] = useSystemConfig("favicon_service");
 
   return (
-    <SettingCard
-      id="interface"
-      title={t("settings:interface_settings")}
-      description={t("settings:extension_icon_badge")}
-      register={register}
-    >
+    <SettingCard id="interface" title={t("settings:interface_settings")} register={register}>
       <div className="text-[13px] font-semibold text-foreground">{t("settings:extension_icon_badge")}</div>
       <SettingRow label={t("settings:display_type")} description={t("settings:extension_icon_badge_type")}>
         <Select value={badgeType ?? ""} onValueChange={(v) => setBadgeType(v as "none" | "run_count" | "script_count")}>
@@ -66,7 +61,6 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
           onChange={(e) => setExpandNum(Number(e.target.value))}
         />
       </SettingRow>
-      <div className="text-[13px] font-semibold text-foreground pt-1">{t("settings:favicon_service")}</div>
       <SettingRow label={t("settings:favicon_service")} description={t("settings:favicon_service_desc")}>
         <Select value={favicon ?? ""} onValueChange={(v) => setFavicon(v as FaviconService)}>
           <SelectTrigger className="w-[180px]">

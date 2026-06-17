@@ -275,6 +275,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
                 <button
                   key={d}
                   type="button"
+                  data-testid={`confirm-duration-${d}`}
                   aria-pressed={duration === d}
                   onClick={() => setDuration(d)}
                   className={cn(
@@ -305,13 +306,20 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
           <div className="flex flex-col gap-2.5 pt-1">
             <Button
               size="lg"
+              data-testid="confirm-request"
               className="w-full font-semibold text-white hover:opacity-90"
               style={{ backgroundColor: BRAND }}
               onClick={requestSiteAccess}
             >
               {t("permission:request_permission")}
             </Button>
-            <Button variant="ghost" size="lg" className="w-full text-muted-foreground" onClick={ignore}>
+            <Button
+              variant="ghost"
+              size="lg"
+              data-testid="confirm-cancel"
+              className="w-full text-muted-foreground"
+              onClick={ignore}
+            >
               {t("permission:cancel_action")}
             </Button>
           </div>
@@ -320,6 +328,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 size="lg"
+                data-testid="confirm-allow"
                 className="flex-1 font-semibold text-white hover:opacity-90"
                 style={{ backgroundColor: BRAND }}
                 onClick={() => decide(true, type)}
@@ -329,13 +338,20 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
               <Button
                 variant="secondary"
                 size="lg"
+                data-testid="confirm-deny"
                 className="flex-1 font-semibold"
                 onClick={() => decide(false, type)}
               >
                 {t("permission:deny_action")}
               </Button>
             </div>
-            <Button variant="ghost" size="lg" className="w-full text-muted-foreground" onClick={ignore}>
+            <Button
+              variant="ghost"
+              size="lg"
+              data-testid="confirm-ignore"
+              className="w-full text-muted-foreground"
+              onClick={ignore}
+            >
               {`${t("permission:ignore_action")} (${second})`}
             </Button>
           </div>

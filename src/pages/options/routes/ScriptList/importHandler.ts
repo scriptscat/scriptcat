@@ -58,9 +58,7 @@ function reportStat(stat: ImportStat, total: number): void {
   if (stat.fail === 0) {
     toast.success(t("script:import_done", { success: stat.success, fail: stat.fail }));
   } else {
-    toast.error(
-      `${t("script:import_done", { success: stat.success, fail: stat.fail })}\n${stat.messages.join("\n")}`
-    );
+    toast.error(`${t("script:import_done", { success: stat.success, fail: stat.fail })}\n${stat.messages.join("\n")}`);
   }
 }
 

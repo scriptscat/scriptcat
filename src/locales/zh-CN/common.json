@@ -14,6 +14,7 @@
   "settings": "设置",
   "hide_main_sidebar": "收起侧边栏",
   "show_main_sidebar": "展开侧边栏",
+  "menu": "菜单",
   "guide": "新手指引",
   "helpcenter": "帮助中心",
   "save": "保存",
@@ -124,5 +125,6 @@
   "s3_region": "区域",
   "s3_access_key_id": "访问密钥 ID",
   "s3_secret_access_key": "访问密钥密文",
-  "s3_custom_endpoint": "自定义端点（可选）"
+  "s3_custom_endpoint": "自定义端点（可选）",
+  "cancel": "取消"
 }

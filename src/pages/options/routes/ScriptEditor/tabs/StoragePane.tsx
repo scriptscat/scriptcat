@@ -5,7 +5,7 @@ import { fetchScript, valueClient } from "@App/pages/store/features/script";
 import { t } from "@App/locales/locales";
 import { valueType } from "@App/pkg/utils/utils";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
-import { Badge } from "@App/pages/components/ui/badge";
+import { cn } from "@App/pkg/utils/cn";
 import { Button } from "@App/pages/components/ui/button";
 import { Input } from "@App/pages/components/ui/input";
 import { Textarea } from "@App/pages/components/ui/textarea";
@@ -19,6 +19,28 @@ const TYPES: ValType[] = ["string", "number", "boolean", "object"];
 
 function displayValue(v: unknown): string {
   return typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
+}
+
+// 储存值类型徽章配色（令牌定义于 src/index.css，随明暗主题自动切换）
+const TYPE_BADGE_CLASS: Record<ValType, string> = {
+  string: "bg-type-string-bg text-type-string-fg",
+  number: "bg-type-number-bg text-type-number-fg",
+  boolean: "bg-type-boolean-bg text-type-boolean-fg",
+  object: "bg-type-object-bg text-type-object-fg",
+};
+
+function TypeBadge({ value }: { value: unknown }) {
+  const vt = valueType(value);
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[11px]",
+        TYPE_BADGE_CLASS[vt as ValType] ?? "bg-secondary text-secondary-foreground"
+      )}
+    >
+      {vt}
+    </span>
+  );
 }
 
 interface DialogState {
@@ -226,9 +248,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
                   {displayValue(r.value)}
                 </span>
                 <span className="w-20 shrink-0">
-                  <Badge variant="secondary" className="font-mono text-[10px]">
-                    {valueType(r.value)}
-                  </Badge>
+                  <TypeBadge value={r.value} />
                 </span>
                 <div className="flex w-16 shrink-0 items-center justify-end gap-1">
                   <button

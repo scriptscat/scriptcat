@@ -64,13 +64,16 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
     `border-border`, `bg-primary`, `text-muted-foreground`, …) — they auto-adapt per theme.
   - Use Tailwind's `dark:` variant for dark-only overrides (`@custom-variant dark` in `src/index.css`).
   - No hard-coded colors.
+- **Design system** — the full color-token reference (light/dark values), component palette, layout &
+  responsive patterns, motion guidance, state patterns, and a new-page recipe live in
+  [`DESIGN.md`](./DESIGN.md). Read it before building a new page, dialog, or block.
 
 ## Testing
 
 > The **TDD/BDD-first principle** (write failing tests before implementation; fix code not tests) lives in
 > [`AGENTS.md`](../AGENTS.md) → *Engineering Principles*. This section is the mechanics.
 
-Vitest + jsdom, 500ms timeout, isolation disabled. Chrome APIs mocked via `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
+Vitest + jsdom, 500ms timeout. Chrome APIs mocked via `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
 
 - Write failing tests **before** implementation; co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.

@@ -61,6 +61,16 @@
   --warning-bg: #fff4e6;
   --warning-fg: #c46c00;
 
+  /* 储存值类型徽章色（设计稿储存表「类型」列：string 绿 / number 蓝 / boolean 琥珀 / object 紫） */
+  --type-string-bg: #e4f7ea;
+  --type-string-fg: #2ba24e;
+  --type-number-bg: #d6ecfa;
+  --type-number-fg: #1296db;
+  --type-boolean-bg: #fceedb;
+  --type-boolean-fg: #c2710c;
+  --type-object-bg: #f3e8ff;
+  --type-object-fg: #9333ea;
+
   /* 切换按钮圆钮（Switch/Checkbox thumb） - 始终保持浅色 */
   --thumb: #ffffff;
 
@@ -130,6 +140,16 @@
   --warning-bg: #352c1e;
   --warning-fg: #ffb84d;
 
+  /* 储存值类型徽章色（暗色） */
+  --type-string-bg: #1e3520;
+  --type-string-fg: #4ade80;
+  --type-number-bg: #1e3040;
+  --type-number-fg: #3aacef;
+  --type-boolean-bg: #352c1e;
+  --type-boolean-fg: #fb923c;
+  --type-object-bg: #2a1e3a;
+  --type-object-fg: #c084fc;
+
   /* 切换按钮圆钮（Switch/Checkbox thumb） - 深色模式仍保持浅色 */
   --thumb: #eeeeee;
 
@@ -179,6 +199,14 @@
   --color-warning-fg: var(--warning-fg);
   --color-type-orange: var(--warning);
   --color-type-green: var(--success);
+  --color-type-string-bg: var(--type-string-bg);
+  --color-type-string-fg: var(--type-string-fg);
+  --color-type-number-bg: var(--type-number-bg);
+  --color-type-number-fg: var(--type-number-fg);
+  --color-type-boolean-bg: var(--type-boolean-bg);
+  --color-type-boolean-fg: var(--type-boolean-fg);
+  --color-type-object-bg: var(--type-object-bg);
+  --color-type-object-fg: var(--type-object-fg);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -266,6 +294,19 @@
 @utility animate-collapse-bar {
   animation: collapse-bar 200ms ease-out forwards;
   overflow: hidden;
+}
+
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+@utility animate-indeterminate-bar {
+  animation: indeterminate 1.1s ease-in-out infinite;
 }
 
 /*

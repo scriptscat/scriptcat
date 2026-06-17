@@ -27,6 +27,7 @@ Aspirational / feature-branch content belongs in that branch's docs, or is clear
 | --- | --- |
 | [`../AGENTS.md`](../AGENTS.md) | Engineering principles + architecture quick-map. Single source of truth; `CLAUDE.md` only `@import`s it. |
 | [`DEVELOP.md`](./DEVELOP.md) | The concrete "how": commands, structure, style, testing, i18n, commit/PR. |
+| [`DESIGN.md`](./DESIGN.md) | The design system: light/dark color tokens, theme mechanism, shadcn component palette, layout & responsive patterns, motion, state patterns, new-page recipe. |
 | [`VERIFICATION.md`](./VERIFICATION.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension. |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Deep internals: process model, message passing, service/data layers, GM API, execution, build. |
 | [`translation/README.md`](./translation/README.md) | Translation / localization single source of truth. |
@@ -97,7 +98,7 @@ git ls-files eslint-rules/; git grep -l "require-last-error-check" -- eslint.con
 Link integrity — confirm every relative markdown link in the core docs resolves:
 
 ```bash
-for doc in AGENTS.md docs/README.md docs/DEVELOP.md docs/VERIFICATION.md docs/ARCHITECTURE.md docs/DOC-MAINTENANCE.md docs/translation/README.md; do
+for doc in AGENTS.md docs/README.md docs/DEVELOP.md docs/DESIGN.md docs/VERIFICATION.md docs/ARCHITECTURE.md docs/DOC-MAINTENANCE.md docs/translation/README.md; do
   grep -oE '\]\(([^)]+)\)' "$doc" | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while read -r link; do
     target="$(dirname "$doc")/${link%%#*}"
     [ -e "$target" ] && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"

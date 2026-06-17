@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { initLanguage } from "@App/locales/locales";
 import type { Script } from "@App/app/repo/scripts";
 import type { TBatchUpdateRecord, TBatchUpdateRecordObject } from "@App/app/service/service_worker/types";
 import { riskLevel, getSource, toUpdateItem, categorize, assembleRecord } from "./logic";
@@ -32,6 +33,10 @@ function mkRecord(
     ignoreVersion?: string;
     downloadUrl?: string;
     originDomain?: string;
+    icon?: string;
+    icon64?: string;
+    oldConnect?: string[];
+    newConnect?: string[];
   } = {}
 ): TBatchUpdateRecord {
   const oldVersion = p.oldVersion ?? "1.0.0";
@@ -41,7 +46,7 @@ function mkRecord(
     checkUpdate: true,
     oldCode: "",
     newCode: "",
-    newMeta: { version: [newVersion], connect: [] },
+    newMeta: { version: [newVersion], connect: p.newConnect ?? [] },
     script: mkScript({
       uuid: p.uuid ?? "u",
       name: p.name ?? "脚本",
@@ -49,7 +54,12 @@ function mkRecord(
       ignoreVersion: p.ignoreVersion,
       downloadUrl: p.downloadUrl,
       originDomain: p.originDomain,
-      metadata: { version: [oldVersion] },
+      metadata: {
+        version: [oldVersion],
+        ...(p.icon ? { icon: [p.icon] } : {}),
+        ...(p.icon64 ? { icon64: [p.icon64] } : {}),
+        ...(p.oldConnect ? { connect: p.oldConnect } : {}),
+      },
     }),
     codeSimilarity: p.similarity ?? 1,
     sites: p.sites ?? [],
@@ -119,6 +129,16 @@ describe("toUpdateItem 记录转视图模型", () => {
       ignored: false,
     });
   });
+  it("脚本名优先取当前语言的本地化名称(@name:zh-CN)", () => {
+    initLanguage("zh-CN");
+    const rec = mkRecord({ name: "Raw English Name" });
+    rec.script!.metadata["name:zh-cn"] = ["中文脚本名"];
+    expect(toUpdateItem(rec)!.name).toBe("中文脚本名");
+  });
+  it("无本地化名称时回退到脚本原名", () => {
+    initLanguage("zh-CN");
+    expect(toUpdateItem(mkRecord({ name: "Plain Name" }))!.name).toBe("Plain Name");
+  });
   it("忽略版本等于新版本时标记为 ignored", () => {
     const item = toUpdateItem(mkRecord({ newVersion: "2.0.0", ignoreVersion: "2.0.0" }));
     expect(item?.ignored).toBe(true);
@@ -126,6 +146,19 @@ describe("toUpdateItem 记录转视图模型", () => {
   it("忽略版本与新版本不一致时不标记为 ignored", () => {
     const item = toUpdateItem(mkRecord({ newVersion: "2.0.0", ignoreVersion: "1.5.0" }));
     expect(item?.ignored).toBe(false);
+  });
+  it("从 metadata.icon 提取脚本图标 URL", () => {
+    expect(toUpdateItem(mkRecord({ icon: "https://x.test/icon.png" }))?.iconUrl).toBe("https://x.test/icon.png");
+  });
+  it("icon 缺失时回退到 icon64", () => {
+    expect(toUpdateItem(mkRecord({ icon64: "data:image/png;base64,AAA" }))?.iconUrl).toBe("data:image/png;base64,AAA");
+  });
+  it("无图标时 iconUrl 为空串", () => {
+    expect(toUpdateItem(mkRecord({}))?.iconUrl).toBe("");
+  });
+  it("newConnects 仅包含旧版本未声明的新增连接域名", () => {
+    const item = toUpdateItem(mkRecord({ oldConnect: ["a.com"], newConnect: ["a.com", "b.com", "c.com"] }));
+    expect(item?.newConnects).toEqual(["b.com", "c.com"]);
   });
 });
 

@@ -27,7 +27,10 @@ export function LinkImportDialog({
     if (!open) setText("");
   }, [open]);
   const submit = () => {
-    const urls = text.split("\n").map((s) => s.trim()).filter(Boolean);
+    const urls = text
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (urls.length) onSubmit(urls);
     onOpenChange(false);
     setText("");

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { t } from "@App/locales/locales";
 import type { TBatchUpdateRecord } from "@App/app/service/service_worker/types";
 import { BatchUpdateListActionCode, UpdateStatusCode } from "@App/app/service/service_worker/types";
-import { requestBatchUpdateListAction, requestCheckScriptUpdate, scriptClient } from "@App/pages/store/features/script";
+import {
+  requestBatchUpdateListAction,
+  requestCheckScriptUpdate,
+  requestOpenUpdatePageByUUID,
+  scriptClient,
+} from "@App/pages/store/features/script";
 import { subscribeMessage } from "@App/pages/store/global";
 import { assembleRecord, categorize, type UpdateItem } from "./logic";
 import type { BatchUpdateViewProps } from "./components";
@@ -30,14 +37,18 @@ export function useBatchUpdate(): BatchUpdateViewProps {
   const [autoClose, setAutoClose] = useState<number | null>(() => parseAutoClose());
 
   const loadingRef = useRef(false);
+  // 标记本次检查由用户主动发起（点击「检查更新」），用于在检查完成后弹出反馈 toast
+  const userCheckPendingRef = useRef(false);
 
-  const loadRecord = useCallback(async () => {
-    if (loadingRef.current) return;
+  const loadRecord = useCallback(async (): Promise<TBatchUpdateRecord[] | null> => {
+    if (loadingRef.current) return null;
     loadingRef.current = true;
     try {
       const obj = await assembleRecord((i) => scriptClient.getBatchUpdateRecordLite(i));
-      setRecords(obj?.list ?? []);
+      const list = obj?.list ?? [];
+      setRecords(list);
       if (typeof obj?.checktime === "number") setChecktime(obj.checktime);
+      return list;
     } finally {
       loadingRef.current = false;
       setLoading(false);
@@ -53,7 +64,18 @@ export function useBatchUpdate(): BatchUpdateViewProps {
       if (typeof msg.checktime === "number") setChecktime(msg.checktime);
       const finished = typeof msg.status === "number" && (msg.status & UpdateStatusCode.CHECKING_UPDATE) === 0;
       if (msg.refreshRecord || finished) {
-        void loadRecord();
+        void loadRecord().then((list) => {
+          // 仅对用户主动发起的检查在完成后给出 toast 反馈（后台/系统检查不打扰）
+          if (finished && userCheckPendingRef.current && list) {
+            userCheckPendingRef.current = false;
+            const { updates } = categorize(list);
+            toast.success(
+              updates.length > 0
+                ? t("install:updatepage.toast_found", { count: updates.length })
+                : t("install:updatepage.toast_uptodate")
+            );
+          }
+        });
       }
     });
     void scriptClient.fetchCheckUpdateStatus();
@@ -129,6 +151,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
 
   const onCheckNow = useCallback(() => {
     cancelAutoClose();
+    userCheckPendingRef.current = true;
     void requestCheckScriptUpdate({ checkType: "user" });
   }, [cancelAutoClose]);
 
@@ -153,7 +176,9 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     });
   }, [updates, cancelAutoClose]);
 
-  const onClose = useCallback(() => window.close(), []);
+  const onOpen = useCallback((uuid: string) => {
+    void requestOpenUpdatePageByUUID(uuid);
+  }, []);
 
   return {
     updates,
@@ -173,6 +198,6 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     onIgnoreSelected,
     onRestoreAll,
     onCheckNow,
-    onClose,
+    onOpen,
   };
 }

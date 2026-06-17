@@ -1,4 +1,4 @@
-import { BellOff, ChevronRight, Download, Loader2, PackageCheck, RefreshCw, RotateCcw, X } from "lucide-react";
+import { BellOff, ChevronRight, Download, PackageCheck, RefreshCw, RotateCcw } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Button } from "@App/pages/components/ui/button";
@@ -10,19 +10,46 @@ import {
   ConnectBadge,
   EmptyState,
   RiskBadge,
-  ScriptTile,
+  ScriptAvatar,
+  ScriptName,
+  SkeletonBar,
   SourceCell,
   StatusBadge,
+  TopProgressBar,
   VersionDiff,
   tk,
   type BatchUpdateViewProps,
 } from "./components";
+
+/** 移动端检查中的骨架卡片：取代冻结的空状态/大转圈 */
+function SkeletonCards() {
+  return (
+    <div data-testid="update-skeleton" className="flex flex-col gap-2.5 p-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-2.5 rounded-lg border border-border bg-card p-3.5">
+          <div className="flex items-center gap-2.5">
+            <SkeletonBar className="size-7 shrink-0 rounded-md" />
+            <SkeletonBar className="h-4 w-32" />
+            <div className="flex-1" />
+            <SkeletonBar className="h-5 w-12 rounded-full" />
+          </div>
+          <div className="flex items-center gap-2">
+            <SkeletonBar className="h-4 w-24" />
+            <div className="flex-1" />
+            <SkeletonBar className="h-5 w-16 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** 移动端单卡（待更新或已忽略） */
 function MobileCard({
   item,
   selected,
   onToggle,
+  onOpen,
   onUpdate,
   onIgnore,
   onRestore,
@@ -31,6 +58,7 @@ function MobileCard({
   item: UpdateItem;
   selected?: boolean;
   onToggle?: (uuid: string) => void;
+  onOpen: (uuid: string) => void;
   onUpdate?: (item: UpdateItem) => void;
   onIgnore?: (item: UpdateItem) => void;
   onRestore?: (item: UpdateItem) => void;
@@ -46,8 +74,8 @@ function MobileCard({
           <Checkbox checked={!!selected} onCheckedChange={() => onToggle?.(item.uuid)} />
         )}
         <span className={cn("flex min-w-0 flex-1 items-center gap-2.5", dim)}>
-          <ScriptTile />
-          <span className="truncate text-sm font-medium text-foreground">{item.name}</span>
+          <ScriptAvatar name={item.name} iconUrl={item.iconUrl} />
+          <ScriptName name={item.name} onClick={() => onOpen(item.uuid)} />
         </span>
         <StatusBadge enabled={item.enabled} />
       </div>
@@ -55,8 +83,8 @@ function MobileCard({
         <VersionDiff oldVersion={item.oldVersion} newVersion={item.newVersion} />
         <div className="flex-1" />
         <div className="flex items-center gap-1.5">
-          <RiskBadge risk={item.risk} />
-          {item.withNewConnect && <ConnectBadge />}
+          <RiskBadge risk={item.risk} similarity={item.similarity} />
+          {item.withNewConnect && <ConnectBadge newConnects={item.newConnects} />}
         </div>
       </div>
       <div className="flex items-center">
@@ -118,7 +146,7 @@ function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
       </div>
       <CollapsibleContent className="flex flex-col gap-2.5 pt-2.5">
         {view.ignored.map((item) => (
-          <MobileCard key={item.uuid} item={item} ignoredCard onRestore={view.onRestore} />
+          <MobileCard key={item.uuid} item={item} ignoredCard onOpen={view.onOpen} onRestore={view.onRestore} />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -152,10 +180,9 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
         <Button variant="outline" size="icon-sm" disabled={view.checking} onClick={view.onCheckNow}>
           <RefreshCw className={cn(view.checking && "animate-spin")} />
         </Button>
-        <Button variant="ghost" size="icon-sm" onClick={view.onClose}>
-          <X />
-        </Button>
       </header>
+
+      {view.checking && <TopProgressBar />}
 
       {!empty && view.updates.length > 0 && (
         <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-4">
@@ -178,10 +205,8 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
       )}
 
       <div className="flex-1 overflow-auto scrollbar-custom">
-        {view.loading ? (
-          <div className="flex items-center justify-center py-24 text-muted-foreground">
-            <Loader2 className="size-6 animate-spin" />
-          </div>
+        {view.loading || (view.checking && empty) ? (
+          <SkeletonCards />
         ) : empty ? (
           <EmptyState totalChecked={view.totalChecked} onCheckNow={view.onCheckNow} />
         ) : (
@@ -192,6 +217,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
                 item={item}
                 selected={view.selected.has(item.uuid)}
                 onToggle={view.onToggle}
+                onOpen={view.onOpen}
                 onUpdate={view.onUpdate}
                 onIgnore={view.onIgnore}
               />

@@ -14,6 +14,7 @@
   "settings": "設定",
   "hide_main_sidebar": "サイドバーを折りたたむ",
   "show_main_sidebar": "サイドバーを展開",
+  "menu": "メニュー",
   "guide": "初心者ガイド",
   "helpcenter": "ヘルプセンター",
   "save": "保存",
@@ -124,5 +125,6 @@
   "s3_region": "リージョン",
   "s3_access_key_id": "アクセスキーID",
   "s3_secret_access_key": "シークレットアクセスキー",
-  "s3_custom_endpoint": "カスタムエンドポイント（オプション）"
+  "s3_custom_endpoint": "カスタムエンドポイント（オプション）",
+  "cancel": "キャンセル"
 }
