@@ -303,3 +303,25 @@ vi.stubGlobal("define", "特殊关键字不能穿透沙盒");
 if (!URL.createObjectURL) URL.createObjectURL = undefined;
 //@ts-expect-error
 if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
+
+// ---- Radix UI（DropdownMenu / Select / Sheet 等）在 jsdom 下所需的指针 API 垫片 ----
+// jsdom 未实现 PointerEvent，导致 Radix 触发器的 `event.button === 0` 判断失效、菜单无法展开；
+// 同时缺少指针捕获与 scrollIntoView。下面补齐这些浏览器原生 API，仅用于测试环境。
+if (typeof (globalThis as any).PointerEvent === "undefined") {
+  class PointerEventPolyfill extends MouseEvent {
+    public pointerId?: number;
+    public pointerType?: string;
+    constructor(type: string, params: PointerEventInit = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId;
+      this.pointerType = params.pointerType;
+    }
+  }
+  vi.stubGlobal("PointerEvent", PointerEventPolyfill);
+}
+for (const method of ["hasPointerCapture", "setPointerCapture", "releasePointerCapture", "scrollIntoView"] as const) {
+  if (!(method in Element.prototype)) {
+    // @ts-ignore 测试环境补齐 jsdom 缺失的指针/滚动方法（no-op）
+    Element.prototype[method] = function () {};
+  }
+}
