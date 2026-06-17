@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route, Outlet } from "react-router-dom";
 import Sidebar from "./layout/Sidebar";
 import ScriptList from "./routes/ScriptList";
+import Setting from "./routes/Setting";
 import { t } from "@App/locales/locales";
 
 function Layout() {
@@ -32,7 +33,7 @@ export default function App() {
           <Route path="subscribe" element={<PlaceholderPage title={t("script:subscribe")} />} />
           <Route path="logs" element={<PlaceholderPage title={t("logs")} />} />
           <Route path="tools" element={<PlaceholderPage title={t("tools")} />} />
-          <Route path="settings" element={<PlaceholderPage title={t("settings")} />} />
+          <Route path="settings" element={<Setting />} />
           <Route path="script/editor/:uuid?" element={<PlaceholderPage title="Editor" />} />
         </Route>
       </Routes>
