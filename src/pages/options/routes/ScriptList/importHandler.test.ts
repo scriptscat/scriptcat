@@ -21,10 +21,6 @@ vi.mock("@App/pkg/utils/script", () => ({
   parseMetadata: vi.fn(),
 }));
 
-vi.mock("@App/pkg/utils/skill_script", () => ({
-  parseSkillScriptMetadata: vi.fn(),
-}));
-
 vi.mock("@App/pkg/utils/uuid", () => ({
   uuidv4: vi.fn(() => "fid-1"),
 }));
@@ -45,7 +41,6 @@ import { scriptClient, agentClient } from "@App/pages/store/features/script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL, openInCurrentTab } from "@App/pkg/utils/utils";
 import { parseMetadata } from "@App/pkg/utils/script";
-import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { toast } from "sonner";
 
 function fileOf(name: string, content: string): File {
@@ -60,7 +55,6 @@ describe("importHandler 文件分流", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(parseMetadata).mockReturnValue(null);
-    vi.mocked(parseSkillScriptMetadata).mockReturnValue(null);
     vi.mocked(makeBlobURL).mockReturnValue("blob:fake");
     vi.mocked(openInCurrentTab).mockResolvedValue({ id: 1 } as any);
     vi.mocked(saveHandle).mockResolvedValue(undefined);
@@ -98,9 +92,8 @@ describe("importHandler 文件分流", () => {
     expect(vi.mocked(scriptClient.importByUrl)).toHaveBeenCalledWith("blob:fake");
   });
 
-  it("既非脚本也非 SkillScript 应计入失败", async () => {
+  it("非用户脚本(无 metadata)应计入失败", async () => {
     vi.mocked(parseMetadata).mockReturnValue(null);
-    vi.mocked(parseSkillScriptMetadata).mockReturnValue(null);
 
     const stat = await handleImportFiles([{ file: fileOf("c.js", "garbage"), handle: null }]);
 
@@ -116,7 +109,6 @@ describe("importHandler 文件分流", () => {
 
     vi.clearAllMocks();
     vi.mocked(parseMetadata).mockReturnValue({} as any);
-    vi.mocked(parseSkillScriptMetadata).mockReturnValue(null);
     vi.mocked(makeBlobURL).mockReturnValue("blob:fake");
     vi.mocked(scriptClient.importByUrl).mockResolvedValue({ success: true, msg: "" });
 

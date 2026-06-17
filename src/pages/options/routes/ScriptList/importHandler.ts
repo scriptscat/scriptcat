@@ -2,7 +2,6 @@ import { scriptClient, agentClient } from "@App/pages/store/features/script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL, openInCurrentTab } from "@App/pkg/utils/utils";
 import { parseMetadata } from "@App/pkg/utils/script";
-import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { toast } from "sonner";
 import { t } from "@App/locales/locales";
@@ -36,7 +35,7 @@ async function installSkillZip(file: File): Promise<void> {
 
 async function installLocalFile(file: File, handle: FileSystemFileHandle | null): Promise<void> {
   const code = await file.text();
-  if (!parseMetadata(code) && !parseSkillScriptMetadata(code)) {
+  if (!parseMetadata(code)) {
     throw new Error(t("script:not_a_valid_script"));
   }
   if (handle) {
