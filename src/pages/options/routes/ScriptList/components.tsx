@@ -232,7 +232,7 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
   const checkType = state === "has-update" ? 1 : script.checkUpdateUrl && state !== "latest" ? 2 : 0;
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
       <span className="inline-flex w-4">{/*fixed-width*/}</span>
       {state === "latest" ? (
         <span className="inline-flex items-center gap-1 text-xs text-success">
