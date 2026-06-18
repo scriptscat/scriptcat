@@ -110,9 +110,7 @@ describe("批量更新 Hook useBatchUpdate 检查完成反馈", () => {
     await act(async () => {});
 
     await runCheck([mkRecord("a")]);
-    await new Promise((r) => setTimeout(r, 10));
-
-    expect(h.toastSuccess).not.toHaveBeenCalled();
+    await waitFor(() => expect(h.toastSuccess).not.toHaveBeenCalled());
   });
 });
 

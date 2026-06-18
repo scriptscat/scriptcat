@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "./button";
 
 afterEach(cleanup);
+afterEach(() => vi.useRealTimers());
 
 // 测试用组件：使用封装的 Button
 function HoverMenuWithButton({ onSelect }: { onSelect: (key: string) => void }) {
@@ -112,7 +113,6 @@ describe("useHoverMenu 与 DropdownMenu 集成测试", () => {
       });
 
       expect(queryByTestId("item-normal")).toBeNull();
-      vi.useRealTimers();
     });
   });
 

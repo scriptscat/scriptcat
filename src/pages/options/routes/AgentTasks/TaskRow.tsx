@@ -84,9 +84,7 @@ export function TaskRow({
   );
 
   const statusTag = <StatusDot tone={statusTone}>{statusLabel}</StatusDot>;
-  const enableSwitch = (
-    <Switch data-testid="task-toggle" checked={task.enabled} onCheckedChange={(v) => onToggle(v)} />
-  );
+  const enableSwitch = <Switch data-testid="task-toggle" checked={task.enabled} onCheckedChange={(v) => onToggle(v)} />;
   const runBtn = (
     <button
       type="button"

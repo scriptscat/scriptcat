@@ -346,15 +346,9 @@ describe("useInstallData 数据流编排", () => {
     const { result } = renderHook(() => useInstallData());
     await waitFor(() => expect(result.current.state.status).toBe("error"));
 
-    // 放行成功后再 retry;浮动异步需真实宏任务 tick 才 flush,故在 act 内轮询直到 ready(对负载不敏感)
     allowSuccess = true;
     await act(async () => result.current.retry());
-    for (let i = 0; i < 100 && result.current.state.status !== "ready"; i++) {
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 10));
-      });
-    }
-    expect(result.current.state.status).toBe("ready");
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
   });
 
   it("?url= 时下载并解析后进入 ready 状态", async () => {

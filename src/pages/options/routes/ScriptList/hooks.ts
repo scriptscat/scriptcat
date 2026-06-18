@@ -224,7 +224,13 @@ export function useScriptFilters(
     const statusItems: FilterItem[] = [
       { key: null, label: t("script:script_list.sidebar.all"), icon: Code, count: scriptList.length },
       { key: SCRIPT_STATUS_ENABLE, label: t("enable"), icon: Play, count: counts.enable, color: "text-success" },
-      { key: SCRIPT_STATUS_DISABLE, label: t("disable"), icon: Pause, count: counts.disable, color: "text-destructive" },
+      {
+        key: SCRIPT_STATUS_DISABLE,
+        label: t("disable"),
+        icon: Pause,
+        count: counts.disable,
+        color: "text-destructive",
+      },
       {
         key: SCRIPT_RUN_STATUS_RUNNING,
         label: t("script:running"),

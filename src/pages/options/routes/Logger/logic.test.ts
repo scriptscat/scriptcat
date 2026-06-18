@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from "vitest";
 import type { Logger } from "@App/app/repo/logger";
 import type { LogLevel } from "@App/app/logger/core";

@@ -7,20 +7,8 @@ import { Button } from "@App/pages/components/ui/button";
 import { Input } from "@App/pages/components/ui/input";
 import { Label } from "@App/pages/components/ui/label";
 import { Switch } from "@App/pages/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@App/pages/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@App/pages/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@App/pages/components/ui/dialog";
 
 export function SkillConfigDialog({
   skill,
@@ -137,7 +125,9 @@ export function SkillConfigDialog({
         {loading ? (
           <div className="py-8 text-center text-sm text-muted-foreground">{t("common:loading")}</div>
         ) : (
-          <div className="flex flex-col gap-3">{Object.entries(config).map(([key, field]) => renderField(key, field))}</div>
+          <div className="flex flex-col gap-3">
+            {Object.entries(config).map(([key, field]) => renderField(key, field))}
+          </div>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

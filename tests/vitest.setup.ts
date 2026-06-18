@@ -56,38 +56,40 @@ runtimeWithManifest.getManifest = vi.fn().mockReturnValue({
   host_permissions: [],
 });
 
-// ---- 修正 vitest 4.x.x 错误的 adoptedStyleSheets ----
-let fixAdoptedStyleSheets = false;
-if (!document.adoptedStyleSheets) fixAdoptedStyleSheets = true;
-else {
-  try {
-    document.adoptedStyleSheets = document.adoptedStyleSheets.concat([]);
-  } catch {
-    fixAdoptedStyleSheets = true;
+// ---- 修正 vitest 4.x.x 错误的 adoptedStyleSheets（仅 jsdom 环境）----
+if (typeof document !== "undefined") {
+  let fixAdoptedStyleSheets = false;
+  if (!document.adoptedStyleSheets) fixAdoptedStyleSheets = true;
+  else {
+    try {
+      document.adoptedStyleSheets = document.adoptedStyleSheets.concat([]);
+    } catch {
+      fixAdoptedStyleSheets = true;
+    }
   }
-}
-if (fixAdoptedStyleSheets) {
-  //@ts-ignore
-  delete document.adoptedStyleSheets;
-  //@ts-ignore
-  delete Document.prototype.adoptedStyleSheets;
+  if (fixAdoptedStyleSheets) {
+    //@ts-ignore
+    delete document.adoptedStyleSheets;
+    //@ts-ignore
+    delete Document.prototype.adoptedStyleSheets;
 
-  const map = new WeakMap<any, any>();
-  Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
-    configurable: true,
-    enumerable: true,
-    get() {
-      let res = map.get(this);
-      if (!res) {
-        map.set(this, (res = []));
-      }
-      return res;
-    },
-    set(v) {
-      map.set(this, Object.freeze([...v])); // 模拟初版的 adoptedStyleSheets 无法 .push
-      return true;
-    },
-  });
+    const map = new WeakMap<any, any>();
+    Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        let res = map.get(this);
+        if (!res) {
+          map.set(this, (res = []));
+        }
+        return res;
+      },
+      set(v) {
+        map.set(this, Object.freeze([...v])); // 模拟初版的 adoptedStyleSheets 无法 .push
+        return true;
+      },
+    });
+  }
 }
 // ---- --------------------------------------------- ----
 
@@ -307,21 +309,23 @@ if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
 // ---- Radix UI（DropdownMenu / Select / Sheet 等）在 jsdom 下所需的指针 API 垫片 ----
 // jsdom 未实现 PointerEvent，导致 Radix 触发器的 `event.button === 0` 判断失效、菜单无法展开；
 // 同时缺少指针捕获与 scrollIntoView。下面补齐这些浏览器原生 API，仅用于测试环境。
-if (typeof (globalThis as any).PointerEvent === "undefined") {
-  class PointerEventPolyfill extends MouseEvent {
-    public pointerId?: number;
-    public pointerType?: string;
-    constructor(type: string, params: PointerEventInit = {}) {
-      super(type, params);
-      this.pointerId = params.pointerId;
-      this.pointerType = params.pointerType;
+if (typeof window !== "undefined") {
+  if (typeof (globalThis as any).PointerEvent === "undefined") {
+    class PointerEventPolyfill extends MouseEvent {
+      public pointerId?: number;
+      public pointerType?: string;
+      constructor(type: string, params: PointerEventInit = {}) {
+        super(type, params);
+        this.pointerId = params.pointerId;
+        this.pointerType = params.pointerType;
+      }
     }
+    vi.stubGlobal("PointerEvent", PointerEventPolyfill);
   }
-  vi.stubGlobal("PointerEvent", PointerEventPolyfill);
-}
-for (const method of ["hasPointerCapture", "setPointerCapture", "releasePointerCapture", "scrollIntoView"] as const) {
-  if (!(method in Element.prototype)) {
-    // @ts-ignore 测试环境补齐 jsdom 缺失的指针/滚动方法（no-op）
-    Element.prototype[method] = function () {};
+  for (const method of ["hasPointerCapture", "setPointerCapture", "releasePointerCapture", "scrollIntoView"] as const) {
+    if (!(method in Element.prototype)) {
+      // @ts-ignore 测试环境补齐 jsdom 缺失的指针/滚动方法（no-op）
+      Element.prototype[method] = function () {};
+    }
   }
 }

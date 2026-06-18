@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from "vitest";
 import type { ChatMessage } from "@App/app/service/agent/core/types";
 import {

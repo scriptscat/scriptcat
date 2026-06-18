@@ -3,13 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Sparkles, Blocks } from "lucide-react";
 import type { SkillScriptRecord } from "@App/app/service/agent/core/types";
 import { Button } from "@App/pages/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@App/pages/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@App/pages/components/ui/dialog";
 import type { SkillDetail } from "./skill_detail";
 
 // 详情代码区共用样式：等宽字体、限高滚动、保留换行

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { filterAndSortSubscribes } from "./filter";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";

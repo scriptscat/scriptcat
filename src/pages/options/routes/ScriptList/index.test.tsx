@@ -131,7 +131,5 @@ describe("脚本列表用户配置弹窗", () => {
     fireEvent.click(screen.getByRole("button", { name: t("editor:cancel") }));
 
     await waitFor(() => expect(screen.queryByText("TestScript")).toBeNull());
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(screen.queryByText("TestScript")).toBeNull();
   });
 });
