@@ -1,24 +1,17 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { ThemeProvider } from "@App/pages/components/theme-provider";
 import MobileHeader from "./MobileHeader";
 
 beforeEach(() => {
   localStorage.clear();
-  initLanguage("zh-CN");
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }));
+  initTestLanguage("zh-CN");
+  mockMatchMedia();
 });
 
 afterEach(cleanup);

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, within, cleanup } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
 
 const { get, set } = vi.hoisted(() => ({
   get: vi.fn((key: string) => {
@@ -42,16 +43,8 @@ vi.mock("@Packages/filesystem/auth", () => ({
 import Tools from "./index";
 
 beforeEach(() => {
-  initLanguage("en-US");
-  // jsdom 未实现 matchMedia(useIsMobile 用),固定返回 desktop
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }));
+  initTestLanguage("en-US");
+  mockMatchMedia();
   // @ts-expect-error test stub
   globalThis.IntersectionObserver = class {
     observe() {}

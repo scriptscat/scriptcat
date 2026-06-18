@@ -12,10 +12,6 @@ const baseProps = () => ({
   onToggleWatch: vi.fn(),
 });
 
-// jsdom 缺 scrollIntoView,Radix 展开后聚焦菜单项会用到,先补桩
-if (!Element.prototype.scrollIntoView) {
-  Element.prototype.scrollIntoView = () => {};
-}
 const open = async (el: HTMLElement) => {
   await act(async () => {
     fireEvent.click(el);

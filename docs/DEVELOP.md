@@ -81,6 +81,22 @@ Vitest + jsdom/happy-dom, 850ms timeout. Chrome APIs mocked via `@Packages/chrom
 - 避免冗余测试 — 如果调用方测试已充分覆盖，可省略被调函数的独立单测。
 - Playwright tests are `*.spec.ts` files in `e2e`; they run with one worker and retain failure artifacts. Run targeted tests while iterating, then run `pnpm run lint` plus the relevant full suite before a PR.
 
+### Vitest Performance Hygiene
+
+- Keep `tests/vitest.setup.ts` lightweight. Shared setup should only install global browser/chrome mocks; heavier
+  feature helpers belong in opt-in test utilities.
+- For files that use one fixed UI language, prefer `initTestLanguage()` from `tests/initTestLanguage.ts` in
+  `beforeAll` over repeated `initLanguage()` calls inside every test. Tests that intentionally switch languages
+  should keep explicit language setup.
+- Prefer shared DOM helpers such as `mockMatchMedia()` from `tests/mockMatchMedia.ts` over copying local browser
+  stubs into every page test.
+- To spot setup/import regressions without running the full suite, run one small file and read Vitest's timing
+  breakdown, for example:
+
+```bash
+pnpm exec vitest run --test-timeout=850 --no-coverage --reporter=verbose src/pkg/utils/url-utils.test.ts
+```
+
 > To **verify a change works end-to-end without growing the suite** — drive the real built extension with a
 > throwaway scratch script — see [`VERIFICATION.md`](./VERIFICATION.md). That is lightweight verification, not
 > the committed test suite owned by this section.

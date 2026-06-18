@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { SkillInstallView } from "./SkillInstallView";
 
 const toolCode = [
@@ -32,11 +32,12 @@ const baseProps = () => ({
   onCancel: vi.fn(),
 });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 afterEach(cleanup);
 
 describe("SkillInstallView 技能安装视图", () => {
   it("渲染技能名、Skill 徽章与描述", () => {
-    initLanguage("zh-CN");
     render(<SkillInstallView {...baseProps()} />);
     expect(screen.getByText("网页摘要技能")).toBeInTheDocument();
     expect(screen.getByText("Skill")).toBeInTheDocument();
@@ -44,7 +45,6 @@ describe("SkillInstallView 技能安装视图", () => {
   });
 
   it("提示词默认折叠为预览,点击后展开完整内容", () => {
-    initLanguage("zh-CN");
     render(<SkillInstallView {...baseProps()} />);
     expect(screen.queryByTestId("skill-prompt-full")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("skill-prompt-toggle"));
@@ -52,7 +52,6 @@ describe("SkillInstallView 技能安装视图", () => {
   });
 
   it("渲染工具名、参数与 grants 能力", () => {
-    initLanguage("zh-CN");
     render(<SkillInstallView {...baseProps()} />);
     expect(screen.getByText("fetch_data")).toBeInTheDocument();
     expect(screen.getByText("url")).toBeInTheDocument();
@@ -62,26 +61,22 @@ describe("SkillInstallView 技能安装视图", () => {
   });
 
   it("渲染配置项的 key 与 secret 标记", () => {
-    initLanguage("zh-CN");
     render(<SkillInstallView {...baseProps()} />);
     expect(screen.getByText("apiKey")).toBeInTheDocument();
     expect(screen.getByText("私密")).toBeInTheDocument();
   });
 
   it("渲染参考资料文件名", () => {
-    initLanguage("zh-CN");
     render(<SkillInstallView {...baseProps()} />);
     expect(screen.getByText("style-guide.md")).toBeInTheDocument();
   });
 
   it("更新态主按钮文案为更新 Skill", () => {
-    initLanguage("zh-CN");
     render(<SkillInstallView {...baseProps()} isUpdate />);
     expect(screen.getByTestId("skill-install")).toHaveTextContent("更新 Skill");
   });
 
   it("点击安装与关闭触发回调", () => {
-    initLanguage("zh-CN");
     const p = baseProps();
     render(<SkillInstallView {...p} />);
     fireEvent.click(screen.getByTestId("skill-install"));
@@ -91,7 +86,6 @@ describe("SkillInstallView 技能安装视图", () => {
   });
 
   it("渲染安全警示卡(对照设计稿 Alert Warning)", () => {
-    initLanguage("zh-CN");
     render(<SkillInstallView {...baseProps()} />);
     expect(screen.getByTestId("skill-warning-card")).toBeInTheDocument();
   });

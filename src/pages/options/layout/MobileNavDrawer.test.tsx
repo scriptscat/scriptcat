@@ -2,23 +2,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { ThemeProvider } from "@App/pages/components/theme-provider";
 import MobileNavDrawer from "./MobileNavDrawer";
 
 beforeEach(() => {
   localStorage.clear();
-  initLanguage("zh-CN");
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }));
+  initTestLanguage("zh-CN");
+  mockMatchMedia();
 });
 
 afterEach(cleanup);

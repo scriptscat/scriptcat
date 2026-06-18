@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import MobileEditor from "./MobileEditor";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
@@ -32,7 +34,6 @@ const baseProps = () => ({
 
 describe("MobileEditor 移动端编辑器外壳", () => {
   it("应显示脚本标题", () => {
-    initLanguage("zh-CN");
     const { getByText } = render(
       <MobileEditor {...baseProps()}>
         <div>editor</div>
@@ -42,7 +43,6 @@ describe("MobileEditor 移动端编辑器外壳", () => {
   });
 
   it("点击返回按钮应回调 onBack", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText } = render(
       <MobileEditor {...props}>
@@ -54,7 +54,6 @@ describe("MobileEditor 移动端编辑器外壳", () => {
   });
 
   it("点击保存按钮应回调 onSave", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText } = render(
       <MobileEditor {...props}>
@@ -66,7 +65,6 @@ describe("MobileEditor 移动端编辑器外壳", () => {
   });
 
   it("点击运行应回调 onRun", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByText } = render(
       <MobileEditor {...props}>
@@ -78,7 +76,6 @@ describe("MobileEditor 移动端编辑器外壳", () => {
   });
 
   it("点击『脚本设置』子标签应回调 onSubView('setting')", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByText } = render(
       <MobileEditor {...props}>
@@ -90,7 +87,6 @@ describe("MobileEditor 移动端编辑器外壳", () => {
   });
 
   it("点击撤销应回调 onCommand('undo')", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText } = render(
       <MobileEditor {...props}>
@@ -102,7 +98,6 @@ describe("MobileEditor 移动端编辑器外壳", () => {
   });
 
   it("代码子视图下应显示底部运行工具栏（运行/撤销/重做/查找）", () => {
-    initLanguage("zh-CN");
     const { getByText, getByLabelText } = render(
       <MobileEditor {...baseProps()} subView="code">
         <div />
@@ -115,7 +110,6 @@ describe("MobileEditor 移动端编辑器外壳", () => {
   });
 
   it("非代码子视图（储存）下应隐藏底部运行工具栏", () => {
-    initLanguage("zh-CN");
     const { queryByText, queryByLabelText } = render(
       <MobileEditor {...baseProps()} subView="storage">
         <div />
@@ -131,7 +125,6 @@ describe("MobileEditor 移动端编辑器外壳", () => {
 
 describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）", () => {
   it("展开后应是 文件/编辑/运行 二级分组 + 设置 一级项", async () => {
-    initLanguage("zh-CN");
     const { getByLabelText, getByRole } = render(
       <MobileEditor {...baseProps()}>
         <div />
@@ -144,7 +137,6 @@ describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）
   });
 
   it("编辑子菜单应包含完整命令：剪切/复制/粘贴/替换/全选/格式化", async () => {
-    initLanguage("zh-CN");
     const { getByLabelText, getByText, getByRole } = render(
       <MobileEditor {...baseProps()}>
         <div />
@@ -158,7 +150,6 @@ describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）
   });
 
   it("编辑 → 格式化 应回调 onCommand('format')", async () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, getByText, getByRole } = render(
       <MobileEditor {...props}>
@@ -172,7 +163,6 @@ describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）
   });
 
   it("设置 作为一级项应回调 onSubView('setting')", async () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, getByRole } = render(
       <MobileEditor {...props}>

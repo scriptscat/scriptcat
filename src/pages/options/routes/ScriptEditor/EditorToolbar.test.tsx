@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import EditorToolbar from "./EditorToolbar";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(() => {
   cleanup();
@@ -35,13 +37,11 @@ const openSub = async (el: HTMLElement) => {
 
 describe("EditorToolbar 桌面端编辑器工具栏", () => {
   it("应保留原汉堡图标按钮作为菜单入口", () => {
-    initLanguage("zh-CN");
     const { getByLabelText } = render(<EditorToolbar {...baseProps()} />);
     expect(getByLabelText("更多")).toBeInTheDocument();
   });
 
   it("展开后应是「文件」「编辑」「运行」二级子菜单而非全部平铺", async () => {
-    initLanguage("zh-CN");
     const { getByLabelText, getByText } = render(<EditorToolbar {...baseProps()} />);
     await openRoot(getByLabelText("更多"));
     // 顶层只暴露分组（子菜单触发器），具体操作收纳在二级子菜单里，默认不可见
@@ -51,7 +51,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("文件 → 保存 应回调 onSave", async () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
@@ -61,7 +60,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("文件 → 另存为 应回调 onSaveAs", async () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
@@ -71,7 +69,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("编辑 → 撤销 应回调 onCommand('undo')", async () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
@@ -81,7 +78,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("编辑 → 格式化 应回调 onCommand('format')", async () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
@@ -91,7 +87,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("运行 → 运行 应回调 onRun", async () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
@@ -102,7 +97,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("编辑 → 剪切/复制/粘贴/全选 应展示对应快捷键", async () => {
-    initLanguage("zh-CN");
     const { getByLabelText, getByText } = render(<EditorToolbar {...baseProps()} />);
     await openRoot(getByLabelText("更多"));
     await openSub(getByText("编辑"));
@@ -114,7 +108,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("替换在 Windows 下应展示 Ctrl+H", async () => {
-    initLanguage("zh-CN");
     const { getByLabelText, getByText } = render(<EditorToolbar {...baseProps()} />);
     await openRoot(getByLabelText("更多"));
     await openSub(getByText("编辑"));
@@ -122,7 +115,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("替换在 Mac 下应展示 ⌥⌘F（与 Monaco 实际键位一致，而非 ⌘H）", async () => {
-    initLanguage("zh-CN");
     vi.stubGlobal("navigator", { userAgentData: { platform: "macOS" }, userAgent: "" });
     const { getByLabelText, getByText, queryByText } = render(<EditorToolbar {...baseProps()} />);
     await openRoot(getByLabelText("更多"));
@@ -132,7 +124,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("Mac 平台下保存快捷键应以 ⌘ 图标展示", async () => {
-    initLanguage("zh-CN");
     vi.stubGlobal("navigator", { userAgentData: { platform: "macOS" }, userAgent: "" });
     const { getByLabelText, getByText } = render(<EditorToolbar {...baseProps()} />);
     await openRoot(getByLabelText("更多"));
@@ -142,7 +133,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("设置 作为一级项应回调 onSubView('setting')", async () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, getByText } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
@@ -151,7 +141,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("应渲染 代码/储存/资源/脚本设置 四个二级标签，且脚本设置排在资源之后", () => {
-    initLanguage("zh-CN");
     const { getByText } = render(<EditorToolbar {...baseProps()} />);
     for (const label of ["代码", "储存", "资源", "脚本设置"]) {
       expect(getByText(label)).toBeInTheDocument();
@@ -164,7 +153,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("点击 储存 标签应回调 onSubView('storage')", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByText } = render(<EditorToolbar {...props} />);
     fireEvent.click(getByText("储存"));
@@ -172,7 +160,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("点击 资源 标签应回调 onSubView('resource')", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByText } = render(<EditorToolbar {...props} />);
     fireEvent.click(getByText("资源"));
@@ -180,13 +167,11 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("无激活脚本时菜单入口应禁用", () => {
-    initLanguage("zh-CN");
     const { getByLabelText } = render(<EditorToolbar {...baseProps()} hasActive={false} />);
     expect(getByLabelText("更多")).toBeDisabled();
   });
 
   it("列表显示时应渲染「隐藏脚本列表」切换按钮，点击触发 onToggleScriptList", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText } = render(<EditorToolbar {...props} scriptListCollapsed={false} />);
     const btn = getByLabelText("隐藏脚本列表");
@@ -196,7 +181,6 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
   });
 
   it("列表折叠时切换按钮应变为「显示脚本列表」", () => {
-    initLanguage("zh-CN");
     const props = baseProps();
     const { getByLabelText, queryByLabelText } = render(<EditorToolbar {...props} scriptListCollapsed={true} />);
     expect(getByLabelText("显示脚本列表")).toBeInTheDocument();

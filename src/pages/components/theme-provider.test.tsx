@@ -1,20 +1,12 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, act, cleanup } from "@testing-library/react";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { ThemeProvider, useTheme } from "./theme-provider";
 
 // theme-provider 用 window.matchMedia 判断系统主题，jsdom 默认未实现，需 mock
 beforeEach(() => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }));
+  mockMatchMedia();
   localStorage.removeItem("lightMode");
   localStorage.removeItem("scriptcat-theme");
   document.documentElement.classList.remove("dark");

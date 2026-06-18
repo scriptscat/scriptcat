@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { ThemeProvider } from "@App/pages/components/theme-provider";
 import { Layout } from "./App";
@@ -14,17 +15,10 @@ vi.mock("@App/pages/components/use-is-mobile", () => ({
 const mockedUseIsMobile = vi.mocked(useIsMobile);
 
 beforeEach(() => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }));
+  mockMatchMedia();
 });
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
@@ -44,7 +38,6 @@ function renderLayout() {
 
 describe("Layout 外壳响应式", () => {
   it("移动端渲染底部 Tab 栏,不渲染左侧 Sidebar", () => {
-    initLanguage("zh-CN");
     mockedUseIsMobile.mockReturnValue(true);
     const { getByTestId, container } = renderLayout();
     expect(getByTestId("bottom-tab-bar")).toBeInTheDocument();
@@ -52,7 +45,6 @@ describe("Layout 外壳响应式", () => {
   });
 
   it("桌面端渲染左侧 Sidebar,不渲染底部 Tab 栏", () => {
-    initLanguage("zh-CN");
     mockedUseIsMobile.mockReturnValue(false);
     const { queryByTestId, container } = renderLayout();
     expect(container.querySelector("aside")).not.toBeNull();

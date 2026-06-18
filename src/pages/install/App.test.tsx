@@ -2,12 +2,11 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, type Mock } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
 
 vi.mock("./useInstallData", () => ({ useInstallData: vi.fn() }));
 // Monaco 编辑器无法在 jsdom 渲染(需 worker + ThemeProvider),用桩替换
-vi.mock("@App/pages/components/CodeEditor", () => ({
-  default: ({ id }: { id: string }) => <div data-testid="code-body" data-id={id} />,
-}));
+vi.mock("@App/pages/components/CodeEditor", () => import("@Tests/mocks/CodeEditor.tsx"));
 
 import { useInstallData, type InstallView } from "./useInstallData";
 import App from "./App";
@@ -44,16 +43,7 @@ const readyView = (over: Partial<InstallView> = {}): InstallView => ({
 });
 
 beforeEach(() => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }));
+  mockMatchMedia();
 });
 
 beforeAll(() => initTestLanguage("zh-CN"));

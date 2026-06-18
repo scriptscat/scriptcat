@@ -19,9 +19,6 @@ vi.mock("../hooks/useScrollSpy", () => ({
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
 const mockedUseIsMobile = vi.mocked(useIsMobile);
 
-// jsdom 未实现 scrollIntoView,横向栏激活分类滚动到可视区会用到
-Element.prototype.scrollIntoView = vi.fn();
-
 afterEach(cleanup);
 beforeEach(() => {
   scrollTo.mockClear();
