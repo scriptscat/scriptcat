@@ -39,6 +39,12 @@ describe("derivePermissions 权限派生", () => {
     expect(connect!.risk).toBe("danger");
   });
 
+  it("@connect 中 * 应排在普通域名前面", () => {
+    const rows = derivePermissions({ connect: ["api.example.com", "*", "cdn.example.com"] });
+    const connect = rows.find((r) => r.kind === "connect");
+    expect(connect!.values).toEqual(["*", "api.example.com", "cdn.example.com"]);
+  });
+
   it("@grant 派生为 GM 能力行,风险为 warn", () => {
     const rows = derivePermissions({ grant: ["GM_setValue", "GM_getValue"] });
     const grant = rows.find((r) => r.kind === "grant");
@@ -50,6 +56,13 @@ describe("derivePermissions 权限派生", () => {
   it("@grant 含 GM_cookie 时标记为敏感能力", () => {
     const rows = derivePermissions({ grant: ["GM_setValue", "GM_cookie"] });
     const grant = rows.find((r) => r.kind === "grant");
+    expect(grant!.sensitive).toEqual(["GM_cookie"]);
+  });
+
+  it("@grant 中敏感 GM 能力应排在普通能力前面", () => {
+    const rows = derivePermissions({ grant: ["GM_setValue", "GM_cookie", "GM_getValue"] });
+    const grant = rows.find((r) => r.kind === "grant");
+    expect(grant!.values).toEqual(["GM_cookie", "GM_setValue", "GM_getValue"]);
     expect(grant!.sensitive).toEqual(["GM_cookie"]);
   });
 
@@ -68,14 +81,15 @@ describe("derivePermissions 权限派生", () => {
     expect(require!.values).toEqual(["https://cdn.example.com/lib.js", "logo https://cdn.example.com/logo.png"]);
   });
 
-  it("按 运行→跨域→GM→资源 顺序输出存在的权限行", () => {
+  it("权限行按高危、告警、普通排序,同风险保持类别顺序", () => {
     const metadata: SCMetadata = {
       require: ["https://cdn.example.com/lib.js"],
       grant: ["GM_setValue"],
-      connect: ["api.example.com"],
+      connect: ["*"],
       match: ["https://example.com/*"],
     };
     const rows = derivePermissions(metadata);
-    expect(rows.map((r) => r.kind)).toEqual(["match", "connect", "grant", "require"]);
+    expect(rows.map((r) => r.kind)).toEqual(["connect", "grant", "match", "require"]);
+    expect(rows.map((r) => r.risk)).toEqual(["danger", "warn", "normal", "normal"]);
   });
 });
