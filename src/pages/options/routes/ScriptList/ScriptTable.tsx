@@ -64,7 +64,7 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
   );
   return (
     <SortableDragCtx.Provider value={ctxValue}>
-      <div ref={setNodeRef} style={style} {...attributes}>
+      <div className="cursor-auto" ref={setNodeRef} style={style} {...attributes}>
         {children}
       </div>
     </SortableDragCtx.Provider>
@@ -73,8 +73,9 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
 
 function RowDragHandle() {
   const sortable = useContext(SortableDragCtx);
-  if (!sortable) return <GripVertical className="w-4 h-4 text-muted-foreground opacity-0" />;
-  return (
+  return !sortable ? (
+    <GripVertical className="w-4 h-4 text-muted-foreground collapse" />
+  ) : (
     <span
       ref={sortable.setActivatorNodeRef}
       {...sortable.listeners}
