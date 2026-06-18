@@ -354,7 +354,7 @@ function ScriptRow({ item, view }: { item: ScriptImportItem; view: ImportView })
       <div className={cn(COL.status, dim)}>
         <OpBadge op={item.op} />
       </div>
-      <div className={cn(COL.enable, "flex justify-end")}>
+      <div className={cn(COL.enable, "flex justify-center")}>
         {item.op === "error" ? (
           <span className="text-muted-foreground">{"—"}</span>
         ) : (
@@ -381,7 +381,7 @@ function ScriptTable({ view }: { view: ImportView }) {
         <div className={COL.source}>{tk("col_source")}</div>
         <div className={COL.data}>{tk("col_data")}</div>
         <div className={COL.status}>{tk("col_status")}</div>
-        <div className={cn(COL.enable, "text-right")}>{tk("col_enabled")}</div>
+        <div className={cn(COL.enable, "text-center")}>{tk("col_enabled")}</div>
       </div>
       {view.scripts.map((item) => (
         <ScriptRow key={item.id} item={item} view={view} />
