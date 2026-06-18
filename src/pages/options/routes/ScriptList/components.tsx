@@ -229,6 +229,7 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
 
   return (
     <div className="flex items-center gap-1">
+      <span className="inline-flex w-3">{/*fixed-width*/}</span>
       {state === "latest" ? (
         <span className="inline-flex items-center gap-1 text-xs text-success">
           <Check className="w-3 h-3" />
@@ -238,39 +239,42 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
         <span className="text-xs text-muted-foreground">{time}</span>
       )}
       {/* 检查到新版本：在时间旁展示「存在新版本」入口，点击可再次触发更新 */}
-      {state === "has-update" ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={t("check_update")}
-              onClick={handleCheck}
-              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/15"
-            >
-              <CircleArrowUp className="w-3 h-3" />
-              {t("script:new_version_available")}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{t("check_update")}</TooltipContent>
-        </Tooltip>
-      ) : (
-        script.checkUpdateUrl &&
-        state !== "latest" && (
+      <span className="inline-flex w-3">
+        {/*fixed-width*/}
+        {state === "has-update" ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 aria-label={t("check_update")}
                 onClick={handleCheck}
-                className="text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/15"
               >
-                <RefreshCw className={cn("w-3 h-3", state === "checking" && "animate-spin")} />
+                <CircleArrowUp className="w-3 h-3" />
+                {t("script:new_version_available")}
               </button>
             </TooltipTrigger>
             <TooltipContent>{t("check_update")}</TooltipContent>
           </Tooltip>
-        )
-      )}
+        ) : (
+          script.checkUpdateUrl &&
+          state !== "latest" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t("check_update")}
+                  onClick={handleCheck}
+                  className="text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100"
+                >
+                  <RefreshCw className={cn("w-3 h-3", state === "checking" && "animate-spin")} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{t("check_update")}</TooltipContent>
+            </Tooltip>
+          )
+        )}
+      </span>
     </div>
   );
 });
