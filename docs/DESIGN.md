@@ -114,6 +114,14 @@ The "why" behind the constraints — apply these when shaping a screen.
 
 > Use the solid status colors (`success`/`warning`) for icons and dots; use the `*-bg` / `*-fg` pairs for badges (see the `Badge` `success` / `warning` variants).
 
+**Skill / purple accent.** Skills carry a purple brand identity across the install flow and the Agent management pages. Use the `skill` family — never raw `violet-*` palette classes.
+
+| Token / class | Light | Dark | Use |
+| --- | --- | --- | --- |
+| `skill` | `#9333ea` | `#a855f7` | Skill accent (solid) — install button, section icons (dark is brightened for contrast) |
+| `skill-foreground` | `#ffffff` | `#ffffff` | Text on the solid skill color |
+| `skill-bg` / `skill-fg` | `#f3e8ff` / `#7e22ce` | `#2a1e3a` / `#c084fc` | Skill **badge / chip** (soft bg, deep fg) — also the `CapabilityTag` `violet` tone |
+
 ### 3.6 Stored-value type badges (string / number / boolean / object)
 
 For the storage table's "type" column — soft bg, deep fg; in dark the bg darkens and the fg brightens:
@@ -353,6 +361,7 @@ Long pages (settings / tools) use scroll-spy: scrolling the content highlights t
 | `animate-expand-bar` / `animate-collapse-bar` | `index.css` | Height expand/collapse of bars/rows (incl. border and opacity) |
 | `animate-indeterminate-bar` | `index.css` | Indeterminate progress bar (`translateX` loop, `1.1s`) |
 | `data-[state=open]:animate-in data-[state=closed]:animate-out` + `fade-*` / `zoom-95` / `slide-*` | `tw-animate-css` | Dialog / Dropdown / Sheet enter/leave (Radix state driven) |
+| `animate-spin` | Tailwind built-in | Spinner rotation — the `Loader2` / `RefreshCw` icons used for inline, button, and full-page loading (`animate-spin`, usually `text-primary`) |
 | `animate-pulse` | Tailwind built-in | Skeleton placeholder pulse |
 | `transition-colors` / `transition-transform` / `duration-200` | Tailwind | hover/focus color transitions, icon rotation |
 
@@ -376,11 +385,29 @@ Every async flow covers the states below, presented consistently:
 
 | State | Standard presentation |
 | --- | --- |
-| **Loading** | Centered spinner / skeleton (`animate-pulse`) outlining the expected shape; a long check adds a top `animate-indeterminate-bar` |
+| **Loading** | A skeleton that preserves the layout, a centered spinner, or a thin top indeterminate bar — pick by *where* the wait happens (see **Loading patterns** below) |
 | **Empty** | Centered `muted` icon (e.g. `lucide` `PackageOpen`/`Inbox`) + title + explanation + primary CTA |
 | **Error** | Centered red icon + an "X failed" title + a monospace (`font-mono`) box with the raw error + retry/close |
 | **Success** | Centered green icon + title + summary stats + next-step CTA; for transient feedback use `toast.success` |
 | **In-progress** | Top progress bar + per-row status icons (✓ green done / ○ brand in-progress / ⏱ `muted` pending / ✗ `muted` skipped) + readable copy ("Importing… 2/5, keep this page open") |
+
+### Loading patterns
+
+A loading state is not one thing — and a centered spinner is the *last* resort, not the default. The guiding rule is **keep the page's shape stable**: show a placeholder where the content will land instead of collapsing the layout to a spinner and snapping it back when data arrives. Match the indicator to where the wait happens:
+
+| Where the wait is | Indicator | Reference in code |
+| --- | --- | --- |
+| **First load of a whole page / screen** (no shape yet) | Centered `Loader2` (`size-12 animate-spin text-primary`) + title/desc; pair with a determinate bar (`transition-[width]`) when bytes/percent are known, else an indeterminate fill | `InstallLoading` ([`install/components/InstallStates.tsx`](../src/pages/install/components/InstallStates.tsx)) |
+| **Reloading content that already has a shape** (table / list) | A **skeleton** that keeps the real header + placeholder rows (`animate-pulse rounded bg-muted`) — not a centered spinner — so the layout doesn't collapse and reflow | `SkeletonTable` / `SkeletonBar` ([`batchupdate/components.tsx`](../src/pages/batchupdate/components.tsx)) |
+| **Background refresh / check while content stays visible** | A thin top `animate-indeterminate-bar` (`h-0.5`, `role="progressbar"` + `aria-label`) pinned under the TopBar, not scrolling with content | `TopProgressBar` ([`batchupdate/components.tsx`](../src/pages/batchupdate/components.tsx)) |
+| **A single action** (button, connection test, fetch) | Disable the control and show an inline `Loader2 size-4 animate-spin`; if the action already has an icon, spin that icon instead (`RefreshCw className={cn(checking && "animate-spin")}`) | `McpFormDialog` test button, `ScriptList` / `AgentSkills` refresh |
+
+Practical rules:
+
+- **Never freeze and never wait silently.** A region that is loading must show a skeleton, spinner, or bar — never a blank or stale frame with no signal (Constraint 7).
+- **Don't fake determinism.** Use the determinate progress bar only when the percent/bytes are actually known; otherwise use an indeterminate fill or a skeleton.
+- **One indicator per wait.** Don't stack a full-page spinner over content that is already skeletoned, or two bars for one fetch.
+- **The spinner is always `Loader2` + `animate-spin`** (`text-primary` when it should read as active), sized to context — `size-3.5`/`size-4` inline, `size-12` full-page (§8).
 
 The rule: **no silent operations** — after any action the user can see success / failure / in-progress.
 

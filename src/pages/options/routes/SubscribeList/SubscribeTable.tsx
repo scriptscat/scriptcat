@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Search, Loader2, ChevronUp, ChevronDown, ChevronsUpDown, ListFilter, Check } from "lucide-react";
+import { Search, Loader2, ChevronUp, ChevronDown, ChevronsUpDown, ListFilter, Check, Inbox } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestEnableSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { cn } from "@App/pkg/utils/cn";
@@ -146,11 +146,11 @@ export default function SubscribeTable({
       <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
         <div className="flex items-center gap-2 shrink-0">
           <h1 className="text-base font-semibold">{t("script:subscribe")}</h1>
-          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium font-mono text-primary tabular-nums">
+          <span className="inline-flex items-center rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium font-mono text-primary tabular-nums">
             {totalCount}
           </span>
         </div>
-        <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg bg-muted/50 px-3 h-9">
+        <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg bg-muted px-3 h-9">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
           <input
             className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
@@ -191,10 +191,16 @@ export default function SubscribeTable({
           </div>
         )}
 
-        {/* 空状态 */}
+        {/* 空状态：居中图标 + 标题 + 说明（对齐 DESIGN.md §9） */}
         {!loadingList && subscribeList.length === 0 && (
-          <div className="flex items-center justify-center py-20 text-muted-foreground">
-            <span className="text-sm">{t("no_subscribes", { defaultValue: "暂无订阅" })}</span>
+          <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+            <Inbox className="w-10 h-10 text-muted-foreground/60" />
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium text-foreground">{t("no_subscribes", { defaultValue: "暂无订阅" })}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("no_subscribes_hint", { defaultValue: "订阅脚本集合后将显示在这里" })}
+              </p>
+            </div>
           </div>
         )}
 
@@ -265,7 +271,7 @@ function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRo
       </div>
 
       {/* 版本 */}
-      <div className="w-[110px] flex justify-center text-xs font-mono text-muted-foreground">{`v${version}`}</div>
+      <div className="w-[110px] flex justify-center text-xs font-mono text-fg-secondary">{`v${version}`}</div>
 
       {/* 权限 */}
       <div className="w-[140px] flex justify-center">

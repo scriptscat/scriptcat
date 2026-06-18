@@ -36,9 +36,9 @@ const runAtLabel = (o: string) => (o === "default" ? t("settings:script_setting.
 const pill = "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium";
 const pillColor: Record<string, string> = {
   cors: "bg-primary-light text-primary",
-  cookie: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300",
-  yes: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400",
-  no: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
+  cookie: "bg-skill-bg text-skill-fg",
+  yes: "bg-success-bg text-success-fg",
+  no: "bg-destructive/10 text-destructive",
   script: "bg-muted text-muted-foreground",
 };
 const iconBtn = "rounded p-1 text-muted-foreground hover:bg-accent transition-colors";
@@ -248,7 +248,7 @@ export default function SettingsPane({ uuid }: SettingsPaneProps) {
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-orange-500 hover:bg-orange-500/10 hover:text-orange-500 dark:text-orange-400"
+                className="text-warning hover:bg-warning/10 hover:text-warning"
                 disabled={list.length === 0}
               >
                 <RotateCcw className="size-3.5" />

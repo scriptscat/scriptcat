@@ -9,7 +9,7 @@ import { semTime } from "@App/pkg/utils/dayjs";
 import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 import { toast } from "sonner";
-import { Globe, RefreshCw, Rss, Trash2, CircleArrowUp, Check, Loader2 } from "lucide-react";
+import { Globe, RefreshCw, Rss, Trash2, CircleArrowUp, Check, Loader2, Link } from "lucide-react";
 
 // 基于字符串生成稳定的 HSL 颜色（订阅图标底色）
 function hashToHsl(str: string): string {
@@ -99,7 +99,8 @@ export const SubscribeSourceTag = React.memo(({ url }: { url: string }) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="success" className="text-[10px] px-1.5 py-0 cursor-default">
+        <Badge variant="success" className="gap-1 px-2 py-0.5 text-[11px] cursor-default">
+          <Link className="w-3 h-3" />
           {t("script:subscribe_url")}
         </Badge>
       </TooltipTrigger>
@@ -140,12 +141,12 @@ export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: s
   return (
     <div className="flex items-center justify-center gap-1">
       {state === "latest" ? (
-        <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+        <span className="inline-flex items-center gap-1 text-xs text-success">
           <Check className="w-3 h-3" />
           {t("script:latest_version")}
         </span>
       ) : (
-        <span className="text-xs text-muted-foreground">{time}</span>
+        <span className="text-xs text-fg-secondary">{time}</span>
       )}
       {state === "has-update" ? (
         <Tooltip>

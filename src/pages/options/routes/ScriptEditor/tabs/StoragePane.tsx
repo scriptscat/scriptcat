@@ -218,7 +218,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
             <Button
               size="sm"
               variant="outline"
-              className="text-red-600 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
               disabled={data.length === 0}
             >
               <Trash2 className="size-3.5" />

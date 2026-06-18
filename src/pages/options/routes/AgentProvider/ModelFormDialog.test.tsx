@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { initLanguage } from "@App/locales/locales";
 import { ModelFormDialog } from "./ModelFormDialog";
 import { getDefaultBaseUrl } from "./provider_api";
@@ -27,10 +27,17 @@ function setup(props: Record<string, unknown> = {}) {
 }
 
 describe("ModelFormDialog 模型表单弹窗", () => {
-  it("填写名称与模型后保存，回调带表单值", () => {
-    const { onSubmit } = setup();
+  it("拉取后从下拉选择模型并保存，回调带表单值", async () => {
+    const { onSubmit, onFetchModels } = setup();
     fireEvent.change(screen.getByTestId("model-name"), { target: { value: "My GPT" } });
-    fireEvent.change(screen.getByTestId("model-id"), { target: { value: "gpt-4o" } });
+    // 拉取可用模型列表 -> 填充下拉选项（异步，需等待 state 更新后再展开下拉）
+    fireEvent.click(screen.getByTestId("model-fetch"));
+    await waitFor(() => expect(onFetchModels).toHaveBeenCalled());
+    // 用键盘展开 Radix Select(jsdom 下 pointerDown 不触发其打开)，再选择拉取到的模型
+    const trigger = screen.getByTestId("model-id");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.click(await screen.findByTestId("model-option-gpt-4o"));
     fireEvent.click(screen.getByTestId("model-submit"));
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "My GPT", model: "gpt-4o" }));
   });
@@ -38,7 +45,6 @@ describe("ModelFormDialog 模型表单弹窗", () => {
   it("点击测试连接调用 onTest", () => {
     const { onTest } = setup();
     fireEvent.change(screen.getByTestId("model-name"), { target: { value: "n" } });
-    fireEvent.change(screen.getByTestId("model-id"), { target: { value: "m" } });
     fireEvent.click(screen.getByTestId("model-test"));
     expect(onTest).toHaveBeenCalled();
   });
@@ -49,10 +55,12 @@ describe("ModelFormDialog 模型表单弹窗", () => {
   });
 
   it("编辑模式回填已有值", () => {
-    setup({
+    const { onSubmit } = setup({
       value: { id: "9", name: "Claude", provider: "anthropic", apiBaseUrl: "", apiKey: "k", model: "claude-3" },
     });
     expect((screen.getByTestId("model-name") as HTMLInputElement).value).toBe("Claude");
-    expect((screen.getByTestId("model-id") as HTMLInputElement).value).toBe("claude-3");
+    // 模型字段已是 Select：通过提交回传验证既有 model 被回填保留
+    fireEvent.click(screen.getByTestId("model-submit"));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "Claude", model: "claude-3" }));
   });
 });

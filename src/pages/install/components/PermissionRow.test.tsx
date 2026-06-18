@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { initLanguage } from "@App/locales/locales";
 import { PermissionRow } from "./PermissionRow";
 
@@ -67,6 +67,21 @@ describe("PermissionRow 权限行", () => {
     expect(within(row).getByText("a")).toBeInTheDocument();
     expect(within(row).getByText("c")).toBeInTheDocument();
     expect(within(row).queryByText("d")).not.toBeInTheDocument();
-    expect(within(row).getByText("+2")).toBeInTheDocument();
+    expect(within(row).getByTestId("permission-more")).toHaveTextContent("+2");
+  });
+
+  it("点击 +N 展开余下取值并隐藏折叠按钮", () => {
+    initLanguage("zh-CN");
+    render(
+      <PermissionRow
+        row={{ kind: "match", risk: "normal", values: ["a", "b", "c", "d", "e"], sensitive: [] }}
+        maxVisible={3}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    fireEvent.click(within(row).getByTestId("permission-more"));
+    expect(within(row).getByText("d")).toBeInTheDocument();
+    expect(within(row).getByText("e")).toBeInTheDocument();
+    expect(within(row).queryByTestId("permission-more")).not.toBeInTheDocument();
   });
 });

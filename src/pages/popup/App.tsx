@@ -366,7 +366,7 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={t("script:search_scripts", { defaultValue: "搜索脚本..." })}
-          className="h-8 pl-8 text-[13px] bg-muted border-transparent shadow-none focus-visible:ring-1"
+          className="h-8 pl-8 text-[13px] rounded-lg bg-muted border-transparent shadow-none focus-visible:ring-1"
         />
       </div>
     </div>
@@ -467,7 +467,7 @@ function ScriptRow({
     if (shouldTruncateMenus && !isMenuExpanded) return allVisibleMenus.slice(0, menuExpandNum);
     return allVisibleMenus;
   })();
-  const statusBadge = getStatusBadge(script);
+  const statusBadge = getStatusBadge(script, isPageScript);
   const displayName = script.name;
 
   // 运行次数 tooltip
@@ -602,9 +602,10 @@ function ScriptRow({
   );
 }
 
-function getStatusBadge(script: ScriptMenu): React.ReactNode {
+function getStatusBadge(script: ScriptMenu, isPageScript: boolean): React.ReactNode {
   if (script.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-    return <Tag variant="info">{t("script:running")}</Tag>;
+    // 与设计稿一致：页面脚本运行中=蓝色(info)，后台脚本运行中=绿色(success)
+    return <Tag variant={isPageScript ? "info" : "success"}>{t("script:running")}</Tag>;
   }
   if (script.runStatus === SCRIPT_RUN_STATUS_ERROR) {
     return <Tag variant="destructive">{t("error")}</Tag>;
@@ -708,7 +709,7 @@ function ActionItem({
 
 // ========== Tag ==========
 interface TagProps {
-  variant: "info" | "muted" | "destructive";
+  variant: "info" | "success" | "muted" | "destructive";
   children: React.ReactNode;
 }
 
@@ -716,11 +717,13 @@ function Tag({ variant, children }: TagProps) {
   const cls =
     variant === "info"
       ? "bg-primary-light text-primary"
-      : variant === "destructive"
-        ? "bg-destructive/10 text-destructive"
-        : "bg-muted text-fg-secondary";
+      : variant === "success"
+        ? "bg-success-bg text-success-fg"
+        : variant === "destructive"
+          ? "bg-destructive/10 text-destructive"
+          : "bg-muted text-fg-secondary";
   return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium shrink-0 ${cls}`}>
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${cls}`}>
       {children}
     </span>
   );
@@ -744,13 +747,13 @@ function Footer({
         <span
           onClick={() => window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`)}
           title={`${t("popup:new_version_available")} (v${checkUpdate.version})`}
-          className="text-[12px] font-medium text-primary underline underline-offset-2 cursor-pointer"
+          className="font-mono text-[11px] font-medium text-primary underline underline-offset-2 cursor-pointer"
         >{`v${ExtVersion}`}</span>
       ) : checkUpdateStatus === 0 ? (
         <span
           onClick={onVersionClick}
           title={t("check_update")}
-          className="text-[12px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2"
+          className="font-mono text-[11px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2"
         >{`v${ExtVersion}`}</span>
       ) : checkUpdateStatus === 1 ? (
         <span className="text-[12px] font-medium text-muted-foreground">{t("script:checking_for_updates")}</span>

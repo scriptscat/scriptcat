@@ -6,17 +6,21 @@ import { Button } from "@App/pages/components/ui/button";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import { agentClient } from "@App/pages/store/features/script";
 import type { AgentTask, AgentModelConfig, AgentTaskRun } from "@App/app/service/agent/core/types";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
 import { AgentEmptyState } from "../_agent/AgentEmptyState";
+import { CountBar, type CountBarSegment } from "../_agent/CountBar";
 import { TaskRow } from "./TaskRow";
 import { TaskFormDialog, type TaskFormValue } from "./TaskFormDialog";
 import { TaskHistorySheet } from "./TaskHistorySheet";
+import { nextRunText } from "./cron";
 
 const taskRepo = new AgentTaskRepo();
 const taskRunRepo = new AgentTaskRunRepo();
 
 export default function AgentTasks() {
   const { t } = useTranslation(["agent", "common"]);
+  const isMobile = useIsMobile();
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [models, setModels] = useState<AgentModelConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,20 +107,50 @@ export default function AgentTasks() {
     setRuns([]);
   };
 
+  const enabledCount = tasks.filter((task) => task.enabled).length;
+  const soonest = tasks
+    .filter((task) => task.enabled)
+    .map((task) => nextRunText(task.crontab))
+    .filter((r) => r.valid && r.at != null)
+    .sort((a, b) => (a.at as number) - (b.at as number))[0];
+  const countSegments: CountBarSegment[] = [
+    { label: t("agent:tasks_count_total", { count: tasks.length, defaultValue: `${tasks.length} 个任务` }) },
+    { label: t("agent:tasks_count_enabled", { count: enabledCount, defaultValue: `${enabledCount} 个已启用` }) },
+  ];
+  if (!isMobile && soonest) {
+    countSegments.push({ label: `${t("agent:tasks_next_run")} ${soonest.text}` });
+  }
+
+  // 移动端:全局 MobileHeader(☰+抽屉+静态 ScriptCat) 已常驻,不再渲染 64px 页头;
+  // 页名 + 新建动作改放页内顶部行,避免双层栏
+  const mobileTopRow = (
+    <div data-testid="tasks-mobile-top" className="flex items-center justify-between gap-2">
+      <span className="min-w-0 truncate text-base font-semibold text-foreground">{t("agent:tasks_title")}</span>
+      <Button data-testid="task-add" size="icon" onClick={handleAdd} aria-label={t("agent:tasks_create")}>
+        <Plus className="size-4" />
+      </Button>
+    </div>
+  );
+
   return (
     <div className="flex h-full flex-col">
-      <AgentPageHeader
-        icon={CalendarClock}
-        title={t("agent:tasks_title")}
-        subtitle={t("agent:tasks_subtitle")}
-        actions={
-          <Button data-testid="task-add" onClick={handleAdd}>
-            <Plus className="size-4" />
-            {t("agent:tasks_create")}
-          </Button>
-        }
-      />
-      <div className="flex-1 overflow-y-auto p-6">
+      {!isMobile && (
+        <AgentPageHeader
+          icon={CalendarClock}
+          title={t("agent:tasks_title")}
+          subtitle={t("agent:tasks_subtitle")}
+          docHref="https://docs.scriptcat.org"
+          docLabel={t("agent:tasks_docs", { defaultValue: "文档" })}
+          actions={
+            <Button data-testid="task-add" onClick={handleAdd}>
+              <Plus className="size-4" />
+              {t("agent:tasks_create")}
+            </Button>
+          }
+        />
+      )}
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        {isMobile && <div className="mb-4">{mobileTopRow}</div>}
         {!loading && tasks.length === 0 ? (
           <AgentEmptyState
             icon={CalendarClock}
@@ -130,18 +164,22 @@ export default function AgentTasks() {
             }
           />
         ) : (
-          <div className="flex flex-col gap-3">
-            {tasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                onRun={() => handleRunNow(task)}
-                onEdit={() => handleEdit(task)}
-                onDelete={() => handleDelete(task)}
-                onToggle={(enabled) => handleToggle(task, enabled)}
-                onHistory={() => handleHistory(task)}
-              />
-            ))}
+          <div className="flex flex-col gap-4">
+            {tasks.length > 0 && <CountBar segments={countSegments} />}
+            <div className="flex flex-col gap-2.5">
+              {tasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  isMobile={isMobile}
+                  onRun={() => handleRunNow(task)}
+                  onEdit={() => handleEdit(task)}
+                  onDelete={() => handleDelete(task)}
+                  onToggle={(enabled) => handleToggle(task, enabled)}
+                  onHistory={() => handleHistory(task)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

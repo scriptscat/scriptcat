@@ -10,6 +10,7 @@ import {
   RefreshCw,
   ShieldAlert,
   Timer,
+  X,
 } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { t } from "@App/locales/locales";
@@ -178,9 +179,9 @@ function LinkAction({ label, onClick, muted }: { label: string; onClick: () => v
 
 const COL = {
   version: "w-[170px] shrink-0",
-  change: "w-[210px] shrink-0",
-  source: "w-[150px] shrink-0",
-  action: "w-[120px] shrink-0",
+  change: "w-[230px] shrink-0",
+  source: "w-[160px] shrink-0",
+  action: "w-[110px] shrink-0",
 };
 
 /** 桌面端单行（待更新或已忽略） */
@@ -245,7 +246,7 @@ function DesktopRow({
 
 function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex h-10 items-center px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
         <div className="w-9 shrink-0" />
         <div className="flex-1">{tk("col_script")}</div>
@@ -272,7 +273,7 @@ function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
 function DesktopIgnored({ view }: { view: BatchUpdateViewProps }) {
   return (
     <Collapsible defaultOpen>
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex h-12 items-center justify-between px-4 border-b border-border">
           <CollapsibleTrigger className="group flex items-center gap-2">
             <ChevronDown className="size-[18px] text-fg-secondary transition-transform group-data-[state=closed]:-rotate-90" />
@@ -347,7 +348,7 @@ export function SkeletonBar({ className }: { className?: string }) {
 /** 桌面端检查中的骨架表格：保留表头 + 占位行，取代冻结的空状态/大转圈 */
 export function SkeletonTable() {
   return (
-    <div data-testid="update-skeleton" className="overflow-hidden rounded-lg border border-border bg-card">
+    <div data-testid="update-skeleton" className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex h-10 items-center px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
         <div className="w-9 shrink-0" />
         <div className="flex-1">{tk("col_script")}</div>
@@ -394,9 +395,9 @@ export function EmptyState({ totalChecked, onCheckNow }: { totalChecked: number;
         <span className="text-lg font-semibold text-foreground">{tk("empty_title")}</span>
         <span className="text-[13px] text-muted-foreground">{tk("empty_desc", { count: totalChecked })}</span>
       </div>
-      <Button onClick={onCheckNow}>
+      <Button data-testid="empty-recheck" onClick={onCheckNow}>
         <RefreshCw />
-        {tk("main_header")}
+        {tk("recheck")}
       </Button>
     </div>
   );
@@ -445,11 +446,14 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
             {tk("main_header")}
           </Button>
           {view.autoClose !== null && <AutoCloseChip seconds={view.autoClose} />}
+          <Button variant="ghost" size="icon-sm" className="text-fg-secondary" onClick={() => window.close()}>
+            <X />
+          </Button>
         </div>
       </header>
       {view.checking && <TopProgressBar />}
       <div className="flex-1 overflow-auto scrollbar-custom">
-        <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-4 px-6 py-6">
+        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 px-6 py-6">
           {view.loading || (view.checking && empty) ? (
             <SkeletonTable />
           ) : empty ? (

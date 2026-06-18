@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import {
+  ArrowUp,
   ChevronDown,
   Clock,
   Eye,
@@ -8,7 +9,6 @@ import {
   Image as ImageIcon,
   Paperclip,
   PlayCircle,
-  Send,
   Square,
   Wrench,
   X,
@@ -509,7 +509,7 @@ export default function ChatInput({
                     type="button"
                     data-testid="chat-stop"
                     onClick={onStop}
-                    className="size-8 rounded-full flex items-center justify-center bg-orange-500 text-white border-none cursor-pointer transition-all hover:opacity-80 shadow-sm"
+                    className="size-8 rounded-full flex items-center justify-center bg-warning text-warning-foreground border-none cursor-pointer transition-all hover:opacity-80 shadow-sm"
                   >
                     <Square className="size-3.5 fill-current" />
                   </button>
@@ -523,11 +523,11 @@ export default function ChatInput({
                     className={cn(
                       "size-8 rounded-full flex items-center justify-center border-none transition-all shadow-sm",
                       canSend
-                        ? "bg-primary text-primary-foreground cursor-pointer hover:opacity-80"
+                        ? "bg-gradient-to-br from-primary to-primary-hover text-primary-foreground cursor-pointer hover:opacity-80"
                         : "bg-muted text-muted-foreground cursor-not-allowed"
                     )}
                   >
-                    <Send className="size-3.5" />
+                    <ArrowUp className="size-4" />
                   </button>
                 )}
               </div>

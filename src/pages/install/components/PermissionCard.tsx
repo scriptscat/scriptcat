@@ -23,8 +23,8 @@ function MobilePermissions({ rows }: { rows: PermissionRowData[] }) {
                 <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-md", style.icon)}>
                   <Icon className="size-4" />
                 </span>
-                <span className={cn("text-sm font-semibold", style.label)}>{t(labelKey)}</span>
-                <span className="rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">
+                <span className="text-sm font-semibold text-foreground">{t(labelKey)}</span>
+                <span className={cn("rounded-full px-2 text-[11px] font-semibold", style.count)}>
                   {row.values.length}
                 </span>
               </span>

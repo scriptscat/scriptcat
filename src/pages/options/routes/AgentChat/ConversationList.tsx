@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Check, Download, MessageSquare, Pencil, Plus, Trash2, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, Download, MessageSquare, PanelLeftClose, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import type { Conversation } from "@App/app/service/agent/core/types";
 import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
@@ -15,6 +15,7 @@ export default function ConversationList({
   onDelete,
   onRename,
   onExport,
+  onCollapse,
   runningIds,
 }: {
   conversations: Conversation[];
@@ -24,10 +25,18 @@ export default function ConversationList({
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onExport: (id: string) => void;
+  onCollapse?: () => void;
   runningIds?: Set<string>;
 }) {
   const [editingId, setEditingId] = useState<string>("");
   const [editValue, setEditValue] = useState("");
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter((c) => c.title.toLowerCase().includes(q));
+  }, [conversations, query]);
 
   const startRename = (conv: Conversation) => {
     setEditingId(conv.id);
@@ -42,23 +51,47 @@ export default function ConversationList({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* 头部：新建 */}
-      <div className="p-3 border-b border-border">
+    <div className="flex flex-col h-full bg-card">
+      {/* 面板头：标题(+折叠) / 新建 / 搜索 */}
+      <div className="flex flex-col gap-3 p-4 pb-3 border-b border-border">
+        {onCollapse && (
+          <div className="flex items-center justify-between">
+            <span className="text-base font-semibold text-foreground">{t("agent:chat")}</span>
+            <button
+              type="button"
+              data-testid="conv-collapse"
+              aria-label={t("agent:chat")}
+              onClick={onCollapse}
+              className="size-7 flex items-center justify-center rounded-sm bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <PanelLeftClose className="size-[17px]" />
+            </button>
+          </div>
+        )}
         <Button
           data-testid="conv-new"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="w-full border-dashed text-muted-foreground hover:text-primary hover:border-primary"
+          className="w-full h-9 bg-primary-light text-primary font-medium hover:bg-primary-light/80 hover:text-primary"
           onClick={onCreate}
         >
           <Plus className="size-4" />
           {t("agent:chat_new")}
         </Button>
+        <div className="flex items-center gap-2 h-9 px-3 rounded-md bg-input/60 focus-within:ring-1 focus-within:ring-ring/50 transition-shadow">
+          <Search className="size-[15px] text-muted-foreground shrink-0" />
+          <input
+            data-testid="conv-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("agent:chat_search_placeholder")}
+            className="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
       </div>
 
       {/* 列表 */}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto py-1 scrollbar-custom">
         {conversations.length === 0 ? (
           <div
             data-testid="conv-empty"
@@ -67,8 +100,16 @@ export default function ConversationList({
             <MessageSquare className="size-8 opacity-40" />
             <span className="text-xs">{t("agent:chat_no_conversations")}</span>
           </div>
+        ) : filtered.length === 0 ? (
+          <div
+            data-testid="conv-search-empty"
+            className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground"
+          >
+            <Search className="size-8 opacity-40" />
+            <span className="text-xs">{t("agent:chat_search_no_results")}</span>
+          </div>
         ) : (
-          conversations.map((conv) => {
+          filtered.map((conv) => {
             const active = conv.id === activeId;
             const editing = editingId === conv.id;
             return (
@@ -140,7 +181,7 @@ export default function ConversationList({
                           data-testid={`conv-delete-${conv.id}`}
                           variant="ghost"
                           size="icon-xs"
-                          className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
+                          className="text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="size-3.5" />
                         </Button>

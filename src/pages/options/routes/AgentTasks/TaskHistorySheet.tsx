@@ -14,7 +14,7 @@ function durationText(run: AgentTaskRun): string {
 
 function usageText(run: AgentTaskRun): string {
   if (!run.usage) return "—";
-  return `${run.usage.inputTokens}+${run.usage.outputTokens}`;
+  return `${run.usage.inputTokens} / ${run.usage.outputTokens}`;
 }
 
 export function TaskHistorySheet({
@@ -44,8 +44,11 @@ export function TaskHistorySheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
         <SheetHeader className="border-b border-border px-5 py-4">
-          <SheetTitle className="truncate">{task?.name}</SheetTitle>
-          <SheetDescription>{t("agent:tasks_history")}</SheetDescription>
+          <SheetTitle className="truncate">
+            {t("agent:tasks_history")}
+            {task?.name ? ` — ${task.name}` : ""}
+          </SheetTitle>
+          <SheetDescription className="sr-only">{task?.name ?? t("agent:tasks_history")}</SheetDescription>
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -88,15 +91,21 @@ export function TaskHistorySheet({
           )}
         </div>
 
-        <div className="flex justify-end border-t border-border px-5 py-3">
+        <div className="flex justify-start border-t border-border px-5 py-3">
           <Popconfirm
             description={t("agent:tasks_clear_runs_confirm")}
             onConfirm={onClear}
             destructive
             side="top"
-            align="end"
+            align="start"
           >
-            <Button variant="outline" size="sm" data-testid="history-clear" disabled={runs.length === 0}>
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="history-clear"
+              disabled={runs.length === 0}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
               <Trash2 className="size-4" />
               {t("agent:tasks_clear_runs")}
             </Button>

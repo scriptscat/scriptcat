@@ -26,7 +26,7 @@ type CapTone = "blue" | "green" | "violet" | "orange" | "muted";
 const CAP_TONES: Record<CapTone, string> = {
   blue: "bg-primary/10 text-primary",
   green: "bg-success-bg text-success-fg",
-  violet: "bg-violet-500/12 text-violet-600 dark:bg-violet-400/15 dark:text-violet-300",
+  violet: "bg-skill-bg text-skill-fg",
   orange: "bg-warning-bg text-warning-fg",
   muted: "bg-muted text-muted-foreground",
 };

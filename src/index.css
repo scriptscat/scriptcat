@@ -61,6 +61,12 @@
   --warning-bg: #fff4e6;
   --warning-fg: #c46c00;
 
+  /* Skill / 紫色强调（Skill 安装、能力标签的紫色品牌识别色；solid 用于按钮/图标，bg/fg 用于软色 chip） */
+  --skill: #9333ea;
+  --skill-foreground: #ffffff;
+  --skill-bg: #f3e8ff;
+  --skill-fg: #7e22ce;
+
   /* 储存值类型徽章色（设计稿储存表「类型」列：string 绿 / number 蓝 / boolean 琥珀 / object 紫） */
   --type-string-bg: #e4f7ea;
   --type-string-fg: #2ba24e;
@@ -140,6 +146,12 @@
   --warning-bg: #352c1e;
   --warning-fg: #ffb84d;
 
+  /* Skill / 紫色强调（暗色：solid 提亮以保证对比） */
+  --skill: #a855f7;
+  --skill-foreground: #ffffff;
+  --skill-bg: #2a1e3a;
+  --skill-fg: #c084fc;
+
   /* 储存值类型徽章色（暗色） */
   --type-string-bg: #1e3520;
   --type-string-fg: #4ade80;
@@ -197,6 +209,10 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-bg: var(--warning-bg);
   --color-warning-fg: var(--warning-fg);
+  --color-skill: var(--skill);
+  --color-skill-foreground: var(--skill-foreground);
+  --color-skill-bg: var(--skill-bg);
+  --color-skill-fg: var(--skill-fg);
   --color-type-orange: var(--warning);
   --color-type-green: var(--success);
   --color-type-string-bg: var(--type-string-bg);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Eye } from "lucide-react";
+import { Download, RefreshCw, Rss, HardDrive } from "lucide-react";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { isPermissionOk } from "@App/pkg/utils/utils";
 import { InstallLayout } from "./components/InstallLayout";
 import { ScriptIdentity } from "./components/ScriptIdentity";
@@ -9,18 +10,23 @@ import { SubscribeScripts } from "./components/SubscribeScripts";
 import { SkillInstallView } from "./components/SkillInstallView";
 import { CodePreview } from "./components/CodePreview";
 import { InstallActions } from "./components/InstallActions";
+import { InstallWarning } from "./components/InstallWarning";
 import { InstallLoading, InstallError } from "./components/InstallStates";
+import { WatchingBanner } from "./components/WatchingBanner";
 import { BackgroundPrompt, backgroundPromptShownKey } from "./components/BackgroundPrompt";
 import { useInstallData } from "./useInstallData";
 
 export default function App() {
   const { t } = useTranslation(["install", "common"]);
+  const isMobile = useIsMobile();
   const {
     state,
     enabled,
     setEnabled,
     localFile,
     watching,
+    watchFileName,
+    lastSync,
     toggleWatch,
     install,
     close,
@@ -74,18 +80,24 @@ export default function App() {
   }
 
   const view = state.view;
-  const title = view.isSubscribe
+  const baseTitle = view.isSubscribe
     ? view.isUpdate
       ? t("install:update_subscribe")
       : t("install:subscribe")
     : view.isUpdate
       ? t("install:context_update")
       : t("install:context_install");
+  // 监听本地文件时,顶栏上下文 chip 切换为品牌蓝脉冲「监听中」(对照设计稿)
+  const title = watching ? t("install:watching_chip") : baseTitle;
+  const titleTone = watching ? "watching" : "default";
+  const titleIcon = view.isSubscribe ? Rss : view.isUpdate ? RefreshCw : localFile ? HardDrive : Download;
 
   return (
     <>
       <InstallLayout
         title={title}
+        titleIcon={titleIcon}
+        titleTone={titleTone}
         actions={
           <InstallActions
             isUpdate={view.isUpdate}
@@ -112,21 +124,17 @@ export default function App() {
           enabled={enabled}
           onEnabledChange={setEnabled}
         />
-        {watching && (
-          <div
-            data-testid="watching-strip"
-            className="flex items-center gap-2 rounded-lg bg-success-bg px-3 py-2 text-xs text-success-fg"
-          >
-            <Eye className="size-4 shrink-0" />
-            {t("install:watching_status")}
-          </div>
-        )}
+        {watching && <WatchingBanner fileName={watchFileName || ""} lastSync={lastSync} />}
         {view.isSubscribe ? (
           <SubscribeScripts scriptUrls={view.subscribeScripts} />
         ) : (
           <PermissionCard rows={view.permissions} />
         )}
-        <CodePreview code={view.code} oldCode={view.oldCode} diffStat={view.diffStat} />
+        <InstallWarning
+          hasDangerPermission={view.permissions.some((p) => p.risk === "danger")}
+          hasAntifeature={view.antifeatures.length > 0}
+        />
+        <CodePreview code={view.code} oldCode={view.oldCode} diffStat={view.diffStat} defaultCollapsed={isMobile} />
       </InstallLayout>
       <BackgroundPrompt open={!!bgPrompt} scriptType={bgPrompt?.scriptType || ""} onResult={() => setBgPrompt(null)} />
     </>

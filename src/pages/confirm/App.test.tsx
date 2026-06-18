@@ -4,12 +4,18 @@ import { initLanguage } from "@App/locales/locales";
 import type { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 
 // 授权数据走后台消息，统一打桩
-const { getPermissionInfo, confirm } = vi.hoisted(() => ({
+const { getPermissionInfo, confirm, isMobile } = vi.hoisted(() => ({
   getPermissionInfo: vi.fn(),
   confirm: vi.fn(),
+  isMobile: { value: false },
 }));
 vi.mock("@App/pages/store/features/script", () => ({
   permissionClient: { getPermissionInfo, confirm },
+}));
+// 单一移动断点来源，按需切换桌面/移动外壳
+vi.mock("@App/pages/components/use-is-mobile", () => ({
+  useIsMobile: () => isMobile.value,
+  MOBILE_BREAKPOINT: 768,
 }));
 
 import { PermissionConfirm } from "./App";
@@ -38,6 +44,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(window, "close").mockImplementation(() => {});
   confirm.mockResolvedValue(undefined);
+  isMobile.value = false;
 });
 afterEach(() => {
   cleanup();
@@ -155,6 +162,25 @@ describe("授权确认页 · 站点访问变体", () => {
     fireEvent.click(await screen.findByRole("button", { name: "请求权限" }));
     await waitFor(() => expect(requestSpy).toHaveBeenCalledWith({ origins: ["https://example.com/*"] }));
     await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 }));
+  });
+});
+
+describe("授权确认页 · 移动外壳", () => {
+  it("桌面下允许/拒绝按钮应横向排列", async () => {
+    getPermissionInfo.mockResolvedValue(baseInfo());
+    render(<PermissionConfirm uuid="u1" />);
+    const row = await screen.findByTestId("confirm-button-row");
+    expect(row.className).toContain("flex-row");
+    expect(row.className).not.toContain("flex-col");
+  });
+
+  it("移动端下允许/拒绝按钮应纵向堆叠", async () => {
+    isMobile.value = true;
+    getPermissionInfo.mockResolvedValue(baseInfo());
+    render(<PermissionConfirm uuid="u1" />);
+    const row = await screen.findByTestId("confirm-button-row");
+    expect(row.className).toContain("flex-col");
+    expect(row.className).not.toContain("flex-row");
   });
 });
 

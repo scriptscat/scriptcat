@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Sparkles, ChevronDown, ChevronRight, Wrench, SlidersHorizontal, FileText, Globe, Lock } from "lucide-react";
+import {
+  Sparkles,
+  ChevronDown,
+  ChevronRight,
+  Wrench,
+  SlidersHorizontal,
+  FileText,
+  Globe,
+  Lock,
+  ShieldAlert,
+} from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import { cn } from "@App/pkg/utils/cn";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
@@ -18,7 +28,7 @@ export interface SkillInstallViewProps {
   onCancel: () => void;
 }
 
-const violetChip = "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300";
+const violetChip = "bg-skill-bg text-skill-fg";
 
 function SectionCard({
   icon: Icon,
@@ -34,7 +44,7 @@ function SectionCard({
   return (
     <section className="rounded-xl border border-border bg-card">
       <div className="flex items-center gap-2.5 px-4 pt-4 pb-2">
-        <Icon className="size-[18px] text-violet-600 dark:text-violet-400" />
+        <Icon className="size-[18px] text-skill" />
         <h2 className="text-[15px] font-semibold text-foreground">{title}</h2>
         {count !== undefined && (
           <span className="rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">{count}</span>
@@ -63,6 +73,8 @@ export function SkillInstallView({
   return (
     <InstallLayout
       title={title}
+      titleIcon={Sparkles}
+      titleTone="skill"
       actions={
         <div className="flex w-full flex-wrap items-center gap-3">
           <p className="min-w-0 flex-1 text-xs text-muted-foreground">{t("install:skill_warning")}</p>
@@ -72,7 +84,7 @@ export function SkillInstallView({
             </Button>
             <Button
               data-testid="skill-install"
-              className="bg-violet-600 text-white hover:bg-violet-700"
+              className="bg-skill text-skill-foreground hover:bg-skill/90"
               onClick={onInstall}
             >
               {isUpdate ? t("install:skill_update") : t("install:skill_install")}
@@ -84,8 +96,8 @@ export function SkillInstallView({
       {/* 身份卡 */}
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="flex gap-4">
-          <div className="flex size-[52px] shrink-0 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-950">
-            <Sparkles className="size-7 text-violet-600 dark:text-violet-400" />
+          <div className="flex size-[52px] shrink-0 items-center justify-center rounded-xl bg-skill-bg">
+            <Sparkles className="size-7 text-skill" />
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -234,6 +246,18 @@ export function SkillInstallView({
           </div>
         </SectionCard>
       )}
+
+      {/* 安全警示卡(对照设计稿 Alert Warning) */}
+      <div
+        data-testid="skill-warning-card"
+        className="flex items-start gap-2.5 rounded-lg border border-warning-fg/40 bg-warning-bg px-4 py-3 text-warning-fg"
+      >
+        <ShieldAlert className="mt-px size-[18px] shrink-0" />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] font-semibold">{t("install:skill_warning_title")}</span>
+          <span className="text-xs leading-relaxed">{t("install:skill_warning_desc")}</span>
+        </div>
+      </div>
     </InstallLayout>
   );
 }

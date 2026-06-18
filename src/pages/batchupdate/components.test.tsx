@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { render, cleanup, screen, within, fireEvent } from "@testing-library/react";
 import { initLanguage } from "@App/locales/locales";
 import { TooltipProvider } from "@App/pages/components/ui/tooltip";
 import { DesktopView } from "./components";
@@ -106,5 +106,45 @@ describe("批量更新移动视图 检查中反馈", () => {
     renderMobile({ checking: true, updates: [], ignored: [] });
     expect(screen.getByTestId("update-skeleton")).toBeTruthy();
     expect(screen.queryByTestId("update-empty")).toBeNull();
+  });
+});
+
+describe("批量更新空状态 重新检查按钮", () => {
+  it("桌面空状态展示重新检查按钮并可触发检查", () => {
+    const onCheckNow = vi.fn();
+    renderDesktop({ updates: [], ignored: [], onCheckNow });
+    const btn = within(screen.getByTestId("update-empty")).getByTestId("empty-recheck");
+    fireEvent.click(btn);
+    expect(onCheckNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("移动空状态展示重新检查按钮并可触发检查", () => {
+    const onCheckNow = vi.fn();
+    renderMobile({ updates: [], ignored: [], onCheckNow });
+    const btn = within(screen.getByTestId("update-empty")).getByTestId("empty-recheck");
+    fireEvent.click(btn);
+    expect(onCheckNow).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("批量更新移动视图 已忽略分组折叠态", () => {
+  it("折叠时仅显示展开提示而不显示全部恢复按钮", () => {
+    renderMobile({ updates: [mkItem()], ignored: [mkItem({ uuid: "i1", ignored: true })] });
+    expect(screen.getByTestId("ignored-expand-hint")).toBeTruthy();
+    expect(screen.queryByTestId("ignored-restore-all")).toBeNull();
+  });
+
+  it("展开后显示全部恢复按钮且可触发恢复", () => {
+    const onRestoreAll = vi.fn();
+    renderMobile({
+      updates: [mkItem()],
+      ignored: [mkItem({ uuid: "i1", ignored: true })],
+      onRestoreAll,
+    });
+    fireEvent.click(screen.getByTestId("ignored-toggle"));
+    const restore = screen.getByTestId("ignored-restore-all");
+    fireEvent.click(restore);
+    expect(onRestoreAll).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("ignored-expand-hint")).toBeNull();
   });
 });

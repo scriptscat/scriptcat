@@ -168,16 +168,17 @@ describe("Install App 状态分流", () => {
     expect(screen.getByTestId("watch-toggle")).toBeInTheDocument();
   });
 
-  it("监听中显示监听状态条且安装按钮禁用", () => {
+  it("监听中显示监听横幅且安装按钮禁用", () => {
     initLanguage("zh-CN");
     mockHook.mockReturnValue({
       ...baseHook(),
       localFile: true,
       watching: true,
+      watchFileName: "checkin.user.js",
       state: { status: "ready", view: readyView() },
     });
     render(<App />);
-    expect(screen.getByTestId("watching-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("watching-banner")).toBeInTheDocument();
     expect(screen.getByTestId("install-primary")).toBeDisabled();
   });
 });

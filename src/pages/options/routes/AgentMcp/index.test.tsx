@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, waitFor } from "@testing-library/react";
 import { initLanguage, t } from "@App/locales/locales";
 import { agentClient } from "@App/pages/store/features/script";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
+
+// jsdom 未实现 matchMedia,useIsMobile 依赖它——固定返回 desktop
+vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
 
 vi.mock("@App/pages/store/features/script", () => ({
   agentClient: {
@@ -24,7 +28,10 @@ vi.mock("@App/pages/store/features/script", () => ({
 
 import AgentMcp from "./index";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeEach(() => {
+  initLanguage("zh-CN");
+  vi.mocked(useIsMobile).mockReturnValue(false);
+});
 afterEach(() => cleanup());
 
 describe("AgentMcp 页面", () => {
@@ -37,5 +44,33 @@ describe("AgentMcp 页面", () => {
     (agentClient.mcpApi as any).mockResolvedValueOnce([]);
     render(<AgentMcp />);
     await waitFor(() => expect(screen.getByText(t("agent:mcp_no_servers"))).toBeInTheDocument());
+  });
+
+  it("桌面页头通过 docHref 渲染统一文档按钮", async () => {
+    render(<AgentMcp />);
+    await waitFor(() => expect(screen.getByText("本地工具")).toBeInTheDocument());
+    const docs = screen.getByTestId("page-header-docs");
+    expect(docs).toHaveAttribute("href", "https://docs.scriptcat.org");
+  });
+
+  it("计数摘要使用共享 CountBar(三段:服务/已连接/工具)", async () => {
+    render(<AgentMcp />);
+    await waitFor(() => expect(screen.getByText("本地工具")).toBeInTheDocument());
+    const bar = screen.getByTestId("count-bar");
+    expect(bar).toBeInTheDocument();
+    // 三段以两个分隔符相连
+    expect(screen.getAllByTestId("count-bar-sep")).toHaveLength(2);
+  });
+
+  it("移动端展示页面上下文栏的标题与图标添加按钮,不渲染 64px 桌面页头文档按钮", async () => {
+    vi.mocked(useIsMobile).mockReturnValue(true);
+    render(<AgentMcp />);
+    await waitFor(() => expect(screen.getByText("本地工具")).toBeInTheDocument());
+    // 标题存在
+    expect(screen.getByTestId("mcp-mobile-title")).toHaveTextContent(t("agent:mcp_title"));
+    // 添加按钮可达
+    expect(screen.getByTestId("mcp-add")).toBeInTheDocument();
+    // 桌面文档按钮在移动端不出现(避免双头部/重复操作)
+    expect(screen.queryByTestId("page-header-docs")).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
-import React, { useRef } from "react";
-import { KeyCode, KeyMod, type editor } from "monaco-editor";
+import React, { useEffect, useRef } from "react";
+import { KeyCode, KeyMod, MarkerSeverity, editor } from "monaco-editor";
 import type { Script } from "@App/app/repo/scripts";
 import { t } from "@App/locales/locales";
 import CodeEditor from "@App/pages/components/CodeEditor";

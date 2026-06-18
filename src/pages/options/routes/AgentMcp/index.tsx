@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Server } from "lucide-react";
+import { Plus, Plug } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@App/pages/components/ui/button";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
+import { DocumentationSite } from "@App/app/const";
 import { agentClient } from "@App/pages/store/features/script";
 import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/service/agent/core/types";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
 import { AgentEmptyState } from "../_agent/AgentEmptyState";
+import { CountBar, type CountBarSegment } from "../_agent/CountBar";
 import { McpCard, type McpTestState } from "./McpCard";
 import { McpFormDialog, type McpServerInput, type McpModalTestResult } from "./McpFormDialog";
 import { McpDetailSheet } from "./McpDetailSheet";
@@ -15,6 +18,7 @@ type TestCount = { tools: number; resources: number; prompts: number };
 
 export default function AgentMcp() {
   const { t } = useTranslation(["agent", "common"]);
+  const isMobile = useIsMobile();
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [testStates, setTestStates] = useState<Record<string, McpTestState>>({});
@@ -118,23 +122,40 @@ export default function AgentMcp() {
     setDetailLoading(false);
   };
 
+  const connectedCount = servers.filter((s) => testStates[s.id]?.status === "connected").length;
+  const toolsTotal = servers.reduce((sum, s) => sum + (testStates[s.id]?.tools ?? 0), 0);
+
+  // 计数摘要:桌面三段(服务/已连接/工具),移动两段(服务/已连接)
+  const countSegments: CountBarSegment[] = [
+    { label: t("agent:mcp_count_servers", { count: servers.length }) },
+    { label: t("agent:mcp_count_connected", { count: connectedCount }), tone: "success" },
+    ...(isMobile ? [] : [{ label: t("agent:mcp_count_tools", { count: toolsTotal }), tone: "primary" as const }]),
+  ];
+
+  const addBtn = (
+    <Button data-testid="mcp-add" onClick={handleAdd}>
+      <Plus className="size-4" />
+      {t("agent:mcp_add_server")}
+    </Button>
+  );
+
   return (
     <div className="flex h-full flex-col">
-      <AgentPageHeader
-        icon={Server}
-        title={t("agent:mcp_title")}
-        subtitle={t("agent:mcp_subtitle")}
-        actions={
-          <Button data-testid="mcp-add" onClick={handleAdd}>
-            <Plus className="size-4" />
-            {t("agent:mcp_add_server")}
-          </Button>
-        }
-      />
-      <div className="flex-1 overflow-y-auto p-6">
+      {/* 桌面端 64px 页头;移动端由全局 MobileHeader 承担☰/抽屉,本页头不渲染以避免双头部 */}
+      {!isMobile && (
+        <AgentPageHeader
+          icon={Plug}
+          title={t("agent:mcp_title")}
+          subtitle={t("agent:mcp_subtitle")}
+          docHref={DocumentationSite}
+          docLabel={t("agent:mcp_docs")}
+          actions={addBtn}
+        />
+      )}
+      <div className="scrollbar-custom flex-1 overflow-y-auto px-4 py-4 md:px-7 md:py-[22px]">
         {!loading && servers.length === 0 ? (
           <AgentEmptyState
-            icon={Server}
+            icon={Plug}
             title={t("agent:mcp_no_servers")}
             description={t("agent:mcp_no_servers_desc")}
             action={
@@ -145,19 +166,33 @@ export default function AgentMcp() {
             }
           />
         ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {servers.map((server) => (
-              <McpCard
-                key={server.id}
-                server={server}
-                testState={testStates[server.id]}
-                onEdit={() => handleEdit(server)}
-                onDelete={() => handleDelete(server)}
-                onTest={() => handleTest(server)}
-                onToggle={(enabled) => handleToggle(server, enabled)}
-                onDetail={() => handleDetail(server)}
-              />
-            ))}
+          <div className="flex flex-col gap-4">
+            {/* 移动端页内顶行:页名 + 添加(全局 MobileHeader 不含页名/页面操作) */}
+            {isMobile && (
+              <div className="flex items-center justify-between">
+                <span data-testid="mcp-mobile-title" className="text-lg font-semibold text-foreground">
+                  {t("agent:mcp_title")}
+                </span>
+                <Button data-testid="mcp-add" size="icon" onClick={handleAdd} aria-label={t("agent:mcp_add_server")}>
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+            )}
+            {!loading && <CountBar segments={countSegments} />}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {servers.map((server) => (
+                <McpCard
+                  key={server.id}
+                  server={server}
+                  testState={testStates[server.id]}
+                  onEdit={() => handleEdit(server)}
+                  onDelete={() => handleDelete(server)}
+                  onTest={() => handleTest(server)}
+                  onToggle={(enabled) => handleToggle(server, enabled)}
+                  onDetail={() => handleDetail(server)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

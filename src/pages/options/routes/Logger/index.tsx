@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { cn } from "@App/pkg/utils/cn";
 import { t } from "@App/locales/locales";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { useLogger } from "./hooks";
@@ -28,6 +29,7 @@ import {
 } from "./components";
 
 export default function Logger() {
+  const isMobile = useIsMobile();
   const {
     logs,
     loading,
@@ -100,19 +102,32 @@ export default function Logger() {
   return (
     <div className="relative flex flex-col h-full">
       {/* 顶栏 */}
-      <div className="flex items-center justify-between h-14 px-5 shrink-0 border-b border-border bg-card">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center justify-between h-14 px-4 md:px-5 shrink-0 border-b border-border bg-card">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <ScrollText className="w-5 h-5 shrink-0 text-foreground" />
-          <h1 className="text-lg font-semibold text-foreground">{t("logs:log_title")}</h1>
-          <span className="truncate text-[13px] text-muted-foreground">
-            {`${t("logs:total_count", { count: logs.length })} · ${t("logs:filtered_count", { count: filtered.length })}`}
+          <h1 className="text-base md:text-lg font-semibold text-foreground shrink-0">{t("logs:log_title")}</h1>
+          <span className="truncate text-xs md:text-[13px] text-muted-foreground">
+            {isMobile
+              ? t("logs:filtered_count", { count: filtered.length })
+              : `${t("logs:total_count", { count: logs.length })} · ${t("logs:filtered_count", { count: filtered.length })}`}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={handleDeleteCurrent}>
-            <Trash className="w-3.5 h-3.5" />
-            {t("logs:delete_current_logs")}
-          </Button>
+          {isMobile ? (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label={t("logs:delete_current_logs")}
+              onClick={handleDeleteCurrent}
+            >
+              <Trash className="w-3.5 h-3.5" />
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={handleDeleteCurrent}>
+              <Trash className="w-3.5 h-3.5" />
+              {t("logs:delete_current_logs")}
+            </Button>
+          )}
           <Popconfirm
             description={t("logs:clear_logs_confirm")}
             destructive
@@ -120,10 +135,16 @@ export default function Logger() {
             cancelText={t("editor:cancel")}
             onConfirm={handleClear}
           >
-            <Button variant="destructive" size="sm">
-              <Trash2 className="w-3.5 h-3.5" />
-              {t("logs:clear_logs")}
-            </Button>
+            {isMobile ? (
+              <Button variant="destructive" size="icon-sm" aria-label={t("logs:clear_logs")}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            ) : (
+              <Button variant="destructive" size="sm">
+                <Trash2 className="w-3.5 h-3.5" />
+                {t("logs:clear_logs")}
+              </Button>
+            )}
           </Popconfirm>
         </div>
       </div>
@@ -140,7 +161,11 @@ export default function Logger() {
           />
           <RefreshControl interval={refreshInterval} onRefresh={reload} onIntervalChange={setRefreshInterval} />
 
-          <div className="flex items-center gap-1.5">
+          {/* 级别筛选条:移动端窄屏可横向滚动,避免挤压时间/刷新控件 */}
+          <div
+            data-testid="level-chip-bar"
+            className="flex items-center gap-1.5 overflow-x-auto scrollbar-custom min-w-0 pb-0.5 md:overflow-visible md:pb-0"
+          >
             <AllChip
               active={activeLevels.size === LEVEL_BUCKETS.length}
               onClick={() => setActiveLevels(new Set(LEVEL_BUCKETS))}
@@ -156,9 +181,9 @@ export default function Logger() {
             ))}
           </div>
 
-          <div className="flex-1 min-w-[80px]" />
+          <div className="hidden md:block flex-1 min-w-[80px]" />
 
-          <div className="flex items-center gap-2 h-8 w-[220px] rounded-md border border-input bg-secondary/50 px-2.5">
+          <div className="flex items-center gap-2 h-8 w-full md:w-[220px] rounded-md border border-input bg-secondary/50 px-2.5">
             <Search className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
             <input
               value={search}
@@ -167,7 +192,7 @@ export default function Logger() {
               className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
             />
           </div>
-          <Button size="sm" onClick={reload}>
+          <Button size="sm" className="flex-1 md:flex-none" onClick={reload}>
             {t("logs:query")}
           </Button>
           <Button variant="outline" size="sm" onClick={() => setAdvancedOpen((o) => !o)}>
@@ -188,7 +213,7 @@ export default function Logger() {
       </div>
 
       {/* 范围 / 统计条 */}
-      <div className="flex items-center justify-between h-[34px] px-4 shrink-0 border-b border-border bg-muted/40 text-xs">
+      <div className="flex items-center justify-between gap-2 min-h-[34px] px-4 py-1 md:py-0 shrink-0 border-b border-border bg-muted/40 text-xs">
         <div className="flex items-center gap-2 min-w-0 text-fg-secondary">
           <span className="truncate font-mono">
             {`${formatUnixTime(range.start / 1000)} → ${formatUnixTime(range.end / 1000)}`}
@@ -241,6 +266,7 @@ export default function Logger() {
             <LogRow
               key={log.id}
               log={log}
+              mobile={isMobile}
               expanded={expandedId === log.id}
               onToggle={() => setExpandedId((id) => (id === log.id ? null : log.id))}
             />

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Code2, Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { CodeXml, Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
 import CodeEditor from "@App/pages/components/CodeEditor";
 
 export interface CodePreviewProps {
@@ -19,7 +19,7 @@ export function CodePreview({
   diffStat,
   defaultCollapsed = false,
 }: CodePreviewProps) {
-  const { t } = useTranslation(["install", "common"]);
+  const { t } = useTranslation(["install", "common", "editor"]);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [copied, setCopied] = useState(false);
 
@@ -36,9 +36,10 @@ export function CodePreview({
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-        <Code2 className="size-[18px] text-muted-foreground" />
-        <span className="text-sm font-medium text-foreground">{language}</span>
-        <span className="font-mono text-xs text-muted-foreground">{t("install:code_lines", { count: lineCount })}</span>
+        <CodeXml className="size-4 text-fg-secondary" />
+        <span className="text-sm font-semibold text-foreground">{t("editor:code")}</span>
+        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-fg-secondary">{language}</span>
+        <span className="text-xs text-muted-foreground">{t("install:code_lines", { count: lineCount })}</span>
         {diffStat && (
           <span className="flex items-center gap-1.5 font-mono text-xs">
             <span className="text-success-fg">{`+${diffStat.added}`}</span>

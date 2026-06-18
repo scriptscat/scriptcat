@@ -33,6 +33,8 @@ const { mockLoggerData } = vi.hoisted(() => ({
 }));
 vi.mock("./hooks", () => ({ useLogger: () => mockLoggerData }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+// 桌面视图用例:固定为非移动端(移动端重壳另在 LoggerMobile.test.tsx 覆盖)
+vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false, MOBILE_BREAKPOINT: 768 }));
 
 import Logger from "./index";
 

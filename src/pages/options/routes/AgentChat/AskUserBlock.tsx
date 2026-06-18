@@ -75,7 +75,7 @@ export default function AskUserBlock({
     return (
       <div className="my-4">
         <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-muted/50 border border-border">
-          <CheckCircle2 className="size-[18px] shrink-0 mt-0.5 text-green-600 dark:text-green-400" />
+          <CheckCircle2 className="size-[18px] shrink-0 mt-0.5 text-success" />
           <div className="min-w-0 flex-1">
             <div className="text-xs text-muted-foreground mb-1">{question}</div>
             <div className="text-sm text-foreground font-medium">{displayAnswer}</div>
@@ -94,7 +94,7 @@ export default function AskUserBlock({
         <div className="bg-card p-4">
           {/* 问题 */}
           <div className="flex items-start gap-2.5 mb-4">
-            <div className="size-6 rounded-full flex items-center justify-center shrink-0 bg-primary text-primary-foreground">
+            <div className="size-6 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-primary to-primary-hover text-primary-foreground">
               <span className="text-xs font-bold">?</span>
             </div>
             <div className="text-sm text-foreground leading-relaxed pt-0.5 whitespace-pre-wrap">{question}</div>
@@ -114,7 +114,7 @@ export default function AskUserBlock({
                     className={cn(
                       "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm border cursor-pointer transition-all select-none",
                       isSelected
-                        ? "border-primary bg-primary/10 text-foreground font-medium shadow-sm"
+                        ? "border-primary bg-primary-light text-primary font-medium shadow-sm"
                         : "border-border bg-background text-foreground/80 hover:bg-accent"
                     )}
                   >

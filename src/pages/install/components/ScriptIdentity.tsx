@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { User, Globe, ArrowRight, Timer, Power, FileCode } from "lucide-react";
+import { User, Globe, ArrowRight, Timer, Clock, Power, FileCode } from "lucide-react";
 import { Switch } from "@App/pages/components/ui/switch";
 import { cn } from "@App/pkg/utils/cn";
 import type { VersionDisplay, AntifeatureType, ScheduleInfo } from "../model";
@@ -56,7 +56,7 @@ export function ScriptIdentity({
   const { t } = useTranslation(["install", "common"]);
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
+    <section className="flex flex-col gap-3.5 rounded-xl border border-border bg-card p-5">
       <div className="flex gap-4">
         <div className="flex size-[52px] shrink-0 items-center justify-center rounded-xl bg-primary-light">
           {iconUrl ? (
@@ -92,14 +92,17 @@ export function ScriptIdentity({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {author && (
-              <span className="flex items-center gap-1">
-                <User className="size-3.5" />
-                {author}
-              </span>
+              <>
+                <span className="flex items-center gap-1.5">
+                  <User className="size-3.5" />
+                  {author}
+                </span>
+                <span className="size-[3px] shrink-0 rounded-full bg-muted-foreground/70" aria-hidden="true" />
+              </>
             )}
-            <span className="flex min-w-0 items-center gap-1">
+            <span className="flex min-w-0 items-center gap-1.5">
               <Globe className="size-3.5 shrink-0" />
               <span className="truncate">{source}</span>
             </span>
@@ -116,34 +119,6 @@ export function ScriptIdentity({
               ))}
             </div>
           )}
-
-          {description && (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{description}</p>
-          )}
-
-          {schedule?.kind === "cron" && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-success-bg px-3 py-2 text-xs text-success-fg">
-              <span className="flex items-center gap-1 font-medium">
-                <Timer className="size-3.5" />
-                {t("install:schedule_cron_label")}
-              </span>
-              <span className="rounded bg-card px-1.5 py-0.5 font-mono">{schedule.expression}</span>
-              {scheduleNextRun && (
-                <>
-                  <span aria-hidden>{"·"}</span>
-                  <span>{t("install:schedule_next_run")}</span>
-                  <span className="font-mono">{scheduleNextRun}</span>
-                </>
-              )}
-            </div>
-          )}
-
-          {schedule?.kind === "background" && (
-            <div className="flex items-center gap-1.5 rounded-lg bg-success-bg px-3 py-2 text-xs text-success-fg">
-              <Power className="size-3.5" />
-              {t("install:schedule_background_desc")}
-            </div>
-          )}
         </div>
 
         <div className="flex shrink-0 flex-col items-center gap-1">
@@ -151,6 +126,34 @@ export function ScriptIdentity({
           <span className="text-xs text-muted-foreground">{t("install:enabled_label")}</span>
         </div>
       </div>
+
+      {description && <p className="text-sm leading-relaxed whitespace-pre-wrap text-fg-secondary">{description}</p>}
+
+      {schedule?.kind === "cron" && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-success-bg px-3 py-2 text-xs">
+          <span className="flex items-center gap-1 font-semibold text-foreground">
+            <Timer className="size-3.5 text-success" />
+            {t("install:schedule_cron_label")}
+          </span>
+          <span className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-fg-secondary">
+            {schedule.expression}
+          </span>
+          {scheduleNextRun && (
+            <span className="ml-auto flex items-center gap-1 text-muted-foreground">
+              <Clock className="size-3.5" />
+              <span>{t("install:schedule_next_run")}</span>
+              <span>{scheduleNextRun}</span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {schedule?.kind === "background" && (
+        <div className="flex items-center gap-1.5 rounded-lg bg-success-bg px-3 py-2 text-xs text-foreground">
+          <Power className="size-3.5 text-success" />
+          {t("install:schedule_background_desc")}
+        </div>
+      )}
     </section>
   );
 }

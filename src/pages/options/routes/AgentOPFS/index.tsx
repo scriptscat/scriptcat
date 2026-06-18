@@ -1,30 +1,40 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEventHandler } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
+  FolderTree,
   HardDrive,
   Folder,
   File,
-  FileJson,
+  Braces,
   FileText,
   Image as ImageIcon,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  RefreshCw,
+  Upload,
   Eye,
   Download,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
+import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
-import { formatUnixTime } from "@App/pkg/utils/day_format";
+import { dayFormat } from "@App/pkg/utils/day_format";
 import { cn } from "@App/pkg/utils/cn";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
 import { AgentEmptyState } from "../_agent/AgentEmptyState";
+import { AgentCardMenu, type AgentCardMenuItem } from "../_agent/AgentCardMenu";
 import { PreviewDialog } from "./PreviewDialog";
 import {
   listDir,
   removeEntry,
   readFileText,
   getFileBlob,
+  writeFile,
   formatSize,
   fileKind,
   type FileEntry,
@@ -32,23 +42,23 @@ import {
 } from "./opfs_fs";
 
 type PreviewState = { open: boolean; name: string; kind: FileKind; text?: string; imageUrl?: string };
-
-function entryIcon(entry: FileEntry) {
-  if (entry.kind === "directory") return Folder;
-  switch (fileKind(entry.name)) {
-    case "json":
-      return FileJson;
-    case "img":
-      return ImageIcon;
-    case "md":
-    case "text":
-      return FileText;
-    default:
-      return File;
-  }
-}
+type SortKey = "name" | "size" | "time";
 
 const PREVIEWABLE: FileKind[] = ["json", "md", "text", "img"];
+
+// 类型 → 图标 + 类型色(对照设计稿:文件夹橙 / JSON 紫 / Markdown·文本 蓝 / 图片 绿 / 二进制 灰)
+const KIND_META: Record<"directory" | FileKind, { icon: LucideIcon; color: string }> = {
+  directory: { icon: Folder, color: "text-warning" },
+  json: { icon: Braces, color: "text-skill" },
+  md: { icon: FileText, color: "text-primary" },
+  text: { icon: FileText, color: "text-primary" },
+  img: { icon: ImageIcon, color: "text-success" },
+  bin: { icon: File, color: "text-muted-foreground" },
+};
+
+function entryMeta(entry: FileEntry) {
+  return entry.kind === "directory" ? KIND_META.directory : KIND_META[fileKind(entry.name)];
+}
 
 export default function AgentOPFS() {
   const { t } = useTranslation(["agent", "common"]);
@@ -58,6 +68,8 @@ export default function AgentOPFS() {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     navigator.storage.getDirectory().then(setRoot);
@@ -78,6 +90,25 @@ export default function AgentOPFS() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // 目录恒置顶,组内按当前排序键升/降序(保留 v1.4 的大小/时间列排序)
+  const sorted = useMemo(() => {
+    const arr = [...entries];
+    arr.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
+      let cmp = 0;
+      if (sort.key === "size") cmp = (a.size ?? 0) - (b.size ?? 0);
+      else if (sort.key === "time") cmp = (a.lastModified ?? 0) - (b.lastModified ?? 0);
+      else cmp = a.name.localeCompare(b.name);
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [entries, sort]);
+
+  const totalSize = useMemo(() => entries.reduce((sum, e) => sum + (e.size ?? 0), 0), [entries]);
+
+  const toggleSort = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   const openEntry = async (entry: FileEntry) => {
     if (entry.kind === "directory") {
@@ -114,6 +145,21 @@ export default function AgentOPFS() {
     await load();
   };
 
+  const handleUpload: ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // 允许重复选择同名文件
+    if (!root || files.length === 0) return;
+    try {
+      for (const file of files) {
+        await writeFile(root, path, file.name, file);
+      }
+      toast.success(t("agent:opfs_upload_success"));
+      await load();
+    } catch {
+      toast.error(t("agent:opfs_upload_failed"));
+    }
+  };
+
   const closePreview = () => {
     if (preview?.imageUrl) URL.revokeObjectURL(preview.imageUrl);
     setPreview(null);
@@ -121,101 +167,201 @@ export default function AgentOPFS() {
 
   const crumbs = [t("agent:opfs_root"), ...path];
 
+  const typeLabel = (entry: FileEntry) => {
+    if (entry.kind === "directory") return t("agent:opfs_type_directory");
+    switch (fileKind(entry.name)) {
+      case "json":
+        return "JSON";
+      case "md":
+        return "Markdown";
+      case "img":
+        return t("agent:opfs_type_image");
+      case "text":
+        return t("agent:opfs_type_text");
+      default:
+        return t("agent:opfs_type_binary");
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
-      <AgentPageHeader icon={HardDrive} title={t("agent:opfs_title")} subtitle="OPFS" />
+      {/* 隐藏的上传文件选择器:桌面页头与移动工具行共用 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        data-testid="opfs-upload-input"
+        onChange={handleUpload}
+      />
 
-      {/* 面包屑 */}
-      <div className="flex items-center gap-1 border-b border-border bg-card px-6 py-2 text-sm">
-        {crumbs.map((part, i) => (
-          <span key={i} className="flex items-center gap-1">
-            {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
-            <button
-              type="button"
-              data-testid={`crumb-${i}`}
-              onClick={() => setPath(path.slice(0, i))}
-              className={cn(
-                "rounded px-1.5 py-0.5 hover:bg-accent",
-                i === crumbs.length - 1 ? "font-medium text-foreground" : "text-muted-foreground"
-              )}
+      {/* 桌面:64px 页头(移动端由全局 MobileHeader 提供顶栏,避免双层堆叠) */}
+      {!isMobile && (
+        <AgentPageHeader
+          icon={FolderTree}
+          title={t("agent:opfs_title")}
+          subtitle={t("agent:opfs_subtitle")}
+          actions={
+            <>
+              <Button variant="outline" data-testid="opfs-refresh" onClick={load}>
+                <RefreshCw className="size-4" />
+                {t("agent:opfs_refresh")}
+              </Button>
+              <Button data-testid="opfs-upload" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="size-4" />
+                {t("agent:opfs_upload")}
+              </Button>
+            </>
+          }
+        />
+      )}
+
+      <div className="scrollbar-custom flex flex-1 flex-col gap-3.5 overflow-y-auto p-4 md:px-7 md:py-5">
+        {/* 移动:页内紧凑工具行(标题 + 刷新/上传图标按钮),替代被抑制的页头 */}
+        {isMobile && (
+          <div className="flex items-center gap-2">
+            <span data-testid="opfs-mobile-title" className="flex-1 truncate text-lg font-semibold text-foreground">
+              {t("agent:opfs_title")}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              data-testid="opfs-refresh"
+              aria-label={t("agent:opfs_refresh")}
+              onClick={load}
             >
-              {part}
-            </button>
-          </span>
-        ))}
-      </div>
+              <RefreshCw className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              data-testid="opfs-upload"
+              aria-label={t("agent:opfs_upload")}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="size-4" />
+            </Button>
+          </div>
+        )}
 
-      <div className="flex-1 overflow-y-auto p-6">
+        {/* 面包屑 + 统计 */}
+        <div className="flex items-center gap-1.5 text-sm">
+          <HardDrive className="size-3.5 shrink-0 text-muted-foreground" />
+          {crumbs.map((part, i) => (
+            <span key={i} className="flex items-center gap-1.5">
+              {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
+              <button
+                type="button"
+                data-testid={`crumb-${i}`}
+                onClick={() => setPath(path.slice(0, i))}
+                className={cn(
+                  "rounded px-1 py-0.5 hover:bg-accent",
+                  i === crumbs.length - 1 ? "font-semibold text-foreground" : "font-medium text-muted-foreground"
+                )}
+              >
+                {part}
+              </button>
+            </span>
+          ))}
+          <div className="flex-1" />
+          {!loading && (
+            <span data-testid="opfs-count" className="shrink-0 text-xs text-muted-foreground">
+              {`${t("agent:opfs_item_count", { count: entries.length })} · ${formatSize(totalSize)}`}
+            </span>
+          )}
+        </div>
+
         {!loading && entries.length === 0 ? (
-          <AgentEmptyState icon={Folder} title={t("agent:opfs_empty")} description={t("agent:opfs_title")} />
+          <AgentEmptyState icon={Folder} title={t("agent:opfs_empty")} description={t("agent:opfs_empty_desc")} />
         ) : isMobile ? (
           <div className="flex flex-col gap-2">
-            {entries.map((entry) => {
-              const Icon = entryIcon(entry);
+            {sorted.map((entry) => {
+              const meta = entryMeta(entry);
+              const sub = [
+                typeLabel(entry),
+                ...(entry.kind === "file" && entry.size != null ? [formatSize(entry.size)] : []),
+                ...(entry.lastModified ? [dayFormat(new Date(entry.lastModified), "MM-DD HH:mm")] : []),
+              ].join(" · ");
               return (
-                <div key={entry.name} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-                  <Icon className="size-5 shrink-0 text-muted-foreground" />
+                <div
+                  key={entry.name}
+                  className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3"
+                >
+                  <div className="flex size-[34px] shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <meta.icon className={cn("size-[18px]", meta.color)} />
+                  </div>
                   <button
                     type="button"
                     data-testid={`entry-${entry.name}`}
                     onClick={() => openEntry(entry)}
-                    className="min-w-0 flex-1 truncate text-left text-sm text-foreground"
+                    className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
                   >
-                    {entry.name}
-                  </button>
-                  {entry.kind === "file" && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {entry.size != null ? formatSize(entry.size) : "—"}
+                    <span
+                      className={cn(
+                        "truncate text-sm font-medium text-foreground",
+                        entry.kind === "file" && "font-mono"
+                      )}
+                    >
+                      {entry.name}
                     </span>
-                  )}
-                  <RowActions
-                    entry={entry}
-                    onPreview={openEntry}
-                    onDownload={handleDownload}
-                    onDelete={handleDelete}
-                    t={t}
-                  />
+                    <span className="truncate text-[11px] text-muted-foreground">{sub}</span>
+                  </button>
+                  <AgentCardMenu items={menuItems(entry, { openEntry, handleDownload, handleDelete, t })} />
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
-            <div className="flex items-center gap-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground">
-              <span className="flex-1">{t("agent:opfs_name")}</span>
-              <span className="w-24">{t("agent:opfs_type")}</span>
-              <span className="w-24 text-right">{t("agent:opfs_size")}</span>
-              <span className="w-40">{t("agent:opfs_modified")}</span>
-              <span className="w-28 text-right" />
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="flex items-center border-b border-border bg-muted/50 text-xs font-semibold text-muted-foreground">
+              <span className="flex-1 px-3.5 py-2.5">{t("agent:opfs_name")}</span>
+              <span className="w-[140px] px-3.5 py-2.5">{t("agent:opfs_type")}</span>
+              <SortHeader
+                className="w-[120px]"
+                label={t("agent:opfs_size")}
+                active={sort.key === "size"}
+                dir={sort.dir}
+                onClick={() => toggleSort("size")}
+              />
+              <SortHeader
+                className="w-[190px]"
+                label={t("agent:opfs_modified")}
+                active={sort.key === "time"}
+                dir={sort.dir}
+                onClick={() => toggleSort("time")}
+              />
+              <span className="w-[140px] px-3.5 py-2.5">{t("agent:opfs_actions")}</span>
             </div>
-            {entries.map((entry) => {
-              const Icon = entryIcon(entry);
+            {sorted.map((entry) => {
+              const meta = entryMeta(entry);
               return (
                 <div
                   key={entry.name}
-                  className="flex items-center gap-3 border-b border-border px-4 py-2.5 text-sm last:border-b-0 hover:bg-accent/40"
+                  className="flex items-center border-b border-border last:border-b-0 hover:bg-accent/40"
                 >
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <Icon className="size-4 shrink-0 text-muted-foreground" />
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3.5 py-2.5">
+                    <div className="flex size-[30px] shrink-0 items-center justify-center rounded-md bg-muted">
+                      <meta.icon className={cn("size-4", meta.color)} />
+                    </div>
                     <button
                       type="button"
                       data-testid={`entry-${entry.name}`}
                       onClick={() => openEntry(entry)}
-                      className="truncate text-left text-foreground hover:underline"
+                      className={cn(
+                        "truncate text-left text-[13px] text-foreground hover:underline",
+                        entry.kind === "directory" ? "font-medium" : "font-mono"
+                      )}
                     >
                       {entry.name}
                     </button>
                   </div>
-                  <span className="w-24 text-xs text-muted-foreground">
-                    {entry.kind === "directory" ? t("agent:opfs_directory") : t("agent:opfs_file")}
-                  </span>
-                  <span className="w-24 text-right text-xs text-muted-foreground">
+                  <span className="w-[140px] px-3.5 text-[13px] text-fg-secondary">{typeLabel(entry)}</span>
+                  <span className="w-[120px] px-3.5 font-mono text-xs text-fg-secondary">
                     {entry.size != null ? formatSize(entry.size) : "—"}
                   </span>
-                  <span className="w-40 font-mono text-xs text-muted-foreground">
-                    {entry.lastModified ? formatUnixTime(Math.floor(entry.lastModified / 1000)) : "—"}
+                  <span className="w-[190px] px-3.5 font-mono text-xs text-muted-foreground">
+                    {entry.lastModified ? dayFormat(new Date(entry.lastModified), "YYYY-MM-DD HH:mm") : "—"}
                   </span>
-                  <div className="flex w-28 justify-end">
+                  <div className="flex w-[140px] items-center justify-end gap-0.5 px-3.5">
                     <RowActions
                       entry={entry}
                       onPreview={openEntry}
@@ -245,6 +391,66 @@ export default function AgentOPFS() {
   );
 }
 
+function SortHeader({
+  label,
+  active,
+  dir,
+  onClick,
+  className,
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1 px-3.5 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground",
+        className
+      )}
+    >
+      {label}
+      {active && (dir === "asc" ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />)}
+    </button>
+  );
+}
+
+// 移动端 kebab 菜单项:按类型给出 预览 / 下载 / 删除
+function menuItems(
+  entry: FileEntry,
+  {
+    openEntry,
+    handleDownload,
+    handleDelete,
+    t,
+  }: {
+    openEntry: (e: FileEntry) => void;
+    handleDownload: (e: FileEntry) => void;
+    handleDelete: (e: FileEntry) => void;
+    t: (k: string) => string;
+  }
+): AgentCardMenuItem[] {
+  const items: AgentCardMenuItem[] = [];
+  if (entry.kind === "file" && PREVIEWABLE.includes(fileKind(entry.name))) {
+    items.push({ key: "preview", label: t("agent:opfs_preview"), icon: Eye, onSelect: () => openEntry(entry) });
+  }
+  if (entry.kind === "file") {
+    items.push({ key: "download", label: t("common:download"), icon: Download, onSelect: () => handleDownload(entry) });
+  }
+  items.push({
+    key: "delete",
+    label: t("common:delete"),
+    icon: Trash2,
+    danger: true,
+    onSelect: () => handleDelete(entry),
+  });
+  return items;
+}
+
 function RowActions({
   entry,
   onPreview,
@@ -260,25 +466,25 @@ function RowActions({
 }) {
   const canPreview = entry.kind === "file" && PREVIEWABLE.includes(fileKind(entry.name));
   return (
-    <div className="flex shrink-0 items-center gap-0.5">
+    <>
       {canPreview && (
         <button
           type="button"
           title={t("agent:opfs_preview")}
           onClick={() => onPreview(entry)}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         >
-          <Eye className="size-4" />
+          <Eye className="size-[15px]" />
         </button>
       )}
       {entry.kind === "file" && (
         <button
           type="button"
-          title="Download"
+          title={t("common:download")}
           onClick={() => onDownload(entry)}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         >
-          <Download className="size-4" />
+          <Download className="size-[15px]" />
         </button>
       )}
       <Popconfirm
@@ -291,11 +497,11 @@ function RowActions({
           type="button"
           data-testid={`delete-${entry.name}`}
           title={t("common:delete")}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          className="flex size-[30px] items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
         >
-          <Trash2 className="size-4" />
+          <Trash2 className="size-[15px]" />
         </button>
       </Popconfirm>
-    </div>
+    </>
   );
 }

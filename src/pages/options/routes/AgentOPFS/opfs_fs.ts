@@ -80,3 +80,17 @@ export async function getFileBlob(root: FileSystemDirectoryHandle, path: string[
   const handle = await dir.getFileHandle(name);
   return handle.getFile();
 }
+
+// 把数据写入当前目录的指定文件（不存在则创建），用于上传
+export async function writeFile(
+  root: FileSystemDirectoryHandle,
+  path: string[],
+  name: string,
+  data: Blob
+): Promise<void> {
+  const dir = await getDirHandle(root, path);
+  const handle = await dir.getFileHandle(name, { create: true });
+  const writable = await handle.createWritable();
+  await writable.write(data);
+  await writable.close();
+}

@@ -1,4 +1,5 @@
-import { BellOff, ChevronRight, Download, PackageCheck, RefreshCw, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { BellOff, ChevronRight, Download, PackageCheck, RefreshCw, RotateCcw, X } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Button } from "@App/pages/components/ui/button";
@@ -26,7 +27,7 @@ function SkeletonCards() {
   return (
     <div data-testid="update-skeleton" className="flex flex-col gap-2.5 p-4">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex flex-col gap-2.5 rounded-lg border border-border bg-card p-3.5">
+        <div key={i} className="flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3.5 shadow-sm">
           <div className="flex items-center gap-2.5">
             <SkeletonBar className="size-7 shrink-0 rounded-md" />
             <SkeletonBar className="h-4 w-32" />
@@ -66,7 +67,7 @@ function MobileCard({
 }) {
   const dim = item.enabled ? "" : "opacity-55";
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border border-border bg-card p-3.5">
+    <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3.5 shadow-sm">
       <div className="flex items-center gap-2.5">
         {ignoredCard ? (
           <BellOff className="size-[18px] shrink-0 text-muted-foreground" />
@@ -126,23 +127,31 @@ function MobileCard({
 }
 
 function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
+  const [open, setOpen] = useState(false);
   return (
-    <Collapsible>
-      <div className="flex h-12 items-center justify-between rounded-lg border border-border bg-card px-3.5">
-        <CollapsibleTrigger className="group flex items-center gap-2">
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="flex h-12 items-center justify-between rounded-xl border border-border bg-card px-3.5">
+        <CollapsibleTrigger data-testid="ignored-toggle" className="group flex flex-1 items-center gap-2">
           <ChevronRight className="size-[18px] text-fg-secondary transition-transform group-data-[state=open]:rotate-90" />
           <span className="text-sm font-medium text-foreground">{tk("ignored_section")}</span>
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             {view.ignored.length}
           </span>
         </CollapsibleTrigger>
-        <button
-          type="button"
-          onClick={view.onRestoreAll}
-          className="text-[13px] font-medium text-primary hover:underline"
-        >
-          {tk("restore_all")}
-        </button>
+        {open ? (
+          <button
+            type="button"
+            data-testid="ignored-restore-all"
+            onClick={view.onRestoreAll}
+            className="text-[13px] font-medium text-primary hover:underline"
+          >
+            {tk("restore_all")}
+          </button>
+        ) : (
+          <span data-testid="ignored-expand-hint" className="text-xs text-muted-foreground">
+            {tk("tap_to_expand")}
+          </span>
+        )}
       </div>
       <CollapsibleContent className="flex flex-col gap-2.5 pt-2.5">
         {view.ignored.map((item) => (
@@ -179,6 +188,9 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
         <div className="flex-1" />
         <Button variant="outline" size="icon-sm" disabled={view.checking} onClick={view.onCheckNow}>
           <RefreshCw className={cn(view.checking && "animate-spin")} />
+        </Button>
+        <Button variant="ghost" size="icon-sm" className="text-fg-secondary" onClick={() => window.close()}>
+          <X />
         </Button>
       </header>
 
@@ -229,11 +241,17 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
 
       {!empty && view.updates.length > 0 && (
         <div className="flex shrink-0 items-center gap-2.5 border-t border-border bg-card px-4 pt-2.5 pb-6">
-          <Button variant="outline" className="flex-1" disabled={selectedCount === 0} onClick={view.onIgnoreSelected}>
+          <Button
+            variant="outline"
+            size="lg"
+            className="flex-1"
+            disabled={selectedCount === 0}
+            onClick={view.onIgnoreSelected}
+          >
             <BellOff />
             {tk("ignore_selected")}
           </Button>
-          <Button className="flex-1" disabled={selectedCount === 0} onClick={view.onUpdateSelected}>
+          <Button size="lg" className="flex-1" disabled={selectedCount === 0} onClick={view.onUpdateSelected}>
             <Download />
             {tk("update_selected", { count: selectedCount })}
           </Button>

@@ -62,7 +62,7 @@ function AssistantMessageContent({
 
       {/* 系统警告 */}
       {message.warning && (
-        <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg text-xs bg-orange-500/10 text-orange-700 dark:text-orange-300">
+        <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg text-xs bg-warning-bg text-warning-fg">
           <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
           <span className="min-w-0 break-words">{message.warning}</span>
         </div>
@@ -70,7 +70,7 @@ function AssistantMessageContent({
 
       {/* 错误 */}
       {message.error && (
-        <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg text-xs bg-red-500/10 text-red-700 dark:text-red-300">
+        <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg text-xs bg-destructive/10 text-destructive">
           <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
           <span className="min-w-0 break-words">{message.error}</span>
         </div>
@@ -280,7 +280,7 @@ export function UserMessageItem({
 
   return (
     <div className="flex gap-3 py-5 flex-row-reverse group/msg">
-      <div className="size-8 rounded-full flex items-center justify-center shrink-0 shadow-sm bg-primary text-primary-foreground">
+      <div className="size-8 rounded-full flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-primary to-primary-hover text-primary-foreground">
         <User className="size-3.5" />
       </div>
       <div className="flex flex-col items-end max-w-[80%] min-w-0">
@@ -384,7 +384,7 @@ export function UserMessageItem({
         ) : (
           <>
             {textContent && (
-              <div className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-primary text-primary-foreground text-sm whitespace-pre-wrap break-words shadow-sm">
+              <div className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-gradient-to-br from-primary to-primary-hover text-primary-foreground text-sm whitespace-pre-wrap break-words shadow-sm">
                 {textContent}
               </div>
             )}
@@ -474,8 +474,8 @@ export function AssistantMessageGroup({
 
   return (
     <div className="flex gap-3 py-5 group/msg">
-      <div className="size-8 rounded-full flex items-center justify-center shrink-0 shadow-sm bg-muted text-foreground/70">
-        <Bot className="size-3.5" />
+      <div className="size-8 rounded-full flex items-center justify-center shrink-0 shadow-sm bg-primary-light text-primary">
+        <Bot className="size-[18px]" />
       </div>
 
       <div className="flex flex-col max-w-[80%] min-w-0 gap-1">

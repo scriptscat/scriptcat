@@ -75,4 +75,30 @@ describe("会话列表 ConversationList", () => {
     setup({ runningIds: new Set(["a"]) });
     expect(screen.getByTestId("conv-running-a")).toBeInTheDocument();
   });
+
+  it("搜索框按标题过滤会话(不区分大小写)", () => {
+    setup({ conversations: [conv("a", "网络请求脚本"), conv("b", "批量重命名")] });
+    const search = screen.getByTestId("conv-search") as HTMLInputElement;
+    fireEvent.change(search, { target: { value: "批量" } });
+    expect(screen.queryByText("网络请求脚本")).toBeNull();
+    expect(screen.getByText("批量重命名")).toBeInTheDocument();
+  });
+
+  it("搜索无结果时展示空状态", () => {
+    setup({ conversations: [conv("a", "网络请求脚本")] });
+    fireEvent.change(screen.getByTestId("conv-search"), { target: { value: "不存在的会话" } });
+    expect(screen.getByTestId("conv-search-empty")).toBeInTheDocument();
+  });
+
+  it("提供 onCollapse 时展示面板折叠按钮", () => {
+    const onCollapse = vi.fn();
+    setup({ onCollapse });
+    fireEvent.click(screen.getByTestId("conv-collapse"));
+    expect(onCollapse).toHaveBeenCalledOnce();
+  });
+
+  it("未提供 onCollapse 时不展示折叠按钮(移动端)", () => {
+    setup();
+    expect(screen.queryByTestId("conv-collapse")).toBeNull();
+  });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, RefreshCw, PlugZap } from "lucide-react";
+import { cn } from "@App/pkg/utils/cn";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,6 @@ import { Input } from "@App/pages/components/ui/input";
 import { Label } from "@App/pages/components/ui/label";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@App/pages/components/ui/select";
-import { cn } from "@App/pkg/utils/cn";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { getDefaultBaseUrl } from "./provider_api";
 
@@ -80,11 +80,16 @@ export function ModelFormDialog({
   const handleFetch = async () => {
     setFetching(true);
     try {
-      setAvailable(await onFetchModels(form));
+      const list = await onFetchModels(form);
+      setAvailable(list);
+      update("availableModels", list);
     } finally {
       setFetching(false);
     }
   };
+
+  // 选项 = 已拉取列表 ∪ 当前已选模型(编辑既有配置时确保可回显/可选)
+  const modelOptions = Array.from(new Set([...(form.model ? [form.model] : []), ...available]));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -146,13 +151,18 @@ export function ModelFormDialog({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="model-id">{t("agent:provider_model")}</Label>
             <div className="flex gap-2">
-              <Input
-                id="model-id"
-                data-testid="model-id"
-                className="flex-1"
-                value={form.model}
-                onChange={(e) => update("model", e.target.value)}
-              />
+              <Select value={form.model || undefined} onValueChange={(v) => update("model", v)}>
+                <SelectTrigger id="model-id" data-testid="model-id" className="flex-1">
+                  <SelectValue placeholder={t("agent:chat_model_select")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {modelOptions.map((id) => (
+                    <SelectItem key={id} value={id} data-testid={`model-option-${id}`} className="font-mono">
+                      {id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button
                 type="button"
                 variant="outline"
@@ -160,29 +170,10 @@ export function ModelFormDialog({
                 disabled={fetching}
                 onClick={handleFetch}
               >
-                {fetching && <Loader2 className="size-4 animate-spin" />}
+                {fetching ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                 {t("agent:model_fetch")}
               </Button>
             </div>
-            {available.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {available.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => update("model", id)}
-                    className={cn(
-                      "rounded-md border px-1.5 py-0.5 font-mono text-[11px]",
-                      form.model === id
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-accent"
-                    )}
-                  >
-                    {id}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -234,24 +225,41 @@ export function ModelFormDialog({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Button type="button" variant="outline" data-testid="model-test" disabled={testing} onClick={handleTest}>
-              {testing && <Loader2 className="size-4 animate-spin" />}
+          <div
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-lg px-3 py-2.5",
+              testResult ? (testResult.ok ? "bg-success-bg" : "bg-destructive/10") : "bg-muted"
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              {testResult ? (
+                testResult.ok ? (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-success-fg">
+                    <CheckCircle2 className="size-3.5 shrink-0" />
+                    {t("agent:provider_test_success")}
+                    {testResult.latencyMs != null && ` · ${testResult.latencyMs}ms`}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 truncate text-xs font-medium text-destructive">
+                    <XCircle className="size-3.5 shrink-0" />
+                    {testResult.error || t("agent:provider_test_failed")}
+                  </span>
+                )
+              ) : (
+                <span className="text-xs text-muted-foreground">{t("agent:provider_test_hint")}</span>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="model-test"
+              disabled={testing}
+              onClick={handleTest}
+            >
+              {testing ? <Loader2 className="size-4 animate-spin" /> : <PlugZap className="size-4" />}
               {t("agent:provider_test_connection")}
             </Button>
-            {testResult &&
-              (testResult.ok ? (
-                <span className="flex items-center gap-1 text-xs text-success-fg">
-                  <CheckCircle2 className="size-4" />
-                  {t("agent:provider_test_success")}
-                  {testResult.latencyMs != null && ` · ${testResult.latencyMs}ms`}
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 truncate text-xs text-destructive">
-                  <XCircle className="size-4 shrink-0" />
-                  {testResult.error || t("agent:provider_test_failed")}
-                </span>
-              ))}
           </div>
         </div>
 

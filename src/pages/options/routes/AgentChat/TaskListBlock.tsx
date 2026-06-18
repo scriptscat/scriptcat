@@ -8,7 +8,7 @@ function TaskStatusIcon({ status }: { status: Task["status"] }) {
   switch (status) {
     case "completed":
       return (
-        <span className="size-[18px] rounded-full bg-green-600 flex items-center justify-center shrink-0">
+        <span className="size-[18px] rounded-full bg-success flex items-center justify-center shrink-0">
           <Check className="size-2.5 text-white" />
         </span>
       );
@@ -39,7 +39,7 @@ function ProgressRing({ progress, allDone }: { progress: number; allDone: boolea
         cy={size / 2}
         r={radius}
         fill="none"
-        className={allDone ? "stroke-green-600" : "stroke-primary"}
+        className={allDone ? "stroke-success" : "stroke-primary"}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeDasharray={circumference}
@@ -116,7 +116,7 @@ export default function TaskListBlock({ tasks }: { tasks: Task[] }) {
         <div
           className={cn(
             "h-full rounded-r-full transition-all duration-500 ease-out",
-            allDone ? "bg-green-600" : "bg-primary"
+            allDone ? "bg-success" : "bg-primary"
           )}
           style={{ width: `${progress}%` }}
         />

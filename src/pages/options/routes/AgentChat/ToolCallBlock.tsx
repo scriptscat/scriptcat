@@ -13,15 +13,15 @@ function StatusIcon({ status }: { status?: string }) {
       break;
     case "completed":
       inner = (
-        <span className="size-4 rounded-full bg-green-500/15 flex items-center justify-center">
-          <Check className="size-2.5 text-green-600 dark:text-green-400" />
+        <span className="size-4 rounded-full bg-success/15 flex items-center justify-center">
+          <Check className="size-2.5 text-success" />
         </span>
       );
       break;
     case "error":
       inner = (
-        <span className="size-4 rounded-full bg-red-500/15 flex items-center justify-center">
-          <X className="size-2.5 text-red-600 dark:text-red-400" />
+        <span className="size-4 rounded-full bg-destructive/15 flex items-center justify-center">
+          <X className="size-2.5 text-destructive" />
         </span>
       );
       break;
@@ -44,11 +44,11 @@ export default function ToolCallBlock({ toolCall }: { toolCall: ToolCall }) {
       <button
         type="button"
         data-testid="toolcall-trigger"
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer select-none bg-muted/60 hover:bg-accent transition-colors border border-border"
+        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer select-none bg-card hover:bg-accent transition-colors border border-border"
         onClick={() => setExpanded((v) => !v)}
       >
         <StatusIcon status={toolCall.status} />
-        <span className="text-xs font-medium text-foreground">{toolCall.name}</span>
+        <span className="text-xs font-mono font-medium text-foreground">{toolCall.name}</span>
         {expanded ? (
           <ChevronDown className="size-2.5 text-muted-foreground" />
         ) : (

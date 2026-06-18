@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@App/pages/components/ui/dialog";
 import type { FileKind } from "./opfs_fs";
 
@@ -17,6 +18,7 @@ export function PreviewDialog({
   imageUrl?: string;
   onOpenChange: (v: boolean) => void;
 }) {
+  const { t } = useTranslation(["agent"]);
   const display = useMemo(() => {
     if (kind === "json" && text != null) {
       try {
@@ -32,7 +34,10 @@ export function PreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] gap-3 sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="truncate font-mono text-sm">{name}</DialogTitle>
+          <DialogTitle className="truncate text-sm">
+            <span className="text-foreground">{`${t("agent:opfs_preview")} — `}</span>
+            <span className="font-mono">{name}</span>
+          </DialogTitle>
           <DialogDescription className="sr-only">{name}</DialogDescription>
         </DialogHeader>
         {kind === "img" && imageUrl ? (

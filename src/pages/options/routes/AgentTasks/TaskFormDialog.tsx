@@ -8,13 +8,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@App/pages/components/ui/dialog";
+import { CalendarCheck } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import { Input } from "@App/pages/components/ui/input";
 import { Label } from "@App/pages/components/ui/label";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { Switch } from "@App/pages/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@App/pages/components/ui/radio-group";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@App/pages/components/ui/select";
+import { cn } from "@App/pkg/utils/cn";
 import type { AgentTask, AgentModelConfig } from "@App/app/service/agent/core/types";
 import { nextRunText } from "./cron";
 
@@ -101,24 +102,32 @@ export function TaskFormDialog({
             <Input id="task-name" data-testid="task-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label>
-              {t("agent:tasks_mode_internal")} / {t("agent:tasks_mode_event")}
-            </Label>
-            <RadioGroup className="flex gap-6" value={mode} onValueChange={(v) => setMode(v as "internal" | "event")}>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem id="task-mode-internal" data-testid="task-mode-internal" value="internal" />
-                <Label htmlFor="task-mode-internal" className="font-normal">
-                  {t("agent:tasks_mode_internal")}
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem id="task-mode-event" data-testid="task-mode-event" value="event" />
-                <Label htmlFor="task-mode-event" className="font-normal">
-                  {t("agent:tasks_mode_event")}
-                </Label>
-              </div>
-            </RadioGroup>
+          <div className="flex flex-col gap-1.5">
+            <Label>{t("agent:tasks_mode", { defaultValue: "模式" })}</Label>
+            <div className="flex w-full gap-1 rounded-[9px] bg-muted p-[3px]">
+              {(["internal", "event"] as const).map((m) => {
+                const active = mode === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    data-testid={`task-mode-${m}`}
+                    aria-pressed={active}
+                    onClick={() => setMode(m)}
+                    className={cn(
+                      "flex h-[30px] flex-1 items-center justify-center rounded-[7px] text-[13px] transition-colors",
+                      active
+                        ? "bg-card font-semibold text-foreground shadow-sm"
+                        : "font-normal text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {m === "internal"
+                      ? t("agent:tasks_mode_internal_short", { defaultValue: "内部" })
+                      : t("agent:tasks_mode_event_short", { defaultValue: "事件" })}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -137,8 +146,9 @@ export function TaskFormDialog({
               </span>
             ) : (
               cron.valid && (
-                <span className="text-xs text-muted-foreground">
-                  {t("agent:tasks_next_run")}: {cron.text}
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+                  <CalendarCheck className="size-3.5" />
+                  {t("agent:tasks_next_run")} · {cron.text}
                 </span>
               )
             )}
@@ -188,8 +198,13 @@ export function TaskFormDialog({
 
           {mode === "event" && <p className="text-xs text-muted-foreground">{t("agent:tasks_event_hint")}</p>}
 
-          <div className="flex items-center justify-between">
-            <Label htmlFor="task-notify">{t("agent:tasks_notify")}</Label>
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="task-notify">{t("agent:tasks_notify")}</Label>
+              <span className="text-xs text-muted-foreground">
+                {t("agent:tasks_notify_desc", { defaultValue: "任务完成后发送浏览器通知" })}
+              </span>
+            </div>
             <Switch id="task-notify" data-testid="task-notify" checked={notify} onCheckedChange={setNotify} />
           </div>
         </div>

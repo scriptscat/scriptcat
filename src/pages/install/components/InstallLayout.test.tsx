@@ -33,7 +33,7 @@ describe("InstallLayout 安装页外壳", () => {
       </InstallLayout>
     );
     // 设计稿:TopBar/ActionBar 填充 #ffffff/#151515 = bg-card;ContentArea 填充 #fafafa/#1e1e1e = bg-background
-    expect(screen.getByTestId("top-bar").className).toContain("bg-card");
+    expect(screen.getByTestId("install-top-bar").className).toContain("bg-card");
     expect(screen.getByTestId("action-bar").className).toContain("bg-card");
     expect(screen.getByTestId("install-layout").className).toContain("bg-background");
   });

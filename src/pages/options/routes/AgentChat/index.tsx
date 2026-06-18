@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronLeft, Download, PanelLeftClose, PanelLeftOpen, Sparkles, SquarePen } from "lucide-react";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
 import { agentClient } from "@App/pages/store/features/script";
@@ -11,6 +11,53 @@ import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
 import { useConversations, useSkills, useRunningConversations } from "./hooks";
 import { exportToMarkdown, downloadMarkdown } from "./export_utils";
+
+// 当前模型胶囊：sparkles 图标 + 模型名，呈现在标题下方
+function ModelPill({ name }: { name: string }) {
+  if (!name) return null;
+  return (
+    <span
+      data-testid="chat-model-pill"
+      className="inline-flex items-center gap-1.5 rounded-full bg-input/60 px-2 py-0.5 leading-none"
+    >
+      <Sparkles className="size-3 text-primary shrink-0" />
+      <span className="text-[11px] font-medium text-fg-secondary truncate max-w-[180px]">{name}</span>
+    </span>
+  );
+}
+
+const headerActionBtn =
+  "size-8 flex items-center justify-center rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
+
+// 头部操作组：导出当前会话、新建会话
+function HeaderActions({ onExport, onNew }: { onExport?: () => void; onNew: () => void }) {
+  return (
+    <div className="flex items-center gap-0.5 shrink-0">
+      {onExport && (
+        <button
+          type="button"
+          data-testid="header-export"
+          aria-label={t("agent:chat_export")}
+          title={t("agent:chat_export")}
+          onClick={onExport}
+          className={headerActionBtn}
+        >
+          <Download className="size-[18px]" />
+        </button>
+      )}
+      <button
+        type="button"
+        data-testid="header-new"
+        aria-label={t("agent:chat_new")}
+        title={t("agent:chat_new")}
+        onClick={onNew}
+        className={headerActionBtn}
+      >
+        <SquarePen className="size-[18px]" />
+      </button>
+    </div>
+  );
+}
 
 export default function AgentChat() {
   const isMobile = useIsMobile();
@@ -61,6 +108,8 @@ export default function AgentChat() {
 
   const effectiveModelId = selectedModelId || defaultModelId;
   const activeConv = conversations.find((c) => c.id === activeId);
+  const activeModelName = models.find((m) => m.id === effectiveModelId)?.name || "";
+  const hasActiveConv = !!activeConv;
 
   // 选中会话：移动端同时切到「对话」屏
   const openConversation = useCallback(
@@ -98,7 +147,8 @@ export default function AgentChat() {
     [conversations]
   );
 
-  const conversationList = (
+  // 桌面端面板头带折叠按钮；移动端列表屏无折叠(全局抽屉导航)。
+  const renderConversationList = (collapsible: boolean) => (
     <ConversationList
       conversations={conversations}
       activeId={activeId}
@@ -107,6 +157,7 @@ export default function AgentChat() {
       onDelete={deleteConversation}
       onRename={renameConversation}
       onExport={handleExport}
+      onCollapse={collapsible ? () => setCollapsed(true) : undefined}
       runningIds={runningIds}
     />
   );
@@ -130,30 +181,36 @@ export default function AgentChat() {
     />
   );
 
-  // 移动端：列表 / 对话 两屏切换（全局导航由 App 外壳的 BottomTabBar 承担）
+  // 移动端：列表 / 对话 两屏切换。
+  // 全局 MobileHeader(汉堡+抽屉) 已由 App 外壳常驻；本页对话屏只补一条「返回+标题+模型胶囊+操作」的上下文栏，
+  // 列表屏不再叠加第二条标题栏(避免双头部)，由 ConversationList 自带的面板头承担新建/搜索。
   if (isMobile) {
     if (mobileView === "chat") {
       return (
         <div className="flex flex-col h-full bg-background">
-          <header className="h-14 shrink-0 border-b border-border flex items-center gap-2 px-3 bg-card">
+          <header className="h-12 shrink-0 border-b border-border flex items-center gap-1.5 px-2 bg-card">
             <button
               type="button"
               data-testid="mobile-back"
               aria-label={t("agent:chat")}
               onClick={() => setMobileView("list")}
-              className="size-8 flex items-center justify-center rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="size-9 flex items-center justify-center rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
             >
               <ChevronLeft className="size-5" />
             </button>
-            <span className="text-sm font-medium text-foreground truncate min-w-0">
-              {activeConv?.title || t("agent:chat")}
-            </span>
+            <div className="flex flex-col min-w-0 flex-1 gap-px">
+              <span className="text-sm font-semibold text-foreground truncate leading-tight">
+                {activeConv?.title || t("agent:chat")}
+              </span>
+              <ModelPill name={activeModelName} />
+            </div>
+            <HeaderActions onExport={hasActiveConv ? () => handleExport(activeId) : undefined} onNew={handleCreate} />
           </header>
           {chatArea}
         </div>
       );
     }
-    return <div className="h-full bg-background">{conversationList}</div>;
+    return <div className="h-full bg-background">{renderConversationList(false)}</div>;
   }
 
   return (
@@ -165,25 +222,31 @@ export default function AgentChat() {
           collapsed ? "w-0" : "w-[280px]"
         )}
       >
-        {!collapsed && conversationList}
+        {!collapsed && renderConversationList(true)}
       </div>
 
       {/* 聊天列 */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* 头部 */}
-        <header className="h-14 shrink-0 border-b border-border flex items-center gap-2 px-3 bg-card">
-          <button
-            type="button"
-            data-testid="sidebar-collapse"
-            aria-label={t("agent:chat")}
-            onClick={() => setCollapsed((c) => !c)}
-            className="size-8 flex items-center justify-center rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
-          </button>
-          <span className="text-sm font-medium text-foreground truncate min-w-0">
-            {activeConv?.title || t("agent:chat")}
-          </span>
+        {/* 头部：折叠钮 + (标题/模型胶囊) + 操作组(导出/新建) */}
+        <header className="h-14 shrink-0 border-b border-border flex items-center justify-between gap-2 px-3 bg-card">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              data-testid="sidebar-collapse"
+              aria-label={t("agent:chat")}
+              onClick={() => setCollapsed((c) => !c)}
+              className="size-8 flex items-center justify-center rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+            >
+              {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            </button>
+            <div className="flex flex-col min-w-0 gap-px">
+              <span className="text-[15px] font-semibold text-foreground truncate leading-tight">
+                {activeConv?.title || t("agent:chat")}
+              </span>
+              {hasActiveConv && <ModelPill name={activeModelName} />}
+            </div>
+          </div>
+          {hasActiveConv && <HeaderActions onExport={() => handleExport(activeId)} onNew={handleCreate} />}
         </header>
 
         {chatArea}

@@ -14,6 +14,12 @@ describe("InstallLoading 加载中状态屏", () => {
     expect(screen.getByText("正在下载。已接收 12 KB。")).toBeInTheDocument();
   });
 
+  it("保留顶部品牌栏(对照设计稿,加载态不丢失外壳)", () => {
+    initLanguage("zh-CN");
+    render(<InstallLoading source="example.com" />);
+    expect(screen.getByTestId("install-top-bar")).toBeInTheDocument();
+  });
+
   it("提供 percent 时渲染确定进度条且宽度反映百分比", () => {
     initLanguage("zh-CN");
     render(<InstallLoading bytesText="正在下载。已接收 512.00 B / 1.00 KB(50%)。" percent={50} />);
@@ -34,6 +40,12 @@ describe("InstallError 加载失败状态屏", () => {
     render(<InstallError message="Error: Fetch failed with status 404" onClose={() => {}} />);
     expect(screen.getByText("安装页面加载失败")).toBeInTheDocument();
     expect(screen.getByText("Error: Fetch failed with status 404")).toBeInTheDocument();
+  });
+
+  it("保留顶部品牌栏(对照设计稿,失败态不丢失外壳)", () => {
+    initLanguage("zh-CN");
+    render(<InstallError message="x" onClose={() => {}} />);
+    expect(screen.getByTestId("install-top-bar")).toBeInTheDocument();
   });
 
   it("提供 onRetry 时渲染重试按钮并可点击", () => {

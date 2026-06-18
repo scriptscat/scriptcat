@@ -5,6 +5,7 @@ import { Cookie, FolderSync, Globe, ShieldCheck, TriangleAlert, CircleAlert, typ
 import { permissionClient } from "@App/pages/store/features/script";
 import { Button } from "@App/pages/components/ui/button";
 import { Switch } from "@App/pages/components/ui/switch";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { cn } from "@App/pkg/utils/cn";
 import {
   resolveConfirmType,
@@ -17,36 +18,31 @@ import {
 
 type ConfirmInfo = Awaited<ReturnType<typeof permissionClient.getPermissionInfo>>;
 
-const BRAND = "#1296DB";
-const ORANGE = "#FF9500";
-
 const DURATION_LABEL: Record<Duration, string> = {
   once: "duration_once",
   temporary: "duration_temporary",
   permanent: "duration_permanent",
 };
 
-// 不同权限的图标与配色
-function permissionVisual(permission: string): { Icon: LucideIcon; fg?: string; bgClass?: string } {
+// 不同权限的图标与配色（语义令牌类名）。图标底色为对应语义色的浅色蒙版（~12% 透明度），
+// 在亮/暗两套主题下都呈现一致的柔和色晕，与错误态的 destructive/10 处理一致。
+function permissionVisual(permission: string): { Icon: LucideIcon; bgClass: string; iconClass: string } {
   switch (permission) {
     case "cookie":
-      return { Icon: Cookie, fg: ORANGE };
+      return { Icon: Cookie, bgClass: "bg-warning/10", iconClass: "text-warning" };
     case "file_storage":
-      return { Icon: FolderSync, bgClass: "bg-secondary" };
+      return { Icon: FolderSync, bgClass: "bg-secondary", iconClass: "text-foreground" };
     case "extension-site-access":
-      return { Icon: ShieldCheck, fg: BRAND };
+      return { Icon: ShieldCheck, bgClass: "bg-primary/10", iconClass: "text-primary" };
     default:
-      return { Icon: Globe, fg: BRAND };
+      return { Icon: Globe, bgClass: "bg-primary/10", iconClass: "text-primary" };
   }
 }
 
 function BrandMark() {
   return (
     <div className="flex items-center gap-2">
-      <div
-        className="flex size-6 items-center justify-center rounded-md text-sm font-bold text-white"
-        style={{ backgroundColor: BRAND }}
-      >
+      <div className="flex size-6 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
         {"S"}
       </div>
       <span className="text-[15px] font-semibold text-foreground">{"ScriptCat"}</span>
@@ -67,6 +63,7 @@ const cardClass = "flex w-full max-w-[480px] flex-col gap-5 rounded-2xl border b
 
 export function PermissionConfirm({ uuid }: { uuid: string }) {
   const { t } = useTranslation(["permission", "common"]);
+  const isMobile = useIsMobile();
   const [info, setInfo] = useState<ConfirmInfo>();
   const [loadError, setLoadError] = useState(false);
   const [duration, setDuration] = useState<Duration>("once");
@@ -137,17 +134,19 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
     return (
       <PageShell>
         <div className={cn(cardClass, "items-center text-center")}>
-          <div
-            className="flex size-14 items-center justify-center rounded-full"
-            style={{ backgroundColor: "#E7000B26" }}
-          >
+          <div className="flex size-14 items-center justify-center rounded-full bg-destructive/10">
             <CircleAlert className="size-7 text-destructive" />
           </div>
           <div className="flex flex-col items-center gap-2">
             <h1 className="text-lg font-semibold text-foreground">{t("permission:confirm_expired_title")}</h1>
-            <p className="text-[13px] text-muted-foreground">{t("permission:confirm_expired_desc")}</p>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">{t("permission:confirm_expired_desc")}</p>
           </div>
-          <Button variant="secondary" size="lg" className="w-full font-semibold" onClick={() => window.close()}>
+          <Button
+            variant="secondary"
+            size="lg"
+            className="w-full border border-border font-semibold"
+            onClick={() => window.close()}
+          >
             {t("common:close")}
           </Button>
           <span className="text-xs text-muted-foreground">{t("permission:auto_close_in", { second: 3 })}</span>
@@ -160,16 +159,37 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
     return (
       <PageShell>
         <div className={cn(cardClass, "animate-pulse")} aria-label={t("permission:loading_confirm")}>
-          <div className="flex flex-col items-center gap-4">
+          {/* 头部骨架 */}
+          <div className="flex flex-col items-center gap-3.5">
             <div className="size-14 rounded-full bg-input" />
-            <div className="h-4 w-52 rounded bg-input" />
-            <div className="h-3 w-60 rounded bg-input" />
+            <div className="h-[18px] w-52 rounded-md bg-input" />
+            <div className="h-3 w-60 rounded-md bg-input" />
           </div>
-          <div className="h-16 rounded-xl bg-input" />
-          <div className="h-10 rounded-xl bg-input" />
-          <div className="flex gap-3">
-            <div className="h-11 flex-1 rounded-md bg-input" />
-            <div className="h-11 flex-1 rounded-md bg-input" />
+          {/* 身份骨架 */}
+          <div className="flex items-center gap-3 rounded-xl bg-secondary p-3">
+            <div className="size-10 shrink-0 rounded-full bg-input" />
+            <div className="flex flex-1 flex-col gap-2">
+              <div className="h-3.5 w-32 rounded-md bg-input" />
+              <div className="h-3 w-24 rounded-md bg-input" />
+            </div>
+          </div>
+          {/* 请求目标骨架 */}
+          <div className="flex flex-col gap-3 rounded-xl bg-muted p-3">
+            <div className="h-3 w-44 rounded-md bg-input" />
+            <div className="h-3 w-60 rounded-md bg-input" />
+          </div>
+          {/* 授权时长骨架 */}
+          <div className="flex flex-col gap-3">
+            <div className="h-3 w-[72px] rounded-md bg-input" />
+            <div className="h-10 rounded-lg bg-input" />
+          </div>
+          {/* 操作骨架 */}
+          <div className="flex flex-col gap-2.5 pt-1">
+            <div className="flex gap-3">
+              <div className="h-10 flex-1 rounded-md bg-input" />
+              <div className="h-10 flex-1 rounded-md bg-input" />
+            </div>
+            <div className="mx-auto h-4 w-20 rounded-md bg-input" />
           </div>
         </div>
       </PageShell>
@@ -180,7 +200,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
   const siteAccess = isSiteAccess(confirm);
   const durations = availableDurations(confirm);
   const showWildcard = canApplyToAll(confirm, likeNum);
-  const { Icon, fg, bgClass } = permissionVisual(confirm.permission);
+  const { Icon, bgClass, iconClass } = permissionVisual(confirm.permission);
   const effectiveApplyToAll = showWildcard && applyToAll && duration !== "once";
   const type = resolveConfirmType(duration, effectiveApplyToAll);
 
@@ -210,11 +230,8 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
       <div className={cardClass}>
         {/* 头部 */}
         <div className="flex flex-col items-center gap-4">
-          <div
-            className={cn("flex size-14 items-center justify-center rounded-full", bgClass)}
-            style={fg ? { backgroundColor: `${fg}26` } : undefined}
-          >
-            <Icon className="size-7" style={fg ? { color: fg } : undefined} />
+          <div className={cn("flex size-14 items-center justify-center rounded-full", bgClass)}>
+            <Icon className={cn("size-7", iconClass)} />
           </div>
           <div className="flex flex-col items-center gap-1.5">
             <h1 className="text-center text-lg font-semibold text-foreground">{confirm.title}</h1>
@@ -226,11 +243,8 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
 
         {/* 高敏感警示 */}
         {isHighSensitive(confirm) && (
-          <div
-            className="flex items-start gap-2.5 rounded-xl border p-3"
-            style={{ backgroundColor: `${ORANGE}1f`, borderColor: `${ORANGE}55` }}
-          >
-            <TriangleAlert className="size-[18px] shrink-0" style={{ color: ORANGE }} />
+          <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 p-3">
+            <TriangleAlert className="size-[18px] shrink-0 text-warning" />
             <div className="flex flex-col gap-0.5">
               <span className="text-[13px] font-semibold text-foreground">{t("permission:cookie_warning_title")}</span>
               <span className="text-xs leading-relaxed text-muted-foreground">
@@ -256,11 +270,18 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
 
         {/* 请求目标 */}
         {metaEntries.length > 0 && (
-          <div className="overflow-hidden rounded-xl bg-muted">
+          <div className="overflow-hidden rounded-xl border border-border bg-muted">
             {metaEntries.map(([k, v], i) => (
               <div key={k} className={cn("flex gap-3 px-3 py-2.5", i > 0 && "border-t border-border")}>
                 <span className="w-[76px] shrink-0 text-xs text-muted-foreground">{k}</span>
-                <span className="flex-1 break-all font-mono text-[13px] font-medium text-foreground">{v}</span>
+                <span
+                  className={cn(
+                    "flex-1 break-all font-mono text-[13px] font-medium",
+                    i === 0 ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {v}
+                </span>
               </div>
             ))}
           </div>
@@ -307,8 +328,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
             <Button
               size="lg"
               data-testid="confirm-request"
-              className="w-full font-semibold text-white hover:opacity-90"
-              style={{ backgroundColor: BRAND }}
+              className="w-full font-semibold"
               onClick={requestSiteAccess}
             >
               {t("permission:request_permission")}
@@ -325,12 +345,11 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
           </div>
         ) : (
           <div className="flex flex-col gap-2.5 pt-1">
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div data-testid="confirm-button-row" className={cn("flex gap-3", isMobile ? "flex-col" : "flex-row")}>
               <Button
                 size="lg"
                 data-testid="confirm-allow"
-                className="flex-1 font-semibold text-white hover:opacity-90"
-                style={{ backgroundColor: BRAND }}
+                className="flex-1 font-semibold"
                 onClick={() => decide(true, type)}
               >
                 {t("permission:allow_action")}
@@ -339,7 +358,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
                 variant="secondary"
                 size="lg"
                 data-testid="confirm-deny"
-                className="flex-1 font-semibold"
+                className="flex-1 border border-border font-semibold"
                 onClick={() => decide(false, type)}
               >
                 {t("permission:deny_action")}

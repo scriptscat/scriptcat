@@ -94,4 +94,10 @@ describe("InstallActions 操作区", () => {
     render(<InstallActions {...baseProps()} localFile watching />);
     expect(screen.getByTestId("watch-toggle")).toHaveTextContent("停止监听");
   });
+
+  it("操作栏左侧渲染信任提示语(对照设计稿 BarNote)", () => {
+    initLanguage("zh-CN");
+    render(<InstallActions {...baseProps()} />);
+    expect(screen.getByTestId("action-bar-note")).toBeInTheDocument();
+  });
 });

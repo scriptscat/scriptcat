@@ -81,9 +81,9 @@ export default function MessageToolbar({
           : "";
       metaParts.push(
         <span key="tokens">
-          <span className="text-green-600 dark:text-green-400">↑</span>
+          <span className="text-success">↑</span>
           {formatTokens(usage.inputTokens)}
-          {cacheInfo} <span className="text-red-600 dark:text-red-400">↓</span>
+          {cacheInfo} <span className="text-destructive">↓</span>
           {formatTokens(usage.outputTokens)}
         </span>
       );
@@ -139,7 +139,7 @@ export default function MessageToolbar({
               <button
                 type="button"
                 data-testid="toolbar-delete"
-                className="size-6 flex items-center justify-center rounded bg-transparent border-none cursor-pointer text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-accent transition-colors"
+                className="size-6 flex items-center justify-center rounded bg-transparent border-none cursor-pointer text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
                 title={t("agent:chat_delete_round")}
               >
                 <Trash2 className="size-3.5" />

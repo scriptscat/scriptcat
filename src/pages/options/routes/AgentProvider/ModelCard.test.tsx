@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initLanguage, t } from "@App/locales/locales";
 import { ModelCard } from "./ModelCard";
 
 beforeEach(() => initLanguage("zh-CN"));
@@ -30,6 +30,24 @@ describe("ModelCard 模型卡片", () => {
     );
     expect(screen.getByText("GPT-4o")).toBeInTheDocument();
     expect(screen.getByText("gpt-4o")).toBeInTheDocument();
+  });
+
+  it("默认徽章为纯文字胶囊，不含图标", () => {
+    const { container } = render(
+      <ModelCard
+        model={model}
+        isDefault
+        onEdit={() => {}}
+        onCopy={() => {}}
+        onSetDefault={() => {}}
+        onDelete={() => {}}
+      />
+    );
+    const badge = screen.getByText(t("agent:model_default_label"));
+    expect(badge).toBeInTheDocument();
+    // 设计稿默认徽章仅文字（圆角全胶囊），不带 ✓ 等图标
+    expect(badge.querySelector("svg")).toBeNull();
+    expect(container).toBeTruthy();
   });
 
   it("掩码 apiKey，不暴露完整密钥", () => {

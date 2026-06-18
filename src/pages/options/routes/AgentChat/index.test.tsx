@@ -14,8 +14,12 @@ vi.mock("./ChatArea", () => ({ default: () => <div data-testid="chat-area" /> })
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => state.isMobile }));
 vi.mock("@App/pages/store/features/script", () => ({
   agentClient: {
-    listModels: vi.fn(() => Promise.resolve([])),
-    getDefaultModelId: vi.fn(() => Promise.resolve("")),
+    listModels: vi.fn(() =>
+      Promise.resolve([
+        { id: "gpt-4o", name: "GPT-4o", provider: "openai", apiBaseUrl: "", apiKey: "", model: "gpt-4o" },
+      ])
+    ),
+    getDefaultModelId: vi.fn(() => Promise.resolve("gpt-4o")),
   },
 }));
 vi.mock("./hooks", () => ({
@@ -75,6 +79,22 @@ describe("Agent 会话页 AgentChat 桌面外壳", () => {
     await waitFor(() => expect(screen.getByTestId("sidebar-collapse")).toBeInTheDocument());
     const header = screen.getByTestId("sidebar-collapse").closest("header")!;
     expect(header.className).toContain("bg-card");
+  });
+
+  it("有活动会话时头部展示模型胶囊(显示当前模型名)", async () => {
+    state.conversations = [conv("a", "会话A")];
+    state.activeId = "a";
+    render(<AgentChat />);
+    const pill = await screen.findByTestId("chat-model-pill");
+    expect(pill.textContent).toContain("GPT-4o");
+  });
+
+  it("有活动会话时头部展示操作组(导出/新建)", async () => {
+    state.conversations = [conv("a", "会话A")];
+    state.activeId = "a";
+    render(<AgentChat />);
+    await waitFor(() => expect(screen.getByTestId("header-export")).toBeInTheDocument());
+    expect(screen.getByTestId("header-new")).toBeInTheDocument();
   });
 });
 

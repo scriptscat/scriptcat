@@ -19,7 +19,7 @@ import {
   Globe,
   RefreshCw,
   House,
-  Settings,
+  Settings2,
   UploadCloud,
   Pencil,
   Play,
@@ -173,8 +173,8 @@ export function RunStatusBadge({ runStatus }: { runStatus?: string }) {
   if (runStatus === SCRIPT_RUN_STATUS_RUNNING) {
     return (
       <div className="flex items-center gap-1.5">
-        <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-        <span className="text-xs text-green-500">{t("script:running")}</span>
+        <div className="w-1.5 h-1.5 rounded-full bg-success" />
+        <span className="text-xs text-success">{t("script:running")}</span>
       </div>
     );
   }
@@ -225,7 +225,7 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
   return (
     <div className="flex items-center gap-1">
       {state === "latest" ? (
-        <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+        <span className="inline-flex items-center gap-1 text-xs text-success">
           <Check className="w-3 h-3" />
           {t("script:latest_version")}
         </span>
@@ -331,7 +331,7 @@ export function ScriptRowActions({
       )}
       {script.config && (
         <ActionButton label={t("editor:user_config")} onClick={() => navigate(`/?userConfig=${script.uuid}`)}>
-          <Settings className="w-3.5 h-3.5" />
+          <Settings2 className="w-3.5 h-3.5" />
         </ActionButton>
       )}
       {script.metadata?.cloudcat && (

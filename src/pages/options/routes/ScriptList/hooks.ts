@@ -223,14 +223,14 @@ export function useScriptFilters(
 
     const statusItems: FilterItem[] = [
       { key: null, label: t("script:script_list.sidebar.all"), icon: Code, count: scriptList.length },
-      { key: SCRIPT_STATUS_ENABLE, label: t("enable"), icon: Play, count: counts.enable, color: "text-green-500" },
-      { key: SCRIPT_STATUS_DISABLE, label: t("disable"), icon: Pause, count: counts.disable, color: "text-red-500" },
+      { key: SCRIPT_STATUS_ENABLE, label: t("enable"), icon: Play, count: counts.enable, color: "text-success" },
+      { key: SCRIPT_STATUS_DISABLE, label: t("disable"), icon: Pause, count: counts.disable, color: "text-destructive" },
       {
         key: SCRIPT_RUN_STATUS_RUNNING,
         label: t("script:running"),
         icon: Play,
         count: counts.running,
-        color: "text-blue-500",
+        color: "text-primary",
       },
       {
         key: SCRIPT_RUN_STATUS_COMPLETE,
@@ -248,21 +248,21 @@ export function useScriptFilters(
         label: t("script:script_list.sidebar.normal_script"),
         icon: Code,
         count: counts.normal,
-        color: "text-blue-500",
+        color: "text-primary",
       },
       {
         key: SCRIPT_TYPE_BACKGROUND,
         label: t("script:background_script"),
         icon: Monitor,
         count: counts.background,
-        color: "text-purple-500",
+        color: "text-skill",
       },
       {
         key: SCRIPT_TYPE_CRONTAB,
         label: t("script:scheduled_script"),
         icon: Clock,
         count: counts.crontab,
-        color: "text-orange-500",
+        color: "text-warning",
       },
     ];
 

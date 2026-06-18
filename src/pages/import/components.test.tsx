@@ -172,10 +172,20 @@ describe("导入桌面视图 状态屏", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("invalid 阶段显示错误屏且无重试按钮", () => {
+  it("error 阶段原始错误置于等宽固定宽度等宽字体框内(对照设计稿 §9 错误模式)", () => {
+    renderDesktop({ phase: "error", errorMessage: "Error: corrupted central directory" });
+    const box = screen.getByTestId("error-detail-box");
+    // 固定等宽框:固定宽度 + 等宽字体
+    expect(box.className).toContain("w-[440px]");
+    expect(box.className).toContain("font-mono");
+    expect(within(box).getByText("Error: corrupted central directory")).toBeTruthy();
+  });
+
+  it("invalid 阶段显示错误屏且无重试按钮、无原始错误框", () => {
     renderDesktop({ phase: "invalid" });
     expect(screen.getByTestId("import-error")).toBeTruthy();
     expect(screen.queryByTestId("retry-btn")).toBeNull();
+    expect(screen.queryByTestId("error-detail-box")).toBeNull();
   });
 
   it("empty 阶段显示空备份屏", () => {

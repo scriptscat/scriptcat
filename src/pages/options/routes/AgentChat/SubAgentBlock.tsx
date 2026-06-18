@@ -8,8 +8,8 @@ import ContentBlockRenderer from "./ContentBlockRenderer";
 
 // 类型标签配色
 const TYPE_COLORS: Record<string, string> = {
-  researcher: "text-blue-600 dark:text-blue-400 bg-blue-500/10",
-  page_operator: "text-orange-600 dark:text-orange-400 bg-orange-500/10",
+  researcher: "text-primary bg-primary/10",
+  page_operator: "text-warning bg-warning/10",
   general: "text-muted-foreground bg-muted",
 };
 
@@ -47,8 +47,8 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
           {state.isRunning ? (
             <Loader2 className="size-[18px] text-primary animate-spin" />
           ) : (
-            <span className="size-[18px] rounded-full flex items-center justify-center bg-green-500/15">
-              <Check className="size-2.5 text-green-600 dark:text-green-400" />
+            <span className="size-[18px] rounded-full flex items-center justify-center bg-success/15">
+              <Check className="size-2.5 text-success" />
             </span>
           )}
         </span>
@@ -59,10 +59,7 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
           <span className="text-[10px] text-muted-foreground whitespace-nowrap">
             {formatTokens(state.usage.inputTokens)}→{formatTokens(state.usage.outputTokens)}
             {(state.usage.cacheReadInputTokens ?? 0) > 0 && (
-              <span className="text-green-600 dark:text-green-400">
-                {" "}
-                C:{formatTokens(state.usage.cacheReadInputTokens!)}
-              </span>
+              <span className="text-success"> C:{formatTokens(state.usage.cacheReadInputTokens!)}</span>
             )}
           </span>
         )}
@@ -99,7 +96,7 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
           ))}
 
           {state.retryInfo && (
-            <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 py-1">
+            <div className="flex items-center gap-1.5 text-xs text-warning py-1">
               <AlertCircle className="size-3" />
               <span>
                 {state.retryInfo.error} (retry {state.retryInfo.attempt}/{state.retryInfo.maxRetries})

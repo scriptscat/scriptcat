@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Pencil, Copy, Star, Trash2, Eye, Image as ImageIcon } from "lucide-react";
+import { Pencil, Copy, Star, Trash2, Eye, Image as ImageIcon, Box, KeyRound } from "lucide-react";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
-import ProviderIcon from "../AgentChat/ProviderIcon";
 import { AgentCardMenu, type AgentCardMenuItem } from "../_agent/AgentCardMenu";
 import { CapabilityTag } from "../_agent/tags";
 
@@ -36,17 +35,18 @@ export function ModelCard({
       : [{ key: "set-default", label: t("agent:model_set_default"), icon: Star, onSelect: onSetDefault }]),
     { key: "delete", label: t("agent:model_delete"), icon: Trash2, danger: true, onSelect: onDelete },
   ];
+  const initial = (model.provider || "?").charAt(0).toUpperCase();
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-[18px]">
       <div className="flex items-start gap-3">
-        <div className="flex size-9 items-center justify-center rounded-[10px] bg-muted">
-          <ProviderIcon providerKey={model.provider} size={20} />
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-[17px] font-bold text-primary">
+          {initial}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-foreground">{model.name}</span>
+            <span className="truncate text-[15px] font-semibold text-foreground">{model.name}</span>
             {isDefault && (
-              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="inline-flex shrink-0 items-center rounded-full bg-primary-light px-[7px] py-0.5 text-[11px] font-semibold text-primary">
                 {t("agent:model_default_label")}
               </span>
             )}
@@ -55,10 +55,13 @@ export function ModelCard({
         </div>
         <AgentCardMenu items={menuItems} />
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{model.model}</code>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] font-medium text-fg-secondary">
+          <Box className="size-3" />
+          {model.model}
+        </span>
         {model.supportsVision && (
-          <CapabilityTag tone="blue" icon={Eye}>
+          <CapabilityTag tone="green" icon={Eye}>
             {t("agent:model_supports_vision")}
           </CapabilityTag>
         )}
@@ -68,7 +71,12 @@ export function ModelCard({
           </CapabilityTag>
         )}
       </div>
-      {model.apiKey && <span className="font-mono text-xs text-muted-foreground">{maskKey(model.apiKey)}</span>}
+      {model.apiKey && (
+        <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+          <KeyRound className="size-3" />
+          {maskKey(model.apiKey)}
+        </span>
+      )}
     </div>
   );
 }

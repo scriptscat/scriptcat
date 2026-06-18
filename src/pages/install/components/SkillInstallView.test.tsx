@@ -88,4 +88,10 @@ describe("SkillInstallView 技能安装视图", () => {
     fireEvent.click(screen.getByTestId("skill-cancel"));
     expect(p.onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it("渲染安全警示卡(对照设计稿 Alert Warning)", () => {
+    initLanguage("zh-CN");
+    render(<SkillInstallView {...baseProps()} />);
+    expect(screen.getByTestId("skill-warning-card")).toBeInTheDocument();
+  });
 });

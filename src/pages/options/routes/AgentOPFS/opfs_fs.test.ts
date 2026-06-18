@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { listDir, removeEntry, readFileText, formatSize, fileKind } from "./opfs_fs";
+import { listDir, removeEntry, readFileText, writeFile, formatSize, fileKind } from "./opfs_fs";
 
 // ---- 内存版 FileSystemDirectoryHandle mock ----
 function fileHandle(name: string, content = "x", lastModified = 0): any {
@@ -57,6 +57,30 @@ describe("opfs_fs 文件系统封装", () => {
   it("readFileText 读取文本内容", async () => {
     const root = dirHandle("root", { "a.txt": fileHandle("a.txt", "内容") });
     expect(await readFileText(root, [], "a.txt")).toBe("内容");
+  });
+
+  it("writeFile 创建文件并写入内容(上传)", async () => {
+    let written = "";
+    const writable = {
+      async write(data: any) {
+        written = typeof data === "string" ? data : await data.text();
+      },
+      async close() {},
+    };
+    const created: Record<string, any> = {};
+    const root: any = {
+      kind: "directory",
+      async getFileHandle(n: string, opts?: { create?: boolean }) {
+        if (!created[n]) {
+          if (!opts?.create) throw new Error("not found");
+          created[n] = { kind: "file", name: n, createWritable: async () => writable };
+        }
+        return created[n];
+      },
+    };
+    await writeFile(root, [], "new.txt", new Blob(["uploaded"]));
+    expect(created["new.txt"]).toBeDefined();
+    expect(written).toBe("uploaded");
   });
 
   it("formatSize 按量级格式化", () => {

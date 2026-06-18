@@ -3,16 +3,20 @@ import { useTranslation } from "react-i18next";
 import { Plus, Server } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@App/pages/components/ui/button";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
+import { DocumentationSite } from "@App/app/const";
 import { agentClient } from "@App/pages/store/features/script";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
 import { AgentEmptyState } from "../_agent/AgentEmptyState";
+import { CountBar } from "../_agent/CountBar";
 import { ModelCard } from "./ModelCard";
 import { ModelFormDialog } from "./ModelFormDialog";
 import { testConnection, fetchModels } from "./provider_api";
 
 export default function AgentProvider() {
   const { t } = useTranslation(["agent", "common"]);
+  const isMobile = useIsMobile();
   const [models, setModels] = useState<AgentModelConfig[]>([]);
   const [defaultId, setDefaultId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -77,18 +81,23 @@ export default function AgentProvider() {
 
   return (
     <div className="flex h-full flex-col">
-      <AgentPageHeader
-        icon={Server}
-        title={t("agent:provider_title")}
-        subtitle={t("agent:provider_subtitle")}
-        actions={
-          <Button data-testid="model-add" onClick={handleAdd}>
-            <Plus className="size-4" />
-            {t("agent:model_add")}
-          </Button>
-        }
-      />
-      <div className="flex-1 overflow-y-auto p-6">
+      {/* 移动端复用全局 52px MobileHeader(☰/抽屉/+);此处不渲染 64px 页头,避免双层栏 */}
+      {!isMobile && (
+        <AgentPageHeader
+          icon={Server}
+          title={t("agent:provider_title")}
+          subtitle={t("agent:provider_subtitle")}
+          docHref={DocumentationSite}
+          docLabel={t("agent:provider_docs")}
+          actions={
+            <Button data-testid="model-add" onClick={handleAdd}>
+              <Plus className="size-4" />
+              {t("agent:model_add")}
+            </Button>
+          }
+        />
+      )}
+      <div className="scrollbar-custom flex-1 overflow-y-auto px-4 py-[14px] md:px-7 md:py-[22px]">
         {!loading && models.length === 0 ? (
           <AgentEmptyState
             icon={Server}
@@ -102,18 +111,36 @@ export default function AgentProvider() {
             }
           />
         ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {models.map((m) => (
-              <ModelCard
-                key={m.id}
-                model={m}
-                isDefault={m.id === defaultId}
-                onEdit={() => handleEdit(m)}
-                onCopy={() => handleCopy(m)}
-                onSetDefault={() => handleSetDefault(m.id)}
-                onDelete={() => handleDelete(m)}
-              />
-            ))}
+          <div className="flex flex-col gap-4">
+            {/* 移动端:页头已被全局 MobileHeader 取代,这里补一行「页名 + 新增」上下文栏 */}
+            {isMobile && (
+              <div data-testid="mobile-actions" className="flex items-center justify-between">
+                <span className="text-base font-semibold text-foreground">{t("agent:provider_title")}</span>
+                <Button data-testid="model-add" size="icon" onClick={handleAdd} aria-label={t("agent:model_add")}>
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+            )}
+            {/* 计数摘要:桌面两段(模型数 + 默认用于新会话提示),移动仅保留模型数 */}
+            <CountBar
+              segments={[
+                { label: t("agent:model_count", { count: models.length }) },
+                ...(isMobile ? [] : [{ label: t("agent:provider_count_hint") }]),
+              ]}
+            />
+            <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+              {models.map((m) => (
+                <ModelCard
+                  key={m.id}
+                  model={m}
+                  isDefault={m.id === defaultId}
+                  onEdit={() => handleEdit(m)}
+                  onCopy={() => handleCopy(m)}
+                  onSetDefault={() => handleSetDefault(m.id)}
+                  onDelete={() => handleDelete(m)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

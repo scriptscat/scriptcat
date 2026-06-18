@@ -132,6 +132,10 @@ export interface UseInstallData {
   setEnabled: (v: boolean) => void;
   localFile: boolean;
   watching: boolean;
+  /** 正在监听的本地文件名(仅本地文件场景有值) */
+  watchFileName?: string;
+  /** 最后一次因文件变更自动重装的本地化时间(未发生过则为 undefined) */
+  lastSync?: string;
   toggleWatch: () => void;
   install: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => Promise<void>;
   close: (opts?: { noMoreUpdates?: boolean }) => void;
@@ -146,6 +150,8 @@ export function useInstallData(): UseInstallData {
   const [enabled, setEnabledState] = useState(false);
   const [localFile, setLocalFile] = useState(false);
   const [watching, setWatching] = useState(false);
+  const [watchFileName, setWatchFileName] = useState<string>();
+  const [lastSync, setLastSync] = useState<string>();
   const [reloadKey, setReloadKey] = useState(0);
   const actionRef = useRef<Script | Subscribe | null>(null);
   const infoRef = useRef<ScriptInfo | null>(null);
@@ -328,6 +334,7 @@ export function useInstallData(): UseInstallData {
         const { script } = await prepareScriptByCode(newCode, info.url, (actionRef.current as Script)?.uuid, false);
         actionRef.current = script;
         await scriptClient.install({ script, code: newCode });
+        setLastSync(new Date().toLocaleTimeString());
         setState((s) => (s.status === "ready" ? { status: "ready", view: { ...s.view, code: newCode } } : s));
       } catch (e) {
         toast.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
@@ -356,6 +363,8 @@ export function useInstallData(): UseInstallData {
         onFileError: () => setWatching(false),
       };
       startFileTrack(handle, ftInfo);
+      setWatchFileName(handle.name);
+      setLastSync(new Date().toLocaleTimeString());
       setWatching(true);
     } else {
       unmountFileTrack(handle);
@@ -393,6 +402,8 @@ export function useInstallData(): UseInstallData {
     setEnabled,
     localFile,
     watching,
+    watchFileName,
+    lastSync,
     toggleWatch,
     install,
     close,

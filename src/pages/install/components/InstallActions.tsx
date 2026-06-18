@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { ChevronDown, Download, Eye, EyeOff, Info, RefreshCw } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import {
   DropdownMenu,
@@ -77,15 +77,26 @@ export function InstallActions({
   const primaryLabel = isUpdate ? t("install:update_script") : t("install:script");
   const noCloseLabel = isUpdate ? t("install:update_script_no_close") : t("install:script_no_close");
   const noMoreUpdateLabel = isUpdate ? t("install:update_script_no_more_update") : t("install:script_no_more_update");
+  const PrimaryIcon = isUpdate ? RefreshCw : Download;
+
+  const note = watching
+    ? t("install:action_note_watching")
+    : isUpdate
+      ? t("install:action_note_update")
+      : isSubscribe
+        ? t("install:action_note_subscribe")
+        : t("install:action_note_install");
 
   return (
     <div className="flex w-full flex-wrap items-center gap-3">
-      <p className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-muted-foreground">
-        <ShieldAlert className="size-4 shrink-0 text-warning-fg" />
-        <span className="truncate">{t("install:from_legitimate_sources_warning")}</span>
-      </p>
-
-      <div className="flex items-center gap-2">
+      <span
+        data-testid="action-bar-note"
+        className="hidden min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground md:flex"
+      >
+        <Info className="size-[15px] shrink-0" />
+        <span className="truncate">{note}</span>
+      </span>
+      <div className="flex items-center gap-2 max-md:w-full max-md:justify-end md:ml-auto">
         {localFile && (
           <Button
             data-testid="watch-toggle"
@@ -125,8 +136,9 @@ export function InstallActions({
             data-testid="install-primary"
             disabled={primaryDisabled}
             onClick={() => onInstall()}
-            className="rounded-r-none"
+            className="gap-1.5 rounded-r-none"
           >
+            <PrimaryIcon className="size-4" />
             {primaryLabel}
           </Button>
           <MoreMenu
