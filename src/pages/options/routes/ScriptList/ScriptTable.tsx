@@ -64,12 +64,7 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
   );
   return (
     <SortableDragCtx.Provider value={ctxValue}>
-      <div
-        ref={setNodeRef}
-        className={`group/dr cursor-auto ${isDragging ? "drag-on" : "drag-off"}`}
-        style={style}
-        {...attributes}
-      >
+      <div ref={setNodeRef} style={style} {...attributes}>
         {children}
       </div>
     </SortableDragCtx.Provider>
@@ -78,15 +73,14 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
 
 function RowDragHandle() {
   const sortable = useContext(SortableDragCtx);
-  return !sortable ? (
-    <GripVertical className="w-8 h-8 p-1 text-muted-foreground collapse" />
-  ) : (
+  if (!sortable) return <GripVertical className="w-4 h-4 text-muted-foreground opacity-0" />;
+  return (
     <span
       ref={sortable.setActivatorNodeRef}
       {...sortable.listeners}
       className="cursor-grab opacity-0 group-hover/row:opacity-50"
     >
-      <GripVertical className="w-8 h-8 p-1 text-muted-foreground" />
+      <GripVertical className="w-4 h-4 text-muted-foreground" />
     </span>
   );
 }
@@ -265,13 +259,13 @@ export default function ScriptTable({
               onCheckedChange={toggleSelectAll}
             />
           </div>
-          <div className="w-24 flex justify-center">
+          <div className="w-8" />
+          <div className="w-12">
             <SortHeader
               label={t("script:script_list.sidebar.status")}
               sortKey="status"
               sortState={sortState}
               onSort={handleSort}
-              leftPad={true}
             />
           </div>
           <div className="flex-1 min-w-0">
@@ -368,8 +362,13 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
         <Checkbox checked={selected} onCheckedChange={() => onSelect(script.uuid)} />
       </div>
 
+      {/* 拖拽手柄 */}
+      <div className="w-8 flex justify-center">
+        <RowDragHandle />
+      </div>
+
       {/* 开关 */}
-      <div className="w-24 flex justify-center">
+      <div className="w-12 flex justify-center">
         <EnableSwitch
           status={script.status}
           enableLoading={script.enableLoading}
@@ -379,16 +378,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
 
       {/* 脚本名称 + 元信息 */}
       <div className="flex-1 min-w-0 flex items-center gap-2.5">
-        <div className="relative w-8 self-stretch inline-flex justify-center items-center">
-          {/* fixed-width; absolute layout with collapse to avoid layout reflow */}
-          <div className="absolute collapse group-hover/row:visible group-[.drag-on]/dr:visible">
-            {/* 拖拽手柄 */}
-            <RowDragHandle />
-          </div>
-          <div className="absolute visible group-hover/row:collapse group-[.drag-on]/dr:collapse">
-            <ScriptIcon name={name} metadata={script.metadata} />
-          </div>
-        </div>
+        <ScriptIcon name={name} metadata={script.metadata} />
         <div className="min-w-0 flex flex-col gap-px">
           <Link to={`/script/editor/${script.uuid}`} className="text-sm font-medium truncate hover:underline">
             {name}
