@@ -1,1 +1,1 @@
-export const versionDisplay = (v: string | undefined) => (v?.startsWith("v") || !v ? `${v || ""}` : `v${v}`);
+export const versionDisplay = (v: string | undefined) => (!v || v[0] == "v" ? `${v || ""}` : `v${v}`);
