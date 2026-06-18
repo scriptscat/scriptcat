@@ -26,7 +26,8 @@ pnpm run lint             # tsc --noEmit + eslint
 pnpm run lint-fix         # tsc --noEmit + eslint --fix (also applies Prettier via eslint-plugin-prettier)
 ```
 
-No standalone `format` script — formatting is part of `lint-fix`. Husky pre-commit runs `pnpm run lint-fix` and re-stages the files it touched.
+No standalone `format` script — formatting is part of `lint-fix`. Husky pre-commit runs `pnpm run typecheck` plus
+ESLint for staged JS/TS files, and also runs `pnpm run test:ci` when committing on `main` or `release/*`.
 
 After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
 

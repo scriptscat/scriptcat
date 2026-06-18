@@ -6,7 +6,23 @@ if [ "$SKIP_PRE_COMMIT" = "1" ]; then
   exit 0
 fi
 
-pnpm run lint || exit 1
+lint_files=$(mktemp)
+git diff --cached --name-only -z --diff-filter=ACMR -- "*.js" "*.jsx" "*.ts" "*.tsx" "*.mjs" "*.cjs" > "$lint_files"
+
+if [ -s "$lint_files" ]; then
+  pnpm run typecheck || {
+    rm -f "$lint_files"
+    exit 1
+  }
+  xargs -0 pnpm exec eslint < "$lint_files" || {
+    rm -f "$lint_files"
+    exit 1
+  }
+else
+  echo "No staged JS/TS files, skipping lint checks"
+fi
+
+rm -f "$lint_files"
 
 # 在 main 或 release/* 分支上提交时额外跑测试
 branch=$(git rev-parse --abbrev-ref HEAD)
