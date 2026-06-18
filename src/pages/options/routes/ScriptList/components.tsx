@@ -145,12 +145,15 @@ export const FaviconDots = React.memo(
           <Tooltip key={i}>
             <TooltipTrigger asChild>
               {fav.icon ? (
-                <img
-                  src={fav.icon}
-                  alt={fav.match}
-                  className="w-3.5 h-3.5 rounded-full object-cover cursor-pointer"
-                  onClick={() => fav.website && window.open(fav.website, "_blank")}
-                />
+                <div className="relative">
+                  <div className="absolute z-0 bg-foreground inset-0 rounded-full"></div>
+                  <img
+                    src={fav.icon}
+                    alt={fav.match}
+                    className="relative z-1 w-3.5 h-3.5 rounded-full object-cover cursor-pointer"
+                    onClick={() => fav.website && window.open(fav.website, "_blank")}
+                  />
+                </div>
               ) : (
                 <Globe
                   className="w-3.5 h-3.5 text-muted-foreground/50 cursor-pointer"
@@ -226,10 +229,11 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
   }, [state]);
 
   const time = script.updatetime ? semTime(new Date(script.updatetime)) : "-";
+  const checkType = state === "has-update" ? 1 : script.checkUpdateUrl && state !== "latest" ? 2 : 0;
 
   return (
     <div className="flex items-center gap-1">
-      <span className="inline-flex w-3">{/*fixed-width*/}</span>
+      <span className="inline-flex w-4">{/*fixed-width*/}</span>
       {state === "latest" ? (
         <span className="inline-flex items-center gap-1 text-xs text-success">
           <Check className="w-3 h-3" />
@@ -239,9 +243,9 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
         <span className="text-xs text-muted-foreground">{time}</span>
       )}
       {/* 检查到新版本：在时间旁展示「存在新版本」入口，点击可再次触发更新 */}
-      <span className="inline-flex w-3">
+      <span className={"inline-flex w-4"}>
         {/*fixed-width*/}
-        {state === "has-update" ? (
+        {checkType === 1 ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -250,15 +254,14 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
                 onClick={handleCheck}
                 className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/15"
               >
-                <CircleArrowUp className="w-3 h-3" />
+                <CircleArrowUp className="w-3.5 h-3.5" />
                 {t("script:new_version_available")}
               </button>
             </TooltipTrigger>
             <TooltipContent>{t("check_update")}</TooltipContent>
           </Tooltip>
         ) : (
-          script.checkUpdateUrl &&
-          state !== "latest" && (
+          checkType === 2 && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -267,7 +270,7 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
                   onClick={handleCheck}
                   className="text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100"
                 >
-                  <RefreshCw className={cn("w-3 h-3", state === "checking" && "animate-spin")} />
+                  <RefreshCw className={cn("w-3.5 h-3.5", state === "checking" && "animate-spin")} />
                 </button>
               </TooltipTrigger>
               <TooltipContent>{t("check_update")}</TooltipContent>
