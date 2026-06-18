@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach, type Mock } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
@@ -67,9 +67,10 @@ const makeScriptInfo = (metadata: Record<string, string[]>, url = "https://examp
 const makeAction = (metadata: Record<string, string[]>): Script =>
   ({ name: "示例脚本", metadata, status: SCRIPT_STATUS_ENABLE }) as unknown as Script;
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 describe("assembleInstallView 组装安装视图", () => {
   it("全新安装组装名称、来源、版本与权限", () => {
-    initLanguage("zh-CN");
     const metadata = {
       name: ["示例脚本"],
       version: ["2.3.1"],
@@ -93,7 +94,6 @@ describe("assembleInstallView 组装安装视图", () => {
   });
 
   it("更新态组装 旧→新 版本", () => {
-    initLanguage("zh-CN");
     const metadata = { name: ["示例脚本"], version: ["2.3.1"] };
     const view = assembleInstallView({
       isUpdate: true,
@@ -106,7 +106,6 @@ describe("assembleInstallView 组装安装视图", () => {
   });
 
   it("更新态把旧代码透传到 oldCode 供 diff 使用", () => {
-    initLanguage("zh-CN");
     const metadata = { name: ["示例脚本"], version: ["2.3.1"] };
     const view = assembleInstallView({
       isUpdate: true,
@@ -120,7 +119,6 @@ describe("assembleInstallView 组装安装视图", () => {
   });
 
   it("全新安装无旧代码时 oldCode 为 undefined", () => {
-    initLanguage("zh-CN");
     const metadata = { name: ["示例脚本"], version: ["2.3.1"] };
     const view = assembleInstallView({
       isUpdate: false,
@@ -133,7 +131,6 @@ describe("assembleInstallView 组装安装视图", () => {
   });
 
   it("更新态且旧代码不同时填充 diffStat 增删统计", () => {
-    initLanguage("zh-CN");
     const metadata = { name: ["示例脚本"], version: ["2.3.1"] };
     const view = assembleInstallView({
       isUpdate: true,
@@ -147,7 +144,6 @@ describe("assembleInstallView 组装安装视图", () => {
   });
 
   it("全新安装(无旧代码)时 diffStat 为 undefined", () => {
-    initLanguage("zh-CN");
     const metadata = { name: ["示例脚本"], version: ["2.3.1"] };
     const view = assembleInstallView({
       isUpdate: false,
@@ -160,7 +156,6 @@ describe("assembleInstallView 组装安装视图", () => {
   });
 
   it("定时脚本组装 cron 信息条与下次运行", () => {
-    initLanguage("zh-CN");
     const metadata = { name: ["定时脚本"], version: ["1.0.0"], crontab: ["0 8 * * *"] };
     const view = assembleInstallView({
       isUpdate: false,
@@ -182,14 +177,12 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("无 uuid 参数时进入 invalid 状态", () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html");
     const { result } = renderHook(() => useInstallData());
     expect(result.current.state.status).toBe("invalid");
   });
 
   it("uuid 全新安装时读取信息并进入 ready 状态", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?uuid=u1");
     const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
     const info: ScriptInfo = {
@@ -216,7 +209,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("uuid 更新时从 oldScriptCode 取旧代码到 view.oldCode", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?uuid=u1");
     const metadata = { name: ["示例脚本"], version: ["2.0.0"], match: ["https://e.com/*"] };
     const oldMetadata = { name: ["示例脚本"], version: ["1.0.0"] };
@@ -245,7 +237,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("?skill= 时读取技能数据进入 skill 状态", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?skill=sk1");
     const skill = {
       skillMd: "# skill",
@@ -265,7 +256,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("?url= 指向 .cat.md 时走 Skill 安装流程而非脚本解析", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?url=https://e.com/foo.cat.md");
     const skill = {
       skillMd: "# skill",
@@ -290,7 +280,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("?url= 指向带查询串的 .cat.md 时仍走 Skill 流程(正则匹配 ? 边界)", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?url=https://e.com/foo.cat.md?v=2");
     const skill = {
       skillMd: "# skill",
@@ -313,7 +302,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("getInstallInfo 无数据时进入 error 状态", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?uuid=u1");
     (scriptClient.getInstallInfo as Mock).mockResolvedValue(undefined);
 
@@ -322,7 +310,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("加载失败后调用 retry 重新加载并进入 ready", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?uuid=u1");
     const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
     const info: ScriptInfo = {
@@ -353,7 +340,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("?url= 时下载并解析后进入 ready 状态", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?url=https://e.com/x.user.js");
     const metadata = { name: ["URL脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
     (fetchScriptBody as Mock).mockResolvedValue("// url code");
@@ -371,7 +357,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("?url= 下载过程中在 loading 状态展示已接收字节与百分比", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?url=https://e.com/x.user.js");
     const metadata = { name: ["URL脚本"], version: ["1.0.0"] };
     (fetchScriptBody as Mock).mockImplementation(
@@ -400,7 +385,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("?url= 已接收字节超过 totalLength 时回退为仅显示已接收(不显示错误百分比)", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?url=https://e.com/x.user.js");
     const metadata = { name: ["URL脚本"], version: ["1.0.0"] };
     (fetchScriptBody as Mock).mockImplementation(
@@ -431,7 +415,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("?file= 时读取本地文件并进入 ready,localFile 为 true", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?file=fid1");
     const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
     (loadHandle as Mock).mockResolvedValue({
@@ -449,7 +432,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("本地文件切换监听:开启调用 startFileTrack,关闭调用 unmountFileTrack", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?file=fid1");
     const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
     (loadHandle as Mock).mockResolvedValue({
@@ -475,7 +457,6 @@ describe("useInstallData 数据流编排", () => {
   });
 
   it("开启监听时预装失败则不进入监听也不追踪文件", async () => {
-    initLanguage("zh-CN");
     window.history.replaceState({}, "", "/install.html?file=fid1");
     const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
     (loadHandle as Mock).mockResolvedValue({

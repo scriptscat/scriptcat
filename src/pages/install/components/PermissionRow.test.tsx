@@ -1,14 +1,15 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { PermissionRow } from "./PermissionRow";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
 describe("PermissionRow 权限行", () => {
   it("渲染跨域访问类别标签、摘要与全部取值 chip", () => {
-    initLanguage("zh-CN");
     render(
       <PermissionRow row={{ kind: "connect", risk: "warn", values: ["api.a.com", "api.b.com"], sensitive: [] }} />
     );
@@ -19,19 +20,16 @@ describe("PermissionRow 权限行", () => {
   });
 
   it("danger 风险在行根节点标记 data-risk=danger", () => {
-    initLanguage("zh-CN");
     render(<PermissionRow row={{ kind: "connect", risk: "danger", values: ["*"], sensitive: [] }} />);
     expect(screen.getByTestId("permission-row")).toHaveAttribute("data-risk", "danger");
   });
 
   it("warn 风险在行根节点标记 data-risk=warn", () => {
-    initLanguage("zh-CN");
     render(<PermissionRow row={{ kind: "grant", risk: "warn", values: ["GM_setValue"], sensitive: [] }} />);
     expect(screen.getByTestId("permission-row")).toHaveAttribute("data-risk", "warn");
   });
 
   it("敏感取值额外标记 data-sensitive", () => {
-    initLanguage("zh-CN");
     render(
       <PermissionRow
         row={{ kind: "grant", risk: "warn", values: ["GM_setValue", "GM_cookie"], sensitive: ["GM_cookie"] }}
@@ -45,7 +43,6 @@ describe("PermissionRow 权限行", () => {
   });
 
   it("外部资源 URL 过长时 chip 限宽且文本可断行,避免横向溢出", () => {
-    initLanguage("zh-CN");
     const longUrl =
       "https://cdn.jsdelivr.net/npm/some-really-long-package-name@1.2.3/dist/path/to/very/long/file.min.js";
     render(<PermissionRow row={{ kind: "require", risk: "normal", values: [longUrl], sensitive: [] }} />);
@@ -57,7 +54,6 @@ describe("PermissionRow 权限行", () => {
   });
 
   it("取值超过 maxVisible 时折叠为 +N", () => {
-    initLanguage("zh-CN");
     render(
       <PermissionRow
         row={{ kind: "match", risk: "normal", values: ["a", "b", "c", "d", "e"], sensitive: [] }}
@@ -72,7 +68,6 @@ describe("PermissionRow 权限行", () => {
   });
 
   it("点击 +N 展开余下取值并隐藏折叠按钮", () => {
-    initLanguage("zh-CN");
     render(
       <PermissionRow
         row={{ kind: "match", risk: "normal", values: ["a", "b", "c", "d", "e"], sensitive: [] }}

@@ -1,6 +1,6 @@
 import chromeMock from "@Packages/chrome-extension-mock";
 import type Runtime from "@Packages/chrome-extension-mock/runtime";
-import { initTestEnv } from "./utils";
+import { initTestEnv } from "./initTestEnv";
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 import { MockRequest } from "./mocks/request";

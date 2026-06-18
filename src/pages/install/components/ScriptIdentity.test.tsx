@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { ScriptIdentity } from "./ScriptIdentity";
 
 const base = {
@@ -15,11 +15,12 @@ const base = {
   onEnabledChange: () => {},
 };
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 afterEach(cleanup);
 
 describe("ScriptIdentity 身份卡", () => {
   it("渲染名称、作者、来源与描述", () => {
-    initLanguage("zh-CN");
     render(<ScriptIdentity {...base} version={{ kind: "install", version: "2.3.1" }} />);
     expect(screen.getByText("全网每日签到助手")).toBeInTheDocument();
     expect(screen.getByText("scriptcat")).toBeInTheDocument();
@@ -28,14 +29,12 @@ describe("ScriptIdentity 身份卡", () => {
   });
 
   it("全新安装显示单枚版本徽章", () => {
-    initLanguage("zh-CN");
     render(<ScriptIdentity {...base} version={{ kind: "install", version: "2.3.1" }} />);
     expect(screen.getByTestId("version-single")).toHaveTextContent("2.3.1");
     expect(screen.queryByTestId("version-old")).not.toBeInTheDocument();
   });
 
   it("更新显示 旧→新 版本徽章", () => {
-    initLanguage("zh-CN");
     render(
       <ScriptIdentity {...base} version={{ kind: "update", oldVersion: "2.1.0", newVersion: "2.3.1", changed: true }} />
     );
@@ -44,7 +43,6 @@ describe("ScriptIdentity 身份卡", () => {
   });
 
   it("反特性渲染为警示徽章", () => {
-    initLanguage("zh-CN");
     render(
       <ScriptIdentity {...base} antifeatures={["referral-link"]} version={{ kind: "install", version: "1.0.0" }} />
     );
@@ -52,7 +50,6 @@ describe("ScriptIdentity 身份卡", () => {
   });
 
   it("定时脚本显示 cron 信息条与下次运行", () => {
-    initLanguage("zh-CN");
     render(
       <ScriptIdentity
         {...base}
@@ -67,7 +64,6 @@ describe("ScriptIdentity 身份卡", () => {
   });
 
   it("后台脚本显示后台运行说明与后台徽章", () => {
-    initLanguage("zh-CN");
     render(
       <ScriptIdentity {...base} schedule={{ kind: "background" }} version={{ kind: "install", version: "1.0.0" }} />
     );
@@ -76,7 +72,6 @@ describe("ScriptIdentity 身份卡", () => {
   });
 
   it("切换启用开关触发回调", () => {
-    initLanguage("zh-CN");
     const onEnabledChange = vi.fn();
     render(
       <ScriptIdentity

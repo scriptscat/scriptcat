@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, type Mock } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 vi.mock("./useInstallData", () => ({ useInstallData: vi.fn() }));
 // Monaco 编辑器无法在 jsdom 渲染(需 worker + ThemeProvider),用桩替换
@@ -56,32 +56,30 @@ beforeEach(() => {
   }));
 });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 afterEach(cleanup);
 
 describe("Install App 状态分流", () => {
   it("loading 状态渲染加载屏", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({ ...baseHook(), state: { status: "loading" } });
     render(<App />);
     expect(screen.getByText("正在加载脚本")).toBeInTheDocument();
   });
 
   it("invalid 状态渲染无效页面", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({ ...baseHook(), state: { status: "invalid" } });
     render(<App />);
     expect(screen.getByText("无效页面")).toBeInTheDocument();
   });
 
   it("error 状态渲染失败屏与错误信息", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({ ...baseHook(), state: { status: "error", message: "boom-404" } });
     render(<App />);
     expect(screen.getByText("boom-404")).toBeInTheDocument();
   });
 
   it("error 状态提供重试按钮,点击调用 retry", () => {
-    initLanguage("zh-CN");
     const retry = vi.fn();
     mockHook.mockReturnValue({ ...baseHook(), retry, state: { status: "error", message: "boom" } });
     render(<App />);
@@ -90,14 +88,12 @@ describe("Install App 状态分流", () => {
   });
 
   it("invalid 状态不提供重试按钮", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({ ...baseHook(), state: { status: "invalid" } });
     render(<App />);
     expect(screen.queryByText("重试")).not.toBeInTheDocument();
   });
 
   it("ready 状态渲染身份卡、权限卡、代码卡与安装按钮", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
     render(<App />);
     expect(screen.getByText("全网每日签到助手")).toBeInTheDocument();
@@ -107,7 +103,6 @@ describe("Install App 状态分流", () => {
   });
 
   it("ready 更新态顶部上下文标题为脚本更新", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({
       ...baseHook(),
       state: {
@@ -123,7 +118,6 @@ describe("Install App 状态分流", () => {
   });
 
   it("skill 状态渲染技能安装视图", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({
       ...baseHook(),
       state: {
@@ -144,7 +138,6 @@ describe("Install App 状态分流", () => {
   });
 
   it("订阅安装时渲染脚本列表卡而非权限卡", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({
       ...baseHook(),
       state: {
@@ -159,7 +152,6 @@ describe("Install App 状态分流", () => {
   });
 
   it("本地文件安装时显示监听文件按钮", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({
       ...baseHook(),
       localFile: true,
@@ -170,7 +162,6 @@ describe("Install App 状态分流", () => {
   });
 
   it("监听中显示监听横幅且安装按钮禁用", () => {
-    initLanguage("zh-CN");
     mockHook.mockReturnValue({
       ...baseHook(),
       localFile: true,

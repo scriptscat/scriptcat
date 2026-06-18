@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import fs from "fs";
 import path from "path";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 // 警告区依赖 chrome.action / permissions，与本测试无关，置空以隔离
 vi.mock("./PopupWarnings", () => ({ default: () => null }));
@@ -89,11 +89,12 @@ function makeScriptMenu(overrides: Record<string, any> = {}) {
   };
 }
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 afterEach(cleanup);
 
 describe("Popup 脚本列表展开/收起", () => {
   it("当前页脚本超过展示上限且已展开时，应显示「收起」按钮并可再次折叠", () => {
-    initLanguage("zh-CN");
     const handleToggleExpand = vi.fn();
     mockData = makeData({
       fullScriptCount: 17,
@@ -113,7 +114,6 @@ describe("Popup 脚本列表展开/收起", () => {
   });
 
   it("当前页脚本未展开时显示「显示更多」按钮，且不显示「收起」", () => {
-    initLanguage("zh-CN");
     mockData = makeData({
       fullScriptCount: 17,
       canExpandCurrent: true,
@@ -128,7 +128,6 @@ describe("Popup 脚本列表展开/收起", () => {
   });
 
   it("当前页脚本不超过上限时，不显示展开/收起按钮", () => {
-    initLanguage("zh-CN");
     mockData = makeData({
       fullScriptCount: 3,
       canExpandCurrent: false,
@@ -144,7 +143,6 @@ describe("Popup 脚本列表展开/收起", () => {
 
 describe("Popup accessKey 菜单快捷键", () => {
   it("即使脚本未在展示列表中（被截断或搜索过滤），其菜单 accessKey 仍应触发", () => {
-    initLanguage("zh-CN");
     const handleMenuClick = vi.fn();
     const menu = { key: "k1", name: "命令", groupKey: "g1", options: { accessKey: "k" } };
     const hiddenScript = makeScriptMenu({ uuid: "uuid-hidden", menus: [menu] });
@@ -165,7 +163,6 @@ describe("Popup accessKey 菜单快捷键", () => {
 
 describe("Popup GM 菜单项 tooltip", () => {
   it("菜单命令应将 options.title 作为按钮 title（tooltip）", () => {
-    initLanguage("zh-CN");
     const menu = { key: "k1", name: "菜单命令", groupKey: "g1", options: { title: "这是提示" } };
     const script = makeScriptMenu({ uuid: "u1", menus: [menu] });
     mockData = makeData({
@@ -184,7 +181,6 @@ describe("Popup GM 菜单项 tooltip", () => {
 
 describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）", () => {
   it("文本输入菜单：点击菜单名按钮以当前输入值提交", () => {
-    initLanguage("zh-CN");
     const handleMenuClick = vi.fn();
     const menu = {
       key: "k1",
@@ -208,7 +204,6 @@ describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）"
   });
 
   it("布尔输入菜单：切换开关不立即提交，点击菜单名按钮才提交切换后的布尔值", () => {
-    initLanguage("zh-CN");
     const handleMenuClick = vi.fn();
     const menu = {
       key: "k1",
@@ -239,7 +234,6 @@ describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）"
 
 describe("Popup 移动端宽度适配 (#686 Edge Android)", () => {
   it("根容器使用响应式宽度 w-full（由 body 控制），而非写死 320px，以便移动端铺满消除右侧留白", () => {
-    initLanguage("zh-CN");
     mockData = makeData({ fullScriptCount: 0 });
 
     const { container } = render(<App />);
@@ -259,7 +253,6 @@ describe("Popup 移动端宽度适配 (#686 Edge Android)", () => {
 
 describe("Popup 滚动区域（避免双滚动条）", () => {
   it("根容器受最大高度约束并裁剪溢出，仅脚本列表区可滚动", () => {
-    initLanguage("zh-CN");
     mockData = makeData({ fullScriptCount: 0 });
 
     const { container } = render(<App />);
@@ -276,7 +269,6 @@ describe("Popup 滚动区域（避免双滚动条）", () => {
   });
 
   it("脚本列表滚动区应应用自定义滚动条样式（明暗主题由 CSS 变量自适应）", () => {
-    initLanguage("zh-CN");
     mockData = makeData({ fullScriptCount: 0 });
 
     const { container } = render(<App />);
