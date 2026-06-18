@@ -96,7 +96,10 @@ function ModelSelect({
 
   return (
     <Select value={selectedModelId || undefined} onValueChange={onModelChange}>
-      <SelectTrigger className="h-7 border-none shadow-none gap-1.5 px-2 text-xs min-w-[100px] w-auto">
+      <SelectTrigger
+        data-testid="agent-model-select"
+        className="h-7 border-none shadow-none gap-1.5 px-2 text-xs min-w-[100px] w-auto"
+      >
         <SelectValue placeholder={t("agent:chat_model_select")} />
       </SelectTrigger>
       <SelectContent>

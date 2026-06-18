@@ -47,6 +47,7 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
           {variant === "icon" ? (
             <Button
               size="icon"
+              data-testid="create-script"
               className="h-8 w-8 shrink-0 rounded-md"
               aria-label={t("script:create_script")}
               {...hoverProps}
@@ -54,7 +55,7 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
               <Plus className="w-4 h-4" />
             </Button>
           ) : (
-            <Button size="sm" className="gap-1.5 h-[34px] px-4" {...hoverProps}>
+            <Button size="sm" data-testid="create-script" className="gap-1.5 h-[34px] px-4" {...hoverProps}>
               <Plus className="w-4 h-4" />
               <span className="text-[13px] font-medium">{t("script:create_script")}</span>
               <ChevronDown className="w-3.5 h-3.5 opacity-70" />

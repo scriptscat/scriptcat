@@ -4,7 +4,7 @@ import os from "os";
 import { createServer } from "http";
 import type { AddressInfo } from "net";
 import { test as base, expect, chromium, type BrowserContext } from "@playwright/test";
-import { installScriptByCode } from "./utils";
+import { autoApprovePermissions, installScriptByCode } from "./utils";
 
 const MOCK_CONNECT_HOST = "127.0.0.1";
 const CSP_TARGET_HOST = "content-security-policy.test";
@@ -202,28 +202,6 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
     .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
     .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
     .replace(/httpbun\.com\/get/g, `${mockHost}/get`);
-}
-
-function autoApprovePermissions(context: BrowserContext): void {
-  context.on("page", async (page) => {
-    const url = page.url();
-    if (!url.includes("confirm.html")) return;
-
-    try {
-      await page.waitForLoadState("domcontentloaded");
-      const successButtons = page.locator("button.arco-btn-status-success");
-      await successButtons.first().waitFor({ timeout: 5_000 });
-      const count = await successButtons.count();
-      if (count >= 3) {
-        await successButtons.nth(2).click();
-      } else {
-        await successButtons.last().click();
-      }
-      console.log("[autoApprove] Permission approved on confirm page");
-    } catch (e) {
-      console.log("[autoApprove] Failed to approve:", e);
-    }
-  });
 }
 
 async function runTestScript(

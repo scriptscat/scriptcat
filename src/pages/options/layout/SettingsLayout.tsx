@@ -88,7 +88,7 @@ export function SettingsLayout({ title, categories, children }: SettingsLayoutPr
         )}
 
         {/* 滚动容器始终渲染(切换断点不重挂载,避免 scroll-spy 的 IO root 失效) */}
-        <div ref={scrollContainerRef} className="flex-1 min-w-0 overflow-y-auto">
+        <div ref={scrollContainerRef} data-testid="setting-page" className="flex-1 min-w-0 overflow-y-auto">
           <div className="max-w-[920px] mx-auto flex flex-col gap-5 px-4 md:px-8 pt-4 md:pt-6 pb-10">
             {children(register)}
           </div>

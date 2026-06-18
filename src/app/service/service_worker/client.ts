@@ -448,8 +448,9 @@ export class AgentClient extends Client {
     return this.do("removeModel", id);
   }
 
+  // 默认模型（未设置时返回空字符串，不能用 doThrow，否则全新安装无默认模型时会抛错）
   getDefaultModelId(): Promise<string> {
-    return this.doThrow("getDefaultModelId");
+    return this.do("getDefaultModelId").then((id) => id || "");
   }
 
   setDefaultModelId(id: string) {

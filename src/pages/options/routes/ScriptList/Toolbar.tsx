@@ -73,6 +73,7 @@ export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setS
       <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg bg-muted/50 pl-3 pr-1.5 h-9">
         <Search className="w-4 h-4 text-muted-foreground shrink-0" />
         <input
+          data-testid="script-search"
           className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
           placeholder={t("script:search_scripts")}
           value={searchRequest.keyword}

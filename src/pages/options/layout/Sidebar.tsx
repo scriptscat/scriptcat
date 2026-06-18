@@ -96,6 +96,7 @@ export default function Sidebar() {
           label={t("theme", { defaultValue: "主题切换" })}
           collapsed={collapsed}
           onClick={cycleTheme}
+          testId="theme-toggle"
         />
         <HelpMenu collapsed={collapsed} />
         <SidebarButton
@@ -159,6 +160,7 @@ function AgentMenu({ collapsed }: { collapsed: boolean }) {
     <div>
       <button
         type="button"
+        data-testid="nav-agent"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         className={`flex items-center gap-2.5 h-9 w-full rounded-md text-[14px] px-3 transition-colors ${
@@ -313,15 +315,18 @@ function SidebarButton({
   label,
   collapsed,
   onClick,
+  testId,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   collapsed: boolean;
   onClick: () => void;
+  testId?: string;
 }) {
   return (
     <button
       type="button"
+      data-testid={testId}
       onClick={onClick}
       className={`flex items-center gap-2.5 h-9 rounded-md text-[14px] text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
         collapsed ? "justify-center px-0" : "px-3"

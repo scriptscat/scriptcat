@@ -86,7 +86,7 @@ async function waitForBackgroundComplete(page: Page): Promise<BackgroundScriptSt
 }
 
 async function setBackgroundScriptEnabled(page: Page, enabled: boolean): Promise<void> {
-  const scriptSwitch = page.locator(".arco-switch").first();
+  const scriptSwitch = page.getByRole("switch").first();
   await expect(scriptSwitch).toBeVisible({ timeout: 10_000 });
   if ((await scriptSwitch.getAttribute("aria-checked")) === String(enabled)) return;
 

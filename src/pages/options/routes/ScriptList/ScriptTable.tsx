@@ -279,7 +279,7 @@ export default function ScriptTable({
 
         {/* 空状态 */}
         {!loadingList && scriptList.length === 0 && (
-          <div className="flex items-center justify-center py-20 text-muted-foreground">
+          <div data-testid="script-list-empty" className="flex items-center justify-center py-20 text-muted-foreground">
             <span className="text-sm">{t("no_scripts", { defaultValue: "暂无脚本" })}</span>
           </div>
         )}

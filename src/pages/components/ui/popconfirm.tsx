@@ -48,6 +48,7 @@ export function Popconfirm({
             {cancelText}
           </Button>
           <Button
+            data-testid="popconfirm-confirm"
             variant={destructive ? "destructive" : "default"}
             size="xs"
             onClick={() => {
