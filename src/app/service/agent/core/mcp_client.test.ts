@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MCPClient } from "./mcp_client";
 import type { MCPServerConfig } from "./types";

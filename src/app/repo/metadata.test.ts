@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, expect, it } from "vitest";
 import { parseTags } from "./metadata";
 import type { SCMetadata } from "./metadata";

@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { createAskUserTool } from "./ask_user";
 import type { ChatStreamEvent } from "@App/app/service/agent/core/types";

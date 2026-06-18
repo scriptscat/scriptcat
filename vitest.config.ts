@@ -24,7 +24,7 @@ export default defineConfig({
     },
   ],
   test: {
-    environment: "jsdom",
+    environment: "happy-dom",
     // List setup file
     setupFiles: ["./tests/vitest.setup.ts"],
     exclude: ["**/node_modules/**", "**/.claude/**", "e2e/**"],

@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createOPFSTools, sanitizePath, setCreateBlobUrlFn, guessMimeType } from "./opfs_tools";
 import { isText } from "@App/pkg/utils/istextorbinary";

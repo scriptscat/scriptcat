@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, act, cleanup } from "@testing-library/react";
 import { useIsMobile } from "./use-is-mobile";

@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { initTestEnv } from "@Tests/utils";
 import { ValueService } from "./value";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";

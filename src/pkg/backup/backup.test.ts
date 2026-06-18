@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createJSZip } from "@App/pkg/utils/jszip-x";
 import BackupExport from "./export";
 import { parseBackupZipFile } from "./utils";

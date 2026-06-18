@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { ChromiumHeaderMarkerLinker, FirefoxWebRequestLinker, normalizeBackgroundRequestUrl } from "./mv3_utils";
 import { scXhrRequests } from "./gm_xhr";

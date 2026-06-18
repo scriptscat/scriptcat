@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import chromeMock from "@Packages/chrome-extension-mock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { detachDownloadCallback, startDownload, type DownloadCallback } from "./download";

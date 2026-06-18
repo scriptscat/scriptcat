@@ -565,7 +565,7 @@ premature abstraction.
 
 ## 11. Testing the Internals
 
-- **Unit (Vitest + jsdom).** Co-locate `*.test.ts` next to source. `chrome.*` is mocked via
+- **Unit (Vitest + jsdom/happy-dom).** Co-locate `*.test.ts` next to source. `chrome.*` is mocked via
   [`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock) (`tests/vitest.setup.ts`); message-bus
   behavior uses `MockMessage`. Run one file: `pnpm test -- --run path/to/file.test.ts`.
 - **TDD first.** Write the failing test before the implementation. When a test fails, fix the code — don't edit

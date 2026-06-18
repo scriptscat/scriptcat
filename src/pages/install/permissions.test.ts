@@ -1,4 +1,4 @@
-// @vitest-environment node
+// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import type { SCMetadata } from "@App/app/repo/metadata";
 import { derivePermissions } from "./permissions";

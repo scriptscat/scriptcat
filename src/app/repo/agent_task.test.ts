@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, expect, it, beforeEach } from "vitest";
 import { AgentTaskRepo, AgentTaskRunRepo } from "./agent_task";
 import type { AgentTask, AgentTaskRun } from "@App/app/service/agent/core/types";

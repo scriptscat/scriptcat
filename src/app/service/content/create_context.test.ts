@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, it, expect, vi } from "vitest";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { encodeRValue } from "@App/pkg/utils/message_value";

@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, beforeEach } from "vitest";
 import { ProviderRegistry } from "./registry";
 import type { LLMProvider } from "./types";

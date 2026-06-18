@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, expect, it } from "vitest";
 import { extractSummary, buildCompactUserPrompt, COMPACT_SYSTEM_PROMPT } from "./compact_prompt";
 

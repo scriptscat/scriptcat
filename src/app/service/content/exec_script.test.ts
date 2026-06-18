@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";

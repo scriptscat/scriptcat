@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { Semaphore, withTimeoutNotify } from "./concurrency-control";
 

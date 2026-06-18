@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { initTestEnv } from "@Tests/utils";
 import { VSCodeConnect, type VSCodeConnectParam } from "./vscode-connect";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";

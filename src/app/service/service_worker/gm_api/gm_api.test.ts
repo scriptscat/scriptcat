@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";

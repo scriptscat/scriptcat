@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SynchronizeService } from "./synchronize";
 import { initTestEnv } from "@Tests/utils";

@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { formatShortcut, isMacOS } from "./shortcut";
 

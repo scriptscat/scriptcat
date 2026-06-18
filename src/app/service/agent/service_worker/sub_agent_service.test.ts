@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SubAgentService } from "./sub_agent_service";
 import type { SubAgentOrchestrator } from "./sub_agent_service";

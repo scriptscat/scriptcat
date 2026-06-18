@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
 import ExecScript from "../exec_script";
 import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";

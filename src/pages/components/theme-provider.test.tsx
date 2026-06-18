@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, act, cleanup } from "@testing-library/react";
 import { ThemeProvider, useTheme } from "./theme-provider";

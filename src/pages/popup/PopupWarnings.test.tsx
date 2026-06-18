@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
 import { BrowserType } from "@App/pkg/utils/utils";
 import type { getBrowserType } from "@App/pkg/utils/utils";

@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SSEParser } from "./sse_parser";
 import { buildOpenAIRequest, parseOpenAIStream } from "./providers/openai";

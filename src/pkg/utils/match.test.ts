@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, expect, it } from "vitest";
 import { isUrlExcluded, isUrlIncluded, UrlMatch } from "./match";
 import { uuidv4 } from "@App/pkg/utils/uuid";

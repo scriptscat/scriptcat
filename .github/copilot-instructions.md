@@ -95,7 +95,7 @@ pnpm run coverage      # Generate coverage reports
 ```
 
 **Testing Patterns:**
-- Uses Vitest with jsdom environment
+- Uses Vitest with jsdom/happy-dom environment
 - Chrome extension APIs mocked via `@Packages/chrome-extension-mock`
 - Message system testing with `MockMessage` classes
 - Sandbox testing validates script isolation

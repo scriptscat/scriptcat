@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 // src/pages/options/hooks/useScrollSpy.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";

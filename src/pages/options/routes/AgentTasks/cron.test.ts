@@ -1,4 +1,4 @@
-// @vitest-environment node
+// can be tested with vitest-environment node
 import { describe, it, expect, beforeEach } from "vitest";
 import { initLanguage } from "@App/locales/locales";
 import { nextRunText } from "./cron";

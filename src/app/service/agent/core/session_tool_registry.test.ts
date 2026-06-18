@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { ToolRegistry } from "./tool_registry";
 import type { ToolExecutor } from "./tool_registry";

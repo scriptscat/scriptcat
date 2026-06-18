@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { editor } from "monaco-editor";
 import { clearModelEslintFixes, getModelEslintFixKey, type EslintFix } from "./eslintFixCache";

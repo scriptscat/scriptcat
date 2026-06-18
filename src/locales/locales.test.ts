@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import { i18nName, i18nDescription } from "./locales";
 import type { SCMetadata } from "@App/app/repo/scripts";

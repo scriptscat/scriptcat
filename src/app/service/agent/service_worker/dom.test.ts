@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { AgentDomService } from "./dom";
 import { assertDomUrlAllowed, SENSITIVE_HOST_PATTERNS } from "./dom_policy";

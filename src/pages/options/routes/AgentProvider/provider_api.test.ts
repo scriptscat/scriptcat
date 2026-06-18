@@ -1,4 +1,4 @@
-// @vitest-environment node
+// can be tested with vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { buildModelsRequest, testConnection, fetchModels, getDefaultBaseUrl } from "./provider_api";
 

@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { extensionEnv, getExtensionUserAgentData } from "./extension_env";
 

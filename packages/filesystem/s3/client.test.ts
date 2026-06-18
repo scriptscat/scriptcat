@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { S3Client, S3Error } from "./client";
 import type { S3ClientConfig } from "./client";

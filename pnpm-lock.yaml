@@ -113,6 +113,9 @@ importers:
       fast-xml-parser:
         specifier: ^5.5.8
         version: 5.5.8
+      happy-dom:
+        specifier: ^20.10.2
+        version: 20.10.2
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -224,7 +227,7 @@ importers:
         version: 8.18.1
       '@vitest/coverage-v8':
         specifier: ^4.0.18
-        version: 4.0.18(vitest@4.0.18(@types/node@22.16.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3))
+        version: 4.0.18(vitest@4.0.18(@types/node@22.16.0)(happy-dom@20.10.2)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3))
       acorn:
         specifier: ^8.16.0
         version: 8.16.0
@@ -302,7 +305,7 @@ importers:
         version: 3.19.3
       vitest:
         specifier: ^4.0.18
-        version: 4.0.18(@types/node@22.16.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3)
+        version: 4.0.18(@types/node@22.16.0)(happy-dom@20.10.2)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3)
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -2043,6 +2046,9 @@ packages:
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
 
+  '@types/whatwg-mimetype@3.0.2':
+    resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
+
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
@@ -2325,6 +2331,10 @@ packages:
 
   buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
+
+  buffer-image-size@0.6.4:
+    resolution: {integrity: sha512-nEh+kZOPY1w+gcCMobZ6ETUp9WfibndnosbpwB1iJk/8Gt5ZF2bhS6+B6bPYz424KtwsR6Rflc3tCz1/ghX2dQ==}
+    engines: {node: '>=4.0'}
 
   buffer@5.7.1:
     resolution: {integrity: sha512-EHcyIPBQ4BSGlvjB16k5KgAJ27CIsHY/2JBmCRReo48y9rQ3MaUzWX3KVlBa4U7MyX02HdVj0K7C3WaB3ju7FQ==}
@@ -2666,6 +2676,10 @@ packages:
 
   entities@6.0.1:
     resolution: {integrity: sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==}
+    engines: {node: '>=0.12'}
+
+  entities@7.0.1:
+    resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
     engines: {node: '>=0.12'}
 
   env-paths@2.2.1:
@@ -3028,6 +3042,10 @@ packages:
 
   handle-thing@2.0.1:
     resolution: {integrity: sha512-9Qn4yBxelxoh2Ow62nP+Ka/kMnOXRi8BXnRaUwezLNhqelnN49xKz4F/dPP8OYLxLxq6JDtZb2i9XznUQbNPTg==}
+
+  happy-dom@20.10.2:
+    resolution: {integrity: sha512-5p9Sxis3eowDJKqx90QCsgbNA02XXqJ59NOHvD4V6cxp+rP4d/xOyVx7uY3hS8hiUbY1VeiFH8lbJ81AyuDVLQ==}
+    engines: {node: '>=20.0.0'}
 
   has-bigints@1.0.2:
     resolution: {integrity: sha512-tSvCKtBr9lkF0Ex0aQiP9N+OpV4zi2r/Nee5VkRDbaqv35RLYMzbwQfFSZZH0kR+Rd6302UJZ2p/bJCEoR3VoQ==}
@@ -4844,6 +4862,10 @@ packages:
     resolution: {integrity: sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ==}
     engines: {node: '>=18'}
 
+  whatwg-mimetype@3.0.0:
+    resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
+    engines: {node: '>=12'}
+
   whatwg-mimetype@4.0.0:
     resolution: {integrity: sha512-QaKxh0eNIi2mE9p2vEdzfagOKHCcj1pJ56EEHGQOVxp8r9/iszLUUV7v89x9O1p/T+NlTM5W7jW6+cz4Fq1YVg==}
     engines: {node: '>=18'}
@@ -6616,6 +6638,8 @@ snapshots:
 
   '@types/unist@3.0.3': {}
 
+  '@types/whatwg-mimetype@3.0.2': {}
+
   '@types/ws@8.18.1':
     dependencies:
       '@types/node': 22.16.2
@@ -6715,7 +6739,7 @@ snapshots:
 
   '@ungap/structured-clone@1.3.1': {}
 
-  '@vitest/coverage-v8@4.0.18(vitest@4.0.18(@types/node@22.16.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3))':
+  '@vitest/coverage-v8@4.0.18(vitest@4.0.18(@types/node@22.16.0)(happy-dom@20.10.2)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3))':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
       '@vitest/utils': 4.0.18
@@ -6727,7 +6751,7 @@ snapshots:
       obug: 2.1.1
       std-env: 3.10.0
       tinyrainbow: 3.0.3
-      vitest: 4.0.18(@types/node@22.16.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3)
+      vitest: 4.0.18(@types/node@22.16.0)(happy-dom@20.10.2)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3)
 
   '@vitest/expect@4.0.18':
     dependencies:
@@ -6998,6 +7022,10 @@ snapshots:
 
   buffer-from@1.1.2:
     optional: true
+
+  buffer-image-size@0.6.4:
+    dependencies:
+      '@types/node': 22.16.2
 
   buffer@5.7.1:
     dependencies:
@@ -7314,6 +7342,8 @@ snapshots:
   entities@4.5.0: {}
 
   entities@6.0.1: {}
+
+  entities@7.0.1: {}
 
   env-paths@2.2.1: {}
 
@@ -7823,6 +7853,19 @@ snapshots:
       duplexer: 0.1.2
 
   handle-thing@2.0.1: {}
+
+  happy-dom@20.10.2:
+    dependencies:
+      '@types/node': 22.16.2
+      '@types/whatwg-mimetype': 3.0.2
+      '@types/ws': 8.18.1
+      buffer-image-size: 0.6.4
+      entities: 7.0.1
+      whatwg-mimetype: 3.0.0
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   has-bigints@1.0.2: {}
 
@@ -9893,7 +9936,7 @@ snapshots:
       terser: 5.43.1
       yaml: 2.8.3
 
-  vitest@4.0.18(@types/node@22.16.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3):
+  vitest@4.0.18(@types/node@22.16.0)(happy-dom@20.10.2)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3):
     dependencies:
       '@vitest/expect': 4.0.18
       '@vitest/mocker': 4.0.18(vite@7.3.2(@types/node@22.16.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.43.1)(yaml@2.8.3))
@@ -9917,6 +9960,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.16.0
+      happy-dom: 20.10.2
       jsdom: 26.1.0
     transitivePeerDependencies:
       - jiti
@@ -10041,6 +10085,8 @@ snapshots:
   whatwg-encoding@3.1.1:
     dependencies:
       iconv-lite: 0.6.3
+
+  whatwg-mimetype@3.0.0: {}
 
   whatwg-mimetype@4.0.0: {}
 

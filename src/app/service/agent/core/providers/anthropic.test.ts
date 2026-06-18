@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import { buildAnthropicRequest, parseAnthropicStream } from "./anthropic";
 import type { AgentModelConfig } from "../types";

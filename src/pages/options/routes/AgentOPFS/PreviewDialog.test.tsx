@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
 import { PreviewDialog } from "./PreviewDialog";

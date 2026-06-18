@@ -1,3 +1,4 @@
+// can be tested with vitest-environment node
 import {
   extractFaviconsDomain,
   extractDomainFromPattern,
