@@ -84,9 +84,10 @@ test.describe("UserConfig YAML prototype pollution (#1494)", () => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/options.html#/?userConfig=${info!.uuid}`);
     await page.waitForLoadState("domcontentloaded");
-    const modal = page.locator(".modal-config");
-    await expect(modal).toBeVisible({ timeout: 10_000 });
-    await expect(modal).toContainText("配置A标题");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await expect(dialog).toContainText("UC Valid E2E");
+    await expect(dialog).toContainText("配置A标题");
     await page.close();
   });
 
