@@ -374,7 +374,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
 
       {/* 脚本名称 + 元信息 */}
       <div className="flex-1 min-w-0 flex items-center gap-2.5">
-        <div className="w-8 self-stretch inline-flex justify-center items-center">
+        <div className="relative w-8 self-stretch inline-flex justify-center items-center">
           {/* fixed-width; absolute layout with collapse to avoid layout reflow */}
           <div className="absolute collapse group-hover/row:visible group-[.drag-on]/dr:visible">
             {/* 拖拽手柄 */}
