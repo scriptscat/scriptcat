@@ -231,16 +231,7 @@ const CardItem = React.memo(
       >
         {/* 头部: 图标 + 名称 + 开关 + 拖拽 */}
         <div className="flex items-start gap-2.5 mb-3">
-          <div className="relative w-8 self-stretch inline-flex justify-center items-center">
-            {/* fixed-width; absolute layout with collapse to avoid layout reflow */}
-            <div className="absolute collapse group-hover/card:visible">
-              {/* 拖拽手柄 */}
-              <DragHandle />
-            </div>
-            <div className="absolute visible group-hover/card:collapse">
-              <ScriptIcon name={name} metadata={script.metadata} />
-            </div>
-          </div>
+          <ScriptIcon name={name} metadata={script.metadata} className="mt-0.5" />
           <div className="flex-1 min-w-0">
             <Link
               to={`/script/editor/${script.uuid}`}
@@ -257,6 +248,7 @@ const CardItem = React.memo(
             enableLoading={script.enableLoading}
             onCheckedChange={(checked) => onEnable(script, checked)}
           />
+          <DragHandle />
         </div>
 
         {/* 来源 + 标签 + 状态 */}
