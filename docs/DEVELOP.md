@@ -73,7 +73,7 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
 > The **TDD/BDD-first principle** (write failing tests before implementation; fix code not tests) lives in
 > [`AGENTS.md`](../AGENTS.md) → *Engineering Principles*. This section is the mechanics.
 
-Vitest + jsdom/happy-dom, 500ms timeout. Chrome APIs mocked via `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
+Vitest + jsdom/happy-dom, 850ms timeout. Chrome APIs mocked via `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
 
 - Write failing tests **before** implementation; co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
