@@ -1,15 +1,17 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { render, cleanup, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import BottomTabBar from "./BottomTabBar";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
 describe("BottomTabBar 底部导航", () => {
   it("渲染脚本/订阅/日志/工具/设置五个导航项", () => {
-    initLanguage("zh-CN");
     const { getByTestId } = render(
       <MemoryRouter initialEntries={["/"]}>
         <BottomTabBar />
@@ -22,7 +24,6 @@ describe("BottomTabBar 底部导航", () => {
   });
 
   it("当前路由对应项为激活态(aria-current=page)", () => {
-    initLanguage("zh-CN");
     const { getByText } = render(
       <MemoryRouter initialEntries={["/logs"]}>
         <BottomTabBar />

@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup } from "@testing-library/react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { cleanup } from "@testing-library/react";
+import { Routes, Route } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
+import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
-import { ThemeProvider } from "@App/pages/components/theme-provider";
 import { Layout } from "./App";
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({
@@ -23,16 +23,13 @@ beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(cleanup);
 
 function renderLayout() {
-  return render(
-    <ThemeProvider>
-      <MemoryRouter initialEntries={["/"]}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<div>content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    </ThemeProvider>
+  return renderWithThemeRouter(
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<div>content</div>} />
+      </Route>
+    </Routes>,
+    { initialEntries: ["/"] }
   );
 }
 

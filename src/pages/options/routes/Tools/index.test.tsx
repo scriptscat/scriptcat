@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, within, cleanup } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
 
 const { get, set } = vi.hoisted(() => ({
@@ -45,15 +46,7 @@ import Tools from "./index";
 beforeEach(() => {
   initTestLanguage("en-US");
   mockMatchMedia();
-  // @ts-expect-error test stub
-  globalThis.IntersectionObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-    takeRecords() {
-      return [];
-    }
-  };
+  mockIntersectionObserver();
 });
 afterEach(cleanup);
 

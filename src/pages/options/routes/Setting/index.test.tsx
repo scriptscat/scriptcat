@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
 
 const { get, set } = vi.hoisted(() => ({
@@ -20,16 +21,7 @@ import Setting from "./index";
 beforeEach(() => {
   initTestLanguage("en-US");
   mockMatchMedia();
-  // jsdom doesn't provide IntersectionObserver — stub it
-  // @ts-expect-error test stub
-  globalThis.IntersectionObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-    takeRecords() {
-      return [];
-    }
-  };
+  mockIntersectionObserver();
 });
 afterEach(cleanup);
 

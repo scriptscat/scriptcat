@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { cleanup, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
-import { ThemeProvider } from "@App/pages/components/theme-provider";
+import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
 import MobileHeader from "./MobileHeader";
 
 beforeEach(() => {
@@ -17,13 +16,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 function renderHeader() {
-  return render(
-    <ThemeProvider>
-      <MemoryRouter>
-        <MobileHeader />
-      </MemoryRouter>
-    </ThemeProvider>
-  );
+  return renderWithThemeRouter(<MobileHeader />);
 }
 
 describe("MobileHeader 移动顶栏", () => {

@@ -1,16 +1,16 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import FilterBar from "./FilterBar";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
 describe("FilterBar 国际化", () => {
   it("状态筛选 Chip 应显示中文翻译而非原始 i18n key", () => {
-    initLanguage("zh-CN");
-
     const { container } = render(
       <FilterBar
         filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
@@ -25,7 +25,6 @@ describe("FilterBar 国际化", () => {
   });
 
   it("chip 行可横向滚动,清除按钮固定在滚动区之外", () => {
-    initLanguage("zh-CN");
     const { container } = render(
       <FilterBar
         filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}

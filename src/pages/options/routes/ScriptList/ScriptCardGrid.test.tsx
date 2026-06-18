@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import ScriptCardGrid from "./ScriptCardGrid";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
@@ -18,7 +21,6 @@ const baseProps = {
 
 describe("ScriptCardGrid 卡片网格", () => {
   it("空列表时显示「暂无脚本」", () => {
-    initLanguage("zh-CN");
     const { getByText } = render(
       <MemoryRouter>
         <ScriptCardGrid {...baseProps} />
@@ -28,7 +30,6 @@ describe("ScriptCardGrid 卡片网格", () => {
   });
 
   it("loading 时显示加载态", () => {
-    initLanguage("zh-CN");
     const { getByText } = render(
       <MemoryRouter>
         <ScriptCardGrid {...baseProps} loadingList />

@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, cleanup, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { cleanup, fireEvent, within } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
-import { ThemeProvider } from "@App/pages/components/theme-provider";
+import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
 import Sidebar from "./Sidebar";
 
 beforeEach(() => {
@@ -17,13 +16,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 function renderSidebar(initialPath = "/") {
-  return render(
-    <ThemeProvider>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Sidebar />
-      </MemoryRouter>
-    </ThemeProvider>
-  );
+  return renderWithThemeRouter(<Sidebar />, { initialEntries: [initialPath] });
 }
 
 const subLabels = () => [

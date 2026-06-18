@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { cleanup, fireEvent, within } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
-import { ThemeProvider } from "@App/pages/components/theme-provider";
+import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
 import MobileNavDrawer from "./MobileNavDrawer";
 
 beforeEach(() => {
@@ -17,13 +16,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 function renderDrawer(initialPath = "/", onNavigate = () => {}) {
-  return render(
-    <ThemeProvider>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <MobileNavDrawer onNavigate={onNavigate} />
-      </MemoryRouter>
-    </ThemeProvider>
-  );
+  return renderWithThemeRouter(<MobileNavDrawer onNavigate={onNavigate} />, { initialEntries: [initialPath] });
 }
 
 const agentSubLabels = () => [
