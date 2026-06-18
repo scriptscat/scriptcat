@@ -10,12 +10,11 @@ import {
 } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
-import type { FileCreateOptions, FileInfo } from "@Packages/filesystem/filesystem";
+import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
-import { getFileSystemCapabilities } from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
-import { FileSystemError, isWarpTokenError } from "@Packages/filesystem/error";
+import { isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -73,20 +72,6 @@ type PushScriptParam = TInstallScriptParams & Partial<Pick<Script, "createtime" 
 type FileDigestMap = {
   [key: string]: string;
 };
-
-type PushScriptOptions = {
-  fileDigestMap?: FileDigestMap;
-  scriptFile?: FileInfo;
-  metaFile?: FileInfo;
-};
-
-type SyncTask = {
-  uuid: string;
-  promise: Promise<FileDigestMap | void>;
-  preserveDigestFiles: string[];
-};
-
-type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported" | "fatal";
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
@@ -414,43 +399,27 @@ export class SynchronizeService {
       },
     } as ScriptcatSync;
     let cloudStatus: ScriptcatSync["status"]["scripts"] = {};
-    let canWriteScriptcatSync = true;
     if (file) {
-      try {
-        // 如果有,则读取文件内容
-        const cloudScriptCatSync = JSON.parse(
-          await fs.open(file).then((f) => f.read("string"))
-        ) as Partial<ScriptcatSync>;
-        cloudStatus = cloudScriptCatSync.status?.scripts || {};
-      } catch (e) {
-        canWriteScriptcatSync = false;
-        this.logger.warn("read scriptcat-sync.json file failed", Logger.E(e));
-      }
+      // 如果有,则读取文件内容
+      const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
+      cloudStatus = cloudScriptCatSync.status.scripts;
     }
 
     // 对比脚本列表和文件列表,进行同步
-    const result: SyncTask[] = [];
+    const result: Promise<FileDigestMap | void>[] = [];
     const updateScript: Map<string, boolean> = new Map();
     // 记录被跳过的孤儿云端脚本（仅 .user.js 无 .meta.json）
     // 避免本机回写 scriptcat-sync.json 时丢失对应 uuid 的云端 status
     const skippedOrphanUuids = new Set<string>();
     // 需要是同步操作，后续上传剩下的脚本
     // 最后使用 Promise.allSettled 进行等待
-    const addSyncTask = (uuid: string, promise: Promise<FileDigestMap | void>, files?: string[]) => {
-      result.push({
-        uuid,
-        promise,
-        preserveDigestFiles: files || [`${uuid}.user.js`, `${uuid}.meta.json`],
-      });
-    };
     uuidMap.forEach((file, uuid) => {
       const script = scriptMap.get(uuid);
       if (script) {
         scriptMap.delete(uuid);
         // 脚本存在但是文件不存在,则读取.meta.json内容判断是否需要删除脚本
         if (!file.script) {
-          addSyncTask(
-            uuid,
+          result.push(
             (async () => {
               // 读取meta文件
               const meta = await fs.open(file.meta!);
@@ -468,35 +437,26 @@ export class SynchronizeService {
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name);
-                return await this.pushScript(fs, script, { fileDigestMap });
+                return await this.pushScript(fs, script);
               }
-            })(),
-            [file.meta!.name, `${uuid}.user.js`]
+            })()
           );
           return;
         }
-        const updatetime = script.updatetime || script.createtime;
-        // 过滤掉无变动的文件。本地脚本较新时不能仅凭云端 digest 未变就跳过；
-        // 之前由 install/update 触发的即时 push 可能失败，定时 syncOnce 需要负责补偿重试。
-        if (
-          fileDigestMap[file.script!.name] === file.script!.digest &&
-          file.meta &&
-          updatetime <= file.script!.updatetime
-        ) {
+        // 过滤掉无变动的文件
+        if (fileDigestMap[file.script!.name] === file.script!.digest) {
           return;
         }
+        const updatetime = script.updatetime || script.createtime;
         // 对比脚本更新时间和文件更新时间
         if (updatetime > file.script!.updatetime || !file.meta) {
           // 如果脚本更新时间大于文件更新时间
           // 或者不存在.meta文件,则上传文件
-          addSyncTask(
-            uuid,
-            this.pushScript(fs, script, { fileDigestMap, scriptFile: file.script, metaFile: file.meta })
-          );
+          result.push(this.pushScript(fs, script));
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
           updateScript.set(uuid, true);
-          addSyncTask(uuid, this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script));
+          result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script));
         }
         return;
       }
@@ -512,206 +472,104 @@ export class SynchronizeService {
           return;
         }
         updateScript.set(uuid, true);
-        addSyncTask(uuid, this.pullScript(fs, file as SyncFiles, cloudStatus[uuid]));
+        result.push(this.pullScript(fs, file as SyncFiles, cloudStatus[uuid]));
       }
     });
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
-      addSyncTask(script.uuid, this.pushScript(fs, script, { fileDigestMap }));
+      result.push(this.pushScript(fs, script));
     });
     // 忽略错误
-    const syncResults = await Promise.allSettled(result.map((item) => item.promise));
+    const syncResults = await Promise.allSettled(result);
     const pushedFileDigestMap: FileDigestMap = {};
-    const preserveDigestFiles = new Set<string>();
-    const failedSyncUuids = new Set<string>();
-    syncResults.forEach((ret, index) => {
+    syncResults.forEach((ret) => {
       if (ret.status === "fulfilled" && ret.value) {
         Object.assign(pushedFileDigestMap, ret.value);
-      } else if (ret.status === "rejected") {
-        failedSyncUuids.add(result[index].uuid);
-        result[index].preserveDigestFiles.forEach((name) => preserveDigestFiles.add(name));
-        this.logger.warn("sync task failed", Logger.E(ret.reason), {
-          errorKind: this.classifySyncError(ret.reason),
-          files: result[index].preserveDigestFiles,
-        });
       }
     });
     // 同步状态
-    if (syncConfig.syncStatus && canWriteScriptcatSync) {
-      try {
-        const scriptlist = await this.scriptDAO.all();
-        await Promise.allSettled(
-          scriptlist.map(async (script) => {
-            if (failedSyncUuids.has(script.uuid)) {
-              scriptcatSync.status.scripts[script.uuid] = cloudStatus[script.uuid];
+    if (syncConfig.syncStatus) {
+      const scriptlist = await this.scriptDAO.all();
+      await Promise.allSettled(
+        scriptlist.map(async (script) => {
+          // 判断云端状态是否与本地状态一致
+          const status = cloudStatus[script.uuid];
+          const updatetime = script.updatetime || script.createtime;
+          if (!status) {
+            scriptcatSync.status.scripts[script.uuid] = {
+              enable: script.status === SCRIPT_STATUS_ENABLE,
+              sort: script.sort,
+              updatetime: updatetime,
+            };
+          } else {
+            if (updateScript.has(script.uuid)) {
+              // 脚本已经更新过了,跳过状态同步
+              scriptcatSync.status.scripts[script.uuid] = status;
               return;
             }
-            // 判断云端状态是否与本地状态一致
-            const status = cloudStatus[script.uuid];
-            const updatetime = script.updatetime || script.createtime;
-            if (!status) {
+            // 判断时间
+            // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
+            if (status.updatetime < updatetime) {
               scriptcatSync.status.scripts[script.uuid] = {
                 enable: script.status === SCRIPT_STATUS_ENABLE,
                 sort: script.sort,
                 updatetime: updatetime,
               };
-            } else {
-              if (updateScript.has(script.uuid)) {
-                // 脚本已经更新过了,跳过状态同步
-                scriptcatSync.status.scripts[script.uuid] = status;
-                return;
-              }
-              // 判断时间
-              // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
-              if (status.updatetime < updatetime) {
-                scriptcatSync.status.scripts[script.uuid] = {
-                  enable: script.status === SCRIPT_STATUS_ENABLE,
-                  sort: script.sort,
-                  updatetime: updatetime,
-                };
-                return;
-              }
-              // 否则采用云端状态
-              scriptcatSync.status.scripts[script.uuid] = status;
-              // 脚本顺序
-              if (status.sort !== script.sort) {
-                await this.scriptDAO.update(script.uuid, {
-                  sort: status.sort,
-                });
-              }
-              // 脚本状态
-              if (status.enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
-                // 开启脚本
-                await this.script.enableScript({
-                  uuid: script.uuid,
-                  enable: status.enable,
-                });
-              }
+              return;
             }
-          })
-        );
-        // 保留被跳过的 orphan uuid 的云端 status，避免覆盖另一台设备半上传的状态
-        skippedOrphanUuids.forEach((uuid) => {
-          const status = cloudStatus[uuid];
-          if (status) {
-            scriptcatSync.status.scripts[uuid] = status;
+            // 否则采用云端状态
+            scriptcatSync.status.scripts[script.uuid] = status;
+            // 脚本顺序
+            if (status.sort !== script.sort) {
+              await this.scriptDAO.update(script.uuid, {
+                sort: status.sort,
+              });
+            }
+            // 脚本状态
+            if (status.enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
+              // 开启脚本
+              await this.script.enableScript({
+                uuid: script.uuid,
+                enable: status.enable,
+              });
+            }
           }
-        });
-        if (file) {
-          const latestCloudStatus = await this.readScriptcatSyncStatus(fs, file);
-          scriptcatSync.status.scripts = this.mergeScriptcatSyncStatus(
-            cloudStatus,
-            latestCloudStatus,
-            scriptcatSync.status.scripts
-          );
+        })
+      );
+      // 保留被跳过的 orphan uuid 的云端 status，避免覆盖另一台设备半上传的状态
+      skippedOrphanUuids.forEach((uuid) => {
+        const status = cloudStatus[uuid];
+        if (status) {
+          scriptcatSync.status.scripts[uuid] = status;
         }
-        // 保存脚本猫同步状态
-        const modifiedDate = Date.now();
-        const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
-        await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
-        this.logger.info("sync scriptcat-sync.json file success");
-      } catch (e) {
-        this.logger.warn("sync scriptcat-sync.json file failed", Logger.E(e));
-      }
-    } else if (syncConfig.syncStatus && !canWriteScriptcatSync) {
-      this.logger.warn("skip scriptcat-sync.json write because cloud status could not be read");
+      });
+      // 保存脚本猫同步状态
+      const modifiedDate = Date.now();
+      const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
+      await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
+      this.logger.info("sync scriptcat-sync.json file success");
     }
     // 重新获取文件列表,保存文件摘要
     this.logger.info("update file digest");
-    await this.updateFileDigest(fs, pushedFileDigestMap, preserveDigestFiles);
+    await this.updateFileDigest(fs, pushedFileDigestMap);
     this.logger.info("sync complete");
     return;
   }
 
-  private classifySyncError(error: unknown): SyncErrorKind {
-    if (error instanceof FileSystemError) {
-      if (error.conflict) {
-        return "conflict";
-      }
-      if (error.rateLimit || error.retryable) {
-        return "transient";
-      }
-      if (error.notFound) {
-        return "stale_snapshot";
-      }
-      if (error.auth) {
-        return "fatal";
-      }
-      return "fatal";
-    }
-    if (isWarpTokenError(error)) {
-      return "fatal";
-    }
-    if (error instanceof Error && /\bunsupported\b/i.test(error.message)) {
-      return "unsupported";
-    }
-    return "fatal";
-  }
-
-  private async readScriptcatSyncStatus(fs: FileSystem, file: FileInfo): Promise<ScriptcatSync["status"]["scripts"]> {
-    const cloudScriptCatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as Partial<ScriptcatSync>;
-    return cloudScriptCatSync.status?.scripts || {};
-  }
-
-  private mergeScriptcatSyncStatus(
-    initialStatus: ScriptcatSync["status"]["scripts"],
-    latestStatus: ScriptcatSync["status"]["scripts"],
-    candidateStatus: ScriptcatSync["status"]["scripts"]
-  ): ScriptcatSync["status"]["scripts"] {
-    const merged: ScriptcatSync["status"]["scripts"] = { ...latestStatus };
-    for (const uuid of Object.keys(candidateStatus)) {
-      const candidate = candidateStatus[uuid];
-      if (!candidate) {
-        continue;
-      }
-      const initial = initialStatus[uuid];
-      const latest = latestStatus[uuid];
-      const candidateOnlyPreservedInitial =
-        initial &&
-        candidate.enable === initial.enable &&
-        candidate.sort === initial.sort &&
-        candidate.updatetime === initial.updatetime;
-      if (candidateOnlyPreservedInitial) {
-        merged[uuid] = latest || candidate;
-        continue;
-      }
-      if (!latest || candidate.updatetime >= latest.updatetime) {
-        merged[uuid] = candidate;
-      }
-    }
-    return merged;
-  }
-
-  async updateFileDigest(
-    fs: FileSystem,
-    knownFileDigestMap: FileDigestMap = {},
-    preserveFileNames = new Set<string>()
-  ) {
-    const oldFileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
+  async updateFileDigest(fs: FileSystem, knownFileDigestMap: FileDigestMap = {}) {
     const newList = await fs.list();
     const newFileDigestMap: FileDigestMap = {};
     for (const file of newList) {
-      if (preserveFileNames.has(file.name)) {
-        if (oldFileDigestMap[file.name] !== undefined) {
-          newFileDigestMap[file.name] = oldFileDigestMap[file.name];
-        }
-        continue;
-      }
       newFileDigestMap[file.name] = file.digest;
     }
     // 各后端 digest 格式不一（WebDAV/OneDrive/S3 是 etag、Dropbox 是 content_hash、Zip 为空，
     // 仅 GoogleDrive/Baidu 是 md5），只在云端列表暂时漏掉刚上传的文件时用本地 md5 兜底，
     // 不能覆盖 fs.list 已返回的原生 digest，否则下次同步比对会因格式不一致而误判
     for (const name in knownFileDigestMap) {
-      if (!(name in newFileDigestMap) && !preserveFileNames.has(name)) {
+      if (!(name in newFileDigestMap)) {
         newFileDigestMap[name] = knownFileDigestMap[name];
       }
     }
-    preserveFileNames.forEach((name) => {
-      if (!(name in newFileDigestMap) && oldFileDigestMap[name] !== undefined) {
-        newFileDigestMap[name] = oldFileDigestMap[name];
-      }
-    });
     await this.storage.set("file_digest", newFileDigestMap);
     return;
   }
@@ -719,18 +577,16 @@ export class SynchronizeService {
   // 删除云端脚本数据
   async deleteCloudScript(fs: FileSystem, uuid: string, syncDelete: boolean) {
     const filename = `${uuid}.user.js`;
-    const metaFilename = `${uuid}.meta.json`;
-    const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const logger = this.logger.with({
       uuid: uuid,
       file: filename,
     });
     try {
-      await this.deleteCloudFile(fs, filename, fileDigestMap);
+      await fs.delete(filename);
       if (syncDelete) {
         // 留下一个.meta.json删除标记
         const modifiedDate = Date.now();
-        const meta = await fs.create(metaFilename, { modifiedDate });
+        const meta = await fs.create(`${uuid}.meta.json`, { modifiedDate });
         await meta.write(
           JSON.stringify(<SyncMeta>{
             uuid: uuid,
@@ -742,38 +598,17 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
-        await this.deleteCloudFile(fs, metaFilename, fileDigestMap);
+        await fs.delete(`${uuid}.meta.json`);
       }
       logger.info("delete success");
     } catch (e) {
       logger.error("delete file error", Logger.E(e));
-      throw e;
     }
     return;
   }
 
-  private buildDeleteOptions(fs: FileSystem, filename: string, fileDigestMap: FileDigestMap) {
-    if (!getFileSystemCapabilities(fs).supportsConditionalDelete) {
-      return undefined;
-    }
-    const expectedDigest = fileDigestMap[filename];
-    if (!expectedDigest) {
-      return undefined;
-    }
-    return { expectedDigest };
-  }
-
-  private async deleteCloudFile(fs: FileSystem, filename: string, fileDigestMap: FileDigestMap) {
-    const opts = this.buildDeleteOptions(fs, filename, fileDigestMap);
-    if (opts) {
-      await fs.delete(filename, opts);
-      return;
-    }
-    await fs.delete(filename);
-  }
-
   // 上传脚本
-  async pushScript(fs: FileSystem, script: PushScriptParam, opts: PushScriptOptions = {}): Promise<FileDigestMap> {
+  async pushScript(fs: FileSystem, script: PushScriptParam): Promise<FileDigestMap> {
     const filename = `${script.uuid}.user.js`;
     const metaFilename = `${script.uuid}.meta.json`;
     const logger = this.logger.with({
@@ -783,18 +618,12 @@ export class SynchronizeService {
     });
     try {
       const modifiedDate = getScriptModifiedDate(script);
-      const w = await fs.create(
-        filename,
-        this.buildPushCreateOptions(fs, filename, modifiedDate, opts.scriptFile, opts.fileDigestMap)
-      );
+      const w = await fs.create(filename, { modifiedDate });
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
       const scriptCode = code!.code;
       await w.write(scriptCode);
-      const meta = await fs.create(
-        metaFilename,
-        this.buildPushCreateOptions(fs, metaFilename, modifiedDate, opts.metaFile, opts.fileDigestMap)
-      );
+      const meta = await fs.create(metaFilename, { modifiedDate });
       const metaJson = JSON.stringify(<SyncMeta>{
         uuid: script.uuid,
         origin: script.origin,
@@ -811,28 +640,6 @@ export class SynchronizeService {
       logger.error("push script error", Logger.E(e));
       throw e;
     }
-  }
-
-  private buildPushCreateOptions(
-    fs: FileSystem,
-    filename: string,
-    modifiedDate: number,
-    existingFile?: FileInfo,
-    fileDigestMap?: FileDigestMap
-  ): FileCreateOptions {
-    const capabilities = getFileSystemCapabilities(fs);
-    const createOptions: FileCreateOptions = { modifiedDate };
-    if (!existingFile) {
-      if (capabilities.supportsCreateOnly) {
-        createOptions.createOnly = true;
-      }
-      return createOptions;
-    }
-    const expectedDigest = fileDigestMap?.[filename];
-    if (expectedDigest && capabilities.supportsAtomicCompareAndSwap) {
-      createOptions.expectedDigest = expectedDigest;
-    }
-    return createOptions;
   }
 
   async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {
@@ -876,7 +683,6 @@ export class SynchronizeService {
       logger.info("pull script success");
     } catch (e) {
       logger.error("pull script error", Logger.E(e));
-      throw e;
     }
   }
 
@@ -949,20 +755,10 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
-        const preserveDigestFiles = new Set<string>();
         for (const { uuid } of items) {
-          try {
-            await this.deleteCloudScript(fs, uuid, config.syncDelete);
-          } catch (e) {
-            preserveDigestFiles.add(`${uuid}.user.js`);
-            preserveDigestFiles.add(`${uuid}.meta.json`);
-            this.logger.warn("delete cloud script item failed", Logger.E(e), {
-              uuid,
-              errorKind: this.classifySyncError(e),
-            });
-          }
+          await this.deleteCloudScript(fs, uuid, config.syncDelete);
         }
-        await this.updateFileDigest(fs, {}, preserveDigestFiles);
+        await this.updateFileDigest(fs);
       }).catch((e) => {
         this.logger.error("delete cloud script error", Logger.E(e));
       });
