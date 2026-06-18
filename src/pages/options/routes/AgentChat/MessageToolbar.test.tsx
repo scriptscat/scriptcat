@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import MessageToolbar, { type MessageToolbarProps } from "./MessageToolbar";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 const baseProps = (over?: Partial<MessageToolbarProps>): MessageToolbarProps => ({

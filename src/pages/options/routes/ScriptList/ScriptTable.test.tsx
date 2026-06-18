@@ -1,24 +1,27 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
+import { cleanup, screen, fireEvent } from "@testing-library/react";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { renderWithRouterTooltip } from "@Tests/renderWithTooltip";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import { TooltipProvider } from "@App/pages/components/ui/tooltip";
 
 // 行内开关会触发后台消息，打桩；其余子组件（顶栏/筛选栏/批量栏）与排序无关，置空以隔离测试。
-vi.mock("@App/pages/store/features/script", () => ({
-  requestEnableScript: vi.fn(() => Promise.resolve()),
-  scriptClient: { requestCheckUpdate: vi.fn() },
-}));
+vi.mock("@App/pages/store/features/script", async () => {
+  const { createScriptStoreMock } = await import("@Tests/mocks/pageStores.ts");
+  return createScriptStoreMock({
+    requestEnableScript: vi.fn(() => Promise.resolve()),
+    scriptClient: { requestCheckUpdate: vi.fn() },
+  });
+});
 vi.mock("./Toolbar", () => ({ Toolbar: () => null }));
 vi.mock("./FilterBar", () => ({ default: () => null }));
 vi.mock("./BatchActionsBar", () => ({ default: () => null }));
 
 import ScriptTable from "./ScriptTable";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(cleanup);
 
 const mk = (uuid: string, name: string, updatetime: number): ScriptLoading =>
@@ -35,36 +38,32 @@ const mk = (uuid: string, name: string, updatetime: number): ScriptLoading =>
 const noop = () => {};
 
 const renderTable = (scriptList: ScriptLoading[]) =>
-  render(
-    <MemoryRouter>
-      <TooltipProvider>
-        <ScriptTable
-          scriptList={scriptList}
-          loadingList={false}
-          updateScripts={noop}
-          handleDelete={noop}
-          handleRunStop={() => Promise.resolve()}
-          setViewMode={noop}
-          searchRequest={{ keyword: "", type: "auto" }}
-          setSearchRequest={noop}
-          totalCount={scriptList.length}
-          scriptListSortOrderMove={noop}
-          filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
-          selectedFilters={{ status: null, type: null, tags: null, source: null }}
-          setSelectedFilters={noop}
-          selectedUuids={new Set()}
-          toggleSelect={noop}
-          toggleSelectAll={noop}
-          clearSelection={noop}
-          onBatchEnable={noop}
-          onBatchDisable={noop}
-          onBatchExport={noop}
-          onBatchDelete={noop}
-          onBatchPinTop={noop}
-          onBatchCheckUpdate={noop}
-        />
-      </TooltipProvider>
-    </MemoryRouter>
+  renderWithRouterTooltip(
+    <ScriptTable
+      scriptList={scriptList}
+      loadingList={false}
+      updateScripts={noop}
+      handleDelete={noop}
+      handleRunStop={() => Promise.resolve()}
+      setViewMode={noop}
+      searchRequest={{ keyword: "", type: "auto" }}
+      setSearchRequest={noop}
+      totalCount={scriptList.length}
+      scriptListSortOrderMove={noop}
+      filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
+      selectedFilters={{ status: null, type: null, tags: null, source: null }}
+      setSelectedFilters={noop}
+      selectedUuids={new Set()}
+      toggleSelect={noop}
+      toggleSelectAll={noop}
+      clearSelection={noop}
+      onBatchEnable={noop}
+      onBatchDisable={noop}
+      onBatchExport={noop}
+      onBatchDelete={noop}
+      onBatchPinTop={noop}
+      onBatchCheckUpdate={noop}
+    />
   );
 
 // 取出脚本名链接（href 指向编辑器）的文本顺序，即可见行顺序

@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Task } from "@App/app/service/agent/core/tools/task_tools";
 import TaskListBlock from "./TaskListBlock";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 const task = (id: string, status: Task["status"], subject = id): Task => ({

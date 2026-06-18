@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { cleanup, screen, fireEvent } from "@testing-library/react";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { renderWithTooltip } from "@Tests/renderWithTooltip";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_TYPE_BACKGROUND } from "@App/app/repo/scripts";
-import { TooltipProvider } from "@App/pages/components/ui/tooltip";
 
 // requestCheckUpdate 走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
 const { requestCheckUpdate } = vi.hoisted(() => ({ requestCheckUpdate: vi.fn() }));
@@ -14,12 +15,10 @@ vi.mock("@App/pages/store/features/script", () => ({
 import { getScriptHomePage, ScriptRowActions, UpdateTimeCell } from "./components";
 
 beforeEach(() => {
-  initLanguage("zh-CN");
+  initTestLanguage("zh-CN");
   vi.clearAllMocks();
 });
 afterEach(cleanup);
-
-const renderWithTooltip = (ui: React.ReactElement) => render(<TooltipProvider>{ui}</TooltipProvider>);
 
 describe("脚本主页链接解析 getScriptHomePage", () => {
   it("优先返回 homepage", () => {

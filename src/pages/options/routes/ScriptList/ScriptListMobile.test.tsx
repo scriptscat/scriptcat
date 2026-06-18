@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, cleanup } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { initLanguage } from "@App/locales/locales";
+import { describe, it, expect, afterEach, beforeAll, beforeEach, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
+import { renderWithRouter } from "@Tests/renderWithThemeRouter";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import ScriptListMobile from "./ScriptListMobile";
 import ScriptList from "./index";
@@ -80,17 +81,10 @@ vi.mock("./MobileSearchBar", () => ({
 
 const mockedUseIsMobile = vi.mocked(useIsMobile);
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }));
+  mockMatchMedia(false);
   mockedUseIsMobile.mockReturnValue(false);
 });
 
@@ -117,12 +111,7 @@ const props = {
 
 describe("ScriptListMobile 移动版", () => {
   it("渲染移动搜索框,且不渲染表格/卡片视图切换", () => {
-    initLanguage("zh-CN");
-    const { getByTestId, queryByTestId } = render(
-      <MemoryRouter>
-        <ScriptListMobile {...props} />
-      </MemoryRouter>
-    );
+    const { getByTestId, queryByTestId } = renderWithRouter(<ScriptListMobile {...props} />);
     expect(getByTestId("mobile-search")).toBeInTheDocument();
     expect(queryByTestId("view-toggle")).toBeNull();
   });
@@ -131,25 +120,15 @@ describe("ScriptListMobile 移动版", () => {
 describe("ScriptList 移动/桌面分支", () => {
   it("移动端忽略 localStorage 的 table 偏好,不渲染表格视图切换", () => {
     mockedUseIsMobile.mockReturnValue(true);
-    initLanguage("zh-CN");
     localStorage.setItem("script-list-view-mode", "table");
-    const { getByTestId, queryByTestId } = render(
-      <MemoryRouter>
-        <ScriptList />
-      </MemoryRouter>
-    );
+    const { getByTestId, queryByTestId } = renderWithRouter(<ScriptList />);
     expect(getByTestId("mobile-search")).toBeInTheDocument();
     expect(queryByTestId("view-toggle")).toBeNull();
   });
 
   it("桌面端渲染含视图切换的桌面布局", () => {
     mockedUseIsMobile.mockReturnValue(false);
-    initLanguage("zh-CN");
-    const { getByTestId, queryByTestId } = render(
-      <MemoryRouter>
-        <ScriptList />
-      </MemoryRouter>
-    );
+    const { getByTestId, queryByTestId } = renderWithRouter(<ScriptList />);
     expect(getByTestId("view-toggle")).toBeInTheDocument();
     expect(queryByTestId("mobile-search")).toBeNull();
   });

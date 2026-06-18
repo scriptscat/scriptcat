@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import ThinkingBlock from "./ThinkingBlock";
 
-beforeEach(() => initLanguage("zh-CN"));
+vi.mock("./MarkdownRenderer", () => import("@Tests/mocks/MarkdownRenderer.tsx"));
+
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 describe("思考过程块 ThinkingBlock", () => {

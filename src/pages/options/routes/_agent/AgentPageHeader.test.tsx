@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
 import { Server } from "lucide-react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { AgentPageHeader } from "./AgentPageHeader";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 describe("AgentPageHeader 统一页头", () => {

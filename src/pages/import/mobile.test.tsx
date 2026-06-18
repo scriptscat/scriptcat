@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
-import { TooltipProvider } from "@App/pages/components/ui/tooltip";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
+import { cleanup, screen, fireEvent } from "@testing-library/react";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { renderWithTooltip } from "@Tests/renderWithTooltip";
 import type { ImportView } from "./components";
 import { MobileView } from "./mobile";
 import type { ScriptImportItem, SubscribeImportItem } from "./logic";
@@ -57,14 +57,9 @@ function mkView(p: Partial<ImportView> = {}): ImportView {
   };
 }
 
-const renderMobile = (p: Partial<ImportView>) =>
-  render(
-    <TooltipProvider>
-      <MobileView view={mkView(p)} />
-    </TooltipProvider>
-  );
+const renderMobile = (p: Partial<ImportView>) => renderWithTooltip(<MobileView view={mkView(p)} />);
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(cleanup);
 
 describe("导入移动视图", () => {

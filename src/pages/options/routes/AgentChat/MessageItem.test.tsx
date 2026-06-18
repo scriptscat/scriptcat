@@ -1,12 +1,14 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { ChatMessage } from "@App/app/service/agent/core/types";
 import type { SubAgentState } from "./types";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 
-beforeEach(() => initLanguage("zh-CN"));
+vi.mock("./MarkdownRenderer", () => import("@Tests/mocks/MarkdownRenderer.tsx"));
+
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 const msg = (over: Partial<ChatMessage> & Pick<ChatMessage, "role" | "content">): ChatMessage => ({

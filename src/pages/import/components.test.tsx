@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent, within } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
-import { TooltipProvider } from "@App/pages/components/ui/tooltip";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
+import { cleanup, screen, fireEvent, within } from "@testing-library/react";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { renderWithTooltip } from "@Tests/renderWithTooltip";
 import { DesktopView, type ImportView } from "./components";
 import type { ScriptImportItem, SubscribeImportItem } from "./logic";
 
@@ -63,14 +63,9 @@ function mkView(p: Partial<ImportView> = {}): ImportView {
   };
 }
 
-const renderDesktop = (p: Partial<ImportView>) =>
-  render(
-    <TooltipProvider>
-      <DesktopView view={mkView(p)} />
-    </TooltipProvider>
-  );
+const renderDesktop = (p: Partial<ImportView>) => renderWithTooltip(<DesktopView view={mkView(p)} />);
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(cleanup);
 
 describe("导入桌面视图 脚本表格", () => {

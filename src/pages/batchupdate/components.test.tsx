@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, within, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
-import { TooltipProvider } from "@App/pages/components/ui/tooltip";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
+import { cleanup, screen, within, fireEvent } from "@testing-library/react";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { renderWithTooltip } from "@Tests/renderWithTooltip";
 import { DesktopView } from "./components";
 import type { BatchUpdateViewProps } from "./components";
 import { MobileView } from "./mobile";
@@ -51,21 +51,11 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
   };
 }
 
-const renderDesktop = (p: Partial<BatchUpdateViewProps>) =>
-  render(
-    <TooltipProvider>
-      <DesktopView view={mkView(p)} />
-    </TooltipProvider>
-  );
+const renderDesktop = (p: Partial<BatchUpdateViewProps>) => renderWithTooltip(<DesktopView view={mkView(p)} />);
 
-const renderMobile = (p: Partial<BatchUpdateViewProps>) =>
-  render(
-    <TooltipProvider>
-      <MobileView view={mkView(p)} />
-    </TooltipProvider>
-  );
+const renderMobile = (p: Partial<BatchUpdateViewProps>) => renderWithTooltip(<MobileView view={mkView(p)} />);
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(cleanup);
 
 describe("批量更新桌面视图 检查中反馈", () => {

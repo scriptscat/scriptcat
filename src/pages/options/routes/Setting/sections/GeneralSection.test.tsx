@@ -3,19 +3,19 @@ import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
 const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
-vi.mock("@App/pages/store/global", () => ({
-  systemConfig: { get, set },
-  subscribeMessage: () => () => {},
-}));
+vi.mock("@App/pages/store/global", async () => {
+  const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
+  return createGlobalStoreMock({ systemConfig: { get, set } });
+});
 
 const { success } = vi.hoisted(() => ({ success: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success, error: vi.fn(), info: vi.fn() } }));
 
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { GeneralSection } from "./GeneralSection";
 
 beforeAll(() => {
-  initLanguage("zh-CN");
+  initTestLanguage("zh-CN");
 });
 
 afterEach(() => {
