@@ -235,20 +235,25 @@ export default function ScriptTable({
         setSearchRequest={setSearchRequest}
       />
 
-      {/* 筛选栏 */}
-      <FilterBar filterItems={filterItems} selectedFilters={selectedFilters} setSelectedFilters={setSelectedFilters} />
-
-      {/* 批量操作栏 */}
-      <BatchActionsBar
-        selectedCount={selectedUuids.size}
-        onBatchEnable={onBatchEnable}
-        onBatchDisable={onBatchDisable}
-        onBatchExport={onBatchExport}
-        onBatchDelete={onBatchDelete}
-        onBatchPinTop={onBatchPinTop}
-        onBatchCheckUpdate={onBatchCheckUpdate}
-        onClose={clearSelection}
-      />
+      <div className="h-11 overflow-hidden contain-layout">
+        {/* 批量操作栏 */}
+        <BatchActionsBar
+          selectedCount={selectedUuids.size}
+          onBatchEnable={onBatchEnable}
+          onBatchDisable={onBatchDisable}
+          onBatchExport={onBatchExport}
+          onBatchDelete={onBatchDelete}
+          onBatchPinTop={onBatchPinTop}
+          onBatchCheckUpdate={onBatchCheckUpdate}
+          onClose={clearSelection}
+        />
+        {/* 筛选栏 */}
+        <FilterBar
+          filterItems={filterItems}
+          selectedFilters={selectedFilters}
+          setSelectedFilters={setSelectedFilters}
+        />
+      </div>
 
       {/* 表格 */}
       <div className="flex-1 overflow-auto scrollbar-custom px-6 pb-6">

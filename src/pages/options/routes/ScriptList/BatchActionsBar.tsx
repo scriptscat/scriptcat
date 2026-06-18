@@ -32,13 +32,12 @@ export default function BatchActionsBar({
     if (isOpen) setMounted(true);
   }, [isOpen]);
 
-  if (!mounted) return null;
-
   return (
     <div
       className={cn(
         "flex items-center gap-3 h-11 px-6 shrink-0 bg-primary/[0.08] border-b border-primary/20",
-        isOpen ? "animate-expand-bar" : "animate-collapse-bar"
+        isOpen ? "animate-expand-bar" : "animate-collapse-bar",
+        mounted ? "visble" : "collapse"
       )}
       onAnimationEnd={() => {
         if (!isOpen) setMounted(false);
