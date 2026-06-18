@@ -66,7 +66,7 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
     <SortableDragCtx.Provider value={ctxValue}>
       <div
         ref={setNodeRef}
-        className={isDragging ? "group/dr drag-on" : "group/dr drag-off"}
+        className={`group/dr cursor-auto ${isDragging ? "drag-on" : "drag-off"}`}
         style={style}
         {...attributes}
       >
