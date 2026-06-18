@@ -76,7 +76,7 @@ export default function MobileNavDrawer({ onNavigate }: { onNavigate?: () => voi
       {/* 底部:主题切换 + 帮助 */}
       <div className="flex flex-col gap-0.5 px-2 pb-3 pt-2 shrink-0">
         <div className="h-px bg-sidebar-border mx-2 mb-1" />
-        <DrawerButton icon={themeIcon} label={t("theme", { defaultValue: "主题切换" })} onClick={cycleTheme} />
+        <DrawerButton icon={themeIcon} label={t("theme", { defaultValue: t("change_theme") })} onClick={cycleTheme} />
         <DrawerButton
           icon={LifeBuoy}
           label={t("helpcenter")}
