@@ -436,7 +436,7 @@ function TagBadges({ metadata, selfMetadata }: { metadata: SCMetadata; selfMetad
           </span>
         );
       })}
-      {tags.length > 2 && <span className="text-[10px] text-muted-foreground">+{tags.length - 2}</span>}
+      {tags.length > 2 && <span className="text-[10px] text-muted-foreground">{`+${tags.length - 2}`}</span>}
     </div>
   );
 }

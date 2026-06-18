@@ -297,7 +297,7 @@ function CardTagBadges({ metadata, selfMetadata }: { metadata: SCMetadata; selfM
           </span>
         );
       })}
-      {tags.length > 3 && <span className="text-[10px] text-muted-foreground">+{tags.length - 3}</span>}
+      {tags.length > 3 && <span className="text-[10px] text-muted-foreground">{`+${tags.length - 3}`}</span>}
     </div>
   );
 }
