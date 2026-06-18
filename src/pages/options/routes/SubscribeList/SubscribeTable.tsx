@@ -21,6 +21,7 @@ import {
   SubscribeUpdateTimeCell,
   SubscribeRowActions,
 } from "./components";
+import { versionDisplay } from "@App/pages/utils";
 
 export interface SubscribeTableProps {
   subscribeList: SubscribeLoading[];
@@ -271,7 +272,7 @@ function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRo
       </div>
 
       {/* 版本 */}
-      <div className="w-[110px] flex justify-center text-xs font-mono text-fg-secondary">{`v${version}`}</div>
+      <div className="w-[110px] flex justify-center text-xs font-mono text-fg-secondary">{versionDisplay(version)}</div>
 
       {/* 权限 */}
       <div className="w-[140px] flex justify-center">

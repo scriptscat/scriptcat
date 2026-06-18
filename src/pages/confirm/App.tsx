@@ -15,6 +15,7 @@ import {
   isHighSensitive,
   type Duration,
 } from "./confirm-options";
+import { versionDisplay } from "../utils";
 
 type ConfirmInfo = Awaited<ReturnType<typeof permissionClient.getPermissionInfo>>;
 
@@ -263,7 +264,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
             <span className="truncate text-sm font-semibold text-foreground">{script.name}</span>
             <span className="text-xs text-muted-foreground">
               {t("permission:user_script_type")}
-              {version ? ` · v${version}` : ""}
+              {versionDisplay(version)}
             </span>
           </div>
         </div>

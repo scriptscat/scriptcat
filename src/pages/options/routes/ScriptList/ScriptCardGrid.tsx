@@ -34,6 +34,7 @@ import {
 } from "@dnd-kit/core";
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { versionDisplay } from "@App/pages/utils";
 
 // 拖拽放下时的动画：浮层卡片平滑落回目标位置，原位占位卡片淡出
 const dropAnimation: DropAnimation = {
@@ -238,7 +239,7 @@ const CardItem = React.memo(
               {name}
             </Link>
             <span className="text-[11px] text-muted-foreground block mt-0.5 truncate">
-              {[version && `v${version}`, scriptTypeLabel(script.type), author].filter(Boolean).join(" · ")}
+              {[versionDisplay(version), scriptTypeLabel(script.type), author].filter(Boolean).join(" · ")}
             </span>
           </div>
           <EnableSwitch

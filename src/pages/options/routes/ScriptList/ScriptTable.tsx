@@ -40,6 +40,7 @@ import FilterBar from "./FilterBar";
 import type { FilterBarProps } from "./FilterBar";
 import BatchActionsBar from "./BatchActionsBar";
 import { Toolbar } from "./Toolbar";
+import { versionDisplay } from "@App/pages/utils";
 
 // ========== 拖拽上下文 ==========
 type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
@@ -367,7 +368,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
             {name}
           </Link>
           <span className="text-[11px] text-muted-foreground truncate">
-            {[version && `v${version}`, scriptTypeLabel(script.type), author].filter(Boolean).join(" · ")}
+            {[versionDisplay(version), scriptTypeLabel(script.type), author].filter(Boolean).join(" · ")}
           </span>
         </div>
       </div>
