@@ -95,7 +95,7 @@ export default function AskUserBlock({
           {/* 问题 */}
           <div className="flex items-start gap-2.5 mb-4">
             <div className="size-6 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-primary to-primary-hover text-primary-foreground">
-              <span className="text-xs font-bold">?</span>
+              <span className="text-xs font-bold">{"?"}</span>
             </div>
             <div className="text-sm text-foreground leading-relaxed pt-0.5 whitespace-pre-wrap">{question}</div>
           </div>
@@ -146,7 +146,7 @@ export default function AskUserBlock({
                 onClick={handleMultiSubmit}
                 className="px-4 py-1.5 rounded-lg text-xs font-medium border-none bg-primary text-primary-foreground cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
               >
-                {t("common:confirm")} ({selectedOptions.length})
+                {t("common:confirm")} {`(${selectedOptions.length})`}
               </button>
             </div>
           )}

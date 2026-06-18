@@ -58,7 +58,7 @@ function setup(overrides: Record<string, unknown> = {}) {
   const onChangeFileSystemParams = vi.fn();
   render(
     <FileSystemParams
-      headerContent={<span>header</span>}
+      headerContent={<span>{"header"}</span>}
       fileSystemType="webdav"
       fileSystemParams={{}}
       onChangeFileSystemType={onChangeFileSystemType}

@@ -70,13 +70,13 @@ export function McpDetailSheet({
           <Tabs defaultValue="tools" className="flex min-h-0 flex-1 flex-col gap-0">
             <TabsList className={TAB_LIST_CLASS}>
               <TabsTrigger data-testid="tab-tools" value="tools" className={TAB_TRIGGER_CLASS}>
-                {t("agent:mcp_tools")} ({tools.length})
+                {t("agent:mcp_tools")} {`(${tools.length})`}
               </TabsTrigger>
               <TabsTrigger data-testid="tab-resources" value="resources" className={TAB_TRIGGER_CLASS}>
-                {t("agent:mcp_resources")} ({resources.length})
+                {t("agent:mcp_resources")} {`(${resources.length})`}
               </TabsTrigger>
               <TabsTrigger data-testid="tab-prompts" value="prompts" className={TAB_TRIGGER_CLASS}>
-                {t("agent:mcp_prompts")} ({prompts.length})
+                {t("agent:mcp_prompts")} {`(${prompts.length})`}
               </TabsTrigger>
             </TabsList>
 

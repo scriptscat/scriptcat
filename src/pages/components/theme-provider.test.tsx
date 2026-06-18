@@ -23,7 +23,7 @@ function Consumer() {
       <span data-testid="theme">{theme}</span>
       <span data-testid="resolved">{resolvedTheme}</span>
       <button data-testid="set-dark" onClick={() => setTheme("dark")}>
-        dark
+        {"dark"}
       </button>
     </div>
   );

@@ -148,7 +148,7 @@ export function TaskFormDialog({
               cron.valid && (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
                   <CalendarCheck className="size-3.5" />
-                  {t("agent:tasks_next_run")} · {cron.text}
+                  {t("agent:tasks_next_run")} {"·"} {cron.text}
                 </span>
               )
             )}

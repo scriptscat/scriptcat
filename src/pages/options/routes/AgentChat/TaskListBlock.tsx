@@ -73,7 +73,9 @@ export default function TaskListBlock({ tasks }: { tasks: Task[] }) {
           <div className="flex flex-col min-w-0">
             <span className="text-sm font-medium text-foreground leading-tight">{t("agent:tasks")}</span>
             <span data-testid="task-progress" className="text-xs text-muted-foreground leading-tight mt-0.5">
-              {completed}/{total}
+              {completed}
+              {"/"}
+              {total}
             </span>
           </div>
         </div>

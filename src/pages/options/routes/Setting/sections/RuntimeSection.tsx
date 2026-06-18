@@ -109,7 +109,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
               <span className="text-sm text-muted-foreground">
                 {t("editor:settings")}{" "}
                 <a className="text-primary hover:underline" href={STORAGE_EXAMPLE_URL} target="_blank" rel="noreferrer">
-                  CAT_fileStorage
+                  {"CAT_fileStorage"}
                 </a>{" "}
                 {t("editor:use_file_system")}
               </span>

@@ -15,7 +15,7 @@ describe("AgentPageHeader 统一页头", () => {
     expect(screen.getByText("管理 AI 模型提供商")).toBeInTheDocument();
   });
   it("渲染右侧操作区", () => {
-    render(<AgentPageHeader icon={Server} title="t" subtitle="s" actions={<button>添加</button>} />);
+    render(<AgentPageHeader icon={Server} title="t" subtitle="s" actions={<button>{"添加"}</button>} />);
     expect(screen.getByText("添加")).toBeInTheDocument();
   });
   it("传入 docHref 时渲染文档按钮并指向链接", () => {
@@ -36,7 +36,7 @@ describe("AgentPageHeader 统一页头", () => {
         title="t"
         subtitle="s"
         docHref="https://docs.example.com"
-        actions={<button data-testid="primary-action">添加</button>}
+        actions={<button data-testid="primary-action">{"添加"}</button>}
       />
     );
     const docs = screen.getByTestId("page-header-docs");

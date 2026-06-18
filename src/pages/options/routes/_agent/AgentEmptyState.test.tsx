@@ -13,7 +13,7 @@ describe("AgentEmptyState 空状态", () => {
         icon={Server}
         title="还没有配置模型"
         description="添加第一个模型"
-        action={<button>添加模型</button>}
+        action={<button>{"添加模型"}</button>}
       />
     );
     expect(screen.getByText("还没有配置模型")).toBeInTheDocument();

@@ -116,7 +116,7 @@ export function McpFormDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="mcp-url">URL</Label>
+            <Label htmlFor="mcp-url">{"URL"}</Label>
             <Input
               id="mcp-url"
               data-testid="mcp-url"
@@ -129,7 +129,7 @@ export function McpFormDialog({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="mcp-api-key">
               {t("agent:provider_api_key")}
-              <span className="ml-1 text-xs text-muted-foreground">({t("agent:mcp_optional")})</span>
+              <span className="ml-1 text-xs text-muted-foreground">{`(${t("agent:mcp_optional")})`}</span>
             </Label>
             <Input
               id="mcp-api-key"

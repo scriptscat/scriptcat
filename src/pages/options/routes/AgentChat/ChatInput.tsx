@@ -72,7 +72,7 @@ function SlashCommandMenu({
         >
           <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
             <Zap className="size-3 text-primary shrink-0" />
-            <span>/{skill.name}</span>
+            <span>{`/${skill.name}`}</span>
           </span>
           {skill.description && (
             <span className="text-xs text-muted-foreground pl-[21px] line-clamp-1">{skill.description}</span>

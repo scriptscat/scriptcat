@@ -11,8 +11,8 @@ describe("Tooltip", () => {
       <TooltipProvider>
         <div data-testid="scroll-container" style={{ overflow: "auto" }}>
           <Tooltip open>
-            <TooltipTrigger>编辑按钮</TooltipTrigger>
-            <TooltipContent data-testid="tooltip-content">编辑</TooltipContent>
+            <TooltipTrigger>{"编辑按钮"}</TooltipTrigger>
+            <TooltipContent data-testid="tooltip-content">{"编辑"}</TooltipContent>
           </Tooltip>
         </div>
       </TooltipProvider>

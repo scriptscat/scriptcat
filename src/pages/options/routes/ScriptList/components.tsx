@@ -161,7 +161,12 @@ export const FaviconDots = React.memo(
             <TooltipContent side="bottom">{fav.match}</TooltipContent>
           </Tooltip>
         ))}
-        {extra > 0 && <span className="text-[10px] text-muted-foreground ml-0.5">+{extra}</span>}
+        {extra > 0 && (
+          <span className="text-[10px] text-muted-foreground ml-0.5">
+            {"+"}
+            {extra}
+          </span>
+        )}
       </div>
     );
   }

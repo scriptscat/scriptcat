@@ -117,7 +117,7 @@ function ExistingAttachmentPreview({ block, onRemove }: { block: ContentBlock; o
           <img src={previewUrl} alt={name} className="size-16 rounded-lg object-cover border border-border" />
         ) : (
           <div className="size-16 rounded-lg border border-border bg-muted flex items-center justify-center text-xs text-muted-foreground">
-            ...
+            {"..."}
           </div>
         )
       ) : (

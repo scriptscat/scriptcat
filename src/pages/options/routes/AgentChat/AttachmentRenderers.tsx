@@ -26,7 +26,7 @@ export function AttachmentImage({ attachment }: { attachment: Attachment }) {
   if (!blobUrl) {
     return (
       <div className="w-40 h-24 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
-        Loading...
+        {"Loading..."}
       </div>
     );
   }
@@ -121,7 +121,7 @@ export function AttachmentAudio({ block }: { block: AudioBlock }) {
   if (!blobUrl) {
     return (
       <div className="h-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground px-4">
-        Loading audio...
+        {"Loading audio..."}
       </div>
     );
   }

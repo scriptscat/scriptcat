@@ -11,7 +11,7 @@ describe("设置卡片原语", () => {
     const reg = vi.fn(() => vi.fn());
     render(
       <SettingCard id="sync" title="同步" description="云端同步" register={reg}>
-        <div>inner</div>
+        <div>{"inner"}</div>
       </SettingCard>
     );
     expect(screen.getByText("同步")).toBeInTheDocument();
@@ -23,7 +23,7 @@ describe("设置卡片原语", () => {
   it("SettingRow 渲染标签/描述与右侧控件", () => {
     render(
       <SettingRow label="语言" description="界面语言">
-        <button>ctrl</button>
+        <button>{"ctrl"}</button>
       </SettingRow>
     );
     expect(screen.getByText("语言")).toBeInTheDocument();

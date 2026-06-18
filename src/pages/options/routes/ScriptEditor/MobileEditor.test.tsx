@@ -36,7 +36,7 @@ describe("MobileEditor 移动端编辑器外壳", () => {
   it("应显示脚本标题", () => {
     const { getByText } = render(
       <MobileEditor {...baseProps()}>
-        <div>editor</div>
+        <div>{"editor"}</div>
       </MobileEditor>
     );
     expect(getByText("Bilibili Evolved")).toBeTruthy();

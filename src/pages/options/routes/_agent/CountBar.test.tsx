@@ -32,7 +32,7 @@ describe("CountBar 计数摘要条", () => {
   it("接受自定义 children 覆盖默认渲染", () => {
     render(
       <CountBar>
-        <span>自定义内容</span>
+        <span>{"自定义内容"}</span>
       </CountBar>
     );
     expect(screen.getByText("自定义内容")).toBeInTheDocument();

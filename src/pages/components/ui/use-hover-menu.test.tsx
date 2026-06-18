@@ -16,7 +16,7 @@ function HoverMenuWithButton({ onSelect }: { onSelect: (key: string) => void }) 
     <DropdownMenu {...rootProps}>
       <DropdownMenuTrigger asChild>
         <Button data-testid="trigger" {...hoverProps}>
-          新建脚本
+          {"新建脚本"}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent {...contentProps}>
@@ -27,7 +27,7 @@ function HoverMenuWithButton({ onSelect }: { onSelect: (key: string) => void }) 
             onSelect("normal");
           }}
         >
-          普通脚本
+          {"普通脚本"}
         </DropdownMenuItem>
         <DropdownMenuItem
           data-testid="item-bg"
@@ -36,7 +36,7 @@ function HoverMenuWithButton({ onSelect }: { onSelect: (key: string) => void }) 
             onSelect("background");
           }}
         >
-          后台脚本
+          {"后台脚本"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -51,7 +51,7 @@ function HoverMenuWithNativeButton({ onSelect }: { onSelect: (key: string) => vo
     <DropdownMenu {...rootProps}>
       <DropdownMenuTrigger asChild>
         <button type="button" data-testid="trigger" {...hoverProps}>
-          新建脚本
+          {"新建脚本"}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent {...contentProps}>
@@ -62,7 +62,7 @@ function HoverMenuWithNativeButton({ onSelect }: { onSelect: (key: string) => vo
             onSelect("normal");
           }}
         >
-          普通脚本
+          {"普通脚本"}
         </DropdownMenuItem>
         <DropdownMenuItem
           data-testid="item-bg"
@@ -71,7 +71,7 @@ function HoverMenuWithNativeButton({ onSelect }: { onSelect: (key: string) => vo
             onSelect("background");
           }}
         >
-          后台脚本
+          {"后台脚本"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -135,7 +135,7 @@ describe("useHoverMenu 与 DropdownMenu 集成测试", () => {
     it("Button 组件应正确转发 ref", () => {
       // 验证 Button 的 forwardRef 工作正常，Radix Slot 不再报警告
       const ref = { current: null as HTMLButtonElement | null };
-      render(<Button ref={ref}>测试</Button>);
+      render(<Button ref={ref}>{"测试"}</Button>);
       expect(ref.current).toBeInstanceOf(HTMLButtonElement);
     });
   });

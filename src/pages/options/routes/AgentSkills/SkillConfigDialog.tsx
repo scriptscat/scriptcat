@@ -70,7 +70,7 @@ export function SkillConfigDialog({
     const labelText = (
       <>
         {field.title || key}
-        {field.required && <span className="ml-0.5 text-destructive">*</span>}
+        {field.required && <span className="ml-0.5 text-destructive">{"*"}</span>}
       </>
     );
 

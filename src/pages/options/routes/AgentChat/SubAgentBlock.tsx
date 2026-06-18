@@ -57,9 +57,14 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
 
         {state.usage && (state.usage.inputTokens > 0 || state.usage.outputTokens > 0) && (
           <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-            {formatTokens(state.usage.inputTokens)}→{formatTokens(state.usage.outputTokens)}
+            {formatTokens(state.usage.inputTokens)}
+            {"→"}
+            {formatTokens(state.usage.outputTokens)}
             {(state.usage.cacheReadInputTokens ?? 0) > 0 && (
-              <span className="text-success"> C:{formatTokens(state.usage.cacheReadInputTokens!)}</span>
+              <span className="text-success">
+                {" C:"}
+                {formatTokens(state.usage.cacheReadInputTokens!)}
+              </span>
             )}
           </span>
         )}
@@ -99,13 +104,18 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
             <div className="flex items-center gap-1.5 text-xs text-warning py-1">
               <AlertCircle className="size-3" />
               <span>
-                {state.retryInfo.error} (retry {state.retryInfo.attempt}/{state.retryInfo.maxRetries})
+                {state.retryInfo.error}
+                {" (retry "}
+                {state.retryInfo.attempt}
+                {"/"}
+                {state.retryInfo.maxRetries}
+                {")"}
               </span>
             </div>
           )}
 
           {allMessages.length === 0 && !state.retryInfo && state.isRunning && (
-            <div className="text-xs text-muted-foreground py-1">Starting...</div>
+            <div className="text-xs text-muted-foreground py-1">{"Starting..."}</div>
           )}
         </div>
       )}

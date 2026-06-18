@@ -37,7 +37,7 @@ function formatTokens(n: number): string {
 }
 
 function Dot() {
-  return <span className="text-muted-foreground text-xs mx-1">·</span>;
+  return <span className="text-muted-foreground text-xs mx-1">{"·"}</span>;
 }
 
 // 流式计时器
@@ -81,9 +81,9 @@ export default function MessageToolbar({
           : "";
       metaParts.push(
         <span key="tokens">
-          <span className="text-success">↑</span>
+          <span className="text-success">{"↑"}</span>
           {formatTokens(usage.inputTokens)}
-          {cacheInfo} <span className="text-destructive">↓</span>
+          {cacheInfo} <span className="text-destructive">{"↓"}</span>
           {formatTokens(usage.outputTokens)}
         </span>
       );

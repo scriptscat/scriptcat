@@ -34,7 +34,7 @@ describe("设置外壳 SettingsLayout", () => {
   const renderLayout = () =>
     render(
       <SettingsLayout title="设置" categories={cats}>
-        {() => <div>body</div>}
+        {() => <div>{"body"}</div>}
       </SettingsLayout>
     );
 
