@@ -53,10 +53,10 @@ describe("AgentTasks 页面", () => {
     await waitFor(() => expect(screen.getByText(t("agent:tasks_no_tasks"))).toBeInTheDocument());
   });
 
-  it("桌面页头渲染「文档」按钮并指向脚本猫文档站", async () => {
+  it("桌面页头渲染「文档」按钮并深链到定时任务文档页", async () => {
     render(<AgentTasks />);
     const docs = await screen.findByTestId("page-header-docs");
-    expect(docs).toHaveAttribute("href", "https://docs.scriptcat.org");
+    expect(docs.getAttribute("href")).toContain("/docs/dev/agent/agent-task");
   });
 
   it("有任务时使用共享 CountBar 展示计数摘要", async () => {

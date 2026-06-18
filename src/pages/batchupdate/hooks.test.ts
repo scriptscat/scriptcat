@@ -43,7 +43,7 @@ vi.mock("sonner", () => ({ toast: { success: h.toastSuccess } }));
 
 import { useBatchUpdate } from "./hooks";
 
-function mkRecord(uuid: string, newVersion = "1.1.0"): TBatchUpdateRecord {
+function mkRecord(uuid: string, newVersion = "1.1.0", sites: string[] = []): TBatchUpdateRecord {
   return {
     uuid,
     checkUpdate: true,
@@ -58,7 +58,7 @@ function mkRecord(uuid: string, newVersion = "1.1.0"): TBatchUpdateRecord {
       metadata: { version: ["1.0.0"], connect: [] },
       downloadUrl: "https://example.com/s.user.js",
     },
-    sites: [],
+    sites,
     withNewConnect: false,
   } as unknown as TBatchUpdateRecord;
 }
@@ -113,5 +113,40 @@ describe("批量更新 Hook useBatchUpdate 检查完成反馈", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("批量更新 Hook useBatchUpdate 站点优先级(?site=)", () => {
+  it("URL 带 site 时把命中该站点的更新排到列表最前", async () => {
+    window.history.replaceState({}, "", "/?site=example.com");
+
+    const { result } = renderHook(() => useBatchUpdate());
+    await act(async () => {});
+
+    await runCheck([
+      mkRecord("a", "1.1.0", ["other.com"]),
+      mkRecord("b", "1.1.0", ["example.com"]),
+      mkRecord("c", "1.1.0", []),
+    ]);
+
+    await waitFor(() => expect(result.current.updates).toHaveLength(3));
+    expect(result.current.updates.map((u) => u.uuid)).toEqual(["b", "a", "c"]);
+    expect(result.current.updates.find((u) => u.uuid === "b")?.siteMatch).toBe(true);
+    expect(result.current.updates.find((u) => u.uuid === "a")?.siteMatch).toBe(false);
+
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("URL 无 site 时保持记录原有顺序且均不标记 siteMatch", async () => {
+    window.history.replaceState({}, "", "/");
+
+    const { result } = renderHook(() => useBatchUpdate());
+    await act(async () => {});
+
+    await runCheck([mkRecord("a", "1.1.0", ["x.com"]), mkRecord("b", "1.1.0", ["y.com"])]);
+
+    await waitFor(() => expect(result.current.updates).toHaveLength(2));
+    expect(result.current.updates.map((u) => u.uuid)).toEqual(["a", "b"]);
+    expect(result.current.updates.every((u) => u.siteMatch === false)).toBe(true);
   });
 });

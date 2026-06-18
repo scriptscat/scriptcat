@@ -21,6 +21,7 @@ function mkItem(p: Partial<UpdateItem> = {}): UpdateItem {
     source: "example.com",
     iconUrl: "",
     ignored: false,
+    siteMatch: false,
     ...p,
   };
 }

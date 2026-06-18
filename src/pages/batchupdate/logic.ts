@@ -19,6 +19,8 @@ export interface UpdateItem {
   /** 脚本图标 URL（@icon / @iconURL / @icon64 / @icon64URL），无则为空串 */
   iconUrl: string;
   ignored: boolean;
+  /** 该更新是否命中当前站点（来自 URL 的 ?site= 参数），命中者在列表中优先靠前 */
+  siteMatch: boolean;
 }
 
 /** 从 metadata 提取脚本图标 URL（与脚本列表 ScriptIcon 取值规则一致） */
@@ -50,7 +52,7 @@ export function getSource(record: TBatchUpdateRecord): string {
   }
 }
 
-export function toUpdateItem(record: TBatchUpdateRecord): UpdateItem | null {
+export function toUpdateItem(record: TBatchUpdateRecord, site?: string): UpdateItem | null {
   if (!record.checkUpdate) return null;
 
   const oldVersion = record.script.metadata.version?.[0] ?? "";
@@ -69,10 +71,19 @@ export function toUpdateItem(record: TBatchUpdateRecord): UpdateItem | null {
     source: getSource(record),
     iconUrl: pickIconUrl(record.script.metadata),
     ignored: record.script.ignoreVersion === newVersion,
+    siteMatch: !!site && record.sites.includes(site),
   };
 }
 
-export function categorize(records: TBatchUpdateRecord[]): {
+/**
+ * 将记录分组为待更新 / 已忽略。
+ * 传入 site（当前网址，来自 ?site= 参数）时，命中该站点的待更新项排到列表最前
+ * （命中/未命中各自保持原有相对顺序），便于用户优先处理正在访问站点的脚本更新。
+ */
+export function categorize(
+  records: TBatchUpdateRecord[],
+  site?: string
+): {
   updates: UpdateItem[];
   ignored: UpdateItem[];
 } {
@@ -80,13 +91,18 @@ export function categorize(records: TBatchUpdateRecord[]): {
   const ignored: UpdateItem[] = [];
 
   for (const record of records) {
-    const item = toUpdateItem(record);
+    const item = toUpdateItem(record, site);
     if (!item) continue;
     if (item.ignored) {
       ignored.push(item);
     } else {
       updates.push(item);
     }
+  }
+
+  if (site) {
+    // 稳定排序：命中站点的排前，未命中的排后，组内相对顺序不变
+    updates.sort((a, b) => Number(b.siteMatch) - Number(a.siteMatch));
   }
 
   return { updates, ignored };

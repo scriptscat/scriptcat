@@ -370,15 +370,6 @@ export class SystemConfig {
     this._set("log_clean_cycle", val);
   }
 
-  // 设置脚本列表列宽度
-  getScriptListColumnWidth() {
-    return this._get<{ [key: string]: number }>("script_list_column_width", {});
-  }
-
-  setScriptListColumnWidth(val: { [key: string]: number }) {
-    this._set("script_list_column_width", val);
-  }
-
   defaultMenuExpandNum() {
     return 5;
   }

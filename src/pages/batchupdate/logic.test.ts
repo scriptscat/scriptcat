@@ -178,6 +178,36 @@ describe("categorize 记录分组为更新/已忽略", () => {
     expect(updates.map((u) => u.uuid)).toEqual(["a", "c"]);
     expect(ignored.map((u) => u.uuid)).toEqual(["b"]);
   });
+  it("未传 site 时不标记匹配,保持原有顺序", () => {
+    const records = [mkRecord({ uuid: "a", sites: ["other.com"] }), mkRecord({ uuid: "b", sites: ["example.com"] })];
+    const { updates } = categorize(records);
+    expect(updates.map((u) => u.uuid)).toEqual(["a", "b"]);
+    expect(updates.every((u) => u.siteMatch === false)).toBe(true);
+  });
+  it("传入 site 时把命中该站点的更新排到最前并标记 siteMatch", () => {
+    const records = [
+      mkRecord({ uuid: "a", sites: ["other.com"] }),
+      mkRecord({ uuid: "b", sites: ["example.com"] }),
+      mkRecord({ uuid: "c", sites: ["x.com", "example.com"] }),
+      mkRecord({ uuid: "d", sites: [] }),
+    ];
+    const { updates } = categorize(records, "example.com");
+    // 命中 example.com 的 b、c 排到最前(保持彼此相对顺序),其余在后
+    expect(updates.map((u) => u.uuid)).toEqual(["b", "c", "a", "d"]);
+    expect(updates.find((u) => u.uuid === "b")?.siteMatch).toBe(true);
+    expect(updates.find((u) => u.uuid === "c")?.siteMatch).toBe(true);
+    expect(updates.find((u) => u.uuid === "a")?.siteMatch).toBe(false);
+    expect(updates.find((u) => u.uuid === "d")?.siteMatch).toBe(false);
+  });
+  it("已忽略的记录不参与 site 优先级排序", () => {
+    const records = [
+      mkRecord({ uuid: "a", sites: ["other.com"] }),
+      mkRecord({ uuid: "b", newVersion: "2.0.0", ignoreVersion: "2.0.0", sites: ["example.com"] }),
+    ];
+    const { updates, ignored } = categorize(records, "example.com");
+    expect(updates.map((u) => u.uuid)).toEqual(["a"]);
+    expect(ignored.map((u) => u.uuid)).toEqual(["b"]);
+  });
 });
 
 describe("assembleRecord 拼接分片并解析", () => {

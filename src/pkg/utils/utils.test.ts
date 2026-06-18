@@ -539,7 +539,6 @@ describe.concurrent("toCamelCase", () => {
 
   it.concurrent("应当正确处理多下划线配置键", () => {
     expect(toCamelCase("editor_type_definition")).toBe("EditorTypeDefinition");
-    expect(toCamelCase("script_list_column_width")).toBe("ScriptListColumnWidth");
   });
 });
 

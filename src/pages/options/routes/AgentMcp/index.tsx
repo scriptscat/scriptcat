@@ -4,10 +4,10 @@ import { Plus, Plug } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@App/pages/components/ui/button";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
-import { DocumentationSite } from "@App/app/const";
 import { agentClient } from "@App/pages/store/features/script";
 import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/service/agent/core/types";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
+import { agentDocUrl } from "../_agent/agentDocs";
 import { AgentEmptyState } from "../_agent/AgentEmptyState";
 import { CountBar, type CountBarSegment } from "../_agent/CountBar";
 import { McpCard, type McpTestState } from "./McpCard";
@@ -147,7 +147,7 @@ export default function AgentMcp() {
           icon={Plug}
           title={t("agent:mcp_title")}
           subtitle={t("agent:mcp_subtitle")}
-          docHref={DocumentationSite}
+          docHref={agentDocUrl("mcp")}
           docLabel={t("agent:mcp_docs")}
           actions={addBtn}
         />

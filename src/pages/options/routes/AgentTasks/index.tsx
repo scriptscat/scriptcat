@@ -8,6 +8,7 @@ import { agentClient } from "@App/pages/store/features/script";
 import type { AgentTask, AgentModelConfig, AgentTaskRun } from "@App/app/service/agent/core/types";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
+import { agentDocUrl } from "../_agent/agentDocs";
 import { AgentEmptyState } from "../_agent/AgentEmptyState";
 import { CountBar, type CountBarSegment } from "../_agent/CountBar";
 import { TaskRow } from "./TaskRow";
@@ -139,7 +140,7 @@ export default function AgentTasks() {
           icon={CalendarClock}
           title={t("agent:tasks_title")}
           subtitle={t("agent:tasks_subtitle")}
-          docHref="https://docs.scriptcat.org"
+          docHref={agentDocUrl("tasks")}
           docLabel={t("agent:tasks_docs", { defaultValue: "文档" })}
           actions={
             <Button data-testid="task-add" onClick={handleAdd}>

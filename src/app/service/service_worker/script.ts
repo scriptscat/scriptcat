@@ -44,7 +44,7 @@ import {
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
-import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { initRegularUpdateCheck, watchRegularUpdateCheck } from "./regular_updatecheck";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 
@@ -251,14 +251,6 @@ export class ScriptService {
         requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
         isUrlFilterCaseSensitive: false,
         requestDomains: ["bitbucket.org"], // Chrome 101+
-      },
-      // SkillScript (.skill.js) 安装检测
-      {
-        regexFilter: "^([^?#]+?\\.skill\\.js)",
-        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-        isUrlFilterCaseSensitive: false,
-        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
       },
       // Skill 包 (.cat.md) 安装检测
       {
@@ -1516,5 +1508,7 @@ export class ScriptService {
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
     initRegularUpdateCheck(this.systemConfig);
+    // 更新周期配置变更后立即重新设定alarm，无需等待SW重启
+    watchRegularUpdateCheck(this.systemConfig);
   }
 }

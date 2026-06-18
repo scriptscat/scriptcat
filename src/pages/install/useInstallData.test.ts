@@ -8,7 +8,12 @@ import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 vi.mock("@App/pages/store/features/script", () => ({
   scriptClient: { getInstallInfo: vi.fn(), install: vi.fn(), setCheckUpdateUrl: vi.fn() },
   subscribeClient: { install: vi.fn() },
-  agentClient: { getSkillInstallData: vi.fn(), completeSkillInstall: vi.fn(), cancelSkillInstall: vi.fn() },
+  agentClient: {
+    getSkillInstallData: vi.fn(),
+    completeSkillInstall: vi.fn(),
+    cancelSkillInstall: vi.fn(),
+    prepareSkillFromUrl: vi.fn(),
+  },
 }));
 vi.mock("@App/pkg/utils/scriptInstall", async (io) => ({
   ...(await io<Record<string, unknown>>()),
@@ -256,6 +261,54 @@ describe("useInstallData 数据流编排", () => {
     const state = result.current.state;
     if (state.status !== "skill") throw new Error("not skill");
     expect(state.skill.metadata.name).toBe("技能X");
+  });
+
+  it("?url= 指向 .cat.md 时走 Skill 安装流程而非脚本解析", async () => {
+    initLanguage("zh-CN");
+    window.history.replaceState({}, "", "/install.html?url=https://e.com/foo.cat.md");
+    const skill = {
+      skillMd: "# skill",
+      metadata: { name: "URL技能", description: "desc" },
+      prompt: "提示词",
+      scripts: [],
+      references: [],
+      isUpdate: false,
+    };
+    (agentClient.prepareSkillFromUrl as Mock).mockResolvedValue("sk-from-url");
+    (agentClient.getSkillInstallData as Mock).mockResolvedValue(skill);
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("skill"));
+    const state = result.current.state;
+    if (state.status !== "skill") throw new Error("not skill");
+    expect(state.skill.metadata.name).toBe("URL技能");
+    expect(agentClient.prepareSkillFromUrl as Mock).toHaveBeenCalledWith("https://e.com/foo.cat.md");
+    expect(agentClient.getSkillInstallData as Mock).toHaveBeenCalledWith("sk-from-url");
+    // 不应当走脚本下载/解析路径
+    expect(fetchScriptBody as Mock).not.toHaveBeenCalled();
+  });
+
+  it("?url= 指向带查询串的 .cat.md 时仍走 Skill 流程(正则匹配 ? 边界)", async () => {
+    initLanguage("zh-CN");
+    window.history.replaceState({}, "", "/install.html?url=https://e.com/foo.cat.md?v=2");
+    const skill = {
+      skillMd: "# skill",
+      metadata: { name: "查询串技能", description: "desc" },
+      prompt: "提示词",
+      scripts: [],
+      references: [],
+      isUpdate: false,
+    };
+    (agentClient.prepareSkillFromUrl as Mock).mockResolvedValue("sk-q");
+    (agentClient.getSkillInstallData as Mock).mockResolvedValue(skill);
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("skill"));
+    expect(agentClient.prepareSkillFromUrl as Mock).toHaveBeenCalledWith("https://e.com/foo.cat.md?v=2");
+    // 解析得到的 uuid 应写入 skillUuidRef,供后续 installSkill/cancelSkill 复用
+    const state = result.current.state;
+    if (state.status !== "skill") throw new Error("not skill");
+    expect(state.skill.metadata.name).toBe("查询串技能");
   });
 
   it("getInstallInfo 无数据时进入 error 状态", async () => {

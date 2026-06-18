@@ -27,6 +27,11 @@ function parseAutoClose(): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** 解析 URL 上的 site 参数（触发更新页的当前网址域名）；命中该站点的更新会优先靠前 */
+function parseSite(): string {
+  return new URLSearchParams(window.location.search).get("site") || "";
+}
+
 /** 批量更新页面的数据与交互逻辑 */
 export function useBatchUpdate(): BatchUpdateViewProps {
   const [records, setRecords] = useState<TBatchUpdateRecord[]>([]);
@@ -35,6 +40,8 @@ export function useBatchUpdate(): BatchUpdateViewProps {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [autoClose, setAutoClose] = useState<number | null>(() => parseAutoClose());
+  // 触发本次更新页的当前网址：命中该站点的更新在列表中优先靠前。整页生命周期内不变。
+  const siteRef = useRef(parseSite());
 
   const loadingRef = useRef(false);
   // 标记本次检查由用户主动发起（点击「检查更新」），用于在检查完成后弹出反馈 toast
@@ -97,7 +104,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
 
   const cancelAutoClose = useCallback(() => setAutoClose(null), []);
 
-  const { updates, ignored } = useMemo(() => categorize(records), [records]);
+  const { updates, ignored } = useMemo(() => categorize(records, siteRef.current), [records]);
 
   const onUpdate = useCallback(
     (item: UpdateItem) => {

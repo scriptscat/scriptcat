@@ -50,7 +50,7 @@ describe("AgentMcp 页面", () => {
     render(<AgentMcp />);
     await waitFor(() => expect(screen.getByText("本地工具")).toBeInTheDocument());
     const docs = screen.getByTestId("page-header-docs");
-    expect(docs).toHaveAttribute("href", "https://docs.scriptcat.org");
+    expect(docs.getAttribute("href")).toContain("/docs/dev/agent/agent-mcp");
   });
 
   it("计数摘要使用共享 CountBar(三段:服务/已连接/工具)", async () => {

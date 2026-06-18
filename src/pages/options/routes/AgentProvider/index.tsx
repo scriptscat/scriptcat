@@ -4,10 +4,10 @@ import { Plus, Server } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@App/pages/components/ui/button";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
-import { DocumentationSite } from "@App/app/const";
 import { agentClient } from "@App/pages/store/features/script";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
+import { agentDocUrl } from "../_agent/agentDocs";
 import { AgentEmptyState } from "../_agent/AgentEmptyState";
 import { CountBar } from "../_agent/CountBar";
 import { ModelCard } from "./ModelCard";
@@ -57,10 +57,10 @@ export default function AgentProvider() {
     await reload();
   };
 
-  const handleCopy = async (m: AgentModelConfig) => {
-    await agentClient.saveModel({ ...m, id: crypto.randomUUID(), name: `${m.name} copy` });
-    toast.success(t("common:save_success"));
-    await reload();
+  const handleCopy = (m: AgentModelConfig) => {
+    // 以源模型预填「新增」弹窗(清空 id → 提交时生成全新 id;名称加后缀),供用户审阅/调整后再保存
+    setEditing({ ...m, id: "", name: `${m.name} (Copy)` });
+    setDialogOpen(true);
   };
 
   const handleSetDefault = async (id: string) => {
@@ -87,7 +87,7 @@ export default function AgentProvider() {
           icon={Server}
           title={t("agent:provider_title")}
           subtitle={t("agent:provider_subtitle")}
-          docHref={DocumentationSite}
+          docHref={agentDocUrl("provider")}
           docLabel={t("agent:provider_docs")}
           actions={
             <Button data-testid="model-add" onClick={handleAdd}>

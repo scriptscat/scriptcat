@@ -6,11 +6,11 @@ import { cn } from "@App/pkg/utils/cn";
 import { useScrollSpy } from "@App/pages/options/hooks/useScrollSpy";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { AgentPageHeader } from "../_agent/AgentPageHeader";
+import { agentDocUrl } from "../_agent/agentDocs";
 import { Button } from "@App/pages/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@App/pages/components/ui/select";
 import { Input } from "@App/pages/components/ui/input";
 import { agentClient } from "@App/pages/store/features/script";
-import { DocumentationSite } from "@App/app/const";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
 
@@ -165,7 +165,7 @@ export default function AgentSettings() {
     </>
   );
 
-  const openDocs = () => window.open(DocumentationSite, "_blank");
+  const openDocs = () => window.open(agentDocUrl("settings"), "_blank");
 
   return (
     <div className="flex h-full flex-col bg-background">

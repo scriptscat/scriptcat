@@ -33,6 +33,16 @@ describe("工具调用块 ToolCallBlock", () => {
     expect(screen.getByText("晴 25°C")).toBeInTheDocument();
   });
 
+  it("展开后参数与结果各有带标题的卡片", () => {
+    render(<ToolCallBlock toolCall={tc({ result: "晴 25°C" })} />);
+    fireEvent.click(screen.getByTestId("toolcall-trigger"));
+    // 参数卡片标题为「参数」，而非误标的「工具调用」
+    expect(screen.getByText("参数")).toBeInTheDocument();
+    expect(screen.queryByText("工具调用")).toBeNull();
+    // 结果卡片有独立的「结果」标题
+    expect(screen.getByText("结果")).toBeInTheDocument();
+  });
+
   it("依据 status 标注状态", () => {
     const { rerender } = render(<ToolCallBlock toolCall={tc({ status: "error" })} />);
     expect(screen.getByTestId("toolcall-status").dataset.status).toBe("error");

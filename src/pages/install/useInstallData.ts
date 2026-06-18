@@ -229,6 +229,16 @@ export function useInstallData(): UseInstallData {
           info.code = code;
           await loadFromInfo(info, !!cached?.[0], cached?.[2] || {});
         } else if (rawUrl) {
+          // .cat.md URL → Skill 安装流程(DNR 把 *.cat.md 重定向到安装页),不走脚本解析
+          if (/\.cat\.md(\?|#|$)/i.test(rawUrl)) {
+            const uuid = await agentClient.prepareSkillFromUrl(rawUrl);
+            if (cancelled) return;
+            skillUuidRef.current = uuid;
+            const data = await agentClient.getSkillInstallData(uuid);
+            if (cancelled) return;
+            setState({ status: "skill", skill: data });
+            return;
+          }
           let parsed: URL;
           try {
             parsed = new URL(rawUrl);

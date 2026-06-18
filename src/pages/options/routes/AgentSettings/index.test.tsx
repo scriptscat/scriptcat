@@ -80,6 +80,14 @@ describe("AgentSettings 页面", () => {
       expect(await screen.findByTestId("settings-docs-desktop")).toBeInTheDocument();
       expect(screen.queryByTestId("settings-mobile-heading")).not.toBeInTheDocument();
     });
+
+    it("点击文档按钮深链到 Agent 设置文档页(而非站点根)", async () => {
+      const open = vi.spyOn(window, "open").mockImplementation(() => null);
+      render(<AgentSettings />);
+      fireEvent.click(await screen.findByTestId("settings-docs-desktop"));
+      expect(open).toHaveBeenCalledWith(expect.stringContaining("/docs/dev/agent/agent"), "_blank");
+      open.mockRestore();
+    });
   });
 
   describe("移动端", () => {

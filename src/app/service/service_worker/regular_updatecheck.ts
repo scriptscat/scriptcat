@@ -60,6 +60,13 @@ export const initRegularUpdateCheck = async (systemConfig: SystemConfig) => {
   allowRegularUpdateCheck = now + ALLOW_CHECK_DELAY_MS; // 可以触发alarm的更新程序了
 };
 
+// 监听更新周期配置变更，变更后立即重新设定alarm（否则要等到SW重启才会生效）
+export const watchRegularUpdateCheck = (systemConfig: SystemConfig) => {
+  return systemConfig.addListener("check_script_update_cycle", () => {
+    initRegularUpdateCheck(systemConfig);
+  });
+};
+
 const setCheckupdateScriptLasttime = async (t: number) => {
   try {
     // 试一下储存。储存不了也没所谓

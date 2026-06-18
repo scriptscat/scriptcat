@@ -95,7 +95,7 @@ export function ModelFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>{value ? t("agent:model_edit") : t("agent:model_add")}</DialogTitle>
+          <DialogTitle>{value?.id ? t("agent:model_edit") : t("agent:model_add")}</DialogTitle>
           <DialogDescription className="sr-only">{t("agent:provider_subtitle")}</DialogDescription>
         </DialogHeader>
 
