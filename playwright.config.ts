@@ -9,17 +9,19 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  workers: process.env.CI ? 2 : 4,
   reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
   outputDir: "test-results",
   use: {
     actionTimeout: 10_000,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    // Video encoding runs a background codec thread for every test even when not retained.
+    // Disable locally; keep for CI where artifact retention matters.
+    video: process.env.CI ? "retain-on-failure" : "off",
     permissions: ["clipboard-read", "clipboard-write"],
   },
 });

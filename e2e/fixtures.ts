@@ -15,7 +15,24 @@ function getProxyOptions() {
   return proxy ? { proxy: { server: proxy } } : {};
 }
 
-const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
+const chromeBaseArgs = [
+  // Avoid /dev/shm exhaustion when multiple Chrome instances run in parallel.
+  "--disable-dev-shm-usage",
+  // Skip first-run wizard and default-app prompts that add startup latency.
+  "--no-first-run",
+  "--disable-default-apps",
+  "--no-default-browser-check",
+  // Reduce background noise that isn't needed for extension testing.
+  "--disable-background-networking",
+  "--disable-sync",
+  "--metrics-recording-only",
+];
+
+const chromeArgs = [
+  `--disable-extensions-except=${pathToExtension}`,
+  `--load-extension=${pathToExtension}`,
+  ...chromeBaseArgs,
+];
 
 /**
  * 简单启动 fixture — 不需要 userScripts 的测试使用

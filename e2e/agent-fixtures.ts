@@ -5,7 +5,20 @@ import { test as base, expect, chromium, type BrowserContext, type Route } from 
 export { expect };
 
 const pathToExtension = path.resolve(__dirname, "../dist/ext");
-const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
+const chromeBaseArgs = [
+  "--disable-dev-shm-usage",
+  "--no-first-run",
+  "--disable-default-apps",
+  "--no-default-browser-check",
+  "--disable-background-networking",
+  "--disable-sync",
+  "--metrics-recording-only",
+];
+const chromeArgs = [
+  `--disable-extensions-except=${pathToExtension}`,
+  `--load-extension=${pathToExtension}`,
+  ...chromeBaseArgs,
+];
 
 function getProxyOptions() {
   const proxy =
@@ -95,62 +108,73 @@ export type AgentFixtures = {
  * 如果在 Phase 2 SW 启动后才通过 evaluate 写入 storage，
  * 内存缓存不会更新，导致 "No model configured" 错误。
  */
-export const test = base.extend<AgentFixtures>({
-  // eslint-disable-next-line no-empty-pattern
-  context: async ({}, use) => {
-    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-ext-"));
+export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
+  // Worker 级 fixture：每个 worker 只执行一次权限和模型配置。
+  agentProfileDir: [
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-ext-"));
 
-    // Phase 1: 启用 userScripts + 写入 mock model 配置
-    const ctx1 = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
-      args: ["--headless=new", ...chromeArgs],
-    });
-    let [bg] = ctx1.serviceWorkers();
-    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
-    const extensionId = bg.url().split("/")[2];
-
-    // 启用 userScripts 权限
-    const extPage = await ctx1.newPage();
-    await extPage.goto("chrome://extensions/");
-    await extPage.waitForLoadState("domcontentloaded");
-    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 10_000 });
-    await extPage.evaluate(async (id) => {
-      await (chrome as any).developerPrivate.updateExtensionConfiguration({
-        extensionId: id,
-        userScriptsAccess: true,
+      // Phase 1: 启用 userScripts + 写入 mock model 配置
+      const ctx1 = await chromium.launchPersistentContext(userDataDir, {
+        headless: false,
+        args: ["--headless=new", ...chromeArgs],
       });
-    }, extensionId);
-    await extPage.close();
+      let [bg] = ctx1.serviceWorkers();
+      if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
+      const extensionId = bg.url().split("/")[2];
 
-    // 写入 mock model 配置到 storage（Phase 1 写入，Phase 2 SW 启动时会加载到缓存）
-    // userScripts 启用后 SW 可能重启，重新获取
-    let currentBg = ctx1.serviceWorkers().find((w) => w.url().includes(extensionId));
-    if (!currentBg) {
-      currentBg = await ctx1.waitForEvent("serviceworker", { timeout: 15_000 });
-    }
-    await currentBg.evaluate(() => {
-      const modelConfig = {
-        id: "mock-model",
-        name: "Mock LLM",
-        provider: "openai",
-        apiBaseUrl: "https://mock-llm.test/v1",
-        apiKey: "test-key",
-        model: "mock-gpt",
-      };
-      return new Promise<void>((resolve) => {
-        chrome.storage.local.set(
-          {
-            "agent_model:mock-model": modelConfig,
-            "agent_model:__default__": "mock-model",
-          },
-          () => resolve()
-        );
+      // 启用 userScripts 权限
+      const extPage = await ctx1.newPage();
+      await extPage.goto("chrome://extensions/");
+      await extPage.waitForLoadState("domcontentloaded");
+      await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 10_000 });
+      await extPage.evaluate(async (id) => {
+        await (chrome as any).developerPrivate.updateExtensionConfiguration({
+          extensionId: id,
+          userScriptsAccess: true,
+        });
+      }, extensionId);
+      await extPage.close();
+
+      // 写入 mock model 配置到 storage（Phase 1 写入，Phase 2 SW 启动时会加载到缓存）
+      // userScripts 启用后 SW 可能重启，重新获取
+      let currentBg = ctx1.serviceWorkers().find((w) => w.url().includes(extensionId));
+      if (!currentBg) {
+        currentBg = await ctx1.waitForEvent("serviceworker", { timeout: 15_000 });
+      }
+      await currentBg.evaluate(() => {
+        const modelConfig = {
+          id: "mock-model",
+          name: "Mock LLM",
+          provider: "openai",
+          apiBaseUrl: "https://mock-llm.test/v1",
+          apiKey: "test-key",
+          model: "mock-gpt",
+        };
+        return new Promise<void>((resolve) => {
+          chrome.storage.local.set(
+            {
+              "agent_model:mock-model": modelConfig,
+              "agent_model:__default__": "mock-model",
+            },
+            () => resolve()
+          );
+        });
       });
-    });
 
-    await ctx1.close();
+      await ctx1.close();
+      await use(userDataDir);
+      fs.rmSync(userDataDir, { recursive: true, force: true });
+    },
+    { scope: "worker" },
+  ],
 
-    // Phase 2: 重启，userScripts 权限和 model 配置已持久化
+  context: async ({ agentProfileDir }, use) => {
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-ext-test-"));
+    fs.cpSync(agentProfileDir, userDataDir, { recursive: true });
+
+    // 每个测试使用独立的 profile，避免脚本和路由泄漏到后续测试。
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args: ["--headless=new", ...chromeArgs],
@@ -158,6 +182,7 @@ export const test = base.extend<AgentFixtures>({
     });
     const [sw] = context.serviceWorkers();
     if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
+
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
