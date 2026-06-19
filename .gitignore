@@ -26,6 +26,8 @@ dist-ssr
 coverage
 CHANGELOG.md
 
+.eslintcache
+
 tailwind.config.js
 
 .env

@@ -1,7 +1,6 @@
 import { fixupConfigRules } from "@eslint/compat";
 import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
-import prettierPlugin from "eslint-plugin-prettier";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactJsx from "eslint-plugin-react/configs/jsx-runtime.js";
 import react from "eslint-plugin-react/configs/recommended.js";
@@ -34,7 +33,6 @@ export default [
   {
     plugins: {
       "react-hooks": reactHooks,
-      prettier: prettierPlugin,
       "chrome-error": {
         rules: {
           "require-last-error-check": requireLastErrorCheck,
@@ -56,7 +54,6 @@ export default [
       ],
       ...reactHooks.configs.recommended.rules,
       "react-hooks/exhaustive-deps": "warn",
-      "prettier/prettier": "error",
       "react/prop-types": "off",
       "chrome-error/require-last-error-check": "error",
       "react/jsx-no-literals": "warn",
@@ -69,5 +66,5 @@ export default [
       "react-hooks/rules-of-hooks": "off",
     },
   },
-  { ignores: ["dist/", "example/", ".claude/", "playwright-report/", "test-results/"] },
+  { ignores: ["dist/", "example/", ".claude/", "playwright-report/", "test-results/", "coverage/"] },
 ];
