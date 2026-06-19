@@ -220,6 +220,7 @@ export default function ScriptEditor() {
         });
         invalidateResourcePane(res.script.uuid);
         invalidateSettingsPane(res.script.uuid);
+        invalidateStoragePane(res.script.uuid);
         dispatch({ type: "commitSaved", uuid: res.script.uuid, code, script: res.script });
         setScriptList((prev) => {
           if (prev.some((s) => s.uuid === res.script.uuid)) {
