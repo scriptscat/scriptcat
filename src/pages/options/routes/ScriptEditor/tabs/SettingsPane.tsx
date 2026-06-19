@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@App/pages/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
+import { createPreloadableQuery } from "@App/pages/preloadable-query";
 
 const RUN_IN_OPTIONS = ["default", "all", "normal-tabs", "incognito-tabs"];
 const RUN_AT_OPTIONS = ["default", "document-start", "document-body", "document-end", "document-idle", "early-start"];
@@ -42,6 +43,39 @@ const pillColor: Record<string, string> = {
   script: "bg-muted text-muted-foreground",
 };
 const iconBtn = "rounded p-1 text-muted-foreground hover:bg-accent transition-colors";
+
+type SettingsPaneData = {
+  script: Script;
+  permissions: Permission[];
+};
+
+const settingsPaneQuery = createPreloadableQuery<string, SettingsPaneData | null>({
+  key: (uuid) => uuid,
+  load: async (uuid, signal) => {
+    const [script, permissions] = await Promise.all([fetchScript(uuid), permissionClient.getScriptPermissions(uuid)]);
+    if (signal.aborted) throw new DOMException("SettingsPane preload aborted", "AbortError");
+    return script ? { script, permissions } : null;
+  },
+});
+
+export function preloadSettingsPane(uuid: string): Promise<SettingsPaneData | null> {
+  return settingsPaneQuery.preload(uuid);
+}
+
+export function invalidateSettingsPane(uuid?: string) {
+  settingsPaneQuery.invalidate(uuid);
+}
+
+export function usePreloadSettingsPane(uuid?: string) {
+  useEffect(() => {
+    if (!uuid) return;
+    void preloadSettingsPane(uuid).catch((error) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    return () => invalidateSettingsPane(uuid);
+  }, [uuid]);
+}
 
 // 区块标题（卡片外）
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -68,13 +102,34 @@ export interface SettingsPaneProps {
 }
 
 export default function SettingsPane({ uuid }: SettingsPaneProps) {
-  const [script, setScript] = useState<Script | undefined>();
-  const [tags, setTags] = useState<string[]>([]);
+  const settings = settingsPaneQuery.useQuery(uuid);
+
+  useEffect(() => () => invalidateSettingsPane(uuid), [uuid]);
+
+  if (!settings.data) return null;
+  return <SettingsPaneContent key={uuid} uuid={uuid} data={settings.data} />;
+}
+
+function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: SettingsPaneData }) {
+  const [script, setScript] = useState<Script>(data.script);
+  const [tags, setTags] = useState<string[]>(() => {
+    const meta = data.script.metadata || {};
+    const self = data.script.selfMetadata || {};
+    return parseTags({ tag: self.tag ?? meta.tag });
+  });
   const [tagInput, setTagInput] = useState("");
-  const [updateUrl, setUpdateUrl] = useState("");
-  const [matches, setMatches] = useState<string[]>([]);
-  const [excludes, setExcludes] = useState<string[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [updateUrl, setUpdateUrl] = useState(data.script.checkUpdateUrl ?? data.script.downloadUrl ?? "");
+  const [matches, setMatches] = useState<string[]>(() => {
+    const meta = data.script.metadata || {};
+    const self = data.script.selfMetadata || {};
+    return self.match ?? meta.match ?? [];
+  });
+  const [excludes, setExcludes] = useState<string[]>(() => {
+    const meta = data.script.metadata || {};
+    const self = data.script.selfMetadata || {};
+    return self.exclude ?? meta.exclude ?? [];
+  });
+  const [permissions, setPermissions] = useState<Permission[]>(data.permissions);
   const [addMatchKind, setAddMatchKind] = useState<"match" | "exclude" | null>(null);
   const [addMatchValue, setAddMatchValue] = useState("");
   const [permOpen, setPermOpen] = useState(false);
@@ -83,28 +138,6 @@ export default function SettingsPane({ uuid }: SettingsPaneProps) {
     permissionValue: "",
     allow: true,
   });
-
-  useEffect(() => {
-    let mounted = true;
-    fetchScript(uuid).then((s) => {
-      if (!mounted || !s) return;
-      setScript(s);
-      const meta = s.metadata || {};
-      const self = s.selfMetadata || {};
-      setTags(parseTags({ tag: self.tag ?? meta.tag }));
-      setUpdateUrl(s.checkUpdateUrl ?? s.downloadUrl ?? "");
-      setMatches(self.match ?? meta.match ?? []);
-      setExcludes(self.exclude ?? meta.exclude ?? []);
-    });
-    permissionClient.getScriptPermissions(uuid).then((list) => {
-      if (mounted) setPermissions(list);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [uuid]);
-
-  if (!script) return null;
 
   const meta = script.metadata || {};
   const self = script.selfMetadata || {};

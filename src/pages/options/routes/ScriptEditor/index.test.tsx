@@ -4,8 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 
-const { invalidateResourcePane, saveScript } = vi.hoisted(() => ({
+const {
+  invalidateResourcePane,
+  invalidateSettingsPane,
+  preloadSettingsPane,
+  preloadStoragePane,
+  usePreloadSettingsPane,
+  saveScript,
+} = vi.hoisted(() => ({
   invalidateResourcePane: vi.fn(),
+  invalidateSettingsPane: vi.fn(),
+  preloadSettingsPane: vi.fn(() => Promise.resolve()),
+  preloadStoragePane: vi.fn(() => Promise.resolve()),
+  usePreloadSettingsPane: vi.fn(),
   saveScript: vi.fn(),
 }));
 
@@ -60,11 +71,24 @@ vi.mock("./tabs/CodePane", () => ({
 }));
 vi.mock("./ScriptListPanel", () => ({ default: () => null }));
 vi.mock("./EditorTabs", () => ({ default: () => null }));
-vi.mock("./EditorToolbar", () => ({ default: () => null }));
+vi.mock("./EditorToolbar", () => ({
+  default: ({ onPreloadSubView }: { onPreloadSubView: (view: "storage") => void }) => (
+    <button data-testid="preload-storage" onPointerEnter={() => onPreloadSubView("storage")} />
+  ),
+}));
 vi.mock("./EditorStatusBar", () => ({ default: () => null }));
 vi.mock("./MobileEditor", () => ({ default: () => null }));
-vi.mock("./tabs/SettingsPane", () => ({ default: () => null }));
-vi.mock("./tabs/StoragePane", () => ({ default: () => null }));
+vi.mock("./tabs/SettingsPane", () => ({
+  default: () => null,
+  invalidateSettingsPane,
+  preloadSettingsPane,
+  usePreloadSettingsPane,
+}));
+vi.mock("./tabs/StoragePane", () => ({
+  default: () => null,
+  invalidateStoragePane: vi.fn(),
+  preloadStoragePane,
+}));
 vi.mock("@App/pages/components/ui/alert-dialog", () => ({
   AlertDialog: ({ children }: { children: React.ReactNode }) => children,
   AlertDialogAction: ({ children }: { children: React.ReactNode }) => children,
@@ -87,12 +111,13 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("ScriptEditor 保存资源缓存", () => {
-  it("保存成功后应使当前脚本的资源缓存失效", async () => {
+describe("ScriptEditor 延迟面板缓存", () => {
+  it("保存成功后应使当前脚本的资源与设置缓存失效", async () => {
     render(<ScriptEditor />);
     fireEvent.click(await screen.findByTestId("save"));
 
     await waitFor(() => expect(invalidateResourcePane).toHaveBeenCalledWith("u1"));
+    expect(invalidateSettingsPane).toHaveBeenCalledWith("u1");
   });
 
   it("保存失败时不应使资源缓存失效", async () => {
@@ -102,5 +127,14 @@ describe("ScriptEditor 保存资源缓存", () => {
 
     await waitFor(() => expect(saveScript).toHaveBeenCalledOnce());
     expect(invalidateResourcePane).not.toHaveBeenCalled();
+    expect(invalidateSettingsPane).not.toHaveBeenCalled();
+  });
+
+  it("悬浮储存标签时应以当前脚本 UUID 启动预加载", async () => {
+    render(<ScriptEditor />);
+
+    fireEvent.pointerEnter(await screen.findByTestId("preload-storage"));
+
+    expect(preloadStoragePane).toHaveBeenCalledWith("u1");
   });
 });

@@ -15,7 +15,7 @@ vi.mock("@App/pages/store/features/script", () => ({
   valueClient: { getScriptValue, setScriptValue, setScriptValues },
 }));
 
-import StoragePane from "./StoragePane";
+import StoragePane, { invalidateStoragePane, preloadStoragePane } from "./StoragePane";
 
 const sampleValues = () => ({ token: "abc", count: 42, enabled: true, config: { a: 1 } });
 
@@ -27,9 +27,33 @@ beforeEach(() => {
   setScriptValue.mockResolvedValue(undefined);
   setScriptValues.mockResolvedValue(undefined);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  invalidateStoragePane();
+});
 
 describe("StoragePane 储存面板", () => {
+  it("预加载后挂载应复用同一份储存数据", async () => {
+    await preloadStoragePane("u1");
+    render(<StoragePane uuid="u1" />);
+
+    expect(screen.getByText("token")).toBeInTheDocument();
+    expect(fetchScript).toHaveBeenCalledOnce();
+    expect(getScriptValue).toHaveBeenCalledOnce();
+  });
+
+  it("卸载后应清除缓存以避免复用外部脚本修改前的数据", async () => {
+    const first = render(<StoragePane uuid="u1" />);
+    await screen.findByText("token");
+    first.unmount();
+    getScriptValue.mockResolvedValue({});
+
+    render(<StoragePane uuid="u1" />);
+
+    expect(await screen.findByText(t("no_data"))).toBeInTheDocument();
+    expect(getScriptValue).toHaveBeenCalledTimes(2);
+  });
+
   it("应加载并展示 key / value / 类型", async () => {
     render(<StoragePane uuid="u1" />);
     expect(await screen.findByText("token")).toBeInTheDocument();

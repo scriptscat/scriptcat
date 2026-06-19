@@ -30,8 +30,8 @@ import EditorToolbar, { type EditorCommand, type SubView } from "./EditorToolbar
 import EditorStatusBar from "./EditorStatusBar";
 import MobileEditor from "./MobileEditor";
 import { CodePane, type EditorStatus } from "./tabs/CodePane";
-import SettingsPane from "./tabs/SettingsPane";
-import StoragePane from "./tabs/StoragePane";
+import SettingsPane, { invalidateSettingsPane, preloadSettingsPane, usePreloadSettingsPane } from "./tabs/SettingsPane";
+import StoragePane, { invalidateStoragePane, preloadStoragePane } from "./tabs/StoragePane";
 import ResourcePane, { invalidateResourcePane, usePreloadResourcePane } from "./tabs/ResourcePane";
 
 interface ConfirmState {
@@ -163,6 +163,32 @@ export default function ScriptEditor() {
 
   const activeTab = state.tabs.find((x) => x.uuid === state.activeUuid);
   usePreloadResourcePane(activeTab?.uuid);
+  usePreloadSettingsPane(activeTab?.uuid);
+
+  useEffect(() => {
+    const uuid = activeTab?.uuid;
+    if (!uuid) return;
+    return () => invalidateStoragePane(uuid);
+  }, [activeTab?.uuid]);
+
+  const preloadSubView = useCallback((view: SubView) => {
+    const uuid = stateRef.current.activeUuid;
+    if (!uuid) return;
+    const request =
+      view === "storage" ? preloadStoragePane(uuid) : view === "setting" ? preloadSettingsPane(uuid) : null;
+    void request?.catch((error) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+    });
+  }, []);
+
+  const selectSubView = useCallback(
+    (view: SubView) => {
+      preloadSubView(view);
+      setSubView(view);
+    },
+    [preloadSubView]
+  );
 
   // ---- 标签操作 ----
   const closeTab = useCallback(
@@ -192,6 +218,7 @@ export default function ScriptEditor() {
           confirm: askConfirm,
         });
         invalidateResourcePane(res.script.uuid);
+        invalidateSettingsPane(res.script.uuid);
         dispatch({ type: "commitSaved", uuid: res.script.uuid, code, script: res.script });
         setScriptList((prev) => {
           if (prev.some((s) => s.uuid === res.script.uuid)) {
@@ -371,7 +398,8 @@ export default function ScriptEditor() {
         <MobileEditor
           title={activeTab ? i18nName(activeTab.script) : t("editor:script_list")}
           subView={subView}
-          onSubView={setSubView}
+          onSubView={selectSubView}
+          onPreloadSubView={preloadSubView}
           hasActive={!!activeTab}
           onBack={() => navigate("/")}
           onSave={handleSaveActive}
@@ -407,7 +435,8 @@ export default function ScriptEditor() {
 
             <EditorToolbar
               subView={subView}
-              onSubView={setSubView}
+              onSubView={selectSubView}
+              onPreloadSubView={preloadSubView}
               hasActive={!!activeTab}
               scriptListCollapsed={scriptListCollapsed}
               onSave={handleSaveActive}

@@ -26,16 +26,31 @@ export interface MobileEditorProps {
   onSaveAs: () => void;
   onRun: () => void;
   onCommand: (cmd: EditorCommand) => void;
+  onPreloadSubView?: (v: SubView) => void;
   children: React.ReactNode;
 }
 
 export default function MobileEditor(props: MobileEditorProps) {
-  const { title, subView, onSubView, hasActive, onBack, onSave, onSaveAs, onRun, onCommand, children } = props;
+  const {
+    title,
+    subView,
+    onSubView,
+    hasActive,
+    onBack,
+    onSave,
+    onSaveAs,
+    onRun,
+    onCommand,
+    onPreloadSubView,
+    children,
+  } = props;
 
   const subTab = (v: SubView, label: string, Icon: typeof Code) => (
     <button
       type="button"
       onClick={() => onSubView(v)}
+      onPointerEnter={() => onPreloadSubView?.(v)}
+      onFocus={() => onPreloadSubView?.(v)}
       className={cn(
         "flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm",
         subView === v ? "border-primary font-medium text-primary" : "border-transparent text-muted-foreground"

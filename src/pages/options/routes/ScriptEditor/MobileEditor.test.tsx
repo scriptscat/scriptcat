@@ -30,6 +30,7 @@ const baseProps = () => ({
   onSaveAs: vi.fn(),
   onRun: vi.fn(),
   onCommand: vi.fn(),
+  onPreloadSubView: vi.fn(),
 });
 
 describe("MobileEditor 移动端编辑器外壳", () => {
@@ -84,6 +85,19 @@ describe("MobileEditor 移动端编辑器外壳", () => {
     );
     fireEvent.click(getByText("脚本设置"));
     expect(props.onSubView).toHaveBeenCalledWith("setting");
+  });
+
+  it("触摸前聚焦延迟子视图时应提前请求预加载", () => {
+    const props = baseProps();
+    const { getByText } = render(
+      <MobileEditor {...props}>
+        <div />
+      </MobileEditor>
+    );
+
+    fireEvent.focus(getByText("储存"));
+
+    expect(props.onPreloadSubView).toHaveBeenCalledWith("storage");
   });
 
   it("点击撤销应回调 onCommand('undo')", () => {

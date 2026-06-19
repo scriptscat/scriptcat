@@ -19,6 +19,7 @@ const baseProps = () => ({
   onSaveAs: vi.fn(),
   onRun: vi.fn(),
   onCommand: vi.fn(),
+  onPreloadSubView: vi.fn(),
   scriptListCollapsed: false,
   onToggleScriptList: vi.fn(),
 });
@@ -157,6 +158,17 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
     const { getByText } = render(<EditorToolbar {...props} />);
     fireEvent.click(getByText("储存"));
     expect(props.onSubView).toHaveBeenCalledWith("storage");
+  });
+
+  it("悬浮或聚焦延迟子视图时应提前请求预加载", () => {
+    const props = baseProps();
+    const { getByText } = render(<EditorToolbar {...props} />);
+
+    fireEvent.pointerEnter(getByText("储存"));
+    fireEvent.focus(getByText("脚本设置"));
+
+    expect(props.onPreloadSubView).toHaveBeenCalledWith("storage");
+    expect(props.onPreloadSubView).toHaveBeenCalledWith("setting");
   });
 
   it("点击 资源 标签应回调 onSubView('resource')", () => {

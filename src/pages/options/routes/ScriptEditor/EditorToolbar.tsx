@@ -21,18 +21,31 @@ export interface EditorToolbarProps {
   onSaveAs: () => void;
   onRun: () => void;
   onCommand: (cmd: EditorCommand) => void;
+  onPreloadSubView?: (v: SubView) => void;
   scriptListCollapsed: boolean;
   onToggleScriptList: () => void;
 }
 
 export default function EditorToolbar(props: EditorToolbarProps) {
-  const { subView, onSubView, hasActive, onSave, onSaveAs, onRun, onCommand, scriptListCollapsed, onToggleScriptList } =
-    props;
+  const {
+    subView,
+    onSubView,
+    hasActive,
+    onSave,
+    onSaveAs,
+    onRun,
+    onCommand,
+    onPreloadSubView,
+    scriptListCollapsed,
+    onToggleScriptList,
+  } = props;
 
   const tabBtn = (v: SubView, label: string, Icon: typeof Code) => (
     <button
       type="button"
       onClick={() => onSubView(v)}
+      onPointerEnter={() => onPreloadSubView?.(v)}
+      onFocus={() => onPreloadSubView?.(v)}
       className={cn(
         "flex items-center gap-1.5 border-b-2 px-2.5 text-xs",
         subView === v

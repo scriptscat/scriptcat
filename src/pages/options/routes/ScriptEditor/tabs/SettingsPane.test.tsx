@@ -24,7 +24,7 @@ vi.mock("@App/pages/store/features/script", () => ({
   permissionClient: { getScriptPermissions, addPermission, updatePermission, deletePermission, resetPermission },
 }));
 
-import SettingsPane from "./SettingsPane";
+import SettingsPane, { invalidateSettingsPane, preloadSettingsPane } from "./SettingsPane";
 
 const sampleScript = () => ({
   uuid: "u1",
@@ -59,9 +59,34 @@ beforeEach(() => {
   deletePermission.mockResolvedValue(undefined);
   resetPermission.mockResolvedValue(undefined);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  invalidateSettingsPane();
+});
 
 describe("SettingsPane 基本信息", () => {
+  it("预加载后挂载应复用脚本与授权数据", async () => {
+    await preloadSettingsPane("u1");
+    render(<SettingsPane uuid="u1" />);
+
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(fetchScript).toHaveBeenCalledOnce();
+    expect(getScriptPermissions).toHaveBeenCalledOnce();
+  });
+
+  it("卸载后应清除缓存并在重挂载时刷新授权", async () => {
+    const first = render(<SettingsPane uuid="u1" />);
+    await screen.findByText("a.com");
+    first.unmount();
+    getScriptPermissions.mockResolvedValue([]);
+
+    render(<SettingsPane uuid="u1" />);
+
+    await screen.findByText("alpha");
+    expect(screen.queryByText("a.com")).toBeNull();
+    expect(getScriptPermissions).toHaveBeenCalledTimes(2);
+  });
+
   it("应以彩色标签展示已有标签", async () => {
     render(<SettingsPane uuid="u1" />);
     expect(await screen.findByText("alpha")).toBeInTheDocument();

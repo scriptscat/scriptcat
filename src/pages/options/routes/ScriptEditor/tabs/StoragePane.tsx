@@ -12,10 +12,33 @@ import { Textarea } from "@App/pages/components/ui/textarea";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@App/pages/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
+import { createPreloadableQuery } from "@App/pages/preloadable-query";
 
 type Row = { key: string; value: unknown };
 type ValType = "string" | "number" | "boolean" | "object";
 const TYPES: ValType[] = ["string", "number", "boolean", "object"];
+const EMPTY_ROWS: Row[] = [];
+
+const storagePaneQuery = createPreloadableQuery<string, Row[]>({
+  key: (uuid) => uuid,
+  load: async (uuid, signal) => {
+    const script = await fetchScript(uuid);
+    if (signal.aborted || !script) return [];
+
+    const record = await valueClient.getScriptValue(script);
+    if (signal.aborted) throw new DOMException("StoragePane preload aborted", "AbortError");
+
+    return Object.keys(record).map((key) => ({ key, value: record[key] }));
+  },
+});
+
+export function preloadStoragePane(uuid: string): Promise<Row[]> {
+  return storagePaneQuery.preload(uuid);
+}
+
+export function invalidateStoragePane(uuid?: string) {
+  storagePaneQuery.invalidate(uuid);
+}
 
 function displayValue(v: unknown): string {
   return typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
@@ -55,24 +78,15 @@ export interface StoragePaneProps {
 }
 
 export default function StoragePane({ uuid }: StoragePaneProps) {
-  const [data, setData] = useState<Row[]>([]);
+  const storage = storagePaneQuery.useQuery(uuid);
+  const data = storage.data ?? EMPTY_ROWS;
   const [keyword, setKeyword] = useState("");
   const [batch, setBatch] = useState(false);
   const [batchText, setBatchText] = useState("");
   const [dialog, setDialog] = useState<DialogState | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    fetchScript(uuid).then((script) => {
-      if (!mounted || !script) return;
-      valueClient.getScriptValue(script).then((rec) => {
-        if (!mounted) return;
-        setData(Object.keys(rec).map((k) => ({ key: k, value: rec[k] })));
-      });
-    });
-    return () => {
-      mounted = false;
-    };
+    return () => invalidateStoragePane(uuid);
   }, [uuid]);
 
   const filtered = useMemo(() => {
@@ -109,14 +123,15 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
       return;
     }
     valueClient.setScriptValue({ uuid, key: dialog.key, value, ts: Date.now() });
-    setData((prev) => {
-      const idx = prev.findIndex((r) => r.key === dialog.key);
+    storage.setData((prev) => {
+      const rows = prev ?? EMPTY_ROWS;
+      const idx = rows.findIndex((r) => r.key === dialog.key);
       if (idx >= 0) {
-        const next = prev.slice();
+        const next = rows.slice();
         next[idx] = { key: dialog.key, value };
         return next;
       }
-      return [...prev, { key: dialog.key, value }];
+      return [...rows, { key: dialog.key, value }];
     });
     toast.success(dialog.isNew ? t("add_success") : t("update_success"));
     setDialog(null);
@@ -125,17 +140,17 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
   const onDelete = useCallback(
     (key: string) => {
       valueClient.setScriptValue({ uuid, key, value: undefined, ts: Date.now() });
-      setData((prev) => prev.filter((r) => r.key !== key));
+      storage.setData((prev) => (prev ?? EMPTY_ROWS).filter((r) => r.key !== key));
       toast.success(t("delete_success"));
     },
-    [uuid]
+    [uuid, storage]
   );
 
   const onClear = useCallback(() => {
     valueClient.setScriptValues({ uuid, keyValuePairs: [], isReplace: true, ts: Date.now() });
-    setData([]);
+    storage.setData([]);
     toast.success(t("editor:clear_success"));
-  }, [uuid]);
+  }, [uuid, storage]);
 
   const enterBatch = () => {
     const rec: { [k: string]: unknown } = {};
@@ -154,7 +169,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
     }
     const keyValuePairs = Object.keys(rec).map((k) => [k, encodeRValue(rec[k])]) as TKeyValuePair[];
     valueClient.setScriptValues({ uuid, keyValuePairs, isReplace: true, ts: Date.now() });
-    setData(Object.keys(rec).map((k) => ({ key: k, value: rec[k] })));
+    storage.setData(Object.keys(rec).map((k) => ({ key: k, value: rec[k] })));
     setBatch(false);
     toast.success(t("save_success"));
   };
