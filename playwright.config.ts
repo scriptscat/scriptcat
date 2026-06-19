@@ -19,9 +19,8 @@ export default defineConfig({
     actionTimeout: 10_000,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    // Video encoding runs a background codec thread for every test even when not retained.
-    // Disable locally; keep for CI where artifact retention matters.
-    video: process.env.CI ? "retain-on-failure" : "off",
+    // Record only retried failures in CI to avoid encoding video for every passing test.
+    video: process.env.CI ? "on-first-retry" : "off",
     permissions: ["clipboard-read", "clipboard-write"],
   },
 });

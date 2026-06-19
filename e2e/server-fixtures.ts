@@ -31,21 +31,10 @@ export const TEST_HOSTS = [
 
 const hostResolverRule = `--host-resolver-rules=MAP ${TEST_HOSTS.join(" 127.0.0.1,MAP ")} 127.0.0.1,EXCLUDE localhost`;
 
-const chromeBaseArgs = [
-  "--disable-dev-shm-usage",
-  "--no-first-run",
-  "--disable-default-apps",
-  "--no-default-browser-check",
-  "--disable-background-networking",
-  "--disable-sync",
-  "--metrics-recording-only",
-];
-
 const chromeArgs = [
   `--disable-extensions-except=${pathToExtension}`,
   `--load-extension=${pathToExtension}`,
   hostResolverRule,
-  ...chromeBaseArgs,
 ];
 
 export const test = base.extend<{

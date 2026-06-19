@@ -5,20 +5,7 @@ import { test as base, expect, chromium, type BrowserContext, type Route } from 
 export { expect };
 
 const pathToExtension = path.resolve(__dirname, "../dist/ext");
-const chromeBaseArgs = [
-  "--disable-dev-shm-usage",
-  "--no-first-run",
-  "--disable-default-apps",
-  "--no-default-browser-check",
-  "--disable-background-networking",
-  "--disable-sync",
-  "--metrics-recording-only",
-];
-const chromeArgs = [
-  `--disable-extensions-except=${pathToExtension}`,
-  `--load-extension=${pathToExtension}`,
-  ...chromeBaseArgs,
-];
+const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
 
 function getProxyOptions() {
   const proxy =
