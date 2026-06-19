@@ -103,7 +103,7 @@ export function useScriptDataManagement() {
         });
       },
       async installScript(msg: TInstallScript) {
-        const installedScript = await fetchScript(msg.script.uuid);
+        const installedScript = await fetchScript(msg.script.uuid).catch(() => null);
         if (!installedScript) return;
         setScriptList((list) => {
           const idx = list.findIndex((s) => s.uuid === installedScript.uuid);
