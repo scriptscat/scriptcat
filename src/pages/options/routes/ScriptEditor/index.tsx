@@ -32,7 +32,7 @@ import MobileEditor from "./MobileEditor";
 import { CodePane, type EditorStatus } from "./tabs/CodePane";
 import SettingsPane from "./tabs/SettingsPane";
 import StoragePane from "./tabs/StoragePane";
-import ResourcePane, { preloadResourcePane } from "./tabs/ResourcePane";
+import ResourcePane, { invalidateResourcePane, usePreloadResourcePane } from "./tabs/ResourcePane";
 
 interface ConfirmState {
   title: string;
@@ -162,6 +162,7 @@ export default function ScriptEditor() {
   }, [anyChanged]);
 
   const activeTab = state.tabs.find((x) => x.uuid === state.activeUuid);
+  usePreloadResourcePane(activeTab?.uuid);
 
   // ---- 标签操作 ----
   const closeTab = useCallback(
@@ -190,6 +191,7 @@ export default function ScriptEditor() {
           install: (p) => scriptClient.install(p),
           confirm: askConfirm,
         });
+        invalidateResourcePane(res.script.uuid);
         dispatch({ type: "commitSaved", uuid: res.script.uuid, code, script: res.script });
         setScriptList((prev) => {
           if (prev.some((s) => s.uuid === res.script.uuid)) {
@@ -323,8 +325,6 @@ export default function ScriptEditor() {
     const e = getActiveEditor();
     if (e && activeTab) doRun(activeTab.script, e);
   };
-
-  activeTab && preloadResourcePane(activeTab.uuid);
 
   // 编辑区：所有标签常驻挂载，非激活隐藏以保留 Monaco 状态（桌面/移动共用）
   const editorArea = (

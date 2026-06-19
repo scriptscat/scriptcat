@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Resource } from "@App/app/repo/resource";
@@ -39,8 +39,23 @@ const resourcePaneQuery = createPreloadableQuery<string, ResItem[]>({
   },
 });
 
-export function preloadResourcePane(uuid: string): Promise<ResItem[]> {
+function preloadResourcePane(uuid: string): Promise<ResItem[]> {
   return resourcePaneQuery.preload(uuid);
+}
+
+export function invalidateResourcePane(uuid?: string) {
+  resourcePaneQuery.invalidate(uuid);
+}
+
+export function usePreloadResourcePane(uuid?: string) {
+  useEffect(() => {
+    if (!uuid) return;
+    void preloadResourcePane(uuid).catch((e) => {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      toast.error(`${t("script:operation_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+    });
+    return () => invalidateResourcePane(uuid);
+  }, [uuid]);
 }
 
 // 估算资源字节大小：优先用文本内容，其次用 base64 解码后的长度
