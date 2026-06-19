@@ -12,10 +12,10 @@ const alias = {
 const tplPlugin = {
   name: "handle-tpl-files",
   load(id: string) {
-    if (id.endsWith(".tpl")) {
-      const content = fs.readFileSync(id, "utf-8");
-      return `export default ${JSON.stringify(content)};`;
-    }
+    if (!id.endsWith(".tpl")) return;
+
+    const content = fs.readFileSync(id, "utf-8");
+    return `export default ${JSON.stringify(content)};`;
   },
 };
 
@@ -51,20 +51,13 @@ const sharedTest = {
 export default defineConfig({
   resolve: { alias },
   plugins: [tplPlugin],
+
   test: {
+    experimental: {
+      fsModuleCache: true,
+    },
+
     projects: [
-      {
-        resolve: { alias },
-        plugins: [tplPlugin],
-        test: {
-          name: "isolated",
-          include: ISOLATED,
-          exclude: BASE_EXCLUDE,
-          ...sharedTest,
-          pool: "forks",
-          isolate: true,
-        },
-      },
       {
         resolve: { alias },
         plugins: [tplPlugin],
@@ -74,6 +67,26 @@ export default defineConfig({
           ...sharedTest,
           pool: "vmThreads",
           isolate: false,
+          maxWorkers: "75%",
+          sequence: {
+            groupOrder: 0,
+          },
+        },
+      },
+      {
+        resolve: { alias },
+        plugins: [tplPlugin],
+        test: {
+          name: "isolated",
+          include: ISOLATED,
+          exclude: BASE_EXCLUDE,
+          ...sharedTest,
+          pool: "threads",
+          isolate: true,
+          maxWorkers: "50%",
+          sequence: {
+            groupOrder: 1,
+          },
         },
       },
     ],
