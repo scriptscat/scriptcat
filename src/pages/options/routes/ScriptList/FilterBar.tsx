@@ -97,7 +97,7 @@ function FilterChip({
   const isActive = activeItem !== null && activeItem !== undefined;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"

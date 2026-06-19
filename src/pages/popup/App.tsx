@@ -286,7 +286,7 @@ function MoreMenu({
   onGetMoreScript: (provider?: ScriptProvider) => void;
 }) {
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
