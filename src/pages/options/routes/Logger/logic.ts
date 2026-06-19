@@ -1,4 +1,3 @@
-import dayjs from "dayjs";
 import type { Logger } from "@App/app/repo/logger";
 import type { LogLabel, LogLevel } from "@App/app/logger/core";
 
@@ -141,16 +140,21 @@ export interface CalendarCell {
 
 /** 生成某年某月（month 为 0-11）的月历网格，以周日为每行首列，整周补齐相邻月日期 */
 export function buildMonthGrid(year: number, month: number): CalendarCell[][] {
-  const first = dayjs(new Date(year, month, 1));
+  const first = new Date(year, month, 1);
   // 回退到包含当月 1 号那一周的周日
-  let cursor = first.subtract(first.day(), "day");
-  const monthEnd = first.endOf("month");
+  const cursor = new Date(year, month, 1 - first.getDay());
+  const monthEnd = new Date(year, month + 1, 0);
   const weeks: CalendarCell[][] = [];
-  while (cursor.isBefore(monthEnd)) {
+
+  while (cursor <= monthEnd) {
     const week: CalendarCell[] = [];
     for (let i = 0; i < 7; i++) {
-      week.push({ date: cursor.toDate(), day: cursor.date(), inMonth: cursor.month() === month });
-      cursor = cursor.add(1, "day");
+      week.push({
+        date: new Date(cursor),
+        day: cursor.getDate(),
+        inMonth: cursor.getMonth() === month,
+      });
+      cursor.setDate(cursor.getDate() + 1);
     }
     weeks.push(week);
   }
