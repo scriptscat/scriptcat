@@ -31,7 +31,7 @@ import EditorStatusBar from "./EditorStatusBar";
 import MobileEditor from "./MobileEditor";
 import { CodePane, type EditorStatus } from "./tabs/CodePane";
 import SettingsPane, { invalidateSettingsPane, preloadSettingsPane, usePreloadSettingsPane } from "./tabs/SettingsPane";
-import StoragePane, { invalidateStoragePane, preloadStoragePane } from "./tabs/StoragePane";
+import StoragePane, { invalidateStoragePane, preloadStoragePane, usePreloadStoragePane } from "./tabs/StoragePane";
 import ResourcePane, { invalidateResourcePane, usePreloadResourcePane } from "./tabs/ResourcePane";
 
 interface ConfirmState {
@@ -164,6 +164,7 @@ export default function ScriptEditor() {
   const activeTab = state.tabs.find((x) => x.uuid === state.activeUuid);
   usePreloadResourcePane(activeTab?.uuid);
   usePreloadSettingsPane(activeTab?.uuid);
+  usePreloadStoragePane(activeTab?.uuid);
 
   useEffect(() => {
     const uuid = activeTab?.uuid;

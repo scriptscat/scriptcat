@@ -40,6 +40,17 @@ export function invalidateStoragePane(uuid?: string) {
   storagePaneQuery.invalidate(uuid);
 }
 
+export function usePreloadStoragePane(uuid?: string) {
+  useEffect(() => {
+    if (!uuid) return;
+    void preloadStoragePane(uuid).catch((error) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    return () => invalidateStoragePane(uuid);
+  }, [uuid]);
+}
+
 function displayValue(v: unknown): string {
   return typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
 }
