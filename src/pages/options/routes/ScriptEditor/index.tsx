@@ -32,7 +32,7 @@ import MobileEditor from "./MobileEditor";
 import { CodePane, type EditorStatus } from "./tabs/CodePane";
 import SettingsPane from "./tabs/SettingsPane";
 import StoragePane from "./tabs/StoragePane";
-import ResourcePane from "./tabs/ResourcePane";
+import ResourcePane, { preloadResourcePane } from "./tabs/ResourcePane";
 
 interface ConfirmState {
   title: string;
@@ -323,6 +323,8 @@ export default function ScriptEditor() {
     const e = getActiveEditor();
     if (e && activeTab) doRun(activeTab.script, e);
   };
+
+  activeTab && preloadResourcePane(activeTab.uuid);
 
   // 编辑区：所有标签常驻挂载，非激活隐藏以保留 Monaco 状态（桌面/移动共用）
   const editorArea = (

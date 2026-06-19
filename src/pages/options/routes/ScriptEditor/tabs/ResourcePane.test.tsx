@@ -44,7 +44,7 @@ afterEach(cleanup);
 
 describe("ResourcePane 资源面板", () => {
   it("应加载并展示资源（文件名 + 类型 + @require/@resource 徽标）", async () => {
-    render(<ResourcePane uuid="u1" />);
+    render(<ResourcePane uuid="load" />);
     expect(await screen.findByText("jquery.min.js")).toBeInTheDocument();
     expect(screen.getByText("theme.css")).toBeInTheDocument();
     expect(screen.getByText("@require")).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("ResourcePane 资源面板", () => {
   });
 
   it("行内删除应调用 resourceClient.deleteResource 并移除该行", async () => {
-    render(<ResourcePane uuid="u1" />);
+    render(<ResourcePane uuid="delete" />);
     await screen.findByText("jquery.min.js");
     const delButtons = screen.getAllByRole("button", { name: t("delete") });
     fireEvent.click(delButtons[0]);
@@ -62,7 +62,7 @@ describe("ResourcePane 资源面板", () => {
   });
 
   it("清空应对每个资源调用删除并清空列表", async () => {
-    render(<ResourcePane uuid="u1" />);
+    render(<ResourcePane uuid="clear" />);
     await screen.findByText("jquery.min.js");
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("clear")) }));
     fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
@@ -71,7 +71,7 @@ describe("ResourcePane 资源面板", () => {
   });
 
   it("搜索应按文件名过滤资源", async () => {
-    render(<ResourcePane uuid="u1" />);
+    render(<ResourcePane uuid="search" />);
     await screen.findByText("jquery.min.js");
     fireEvent.change(screen.getByPlaceholderText(t("editor:search_resource")), { target: { value: "theme" } });
     expect(screen.queryByText("jquery.min.js")).toBeNull();
@@ -80,7 +80,7 @@ describe("ResourcePane 资源面板", () => {
 
   it("无资源时应展示空状态", async () => {
     getScriptResources.mockResolvedValue({});
-    render(<ResourcePane uuid="u1" />);
+    render(<ResourcePane uuid="empty" />);
     expect(await screen.findByText(t("no_data"))).toBeInTheDocument();
   });
 });

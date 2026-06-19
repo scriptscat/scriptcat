@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Download, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Resource } from "@App/app/repo/resource";
@@ -9,6 +9,7 @@ import { Badge } from "@App/pages/components/ui/badge";
 import { Button } from "@App/pages/components/ui/button";
 import { Input } from "@App/pages/components/ui/input";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import { createPreloadableQuery } from "@App/pages/preloadable-query";
 
 type ResItem = Resource & { key: string };
 
@@ -18,6 +19,29 @@ const TYPE_BADGE: Record<string, string> = {
   "require-css": "@require-css",
   resource: "@resource",
 };
+
+const EMPTY_RESOURCES: ResItem[] = [];
+
+const resourcePaneQuery = createPreloadableQuery<string, ResItem[]>({
+  key: (uuid) => uuid,
+  load: async (uuid, signal) => {
+    const script = await fetchScript(uuid);
+
+    if (signal.aborted || !script) return [];
+
+    const res = await resourceClient.getScriptResources(script);
+
+    if (signal.aborted) {
+      throw new DOMException("ResourcePane preload aborted", "AbortError");
+    }
+
+    return Object.keys(res).map((k) => ({ ...res[k], key: k }));
+  },
+});
+
+export function preloadResourcePane(uuid: string): Promise<ResItem[]> {
+  return resourcePaneQuery.preload(uuid);
+}
 
 // 估算资源字节大小：优先用文本内容，其次用 base64 解码后的长度
 function resourceByteSize(r: Resource): number {
@@ -40,54 +64,44 @@ export interface ResourcePaneProps {
 }
 
 export default function ResourcePane({ uuid }: ResourcePaneProps) {
-  const [list, setList] = useState<ResItem[]>([]);
   const [keyword, setKeyword] = useState("");
-
-  useEffect(() => {
-    let mounted = true;
-    fetchScript(uuid).then((script) => {
-      if (!mounted || !script) return;
-      resourceClient.getScriptResources(script).then((res) => {
-        if (!mounted) return;
-        setList(Object.keys(res).map((k) => ({ ...res[k], key: k })));
-      });
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [uuid]);
+  const resources = resourcePaneQuery.useQuery(uuid);
+  const list = resources.data ?? EMPTY_RESOURCES;
 
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return kw ? list.filter((r) => r.key.toLowerCase().includes(kw)) : list;
   }, [list, keyword]);
 
-  const onDelete = useCallback((url: string) => {
-    resourceClient
-      .deleteResource(url)
-      .then(() => {
-        setList((prev) => prev.filter((r) => r.key !== url));
-        toast.success(t("delete_success"));
-      })
-      .catch((e) => toast.error(`${t("editor:delete_failed")}: ${e.message}`));
-  }, []);
+  const totalBytes = useMemo(() => list.reduce((s, r) => s + resourceByteSize(r), 0), [list]);
+
+  const onDelete = useCallback(
+    (url: string) => {
+      resourceClient
+        .deleteResource(url)
+        .then(() => {
+          resources.setData((prev) => (prev ?? EMPTY_RESOURCES).filter((r) => r.key !== url));
+          toast.success(t("delete_success"));
+        })
+        .catch((e) => toast.error(`${t("editor:delete_failed")}: ${e.message}`));
+    },
+    [resources]
+  );
 
   const onClear = useCallback(() => {
     const urls = list.map((r) => r.key);
     Promise.all(urls.map((u) => resourceClient.deleteResource(u)))
       .then(() => {
-        setList([]);
+        resources.setData([]);
         toast.success(t("editor:clear_success"));
       })
       .catch((e) => toast.error(`${t("editor:delete_failed")}: ${e.message}`));
-  }, [list]);
+  }, [list, resources]);
 
   const onDownload = useCallback((r: ResItem) => {
     const url = makeBlobURL({ blob: base64ToBlob(r.base64), persistence: false }) as string;
     chrome.downloads.download({ url, saveAs: true, filename: fileName(r.key) });
   }, []);
-
-  const totalBytes = list.reduce((s, r) => s + resourceByteSize(r), 0);
 
   return (
     <div className="h-full overflow-y-auto scrollbar-custom px-8 py-5">
