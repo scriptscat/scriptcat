@@ -31,7 +31,7 @@ export const fetchScriptList = async () => {
 };
 
 export const fetchScript = async (uuid: string) => {
-  return await scriptClient.info(uuid);
+  return await scriptClient.findInfo(uuid);
 };
 
 export const requestEnableScript = async (param: { uuid: string; enable: boolean }) => {

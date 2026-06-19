@@ -33,6 +33,20 @@ afterEach(() => {
 });
 
 describe("StoragePane 储存面板", () => {
+  it("未保存脚本不存在时应返回空结果且不读取储存值", async () => {
+    fetchScript.mockResolvedValue(null);
+
+    await expect(preloadStoragePane("new-script")).resolves.toEqual([]);
+
+    expect(getScriptValue).not.toHaveBeenCalled();
+  });
+
+  it("读取脚本失败时应向调用方传播错误", async () => {
+    fetchScript.mockRejectedValue(new Error("boom"));
+
+    await expect(preloadStoragePane("u1")).rejects.toThrow("boom");
+  });
+
   it("预加载后挂载应复用同一份储存数据", async () => {
     await preloadStoragePane("u1");
     render(<StoragePane uuid="u1" />);

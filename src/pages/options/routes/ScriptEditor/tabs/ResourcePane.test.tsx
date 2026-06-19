@@ -129,11 +129,22 @@ describe("ResourcePane 资源面板", () => {
 
   it("预加载失败应展示错误而不是产生未处理拒绝", async () => {
     const toastError = vi.spyOn(toast, "error");
-    getScriptResources.mockRejectedValue(new Error("boom"));
+    fetchScript.mockRejectedValue(new Error("boom"));
 
     renderHook(() => usePreloadResourcePane("u1"));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringContaining("boom")));
+  });
+
+  it("未保存脚本不存在时不应读取资源或展示错误", async () => {
+    const toastError = vi.spyOn(toast, "error");
+    fetchScript.mockResolvedValue(null);
+
+    renderHook(() => usePreloadResourcePane("new-script"));
+
+    await waitFor(() => expect(fetchScript).toHaveBeenCalledWith("new-script"));
+    expect(getScriptResources).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("预加载取消不应展示错误", async () => {

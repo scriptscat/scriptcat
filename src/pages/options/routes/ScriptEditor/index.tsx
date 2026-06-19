@@ -166,12 +166,6 @@ export default function ScriptEditor() {
   usePreloadSettingsPane(activeTab?.uuid);
   usePreloadStoragePane(activeTab?.uuid);
 
-  useEffect(() => {
-    const uuid = activeTab?.uuid;
-    if (!uuid) return;
-    return () => invalidateStoragePane(uuid);
-  }, [activeTab?.uuid]);
-
   const preloadSubView = useCallback((view: SubView) => {
     const uuid = stateRef.current.activeUuid;
     if (!uuid) return;

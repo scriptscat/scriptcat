@@ -65,6 +65,26 @@ afterEach(() => {
 });
 
 describe("SettingsPane 基本信息", () => {
+  it("未保存脚本不存在时应返回空结果且不读取授权", async () => {
+    fetchScript.mockResolvedValue(null);
+
+    await expect(preloadSettingsPane("new-script")).resolves.toBeNull();
+
+    expect(getScriptPermissions).not.toHaveBeenCalled();
+  });
+
+  it("读取脚本失败时应向调用方传播错误", async () => {
+    fetchScript.mockRejectedValue(new Error("boom"));
+
+    await expect(preloadSettingsPane("u1")).rejects.toThrow("boom");
+  });
+
+  it("读取授权失败时应向调用方传播错误", async () => {
+    getScriptPermissions.mockRejectedValue(new Error("boom"));
+
+    await expect(preloadSettingsPane("u1")).rejects.toThrow("boom");
+  });
+
   it("预加载后挂载应复用脚本与授权数据", async () => {
     await preloadSettingsPane("u1");
     render(<SettingsPane uuid="u1" />);

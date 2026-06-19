@@ -25,7 +25,7 @@ const EMPTY_RESOURCES: ResItem[] = [];
 const resourcePaneQuery = createPreloadableQuery<string, ResItem[]>({
   key: (uuid) => uuid,
   load: async (uuid, signal) => {
-    const script = await fetchScript(uuid).catch(() => null);
+    const script = await fetchScript(uuid);
 
     if (signal.aborted || !script) return [];
 

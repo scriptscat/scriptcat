@@ -74,6 +74,10 @@ export class ScriptClient extends Client {
     return this.doThrow("fetchInfo", uuid);
   }
 
+  findInfo(uuid: string): Promise<Script | null | undefined> {
+    return this.do<Script | null>("fetchInfo", uuid);
+  }
+
   getFilterResult(req: { value: string }): Promise<ScriptCode | undefined> {
     return this.do("getFilterResult", req);
   }

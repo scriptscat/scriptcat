@@ -7,6 +7,7 @@ import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts"
 const {
   invalidateResourcePane,
   invalidateSettingsPane,
+  invalidateStoragePane,
   preloadSettingsPane,
   preloadStoragePane,
   usePreloadSettingsPane,
@@ -15,6 +16,7 @@ const {
 } = vi.hoisted(() => ({
   invalidateResourcePane: vi.fn(),
   invalidateSettingsPane: vi.fn(),
+  invalidateStoragePane: vi.fn(),
   preloadSettingsPane: vi.fn(() => Promise.resolve()),
   preloadStoragePane: vi.fn(() => Promise.resolve()),
   usePreloadStoragePane: vi.fn(() => Promise.resolve()),
@@ -88,7 +90,7 @@ vi.mock("./tabs/SettingsPane", () => ({
 }));
 vi.mock("./tabs/StoragePane", () => ({
   default: () => null,
-  invalidateStoragePane: vi.fn(),
+  invalidateStoragePane,
   preloadStoragePane,
   usePreloadStoragePane,
 }));
@@ -115,12 +117,13 @@ afterEach(() => {
 });
 
 describe("ScriptEditor 延迟面板缓存", () => {
-  it("保存成功后应使当前脚本的资源与设置缓存失效", async () => {
+  it("保存成功后应使当前脚本的资源、设置与储存缓存失效", async () => {
     render(<ScriptEditor />);
     fireEvent.click(await screen.findByTestId("save"));
 
     await waitFor(() => expect(invalidateResourcePane).toHaveBeenCalledWith("u1"));
     expect(invalidateSettingsPane).toHaveBeenCalledWith("u1");
+    expect(invalidateStoragePane).toHaveBeenCalledWith("u1");
   });
 
   it("保存失败时不应使资源缓存失效", async () => {
@@ -131,6 +134,7 @@ describe("ScriptEditor 延迟面板缓存", () => {
     await waitFor(() => expect(saveScript).toHaveBeenCalledOnce());
     expect(invalidateResourcePane).not.toHaveBeenCalled();
     expect(invalidateSettingsPane).not.toHaveBeenCalled();
+    expect(invalidateStoragePane).not.toHaveBeenCalled();
   });
 
   it("悬浮储存标签时应以当前脚本 UUID 启动预加载", async () => {
