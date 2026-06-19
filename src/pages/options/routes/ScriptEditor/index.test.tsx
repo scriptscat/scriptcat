@@ -10,12 +10,14 @@ const {
   preloadSettingsPane,
   preloadStoragePane,
   usePreloadSettingsPane,
+  usePreloadStoragePane,
   saveScript,
 } = vi.hoisted(() => ({
   invalidateResourcePane: vi.fn(),
   invalidateSettingsPane: vi.fn(),
   preloadSettingsPane: vi.fn(() => Promise.resolve()),
   preloadStoragePane: vi.fn(() => Promise.resolve()),
+  usePreloadStoragePane: vi.fn(() => Promise.resolve()),
   usePreloadSettingsPane: vi.fn(),
   saveScript: vi.fn(),
 }));
@@ -88,6 +90,7 @@ vi.mock("./tabs/StoragePane", () => ({
   default: () => null,
   invalidateStoragePane: vi.fn(),
   preloadStoragePane,
+  usePreloadStoragePane,
 }));
 vi.mock("@App/pages/components/ui/alert-dialog", () => ({
   AlertDialog: ({ children }: { children: React.ReactNode }) => children,
