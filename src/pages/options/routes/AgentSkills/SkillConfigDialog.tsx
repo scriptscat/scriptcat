@@ -9,6 +9,7 @@ import { Label } from "@App/pages/components/ui/label";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@App/pages/components/ui/dialog";
+import { useSkillConfigPreload } from "./preload";
 
 export function SkillConfigDialog({
   skill,
@@ -21,31 +22,12 @@ export function SkillConfigDialog({
 }) {
   const { t } = useTranslation(["agent", "common"]);
   const [values, setValues] = useState<Record<string, unknown>>({});
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const query = useSkillConfigPreload(skill, open && !!skill?.config);
 
   useEffect(() => {
-    if (!open || !skill?.config) return;
-    setLoading(true);
-    const config = skill.config;
-    agentClient
-      .getSkillConfigValues(skill.name)
-      .then((saved) => {
-        const merged: Record<string, unknown> = {};
-        for (const [key, field] of Object.entries(config)) {
-          merged[key] = saved[key] !== undefined ? saved[key] : (field.default ?? "");
-        }
-        setValues(merged);
-      })
-      .catch(() => {
-        const defaults: Record<string, unknown> = {};
-        for (const [key, field] of Object.entries(config)) {
-          defaults[key] = field.default ?? "";
-        }
-        setValues(defaults);
-      })
-      .finally(() => setLoading(false));
-  }, [open, skill]);
+    if (query.data) setValues(query.data);
+  }, [open, query.data]);
 
   if (!skill?.config) return null;
   const config = skill.config;
@@ -56,6 +38,7 @@ export function SkillConfigDialog({
     setSaving(true);
     try {
       await agentClient.saveSkillConfig({ name: skill.name, values });
+      query.setData(values);
       toast.success(t("agent:skills_config_saved"));
       onOpenChange(false);
     } catch (e) {
@@ -122,7 +105,7 @@ export function SkillConfigDialog({
         <DialogHeader>
           <DialogTitle>{`${t("agent:skills_config")} — ${skill.name}`}</DialogTitle>
         </DialogHeader>
-        {loading ? (
+        {!query.data ? (
           <div className="py-8 text-center text-sm text-muted-foreground">{t("common:loading")}</div>
         ) : (
           <div className="flex flex-col gap-3">

@@ -22,6 +22,7 @@ export function SkillCard({
   skill,
   updateAvailable,
   onDetail,
+  onPreloadDetail,
   onToggleEnabled,
   onUpdate,
   onRefresh,
@@ -30,6 +31,7 @@ export function SkillCard({
   skill: SkillSummary;
   updateAvailable?: string; // 远程新版本号（有更新时）
   onDetail: () => void;
+  onPreloadDetail: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onUpdate: () => void;
   onRefresh: () => void;
@@ -59,6 +61,8 @@ export function SkillCard({
         <button
           type="button"
           onClick={onDetail}
+          onPointerEnter={onPreloadDetail}
+          onFocus={onPreloadDetail}
           className="flex min-w-0 flex-1 flex-col gap-1 text-left"
           data-testid={`skill-open-${skill.name}`}
         >

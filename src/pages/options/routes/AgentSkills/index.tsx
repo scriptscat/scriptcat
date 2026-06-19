@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Sparkles, Upload, Link2, Plus, RefreshCw } from "lucide-react";
@@ -35,7 +35,8 @@ import { SkillCard } from "./SkillCard";
 import { SkillDetailDialog } from "./SkillDetailDialog";
 import { SkillConfigDialog } from "./SkillConfigDialog";
 import { installSkillFromZip, installSkillFromUrl } from "./skill_install";
-import { loadSkillDetail, type SkillDetail } from "./skill_detail";
+import type { SkillDetail } from "./skill_detail";
+import { invalidateSkillConfig, invalidateSkillDetail, preloadSkillConfig, preloadSkillDetail } from "./preload";
 
 const DOC_URL = `${DocumentationSite}${localePath}/docs/dev/agent/agent-skill-install`;
 
@@ -55,6 +56,20 @@ export default function AgentSkills() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [uninstallTarget, setUninstallTarget] = useState<SkillSummary | null>(null);
+
+  useEffect(() => {
+    const record = detail?.record;
+    if (!record?.config || Object.keys(record.config).length === 0) return;
+    void preloadSkillConfig(record).catch(() => undefined);
+  }, [detail]);
+
+  useEffect(
+    () => () => {
+      invalidateSkillDetail();
+      invalidateSkillConfig();
+    },
+    []
+  );
 
   const updateCount = skills.filter((s) => updateMap[s.name]).length;
 
@@ -105,6 +120,7 @@ export default function AgentSkills() {
 
   const handleToggleEnabled = async (name: string, enabled: boolean) => {
     try {
+      invalidateSkillDetail(name);
       await agentClient.setSkillEnabled(name, enabled);
       await loadSkills();
     } catch (err) {
@@ -114,6 +130,8 @@ export default function AgentSkills() {
 
   const handleUpdate = async (name: string) => {
     try {
+      invalidateSkillDetail(name);
+      invalidateSkillConfig();
       await agentClient.updateSkill(name);
       toast.success(t("agent:skills_update_success"));
       setUpdateMap((prev) => {
@@ -129,6 +147,8 @@ export default function AgentSkills() {
 
   const handleRefresh = async (name: string) => {
     try {
+      invalidateSkillDetail(name);
+      invalidateSkillConfig();
       await agentClient.refreshSkill(name);
       await loadSkills();
       toast.success(t("agent:skills_refresh_success"));
@@ -139,7 +159,7 @@ export default function AgentSkills() {
 
   const handleDetail = async (name: string) => {
     try {
-      const loaded = await loadSkillDetail(name);
+      const loaded = await preloadSkillDetail(name);
       if (!loaded) return;
       setDetail(loaded);
       setDetailOpen(true);
@@ -153,6 +173,8 @@ export default function AgentSkills() {
     const name = uninstallTarget.name;
     setUninstallTarget(null);
     try {
+      invalidateSkillDetail(name);
+      invalidateSkillConfig();
       await agentClient.removeSkill(name);
       await loadSkills();
     } catch (err) {
@@ -279,6 +301,7 @@ export default function AgentSkills() {
                   skill={s}
                   updateAvailable={updateMap[s.name]}
                   onDetail={() => handleDetail(s.name)}
+                  onPreloadDetail={() => void preloadSkillDetail(s.name).catch(() => undefined)}
                   onToggleEnabled={(enabled) => handleToggleEnabled(s.name, enabled)}
                   onUpdate={() => handleUpdate(s.name)}
                   onRefresh={() => handleRefresh(s.name)}
@@ -320,7 +343,10 @@ export default function AgentSkills() {
       <SkillDetailDialog
         detail={detail}
         open={detailOpen}
-        onOpenChange={setDetailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+          if (!open && detail) invalidateSkillDetail(detail.record.name);
+        }}
         onOpenConfig={() => {
           setDetailOpen(false);
           setConfigOpen(true);

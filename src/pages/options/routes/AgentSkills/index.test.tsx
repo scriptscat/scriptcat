@@ -6,6 +6,10 @@ import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import type { SkillSummary } from "@App/app/service/agent/core/types";
 
 const state = vi.hoisted(() => ({ skills: [] as SkillSummary[] }));
+const { loadSkillDetail, getSkillConfigValues } = vi.hoisted(() => ({
+  loadSkillDetail: vi.fn(),
+  getSkillConfigValues: vi.fn(),
+}));
 
 // jsdom 未实现 matchMedia,useIsMobile 依赖它——默认桌面,移动用例单独覆盖
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
@@ -17,9 +21,22 @@ vi.mock("./skill_install", () => ({
 vi.mock("../AgentChat/hooks", () => ({
   useSkills: () => ({ skills: state.skills, loadSkills: vi.fn() }),
 }));
+vi.mock("./skill_detail", () => ({ loadSkillDetail }));
+vi.mock("@App/pages/store/features/script", () => ({
+  agentClient: {
+    checkForUpdates: vi.fn(),
+    setSkillEnabled: vi.fn(),
+    updateSkill: vi.fn(),
+    refreshSkill: vi.fn(),
+    removeSkill: vi.fn(),
+    getSkillConfigValues,
+    saveSkillConfig: vi.fn(),
+  },
+}));
 
 import { installSkillFromZip, installSkillFromUrl } from "./skill_install";
 import AgentSkills from "./index";
+import { invalidateSkillConfig, invalidateSkillDetail } from "./preload";
 
 const skill = (over: Partial<SkillSummary> = {}): SkillSummary => ({
   name: "翻译助手",
@@ -36,8 +53,25 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(useIsMobile).mockReturnValue(false);
   initLanguage("zh-CN");
+  loadSkillDetail.mockResolvedValue({
+    record: {
+      name: "翻译助手",
+      prompt: "执行翻译",
+      enabled: true,
+      installtime: 0,
+      updatetime: 0,
+      config: { apiKey: { title: "API Key", type: "text", default: "default-key" } },
+    },
+    scripts: [],
+    references: [],
+  });
+  getSkillConfigValues.mockResolvedValue({ apiKey: "saved-key" });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  invalidateSkillDetail();
+  invalidateSkillConfig();
+});
 
 describe("AgentSkills 页面", () => {
   it("无已安装 Skill 时显示空状态", () => {
@@ -50,6 +84,36 @@ describe("AgentSkills 页面", () => {
     render(<AgentSkills />);
     expect(screen.getByText("翻译助手")).toBeInTheDocument();
     expect(screen.getByText("翻译当前网页内容")).toBeInTheDocument();
+  });
+
+  it("聚焦详情入口后点击应复用预加载详情并提前加载配置", async () => {
+    state.skills = [skill({ hasConfig: true })];
+    render(<AgentSkills />);
+    const trigger = screen.getByTestId("skill-open-翻译助手");
+
+    fireEvent.focus(trigger);
+    await waitFor(() => expect(loadSkillDetail).toHaveBeenCalledOnce());
+    fireEvent.click(trigger);
+
+    expect(await screen.findByText("执行翻译")).toBeInTheDocument();
+    await waitFor(() => expect(getSkillConfigValues).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByTestId("skill-open-config"));
+
+    expect(await screen.findByDisplayValue("saved-key")).toBeInTheDocument();
+    expect(loadSkillDetail).toHaveBeenCalledOnce();
+    expect(getSkillConfigValues).toHaveBeenCalledOnce();
+  });
+
+  it("读取配置失败时应使用字段默认值", async () => {
+    getSkillConfigValues.mockRejectedValue(new Error("boom"));
+    state.skills = [skill({ hasConfig: true })];
+    render(<AgentSkills />);
+
+    fireEvent.click(screen.getByTestId("skill-open-翻译助手"));
+    await screen.findByText("执行翻译");
+    fireEvent.click(screen.getByTestId("skill-open-config"));
+
+    expect(await screen.findByDisplayValue("default-key")).toBeInTheDocument();
   });
 
   it("选择 ZIP 文件后调用 installSkillFromZip", async () => {
