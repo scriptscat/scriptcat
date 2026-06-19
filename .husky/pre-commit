@@ -10,11 +10,17 @@ lint_files=$(mktemp)
 git diff --cached --name-only -z --diff-filter=ACMR -- "*.js" "*.jsx" "*.ts" "*.tsx" "*.mjs" "*.cjs" > "$lint_files"
 
 if [ -s "$lint_files" ]; then
-  pnpm run typecheck || {
+  xargs -0 pnpm exec prettier --check --cache < "$lint_files" &
+  PRETTIER_PID=$!
+  pnpm run typecheck &
+  TSC_PID=$!
+  wait $PRETTIER_PID; PRETTIER_STATUS=$?
+  wait $TSC_PID; TSC_STATUS=$?
+  if [ $PRETTIER_STATUS -ne 0 ] || [ $TSC_STATUS -ne 0 ]; then
     rm -f "$lint_files"
     exit 1
-  }
-  xargs -0 pnpm exec eslint < "$lint_files" || {
+  fi
+  xargs -0 pnpm exec eslint --cache --cache-location .eslintcache < "$lint_files" || {
     rm -f "$lint_files"
     exit 1
   }
