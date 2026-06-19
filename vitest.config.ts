@@ -2,35 +2,80 @@ import path from "path";
 import fs from "fs";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
-  resolve: {
-    alias: {
-      "@App": path.resolve(__dirname, "./src"),
-      "@Packages": path.resolve(__dirname, "./packages"),
-      "@Tests": path.resolve(__dirname, "./tests"),
-      "monaco-editor": path.resolve(__dirname, "./tests/mocks/monaco-editor.ts"),
-    },
+const alias = {
+  "@App": path.resolve(__dirname, "./src"),
+  "@Packages": path.resolve(__dirname, "./packages"),
+  "@Tests": path.resolve(__dirname, "./tests"),
+  "monaco-editor": path.resolve(__dirname, "./tests/mocks/monaco-editor.ts"),
+};
+
+const tplPlugin = {
+  name: "handle-tpl-files",
+  load(id: string) {
+    if (id.endsWith(".tpl")) {
+      const content = fs.readFileSync(id, "utf-8");
+      return `export default ${JSON.stringify(content)};`;
+    }
   },
-  plugins: [
-    {
-      name: "handle-tpl-files",
-      load(id) {
-        if (id.endsWith(".tpl")) {
-          // Return the content as a string asset
-          const content = fs.readFileSync(id, "utf-8");
-          return `export default ${JSON.stringify(content)};`;
-        }
-      },
-    },
-  ],
+};
+
+// Files that need a fresh module environment per file (cannot share isolate:false).
+// Reasons:
+//   - web-jszipp (TransformStream unavailable in vmThreads VM context): backup.test.ts, skill.test.ts
+//   - Dexie window.addEventListener on stale happy-dom window: App.test.tsx, log.test.ts,
+//     MobileHeader.test.tsx, ScriptCard.test.tsx
+//   - module-level sharedInitCopy captured against wrong window: create_context.test.ts
+//   - fake-timer cross-file bleed risk: exec_script.test.ts
+const ISOLATED = [
+  "src/pkg/backup/backup.test.ts",
+  "src/pkg/utils/skill.test.ts",
+  "src/pages/options/App.test.tsx",
+  "src/app/service/service_worker/log.test.ts",
+  "src/pages/options/layout/MobileHeader.test.tsx",
+  "src/pages/options/routes/ScriptList/ScriptCard.test.tsx",
+  "src/app/service/content/create_context.test.ts",
+  "src/app/service/content/exec_script.test.ts",
+];
+
+const BASE_EXCLUDE = ["**/node_modules/**", "**/.claude/**", "e2e/**"];
+
+const sharedTest = {
+  environment: "happy-dom" as const,
+  setupFiles: ["./tests/vitest.setup.ts"],
+  env: {
+    VI_TESTING: "true",
+    SC_RANDOM_KEY: "005a7deb-3a6e-4337-83ea-b9626c02ea38",
+  },
+};
+
+export default defineConfig({
+  resolve: { alias },
+  plugins: [tplPlugin],
   test: {
-    environment: "happy-dom",
-    // List setup file
-    setupFiles: ["./tests/vitest.setup.ts"],
-    exclude: ["**/node_modules/**", "**/.claude/**", "e2e/**"],
-    env: {
-      VI_TESTING: "true",
-      SC_RANDOM_KEY: "005a7deb-3a6e-4337-83ea-b9626c02ea38",
-    },
+    projects: [
+      {
+        resolve: { alias },
+        plugins: [tplPlugin],
+        test: {
+          name: "isolated",
+          include: ISOLATED,
+          exclude: BASE_EXCLUDE,
+          ...sharedTest,
+          pool: "forks",
+          isolate: true,
+        },
+      },
+      {
+        resolve: { alias },
+        plugins: [tplPlugin],
+        test: {
+          name: "fast",
+          exclude: [...BASE_EXCLUDE, ...ISOLATED],
+          ...sharedTest,
+          pool: "vmThreads",
+          isolate: false,
+        },
+      },
+    ],
   },
 });
