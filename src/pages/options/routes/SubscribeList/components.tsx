@@ -5,7 +5,7 @@ import { Switch } from "@App/pages/components/ui/switch";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { Button } from "@App/pages/components/ui/button";
-import { semTime } from "@App/pkg/utils/dayjs";
+import { semTime } from "@App/locales/relative-date";
 import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 import { toast } from "sonner";

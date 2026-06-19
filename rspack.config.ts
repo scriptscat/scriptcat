@@ -326,7 +326,7 @@ export default {
           if (tag.startsWith("eslint")) return "lib_eslint";
           if (tag.startsWith("i18n")) return "lib_i18n";
           if (tag) {
-            // cron, dayjs, yaml, jszip, prettier, ...
+            // cron, yaml, jszip, prettier, ...
             if (tag === "luxon") return "lib_cron";
             return `lib_${tag}`;
           }

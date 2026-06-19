@@ -57,7 +57,6 @@
     "clsx": "^2.1.1",
     "cron": "^4.4.0",
     "crypto-js": "^4.2.0",
-    "dayjs": "^1.11.13",
     "dexie": "^4.0.10",
     "dompurify": "^3.3.3",
     "eslint-linter-browserify": "9.26.0",

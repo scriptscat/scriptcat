@@ -1,4 +1,4 @@
-// 把簡單的時間格式function以pure javascript做出來
+// 把简单的时间格式function以pure javascript做出来
 
 // export function dayFormatCurrent() {
 //   // return dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss")
