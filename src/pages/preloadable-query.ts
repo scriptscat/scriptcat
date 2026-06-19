@@ -281,6 +281,7 @@ export function createPreloadableQuery<K, T>(options: CreatePreloadableQueryOpti
     const enabled = hookOptions.enabled ?? true;
     const keyString = keyStringOf(key);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyString is the stable serialization of key
     const getSnapshot = useCallback(() => getCurrentSnapshot(key), [keyString]);
     const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
@@ -297,6 +298,7 @@ export function createPreloadableQuery<K, T>(options: CreatePreloadableQueryOpti
           // The error is reflected in the external-store snapshot.
         });
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- keyString is the stable serialization of key
     }, [enabled, keyString, snapshot.status]);
 
     return useMemo(
@@ -307,6 +309,7 @@ export function createPreloadableQuery<K, T>(options: CreatePreloadableQueryOpti
         invalidate: () => invalidate(key),
         setData: (updater: T | ((prev: T | undefined) => T)) => setData(key, updater),
       }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- keyString is the stable serialization of key
       [snapshot, keyString]
     );
   }

@@ -26,7 +26,7 @@ function renderLayout() {
   return renderWithThemeRouter(
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<div>content</div>} />
+        <Route index element={<div>{"content"}</div>} />
       </Route>
     </Routes>,
     { initialEntries: ["/"] }

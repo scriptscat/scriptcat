@@ -6,7 +6,7 @@ import reactJsx from "eslint-plugin-react/configs/jsx-runtime.js";
 import react from "eslint-plugin-react/configs/recommended.js";
 import ts from "typescript-eslint";
 import globals from "globals";
-import requireLastErrorCheck from "./eslint-rules/require-last-error-check.js";
+import requireLastErrorCheck from "./eslint-rules/require-last-error-check.mjs";
 
 export default [
   {
