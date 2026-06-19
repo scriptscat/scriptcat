@@ -70,10 +70,6 @@ export class ScriptClient extends Client {
     return this.do("enables", { uuids, enable });
   }
 
-  info(uuid: string): Promise<Script> {
-    return this.doThrow("fetchInfo", uuid);
-  }
-
   findInfo(uuid: string): Promise<Script | null | undefined> {
     return this.do<Script | null>("fetchInfo", uuid);
   }
