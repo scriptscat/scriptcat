@@ -7,10 +7,16 @@ import { renderWithTooltip } from "@Tests/renderWithTooltip";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_TYPE_BACKGROUND } from "@App/app/repo/scripts";
 
 // requestCheckUpdate 走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
-const { requestCheckUpdate } = vi.hoisted(() => ({ requestCheckUpdate: vi.fn() }));
+const { requestCheckUpdate, preloadUserConfig, preloadCloudScriptPlan } = vi.hoisted(() => ({
+  requestCheckUpdate: vi.fn(),
+  preloadUserConfig: vi.fn(() => Promise.resolve()),
+  preloadCloudScriptPlan: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("@App/pages/store/features/script", () => ({
   scriptClient: { requestCheckUpdate },
 }));
+vi.mock("./preload", () => ({ preloadUserConfig }));
+vi.mock("@App/pages/components/CloudScriptPlan", () => ({ preloadCloudScriptPlan }));
 
 import { getScriptHomePage, ScriptRowActions, UpdateTimeCell } from "./components";
 
@@ -96,6 +102,15 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     expect(navigate).toHaveBeenCalledWith("/?userConfig=u1");
   });
 
+  it("聚焦用户配置按钮时应预加载当前脚本值", () => {
+    const script = makeScript({ config: { group: {} } });
+    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />);
+
+    fireEvent.focus(screen.getByRole("button", { name: t("editor:user_config") }));
+
+    expect(preloadUserConfig).toHaveBeenCalledWith(script);
+  });
+
   it("含 cloudcat 时显示云端按钮，导航到 ?cloud=（而非 cloudSync）", () => {
     const navigate = vi.fn();
     renderWithTooltip(
@@ -108,6 +123,15 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: t("editor:upload_to_cloud") }));
     expect(navigate).toHaveBeenCalledWith("/?cloud=u1");
+  });
+
+  it("悬浮云端按钮时应预加载当前脚本的导出计划", () => {
+    const script = makeScript({ metadata: { cloudcat: ["true"] } });
+    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />);
+
+    fireEvent.pointerEnter(screen.getByRole("button", { name: t("editor:upload_to_cloud") }));
+
+    expect(preloadCloudScriptPlan).toHaveBeenCalledWith(script);
   });
 
   it("后台脚本显示运行按钮（标签为「运行」而非进度提示），点击触发 onRunStop", () => {

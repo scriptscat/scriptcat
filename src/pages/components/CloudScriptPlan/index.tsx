@@ -25,6 +25,7 @@ import { Textarea } from "@App/pages/components/ui/textarea";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Button } from "@App/pages/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
+import { createPreloadableQuery } from "@App/pages/preloadable-query";
 
 // 从脚本 metadata 读取默认导出表达式
 export function cloudDefaultParams(script: Script): Pick<ExportParams, "exportValue" | "exportCookie"> {
@@ -41,6 +42,25 @@ const emptyParams = (): ExportParams => ({
   overwriteCookie: false,
 });
 
+type CloudScriptPlanData = { model: Export | undefined };
+
+const cloudScriptPlanQuery = createPreloadableQuery<Script, CloudScriptPlanData>({
+  key: (script) => `${script.uuid}:${script.updatetime ?? 0}`,
+  load: async (script, signal) => {
+    const model = await new ExportDAO().findByScriptID(script.uuid);
+    if (signal.aborted) throw new DOMException("CloudScriptPlan preload aborted", "AbortError");
+    return { model };
+  },
+});
+
+export function preloadCloudScriptPlan(script: Script): Promise<CloudScriptPlanData> {
+  return cloudScriptPlanQuery.preload(script);
+}
+
+export function invalidateCloudScriptPlan(script?: Script) {
+  cloudScriptPlanQuery.invalidate(script);
+}
+
 export interface CloudScriptPlanProps {
   script: Script;
   open: boolean;
@@ -48,25 +68,42 @@ export interface CloudScriptPlanProps {
 }
 
 export default function CloudScriptPlan({ script, open, onOpenChange }: CloudScriptPlanProps) {
-  const [cloudScriptType, setCloudScriptType] = useState<ExportTarget>("local");
-  const [model, setModel] = useState<Export | undefined>(undefined);
-  const [params, setParams] = useState<ExportParams>(emptyParams);
+  const query = cloudScriptPlanQuery.useQuery(script, { enabled: open });
 
-  // 打开时载入已保存的导出计划，否则填入脚本默认值
+  useEffect(() => () => invalidateCloudScriptPlan(script), [script]);
   useEffect(() => {
-    if (!open) return;
-    const dao = new ExportDAO();
-    dao.findByScriptID(script.uuid).then((data) => {
-      setModel(data);
-      if (data && data.params[data.target]) {
-        setCloudScriptType(data.target);
-        setParams({ ...emptyParams(), ...data.params[data.target] });
-      } else {
-        setCloudScriptType("local");
-        setParams({ ...emptyParams(), ...cloudDefaultParams(script) });
-      }
-    });
-  }, [open, script]);
+    if (!query.isError) return;
+    toast.error(`${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`);
+    query.setData({ model: undefined });
+  }, [query]);
+
+  if (!query.data) return null;
+  return (
+    <CloudScriptPlanContent
+      key={script.uuid}
+      script={script}
+      open={open}
+      onOpenChange={onOpenChange}
+      initialModel={query.data.model}
+      onPlanChange={(model) => query.setData({ model })}
+    />
+  );
+}
+
+function CloudScriptPlanContent({
+  script,
+  open,
+  onOpenChange,
+  initialModel,
+  onPlanChange,
+}: CloudScriptPlanProps & { initialModel: Export | undefined; onPlanChange: (model: Export) => void }) {
+  const initialTarget = initialModel?.target ?? "local";
+  const [cloudScriptType, setCloudScriptType] = useState<ExportTarget>(initialTarget);
+  const [model, setModel] = useState<Export | undefined>(initialModel);
+  const [params, setParams] = useState<ExportParams>(() => {
+    const saved = initialModel?.params[initialTarget];
+    return { ...emptyParams(), ...(saved ?? cloudDefaultParams(script)) };
+  });
 
   const setField = <K extends keyof ExportParams>(key: K, value: ExportParams[K]) =>
     setParams((prev) => ({ ...prev, [key]: value }));
@@ -74,10 +111,13 @@ export default function CloudScriptPlan({ script, open, onOpenChange }: CloudScr
   const handleConfirm = async () => {
     // 保存导出计划
     const dao = new ExportDAO();
-    const next: Export = model ?? { uuid: script.uuid, target: "local", params: {} };
-    next.params[cloudScriptType] = params;
-    next.target = cloudScriptType;
+    const next: Export = {
+      ...(model ?? { uuid: script.uuid, target: "local", params: {} }),
+      target: cloudScriptType,
+      params: { ...(model?.params ?? {}), [cloudScriptType]: params },
+    };
     setModel(next);
+    onPlanChange(next);
     dao.save(next).catch((err) => toast.error(`${t("editor:save_failed")}: ${err}`));
 
     toast.info(t("editor:exporting"));

@@ -59,6 +59,7 @@ vi.mock("./ScriptListMobile", () => ({ default: () => null }));
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false }));
 
 import ScriptList from "./index";
+import { invalidateUserConfig, preloadUserConfig } from "./preload";
 
 beforeEach(() => {
   initLanguage("zh-CN");
@@ -70,7 +71,10 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  invalidateUserConfig();
+});
 
 // 二次确认已下沉到行内/批量栏的 Popconfirm（见 components.test / BatchActionsBar.test），
 // 此处只校验容器层：handleDelete / onBatchDelete 触发后按 uuid 调用删除接口。
@@ -100,6 +104,34 @@ describe("脚本列表删除接口调用", () => {
 });
 
 describe("脚本列表用户配置弹窗", () => {
+  it("行内预加载后深链打开应复用同一份脚本值", async () => {
+    mockScriptData.scriptList = [
+      {
+        uuid: "u1",
+        name: "TestScript",
+        namespace: "",
+        metadata: {},
+        config: { 基本设置: { apiUrl: { title: "API 地址", description: "", type: "text", index: 0 } } },
+        type: SCRIPT_TYPE_NORMAL,
+        status: SCRIPT_STATUS_ENABLE,
+        sort: 0,
+        runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+        createtime: 0,
+        checktime: 0,
+      },
+    ];
+    await preloadUserConfig(mockScriptData.scriptList[0]);
+
+    render(
+      <MemoryRouter initialEntries={["/?userConfig=u1"]}>
+        <ScriptList />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("TestScript")).toBeInTheDocument();
+    expect(getScriptValue).toHaveBeenCalledOnce();
+  });
+
   it("从 userConfig 深链打开后点击取消，不应因旧 URL 状态再次弹出", async () => {
     mockScriptData.scriptList = [
       {

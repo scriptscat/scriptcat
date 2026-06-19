@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useState, memo } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
   SCRIPT_STATUS_ENABLE,
@@ -15,13 +15,12 @@ import {
   requestStopScript,
   scriptClient,
   synchronizeClient,
-  valueClient,
   pinToTop,
   sortScript,
 } from "@App/pages/store/features/script";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { useSearchParams } from "react-router-dom";
-import type { Script, UserConfig } from "@App/app/repo/scripts";
+import type { Script } from "@App/app/repo/scripts";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 
@@ -36,6 +35,7 @@ import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import ScriptListMobile from "./ScriptListMobile";
 import { t } from "@App/locales/locales";
 import { toast } from "sonner";
+import { useUserConfigPreload } from "./preload";
 
 type SelectionProps = {
   selectedUuids: Set<string>;
@@ -61,6 +61,26 @@ const MainContent = memo(({ viewMode, ...rest }: ContentProps) => {
   return <ScriptTable {...rest} />;
 });
 MainContent.displayName = "MainContent";
+
+function PreloadedUserConfigPanel({ script, onClose }: { script: Script; onClose: () => void }) {
+  const query = useUserConfigPreload(script);
+
+  useEffect(() => {
+    if (!query.isError) return;
+    toast.error(`${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`);
+  }, [query.error, query.isError]);
+
+  if (!query.data) return null;
+  return (
+    <UserConfigPanel
+      open
+      onOpenChange={(open) => !open && onClose()}
+      script={query.data.script}
+      userConfig={query.data.userConfig}
+      values={query.data.values}
+    />
+  );
+}
 
 /**
  * 脚本列表主组件
@@ -203,33 +223,10 @@ export default function ScriptList() {
 
   // 用户配置面板：通过 ?userConfig=<uuid> 打开（菜单项 navigate 到该地址，外部也可深链）
   const [usp, setUsp] = useSearchParams();
-  const [userConfigState, setUserConfigState] = useState<{
-    script: Script;
-    userConfig: UserConfig;
-    values: { [key: string]: any };
-  } | null>(null);
-  const userConfigRequestIdRef = useRef(0);
   const userConfigUuid = usp.get("userConfig");
-
-  useEffect(() => {
-    if (!userConfigUuid) {
-      setUserConfigState(null);
-      return;
-    }
-    const script = scriptList.find((s) => s.uuid === userConfigUuid);
-    if (!script?.config) return;
-
-    const requestId = ++userConfigRequestIdRef.current;
-    const cfg = script.config;
-    valueClient.getScriptValue(script).then((values) => {
-      if (userConfigRequestIdRef.current !== requestId) return;
-      setUserConfigState({ script, userConfig: cfg, values });
-    });
-  }, [userConfigUuid, scriptList]);
+  const userConfigScript = userConfigUuid ? scriptList.find((script) => script.uuid === userConfigUuid) : undefined;
 
   const closeUserConfig = useCallback(() => {
-    userConfigRequestIdRef.current++;
-    setUserConfigState(null);
     if (userConfigUuid) {
       const next = new URLSearchParams(usp);
       next.delete("userConfig");
@@ -330,14 +327,8 @@ export default function ScriptList() {
   }, [scriptList, selectedFilters, stats, searchRequest]);
 
   // 用户配置面板（桌面端 / 移动端共用）
-  const userConfigDialog = userConfigState && (
-    <UserConfigPanel
-      open
-      onOpenChange={(o) => !o && closeUserConfig()}
-      script={userConfigState.script}
-      userConfig={userConfigState.userConfig}
-      values={userConfigState.values}
-    />
+  const userConfigDialog = userConfigScript?.config && (
+    <PreloadedUserConfigPanel script={userConfigScript} onClose={closeUserConfig} />
   );
 
   // 云端面板（桌面端 / 移动端共用）

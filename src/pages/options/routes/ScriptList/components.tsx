@@ -28,6 +28,8 @@ import {
   CircleArrowUp,
   Check,
 } from "lucide-react";
+import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
+import { preloadUserConfig } from "./preload";
 
 // 基于字符串生成稳定的 HSL 颜色
 function hashToHsl(str: string): string {
@@ -291,12 +293,14 @@ function ActionButton({
   onClick,
   destructive,
   disabled,
+  onPreload,
   children,
 }: {
   label: string;
   onClick?: () => void;
   destructive?: boolean;
   disabled?: boolean;
+  onPreload?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -307,6 +311,8 @@ function ActionButton({
           size="icon"
           aria-label={label}
           onClick={onClick}
+          onPointerEnter={onPreload}
+          onFocus={onPreload}
           disabled={disabled}
           className={cn("h-7 w-7", destructive && "hover:text-destructive focus-visible:text-destructive")}
         >
@@ -334,6 +340,8 @@ export function ScriptRowActions({
   const home = getScriptHomePage(script.metadata);
   const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
   const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
+  const preloadUserConfigValues = () => void preloadUserConfig(script).catch(() => undefined);
+  const preloadCloudPlan = () => void preloadCloudScriptPlan(script).catch(() => undefined);
   return (
     <div className={cn("flex items-center gap-1", className)}>
       {home && (
@@ -342,12 +350,26 @@ export function ScriptRowActions({
         </ActionButton>
       )}
       {script.config && (
-        <ActionButton label={t("editor:user_config")} onClick={() => navigate(`/?userConfig=${script.uuid}`)}>
+        <ActionButton
+          label={t("editor:user_config")}
+          onPreload={preloadUserConfigValues}
+          onClick={() => {
+            preloadUserConfigValues();
+            navigate(`/?userConfig=${script.uuid}`);
+          }}
+        >
           <Settings2 className="w-3.5 h-3.5" />
         </ActionButton>
       )}
       {script.metadata?.cloudcat && (
-        <ActionButton label={t("editor:upload_to_cloud")} onClick={() => navigate(`/?cloud=${script.uuid}`)}>
+        <ActionButton
+          label={t("editor:upload_to_cloud")}
+          onPreload={preloadCloudPlan}
+          onClick={() => {
+            preloadCloudPlan();
+            navigate(`/?cloud=${script.uuid}`);
+          }}
+        >
           <UploadCloud className="w-3.5 h-3.5" />
         </ActionButton>
       )}
