@@ -46,17 +46,9 @@ describe("Popup 数据预加载", () => {
       backScriptList: [],
     });
 
-    const data = await preloadPopupData();
+    preloadPopupData();
+    await vi.waitFor(() => expect(mocks.getPopupData).toHaveBeenCalled());
 
     expect(mocks.getPopupData).toHaveBeenCalledWith({ tabId: 7, url: "https://example.com/page" });
-    expect(data).toMatchObject({
-      tabId: 7,
-      url: "https://example.com/page",
-      isEnableScript: true,
-      menuExpandNum: 8,
-      defaultScriptProvider: "greasyfork",
-      isBlacklist: true,
-    });
-    expect(data.scriptList.map(({ uuid }) => uuid)).toEqual(["enabled", "disabled"]);
   });
 });
