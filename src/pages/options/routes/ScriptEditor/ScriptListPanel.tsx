@@ -11,6 +11,7 @@ export interface ScriptListPanelProps {
   activeUuid: string | null;
   openUuids: Set<string>;
   changedUuids: Set<string>;
+  scriptListCollapsed: boolean;
   onOpen: (uuid: string) => void;
   onDelete: (script: Script) => void;
 }
@@ -20,6 +21,7 @@ export default function ScriptListPanel({
   activeUuid,
   openUuids,
   changedUuids,
+  scriptListCollapsed,
   onOpen,
   onDelete,
 }: ScriptListPanelProps) {
@@ -28,7 +30,15 @@ export default function ScriptListPanel({
   const list = useMemo(() => filterScripts(scripts, keyword), [scripts, keyword]);
 
   return (
-    <div className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-card">
+    <div
+      className={cn(
+        "flex h-full w-60 shrink-0 flex-col border-r border-border bg-card",
+        scriptListCollapsed ? "absolute z-8 left-0 opacity-0 ml-6 -translate-x-full" : "",
+        scriptListCollapsed
+          ? "hover:transition-all hover:duration-220 hover:ease-in hover:opacity-100 hover:ml-0 hover:translate-x-0"
+          : ""
+      )}
+    >
       {/* 标题 + 总数 */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <span className="text-sm font-medium text-foreground">{t("editor:script_list")}</span>

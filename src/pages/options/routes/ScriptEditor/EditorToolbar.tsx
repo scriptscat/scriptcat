@@ -57,7 +57,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         onCommand={onCommand}
         onSettings={() => onSubView("setting")}
         triggerIcon={<MenuIcon className="size-4" />}
-        triggerClassName="flex size-7 items-center justify-center self-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+        triggerClassName="flex relative size-7 items-center justify-center self-center rounded text-muted-foreground hover:bg-accent hover:text-foreground hover:z-9 disabled:opacity-40"
       />
 
       <div className="mx-1 h-4 w-px self-center bg-border" />

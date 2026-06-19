@@ -380,17 +380,16 @@ export default function ScriptEditor() {
           {editorArea}
         </MobileEditor>
       ) : (
-        <div className="flex h-full min-h-0 overflow-hidden">
-          {!scriptListCollapsed && (
-            <ScriptListPanel
-              scripts={scriptList}
-              activeUuid={state.activeUuid}
-              openUuids={openUuids}
-              changedUuids={changedUuids}
-              onOpen={(uuid) => openScript(uuid)}
-              onDelete={onDelete}
-            />
-          )}
+        <div className="relative flex h-full min-h-0 overflow-hidden">
+          <ScriptListPanel
+            scripts={scriptList}
+            activeUuid={state.activeUuid}
+            openUuids={openUuids}
+            changedUuids={changedUuids}
+            scriptListCollapsed={scriptListCollapsed}
+            onOpen={(uuid) => openScript(uuid)}
+            onDelete={onDelete}
+          />
 
           <div className="flex min-w-0 flex-1 flex-col">
             <EditorTabs
@@ -408,11 +407,11 @@ export default function ScriptEditor() {
               subView={subView}
               onSubView={setSubView}
               hasActive={!!activeTab}
+              scriptListCollapsed={scriptListCollapsed}
               onSave={handleSaveActive}
               onSaveAs={handleSaveAsActive}
               onRun={handleRunActive}
               onCommand={onCommand}
-              scriptListCollapsed={scriptListCollapsed}
               onToggleScriptList={toggleScriptList}
             />
 
