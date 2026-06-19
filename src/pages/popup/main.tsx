@@ -6,7 +6,10 @@ import { message } from "../store/global.ts";
 import MessageWriter from "@App/app/logger/message_writer.ts";
 import { ThemeProvider } from "../components/theme-provider.tsx";
 import { Toaster } from "../components/ui/sonner.tsx";
+import { preloadPopupData } from "./preload.ts";
 import "@App/index.css";
+
+preloadPopupData();
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({

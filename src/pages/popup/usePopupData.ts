@@ -6,10 +6,12 @@ import { subscribeMessage, systemConfig } from "../store/global";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import { ExtVersion, ExtServer } from "@App/app/const";
 import { sanitizeHTML } from "@App/pkg/utils/sanitize";
-import { getCurrentTab, openInCurrentTab } from "@App/pkg/utils/utils";
+import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
+import { scriptListSorter, type ScriptProvider, usePopupDataQuery } from "./preload";
 export { ExtVersion } from "@App/app/const";
 export { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
+export type { ScriptProvider } from "./preload";
 
 // ========== 辅助函数 ==========
 
@@ -21,8 +23,6 @@ export function extractHost(url: string): string {
     return "";
   }
 }
-
-export type ScriptProvider = "scriptcat" | "greasyfork" | "openuserjs";
 
 /** 根据当前页面 URL 与脚本站点生成「获取更多脚本」的链接。无有效 host 时回退到站点首页。 */
 export function getMoreScriptUrl(currentUrl: string, provider: ScriptProvider): string {
@@ -75,37 +75,32 @@ function filterScripts(list: ScriptMenu[], query: string): ScriptMenu[] {
   return list.filter((s) => s.name.toLowerCase().includes(lower));
 }
 
-/** 排序：启用优先 → 菜单数量多者优先 → 执行次数多者优先 → 更新时间新者优先 */
-const scriptListSorter = (a: ScriptMenu, b: ScriptMenu) =>
-  (b.enable ? 1 : 0) - (a.enable ? 1 : 0) ||
-  b.menus.length - a.menus.length ||
-  b.runNum - a.runNum ||
-  b.updatetime - a.updatetime;
-
 const EXPAND_LIMIT = 5;
 
 // ========== Hook ==========
 
 export function usePopupData() {
-  const [loading, setLoading] = useState(true);
-  const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
-  const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
-  const [isBlacklist, setIsBlacklist] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState("");
-  const [currentTabId, setCurrentTabId] = useState(-1);
+  const popupData = usePopupDataQuery();
+  const initialData = popupData.data;
+  const [initialized, setInitialized] = useState(!!initialData);
+  const [scriptList, setScriptList] = useState<ScriptMenu[]>(initialData?.scriptList ?? []);
+  const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>(initialData?.backScriptList ?? []);
+  const [isBlacklist, setIsBlacklist] = useState(initialData?.isBlacklist ?? false);
+  const [currentUrl, setCurrentUrl] = useState(initialData?.url ?? "");
+  const [currentTabId, setCurrentTabId] = useState(initialData?.tabId ?? -1);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({ current: false, background: false });
-  const [isEnableScript, setIsEnableScript] = useState(true);
+  const [isEnableScript, setIsEnableScript] = useState(initialData?.isEnableScript ?? true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [checkUpdate, setCheckUpdate] = useState<{ notice: string; version: string; isRead: boolean }>({
-    notice: "",
-    version: ExtVersion,
-    isRead: false,
-  });
+  const [checkUpdate, setCheckUpdate] = useState<{ notice: string; version: string; isRead: boolean }>(
+    initialData?.checkUpdate ?? { notice: "", version: ExtVersion, isRead: false }
+  );
   const [checkUpdateStatus, setCheckUpdateStatus] = useState(0); // 0=idle, 1=checking, 2=latest
   const [showAlert, setShowAlert] = useState(false);
-  const [menuExpandNum, setMenuExpandNum] = useState(5);
-  const [defaultScriptProvider, setDefaultScriptProvider] = useState<ScriptProvider>("scriptcat");
+  const [menuExpandNum, setMenuExpandNum] = useState(initialData?.menuExpandNum ?? 5);
+  const [defaultScriptProvider, setDefaultScriptProvider] = useState<ScriptProvider>(
+    initialData?.defaultScriptProvider ?? "scriptcat"
+  );
 
   // ref 保存最新值，避免 async 回调中的闭包过期
   const stateRef = useRef({ currentUrl, currentTabId });
@@ -130,33 +125,24 @@ export function usePopupData() {
     }
   }, []);
 
-  // 初始加载
+  // main.tsx 会在 React 挂载前预加载；此分支仅处理测试或其他直接挂载入口。
   useEffect(() => {
-    (async () => {
-      try {
-        const [tab, enableScript, checkUpdateData, expandNum, provider] = await Promise.all([
-          getCurrentTab(),
-          systemConfig.getEnableScript(),
-          systemConfig.getCheckUpdate({ sanitizeHTML }),
-          systemConfig.getMenuExpandNum(),
-          cacheInstance.get<ScriptProvider>("default_script_provider"),
-        ]);
-        setIsEnableScript(enableScript);
-        setCheckUpdate(checkUpdateData);
-        setMenuExpandNum(expandNum);
-        if (provider) setDefaultScriptProvider(provider);
-        if (tab?.id && tab.url) {
-          setCurrentTabId(tab.id);
-          setCurrentUrl(tab.url);
-          await fetchData(tab.id, tab.url);
-        }
-      } catch (e) {
-        console.error("Failed to get current tab:", e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [fetchData]);
+    if (!initialData || initialized) return;
+    setScriptList(initialData.scriptList);
+    setBackScriptList(initialData.backScriptList);
+    setIsBlacklist(initialData.isBlacklist);
+    setCurrentUrl(initialData.url);
+    setCurrentTabId(initialData.tabId);
+    setIsEnableScript(initialData.isEnableScript);
+    setCheckUpdate(initialData.checkUpdate);
+    setMenuExpandNum(initialData.menuExpandNum);
+    setDefaultScriptProvider(initialData.defaultScriptProvider);
+    setInitialized(true);
+  }, [initialData, initialized]);
+
+  useEffect(() => {
+    if (popupData.isError) console.error("Failed to preload popup data:", popupData.error);
+  }, [popupData.error, popupData.isError]);
 
   // 实时订阅
   useEffect(() => {
@@ -392,7 +378,7 @@ export function usePopupData() {
   const allScripts = useMemo(() => [...scriptList, ...backScriptList], [scriptList, backScriptList]);
 
   return {
-    loading,
+    loading: !initialized && !popupData.isError,
     isBlacklist,
     host,
     scriptList: displayScriptList,

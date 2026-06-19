@@ -2,6 +2,31 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
+const popupInitialData = vi.hoisted(() => ({
+  tabId: 7,
+  url: "https://example.com/page",
+  isEnableScript: true,
+  checkUpdate: { notice: "", version: "1.0.0", isRead: false },
+  menuExpandNum: 5,
+  defaultScriptProvider: "scriptcat" as const,
+  isBlacklist: false,
+  scriptList: [
+    {
+      uuid: "script-1",
+      name: "Preloaded script",
+      enable: true,
+      menus: [],
+      runNum: 0,
+      updatetime: 0,
+    },
+  ],
+  backScriptList: [],
+}));
+
+vi.mock("./preload", () => ({
+  usePopupDataQuery: () => ({ data: popupInitialData, isError: false }),
+}));
+
 // 仅替换 openInCurrentTab / getCurrentTab，其余实导出保留（getCurrentTab 置空以避免触及 chrome.tabs）
 vi.mock("@App/pkg/utils/utils", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -61,5 +86,16 @@ describe("usePopupData 打开编辑器/用户配置", () => {
       await result.current.handleOpenUserConfig("uuid-2");
     });
     expect(openInCurrentTab).toHaveBeenCalledWith("/src/options.html#/?userConfig=uuid-2");
+  });
+});
+
+describe("usePopupData 预加载数据", () => {
+  it("应在首次渲染直接使用 preloadable-query 的快照", () => {
+    const { result } = renderHook(() => usePopupData());
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.currentUrl).toBe("https://example.com/page");
+    expect(result.current.fullScriptCount).toBe(1);
+    expect(result.current.scriptList[0]?.name).toBe("Preloaded script");
   });
 });
