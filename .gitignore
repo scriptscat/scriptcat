@@ -27,6 +27,7 @@ coverage
 CHANGELOG.md
 
 .eslintcache
+.prettiercache
 
 tailwind.config.js
 
