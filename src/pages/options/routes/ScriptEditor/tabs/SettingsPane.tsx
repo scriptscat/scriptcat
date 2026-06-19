@@ -52,7 +52,10 @@ type SettingsPaneData = {
 const settingsPaneQuery = createPreloadableQuery<string, SettingsPaneData | null>({
   key: (uuid) => uuid,
   load: async (uuid, signal) => {
-    const [script, permissions] = await Promise.all([fetchScript(uuid), permissionClient.getScriptPermissions(uuid)]);
+    const [script, permissions] = await Promise.all([
+      fetchScript(uuid).catch(() => null),
+      permissionClient.getScriptPermissions(uuid).catch(() => [] as Permission[]),
+    ]);
     if (signal.aborted) throw new DOMException("SettingsPane preload aborted", "AbortError");
     return script ? { script, permissions } : null;
   },

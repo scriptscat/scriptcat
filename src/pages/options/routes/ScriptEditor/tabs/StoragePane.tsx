@@ -22,7 +22,7 @@ const EMPTY_ROWS: Row[] = [];
 const storagePaneQuery = createPreloadableQuery<string, Row[]>({
   key: (uuid) => uuid,
   load: async (uuid, signal) => {
-    const script = await fetchScript(uuid);
+    const script = await fetchScript(uuid).catch(() => null);
     if (signal.aborted || !script) return [];
 
     const record = await valueClient.getScriptValue(script);
