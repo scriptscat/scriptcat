@@ -304,12 +304,10 @@
 
 @utility animate-expand-bar {
   animation: expand-bar 200ms ease-out;
-  overflow: hidden;
 }
 
 @utility animate-collapse-bar {
   animation: collapse-bar 200ms ease-out forwards;
-  overflow: hidden;
 }
 
 @keyframes indeterminate {
