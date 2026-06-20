@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp, ChevronsUpDown, GripVertical, Loader2 } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -19,7 +20,6 @@ import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import type { SCMetadata } from "@App/app/repo/scripts";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import { i18nName } from "@App/locales/locales";
 
 import {
@@ -178,6 +178,7 @@ export default function ScriptTable({
   onBatchPinTop,
   onBatchCheckUpdate,
 }: ScriptTableProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const handleEnable = useCallback(
@@ -345,6 +346,7 @@ interface ScriptRowProps {
 }
 
 function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunStop, navigate }: ScriptRowProps) {
+  const { t } = useTranslation();
   const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
   const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
   const version = script.metadata?.version?.[0] || "";
@@ -385,7 +387,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
             {name}
           </Link>
           <span className="text-[11px] text-muted-foreground truncate">
-            {[versionDisplay(version), scriptTypeLabel(script.type), author].filter(Boolean).join(" · ")}
+            {[versionDisplay(version), scriptTypeLabel(script.type, t), author].filter(Boolean).join(" · ")}
           </span>
         </div>
       </div>
@@ -422,17 +424,11 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
   );
 }
 
+// store 对任一字段变更都会为该行生成新的 script 对象引用（未变更的行保持同引用），
+// 故直接按对象引用比较即可：既保留 memo 优化，又避免逐字段比较漏掉
+// name/metadata/selfMetadata/tag/config/source 等导致行展示过期数据。
 const ScriptRow = React.memo(ScriptRowInner, (prev, next) => {
-  return (
-    prev.script.uuid === next.script.uuid &&
-    prev.script.status === next.script.status &&
-    prev.script.enableLoading === next.script.enableLoading &&
-    prev.script.actionLoading === next.script.actionLoading &&
-    prev.script.runStatus === next.script.runStatus &&
-    prev.script.updatetime === next.script.updatetime &&
-    prev.script.favorite === next.script.favorite &&
-    prev.selected === next.selected
-  );
+  return prev.script === next.script && prev.selected === next.selected;
 });
 
 // ========== 标签 ==========

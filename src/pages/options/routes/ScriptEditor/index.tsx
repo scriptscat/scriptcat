@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { editor } from "monaco-editor";
 import type { Script } from "@App/app/repo/scripts";
 import { ScriptDAO, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
-import { i18nName, t } from "@App/locales/locales";
+import { i18nName } from "@App/locales/locales";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
@@ -45,6 +46,7 @@ interface ConfirmState {
 const SCRIPT_LIST_COLLAPSED_KEY = "scriptcat-editor-script-list-collapsed";
 
 export default function ScriptEditor() {
+  const { t } = useTranslation();
   const params = useParams<{ uuid?: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -91,27 +93,30 @@ export default function ScriptEditor() {
           ? { title: t("editor:edit_conflict"), description: t("editor:confirm_override_when_edit_conflict") }
           : { title: t("editor:scriptname_conflict"), description: t("editor:confirm_save_when_scriptname_conflict") }
       ),
-    [confirm]
+    [confirm, t]
   );
 
-  const openScript = useCallback(async (uuid?: string, template?: string, target?: string) => {
-    if (uuid) {
-      if (stateRef.current.tabs.some((x) => x.uuid === uuid)) {
-        dispatch({ type: "activate", uuid });
-        return;
+  const openScript = useCallback(
+    async (uuid?: string, template?: string, target?: string) => {
+      if (uuid) {
+        if (stateRef.current.tabs.some((x) => x.uuid === uuid)) {
+          dispatch({ type: "activate", uuid });
+          return;
+        }
+        const script = scriptListRef.current.find((s) => s.uuid === uuid);
+        if (!script) {
+          toast.error(t("editor:script_not_found"));
+          return;
+        }
+        const code = await loadScriptCode(uuid);
+        dispatch({ type: "open", tab: { uuid, script, code, isChanged: false } });
+      } else {
+        const tab = await emptyScript(template || "", target);
+        dispatch({ type: "open", tab });
       }
-      const script = scriptListRef.current.find((s) => s.uuid === uuid);
-      if (!script) {
-        toast.error(t("editor:script_not_found"));
-        return;
-      }
-      const code = await loadScriptCode(uuid);
-      dispatch({ type: "open", tab: { uuid, script, code, isChanged: false } });
-    } else {
-      const tab = await emptyScript(template || "", target);
-      dispatch({ type: "open", tab });
-    }
-  }, []);
+    },
+    [t]
+  );
 
   // 初始化：列表就绪后根据 URL uuid 打开
   useEffect(() => {
@@ -166,16 +171,19 @@ export default function ScriptEditor() {
   usePreloadSettingsPane(activeTab?.uuid);
   usePreloadStoragePane(activeTab?.uuid);
 
-  const preloadSubView = useCallback((view: SubView) => {
-    const uuid = stateRef.current.activeUuid;
-    if (!uuid) return;
-    const request =
-      view === "storage" ? preloadStoragePane(uuid) : view === "setting" ? preloadSettingsPane(uuid) : null;
-    void request?.catch((error) => {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
-    });
-  }, []);
+  const preloadSubView = useCallback(
+    (view: SubView) => {
+      const uuid = stateRef.current.activeUuid;
+      if (!uuid) return;
+      const request =
+        view === "storage" ? preloadStoragePane(uuid) : view === "setting" ? preloadSettingsPane(uuid) : null;
+      void request?.catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+      });
+    },
+    [t]
+  );
 
   const selectSubView = useCallback(
     (view: SubView) => {
@@ -198,7 +206,7 @@ export default function ScriptEditor() {
       dispatch({ type: "close", uuid });
       if (wasLast) openScript(undefined, templateRef.current, targetRef.current);
     },
-    [confirm, openScript]
+    [confirm, openScript, t]
   );
 
   // ---- 保存 / 另存为 / 运行 ----
@@ -234,25 +242,31 @@ export default function ScriptEditor() {
         return undefined;
       }
     },
-    [askConfirm, scriptDAO, setScriptList]
+    [askConfirm, scriptDAO, setScriptList, t]
   );
 
-  const doSaveAs = useCallback((script: Script, e: editor.ICodeEditor) => {
-    chrome.downloads.download(
-      {
-        url: makeBlobURL({ blob: new Blob([e.getValue()], { type: "text/javascript" }), persistence: false }) as string,
-        saveAs: true,
-        filename: `${script.name}.user.js`,
-      },
-      () => {
-        if (chrome.runtime.lastError) {
-          toast.error(`${t("editor:save_as_failed")}: ${chrome.runtime.lastError.message}`);
-        } else {
-          toast.success(t("editor:save_as_success"));
+  const doSaveAs = useCallback(
+    (script: Script, e: editor.ICodeEditor) => {
+      chrome.downloads.download(
+        {
+          url: makeBlobURL({
+            blob: new Blob([e.getValue()], { type: "text/javascript" }),
+            persistence: false,
+          }) as string,
+          saveAs: true,
+          filename: `${script.name}.user.js`,
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            toast.error(`${t("editor:save_as_failed")}: ${chrome.runtime.lastError.message}`);
+          } else {
+            toast.success(t("editor:save_as_success"));
+          }
         }
-      }
-    );
-  }, []);
+      );
+    },
+    [t]
+  );
 
   const doRun = useCallback(
     async (script: Script, e: editor.ICodeEditor) => {
@@ -267,7 +281,7 @@ export default function ScriptEditor() {
         .then(() => toast.success(t("editor:build_success_message")))
         .catch((err) => toast.error(`${t("editor:build_failed")}: ${err}`));
     },
-    [doSave]
+    [doSave, t]
   );
 
   const onCommand = useCallback(
@@ -328,7 +342,7 @@ export default function ScriptEditor() {
         toast.error(`${t("editor:delete_failed")}: ${err}`);
       }
     },
-    [confirm, closeTab]
+    [confirm, closeTab, t]
   );
 
   const openUuids = useMemo(() => new Set(state.tabs.map((x) => x.uuid)), [state.tabs]);

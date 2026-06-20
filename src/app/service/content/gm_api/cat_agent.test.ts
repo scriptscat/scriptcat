@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { ConversationInstance } from "./cat_agent";
 import type { Conversation, StreamChunk } from "@App/app/service/agent/core/types";

@@ -10,12 +10,13 @@ import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/fac
 import type { FileInfo, FileReader } from "@Packages/filesystem/filesystem";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { openImportWindow } from "../openImportWindow";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 type BackupConfig = { filesystem: FileSystemType; params: { [key: string]: any } };
 
 export function CloudBackupSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<BackupConfig | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [backupFileList, setBackupFileList] = useState<FileInfo[]>([]);

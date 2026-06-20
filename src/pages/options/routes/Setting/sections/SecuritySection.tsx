@@ -3,10 +3,11 @@ import { SettingCard } from "../../../components/SettingCard";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { blackListSelfCheck } from "@App/pkg/utils/match";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 export function SecuritySection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [blacklist, setBlacklist] = useSystemConfig("blacklist");
   const [draft, setDraft] = useState("");
 

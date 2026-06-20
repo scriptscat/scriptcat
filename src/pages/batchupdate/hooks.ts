@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { t } from "@App/locales/locales";
 import type { TBatchUpdateRecord } from "@App/app/service/service_worker/types";
 import { BatchUpdateListActionCode, UpdateStatusCode } from "@App/app/service/service_worker/types";
 import {
@@ -34,6 +34,7 @@ function parseSite(): string {
 
 /** 批量更新页面的数据与交互逻辑 */
 export function useBatchUpdate(): BatchUpdateViewProps {
+  const { t } = useTranslation();
   const [records, setRecords] = useState<TBatchUpdateRecord[]>([]);
   const [checktime, setChecktime] = useState(0);
   const [checking, setChecking] = useState(false);
@@ -89,7 +90,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     void scriptClient.sendUpdatePageOpened();
     void loadRecord();
     return unsub;
-  }, [loadRecord]);
+  }, [loadRecord, t]);
 
   // 自动关闭倒计时：每秒递减一次（标签页不可见或已取消时不动）
   useEffect(() => {

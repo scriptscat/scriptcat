@@ -12,7 +12,7 @@ import {
   SlidersHorizontal,
   Undo2,
 } from "lucide-react";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import EditorMenu, { type EditorCommand, type SubView } from "./EditorMenu";
 
@@ -31,6 +31,7 @@ export interface MobileEditorProps {
 }
 
 export default function MobileEditor(props: MobileEditorProps) {
+  const { t } = useTranslation();
   const {
     title,
     subView,

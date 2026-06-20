@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { Routes, Route } from "react-router-dom";

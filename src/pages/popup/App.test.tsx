@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import fs from "fs";
@@ -169,6 +168,32 @@ describe("Popup accessKey 菜单快捷键", () => {
     document.dispatchEvent(new KeyboardEvent("keypress", { key: "k" }));
 
     expect(handleMenuClick).toHaveBeenCalledWith("uuid-hidden", [menu]);
+  });
+
+  it("当焦点在输入框（input/textarea/可编辑元素）中时，快捷键不应触发菜单（避免打字误触）", () => {
+    const handleMenuClick = vi.fn();
+    const menu = { key: "k1", name: "命令", groupKey: "g1", options: { accessKey: "k" } };
+    const script = makeScriptMenu({ uuid: "u1", menus: [menu] });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      handleMenuClick,
+    });
+
+    render(<App />);
+
+    // 模拟用户在输入框中打字：事件源是 input
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent("keypress", { key: "k", bubbles: true }));
+    expect(handleMenuClick).not.toHaveBeenCalled();
+
+    // 对照：焦点不在输入框时（事件源为 document.body）仍正常触发
+    document.body.dispatchEvent(new KeyboardEvent("keypress", { key: "k", bubbles: true }));
+    expect(handleMenuClick).toHaveBeenCalledWith("u1", [menu]);
+
+    input.remove();
   });
 });
 

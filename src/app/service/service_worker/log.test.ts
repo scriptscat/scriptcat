@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
 import type { Group } from "@Packages/message/server";
 import type { LoggerDAO } from "@App/app/repo/logger";

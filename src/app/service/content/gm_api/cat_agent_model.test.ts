@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import type { AgentModelSafeConfig, ModelApiRequest } from "@App/app/service/agent/core/types";
 

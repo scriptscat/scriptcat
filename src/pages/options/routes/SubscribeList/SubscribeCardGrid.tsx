@@ -3,7 +3,7 @@ import { Loader2, Inbox } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestEnableSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { versionDisplay } from "@App/pages/utils";
 import {
@@ -24,6 +24,7 @@ export interface SubscribeCardGridProps {
 
 // ========== 卡片网格主组件 ==========
 function SubscribeCardGrid({ subscribeList, loadingList, updateSubscribes, handleDelete }: SubscribeCardGridProps) {
+  const { t } = useTranslation();
   const handleEnable = useCallback(
     (subscribe: SubscribeLoading, checked: boolean) => {
       updateSubscribes([subscribe.url], { enableLoading: true });
@@ -40,7 +41,7 @@ function SubscribeCardGrid({ subscribeList, loadingList, updateSubscribes, handl
           toast.error(`${t("script:operation_failed")}: ${e}`);
         });
     },
-    [updateSubscribes]
+    [updateSubscribes, t]
   );
 
   return (
@@ -87,6 +88,7 @@ interface SubscribeCardItemProps {
 
 const SubscribeCardItem = React.memo(
   ({ subscribe, onEnable, onDelete }: SubscribeCardItemProps) => {
+    const { t } = useTranslation();
     const isDisabled = subscribe.status === SubscribeStatusType.disable;
     const version = subscribe.metadata.version?.[0] || "0.0";
     const scriptCount = Object.keys(subscribe.scripts || {}).length;

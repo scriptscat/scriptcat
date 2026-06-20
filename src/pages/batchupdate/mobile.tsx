@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { BellOff, ChevronRight, Download, PackageCheck, RefreshCw, RotateCcw, X } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
@@ -19,7 +18,7 @@ import {
   StatusBadge,
   TopProgressBar,
   VersionDiff,
-  tk,
+  useTk,
   type BatchUpdateViewProps,
 } from "./components";
 
@@ -66,6 +65,7 @@ function MobileCard({
   onRestore?: (item: UpdateItem) => void;
   ignoredCard?: boolean;
 }) {
+  const { tk } = useTk();
   const dim = item.enabled ? "" : "opacity-55";
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3.5 shadow-sm">
@@ -128,6 +128,7 @@ function MobileCard({
 }
 
 function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
+  const { tk } = useTk();
   const [open, setOpen] = useState(false);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -165,6 +166,7 @@ function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
 
 /** 移动端整页视图 */
 export function MobileView({ view }: { view: BatchUpdateViewProps }) {
+  const { t, tk } = useTk();
   const selectedCount = view.updates.filter((u) => view.selected.has(u.uuid)).length;
   const allSelected = view.updates.length > 0 && selectedCount === view.updates.length;
   const empty = view.updates.length === 0 && view.ignored.length === 0;

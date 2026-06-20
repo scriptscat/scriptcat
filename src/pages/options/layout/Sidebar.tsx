@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useHoverMenu } from "../../components/ui/use-hover-menu";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -28,12 +29,13 @@ import {
 } from "../../components/ui/dropdown-menu";
 import { useTheme, type Theme } from "../../components/theme-provider";
 import { DocumentationSite } from "@App/app/const";
-import { localePath, t } from "@App/locales/locales";
+import { localePath } from "@App/locales/locales";
 import { mainNav, agentNav, auxNav } from "./nav-items";
 
 const SIDEBAR_KEY = "scriptcat-sidebar-collapsed";
 
 export default function Sidebar() {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === "1");
   const { theme, setTheme } = useTheme();
 
@@ -144,6 +146,7 @@ function SidebarItem({
 
 // ========== AI Agent 子菜单 ==========
 function AgentMenu({ collapsed }: { collapsed: boolean }) {
+  const { t } = useTranslation();
   const isAgentActive = useLocation().pathname.startsWith("/agent");
   const [open, setOpen] = useState(isAgentActive);
 
@@ -237,6 +240,7 @@ function AgentMenuCollapsed({ isActive }: { isActive: boolean }) {
 
 // ========== 帮助中心菜单（hover 触发） ==========
 function HelpMenu({ collapsed }: { collapsed: boolean }) {
+  const { t } = useTranslation();
   const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
 
   const openUrl = (url: string) => {

@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 import MarkdownRenderer from "./MarkdownRenderer";
 
 export default function ThinkingBlock({ content }: { content: string }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   if (!content) return null;

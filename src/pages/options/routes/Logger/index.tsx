@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowUp, ChevronDown, Inbox, Loader2, ScrollText, Search, Trash, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Button } from "@App/pages/components/ui/button";
@@ -29,6 +29,7 @@ import {
 } from "./components";
 
 export default function Logger() {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const {
     logs,
@@ -227,7 +228,7 @@ export default function Logger() {
           {refreshInterval !== "off" && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-1.5 py-0.5 text-[11px] font-medium text-success-fg">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              {`${t("logs:live")} · ${getIntervalLabel(refreshInterval)}`}
+              {`${t("logs:live")} · ${getIntervalLabel(refreshInterval, t)}`}
             </span>
           )}
           <span className="text-muted-foreground">{"·"}</span>

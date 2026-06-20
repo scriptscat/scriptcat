@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { ScriptIcon } from "./components";

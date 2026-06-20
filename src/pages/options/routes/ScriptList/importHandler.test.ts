@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@App/pages/store/features/script", () => ({

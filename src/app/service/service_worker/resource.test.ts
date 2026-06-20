@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { initTestEnv } from "@Tests/utils";
 import { ResourceService } from "./resource";
 import { vi, describe, it, expect, beforeEach } from "vitest";

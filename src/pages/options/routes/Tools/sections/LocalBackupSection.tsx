@@ -3,10 +3,11 @@ import { SettingCard } from "../../../components/SettingCard";
 import { Button } from "@App/pages/components/ui/button";
 import { synchronizeClient } from "@App/pages/store/features/script";
 import { openImportWindow } from "../openImportWindow";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 export function LocalBackupSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState(false);
 

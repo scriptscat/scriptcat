@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import prettier from "prettier/standalone";
 import * as babel from "prettier/parser-babel";
 import prettierPluginEstree from "prettier/plugins/estree";
@@ -7,7 +8,6 @@ import { SettingRow } from "../../../components/SettingRow";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
-import { t } from "@App/locales/locales";
 import { toast } from "sonner";
 
 function useDraft(value: string | undefined) {
@@ -19,6 +19,7 @@ function useDraft(value: string | undefined) {
 }
 
 export function DeveloperSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [enableEslint, setEnableEslint] = useSystemConfig("enable_eslint");
   const [eslintCfg, setEslintCfg] = useSystemConfig("eslint_config");
   const [editorCfg, setEditorCfg] = useSystemConfig("editor_config");

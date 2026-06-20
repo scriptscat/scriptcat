@@ -2,9 +2,10 @@ import { SettingCard } from "../../../components/SettingCard";
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { migrateToChromeStorage } from "@App/app/migrate";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 
 export function MigrationSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   return (
     <SettingCard
       id="data-migration"

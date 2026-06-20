@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Copy, RefreshCw, Trash2 } from "lucide-react";
-import { t } from "@App/locales/locales";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 
 export type MessageToolbarProps = {
@@ -63,6 +63,7 @@ export default function MessageToolbar({
   onRegenerate,
   onDelete,
 }: MessageToolbarProps) {
+  const { t } = useTranslation();
   const metaParts: ReactNode[] = [];
 
   if (isStreaming && streamStartTime) {

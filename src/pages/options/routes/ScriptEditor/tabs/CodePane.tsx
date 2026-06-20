@@ -1,8 +1,8 @@
 import React, { useRef } from "react";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
+import { useTranslation } from "react-i18next";
 import type { Script } from "@App/app/repo/scripts";
-import { t } from "@App/locales/locales";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import type { EditorTab } from "../useEditorTabs";
 
@@ -26,6 +26,7 @@ export interface CodePaneProps {
 const byteSize = (code: string) => new TextEncoder().encode(code).length;
 
 function CodePaneImpl(props: CodePaneProps) {
+  const { t } = useTranslation();
   const { tab } = props;
   // 用 ref 保存最新回调，避免重复注册 action
   const ref = useRef(props);

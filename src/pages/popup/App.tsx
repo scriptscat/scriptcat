@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 import {
@@ -48,10 +48,13 @@ import { ScriptIcon } from "@App/pages/options/routes/ScriptList/components";
 import PopupWarnings from "./PopupWarnings";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_ERROR } from "@App/app/repo/scripts";
 import { Discord, DocumentationSite } from "@App/app/const";
-import { isChineseUser, localePath, t } from "@App/locales/locales";
+import { isChineseUser, localePath } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
 
 export default function App() {
+  const { t } = useTranslation();
   const data = usePopupData();
 
   // accessKey 键盘快捷键：基于全量脚本注册，确保对被截断/搜索过滤掉的脚本同样生效
@@ -74,6 +77,9 @@ export default function App() {
     }
     if (!checkItems.size) return;
     const listener = (e: KeyboardEvent) => {
+      // 焦点位于输入框/文本域/下拉/可编辑元素时跳过，避免用户打字误触脚本菜单快捷键
+      const target = e.target as HTMLElement | null;
+      if (target?.matches?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
       const keyUpper = e.key.toUpperCase();
       checkItems.forEach(({ uuid, key, menus }) => {
         if (keyUpper === key) handleMenuClick(uuid, menus);
@@ -233,6 +239,7 @@ function Header({
   onMenuCheckUpdate: () => void;
   onGetMoreScript: (provider?: ScriptProvider) => void;
 }) {
+  const { t } = useTranslation();
   const hasUnreadNotice = !checkUpdate.isRead;
 
   return (
@@ -283,6 +290,7 @@ function MoreMenu({
   onMenuCheckUpdate: () => void;
   onGetMoreScript: (provider?: ScriptProvider) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -356,6 +364,7 @@ function MoreMenu({
 
 // ========== Search ==========
 function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
   return (
     <div className="px-3 py-1 bg-card">
       <div className="relative">
@@ -409,6 +418,7 @@ function Divider() {
 }
 
 function ShowMoreButton({ count, expanded, onClick }: { count: number; expanded: boolean; onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -455,6 +465,7 @@ function ScriptRow({
   onRun,
   onStop,
 }: ScriptRowProps) {
+  const { t } = useTranslation();
   const allVisibleMenus = getVisibleMenuItems(script.menus);
   const [isActive, setIsActive] = useState(false);
   const [isMenuExpanded, setIsMenuExpanded] = useState(false);
@@ -465,7 +476,7 @@ function ScriptRow({
     if (shouldTruncateMenus && !isMenuExpanded) return allVisibleMenus.slice(0, menuExpandNum);
     return allVisibleMenus;
   })();
-  const statusBadge = getStatusBadge(script, isPageScript);
+  const statusBadge = getStatusBadge(script, isPageScript, t);
   const displayName = script.name;
 
   // 运行次数 tooltip
@@ -604,7 +615,7 @@ function ScriptRow({
   );
 }
 
-function getStatusBadge(script: ScriptMenu, isPageScript: boolean): React.ReactNode {
+function getStatusBadge(script: ScriptMenu, isPageScript: boolean, t: TFunction): React.ReactNode {
   if (script.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
     // 与设计稿一致：页面脚本运行中=蓝色(info)，后台脚本运行中=绿色(success)
     return <Tag variant={isPageScript ? "info" : "success"}>{t("script:running")}</Tag>;
@@ -670,51 +681,44 @@ function InputMenuItem({
 }
 
 // ========== ActionItem ==========
-interface ActionItemProps {
+interface ActionItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon: React.ReactNode;
-  children: React.ReactNode;
   danger?: boolean;
   warn?: boolean;
   success?: boolean;
   muted?: boolean;
-  title?: string;
-  onClick?: () => void;
 }
 
-function ActionItem({
-  icon,
-  children,
-  danger = false,
-  warn = false,
-  success = false,
-  muted = false,
-  title,
-  onClick,
-}: ActionItemProps) {
-  const color = danger
-    ? "text-destructive hover:text-destructive"
-    : warn
-      ? "text-type-orange hover:text-type-orange"
-      : success
-        ? "text-type-green hover:text-type-green"
-        : muted
-          ? "text-muted-foreground"
-          : "";
-  return (
-    <button
-      type="button"
-      title={title}
-      className={cn(
-        "h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50",
-        color
-      )}
-      onClick={onClick}
-    >
-      {icon}
-      <span className="flex-1 truncate">{children}</span>
-    </button>
-  );
-}
+// forwardRef + 透传 props：使其可直接作为 Popconfirm（Radix asChild）的 trigger，无需外包 div
+const ActionItem = forwardRef<HTMLButtonElement, ActionItemProps>(
+  ({ icon, children, danger = false, warn = false, success = false, muted = false, className, ...rest }, ref) => {
+    const color = danger
+      ? "text-destructive hover:text-destructive"
+      : warn
+        ? "text-type-orange hover:text-type-orange"
+        : success
+          ? "text-type-green hover:text-type-green"
+          : muted
+            ? "text-muted-foreground"
+            : "";
+    return (
+      <button
+        ref={ref}
+        type="button"
+        className={cn(
+          "h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50",
+          color,
+          className
+        )}
+        {...rest}
+      >
+        {icon}
+        <span className="flex-1 truncate">{children}</span>
+      </button>
+    );
+  }
+);
+ActionItem.displayName = "ActionItem";
 
 // ========== Tag ==========
 interface TagProps {
@@ -748,6 +752,7 @@ function Footer({
   checkUpdateStatus: number;
   onVersionClick: () => void;
 }) {
+  const { t } = useTranslation();
   const hasNewVersion = versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS;
 
   return (

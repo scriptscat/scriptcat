@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, forwardRef } from "react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 
 export interface BatchActionsBarProps {
@@ -25,6 +25,7 @@ export default function BatchActionsBar({
   onBatchCheckUpdate,
   onClose,
 }: BatchActionsBarProps) {
+  const { t } = useTranslation();
   const isOpen = selectedCount > 0;
   const [mounted, setMounted] = useState(false);
 
@@ -87,27 +88,25 @@ export default function BatchActionsBar({
   );
 }
 
-function BatchBtn({
-  color,
-  onClick,
-  children,
-}: {
+interface BatchBtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   color: "primary" | "muted" | "destructive";
-  onClick?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium border transition-colors hover:bg-accent/50",
-        color === "primary" && "border-primary text-primary",
-        color === "destructive" && "border-destructive text-destructive",
-        color === "muted" && "border-muted-foreground/50 text-muted-foreground"
-      )}
-    >
-      {children}
-    </button>
-  );
 }
+
+// forwardRef + 透传 props：使其可直接作为 Popconfirm（Radix asChild）的 trigger，无需外包 div
+const BatchBtn = forwardRef<HTMLButtonElement, BatchBtnProps>(({ color, children, className, ...rest }, ref) => (
+  <button
+    ref={ref}
+    type="button"
+    className={cn(
+      "inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium border transition-colors hover:bg-accent/50",
+      color === "primary" && "border-primary text-primary",
+      color === "destructive" && "border-destructive text-destructive",
+      color === "muted" && "border-muted-foreground/50 text-muted-foreground",
+      className
+    )}
+    {...rest}
+  >
+    {children}
+  </button>
+));
+BatchBtn.displayName = "BatchBtn";

@@ -87,7 +87,7 @@ export const blobToDataURL = (blob: Blob): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = function () {
-      resolve(<string>this.result);
+      resolve(<string>reader.result);
     };
     reader.onerror = reject;
     reader.onabort = reject;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Calendar as CalendarIcon,
   CalendarClock,
@@ -10,8 +11,8 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
+import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import { dayFormat, formatUnixTime } from "@App/pkg/utils/day_format";
 import type { Logger } from "@App/app/repo/logger";
 import { Popover, PopoverContent, PopoverTrigger } from "@App/pages/components/ui/popover";
@@ -67,7 +68,7 @@ const INTERVAL_I18N: Record<RefreshInterval, string> = {
 };
 
 /** 自动刷新间隔的本地化文案 */
-export function getIntervalLabel(interval: RefreshInterval): string {
+export function getIntervalLabel(interval: RefreshInterval, t: TFunction): string {
   return t(`logs:${INTERVAL_I18N[interval]}`);
 }
 
@@ -206,6 +207,7 @@ export function LogRow({
 
 /** 「全部」级别 chip */
 export function AllChip({ active, onClick }: { active: boolean; onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -262,6 +264,7 @@ export function RefreshControl({
   onRefresh: () => void;
   onIntervalChange: (i: RefreshInterval) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const active = interval !== "off";
   return (
@@ -344,6 +347,7 @@ function TimeInput({ value, max, onChange }: { value: number; max: number; onCha
 
 /** 月历 + 时分秒：选择具体日期时间，保留原值的时间部分 */
 export function Calendar({ value, onChange }: { value: Date; onChange: (d: Date) => void }) {
+  const { t } = useTranslation();
   const [view, setView] = useState(() => ({ year: value.getFullYear(), month: value.getMonth() }));
   const weeks = buildMonthGrid(view.year, view.month);
   const weekdays = t("logs:weekdays_short").split(",");
@@ -447,6 +451,7 @@ export function Calendar({ value, onChange }: { value: Date; onChange: (d: Date)
 
 /** 「从/到」日期时间输入：点击展开日历选择器 */
 function DateTimeField({ value, onChange, testid }: { value: Date; onChange: (d: Date) => void; testid: string }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -489,6 +494,7 @@ export function TimeRangePicker({
   onSelectPreset: (p: TimePreset) => void;
   onApplyRange: (start: number, end: number) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState(() => new Date(range.start));
   const [to, setTo] = useState(() => new Date(range.end));
@@ -600,6 +606,7 @@ function LabelQueryChip({
   onChange: (q: LogQuery) => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation();
   const keys = Object.keys(labelsMap);
   const values = Object.keys(labelsMap[query.key] || {});
   const selectCls = "h-6 border-0 bg-transparent px-1.5 font-mono text-xs shadow-none focus-visible:ring-0";
@@ -667,6 +674,7 @@ export function LabelFilterBar({
   onAdd: () => void;
   onRemove: (index: number) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="shrink-0 text-xs text-muted-foreground">{t("logs:label_filter")}</span>

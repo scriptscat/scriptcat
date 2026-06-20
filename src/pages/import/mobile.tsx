@@ -1,7 +1,6 @@
 import { type ReactNode } from "react";
 import { Download, Loader2, Rss, ShieldCheck, Tag, TriangleAlert, X } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Switch } from "@App/pages/components/ui/switch";
@@ -17,7 +16,7 @@ import {
   ScriptAvatar,
   SourceCell,
   TopProgressBar,
-  tk,
+  useTk,
   type ImportItemStatus,
   type ImportView,
 } from "./components";
@@ -30,6 +29,7 @@ function mobileVersionText(item: ScriptImportItem): string {
 }
 
 function MobileHeader({ onClose }: { onClose?: () => void }) {
+  const { t, tk } = useTk();
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-border bg-card px-4">
       <div className="flex size-6 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
@@ -63,6 +63,7 @@ function MobileStateShell({ onClose, children }: { onClose?: () => void; childre
 
 /** 移动端脚本卡 */
 function MobileScriptCard({ item, view }: { item: ScriptImportItem; view: ImportView }) {
+  const { tk } = useTk();
   const inProgress = view.phase === "importing" || view.phase === "done";
   const status: ImportItemStatus = view.importStatus[item.id] ?? "pending";
   const dim = item.op === "error" ? "opacity-60" : "";
@@ -121,6 +122,7 @@ function MobileScriptCard({ item, view }: { item: ScriptImportItem; view: Import
 
 /** 移动端订阅卡 */
 function MobileSubscribeCard({ item, view }: { item: SubscribeImportItem; view: ImportView }) {
+  const { tk } = useTk();
   const inProgress = view.phase === "importing" || view.phase === "done";
   const status: ImportItemStatus = view.importStatus[item.id] ?? "pending";
   return (
@@ -148,6 +150,7 @@ function MobileSubscribeCard({ item, view }: { item: SubscribeImportItem; view: 
 }
 
 function MobileSubscribeSection({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   if (view.subscribes.length === 0) return null;
   const importable = importableSubscribeIds(view.subscribes);
   const selectedCount = importable.filter((id) => view.selectedSubscribes.has(id)).length;
@@ -177,6 +180,7 @@ function MobileSubscribeSection({ view }: { view: ImportView }) {
 }
 
 function MobileToolbar({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   const importable = importableScriptIds(view.scripts);
   const selectedCount = importable.filter((id) => view.selectedScripts.has(id)).length;
   const allSelected = importable.length > 0 && selectedCount === importable.length;
@@ -197,6 +201,7 @@ function MobileToolbar({ view }: { view: ImportView }) {
 }
 
 function MobileImportingBar({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   return (
     <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-4 text-[13px]">
       <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
@@ -208,6 +213,7 @@ function MobileImportingBar({ view }: { view: ImportView }) {
 }
 
 function MobileActions({ view }: { view: ImportView }) {
+  const { t, tk } = useTk();
   const importing = view.phase === "importing";
   const total = view.selectedScripts.size + view.selectedSubscribes.size;
   return (
@@ -251,6 +257,7 @@ function MobileActions({ view }: { view: ImportView }) {
 
 /** 移动端整页视图 */
 export function MobileView({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   if (view.phase === "loading") {
     return (
       <MobileStateShell onClose={view.onClose}>

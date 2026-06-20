@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ChevronLeft, Download, PanelLeftClose, PanelLeftOpen, Sparkles, SquarePen } from "lucide-react";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
 import { agentClient } from "@App/pages/store/features/script";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
-import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
@@ -31,6 +31,7 @@ const headerActionBtn =
 
 // 头部操作组：导出当前会话、新建会话
 function HeaderActions({ onExport, onNew }: { onExport?: () => void; onNew: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-0.5 shrink-0">
       {onExport && (
@@ -60,6 +61,7 @@ function HeaderActions({ onExport, onNew }: { onExport?: () => void; onNew: () =
 }
 
 export default function AgentChat() {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [models, setModels] = useState<AgentModelConfig[]>([]);
   const [defaultModelId, setDefaultModelId] = useState("");
@@ -144,7 +146,7 @@ export default function AgentChat() {
       const safeName = conv.title.replace(/[/\\?%*:|"<>]/g, "_");
       downloadMarkdown(`${safeName}.md`, md);
     },
-    [conversations]
+    [conversations, t]
   );
 
   // 桌面端面板头带折叠按钮；移动端列表屏无折叠(全局抽屉导航)。

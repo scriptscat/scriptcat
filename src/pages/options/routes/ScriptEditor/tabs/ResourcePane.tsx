@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Search, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Resource } from "@App/app/repo/resource";
 import { fetchScript, resourceClient } from "@App/pages/store/features/script";
-import { t } from "@App/locales/locales";
 import { base64ToBlob, formatBytes, makeBlobURL } from "@App/pkg/utils/utils";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Button } from "@App/pages/components/ui/button";
@@ -48,6 +48,7 @@ export function invalidateResourcePane(uuid?: string) {
 }
 
 export function usePreloadResourcePane(uuid?: string) {
+  const { t } = useTranslation();
   useEffect(() => {
     if (!uuid) return;
     void preloadResourcePane(uuid).catch((e) => {
@@ -55,7 +56,7 @@ export function usePreloadResourcePane(uuid?: string) {
       toast.error(`${t("script:operation_failed")}: ${e instanceof Error ? e.message : String(e)}`);
     });
     return () => invalidateResourcePane(uuid);
-  }, [uuid]);
+  }, [uuid, t]);
 }
 
 // 估算资源字节大小：优先用文本内容，其次用 base64 解码后的长度
@@ -79,6 +80,7 @@ export interface ResourcePaneProps {
 }
 
 export default function ResourcePane({ uuid }: ResourcePaneProps) {
+  const { t } = useTranslation();
   const [keyword, setKeyword] = useState("");
   const resources = resourcePaneQuery.useQuery(uuid);
   const list = resources.data ?? EMPTY_RESOURCES;
@@ -100,7 +102,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
         })
         .catch((e) => toast.error(`${t("editor:delete_failed")}: ${e.message}`));
     },
-    [resources]
+    [resources, t]
   );
 
   const onClear = useCallback(() => {
@@ -111,7 +113,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
         toast.success(t("editor:clear_success"));
       })
       .catch((e) => toast.error(`${t("editor:delete_failed")}: ${e.message}`));
-  }, [list, resources]);
+  }, [list, resources, t]);
 
   const onDownload = useCallback((r: ResItem) => {
     const url = makeBlobURL({ blob: base64ToBlob(r.base64), persistence: false }) as string;

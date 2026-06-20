@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import { RType, R_UNDEFINED, R_NULL, decodeRValue, encodeRValue, type REncoded } from "./message_value";
 

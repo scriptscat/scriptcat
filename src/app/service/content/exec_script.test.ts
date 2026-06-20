@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
@@ -110,7 +109,7 @@ describe.concurrent("unsafeWindow", () => {
 
   it.concurrent("sandbox NodeFilter", async () => {
     const nodeFilter = global.NodeFilter;
-    expect(nodeFilter).toEqual(expect.any(Function));
+    expect(nodeFilter.FILTER_REJECT).toEqual(2);
     scriptRes2.code = `return unsafeWindow.NodeFilter`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
@@ -409,7 +408,7 @@ describe("沙盒环境测试", async () => {
     expect(() => global.setTimeoutForTest2.call({}, () => {}, 1)).toThrow();
   });
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
-  it.concurrent("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
+  it.concurrent("[兼容问题] Uncaught TypeError: Illegal invocation #189", async () => {
     // setTimeout 和 setTimeoutForTest1 都测试吧
     const promise1 = new Promise((resolve) => {
       console.log(_this.setTimeout.prototype);
@@ -420,13 +419,13 @@ describe("沙盒环境测试", async () => {
       _this.setTimeout(resolve, 1);
     });
     const res = Promise.all([promise1, promise2]);
-    expect(res.then((res) => (!res[0] && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
+    await expect(res.then((res) => (!res[0] && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
   });
   // AC-baidu-重定向优化百度搜狗谷歌必应搜索_favicon_双列
   it.concurrent("[兼容问题] TypeError: Object.freeze is not a function #116", () => {
     expect(() => _this.Object.freeze({})).not.toThrow();
   });
-  it.concurrent("Proxy Function #985", () => {
+  it.concurrent("Proxy Function #985", async () => {
     // setTimeout 和 setTimeoutForTest2 都测试吧
     const promise1 = new Promise((resolve) => {
       console.log(_this.setTimeout.prototype);
@@ -437,7 +436,7 @@ describe("沙盒环境测试", async () => {
       _this.setTimeout(resolve, 1);
     });
     const res = Promise.all([promise1, promise2]);
-    expect(res.then((res) => (res[0] === "proxy" && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
+    await expect(res.then((res) => (res[0] === "proxy" && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
   });
 
   const tag = (<any>global)[Symbol.toStringTag]; // 实际环境：'[object Window]' 测试环境：'[object global]'

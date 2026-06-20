@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthVerify } from "./auth";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";

@@ -1,12 +1,12 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { Input } from "@App/pages/components/ui/input";
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
 import { ClearNetDiskToken, HasNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
-import { t } from "@App/locales/locales";
 import { toast } from "sonner";
 
 interface FileSystemParamsProps {
@@ -32,6 +32,7 @@ export default function FileSystemParams({
   onChangeFileSystemType,
   onChangeFileSystemParams,
 }: FileSystemParamsProps) {
+  const { t } = useTranslation();
   const fsParams = FileSystemFactory.params();
   const [hasBoundToken, setHasBoundToken] = useState(false);
 

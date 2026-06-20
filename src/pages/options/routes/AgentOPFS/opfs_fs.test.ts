@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import { listDir, removeEntry, readFileText, writeFile, formatSize, fileKind } from "./opfs_fs";
 

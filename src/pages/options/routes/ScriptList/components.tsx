@@ -13,7 +13,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/u
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { semTime } from "@App/locales/relative-date";
-import { i18nName, t } from "@App/locales/locales";
+import { i18nName } from "@App/locales/locales";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import {
   Globe,
@@ -136,6 +138,22 @@ export function ScriptIcon({
   );
 }
 
+// 仅允许 http/https 协议打开外部链接，避免脚本 metadata 注入 javascript:/data:/file: 等异常协议
+export function isSafeHttpUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// 打开外部链接（仅限 http/https）。脚本主页/站点图标等 URL 均来自脚本 metadata，不可信。
+export function openExternalUrl(url: string | undefined) {
+  if (isSafeHttpUrl(url)) window.open(url, "_blank");
+}
+
 // ========== FaviconDots ==========
 export const FaviconDots = React.memo(
   ({ favorites, maxShow = 5 }: { favorites?: ScriptLoading["favorite"]; maxShow?: number }) => {
@@ -147,22 +165,25 @@ export const FaviconDots = React.memo(
         {visible.map((fav, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
-              {fav.icon ? (
-                <div className="relative">
-                  <div className="absolute z-0 bg-foreground inset-0 rounded-full"></div>
-                  <img
-                    src={fav.icon}
-                    alt={fav.match}
-                    className="relative z-1 w-3.5 h-3.5 rounded-full object-cover cursor-pointer"
-                    onClick={() => fav.website && window.open(fav.website, "_blank")}
-                  />
-                </div>
-              ) : (
-                <Globe
-                  className="w-3.5 h-3.5 text-muted-foreground/50 cursor-pointer"
-                  onClick={() => fav.website && window.open(fav.website, "_blank")}
-                />
-              )}
+              <button
+                type="button"
+                aria-label={fav.match}
+                className="inline-flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                onClick={() => openExternalUrl(fav.website)}
+              >
+                {fav.icon ? (
+                  <span className="relative inline-flex">
+                    <span className="absolute z-0 bg-foreground inset-0 rounded-full" />
+                    <img
+                      src={fav.icon}
+                      alt={fav.match}
+                      className="relative z-1 w-3.5 h-3.5 rounded-full object-cover"
+                    />
+                  </span>
+                ) : (
+                  <Globe className="w-3.5 h-3.5 text-muted-foreground/50" />
+                )}
+              </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">{fav.match}</TooltipContent>
           </Tooltip>
@@ -181,6 +202,7 @@ FaviconDots.displayName = "FaviconDots";
 
 // ========== RunStatusBadge ==========
 export function RunStatusBadge({ runStatus }: { runStatus?: string }) {
+  const { t } = useTranslation();
   if (runStatus === SCRIPT_RUN_STATUS_RUNNING) {
     return (
       <div className="flex items-center gap-1.5">
@@ -212,6 +234,7 @@ export function RunStatusBadge({ runStatus }: { runStatus?: string }) {
 type CheckUpdateState = "idle" | "checking" | "latest" | "has-update";
 
 export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading }) => {
+  const { t } = useTranslation();
   const [state, setState] = useState<CheckUpdateState>("idle");
 
   const handleCheck = useCallback(() => {
@@ -287,25 +310,20 @@ UpdateTimeCell.displayName = "UpdateTimeCell";
 // ========== 行内操作 ==========
 // 取代原 ⋯ 更多菜单：主页 / 用户配置 / 云端 / 运行·停止 / 编辑 / 删除，均按条件出现，右对齐。
 // 表格与卡片复用同一套，确保行为一致。检查更新不在此处（见 UpdateTimeCell）。
-function ActionButton({
-  label,
-  onClick,
-  destructive,
-  disabled,
-  onPreload,
-  children,
-}: {
+type ActionButtonProps = React.ComponentPropsWithoutRef<typeof Button> & {
   label: string;
-  onClick?: () => void;
   destructive?: boolean;
-  disabled?: boolean;
   onPreload?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
+};
+
+// forwardRef + 透传 props：使其可直接作为 Popconfirm（Radix asChild）的 trigger，
+// 让 trigger 语义/焦点/aria 落在真实按钮上，无需外包 div。
+const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(
+  ({ label, onClick, destructive, disabled, onPreload, children, className, ...rest }, ref) => (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          ref={ref}
           variant="ghost"
           size="icon"
           aria-label={label}
@@ -313,15 +331,17 @@ function ActionButton({
           onPointerEnter={onPreload}
           onFocus={onPreload}
           disabled={disabled}
-          className={cn("h-7 w-7", destructive && "hover:text-destructive focus-visible:text-destructive")}
+          className={cn("h-7 w-7", destructive && "hover:text-destructive focus-visible:text-destructive", className)}
+          {...rest}
         >
           {children}
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
-  );
-}
+  )
+);
+ActionButton.displayName = "ActionButton";
 
 export function ScriptRowActions({
   script,
@@ -336,6 +356,7 @@ export function ScriptRowActions({
   onRunStop: (script: ScriptLoading) => void;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const home = getScriptHomePage(script.metadata);
   const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
   const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
@@ -344,7 +365,7 @@ export function ScriptRowActions({
   return (
     <div className={cn("flex items-center gap-1", className)}>
       {home && (
-        <ActionButton label={t("script:homepage")} onClick={() => window.open(home, "_blank")}>
+        <ActionButton label={t("script:homepage")} onClick={() => openExternalUrl(home)}>
           <House className="w-3.5 h-3.5" />
         </ActionButton>
       )}
@@ -405,7 +426,7 @@ export function getScriptHomePage(metadata?: SCMetadata): string | undefined {
   if (!metadata) return undefined;
   for (const key of ["homepage", "homepageurl", "website", "source", "supporturl"] as const) {
     const url = metadata[key]?.[0];
-    if (url) return url;
+    if (url && isSafeHttpUrl(url)) return url;
   }
   return undefined;
 }
@@ -413,6 +434,7 @@ export function getScriptHomePage(metadata?: SCMetadata): string | undefined {
 // ========== SourceTag ==========
 export const SourceTag = React.memo(
   ({ script }: { script: ScriptLoading }) => {
+    const { t } = useTranslation();
     if (script.subscribeUrl) {
       return (
         <Tooltip>
@@ -448,7 +470,7 @@ export const SourceTag = React.memo(
 SourceTag.displayName = "SourceTag";
 
 // ========== 脚本类型标签文本 ==========
-export function scriptTypeLabel(type: number): string {
+export function scriptTypeLabel(type: number, t: TFunction): string {
   if (type === SCRIPT_TYPE_NORMAL) return t("script:script_list.sidebar.normal_script");
   return t("script:background_script");
 }

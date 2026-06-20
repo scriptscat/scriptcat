@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Bot } from "lucide-react";
 import type {
@@ -11,7 +12,6 @@ import type {
 } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
-import { t } from "@App/locales/locales";
 import { UserMessageItem, AssistantMessageGroup } from "./MessageItem";
 import ChatInput from "./ChatInput";
 import { useMessages, useStreamingChat, useConversationTasks, deleteMessages, clearMessages } from "./hooks";
@@ -34,6 +34,7 @@ function genId(): string {
 
 // 欢迎界面
 function WelcomeScreen({ hasConversation }: { hasConversation: boolean }) {
+  const { t } = useTranslation();
   return (
     <div data-testid="welcome-screen" className="flex flex-col items-center justify-center h-full py-20 select-none">
       <div className="size-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-5 shadow-sm">
@@ -80,6 +81,7 @@ export default function ChatArea({
   backgroundEnabled?: boolean;
   onBackgroundEnabledChange?: (enabled: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const { messages, setMessages, loadMessages } = useMessages(conversationId);
   const {
     isStreaming,
@@ -530,15 +532,18 @@ export default function ChatArea({
     startStreaming(messages, content);
   };
 
-  const handleCopy = useCallback((groupMsgs: ChatMessage[]) => {
-    const text = groupMsgs
-      .map((m) => getTextContent(m.content))
-      .filter(Boolean)
-      .join("\n\n");
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success(t("agent:chat_copy_success"));
-    });
-  }, []);
+  const handleCopy = useCallback(
+    (groupMsgs: ChatMessage[]) => {
+      const text = groupMsgs
+        .map((m) => getTextContent(m.content))
+        .filter(Boolean)
+        .join("\n\n");
+      navigator.clipboard.writeText(text).then(() => {
+        toast.success(t("agent:chat_copy_success"));
+      });
+    },
+    [t]
+  );
 
   const clearTasks = useCallback(async () => {
     await agentChatRepo.saveTasks(conversationId, []);

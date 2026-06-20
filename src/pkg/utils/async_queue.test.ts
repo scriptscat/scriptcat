@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 // async_queue.test.ts
 import { describe, it, expect } from "vitest";
 import { stackAsyncTask } from "./async_queue";

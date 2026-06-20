@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Download } from "lucide-react";
 import {
   Dialog,
@@ -10,7 +11,6 @@ import {
 } from "@App/pages/components/ui/dialog";
 import { Button } from "@App/pages/components/ui/button";
 import { Textarea } from "@App/pages/components/ui/textarea";
-import { t } from "@App/locales/locales";
 
 export function LinkImportDialog({
   open,
@@ -21,6 +21,7 @@ export function LinkImportDialog({
   onOpenChange: (v: boolean) => void;
   onSubmit: (urls: string[]) => void;
 }) {
+  const { t } = useTranslation();
   const [text, setText] = useState("");
   // 关闭后清空,避免下次打开残留旧链接(取消/Esc/点遮罩仅触发 onOpenChange)
   useEffect(() => {

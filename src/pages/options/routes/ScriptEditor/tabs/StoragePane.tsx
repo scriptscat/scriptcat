@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Braces, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { fetchScript, valueClient } from "@App/pages/store/features/script";
-import { t } from "@App/locales/locales";
 import { valueType } from "@App/pkg/utils/utils";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { cn } from "@App/pkg/utils/cn";
@@ -41,6 +41,7 @@ export function invalidateStoragePane(uuid?: string) {
 }
 
 export function usePreloadStoragePane(uuid?: string) {
+  const { t } = useTranslation();
   useEffect(() => {
     if (!uuid) return;
     void preloadStoragePane(uuid).catch((error) => {
@@ -48,7 +49,7 @@ export function usePreloadStoragePane(uuid?: string) {
       toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
     });
     return () => invalidateStoragePane(uuid);
-  }, [uuid]);
+  }, [uuid, t]);
 }
 
 function displayValue(v: unknown): string {
@@ -89,6 +90,7 @@ export interface StoragePaneProps {
 }
 
 export default function StoragePane({ uuid }: StoragePaneProps) {
+  const { t } = useTranslation();
   const storage = storagePaneQuery.useQuery(uuid);
   const data = storage.data ?? EMPTY_ROWS;
   const [keyword, setKeyword] = useState("");
@@ -154,14 +156,14 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
       storage.setData((prev) => (prev ?? EMPTY_ROWS).filter((r) => r.key !== key));
       toast.success(t("delete_success"));
     },
-    [uuid, storage]
+    [uuid, storage, t]
   );
 
   const onClear = useCallback(() => {
     valueClient.setScriptValues({ uuid, keyValuePairs: [], isReplace: true, ts: Date.now() });
     storage.setData([]);
     toast.success(t("editor:clear_success"));
-  }, [uuid, storage]);
+  }, [uuid, storage, t]);
 
   const enterBatch = () => {
     const rec: { [k: string]: unknown } = {};

@@ -372,7 +372,7 @@ export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onloadend = function () {
-      resolve(<string>this.result);
+      resolve(<string>reader.result);
     };
     reader.readAsDataURL(blob);
   });

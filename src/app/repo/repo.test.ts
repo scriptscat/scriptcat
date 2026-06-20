@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, beforeEach } from "vitest";
 import { Repo } from "./repo";
 

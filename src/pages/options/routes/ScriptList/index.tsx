@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
   SCRIPT_STATUS_ENABLE,
@@ -33,7 +34,6 @@ import type { FilterBarProps } from "./FilterBar";
 import type { BatchActionsBarProps } from "./BatchActionsBar";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import ScriptListMobile from "./ScriptListMobile";
-import { t } from "@App/locales/locales";
 import { toast } from "sonner";
 import { useUserConfigPreload } from "./preload";
 
@@ -63,12 +63,13 @@ const MainContent = memo(({ viewMode, ...rest }: ContentProps) => {
 MainContent.displayName = "MainContent";
 
 function PreloadedUserConfigPanel({ script, onClose }: { script: Script; onClose: () => void }) {
+  const { t } = useTranslation();
   const query = useUserConfigPreload(script);
 
   useEffect(() => {
     if (!query.isError) return;
     toast.error(`${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`);
-  }, [query.error, query.isError]);
+  }, [query.error, query.isError, t]);
 
   if (!query.data) return null;
   return (
@@ -86,6 +87,7 @@ function PreloadedUserConfigPanel({ script, onClose }: { script: Script; onClose
  * 脚本列表主组件
  */
 export default function ScriptList() {
+  const { t } = useTranslation();
   // 1. UI 状态
   const [viewMode, setViewMode] = useState<"table" | "card">(() => {
     const saved = localStorage.getItem("script-list-view-mode");
@@ -174,7 +176,7 @@ export default function ScriptList() {
         toast.error(`${t("script:delete_failed")}: ${e}`);
       }
     },
-    [updateScripts]
+    [updateScripts, t]
   );
 
   const handleDelete = useCallback((item: ScriptLoading) => deleteScripts([item.uuid]), [deleteScripts]);
@@ -192,7 +194,7 @@ export default function ScriptList() {
         updateScripts([item.uuid], { actionLoading: false });
       }
     },
-    [updateScripts]
+    [updateScripts, t]
   );
 
   // 7. 批量操作（操作后保留选中状态）
@@ -261,7 +263,7 @@ export default function ScriptList() {
     synchronizeClient.export(uuids).then(() => {
       toast.success(t("settings:export_success"), { id });
     });
-  }, [selectedUuidsBySort]);
+  }, [selectedUuidsBySort, t]);
 
   const handleBatchPinTop = useCallback(() => {
     const uuids = selectedUuidsBySort();
@@ -269,7 +271,7 @@ export default function ScriptList() {
     pinToTop(uuids).then(() => {
       toast.success(t("script:scripts_pinned_to_top"));
     });
-  }, [selectedUuidsBySort]);
+  }, [selectedUuidsBySort, t]);
 
   // 6. 拖拽排序
   const scriptListSortOrderMove = useCallback(

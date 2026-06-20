@@ -34,6 +34,9 @@ type TFormattedMarker = {
 const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | undefined }, Props>(
   ({ id, className, code, diffCode, editable, onChange, onEditorMount }, ref) => {
     const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
+    // 普通 editor 与 diff editor 都会置位，供主题切换 effect 判断实例是否就绪
+    // （monacoEditor 仅在普通 editor 时设置，diff 分支不设置，故不能用它来 gate 主题切换）
+    const [editorReady, setEditorReady] = useState(false);
     const [enableEslint, setEnableEslint] = useState(false);
     const [eslintConfig, setEslintConfig] = useState("");
 
@@ -126,7 +129,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         },
         mouseWheelZoom: true,
         links: true,
-        accessibilitySupport: "off",
+        accessibilitySupport: "auto",
         largeFileOptimizations: true,
         colorDecorators: true,
       } as const;
@@ -152,6 +155,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
           original: originalModel,
           modified: modifiedModel,
         });
+        setEditorReady(true);
       } else {
         const standaloneEdit = editor.create(container, {
           language: "javascript",
@@ -168,6 +172,7 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
           });
         }
         setEditor(standaloneEdit);
+        setEditorReady(true);
         onEditorMountRef.current?.(standaloneEdit);
       }
 
@@ -183,11 +188,12 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, code, diffCode, editable]);
 
-    // 主题切换：monaco theme 为全局静态，切换时无需重建实例
+    // 主题切换：monaco theme 为全局静态，切换时无需重建实例。
+    // 用 editorReady（普通 + diff 实例都会置位）判断就绪，确保 diff 预览也随主题更新。
     useEffect(() => {
-      if (!monacoEditor) return;
+      if (!editorReady) return;
       editor.setTheme(resolveMonacoTheme(resolvedTheme));
-    }, [resolvedTheme, monacoEditor]);
+    }, [resolvedTheme, editorReady]);
 
     // ESLint 即时检查逻辑
     useEffect(() => {

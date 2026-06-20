@@ -7,13 +7,14 @@ import FileSystemParams from "../../../components/FileSystemParams";
 import { systemConfig } from "@App/pages/store/global";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { isPermissionOk, isFirefox } from "@App/pkg/utils/utils";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { CATFileStorage } from "@App/pkg/config/config";
 
 const STORAGE_EXAMPLE_URL = "https://github.com/scriptscat/scriptcat/blob/main/example/cat_file_storage.js";
 
 export function RuntimeSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [bg, setBg] = useState(false);
   const [storage, setStorage] = useState<CATFileStorage | undefined>(undefined);
 

@@ -14,7 +14,7 @@ import { systemConfig, subscribeMessage } from "@App/pages/store/global";
 import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { cacheInstance } from "@App/app/cache";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { HookManager } from "@App/pkg/utils/hookManager";
 
 import type { ScriptLoading } from "@App/pages/store/features/script";
@@ -188,6 +188,7 @@ export function useScriptFilters(
   _selectedFilters: TSelectFilter,
   _searchRequest: SearchFilterRequest
 ) {
+  const { t } = useTranslation();
   const stats = useMemo(() => {
     const tagMap: Record<string, Set<string>> = {};
     const originMap: Record<string, Set<string>> = {};
@@ -297,7 +298,7 @@ export function useScriptFilters(
     ];
 
     return { statusItems, typeItems, tagItems, sourceItems };
-  }, [stats, scriptList.length]);
+  }, [stats, scriptList.length, t]);
 
   return { stats, filterItems };
 }

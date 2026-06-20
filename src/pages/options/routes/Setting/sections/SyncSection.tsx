@@ -5,11 +5,12 @@ import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Button } from "@App/pages/components/ui/button";
 import { systemConfig } from "@App/pages/store/global";
 import FileSystemFactory from "@Packages/filesystem/factory";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
 
 export function SyncSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<CloudSyncConfig | undefined>(undefined);
 
   useEffect(() => {

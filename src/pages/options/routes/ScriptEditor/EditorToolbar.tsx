@@ -7,7 +7,7 @@ import {
   PanelLeftOpen,
   SlidersHorizontal,
 } from "lucide-react";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import EditorMenu, { type EditorCommand, type SubView } from "./EditorMenu";
 
@@ -27,6 +27,7 @@ export interface EditorToolbarProps {
 }
 
 export default function EditorToolbar(props: EditorToolbarProps) {
+  const { t } = useTranslation();
   const {
     subView,
     onSubView,

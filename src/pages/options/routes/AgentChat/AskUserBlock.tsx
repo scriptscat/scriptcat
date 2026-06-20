@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, CheckCircle2, Send } from "lucide-react";
-import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 
 export default function AskUserBlock({
@@ -16,6 +16,7 @@ export default function AskUserBlock({
   multiple?: boolean;
   onRespond: (id: string, answer: string) => void;
 }) {
+  const { t } = useTranslation();
   const [answer, setAnswer] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);

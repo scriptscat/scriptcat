@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type FileSystem from "./filesystem";
 import type { FileInfo, FileReader, FileWriter } from "./filesystem";

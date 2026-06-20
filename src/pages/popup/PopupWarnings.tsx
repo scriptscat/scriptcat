@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TriangleAlert, ShieldCheck, X } from "lucide-react";
 import { checkUserScriptsAvailable, getBrowserType, BrowserType, isPermissionOk } from "@App/pkg/utils/utils";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import edgeMobileQrCode from "@App/assets/images/edge_mobile_qrcode.png";
 
 export type UserScriptsWarning =
@@ -34,6 +34,7 @@ export function getUserScriptsWarning(browserType: ReturnType<typeof getBrowserT
  * - Edge 移动端二维码推广（可关闭）
  */
 export default function PopupWarnings() {
+  const { t } = useTranslation();
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [showRequestButton, setShowRequestButton] = useState(false);
   const [permissionResult, setPermissionResult] = useState("");
@@ -61,7 +62,7 @@ export default function PopupWarnings() {
     const warning = getUserScriptsWarning(getBrowserType());
     if (warning.key === "unknown") return "";
     return "browser" in warning ? t(`popup:${warning.key}`, { browser: warning.browser }) : t(`popup:${warning.key}`);
-  }, [isAvailable]);
+  }, [isAvailable, t]);
 
   const isEdge = useMemo(() => (getBrowserType().chrome & BrowserType.Edge) > 0, []);
 

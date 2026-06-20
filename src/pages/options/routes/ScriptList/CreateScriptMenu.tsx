@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
 import { useHoverMenu } from "@App/pages/components/ui/use-hover-menu";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { pickScriptFiles, pickSkillZip } from "./filePicker";
 import { handleImportFiles, handleImportUrls } from "./importHandler";
 import { LinkImportDialog } from "./LinkImportDialog";
@@ -21,8 +21,12 @@ import { LinkImportDialog } from "./LinkImportDialog";
  * 移动 header 用 32×32 图标按钮(variant="icon")。含导入分组:本地/链接/Skill。
  */
 export function CreateScriptMenu({ variant = "default" }: { variant?: "default" | "icon" }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
+  // 移动端图标按钮用普通点击菜单（移动端无 hover；hover 触发 + dismiss 拦截会让菜单卡住关不掉），
+  // 仅桌面带文字按钮使用 hover 展开。
+  const isHoverMenu = variant === "default";
   const [linkOpen, setLinkOpen] = useState(false);
 
   const handleCreate = (path: string) => {
@@ -42,7 +46,7 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
 
   return (
     <>
-      <DropdownMenu {...rootProps}>
+      <DropdownMenu {...(isHoverMenu ? rootProps : {})}>
         <DropdownMenuTrigger asChild>
           {variant === "icon" ? (
             <Button
@@ -50,7 +54,6 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
               data-testid="create-script"
               className="h-8 w-8 shrink-0 rounded-md"
               aria-label={t("script:create_script")}
-              {...hoverProps}
             >
               <Plus className="w-4 h-4" />
             </Button>
@@ -62,7 +65,7 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
             </Button>
           )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" {...contentProps}>
+        <DropdownMenuContent align="end" {...(isHoverMenu ? contentProps : {})}>
           <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
             {t("script:create_group")}
           </DropdownMenuLabel>

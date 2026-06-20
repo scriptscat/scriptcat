@@ -3,8 +3,8 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { ImgHTMLAttributes, ReactNode } from "react";
 import { memo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Copy, Eye } from "lucide-react";
-import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 import "highlight.js/styles/github.css";
 
@@ -55,6 +55,7 @@ function extractText(node: ReactNode): string {
 }
 
 function CodeBlock({ children, className }: { children: ReactNode; className?: string }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 

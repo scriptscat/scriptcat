@@ -3,7 +3,8 @@ import { Copy, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import type { Script } from "@App/app/repo/scripts";
 import type { Permission } from "@App/app/repo/permission";
 import { fetchScript, permissionClient, scriptClient } from "@App/pages/store/features/script";
-import { t } from "@App/locales/locales";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { parseTags } from "@App/app/repo/metadata";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { cn } from "@App/pkg/utils/cn";
@@ -30,9 +31,9 @@ const PERMISSION_TYPES = ["cors", "cookie"];
 const PERMISSION_LABEL: Record<string, string> = { cors: "CORS", cookie: "Cookie" };
 
 // 运行环境/运行时机下拉项的本地化文案；运行时机的 document-* / early-start 保持原始字面值（与 v1.4 一致）
-const runInLabel = (o: string) =>
+const runInLabel = (o: string, t: TFunction) =>
   o === "default" ? t("settings:script_setting.default") : t(`settings:script_run_env.${o}`);
-const runAtLabel = (o: string) => (o === "default" ? t("settings:script_setting.default") : o);
+const runAtLabel = (o: string, t: TFunction) => (o === "default" ? t("settings:script_setting.default") : o);
 
 const pill = "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium";
 const pillColor: Record<string, string> = {
@@ -71,6 +72,7 @@ export function invalidateSettingsPane(uuid?: string) {
 }
 
 export function usePreloadSettingsPane(uuid?: string) {
+  const { t } = useTranslation();
   useEffect(() => {
     if (!uuid) return;
     void preloadSettingsPane(uuid).catch((error) => {
@@ -78,7 +80,7 @@ export function usePreloadSettingsPane(uuid?: string) {
       toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
     });
     return () => invalidateSettingsPane(uuid);
-  }, [uuid]);
+  }, [uuid, t]);
 }
 
 // 区块标题（卡片外）
@@ -115,6 +117,7 @@ export default function SettingsPane({ uuid }: SettingsPaneProps) {
 }
 
 function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: SettingsPaneData }) {
+  const { t } = useTranslation();
   const [script, setScript] = useState<Script>(data.script);
   const [tags, setTags] = useState<string[]>(() => {
     const meta = data.script.metadata || {};
@@ -413,7 +416,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                 <SelectContent>
                   {RUN_IN_OPTIONS.map((o) => (
                     <SelectItem key={o} value={o}>
-                      {runInLabel(o)}
+                      {runInLabel(o, t)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -427,7 +430,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                 <SelectContent>
                   {RUN_AT_OPTIONS.map((o) => (
                     <SelectItem key={o} value={o}>
-                      {runAtLabel(o)}
+                      {runAtLabel(o, t)}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { detectProvider, groupModelsByProvider } from "./model_utils";

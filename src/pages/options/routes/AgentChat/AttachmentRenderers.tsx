@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Download, Eye } from "lucide-react";
 import type { Attachment, AudioBlock } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
-import { t } from "@App/locales/locales";
 
 // 图片附件组件：从 OPFS 懒加载并展示
 export function AttachmentImage({ attachment }: { attachment: Attachment }) {
+  const { t } = useTranslation();
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
 
@@ -102,6 +103,7 @@ export function AttachmentFile({ attachment }: { attachment: Attachment }) {
 
 // 音频附件组件：audio 播放器
 export function AttachmentAudio({ block }: { block: AudioBlock }) {
+  const { t } = useTranslation();
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {

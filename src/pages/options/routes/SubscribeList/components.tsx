@@ -6,7 +6,7 @@ import { Badge } from "@App/pages/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { Button } from "@App/pages/components/ui/button";
 import { semTime } from "@App/locales/relative-date";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import { toast } from "sonner";
 import { Globe, RefreshCw, Rss, Trash2, CircleArrowUp, Check, Loader2, Link } from "lucide-react";
@@ -96,6 +96,7 @@ PermissionFavicons.displayName = "PermissionFavicons";
 // ========== SourceTag ==========
 // 订阅来源恒为「订阅地址」，悬浮展示解码后的订阅 URL
 export const SubscribeSourceTag = React.memo(({ url }: { url: string }) => {
+  const { t } = useTranslation();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -115,6 +116,7 @@ SubscribeSourceTag.displayName = "SubscribeSourceTag";
 type CheckUpdateState = "idle" | "checking" | "latest" | "has-update";
 
 export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: string; updatetime?: number }) => {
+  const { t } = useTranslation();
   const [state, setState] = useState<CheckUpdateState>("idle");
 
   const handleCheck = useCallback(() => {
@@ -127,7 +129,7 @@ export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: s
         setState("idle");
         toast.error(`${t("script:update_check_failed")}: ${e}`);
       });
-  }, [state, url]);
+  }, [state, url, t]);
 
   // 「已是最新」短暂提示后恢复默认
   useEffect(() => {
@@ -187,6 +189,7 @@ SubscribeUpdateTimeCell.displayName = "SubscribeUpdateTimeCell";
 // ========== 行内删除操作 ==========
 // 订阅仅支持删除（与 v1.4 一致）
 export function SubscribeRowActions({ onDelete, className }: { onDelete: () => void; className?: string }) {
+  const { t } = useTranslation();
   return (
     <div className={cn("flex items-center gap-1", className)}>
       <Tooltip>

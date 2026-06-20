@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WebFetchExecutor, stripHtmlTags } from "./web_fetch";
 

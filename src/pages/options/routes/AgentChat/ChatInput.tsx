@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   ArrowUp,
@@ -15,7 +16,6 @@ import {
   Zap,
 } from "lucide-react";
 import type { AgentModelConfig, SkillSummary, MessageContent, ContentBlock } from "@App/app/service/agent/core/types";
-import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 import {
   Select,
@@ -92,6 +92,7 @@ function ModelSelect({
   selectedModelId: string;
   onModelChange: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const groups = useMemo(() => groupModelsByProvider(models), [models]);
 
   return (
@@ -136,6 +137,7 @@ function SkillsSelect({
   selectedSkills?: "auto" | string[];
   onSkillsChange: (skills: "auto" | string[]) => void;
 }) {
+  const { t } = useTranslation();
   const isAuto = selectedSkills === AUTO;
   const selectedList = isAuto ? [] : selectedSkills || [];
   const label = isAuto
@@ -218,6 +220,7 @@ export default function ChatInput({
   onBackgroundEnabledChange?: (enabled: boolean) => void;
   hasPendingMessage?: boolean;
 }) {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);

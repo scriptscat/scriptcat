@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { NavLink, useLocation } from "react-router-dom";
 import { Bot, ChevronRight, LifeBuoy, Moon, Sun, Monitor } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { DocumentationSite } from "@App/app/const";
-import { localePath, t } from "@App/locales/locales";
+import { localePath } from "@App/locales/locales";
 import { useTheme, type Theme } from "@App/pages/components/theme-provider";
 import { mainNav, agentNav, auxNav, type NavItem } from "./nav-items";
 
@@ -12,6 +13,7 @@ import { mainNav, agentNav, auxNav, type NavItem } from "./nav-items";
  * 由 MobileHeader 的 ☰ 通过 shadcn Sheet 拉出。选中任一项后通过 onNavigate 关闭抽屉。
  */
 export default function MobileNavDrawer({ onNavigate }: { onNavigate?: () => void }) {
+  const { t } = useTranslation();
   // 默认展开 Agent 分组——本入口的核心目的就是让移动端可达整个 Agent 板块
   const [agentOpen, setAgentOpen] = useState(true);
   const isAgentActive = useLocation().pathname.startsWith("/agent");

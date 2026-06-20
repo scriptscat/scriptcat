@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
 import { CreateScriptMenu } from "@App/pages/options/routes/ScriptList/CreateScriptMenu";
 import { Sheet, SheetContent, SheetTitle } from "@App/pages/components/ui/sheet";
-import { t } from "@App/locales/locales";
 import MobileNavDrawer from "./MobileNavDrawer";
 
 export default function MobileHeader() {
+  const { t } = useTranslation();
   const [navOpen, setNavOpen] = useState(false);
 
   return (

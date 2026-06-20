@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, expect, it, beforeEach } from "vitest";
 import { SystemConfig } from "./config";
 import { MessageQueue } from "@Packages/message/message_queue";

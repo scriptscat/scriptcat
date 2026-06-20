@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, expect, it, vi, afterEach } from "vitest";
 import BaiduFileSystem from "./baidu";
 

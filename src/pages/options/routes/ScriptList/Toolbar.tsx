@@ -1,6 +1,7 @@
 import { Search, Table2, LayoutGrid, ChevronDown, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import type { SearchFilterRequest } from "./SearchFilter";
 import { CreateScriptMenu } from "./CreateScriptMenu";
 import {
@@ -11,14 +12,22 @@ import {
 } from "@App/pages/components/ui/dropdown-menu";
 
 // 搜索范围：auto = 名称 + 代码
-const scopeOptions: { type: SearchFilterRequest["type"]; label: () => string; desc?: () => string }[] = [
-  { type: "auto", label: () => t("auto"), desc: () => `${t("name")} + ${t("editor:script_code")}` },
-  { type: "name", label: () => t("name") },
-  { type: "script_code", label: () => t("editor:script_code") },
+const scopeOptions: {
+  type: SearchFilterRequest["type"];
+  label: (t: TFunction) => string;
+  desc?: (t: TFunction) => string;
+}[] = [
+  {
+    type: "auto",
+    label: (t: TFunction) => t("auto"),
+    desc: (t: TFunction) => `${t("name")} + ${t("editor:script_code")}`,
+  },
+  { type: "name", label: (t: TFunction) => t("name") },
+  { type: "script_code", label: (t: TFunction) => t("editor:script_code") },
 ];
 
-function scopeLabelOf(type: SearchFilterRequest["type"]): string {
-  return (scopeOptions.find((o) => o.type === type) ?? scopeOptions[0]).label();
+function scopeLabelOf(type: SearchFilterRequest["type"], t: TFunction): string {
+  return (scopeOptions.find((o) => o.type === type) ?? scopeOptions[0]).label(t);
 }
 
 // ========== 视图切换按钮 ==========
@@ -63,6 +72,7 @@ export interface ToolbarProps {
  * （此前卡片视图的顶栏漏掉了「新建脚本」按钮即源于此类重复）。
  */
 export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setSearchRequest }: ToolbarProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
       {/* 标题 + 数量 */}
@@ -90,7 +100,7 @@ export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setS
               type="button"
               className="flex items-center gap-1 h-6 px-2 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground shrink-0"
             >
-              {scopeLabelOf(searchRequest.type)}
+              {scopeLabelOf(searchRequest.type, t)}
               <ChevronDown className="w-3 h-3" />
             </button>
           </DropdownMenuTrigger>
@@ -108,8 +118,8 @@ export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setS
                   )}
                 />
                 <span className="flex flex-col">
-                  <span className="text-[13px]">{o.label()}</span>
-                  {o.desc && <span className="text-[11px] text-muted-foreground">{o.desc()}</span>}
+                  <span className="text-[13px]">{o.label(t)}</span>
+                  {o.desc && <span className="text-[11px] text-muted-foreground">{o.desc(t)}</span>}
                 </span>
               </DropdownMenuItem>
             ))}

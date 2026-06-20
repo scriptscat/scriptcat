@@ -7,10 +7,11 @@ import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { systemConfig, message } from "@App/pages/store/global";
 import { SystemClient } from "@App/app/service/service_worker/client";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 export function DevToolsSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState("");
   const [reconnect, setReconnect] = useState(false);
 

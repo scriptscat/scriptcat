@@ -2,14 +2,15 @@ import { SettingCard } from "../../../components/SettingCard";
 import { SettingRow } from "../../../components/SettingRow";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
-import { t } from "@App/locales/locales";
 import i18n from "i18next";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 const HELP_TRANSLATE_VALUE = "help";
 const HELP_TRANSLATE_URL = "https://github.com/scriptscat/scriptcat/discussions/531";
 
 export function GeneralSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [language, setLanguage] = useSystemConfig("language");
   const langs = Object.keys(i18n.store.data);
   const handleLanguageChange = (v: string) => {

@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";

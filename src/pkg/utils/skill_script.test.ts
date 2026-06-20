@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, expect, it } from "vitest";
 import { parseSkillScriptMetadata, getSkillScriptBody } from "./skill_script";
 

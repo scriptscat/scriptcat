@@ -4,10 +4,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@App/pages/components/ui/switch";
 import { Input } from "@App/pages/components/ui/input";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import type { FaviconService } from "@App/pkg/config/config";
 
 export function InterfaceSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [badgeType, setBadgeType] = useSystemConfig("badge_number_type");
   const [bgColor, setBgColor] = useSystemConfig("badge_background_color");
   const [textColor, setTextColor] = useSystemConfig("badge_text_color");

@@ -321,12 +321,12 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
-  /* 统一屏蔽浏览器默认的焦点 outline（含键盘 :focus-visible 与 Radix 关闭弹层后程序化回焦），
-     覆盖原生 button、role=button、以及渲染成 <a> 的导航/链接（NavLink/Link）。
-     需要焦点指示的组件（shadcn Button/Input 等）自带 box-shadow 的 ring，不依赖 outline，故不受影响。 */
-  button:focus,
-  [role="button"]:focus,
-  a:focus {
+  /* 仅屏蔽鼠标点击 / Radix 关闭弹层后程序化回焦（:focus 但非 :focus-visible）的浏览器默认 outline，
+     保留键盘导航的 :focus-visible outline —— 确保键盘用户始终能看到当前焦点。
+     自带 focus-visible ring 的 shadcn 组件（Button/Input 等）会另行渲染 ring 并自带 focus-visible:outline-none，不受影响。 */
+  button:focus:not(:focus-visible),
+  [role="button"]:focus:not(:focus-visible),
+  a:focus:not(:focus-visible) {
     outline: none;
   }
 }

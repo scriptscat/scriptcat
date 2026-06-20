@@ -1,5 +1,5 @@
 import { SettingsLayout } from "../../layout/SettingsLayout";
-import { SETTING_CATEGORIES } from "./categories";
+import { getSettingCategories } from "./categories";
 import { GeneralSection } from "./sections/GeneralSection";
 import { InterfaceSection } from "./sections/InterfaceSection";
 import { SyncSection } from "./sections/SyncSection";
@@ -7,11 +7,12 @@ import { UpdateSection } from "./sections/UpdateSection";
 import { RuntimeSection } from "./sections/RuntimeSection";
 import { SecuritySection } from "./sections/SecuritySection";
 import { DeveloperSection } from "./sections/DeveloperSection";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 
 export default function Setting() {
+  const { t } = useTranslation();
   return (
-    <SettingsLayout title={t("settings")} categories={SETTING_CATEGORIES}>
+    <SettingsLayout title={t("settings")} categories={getSettingCategories(t)}>
       {(register) => (
         <>
           <GeneralSection register={register} />

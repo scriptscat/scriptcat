@@ -1,13 +1,15 @@
 import { SlidersHorizontal, Palette, ArrowLeftRight, RefreshCw, Cpu, Shield, Code } from "lucide-react";
-import { t } from "@App/locales/locales";
+import type { TFunction } from "i18next";
 import type { SettingsCategory } from "../../layout/SettingsLayout";
 
-export const SETTING_CATEGORIES: SettingsCategory[] = [
-  { id: "general", icon: SlidersHorizontal, label: t("settings:general") },
-  { id: "interface", icon: Palette, label: t("settings:interface_settings") },
-  { id: "sync", icon: ArrowLeftRight, label: t("settings:script_sync") },
-  { id: "update", icon: RefreshCw, label: t("update") },
-  { id: "runtime", icon: Cpu, label: t("logs:runtime") },
-  { id: "security", icon: Shield, label: t("settings:security") },
-  { id: "developer", icon: Code, label: t("settings:development_tools") },
-];
+export function getSettingCategories(t: TFunction): SettingsCategory[] {
+  return [
+    { id: "general", icon: SlidersHorizontal, label: t("settings:general") },
+    { id: "interface", icon: Palette, label: t("settings:interface_settings") },
+    { id: "sync", icon: ArrowLeftRight, label: t("settings:script_sync") },
+    { id: "update", icon: RefreshCw, label: t("update") },
+    { id: "runtime", icon: Cpu, label: t("logs:runtime") },
+    { id: "security", icon: Shield, label: t("settings:security") },
+    { id: "developer", icon: Code, label: t("settings:development_tools") },
+  ];
+}

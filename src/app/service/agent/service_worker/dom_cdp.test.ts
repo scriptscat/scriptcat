@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
 // mock chrome.debugger 和 chrome.tabs

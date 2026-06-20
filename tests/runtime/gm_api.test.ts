@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { type Script, ScriptDAO, type ScriptRunResource } from "@App/app/repo/scripts";
 import GMApi from "@App/app/service/content/gm_api/gm_api";
 import { randomUUID } from "crypto";

@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import type { Conversation, ChatMessage } from "@App/app/service/agent/core/types";
 import { exportToMarkdown } from "./export_utils";

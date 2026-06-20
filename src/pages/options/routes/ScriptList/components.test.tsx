@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
@@ -18,7 +17,7 @@ vi.mock("@App/pages/store/features/script", () => ({
 vi.mock("./preload", () => ({ preloadUserConfig }));
 vi.mock("@App/pages/components/CloudScriptPlan", () => ({ preloadCloudScriptPlan }));
 
-import { getScriptHomePage, getTagColor, ScriptRowActions, UpdateTimeCell } from "./components";
+import { FaviconDots, getScriptHomePage, getTagColor, ScriptRowActions, UpdateTimeCell } from "./components";
 
 beforeEach(() => {
   initTestLanguage("zh-CN");
@@ -41,6 +40,33 @@ describe("脚本主页链接解析 getScriptHomePage", () => {
   it("无任何主页字段时返回 undefined", () => {
     expect(getScriptHomePage({})).toBeUndefined();
     expect(getScriptHomePage(undefined)).toBeUndefined();
+  });
+
+  it("仅允许 http/https：异常协议（javascript:/data:/file:）被忽略", () => {
+    expect(getScriptHomePage({ homepage: ["javascript:alert(1)"] })).toBeUndefined();
+    expect(getScriptHomePage({ homepage: ["data:text/html,x"] })).toBeUndefined();
+    expect(getScriptHomePage({ homepage: ["file:///etc/passwd"] })).toBeUndefined();
+    // 首选项异常时回退到后续的安全链接
+    expect(getScriptHomePage({ homepage: ["javascript:alert(1)"], website: ["https://safe"] })).toBe("https://safe");
+  });
+});
+
+describe("FaviconDots 站点图标可点击元素", () => {
+  it("可点击元素为语义化 button，点击安全 URL 打开新标签", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    renderWithTooltip(<FaviconDots favorites={[{ match: "a.com", website: "https://a.com", icon: "" }] as never} />);
+    const btn = screen.getByRole("button");
+    fireEvent.click(btn);
+    expect(openSpy).toHaveBeenCalledWith("https://a.com", "_blank");
+    openSpy.mockRestore();
+  });
+
+  it("异常协议 URL 不打开（避免 javascript: 注入）", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    renderWithTooltip(<FaviconDots favorites={[{ match: "x", website: "javascript:alert(1)", icon: "" }] as never} />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(openSpy).not.toHaveBeenCalled();
+    openSpy.mockRestore();
   });
 });
 
@@ -162,6 +188,15 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={onRunStop} />);
     fireEvent.click(screen.getByRole("button", { name: t("editor:run") }));
     expect(onRunStop).toHaveBeenCalledWith(script);
+  });
+
+  it("删除触发器为带 aria-haspopup 的真实按钮（Popconfirm 的 trigger 属性透传到 ActionButton 内层按钮）", () => {
+    renderWithTooltip(
+      <ScriptRowActions script={makeScript()} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />
+    );
+    const trigger = screen.getByRole("button", { name: t("delete") });
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
   });
 
   it("点击删除先弹出 Popconfirm 气泡确认，确认前不调用 onDelete", async () => {

@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { pickScriptFiles } from "./filePicker";
 

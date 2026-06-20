@@ -1,17 +1,19 @@
 import { NavLink } from "react-router-dom";
 import { Package, Rss, ScrollText, Wrench, Settings } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 const tabs = [
-  { to: "/", icon: Package, label: () => t("script:nav_scripts"), end: true },
-  { to: "/subscribe", icon: Rss, label: () => t("script:subscribe"), end: false },
-  { to: "/logs", icon: ScrollText, label: () => t("logs"), end: false },
-  { to: "/tools", icon: Wrench, label: () => t("tools"), end: false },
-  { to: "/settings", icon: Settings, label: () => t("settings"), end: false },
+  { to: "/", icon: Package, label: (t: TFunction) => t("script:nav_scripts"), end: true },
+  { to: "/subscribe", icon: Rss, label: (t: TFunction) => t("script:subscribe"), end: false },
+  { to: "/logs", icon: ScrollText, label: (t: TFunction) => t("logs"), end: false },
+  { to: "/tools", icon: Wrench, label: (t: TFunction) => t("tools"), end: false },
+  { to: "/settings", icon: Settings, label: (t: TFunction) => t("settings"), end: false },
 ];
 
 export default function BottomTabBar() {
+  const { t } = useTranslation();
   return (
     <nav
       data-testid="bottom-tab-bar"
@@ -40,7 +42,7 @@ export default function BottomTabBar() {
                 />
               )}
               <Icon className="w-[22px] h-[22px]" />
-              <span>{label()}</span>
+              <span>{label(t)}</span>
             </>
           )}
         </NavLink>

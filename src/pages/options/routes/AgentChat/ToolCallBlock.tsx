@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
 import type { ToolCall } from "@App/app/service/agent/core/types";
-import { t } from "@App/locales/locales";
 import { AttachmentImage, AttachmentFile } from "./AttachmentRenderers";
 
 // 状态指示器
@@ -36,6 +36,7 @@ function StatusIcon({ status }: { status?: string }) {
 }
 
 export default function ToolCallBlock({ toolCall }: { toolCall: ToolCall }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const hasAttachments = toolCall.attachments && toolCall.attachments.length > 0;
 

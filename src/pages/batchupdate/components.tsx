@@ -12,8 +12,8 @@ import {
   Timer,
   X,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
@@ -21,8 +21,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@App/pages/
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import type { UpdateItem, UpdateRisk } from "./logic";
 
-/** install:updatepage 命名空间下的翻译快捷方法 */
-export const tk = (key: string, opt?: Record<string, unknown>): string => t(`install:updatepage.${key}`, opt);
+/** install:updatepage 命名空间下的翻译快捷方法（响应式，随语言切换重渲染） */
+export function useTk() {
+  const { t } = useTranslation();
+  const tk = (key: string, opt?: Record<string, unknown>): string => t(`install:updatepage.${key}`, opt);
+  return { t, tk };
+}
 
 /** 批量更新视图（桌面/移动共用）所需的数据与回调 */
 export interface BatchUpdateViewProps {
@@ -97,6 +101,7 @@ const RISK_KEY: Record<UpdateRisk, string> = {
 };
 
 export function RiskBadge({ risk, similarity }: { risk: UpdateRisk; similarity: number }) {
+  const { tk } = useTk();
   return (
     <HoverTip content={`${tk("similarity")} ${Math.round(similarity * 100)}%`}>
       <span className={cn(PILL, RISK_CLASS[risk], "cursor-default")}>{tk(RISK_KEY[risk])}</span>
@@ -105,6 +110,7 @@ export function RiskBadge({ risk, similarity }: { risk: UpdateRisk; similarity: 
 }
 
 export function ConnectBadge({ newConnects }: { newConnects: string[] }) {
+  const { tk } = useTk();
   const content = newConnects.length > 0 ? `${tk("new_connects")}: ${newConnects.join(", ")}` : tk("tag_new_connect");
   return (
     <HoverTip content={content}>
@@ -117,6 +123,7 @@ export function ConnectBadge({ newConnects }: { newConnects: string[] }) {
 }
 
 export function StatusBadge({ enabled }: { enabled: boolean }) {
+  const { tk } = useTk();
   return (
     <span className={cn(PILL, enabled ? "bg-success-bg text-success-fg" : "bg-muted text-muted-foreground")}>
       {enabled ? tk("enabled") : tk("disabled")}
@@ -204,6 +211,7 @@ function DesktopRow({
   onRestore?: (item: UpdateItem) => void;
   ignoredRow?: boolean;
 }) {
+  const { tk } = useTk();
   const dim = item.enabled ? "" : "opacity-55";
   return (
     <div className="flex h-14 items-center px-4 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors">
@@ -245,6 +253,7 @@ function DesktopRow({
 }
 
 function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
+  const { tk } = useTk();
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex h-10 items-center px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
@@ -271,6 +280,7 @@ function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
 }
 
 function DesktopIgnored({ view }: { view: BatchUpdateViewProps }) {
+  const { tk } = useTk();
   return (
     <Collapsible defaultOpen>
       <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -295,6 +305,7 @@ function DesktopIgnored({ view }: { view: BatchUpdateViewProps }) {
 }
 
 function DesktopToolbar({ view }: { view: BatchUpdateViewProps }) {
+  const { tk } = useTk();
   const selectedCount = view.updates.filter((u) => view.selected.has(u.uuid)).length;
   const allSelected = view.updates.length > 0 && selectedCount === view.updates.length;
   return (
@@ -329,6 +340,7 @@ function DesktopToolbar({ view }: { view: BatchUpdateViewProps }) {
 
 /** 顶部不确定进度条：检查更新进行中时的即时反馈信号（贴在 header 下方，不随内容滚动） */
 export function TopProgressBar() {
+  const { tk } = useTk();
   return (
     <div
       role="progressbar"
@@ -347,6 +359,7 @@ export function SkeletonBar({ className }: { className?: string }) {
 
 /** 桌面端检查中的骨架表格：保留表头 + 占位行，取代冻结的空状态/大转圈 */
 export function SkeletonTable() {
+  const { tk } = useTk();
   return (
     <div data-testid="update-skeleton" className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex h-10 items-center px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
@@ -386,6 +399,7 @@ export function SkeletonTable() {
 
 /** 空状态：所有脚本均为最新 */
 export function EmptyState({ totalChecked, onCheckNow }: { totalChecked: number; onCheckNow: () => void }) {
+  const { tk } = useTk();
   return (
     <div data-testid="update-empty" className="flex flex-col items-center justify-center gap-4 py-24 text-center">
       <span className="flex size-[72px] items-center justify-center rounded-full bg-primary-light">
@@ -405,6 +419,7 @@ export function EmptyState({ totalChecked, onCheckNow }: { totalChecked: number;
 
 /** 顶部状态/自动关闭信息条 */
 function HeaderStatus({ view }: { view: BatchUpdateViewProps }) {
+  const { tk } = useTk();
   const text = view.checking
     ? tk("status_checking_updates")
     : view.checktime
@@ -421,6 +436,7 @@ function HeaderStatus({ view }: { view: BatchUpdateViewProps }) {
 
 /** 自动关闭倒计时小药丸 */
 export function AutoCloseChip({ seconds }: { seconds: number }) {
+  const { tk } = useTk();
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
       <Timer className="size-3.5" />
@@ -431,6 +447,7 @@ export function AutoCloseChip({ seconds }: { seconds: number }) {
 
 /** 桌面端整页视图 */
 export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
+  const { t, tk } = useTk();
   const empty = view.updates.length === 0 && view.ignored.length === 0;
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">

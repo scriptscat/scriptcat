@@ -5,8 +5,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import type { FilterItem, TFilterKey, TSelectFilter, TSelectFilterKeys } from "./hooks";
 
 export interface FilterBarProps {
@@ -21,6 +21,7 @@ export interface FilterBarProps {
 }
 
 export default function FilterBar({ filterItems, selectedFilters, setSelectedFilters }: FilterBarProps) {
+  const { t } = useTranslation();
   const hasActiveFilter = Object.values(selectedFilters).some((v) => v !== null);
 
   const handleSelect = (group: TSelectFilterKeys, key: TFilterKey) => {

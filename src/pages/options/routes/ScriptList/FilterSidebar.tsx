@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@App/pages/components/ui/collapsible";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import type { FilterItem, TFilterKey, TSelectFilter, TSelectFilterKeys } from "./hooks";
 
 interface FilterSidebarProps {
@@ -18,6 +18,7 @@ interface FilterSidebarProps {
 }
 
 export default function FilterSidebar({ open, filterItems, selectedFilters, setSelectedFilters }: FilterSidebarProps) {
+  const { t } = useTranslation();
   if (!open) return null;
 
   const handleSelect = (group: TSelectFilterKeys, key: TFilterKey) => {

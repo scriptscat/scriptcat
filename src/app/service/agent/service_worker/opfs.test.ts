@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { createTestService } from "./test-helpers";
 

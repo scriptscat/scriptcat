@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 // listener_manager.test.ts
 // 根据需要调整导入路径，确保能正确导入 ListenerManager 类。
 import { describe, it, expect, vi } from "vitest";

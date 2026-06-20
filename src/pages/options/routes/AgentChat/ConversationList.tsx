@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Download, MessageSquare, PanelLeftClose, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import type { Conversation } from "@App/app/service/agent/core/types";
-import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 import { Button } from "@App/pages/components/ui/button";
 import { Input } from "@App/pages/components/ui/input";
@@ -28,6 +28,7 @@ export default function ConversationList({
   onCollapse?: () => void;
   runningIds?: Set<string>;
 }) {
+  const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string>("");
   const [editValue, setEditValue] = useState("");
   const [query, setQuery] = useState("");

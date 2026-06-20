@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Popover, PopoverTrigger, PopoverContent } from "./popover";
 import { Button } from "./button";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 
 interface PopconfirmProps {
   /** 确认提示文案 */
@@ -30,23 +30,24 @@ export function Popconfirm({
   description,
   onConfirm,
   destructive,
-  confirmText = t("confirm"),
-  cancelText = t("cancel"),
+  confirmText,
+  cancelText,
   side = "top",
   align = "start",
   children,
 }: PopconfirmProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div className="grid">{children}</div>
-      </PopoverTrigger>
+      {/* 直接以传入的真实按钮作为 trigger（asChild），不外包 div，保留按钮语义/焦点/disabled 行为。
+          要求 children 为可转发 ref + props 的单一交互元素（如 Button / forwardRef 组件）。 */}
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent className="w-auto max-w-[260px] p-3" side={side} align={align} sideOffset={4}>
         <p className="text-[13px] mb-3">{description}</p>
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="xs" onClick={() => setOpen(false)}>
-            {cancelText}
+            {cancelText ?? t("cancel")}
           </Button>
           <Button
             data-testid="popconfirm-confirm"
@@ -57,7 +58,7 @@ export function Popconfirm({
               setOpen(false);
             }}
           >
-            {confirmText}
+            {confirmText ?? t("confirm")}
           </Button>
         </div>
       </PopoverContent>

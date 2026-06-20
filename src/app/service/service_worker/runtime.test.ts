@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { initTestEnv } from "@Tests/utils";
 import { RuntimeService } from "./runtime";
 import { vi, describe, it, expect, beforeEach, type MockedFunction } from "vitest";

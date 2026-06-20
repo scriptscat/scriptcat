@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { AgentTaskScheduler } from "./task_scheduler";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";

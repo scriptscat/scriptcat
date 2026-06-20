@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { sleep } from "@App/pkg/utils/utils";
 import { describe, expect, it } from "vitest";
 import {

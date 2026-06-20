@@ -1,8 +1,9 @@
 import { CalendarClock } from "lucide-react";
 import { SettingCard } from "../../../components/SettingCard";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 
 export function AutoBackupSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   return (
     <SettingCard
       id="auto-backup"

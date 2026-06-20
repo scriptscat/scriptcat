@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { parseMetadata, parseScriptFromCode, fetchScriptBody } from "./script";
 import { getMetadataStr, getUserConfigStr } from "./utils";

@@ -22,8 +22,8 @@ import {
   Timer,
   TriangleAlert,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
 import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Switch } from "@App/pages/components/ui/switch";
@@ -37,8 +37,12 @@ import {
   type SubscribeImportItem,
 } from "./logic";
 
-/** install:importpage 命名空间下的翻译快捷方法 */
-export const tk = (key: string, opt?: Record<string, unknown>): string => t(`install:importpage.${key}`, opt);
+/** install:importpage 命名空间下的翻译快捷方法（响应式，随语言切换重渲染） */
+export function useTk() {
+  const { t } = useTranslation();
+  const tk = (key: string, opt?: Record<string, unknown>): string => t(`install:importpage.${key}`, opt);
+  return { t, tk };
+}
 
 export type ImportPhase = "loading" | "invalid" | "error" | "empty" | "ready" | "importing" | "done";
 
@@ -95,6 +99,7 @@ function BrandMark() {
 
 /** 顶部进度条:导入进行中时贴在 TopBar 下方,不随内容滚动;按 done/total 确定填充 */
 export function TopProgressBar({ done, total }: { done: number; total: number }) {
+  const { tk } = useTk();
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
     <div
@@ -142,6 +147,7 @@ const CHIP: Record<ImportPhase, { cls: string; icon: ReactNode; key: string }> =
 };
 
 export function ContextChip({ phase }: { phase: ImportPhase }) {
+  const { tk } = useTk();
   const c = CHIP[phase];
   return (
     <span
@@ -233,6 +239,7 @@ const OP_ICON: Record<ImportOp, ReactNode> = {
 };
 
 export function OpBadge({ op }: { op: ImportOp }) {
+  const { tk } = useTk();
   return (
     <span className={cn(PILL, OP_CLASS[op])}>
       {OP_ICON[op]}
@@ -260,6 +267,7 @@ export function VersionCell({ item }: { item: ScriptImportItem }) {
 }
 
 export function SourceCell({ source }: { source: ImportSource }) {
+  const { tk } = useTk();
   if (source.kind === "none") return <span className="text-muted-foreground">{"—"}</span>;
   if (source.kind === "local") {
     return (
@@ -283,6 +291,7 @@ export function SourceCell({ source }: { source: ImportSource }) {
 }
 
 export function DataCell({ item }: { item: ScriptImportItem }) {
+  const { tk } = useTk();
   if (item.op === "error" || (item.valueCount === 0 && !item.hasResources)) {
     return <span className="text-muted-foreground">{"—"}</span>;
   }
@@ -302,6 +311,7 @@ const STATUS_ICON: Record<ImportItemStatus, ReactNode> = {
 };
 
 export function ImportStatusIcon({ status, id }: { status: ImportItemStatus; id: string }) {
+  const { tk } = useTk();
   return (
     <span
       data-testid={`status-${status}-${id}`}
@@ -315,6 +325,7 @@ export function ImportStatusIcon({ status, id }: { status: ImportItemStatus; id:
 
 /** 桌面端脚本行 */
 function ScriptRow({ item, view }: { item: ScriptImportItem; view: ImportView }) {
+  const { tk } = useTk();
   const inProgress = view.phase === "importing" || view.phase === "done";
   const status: ImportItemStatus = view.importStatus[item.id] ?? "pending";
   const dim = item.op === "error" ? "opacity-60" : "";
@@ -370,6 +381,7 @@ function ScriptRow({ item, view }: { item: ScriptImportItem; view: ImportView })
 }
 
 function ScriptTable({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex h-10 items-center gap-3.5 px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
@@ -390,6 +402,7 @@ function ScriptTable({ view }: { view: ImportView }) {
 
 /** 订阅行 */
 function SubscribeRow({ item, view }: { item: SubscribeImportItem; view: ImportView }) {
+  const { tk } = useTk();
   const inProgress = view.phase === "importing" || view.phase === "done";
   const status: ImportItemStatus = view.importStatus[item.id] ?? "pending";
   const dim = item.op === "error" ? "opacity-60" : "";
@@ -425,6 +438,7 @@ function SubscribeRow({ item, view }: { item: SubscribeImportItem; view: ImportV
 }
 
 function SubscribeSection({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   if (view.subscribes.length === 0) return null;
   const importable = importableSubscribeIds(view.subscribes);
   const selectedCount = importable.filter((id) => view.selectedSubscribes.has(id)).length;
@@ -461,13 +475,14 @@ function SubscribeSection({ view }: { view: ImportView }) {
 }
 
 /** 备份来源 chip 文案:文件名 · N 脚本 · M 订阅 */
-function backupSourceLabel(view: ImportView): string {
+function backupSourceLabel(view: ImportView, tk: (key: string, opt?: Record<string, unknown>) => string): string {
   const parts = [view.filename, tk("count_scripts", { count: view.scripts.length })];
   if (view.subscribes.length > 0) parts.push(tk("count_subscribes", { count: view.subscribes.length }));
   return parts.filter(Boolean).join(" · ");
 }
 
 function ImportToolbar({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   const importable = importableScriptIds(view.scripts);
   const selectedCount = importable.filter((id) => view.selectedScripts.has(id)).length;
   const allSelected = importable.length > 0 && selectedCount === importable.length;
@@ -490,13 +505,14 @@ function ImportToolbar({ view }: { view: ImportView }) {
       </div>
       <span className="inline-flex max-w-[460px] items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-fg-secondary">
         <FileArchive className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="truncate">{backupSourceLabel(view)}</span>
+        <span className="truncate">{backupSourceLabel(view, tk)}</span>
       </span>
     </div>
   );
 }
 
 function ImportingToolbar({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   return (
     <div className="flex items-center gap-2 text-sm">
       <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
@@ -510,6 +526,7 @@ function ImportingToolbar({ view }: { view: ImportView }) {
 }
 
 function ReadyActions({ view }: { view: ImportView }) {
+  const { t, tk } = useTk();
   const total = view.selectedScripts.size + view.selectedSubscribes.size;
   return (
     <div className="flex items-center gap-4">
@@ -531,6 +548,7 @@ function ReadyActions({ view }: { view: ImportView }) {
 }
 
 function ImportingActions({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   return (
     <div className="flex items-center gap-3">
       <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
@@ -579,6 +597,7 @@ function StateTexts({ title, desc }: { title: string; desc: string }) {
 }
 
 export function ImportLoading({ filename }: { filename: string }) {
+  const { tk } = useTk();
   return (
     <CenteredState testid="import-loading">
       <StateRing className="bg-primary-light">
@@ -609,6 +628,7 @@ export function ImportErrorScreen({
   onRetry?: () => void;
   onClose: () => void;
 }) {
+  const { t, tk } = useTk();
   return (
     <CenteredState testid="import-error">
       <StateRing className="bg-destructive/10">
@@ -640,6 +660,7 @@ export function ImportErrorScreen({
 }
 
 export function EmptyBackup({ onClose }: { onClose: () => void }) {
+  const { t, tk } = useTk();
   return (
     <CenteredState testid="import-empty">
       <StateRing className="bg-muted">
@@ -654,6 +675,7 @@ export function EmptyBackup({ onClose }: { onClose: () => void }) {
 }
 
 export function ImportComplete({ view }: { view: ImportView }) {
+  const { t, tk } = useTk();
   const { summary } = view;
   return (
     <CenteredState testid="import-complete">
@@ -691,6 +713,7 @@ export function ImportComplete({ view }: { view: ImportView }) {
 
 /** 桌面端整页视图 */
 export function DesktopView({ view }: { view: ImportView }) {
+  const { tk } = useTk();
   if (view.phase === "loading") {
     return (
       <ImportLayout phase={view.phase}>

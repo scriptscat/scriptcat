@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import "@Packages/chrome-extension-mock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageQueue } from "@Packages/message/message_queue";

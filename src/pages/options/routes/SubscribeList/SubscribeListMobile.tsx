@@ -2,7 +2,7 @@ import React from "react";
 import { Search, ListFilter, Check } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import type { SubscribeLoading } from "@App/pages/store/features/subscribe";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import {
   DropdownMenu,
@@ -31,6 +31,7 @@ function MobileStatusFilter({
   statusFilter: SubscribeStatusType | null;
   setStatusFilter: (v: SubscribeStatusType | null) => void;
 }) {
+  const { t } = useTranslation();
   const options: { value: SubscribeStatusType | null; label: string }[] = [
     { value: null, label: t("script:script_list.sidebar.all") },
     { value: SubscribeStatusType.enable, label: t("enable") },
@@ -76,6 +77,7 @@ function SubscribeListMobile({
   statusFilter,
   setStatusFilter,
 }: SubscribeListMobileProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col h-full">
       {/* 搜索 + 状态筛选 */}

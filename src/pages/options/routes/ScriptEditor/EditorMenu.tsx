@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { formatShortcut, isMacOS } from "@App/pkg/utils/shortcut";
 import {
   DropdownMenu,
@@ -37,6 +37,7 @@ export interface EditorMenuProps {
  * 避免两端菜单各自维护导致命令漂移。
  */
 export default function EditorMenu(props: EditorMenuProps) {
+  const { t } = useTranslation();
   const {
     hasActive,
     onSave,

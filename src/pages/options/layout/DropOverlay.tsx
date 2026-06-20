@@ -1,7 +1,8 @@
 import { Download } from "lucide-react";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 
 export function DropOverlay({ active }: { active: boolean }) {
+  const { t } = useTranslation();
   if (!active) return null;
   return (
     <div

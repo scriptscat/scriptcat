@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import type { Task } from "@App/app/service/agent/core/tools/task_tools";
-import { t } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 
 function TaskStatusIcon({ status }: { status: Task["status"] }) {
@@ -51,6 +51,7 @@ function ProgressRing({ progress, allDone }: { progress: number; allDone: boolea
 }
 
 export default function TaskListBlock({ tasks }: { tasks: Task[] }) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
 
   if (tasks.length === 0) return null;

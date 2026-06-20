@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AgentService } from "./agent";
 import { createTestService, makeSkillRecord, makeSkillScriptRecord } from "./test-helpers";

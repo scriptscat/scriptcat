@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, act, cleanup } from "@testing-library/react";
 import { useHoverMenu } from "./use-hover-menu";
@@ -7,6 +6,22 @@ import { Button } from "./button";
 
 afterEach(cleanup);
 afterEach(() => vi.useRealTimers());
+
+// 直接驱动 rootProps.onOpenChange，验证关闭信号被正确处理（Radix 在外部点击/程序化关闭时调用 onOpenChange(false)）
+function OpenChangeHarness() {
+  const { isOpen, rootProps } = useHoverMenu(100);
+  return (
+    <div>
+      <span data-testid="state">{isOpen ? "open" : "closed"}</span>
+      <button type="button" data-testid="signal-open" onClick={() => rootProps.onOpenChange(true)}>
+        {"open"}
+      </button>
+      <button type="button" data-testid="signal-close" onClick={() => rootProps.onOpenChange(false)}>
+        {"close"}
+      </button>
+    </div>
+  );
+}
 
 // 测试用组件：使用封装的 Button
 function HoverMenuWithButton({ onSelect }: { onSelect: (key: string) => void }) {
@@ -137,6 +152,20 @@ describe("useHoverMenu 与 DropdownMenu 集成测试", () => {
       const ref = { current: null as HTMLButtonElement | null };
       render(<Button ref={ref}>{"测试"}</Button>);
       expect(ref.current).toBeInstanceOf(HTMLButtonElement);
+    });
+  });
+
+  describe("onOpenChange 关闭信号", () => {
+    it("收到 onOpenChange(false) 时应关闭菜单（不能只处理 open=true）", () => {
+      const { getByTestId } = render(<OpenChangeHarness />);
+      expect(getByTestId("state").textContent).toBe("closed");
+
+      fireEvent.click(getByTestId("signal-open"));
+      expect(getByTestId("state").textContent).toBe("open");
+
+      // Radix 在外部点击/程序化 dismiss 时会调用 onOpenChange(false)，必须据此关闭
+      fireEvent.click(getByTestId("signal-close"));
+      expect(getByTestId("state").textContent).toBe("closed");
     });
   });
 });

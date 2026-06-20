@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Config, ConfigGroup, ConfigType, Script, UserConfig } from "@App/app/repo/scripts";
 import {
   Dialog,
@@ -18,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@App/pages/components/ui/button";
 import { valueClient } from "@App/pages/store/features/script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
-import { localePath, t } from "@App/locales/locales";
+import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { BookOpen } from "lucide-react";
 import { toast } from "sonner";
@@ -158,6 +159,7 @@ function ConfigField({
 }
 
 export default function UserConfigPanel({ script, userConfig, values, open, onOpenChange }: UserConfigPanelProps) {
+  const { t } = useTranslation();
   // 过滤 #options，按 sort 顺序得到分组列表
   const groupKeys = useMemo(
     () => (userConfig["#options"]?.sort || Object.keys(userConfig)).filter((k) => k !== "#options"),

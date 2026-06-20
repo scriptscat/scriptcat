@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, beforeEach } from "vitest";
 import { initLanguage } from "@App/locales/locales";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE } from "@App/app/repo/scripts";

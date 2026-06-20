@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import type { SearchFilterRequest } from "./SearchFilter";
 
 export function MobileSearchBar({
@@ -9,6 +9,7 @@ export function MobileSearchBar({
   searchRequest: SearchFilterRequest;
   setSearchRequest: (req: SearchFilterRequest) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="px-4 py-1.5 shrink-0">
       <div data-testid="mobile-search" className="flex items-center gap-2 rounded-md bg-muted/50 px-3 h-9">

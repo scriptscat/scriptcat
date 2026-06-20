@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Search, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { Script } from "@App/app/repo/scripts";
-import { i18nName, t } from "@App/locales/locales";
+import { i18nName } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
 import { Input } from "@App/pages/components/ui/input";
 import { filterScripts } from "./filterScripts";
@@ -25,6 +26,7 @@ export default function ScriptListPanel({
   onOpen,
   onDelete,
 }: ScriptListPanelProps) {
+  const { t } = useTranslation();
   const [keyword, setKeyword] = useState("");
 
   const list = useMemo(() => filterScripts(scripts, keyword), [scripts, keyword]);

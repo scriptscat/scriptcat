@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect, beforeEach } from "vitest";
 import { SearchEngineRegistry } from "./registry";
 import type { SearchEngine } from "./types";

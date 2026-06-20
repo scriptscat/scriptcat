@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, it, expect } from "vitest";
 import { resolveSubAgentType, getExcludeToolsForType, SUB_AGENT_TYPES } from "./sub_agent_types";
 

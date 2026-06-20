@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -16,7 +17,6 @@ import {
 import type { ChatMessage, ContentBlock, MessageContent } from "@App/app/service/agent/core/types";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
-import { t } from "@App/locales/locales";
 import ContentBlockRenderer from "./ContentBlockRenderer";
 import ThinkingBlock from "./ThinkingBlock";
 import ToolCallBlock from "./ToolCallBlock";
@@ -35,6 +35,7 @@ function AssistantMessageContent({
   isStreaming?: boolean;
   subAgents?: Map<string, SubAgentState>;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="text-sm min-w-0 w-full">
       {message.thinking?.content && <ThinkingBlock content={message.thinking.content} />}
@@ -163,6 +164,7 @@ export function UserMessageItem({
   isStreaming?: boolean;
   onCancel?: () => void;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(getTextContent(message.content));
   const [editBlocks, setEditBlocks] = useState<ContentBlock[]>([]);

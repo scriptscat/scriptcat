@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { DocumentationSite } from "@App/app/const";
 import type { Export, ExportTarget } from "@App/app/repo/export";
 import { ExportDAO } from "@App/app/repo/export";
 import type { Script } from "@App/app/repo/scripts";
 import { ScriptCodeDAO } from "@App/app/repo/scripts";
-import { localePath, t } from "@App/locales/locales";
+import { localePath } from "@App/locales/locales";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 import type { ExportParams } from "@Packages/cloudscript/cloudscript";
 import { parseExportCookie, parseExportValue } from "@Packages/cloudscript/cloudscript";
@@ -68,6 +69,7 @@ export interface CloudScriptPlanProps {
 }
 
 export default function CloudScriptPlan({ script, open, onOpenChange }: CloudScriptPlanProps) {
+  const { t } = useTranslation();
   const query = cloudScriptPlanQuery.useQuery(script, { enabled: open });
 
   useEffect(() => () => invalidateCloudScriptPlan(script), [script]);
@@ -75,7 +77,7 @@ export default function CloudScriptPlan({ script, open, onOpenChange }: CloudScr
     if (!query.isError) return;
     toast.error(`${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`);
     query.setData({ model: undefined });
-  }, [query]);
+  }, [query, t]);
 
   if (!query.data) return null;
   return (
@@ -97,6 +99,7 @@ function CloudScriptPlanContent({
   initialModel,
   onPlanChange,
 }: CloudScriptPlanProps & { initialModel: Export | undefined; onPlanChange: (model: Export) => void }) {
+  const { t } = useTranslation();
   const initialTarget = initialModel?.target ?? "local";
   const [cloudScriptType, setCloudScriptType] = useState<ExportTarget>(initialTarget);
   const [model, setModel] = useState<Export | undefined>(initialModel);

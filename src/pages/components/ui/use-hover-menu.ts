@@ -62,7 +62,10 @@ export function useHoverMenu(closeDelay = 300) {
   const rootProps = {
     open: isOpen,
     onOpenChange: (open: boolean) => {
+      // 同时处理打开与关闭：Radix 在外部点击 / 程序化 dismiss 时会以 open=false 回调，
+      // 若仅处理 open=true 则关闭信号被吞掉，菜单会卡住关不掉
       if (open) setIsOpen(true);
+      else close();
     },
     modal: false as const,
   };

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestDeleteSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -24,6 +24,7 @@ import { useIsMobile } from "@App/pages/components/use-is-mobile";
  * 订阅列表主组件
  */
 export default function SubscribeList() {
+  const { t } = useTranslation();
   const { subscribeList, setSubscribeList, loadingList } = useSubscribeDataManagement();
   const isMobile = useIsMobile();
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -94,7 +95,7 @@ export default function SubscribeList() {
       updateSubscribes([url], { actionLoading: false });
       toast.error(`${t("script:delete_failed")}: ${e}`);
     }
-  }, [pendingDeleteUrl, updateSubscribes, setSubscribeList]);
+  }, [pendingDeleteUrl, updateSubscribes, setSubscribeList, t]);
 
   return (
     <div className="flex flex-col h-full">

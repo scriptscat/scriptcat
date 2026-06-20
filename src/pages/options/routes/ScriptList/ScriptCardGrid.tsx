@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { GripVertical, Loader2 } from "lucide-react";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/app/repo/scripts";
@@ -8,7 +9,7 @@ import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import type { SCMetadata } from "@App/app/repo/scripts";
 import { cn } from "@App/pkg/utils/cn";
-import { t, i18nName } from "@App/locales/locales";
+import { i18nName } from "@App/locales/locales";
 import {
   EnableSwitch,
   ScriptIcon,
@@ -104,6 +105,7 @@ function ScriptCardGrid({
   handleRunStop,
   scriptListSortOrderMove,
 }: ScriptCardGridProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -216,6 +218,7 @@ interface CardItemProps {
 
 const CardItem = React.memo(
   ({ script, onEnable, onDelete, onRunStop, navigate }: CardItemProps) => {
+    const { t } = useTranslation();
     const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
     const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
     const name = i18nName(script);
@@ -240,7 +243,7 @@ const CardItem = React.memo(
               {name}
             </Link>
             <span className="text-[11px] text-muted-foreground block mt-0.5 truncate">
-              {[versionDisplay(version), scriptTypeLabel(script.type), author].filter(Boolean).join(" · ")}
+              {[versionDisplay(version), scriptTypeLabel(script.type, t), author].filter(Boolean).join(" · ")}
             </span>
           </div>
           <EnableSwitch

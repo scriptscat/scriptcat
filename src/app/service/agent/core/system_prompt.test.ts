@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { describe, expect, it } from "vitest";
 
 import { buildSystemPrompt, buildSubAgentSystemPrompt, _BUILTIN_SYSTEM_PROMPT_FOR_TEST } from "./system_prompt";

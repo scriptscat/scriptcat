@@ -3,7 +3,7 @@ import { Search, Loader2, ChevronUp, ChevronDown, ChevronsUpDown, ListFilter, Ch
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestEnableSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { cn } from "@App/pkg/utils/cn";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import {
@@ -74,6 +74,7 @@ function StatusFilterHeader({
   statusFilter: SubscribeStatusType | null;
   setStatusFilter: (v: SubscribeStatusType | null) => void;
 }) {
+  const { t } = useTranslation();
   const options: { value: SubscribeStatusType | null; label: string }[] = [
     { value: null, label: t("script:script_list.sidebar.all") },
     { value: SubscribeStatusType.enable, label: t("enable") },
@@ -122,6 +123,7 @@ export default function SubscribeTable({
   statusFilter,
   setStatusFilter,
 }: SubscribeTableProps) {
+  const { t } = useTranslation();
   const handleEnable = useCallback(
     (subscribe: SubscribeLoading, checked: boolean) => {
       updateSubscribes([subscribe.url], { enableLoading: true });
@@ -138,7 +140,7 @@ export default function SubscribeTable({
           toast.error(`${t("script:operation_failed")}: ${e}`);
         });
     },
-    [updateSubscribes]
+    [updateSubscribes, t]
   );
 
   return (
@@ -229,6 +231,7 @@ interface SubscribeRowProps {
 }
 
 function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRowProps) {
+  const { t } = useTranslation();
   const isDisabled = subscribe.status === SubscribeStatusType.disable;
   const version = subscribe.metadata.version?.[0] || "0.0";
   const scriptCount = Object.keys(subscribe.scripts || {}).length;

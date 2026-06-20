@@ -3,9 +3,10 @@ import { SettingRow } from "../../../components/SettingRow";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { Switch } from "@App/pages/components/ui/switch";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
-import { t } from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 
 export function UpdateSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
+  const { t } = useTranslation();
   const [cycle, setCycle] = useSystemConfig("check_script_update_cycle");
   const [updateDisabled, setUpdateDisabled] = useSystemConfig("update_disable_script");
   const [silence, setSilence] = useSystemConfig("silence_update_script");

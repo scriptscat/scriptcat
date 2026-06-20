@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { initLanguage, t } from "@App/locales/locales";
@@ -29,6 +28,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("BatchActionsBar 批量删除二次确认", () => {
+  it("批量删除触发器为带 aria-haspopup 的真实按钮（trigger 属性透传到 BatchBtn 内层按钮）", () => {
+    renderBar({});
+    const trigger = screen.getByRole("button", { name: t("delete") });
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+  });
+
   it("点击批量删除先弹出带数量的 Popconfirm，确认前不调用 onBatchDelete", async () => {
     const onBatchDelete = vi.fn();
     renderBar({ onBatchDelete });

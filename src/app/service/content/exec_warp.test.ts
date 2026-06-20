@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { BgExecScriptWarp } from "./exec_warp";
 import type { ScriptLoadInfo } from "../service_worker/types";

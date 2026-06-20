@@ -1,6 +1,7 @@
-// @vitest-environment happy-dom
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
-import { cleanup, screen, fireEvent } from "@testing-library/react";
+import { cleanup, screen, fireEvent, render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { TooltipProvider } from "@App/pages/components/ui/tooltip";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithRouterTooltip } from "@Tests/renderWithTooltip";
@@ -37,34 +38,35 @@ const mk = (uuid: string, name: string, updatetime: number): ScriptLoading =>
 
 const noop = () => {};
 
-const renderTable = (scriptList: ScriptLoading[]) =>
-  renderWithRouterTooltip(
-    <ScriptTable
-      scriptList={scriptList}
-      loadingList={false}
-      updateScripts={noop}
-      handleDelete={noop}
-      handleRunStop={() => Promise.resolve()}
-      setViewMode={noop}
-      searchRequest={{ keyword: "", type: "auto" }}
-      setSearchRequest={noop}
-      totalCount={scriptList.length}
-      scriptListSortOrderMove={noop}
-      filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
-      selectedFilters={{ status: null, type: null, tags: null, source: null }}
-      setSelectedFilters={noop}
-      selectedUuids={new Set()}
-      toggleSelect={noop}
-      toggleSelectAll={noop}
-      clearSelection={noop}
-      onBatchEnable={noop}
-      onBatchDisable={noop}
-      onBatchExport={noop}
-      onBatchDelete={noop}
-      onBatchPinTop={noop}
-      onBatchCheckUpdate={noop}
-    />
-  );
+const tableEl = (scriptList: ScriptLoading[]) => (
+  <ScriptTable
+    scriptList={scriptList}
+    loadingList={false}
+    updateScripts={noop}
+    handleDelete={noop}
+    handleRunStop={() => Promise.resolve()}
+    setViewMode={noop}
+    searchRequest={{ keyword: "", type: "auto" }}
+    setSearchRequest={noop}
+    totalCount={scriptList.length}
+    scriptListSortOrderMove={noop}
+    filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
+    selectedFilters={{ status: null, type: null, tags: null, source: null }}
+    setSelectedFilters={noop}
+    selectedUuids={new Set()}
+    toggleSelect={noop}
+    toggleSelectAll={noop}
+    clearSelection={noop}
+    onBatchEnable={noop}
+    onBatchDisable={noop}
+    onBatchExport={noop}
+    onBatchDelete={noop}
+    onBatchPinTop={noop}
+    onBatchCheckUpdate={noop}
+  />
+);
+
+const renderTable = (scriptList: ScriptLoading[]) => renderWithRouterTooltip(tableEl(scriptList));
 
 // 取出脚本名链接（href 指向编辑器）的文本顺序，即可见行顺序
 const renderedOrder = () =>
@@ -103,5 +105,30 @@ describe("ScriptTable 列头点击排序", () => {
 
     fireEvent.click(screen.getByRole("button", { name: t("name") }));
     expect(document.querySelectorAll(".cursor-grab").length).toBe(0);
+  });
+});
+
+describe("ScriptTable 行级 memo 不会展示过期数据", () => {
+  // 关键：updatetime 不变（如 selfMetadata/tag/版本等被原地更新时不一定 bump updatetime），
+  // 但脚本对象内容变了，行必须重新渲染显示最新内容，否则用户看到旧数据。
+  const withVersion = (v: string): ScriptLoading =>
+    ({ ...mk("a", "Apple", 10), metadata: { version: [v] } }) as ScriptLoading;
+
+  it("脚本对象内容变化但 updatetime 不变时，行应重新渲染显示最新版本", () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <TooltipProvider>{tableEl([withVersion("1.0.0")])}</TooltipProvider>
+      </MemoryRouter>
+    );
+    expect(screen.getByText(/v1\.0\.0/)).toBeInTheDocument();
+
+    // 同一 ScriptTable 实例下更新 scriptList：新对象引用、相同 updatetime、不同版本
+    rerender(
+      <MemoryRouter>
+        <TooltipProvider>{tableEl([withVersion("2.0.0")])}</TooltipProvider>
+      </MemoryRouter>
+    );
+    expect(screen.getByText(/v2\.0\.0/)).toBeInTheDocument();
+    expect(screen.queryByText(/v1\.0\.0/)).toBeNull();
   });
 });

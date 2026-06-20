@@ -1,4 +1,3 @@
-// can be tested with vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initTestEnv } from "@Tests/utils";
 import type { Server } from "@Packages/message/server";
