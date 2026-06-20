@@ -23,7 +23,7 @@ export interface InstallActionsProps {
 
 /**
  * 拆分按钮的「更多」下拉。受控展开:onPointerDown 阻断 Radix 自身的指针展开,
- * 改由 onClick 切换 open —— 在 jsdom 与真实浏览器中行为一致(避免指针/点击双触发)。
+ * 改由 onClick 切换 open —— 在 DOM 测试环境与真实浏览器中行为一致(避免指针/点击双触发)。
  */
 function MoreMenu({
   testid,

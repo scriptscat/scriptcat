@@ -7,7 +7,7 @@ beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
-// 移动端「更多」为非受控点按菜单：jsdom 下用键盘 Enter 展开根触发器最稳定，子菜单点按其触发器展开
+// 移动端「更多」为非受控点按菜单：DOM 测试环境下用键盘 Enter 展开根触发器最稳定，子菜单点按其触发器展开
 const openMore = async (trigger: HTMLElement) => {
   await act(async () => {
     fireEvent.keyDown(trigger, { key: "Enter" });

@@ -56,7 +56,7 @@ runtimeWithManifest.getManifest = vi.fn().mockReturnValue({
   host_permissions: [],
 });
 
-// ---- 修正 vitest 4.x.x 错误的 adoptedStyleSheets（仅 jsdom 环境）----
+// ---- 修正 DOM 测试环境中的 adoptedStyleSheets 兼容问题 ----
 if (typeof document !== "undefined") {
   let fixAdoptedStyleSheets = false;
   if (!document.adoptedStyleSheets) fixAdoptedStyleSheets = true;
@@ -306,8 +306,8 @@ if (!URL.createObjectURL) URL.createObjectURL = undefined;
 //@ts-expect-error
 if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
 
-// ---- Radix UI（DropdownMenu / Select / Sheet 等）在 jsdom 下所需的指针 API 垫片 ----
-// jsdom 未实现 PointerEvent，导致 Radix 触发器的 `event.button === 0` 判断失效、菜单无法展开；
+// ---- Radix UI（DropdownMenu / Select / Sheet 等）在 DOM 测试环境下所需的指针 API 垫片 ----
+// 测试环境可能未实现 PointerEvent，导致 Radix 触发器的 `event.button === 0` 判断失效、菜单无法展开；
 // 同时缺少指针捕获与 scrollIntoView。下面补齐这些浏览器原生 API，仅用于测试环境。
 if (typeof window !== "undefined") {
   if (typeof (globalThis as any).PointerEvent === "undefined") {
@@ -324,7 +324,7 @@ if (typeof window !== "undefined") {
   }
   for (const method of ["hasPointerCapture", "setPointerCapture", "releasePointerCapture", "scrollIntoView"] as const) {
     if (!(method in Element.prototype)) {
-      // @ts-ignore 测试环境补齐 jsdom 缺失的指针/滚动方法（no-op）
+      // @ts-ignore 测试环境补齐缺失的指针/滚动方法（no-op）
       Element.prototype[method] = function () {};
     }
   }

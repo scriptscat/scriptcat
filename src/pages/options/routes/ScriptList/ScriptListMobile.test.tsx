@@ -55,7 +55,7 @@ vi.mock("@App/pages/store/global", () => ({
   subscribeMessage: vi.fn(() => vi.fn()),
 }));
 
-// Stub sub-trees with Radix Popper to avoid infinite setState loops in jsdom.
+// Stub sub-trees with Radix Popper to avoid infinite setState loops in the DOM test environment.
 // ScriptTable stub renders the view-toggle testid so desktop tests still work.
 vi.mock("./ScriptTable", () => ({
   default: () => <div data-testid="view-toggle" />,

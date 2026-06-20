@@ -40,7 +40,7 @@ function dirHandle(name: string, children: Record<string, any> = {}): any {
   };
 }
 // 写入句柄：close() 时把文件回填到目录，便于断言上传后文件出现
-// 注:jsdom 的 File/Blob 没有可靠的 .text()，故只记录写入大小，不解析内容
+// 注:测试环境的 File/Blob 没有可靠的 .text()，故只记录写入大小，不解析内容
 function writableFor(name: string, children: Record<string, any>): any {
   let size = 0;
   return {

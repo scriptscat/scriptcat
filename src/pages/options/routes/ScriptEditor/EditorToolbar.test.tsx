@@ -23,7 +23,7 @@ const baseProps = () => ({
   onToggleScriptList: vi.fn(),
 });
 
-// 根菜单经 useHoverMenu 以 hover 展开；子菜单在 jsdom 中以点击子触发器展开
+// 根菜单经 useHoverMenu 以 hover 展开；子菜单在 DOM 测试环境中以点击子触发器展开
 const openRoot = async (el: HTMLElement) => {
   await act(async () => {
     fireEvent.mouseEnter(el);
@@ -100,7 +100,7 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
     const { getByLabelText, getByText } = render(<EditorToolbar {...baseProps()} />);
     await openRoot(getByLabelText("更多"));
     await openSub(getByText("编辑"));
-    // jsdom 判定为非 Mac，应以 Ctrl 形式展示
+    // 测试环境判定为非 Mac，应以 Ctrl 形式展示
     expect(getByText("Ctrl+X")).toBeInTheDocument();
     expect(getByText("Ctrl+C")).toBeInTheDocument();
     expect(getByText("Ctrl+V")).toBeInTheDocument();

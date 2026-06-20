@@ -319,9 +319,12 @@ export default {
           if (module.type !== "css" && tag === "monaco-editor") return "lib_monaco";
           switch (tag) {
             case "react-dom":
+            case "react-i18next":
+            case "react-router-dom":
             case "react":
               return `lib_${tag}`;
           }
+          if (tag.startsWith("dnd-kit")) return "lib_dnd-kit";
           if (tag.startsWith("react-")) return "lib_react";
           if (tag.startsWith("eslint")) return "lib_eslint";
           if (tag.startsWith("i18n")) return "lib_i18n";

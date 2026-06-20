@@ -65,7 +65,7 @@ describe("AgentProvider 页面", () => {
     render(<AgentProvider />);
     await waitFor(() => expect(screen.getByText("GPT-4o")).toBeInTheDocument());
 
-    // 打开卡片菜单并点击「复制」(Radix 下拉在 jsdom 需 pointerDown 触发打开)
+    // 打开卡片菜单并点击「复制」(Radix 下拉在测试环境需 pointerDown 触发打开)
     fireEvent.pointerDown(screen.getByTestId("card-menu"), { button: 0 });
     fireEvent.click(await screen.findByTestId("card-menu-copy"));
 

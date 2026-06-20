@@ -10,7 +10,7 @@ const { loadSkillDetail, getSkillConfigValues } = vi.hoisted(() => ({
   getSkillConfigValues: vi.fn(),
 }));
 
-// jsdom 未实现 matchMedia,useIsMobile 依赖它——默认桌面,移动用例单独覆盖
+// DOM 测试环境默认未实现 matchMedia,useIsMobile 依赖它——默认桌面,移动用例单独覆盖
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
 
 vi.mock("./skill_install", () => ({

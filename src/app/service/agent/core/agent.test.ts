@@ -562,7 +562,7 @@ describe("Agent Types", () => {
 
 // ---- callLLMWithToolLoop 测试 ----
 
-// 辅助：构造 mock Response，兼容 jsdom 不支持 ReadableStream body 的情况
+// 辅助：构造 mock Response，兼容 DOM 测试环境不支持 ReadableStream body 的情况
 function buildSSEResponse(sseChunks: string[]): Response {
   const encoder = new TextEncoder();
   let index = 0;

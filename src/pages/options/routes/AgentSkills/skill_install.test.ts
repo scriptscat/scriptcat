@@ -42,7 +42,7 @@ describe("Skill 安装 producer 工具", () => {
 
       const bytes = new Uint8Array([1, 2, 3]);
       const file = new File([bytes], "s.zip", { type: "application/zip" });
-      // jsdom 此版本未实现 Blob.arrayBuffer(真实浏览器均支持),按标准语义补上,返回真实字节
+      // 测试环境未实现 Blob.arrayBuffer(真实浏览器均支持),按标准语义补上,返回真实字节
       file.arrayBuffer = () => Promise.resolve(bytes.buffer);
       await installSkillFromZip(file);
 

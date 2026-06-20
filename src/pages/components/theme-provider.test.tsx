@@ -3,7 +3,7 @@ import { render, fireEvent, act, cleanup } from "@testing-library/react";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { ThemeProvider, useTheme } from "./theme-provider";
 
-// theme-provider 用 window.matchMedia 判断系统主题，jsdom 默认未实现，需 mock
+// theme-provider 用 window.matchMedia 判断系统主题，DOM 测试环境默认未实现，需 mock
 beforeEach(() => {
   mockMatchMedia();
   localStorage.removeItem("lightMode");

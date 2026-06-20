@@ -4,7 +4,7 @@ import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
 
 vi.mock("./useInstallData", () => ({ useInstallData: vi.fn() }));
-// Monaco 编辑器无法在 jsdom 渲染(需 worker + ThemeProvider),用桩替换
+// Monaco 编辑器无法在 DOM 测试环境中渲染(需 worker + ThemeProvider),用桩替换
 vi.mock("@App/pages/components/CodeEditor", () => import("@Tests/mocks/CodeEditor.tsx"));
 
 import { useInstallData, type InstallView } from "./useInstallData";

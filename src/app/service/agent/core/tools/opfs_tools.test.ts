@@ -104,7 +104,7 @@ function createMockFS() {
   };
 }
 
-// Extend Blob with text() for vitest (jsdom may not have it)
+// Extend Blob with text() for Vitest when the DOM test environment does not provide it.
 if (!Blob.prototype.text) {
   Blob.prototype.text = async function () {
     return new Promise((resolve) => {

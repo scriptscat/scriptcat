@@ -4,7 +4,7 @@ import { initLanguage, t } from "@App/locales/locales";
 import { agentClient } from "@App/pages/store/features/script";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
-// jsdom 未实现 matchMedia,useIsMobile 依赖它——固定返回 desktop
+// DOM 测试环境默认未实现 matchMedia,useIsMobile 依赖它——固定返回 desktop
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
 
 vi.mock("@App/pages/store/features/script", () => ({
