@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Search, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import type { Resource } from "@App/app/repo/resource";
 import { fetchScript, resourceClient } from "@App/pages/store/features/script";
 import { base64ToBlob, formatBytes, makeBlobURL } from "@App/pkg/utils/utils";
@@ -53,7 +53,7 @@ export function usePreloadResourcePane(uuid?: string) {
     if (!uuid) return;
     void preloadResourcePane(uuid).catch((e) => {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      toast.error(`${t("script:operation_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+      notify.error(`${t("script:operation_failed")}: ${e instanceof Error ? e.message : String(e)}`);
     });
     return () => invalidateResourcePane(uuid);
   }, [uuid, t]);
@@ -98,9 +98,9 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
         .deleteResource(url)
         .then(() => {
           resources.setData((prev) => (prev ?? EMPTY_RESOURCES).filter((r) => r.key !== url));
-          toast.success(t("delete_success"));
+          notify.success(t("delete_success"));
         })
-        .catch((e) => toast.error(`${t("editor:delete_failed")}: ${e.message}`));
+        .catch((e) => notify.error(`${t("editor:delete_failed")}: ${e.message}`));
     },
     [resources, t]
   );
@@ -110,9 +110,9 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
     Promise.all(urls.map((u) => resourceClient.deleteResource(u)))
       .then(() => {
         resources.setData([]);
-        toast.success(t("editor:clear_success"));
+        notify.success(t("editor:clear_success"));
       })
-      .catch((e) => toast.error(`${t("editor:delete_failed")}: ${e.message}`));
+      .catch((e) => notify.error(`${t("editor:delete_failed")}: ${e.message}`));
   }, [list, resources, t]);
 
   const onDownload = useCallback((r: ResItem) => {

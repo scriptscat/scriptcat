@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUp, ChevronDown, Inbox, Loader2, ScrollText, Search, Trash, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { cn } from "@App/pkg/utils/cn";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
@@ -94,10 +94,10 @@ export default function Logger() {
   const handleDeleteCurrent = () => {
     const ids = filtered.map((l) => l.id);
     if (!ids.length) return;
-    deleteLogs(ids).then(() => toast.success(t("logs:delete_completed")));
+    deleteLogs(ids).then(() => notify.success(t("logs:delete_completed")));
   };
   const handleClear = () => {
-    clearLogs().then(() => toast.success(t("logs:clear_completed")));
+    clearLogs().then(() => notify.success(t("logs:clear_completed")));
   };
 
   return (

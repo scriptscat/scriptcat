@@ -4,7 +4,7 @@ import { Textarea } from "@App/pages/components/ui/textarea";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { blackListSelfCheck } from "@App/pkg/utils/match";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 export function SecuritySection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
@@ -22,7 +22,7 @@ export function SecuritySection({ register }: { register: (id: string) => (el: H
       .filter(Boolean);
     const result = blackListSelfCheck(lines);
     if (!result.ok) {
-      toast.error(`${t("settings:expression_format_error")}: ${result.line}`);
+      notify.error(`${t("settings:expression_format_error")}: ${result.line}`);
       return;
     }
     setBlacklist(draft);

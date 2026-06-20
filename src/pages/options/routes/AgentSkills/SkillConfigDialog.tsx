@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import type { SkillConfigField, SkillRecord } from "@App/app/service/agent/core/types";
 import { agentClient } from "@App/pages/store/features/script";
 import { Button } from "@App/pages/components/ui/button";
@@ -39,10 +39,10 @@ export function SkillConfigDialog({
     try {
       await agentClient.saveSkillConfig({ name: skill.name, values });
       query.setData(values);
-      toast.success(t("agent:skills_config_saved"));
+      notify.success(t("agent:skills_config_saved"));
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      notify.error(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }

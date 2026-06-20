@@ -13,8 +13,8 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/app/repo/scripts";
-import { requestEnableScript } from "@App/pages/store/features/script";
 import type { ScriptLoading } from "@App/pages/store/features/script";
+import { requestEnableScript } from "@App/pages/store/features/script";
 import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import type { SCMetadata } from "@App/app/repo/scripts";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Server } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { Button } from "@App/pages/components/ui/button";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { agentClient } from "@App/pages/store/features/script";
@@ -53,7 +53,7 @@ export default function AgentProvider() {
       await agentClient.setDefaultModelId(toSave.id);
     }
     setDialogOpen(false);
-    toast.success(t("common:save_success"));
+    notify.success(t("common:save_success"));
     await reload();
   };
 
@@ -75,7 +75,7 @@ export default function AgentProvider() {
       const rest = models.filter((x) => x.id !== m.id);
       if (rest.length) await agentClient.setDefaultModelId(rest[0].id);
     }
-    toast.success(t("common:delete_success"));
+    notify.success(t("common:delete_success"));
     await reload();
   };
 

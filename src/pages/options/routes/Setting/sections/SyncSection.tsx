@@ -6,7 +6,7 @@ import { Button } from "@App/pages/components/ui/button";
 import { systemConfig } from "@App/pages/store/global";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
 
 export function SyncSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
@@ -23,16 +23,16 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
     if (!draft) return;
     // 启用同步时先校验账号连通性
     if (draft.enable) {
-      toast.info(t("settings:cloud_sync_account_verification"));
+      notify.info(t("settings:cloud_sync_account_verification"));
       try {
         await FileSystemFactory.create(draft.filesystem, draft.params[draft.filesystem]);
       } catch (e) {
-        toast.error(`${t("settings:cloud_sync_verification_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+        notify.error(`${t("settings:cloud_sync_verification_failed")}: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
     }
     systemConfig.set("cloud_sync", draft);
-    toast.success(t("save_success"));
+    notify.success(t("save_success"));
   };
 
   return (

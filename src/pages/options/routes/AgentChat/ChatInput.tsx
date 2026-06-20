@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import {
   ArrowUp,
   ChevronDown,
@@ -490,7 +490,7 @@ export default function ChatInput({
                     onClick={() => {
                       const next = !enableTools;
                       onEnableToolsChange(next);
-                      toast.info(next ? t("agent:chat_tools_enabled") : t("agent:chat_tools_disabled"));
+                      notify.info(next ? t("agent:chat_tools_enabled") : t("agent:chat_tools_disabled"));
                     }}
                     className={cn(iconBtn, enableTools !== false && "text-primary hover:text-primary")}
                   >

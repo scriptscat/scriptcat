@@ -8,7 +8,18 @@ vi.mock("@App/pages/store/global", async () => {
 });
 
 const { success } = vi.hoisted(() => ({ success: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { success, error: vi.fn(), info: vi.fn() } }));
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
+    success,
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    undo: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
 
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { GeneralSection } from "./GeneralSection";

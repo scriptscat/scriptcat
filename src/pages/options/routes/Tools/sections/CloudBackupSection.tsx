@@ -11,7 +11,7 @@ import type { FileInfo, FileReader } from "@Packages/filesystem/filesystem";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { openImportWindow } from "../openImportWindow";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 type BackupConfig = { filesystem: FileSystemType; params: { [key: string]: any } };
 
@@ -31,11 +31,11 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
     if (!draft) return;
     systemConfig.set("backup", draft);
     setLoading(true);
-    toast.info(t("settings:preparing_backup"));
+    notify.info(t("settings:preparing_backup"));
     synchronizeClient
       .backupToCloud(draft.filesystem, currentParams())
-      .then(() => toast.success(t("settings:backup_success")))
-      .catch((e) => toast.error(`${t("settings:backup_failed")}: ${e}`))
+      .then(() => notify.success(t("settings:backup_success")))
+      .catch((e) => notify.error(`${t("settings:backup_failed")}: ${e}`))
       .finally(() => setLoading(false));
   };
 
@@ -48,12 +48,12 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
       let list = await fs.list();
       list = list.filter((file) => file.name.endsWith(".zip")).sort((a, b) => b.updatetime - a.updatetime);
       if (list.length === 0) {
-        toast.info(t("settings:no_backup_files"));
+        notify.info(t("settings:no_backup_files"));
       } else {
         setBackupFileList(list);
       }
     } catch (e) {
-      toast.error(`${t("settings:get_backup_files_failed")}: ${e}`);
+      notify.error(`${t("settings:get_backup_files_failed")}: ${e}`);
     }
     setLoading(false);
   };
@@ -66,13 +66,13 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
       const url = await fs.getDirUrl();
       if (url) window.open(url, "_blank");
     } catch (e) {
-      toast.error(`${t("settings:get_backup_dir_url_failed")}: ${e}`);
+      notify.error(`${t("settings:get_backup_dir_url_failed")}: ${e}`);
     }
   };
 
   const restore = async (item: FileInfo) => {
     if (!draft) return;
-    toast.info(t("tools:pulling_data_from_cloud"));
+    notify.info(t("tools:pulling_data_from_cloud"));
     let fs = await FileSystemFactory.create(draft.filesystem, currentParams());
     let file: FileReader;
     let data: Blob;
@@ -81,14 +81,14 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
       file = await fs.open(item);
       data = (await file.read("blob")) as Blob;
     } catch (e) {
-      toast.error(`${t("tools:pull_failed")}: ${e}`);
+      notify.error(`${t("tools:pull_failed")}: ${e}`);
       return;
     }
     try {
       await openImportWindow(item.name, data);
-      toast.success(t("tools:select_import_script"));
+      notify.success(t("tools:select_import_script"));
     } catch (e) {
-      toast.error(`${t("tools:import_error")}: ${e}`);
+      notify.error(`${t("tools:import_error")}: ${e}`);
     }
   };
 
@@ -99,9 +99,9 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
       fs = await fs.openDir("ScriptCat");
       await fs.delete(item.name);
       setBackupFileList((prev) => prev.filter((i) => i.name !== item.name));
-      toast.success(t("editor:delete_success"));
+      notify.success(t("editor:delete_success"));
     } catch (e) {
-      toast.error(`${t("script:delete_failed")}: ${e}`);
+      notify.error(`${t("script:delete_failed")}: ${e}`);
     }
   };
 

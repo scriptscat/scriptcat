@@ -311,21 +311,26 @@ import { Badge } from "@App/pages/components/ui/badge";
 <Badge variant="destructive">Parse failed</Badge>
 ```
 
-### 6.4 Toast (sonner)
+### 6.4 Toast (sonner + notify)
 
-The container [`sonner.tsx`](../src/pages/components/ui/sonner.tsx) is already theme-aware, **bottom-right**, with `richColors`; mount it once per page entry. Trigger from anywhere:
+The container [`sonner.tsx`](../src/pages/components/ui/sonner.tsx) is theme-aware, **bottom-right on desktop / top-center on mobile** (switched by `useIsMobile()`), with a neutral `popover` surface, a semantic-colored icon + left accent bar, a close button, and at most 3 stacked; mount it once per page entry.
+
+Business code **always uses `notify`** ([`toast.ts`](../src/pages/components/ui/toast.ts)) — never `import { toast } from "sonner"` directly (an eslint rule enforces this):
 
 ```tsx
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
-toast.success("Script installed");
-toast.error("Update failed: network error");
+notify.success("Script installed");            // 3s
+notify.error("Update failed: network error");  // 4s
+notify.promise(p, { loading, success, error }); // ∞ until resolve/reject
 ```
+
+Durations by level: success/info/warning 3s / error 4s / with action 5s / loading·promise ∞.
 
 ### 6.5 Selection guidance
 
 - **Confirmation:** dangerous / irreversible → `AlertDialog`; lightweight inline confirm (e.g. row delete) → `popconfirm`.
-- **Confirm vs. undo:** a modal confirm interrupts *every* time, so reserve it for the genuinely irreversible or wide-blast (delete N scripts + their stored values, reset settings). For reversible single-item actions (disable one script, dismiss a row), prefer acting immediately + an **undo affordance** (`toast` with an action) over a blocking dialog — fewer interruptions, same safety. State the blast radius in the confirm copy ("Delete 3 scripts and their stored values? This cannot be undone.").
+- **Confirm vs. act-immediately:** a modal confirm interrupts *every* time, so reserve it for the genuinely irreversible or wide-blast (delete N scripts + their stored values, reset settings). For easily reversible actions, prefer acting immediately over a blocking dialog — fewer interruptions. (`notify` exposes an `action` button if a one-tap undo/retry is genuinely worth offering, but don't add it reflexively.) State the blast radius in the confirm copy ("Delete 3 scripts and their stored values? This cannot be undone.").
 - **Transient panels:** mobile nav / side detail → `Sheet`; small anchored layer → `Popover` / `DropdownMenu`.
 - **Feedback:** transient → `toast`; persistent / in-page → see §9 state patterns.
 
@@ -439,7 +444,7 @@ Every async flow covers the states below, presented consistently:
 | **Loading** | A skeleton that preserves the layout, a centered spinner, or a thin top indeterminate bar — pick by *where* the wait happens (see **Loading patterns** below) |
 | **Empty** | Centered `muted` icon (e.g. `lucide` `PackageOpen`/`Inbox`) + title + explanation + primary CTA |
 | **Error** | Centered red icon + an "X failed" title + a monospace (`font-mono`) box with the raw error + retry/close |
-| **Success** | Centered green icon + title + summary stats + next-step CTA; for transient feedback use `toast.success` |
+| **Success** | Centered green icon + title + summary stats + next-step CTA; for transient feedback use `notify.success` |
 | **In-progress** | Top progress bar + per-row status icons (✓ green done / ○ brand in-progress / ⏱ `muted` pending / ✗ `muted` skipped) + readable copy ("Importing… 2/5, keep this page open") |
 
 ### Loading patterns

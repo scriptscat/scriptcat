@@ -7,7 +7,7 @@ import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
 import { ClearNetDiskToken, HasNetDiskToken, netDiskTypeMap } from "@Packages/filesystem/auth";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 interface FileSystemParamsProps {
   /** 选择器左侧的标题/开关等内容 */
@@ -63,9 +63,9 @@ export default function FileSystemParams({
     try {
       await ClearNetDiskToken(netDiskType);
       setHasBoundToken(false);
-      toast.success(t("settings:netdisk_unbind_success", { provider: netDiskName }));
+      notify.success(t("settings:netdisk_unbind_success", { provider: netDiskName }));
     } catch (error) {
-      toast.error(`${t("settings:netdisk_unbind_error", { provider: netDiskName })}: ${String(error)}`);
+      notify.error(`${t("settings:netdisk_unbind_error", { provider: netDiskName })}: ${String(error)}`);
     }
   };
 

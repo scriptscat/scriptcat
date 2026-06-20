@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
@@ -310,17 +310,17 @@ export function useInstallData(): UseInstallData {
       try {
         if (info.userSubscribe) {
           await subscribeClient.install(action as Subscribe);
-          toast.success(t("install:subscribe_success"));
+          notify.success(t("install:subscribe_success"));
         } else {
           const script = action as Script;
           if (noMoreUpdates) script.checkUpdate = false;
           if (script.ignoreVersion) script.ignoreVersion = "";
           await scriptClient.install({ script, code: info.code });
-          toast.success(t("install:success"));
+          notify.success(t("install:success"));
         }
         if (closeAfterInstall) setTimeout(() => window.close(), 300);
       } catch (e) {
-        toast.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
+        notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
       }
     },
     [t]
@@ -347,7 +347,7 @@ export function useInstallData(): UseInstallData {
         setLastSync(new Date().toLocaleTimeString());
         setState((s) => (s.status === "ready" ? { status: "ready", view: { ...s.view, code: newCode } } : s));
       } catch (e) {
-        toast.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
+        notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
       }
     },
     [t]
@@ -363,7 +363,7 @@ export function useInstallData(): UseInstallData {
       try {
         await scriptClient.install({ script: action as Script, code: info.code });
       } catch (e) {
-        toast.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
+        notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
         return;
       }
       const ftInfo: FTInfo = {
@@ -387,10 +387,10 @@ export function useInstallData(): UseInstallData {
     if (!uuid) return;
     try {
       await agentClient.completeSkillInstall(uuid);
-      toast.success(t("install:success"));
+      notify.success(t("install:success"));
       setTimeout(() => window.close(), 300);
     } catch (e) {
-      toast.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
+      notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
     }
   }, [t]);
 

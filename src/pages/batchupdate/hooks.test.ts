@@ -39,7 +39,18 @@ vi.mock("@App/pages/store/global", () => ({
   },
 }));
 
-vi.mock("sonner", () => ({ toast: { success: h.toastSuccess } }));
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
+    success: h.toastSuccess,
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    undo: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
 
 import { useBatchUpdate } from "./hooks";
 

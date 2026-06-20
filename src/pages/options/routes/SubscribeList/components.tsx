@@ -8,7 +8,7 @@ import { Button } from "@App/pages/components/ui/button";
 import { semTime } from "@App/locales/relative-date";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { Globe, RefreshCw, Rss, Trash2, CircleArrowUp, Check, Loader2, Link } from "lucide-react";
 
 // 基于字符串生成稳定的 HSL 颜色（订阅图标底色）
@@ -127,7 +127,7 @@ export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: s
       .then((res) => setState(res ? "has-update" : "latest"))
       .catch((e) => {
         setState("idle");
-        toast.error(`${t("script:update_check_failed")}: ${e}`);
+        notify.error(`${t("script:update_check_failed")}: ${e}`);
       });
   }, [state, url, t]);
 

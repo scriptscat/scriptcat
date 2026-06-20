@@ -12,7 +12,7 @@ import { parseExportCookie, parseExportValue } from "@Packages/cloudscript/cloud
 import CloudScriptFactory from "@Packages/cloudscript/factory";
 import { createJSZip } from "@App/pkg/utils/jszip-x";
 import { BookOpen } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import {
   Dialog,
   DialogContent,
@@ -75,7 +75,9 @@ export default function CloudScriptPlan({ script, open, onOpenChange }: CloudScr
   useEffect(() => () => invalidateCloudScriptPlan(script), [script]);
   useEffect(() => {
     if (!query.isError) return;
-    toast.error(`${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`);
+    notify.error(
+      `${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`
+    );
     query.setData({ model: undefined });
   }, [query, t]);
 
@@ -121,9 +123,9 @@ function CloudScriptPlanContent({
     };
     setModel(next);
     onPlanChange(next);
-    dao.save(next).catch((err) => toast.error(`${t("editor:save_failed")}: ${err}`));
+    dao.save(next).catch((err) => notify.error(`${t("editor:save_failed")}: ${err}`));
 
-    toast.info(t("editor:exporting"));
+    notify.info(t("editor:exporting"));
     const values = await parseExportValue(script, params.exportValue);
     const cookies = await parseExportCookie(params.exportCookie);
 
@@ -132,7 +134,7 @@ function CloudScriptPlanContent({
       const cloudScript = CloudScriptFactory.create("local", { zip: zipFile, ...params });
       const code = await new ScriptCodeDAO().findByUUID(script.uuid);
       if (!code) {
-        toast.error(t("editor:invalid_script_code"));
+        notify.error(t("editor:invalid_script_code"));
         return;
       }
       cloudScript.exportCloud(script, code.code, values, cookies);

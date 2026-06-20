@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { parseTags } from "@App/app/repo/metadata";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { cn } from "@App/pkg/utils/cn";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { Input } from "@App/pages/components/ui/input";
 import { Button } from "@App/pages/components/ui/button";
 import { Switch } from "@App/pages/components/ui/switch";
@@ -77,7 +77,7 @@ export function usePreloadSettingsPane(uuid?: string) {
     if (!uuid) return;
     void preloadSettingsPane(uuid).catch((error) => {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+      notify.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
     });
     return () => invalidateSettingsPane(uuid);
   }, [uuid, t]);
@@ -229,13 +229,13 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   const removePermission = (p: Permission) => {
     permissionClient.deletePermission(uuid, p.permission, p.permissionValue).then(() => {
       setPermissions((prev) => prev.filter((x) => !samePermission(x, p)));
-      toast.success(t("delete_success"));
+      notify.success(t("delete_success"));
     });
   };
   const resetPermissions = () => {
     permissionClient.resetPermission(uuid).then(() => {
       setPermissions([]);
-      toast.success(t("update_success"));
+      notify.success(t("update_success"));
     });
   };
   const openAddPermission = () => {
@@ -254,7 +254,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
     permissionClient.addPermission(perm).then(() => {
       setPermissions((prev) => [...prev.filter((x) => !samePermission(x, perm)), perm]);
       setPermOpen(false);
-      toast.success(t("update_success"));
+      notify.success(t("update_success"));
     });
   };
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, CalendarClock } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { Button } from "@App/pages/components/ui/button";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import { agentClient } from "@App/pages/store/features/script";
@@ -64,7 +64,7 @@ export default function AgentTasks() {
     ) as AgentTask;
     await taskRepo.saveTask(task);
     setDialogOpen(false);
-    toast.success(t("common:save_success"));
+    notify.success(t("common:save_success"));
     await reload();
   };
 
@@ -75,7 +75,7 @@ export default function AgentTasks() {
 
   const handleDelete = async (task: AgentTask) => {
     await taskRepo.removeTask(task.id);
-    toast.success(t("common:delete_success"));
+    notify.success(t("common:delete_success"));
     await reload();
   };
 
@@ -86,10 +86,10 @@ export default function AgentTasks() {
         action: "agentTask",
         data: { action: "runNow", id: task.id },
       });
-      toast.success(t("agent:tasks_run_now"));
+      notify.success(t("agent:tasks_run_now"));
     } catch {
       // 调度器会在下次 tick 执行
-      toast.info(t("agent:tasks_run_now"));
+      notify.info(t("agent:tasks_run_now"));
     }
   };
 

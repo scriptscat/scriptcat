@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import {
   AlertCircle,
   Bot,
@@ -272,7 +272,7 @@ export function UserMessageItem({
 
   const handleCopy = () => {
     navigator.clipboard.writeText(getTextContent(message.content)).then(() => {
-      toast.success(t("agent:chat_copy_success"));
+      notify.success(t("agent:chat_copy_success"));
     });
   };
 

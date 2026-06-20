@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Braces, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { fetchScript, valueClient } from "@App/pages/store/features/script";
 import { valueType } from "@App/pkg/utils/utils";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
@@ -46,7 +46,7 @@ export function usePreloadStoragePane(uuid?: string) {
     if (!uuid) return;
     void preloadStoragePane(uuid).catch((error) => {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+      notify.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
     });
     return () => invalidateStoragePane(uuid);
   }, [uuid, t]);
@@ -132,7 +132,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
           value = dialog.valueStr;
       }
     } catch (e) {
-      toast.error((e as Error).message);
+      notify.error((e as Error).message);
       return;
     }
     valueClient.setScriptValue({ uuid, key: dialog.key, value, ts: Date.now() });
@@ -146,7 +146,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
       }
       return [...rows, { key: dialog.key, value }];
     });
-    toast.success(dialog.isNew ? t("add_success") : t("update_success"));
+    notify.success(dialog.isNew ? t("add_success") : t("update_success"));
     setDialog(null);
   };
 
@@ -154,7 +154,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
     (key: string) => {
       valueClient.setScriptValue({ uuid, key, value: undefined, ts: Date.now() });
       storage.setData((prev) => (prev ?? EMPTY_ROWS).filter((r) => r.key !== key));
-      toast.success(t("delete_success"));
+      notify.success(t("delete_success"));
     },
     [uuid, storage, t]
   );
@@ -162,7 +162,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
   const onClear = useCallback(() => {
     valueClient.setScriptValues({ uuid, keyValuePairs: [], isReplace: true, ts: Date.now() });
     storage.setData([]);
-    toast.success(t("editor:clear_success"));
+    notify.success(t("editor:clear_success"));
   }, [uuid, storage, t]);
 
   const enterBatch = () => {
@@ -177,14 +177,14 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
     try {
       rec = JSON.parse(batchText);
     } catch (e) {
-      toast.error((e as Error).message);
+      notify.error((e as Error).message);
       return;
     }
     const keyValuePairs = Object.keys(rec).map((k) => [k, encodeRValue(rec[k])]) as TKeyValuePair[];
     valueClient.setScriptValues({ uuid, keyValuePairs, isReplace: true, ts: Date.now() });
     storage.setData(Object.keys(rec).map((k) => ({ key: k, value: rec[k] })));
     setBatch(false);
-    toast.success(t("save_success"));
+    notify.success(t("save_success"));
   };
 
   if (batch) {

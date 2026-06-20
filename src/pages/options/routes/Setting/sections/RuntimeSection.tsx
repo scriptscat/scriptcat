@@ -8,7 +8,7 @@ import { systemConfig } from "@App/pages/store/global";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { isPermissionOk, isFirefox } from "@App/pkg/utils/utils";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import type { CATFileStorage } from "@App/pkg/config/config";
 
 const STORAGE_EXAMPLE_URL = "https://github.com/scriptscat/scriptcat/blob/main/example/cat_file_storage.js";
@@ -31,7 +31,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
     if (enable) {
       chrome.permissions.request({ permissions: ["background"] }, (granted) => {
         if (chrome.runtime.lastError) {
-          toast.error(t("settings:enable_background.enable_failed")!);
+          notify.error(t("settings:enable_background.enable_failed")!);
           return;
         }
         setBg(granted);
@@ -39,7 +39,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
     } else {
       chrome.permissions.remove({ permissions: ["background"] }, (removed) => {
         if (chrome.runtime.lastError) {
-          toast.error(t("settings:enable_background.disable_failed")!);
+          notify.error(t("settings:enable_background.disable_failed")!);
           return;
         }
         if (removed) {
@@ -65,13 +65,13 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
     try {
       await FileSystemFactory.create(storage.filesystem, storage.params[storage.filesystem]);
     } catch (e) {
-      toast.error(`${t("editor:account_validation_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+      notify.error(`${t("editor:account_validation_failed")}: ${e instanceof Error ? e.message : String(e)}`);
       return;
     }
     const next: CATFileStorage = { ...storage, status: "success" };
     setStorage(next);
     systemConfig.set("cat_file_storage", next);
-    toast.success(t("save_success"));
+    notify.success(t("save_success"));
   };
 
   const resetStorage = () => {
@@ -87,7 +87,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
       fs = await fs.openDir("ScriptCat/app");
       window.open(await fs.getDirUrl(), "_blank");
     } catch (e) {
-      toast.error(`${t("editor:account_validation_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+      notify.error(`${t("editor:account_validation_failed")}: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 

@@ -25,10 +25,16 @@ vi.mock("@App/pkg/utils/uuid", () => ({
   uuidv4: vi.fn(() => "fid-1"),
 }));
 
-vi.mock("sonner", () => ({
-  toast: {
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    undo: vi.fn(),
+    dismiss: vi.fn(),
   },
 }));
 
@@ -41,7 +47,7 @@ import { scriptClient, agentClient } from "@App/pages/store/features/script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL, openInCurrentTab } from "@App/pkg/utils/utils";
 import { parseMetadata } from "@App/pkg/utils/script";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 function fileOf(name: string, content: string): File {
   const file = new File([content], name, { type: "text/javascript" });
@@ -105,7 +111,7 @@ describe("importHandler 文件分流", () => {
     vi.mocked(parseMetadata).mockReturnValue({} as any);
 
     await handleImportFiles([{ file: fileOf("a.user.js", "// ==UserScript=="), handle: null }]);
-    expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
+    expect(vi.mocked(notify.success)).not.toHaveBeenCalled();
 
     vi.clearAllMocks();
     vi.mocked(parseMetadata).mockReturnValue({} as any);
@@ -116,7 +122,7 @@ describe("importHandler 文件分流", () => {
       { file: fileOf("a.user.js", "// ==UserScript=="), handle: null },
       { file: fileOf("b.user.js", "// ==UserScript=="), handle: null },
     ]);
-    expect(vi.mocked(toast.success)).toHaveBeenCalled();
+    expect(vi.mocked(notify.success)).toHaveBeenCalled();
   });
 });
 

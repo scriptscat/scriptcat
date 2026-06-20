@@ -8,7 +8,7 @@ import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { systemConfig, message } from "@App/pages/store/global";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 export function DevToolsSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
@@ -26,8 +26,8 @@ export function DevToolsSection({ register }: { register: (id: string) => (el: H
     const systemClient = new SystemClient(message);
     systemClient
       .connectVSCode({ url, reconnect })
-      .then(() => toast.success(t("tools:connection_success")))
-      .catch((e) => toast.error(`${t("tools:connection_failed")}: ${e}`));
+      .then(() => notify.success(t("tools:connection_success")))
+      .catch((e) => notify.error(`${t("tools:connection_failed")}: ${e}`));
   };
 
   return (

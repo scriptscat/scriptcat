@@ -25,7 +25,18 @@ vi.mock("@App/pages/store/features/subscribe", () => ({
 }));
 
 // toast 仅做提示，打桩避免依赖全局 Toaster
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    undo: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
 
 // 用轻量替身替换表格：暴露一个触发删除的按钮，调用容器传入的 handleDelete
 const testSubscribe = { url: "https://example.com/a.user.sub.js", name: "TestSubscribe", metadata: {} };

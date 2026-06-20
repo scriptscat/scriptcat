@@ -4,7 +4,7 @@ import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestEnableSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { cn } from "@App/pkg/utils/cn";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { versionDisplay } from "@App/pages/utils";
 import {
   SubscribeIcon,
@@ -38,7 +38,7 @@ function SubscribeCardGrid({ subscribeList, loadingList, updateSubscribes, handl
         )
         .catch((e) => {
           updateSubscribes([subscribe.url], { enableLoading: false });
-          toast.error(`${t("script:operation_failed")}: ${e}`);
+          notify.error(`${t("script:operation_failed")}: ${e}`);
         });
     },
     [updateSubscribes, t]

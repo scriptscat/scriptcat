@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestDeleteSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,10 +90,10 @@ export default function SubscribeList() {
     try {
       await requestDeleteSubscribe(url);
       setSubscribeList((list) => list.filter((s) => s.url !== url));
-      toast.success(t("delete_success"));
+      notify.success(t("delete_success"));
     } catch (e) {
       updateSubscribes([url], { actionLoading: false });
-      toast.error(`${t("script:delete_failed")}: ${e}`);
+      notify.error(`${t("script:delete_failed")}: ${e}`);
     }
   }, [pendingDeleteUrl, updateSubscribes, setSubscribeList, t]);
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEventHandler } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import {
   FolderTree,
   HardDrive,
@@ -143,7 +143,7 @@ export default function AgentOPFS() {
   const handleDelete = async (entry: FileEntry) => {
     if (!root) return;
     await removeEntry(root, path, entry.name, entry.kind);
-    toast.success(t("agent:opfs_delete_success"));
+    notify.success(t("agent:opfs_delete_success"));
     await load();
   };
 
@@ -157,10 +157,10 @@ export default function AgentOPFS() {
       for (const file of files) {
         await writeFile(root, path, file.name, file);
       }
-      toast.success(t("agent:opfs_upload_success"));
+      notify.success(t("agent:opfs_upload_success"));
       await load();
     } catch {
-      toast.error(t("agent:opfs_upload_failed"));
+      notify.error(t("agent:opfs_upload_failed"));
     } finally {
       setUploading(false);
     }

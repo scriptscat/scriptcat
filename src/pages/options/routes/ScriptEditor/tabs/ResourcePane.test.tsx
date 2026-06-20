@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, cleanup, screen, fireEvent, renderHook, waitFor } from "@testing-library/react";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { initLanguage, t } from "@App/locales/locales";
 
 // 资源数据走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
@@ -127,7 +127,7 @@ describe("ResourcePane 资源面板", () => {
   });
 
   it("预加载失败应展示错误而不是产生未处理拒绝", async () => {
-    const toastError = vi.spyOn(toast, "error");
+    const toastError = vi.spyOn(notify, "error");
     fetchScript.mockRejectedValue(new Error("boom"));
 
     renderHook(() => usePreloadResourcePane("u1"));
@@ -136,7 +136,7 @@ describe("ResourcePane 资源面板", () => {
   });
 
   it("未保存脚本不存在时不应读取资源或展示错误", async () => {
-    const toastError = vi.spyOn(toast, "error");
+    const toastError = vi.spyOn(notify, "error");
     fetchScript.mockResolvedValue(null);
 
     renderHook(() => usePreloadResourcePane("new-script"));
@@ -151,7 +151,7 @@ describe("ResourcePane 资源面板", () => {
     getScriptResources
       .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
       .mockResolvedValueOnce(sampleResources());
-    const toastError = vi.spyOn(toast, "error");
+    const toastError = vi.spyOn(notify, "error");
 
     const { rerender } = renderHook(({ uuid }) => usePreloadResourcePane(uuid), {
       initialProps: { uuid: "u1" },

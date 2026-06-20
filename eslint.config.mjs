@@ -57,6 +57,18 @@ export default [
       "react/prop-types": "off",
       "chrome-error/require-last-error-check": "error",
       "react/jsx-no-literals": "warn",
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "sonner",
+              importNames: ["toast"],
+              message: "业务层请用 notify（@App/pages/components/ui/toast），不要直接 import sonner 的 toast。",
+            },
+          ],
+        },
+      ],
     },
   },
   prettier,
@@ -65,6 +77,10 @@ export default [
     rules: {
       "react-hooks/rules-of-hooks": "off",
     },
+  },
+  {
+    files: ["src/pages/components/ui/toast.ts"],
+    rules: { "no-restricted-imports": "off" },
   },
   { ignores: ["dist/", "example/", ".claude/", "playwright-report/", "test-results/", "coverage/"] },
 ];

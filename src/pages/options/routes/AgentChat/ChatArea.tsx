@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { Bot } from "lucide-react";
 import type {
   AgentModelConfig,
@@ -539,7 +539,7 @@ export default function ChatArea({
         .filter(Boolean)
         .join("\n\n");
       navigator.clipboard.writeText(text).then(() => {
-        toast.success(t("agent:chat_copy_success"));
+        notify.success(t("agent:chat_copy_success"));
       });
     },
     [t]

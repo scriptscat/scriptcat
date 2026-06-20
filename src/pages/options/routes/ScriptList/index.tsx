@@ -34,7 +34,7 @@ import type { FilterBarProps } from "./FilterBar";
 import type { BatchActionsBarProps } from "./BatchActionsBar";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import ScriptListMobile from "./ScriptListMobile";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { useUserConfigPreload } from "./preload";
 
 type SelectionProps = {
@@ -68,7 +68,9 @@ function PreloadedUserConfigPanel({ script, onClose }: { script: Script; onClose
 
   useEffect(() => {
     if (!query.isError) return;
-    toast.error(`${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`);
+    notify.error(
+      `${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`
+    );
   }, [query.error, query.isError, t]);
 
   if (!query.data) return null;
@@ -170,10 +172,10 @@ export default function ScriptList() {
       updateScripts(uuids, { actionLoading: true });
       try {
         await requestDeleteScripts(uuids);
-        toast.success(t("delete_success"));
+        notify.success(t("delete_success"));
       } catch (e) {
         updateScripts(uuids, { actionLoading: false });
-        toast.error(`${t("script:delete_failed")}: ${e}`);
+        notify.error(`${t("script:delete_failed")}: ${e}`);
       }
     },
     [updateScripts, t]
@@ -189,7 +191,7 @@ export default function ScriptList() {
         if (isRunning) await requestStopScript(item.uuid);
         else await requestRunScript(item.uuid);
       } catch (e) {
-        toast.error(`${t("script:operation_failed")}: ${e}`);
+        notify.error(`${t("script:operation_failed")}: ${e}`);
       } finally {
         updateScripts([item.uuid], { actionLoading: false });
       }
@@ -259,9 +261,9 @@ export default function ScriptList() {
   const handleBatchExport = useCallback(() => {
     const uuids = selectedUuidsBySort();
     if (uuids.length === 0) return;
-    const id = toast.loading(t("editor:exporting"));
+    const id = notify.loading(t("editor:exporting"));
     synchronizeClient.export(uuids).then(() => {
-      toast.success(t("settings:export_success"), { id });
+      notify.success(t("settings:export_success"), { id });
     });
   }, [selectedUuidsBySort, t]);
 
@@ -269,7 +271,7 @@ export default function ScriptList() {
     const uuids = selectedUuidsBySort();
     if (uuids.length === 0) return;
     pinToTop(uuids).then(() => {
-      toast.success(t("script:scripts_pinned_to_top"));
+      notify.success(t("script:scripts_pinned_to_top"));
     });
   }, [selectedUuidsBySort, t]);
 

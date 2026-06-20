@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Cpu, Info, Search, SlidersHorizontal, type LucideIcon } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { cn } from "@App/pkg/utils/cn";
 import { useScrollSpy } from "@App/pages/options/hooks/useScrollSpy";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
@@ -116,14 +116,14 @@ export default function AgentSettings() {
     const id = v === DEFAULT_MODEL ? "" : v;
     setSummaryModelId(id);
     await agentClient.setSummaryModelId(id);
-    toast.success(t("agent:settings_saved"));
+    notify.success(t("agent:settings_saved"));
   };
 
   const updateSearch = async (patch: Partial<SearchEngineConfig>) => {
     const next = { ...searchConfig, ...patch };
     setSearchConfig(next);
     await agentClient.saveSearchConfig(next);
-    toast.success(t("agent:settings_saved"));
+    notify.success(t("agent:settings_saved"));
   };
 
   const nav = (

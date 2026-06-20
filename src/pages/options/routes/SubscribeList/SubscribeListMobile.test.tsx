@@ -48,7 +48,18 @@ vi.mock("@App/pages/store/features/subscribe", () => ({
   requestCheckSubscribeUpdate: vi.fn(() => Promise.resolve(false)),
 }));
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    undo: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ import { Button } from "@App/pages/components/ui/button";
 import { synchronizeClient } from "@App/pages/store/features/script";
 import { openImportWindow } from "../openImportWindow";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 export function LocalBackupSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
@@ -27,9 +27,9 @@ export function LocalBackupSection({ register }: { register: (id: string) => (el
       if (!file) return;
       try {
         await openImportWindow(file.name, file);
-        toast.success(t("tools:select_import_script"));
+        notify.success(t("tools:select_import_script"));
       } catch (e) {
-        toast.error(`${t("tools:import_error")}: ${e}`);
+        notify.error(`${t("tools:import_error")}: ${e}`);
       }
     };
     el.click();

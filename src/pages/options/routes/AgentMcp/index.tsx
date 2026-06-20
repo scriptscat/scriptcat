@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Plug } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { Button } from "@App/pages/components/ui/button";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { agentClient } from "@App/pages/store/features/script";
@@ -60,7 +60,7 @@ export default function AgentMcp() {
       await agentClient.mcpApi({ action: "addServer", config });
     }
     setDialogOpen(false);
-    toast.success(t("common:save_success"));
+    notify.success(t("common:save_success"));
     await reload();
   };
 
@@ -89,10 +89,10 @@ export default function AgentMcp() {
     try {
       const r = (await agentClient.mcpApi({ action: "testConnection", id: server.id })) as TestCount;
       setTestStates((s) => ({ ...s, [server.id]: { status: "connected", ...r } }));
-      toast.success(t("agent:provider_test_success"));
+      notify.success(t("agent:provider_test_success"));
     } catch (e) {
       setTestStates((s) => ({ ...s, [server.id]: { status: "failed" } }));
-      toast.error(`${t("agent:provider_test_failed")}: ${e}`);
+      notify.error(`${t("agent:provider_test_failed")}: ${e}`);
     }
   };
 
@@ -103,7 +103,7 @@ export default function AgentMcp() {
 
   const handleDelete = async (server: MCPServerConfig) => {
     await agentClient.mcpApi({ action: "removeServer", id: server.id });
-    toast.success(t("common:delete_success"));
+    notify.success(t("common:delete_success"));
     await reload();
   };
 

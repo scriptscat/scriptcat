@@ -8,7 +8,7 @@ import { SettingRow } from "../../../components/SettingRow";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 function useDraft(value: string | undefined) {
   const [draft, setDraft] = useState("");
@@ -33,10 +33,10 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
     prettier
       .format(val, { parser: "json", plugins: [prettierPluginEstree, babel] })
       .then((formatted) => {
-        toast.success(t(formatted === "" ? resetKey : savedKey) ?? "");
+        notify.success(t(formatted === "" ? resetKey : savedKey) ?? "");
         write(formatted);
       })
-      .catch((e) => toast.error(`${t(errKey)}: ${String(e)}`));
+      .catch((e) => notify.error(`${t(errKey)}: ${String(e)}`));
   };
 
   return (
@@ -96,7 +96,7 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
           value={typeDraft}
           onChange={(e) => setTypeDraft(e.target.value)}
           onBlur={() => {
-            toast.success(
+            notify.success(
               t(typeDraft === "" ? "editor:editor_type_definition_reset" : "editor:editor_type_definition_saved") ?? ""
             );
             setTypeDef(typeDraft);

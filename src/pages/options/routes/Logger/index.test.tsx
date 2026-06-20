@@ -32,7 +32,18 @@ const { mockLoggerData } = vi.hoisted(() => ({
   },
 }));
 vi.mock("./hooks", () => ({ useLogger: () => mockLoggerData }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    undo: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
 // 桌面视图用例:固定为非移动端(移动端重壳另在 LoggerMobile.test.tsx 覆盖)
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false, MOBILE_BREAKPOINT: 768 }));
 

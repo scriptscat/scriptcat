@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import type { TBatchUpdateRecord } from "@App/app/service/service_worker/types";
 import { BatchUpdateListActionCode, UpdateStatusCode } from "@App/app/service/service_worker/types";
 import {
@@ -77,7 +77,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
           if (finished && userCheckPendingRef.current && list) {
             userCheckPendingRef.current = false;
             const { updates } = categorize(list);
-            toast.success(
+            notify.success(
               updates.length > 0
                 ? t("install:updatepage.toast_found", { count: updates.length })
                 : t("install:updatepage.toast_uptodate")

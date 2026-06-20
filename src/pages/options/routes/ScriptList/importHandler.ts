@@ -3,7 +3,7 @@ import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL, openInCurrentTab } from "@App/pkg/utils/utils";
 import { parseMetadata } from "@App/pkg/utils/script";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { t } from "@App/locales/locales";
 
 export interface ImportItem {
@@ -56,9 +56,9 @@ async function installLocalFile(file: File, handle: FileSystemFileHandle | null)
 function reportStat(stat: ImportStat, total: number): void {
   if (stat.fail === 0 && total <= 1) return; // 单文件成功:安装页本身即反馈,不打扰
   if (stat.fail === 0) {
-    toast.success(t("script:import_done", { success: stat.success, fail: stat.fail }));
+    notify.success(t("script:import_done", { success: stat.success, fail: stat.fail }));
   } else {
-    toast.error(`${t("script:import_done", { success: stat.success, fail: stat.fail })}\n${stat.messages.join("\n")}`);
+    notify.error(`${t("script:import_done", { success: stat.success, fail: stat.fail })}\n${stat.messages.join("\n")}`);
   }
 }
 

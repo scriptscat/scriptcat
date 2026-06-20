@@ -34,8 +34,17 @@ vi.mock("@App/pages/store/features/script", () => ({
   pinToTop: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn() },
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    undo: vi.fn(),
+    dismiss: vi.fn(),
+  },
 }));
 
 // 轻量替身：暴露选中与批量导出/置顶的触发按钮

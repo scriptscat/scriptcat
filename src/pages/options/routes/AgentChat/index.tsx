@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { ChevronLeft, Download, PanelLeftClose, PanelLeftOpen, Sparkles, SquarePen } from "lucide-react";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
@@ -139,7 +139,7 @@ export default function AgentChat() {
       if (!conv) return;
       const msgs = await agentChatRepo.getMessages(id);
       if (msgs.length === 0) {
-        toast.warning(t("agent:chat_no_conversations"));
+        notify.warning(t("agent:chat_no_conversations"));
         return;
       }
       const md = exportToMarkdown(conv, msgs);

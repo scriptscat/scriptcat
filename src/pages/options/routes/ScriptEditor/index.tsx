@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@App/pages/components/ui/alert-dialog";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { editorTabsReducer, initialEditorTabsState } from "./useEditorTabs";
 import { useActiveEditorFocus } from "./useActiveEditorFocus";
@@ -105,7 +105,7 @@ export default function ScriptEditor() {
         }
         const script = scriptListRef.current.find((s) => s.uuid === uuid);
         if (!script) {
-          toast.error(t("editor:script_not_found"));
+          notify.error(t("editor:script_not_found"));
           return;
         }
         const code = await loadScriptCode(uuid);
@@ -131,7 +131,7 @@ export default function ScriptEditor() {
       } else if (stateRef.current.tabs.length === 0) {
         openScript(undefined, templateRef.current, targetRef.current);
       } else {
-        toast.error(t("editor:script_not_found"));
+        notify.error(t("editor:script_not_found"));
       }
     } else if (stateRef.current.tabs.length === 0) {
       openScript(undefined, templateRef.current, targetRef.current);
@@ -179,7 +179,7 @@ export default function ScriptEditor() {
         view === "storage" ? preloadStoragePane(uuid) : view === "setting" ? preloadSettingsPane(uuid) : null;
       void request?.catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        toast.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+        notify.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
       });
     },
     [t]
@@ -234,11 +234,11 @@ export default function ScriptEditor() {
           }
           return [{ ...res.script } as (typeof prev)[number], ...prev];
         });
-        toast.success(res.updated ? t("editor:save_success") : t("editor:create_success_note"));
+        notify.success(res.updated ? t("editor:save_success") : t("editor:create_success_note"));
         return res.script;
       } catch (err) {
         if (err instanceof Error && err.message === SAVE_CANCELED) return undefined;
-        toast.error(`${t("editor:save_failed")}: ${err}`);
+        notify.error(`${t("editor:save_failed")}: ${err}`);
         return undefined;
       }
     },
@@ -258,9 +258,9 @@ export default function ScriptEditor() {
         },
         () => {
           if (chrome.runtime.lastError) {
-            toast.error(`${t("editor:save_as_failed")}: ${chrome.runtime.lastError.message}`);
+            notify.error(`${t("editor:save_as_failed")}: ${chrome.runtime.lastError.message}`);
           } else {
-            toast.success(t("editor:save_as_success"));
+            notify.success(t("editor:save_as_success"));
           }
         }
       );
@@ -273,13 +273,13 @@ export default function ScriptEditor() {
       const saved = await doSave(script, e);
       if (!saved) return;
       if (saved.type === SCRIPT_TYPE_NORMAL) {
-        toast.error(t("editor:only_background_scheduled_can_run"));
+        notify.error(t("editor:only_background_scheduled_can_run"));
         return;
       }
       runtimeClient
         .runScript(saved.uuid)
-        .then(() => toast.success(t("editor:build_success_message")))
-        .catch((err) => toast.error(`${t("editor:build_failed")}: ${err}`));
+        .then(() => notify.success(t("editor:build_success_message")))
+        .catch((err) => notify.error(`${t("editor:build_failed")}: ${err}`));
     },
     [doSave, t]
   );
@@ -337,9 +337,9 @@ export default function ScriptEditor() {
       try {
         await scriptClient.deletes([script.uuid]);
         if (stateRef.current.tabs.some((x) => x.uuid === script.uuid)) closeTab(script.uuid, true);
-        toast.success(t("editor:delete_success"));
+        notify.success(t("editor:delete_success"));
       } catch (err) {
-        toast.error(`${t("editor:delete_failed")}: ${err}`);
+        notify.error(`${t("editor:delete_failed")}: ${err}`);
       }
     },
     [confirm, closeTab, t]

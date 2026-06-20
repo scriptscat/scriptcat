@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { Cookie, FolderSync, Globe, ShieldCheck, TriangleAlert, CircleAlert, type LucideIcon } from "lucide-react";
 import { permissionClient } from "@App/pages/store/features/script";
 import { Button } from "@App/pages/components/ui/button";
@@ -78,7 +78,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
         await permissionClient.confirm(uuid, { allow, type });
         window.close();
       } catch (e) {
-        toast.error((e as Error)?.message || t("common:confirm_error"));
+        notify.error((e as Error)?.message || t("common:confirm_error"));
         setTimeout(() => window.close(), 3000);
       }
     },

@@ -22,7 +22,7 @@ import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { BookOpen } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 // 根据配置项推断控件类型（与 @grant 用户配置规则一致：显式 type 优先，否则按 default/values 推断）
 export function resolveConfigType(item: Config): ConfigType {
@@ -203,7 +203,7 @@ export default function UserConfigPanel({ script, userConfig, values, open, onOp
       keyValuePairs.push([fullKey, encodeRValue(v)]);
     }
     valueClient.setScriptValues({ uuid: script.uuid, keyValuePairs, isReplace: false, ts: Date.now() });
-    toast.success(t("save_success"));
+    notify.success(t("save_success"));
     onOpenChange(false);
   };
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 import { Sparkles, Upload, Link2, Plus, RefreshCw } from "lucide-react";
 import type { SkillSummary } from "@App/app/service/agent/core/types";
 import { DocumentationSite } from "@App/app/const";
@@ -80,7 +80,7 @@ export default function AgentSkills() {
     try {
       await installSkillFromZip(file);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -93,7 +93,7 @@ export default function AgentSkills() {
       setUrlOpen(false);
       setUrl("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -107,12 +107,12 @@ export default function AgentSkills() {
       for (const u of updates) map[u.name] = u.remoteVersion;
       setUpdateMap(map);
       if (updates.length === 0) {
-        toast.success(t("agent:skills_no_updates"));
+        notify.success(t("agent:skills_no_updates"));
       } else {
-        toast.info(`${updates.length} ${t("agent:skills_updates_available")}`);
+        notify.info(`${updates.length} ${t("agent:skills_updates_available")}`);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     } finally {
       setChecking(false);
     }
@@ -124,7 +124,7 @@ export default function AgentSkills() {
       await agentClient.setSkillEnabled(name, enabled);
       await loadSkills();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -133,7 +133,7 @@ export default function AgentSkills() {
       invalidateSkillDetail(name);
       invalidateSkillConfig();
       await agentClient.updateSkill(name);
-      toast.success(t("agent:skills_update_success"));
+      notify.success(t("agent:skills_update_success"));
       setUpdateMap((prev) => {
         const next = { ...prev };
         delete next[name];
@@ -141,7 +141,7 @@ export default function AgentSkills() {
       });
       await loadSkills();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -151,9 +151,9 @@ export default function AgentSkills() {
       invalidateSkillConfig();
       await agentClient.refreshSkill(name);
       await loadSkills();
-      toast.success(t("agent:skills_refresh_success"));
+      notify.success(t("agent:skills_refresh_success"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -164,7 +164,7 @@ export default function AgentSkills() {
       setDetail(loaded);
       setDetailOpen(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -178,7 +178,7 @@ export default function AgentSkills() {
       await agentClient.removeSkill(name);
       await loadSkills();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     }
   };
 

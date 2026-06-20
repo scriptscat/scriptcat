@@ -6,7 +6,18 @@ const { setScriptValues } = vi.hoisted(() => ({ setScriptValues: vi.fn() }));
 vi.mock("@App/pages/store/features/script", () => ({
   valueClient: { setScriptValues },
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    undo: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
 
 import UserConfigPanel, { resolveConfigType } from "./index";
 

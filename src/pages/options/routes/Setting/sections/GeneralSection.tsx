@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import i18n from "i18next";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { notify } from "@App/pages/components/ui/toast";
 
 const HELP_TRANSLATE_VALUE = "help";
 const HELP_TRANSLATE_URL = "https://github.com/scriptscat/scriptcat/discussions/531";
@@ -19,7 +19,7 @@ export function GeneralSection({ register }: { register: (id: string) => (el: HT
       return;
     }
     setLanguage(v);
-    toast.success(t("settings:language_change_tip"));
+    notify.success(t("settings:language_change_tip"));
   };
   return (
     <SettingCard id="general" title={t("settings:general")} register={register}>
