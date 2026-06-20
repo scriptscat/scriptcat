@@ -69,7 +69,8 @@ afterEach(cleanup);
 
 describe("导入桌面视图 脚本表格", () => {
   it("新增脚本显示「新增」徽章与单版本", () => {
-    renderDesktop({ scripts: [mkScriptItem({ op: "add", newVersion: "3.2.1" })] });
+    const { container } = renderDesktop({ scripts: [mkScriptItem({ op: "add", newVersion: "3.2.1" })] });
+    expect(container.querySelector('[data-slot="data-panel"]')).toBeInTheDocument();
     expect(screen.getByText("示例脚本")).toBeTruthy();
     expect(screen.getByText("新增")).toBeTruthy();
     expect(screen.getByText("v3.2.1")).toBeTruthy();
@@ -110,9 +111,10 @@ describe("导入桌面视图 订阅分区", () => {
   });
 
   it("有订阅时渲染订阅分区与订阅行", () => {
-    renderDesktop({ scripts: [mkScriptItem()], subscribes: [mkSubItem({ name: "我的订阅" })] });
+    const { container } = renderDesktop({ scripts: [mkScriptItem()], subscribes: [mkSubItem({ name: "我的订阅" })] });
     expect(screen.getByTestId("subscribe-section")).toBeTruthy();
     expect(screen.getByText("我的订阅")).toBeTruthy();
+    expect(container.querySelectorAll('[data-slot="data-panel"]')).toHaveLength(2);
   });
 });
 

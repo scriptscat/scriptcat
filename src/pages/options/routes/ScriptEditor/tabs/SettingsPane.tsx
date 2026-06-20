@@ -11,9 +11,11 @@ import { cn } from "@App/pkg/utils/cn";
 import { notify } from "@App/pages/components/ui/toast";
 import { Input } from "@App/pages/components/ui/input";
 import { Button } from "@App/pages/components/ui/button";
+import { DataPanel, DataPanelEmpty, DataPanelHeader, DataPanelRow } from "@App/pages/components/ui/data-panel";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import { TooltipIconButton } from "@App/pages/components/ui/tooltip-icon-button";
 import {
   Dialog,
   DialogContent,
@@ -90,16 +92,16 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 // 卡片容器（圆角描边，内部用分隔线区分行）
 function Card({ children }: { children: React.ReactNode }) {
-  return <div className="overflow-hidden rounded-xl border border-border bg-card">{children}</div>;
+  return <DataPanel>{children}</DataPanel>;
 }
 
 // 卡片中的一行：左标签 + 右内容
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 border-b border-border px-4 py-3.5 last:border-b-0">
+    <DataPanelRow className="border-t-0 border-b px-4 py-3.5 last:border-b-0">
       <span className="shrink-0 text-[13px] text-foreground">{label}</span>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2">{children}</div>
-    </div>
+    </DataPanelRow>
   );
 }
 
@@ -299,20 +301,18 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
         </div>
 
         <Card>
-          <div className="flex items-center gap-3 bg-background px-4 py-2.5 text-xs font-medium text-muted-foreground">
+          <DataPanelHeader>
             <span className="min-w-0 flex-1">{t("editor:match")}</span>
             <span className="w-24 shrink-0">{t("editor:source")}</span>
             <span className="w-16 shrink-0 text-right">{t("action")}</span>
-          </div>
+          </DataPanelHeader>
           {list.length === 0 ? (
-            <div className="border-t border-border px-4 py-10 text-center text-xs text-muted-foreground">
-              {t("no_data")}
-            </div>
+            <DataPanelEmpty>{t("no_data")}</DataPanelEmpty>
           ) : (
             list.map((m, i) => {
               const byUser = !metaList.includes(m);
               return (
-                <div key={`${m}-${i}`} className="flex items-center gap-3 border-t border-border px-4 py-2.5 text-xs">
+                <DataPanelRow key={`${m}-${i}`}>
                   <span className="min-w-0 flex-1 truncate font-mono text-foreground" title={m}>
                     {m}
                   </span>
@@ -343,7 +343,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                       </button>
                     </Popconfirm>
                   </div>
-                </div>
+                </DataPanelRow>
               );
             })
           )}
@@ -368,14 +368,12 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
               <span className="truncate font-mono text-xs text-foreground/70" title={script.uuid}>
                 {script.uuid}
               </span>
-              <button
-                type="button"
-                aria-label={t("copy")}
+              <TooltipIconButton
+                label={t("copy")}
+                icon={Copy}
+                size="icon-xs"
                 onClick={() => navigator.clipboard?.writeText(script.uuid)}
-                className={cn(iconBtn, "hover:text-foreground")}
-              >
-                <Copy className="size-3.5" />
-              </button>
+              />
             </Row>
             <Row label={t("script:tags")}>
               <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -493,22 +491,17 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
           </div>
 
           <Card>
-            <div className="flex items-center gap-3 bg-background px-4 py-2.5 text-xs font-medium text-muted-foreground">
+            <DataPanelHeader>
               <span className="w-28 shrink-0">{t("type")}</span>
               <span className="min-w-0 flex-1">{t("permission:permission_value")}</span>
               <span className="w-24 shrink-0 text-center">{t("permission:allow")}</span>
               <span className="w-16 shrink-0 text-right">{t("action")}</span>
-            </div>
+            </DataPanelHeader>
             {permissions.length === 0 ? (
-              <div className="border-t border-border px-4 py-10 text-center text-xs text-muted-foreground">
-                {t("no_data")}
-              </div>
+              <DataPanelEmpty>{t("no_data")}</DataPanelEmpty>
             ) : (
               permissions.map((p) => (
-                <div
-                  key={`${p.permission}:${p.permissionValue}`}
-                  className="flex items-center gap-3 border-t border-border px-4 py-2.5 text-xs"
-                >
+                <DataPanelRow key={`${p.permission}:${p.permissionValue}`}>
                   <span className="w-28 shrink-0">
                     <span className={cn(pill, pillColor[p.permission] ?? pillColor.script)}>
                       {PERMISSION_LABEL[p.permission] ?? p.permission}
@@ -544,7 +537,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                       </button>
                     </Popconfirm>
                   </div>
-                </div>
+                </DataPanelRow>
               ))
             )}
           </Card>

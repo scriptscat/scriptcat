@@ -9,28 +9,16 @@ import { semTime } from "@App/locales/relative-date";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import { notify } from "@App/pages/components/ui/toast";
+import { NameAvatar } from "@App/pages/components/NameAvatar";
 import { Globe, RefreshCw, Rss, Trash2, CircleArrowUp, Check, Loader2, Link } from "lucide-react";
-
-// 基于字符串生成稳定的 HSL 颜色（订阅图标底色）
-function hashToHsl(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const h = ((hash % 360) + 360) % 360;
-  return `hsl(${h}, 55%, 55%)`;
-}
 
 // ========== SubscribeIcon ==========
 // 订阅以 RSS 图标 + 名称生成的底色圆形作为标识
 export function SubscribeIcon({ name, size = 28 }: { name: string; size?: number }) {
   return (
-    <div
-      className="flex items-center justify-center rounded-full text-white shrink-0"
-      style={{ backgroundColor: hashToHsl(name), width: size, height: size }}
-    >
-      <Rss className="w-3.5 h-3.5" />
-    </div>
+    <NameAvatar seed={name} size={size} rounded="rounded-full">
+      <Rss className="size-3.5" />
+    </NameAvatar>
   );
 }
 

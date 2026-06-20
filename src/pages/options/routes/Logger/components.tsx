@@ -34,7 +34,7 @@ import {
 export const LEVEL_BUCKETS: LevelBucket[] = ["error", "warn", "info", "debug"];
 
 /** 各级别桶的配色类（左侧色条 / 文字 / 圆点 / 徽标底色） */
-export const LEVEL_META: Record<LevelBucket, { bar: string; text: string; dot: string; badge: string }> = {
+const LEVEL_META: Record<LevelBucket, { bar: string; text: string; dot: string; badge: string }> = {
   error: { bar: "border-l-destructive", text: "text-destructive", dot: "bg-destructive", badge: "bg-destructive/10" },
   warn: { bar: "border-l-warning", text: "text-warning-fg", dot: "bg-warning", badge: "bg-warning-bg" },
   info: { bar: "border-l-success", text: "text-success-fg", dot: "bg-success", badge: "bg-success-bg" },
@@ -56,7 +56,7 @@ const PRESET_GROUPS: { labelKey: string; presets: TimePreset[] }[] = [
 ];
 
 /** 自动刷新可选间隔展示顺序 */
-export const REFRESH_INTERVALS: RefreshInterval[] = ["off", "5s", "10s", "30s", "1m", "5m"];
+const REFRESH_INTERVALS: RefreshInterval[] = ["off", "5s", "10s", "30s", "1m", "5m"];
 
 const INTERVAL_I18N: Record<RefreshInterval, string> = {
   off: "refresh_off",

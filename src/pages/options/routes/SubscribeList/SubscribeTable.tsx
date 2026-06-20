@@ -1,10 +1,13 @@
 import React, { useCallback } from "react";
-import { Search, Loader2, ChevronUp, ChevronDown, ChevronsUpDown, ListFilter, Check, Inbox } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, ListFilter, Check, Inbox } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestEnableSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { cn } from "@App/pkg/utils/cn";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
+import { EmptyState } from "@App/pages/components/ui/empty-state";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
+import { SearchInput } from "@App/pages/components/ui/search-input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -144,7 +147,7 @@ export default function SubscribeTable({
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-testid="subscribe-page" className="flex flex-col h-full">
       {/* 顶栏：标题 + 数量 + 搜索 */}
       <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
         <div className="flex items-center gap-2 shrink-0">
@@ -153,15 +156,14 @@ export default function SubscribeTable({
             {totalCount}
           </span>
         </div>
-        <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg bg-muted px-3 h-9">
-          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-          <input
-            className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
-            placeholder={t("script:enter_subscribe_name")}
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          className="flex-1 rounded-lg bg-muted"
+          inputClassName="text-[13px]"
+          aria-label={t("script:enter_subscribe_name")}
+          placeholder={t("script:enter_subscribe_name")}
+          value={searchKeyword}
+          onChange={(e) => setSearchKeyword(e.target.value)}
+        />
       </div>
 
       {/* 表格 */}
@@ -187,22 +189,16 @@ export default function SubscribeTable({
         </div>
 
         {/* 加载状态 */}
-        {loadingList && (
-          <div className="flex items-center justify-center py-20 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            <span className="text-sm">{t("loading")}</span>
-          </div>
-        )}
+        {loadingList && <LoadingState label={t("loading")} />}
 
         {/* 空状态：居中图标 + 标题 + 说明（对齐 DESIGN.md §9） */}
         {!loadingList && subscribeList.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-            <Inbox className="w-10 h-10 text-muted-foreground/60" />
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium text-foreground">{t("no_subscribes")}</p>
-              <p className="text-xs text-muted-foreground">{t("no_subscribes_hint")}</p>
-            </div>
-          </div>
+          <EmptyState
+            data-testid="subscribe-empty"
+            icon={Inbox}
+            title={t("no_subscribes")}
+            description={t("no_subscribes_hint")}
+          />
         )}
 
         {/* 订阅行 */}

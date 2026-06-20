@@ -118,6 +118,8 @@
     "tag_new_connect": "新增 @connect",
     "empty_title": "所有脚本均为最新",
     "empty_desc": "已检查 {{count}} 个脚本 · 暂无可用更新",
+    "recheck": "重新检查",
+    "tap_to_expand": "点击展开",
     "similarity": "相似度",
     "new_connects": "新增连接",
     "toast_found": "发现 {{count}} 个可更新脚本",

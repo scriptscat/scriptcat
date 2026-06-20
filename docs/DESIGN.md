@@ -67,6 +67,7 @@ The "why" behind the constraints — apply these when shaping a screen.
 | `card-foreground` | `#1a1a1a` | `#e5e5e5` | Text on cards |
 | `popover` | `#ffffff` | `#151515` | Floating layers (dropdown/tooltip/toast) surface |
 | `popover-foreground` | `#1a1a1a` | `#e5e5e5` | Text in floating layers |
+| `overlay` | `rgb(0 0 0 / 0.5)` | `rgb(0 0 0 / 0.6)` | Modal scrim — Dialog / Sheet / AlertDialog backdrop (`bg-overlay`; never hard-code `bg-black/50`) |
 | `fg-secondary` | `#666666` | `#b5b5b5` | Secondary text (slightly stronger than `muted-foreground`) |
 
 ### 3.2 Brand primary (blue)
@@ -133,7 +134,7 @@ For the storage table's "type" column — soft bg, deep fg; in dark the bg darke
 | `type-boolean` (amber) | `#fceedb` → `#352c1e` | `#c2710c` → `#fb923c` |
 | `type-object` (purple) | `#f3e8ff` → `#2a1e3a` | `#9333ea` → `#c084fc` |
 
-**Categorical label chips (`--label-*`).** The script list hashes each tag name to one of **8** fixed hues and renders it as a soft-bg / deep-fg chip (`bg-label-<hue>-bg text-label-<hue>-fg`). Use this family for categorical tag/label chips in the script list — never raw `green-50` / `blue-700` palette classes. Light bg = each hue's `-50`, light fg = `-700`; dark bg = `-900` @ 40% resolved opaque over the `#151515` card, dark fg = `-300`.
+**Categorical label chips (`--label-*`).** A name is hashed to one of **8** fixed hues and rendered as a soft-bg / deep-fg chip (`bg-label-<hue>-bg text-label-<hue>-fg`). Use this family for categorical tag/label chips and name-seeded avatars — never raw `green-50` / `blue-700` palette classes. The hashing lives in one place: [`getNameAvatarTone(seed)`](../src/pages/components/NameAvatar.tsx) returns the `{ bg, text }` tone, and `<NameAvatar seed size>` wraps it as the rounded icon used by script icons, subscribe icons, and provider badges; the script-list tag chips call the same helper via `getTagColor`. Light bg = each hue's `-50`, light fg = `-700`; dark bg = `-900` @ 40% resolved opaque over the `#151515` card, dark fg = `-300`.
 
 | Hue | bg (Light → Dark) | fg (Light → Dark) |
 | --- | --- | --- |
@@ -253,14 +254,15 @@ setTheme("auto"); // "auto" follows the system theme and updates on change
 
 The shadcn primitives live in [`src/pages/components/ui/`](../src/pages/components/ui/) — `new-york` style, CSS variables enabled, no class prefix (`components.json`). Icons are always `lucide-react`; class merging is always `cn()` ([`src/pkg/utils/cn.ts`](../src/pkg/utils/cn.ts)); variants are always CVA — these are the [`DEVELOP.md` § UI](./DEVELOP.md) hard rules, not repeated here. This section is "what exists and how to choose."
 
-### 6.1 Primitives
+### 6.1 Primitives & shared composites
+
+**Primitives** — the shadcn building blocks in [`src/pages/components/ui/`](../src/pages/components/ui/):
 
 | File | Use |
 | --- | --- |
 | `button.tsx` | Buttons (variants/sizes below) |
 | `badge.tsx` | Status / label badges |
-| `card.tsx` | Card container |
-| `alert.tsx` | Inline alert banner |
+| `card.tsx` | Card container (base for `Surface` / `DataPanel`) |
 | `alert-dialog.tsx` | Blocking confirmation dialog (dangerous actions) |
 | `dialog.tsx` | General modal dialog |
 | `sheet.tsx` | Drawer (left/right/top/bottom; mobile nav, side panels) |
@@ -271,14 +273,33 @@ The shadcn primitives live in [`src/pages/components/ui/`](../src/pages/componen
 | `accordion.tsx` / `collapsible.tsx` | Accordion / collapsible region (common for mobile collapsed detail) |
 | `select.tsx` | Select |
 | `input.tsx` / `textarea.tsx` | Text input |
-| `checkbox.tsx` / `radio-group.tsx` / `switch.tsx` | Checkbox / radio / toggle |
+| `checkbox.tsx` / `switch.tsx` | Checkbox / switch |
+| `toggle.tsx` / `toggle-group.tsx` | Toggle button / toggle group (base of `SegmentedControl`) |
 | `label.tsx` | Form label |
-| `progress.tsx` | Progress bar |
-| `avatar.tsx` | Avatar |
-| `separator.tsx` | Divider |
-| `scroll-area.tsx` | Controlled scroll region |
+| `progress.tsx` | Progress bar — `default` / `top` / `indeterminate` variants |
+| `skeleton.tsx` | Loading-placeholder block |
 | `sonner.tsx` | Global toast container |
 | `use-hover-menu.ts` | Helper hook for hover-triggered menus |
+
+> The palette is pruned to what's actually imported — unused shadcn primitives are deleted, not parked. Need
+> one back (alert / avatar / radio-group / scroll-area / separator)? Re-add it from shadcn rather than
+> hand-rolling. **Name-seeded avatars** (script / subscribe icons, provider badges) use the shared
+> `NameAvatar` / `getNameAvatarTone` in [`src/pages/components/NameAvatar.tsx`](../src/pages/components/NameAvatar.tsx) — see §3.6.
+
+**Composites** — project blocks built on the primitives. Reuse these before hand-rolling (Principle §2: one implementation per concept):
+
+| Component | File | Use |
+| --- | --- | --- |
+| `Surface` | `ui/surface.tsx` | Padded card surface (`padding` / `interactive` / `disabled` variants) for cards & tiles |
+| `DataPanel` (`+ Header` / `Row` / `Empty`) | `ui/data-panel.tsx` | Bordered key/value or compact-list panel |
+| `StateScreen` | `ui/state-screen.tsx` | Full-area loading / empty / error / success screen with `tone`, monospace detail box & progress slot (§9) |
+| `EmptyState` | `ui/empty-state.tsx` | Inline empty state (icon + title + description + action) |
+| `LoadingState` | `ui/loading-state.tsx` | Inline centered `Loader2` + label |
+| `SearchInput` | `ui/search-input.tsx` | Search box with leading icon over a muted field |
+| `SegmentedControl` | `ui/segmented-control.tsx` | Single-select segmented switch for a few options (e.g. task mode, permission duration) |
+| `FormField` / `SwitchField` | `ui/form-field.tsx` | Labeled field wrapper (label + description + error + required) / switch row (§9 forms) |
+| `TooltipIconButton` | `ui/tooltip-icon-button.tsx` | Icon button with tooltip + loading state |
+| `NameAvatar` | `components/NameAvatar.tsx` | Name-seeded rounded icon (script / subscribe / provider) — see §3.6 |
 
 > No form library (react-hook-form / zod) is used; forms are plain `useState` + controlled components. Keep new forms on this pattern — don't pull in a library unprompted.
 
@@ -447,6 +468,8 @@ Every async flow covers the states below, presented consistently:
 | **Success** | Centered green icon + title + summary stats + next-step CTA; for transient feedback use `notify.success` |
 | **In-progress** | Top progress bar + per-row status icons (✓ green done / ○ brand in-progress / ⏱ `muted` pending / ✗ `muted` skipped) + readable copy ("Importing… 2/5, keep this page open") |
 
+These states have canonical shared components — reuse them rather than re-implementing: `StateScreen` (full-area loading/empty/error/success), `EmptyState` / `LoadingState` (inline), `Skeleton`, and `Progress` (`top` / `indeterminate`); see §6.1.
+
 ### Loading patterns
 
 A loading state is not one thing — and a centered spinner is the *last* resort, not the default. The guiding rule is **keep the page's shape stable**: show a placeholder where the content will land instead of collapsing the layout to a spinner and snapping it back when data arrives. Match the indicator to where the wait happens:
@@ -456,7 +479,7 @@ A loading state is not one thing — and a centered spinner is the *last* resort
 | **First load of a whole page / screen** (no shape yet) | Centered `Loader2` (`size-12 animate-spin text-primary`) + title/desc; pair with a determinate bar (`transition-[width]`) when bytes/percent are known, else an indeterminate fill | `InstallLoading` ([`install/components/InstallStates.tsx`](../src/pages/install/components/InstallStates.tsx)) |
 | **Reloading content that already has a shape** (table / list) | A **skeleton** that keeps the real header + placeholder rows (`animate-pulse rounded bg-muted`) — not a centered spinner — so the layout doesn't collapse and reflow | `SkeletonTable` / `SkeletonBar` ([`batchupdate/components.tsx`](../src/pages/batchupdate/components.tsx)) |
 | **Background refresh / check while content stays visible** | A thin top `animate-indeterminate-bar` (`h-0.5`, `role="progressbar"` + `aria-label`) pinned under the TopBar, not scrolling with content | `TopProgressBar` ([`batchupdate/components.tsx`](../src/pages/batchupdate/components.tsx)) |
-| **A single action** (button, connection test, fetch) | Disable the control and show an inline `Loader2 size-4 animate-spin`; if the action already has an icon, spin that icon instead (`RefreshCw className={cn(checking && "animate-spin")}`) | `McpFormDialog` test button, `ScriptList` / `AgentSkills` refresh |
+| **A single action** (button, connection test, fetch) | Disable the control and show an inline `Loader2 size-4 animate-spin`; if the action already has an icon, spin that icon instead (`RefreshCw className={cn(checking && "animate-spin")}`) | `McpFormDialog` test button, `ScriptList` / Agent Skills refresh |
 
 Practical rules:
 
@@ -472,7 +495,7 @@ The rule: **no silent operations** — after any action the user can see success
 Forms are plain `useState` + controlled components (§6 — no form library). Keep their feedback consistent:
 
 - **Validate late, forgive early.** Don't show errors while a field is still being filled. Validate on **blur** and on **submit**; once a field is showing an error, switch it to **live** revalidation so the message clears the instant it's fixed.
-- **Error message sits with the field**, not in a far-off banner: a short `text-destructive text-xs` line directly under the input, and mark the control (`aria-invalid`, `border-destructive`). Reserve the top-of-form `Alert` for *form-level* failures (the save request itself failed).
+- **Error message sits with the field**, not in a far-off banner: a short `text-destructive text-xs` line directly under the input, and mark the control (`aria-invalid`, `border-destructive`). For *form-level* failures (the save request itself failed) raise a `notify` error toast (§9 state patterns) — there is no `Alert` primitive; if an inline form-level banner is unavoidable, build it ad-hoc with `border-destructive` / `text-destructive`.
 - **Required vs optional:** mark the rarer one. If most fields are required, tag the optional ones "(optional)" rather than starring everything.
 - **Submit button:** keep it enabled and validate on click (a disabled button can't tell the user *why*) — unless submission is genuinely impossible (nothing entered yet). While the request is in flight, disable + inline `Loader2` (§9 single-action loading).
 - **Don't lose input on failure.** A failed save keeps every field as-is; never clear the form on error.

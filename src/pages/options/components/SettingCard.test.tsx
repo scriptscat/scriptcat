@@ -16,6 +16,7 @@ describe("设置卡片原语", () => {
     expect(screen.getByText("同步")).toBeInTheDocument();
     expect(screen.getByText("云端同步")).toBeInTheDocument();
     expect(screen.getByText("inner")).toBeInTheDocument();
+    expect(screen.getByText("inner").closest('[data-slot="surface"]')).toBeInTheDocument();
     expect(reg).toHaveBeenCalledWith("sync");
   });
 

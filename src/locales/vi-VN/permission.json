@@ -21,7 +21,7 @@
   "extension_site_access_description": "Cấp quyền truy cập trang web của trình duyệt cho nguồn này để ScriptCat có thể thực hiện yêu cầu. Thao tác này thay đổi cài đặt truy cập trang web của tiện ích.",
   "extension_site_access_content": "Trang web",
   "request_permission": "Yêu cầu quyền",
-  "allow_user_script_guide": "'Cho phép tập lệnh người dùng' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấn để xem cách bật</a>",
+  "allow_user_script_guide": "'Cho phép tập lệnh người dùng' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Nhấn để xem cách bật</a>",
   "user_script_type": "Script người dùng",
   "auth_duration": "Thời hạn cấp quyền",
   "duration_once": "Chỉ lần này",

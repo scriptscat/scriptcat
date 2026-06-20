@@ -1,12 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, ChevronDown, Inbox, Loader2, ScrollText, Search, Trash, Trash2 } from "lucide-react";
+import { ArrowUp, ChevronDown, Inbox, ScrollText, Trash, Trash2 } from "lucide-react";
 import { notify } from "@App/pages/components/ui/toast";
 import { cn } from "@App/pkg/utils/cn";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Button } from "@App/pages/components/ui/button";
+import { EmptyState } from "@App/pages/components/ui/empty-state";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import { SearchInput } from "@App/pages/components/ui/search-input";
 import { useLogger } from "./hooks";
 import {
   aggregateLabels,
@@ -184,16 +187,14 @@ export default function Logger() {
 
           <div className="hidden md:block flex-1 min-w-[80px]" />
 
-          <div className="flex items-center gap-2 h-8 w-full md:w-[220px] rounded-md border border-input bg-secondary/50 px-2.5 focus-within:ring-2 focus-within:ring-ring/50">
-            <Search className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("logs:search_regex")}
-              aria-label={t("logs:search_regex")}
-              className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
-            />
-          </div>
+          <SearchInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("logs:search_regex")}
+            aria-label={t("logs:search_regex")}
+            className="h-8 w-full border border-input bg-secondary/50 md:w-[220px]"
+            inputClassName="text-[13px]"
+          />
           <Button size="sm" className="flex-1 md:flex-none" onClick={reload}>
             {t("logs:query")}
           </Button>
@@ -256,14 +257,9 @@ export default function Logger() {
         className="flex-1 min-h-0 overflow-auto scrollbar-custom bg-card"
       >
         {loading ? (
-          <div className="flex items-center justify-center h-full py-20 text-muted-foreground">
-            <Loader2 className="w-6 h-6 animate-spin" />
-          </div>
+          <LoadingState label={t("loading")} showLabel={false} className="h-full" iconClassName="size-6" />
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 h-full py-20 text-muted-foreground">
-            <Inbox className="w-8 h-8 opacity-50" />
-            <span className="text-sm">{t("logs:no_logs")}</span>
-          </div>
+          <EmptyState icon={Inbox} title={t("logs:no_logs")} compact className="h-full" />
         ) : (
           filtered.map((log) => (
             <LogRow

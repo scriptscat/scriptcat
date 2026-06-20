@@ -1,4 +1,4 @@
-import { Search, Table2, LayoutGrid, ChevronDown, Check } from "lucide-react";
+import { Table2, LayoutGrid, ChevronDown, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
+import { SearchInput } from "@App/pages/components/ui/search-input";
 
 // 搜索范围：auto = 名称 + 代码
 const scopeOptions: {
@@ -84,48 +85,48 @@ export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setS
       </div>
 
       {/* 搜索框 */}
-      <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg bg-muted/50 pl-3 pr-1.5 h-9">
-        <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-        <input
-          data-testid="script-search"
-          className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
-          placeholder={t("script:search_scripts")}
-          value={searchRequest.keyword}
-          onChange={(e) => setSearchRequest({ ...searchRequest, keyword: e.target.value })}
-        />
-        {/* 搜索范围 */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center gap-1 h-6 px-2 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground shrink-0"
-            >
-              {scopeLabelOf(searchRequest.type, t)}
-              <ChevronDown className="w-3 h-3" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            {scopeOptions.map((o) => (
-              <DropdownMenuItem
-                key={o.type}
-                onClick={() => setSearchRequest({ ...searchRequest, type: o.type })}
-                className="flex items-start gap-2"
+      <SearchInput
+        data-testid="script-search"
+        className="flex-1 rounded-lg pr-1.5"
+        inputClassName="text-[13px]"
+        aria-label={t("script:search_scripts")}
+        placeholder={t("script:search_scripts")}
+        value={searchRequest.keyword}
+        onChange={(e) => setSearchRequest({ ...searchRequest, keyword: e.target.value })}
+        trailing={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex h-6 shrink-0 items-center gap-1 rounded-md border border-border bg-card px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
               >
-                <Check
-                  className={cn(
-                    "w-3.5 h-3.5 mt-0.5 shrink-0",
-                    searchRequest.type === o.type ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                <span className="flex flex-col">
-                  <span className="text-[13px]">{o.label(t)}</span>
-                  {o.desc && <span className="text-[11px] text-muted-foreground">{o.desc(t)}</span>}
-                </span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                {scopeLabelOf(searchRequest.type, t)}
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {scopeOptions.map((o) => (
+                <DropdownMenuItem
+                  key={o.type}
+                  onClick={() => setSearchRequest({ ...searchRequest, type: o.type })}
+                  className="flex items-start gap-2"
+                >
+                  <Check
+                    className={cn(
+                      "w-3.5 h-3.5 mt-0.5 shrink-0",
+                      searchRequest.type === o.type ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="flex flex-col">
+                    <span className="text-[13px]">{o.label(t)}</span>
+                    {o.desc && <span className="text-[11px] text-muted-foreground">{o.desc(t)}</span>}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
 
       {/* 视图切换 */}
       <div data-testid="view-toggle" className="flex items-center border border-border rounded-lg h-8 overflow-hidden">

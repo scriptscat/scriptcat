@@ -118,6 +118,8 @@
     "tag_new_connect": "Neuer @connect",
     "empty_title": "Alle Skripte sind aktuell",
     "empty_desc": "{{count}} Skripte geprüft · Keine Updates verfügbar",
+    "recheck": "Erneut prüfen",
+    "tap_to_expand": "Zum Ausklappen tippen",
     "similarity": "Ähnlichkeit",
     "new_connects": "Neue @connect",
     "toast_found": "{{count}} Skripte mit Updates gefunden",

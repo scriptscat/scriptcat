@@ -21,7 +21,7 @@
   "extension_site_access_description": "Разрешите браузеру доступ к сайту для этого источника, чтобы ScriptCat мог выполнить запрос. Это изменит настройку доступа к сайтам для расширения.",
   "extension_site_access_content": "Сайт",
   "request_permission": "Запрос разрешения",
-  "allow_user_script_guide": "«Разрешить пользовательские скрипты» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Нажмите, чтобы узнать, как включить</a>",
+  "allow_user_script_guide": "«Разрешить пользовательские скрипты» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Нажмите, чтобы узнать, как включить</a>",
   "user_script_type": "Пользовательский скрипт",
   "auth_duration": "Срок действия разрешения",
   "duration_once": "Только сейчас",

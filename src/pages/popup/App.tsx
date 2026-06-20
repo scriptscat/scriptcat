@@ -24,6 +24,7 @@ import {
 import { GithubIcon } from "../components/icons/GithubIcon";
 import { Switch } from "../components/ui/switch";
 import { Input } from "../components/ui/input";
+import { SearchInput } from "../components/ui/search-input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -367,15 +368,14 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
   const { t } = useTranslation();
   return (
     <div className="px-3 py-1 bg-card">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={t("script:search_scripts")}
-          className="h-8 pl-8 text-[13px] rounded-lg bg-muted border-transparent shadow-none focus-visible:ring-1"
-        />
-      </div>
+      <SearchInput
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={t("script:search_scripts")}
+        placeholder={t("script:search_scripts")}
+        className="h-8 rounded-lg bg-muted"
+        inputClassName="text-[13px]"
+      />
     </div>
   );
 }

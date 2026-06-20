@@ -21,7 +21,7 @@
   "extension_site_access_description": "請授予瀏覽器對此來源的網站存取權限，讓 ScriptCat 可以完成本次請求。這會修改擴充功能的網站存取設定。",
   "extension_site_access_content": "網站",
   "request_permission": "要求權限",
-  "allow_user_script_guide": "目前尚未啟用「允許使用者指令碼」，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉點此查看啟用方式</a>",
+  "allow_user_script_guide": "目前尚未啟用「允許使用者指令碼」，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉點此查看啟用方式</a>",
   "user_script_type": "使用者腳本",
   "auth_duration": "授權時長",
   "duration_once": "僅此次",

@@ -118,6 +118,8 @@
     "tag_new_connect": "New @connect",
     "empty_title": "All scripts are up to date",
     "empty_desc": "Checked {{count}} scripts · No updates available",
+    "recheck": "Check again",
+    "tap_to_expand": "Tap to expand",
     "similarity": "Similarity",
     "new_connects": "New @connect",
     "toast_found": "Found {{count}} scripts with updates",

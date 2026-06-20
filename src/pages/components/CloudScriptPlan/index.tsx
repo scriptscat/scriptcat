@@ -154,7 +154,7 @@ function CloudScriptPlanContent({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
         {/* 标题区：「上传到云端」+ 文档链接 同行，脚本名副标题在下，底部分隔线 */}
-        <DialogHeader className="space-y-0.5 border-b border-border px-5 py-4 text-left">
+        <DialogHeader className="gap-0.5 border-b border-border px-5 py-4 text-left">
           <div className="flex items-center gap-2 pr-8">
             <DialogTitle className="text-base font-semibold">{t("editor:upload_to_cloud")}</DialogTitle>
             <a

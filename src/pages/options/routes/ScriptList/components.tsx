@@ -17,6 +17,7 @@ import { i18nName } from "@App/locales/locales";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
+import { getNameAvatarTone, NameAvatar } from "@App/pages/components/NameAvatar";
 import {
   Globe,
   RefreshCw,
@@ -33,35 +34,10 @@ import {
 import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
 import { preloadUserConfig } from "./preload";
 
-// 基于字符串生成稳定的 HSL 颜色
-function hashToHsl(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const h = ((hash % 360) + 360) % 360;
-  return `hsl(${h}, 55%, 55%)`;
-}
-
 // ========== Tag 配色 ==========
 // 分类标签 chip 取 --label-* 令牌族（src/index.css），明暗主题自动切换；详见 DESIGN.md §3.6。
-const TAG_COLORS: Array<{ bg: string; text: string }> = [
-  { bg: "bg-label-green-bg", text: "text-label-green-fg" },
-  { bg: "bg-label-blue-bg", text: "text-label-blue-fg" },
-  { bg: "bg-label-purple-bg", text: "text-label-purple-fg" },
-  { bg: "bg-label-orange-bg", text: "text-label-orange-fg" },
-  { bg: "bg-label-rose-bg", text: "text-label-rose-fg" },
-  { bg: "bg-label-teal-bg", text: "text-label-teal-fg" },
-  { bg: "bg-label-amber-bg", text: "text-label-amber-fg" },
-  { bg: "bg-label-indigo-bg", text: "text-label-indigo-fg" },
-];
-
 export function getTagColor(tag: string) {
-  let hash = 0;
-  for (let i = 0; i < tag.length; i++) {
-    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return TAG_COLORS[((hash % TAG_COLORS.length) + TAG_COLORS.length) % TAG_COLORS.length];
+  return getNameAvatarTone(tag);
 }
 
 // ========== EnableSwitch ==========
@@ -126,20 +102,16 @@ export function ScriptIcon({
     );
   }
 
-  const color = hashToHsl(name);
   const letter = name.charAt(0).toUpperCase();
   return (
-    <div
-      className={cn("flex items-center justify-center rounded-md text-white text-xs font-medium shrink-0", className)}
-      style={{ backgroundColor: color, width: size, height: size }}
-    >
+    <NameAvatar seed={name} size={size} className={className}>
       {letter}
-    </div>
+    </NameAvatar>
   );
 }
 
 // 仅允许 http/https 协议打开外部链接，避免脚本 metadata 注入 javascript:/data:/file: 等异常协议
-export function isSafeHttpUrl(url: string | undefined): boolean {
+function isSafeHttpUrl(url: string | undefined): boolean {
   if (!url) return false;
   try {
     const { protocol } = new URL(url);
@@ -150,7 +122,7 @@ export function isSafeHttpUrl(url: string | undefined): boolean {
 }
 
 // 打开外部链接（仅限 http/https）。脚本主页/站点图标等 URL 均来自脚本 metadata，不可信。
-export function openExternalUrl(url: string | undefined) {
+function openExternalUrl(url: string | undefined) {
   if (isSafeHttpUrl(url)) window.open(url, "_blank");
 }
 

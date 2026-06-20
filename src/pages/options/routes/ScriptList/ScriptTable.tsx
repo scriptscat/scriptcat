@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, ChevronsUpDown, GripVertical, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, GripVertical } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
@@ -19,6 +19,8 @@ import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import type { SCMetadata } from "@App/app/repo/scripts";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
+import { EmptyState } from "@App/pages/components/ui/empty-state";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { cn } from "@App/pkg/utils/cn";
 import { i18nName } from "@App/locales/locales";
 
@@ -289,18 +291,11 @@ export default function ScriptTable({
         </div>
 
         {/* 加载状态 */}
-        {loadingList && (
-          <div className="flex items-center justify-center py-20 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            <span className="text-sm">{t("loading")}</span>
-          </div>
-        )}
+        {loadingList && <LoadingState label={t("loading")} />}
 
         {/* 空状态 */}
         {!loadingList && scriptList.length === 0 && (
-          <div data-testid="script-list-empty" className="flex items-center justify-center py-20 text-muted-foreground">
-            <span className="text-sm">{t("no_scripts")}</span>
-          </div>
+          <EmptyState data-testid="script-list-empty" title={t("no_scripts")} compact />
         )}
 
         {/* 脚本行（带拖拽排序） */}

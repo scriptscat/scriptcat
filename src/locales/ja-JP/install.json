@@ -118,6 +118,8 @@
     "tag_new_connect": "@connect 追加",
     "empty_title": "すべてのスクリプトは最新です",
     "empty_desc": "{{count}} 件のスクリプトを確認 · 利用可能な更新はありません",
+    "recheck": "再確認",
+    "tap_to_expand": "タップして展開",
     "similarity": "類似度",
     "new_connects": "新しい @connect",
     "toast_found": "{{count}} 件の更新可能なスクリプトが見つかりました",

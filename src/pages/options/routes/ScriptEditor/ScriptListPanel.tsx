@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { Search, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Script } from "@App/app/repo/scripts";
 import { i18nName } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
-import { Input } from "@App/pages/components/ui/input";
+import { SearchInput } from "@App/pages/components/ui/search-input";
 import { filterScripts } from "./filterScripts";
 
 export interface ScriptListPanelProps {
@@ -35,9 +35,9 @@ export default function ScriptListPanel({
     <div
       className={cn(
         "flex h-full w-60 shrink-0 flex-col border-r border-border bg-card",
-        scriptListCollapsed ? "absolute z-8 left-0 opacity-0 ml-6 -translate-x-full" : "",
+        scriptListCollapsed ? "absolute left-0 z-10 translate-x-[calc(-100%+1.5rem)] opacity-0" : "",
         scriptListCollapsed
-          ? "hover:transition-all hover:duration-220 hover:ease-in hover:opacity-100 hover:ml-0 hover:translate-x-0"
+          ? "hover:translate-x-0 hover:opacity-100 hover:transition-[opacity,transform] hover:duration-200 hover:ease-in"
           : ""
       )}
     >
@@ -49,15 +49,14 @@ export default function ScriptListPanel({
 
       {/* 搜索 */}
       <div className="shrink-0 px-3 py-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder={t("editor:search_scripts")}
-            className="h-8 pl-7 text-xs"
-          />
-        </div>
+        <SearchInput
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          aria-label={t("editor:search_scripts")}
+          placeholder={t("editor:search_scripts")}
+          className="h-8 px-2"
+          inputClassName="text-xs"
+        />
       </div>
 
       {/* 列表 */}

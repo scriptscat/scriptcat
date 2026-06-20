@@ -31,6 +31,7 @@
   --muted-foreground: #767676; /* WCAG AA：在 #fff/#fafafa 上 ≥4.5:1（旧 #888888 仅 3.5:1，正文不达标） */
   --accent: #f0f0f0;
   --accent-foreground: #1a1a1a;
+  --overlay: rgb(0 0 0 / 0.5);
 
   /* 文字层级 */
   --fg-secondary: #666666;
@@ -135,6 +136,7 @@
   --muted-foreground: #8a8a8a;
   --accent: #2a2a2a;
   --accent-foreground: #e5e5e5;
+  --overlay: rgb(0 0 0 / 0.6);
 
   /* 文字层级 */
   --fg-secondary: #b5b5b5;
@@ -230,6 +232,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-overlay: var(--overlay);
   --color-fg-secondary: var(--fg-secondary);
   --color-border: var(--border);
   --color-input: var(--input);

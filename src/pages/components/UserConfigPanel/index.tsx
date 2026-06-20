@@ -211,7 +211,7 @@ export default function UserConfigPanel({ script, userConfig, values, open, onOp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
         {/* 标题区：脚本名 + 「用户配置」副标题竖向堆叠，底部分隔线 */}
-        <DialogHeader className="shrink-0 space-y-0.5 border-b border-border px-5 py-4 text-left">
+        <DialogHeader className="shrink-0 gap-0.5 border-b border-border px-5 py-4 text-left">
           <DialogTitle className="truncate pr-8 text-base font-semibold">{script.name}</DialogTitle>
           {/* 副标题「用户配置」+ 文档链接同行 */}
           <div className="flex items-center gap-1.5">

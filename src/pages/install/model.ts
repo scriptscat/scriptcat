@@ -18,7 +18,7 @@ export function deriveVersion(newVersion: string | undefined, oldVersion: string
 }
 
 // 已知反特性类型(与 v1.4 antifeatures 映射一致)
-export const ANTIFEATURE_TYPES = ["referral-link", "ads", "payment", "miner", "membership", "tracking"] as const;
+const ANTIFEATURE_TYPES = ["referral-link", "ads", "payment", "miner", "membership", "tracking"] as const;
 
 export type AntifeatureType = (typeof ANTIFEATURE_TYPES)[number];
 

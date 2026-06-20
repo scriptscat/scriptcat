@@ -64,6 +64,7 @@ afterEach(cleanup);
 describe("导入移动视图", () => {
   it("渲染脚本卡:名称、新增徽章、版本、启用开关", () => {
     renderMobile({ scripts: [mkScriptItem({ op: "add", newVersion: "3.2.1" })] });
+    expect(screen.getByTestId("import-script-card")).toHaveAttribute("data-slot", "surface");
     expect(screen.getByText("示例脚本")).toBeTruthy();
     expect(screen.getByText("新增")).toBeTruthy();
     expect(screen.getByText("v3.2.1")).toBeTruthy();
@@ -79,6 +80,7 @@ describe("导入移动视图", () => {
   it("有订阅时渲染订阅分区", () => {
     renderMobile({ scripts: [mkScriptItem()], subscribes: [mkSubItem({ name: "我的订阅" })] });
     expect(screen.getByTestId("subscribe-section")).toBeTruthy();
+    expect(screen.getByTestId("import-subscribe-card")).toHaveAttribute("data-slot", "surface");
     expect(screen.getByText("我的订阅")).toBeTruthy();
   });
 

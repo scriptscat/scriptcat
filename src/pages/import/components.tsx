@@ -23,8 +23,12 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
 import { Button } from "@App/pages/components/ui/button";
+import { Progress } from "@App/pages/components/ui/progress";
+import { StateScreen } from "@App/pages/components/ui/state-screen";
+import { DataPanel } from "@App/pages/components/ui/data-panel";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
@@ -36,13 +40,6 @@ import {
   type ScriptImportItem,
   type SubscribeImportItem,
 } from "./logic";
-
-/** install:importpage 命名空间下的翻译快捷方法（响应式，随语言切换重渲染） */
-export function useTk() {
-  const { t } = useTranslation();
-  const tk = (key: string, opt?: Record<string, unknown>): string => t(`install:importpage.${key}`, opt);
-  return { t, tk };
-}
 
 export type ImportPhase = "loading" | "invalid" | "error" | "empty" | "ready" | "importing" | "done";
 
@@ -99,19 +96,15 @@ function BrandMark() {
 
 /** 顶部进度条:导入进行中时贴在 TopBar 下方,不随内容滚动;按 done/total 确定填充 */
 export function TopProgressBar({ done, total }: { done: number; total: number }) {
-  const { tk } = useTk();
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const { t } = useTranslation();
   return (
-    <div
-      role="progressbar"
-      aria-label={tk("context_importing")}
-      aria-valuenow={done}
-      aria-valuemin={0}
-      aria-valuemax={total}
-      className="h-[3px] w-full shrink-0 overflow-hidden bg-primary-light"
-    >
-      <div className="h-full bg-primary transition-[width] duration-200 ease-out" style={{ width: `${pct}%` }} />
-    </div>
+    <Progress
+      variant="top"
+      aria-label={t("install:importpage.context_importing")}
+      value={done}
+      max={total}
+      className="h-[3px] bg-primary-light"
+    />
   );
 }
 
@@ -146,15 +139,15 @@ const CHIP: Record<ImportPhase, { cls: string; icon: ReactNode; key: string }> =
   },
 };
 
-export function ContextChip({ phase }: { phase: ImportPhase }) {
-  const { tk } = useTk();
+function ContextChip({ phase }: { phase: ImportPhase }) {
+  const { t } = useTranslation();
   const c = CHIP[phase];
   return (
     <span
       className={cn("ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium", c.cls)}
     >
       {c.icon}
-      {tk(c.key)}
+      {t(`install:importpage.${c.key}`)}
     </span>
   );
 }
@@ -239,16 +232,16 @@ const OP_ICON: Record<ImportOp, ReactNode> = {
 };
 
 export function OpBadge({ op }: { op: ImportOp }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   return (
     <span className={cn(PILL, OP_CLASS[op])}>
       {OP_ICON[op]}
-      {tk(OP_KEY[op])}
+      {t(`install:importpage.${OP_KEY[op]}`)}
     </span>
   );
 }
 
-export function VersionCell({ item }: { item: ScriptImportItem }) {
+function VersionCell({ item }: { item: ScriptImportItem }) {
   if (item.op === "error") return <span className="text-muted-foreground">{"—"}</span>;
   if (item.op === "update") {
     return (
@@ -267,13 +260,13 @@ export function VersionCell({ item }: { item: ScriptImportItem }) {
 }
 
 export function SourceCell({ source }: { source: ImportSource }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   if (source.kind === "none") return <span className="text-muted-foreground">{"—"}</span>;
   if (source.kind === "local") {
     return (
       <span className="flex items-center gap-1.5 text-[13px] text-fg-secondary">
         <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
-        {tk("source_local")}
+        {t("install:importpage.source_local")}
       </span>
     );
   }
@@ -291,14 +284,18 @@ export function SourceCell({ source }: { source: ImportSource }) {
 }
 
 export function DataCell({ item }: { item: ScriptImportItem }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   if (item.op === "error" || (item.valueCount === 0 && !item.hasResources)) {
     return <span className="text-muted-foreground">{"—"}</span>;
   }
   return (
     <span className="flex items-center gap-1.5 text-[13px] text-fg-secondary">
       <Database className="size-3.5 shrink-0 text-muted-foreground" />
-      <span>{item.valueCount > 0 ? tk("data_values", { count: item.valueCount }) : tk("data_resources")}</span>
+      <span>
+        {item.valueCount > 0
+          ? t("install:importpage.data_values", { count: item.valueCount })
+          : t("install:importpage.data_resources")}
+      </span>
     </span>
   );
 }
@@ -311,12 +308,12 @@ const STATUS_ICON: Record<ImportItemStatus, ReactNode> = {
 };
 
 export function ImportStatusIcon({ status, id }: { status: ImportItemStatus; id: string }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   return (
     <span
       data-testid={`status-${status}-${id}`}
       className="flex items-center justify-center"
-      aria-label={tk(`status_${status}`)}
+      aria-label={t(`install:importpage.status_${status}`)}
     >
       {STATUS_ICON[status]}
     </span>
@@ -325,7 +322,7 @@ export function ImportStatusIcon({ status, id }: { status: ImportItemStatus; id:
 
 /** 桌面端脚本行 */
 function ScriptRow({ item, view }: { item: ScriptImportItem; view: ImportView }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   const inProgress = view.phase === "importing" || view.phase === "done";
   const status: ImportItemStatus = view.importStatus[item.id] ?? "pending";
   const dim = item.op === "error" ? "opacity-60" : "";
@@ -347,7 +344,9 @@ function ScriptRow({ item, view }: { item: ScriptImportItem; view: ImportView })
       <div className={cn("flex flex-1 items-center gap-2.5 min-w-0", dim)}>
         <ScriptAvatar item={item} />
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-semibold text-foreground">{item.name || tk("unknown_script")}</span>
+          <span className="truncate text-sm font-semibold text-foreground">
+            {item.name || t("install:importpage.unknown_script")}
+          </span>
           {item.author && <span className="truncate text-xs text-muted-foreground">{item.author}</span>}
         </div>
       </div>
@@ -381,28 +380,28 @@ function ScriptRow({ item, view }: { item: ScriptImportItem; view: ImportView })
 }
 
 function ScriptTable({ view }: { view: ImportView }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <DataPanel className="rounded-lg">
       <div className="flex h-10 items-center gap-3.5 px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
         <div className="w-9 shrink-0" />
-        <div className="flex-1">{tk("col_script")}</div>
-        <div className={COL.version}>{tk("col_version")}</div>
-        <div className={COL.source}>{tk("col_source")}</div>
-        <div className={COL.data}>{tk("col_data")}</div>
-        <div className={COL.status}>{tk("col_status")}</div>
-        <div className={cn(COL.enable, "text-center")}>{tk("col_enabled")}</div>
+        <div className="flex-1">{t("install:importpage.col_script")}</div>
+        <div className={COL.version}>{t("install:importpage.col_version")}</div>
+        <div className={COL.source}>{t("install:importpage.col_source")}</div>
+        <div className={COL.data}>{t("install:importpage.col_data")}</div>
+        <div className={COL.status}>{t("install:importpage.col_status")}</div>
+        <div className={cn(COL.enable, "text-center")}>{t("install:importpage.col_enabled")}</div>
       </div>
       {view.scripts.map((item) => (
         <ScriptRow key={item.id} item={item} view={view} />
       ))}
-    </div>
+    </DataPanel>
   );
 }
 
 /** 订阅行 */
 function SubscribeRow({ item, view }: { item: SubscribeImportItem; view: ImportView }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   const inProgress = view.phase === "importing" || view.phase === "done";
   const status: ImportItemStatus = view.importStatus[item.id] ?? "pending";
   const dim = item.op === "error" ? "opacity-60" : "";
@@ -426,7 +425,9 @@ function SubscribeRow({ item, view }: { item: SubscribeImportItem; view: ImportV
           <Rss className="size-4 text-primary" />
         </span>
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-semibold text-foreground">{item.name || tk("unknown_script")}</span>
+          <span className="truncate text-sm font-semibold text-foreground">
+            {item.name || t("install:importpage.unknown_script")}
+          </span>
           {item.url && <span className="truncate font-mono text-xs text-muted-foreground">{item.url}</span>}
         </div>
       </div>
@@ -438,7 +439,7 @@ function SubscribeRow({ item, view }: { item: SubscribeImportItem; view: ImportV
 }
 
 function SubscribeSection({ view }: { view: ImportView }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   if (view.subscribes.length === 0) return null;
   const importable = importableSubscribeIds(view.subscribes);
   const selectedCount = importable.filter((id) => view.selectedSubscribes.has(id)).length;
@@ -449,7 +450,7 @@ function SubscribeSection({ view }: { view: ImportView }) {
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <Rss className="size-4 text-primary" />
-          <span className="text-[15px] font-semibold text-foreground">{tk("subscribe_section")}</span>
+          <span className="text-[15px] font-semibold text-foreground">{t("install:importpage.subscribe_section")}</span>
           <span className="text-[13px] text-muted-foreground">{view.subscribes.length}</span>
         </div>
         {reviewing && (
@@ -460,29 +461,30 @@ function SubscribeSection({ view }: { view: ImportView }) {
               onCheckedChange={view.onToggleAllSubscribes}
             />
             <span className="text-[13px] text-fg-secondary">
-              {tk("selected_count", { selected: selectedCount, total: importable.length })}
+              {t("install:importpage.selected_count", { selected: selectedCount, total: importable.length })}
             </span>
           </div>
         )}
       </div>
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <DataPanel className="rounded-lg">
         {view.subscribes.map((item) => (
           <SubscribeRow key={item.id} item={item} view={view} />
         ))}
-      </div>
+      </DataPanel>
     </div>
   );
 }
 
 /** 备份来源 chip 文案:文件名 · N 脚本 · M 订阅 */
-function backupSourceLabel(view: ImportView, tk: (key: string, opt?: Record<string, unknown>) => string): string {
-  const parts = [view.filename, tk("count_scripts", { count: view.scripts.length })];
-  if (view.subscribes.length > 0) parts.push(tk("count_subscribes", { count: view.subscribes.length }));
+function backupSourceLabel(view: ImportView, t: TFunction): string {
+  const parts = [view.filename, t("install:importpage.count_scripts", { count: view.scripts.length })];
+  if (view.subscribes.length > 0)
+    parts.push(t("install:importpage.count_subscribes", { count: view.subscribes.length }));
   return parts.filter(Boolean).join(" · ");
 }
 
 function ImportToolbar({ view }: { view: ImportView }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   const importable = importableScriptIds(view.scripts);
   const selectedCount = importable.filter((id) => view.selectedScripts.has(id)).length;
   const allSelected = importable.length > 0 && selectedCount === importable.length;
@@ -492,47 +494,47 @@ function ImportToolbar({ view }: { view: ImportView }) {
       <div className="flex items-center gap-3">
         <Checkbox data-testid="toggle-all-scripts" checked={allSelected} onCheckedChange={view.onToggleAllScripts} />
         <span className="text-sm font-medium text-foreground">
-          {tk("selected_count", { selected: selectedCount, total: importable.length })}
+          {t("install:importpage.selected_count", { selected: selectedCount, total: importable.length })}
         </span>
         {unimportable > 0 && (
           <>
             <span className="text-muted-foreground">{"·"}</span>
             <span className="text-[13px] text-muted-foreground">
-              {tk("unimportable_count", { count: unimportable })}
+              {t("install:importpage.unimportable_count", { count: unimportable })}
             </span>
           </>
         )}
       </div>
       <span className="inline-flex max-w-[460px] items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-fg-secondary">
         <FileArchive className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="truncate">{backupSourceLabel(view, tk)}</span>
+        <span className="truncate">{backupSourceLabel(view, t)}</span>
       </span>
     </div>
   );
 }
 
 function ImportingToolbar({ view }: { view: ImportView }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 text-sm">
       <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
       <span className="font-medium text-foreground">
-        {tk("importing_progress", { done: view.doneCount, total: view.totalCount })}
+        {t("install:importpage.importing_progress", { done: view.doneCount, total: view.totalCount })}
       </span>
       <span className="text-muted-foreground">{"·"}</span>
-      <span className="text-[13px] text-muted-foreground">{tk("importing_hint")}</span>
+      <span className="text-[13px] text-muted-foreground">{t("install:importpage.importing_hint")}</span>
     </div>
   );
 }
 
 function ReadyActions({ view }: { view: ImportView }) {
-  const { t, tk } = useTk();
+  const { t } = useTranslation();
   const total = view.selectedScripts.size + view.selectedSubscribes.size;
   return (
     <div className="flex items-center gap-4">
       <span className="hidden items-center gap-1.5 text-[13px] text-muted-foreground sm:flex">
         <ShieldCheck className="size-4 shrink-0" />
-        {tk("trust_hint")}
+        {t("install:importpage.trust_hint")}
       </span>
       <div className="ml-auto flex items-center gap-2.5">
         <Button variant="outline" onClick={view.onClose}>
@@ -540,7 +542,7 @@ function ReadyActions({ view }: { view: ImportView }) {
         </Button>
         <Button data-testid="import-btn" disabled={total === 0} onClick={view.onImport}>
           <Download />
-          {tk("import_selected", { count: total })}
+          {t("install:importpage.import_selected", { count: total })}
         </Button>
       </div>
     </div>
@@ -548,18 +550,18 @@ function ReadyActions({ view }: { view: ImportView }) {
 }
 
 function ImportingActions({ view }: { view: ImportView }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-3">
       <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
-      <span className="text-[13px] text-muted-foreground">{tk("importing_actionbar_hint")}</span>
+      <span className="text-[13px] text-muted-foreground">{t("install:importpage.importing_actionbar_hint")}</span>
       <span className="ml-auto font-mono text-[13px] font-semibold text-fg-secondary">{`${view.doneCount} / ${view.totalCount}`}</span>
       <Button variant="outline" onClick={view.onCancel}>
-        {tk("cancel")}
+        {t("install:importpage.cancel")}
       </Button>
       <Button disabled>
         <Loader2 className="animate-spin" />
-        {tk("importing_button")}
+        {t("install:importpage.importing_button")}
       </Button>
     </div>
   );
@@ -574,46 +576,29 @@ function StatChip({ icon, children }: { icon: ReactNode; children: ReactNode }) 
   );
 }
 
-function CenteredState({ children, testid }: { children: ReactNode; testid: string }) {
-  return (
-    <div data-testid={testid} className="flex min-h-[60vh] flex-col items-center justify-center gap-5 text-center">
-      {children}
-    </div>
-  );
-}
-
-/** 状态屏的 88px 图标环(语义色面 + 居中图标) */
-function StateRing({ className, children }: { className: string; children: ReactNode }) {
-  return <span className={cn("flex size-[88px] items-center justify-center rounded-full", className)}>{children}</span>;
-}
-
-function StateTexts({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="flex max-w-[420px] flex-col gap-2.5">
-      <span className="text-2xl font-bold text-foreground">{title}</span>
-      <span className="text-sm leading-relaxed text-fg-secondary">{desc}</span>
-    </div>
-  );
-}
-
 export function ImportLoading({ filename }: { filename: string }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   return (
-    <CenteredState testid="import-loading">
-      <StateRing className="bg-primary-light">
-        <Loader2 className="size-11 animate-spin text-primary" />
-      </StateRing>
-      <StateTexts title={tk("loading_title")} desc={tk("loading_desc")} />
-      <div className="h-1.5 w-[300px] overflow-hidden rounded-full bg-muted">
-        <div className="h-full w-1/3 animate-indeterminate-bar bg-primary" />
-      </div>
-      {filename && (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs text-fg-secondary">
-          <FileArchive className="size-3.5 shrink-0 text-muted-foreground" />
-          {filename}
-        </span>
-      )}
-    </CenteredState>
+    <StateScreen
+      data-testid="import-loading"
+      className="min-h-[60vh]"
+      icon={Loader2}
+      iconClassName="animate-spin"
+      tone="primary"
+      title={t("install:importpage.loading_title")}
+      description={t("install:importpage.loading_desc")}
+      progress={
+        <>
+          <Progress aria-label={t("install:importpage.loading_title")} indeterminate className="w-[300px]" />
+          {filename && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs text-fg-secondary">
+              <FileArchive className="size-3.5 shrink-0 text-muted-foreground" />
+              {filename}
+            </span>
+          )}
+        </>
+      }
+    />
   );
 }
 
@@ -628,92 +613,99 @@ export function ImportErrorScreen({
   onRetry?: () => void;
   onClose: () => void;
 }) {
-  const { t, tk } = useTk();
+  const { t } = useTranslation();
   return (
-    <CenteredState testid="import-error">
-      <StateRing className="bg-destructive/10">
-        <CloudOff className="size-11 text-destructive" />
-      </StateRing>
-      <StateTexts title={tk("error_title")} desc={desc} />
-      {detail && (
-        <div
-          data-testid="error-detail-box"
-          className="flex w-[440px] max-w-full items-center gap-2 rounded-md bg-destructive/10 px-3.5 py-3 text-left font-mono"
-        >
-          <TriangleAlert className="size-4 shrink-0 text-destructive" />
-          <span className="text-xs leading-relaxed break-all text-destructive">{detail}</span>
-        </div>
-      )}
-      <div className="flex gap-3">
-        <Button variant="outline" onClick={onClose} className="min-w-24">
-          {t("common:close")}
-        </Button>
-        {onRetry && (
-          <Button data-testid="retry-btn" onClick={onRetry} className="min-w-24">
-            <RefreshCw />
-            {tk("retry")}
+    <StateScreen
+      data-testid="import-error"
+      className="min-h-[60vh]"
+      icon={CloudOff}
+      tone="error"
+      title={t("install:importpage.error_title")}
+      description={desc}
+      detail={detail}
+      detailTestId={detail ? "error-detail-box" : undefined}
+      detailClassName="w-[440px] max-w-full"
+      action={
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={onClose} className="min-w-24">
+            {t("common:close")}
           </Button>
-        )}
-      </div>
-    </CenteredState>
+          {onRetry && (
+            <Button data-testid="retry-btn" onClick={onRetry} className="min-w-24">
+              <RefreshCw />
+              {t("install:importpage.retry")}
+            </Button>
+          )}
+        </div>
+      }
+    />
   );
 }
 
 export function EmptyBackup({ onClose }: { onClose: () => void }) {
-  const { t, tk } = useTk();
+  const { t } = useTranslation();
   return (
-    <CenteredState testid="import-empty">
-      <StateRing className="bg-muted">
-        <PackageOpen className="size-11 text-muted-foreground" />
-      </StateRing>
-      <StateTexts title={tk("empty_title")} desc={tk("empty_desc")} />
-      <Button onClick={onClose} className="min-w-24">
-        {t("common:close")}
-      </Button>
-    </CenteredState>
+    <StateScreen
+      data-testid="import-empty"
+      className="min-h-[60vh]"
+      icon={PackageOpen}
+      title={t("install:importpage.empty_title")}
+      description={t("install:importpage.empty_desc")}
+      action={
+        <Button onClick={onClose} className="min-w-24">
+          {t("common:close")}
+        </Button>
+      }
+    />
   );
 }
 
 export function ImportComplete({ view }: { view: ImportView }) {
-  const { t, tk } = useTk();
+  const { t } = useTranslation();
   const { summary } = view;
   return (
-    <CenteredState testid="import-complete">
-      <StateRing className="bg-success-bg">
-        <CircleCheck className="size-[46px] text-success-fg" />
-      </StateRing>
-      <StateTexts title={tk("done_title")} desc={tk("done_desc")} />
-      <div className="flex flex-wrap items-center justify-center gap-2.5">
-        <StatChip icon={<FileCode className="size-3.5 shrink-0 text-fg-secondary" />}>
-          {tk("done_stat_scripts", { count: summary.scripts })}
-        </StatChip>
-        {summary.subscribes > 0 && (
-          <StatChip icon={<Rss className="size-3.5 shrink-0 text-fg-secondary" />}>
-            {tk("done_stat_subscribes", { count: summary.subscribes })}
+    <StateScreen
+      data-testid="import-complete"
+      className="min-h-[60vh]"
+      icon={CircleCheck}
+      tone="success"
+      title={t("install:importpage.done_title")}
+      description={t("install:importpage.done_desc")}
+      progress={
+        <div className="flex flex-wrap items-center justify-center gap-2.5">
+          <StatChip icon={<FileCode className="size-3.5 shrink-0 text-fg-secondary" />}>
+            {t("install:importpage.done_stat_scripts", { count: summary.scripts })}
           </StatChip>
-        )}
-        {summary.values > 0 && (
-          <StatChip icon={<Database className="size-3.5 shrink-0 text-fg-secondary" />}>
-            {tk("done_stat_values", { count: summary.values })}
-          </StatChip>
-        )}
-      </div>
-      <div className="flex gap-3">
-        <Button variant="outline" onClick={view.onClose} className="min-w-24">
-          {t("common:close")}
-        </Button>
-        <Button data-testid="view-scripts-btn" onClick={view.onOpenScriptList} className="min-w-24">
-          <List />
-          {tk("view_scripts")}
-        </Button>
-      </div>
-    </CenteredState>
+          {summary.subscribes > 0 && (
+            <StatChip icon={<Rss className="size-3.5 shrink-0 text-fg-secondary" />}>
+              {t("install:importpage.done_stat_subscribes", { count: summary.subscribes })}
+            </StatChip>
+          )}
+          {summary.values > 0 && (
+            <StatChip icon={<Database className="size-3.5 shrink-0 text-fg-secondary" />}>
+              {t("install:importpage.done_stat_values", { count: summary.values })}
+            </StatChip>
+          )}
+        </div>
+      }
+      action={
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={view.onClose} className="min-w-24">
+            {t("common:close")}
+          </Button>
+          <Button data-testid="view-scripts-btn" onClick={view.onOpenScriptList} className="min-w-24">
+            <List />
+            {t("install:importpage.view_scripts")}
+          </Button>
+        </div>
+      }
+    />
   );
 }
 
 /** 桌面端整页视图 */
 export function DesktopView({ view }: { view: ImportView }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   if (view.phase === "loading") {
     return (
       <ImportLayout phase={view.phase}>
@@ -724,7 +716,7 @@ export function DesktopView({ view }: { view: ImportView }) {
   if (view.phase === "invalid") {
     return (
       <ImportLayout phase={view.phase}>
-        <ImportErrorScreen desc={tk("invalid_desc")} onClose={view.onClose} />
+        <ImportErrorScreen desc={t("install:importpage.invalid_desc")} onClose={view.onClose} />
       </ImportLayout>
     );
   }
@@ -732,7 +724,7 @@ export function DesktopView({ view }: { view: ImportView }) {
     return (
       <ImportLayout phase={view.phase}>
         <ImportErrorScreen
-          desc={tk("error_desc")}
+          desc={t("install:importpage.error_desc")}
           detail={view.errorMessage}
           onRetry={view.onRetry}
           onClose={view.onClose}

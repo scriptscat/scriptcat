@@ -33,7 +33,7 @@ export const RISK_STYLE: Record<PermissionRisk, { icon: string; count: string; c
   },
 };
 
-export const DEFAULT_MAX_VISIBLE = 8;
+const DEFAULT_MAX_VISIBLE = 8;
 
 /** 权限取值 chip 列表(可见项 + 折叠的 +N);桌面行与移动 Accordion 共用 */
 export function PermissionChips({

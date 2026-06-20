@@ -21,7 +21,7 @@
   "extension_site_access_description": "请授予浏览器对此来源的站点访问权限，让 ScriptCat 可以完成本次请求。这会修改扩展的站点访问设置。",
   "extension_site_access_content": "站点",
   "request_permission": "请求权限",
-  "allow_user_script_guide": "当前未启用“允许运行用户脚本”，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉点击查看启用方法</a>",
+  "allow_user_script_guide": "当前未启用“允许运行用户脚本”，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉点击查看启用方法</a>",
   "user_script_type": "用户脚本",
   "auth_duration": "授权时长",
   "duration_once": "仅此次",

@@ -21,7 +21,7 @@
   "extension_site_access_description": "Gewähren Sie dem Browser Website-Zugriff auf diesen Ursprung, damit ScriptCat die Anfrage ausführen kann. Dadurch wird die Website-Zugriffseinstellung der Erweiterung geändert.",
   "extension_site_access_content": "Website",
   "request_permission": "Beantragen Sie Genehmigungen",
-  "allow_user_script_guide": "'Nutzerskripts zulassen' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉Hier klicken, um zu erfahren, wie man es aktiviert</a>",
+  "allow_user_script_guide": "'Nutzerskripts zulassen' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Hier klicken, um zu erfahren, wie man es aktiviert</a>",
   "user_script_type": "Benutzerskript",
   "auth_duration": "Autorisierungsdauer",
   "duration_once": "Nur dieses Mal",

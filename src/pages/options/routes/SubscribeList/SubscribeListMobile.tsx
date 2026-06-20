@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, ListFilter, Check } from "lucide-react";
+import { ListFilter, Check } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import type { SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { useTranslation } from "react-i18next";
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
+import { SearchInput } from "@App/pages/components/ui/search-input";
 import SubscribeCardGrid from "./SubscribeCardGrid";
 
 export interface SubscribeListMobileProps {
@@ -79,18 +80,17 @@ function SubscribeListMobile({
 }: SubscribeListMobileProps) {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col h-full">
+    <div data-testid="subscribe-page" className="flex flex-col h-full">
       {/* 搜索 + 状态筛选 */}
       <div className="flex items-center gap-2 px-4 py-1.5 shrink-0">
-        <div className="flex-1 min-w-0 flex items-center gap-2 rounded-md bg-muted/50 px-3 h-9">
-          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-          <input
-            className="flex-1 min-w-0 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
-            placeholder={t("script:enter_subscribe_name")}
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          className="flex-1"
+          inputClassName="text-sm"
+          aria-label={t("script:enter_subscribe_name")}
+          placeholder={t("script:enter_subscribe_name")}
+          value={searchKeyword}
+          onChange={(e) => setSearchKeyword(e.target.value)}
+        />
         <MobileStatusFilter statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
       </div>
 

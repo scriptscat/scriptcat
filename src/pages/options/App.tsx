@@ -6,13 +6,13 @@ import ScriptEditor from "./routes/ScriptEditor";
 import Logger from "./routes/Logger";
 import Setting from "./routes/Setting";
 import Tools from "./routes/Tools";
-import AgentChat from "./routes/AgentChat";
-import AgentSkills from "./routes/AgentSkills";
-import AgentProvider from "./routes/AgentProvider";
-import AgentMcp from "./routes/AgentMcp";
-import AgentTasks from "./routes/AgentTasks";
-import AgentOPFS from "./routes/AgentOPFS";
-import AgentSettings from "./routes/AgentSettings";
+import AgentChat from "./routes/Agent/Chat";
+import AgentSkills from "./routes/Agent/Skills";
+import AgentProvider from "./routes/Agent/Provider";
+import AgentMcp from "./routes/Agent/Mcp";
+import AgentTasks from "./routes/Agent/Tasks";
+import AgentOPFS from "./routes/Agent/OPFS";
+import AgentSettings from "./routes/Agent/Settings";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import MobileHeader from "./layout/MobileHeader";
 import BottomTabBar from "./layout/BottomTabBar";
@@ -75,8 +75,10 @@ export default function App() {
             <Route path="settings" element={<AgentSettings />} />
           </Route>
           <Route path="logs" element={<Logger />} />
+          <Route path="logger" element={<Navigate to="/logs" replace />} />
           <Route path="tools" element={<Tools />} />
           <Route path="settings" element={<Setting />} />
+          <Route path="setting" element={<Navigate to="/settings" replace />} />
           <Route path="script/editor/:uuid?" element={<ScriptEditor />} />
         </Route>
       </Routes>

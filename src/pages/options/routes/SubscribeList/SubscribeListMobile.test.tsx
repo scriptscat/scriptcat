@@ -89,6 +89,7 @@ describe("订阅列表移动端卡片外壳", () => {
     const { getByTestId } = renderWithRouterTooltip(<SubscribeList />);
     const card = getByTestId("subscribe-card");
 
+    expect(card).toHaveAttribute("data-slot", "surface");
     // 名称（标识）
     expect(card.textContent).toContain("我的订阅");
     // 版本

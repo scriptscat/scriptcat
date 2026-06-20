@@ -16,7 +16,7 @@ export type { ScriptProvider } from "./preload";
 // ========== 辅助函数 ==========
 
 /** 安全提取 URL 的 host（含端口） */
-export function extractHost(url: string): string {
+function extractHost(url: string): string {
   try {
     return new URL(url).host;
   } catch {

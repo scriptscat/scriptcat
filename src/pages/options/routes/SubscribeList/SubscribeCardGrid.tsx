@@ -1,10 +1,12 @@
 import React, { useCallback } from "react";
-import { Loader2, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestEnableSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
-import { cn } from "@App/pkg/utils/cn";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
+import { EmptyState } from "@App/pages/components/ui/empty-state";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
+import { Surface } from "@App/pages/components/ui/surface";
 import { versionDisplay } from "@App/pages/utils";
 import {
   SubscribeIcon,
@@ -46,21 +48,10 @@ function SubscribeCardGrid({ subscribeList, loadingList, updateSubscribes, handl
 
   return (
     <div className="flex-1 overflow-auto scrollbar-custom px-4 pt-4 pb-6">
-      {loadingList && (
-        <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          <span className="text-sm">{t("loading")}</span>
-        </div>
-      )}
+      {loadingList && <LoadingState label={t("loading")} />}
 
       {!loadingList && subscribeList.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-          <Inbox className="w-10 h-10 text-muted-foreground/60" />
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-foreground">{t("no_subscribes")}</p>
-            <p className="text-xs text-muted-foreground">{t("no_subscribes_hint")}</p>
-          </div>
-        </div>
+        <EmptyState icon={Inbox} title={t("no_subscribes")} description={t("no_subscribes_hint")} />
       )}
 
       {!loadingList && subscribeList.length > 0 && (
@@ -101,13 +92,7 @@ const SubscribeCardItem = React.memo(
       .join(" · ");
 
     return (
-      <div
-        data-testid="subscribe-card"
-        className={cn(
-          "group/card rounded-lg border border-border bg-card p-4 transition-shadow hover:shadow-md",
-          isDisabled && "opacity-60"
-        )}
-      >
+      <Surface data-testid="subscribe-card" interactive disabled={isDisabled} className="group/card rounded-lg">
         {/* 头部: 图标 + 名称/元信息 + 开关 */}
         <div className="flex items-start gap-2.5 mb-3">
           <SubscribeIcon name={subscribe.name} />
@@ -136,7 +121,7 @@ const SubscribeCardItem = React.memo(
           <SubscribeUpdateTimeCell url={subscribe.url} updatetime={subscribe.updatetime} />
           <SubscribeRowActions onDelete={() => onDelete(subscribe)} />
         </div>
-      </div>
+      </Surface>
     );
   },
   (prev, next) =>

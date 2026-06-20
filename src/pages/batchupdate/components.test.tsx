@@ -70,7 +70,7 @@ describe("批量更新桌面视图 检查中反馈", () => {
 
   it("列表为空且检查中时显示骨架而非空状态", () => {
     renderDesktop({ checking: true, updates: [], ignored: [] });
-    expect(screen.getByTestId("update-skeleton")).toBeTruthy();
+    expect(screen.getByTestId("update-skeleton")).toHaveAttribute("data-slot", "data-panel");
     expect(screen.queryByTestId("update-empty")).toBeNull();
   });
 
@@ -81,7 +81,8 @@ describe("批量更新桌面视图 检查中反馈", () => {
   });
 
   it("已有结果且检查中时保留列表不被骨架替换", () => {
-    renderDesktop({ checking: true, updates: [mkItem({ name: "保留的脚本" })] });
+    const { container } = renderDesktop({ checking: true, updates: [mkItem({ name: "保留的脚本" })] });
+    expect(container.querySelector('[data-slot="data-panel"]')).toBeInTheDocument();
     expect(screen.getByText("保留的脚本")).toBeTruthy();
     expect(screen.queryByTestId("update-skeleton")).toBeNull();
   });
@@ -97,6 +98,13 @@ describe("批量更新移动视图 检查中反馈", () => {
     renderMobile({ checking: true, updates: [], ignored: [] });
     expect(screen.getByTestId("update-skeleton")).toBeTruthy();
     expect(screen.queryByTestId("update-empty")).toBeNull();
+  });
+
+  it("待更新移动卡片复用 Surface 承载面", () => {
+    renderMobile({ updates: [mkItem({ name: "移动脚本" })] });
+    const card = screen.getByTestId("update-card");
+    expect(card).toHaveAttribute("data-slot", "surface");
+    expect(card).toHaveTextContent("移动脚本");
   });
 });
 

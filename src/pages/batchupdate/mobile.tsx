@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { BellOff, ChevronRight, Download, PackageCheck, RefreshCw, RotateCcw, X } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@App/pages/components/ui/collapsible";
+import { Surface } from "@App/pages/components/ui/surface";
 import type { UpdateItem } from "./logic";
 import {
   AutoCloseChip,
@@ -18,7 +20,6 @@ import {
   StatusBadge,
   TopProgressBar,
   VersionDiff,
-  useTk,
   type BatchUpdateViewProps,
 } from "./components";
 
@@ -27,7 +28,7 @@ function SkeletonCards() {
   return (
     <div data-testid="update-skeleton" className="flex flex-col gap-2.5 p-4">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3.5 shadow-sm">
+        <Surface key={i} padding="compact" className="gap-2.5 shadow-sm">
           <div className="flex items-center gap-2.5">
             <SkeletonBar className="size-7 shrink-0 rounded-md" />
             <SkeletonBar className="h-4 w-32" />
@@ -39,7 +40,7 @@ function SkeletonCards() {
             <div className="flex-1" />
             <SkeletonBar className="h-5 w-16 rounded-full" />
           </div>
-        </div>
+        </Surface>
       ))}
     </div>
   );
@@ -65,10 +66,14 @@ function MobileCard({
   onRestore?: (item: UpdateItem) => void;
   ignoredCard?: boolean;
 }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   const dim = item.enabled ? "" : "opacity-55";
   return (
-    <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3.5 shadow-sm">
+    <Surface
+      data-testid={ignoredCard ? "ignored-update-card" : "update-card"}
+      padding="compact"
+      className="gap-2.5 shadow-sm"
+    >
       <div className="flex items-center gap-2.5">
         {ignoredCard ? (
           <BellOff className="size-[18px] shrink-0 text-muted-foreground" />
@@ -101,7 +106,7 @@ function MobileCard({
             className="flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
           >
             <RotateCcw className="size-3.5" />
-            {tk("restore")}
+            {t("install:updatepage.restore")}
           </button>
         ) : (
           <div className="flex items-center gap-2">
@@ -110,7 +115,7 @@ function MobileCard({
               onClick={() => onUpdate?.(item)}
               className="text-[13px] font-medium text-primary hover:underline"
             >
-              {tk("update")}
+              {t("install:updatepage.update")}
             </button>
             <span className="h-3 w-px bg-border" />
             <button
@@ -118,24 +123,24 @@ function MobileCard({
               onClick={() => onIgnore?.(item)}
               className="text-[13px] text-muted-foreground hover:underline"
             >
-              {tk("ignore")}
+              {t("install:updatepage.ignore")}
             </button>
           </div>
         )}
       </div>
-    </div>
+    </Surface>
   );
 }
 
 function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
-  const { tk } = useTk();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="flex h-12 items-center justify-between rounded-xl border border-border bg-card px-3.5">
         <CollapsibleTrigger data-testid="ignored-toggle" className="group flex flex-1 items-center gap-2">
           <ChevronRight className="size-[18px] text-fg-secondary transition-transform group-data-[state=open]:rotate-90" />
-          <span className="text-sm font-medium text-foreground">{tk("ignored_section")}</span>
+          <span className="text-sm font-medium text-foreground">{t("install:updatepage.ignored_section")}</span>
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             {view.ignored.length}
           </span>
@@ -147,11 +152,11 @@ function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
             onClick={view.onRestoreAll}
             className="text-[13px] font-medium text-primary hover:underline"
           >
-            {tk("restore_all")}
+            {t("install:updatepage.restore_all")}
           </button>
         ) : (
           <span data-testid="ignored-expand-hint" className="text-xs text-muted-foreground">
-            {tk("tap_to_expand")}
+            {t("install:updatepage.tap_to_expand")}
           </span>
         )}
       </div>
@@ -166,16 +171,18 @@ function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
 
 /** 移动端整页视图 */
 export function MobileView({ view }: { view: BatchUpdateViewProps }) {
-  const { t, tk } = useTk();
+  const { t } = useTranslation();
   const selectedCount = view.updates.filter((u) => view.selected.has(u.uuid)).length;
   const allSelected = view.updates.length > 0 && selectedCount === view.updates.length;
   const empty = view.updates.length === 0 && view.ignored.length === 0;
 
   const subtitle = view.checking
-    ? tk("status_checking_updates")
+    ? t("install:updatepage.status_checking_updates")
     : [
-        view.updates.length > 0 ? tk("updates_available", { count: view.updates.length }) : "",
-        view.checktime ? tk("last_check", { time: formatUnixTime(Math.floor(view.checktime / 1000)) }) : "",
+        view.updates.length > 0 ? t("install:updatepage.updates_available", { count: view.updates.length }) : "",
+        view.checktime
+          ? t("install:updatepage.last_check", { time: formatUnixTime(Math.floor(view.checktime / 1000)) })
+          : "",
       ]
         .filter(Boolean)
         .join(" · ");
@@ -185,7 +192,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
       <header className="flex h-[62px] shrink-0 items-center gap-3 border-b border-border bg-card px-4">
         <PackageCheck className="size-[22px] shrink-0 text-primary" />
         <div className="flex min-w-0 flex-col">
-          <span className="text-base font-semibold leading-tight text-foreground">{tk("title")}</span>
+          <span className="text-base font-semibold leading-tight text-foreground">{t("install:updatepage.title")}</span>
           {subtitle && <span className="truncate text-xs text-muted-foreground">{subtitle}</span>}
         </div>
         <div className="flex-1" />
@@ -193,7 +200,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
           variant="outline"
           size="icon-sm"
           disabled={view.checking}
-          aria-label={tk("main_header")}
+          aria-label={t("install:updatepage.main_header")}
           onClick={view.onCheckNow}
         >
           <RefreshCw className={cn(view.checking && "animate-spin")} />
@@ -216,7 +223,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
           <div className="flex items-center gap-2.5">
             <Checkbox checked={allSelected} onCheckedChange={view.onToggleAll} />
             <span className="text-[13px] font-medium text-foreground">
-              {tk("selected_count", { selected: selectedCount, total: view.updates.length })}
+              {t("install:updatepage.selected_count", { selected: selectedCount, total: view.updates.length })}
             </span>
           </div>
           {view.autoClose !== null ? (
@@ -224,7 +231,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
           ) : (
             view.ignored.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                {tk("ignored_count", { count: view.ignored.length })}
+                {t("install:updatepage.ignored_count", { count: view.ignored.length })}
               </span>
             )
           )}
@@ -264,11 +271,11 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
             onClick={view.onIgnoreSelected}
           >
             <BellOff />
-            {tk("ignore_selected")}
+            {t("install:updatepage.ignore_selected")}
           </Button>
           <Button size="lg" className="flex-1" disabled={selectedCount === 0} onClick={view.onUpdateSelected}>
             <Download />
-            {tk("update_selected", { count: selectedCount })}
+            {t("install:updatepage.update_selected", { count: selectedCount })}
           </Button>
         </div>
       )}

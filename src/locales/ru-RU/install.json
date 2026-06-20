@@ -118,6 +118,8 @@
     "tag_new_connect": "Новый @connect",
     "empty_title": "Все скрипты обновлены",
     "empty_desc": "Проверено скриптов: {{count}} · Нет доступных обновлений",
+    "recheck": "Проверить снова",
+    "tap_to_expand": "Нажмите, чтобы развернуть",
     "similarity": "Сходство",
     "new_connects": "Новые @connect",
     "toast_found": "Найдено скриптов с обновлениями: {{count}}",

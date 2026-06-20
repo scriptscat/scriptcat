@@ -4,6 +4,7 @@ import { notify } from "@App/pages/components/ui/toast";
 import { Cookie, FolderSync, Globe, ShieldCheck, TriangleAlert, CircleAlert, type LucideIcon } from "lucide-react";
 import { permissionClient } from "@App/pages/store/features/script";
 import { Button } from "@App/pages/components/ui/button";
+import { SegmentedControl, type SegmentedControlOption } from "@App/pages/components/ui/segmented-control";
 import { Switch } from "@App/pages/components/ui/switch";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { cn } from "@App/pkg/utils/cn";
@@ -51,7 +52,10 @@ function BrandMark() {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 py-10">
+    <div
+      data-testid="confirm-shell"
+      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 py-10"
+    >
       <BrandMark />
       {children}
     </div>
@@ -132,7 +136,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
   if (loadError) {
     return (
       <PageShell>
-        <div className={cn(cardClass, "items-center text-center")}>
+        <div data-testid="confirm-expired" className={cn(cardClass, "items-center text-center")}>
           <div className="flex size-14 items-center justify-center rounded-full bg-destructive/10">
             <CircleAlert className="size-7 text-destructive" />
           </div>
@@ -157,7 +161,11 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
   if (!info) {
     return (
       <PageShell>
-        <div className={cn(cardClass, "animate-pulse")} aria-label={t("permission:loading_confirm")}>
+        <div
+          data-testid="confirm-loading"
+          className={cn(cardClass, "animate-pulse")}
+          aria-label={t("permission:loading_confirm")}
+        >
           {/* 头部骨架 */}
           <div className="flex flex-col items-center gap-3.5">
             <div className="size-14 rounded-full bg-input" />
@@ -226,7 +234,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
 
   return (
     <PageShell>
-      <div className={cardClass}>
+      <div data-testid="confirm-card" className={cardClass}>
         {/* 头部 */}
         <div className="flex flex-col items-center gap-4">
           <div className={cn("flex size-14 items-center justify-center rounded-full", bgClass)}>
@@ -290,23 +298,16 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
         {!siteAccess && (
           <div className="flex flex-col gap-3">
             <span className="text-[13px] font-medium text-foreground">{t("permission:auth_duration")}</span>
-            <div className="flex gap-1 rounded-lg bg-muted p-1">
-              {durations.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  data-testid={`confirm-duration-${d}`}
-                  aria-pressed={duration === d}
-                  onClick={() => setDuration(d)}
-                  className={cn(
-                    "flex-1 rounded-md py-1.5 text-sm transition-colors",
-                    duration === d ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground"
-                  )}
-                >
-                  {t(`permission:${DURATION_LABEL[d]}`)}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              aria-label={t("permission:auth_duration")}
+              value={duration}
+              onValueChange={setDuration}
+              options={durations.map<SegmentedControlOption<Duration>>((d) => ({
+                value: d,
+                label: t(`permission:${DURATION_LABEL[d]}`),
+                testId: `confirm-duration-${d}`,
+              }))}
+            />
             {showWildcard && (
               <div className="flex items-center gap-3 pt-0.5">
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">

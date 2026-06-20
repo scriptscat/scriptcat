@@ -1,13 +1,16 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { GripVertical, Loader2 } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { requestEnableScript } from "@App/pages/store/features/script";
 import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import type { SCMetadata } from "@App/app/repo/scripts";
+import { EmptyState } from "@App/pages/components/ui/empty-state";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
+import { Surface } from "@App/pages/components/ui/surface";
 import { cn } from "@App/pkg/utils/cn";
 import { i18nName } from "@App/locales/locales";
 import {
@@ -153,16 +156,9 @@ function ScriptCardGrid({
 
   return (
     <div className="flex-1 overflow-auto scrollbar-custom px-6 pt-4 pb-6">
-      {loadingList && (
-        <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          <span className="text-sm">{t("loading")}</span>
-        </div>
-      )}
+      {loadingList && <LoadingState label={t("loading")} />}
       {!loadingList && scriptList.length === 0 && (
-        <div data-testid="script-list-empty" className="flex items-center justify-center py-20 text-muted-foreground">
-          <span className="text-sm">{t("no_scripts")}</span>
-        </div>
+        <EmptyState data-testid="script-list-empty" title={t("no_scripts")} compact />
       )}
       {!loadingList && scriptList.length > 0 && (
         <DndContext
@@ -226,12 +222,7 @@ const CardItem = React.memo(
     const author = script.metadata?.author?.[0] || "";
 
     return (
-      <div
-        className={cn(
-          "group/card rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md",
-          isDisabled && "opacity-60"
-        )}
-      >
+      <Surface data-testid="script-card" interactive disabled={isDisabled} className="group/card">
         {/* 头部: 图标 + 名称 + 开关 + 拖拽 */}
         <div className="flex items-start gap-2.5 mb-3">
           <ScriptIcon name={name} metadata={script.metadata} className="mt-0.5" />
@@ -269,7 +260,7 @@ const CardItem = React.memo(
           <UpdateTimeCell script={script} />
           <ScriptRowActions script={script} navigate={navigate} onDelete={onDelete} onRunStop={onRunStop} />
         </div>
-      </div>
+      </Surface>
     );
   },
   (prev: CardItemProps, next: CardItemProps) =>

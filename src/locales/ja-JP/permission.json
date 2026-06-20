@@ -21,7 +21,7 @@
   "extension_site_access_description": "ScriptCat がこのリクエストを実行できるように、このオリジンへのブラウザーのサイトアクセス権限を許可してください。これは拡張機能のサイトアクセス設定を変更します。",
   "extension_site_access_content": "サイト",
   "request_permission": "権限をリクエストする",
-  "allow_user_script_guide": "現在「ユーザー スクリプトを許可する」が有効ではないため、スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉有効化の方法はこちら</a>",
+  "allow_user_script_guide": "現在「ユーザー スクリプトを許可する」が有効ではないため、スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉有効化の方法はこちら</a>",
   "user_script_type": "ユーザースクリプト",
   "auth_duration": "許可の有効期間",
   "duration_once": "今回のみ",

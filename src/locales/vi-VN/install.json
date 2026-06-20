@@ -118,6 +118,8 @@
     "tag_new_connect": "@connect mới",
     "empty_title": "Tất cả tập lệnh đều là mới nhất",
     "empty_desc": "Đã kiểm tra {{count}} tập lệnh · Không có bản cập nhật",
+    "recheck": "Kiểm tra lại",
+    "tap_to_expand": "Nhấn để mở rộng",
     "similarity": "Độ tương đồng",
     "new_connects": "@connect mới",
     "toast_found": "Tìm thấy {{count}} tập lệnh có bản cập nhật",

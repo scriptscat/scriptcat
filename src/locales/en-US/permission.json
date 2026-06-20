@@ -21,7 +21,7 @@
   "extension_site_access_description": "Grant browser site access to this origin so ScriptCat can perform the request. This changes the extension's site access setting.",
   "extension_site_access_content": "Site",
   "request_permission": "Request Permission",
-  "allow_user_script_guide": "'Allow User Scripts' is currently not enabled, so the scripts cannot run properly. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\" style=\"color: var(--color-text-1)\">👉tap to learn how to enable</a>",
+  "allow_user_script_guide": "'Allow User Scripts' is currently not enabled, so the scripts cannot run properly. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉tap to learn how to enable</a>",
   "user_script_type": "User Script",
   "auth_duration": "Authorization Duration",
   "duration_once": "Just Once",
