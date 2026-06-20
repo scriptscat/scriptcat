@@ -102,27 +102,27 @@ test.describe("VSCode 连接", () => {
     await expect(card.getByText(/development tool|开发工具/i).first()).toBeVisible();
 
     // VSCode URL 输入框（默认值含 ws://）
-    const urlInput = card.getByLabel("vscode_url_input");
+    const urlInput = card.getByTestId("vscode_url_input");
     await expect(urlInput).toBeVisible();
     expect(await urlInput.inputValue()).toMatch(/^ws:\/\//);
 
     // 自动连接复选框
-    await expect(card.getByLabel("vscode_reconnect")).toBeVisible();
+    await expect(card.getByTestId("vscode_reconnect")).toBeVisible();
     await expect(card.getByText(/auto connect vscode|自动连接\s*vscode/i)).toBeVisible();
 
     // 连接按钮
-    await expect(card.getByLabel("vscode_connect")).toBeVisible();
+    await expect(card.getByTestId("vscode_connect")).toBeVisible();
   });
 
   test("应能修改 VSCode URL 和切换自动连接", async ({ context, extensionId }) => {
     const page = await openToolsPage(context, extensionId);
     const card = getDevCard(page);
 
-    const urlInput = card.getByLabel("vscode_url_input");
+    const urlInput = card.getByTestId("vscode_url_input");
     await urlInput.fill("ws://localhost:9999");
     await expect(urlInput).toHaveValue("ws://localhost:9999");
 
-    const checkbox = card.getByLabel("vscode_reconnect");
+    const checkbox = card.getByTestId("vscode_reconnect");
     const initialChecked = await checkbox.getAttribute("aria-checked");
     await checkbox.click();
     await expect(checkbox).not.toHaveAttribute("aria-checked", initialChecked || "");
@@ -134,7 +134,7 @@ test.describe("VSCode 连接", () => {
 
     // connectVSCode 为消息传递操作，消息投递成功即 resolve，
     // 即使没有 WebSocket 服务器运行也应显示「连接成功」toast。
-    await card.getByLabel("vscode_connect").click();
+    await card.getByTestId("vscode_connect").click();
 
     await expect(page.getByText(/connection success|连接成功/i).first()).toBeVisible({ timeout: 10_000 });
   });
@@ -147,13 +147,13 @@ test.describe("VSCode 连接", () => {
       const card = getDevCard(page);
 
       // 设置 URL 为 Mock 服务器地址
-      const urlInput = card.getByLabel("vscode_url_input");
+      const urlInput = card.getByTestId("vscode_url_input");
       await urlInput.fill(server.url);
 
       // 点击连接前先监听 hello 握手，避免竞态
       const helloPromise = server.waitForAction("hello", 30_000);
 
-      await card.getByLabel("vscode_connect").click();
+      await card.getByTestId("vscode_connect").click();
       await expect(page.getByText(/connection success|连接成功/i).first()).toBeVisible({ timeout: 10_000 });
 
       // 收到 hello 握手

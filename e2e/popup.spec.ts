@@ -26,7 +26,7 @@ test.describe("Popup 页面", () => {
     await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
 
     const existingPages = new Set(context.pages());
-    await page.getByLabel("设置").click();
+    await page.getByLabel(/settings|设置/i).click();
 
     // 首次引导页等可能同时打开，断言专门匹配 options 页而非最先到达的 page
     await expect
@@ -45,7 +45,7 @@ test.describe("Popup 页面", () => {
     const page = await openPopupPage(context, extensionId);
     await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
 
-    await page.getByLabel("更多菜单").click();
+    await page.getByLabel(/more menu|更多菜单/i).click();
 
     const menuItems = page.locator('[role="menuitem"]');
     await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
