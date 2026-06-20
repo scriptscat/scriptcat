@@ -303,7 +303,8 @@ export class PopupService {
         ];
         if (registerUuids.length) {
           const scripts = await this.scriptDAO.gets(registerUuids);
-          const existingUuids = new Set(scripts.flatMap((script) => (script ? [script.uuid] : [])));
+          const existingUuids = new Set();
+          for (const s of scripts) if (s) existingUuids.add(s.uuid);
           for (let idx = list.length - 1; idx >= 0; idx--) {
             const entry = list[idx];
             if (entry.registerType === ScriptMenuRegisterType.REGISTER && !existingUuids.has(entry.uuid)) {
