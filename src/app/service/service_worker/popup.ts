@@ -294,17 +294,19 @@ export class PopupService {
       .then(async (list) => {
         if (!list.length) return;
 
-        // Content scripts can still send a late GM_registerMenuCommand after their script has been deleted.
-        // Drop those register records before they can recreate stale tabScript:<tabId> Popup entries.
+        // 内容脚本可能在其脚本被删除后，仍迟到地发来 GM_registerMenuCommand。
+        // 必须先丢弃这些已删脚本的注册记录，避免它们重新生成残留的 tabScript:<tabId> Popup 菜单项。
         const registerUuids = [
           ...new Set(
             list.filter((entry) => entry.registerType === ScriptMenuRegisterType.REGISTER).map((entry) => entry.uuid)
           ),
         ];
         if (registerUuids.length) {
+          // gets() 返回结果与入参下标一一对应，不存在的脚本为 undefined，由此得出「仍存在」的 uuid 集合。
           const scripts = await this.scriptDAO.gets(registerUuids);
           const existingUuids = new Set();
           for (const s of scripts) if (s) existingUuids.add(s.uuid);
+          // 倒序遍历删除，避免 splice 改变后续元素下标。
           for (let idx = list.length - 1; idx >= 0; idx--) {
             const entry = list[idx];
             if (entry.registerType === ScriptMenuRegisterType.REGISTER && !existingUuids.has(entry.uuid)) {
@@ -430,6 +432,8 @@ export class PopupService {
     return (await cacheInstance.get<ScriptMenu[]>(cacheKey)) || [];
   }
 
+  // 菜单变化后同步角标计数缓存（脚本数、运行数）。计数为 0 时存空字符串表示不显示角标。
+  // tabId <= 0 为后台菜单(-1)等非真实标签页，跳过。
   private updateCachedScriptMenuCounters(tabId: number, menu: ScriptMenu[]) {
     if (tabId <= 0) return;
     scriptCountMap.set(tabId, menu.length ? `${menu.length}` : "");
@@ -437,6 +441,7 @@ export class PopupService {
     runCountMap.set(tabId, runCount ? `${runCount}` : "");
   }
 
+  // 把待处理菜单命令队列里属于已删除脚本的项一并清掉，防止它们之后被处理而再次产生残留。
   private removeDeletedScriptsFromPendingMenuCommands(deletedUuids: Set<string>) {
     for (const [tabId, commands] of this.updateMenuCommands) {
       const nextCommands = commands.filter((command) => !deletedUuids.has(command.uuid));
@@ -450,6 +455,8 @@ export class PopupService {
     }
   }
 
+  // 删除脚本时，扫描「所有」tabScript:<tabId> 缓存清除已删脚本，并同步角标计数。
+  // 旧实现只清理了后台菜单(-1)，导致各标签页缓存残留——这是「删除脚本后 Popup 残留」的根因。
   private async removeDeletedScriptsFromPopupCaches(uuids: string[]) {
     if (!uuids.length) return false;
 

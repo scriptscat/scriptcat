@@ -297,11 +297,13 @@ export class RuntimeService {
     return `${uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
   }
 
+  // 使 Popup 懒构建的 disabled 匹配器失效（递增版本号 + 清空缓存），下次取用时会重新构建。
   private invalidateDisabledMatcher() {
-    if (++this.disabledMatcherVersion > 1e9) this.disabledMatcherVersion = 1; // prevent overflow
+    if (++this.disabledMatcherVersion > 1e9) this.disabledMatcherVersion = 1; // 防止版本号溢出
     this.disabledMatcher = null;
   }
 
+  // 脚本内容/状态变化时，一次性清掉该脚本的三层运行时缓存（页面加载、代码、匹配模式）。
   private deleteScriptRuntimeCache(uuid: string) {
     this.pageLoadCaches.delete(uuid);
     this.codeCacheMap.delete(uuid);
@@ -312,12 +314,13 @@ export class RuntimeService {
     const next = { ...this.sorter };
     mutate(next);
     this.sorter = next;
-    // UrlMatch only clears its URL result cache when the sorter object reference changes.
-    // Never mutate this.sorter in place; replace it so already-cached URL order is invalidated.
+    // UrlMatch 只在 sorter 对象引用变化时才会清空其 URL 结果缓存。
+    // 因此切勿原地修改 this.sorter，必须整个替换，才能让已缓存的 URL 排序失效。
     this.scriptMatchEnable.setupSorter(next);
     this.invalidateDisabledMatcher();
   }
 
+  // 同时维护主 uuid 与自定义排除产生的 {uuid}{Ori} 键的排序权重，两者必须保持一致。
   private setScriptSort(next: Record<string, number>, script: Pick<Script, "uuid" | "sort">) {
     next[script.uuid] = script.sort;
     next[this.getOriginalMatchUuid(script.uuid)] = script.sort;
@@ -352,12 +355,14 @@ export class RuntimeService {
       this.scriptDAO.all(),
     ]);
 
+    // 用轻量的命名空间字符串判断是否需要清理旧缓存（避免启动时全量读取 CompiledResources 进内存）。
+    // CompiledResource 结构变更时只需改动 CompiledResourceNamespace 常量，即可在下次启动强制清旧重建。
     const shouldCleanUpPreviousRegister = storedNamespace !== CompiledResourceNamespace;
     const unregisterScriptIds: string[] = [];
     const enabledNormalScripts: Script[] = [];
 
-    // Stage 1 is intentionally synchronous: classify scripts, update sorter, and compute
-    // unregister targets before any await can be introduced into this loop by accident.
+    // 阶段一：刻意保持全同步——在引入任何 await 之前，先完成脚本分类、排序更新与反注册目标的计算，
+    // 避免日后有人不小心往循环里加入 await 而破坏这里的执行时序。
     for (const script of allScripts) {
       const isNormalScript = script.type === SCRIPT_TYPE_NORMAL;
       const enable = script.status === SCRIPT_STATUS_ENABLE;
@@ -375,8 +380,8 @@ export class RuntimeService {
       }
     });
 
-    // Stage 2 prewarms only enabled normal scripts. Disabled scripts are deliberately absent
-    // from SW startup and are matched lazily by Popup through buildDisabledMatcher().
+    // 阶段二：只预热「已启用的普通脚本」。禁用脚本刻意不参与 Service Worker 启动，
+    // 改由 Popup 通过 buildDisabledMatcher() 按需懒构建匹配。
     this.initialCompiledResourcePromise = Promise.all(
       enabledNormalScripts.map(async (script) => {
         const uuid = script.uuid;
@@ -420,6 +425,7 @@ export class RuntimeService {
       await cacheInstance.set<boolean>("runtimeStartFlag", true);
     }
     if (shouldCleanUpPreviousRegister) {
+      // 清理完成后写回当前命名空间，下次启动命中相同值即可跳过清理。
       await this.localStorageDAO.saveValue("compiledResourceNamespace", CompiledResourceNamespace);
     }
 
@@ -508,8 +514,8 @@ export class RuntimeService {
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
-      // All script collection/matcher changes must invalidate runtime caches synchronously first.
-      // DB writes happen before queue events, so any lazy rebuild after this point sees fresh state.
+      // 所有脚本集合/匹配器的变更都必须先同步失效运行时缓存。
+      // 数据库写入发生在队列事件之前，因此此处之后的任何懒重建都能读到最新状态。
       this.invalidateDisabledMatcher();
       for (const { uuid } of data) {
         this.deleteScriptRuntimeCache(uuid);
@@ -570,8 +576,8 @@ export class RuntimeService {
         if (enable) {
           await this.updateResourceOnScriptChange(script);
         } else {
-          // Disabled scripts do not prebuild compiled resources or SW matchers.
-          // Popup builds disabled URL patterns lazily from the script metadata.
+          // 禁用脚本不再预建 CompiledResource，也不写入 SW 匹配器；
+          // Popup 会按需从脚本 metadata 懒构建禁用脚本的 URL 匹配模式。
           this.scriptMatchEnable.clearRules(uuid);
           this.scriptMatchEnable.clearRules(this.getOriginalMatchUuid(uuid));
         }
@@ -582,9 +588,9 @@ export class RuntimeService {
 
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
-      // Explicit early invalidation ensures stale disabled-matcher is cleared before any await,
-      // even though updateSorter() below also calls invalidateDisabledMatcher(). The pattern
-      // mirrors installScript where the explicit call is required (updateSorter is after an await).
+      // 显式提前失效，确保在任何 await 之前就清掉陈旧的 disabled 匹配器。
+      // 虽然下方 updateSorter() 内部也会调用 invalidateDisabledMatcher()，但此处与 installScript 保持一致：
+      // 由于 updateSorter() 位于 await 之后，必须先在最前面显式失效一次。
       this.invalidateDisabledMatcher();
       const unregisterUuids = [] as string[];
       this.updateSorter((next) => {
@@ -1152,7 +1158,8 @@ export class RuntimeService {
   }
 
   /**
-   * internal call only. require disabledMatcherVersion integrity check.
+   * 仅供内部调用：构建过程含 await，需配合 disabledMatcherVersion 做完整性校验（见 getDisabledMatcher）。
+   * 仅从数据库与脚本 metadata 构建禁用脚本匹配器，不依赖预建的 CompiledResource。
    */
   private async buildDisabledMatcher() {
     const matcher = new UrlMatch<string>();
@@ -1171,12 +1178,15 @@ export class RuntimeService {
     return matcher;
   }
 
+  // 懒构建并缓存禁用脚本匹配器。stackAsyncTask 按 key 串行执行，确保并发的 Popup 请求共享同一次构建。
   private getDisabledMatcher(): Promise<UrlMatch<string>> {
     return stackAsyncTask<UrlMatch<string>>(this.disabledMatcherTaskKey, async () => {
       let matcher = this.disabledMatcher;
-      if (matcher) return matcher;
+      if (matcher) return matcher; // 已有缓存直接返回
       let buildVersion;
       do {
+        // 记录开工时的版本号；若构建期间发生脚本事件（版本号被 invalidateDisabledMatcher 改变），
+        // 说明本次快照已过时，需丢弃并重建，避免 Popup 显示到刚被删除/改动的脚本。
         buildVersion = this.disabledMatcherVersion;
         matcher = await this.buildDisabledMatcher();
       } while (this.disabledMatcherVersion !== buildVersion);
@@ -1294,9 +1304,9 @@ export class RuntimeService {
 
   private getPageLoadScriptCacheKey(scriptRes: ScriptRunResource) {
     const { status, type, updatetime, metadata } = scriptRes;
-    // Event handlers are the primary invalidation mechanism for code/raw metadata/userConfig/resource changes.
-    // The key is a cheap fallback for selfMetadata match/include/exclude edits, which change combined metadata
-    // without necessarily bumping updatetime.
+    // 代码/原始 metadata/userConfig/资源变化时，主要靠事件处理器（enable/install/delete）失效缓存。
+    // 此缓存键只是低成本的兜底：用于 selfMetadata 修改 match/include/exclude 这类「合并后 metadata 变了
+    // 但不一定 bump updatetime」的情况。
     return `${status}:${type}:${updatetime || 0}~${JSON.stringify([metadata.match, metadata.include, metadata.exclude])}`;
   }
 
@@ -1403,6 +1413,9 @@ export class RuntimeService {
     return patterns;
   }
 
+  // 每次页面加载都重新拉取 file:/// 本地资源；sha512 未变则跳过。
+  // 注意：发现变化时会就地更新共享的 pageLoadCaches 缓存对象（cache.resource / localResource.sha512），
+  // 使后续加载直接复用最新内容。重复写入的是同一次拉取的结果，幂等。
   private async refreshLocalResourcesForPageLoad(
     enableScriptList: (ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] })[],
     scriptCodes: Record<string, string>
@@ -1467,6 +1480,7 @@ export class RuntimeService {
 
     const uuids = [...matchingResult.keys()];
     const scripts = await this.scriptDAO.gets(uuids);
+    // 用下标占位收集结果，保证最终列表仍按匹配排序输出（最后再 filter 掉空洞）。
     const enableScriptListByIndex = [] as Array<(ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] }) | undefined>;
     const cacheMisses: Array<{
       index: number;
@@ -1475,6 +1489,7 @@ export class RuntimeService {
       scriptCacheKey: string;
     }> = [];
 
+    // 第一趟：能命中页面加载缓存的直接生成；命不中的先收集起来，稍后批量处理。
     for (let idx = 0, l = uuids.length; idx < l; idx++) {
       const script = scripts[idx];
       if (!script) continue;
@@ -1490,6 +1505,7 @@ export class RuntimeService {
       }
     }
 
+    // 第二趟：只为未命中缓存的脚本批量取 CompiledResource 并并行构建缓存。
     if (cacheMisses.length) {
       const compiledResources = await this.compiledResourceDAO.gets(cacheMisses.map((miss) => miss.script.uuid));
       await Promise.all(
@@ -1522,7 +1538,7 @@ export class RuntimeService {
     const { value } = this;
     await Promise.all(
       enableScriptList.map(async (script) => {
-        // value must always be read fresh for every page load, not from page-load cache.
+        // value（GM 值）会在页面间变化，必须每次页面加载都实时读取，绝不能走页面加载缓存。
         script.value = await value.getScriptValue(script);
       })
     );
@@ -1627,8 +1643,8 @@ export class RuntimeService {
     const uuidOri = this.getOriginalMatchUuid(uuid);
     this.cachedPatterns.set(uuid, { scriptUrlPatterns, originalUrlPatterns });
 
-    // scriptMatchEntry is the enabled-matcher writer. Disabled scripts are intentionally
-    // not written here; Popup uses an immutable lazy disabled matcher built from DB state.
+    // 这里只负责写入「启用脚本」匹配器（scriptMatchEnable）。禁用脚本刻意不在此写入；
+    // Popup 使用的是基于数据库状态、按需懒构建的不可变 disabled 匹配器。
     this.scriptMatchEnable.clearRules(uuid);
     this.scriptMatchEnable.clearRules(uuidOri);
     if (scriptRes.status === SCRIPT_STATUS_ENABLE) {
