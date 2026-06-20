@@ -147,7 +147,7 @@ function ExistingAttachmentPreview({ block, onRemove }: { block: ContentBlock; o
 }
 
 const iconBtn =
-  "size-6 flex items-center justify-center rounded bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
+  "size-6 max-md:size-11 flex items-center justify-center rounded bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
 // 用户消息
 export function UserMessageItem({
@@ -359,6 +359,7 @@ export function UserMessageItem({
                 onClick={() => fileInputRef.current?.click()}
                 className={iconBtn}
                 title={t("agent:chat_attach_file")}
+                aria-label={t("agent:chat_attach_file")}
               >
                 <Paperclip className="size-3.5" />
               </button>
@@ -396,7 +397,13 @@ export function UserMessageItem({
             {onCancel ? (
               <div className="flex items-center gap-1 mt-1">
                 <span className="text-xs text-muted-foreground">{t("agent:chat_message_queued")}</span>
-                <button type="button" className={iconBtn} title={t("agent:chat_cancel_message")} onClick={onCancel}>
+                <button
+                  type="button"
+                  className={iconBtn}
+                  title={t("agent:chat_cancel_message")}
+                  aria-label={t("agent:chat_cancel_message")}
+                  onClick={onCancel}
+                >
                   <X className="size-3.5" />
                 </button>
               </div>
@@ -408,6 +415,7 @@ export function UserMessageItem({
                     data-testid="user-copy"
                     className={iconBtn}
                     title={t("agent:chat_copy_message")}
+                    aria-label={t("agent:chat_copy_message")}
                     onClick={handleCopy}
                   >
                     <Copy className="size-3.5" />
@@ -418,6 +426,7 @@ export function UserMessageItem({
                       data-testid="user-edit"
                       className={iconBtn}
                       title={t("agent:chat_edit_message")}
+                      aria-label={t("agent:chat_edit_message")}
                       onClick={handleStartEdit}
                     >
                       <Pencil className="size-3.5" />
@@ -429,6 +438,7 @@ export function UserMessageItem({
                       data-testid="user-regenerate"
                       className={iconBtn}
                       title={t("agent:chat_regenerate")}
+                      aria-label={t("agent:chat_regenerate")}
                       onClick={onRegenerate}
                     >
                       <RefreshCw className="size-3.5" />

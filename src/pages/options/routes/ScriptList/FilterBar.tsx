@@ -72,7 +72,7 @@ export default function FilterBar({ filterItems, selectedFilters, setSelectedFil
           onClick={handleClear}
           className="shrink-0 text-xs text-primary hover:text-primary/80 transition-colors"
         >
-          {t("clear_filter", { defaultValue: "清除筛选" })}
+          {t("clear_filter")}
         </button>
       )}
     </div>

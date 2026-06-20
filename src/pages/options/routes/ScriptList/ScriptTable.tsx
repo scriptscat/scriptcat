@@ -291,14 +291,14 @@ export default function ScriptTable({
         {loadingList && (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            <span className="text-sm">{t("loading", { defaultValue: "加载中..." })}</span>
+            <span className="text-sm">{t("loading")}</span>
           </div>
         )}
 
         {/* 空状态 */}
         {!loadingList && scriptList.length === 0 && (
           <div data-testid="script-list-empty" className="flex items-center justify-center py-20 text-muted-foreground">
-            <span className="text-sm">{t("no_scripts", { defaultValue: "暂无脚本" })}</span>
+            <span className="text-sm">{t("no_scripts")}</span>
           </div>
         )}
 

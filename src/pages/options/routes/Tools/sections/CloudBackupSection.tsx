@@ -121,10 +121,16 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
             setDraft((d) => (d ? { ...d, params: { ...d.params, [d.filesystem]: params } } : d))
           }
         >
-          <Button aria-label="tools_backup" size="sm" disabled={loading} onClick={saveAndBackup}>
+          <Button data-testid="tools_backup" size="sm" disabled={loading} onClick={saveAndBackup}>
             {t("settings:backup")}
           </Button>
-          <Button aria-label="tools_backup_list" size="sm" variant="secondary" disabled={loading} onClick={listBackups}>
+          <Button
+            data-testid="tools_backup_list"
+            size="sm"
+            variant="secondary"
+            disabled={loading}
+            onClick={listBackups}
+          >
             {t("settings:backup_list")}
           </Button>
         </FileSystemParams>
@@ -149,7 +155,7 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
                   <div className="text-xs text-muted-foreground">{formatUnixTime(item.updatetime / 1000)}</div>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <Button aria-label="tools_restore" size="xs" onClick={() => restore(item)}>
+                  <Button data-testid="tools_restore" size="xs" onClick={() => restore(item)}>
                     {t("tools:restore")}
                   </Button>
                   <Popconfirm
@@ -159,7 +165,7 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
                     destructive
                     onConfirm={() => deleteBackup(item)}
                   >
-                    <Button aria-label="tools_delete" size="xs" variant="destructive">
+                    <Button data-testid="tools_delete" size="xs" variant="destructive">
                       {t("common:delete")}
                     </Button>
                   </Popconfirm>

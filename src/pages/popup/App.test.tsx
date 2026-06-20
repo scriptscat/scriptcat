@@ -4,6 +4,7 @@ import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import fs from "fs";
 import path from "path";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import { t } from "@App/locales/locales";
 
 // 警告区依赖 chrome.action / permissions，与本测试无关，置空以隔离
 vi.mock("./PopupWarnings", () => ({ default: () => null }));
@@ -93,6 +94,16 @@ beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
+describe("Popup 页头品牌标识", () => {
+  it("页头左上角应渲染真实 logo 图片", () => {
+    mockData = makeData();
+    render(<App />);
+    const logo = screen.getByAltText("ScriptCat");
+    expect(logo.tagName).toBe("IMG");
+    expect(logo.getAttribute("src")).toContain("assets/logo.png");
+  });
+});
+
 describe("Popup 脚本列表展开/收起", () => {
   it("当前页脚本超过展示上限且已展开时，应显示「收起」按钮并可再次折叠", () => {
     const handleToggleExpand = vi.fn();
@@ -179,6 +190,22 @@ describe("Popup GM 菜单项 tooltip", () => {
   });
 });
 
+describe("Popup 禁用脚本操作项样式", () => {
+  it("禁用脚本的用户配置按钮应显示为 muted 颜色", () => {
+    const script = makeScriptMenu({ uuid: "u1", enable: false, hasUserConfig: true });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+    });
+
+    render(<App />);
+
+    const btn = screen.getByRole("button", { name: "用户配置" });
+    expect(cls(btn)).toMatch(/\btext-muted-foreground\b/);
+  });
+});
+
 describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）", () => {
   it("文本输入菜单：点击菜单名按钮以当前输入值提交", () => {
     const handleMenuClick = vi.fn();
@@ -248,6 +275,54 @@ describe("Popup 移动端宽度适配 (#686 Edge Android)", () => {
     // 桌面端 popup 视口恒为 320px、不命中；移动端被撑满（≥360px）命中后切换 100% 宽度
     expect(html).toMatch(/@media\s*\(min-width:\s*340px\)/);
     expect(html).toMatch(/width:\s*100%/);
+  });
+});
+
+describe("Popup 页脚版本号可达性", () => {
+  it("无新版本且检查状态空闲时，版本号是可键盘聚焦的按钮（非 span），点击触发检查更新", () => {
+    const handleVersionClick = vi.fn();
+    mockData = makeData({
+      checkUpdate: { notice: "", version: "0.0.0", isRead: true },
+      checkUpdateStatus: 0,
+      handleVersionClick,
+    });
+
+    render(<App />);
+    const btn = screen.getByRole("button", { name: /^v/ });
+    expect(btn.tagName).toBe("BUTTON");
+    expect(cls(btn)).toMatch(/focus-visible:ring-2/);
+
+    fireEvent.click(btn);
+    expect(handleVersionClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("有新版本时，版本号渲染为按钮且带 focus ring", () => {
+    mockData = makeData({
+      checkUpdate: { notice: "", version: "99.0.0", isRead: true },
+      checkUpdateStatus: 0,
+    });
+
+    render(<App />);
+    const btn = screen.getByRole("button", { name: /^v/ });
+    expect(btn.tagName).toBe("BUTTON");
+    expect(cls(btn)).toMatch(/focus-visible:ring-2/);
+  });
+
+  it("已是最新版本时，版本号文案为按钮且可键盘聚焦", () => {
+    const handleVersionClick = vi.fn();
+    mockData = makeData({
+      checkUpdate: { notice: "", version: "0.0.0", isRead: true },
+      checkUpdateStatus: 2,
+      handleVersionClick,
+    });
+
+    render(<App />);
+    const btn = screen.getByRole("button", { name: t("script:latest_version") });
+    expect(btn.tagName).toBe("BUTTON");
+    expect(cls(btn)).toMatch(/focus-visible:ring-2/);
+
+    fireEvent.click(btn);
+    expect(handleVersionClick).toHaveBeenCalledTimes(1);
   });
 });
 

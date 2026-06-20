@@ -136,10 +136,21 @@ export default function ConversationList({
                       }}
                       className="h-7 flex-1 text-sm"
                     />
-                    <Button data-testid="conv-rename-confirm" variant="ghost" size="icon-xs" onClick={confirmRename}>
+                    <Button
+                      data-testid="conv-rename-confirm"
+                      aria-label={t("common:confirm")}
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={confirmRename}
+                    >
                       <Check className="size-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon-xs" onClick={() => setEditingId("")}>
+                    <Button
+                      aria-label={t("common:cancel")}
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => setEditingId("")}
+                    >
                       <X className="size-3.5" />
                     </Button>
                   </div>
@@ -157,6 +168,7 @@ export default function ConversationList({
                     <div className="items-center shrink-0 hidden group-hover:flex" onClick={(e) => e.stopPropagation()}>
                       <Button
                         data-testid={`conv-rename-${conv.id}`}
+                        aria-label={t("agent:chat_rename")}
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => startRename(conv)}
@@ -165,6 +177,7 @@ export default function ConversationList({
                       </Button>
                       <Button
                         data-testid={`conv-export-${conv.id}`}
+                        aria-label={t("agent:chat_export")}
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => onExport(conv.id)}
@@ -179,6 +192,7 @@ export default function ConversationList({
                       >
                         <Button
                           data-testid={`conv-delete-${conv.id}`}
+                          aria-label={t("agent:chat_delete")}
                           variant="ghost"
                           size="icon-xs"
                           className="text-muted-foreground hover:text-destructive"

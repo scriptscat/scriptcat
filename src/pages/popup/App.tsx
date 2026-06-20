@@ -49,6 +49,7 @@ import PopupWarnings from "./PopupWarnings";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_ERROR } from "@App/app/repo/scripts";
 import { Discord, DocumentationSite } from "@App/app/const";
 import { isChineseUser, localePath, t } from "@App/locales/locales";
+import { cn } from "@App/pkg/utils/cn";
 
 export default function App() {
   const data = usePopupData();
@@ -175,11 +176,7 @@ export default function App() {
             title={t("popup:enabled_background_scripts")}
             enabledCount={data.enabledBackScriptCount}
             totalCount={data.fullBackScriptCount}
-            runningSummary={
-              data.backRunningCount > 0
-                ? `${data.backRunningCount} ${t("script:running", { defaultValue: "运行中" })}`
-                : undefined
-            }
+            runningSummary={data.backRunningCount > 0 ? `${data.backRunningCount} ${t("script:running")}` : undefined}
           >
             {data.backScriptList.map((script) => (
               <ScriptRow
@@ -240,13 +237,14 @@ function Header({
 
   return (
     <header className="h-12 px-4 flex items-center gap-2.5 bg-card border-b border-border">
+      <img src={chrome.runtime.getURL("assets/logo.png")} alt="ScriptCat" className="w-6 h-6 shrink-0" />
       <h1 className="text-[15px] font-semibold text-foreground">{"ScriptCat"}</h1>
       <div className="flex-1" />
       <Switch checked={isEnableScript} onCheckedChange={onToggleEnableScript} />
-      <HeaderIconButton aria-label="设置" onClick={onOpenSettings}>
+      <HeaderIconButton aria-label={t("settings")} onClick={onOpenSettings}>
         <Settings className="w-4 h-4" />
       </HeaderIconButton>
-      <HeaderIconButton aria-label="通知" badge={hasUnreadNotice} onClick={onNotificationClick}>
+      <HeaderIconButton aria-label={t("notifications")} badge={hasUnreadNotice} onClick={onNotificationClick}>
         <Bell className="w-4 h-4" />
       </HeaderIconButton>
       <MoreMenu
@@ -266,7 +264,7 @@ function HeaderIconButton({
   return (
     <button
       type="button"
-      className="relative w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+      className="relative w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
       {...props}
     >
       {children}
@@ -290,8 +288,8 @@ function MoreMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label="更多菜单"
-          className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          aria-label={t("more_menu")}
+          className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
         >
           <MoreVertical className="w-4 h-4" />
         </button>
@@ -365,7 +363,7 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={t("script:search_scripts", { defaultValue: "搜索脚本..." })}
+          placeholder={t("script:search_scripts")}
           className="h-8 pl-8 text-[13px] rounded-lg bg-muted border-transparent shadow-none focus-visible:ring-1"
         />
       </div>
@@ -387,7 +385,7 @@ function Section({ id, title, enabledCount, totalCount, runningSummary, children
   return (
     <AccordionPrimitive.Item value={id}>
       <AccordionPrimitive.Header className="flex">
-        <AccordionPrimitive.Trigger className="flex flex-1 items-center gap-1.5 h-9 px-4 text-left group focus:outline-none hover:bg-accent transition-colors">
+        <AccordionPrimitive.Trigger className="flex flex-1 items-center gap-1.5 h-9 px-4 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 hover:bg-accent transition-colors">
           <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
           <span className="text-xs font-semibold text-fg-secondary">{`${title} (${enabledCount}/${totalCount})`}</span>
           <div className="flex-1" />
@@ -415,7 +413,7 @@ function ShowMoreButton({ count, expanded, onClick }: { count: number; expanded:
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center justify-center gap-1 h-8 w-full text-[12px] text-primary hover:bg-accent transition-colors"
+      className="flex items-center justify-center gap-1 h-8 w-full text-[12px] text-primary hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
     >
       {expanded ? t("collapse") : t("popup:show_more_scripts", { count })}
       <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -480,7 +478,7 @@ function ScriptRow({
   return (
     <CollapsiblePrimitive.Root open={isActive} onOpenChange={setIsActive}>
       <div className="flex items-center gap-2.5 h-11 px-4 hover:bg-accent transition-colors">
-        <CollapsiblePrimitive.Trigger className="flex flex-1 items-center gap-2.5 min-w-0 text-left focus:outline-none">
+        <CollapsiblePrimitive.Trigger className="flex flex-1 items-center gap-2.5 min-w-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           <ScriptIcon
             name={script.name}
             iconUrl={script.icon}
@@ -584,7 +582,7 @@ function ScriptRow({
             <button
               type="button"
               onClick={() => setIsMenuExpanded((prev) => !prev)}
-              className="h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-primary hover:bg-accent transition-colors"
+              className="h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-primary hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
             >
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isMenuExpanded ? "rotate-180" : ""}`} />
               <span>{isMenuExpanded ? t("collapse") : t("expand")}</span>
@@ -592,7 +590,11 @@ function ScriptRow({
           )}
           {/* 用户配置 */}
           {script.hasUserConfig && (
-            <ActionItem icon={<Settings className="w-3.5 h-3.5" />} onClick={() => onOpenUserConfig(script.uuid)}>
+            <ActionItem
+              icon={<Settings className="w-3.5 h-3.5" />}
+              muted={!script.enable}
+              onClick={() => onOpenUserConfig(script.uuid)}
+            >
               {t("editor:user_config")}
             </ActionItem>
           )}
@@ -674,6 +676,7 @@ interface ActionItemProps {
   danger?: boolean;
   warn?: boolean;
   success?: boolean;
+  muted?: boolean;
   title?: string;
   onClick?: () => void;
 }
@@ -684,6 +687,7 @@ function ActionItem({
   danger = false,
   warn = false,
   success = false,
+  muted = false,
   title,
   onClick,
 }: ActionItemProps) {
@@ -693,12 +697,17 @@ function ActionItem({
       ? "text-type-orange hover:text-type-orange"
       : success
         ? "text-type-green hover:text-type-green"
-        : "";
+        : muted
+          ? "text-muted-foreground"
+          : "";
   return (
     <button
       type="button"
       title={title}
-      className={`h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-left transition-colors hover:bg-accent ${color}`}
+      className={cn(
+        "h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50",
+        color
+      )}
       onClick={onClick}
     >
       {icon}
@@ -744,27 +753,30 @@ function Footer({
   return (
     <footer className="h-9 shrink-0 px-4 flex items-center border-t border-border">
       {hasNewVersion ? (
-        <span
+        <button
+          type="button"
           onClick={() => window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`)}
           title={`${t("popup:new_version_available")} (v${checkUpdate.version})`}
-          className="font-mono text-[11px] font-medium text-primary underline underline-offset-2 cursor-pointer"
-        >{`v${ExtVersion}`}</span>
+          className="bg-transparent border-none p-0 rounded font-mono text-[11px] font-medium text-primary underline underline-offset-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-ring/50"
+        >{`v${ExtVersion}`}</button>
       ) : checkUpdateStatus === 0 ? (
-        <span
+        <button
+          type="button"
           onClick={onVersionClick}
           title={t("check_update")}
-          className="font-mono text-[11px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2"
-        >{`v${ExtVersion}`}</span>
+          className="bg-transparent border-none p-0 rounded font-mono text-[11px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring/50"
+        >{`v${ExtVersion}`}</button>
       ) : checkUpdateStatus === 1 ? (
         <span className="text-[12px] font-medium text-muted-foreground">{t("script:checking_for_updates")}</span>
       ) : (
-        <span
+        <button
+          type="button"
           onClick={onVersionClick}
           title={t("check_update")}
-          className="text-[12px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2"
+          className="bg-transparent border-none p-0 rounded text-[12px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           {t("script:latest_version")}
-        </span>
+        </button>
       )}
     </footer>
   );

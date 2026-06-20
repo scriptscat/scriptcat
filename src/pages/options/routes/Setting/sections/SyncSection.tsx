@@ -41,7 +41,8 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
           <div className="flex flex-col gap-2">
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
-                aria-label="cloud_sync_sync_delete"
+                data-testid="cloud_sync_sync_delete"
+                aria-label={t("settings:sync_delete")}
                 checked={draft.syncDelete}
                 onCheckedChange={(c) => patch({ syncDelete: c === true })}
               />
@@ -50,7 +51,8 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
             <p className="text-xs text-muted-foreground pl-6">{t("settings:sync_delete_desc")}</p>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
-                aria-label="cloud_sync_sync_status"
+                data-testid="cloud_sync_sync_status"
+                aria-label={t("settings:sync_status")}
                 checked={draft.syncStatus}
                 onCheckedChange={(c) => patch({ syncStatus: c === true })}
               />
@@ -62,7 +64,8 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
             headerContent={
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
-                  aria-label="cloud_sync_enable"
+                  data-testid="cloud_sync_enable"
+                  aria-label={t("settings:enable_script_sync_to")}
                   checked={draft.enable}
                   onCheckedChange={(c) => patch({ enable: c === true })}
                 />
@@ -74,7 +77,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
             onChangeFileSystemType={(type) => patch({ filesystem: type })}
             onChangeFileSystemParams={(params) => patch({ params: { ...draft.params, [draft.filesystem]: params } })}
           >
-            <Button aria-label="cloud_sync_save" size="sm" onClick={save}>
+            <Button data-testid="cloud_sync_save" size="sm" onClick={save}>
               {t("save")}
             </Button>
           </FileSystemParams>

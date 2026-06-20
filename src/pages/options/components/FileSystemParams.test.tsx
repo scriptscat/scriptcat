@@ -101,7 +101,7 @@ describe("文件系统参数表单", () => {
   it("网盘后端已绑定 token 时显示解绑按钮，确认后清除 token", async () => {
     hasNetDiskToken.mockResolvedValue(true);
     setup({ fileSystemType: "baidu-netdsik", fileSystemParams: {} });
-    const unbind = await screen.findByLabelText("netdisk_unbind");
+    const unbind = await screen.findByTestId("netdisk_unbind");
     fireEvent.click(unbind);
     // 弹出确认气泡后点击确认按钮（气泡内最后一个按钮）
     await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThan(1));
@@ -114,6 +114,6 @@ describe("文件系统参数表单", () => {
     hasNetDiskToken.mockResolvedValue(true);
     setup({ fileSystemType: "webdav", fileSystemParams: {} });
     await waitFor(() => expect(screen.getByLabelText("url")).toBeInTheDocument());
-    expect(screen.queryByLabelText("netdisk_unbind")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("netdisk_unbind")).not.toBeInTheDocument();
   });
 });

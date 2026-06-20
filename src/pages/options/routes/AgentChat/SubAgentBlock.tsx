@@ -5,6 +5,7 @@ import { cn } from "@App/pkg/utils/cn";
 import type { SubAgentState } from "./types";
 import ToolCallBlock from "./ToolCallBlock";
 import ContentBlockRenderer from "./ContentBlockRenderer";
+import { t } from "@App/locales/locales";
 
 // 类型标签配色
 const TYPE_COLORS: Record<string, string> = {
@@ -115,7 +116,7 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
           )}
 
           {allMessages.length === 0 && !state.retryInfo && state.isRunning && (
-            <div className="text-xs text-muted-foreground py-1">{"Starting..."}</div>
+            <div className="text-xs text-muted-foreground py-1">{t("agent:chat_starting")}</div>
           )}
         </div>
       )}

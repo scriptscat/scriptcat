@@ -43,9 +43,7 @@ function permissionVisual(permission: string): { Icon: LucideIcon; bgClass: stri
 function BrandMark() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex size-6 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-        {"S"}
-      </div>
+      <img src={chrome.runtime.getURL("assets/logo.png")} alt="ScriptCat" className="size-6 shrink-0" />
       <span className="text-[15px] font-semibold text-foreground">{"ScriptCat"}</span>
     </div>
   );
@@ -60,7 +58,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-const cardClass = "flex w-full max-w-[480px] flex-col gap-5 rounded-2xl border bg-card p-7 shadow-xl";
+const cardClass = "flex w-full max-w-[480px] flex-col gap-5 rounded-2xl border bg-card p-7 shadow-lg";
 
 export function PermissionConfirm({ uuid }: { uuid: string }) {
   const { t } = useTranslation(["permission", "common"]);

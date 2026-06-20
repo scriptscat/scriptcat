@@ -183,12 +183,13 @@ export default function Logger() {
 
           <div className="hidden md:block flex-1 min-w-[80px]" />
 
-          <div className="flex items-center gap-2 h-8 w-full md:w-[220px] rounded-md border border-input bg-secondary/50 px-2.5">
+          <div className="flex items-center gap-2 h-8 w-full md:w-[220px] rounded-md border border-input bg-secondary/50 px-2.5 focus-within:ring-2 focus-within:ring-ring/50">
             <Search className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("logs:search_regex")}
+              aria-label={t("logs:search_regex")}
               className="flex-1 min-w-0 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
             />
           </div>
@@ -240,7 +241,8 @@ export default function Logger() {
             type="number"
             value={cleanCycle}
             onChange={(e) => setCleanCycle(parseInt(e.target.value, 10) || 0)}
-            className="w-12 h-6 rounded border border-input bg-card text-center text-xs text-foreground focus:outline-none"
+            aria-label={t("logs:clean_schedule")}
+            className="w-12 h-6 rounded border border-input bg-card text-center text-xs text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
           <span>{t("logs:days_ago_logs")}</span>
         </div>
@@ -280,7 +282,7 @@ export default function Logger() {
           type="button"
           aria-label={t("logs:back_to_top")}
           onClick={() => streamRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-          className="absolute bottom-5 right-5 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-fg-secondary shadow-md transition-colors hover:bg-accent"
+          className="absolute bottom-5 right-5 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-fg-secondary shadow-md transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <ArrowUp className="w-[18px] h-[18px]" />
         </button>

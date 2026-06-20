@@ -28,7 +28,7 @@
   --secondary: #f0f0f0;
   --secondary-foreground: #1a1a1a;
   --muted: #f0f0f0;
-  --muted-foreground: #888888;
+  --muted-foreground: #767676; /* WCAG AA：在 #fff/#fafafa 上 ≥4.5:1（旧 #888888 仅 3.5:1，正文不达标） */
   --accent: #f0f0f0;
   --accent-foreground: #1a1a1a;
 
@@ -77,6 +77,25 @@
   --type-object-bg: #f3e8ff;
   --type-object-fg: #9333ea;
 
+  /* 脚本列表分类标签 chip 色（按标签名哈希取 8 色之一；软色 bg + 深色 fg）
+     light 取各 hue 的 50（bg）/700（fg）；dark 由 900@40% 叠加在 #151515 卡面 + 300 fg 得出 */
+  --label-green-bg: #f0fdf4;
+  --label-green-fg: #008236;
+  --label-blue-bg: #eff6ff;
+  --label-blue-fg: #1447e6;
+  --label-purple-bg: #faf5ff;
+  --label-purple-fg: #8200db;
+  --label-orange-bg: #fff7ed;
+  --label-orange-fg: #ca3500;
+  --label-rose-bg: #fff1f2;
+  --label-rose-fg: #c70036;
+  --label-teal-bg: #f0fdfa;
+  --label-teal-fg: #00786f;
+  --label-amber-bg: #fffbeb;
+  --label-amber-fg: #bb4d00;
+  --label-indigo-bg: #eef2ff;
+  --label-indigo-fg: #432dd7;
+
   /* 切换按钮圆钮（Switch/Checkbox thumb） - 始终保持浅色 */
   --thumb: #ffffff;
 
@@ -90,7 +109,7 @@
   --sidebar-border: #e5e5e5;
   --sidebar-ring: #1296db;
 
-  /* 圆角（对应设计稿 radius-sm 6 / md 8 / lg 12） */
+  /* 圆角基数 8px；@theme inline 由此派生 radius-sm 4 / md 6 / lg 8 / xl 12 */
   --radius: 0.5rem;
 }
 
@@ -162,6 +181,24 @@
   --type-object-bg: #2a1e3a;
   --type-object-fg: #c084fc;
 
+  /* 脚本列表分类标签 chip 色（暗色：bg = hue-900@40% 叠加在 #151515 卡面的不透明等效值，fg = hue-300） */
+  --label-green-bg: #122e1e;
+  --label-green-fg: #7bf1a8;
+  --label-blue-bg: #182345;
+  --label-blue-fg: #8ec5ff;
+  --label-purple-bg: #301644;
+  --label-purple-fg: #dab2ff;
+  --label-orange-bg: #3f1d11;
+  --label-orange-fg: #ffb86a;
+  --label-rose-bg: #441022;
+  --label-rose-fg: #ffa1ad;
+  --label-teal-bg: #112c2a;
+  --label-teal-fg: #46ecd5;
+  --label-amber-bg: #3e210f;
+  --label-amber-fg: #ffd230;
+  --label-indigo-bg: #201e42;
+  --label-indigo-fg: #a3b3ff;
+
   /* 切换按钮圆钮（Switch/Checkbox thumb） - 深色模式仍保持浅色 */
   --thumb: #eeeeee;
 
@@ -223,6 +260,22 @@
   --color-type-boolean-fg: var(--type-boolean-fg);
   --color-type-object-bg: var(--type-object-bg);
   --color-type-object-fg: var(--type-object-fg);
+  --color-label-green-bg: var(--label-green-bg);
+  --color-label-green-fg: var(--label-green-fg);
+  --color-label-blue-bg: var(--label-blue-bg);
+  --color-label-blue-fg: var(--label-blue-fg);
+  --color-label-purple-bg: var(--label-purple-bg);
+  --color-label-purple-fg: var(--label-purple-fg);
+  --color-label-orange-bg: var(--label-orange-bg);
+  --color-label-orange-fg: var(--label-orange-fg);
+  --color-label-rose-bg: var(--label-rose-bg);
+  --color-label-rose-fg: var(--label-rose-fg);
+  --color-label-teal-bg: var(--label-teal-bg);
+  --color-label-teal-fg: var(--label-teal-fg);
+  --color-label-amber-bg: var(--label-amber-bg);
+  --color-label-amber-fg: var(--label-amber-fg);
+  --color-label-indigo-bg: var(--label-indigo-bg);
+  --color-label-indigo-fg: var(--label-indigo-fg);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -348,4 +401,20 @@
 }
 .scrollbar-custom::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
+}
+
+/*
+  无障碍：尊重系统「减少动态效果」偏好（prefers-reduced-motion）。
+  对开启该偏好的用户，把所有动画/过渡压到近乎瞬时，避免前庭不适，
+  同时保留终态（不直接 display:none，弹层仍会出现，只是不再有进出动画）。
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

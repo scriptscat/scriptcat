@@ -14,7 +14,7 @@ export default function MobileHeader() {
         type="button"
         aria-label={t("menu")}
         onClick={() => setNavOpen(true)}
-        className="size-9 -ml-1.5 flex items-center justify-center rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        className="size-11 -ml-1.5 flex items-center justify-center rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
       >
         <Menu className="size-5" />
       </button>

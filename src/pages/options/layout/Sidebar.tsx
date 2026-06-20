@@ -93,7 +93,7 @@ export default function Sidebar() {
         <div className="h-px bg-sidebar-border mx-2 mb-1" />
         <SidebarButton
           icon={themeIcon}
-          label={t("theme", { defaultValue: t("change_theme") })}
+          label={t("change_theme")}
           collapsed={collapsed}
           onClick={cycleTheme}
           testId="theme-toggle"

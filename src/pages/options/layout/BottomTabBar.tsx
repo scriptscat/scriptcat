@@ -24,13 +24,25 @@ export default function BottomTabBar() {
           end={end}
           className={({ isActive }) =>
             cn(
-              "flex flex-col items-center justify-center gap-1 flex-1 py-2 text-[10px] transition-colors",
+              "relative flex flex-col items-center justify-center gap-1 flex-1 py-2 text-[10px] transition-colors",
               isActive ? "text-primary font-medium" : "text-muted-foreground"
             )
           }
         >
-          <Icon className="w-[22px] h-[22px]" />
-          <span>{label()}</span>
+          {({ isActive }) => (
+            <>
+              {/* 非颜色提示:激活项顶部的 primary 指示条(§9/§10,颜色不可单独承载状态) */}
+              {isActive && (
+                <span
+                  data-testid="tab-active-indicator"
+                  aria-hidden="true"
+                  className="absolute top-0 h-0.5 w-8 rounded-full bg-primary"
+                />
+              )}
+              <Icon className="w-[22px] h-[22px]" />
+              <span>{label()}</span>
+            </>
+          )}
         </NavLink>
       ))}
     </nav>

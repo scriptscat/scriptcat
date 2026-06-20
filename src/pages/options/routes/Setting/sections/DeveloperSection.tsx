@@ -48,7 +48,8 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
         <div className="flex flex-col gap-2">
           <div className="text-[13px] font-medium text-foreground">{t("settings:eslint_rules")}</div>
           <Textarea
-            aria-label="eslint_rules_textarea"
+            data-testid="eslint_rules_textarea"
+            aria-label={t("settings:eslint_rules")}
             className="min-h-[120px] font-mono text-xs"
             value={eslintDraft}
             onChange={(e) => setEslintDraft(e.target.value)}
@@ -68,7 +69,8 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
       <div className="flex flex-col gap-2">
         <div className="text-[13px] font-medium text-foreground">{t("editor:editor_config")}</div>
         <Textarea
-          aria-label="editor_config_textarea"
+          data-testid="editor_config_textarea"
+          aria-label={t("editor:editor_config")}
           className="min-h-[120px] font-mono text-xs"
           value={editorDraft}
           onChange={(e) => setEditorDraft(e.target.value)}
@@ -87,7 +89,8 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
       <div className="flex flex-col gap-2">
         <div className="text-[13px] font-medium text-foreground">{t("editor:editor_type_definition")}</div>
         <Textarea
-          aria-label="editor_type_definition_textarea"
+          data-testid="editor_type_definition_textarea"
+          aria-label={t("editor:editor_type_definition")}
           className="min-h-[120px] font-mono text-xs"
           value={typeDraft}
           onChange={(e) => setTypeDraft(e.target.value)}

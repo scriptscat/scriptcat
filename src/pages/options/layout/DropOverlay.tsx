@@ -6,9 +6,9 @@ export function DropOverlay({ active }: { active: boolean }) {
   return (
     <div
       data-testid="drop-overlay"
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-background/75 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 backdrop-blur-sm"
     >
-      <div className="flex flex-col items-center gap-5 rounded-2xl border-2 border-dashed border-primary bg-card/95 px-16 py-12 shadow-2xl">
+      <div className="flex flex-col items-center gap-5 rounded-2xl border-2 border-dashed border-primary bg-card/95 px-16 py-12 shadow-lg">
         <div className="flex size-24 items-center justify-center rounded-full bg-primary/10">
           <Download className="size-11 text-primary" />
         </div>

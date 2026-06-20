@@ -38,7 +38,8 @@ export function DevToolsSection({ register }: { register: (id: string) => (el: H
           href="https://www.bilibili.com/video/BV16q4y157CP"
           target="_blank"
           rel="noreferrer"
-          aria-label="vscode_help"
+          data-testid="vscode_help"
+          aria-label={t("common:user_guide")}
           className="text-muted-foreground hover:text-foreground"
         >
           <HelpCircle className="size-4" />
@@ -49,18 +50,24 @@ export function DevToolsSection({ register }: { register: (id: string) => (el: H
     >
       <SettingRow label={t("tools:vscode_url")}>
         <Input
-          aria-label="vscode_url_input"
+          data-testid="vscode_url_input"
+          aria-label={t("tools:vscode_url")}
           className="w-[280px]"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
       </SettingRow>
       <label className="flex items-center gap-2 text-sm">
-        <Checkbox aria-label="vscode_reconnect" checked={reconnect} onCheckedChange={(c) => setReconnect(c === true)} />
+        <Checkbox
+          data-testid="vscode_reconnect"
+          aria-label={t("tools:auto_connect_vscode_service")}
+          checked={reconnect}
+          onCheckedChange={(c) => setReconnect(c === true)}
+        />
         {t("tools:auto_connect_vscode_service")}
       </label>
       <div>
-        <Button aria-label="vscode_connect" size="sm" onClick={connect}>
+        <Button data-testid="vscode_connect" size="sm" onClick={connect}>
           {t("tools:connect")}
         </Button>
       </div>

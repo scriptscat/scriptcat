@@ -24,7 +24,8 @@ export function AgentCardMenu({ items }: { items: AgentCardMenuItem[] }) {
         <button
           type="button"
           data-testid="card-menu"
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="More options"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <MoreVertical className="size-4" />
         </button>

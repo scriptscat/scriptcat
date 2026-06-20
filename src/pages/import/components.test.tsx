@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { cleanup, screen, fireEvent, within } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip } from "@Tests/renderWithTooltip";
-import { DesktopView, type ImportView } from "./components";
+import { DesktopView, ImportLayout, type ImportView } from "./components";
 import type { ScriptImportItem, SubscribeImportItem } from "./logic";
 
 function mkScriptItem(p: Partial<ScriptImportItem> = {}): ScriptImportItem {
@@ -214,5 +214,18 @@ describe("导入桌面视图 状态屏", () => {
     expect(within(complete).getByText("导入完成")).toBeTruthy();
     fireEvent.click(screen.getByTestId("view-scripts-btn"));
     expect(onOpenScriptList).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("导入页外壳 品牌标识", () => {
+  it("顶栏左上角应渲染真实 logo 图片(而非占位字母块)", () => {
+    renderWithTooltip(
+      <ImportLayout phase="ready" actions={null}>
+        <div>{"x"}</div>
+      </ImportLayout>
+    );
+    const logo = screen.getByAltText("ScriptCat");
+    expect(logo.tagName).toBe("IMG");
+    expect(logo.getAttribute("src")).toContain("assets/logo.png");
   });
 });

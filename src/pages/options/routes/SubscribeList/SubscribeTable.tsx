@@ -188,7 +188,7 @@ export default function SubscribeTable({
         {loadingList && (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            <span className="text-sm">{t("loading", { defaultValue: "加载中..." })}</span>
+            <span className="text-sm">{t("loading")}</span>
           </div>
         )}
 
@@ -197,10 +197,8 @@ export default function SubscribeTable({
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
             <Inbox className="w-10 h-10 text-muted-foreground/60" />
             <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium text-foreground">{t("no_subscribes", { defaultValue: "暂无订阅" })}</p>
-              <p className="text-xs text-muted-foreground">
-                {t("no_subscribes_hint", { defaultValue: "订阅脚本集合后将显示在这里" })}
-              </p>
+              <p className="text-sm font-medium text-foreground">{t("no_subscribes")}</p>
+              <p className="text-xs text-muted-foreground">{t("no_subscribes_hint")}</p>
             </div>
           </div>
         )}

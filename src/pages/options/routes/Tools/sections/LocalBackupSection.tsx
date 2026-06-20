@@ -41,12 +41,19 @@ export function LocalBackupSection({ register }: { register: (id: string) => (el
       description={t("settings:local")}
       register={register}
     >
-      <input type="file" ref={fileRef} className="hidden" accept=".zip" aria-label="tools_import_file" />
+      <input
+        type="file"
+        ref={fileRef}
+        className="hidden"
+        accept=".zip"
+        data-testid="tools_import_file"
+        aria-label={t("settings:import_file")}
+      />
       <div className="flex flex-wrap gap-2">
-        <Button aria-label="tools_export" size="sm" disabled={exporting} onClick={exportFile}>
+        <Button data-testid="tools_export" size="sm" disabled={exporting} onClick={exportFile}>
           {t("settings:export_file")}
         </Button>
-        <Button aria-label="tools_import" size="sm" variant="secondary" onClick={pickImportFile}>
+        <Button data-testid="tools_import" size="sm" variant="secondary" onClick={pickImportFile}>
           {t("settings:import_file")}
         </Button>
       </div>

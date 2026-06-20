@@ -13,7 +13,7 @@
 | Color-token values, semantics, usage | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` § UI](./DEVELOP.md) |
 | Theming mechanism, `dark:` usage | Commands, structure, coding style, testing, i18n, commit/PR → [`DEVELOP.md`](./DEVELOP.md) |
 | Component palette, variants, selection guidance | Process model, message passing, service layers, internals → [`ARCHITECTURE.md`](./ARCHITECTURE.md) |
-| Layout shell, responsive patterns, motion, state patterns, page recipe | — |
+| Layout shell, responsive patterns, **elevation (shadows)**, **layering (z-index)**, motion, state patterns, **accessibility**, page recipe | — |
 
 This doc restates the `DEVELOP.md` hard rules only where needed, then links back — it does not duplicate them.
 
@@ -87,7 +87,7 @@ The "why" behind the constraints — apply these when shaping a screen.
 | `secondary` | `#f0f0f0` | `#2a2a2a` | Secondary buttons / fills |
 | `secondary-foreground` | `#1a1a1a` | `#e5e5e5` | Text on secondary |
 | `muted` | `#f0f0f0` | `#2a2a2a` | Muted background (group fills, placeholders) |
-| `muted-foreground` | `#888888` | `#8a8a8a` | De-emphasized / descriptive text |
+| `muted-foreground` | `#767676` | `#8a8a8a` | De-emphasized / descriptive text. **AA-tuned** (≥4.5:1 on `card`/`background`) — reserve for secondary/large text, not dense body copy (§10 contrast) |
 | `accent` | `#f0f0f0` | `#2a2a2a` | Hover / selected background (menu items, etc.) |
 | `accent-foreground` | `#1a1a1a` | `#e5e5e5` | Text on accent |
 
@@ -133,6 +133,19 @@ For the storage table's "type" column — soft bg, deep fg; in dark the bg darke
 | `type-boolean` (amber) | `#fceedb` → `#352c1e` | `#c2710c` → `#fb923c` |
 | `type-object` (purple) | `#f3e8ff` → `#2a1e3a` | `#9333ea` → `#c084fc` |
 
+**Categorical label chips (`--label-*`).** The script list hashes each tag name to one of **8** fixed hues and renders it as a soft-bg / deep-fg chip (`bg-label-<hue>-bg text-label-<hue>-fg`). Use this family for categorical tag/label chips in the script list — never raw `green-50` / `blue-700` palette classes. Light bg = each hue's `-50`, light fg = `-700`; dark bg = `-900` @ 40% resolved opaque over the `#151515` card, dark fg = `-300`.
+
+| Hue | bg (Light → Dark) | fg (Light → Dark) |
+| --- | --- | --- |
+| `label-green` | `#f0fdf4` → `#122e1e` | `#008236` → `#7bf1a8` |
+| `label-blue` | `#eff6ff` → `#182345` | `#1447e6` → `#8ec5ff` |
+| `label-purple` | `#faf5ff` → `#301644` | `#8200db` → `#dab2ff` |
+| `label-orange` | `#fff7ed` → `#3f1d11` | `#ca3500` → `#ffb86a` |
+| `label-rose` | `#fff1f2` → `#441022` | `#c70036` → `#ffa1ad` |
+| `label-teal` | `#f0fdfa` → `#112c2a` | `#00786f` → `#46ecd5` |
+| `label-amber` | `#fffbeb` → `#3e210f` | `#bb4d00` → `#ffd230` |
+| `label-indigo` | `#eef2ff` → `#201e42` | `#432dd7` → `#a3b3ff` |
+
 ### 3.7 Sidebar
 
 | Token / class | Light | Dark | Use |
@@ -154,6 +167,20 @@ For the storage table's "type" column — soft bg, deep fg; in dark the bg darke
 | `--scrollbar-thumb-hover` | `rgba(0,0,0,.32)` | `rgba(255,255,255,.30)` |
 
 Add the `.scrollbar-custom` class to any scroll container to get a thin, rounded, semi-transparent, theme-aware scrollbar (covers both the Firefox `scrollbar-*` properties and the WebKit pseudo-elements).
+
+### 3.9 Elevation (shadows)
+
+Shadows signal *how high* a surface floats. There are **no `--shadow-*` tokens** — use the Tailwind utilities, but pick from this fixed ladder so elevation maps to meaning instead of drifting (the codebase currently mixes `shadow-xs … shadow-2xl` ad hoc — converge on these three):
+
+| Level | Class | Use |
+| --- | --- | --- |
+| **Resting** | *(none)* / `shadow-sm` | Flat cards and list rows that sit on the page. Prefer a `border` over a shadow at rest; add `shadow-sm` only for a subtle lift (e.g. a sticky bar over scrolling content). |
+| **Raised** | `shadow-md` | Anchored floating layers tied to a trigger — `DropdownMenu`, `Popover`, `Select`, hover cards. |
+| **Overlay** | `shadow-lg` | Detached overlays that own the screen — `Dialog`, `Sheet`, `AlertDialog`. |
+
+- **Don't reach past `shadow-lg`.** `shadow-xl` / `shadow-2xl` read as heavy and inconsistent; if something needs more separation it usually needs a scrim/backdrop, not a bigger shadow.
+- **Shadows barely render in dark mode.** On `#151515` cards a black shadow is nearly invisible, so depth in dark relies on the `border` + the surface step (`background #1e1e1e` → `card #151515`). Don't lean on shadow alone to separate layers in dark — keep the border. (If dark-specific depth becomes necessary, introduce `--shadow-*` tokens with separate `.dark` values and document them here — don't hand-tune per component.)
+- Pair elevation with the matching radius (§5): raised → `rounded-lg`, overlay → `rounded-xl`.
 
 ---
 
@@ -298,6 +325,7 @@ toast.error("Update failed: network error");
 ### 6.5 Selection guidance
 
 - **Confirmation:** dangerous / irreversible → `AlertDialog`; lightweight inline confirm (e.g. row delete) → `popconfirm`.
+- **Confirm vs. undo:** a modal confirm interrupts *every* time, so reserve it for the genuinely irreversible or wide-blast (delete N scripts + their stored values, reset settings). For reversible single-item actions (disable one script, dismiss a row), prefer acting immediately + an **undo affordance** (`toast` with an action) over a blocking dialog — fewer interruptions, same safety. State the blast radius in the confirm copy ("Delete 3 scripts and their stored values? This cannot be undone.").
 - **Transient panels:** mobile nav / side detail → `Sheet`; small anchored layer → `Popover` / `DropdownMenu`.
 - **Feedback:** transient → `toast`; persistent / in-page → see §9 state patterns.
 
@@ -338,6 +366,28 @@ The bottom bar is [`BottomTabBar.tsx`](../src/pages/options/layout/BottomTabBar.
 
 Long pages (settings / tools) use scroll-spy: scrolling the content highlights the current category, and clicking a category smooth-scrolls to its section. See [`SettingsLayout.tsx`](../src/pages/options/layout/SettingsLayout.tsx) + [`useScrollSpy.ts`](../src/pages/options/hooks/useScrollSpy.ts). On desktop the categories sit in a left rail; on mobile they become a top horizontal chip bar (the active chip `scrollIntoView`s to center).
 
+### Layering (z-index)
+
+Stacking only works if everyone agrees on the order. Use **this fixed ladder** — don't invent magic numbers (`z-[1000]` / `z-[200]` have leaked in; they're bugs waiting to happen). Pick the lowest layer that works:
+
+| Layer | Class | What lives here |
+| --- | --- | --- |
+| Base content | *(default)* / `z-0` | Normal page flow |
+| Sticky chrome | `z-10` | Sticky TopBar / ActionBar / table header / `BottomTabBar` — pinned, but *below* anything floating |
+| Floating layers | `z-50` | `Dialog`, `Sheet`, `DropdownMenu`, `Popover`, `Select`, `Tooltip` — this is the shadcn/Radix default; **leave it**, don't bump it |
+| Toast | *(owned by `sonner`)* | The global `Toaster` portals above everything; never hand-roll a layer above it |
+
+- **Same tier ties break by DOM order**, not by a bespoke number. If two floating layers fight, fix the nesting/portal, don't escalate to `z-[999]`.
+- **A new "always on top" need is a smell** — it usually means the element should be a real floating primitive (Dialog/Popover) that already portals correctly, not a high-`z` `div`.
+
+### Long lists
+
+Script list and Logger can hold thousands of rows. Keep large lists responsive: **page or windowed-render** rather than mounting every row, and never block first paint on the full set — show the skeleton/shell (§9) while the list streams in. Don't introduce a virtualization lib unprompted; if a list is bounded (settings, permissions) plain rendering is fine.
+
+### Text expansion (i18n)
+
+Copy is translated into 7 locales and German/Russian run ~30% longer than English. Layouts must **flex or truncate, never clip**: let labels wrap or `truncate` with a `title`/tooltip, give buttons/badges `min-w` room instead of fixed widths, and don't pin a control's width to its English string. Verify a long-locale on the tightest screens (mobile cards, the ActionBar). RTL is **not** a target for the current locale set.
+
 ---
 
 ## 8. Motion
@@ -352,6 +402,7 @@ Long pages (settings / tools) use scroll-spy: scrolling the content highlights t
 - **Prefer `transition-colors` over `transition-all`:** animate only what should move, avoiding layout thrash and wasted work.
 - **Reuse existing utilities;** don't inline `@keyframes` in a component. New animation → add an `@utility` in `src/index.css` so it's globally reusable.
 - **Large looping animations** (e.g. the indeterminate bar) should animate `transform` (already `translateX`) for performance.
+- **Respect `prefers-reduced-motion`.** A global `@media (prefers-reduced-motion: reduce)` block in [`src/index.css`](../src/index.css) collapses every animation/transition to near-zero for users who ask for less motion, so reusing the shared CSS utilities is reduced-motion-safe for free. Don't route around it with JS-driven tweens (`setTimeout` / `requestAnimationFrame`) the reset can't reach; gate any long or looping *decorative* animation on the preference yourself.
 
 ### Available animations
 
@@ -411,9 +462,79 @@ Practical rules:
 
 The rule: **no silent operations** — after any action the user can see success / failure / in-progress.
 
+### Forms & validation
+
+Forms are plain `useState` + controlled components (§6 — no form library). Keep their feedback consistent:
+
+- **Validate late, forgive early.** Don't show errors while a field is still being filled. Validate on **blur** and on **submit**; once a field is showing an error, switch it to **live** revalidation so the message clears the instant it's fixed.
+- **Error message sits with the field**, not in a far-off banner: a short `text-destructive text-xs` line directly under the input, and mark the control (`aria-invalid`, `border-destructive`). Reserve the top-of-form `Alert` for *form-level* failures (the save request itself failed).
+- **Required vs optional:** mark the rarer one. If most fields are required, tag the optional ones "(optional)" rather than starring everything.
+- **Submit button:** keep it enabled and validate on click (a disabled button can't tell the user *why*) — unless submission is genuinely impossible (nothing entered yet). While the request is in flight, disable + inline `Loader2` (§9 single-action loading).
+- **Don't lose input on failure.** A failed save keeps every field as-is; never clear the form on error.
+
+### Writing & microcopy
+
+Consistent words are part of a consistent UI.
+
+- **Sentence case** for everything — buttons, titles, labels, menu items ("Import data", not "Import Data"). Product names keep their own casing.
+- **Buttons are verbs** naming the action ("Install", "Save changes", "Delete"), not "OK"/"Submit". The in-flight label restates it as progress ("Installing…", "Saving…").
+- **Errors are specific and actionable:** what failed + why + what to do ("Update failed: network error — check your connection and retry"), not "Something went wrong". Put raw error detail in the `font-mono` box (§9 Error), not the headline.
+- **Don't blame the user, don't over-apologize.** State the fact and the next step.
+
+### Interactive states
+
+§1 covers hover/focus (CSS pseudo-classes, never React state). For completeness every interactive control also needs:
+
+- **Disabled:** the shadcn primitives already apply `disabled:opacity-50 disabled:pointer-events-none` — reuse them; don't hand-roll a greyed-out look. A disabled control still needs a reason nearby (helper text/tooltip) if it's non-obvious.
+- **Active / pressed:** rely on the primitive's built-in `active:`; add `active:` utilities only for custom controls.
+- **Selected / current:** persistent selection (active nav item, chosen tab, picked row) uses `accent` / `sidebar-accent` fills or the `primary` text/underline — a *state*, distinct from transient `hover:accent`. Pair color with a non-color cue (icon, weight, indicator bar) so it isn't color-only (§10).
+
 ---
 
-## 10. New-page / block recipe
+## 10. Accessibility
+
+Friendly UX includes users on keyboards, screen readers, low vision, and motion sensitivity. These are requirements, not extras — verify alongside the both-themes check.
+
+### Contrast
+
+- **Target WCAG AA:** ≥ 4.5:1 for normal text, ≥ 3:1 for large text (≥ 18.66px bold / 24px) and for meaningful UI/icon edges. The tokens are tuned to this — `foreground`, `fg-secondary`, and the `*-fg` badge pairs pass comfortably.
+- **`muted-foreground` is the edge case.** It's AA-tuned (light `#767676` ≈ 4.5:1 on `card`/`background`) but only *just* — keep it for secondary/large/descriptive text, and use `foreground` or `fg-secondary` for anything dense or critical. On a `muted`/`secondary` fill its contrast drops further, so don't stack small `muted-foreground` text on a `muted` background.
+- **Never encode meaning in color alone** (Principle 3 is about *adding* meaning, not replacing the label). Pair every status color with text/icon/shape — a red dot also says "Error", an enabled row also shows a label, a selected item also has a non-color cue.
+
+### Focus visibility
+
+The base layer in [`src/index.css`](../src/index.css) intentionally **removes the native `outline`** on `button` / `a` / `[role="button"]` and relies on shadcn's `focus-visible:ring-ring/50` box-shadow ring instead (so programmatic refocus after a Radix layer closes doesn't flash an outline). The cost: **any custom interactive element you build has no visible keyboard focus unless you add the ring yourself.** So:
+
+- Every custom clickable (a `div`/`span` with `onClick`, a bespoke card action) must add `focus-visible:ring-2 focus-visible:ring-ring/50` (and be reachable — real `<button>`/`<a>`, or `tabIndex={0}` + key handlers).
+- Don't re-disable focus styling to "clean up" a layout; the ring is the only focus signal there is.
+
+### Keyboard & screen readers
+
+- **Everything actionable is reachable and operable by keyboard** — prefer native `<button>`/`<a>`/`<input>`; the Radix primitives (Dialog, Sheet, DropdownMenu, Tabs…) already ship focus trap, arrow-key nav, Esc, and return-focus — that's a reason to reuse them over hand-rolled overlays (§6).
+- **Icon-only controls need an accessible name:** `aria-label` on every icon `Button` (an icon alone is invisible to a screen reader).
+- **Announce async state:** loading/empty/error/progress regions carry `role="status"` / `role="progressbar"` + `aria-label` (the `TopProgressBar` already does) so non-visual users hear the same "no silent operations" guarantee (§9).
+- **Decorative icons** (next to a text label) are `aria-hidden` so they aren't double-announced.
+
+### Touch targets
+
+The shared `Button` tops out at `h-9` (36px) and the compact sizes (`xs`/`icon-xs` = 24px) are **below the ~44px comfortable-touch minimum**. On the mobile shell, primary tap actions should use `default`/`icon` (or larger) and avoid `xs`. When a control must stay visually small, **expand the hit area** (extra padding, or a `::before` overlay) rather than shrinking the tap zone — and keep tappable items spaced so neighbors aren't mis-hit.
+
+### Reduced motion
+
+A global `@media (prefers-reduced-motion: reduce)` reset (§8) honors the system preference for all shared CSS animations/transitions. Keep new motion on the shared utilities so it inherits that; don't bypass it with JS tweens.
+
+### Accessibility checklist
+
+- [ ] Text meets AA contrast on **both** themes; meaning never carried by color alone.
+- [ ] Every custom interactive element is keyboard-reachable and shows a visible `focus-visible` ring.
+- [ ] Icon-only buttons have `aria-label`; decorative icons are `aria-hidden`.
+- [ ] Async/loading/error regions expose `role` + `aria-label`.
+- [ ] Mobile tap targets ≥ ~44px (or an expanded hit area).
+- [ ] Motion still works (and calms down) under `prefers-reduced-motion`.
+
+---
+
+## 11. New-page / block recipe
 
 When building a new page or dialog, run this checklist to stay consistent:
 
@@ -425,7 +546,9 @@ When building a new page or dialog, run this checklist to stay consistent:
 - [ ] **Hierarchy** orders the most important info first; decision pages go identity → permissions → code (Principle 1).
 - [ ] **State:** loading / empty / error / success / in-progress all covered, never silent (§9).
 - [ ] **Motion** restrained (`150–250ms`, `ease-out`), hover/focus via pseudo-classes, enter/leave via `data-state`, reuse existing utilities (§8).
-- [ ] **Copy** defaults to English + i18n (see [`DEVELOP.md`](./DEVELOP.md) and [`translation/README.md`](./translation/README.md)).
+- [ ] **Depth** uses the elevation ladder (resting/raised/overlay, §3.9) and the z-index ladder (`z-10` chrome / `z-50` floating, §7) — no `shadow-2xl`, no magic `z-[…]`.
+- [ ] **Accessibility:** AA contrast on both themes; meaning never color-only; custom controls keyboard-reachable with a visible focus ring; `aria-label` on icon buttons; ≥ ~44px mobile tap targets; reduced-motion-safe (§10).
+- [ ] **Copy** defaults to sentence-case English + i18n; verbs on buttons; specific errors (§9 writing), and flexes for long locales (§7); see [`DEVELOP.md`](./DEVELOP.md) and [`translation/README.md`](./translation/README.md).
 
 Page skeleton (tokens + existing primitives + the shell pattern):
 
@@ -462,7 +585,7 @@ export default function ExamplePage() {
 
 ---
 
-## 11. Sources & verification
+## 12. Sources & verification
 
 **Implementation source of truth (read/edit these when changing the design):**
 

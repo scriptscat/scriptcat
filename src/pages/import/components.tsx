@@ -87,9 +87,7 @@ const COL = {
 function BrandMark() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex size-6 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-        {"S"}
-      </div>
+      <img src={chrome.runtime.getURL("assets/logo.png")} alt="ScriptCat" className="size-6 shrink-0" />
       <span className="text-[15px] font-semibold text-foreground">{"ScriptCat"}</span>
     </div>
   );

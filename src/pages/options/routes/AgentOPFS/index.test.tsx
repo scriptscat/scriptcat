@@ -117,6 +117,47 @@ describe("AgentOPFS 页面", () => {
     await waitFor(() => expect(screen.getByText("report.json")).toBeInTheDocument());
   });
 
+  it("上传进行中:上传按钮禁用并显示忙碌指示器,完成后恢复(无静默操作)", async () => {
+    // 用一个受控的 createWritable:close() 卡住直到我们手动放行,以稳定观察上传中状态
+    let releaseClose!: () => void;
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    root = dirHandle("root", { "file1.txt": fileHandle("file1.txt", "hi") });
+    root.getFileHandle = async (n: string) => ({
+      kind: "file",
+      name: n,
+      async createWritable() {
+        return {
+          async write() {},
+          async close() {
+            await closeGate;
+          },
+        };
+      },
+    });
+    (navigator.storage.getDirectory as any).mockResolvedValue(root);
+
+    render(<AgentOPFS />);
+    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+
+    const upload = screen.getByTestId("opfs-upload");
+    expect(upload).not.toBeDisabled();
+
+    const input = screen.getByTestId("opfs-upload-input") as HTMLInputElement;
+    const file = new File(["x"], "report.json", { type: "application/json" });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // 上传中:按钮禁用 + 出现忙碌进度指示(role=progressbar)
+    await waitFor(() => expect(upload).toBeDisabled());
+    expect(screen.getByTestId("opfs-upload-progress")).toBeInTheDocument();
+
+    // 放行写入,上传结束后按钮恢复可用、进度指示消失
+    releaseClose();
+    await waitFor(() => expect(upload).not.toBeDisabled());
+    expect(screen.queryByTestId("opfs-upload-progress")).not.toBeInTheDocument();
+  });
+
   it("空目录展示空状态且描述区别于标题", async () => {
     root = dirHandle("root", {});
     (navigator.storage.getDirectory as any).mockResolvedValue(root);

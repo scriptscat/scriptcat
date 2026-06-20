@@ -145,17 +145,15 @@ export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: s
           <Check className="w-3 h-3" />
           {t("script:latest_version")}
         </span>
-      ) : (
-        <span className="text-xs text-fg-secondary">{time}</span>
-      )}
-      {state === "has-update" ? (
+      ) : state === "has-update" ? (
+        /* 检查到新版本：直接取代时间展示「存在新版本」入口，点击可再次触发更新 */
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
               aria-label={t("check_update")}
               onClick={handleCheck}
-              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/15"
+              className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-primary hover:underline"
             >
               <CircleArrowUp className="w-3 h-3" />
               {t("script:new_version_available")}
@@ -164,7 +162,8 @@ export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: s
           <TooltipContent>{t("check_update")}</TooltipContent>
         </Tooltip>
       ) : (
-        state !== "latest" && (
+        <>
+          <span className="text-xs text-fg-secondary">{time}</span>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -178,7 +177,7 @@ export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: s
             </TooltipTrigger>
             <TooltipContent>{t("check_update")}</TooltipContent>
           </Tooltip>
-        )
+        </>
       )}
     </div>
   );

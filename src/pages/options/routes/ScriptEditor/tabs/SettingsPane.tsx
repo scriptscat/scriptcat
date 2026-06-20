@@ -479,7 +479,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-orange-500 hover:bg-orange-500/10 hover:text-orange-500 dark:text-orange-400"
+                  className="text-warning hover:bg-warning/10 hover:text-warning"
                   disabled={permissions.length === 0}
                 >
                   <RotateCcw className="size-3.5" />

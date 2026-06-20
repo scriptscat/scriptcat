@@ -19,7 +19,7 @@ export function MigrationSection({ register }: { register: (id: string) => (el: 
           cancelText={t("editor:cancel")}
           onConfirm={() => migrateToChromeStorage()}
         >
-          <Button aria-label="retry_migration" size="sm">
+          <Button data-testid="retry_migration" size="sm">
             {t("settings:retry_migration")}
           </Button>
         </Popconfirm>

@@ -15,14 +15,17 @@ import {
 } from "@App/pages/components/ui/alert-dialog";
 
 import SubscribeTable from "./SubscribeTable";
+import SubscribeListMobile from "./SubscribeListMobile";
 import { useSubscribeDataManagement } from "./hooks";
 import { filterAndSortSubscribes, type SubscribeSort, type SubscribeSortField } from "./filter";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 /**
  * 订阅列表主组件
  */
 export default function SubscribeList() {
   const { subscribeList, setSubscribeList, loadingList } = useSubscribeDataManagement();
+  const isMobile = useIsMobile();
   const [searchKeyword, setSearchKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState<SubscribeStatusType | null>(null);
   const [sort, setSort] = useState<SubscribeSort | null>(null);
@@ -95,19 +98,32 @@ export default function SubscribeList() {
 
   return (
     <div className="flex flex-col h-full">
-      <SubscribeTable
-        subscribeList={filteredList}
-        loadingList={loadingList}
-        updateSubscribes={updateSubscribes}
-        handleDelete={handleDelete}
-        searchKeyword={searchKeyword}
-        setSearchKeyword={setSearchKeyword}
-        totalCount={subscribeList.length}
-        sort={sort}
-        onSort={handleSort}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-      />
+      {isMobile ? (
+        <SubscribeListMobile
+          subscribeList={filteredList}
+          loadingList={loadingList}
+          updateSubscribes={updateSubscribes}
+          handleDelete={handleDelete}
+          searchKeyword={searchKeyword}
+          setSearchKeyword={setSearchKeyword}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+        />
+      ) : (
+        <SubscribeTable
+          subscribeList={filteredList}
+          loadingList={loadingList}
+          updateSubscribes={updateSubscribes}
+          handleDelete={handleDelete}
+          searchKeyword={searchKeyword}
+          setSearchKeyword={setSearchKeyword}
+          totalCount={subscribeList.length}
+          sort={sort}
+          onSort={handleSort}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+        />
+      )}
 
       <AlertDialog open={!!pendingDeleteUrl} onOpenChange={(open) => !open && setPendingDeleteUrl(null)}>
         <AlertDialogContent>

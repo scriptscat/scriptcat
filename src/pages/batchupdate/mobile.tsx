@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BellOff, ChevronRight, Download, PackageCheck, RefreshCw, RotateCcw, X } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
+import { t } from "@App/locales/locales";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
@@ -186,10 +187,22 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
           {subtitle && <span className="truncate text-xs text-muted-foreground">{subtitle}</span>}
         </div>
         <div className="flex-1" />
-        <Button variant="outline" size="icon-sm" disabled={view.checking} onClick={view.onCheckNow}>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          disabled={view.checking}
+          aria-label={tk("main_header")}
+          onClick={view.onCheckNow}
+        >
           <RefreshCw className={cn(view.checking && "animate-spin")} />
         </Button>
-        <Button variant="ghost" size="icon-sm" className="text-fg-secondary" onClick={() => window.close()}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-fg-secondary"
+          aria-label={t("common:close")}
+          onClick={() => window.close()}
+        >
           <X />
         </Button>
       </header>

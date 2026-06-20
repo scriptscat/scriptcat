@@ -446,7 +446,13 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
             {tk("main_header")}
           </Button>
           {view.autoClose !== null && <AutoCloseChip seconds={view.autoClose} />}
-          <Button variant="ghost" size="icon-sm" className="text-fg-secondary" onClick={() => window.close()}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-fg-secondary"
+            aria-label={t("common:close")}
+            onClick={() => window.close()}
+          >
             <X />
           </Button>
         </div>

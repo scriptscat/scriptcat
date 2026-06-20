@@ -88,7 +88,7 @@
   },
   "script_setting": {
     "title": "Skript-Einstellungen",
-    "default": "default"
+    "default": "Standard"
   },
   "notification": {
     "script_sync_delete": "Skript-Löschsynchronisation",

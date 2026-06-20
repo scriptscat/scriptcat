@@ -18,7 +18,7 @@ afterEach(cleanup);
 describe("更新分区", () => {
   it("切换「更新被禁用的脚本」写入 update_disable_script", async () => {
     render(<UpdateSection register={() => () => {}} />);
-    const sw = await screen.findByLabelText("update_disabled_scripts_switch");
+    const sw = await screen.findByTestId("update_disabled_scripts_switch");
     fireEvent.click(sw);
     await waitFor(() => expect(set).toHaveBeenCalledWith("update_disable_script", expect.any(Boolean)));
   });

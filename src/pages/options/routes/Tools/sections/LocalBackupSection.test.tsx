@@ -19,14 +19,14 @@ afterEach(() => {
 describe("本地备份分区", () => {
   it("点击导出触发备份导出", async () => {
     render(<LocalBackupSection register={() => () => {}} />);
-    fireEvent.click(screen.getByLabelText("tools_export"));
+    fireEvent.click(screen.getByTestId("tools_export"));
     await waitFor(() => expect(exportFn).toHaveBeenCalled());
   });
 
   it("选择文件后通过导入窗口处理", async () => {
     render(<LocalBackupSection register={() => () => {}} />);
-    fireEvent.click(screen.getByLabelText("tools_import")); // 绑定 onchange
-    const input = screen.getByLabelText("tools_import_file") as HTMLInputElement;
+    fireEvent.click(screen.getByTestId("tools_import")); // 绑定 onchange
+    const input = screen.getByTestId("tools_import_file") as HTMLInputElement;
     const file = new File(["x"], "backup.zip", { type: "application/zip" });
     Object.defineProperty(input, "files", { value: [file], configurable: true });
     fireEvent.change(input);

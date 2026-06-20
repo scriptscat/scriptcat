@@ -36,7 +36,8 @@ export function UpdateSection({ register }: { register: (id: string) => (el: HTM
       </SettingRow>
       <SettingRow label={t("settings:update_disabled_scripts")}>
         <Switch
-          aria-label="update_disabled_scripts_switch"
+          data-testid="update_disabled_scripts_switch"
+          aria-label={t("settings:update_disabled_scripts")}
           checked={!!updateDisabled}
           onCheckedChange={(c) => setUpdateDisabled(c)}
         />

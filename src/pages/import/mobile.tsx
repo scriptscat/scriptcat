@@ -37,7 +37,13 @@ function MobileHeader({ onClose }: { onClose?: () => void }) {
       </div>
       <span className="text-base font-semibold text-foreground">{tk("title")}</span>
       {onClose && (
-        <Button variant="ghost" size="icon-sm" className="ml-auto text-muted-foreground" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="ml-auto text-muted-foreground"
+          aria-label={t("common:close")}
+          onClick={onClose}
+        >
           <X />
         </Button>
       )}

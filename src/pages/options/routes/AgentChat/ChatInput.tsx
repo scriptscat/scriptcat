@@ -376,7 +376,7 @@ export default function ChatInput({
 
   const canSend = !!(input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage;
   const iconBtn =
-    "size-7 rounded flex items-center justify-center bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
+    "size-7 max-md:size-11 rounded flex items-center justify-center bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
   return (
     <div className="px-4 pb-4 pt-2 bg-background">
@@ -471,6 +471,7 @@ export default function ChatInput({
                   onClick={() => fileInputRef.current?.click()}
                   className={iconBtn}
                   title={t("agent:chat_attach_file")}
+                  aria-label={t("agent:chat_attach_file")}
                 >
                   <Paperclip className="size-4" />
                 </button>
@@ -478,6 +479,9 @@ export default function ChatInput({
                   <button
                     type="button"
                     title={
+                      enableTools !== false ? t("agent:chat_tools_enabled_tip") : t("agent:chat_tools_disabled_tip")
+                    }
+                    aria-label={
                       enableTools !== false ? t("agent:chat_tools_enabled_tip") : t("agent:chat_tools_disabled_tip")
                     }
                     onClick={() => {
@@ -498,6 +502,11 @@ export default function ChatInput({
                         ? t("agent:chat_background_enabled_tip")
                         : t("agent:chat_background_disabled_tip")
                     }
+                    aria-label={
+                      backgroundEnabled
+                        ? t("agent:chat_background_enabled_tip")
+                        : t("agent:chat_background_disabled_tip")
+                    }
                     onClick={() => onBackgroundEnabledChange(!backgroundEnabled)}
                     className={cn(iconBtn, backgroundEnabled && "text-primary hover:text-primary")}
                   >
@@ -511,8 +520,9 @@ export default function ChatInput({
                   <button
                     type="button"
                     data-testid="chat-stop"
+                    aria-label={t("agent:chat_stop")}
                     onClick={onStop}
-                    className="size-8 rounded-full flex items-center justify-center bg-warning text-warning-foreground border-none cursor-pointer transition-all hover:opacity-80 shadow-sm"
+                    className="size-8 max-md:size-11 rounded-full flex items-center justify-center bg-warning text-warning-foreground border-none cursor-pointer transition-all hover:opacity-80 shadow-sm"
                   >
                     <Square className="size-3.5 fill-current" />
                   </button>
@@ -521,10 +531,11 @@ export default function ChatInput({
                   <button
                     type="button"
                     data-testid="chat-send"
+                    aria-label={t("agent:chat_send")}
                     onClick={handleSend}
                     disabled={!canSend}
                     className={cn(
-                      "size-8 rounded-full flex items-center justify-center border-none transition-all shadow-sm",
+                      "size-8 max-md:size-11 rounded-full flex items-center justify-center border-none transition-all shadow-sm",
                       canSend
                         ? "bg-gradient-to-br from-primary to-primary-hover text-primary-foreground cursor-pointer hover:opacity-80"
                         : "bg-muted text-muted-foreground cursor-not-allowed"

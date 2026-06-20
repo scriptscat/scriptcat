@@ -50,7 +50,7 @@ export function SettingsLayout({ title, categories, children }: SettingsLayoutPr
                 ref={active ? activeChipRef : undefined}
                 onClick={() => scrollTo(c.id)}
                 className={cn(
-                  "flex items-center gap-1.5 h-8 px-3 rounded-full text-sm whitespace-nowrap shrink-0 transition-colors",
+                  "flex items-center gap-1.5 h-10 px-3 rounded-full text-sm whitespace-nowrap shrink-0 transition-colors",
                   navItemColors(active)
                 )}
               >

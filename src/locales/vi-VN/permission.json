@@ -3,7 +3,7 @@
   "permission_value": "Giá trị quyền",
   "allow": "Cho phép",
   "permission_management": "Quản lý quyền",
-  "permission_cors": "Cross-domain (cors)",
+  "permission_cors": "Liên miền (CORS)",
   "permission_cookie": "Quản lý cookie",
   "allow_once": "Cho phép một lần",
   "deny_once": "Từ chối một lần",

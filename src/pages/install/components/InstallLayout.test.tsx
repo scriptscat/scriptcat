@@ -17,6 +17,17 @@ describe("InstallLayout 安装页外壳", () => {
     expect(screen.getByText("正文内容")).toBeInTheDocument();
   });
 
+  it("左上角应渲染真实 logo 图片(而非占位圆点)", () => {
+    render(
+      <InstallLayout title="脚本安装" actions={<button>{"install"}</button>}>
+        <div>{"x"}</div>
+      </InstallLayout>
+    );
+    const logo = screen.getByAltText("ScriptCat");
+    expect(logo.tagName).toBe("IMG");
+    expect(logo.getAttribute("src")).toContain("assets/logo.png");
+  });
+
   it("在吸底操作栏渲染 actions", () => {
     render(
       <InstallLayout title="脚本更新" actions={<button>{"do-update"}</button>}>

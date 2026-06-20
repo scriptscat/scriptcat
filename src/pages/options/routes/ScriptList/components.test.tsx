@@ -18,7 +18,7 @@ vi.mock("@App/pages/store/features/script", () => ({
 vi.mock("./preload", () => ({ preloadUserConfig }));
 vi.mock("@App/pages/components/CloudScriptPlan", () => ({ preloadCloudScriptPlan }));
 
-import { getScriptHomePage, ScriptRowActions, UpdateTimeCell } from "./components";
+import { getScriptHomePage, getTagColor, ScriptRowActions, UpdateTimeCell } from "./components";
 
 beforeEach(() => {
   initTestLanguage("zh-CN");
@@ -41,6 +41,28 @@ describe("脚本主页链接解析 getScriptHomePage", () => {
   it("无任何主页字段时返回 undefined", () => {
     expect(getScriptHomePage({})).toBeUndefined();
     expect(getScriptHomePage(undefined)).toBeUndefined();
+  });
+});
+
+describe("标签配色 getTagColor", () => {
+  it("返回 --label-* 设计令牌类名，而非硬编码的调色板类（如 bg-green-50）", () => {
+    const color = getTagColor("anything");
+    expect(color.bg).toMatch(/^bg-label-(green|blue|purple|orange|rose|teal|amber|indigo)-bg$/);
+    expect(color.text).toMatch(/^text-label-(green|blue|purple|orange|rose|teal|amber|indigo)-fg$/);
+    // 不得再出现旧的字面调色板类或 dark: 变体
+    expect(color.bg).not.toContain("dark:");
+    expect(`${color.bg} ${color.text}`).not.toMatch(/-(50|700|300|900)/);
+  });
+
+  it("同名标签稳定映射到同一颜色（哈希确定性）", () => {
+    expect(getTagColor("工具")).toEqual(getTagColor("工具"));
+  });
+
+  it("bg 与 fg 的 hue 名一致，成对取色", () => {
+    const color = getTagColor("github");
+    const bgHue = color.bg.match(/^bg-label-(\w+)-bg$/)![1];
+    const fgHue = color.text.match(/^text-label-(\w+)-fg$/)![1];
+    expect(bgHue).toBe(fgHue);
   });
 });
 
@@ -216,5 +238,28 @@ describe("UpdateTimeCell 检查更新交互", () => {
     renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
     fireEvent.click(screen.getByRole("button", { name: t("check_update") }));
     expect(await screen.findByText(t("script:new_version_available"))).toBeInTheDocument();
+  });
+
+  it("检查到新版本时『存在新版本』直接取代更新时间", async () => {
+    requestCheckUpdate.mockResolvedValue(true);
+    const { container } = renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
+    // 初始（idle）应显示相对时间
+    expect(container.textContent?.trim()).not.toBe("");
+    fireEvent.click(screen.getByRole("button", { name: t("check_update") }));
+    await screen.findByText(t("script:new_version_available"));
+    // 时间被入口取代：整格可见文本只剩「存在新版本」
+    expect(container.textContent).toBe(t("script:new_version_available"));
+  });
+
+  it("『存在新版本』为内联文字样式：无胶囊背景且不会竖排换行", async () => {
+    requestCheckUpdate.mockResolvedValue(true);
+    renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
+    fireEvent.click(screen.getByRole("button", { name: t("check_update") }));
+    const button = (await screen.findByText(t("script:new_version_available"))).closest("button")!;
+    // 与「已是最新版本」一致的内联文字：不再用 rounded-full 胶囊背景
+    expect(button.className).not.toContain("bg-primary/10");
+    expect(button.className).not.toContain("rounded-full");
+    // whitespace-nowrap 保证中文不会被窄槽位挤成一字一行
+    expect(button).toHaveClass("whitespace-nowrap");
   });
 });

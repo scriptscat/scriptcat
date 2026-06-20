@@ -73,7 +73,7 @@ export default function FileSystemParams({
       <div className="flex flex-wrap items-center gap-2">
         {headerContent}
         <Select value={fileSystemType} onValueChange={(value) => onChangeFileSystemType(value as FileSystemType)}>
-          <SelectTrigger className="w-[150px]" aria-label="filesystem_type">
+          <SelectTrigger className="w-[150px]" data-testid="filesystem_type" aria-label={t("type")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -93,7 +93,7 @@ export default function FileSystemParams({
             destructive
             onConfirm={unbind}
           >
-            <Button variant="destructive" size="sm" aria-label="netdisk_unbind">
+            <Button variant="destructive" size="sm" data-testid="netdisk_unbind">
               {t("settings:netdisk_unbind", { provider: netDiskName })}
             </Button>
           </Popconfirm>

@@ -32,7 +32,7 @@ describe("开发者分区", () => {
 
   it("编辑器类型定义失焦时写入 editor_type_definition", async () => {
     render(<DeveloperSection register={() => () => {}} />);
-    const ta = await screen.findByLabelText("editor_type_definition_textarea");
+    const ta = await screen.findByTestId("editor_type_definition_textarea");
     // Wait for all async config loads to settle before interacting
     await waitFor(() => expect(get).toHaveBeenCalledWith("editor_type_definition"));
     fireEvent.change(ta, { target: { value: "declare const x: any;" } });

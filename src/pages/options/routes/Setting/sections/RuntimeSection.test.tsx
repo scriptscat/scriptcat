@@ -70,7 +70,7 @@ describe("运行时分区-存储配置", () => {
   it("保存存储配置时校验账号成功后写入 success 状态", async () => {
     mockStorage({ status: "unset", filesystem: "webdav", params: { webdav: { url: "https://dav" } } });
     render(<RuntimeSection register={() => () => {}} />);
-    const save = await screen.findByLabelText("cat_storage_save");
+    const save = await screen.findByTestId("cat_storage_save");
     fireEvent.click(save);
     await waitFor(() => expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" }));
     await waitFor(() =>
@@ -85,7 +85,7 @@ describe("运行时分区-存储配置", () => {
     create.mockRejectedValue(new Error("bad"));
     mockStorage({ status: "unset", params: { webdav: { url: "https://dav" } } });
     render(<RuntimeSection register={() => () => {}} />);
-    const save = await screen.findByLabelText("cat_storage_save");
+    const save = await screen.findByTestId("cat_storage_save");
     fireEvent.click(save);
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(set).not.toHaveBeenCalled();
@@ -94,7 +94,7 @@ describe("运行时分区-存储配置", () => {
   it("重置存储配置写入 unset 默认值", async () => {
     mockStorage({ status: "success", filesystem: "webdav", params: { webdav: { url: "https://dav" } } });
     render(<RuntimeSection register={() => () => {}} />);
-    const reset = await screen.findByLabelText("cat_storage_reset");
+    const reset = await screen.findByTestId("cat_storage_reset");
     fireEvent.click(reset);
     await waitFor(() =>
       expect(set).toHaveBeenCalledWith("cat_file_storage", { status: "unset", filesystem: "webdav", params: {} })
@@ -108,7 +108,7 @@ describe("运行时分区-存储配置", () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     mockStorage({ status: "success", filesystem: "webdav", params: { webdav: { url: "https://dav" } } });
     render(<RuntimeSection register={() => () => {}} />);
-    const open = await screen.findByLabelText("cat_storage_open");
+    const open = await screen.findByTestId("cat_storage_open");
     fireEvent.click(open);
     await waitFor(() => expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" }));
     await waitFor(() => expect(openDir).toHaveBeenCalledWith("ScriptCat/app"));

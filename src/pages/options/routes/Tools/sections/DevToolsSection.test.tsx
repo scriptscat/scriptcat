@@ -29,9 +29,9 @@ describe("开发工具分区", () => {
       return Promise.resolve("");
     });
     render(<DevToolsSection register={() => () => {}} />);
-    const input = (await screen.findByLabelText("vscode_url_input")) as HTMLInputElement;
+    const input = (await screen.findByTestId("vscode_url_input")) as HTMLInputElement;
     await waitFor(() => expect(input.value).toBe("ws://localhost:8642"));
-    fireEvent.click(screen.getByLabelText("vscode_connect"));
+    fireEvent.click(screen.getByTestId("vscode_connect"));
     expect(set).toHaveBeenCalledWith("vscode_url", "ws://localhost:8642");
     expect(set).toHaveBeenCalledWith("vscode_reconnect", true);
     await waitFor(() => expect(connectVSCode).toHaveBeenCalledWith({ url: "ws://localhost:8642", reconnect: true }));

@@ -75,7 +75,7 @@ export default function ToolCallBlock({ toolCall }: { toolCall: ToolCall }) {
           {/* 参数 */}
           <div className="rounded-lg overflow-hidden border border-border">
             <div className="px-3 py-1.5 bg-muted text-xs font-medium text-muted-foreground">
-              {t("agent:chat_tool_arguments", { defaultValue: "参数" })}
+              {t("agent:chat_tool_arguments")}
             </div>
             <pre className="m-0 px-3 py-2 whitespace-pre-wrap break-all text-xs font-mono text-foreground bg-muted/40 max-h-[300px] overflow-y-auto">
               {toolCall.arguments}
@@ -86,7 +86,7 @@ export default function ToolCallBlock({ toolCall }: { toolCall: ToolCall }) {
           {toolCall.result && (
             <div className="rounded-lg overflow-hidden border border-border mt-2">
               <div className="px-3 py-1.5 bg-muted text-xs font-medium text-muted-foreground">
-                {t("agent:chat_tool_result", { defaultValue: "结果" })}
+                {t("agent:chat_tool_result")}
               </div>
               <pre className="m-0 px-3 py-2 whitespace-pre-wrap break-all text-xs font-mono text-foreground bg-muted/40 max-h-[300px] overflow-y-auto">
                 {toolCall.result}

@@ -10,11 +10,11 @@ export interface InstallTopBarProps {
   titleTone?: "default" | "skill" | "watching";
 }
 
-/** 品牌标志:纯品牌色圆点 + ScriptCat 字样(对照设计稿,圆点内不放字母) */
+/** 品牌标志:ScriptCat logo 图标 + 字样 */
 function BrandMark() {
   return (
     <div className="flex items-center gap-2">
-      <div className="size-6 shrink-0 rounded-full bg-primary" />
+      <img src={chrome.runtime.getURL("assets/logo.png")} alt="ScriptCat" className="size-6 shrink-0" />
       <span className="text-base font-semibold text-foreground">{"ScriptCat"}</span>
     </div>
   );

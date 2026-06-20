@@ -55,15 +55,15 @@ export function SkillCard({
     >
       {/* 顶部：头像 + 名称/版本/可更新 + 启用开关 + kebab */}
       <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-primary-light">
-          <Sparkles className="size-5 text-primary" />
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-skill-bg">
+          <Sparkles className="size-5 text-skill-fg" />
         </div>
         <button
           type="button"
           onClick={onDetail}
           onPointerEnter={onPreloadDetail}
           onFocus={onPreloadDetail}
-          className="flex min-w-0 flex-1 flex-col gap-1 text-left"
+          className="flex min-w-0 flex-1 flex-col gap-1 rounded text-left focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
           data-testid={`skill-open-${skill.name}`}
         >
           <div className="flex flex-wrap items-center gap-2">
@@ -76,7 +76,7 @@ export function SkillCard({
             {updateAvailable && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-fg">
                 <ArrowUp className="size-3" />
-                {t("agent:skills_update_available", { version: updateAvailable, defaultValue: "可更新 {{version}}" })}
+                {t("agent:skills_update_available", { version: updateAvailable })}
               </span>
             )}
           </div>
@@ -104,12 +104,12 @@ export function SkillCard({
         )}
         {skill.referenceNames.length > 0 && (
           <CapabilityTag tone="green" icon={BookOpen}>
-            {t("agent:skills_references_short", { defaultValue: "参考" })} {skill.referenceNames.length}
+            {t("agent:skills_references_short")} {skill.referenceNames.length}
           </CapabilityTag>
         )}
         {skill.hasConfig && (
           <CapabilityTag tone="orange" icon={SlidersHorizontal}>
-            {t("agent:skills_configurable", { defaultValue: "可配置" })}
+            {t("agent:skills_configurable")}
           </CapabilityTag>
         )}
         {skill.installUrl && (

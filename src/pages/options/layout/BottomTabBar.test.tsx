@@ -32,4 +32,16 @@ describe("BottomTabBar 底部导航", () => {
     const logsLink = getByText(t("logs")).closest("a");
     expect(logsLink).toHaveAttribute("aria-current", "page");
   });
+
+  it("激活项含非颜色提示条(indicator),未激活项无", () => {
+    const { getByText } = render(
+      <MemoryRouter initialEntries={["/logs"]}>
+        <BottomTabBar />
+      </MemoryRouter>
+    );
+    const logsLink = getByText(t("logs")).closest("a")!;
+    const scriptsLink = getByText(t("script:nav_scripts")).closest("a")!;
+    expect(within(logsLink).getByTestId("tab-active-indicator")).toBeInTheDocument();
+    expect(within(scriptsLink).queryByTestId("tab-active-indicator")).toBeNull();
+  });
 });

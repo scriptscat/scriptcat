@@ -69,6 +69,14 @@ describe("授权确认页 · 渲染", () => {
     expect(screen.getByText("Bilibili 视频下载助手")).toBeInTheDocument();
     expect(screen.queryByText("脚本名称")).not.toBeInTheDocument();
   });
+
+  it("页头左上角应渲染真实 logo 图片(而非占位字母块)", async () => {
+    getPermissionInfo.mockResolvedValue(baseInfo());
+    render(<PermissionConfirm uuid="u1" />);
+    const logo = await screen.findByAltText("ScriptCat");
+    expect(logo.tagName).toBe("IMG");
+    expect(logo.getAttribute("src")).toContain("assets/logo.png");
+  });
 });
 
 describe("授权确认页 · 时长与范围映射", () => {

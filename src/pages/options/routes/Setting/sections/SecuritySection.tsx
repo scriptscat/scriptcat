@@ -36,7 +36,8 @@ export function SecuritySection({ register }: { register: (id: string) => (el: H
     >
       <div className="text-[13px] font-medium text-foreground">{t("settings:blacklist_pages")}</div>
       <Textarea
-        aria-label="blacklist_textarea"
+        data-testid="blacklist_textarea"
+        aria-label={t("settings:blacklist_pages")}
         placeholder={t("settings:blacklist_placeholder") ?? ""}
         className="min-h-[120px] font-mono text-xs"
         value={draft}

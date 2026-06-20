@@ -103,7 +103,7 @@ export function TaskFormDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>{t("agent:tasks_mode", { defaultValue: "模式" })}</Label>
+            <Label>{t("agent:tasks_mode")}</Label>
             <div className="flex w-full gap-1 rounded-[9px] bg-muted p-[3px]">
               {(["internal", "event"] as const).map((m) => {
                 const active = mode === m;
@@ -115,15 +115,13 @@ export function TaskFormDialog({
                     aria-pressed={active}
                     onClick={() => setMode(m)}
                     className={cn(
-                      "flex h-[30px] flex-1 items-center justify-center rounded-[7px] text-[13px] transition-colors",
+                      "flex h-[30px] flex-1 items-center justify-center rounded-[7px] text-[13px] transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
                       active
                         ? "bg-card font-semibold text-foreground shadow-sm"
                         : "font-normal text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {m === "internal"
-                      ? t("agent:tasks_mode_internal_short", { defaultValue: "内部" })
-                      : t("agent:tasks_mode_event_short", { defaultValue: "事件" })}
+                    {m === "internal" ? t("agent:tasks_mode_internal_short") : t("agent:tasks_mode_event_short")}
                   </button>
                 );
               })}
@@ -201,9 +199,7 @@ export function TaskFormDialog({
           <div className="flex items-center justify-between gap-3 pt-1">
             <div className="flex flex-col gap-0.5">
               <Label htmlFor="task-notify">{t("agent:tasks_notify")}</Label>
-              <span className="text-xs text-muted-foreground">
-                {t("agent:tasks_notify_desc", { defaultValue: "任务完成后发送浏览器通知" })}
-              </span>
+              <span className="text-xs text-muted-foreground">{t("agent:tasks_notify_desc")}</span>
             </div>
             <Switch id="task-notify" data-testid="task-notify" checked={notify} onCheckedChange={setNotify} />
           </div>

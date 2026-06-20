@@ -66,7 +66,7 @@ function mockFs(items: { name: string; updatetime: number }[]) {
 }
 
 async function openBackupList() {
-  const btn = await screen.findByLabelText("tools_backup_list");
+  const btn = await screen.findByTestId("tools_backup_list");
   fireEvent.click(btn);
 }
 
@@ -74,7 +74,7 @@ describe("云端备份分区", () => {
   it("点击备份写入配置并上传云端", async () => {
     mockBackup();
     render(<CloudBackupSection register={() => () => {}} />);
-    const btn = await screen.findByLabelText("tools_backup");
+    const btn = await screen.findByTestId("tools_backup");
     fireEvent.click(btn);
     expect(set).toHaveBeenCalledWith("backup", expect.objectContaining({ filesystem: "webdav" }));
     await waitFor(() => expect(backupToCloud).toHaveBeenCalledWith("webdav", { url: "https://dav" }));
@@ -93,7 +93,7 @@ describe("云端备份分区", () => {
     create.mockResolvedValue(fs1);
     mockBackup();
     render(<CloudBackupSection register={() => () => {}} />);
-    const btn = await screen.findByLabelText("tools_backup_list");
+    const btn = await screen.findByTestId("tools_backup_list");
     fireEvent.click(btn);
     await waitFor(() => expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" }));
     await waitFor(() => expect(fs1.openDir).toHaveBeenCalledWith("ScriptCat"));
@@ -108,7 +108,7 @@ describe("云端备份分区", () => {
     mockBackup();
     render(<CloudBackupSection register={() => () => {}} />);
     await openBackupList();
-    const restore = await screen.findByLabelText("tools_restore");
+    const restore = await screen.findByTestId("tools_restore");
     fireEvent.click(restore);
     await waitFor(() => expect(fsDir.open).toHaveBeenCalledWith({ name: "a.zip", updatetime: 2000 }));
     await waitFor(() => expect(fileReader.read).toHaveBeenCalledWith("blob"));
@@ -120,7 +120,7 @@ describe("云端备份分区", () => {
     mockBackup();
     render(<CloudBackupSection register={() => () => {}} />);
     await openBackupList();
-    fireEvent.click(await screen.findByLabelText("tools_delete"));
+    fireEvent.click(await screen.findByTestId("tools_delete"));
     await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThan(2));
     const buttons = screen.getAllByRole("button");
     fireEvent.click(buttons[buttons.length - 1]); // 气泡确认

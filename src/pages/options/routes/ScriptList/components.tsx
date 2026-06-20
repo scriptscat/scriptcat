@@ -42,15 +42,16 @@ function hashToHsl(str: string): string {
 }
 
 // ========== Tag 配色 ==========
+// 分类标签 chip 取 --label-* 令牌族（src/index.css），明暗主题自动切换；详见 DESIGN.md §3.6。
 const TAG_COLORS: Array<{ bg: string; text: string }> = [
-  { bg: "bg-green-50 dark:bg-green-900/40", text: "text-green-700 dark:text-green-300" },
-  { bg: "bg-blue-50 dark:bg-blue-900/40", text: "text-blue-700 dark:text-blue-300" },
-  { bg: "bg-purple-50 dark:bg-purple-900/40", text: "text-purple-700 dark:text-purple-300" },
-  { bg: "bg-orange-50 dark:bg-orange-900/40", text: "text-orange-700 dark:text-orange-300" },
-  { bg: "bg-rose-50 dark:bg-rose-900/40", text: "text-rose-700 dark:text-rose-300" },
-  { bg: "bg-teal-50 dark:bg-teal-900/40", text: "text-teal-700 dark:text-teal-300" },
-  { bg: "bg-amber-50 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300" },
-  { bg: "bg-indigo-50 dark:bg-indigo-900/40", text: "text-indigo-700 dark:text-indigo-300" },
+  { bg: "bg-label-green-bg", text: "text-label-green-fg" },
+  { bg: "bg-label-blue-bg", text: "text-label-blue-fg" },
+  { bg: "bg-label-purple-bg", text: "text-label-purple-fg" },
+  { bg: "bg-label-orange-bg", text: "text-label-orange-fg" },
+  { bg: "bg-label-rose-bg", text: "text-label-rose-fg" },
+  { bg: "bg-label-teal-bg", text: "text-label-teal-fg" },
+  { bg: "bg-label-amber-bg", text: "text-label-amber-fg" },
+  { bg: "bg-label-indigo-bg", text: "text-label-indigo-fg" },
 ];
 
 export function getTagColor(tag: string) {
@@ -192,7 +193,7 @@ export function RunStatusBadge({ runStatus }: { runStatus?: string }) {
     return (
       <div className="flex items-center gap-1.5">
         <div className="w-1.5 h-1.5 rounded-full bg-destructive" />
-        <span className="text-xs text-destructive">{t("error", { defaultValue: "错误" })}</span>
+        <span className="text-xs text-destructive">{t("error")}</span>
       </div>
     );
   }
@@ -200,7 +201,7 @@ export function RunStatusBadge({ runStatus }: { runStatus?: string }) {
   return (
     <div className="flex items-center gap-1.5">
       <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
-      <span className="text-xs text-muted-foreground">{t("stopped", { defaultValue: "已停止" })}</span>
+      <span className="text-xs text-muted-foreground">{t("stopped")}</span>
     </div>
   );
 }
@@ -241,43 +242,41 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
           <Check className="w-3 h-3" />
           {t("script:latest_version")}
         </span>
+      ) : checkType === 1 ? (
+        /* 检查到新版本：直接取代时间展示「存在新版本」入口，点击可再次触发更新 */
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("check_update")}
+              onClick={handleCheck}
+              className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-primary hover:underline"
+            >
+              <CircleArrowUp className="w-3 h-3" />
+              {t("script:new_version_available")}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{t("check_update")}</TooltipContent>
+        </Tooltip>
       ) : (
         <span className="text-xs text-muted-foreground">{time}</span>
       )}
-      {/* 检查到新版本：在时间旁展示「存在新版本」入口，点击可再次触发更新 */}
-      <span className={"inline-flex w-4"}>
-        {/*fixed-width*/}
-        {checkType === 1 ? (
+      {/* 固定宽度槽位：仅放无更新时的小刷新图标，其余状态留空占位以保持列对齐 */}
+      <span className="inline-flex w-4">
+        {checkType === 2 && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 aria-label={t("check_update")}
                 onClick={handleCheck}
-                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/15"
+                className="text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100"
               >
-                <CircleArrowUp className="w-3.5 h-3.5" />
-                {t("script:new_version_available")}
+                <RefreshCw className={cn("w-3.5 h-3.5", state === "checking" && "animate-spin")} />
               </button>
             </TooltipTrigger>
             <TooltipContent>{t("check_update")}</TooltipContent>
           </Tooltip>
-        ) : (
-          checkType === 2 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={t("check_update")}
-                  onClick={handleCheck}
-                  className="text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100"
-                >
-                  <RefreshCw className={cn("w-3.5 h-3.5", state === "checking" && "animate-spin")} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{t("check_update")}</TooltipContent>
-            </Tooltip>
-          )
         )}
       </span>
     </div>

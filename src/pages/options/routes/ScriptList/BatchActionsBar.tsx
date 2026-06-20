@@ -44,9 +44,7 @@ export default function BatchActionsBar({
       }}
     >
       {/* 选中计数 */}
-      <span className="text-[13px] font-medium text-primary">
-        {t("batch_selected", { count: selectedCount, defaultValue: `已选择 ${selectedCount} 项` })}
-      </span>
+      <span className="text-[13px] font-medium text-primary">{t("batch_selected", { count: selectedCount })}</span>
 
       <div className="flex-1" />
 
@@ -80,6 +78,7 @@ export default function BatchActionsBar({
       <button
         type="button"
         onClick={onClose}
+        aria-label={t("close")}
         className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-accent/50 transition-colors"
       >
         <X className="w-3.5 h-3.5" />

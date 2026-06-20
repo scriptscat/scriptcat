@@ -97,8 +97,8 @@ export default function AgentSettings() {
   const [searchConfig, setSearchConfig] = useState<SearchEngineConfig>({ engine: "bing" });
 
   const categories = [
-    { id: "model", icon: Cpu, label: t("agent:settings_cat_model", { defaultValue: "模型" }) },
-    { id: "search", icon: Search, label: t("agent:settings_cat_search", { defaultValue: "搜索" }) },
+    { id: "model", icon: Cpu, label: t("agent:settings_cat_model") },
+    { id: "search", icon: Search, label: t("agent:settings_cat_search") },
   ];
   const { activeId, register, scrollContainerRef, scrollTo } = useScrollSpy(categories.map((c) => c.id));
 
@@ -139,7 +139,7 @@ export default function AgentSettings() {
             data-active={active}
             onClick={() => scrollTo(c.id)}
             className={cn(
-              "flex items-center transition-colors",
+              "flex items-center transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
               isMobile
                 ? "h-8 shrink-0 gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-3.5 text-[13px]"
                 : "h-[38px] gap-2.5 rounded-lg px-3 text-left text-[13px]",
@@ -174,7 +174,7 @@ export default function AgentSettings() {
         <AgentPageHeader
           icon={SlidersHorizontal}
           title={t("agent:settings_title")}
-          subtitle={t("agent:settings_subtitle", { defaultValue: "模型、搜索与通用偏好 · 修改即时生效" })}
+          subtitle={t("agent:settings_subtitle")}
           actions={
             <Button
               data-testid="settings-docs-desktop"
@@ -225,12 +225,7 @@ export default function AgentSettings() {
         {/* 右侧滚动卡片区 */}
         <div ref={scrollContainerRef} className="scrollbar-custom min-w-0 flex-1 overflow-y-auto">
           <div className="flex max-w-[760px] flex-col gap-[18px] px-4 pt-4 pb-10 md:px-8 md:pt-6">
-            <SettingsCard
-              id="model"
-              icon={Cpu}
-              title={t("agent:settings_cat_model", { defaultValue: "模型" })}
-              register={register}
-            >
+            <SettingsCard id="model" icon={Cpu} title={t("agent:settings_cat_model")} register={register}>
               <SettingsField
                 label={t("agent:summary_model")}
                 description={t("agent:summary_model_desc")}
@@ -252,15 +247,10 @@ export default function AgentSettings() {
               </SettingsField>
             </SettingsCard>
 
-            <SettingsCard
-              id="search"
-              icon={Search}
-              title={t("agent:settings_cat_search", { defaultValue: "搜索" })}
-              register={register}
-            >
+            <SettingsCard id="search" icon={Search} title={t("agent:settings_cat_search")} register={register}>
               <SettingsField
                 label={t("agent:search_engine")}
-                description={t("agent:search_engine_desc", { defaultValue: "web_search 工具使用的检索来源。" })}
+                description={t("agent:search_engine_desc")}
                 isMobile={isMobile}
               >
                 <Select value={searchConfig.engine} onValueChange={(v) => updateSearch({ engine: v as Engine })}>
@@ -287,9 +277,7 @@ export default function AgentSettings() {
                 <>
                   <SettingsField
                     label={t("agent:search_google_api_key")}
-                    description={t("agent:search_google_api_key_desc", {
-                      defaultValue: "用于调用 Custom Search JSON API。",
-                    })}
+                    description={t("agent:search_google_api_key_desc")}
                     isMobile={isMobile}
                   >
                     <Input
@@ -302,9 +290,7 @@ export default function AgentSettings() {
                   </SettingsField>
                   <SettingsField
                     label={t("agent:search_google_cse_id")}
-                    description={t("agent:search_google_cse_id_desc", {
-                      defaultValue: "Programmable Search Engine 的 cx 参数。",
-                    })}
+                    description={t("agent:search_google_cse_id_desc")}
                     isMobile={isMobile}
                   >
                     <Input

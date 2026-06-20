@@ -43,8 +43,8 @@ export function SkillDetailDialog({
           <div className="scrollbar-custom flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-[22px] py-[18px]">
             {/* 身份 */}
             <div className="flex items-start gap-3">
-              <div className="flex size-[42px] shrink-0 items-center justify-center rounded-[11px] bg-primary-light">
-                <Sparkles className="size-5 text-primary" />
+              <div className="flex size-[42px] shrink-0 items-center justify-center rounded-[11px] bg-skill-bg">
+                <Sparkles className="size-5 text-skill-fg" />
               </div>
               <div className="flex min-w-0 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -80,7 +80,7 @@ export function SkillDetailDialog({
                       type="button"
                       onClick={() => setViewingTool(s)}
                       data-testid={`skill-tool-${s.name}`}
-                      className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 font-mono text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                      className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 font-mono text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       <Blocks className="size-3" />
                       {s.name}
@@ -113,7 +113,7 @@ export function SkillDetailDialog({
           <DialogFooter className="border-t border-border px-[22px] py-3.5">
             {record.config && Object.keys(record.config).length > 0 && (
               <Button variant="outline" data-testid="skill-open-config" onClick={onOpenConfig}>
-                {t("agent:skills_open_config", { defaultValue: "打开配置" })}
+                {t("agent:skills_open_config")}
               </Button>
             )}
             <Button onClick={() => onOpenChange(false)}>{t("common:close")}</Button>

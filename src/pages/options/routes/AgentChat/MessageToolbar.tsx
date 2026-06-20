@@ -105,7 +105,7 @@ export default function MessageToolbar({
   }
 
   const actionBtn =
-    "size-6 flex items-center justify-center rounded bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
+    "size-6 max-md:size-11 flex items-center justify-center rounded bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
   return (
     <div className="flex items-center justify-between w-full mt-2 select-none text-xs text-muted-foreground group/toolbar">
@@ -117,6 +117,7 @@ export default function MessageToolbar({
               data-testid="toolbar-copy"
               className={actionBtn}
               title={t("agent:chat_copy_message")}
+              aria-label={t("agent:chat_copy_message")}
               onClick={onCopy}
             >
               <Copy className="size-3.5" />
@@ -126,6 +127,7 @@ export default function MessageToolbar({
               data-testid="toolbar-regenerate"
               className={actionBtn}
               title={t("agent:chat_regenerate")}
+              aria-label={t("agent:chat_regenerate")}
               onClick={onRegenerate}
             >
               <RefreshCw className="size-3.5" />
@@ -139,8 +141,9 @@ export default function MessageToolbar({
               <button
                 type="button"
                 data-testid="toolbar-delete"
-                className="size-6 flex items-center justify-center rounded bg-transparent border-none cursor-pointer text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
+                className="size-6 max-md:size-11 flex items-center justify-center rounded bg-transparent border-none cursor-pointer text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
                 title={t("agent:chat_delete_round")}
+                aria-label={t("agent:chat_delete_round")}
               >
                 <Trash2 className="size-3.5" />
               </button>

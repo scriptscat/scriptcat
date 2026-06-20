@@ -221,11 +221,11 @@ export default function AgentSkills() {
 
   // 计数摘要:已安装数 + (可选)可更新数(琥珀色)
   const countSegments: CountBarSegment[] = [
-    { label: t("agent:skills_count", { count: skills.length, defaultValue: "已安装 {{count}} 个 Skill" }) },
+    { label: t("agent:skills_count", { count: skills.length }) },
     ...(updateCount > 0
       ? [
           {
-            label: t("agent:skills_update_count", { count: updateCount, defaultValue: "{{count}} 个有可用更新" }),
+            label: t("agent:skills_update_count", { count: updateCount }),
             tone: "warning" as const,
           },
         ]
@@ -241,7 +241,7 @@ export default function AgentSkills() {
           title={t("agent:skills_title")}
           subtitle={t("agent:skills_subtitle")}
           docHref={DOC_URL}
-          docLabel={t("agent:skills_docs", { defaultValue: "文档" })}
+          docLabel={t("agent:skills_docs")}
           actions={
             <>
               <Button

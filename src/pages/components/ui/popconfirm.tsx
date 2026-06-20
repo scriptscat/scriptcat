@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Popover, PopoverTrigger, PopoverContent } from "./popover";
 import { Button } from "./button";
+import { t } from "@App/locales/locales";
 
 interface PopconfirmProps {
   /** 确认提示文案 */
@@ -9,9 +10,9 @@ interface PopconfirmProps {
   onConfirm: () => void;
   /** 使用危险按钮样式 */
   destructive?: boolean;
-  /** 确认按钮文字，默认"确定" */
+  /** 确认按钮文字，默认 t("confirm") */
   confirmText?: string;
-  /** 取消按钮文字，默认"取消" */
+  /** 取消按钮文字，默认 t("cancel") */
   cancelText?: string;
   /** 弹出方向 */
   side?: "top" | "bottom" | "left" | "right";
@@ -29,8 +30,8 @@ export function Popconfirm({
   description,
   onConfirm,
   destructive,
-  confirmText = "确定",
-  cancelText = "取消",
+  confirmText = t("confirm"),
+  cancelText = t("cancel"),
   side = "top",
   align = "start",
   children,

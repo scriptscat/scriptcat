@@ -15,6 +15,7 @@ import {
   ChevronDown,
   RefreshCw,
   Upload,
+  Loader2,
   Eye,
   Download,
   Trash2,
@@ -67,6 +68,7 @@ export default function AgentOPFS() {
   const [path, setPath] = useState<string[]>([]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -149,6 +151,8 @@ export default function AgentOPFS() {
     const files = Array.from(e.target.files ?? []);
     e.target.value = ""; // 允许重复选择同名文件
     if (!root || files.length === 0) return;
+    // §9 无静默操作:写入期间禁用上传并展示忙碌指示(单动作内联 spinner + 多文件顶部进度条)
+    setUploading(true);
     try {
       for (const file of files) {
         await writeFile(root, path, file.name, file);
@@ -157,6 +161,8 @@ export default function AgentOPFS() {
       await load();
     } catch {
       toast.error(t("agent:opfs_upload_failed"));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -185,6 +191,18 @@ export default function AgentOPFS() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* §9 上传进行中:顶部不确定进度条(多文件时的整体进度信号,贴页顶不随内容滚动) */}
+      {uploading && (
+        <div
+          role="progressbar"
+          data-testid="opfs-upload-progress"
+          aria-label={t("agent:opfs_uploading")}
+          className="h-0.5 w-full shrink-0 overflow-hidden bg-primary/15"
+        >
+          <div className="h-full w-1/3 animate-indeterminate-bar bg-primary" />
+        </div>
+      )}
+
       {/* 隐藏的上传文件选择器:桌面页头与移动工具行共用 */}
       <input
         ref={fileInputRef}
@@ -207,9 +225,9 @@ export default function AgentOPFS() {
                 <RefreshCw className="size-4" />
                 {t("agent:opfs_refresh")}
               </Button>
-              <Button data-testid="opfs-upload" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="size-4" />
-                {t("agent:opfs_upload")}
+              <Button data-testid="opfs-upload" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                {uploading ? t("agent:opfs_uploading") : t("agent:opfs_upload")}
               </Button>
             </>
           }
@@ -235,10 +253,11 @@ export default function AgentOPFS() {
             <Button
               size="icon"
               data-testid="opfs-upload"
-              aria-label={t("agent:opfs_upload")}
+              disabled={uploading}
+              aria-label={uploading ? t("agent:opfs_uploading") : t("agent:opfs_upload")}
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload className="size-4" />
+              {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
             </Button>
           </div>
         )}
@@ -254,7 +273,7 @@ export default function AgentOPFS() {
                 data-testid={`crumb-${i}`}
                 onClick={() => setPath(path.slice(0, i))}
                 className={cn(
-                  "rounded px-1 py-0.5 hover:bg-accent",
+                  "rounded px-1 py-0.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
                   i === crumbs.length - 1 ? "font-semibold text-foreground" : "font-medium text-muted-foreground"
                 )}
               >
@@ -293,7 +312,7 @@ export default function AgentOPFS() {
                     type="button"
                     data-testid={`entry-${entry.name}`}
                     onClick={() => openEntry(entry)}
-                    className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
+                    className="flex min-w-0 flex-1 flex-col gap-0.5 rounded text-left focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                   >
                     <span
                       className={cn(
@@ -347,7 +366,7 @@ export default function AgentOPFS() {
                       data-testid={`entry-${entry.name}`}
                       onClick={() => openEntry(entry)}
                       className={cn(
-                        "truncate text-left text-[13px] text-foreground hover:underline",
+                        "truncate rounded text-left text-[13px] text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
                         entry.kind === "directory" ? "font-medium" : "font-mono"
                       )}
                     >
@@ -409,7 +428,7 @@ function SortHeader({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1 px-3.5 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground",
+        "flex items-center gap-1 px-3.5 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
         className
       )}
     >
@@ -471,8 +490,9 @@ function RowActions({
         <button
           type="button"
           title={t("agent:opfs_preview")}
+          aria-label={t("agent:opfs_preview")}
           onClick={() => onPreview(entry)}
-          className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <Eye className="size-[15px]" />
         </button>
@@ -481,8 +501,9 @@ function RowActions({
         <button
           type="button"
           title={t("common:download")}
+          aria-label={t("common:download")}
           onClick={() => onDownload(entry)}
-          className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <Download className="size-[15px]" />
         </button>
@@ -497,7 +518,8 @@ function RowActions({
           type="button"
           data-testid={`delete-${entry.name}`}
           title={t("common:delete")}
-          className="flex size-[30px] items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+          aria-label={t("common:delete")}
+          className="flex size-[30px] items-center justify-center rounded-md text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <Trash2 className="size-[15px]" />
         </button>

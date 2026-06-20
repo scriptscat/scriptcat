@@ -22,7 +22,7 @@ function MarkdownImage(props: ImgHTMLAttributes<HTMLImageElement>) {
       </span>
       {preview && (
         <span
-          className="fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center cursor-pointer"
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center cursor-pointer"
           onClick={() => setPreview(false)}
         >
           <img
@@ -76,6 +76,7 @@ function CodeBlock({ children, className }: { children: ReactNode; className?: s
           type="button"
           onClick={handleCopy}
           title={copied ? t("agent:chat_copy_success") : t("agent:chat_copy")}
+          aria-label={copied ? t("agent:chat_copy_success") : t("agent:chat_copy")}
           className="flex items-center gap-1 px-2 py-0.5 rounded bg-transparent text-muted-foreground cursor-pointer hover:text-foreground hover:bg-accent transition-colors text-xs"
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}

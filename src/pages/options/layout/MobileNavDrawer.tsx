@@ -43,7 +43,7 @@ export default function MobileNavDrawer({ onNavigate }: { onNavigate?: () => voi
             onClick={() => setAgentOpen((prev) => !prev)}
             aria-expanded={agentOpen}
             className={cn(
-              "flex items-center gap-2.5 h-10 w-full rounded-md text-[14px] px-3 transition-colors",
+              "flex items-center gap-2.5 h-11 w-full rounded-md text-[14px] px-3 transition-colors",
               isAgentActive
                 ? "text-sidebar-primary font-medium"
                 : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -76,7 +76,7 @@ export default function MobileNavDrawer({ onNavigate }: { onNavigate?: () => voi
       {/* 底部:主题切换 + 帮助 */}
       <div className="flex flex-col gap-0.5 px-2 pb-3 pt-2 shrink-0">
         <div className="h-px bg-sidebar-border mx-2 mb-1" />
-        <DrawerButton icon={themeIcon} label={t("theme", { defaultValue: t("change_theme") })} onClick={cycleTheme} />
+        <DrawerButton icon={themeIcon} label={t("change_theme")} onClick={cycleTheme} />
         <DrawerButton
           icon={LifeBuoy}
           label={t("helpcenter")}
@@ -96,7 +96,7 @@ function DrawerItem({ item, onNavigate }: { item: NavItem; onNavigate?: () => vo
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-2.5 h-10 rounded-md text-[14px] px-3 transition-colors",
+          "flex items-center gap-2.5 h-11 rounded-md text-[14px] px-3 transition-colors",
           isActive
             ? "bg-sidebar-accent text-sidebar-primary font-medium"
             : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -117,7 +117,7 @@ function DrawerSubItem({ item, onNavigate }: { item: NavItem; onNavigate?: () =>
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-2.5 h-9 rounded-md text-[13px] pl-9 pr-3 transition-colors",
+          "flex items-center gap-2.5 h-11 rounded-md text-[13px] pl-9 pr-3 transition-colors",
           isActive
             ? "bg-sidebar-accent text-sidebar-primary font-medium"
             : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -144,7 +144,7 @@ function DrawerButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2.5 h-10 rounded-md text-[14px] px-3 text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      className="flex items-center gap-2.5 h-11 rounded-md text-[14px] px-3 text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
     >
       <Icon className="w-[18px] h-[18px] shrink-0" />
       <span className="truncate">{label}</span>

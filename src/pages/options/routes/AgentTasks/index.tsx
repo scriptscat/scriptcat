@@ -115,8 +115,8 @@ export default function AgentTasks() {
     .filter((r) => r.valid && r.at != null)
     .sort((a, b) => (a.at as number) - (b.at as number))[0];
   const countSegments: CountBarSegment[] = [
-    { label: t("agent:tasks_count_total", { count: tasks.length, defaultValue: `${tasks.length} 个任务` }) },
-    { label: t("agent:tasks_count_enabled", { count: enabledCount, defaultValue: `${enabledCount} 个已启用` }) },
+    { label: t("agent:tasks_count_total", { count: tasks.length }) },
+    { label: t("agent:tasks_count_enabled", { count: enabledCount }) },
   ];
   if (!isMobile && soonest) {
     countSegments.push({ label: `${t("agent:tasks_next_run")} ${soonest.text}` });
@@ -141,7 +141,7 @@ export default function AgentTasks() {
           title={t("agent:tasks_title")}
           subtitle={t("agent:tasks_subtitle")}
           docHref={agentDocUrl("tasks")}
-          docLabel={t("agent:tasks_docs", { defaultValue: "文档" })}
+          docLabel={t("agent:tasks_docs")}
           actions={
             <Button data-testid="task-add" onClick={handleAdd}>
               <Plus className="size-4" />

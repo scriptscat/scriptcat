@@ -165,6 +165,7 @@ export default function AskUserBlock({
             <button
               type="button"
               data-testid="ask-send"
+              aria-label={t("agent:chat_send")}
               onClick={handleSubmit}
               disabled={!answer.trim()}
               className={cn(

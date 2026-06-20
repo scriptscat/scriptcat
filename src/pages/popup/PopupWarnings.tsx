@@ -113,7 +113,7 @@ export default function PopupWarnings() {
                 <button
                   type="button"
                   onClick={handleReload}
-                  className="text-[12px] font-medium text-primary text-left hover:underline underline-offset-2"
+                  className="text-[12px] font-medium text-primary text-left hover:underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm"
                 >
                   {t("popup:click_to_reload")}
                 </button>
@@ -124,7 +124,7 @@ export default function PopupWarnings() {
             <button
               type="button"
               onClick={handleRequestPermission}
-              className="inline-flex items-center gap-1.5 self-start h-7 px-2.5 rounded-md border border-border bg-card text-[12px] font-medium text-foreground hover:bg-accent transition-colors"
+              className="inline-flex items-center gap-1.5 self-start h-7 px-2.5 rounded-md border border-border bg-card text-[12px] font-medium text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               {t("popup:request_permission")}
@@ -142,9 +142,10 @@ export default function PopupWarnings() {
           <img src={edgeMobileQrCode} alt="QR" className="w-14 h-14 rounded-md bg-white shrink-0" />
           <button
             type="button"
-            aria-label="close"
+            data-testid="close"
+            aria-label={t("close")}
             onClick={handleCloseEdgeQr}
-            className="text-muted-foreground hover:text-foreground shrink-0"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm shrink-0"
           >
             <X className="w-3.5 h-3.5" />
           </button>

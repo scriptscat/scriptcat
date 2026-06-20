@@ -121,13 +121,13 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
               setStorage((s) => (s ? { ...s, params: { ...s.params, [s.filesystem]: params } } : s))
             }
           >
-            <Button aria-label="cat_storage_save" size="sm" onClick={saveStorage}>
+            <Button data-testid="cat_storage_save" size="sm" onClick={saveStorage}>
               {t("save")}
             </Button>
-            <Button aria-label="cat_storage_reset" size="sm" variant="destructive" onClick={resetStorage}>
+            <Button data-testid="cat_storage_reset" size="sm" variant="destructive" onClick={resetStorage}>
               {t("reset")}
             </Button>
-            <Button aria-label="cat_storage_open" size="sm" variant="secondary" onClick={openDirectory}>
+            <Button data-testid="cat_storage_open" size="sm" variant="secondary" onClick={openDirectory}>
               {t("editor:open_directory")}
             </Button>
           </FileSystemParams>

@@ -136,7 +136,7 @@ export function LogRow({
         data-testid={`log-row-${log.id}`}
         onClick={onToggle}
         className={cn(
-          "w-full text-left transition-colors hover:bg-accent/50",
+          "w-full text-left transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
           mobile ? "flex flex-col gap-1.5 px-4 py-2.5" : "flex items-center gap-3 px-4 py-2"
         )}
       >
@@ -211,7 +211,7 @@ export function AllChip({ active, onClick }: { active: boolean; onClick: () => v
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        "inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
         active
           ? "border-transparent bg-primary-light text-primary"
           : "border-border text-muted-foreground hover:bg-accent"
@@ -241,7 +241,7 @@ export function LevelChip({
       data-testid={`level-chip-${bucket}`}
       onClick={onToggle}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
         active ? cn("border-transparent", m.badge, m.text) : "border-border text-muted-foreground hover:bg-accent"
       )}
     >
@@ -276,7 +276,10 @@ export function RefreshControl({
         data-testid="refresh-button"
         aria-label={t("logs:refresh")}
         onClick={onRefresh}
-        className={cn("flex h-full items-center px-2.5", active ? "text-primary" : "text-fg-secondary")}
+        className={cn(
+          "flex h-full items-center px-2.5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+          active ? "text-primary" : "text-fg-secondary"
+        )}
       >
         <RefreshCw className="w-3.5 h-3.5" />
       </button>
@@ -287,7 +290,7 @@ export function RefreshControl({
             type="button"
             data-testid="interval-trigger"
             className={cn(
-              "flex h-full items-center gap-1.5 px-2.5 text-[13px]",
+              "flex h-full items-center gap-1.5 px-2.5 text-[13px] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
               active ? "font-medium text-primary" : "text-fg-secondary"
             )}
           >
@@ -306,7 +309,7 @@ export function RefreshControl({
                 setOpen(false);
               }}
               className={cn(
-                "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[13px] transition-colors",
+                "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[13px] transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                 i === interval ? "bg-primary-light font-medium text-primary" : "text-foreground hover:bg-accent"
               )}
             >
@@ -334,7 +337,7 @@ function TimeInput({ value, max, onChange }: { value: number; max: number; onCha
       inputMode="numeric"
       value={`${value}`.padStart(2, "0")}
       onChange={(e) => onChange(clampInt(e.target.value, 0, max))}
-      className="h-7 w-9 rounded-md border border-input bg-input/40 text-center font-mono text-[13px] tabular-nums text-foreground focus:outline-none"
+      className="h-7 w-9 rounded-md border border-input bg-input/40 text-center font-mono text-[13px] tabular-nums text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     />
   );
 }
@@ -368,7 +371,7 @@ export function Calendar({ value, onChange }: { value: Date; onChange: (d: Date)
           type="button"
           aria-label={t("logs:prev_month")}
           onClick={() => shiftMonth(-1)}
-          className="flex size-7 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-accent"
+          className="flex size-7 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -379,7 +382,7 @@ export function Calendar({ value, onChange }: { value: Date; onChange: (d: Date)
           type="button"
           aria-label={t("logs:next_month")}
           onClick={() => shiftMonth(1)}
-          className="flex size-7 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-accent"
+          className="flex size-7 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -403,7 +406,7 @@ export function Calendar({ value, onChange }: { value: Date; onChange: (d: Date)
               data-testid={cell.inMonth ? `calendar-day-${cell.day}` : undefined}
               onClick={() => pickDay(cell)}
               className={cn(
-                "flex h-8 items-center justify-center rounded-md text-[13px] transition-colors",
+                "flex h-8 items-center justify-center rounded-md text-[13px] transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                 selected
                   ? "bg-primary font-semibold text-primary-foreground"
                   : cell.inMonth
@@ -451,7 +454,7 @@ function DateTimeField({ value, onChange, testid }: { value: Date; onChange: (d:
         <button
           type="button"
           data-testid={testid}
-          className="flex w-full items-center gap-2 rounded-md border border-input bg-input/50 px-2.5 py-2 text-left transition-colors hover:border-ring"
+          className="flex w-full items-center gap-2 rounded-md border border-input bg-input/50 px-2.5 py-2 text-left transition-colors hover:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <CalendarIcon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
           <span className="font-mono text-[13px] text-foreground">{dayFormat(value, "YYYY-MM-DD HH:mm")}</span>
@@ -506,7 +509,7 @@ export function TimeRangePicker({
         <button
           type="button"
           data-testid="time-range-trigger"
-          className="inline-flex h-8 items-center gap-2 rounded-md border border-input bg-secondary/50 px-2.5 text-[13px] text-foreground transition-colors hover:bg-accent"
+          className="inline-flex h-8 items-center gap-2 rounded-md border border-input bg-secondary/50 px-2.5 text-[13px] text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <CalendarClock className="w-3.5 h-3.5 text-muted-foreground" />
           {label}
@@ -533,7 +536,7 @@ export function TimeRangePicker({
                           setOpen(false);
                         }}
                         className={cn(
-                          "flex items-center justify-between rounded-sm px-2 py-1.5 text-[13px] transition-colors",
+                          "flex items-center justify-between rounded-sm px-2 py-1.5 text-[13px] transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                           activeP ? "bg-primary-light font-medium text-primary" : "text-fg-secondary hover:bg-accent"
                         )}
                       >
@@ -558,7 +561,7 @@ export function TimeRangePicker({
                 <button
                   type="button"
                   onClick={() => setTo(new Date())}
-                  className="rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary-light/80"
+                  className="rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary-light/80 focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   {t("logs:now")}
                 </button>
@@ -641,7 +644,8 @@ function LabelQueryChip({
       <button
         type="button"
         onClick={onRemove}
-        className="p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+        aria-label={t("common:delete")}
+        className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <X className="w-3 h-3" />
       </button>
@@ -678,7 +682,7 @@ export function LabelFilterBar({
       <button
         type="button"
         onClick={onAdd}
-        className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-1 text-xs text-fg-secondary transition-colors hover:bg-accent"
+        className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-1 text-xs text-fg-secondary transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <Plus className="w-3 h-3" />
         {t("logs:add_label")}

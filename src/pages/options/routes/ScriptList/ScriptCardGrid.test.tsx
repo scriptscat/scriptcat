@@ -26,7 +26,7 @@ describe("ScriptCardGrid 卡片网格", () => {
         <ScriptCardGrid {...baseProps} />
       </MemoryRouter>
     );
-    expect(getByText(t("no_scripts", { defaultValue: "暂无脚本" }))).toBeInTheDocument();
+    expect(getByText(t("no_scripts"))).toBeInTheDocument();
   });
 
   it("loading 时显示加载态", () => {
@@ -35,6 +35,6 @@ describe("ScriptCardGrid 卡片网格", () => {
         <ScriptCardGrid {...baseProps} loadingList />
       </MemoryRouter>
     );
-    expect(getByText(t("loading", { defaultValue: "加载中..." }))).toBeInTheDocument();
+    expect(getByText(t("loading"))).toBeInTheDocument();
   });
 });

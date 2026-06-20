@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Download, Eye } from "lucide-react";
 import type { Attachment, AudioBlock } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
+import { t } from "@App/locales/locales";
 
 // 图片附件组件：从 OPFS 懒加载并展示
 export function AttachmentImage({ attachment }: { attachment: Attachment }) {
@@ -26,7 +27,7 @@ export function AttachmentImage({ attachment }: { attachment: Attachment }) {
   if (!blobUrl) {
     return (
       <div className="w-40 h-24 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
-        {"Loading..."}
+        {t("loading")}
       </div>
     );
   }
@@ -45,7 +46,7 @@ export function AttachmentImage({ attachment }: { attachment: Attachment }) {
       </div>
       {preview && (
         <div
-          className="fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center cursor-pointer"
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center cursor-pointer"
           onClick={() => setPreview(false)}
         >
           <img
@@ -121,7 +122,7 @@ export function AttachmentAudio({ block }: { block: AudioBlock }) {
   if (!blobUrl) {
     return (
       <div className="h-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground px-4">
-        {"Loading audio..."}
+        {t("agent:chat_loading_audio")}
       </div>
     );
   }

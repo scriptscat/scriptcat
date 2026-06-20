@@ -25,15 +25,19 @@ function scopeLabelOf(type: SearchFilterRequest["type"]): string {
 function ViewToggleButton({
   active,
   onClick,
+  label,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  label: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
+      aria-label={label}
+      aria-pressed={active}
       className={cn(
         "flex items-center justify-center px-2.5 h-full transition-colors",
         active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/50"
@@ -115,10 +119,10 @@ export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setS
 
       {/* 视图切换 */}
       <div data-testid="view-toggle" className="flex items-center border border-border rounded-lg h-8 overflow-hidden">
-        <ViewToggleButton active={viewMode === "table"} onClick={() => setViewMode("table")}>
+        <ViewToggleButton active={viewMode === "table"} onClick={() => setViewMode("table")} label="Table view">
           <Table2 className="w-4 h-4" />
         </ViewToggleButton>
-        <ViewToggleButton active={viewMode === "card"} onClick={() => setViewMode("card")}>
+        <ViewToggleButton active={viewMode === "card"} onClick={() => setViewMode("card")} label="Card view">
           <LayoutGrid className="w-4 h-4" />
         </ViewToggleButton>
       </div>

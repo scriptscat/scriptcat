@@ -154,12 +154,12 @@ function ScriptCardGrid({
       {loadingList && (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          <span className="text-sm">{t("loading", { defaultValue: "加载中..." })}</span>
+          <span className="text-sm">{t("loading")}</span>
         </div>
       )}
       {!loadingList && scriptList.length === 0 && (
         <div data-testid="script-list-empty" className="flex items-center justify-center py-20 text-muted-foreground">
-          <span className="text-sm">{t("no_scripts", { defaultValue: "暂无脚本" })}</span>
+          <span className="text-sm">{t("no_scripts")}</span>
         </div>
       )}
       {!loadingList && scriptList.length > 0 && (
@@ -188,7 +188,7 @@ function ScriptCardGrid({
           </SortableContext>
           <DragOverlay dropAnimation={dropAnimation}>
             {activeScript ? (
-              <div className="rounded-xl shadow-2xl ring-1 ring-primary/30 scale-[1.03] cursor-grabbing">
+              <div className="rounded-xl shadow-lg ring-1 ring-primary/30 scale-[1.03] cursor-grabbing">
                 <CardItem
                   script={activeScript}
                   onEnable={handleEnable}
