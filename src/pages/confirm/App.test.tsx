@@ -89,7 +89,7 @@ describe("授权确认页 · 时长与范围映射", () => {
   it("选择「永久」后点击允许应以 type 5 确认", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo());
     render(<PermissionConfirm uuid="u1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "永久" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "永久" }));
     fireEvent.click(screen.getByRole("button", { name: "允许" }));
     await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 5 }));
   });
@@ -97,7 +97,7 @@ describe("授权确认页 · 时长与范围映射", () => {
   it("通配权限且 likeNum>2 时，开启通配并选永久，允许应为 type 4", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo({ wildcard: true }, 3));
     render(<PermissionConfirm uuid="u1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "永久" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "永久" }));
     fireEvent.click(screen.getByRole("switch"));
     fireEvent.click(screen.getByRole("button", { name: "允许" }));
     await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 4 }));
@@ -131,9 +131,9 @@ describe("授权确认页 · 选项可见性", () => {
     getPermissionInfo.mockResolvedValue(baseInfo({ persistentOnly: true, wildcard: false }));
     render(<PermissionConfirm uuid="u1" />);
     await screen.findByText("脚本正在试图访问跨域资源");
-    expect(screen.getByRole("button", { name: "仅此次" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "永久" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "临时" })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "仅此次" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "永久" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "临时" })).not.toBeInTheDocument();
   });
 
   it("cookie 权限应展示高敏感警示", async () => {

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, render, cleanup, screen, fireEvent, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { notify } from "@App/pages/components/ui/toast";
 import { initLanguage, t } from "@App/locales/locales";
+import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
 
 // 资源数据走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
 const { fetchScript, getScriptResources, deleteResource } = vi.hoisted(() => ({
