@@ -80,8 +80,28 @@ Vitest + happy-dom, 850ms timeout. Chrome APIs mocked via `@Packages/chrome-exte
 - Write failing tests **before** implementation; co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
 - Single file: `pnpm test -- --run path/to/file.test.ts`.
-- 避免冗余测试 — 如果调用方测试已充分覆盖，可省略被调函数的独立单测。
 - Playwright tests are `*.spec.ts` files in `e2e`; they run with one worker and retain failure artifacts. Run targeted tests while iterating, then run `pnpm run lint` plus the relevant full suite before a PR.
+
+### Writing meaningful tests (what to clean up / not write)
+
+A test earns its place by exercising **our own logic** and failing on a real regression. Don't write the "tests nothing" kinds below — and clean them up when you find them (delete the test; don't touch business logic):
+
+- **Tautology** — asserting a constant equals its own literal definition (source `const FOO = [Type.BAR]`, test `expect(FOO).toEqual([Type.BAR])`).
+- **Genuine duplicate** — a whole file/block near-verbatim identical to another, differing only by irrelevant suffixes.
+- **Redundant** — when the caller's tests already cover a callee fully, skip the callee's standalone unit test.
+- **Pure pass-through render** — `render(<Comp prop={x} />)` that only asserts `x` shows up, with no branching / variant mapping / derived logic in the component.
+- **Testing the mock or framework, not our code** — configuring a `vi.fn()` then asserting it returned what it was fed; asserting a third-party lib's or the JS language's own semantics.
+- **Mislabeled** — the test name claims a behavior the body never triggers (e.g. claims to test abort but never calls abort). Worse than no test: it gives false confidence.
+- **File-content assertion that belongs in a lint rule** — reading a source file and grepping its text for a token/string is a mechanical convention; express it as an ESLint rule, not a unit test.
+
+Conversely, keep these — they look thin but carry real value:
+
+- One branch of a conditional (`showLabel` default vs hidden, optional prop present vs absent, compact vs non-compact).
+- Variant → design-token mapping (CVA `tone="success"` → `text-success-fg`) and accessibility derivation (`title` → `aria-label`).
+- `instanceof` / `name` guards on custom `Error` subclasses, security-blocklist completeness, and similar regression guards.
+- The **only** coverage of a component / sub-component — deleting it removes coverage, not noise.
+
+> **Verify each against the source before deleting.** Many "looks meaningless" tests actually exercise a real branch; judging in bulk from a scan over-flags heavily. Confirm the behavior genuinely exists / is covered elsewhere before removing anything.
 
 ### Vitest Performance Hygiene
 

@@ -8,15 +8,6 @@ beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 describe("AgentPageHeader 统一页头", () => {
-  it("渲染标题与副标题", () => {
-    render(<AgentPageHeader icon={Server} title="模型服务" subtitle="管理 AI 模型提供商" />);
-    expect(screen.getByText("模型服务")).toBeInTheDocument();
-    expect(screen.getByText("管理 AI 模型提供商")).toBeInTheDocument();
-  });
-  it("渲染右侧操作区", () => {
-    render(<AgentPageHeader icon={Server} title="t" subtitle="s" actions={<button>{"添加"}</button>} />);
-    expect(screen.getByText("添加")).toBeInTheDocument();
-  });
   it("传入 docHref 时渲染文档按钮并指向链接", () => {
     render(<AgentPageHeader icon={Server} title="t" subtitle="s" docHref="https://docs.example.com" />);
     const docs = screen.getByTestId("page-header-docs");
