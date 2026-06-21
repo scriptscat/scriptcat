@@ -1,4 +1,4 @@
-import React from "react";
+import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import LoggerCore from "@App/app/logger/core.ts";
@@ -24,5 +24,5 @@ const Root = (
 );
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
+  process.env.NODE_ENV === "development" ? <StrictMode>{Root}</StrictMode> : Root
 );

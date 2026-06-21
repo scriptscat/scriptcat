@@ -1,4 +1,4 @@
-import React from "react";
+import { memo } from "react";
 import { ListFilter, Check } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import type { SubscribeLoading } from "@App/pages/store/features/subscribe";
@@ -104,4 +104,4 @@ function SubscribeListMobile({
   );
 }
 
-export default React.memo(SubscribeListMobile);
+export default memo(SubscribeListMobile);

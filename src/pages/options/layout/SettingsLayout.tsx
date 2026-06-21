@@ -1,19 +1,19 @@
 // src/pages/options/layout/SettingsLayout.tsx
-import React from "react";
+import { useEffect, useMemo, useRef, type ComponentType, type ReactNode } from "react";
 import { cn } from "@App/pkg/utils/cn";
 import { useScrollSpy } from "../hooks/useScrollSpy";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 export interface SettingsCategory {
   id: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   label: string;
 }
 
 export interface SettingsLayoutProps {
   title: string;
   categories: SettingsCategory[];
-  children: (register: (id: string) => (el: HTMLElement | null) => void) => React.ReactNode;
+  children: (register: (id: string) => (el: HTMLElement | null) => void) => ReactNode;
 }
 
 // 激活/未激活配色,左侧竖栏与移动横向栏共用
@@ -21,13 +21,13 @@ const navItemColors = (active: boolean) =>
   active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-accent hover:text-foreground";
 
 export function SettingsLayout({ title, categories, children }: SettingsLayoutProps) {
-  const ids = React.useMemo(() => categories.map((c) => c.id), [categories]);
+  const ids = useMemo(() => categories.map((c) => c.id), [categories]);
   const { activeId, register, scrollContainerRef, scrollTo } = useScrollSpy(ids);
   const isMobile = useIsMobile();
-  const activeChipRef = React.useRef<HTMLButtonElement>(null);
+  const activeChipRef = useRef<HTMLButtonElement>(null);
 
   // 移动横向栏:激活分类滚动到可视区域(仅横向,不影响页面纵向滚动)
-  React.useEffect(() => {
+  useEffect(() => {
     activeChipRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
   }, [activeId]);
 
