@@ -203,10 +203,9 @@ if (!("onresize" in global)) {
     configurable: true,
     enumerable: true,
     set(_newVal) {
-      console.log("测试用.onresize.set");
+      // 测试环境不转发事件处理器赋值
     },
     get() {
-      console.log("测试用.onresize.get");
       return null;
     },
   });
@@ -221,10 +220,9 @@ if (!("onblur" in global)) {
     configurable: true,
     enumerable: true,
     set(_newVal) {
-      console.log("测试用.onblur.set");
+      // 测试环境不转发事件处理器赋值
     },
     get() {
-      console.log("测试用.onblur.get");
       return null;
     },
   });
@@ -239,10 +237,9 @@ if (!("onblur" in global)) {
     configurable: true,
     enumerable: true,
     set(_newVal) {
-      console.log("测试用.onfocus.set");
+      // 测试环境不转发事件处理器赋值
     },
     get() {
-      console.log("测试用.onfocus.get");
       return null;
     },
   });

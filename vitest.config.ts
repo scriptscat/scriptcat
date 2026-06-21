@@ -23,7 +23,7 @@ const tplPlugin = {
 // Reasons:
 //   - web-jszipp (TransformStream unavailable in vmThreads VM context): backup.test.ts, skill.test.ts
 //   - module-level sharedInitCopy captured against wrong window: create_context.test.ts
-//   - fake-timer cross-file bleed risk: exec_script.test.ts
+//   - 沙盒断言依赖 vmThreads 中不可用的原生 happy-dom Window 语义：exec_script.test.ts
 const ISOLATED = [
   "src/pkg/backup/backup.test.ts",
   "src/pkg/utils/skill.test.ts",
