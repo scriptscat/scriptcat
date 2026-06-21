@@ -75,7 +75,7 @@ The "why" behind the constraints — apply these when shaping a screen.
 | Token / class | Light | Dark | Use |
 | --- | --- | --- | --- |
 | `primary` | `#1296db` | `#3aacef` | Brand text, icons, borders, indicators, and active-state emphasis; not a solid control fill |
-| `primary-background` | `#1296db` | `#0383f3` | Solid primary control/surface fill paired with `primary-foreground`; dark is deliberately deeper than `primary` for stronger contrast |
+| `primary-background` | `#1296db` | `#0b84d8` | Solid primary control/surface fill paired with `primary-foreground`; dark is deeper and hue-aligned with `primary` for balanced hierarchy |
 | `primary-foreground` | `#ffffff` | `#ffffff` | Text/icons on `primary-background` |
 | `primary-hover` | `#0a7db8` | `#1296db` | Solid primary gradient/hover endpoint (or use `bg-primary-background/90`) |
 | `primary-light` | `#d6ecfa` | `#1e3040` | Soft brand wash — icon backgrounds, chip fills |

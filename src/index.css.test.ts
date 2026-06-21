@@ -28,7 +28,7 @@ describe("主色背景令牌", () => {
   });
 
   it("深色模式应使用提高对比度的按钮背景色", () => {
-    expect(css).toMatch(/\.dark\s*{[\s\S]*?--primary-background:\s*#0383f3;/);
+    expect(css).toMatch(/\.dark\s*{[\s\S]*?--primary-background:\s*#0b84d8;/);
   });
 
   it("应向 Tailwind 暴露 primary-background 颜色", () => {
