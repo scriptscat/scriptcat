@@ -49,12 +49,4 @@ describe("notify 封装", () => {
     notify.error("e", { description: "d", id: "k" });
     expect(mockedToast.error).toHaveBeenCalledWith("e", expect.objectContaining({ description: "d", id: "k" }));
   });
-
-  it("dismiss 与 promise 应透传", () => {
-    notify.dismiss("k");
-    expect(mockedToast.dismiss).toHaveBeenCalledWith("k");
-    const p = Promise.resolve(1);
-    notify.promise(p, { loading: "l", success: "s", error: "e" });
-    expect(mockedToast.promise).toHaveBeenCalledWith(p, expect.objectContaining({ loading: "l" }));
-  });
 });

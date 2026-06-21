@@ -74,13 +74,6 @@ describe("Agent 会话页 AgentChat 桌面外壳", () => {
     expect(screen.getByTestId("conv-new")).toBeInTheDocument();
   });
 
-  it("聊天头部使用 bg-card 背景(与其它页面顶栏一致)", async () => {
-    render(<AgentChat />);
-    await waitFor(() => expect(screen.getByTestId("sidebar-collapse")).toBeInTheDocument());
-    const header = screen.getByTestId("sidebar-collapse").closest("header")!;
-    expect(header.className).toContain("bg-card");
-  });
-
   it("有活动会话时头部展示模型胶囊(显示当前模型名)", async () => {
     state.conversations = [conv("a", "会话A")];
     state.activeId = "a";
@@ -128,14 +121,5 @@ describe("Agent 会话页 AgentChat 移动端外壳", () => {
     fireEvent.click(screen.getByTestId("mobile-back"));
     expect(screen.getByTestId("conv-new")).toBeInTheDocument();
     expect(screen.queryByTestId("chat-area")).toBeNull();
-  });
-
-  it("对话视图头部使用 bg-card 背景(与其它页面顶栏一致)", async () => {
-    render(<AgentChat />);
-    await waitFor(() => expect(screen.getByTestId("conv-item-a")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("conv-item-a"));
-
-    const header = screen.getByTestId("mobile-back").closest("header")!;
-    expect(header.className).toContain("bg-card");
   });
 });

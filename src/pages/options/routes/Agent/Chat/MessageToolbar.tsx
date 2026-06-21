@@ -42,7 +42,7 @@ function Dot() {
 
 // 流式计时器
 function LiveTimer({ startTime }: { startTime: number }) {
-  const [elapsed, setElapsed] = useState(Date.now() - startTime);
+  const [elapsed, setElapsed] = useState(() => Date.now() - startTime);
 
   useEffect(() => {
     const timer = setInterval(() => setElapsed(Date.now() - startTime), 100);

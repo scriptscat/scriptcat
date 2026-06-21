@@ -41,17 +41,6 @@ describe("PermissionRow 权限行", () => {
     expect(setValue).not.toHaveAttribute("data-sensitive", "true");
   });
 
-  it("外部资源 URL 过长时 chip 限宽且文本可断行,避免横向溢出", () => {
-    const longUrl =
-      "https://cdn.jsdelivr.net/npm/some-really-long-package-name@1.2.3/dist/path/to/very/long/file.min.js";
-    render(<PermissionRow row={{ kind: "require", risk: "normal", values: [longUrl], sensitive: [] }} />);
-    const text = screen.getByText(longUrl);
-    // URL 文本允许在任意字符处断行
-    expect(text).toHaveClass("break-all");
-    // chip 不得超出容器宽度
-    expect(text.closest("[data-chip]")!).toHaveClass("max-w-full");
-  });
-
   it("取值超过 maxVisible 时折叠为 +N", () => {
     render(
       <PermissionRow

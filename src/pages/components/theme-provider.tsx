@@ -15,7 +15,15 @@ const ThemeContext = React.createContext<ThemeContextValue | undefined>(undefine
 const STORAGE_KEY = "lightMode";
 
 const getSystemTheme = (): "light" | "dark" => {
+  if (typeof window === "undefined") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+};
+
+// 订阅系统主题变化，供 useSyncExternalStore 使用
+const subscribeSystemTheme = (onChange: () => void) => {
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
 };
 
 const applyTheme = (resolved: "light" | "dark") => {
@@ -38,31 +46,16 @@ export function ThemeProvider({ children, defaultTheme = "auto" }: ThemeProvider
     return (localStorage.getItem(STORAGE_KEY) as Theme | null) || defaultTheme;
   });
 
-  const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") return "light";
-    return theme === "auto" ? getSystemTheme() : theme;
-  });
+  // 订阅系统主题（外部可变源），auto 模式下随系统切换实时更新
+  const systemTheme = React.useSyncExternalStore(subscribeSystemTheme, getSystemTheme, () => "light" as const);
+
+  // resolvedTheme 可由 theme + systemTheme 推导，无需独立 state
+  const resolvedTheme: "light" | "dark" = theme === "auto" ? systemTheme : theme;
 
   // 应用主题到 DOM
   React.useEffect(() => {
-    const resolved = theme === "auto" ? getSystemTheme() : theme;
-    setResolvedTheme(resolved);
-    applyTheme(resolved);
-  }, [theme]);
-
-  // 监听系统主题变化（仅 auto 模式下生效）
-  React.useEffect(() => {
-    if (theme !== "auto") return;
-
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
-      const resolved = getSystemTheme();
-      setResolvedTheme(resolved);
-      applyTheme(resolved);
-    };
-    media.addEventListener("change", handler);
-    return () => media.removeEventListener("change", handler);
-  }, [theme]);
+    applyTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   const setTheme = React.useCallback((next: Theme) => {
     setThemeState(next);

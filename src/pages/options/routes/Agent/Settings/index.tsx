@@ -102,7 +102,7 @@ export default function AgentSettings() {
   const { activeId, register, scrollContainerRef, scrollTo } = useScrollSpy(categories.map((c) => c.id));
 
   useEffect(() => {
-    Promise.all([agentClient.listModels(), agentClient.getSummaryModelId(), agentClient.getSearchConfig()]).then(
+    void Promise.all([agentClient.listModels(), agentClient.getSummaryModelId(), agentClient.getSearchConfig()]).then(
       ([m, sid, sc]) => {
         setModels(m);
         setSummaryModelId(sid);

@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
 import { useTranslation } from "react-i18next";
@@ -30,7 +30,10 @@ function CodePaneImpl(props: CodePaneProps) {
   const { tab } = props;
   // 用 ref 保存最新回调，避免重复注册 action
   const ref = useRef(props);
-  ref.current = props;
+  // 在 render 之后同步最新 props，供 reportStatus / handleChange 等回调读取
+  useEffect(() => {
+    ref.current = props;
+  });
   const editorRef = useRef<editor.IStandaloneCodeEditor | undefined>(undefined);
 
   const reportStatus = (e: editor.IStandaloneCodeEditor) => {
@@ -65,7 +68,7 @@ function CodePaneImpl(props: CodePaneProps) {
         const selection = ed.getSelection();
         const actionId =
           selection && !selection.isEmpty() ? "editor.action.formatSelection" : "editor.action.formatDocument";
-        ed.getAction(actionId)?.run();
+        void ed.getAction(actionId)?.run();
       },
     });
     e.addAction({

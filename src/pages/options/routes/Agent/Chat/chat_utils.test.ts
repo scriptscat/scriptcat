@@ -45,7 +45,61 @@ describe("mergeToolResults", () => {
     const result = mergeToolResults(messages);
     expect(result).toHaveLength(2);
     expect(result[1].toolCalls?.[0].result).toBe("tool output");
+    // 存在对应的 tool 结果消息即证明工具已结束，过期的 "running" 必须被纠正为 "completed"
+    expect(result[1].toolCalls?.[0].status).toBe("completed");
+  });
+
+  it("有 tool 结果消息时，过期的 running 状态视为已完成（对话结束后工具图标不应一直转圈）", () => {
+    // 复现：SW 在回写状态前被终止 / abort，库里残留 status=running 但 tool 结果消息已落库
+    const messages: ChatMessage[] = [
+      makeMsg({ id: "u1", role: "user", content: "hello" }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc1", name: "test", arguments: "{}", status: "running" }],
+      }),
+      makeMsg({ id: "t1", role: "tool", content: "done", toolCallId: "tc1" }),
+    ];
+    const result = mergeToolResults(messages);
+    expect(result[1].toolCalls?.[0].status).toBe("completed");
+  });
+
+  it("无 tool 结果消息的 running 工具保持 running（仍在执行中，不误判为完成）", () => {
+    const messages: ChatMessage[] = [
+      makeMsg({ id: "u1", role: "user", content: "hello" }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc1", name: "test", arguments: "{}", status: "running" }],
+      }),
+      // 另一个工具有结果，使 toolResultMap 非空，但 tc1 自身没有结果
+      makeMsg({
+        id: "a2",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc2", name: "test", arguments: "{}", status: "completed" }],
+      }),
+      makeMsg({ id: "t2", role: "tool", content: "done", toolCallId: "tc2" }),
+    ];
+    const result = mergeToolResults(messages);
     expect(result[1].toolCalls?.[0].status).toBe("running");
+  });
+
+  it("有 tool 结果消息时，error 状态不被覆盖为 completed", () => {
+    const messages: ChatMessage[] = [
+      makeMsg({ id: "u1", role: "user", content: "hello" }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc1", name: "test", arguments: "{}", status: "error" }],
+      }),
+      makeMsg({ id: "t1", role: "tool", content: "boom", toolCallId: "tc1" }),
+    ];
+    const result = mergeToolResults(messages);
+    expect(result[1].toolCalls?.[0].status).toBe("error");
   });
 });
 
@@ -116,7 +170,7 @@ describe("computeRegenerateAction", () => {
     expect(result!.userContent).toBe("second");
   });
 
-  it("包含 tool 消息时正确处理", () => {
+  it("包含 tool 消息时一并删除对应的 tool 结果，不留孤立 tool_result", () => {
     const allMessages: ChatMessage[] = [
       makeMsg({ id: "u1", role: "user", content: "hello" }),
       makeMsg({
@@ -136,7 +190,42 @@ describe("computeRegenerateAction", () => {
     expect(result!.idsToDelete).toContain("a1");
     expect(result!.idsToDelete).toContain("a2");
     expect(result!.idsToDelete).toContain("u1");
-    expect(result!.remainingMessages.map((m) => m.id)).toEqual(["t1"]);
+    // tool 结果消息 t1 对应的 tool_use 在被删的 a1 中，必须一并删除，否则成为孤立 tool_result
+    expect(result!.idsToDelete).toContain("t1");
+    expect(result!.remainingMessages).toEqual([]);
+  });
+
+  it("【bug 回归】重新生成多轮对话的最后一轮：删除该轮的 tool 结果，避免上一轮 LLM 上下文混入孤立 tool_result", () => {
+    // 复现用户报告：重新生成后下一次请求带上了无配对的 tool_result
+    const allMessages: ChatMessage[] = [
+      makeMsg({ id: "u1", role: "user", content: "first" }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc1", name: "test", arguments: "{}", status: "completed" }],
+      }),
+      makeMsg({ id: "t1", role: "tool", content: "result1", toolCallId: "tc1" }),
+      makeMsg({ id: "a2", role: "assistant", content: "reply1" }),
+      makeMsg({ id: "u2", role: "user", content: "second" }),
+      makeMsg({
+        id: "a3",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc2", name: "test", arguments: "{}", status: "completed" }],
+      }),
+      makeMsg({ id: "t2", role: "tool", content: "result2", toolCallId: "tc2" }),
+      makeMsg({ id: "a4", role: "assistant", content: "reply2" }),
+    ];
+    const groups = groupMessages(mergeToolResults(allMessages));
+
+    // groups: [user u1, assistant(a1,a2), user u2, assistant(a3,a4)]，重新生成第二轮 assistant 组（index 3）
+    const result = computeRegenerateAction(groups, 3, allMessages);
+    expect(result).not.toBeNull();
+    expect(result!.idsToDelete).toEqual(expect.arrayContaining(["u2", "a3", "a4", "t2"]));
+    // 上一轮完整保留；第二轮的 t2（孤立 tool_result 来源）必须被删除
+    expect(result!.remainingMessages.map((m) => m.id)).toEqual(["u1", "a1", "t1", "a2"]);
+    expect(result!.remainingMessages.some((m) => m.id === "t2")).toBe(false);
   });
 
   it("没有用户消息时返回 null", () => {

@@ -13,7 +13,7 @@ export function AttachmentImage({ attachment }: { attachment: Attachment }) {
   useEffect(() => {
     let revoked = false;
     let url: string | null = null;
-    agentChatRepo.getAttachment(attachment.id).then((blob) => {
+    void agentChatRepo.getAttachment(attachment.id).then((blob) => {
       if (blob && !revoked) {
         url = URL.createObjectURL(blob);
         setBlobUrl(url);
@@ -92,7 +92,7 @@ export function AttachmentAudio({ block }: { block: AudioBlock }) {
   useEffect(() => {
     let revoked = false;
     let url: string | null = null;
-    agentChatRepo.getAttachment(block.attachmentId).then((blob) => {
+    void agentChatRepo.getAttachment(block.attachmentId).then((blob) => {
       if (blob && !revoked) {
         url = URL.createObjectURL(blob);
         setBlobUrl(url);

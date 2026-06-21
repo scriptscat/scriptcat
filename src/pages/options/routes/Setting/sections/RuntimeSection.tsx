@@ -20,11 +20,11 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
 
   useEffect(() => {
     if (!isFirefox()) {
-      isPermissionOk("background").then((r) => {
+      void isPermissionOk("background").then((r) => {
         if (r !== null) setBg(r);
       });
     }
-    Promise.resolve(systemConfig.get("cat_file_storage")).then((v) => setStorage(v as CATFileStorage));
+    void Promise.resolve(systemConfig.get("cat_file_storage")).then((v) => setStorage(v as CATFileStorage));
   }, []);
 
   const toggleBg = (enable: boolean) => {
@@ -45,7 +45,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
         if (removed) {
           setBg(false);
         } else {
-          isPermissionOk("background").then((r) => {
+          void isPermissionOk("background").then((r) => {
             if (r !== null) setBg(r);
           });
         }

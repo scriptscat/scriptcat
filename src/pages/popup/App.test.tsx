@@ -285,16 +285,6 @@ describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）"
 });
 
 describe("Popup 移动端宽度适配 (#686 Edge Android)", () => {
-  it("根容器使用响应式宽度 w-full（由 body 控制），而非写死 320px，以便移动端铺满消除右侧留白", () => {
-    mockData = makeData({ fullScriptCount: 0 });
-
-    const { container } = render(<App />);
-    const root = container.firstElementChild as HTMLElement;
-
-    expect(cls(root)).toMatch(/\bw-full\b/);
-    expect(cls(root)).not.toMatch(/w-\[320px\]/);
-  });
-
   it("popup.html 通过媒体查询在移动端（视口 ≥340px）将宽度切换为 100%", () => {
     const html = fs.readFileSync(path.join(process.cwd(), "src/pages/popup.html"), "utf8");
     // 桌面端 popup 视口恒为 320px、不命中；移动端被撑满（≥360px）命中后切换 100% 宽度

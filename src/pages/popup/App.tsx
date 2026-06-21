@@ -1,6 +1,5 @@
-import { useState, useEffect, forwardRef } from "react";
-import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
+import { useState, useEffect } from "react";
+import { Accordion as AccordionPrimitive, Collapsible as CollapsiblePrimitive } from "radix-ui";
 import {
   Settings,
   Bell,
@@ -83,7 +82,7 @@ export default function App() {
       if (target?.matches?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
       const keyUpper = e.key.toUpperCase();
       checkItems.forEach(({ uuid, key, menus }) => {
-        if (keyUpper === key) handleMenuClick(uuid, menus);
+        if (keyUpper === key) void handleMenuClick(uuid, menus);
       });
     };
     document.addEventListener("keypress", listener);
@@ -689,36 +688,43 @@ interface ActionItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
   muted?: boolean;
 }
 
-// forwardRef + 透传 props：使其可直接作为 Popconfirm（Radix asChild）的 trigger，无需外包 div
-const ActionItem = forwardRef<HTMLButtonElement, ActionItemProps>(
-  ({ icon, children, danger = false, warn = false, success = false, muted = false, className, ...rest }, ref) => {
-    const color = danger
-      ? "text-destructive hover:text-destructive"
-      : warn
-        ? "text-type-orange hover:text-type-orange"
-        : success
-          ? "text-type-green hover:text-type-green"
-          : muted
-            ? "text-muted-foreground"
-            : "";
-    return (
-      <button
-        ref={ref}
-        type="button"
-        className={cn(
-          "h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50",
-          color,
-          className
-        )}
-        {...rest}
-      >
-        {icon}
-        <span className="flex-1 truncate">{children}</span>
-      </button>
-    );
-  }
-);
-ActionItem.displayName = "ActionItem";
+// 透传 props + ref：使其可直接作为 Popconfirm（Radix asChild）的 trigger，无需外包 div
+const ActionItem = ({
+  icon,
+  children,
+  danger = false,
+  warn = false,
+  success = false,
+  muted = false,
+  className,
+  ref,
+  ...rest
+}: ActionItemProps & { ref?: React.Ref<HTMLButtonElement> }) => {
+  const color = danger
+    ? "text-destructive hover:text-destructive"
+    : warn
+      ? "text-type-orange hover:text-type-orange"
+      : success
+        ? "text-type-green hover:text-type-green"
+        : muted
+          ? "text-muted-foreground"
+          : "";
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cn(
+        "h-[30px] px-2 flex items-center gap-2 rounded-md text-[13px] text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50",
+        color,
+        className
+      )}
+      {...rest}
+    >
+      {icon}
+      <span className="flex-1 truncate">{children}</span>
+    </button>
+  );
+};
 
 // ========== Tag ==========
 interface TagProps {

@@ -23,7 +23,7 @@ interface PopconfirmProps {
 
 /**
  * 气泡确认组件。
- * 包裹触发元素，点击后弹出确认气泡（类似 Arco Popconfirm）。
+ * 包裹触发元素，点击后弹出确认气泡。
  * 内部使用 grid 布局确保子元素完全撑满，不影响 hover 效果。
  */
 export function Popconfirm({

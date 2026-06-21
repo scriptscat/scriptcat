@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
 import type { SkillConfigField, SkillRecord } from "@App/app/service/agent/core/types";
@@ -21,13 +21,18 @@ export function SkillConfigDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation(["agent", "common"]);
-  const [values, setValues] = useState<Record<string, unknown>>({});
-  const [saving, setSaving] = useState(false);
   const query = useSkillConfigPreload(skill, open && !!skill?.config);
+  const [values, setValues] = useState<Record<string, unknown>>(() => query.data ?? {});
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // 弹窗打开或预加载的配置变化时，重置本地编辑值（渲染期比较上一次的 open/query.data，等价于原 useEffect([open, query.data])）
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevData, setPrevData] = useState(query.data);
+  if (open !== prevOpen || query.data !== prevData) {
+    setPrevOpen(open);
+    setPrevData(query.data);
     if (query.data) setValues(query.data);
-  }, [open, query.data]);
+  }
 
   if (!skill?.config) return null;
   const config = skill.config;

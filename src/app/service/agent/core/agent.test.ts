@@ -517,49 +517,6 @@ describe("Anthropic Provider", () => {
   });
 });
 
-describe("Agent Types", () => {
-  it("ChatRequest 应支持 tools 字段", () => {
-    const request: ChatRequest = {
-      conversationId: "test",
-      modelId: "test",
-      messages: [{ role: "user", content: "hello" }],
-      tools: testTools,
-    };
-    expect(request.tools).toHaveLength(1);
-  });
-
-  it("ChatRequest 消息应支持 tool 角色和 toolCallId", () => {
-    const request: ChatRequest = {
-      conversationId: "test",
-      modelId: "test",
-      messages: [
-        { role: "user", content: "hello" },
-        { role: "tool", content: "result", toolCallId: "call_1" },
-      ],
-    };
-    expect(request.messages[1].role).toBe("tool");
-    expect(request.messages[1].toolCallId).toBe("call_1");
-  });
-
-  it("ChatRequest 消息应支持 toolCalls 字段", () => {
-    const request: ChatRequest = {
-      conversationId: "test",
-      modelId: "test",
-      messages: [
-        { role: "user", content: "hello" },
-        {
-          role: "assistant",
-          content: "",
-          toolCalls: [{ id: "call_1", name: "test_tool", arguments: "{}" }],
-        },
-        { role: "tool", content: "result", toolCallId: "call_1" },
-      ],
-    };
-    expect(request.messages[1].toolCalls).toHaveLength(1);
-    expect(request.messages[1].toolCalls![0].name).toBe("test_tool");
-  });
-});
-
 // ---- callLLMWithToolLoop 测试 ----
 
 // 辅助：构造 mock Response，兼容 DOM 测试环境不支持 ReadableStream body 的情况

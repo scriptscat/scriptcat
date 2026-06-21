@@ -1018,9 +1018,7 @@ export class ScriptService {
         err?: string | Error;
       }
   > {
-    // const executeSlienceUpdate = opts.checkType === "system";
     const executeSlienceUpdate = opts.checkType === "system" && (await this.systemConfig.getSilenceUpdateScript());
-    // const executeSlienceUpdate = true;
     const checkCycle = await this.systemConfig.getCheckScriptUpdateCycle();
     if (!checkCycle) {
       return {
@@ -1030,7 +1028,6 @@ export class ScriptService {
     }
     const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
     const scripts = await this.scriptDAO.all();
-    // const now = Date.now();
 
     const checkScripts = scripts.filter((script) => {
       // 不检查更新
@@ -1041,10 +1038,6 @@ export class ScriptService {
       if (!checkDisableScript && script.status === SCRIPT_STATUS_DISABLE) {
         return false;
       }
-      // 检查是否符合
-      // if (script.checktime + checkCycle * 1000 > now) {
-      //   return false;
-      // }
       return true;
     });
 
@@ -1085,7 +1078,6 @@ export class ScriptService {
             withNewConnect,
           });
         }
-        // this.openUpdatePage(script, "system");
       }
     }
 
@@ -1151,7 +1143,6 @@ export class ScriptService {
     const batchUpdateRecord = checkResults.map((entry, i) => {
       const script = entry.script;
       const result = entry.result;
-      // const uuid = entry.uuid;
       if (!result || !script.downloadUrl) {
         return {
           uuid: script.uuid,
@@ -1480,7 +1471,6 @@ export class ScriptService {
     this.group.on("getAllScripts", this.getAllScripts.bind(this));
     this.group.on("getInstallInfo", this.getInstallInfo);
     this.group.on("install", this.installScript.bind(this));
-    // this.group.on("delete", this.deleteScript.bind(this));
     this.group.on("deletes", this.deleteScripts.bind(this));
     this.group.on("enable", this.enableScript.bind(this));
     this.group.on("enables", this.enableScripts.bind(this));

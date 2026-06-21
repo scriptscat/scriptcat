@@ -91,4 +91,9 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 
 `message/` (with mocks), `filesystem/` (WebDAV + local), `cloudscript/`, `eslint/` (userscript lint config — `eslint-plugin-userscripts`-based `defaultConfig` for the in-app editor), `chrome-extension-mock/`.
 
-> The project's own custom ESLint rule `require-last-error-check` (enforces `chrome.runtime.lastError` handling) lives in `eslint-rules/` at the repo root and is wired in `eslint.config.mjs` — not in `packages/eslint/`.
+> The project's own custom ESLint rules live in `eslint-rules/` at the repo root (wired in `eslint.config.mjs`, **not** in `packages/eslint/`) and act as a **mechanical harness** for conventions that would otherwise rely on memory:
+> - `require-last-error-check` — enforces `chrome.runtime.lastError` handling.
+> - `scriptcat/no-i18n-default-value` — bans `t(key, { defaultValue })` inline fallbacks (they leak hardcoded text to every language and bypass the `i18n-usage` key check); add the key to `src/locales/<locale>/*.json` instead.
+> - `scriptcat/no-raw-color-classname` (`src/pages/**/*.tsx`) — bans raw palette/hex colors in `className` (`bg-white`, `text-gray-500`, `dark:bg-gray-800`, `bg-[#fff]`); use design tokens (`bg-background`/`text-foreground`/…) so light & dark both work.
+>
+> Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans `@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`); `no-restricted-syntax` bans `forwardRef` in `src/pages/components/ui/**` (use React 19 `function` + ref-prop). All harness rules are covered by `eslint-rules/harness.test.mjs`.

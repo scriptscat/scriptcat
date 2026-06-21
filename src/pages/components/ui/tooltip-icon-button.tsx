@@ -4,7 +4,7 @@ import { cn } from "@App/pkg/utils/cn";
 import { Button } from "./button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
-type TooltipIconButtonProps = Omit<React.ComponentPropsWithoutRef<typeof Button>, "children" | "aria-label"> & {
+type TooltipIconButtonProps = Omit<React.ComponentProps<typeof Button>, "children" | "aria-label"> & {
   label: string;
   icon: LucideIcon;
   tooltip?: React.ReactNode;
@@ -13,54 +13,43 @@ type TooltipIconButtonProps = Omit<React.ComponentPropsWithoutRef<typeof Button>
   destructive?: boolean;
 };
 
-const TooltipIconButton = React.forwardRef<HTMLButtonElement, TooltipIconButtonProps>(
-  (
-    {
-      label,
-      icon: Icon,
-      tooltip,
-      loading = false,
-      active = false,
-      destructive = false,
-      disabled,
-      className,
-      variant = "ghost",
-      size = "icon-sm",
-      ...props
-    },
-    ref
-  ) => {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            ref={ref}
-            type="button"
-            variant={variant}
-            size={size}
-            aria-label={label}
-            aria-pressed={active || undefined}
-            disabled={disabled || loading}
-            className={cn(
-              active && "bg-accent text-accent-foreground",
-              destructive && "hover:text-destructive focus-visible:text-destructive",
-              className
-            )}
-            {...props}
-          >
-            {loading ? (
-              <Loader2 data-icon="inline-start" className="animate-spin" />
-            ) : (
-              <Icon data-icon="inline-start" />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{tooltip ?? label}</TooltipContent>
-      </Tooltip>
-    );
-  }
-);
-TooltipIconButton.displayName = "TooltipIconButton";
+function TooltipIconButton({
+  label,
+  icon: Icon,
+  tooltip,
+  loading = false,
+  active = false,
+  destructive = false,
+  disabled,
+  className,
+  variant = "ghost",
+  size = "icon-sm",
+  ...props
+}: TooltipIconButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant={variant}
+          size={size}
+          aria-label={label}
+          aria-pressed={active || undefined}
+          disabled={disabled || loading}
+          className={cn(
+            active && "bg-accent text-accent-foreground",
+            destructive && "hover:text-destructive focus-visible:text-destructive",
+            className
+          )}
+          {...props}
+        >
+          {loading ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Icon data-icon="inline-start" />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip ?? label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export { TooltipIconButton };
 export type { TooltipIconButtonProps };

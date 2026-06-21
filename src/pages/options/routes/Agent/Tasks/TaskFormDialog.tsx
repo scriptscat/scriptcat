@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -46,8 +46,13 @@ export function TaskFormDialog({
   const [modelId, setModelId] = useState("");
   const [maxIterations, setMaxIterations] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
+  // 弹窗打开（或打开期间 value 变化）时，依据传入的 value 重置/同步各字段。
+  // 用「渲染期比较上一次的 open/value 再 setState」模式同步外部 prop，等价于原 useEffect。
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevValue, setPrevValue] = useState(value);
+  if (open && (open !== prevOpen || value !== prevValue)) {
+    setPrevOpen(open);
+    setPrevValue(value);
     setName(value?.name ?? "");
     setMode(value?.mode ?? "internal");
     setCrontab(value?.crontab ?? "");
@@ -62,7 +67,11 @@ export function TaskFormDialog({
       setModelId("");
       setMaxIterations("");
     }
-  }, [open, value]);
+  } else if (open !== prevOpen || value !== prevValue) {
+    // 弹窗关闭或 value 在关闭状态下变化：仅记录最新值，不触碰表单字段（与原 `if (!open) return` 一致）
+    setPrevOpen(open);
+    setPrevValue(value);
+  }
 
   const cron = nextRunText(crontab);
   const cronInvalid = crontab.trim().length > 0 && !cron.valid;

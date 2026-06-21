@@ -102,9 +102,11 @@ export function usePopupData() {
     initialData?.defaultScriptProvider ?? "scriptcat"
   );
 
-  // ref 保存最新值，避免 async 回调中的闭包过期
+  // ref 保存最新值，避免 async 回调中的闭包过期。ref 只在 effect 中写入，渲染期不触碰。
   const stateRef = useRef({ currentUrl, currentTabId });
-  stateRef.current = { currentUrl, currentTabId };
+  useEffect(() => {
+    stateRef.current = { currentUrl, currentTabId };
+  }, [currentUrl, currentTabId]);
 
   // 显示错误消息，3秒后自动清除
   const showError = useCallback((msg: string) => {
@@ -125,9 +127,9 @@ export function usePopupData() {
     }
   }, []);
 
-  // main.tsx 会在 React 挂载前预加载；此分支仅处理测试或其他直接挂载入口。
-  useEffect(() => {
-    if (!initialData || initialized) return;
+  // main.tsx 会在 React 挂载前预加载；预加载若在首次渲染后才完成（测试或其他直接挂载入口），
+  // 在渲染期把快照一次性同步进本地 state（React 推荐的「渲染期同步外部数据」写法，避免 effect 级联渲染）。
+  if (initialData && !initialized) {
     setScriptList(initialData.scriptList);
     setBackScriptList(initialData.backScriptList);
     setIsBlacklist(initialData.isBlacklist);
@@ -138,7 +140,7 @@ export function usePopupData() {
     setMenuExpandNum(initialData.menuExpandNum);
     setDefaultScriptProvider(initialData.defaultScriptProvider);
     setInitialized(true);
-  }, [initialData, initialized]);
+  }
 
   useEffect(() => {
     if (popupData.isError) console.error("Failed to preload popup data:", popupData.error);
@@ -152,7 +154,7 @@ export function usePopupData() {
       // 菜单注册变更 → 全量刷新
       subscribeMessage<TPopupScript>("popupMenuRecordUpdated", (data) => {
         if (data.tabId === currentTabId || data.tabId === -1) {
-          fetchData(stateRef.current.currentTabId, stateRef.current.currentUrl);
+          void fetchData(stateRef.current.currentTabId, stateRef.current.currentUrl);
         }
       }),
       // 脚本启用/禁用变更
@@ -189,7 +191,7 @@ export function usePopupData() {
   // 扩展版本更新检查
   useEffect(() => {
     if (checkUpdateStatus !== 1) return;
-    Promise.all([
+    void Promise.all([
       fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
         .then((resp) => resp.json())
         .catch(() => null),
@@ -300,11 +302,11 @@ export function usePopupData() {
   const handleCreateScript = useCallback(async () => {
     await chrome.storage.local.set({ activeTabUrl: { url: stateRef.current.currentUrl } });
     // 使用 openInCurrentTab 而非 window.open，避免 Edge Android 等移动端打开异常（#686）
-    openInCurrentTab("/src/options.html#/script/editor?target=initial");
+    void openInCurrentTab("/src/options.html#/script/editor?target=initial");
   }, []);
 
   const handleOpenSettings = useCallback(() => {
-    openInCurrentTab("/src/options.html");
+    void openInCurrentTab("/src/options.html");
   }, []);
 
   // 「获取更多脚本」：记忆上次选择的脚本站点，父级点击时打开记忆的站点
@@ -312,7 +314,7 @@ export function usePopupData() {
     (provider?: ScriptProvider) => {
       const target = provider ?? defaultScriptProvider;
       if (provider && provider !== defaultScriptProvider) {
-        cacheInstance.set<ScriptProvider>("default_script_provider", provider);
+        void cacheInstance.set<ScriptProvider>("default_script_provider", provider);
         setDefaultScriptProvider(provider);
       }
       window.open(getMoreScriptUrl(stateRef.current.currentUrl, target), "_blank");
@@ -340,7 +342,7 @@ export function usePopupData() {
   }, []);
 
   const handleMenuCheckUpdate = useCallback(() => {
-    requestOpenBatchUpdatePage(extractHost(stateRef.current.currentUrl));
+    void requestOpenBatchUpdatePage(extractHost(stateRef.current.currentUrl));
   }, []);
 
   const handleSearch = useCallback((query: string) => {

@@ -395,7 +395,7 @@ export const loadScriptFavicons = async function* (scripts: Script[], service: F
   const results: FavIconResult[] = [];
   let waiting = false;
   for (const script of scripts) {
-    processScriptFavicon(script, service).then((result: FavIconResult) => {
+    void processScriptFavicon(script, service).then((result: FavIconResult) => {
       results.push(result);
       // 下一个 MacroTask 执行。
       // 使用 requestAnimationFrame 而非setTimeout 是因为前台才要显示。而且网页绘画中时会延后这个

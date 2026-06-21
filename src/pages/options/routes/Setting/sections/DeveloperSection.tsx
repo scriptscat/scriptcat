@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import prettier from "prettier/standalone";
 import * as babel from "prettier/parser-babel";
@@ -12,9 +12,12 @@ import { notify } from "@App/pages/components/ui/toast";
 
 function useDraft(value: string | undefined) {
   const [draft, setDraft] = useState("");
-  useEffect(() => {
+  // 当外部加载到的 value 变化时，于渲染期同步 draft（React 推荐的「prop 变化重置 state」模式，避免 effect 触发级联渲染）
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
     if (value !== undefined) setDraft(value);
-  }, [value]);
+  }
   return [draft, setDraft] as const;
 }
 

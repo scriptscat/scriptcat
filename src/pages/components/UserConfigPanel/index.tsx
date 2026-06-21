@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Config, ConfigGroup, ConfigType, Script, UserConfig } from "@App/app/repo/scripts";
 import {
@@ -169,11 +169,16 @@ export default function UserConfigPanel({ script, userConfig, values, open, onOp
   const [tab, setTab] = useState(groupKeys[0] ?? "");
   const [form, setForm] = useState<FormState>(values);
 
-  // 打开/切换脚本时，重置表单与激活分组
-  useEffect(() => {
+  // 打开/切换脚本时，重置表单与激活分组：渲染期对比上一次的 props，
+  // 变化则同步 state（React 官方推荐的「随 prop 变化调整 state」模式，避免 effect 触发级联渲染）
+  const [prevValues, setPrevValues] = useState(values);
+  const [prevGroupKeys, setPrevGroupKeys] = useState(groupKeys);
+  if (prevValues !== values || prevGroupKeys !== groupKeys) {
+    setPrevValues(values);
+    setPrevGroupKeys(groupKeys);
     setForm(values);
     setTab(groupKeys[0] ?? "");
-  }, [values, groupKeys]);
+  }
 
   const setField = (fullKey: string, value: any) => setForm((prev) => ({ ...prev, [fullKey]: value }));
 
@@ -202,7 +207,7 @@ export default function UserConfigPanel({ script, userConfig, values, open, onOp
       if (v === undefined) continue;
       keyValuePairs.push([fullKey, encodeRValue(v)]);
     }
-    valueClient.setScriptValues({ uuid: script.uuid, keyValuePairs, isReplace: false, ts: Date.now() });
+    void valueClient.setScriptValues({ uuid: script.uuid, keyValuePairs, isReplace: false, ts: Date.now() });
     notify.success(t("save_success"));
     onOpenChange(false);
   };

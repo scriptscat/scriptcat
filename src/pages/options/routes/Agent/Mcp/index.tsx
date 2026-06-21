@@ -40,7 +40,9 @@ export default function AgentMcp() {
   }, []);
 
   useEffect(() => {
-    reload();
+    void (async () => {
+      await reload();
+    })();
   }, [reload]);
 
   const handleAdd = () => {

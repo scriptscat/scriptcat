@@ -31,7 +31,9 @@ export default function AgentProvider() {
   }, []);
 
   useEffect(() => {
-    reload();
+    void (async () => {
+      await reload();
+    })();
   }, [reload]);
 
   const handleAdd = () => {

@@ -14,7 +14,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
   const [draft, setDraft] = useState<CloudSyncConfig | undefined>(undefined);
 
   useEffect(() => {
-    Promise.resolve(systemConfig.get("cloud_sync")).then((v) => setDraft(v as CloudSyncConfig));
+    void Promise.resolve(systemConfig.get("cloud_sync")).then((v) => setDraft(v as CloudSyncConfig));
   }, []);
 
   const patch = (next: Partial<CloudSyncConfig>) => setDraft((d) => (d ? { ...d, ...next } : d));

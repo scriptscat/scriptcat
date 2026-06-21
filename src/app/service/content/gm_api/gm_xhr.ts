@@ -259,9 +259,6 @@ export function GM_xmlhttpRequest(
           break;
       }
     }
-    // const xhrType = param.responseType;
-    // const responseType = responseTypeOriginal; // 回传用
-
     // 发送信息
     let connectMessage: Promise<MessageConnect>;
     if (isDownload) {

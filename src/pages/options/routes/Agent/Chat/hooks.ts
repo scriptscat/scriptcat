@@ -45,12 +45,13 @@ export function useConversations() {
   }, []);
 
   useEffect(() => {
-    loadConversations().then((list) => {
+    void (async () => {
+      const list = await loadConversations();
       if (list.length > 0 && !activeId) {
         // 进入页面时，如果有会话且 URL 中无 id 参数，则自动选中第一个
         setActiveId(list[0].id);
       }
-    });
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadConversations]);
 
@@ -125,7 +126,9 @@ export function useMessages(conversationId: string) {
   }, [conversationId]);
 
   useEffect(() => {
-    loadMessages();
+    void (async () => {
+      await loadMessages();
+    })();
   }, [loadMessages]);
 
   return { messages, setMessages, loadMessages };
@@ -322,8 +325,10 @@ export function useRunningConversations() {
   }, []);
 
   useEffect(() => {
-    refresh();
-    const timer = setInterval(refresh, 5000);
+    void (async () => {
+      await refresh();
+    })();
+    const timer = setInterval(() => void refresh(), 5000);
     return () => clearInterval(timer);
   }, [refresh]);
 
@@ -358,7 +363,9 @@ export function useConversationTasks(conversationId: string) {
   }, [conversationId]);
 
   useEffect(() => {
-    loadTasks();
+    void (async () => {
+      await loadTasks();
+    })();
   }, [loadTasks]);
 
   // 处理流式 task_update 事件
@@ -385,7 +392,9 @@ export function useSkills() {
   }, []);
 
   useEffect(() => {
-    loadSkills();
+    void (async () => {
+      await loadSkills();
+    })();
   }, [loadSkills]);
 
   return { skills, loadSkills };

@@ -23,11 +23,12 @@ pnpm run typecheck        # tsc --noEmit
 pnpm run test:e2e:install # install Playwright Chromium (first run only)
 pnpm run test:e2e         # Playwright (e2e/*.spec.ts, 1 worker)
 pnpm run lint             # tsc --noEmit + eslint
-pnpm run lint-fix         # tsc --noEmit + eslint --fix (also applies Prettier via eslint-plugin-prettier)
+pnpm run lint-fix         # prettier --write + tsc --noEmit + eslint --fix
 ```
 
-No standalone `format` script — formatting is part of `lint-fix`. Husky pre-commit runs `pnpm run typecheck` plus
-ESLint for staged JS/TS files, and also runs `pnpm run test:ci` when committing on `main` or `release/*`.
+No standalone `format` script — formatting is part of `lint-fix` and runs through `prettier --write`. Husky
+pre-commit runs `prettier --check` and `pnpm run typecheck` plus ESLint for staged JS/TS files, and also runs
+`pnpm run test:ci` when committing on `main` or `release/*`.
 
 After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
 

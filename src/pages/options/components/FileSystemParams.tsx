@@ -34,16 +34,18 @@ export default function FileSystemParams({
 }: FileSystemParamsProps) {
   const { t } = useTranslation();
   const fsParams = FileSystemFactory.params();
-  const [hasBoundToken, setHasBoundToken] = useState(false);
+  // 仅缓存「某网盘已绑定」的查询结果，并记录其归属的网盘类型；
+  // 切换网盘/切到非网盘后端时，归属类型不匹配即视为未绑定，避免渲染期同步重置 state。
+  const [boundToken, setBoundToken] = useState<{ netDiskType: string; bound: boolean } | null>(null);
 
   const netDiskType = netDiskTypeMap[fileSystemType];
+  const hasBoundToken = !!netDiskType && boundToken?.netDiskType === netDiskType && boundToken.bound;
 
   useEffect(() => {
     if (!netDiskType) {
-      setHasBoundToken(false);
       return;
     }
-    HasNetDiskToken(netDiskType).then(setHasBoundToken);
+    void HasNetDiskToken(netDiskType).then((bound) => setBoundToken({ netDiskType, bound }));
   }, [netDiskType]);
 
   const fileSystemList: { key: FileSystemType; name: string }[] = [
@@ -62,7 +64,7 @@ export default function FileSystemParams({
     if (!netDiskType) return;
     try {
       await ClearNetDiskToken(netDiskType);
-      setHasBoundToken(false);
+      setBoundToken({ netDiskType, bound: false });
       notify.success(t("settings:netdisk_unbind_success", { provider: netDiskName }));
     } catch (error) {
       notify.error(`${t("settings:netdisk_unbind_error", { provider: netDiskName })}: ${String(error)}`);

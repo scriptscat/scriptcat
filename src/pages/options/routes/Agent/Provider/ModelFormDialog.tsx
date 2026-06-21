@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, CheckCircle2, XCircle, RefreshCw, PlugZap } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
@@ -53,14 +53,18 @@ export function ModelFormDialog({
   const [fetching, setFetching] = useState(false);
   const [available, setAvailable] = useState<string[]>(value?.availableModels ?? []);
 
-  // 弹窗打开或编辑目标变化时，重置表单
-  useEffect(() => {
+  // 弹窗打开或编辑目标变化时，重置表单（渲染期比较上一次的 open/value，等价于原 useEffect([open, value])）
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevValue, setPrevValue] = useState(value);
+  if (open !== prevOpen || value !== prevValue) {
+    setPrevOpen(open);
+    setPrevValue(value);
     if (open) {
       setForm(value ?? emptyModel);
       setAvailable(value?.availableModels ?? []);
       setTestResult(null);
     }
-  }, [open, value]);
+  }
 
   const update = <K extends keyof AgentModelConfig>(key: K, v: AgentModelConfig[K]) =>
     setForm((f) => ({ ...f, [key]: v }));

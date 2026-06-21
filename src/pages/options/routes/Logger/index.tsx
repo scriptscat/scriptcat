@@ -97,10 +97,10 @@ export default function Logger() {
   const handleDeleteCurrent = () => {
     const ids = filtered.map((l) => l.id);
     if (!ids.length) return;
-    deleteLogs(ids).then(() => notify.success(t("logs:delete_completed")));
+    void deleteLogs(ids).then(() => notify.success(t("logs:delete_completed")));
   };
   const handleClear = () => {
-    clearLogs().then(() => notify.success(t("logs:clear_completed")));
+    void clearLogs().then(() => notify.success(t("logs:clear_completed")));
   };
 
   return (

@@ -59,12 +59,25 @@ export function useLogger() {
     });
   }, []);
 
+  // range 变化时同步进入加载态。用「渲染期比较上一次 range 后 setState」模式（上一值存于 state，
+  // 符合 React 在渲染中调整状态的写法），等价于原先在 effect 中同步调用 setLoading(true)，但不触发
+  // set-state-in-effect 的级联渲染告警（挂载时 loading 初值即 true，与初值一致不会产生额外渲染）。
+  const [lastRange, setLastRange] = useState(range);
+  if (lastRange !== range) {
+    setLastRange(range);
+    setLoading(true);
+  }
+
+  // 按当前范围加载日志：挂载与 range 变化时触发。setState 只发生在异步回调中，避免 effect 体内同步 setState。
   useEffect(() => {
-    load(range);
-  }, [load, range]);
+    void fetchLogs(range.start, range.end).then((list) => {
+      setLogs(list);
+      setLoading(false);
+    });
+  }, [range]);
 
   useEffect(() => {
-    systemConfig.getLogCleanCycle().then((v) => setCleanCycleState(v));
+    void systemConfig.getLogCleanCycle().then((v) => setCleanCycleState(v));
   }, []);
 
   // 刷新：锁定「至今」时把结束时间推进到当前再查询，否则按当前范围重查
@@ -72,7 +85,7 @@ export function useLogger() {
     if (isNow && preset) {
       setRange(presetRange(preset, Date.now()));
     } else {
-      load(range);
+      void load(range);
     }
   }, [isNow, preset, range, load]);
 

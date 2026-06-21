@@ -36,7 +36,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
   const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
   // 普通 editor 与 diff editor 都会置位，供主题切换 effect 判断实例是否就绪
   // （monacoEditor 仅在普通 editor 时设置，diff 分支不设置，故不能用它来 gate 主题切换）
-  const [editorReady, setEditorReady] = useState(false);
+  const editorReadyRef = useRef(false);
   const [enableEslint, setEnableEslint] = useState(false);
   const [eslintConfig, setEslintConfig] = useState("");
 
@@ -45,8 +45,11 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
   // 用 ref 保存最新回调，避免 stale closure 同时不让创建 effect 重跑
   const onChangeRef = useRef(onChange);
   const onEditorMountRef = useRef(onEditorMount);
-  onChangeRef.current = onChange;
-  onEditorMountRef.current = onEditorMount;
+  // ref 赋值须在创建 effect 之前，确保 mount 时创建 effect 同步读到最新 onEditorMount
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onEditorMountRef.current = onEditorMount;
+  });
 
   const divRef = useRef<HTMLDivElement>(null);
   useImperativeHandle(ref, () => ({ editor: monacoEditor }));
@@ -58,7 +61,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
 
   // 载入 ESLint 设定
   useEffect(() => {
-    Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(([config, enabled]) => {
+    void Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(([config, enabled]) => {
       setEslintConfig(config);
       setEnableEslint(enabled);
     });
@@ -155,7 +158,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
         original: originalModel,
         modified: modifiedModel,
       });
-      setEditorReady(true);
+      editorReadyRef.current = true;
     } else {
       const standaloneEdit = editor.create(container, {
         language: "javascript",
@@ -172,7 +175,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
         });
       }
       setEditor(standaloneEdit);
-      setEditorReady(true);
+      editorReadyRef.current = true;
       onEditorMountRef.current?.(standaloneEdit);
     }
 
@@ -189,11 +192,13 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
   }, [id, code, diffCode, editable]);
 
   // 主题切换：monaco theme 为全局静态，切换时无需重建实例。
-  // 用 editorReady（普通 + diff 实例都会置位）判断就绪，确保 diff 预览也随主题更新。
+  // 用 editorReadyRef（普通 + diff 实例都会置位）判断就绪，确保 diff 预览也随主题更新。
+  // 依赖含创建 effect 的入参：创建 effect 声明在前先执行并置位 ref，本 effect 随后即可应用主题。
+  // editorReadyRef 为 ref 不入依赖；id/code/diffCode/editable 用于在重建实例后重新应用主题
   useEffect(() => {
-    if (!editorReady) return;
+    if (!editorReadyRef.current) return;
     editor.setTheme(resolveMonacoTheme(resolvedTheme));
-  }, [resolvedTheme, editorReady]);
+  }, [resolvedTheme, id, code, diffCode, editable]);
 
   // ESLint 即时检查逻辑
   useEffect(() => {

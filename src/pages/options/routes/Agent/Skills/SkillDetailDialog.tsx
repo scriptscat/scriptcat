@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Sparkles, Blocks } from "lucide-react";
 import type { SkillScriptRecord } from "@App/app/service/agent/core/types";
@@ -23,11 +23,13 @@ export function SkillDetailDialog({
 }) {
   const { t } = useTranslation(["agent", "common"]);
   const [viewingTool, setViewingTool] = useState<SkillScriptRecord | null>(null);
+  const [prevOpen, setPrevOpen] = useState(open);
 
-  // 详情关闭时重置工具代码查看态
-  useEffect(() => {
-    if (!open) setViewingTool(null);
-  }, [open]);
+  // 详情关闭时重置工具代码查看态（渲染期比较上一个 open 值再 setState，避免 effect 级联渲染）
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (!open && viewingTool) setViewingTool(null);
+  }
 
   if (!detail) return null;
   const { record, scripts, references } = detail;

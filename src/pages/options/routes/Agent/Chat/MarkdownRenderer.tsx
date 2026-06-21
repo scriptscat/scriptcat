@@ -47,7 +47,7 @@ function CodeBlock({ children, className }: { children: ReactNode; className?: s
   const language = className?.replace("hljs language-", "").replace("language-", "") || "";
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(extractText(children)).then(() => {
+    void navigator.clipboard.writeText(extractText(children)).then(() => {
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setCopied(false), 2000);

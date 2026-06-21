@@ -43,7 +43,7 @@ export default function App() {
     if (!ready || ready.isSubscribe || !schedule) return;
     if (localStorage.getItem(backgroundPromptShownKey) === "true") return;
     let cancelled = false;
-    isPermissionOk("background").then((ok) => {
+    void isPermissionOk("background").then((ok) => {
       if (!cancelled && ok === false) {
         setBgPrompt({
           scriptType: schedule.kind === "cron" ? t("install:scheduled_script") : t("install:background_script"),

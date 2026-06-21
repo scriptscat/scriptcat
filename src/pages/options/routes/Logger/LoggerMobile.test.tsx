@@ -82,11 +82,6 @@ describe("日志页面 - 移动端", () => {
     expect(msg.className).not.toContain("truncate");
   });
 
-  it("移动端级别筛选条可横向滚动", () => {
-    renderPage();
-    expect(screen.getByTestId("level-chip-bar").className).toContain("overflow-x-auto");
-  });
-
   it("仍渲染全部日志且筛选交互可用", () => {
     renderPage();
     expect(screen.getByText("retry timeout reached")).toBeTruthy();

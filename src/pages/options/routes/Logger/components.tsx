@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Calendar as CalendarIcon,
@@ -498,11 +498,13 @@ export function TimeRangePicker({
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState(() => new Date(range.start));
   const [to, setTo] = useState(() => new Date(range.end));
-  // 外部范围变化时同步草稿（如选择了快捷范围）
-  useEffect(() => {
+  // 外部范围变化时同步草稿（如选择了快捷范围）：渲染期比较上一个值再 setState
+  const [prevRange, setPrevRange] = useState({ start: range.start, end: range.end });
+  if (prevRange.start !== range.start || prevRange.end !== range.end) {
+    setPrevRange({ start: range.start, end: range.end });
     setFrom(new Date(range.start));
     setTo(new Date(range.end));
-  }, [range.start, range.end]);
+  }
 
   const label =
     preset && isNow

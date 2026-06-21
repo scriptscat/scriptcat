@@ -97,7 +97,7 @@ function ExistingAttachmentPreview({ block, onRemove }: { block: ContentBlock; o
     if (block.type !== "image") return;
     let cancelled = false;
     let url: string | null = null;
-    agentChatRepo.getAttachment(block.attachmentId).then((blob) => {
+    void agentChatRepo.getAttachment(block.attachmentId).then((blob) => {
       if (blob && !cancelled) {
         url = URL.createObjectURL(blob);
         setPreviewUrl(url);
@@ -271,7 +271,7 @@ export function UserMessageItem({
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(getTextContent(message.content)).then(() => {
+    void navigator.clipboard.writeText(getTextContent(message.content)).then(() => {
       notify.success(t("agent:chat_copy_success"));
     });
   };

@@ -71,7 +71,7 @@ export default function AgentChat() {
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
 
   useEffect(() => {
-    Promise.all([agentClient.listModels(), agentClient.getDefaultModelId()]).then(([modelList, defId]) => {
+    void Promise.all([agentClient.listModels(), agentClient.getDefaultModelId()]).then(([modelList, defId]) => {
       setModels(modelList);
       setDefaultModelId(defId || modelList[0]?.id || "");
       setModelsLoaded(true);
@@ -96,17 +96,22 @@ export default function AgentChat() {
   const [backgroundEnabled, setBackgroundEnabled] = useState<boolean>(false);
   const { runningIds } = useRunningConversations();
 
-  // 切换会话时，自动恢复该会话上次使用的模型
-  useEffect(() => {
+  // 切换会话时，自动恢复该会话上次使用的模型。
+  // 通过渲染期比较上一次的 activeId / conversations 同步状态（取代 effect 中的 setState，避免级联渲染）。
+  const [prevActiveId, setPrevActiveId] = useState(activeId);
+  const [prevConversations, setPrevConversations] = useState(conversations);
+  if (activeId !== prevActiveId || conversations !== prevConversations) {
+    setPrevActiveId(activeId);
+    setPrevConversations(conversations);
     if (!activeId) {
       setSelectedModelId("");
-      return;
+    } else {
+      const conv = conversations.find((c) => c.id === activeId);
+      if (conv?.modelId) {
+        setSelectedModelId(conv.modelId);
+      }
     }
-    const conv = conversations.find((c) => c.id === activeId);
-    if (conv?.modelId) {
-      setSelectedModelId(conv.modelId);
-    }
-  }, [activeId, conversations]);
+  }
 
   const effectiveModelId = selectedModelId || defaultModelId;
   const activeConv = conversations.find((c) => c.id === activeId);
@@ -129,7 +134,7 @@ export default function AgentChat() {
   }, [createConversation, defaultModelId, selectedSkills, setActiveId]);
 
   const handleTitleChange = useCallback(() => {
-    loadConversations();
+    void loadConversations();
   }, [loadConversations]);
 
   // 导出会话为 Markdown

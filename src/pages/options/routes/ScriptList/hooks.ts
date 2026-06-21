@@ -59,12 +59,12 @@ export function useScriptDataManagement() {
   // 初始化列表与 Favicon 加载
   useEffect(() => {
     let mounted = true;
-    setLoadingList(true);
-    fetchScriptList().then(async (list) => {
+    // loadingList 初始即为 true（仅挂载时执行一次），加载完成后在异步回调里置 false
+    void fetchScriptList().then(async (list) => {
       if (!mounted) return;
       setScriptList(list);
       setLoadingList(false);
-      cacheInstance.tx("faviconOPFSControl", async () => {
+      void cacheInstance.tx("faviconOPFSControl", async () => {
         if (!mounted) return;
         const faviconService = await systemConfig.getFaviconService();
         for await (const { chunkResults } of loadScriptFavicons(list, faviconService)) {
@@ -164,7 +164,7 @@ export function useScriptDataManagement() {
     const hookMgr = new HookManager();
     hookMgr.append(
       subscribeMessage<TScriptRunStatus>("scriptRunStatus", handlers.scriptRunStatus),
-      subscribeMessage<TInstallScript>("installScript", handlers.installScript),
+      subscribeMessage<TInstallScript>("installScript", (data) => void handlers.installScript(data)),
       subscribeMessage<TDeleteScript[]>("deleteScripts", handlers.deleteScripts),
       subscribeMessage<TEnableScript[]>("enableScripts", handlers.enableScripts),
       subscribeMessage<TSortedScript[]>("sortedScripts", handlers.sortedScripts)

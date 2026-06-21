@@ -80,10 +80,12 @@ function DraggableCard({ id, children }: { id: string; children: React.ReactNode
 
 function DragHandle() {
   const sortable = useContext(SortableDragCtx);
-  return !sortable ? (
-    <GripVertical className="w-4 h-4 text-muted-foreground collapse" />
-  ) : (
-    <span ref={sortable.setActivatorNodeRef} {...sortable.listeners} className="cursor-grab">
+  if (!sortable) {
+    return <GripVertical className="w-4 h-4 text-muted-foreground collapse" />;
+  }
+  const { setActivatorNodeRef, listeners } = sortable;
+  return (
+    <span ref={setActivatorNodeRef} {...listeners} className="cursor-grab">
       <GripVertical className="w-4 h-4 text-muted-foreground" />
     </span>
   );

@@ -37,10 +37,5 @@
     "src",
     "packages",
     "tests"
-  ],
-  "ts-node": {
-    "compilerOptions": {
-      "module": "CommonJS"
-    }
-  }
+  ]
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download } from "lucide-react";
 import {
@@ -24,9 +24,12 @@ export function LinkImportDialog({
   const { t } = useTranslation();
   const [text, setText] = useState("");
   // 关闭后清空,避免下次打开残留旧链接(取消/Esc/点遮罩仅触发 onOpenChange)
-  useEffect(() => {
+  // 在渲染期比较上一个 open 值再重置,等价于原 effect 但不触发级联渲染
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) setText("");
-  }, [open]);
+  }
   const submit = () => {
     const urls = text
       .split("\n")

@@ -40,10 +40,11 @@ export default function PopupWarnings() {
   const [permissionResult, setPermissionResult] = useState("");
   const [hideEdgeQr, setHideEdgeQr] = useState(() => localStorage["hideEdgeMobileQrCodeAlert"] === "1");
 
-  const refreshAvailability = useCallback(async () => {
-    const badgeText = await chrome.action.getBadgeText({});
-    // badge 为 "!" 表示需要重启扩展/浏览器才会重置，视为不可用
-    setIsAvailable(badgeText === "!" ? false : await checkUserScriptsAvailable());
+  const refreshAvailability = useCallback(() => {
+    void chrome.action.getBadgeText({}).then(async (badgeText) => {
+      // badge 为 "!" 表示需要重启扩展/浏览器才会重置，视为不可用
+      setIsAvailable(badgeText === "!" ? false : await checkUserScriptsAvailable());
+    });
   }, []);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function PopupWarnings() {
   }, [refreshAvailability]);
 
   useEffect(() => {
-    isPermissionOk("userScripts").then((ok) => {
+    void isPermissionOk("userScripts").then((ok) => {
       if (ok === false) setShowRequestButton(true);
     });
   }, []);
@@ -140,6 +141,7 @@ export default function PopupWarnings() {
             <div className="text-[12px] font-semibold text-foreground">{t("popup:use_on_mobile")}</div>
             <div className="text-[11px] text-muted-foreground">{t("popup:scan_qr_to_install")}</div>
           </div>
+          {/* eslint-disable-next-line scriptcat/no-raw-color-classname -- 二维码需固定白底以保证可扫描，与主题无关 */}
           <img src={edgeMobileQrCode} alt="QR" className="w-14 h-14 rounded-md bg-white shrink-0" />
           <button
             type="button"

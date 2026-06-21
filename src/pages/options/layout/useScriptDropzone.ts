@@ -3,11 +3,15 @@ import type { ImportItem } from "@App/pages/options/routes/ScriptList/importHand
 
 const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes("Files");
 
-export function useScriptDropzone(onFiles: (items: ImportItem[]) => void): { isDragActive: boolean } {
+export function useScriptDropzone(onFiles: (items: ImportItem[]) => void | Promise<unknown>): {
+  isDragActive: boolean;
+} {
   const [isDragActive, setActive] = useState(false);
   const counter = useRef(0);
   const onFilesRef = useRef(onFiles);
-  onFilesRef.current = onFiles;
+  useEffect(() => {
+    onFilesRef.current = onFiles;
+  }, [onFiles]);
 
   useEffect(() => {
     const onEnter = (e: DragEvent) => {
@@ -52,17 +56,19 @@ export function useScriptDropzone(onFiles: (items: ImportItem[]) => void): { isD
       } else {
         for (const file of Array.from(dt.files)) items.push({ file, handle: null });
       }
-      if (items.length) onFilesRef.current(items);
+      if (items.length) void onFilesRef.current(items);
     };
+    // onDrop 是 async，而 DOM 监听器要求返回 void，故用同步包装器（add/remove 须引用同一函数）
+    const dropHandler = (e: DragEvent) => void onDrop(e);
     window.addEventListener("dragenter", onEnter);
     window.addEventListener("dragover", onOver);
     window.addEventListener("dragleave", onLeave);
-    window.addEventListener("drop", onDrop);
+    window.addEventListener("drop", dropHandler);
     return () => {
       window.removeEventListener("dragenter", onEnter);
       window.removeEventListener("dragover", onOver);
       window.removeEventListener("dragleave", onLeave);
-      window.removeEventListener("drop", onDrop);
+      window.removeEventListener("drop", dropHandler);
     };
   }, []);
 

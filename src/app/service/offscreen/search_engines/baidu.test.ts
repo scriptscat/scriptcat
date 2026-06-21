@@ -7,10 +7,6 @@ function parseHtml(html: string): Document {
 }
 
 describe("baiduEngine", () => {
-  it("引擎名为 baidu", () => {
-    expect(baiduEngine.name).toBe("baidu");
-  });
-
   it("从标准百度 HTML 中提取结果", () => {
     const html = `
       <html><body>

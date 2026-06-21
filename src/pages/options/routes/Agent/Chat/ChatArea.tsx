@@ -102,9 +102,16 @@ export default function ChatArea({
   const pendingMessageRef = useRef<{ content: MessageContent; messageId: string } | null>(null);
   const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
 
+  // 切换会话时丢弃上个会话残留的排队消息（渲染期比较上一个会话 id，避免在 effect 中同步 setState）
+  const [pendingConversationId, setPendingConversationId] = useState(conversationId);
+  if (pendingConversationId !== conversationId) {
+    setPendingConversationId(conversationId);
+    setPendingMessageId(null);
+  }
+
+  // ref 不能在渲染期写入，故清空排队消息内容放入 effect
   useEffect(() => {
     pendingMessageRef.current = null;
-    setPendingMessageId(null);
   }, [conversationId]);
 
   const scrollToBottom = useCallback(() => {
@@ -119,6 +126,14 @@ export default function ChatArea({
   const subAgentsRef = useRef<Map<string, SubAgentState>>(new Map());
   const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 下面三个值在流式回调里用 ref 累积（避免闭包过期），但渲染期也要读取。
+  // 渲染期直接读 ref.current 违反 react-hooks/refs，故额外维护 state 镜像：
+  // 在每个写入 ref 的位置同步 setState，渲染期改读 state。写入点本就伴随 setMessages，
+  // 故 setState 会与之批处理，重渲染时机与原先一致。
+  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
+  const [streamStartTime, setStreamStartTime] = useState<number>(0);
+  const [subAgents, setSubAgents] = useState<Map<string, SubAgentState>>(new Map());
+
   const clearRetryTimer = useCallback(() => {
     if (retryTimerRef.current) {
       clearInterval(retryTimerRef.current);
@@ -130,6 +145,7 @@ export default function ChatArea({
   const createStreamCallback = () => {
     pendingBlocksRef.current = [];
     subAgentsRef.current = new Map();
+    setSubAgents(new Map());
     clearRetryTimer();
     return (event: ChatStreamEvent) => {
       if (event.type === "task_update") {
@@ -137,7 +153,7 @@ export default function ChatArea({
         return;
       }
       if (event.type === "compact_done") {
-        loadMessages();
+        void loadMessages();
         return;
       }
 
@@ -242,6 +258,7 @@ export default function ChatArea({
           if (idx >= 0) updated[idx] = { ...msg };
           return updated;
         });
+        setSubAgents(new Map(subAgentsRef.current));
         return;
       }
 
@@ -321,6 +338,7 @@ export default function ChatArea({
             createtime: Date.now(),
           };
           streamingMsgRef.current = newMsg;
+          setStreamingMsgId(newMsg.id);
           setMessages((prev) => [...prev, newMsg]);
           return;
         }
@@ -398,21 +416,25 @@ export default function ChatArea({
   };
 
   const createDoneCallback = () => {
-    return async () => {
-      clearRetryTimer();
-      streamingMsgRef.current = null;
-      if (pendingMessageRef.current) {
-        onConversationTitleChange?.();
-        await processPendingMessage();
-      } else {
-        await loadMessages();
-        onConversationTitleChange?.();
-      }
+    return () => {
+      void (async () => {
+        clearRetryTimer();
+        streamingMsgRef.current = null;
+        setStreamingMsgId(null);
+        if (pendingMessageRef.current) {
+          onConversationTitleChange?.();
+          await processPendingMessage();
+        } else {
+          await loadMessages();
+          onConversationTitleChange?.();
+        }
+      })();
     };
   };
 
   const startStreaming = (baseMessages: ChatMessage[], content: MessageContent, skipUserMessage?: boolean) => {
     sendStartTimeRef.current = Date.now();
+    setStreamStartTime(sendStartTimeRef.current);
     firstTokenRecordedRef.current = false;
     firstTokenMsRef.current = undefined;
 
@@ -436,10 +458,11 @@ export default function ChatArea({
       createtime: Date.now(),
     };
     streamingMsgRef.current = assistantMsg;
+    setStreamingMsgId(assistantMsg.id);
     newMessages.push(assistantMsg);
 
     setMessages(newMessages);
-    sendMessage(
+    void sendMessage(
       conversationId,
       content,
       createStreamCallback(),
@@ -452,7 +475,9 @@ export default function ChatArea({
   };
 
   const startStreamingRef = useRef(startStreaming);
-  startStreamingRef.current = startStreaming;
+  useEffect(() => {
+    startStreamingRef.current = startStreaming;
+  });
 
   // 自动附加到后台运行中的会话
   useEffect(() => {
@@ -470,9 +495,11 @@ export default function ChatArea({
     streamingMsgRef.current = assistantMsg;
     setIsStreaming(true);
 
-    loadMessages().then(() => {
+    void loadMessages().then(() => {
+      // assistantMsg 在此处才进入 messages 被渲染，故 streamingMsgId 镜像也在此同步设置
+      setStreamingMsgId(assistantMsg.id);
       setMessages((prev) => [...prev, assistantMsg]);
-      attachToConversation(conversationId, createStreamCallback(), createDoneCallback());
+      void attachToConversation(conversationId, createStreamCallback(), createDoneCallback());
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, runningIds]);
@@ -485,7 +512,7 @@ export default function ChatArea({
       if (isStreaming) return;
       await clearMessages(conversationId);
       setMessages([]);
-      loadTasks();
+      void loadTasks();
       return;
     }
 
@@ -493,12 +520,12 @@ export default function ChatArea({
     if (typeof content === "string" && content.trim().startsWith("/compact")) {
       if (isStreaming) return;
       const instruction = content.trim().slice("/compact".length).trim();
-      sendMessage(
+      void sendMessage(
         conversationId,
         "",
         (event) => {
           if (event.type === "compact_done") {
-            loadMessages();
+            void loadMessages();
           }
         },
         () => {},
@@ -538,7 +565,7 @@ export default function ChatArea({
         .map((m) => getTextContent(m.content))
         .filter(Boolean)
         .join("\n\n");
-      navigator.clipboard.writeText(text).then(() => {
+      void navigator.clipboard.writeText(text).then(() => {
         notify.success(t("agent:chat_copy_success"));
       });
     },
@@ -599,7 +626,7 @@ export default function ChatArea({
       idsToDelete.push(...originalToolMsgIds);
 
       await deleteMessages(conversationId, idsToDelete);
-      loadMessages();
+      void loadMessages();
     },
     [conversationId, isStreaming, messages, loadMessages]
   );
@@ -626,6 +653,7 @@ export default function ChatArea({
     clearRetryTimer();
     stopGeneration();
     streamingMsgRef.current = null;
+    setStreamingMsgId(null);
     setMessages((prev) => {
       const needsUpdate = prev.some((m) => m.toolCalls?.some((tc) => tc.status === "running"));
       if (!needsUpdate) return prev;
@@ -638,9 +666,9 @@ export default function ChatArea({
       });
     });
     if (pendingMessageRef.current) {
-      processPendingMessage();
+      void processPendingMessage();
     } else {
-      loadMessages();
+      void loadMessages();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearRetryTimer, stopGeneration, setMessages, loadMessages]);
@@ -658,7 +686,7 @@ export default function ChatArea({
   const prevStreamingRef = useRef(false);
   useEffect(() => {
     if (prevStreamingRef.current && !isStreaming && pendingMessageRef.current) {
-      processPendingMessage();
+      void processPendingMessage();
     }
     prevStreamingRef.current = isStreaming;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -696,10 +724,10 @@ export default function ChatArea({
                 <AssistantMessageGroup
                   key={group.messages[0].id}
                   messages={group.messages}
-                  streamingId={isStreaming ? streamingMsgRef.current?.id : undefined}
+                  streamingId={isStreaming ? (streamingMsgId ?? undefined) : undefined}
                   isStreaming={isStreaming}
-                  streamStartTime={sendStartTimeRef.current || undefined}
-                  subAgents={subAgentsRef.current.size > 0 ? subAgentsRef.current : undefined}
+                  streamStartTime={streamStartTime || undefined}
+                  subAgents={subAgents.size > 0 ? subAgents : undefined}
                   onCopy={() => handleCopy(group.messages)}
                   onRegenerate={() => handleRegenerate(messageGroups, groupIndex)}
                   onDelete={() => handleDeleteRound(messageGroups, groupIndex)}

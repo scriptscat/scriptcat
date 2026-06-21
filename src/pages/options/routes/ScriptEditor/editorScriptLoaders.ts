@@ -24,9 +24,9 @@ async function resolveInitialMatch(): Promise<[string, string]> {
       let retIcon = "";
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-        chrome.storage.local.remove(["activeTabUrl"]);
+        void chrome.storage.local.remove(["activeTabUrl"]);
       } else {
-        chrome.storage.local.remove(["activeTabUrl"]);
+        void chrome.storage.local.remove(["activeTabUrl"]);
         const pageUrl = (result?.activeTabUrl as { url?: string } | undefined)?.url;
         if (pageUrl) {
           try {

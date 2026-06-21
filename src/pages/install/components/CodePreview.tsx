@@ -28,7 +28,7 @@ export function CodePreview({
   const diffCode = oldCode && oldCode !== code ? oldCode : "";
 
   const copy = () => {
-    navigator.clipboard?.writeText(code);
+    void navigator.clipboard?.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

@@ -202,20 +202,20 @@ export default function ScriptList() {
 
   // 7. 批量操作（操作后保留选中状态）
   const handleBatchEnable = useCallback(() => {
-    selectedUuids.forEach((uuid) => requestEnableScript({ uuid, enable: true }));
+    selectedUuids.forEach((uuid) => void requestEnableScript({ uuid, enable: true }));
   }, [selectedUuids]);
 
   const handleBatchDisable = useCallback(() => {
-    selectedUuids.forEach((uuid) => requestEnableScript({ uuid, enable: false }));
+    selectedUuids.forEach((uuid) => void requestEnableScript({ uuid, enable: false }));
   }, [selectedUuids]);
 
   const handleBatchDelete = useCallback(() => {
     if (selectedUuids.size === 0) return;
-    deleteScripts([...selectedUuids]);
+    void deleteScripts([...selectedUuids]);
   }, [selectedUuids, deleteScripts]);
 
   const handleBatchCheckUpdate = useCallback(() => {
-    selectedUuids.forEach((uuid) => scriptClient.requestCheckUpdate(uuid));
+    selectedUuids.forEach((uuid) => void scriptClient.requestCheckUpdate(uuid));
   }, [selectedUuids]);
 
   // 按列表中的 sort 升序取出选中脚本的 uuid（导出/置顶均需保持显示顺序）
@@ -239,19 +239,12 @@ export default function ScriptList() {
     }
   }, [usp, setUsp, userConfigUuid]);
 
-  // 云端面板：通过 ?cloud=<uuid> 打开（即「上传到云端」，与脚本同步功能无关）
-  const [cloudScript, setCloudScript] = useState<Script | null>(null);
-
-  useEffect(() => {
-    const uuid = usp.get("cloud");
-    if (!uuid) return;
-    if (cloudScript?.uuid === uuid) return;
-    const script = scriptList.find((s) => s.uuid === uuid);
-    if (script) setCloudScript(script);
-  }, [usp, scriptList, cloudScript]);
+  // 云端面板：通过 ?cloud=<uuid> 打开（即「上传到云端」，与脚本同步功能无关）。
+  // 与 userConfig 面板一致，直接由 URL 参数 + 列表渲染期派生，不引入额外 state/effect。
+  const cloudUuid = usp.get("cloud");
+  const cloudScript = cloudUuid ? (scriptList.find((s) => s.uuid === cloudUuid) ?? null) : null;
 
   const closeCloud = useCallback(() => {
-    setCloudScript(null);
     if (usp.get("cloud")) {
       const next = new URLSearchParams(usp);
       next.delete("cloud");
@@ -263,7 +256,7 @@ export default function ScriptList() {
     const uuids = selectedUuidsBySort();
     if (uuids.length === 0) return;
     const id = notify.loading(t("editor:exporting"));
-    synchronizeClient.export(uuids).then(() => {
+    void synchronizeClient.export(uuids).then(() => {
       notify.success(t("settings:export_success"), { id });
     });
   }, [selectedUuidsBySort, t]);
@@ -271,7 +264,7 @@ export default function ScriptList() {
   const handleBatchPinTop = useCallback(() => {
     const uuids = selectedUuidsBySort();
     if (uuids.length === 0) return;
-    pinToTop(uuids).then(() => {
+    void pinToTop(uuids).then(() => {
       notify.success(t("script:scripts_pinned_to_top"));
     });
   }, [selectedUuidsBySort, t]);
@@ -286,7 +279,7 @@ export default function ScriptList() {
         if (oldIdx === -1 || newIdx === -1) return prev;
         const next = arrayMove(prev, oldIdx, newIdx);
         const after = next.map((s) => s.uuid);
-        sortScript({ before, after });
+        void sortScript({ before, after });
         return reindexScriptList(next);
       });
     },
@@ -315,18 +308,16 @@ export default function ScriptList() {
       return true;
     });
 
-    let enableKeywordSearch = false;
-    if (searchRequest.keyword) {
-      enableKeywordSearch = true;
-      SearchFilter.requestFilterResult(searchRequest).then(() => {
-        if (!enableKeywordSearch) return;
-        setFilterScriptList(list.filter((s) => SearchFilter.checkByUUID(s.uuid)));
-      });
-    } else {
-      setFilterScriptList(list);
-    }
+    // 统一走 requestFilterResult 的异步回调里 setState：无关键字时它会清空缓存并立即 resolve，
+    // 有关键字时再按命中结果过滤。避免在 effect 体内同步 setState 触发级联渲染。
+    const hasKeyword = Boolean(searchRequest.keyword);
+    let alive = true;
+    void SearchFilter.requestFilterResult(searchRequest).then(() => {
+      if (!alive) return;
+      setFilterScriptList(hasKeyword ? list.filter((s) => SearchFilter.checkByUUID(s.uuid)) : list);
+    });
     return () => {
-      enableKeywordSearch = false;
+      alive = false;
     };
   }, [scriptList, selectedFilters, stats, searchRequest]);
 

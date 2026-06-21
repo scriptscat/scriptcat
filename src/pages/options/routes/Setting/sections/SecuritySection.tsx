@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { SettingCard } from "../../../components/SettingCard";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
@@ -11,9 +11,12 @@ export function SecuritySection({ register }: { register: (id: string) => (el: H
   const [blacklist, setBlacklist] = useSystemConfig("blacklist");
   const [draft, setDraft] = useState("");
 
-  useEffect(() => {
+  // blacklist 异步加载或被外部订阅更新时，渲染期间比较上一个值再同步到本地草稿
+  const [prevBlacklist, setPrevBlacklist] = useState(blacklist);
+  if (blacklist !== prevBlacklist) {
+    setPrevBlacklist(blacklist);
     if (blacklist !== undefined) setDraft(blacklist as string);
-  }, [blacklist]);
+  }
 
   const save = () => {
     const lines = draft

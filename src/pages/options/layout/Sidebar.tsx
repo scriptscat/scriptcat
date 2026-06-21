@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useHoverMenu } from "../../components/ui/use-hover-menu";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -165,9 +165,12 @@ function AgentMenu({ collapsed }: { collapsed: boolean }) {
   const [open, setOpen] = useState(isAgentActive);
 
   // 进入 /agent 路由时自动展开（不在离开时强制收起，尊重用户手动操作）
-  useEffect(() => {
+  // 渲染期比较上一个值，仅在 isAgentActive 变为 true 时同步展开
+  const [prevAgentActive, setPrevAgentActive] = useState(isAgentActive);
+  if (isAgentActive !== prevAgentActive) {
+    setPrevAgentActive(isAgentActive);
     if (isAgentActive) setOpen(true);
-  }, [isAgentActive]);
+  }
 
   if (collapsed) {
     return <AgentMenuCollapsed isActive={isAgentActive} />;
@@ -240,7 +243,7 @@ function AgentMenuCollapsed({ isActive }: { isActive: boolean }) {
             key={item.to}
             onClick={() => {
               close();
-              navigate(item.to);
+              void navigate(item.to);
             }}
           >
             <item.icon className="w-4 h-4" />

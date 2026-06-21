@@ -138,7 +138,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
       notify.error((e as Error).message);
       return;
     }
-    valueClient.setScriptValue({ uuid, key: dialog.key, value, ts: Date.now() });
+    void valueClient.setScriptValue({ uuid, key: dialog.key, value, ts: Date.now() });
     storage.setData((prev) => {
       const rows = prev ?? EMPTY_ROWS;
       const idx = rows.findIndex((r) => r.key === dialog.key);
@@ -155,7 +155,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
 
   const onDelete = useCallback(
     (key: string) => {
-      valueClient.setScriptValue({ uuid, key, value: undefined, ts: Date.now() });
+      void valueClient.setScriptValue({ uuid, key, value: undefined, ts: Date.now() });
       storage.setData((prev) => (prev ?? EMPTY_ROWS).filter((r) => r.key !== key));
       notify.success(t("delete_success"));
     },
@@ -163,7 +163,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
   );
 
   const onClear = useCallback(() => {
-    valueClient.setScriptValues({ uuid, keyValuePairs: [], isReplace: true, ts: Date.now() });
+    void valueClient.setScriptValues({ uuid, keyValuePairs: [], isReplace: true, ts: Date.now() });
     storage.setData([]);
     notify.success(t("editor:clear_success"));
   }, [uuid, storage, t]);
@@ -184,7 +184,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
       return;
     }
     const keyValuePairs = Object.keys(rec).map((k) => [k, encodeRValue(rec[k])]) as TKeyValuePair[];
-    valueClient.setScriptValues({ uuid, keyValuePairs, isReplace: true, ts: Date.now() });
+    void valueClient.setScriptValues({ uuid, keyValuePairs, isReplace: true, ts: Date.now() });
     storage.setData(Object.keys(rec).map((k) => ({ key: k, value: rec[k] })));
     setBatch(false);
     notify.success(t("save_success"));

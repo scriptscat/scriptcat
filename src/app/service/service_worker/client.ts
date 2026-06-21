@@ -54,10 +54,6 @@ export class ScriptClient extends Client {
     return this.doThrow("install", { ...params } satisfies TScriptInstallParam);
   }
 
-  // delete(uuid: string) {
-  //   return this.do("delete", uuid);
-  // }
-
   deletes(uuids: string[]) {
     return this.do("deletes", uuids);
   }

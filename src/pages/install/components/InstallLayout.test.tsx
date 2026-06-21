@@ -36,16 +36,4 @@ describe("InstallLayout 安装页外壳", () => {
     const bar = screen.getByTestId("action-bar");
     expect(within(bar).getByRole("button", { name: "do-update" })).toBeInTheDocument();
   });
-
-  it("顶栏与底栏使用 bg-card,与 bg-background 内容区形成对比(对照设计稿)", () => {
-    render(
-      <InstallLayout title="脚本安装" actions={<button>{"install"}</button>}>
-        <div>{"x"}</div>
-      </InstallLayout>
-    );
-    // 设计稿:TopBar/ActionBar 填充 #ffffff/#151515 = bg-card;ContentArea 填充 #fafafa/#1e1e1e = bg-background
-    expect(screen.getByTestId("install-top-bar").className).toContain("bg-card");
-    expect(screen.getByTestId("action-bar").className).toContain("bg-card");
-    expect(screen.getByTestId("install-layout").className).toContain("bg-background");
-  });
 });

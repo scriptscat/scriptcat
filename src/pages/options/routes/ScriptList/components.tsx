@@ -288,32 +288,39 @@ type ActionButtonProps = React.ComponentPropsWithoutRef<typeof Button> & {
   onPreload?: () => void;
 };
 
-// forwardRef + 透传 props：使其可直接作为 Popconfirm（Radix asChild）的 trigger，
+// 透传 props + ref：使其可直接作为 Popconfirm（Radix asChild）的 trigger，
 // 让 trigger 语义/焦点/aria 落在真实按钮上，无需外包 div。
-const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(
-  ({ label, onClick, destructive, disabled, onPreload, children, className, ...rest }, ref) => (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          ref={ref}
-          variant="ghost"
-          size="icon"
-          aria-label={label}
-          onClick={onClick}
-          onPointerEnter={onPreload}
-          onFocus={onPreload}
-          disabled={disabled}
-          className={cn("h-7 w-7", destructive && "hover:text-destructive focus-visible:text-destructive", className)}
-          {...rest}
-        >
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
+const ActionButton = ({
+  label,
+  onClick,
+  destructive,
+  disabled,
+  onPreload,
+  children,
+  className,
+  ref,
+  ...rest
+}: ActionButtonProps & { ref?: React.Ref<HTMLButtonElement> }) => (
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button
+        ref={ref}
+        variant="ghost"
+        size="icon"
+        aria-label={label}
+        onClick={onClick}
+        onPointerEnter={onPreload}
+        onFocus={onPreload}
+        disabled={disabled}
+        className={cn("h-7 w-7", destructive && "hover:text-destructive focus-visible:text-destructive", className)}
+        {...rest}
+      >
+        {children}
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent>{label}</TooltipContent>
+  </Tooltip>
 );
-ActionButton.displayName = "ActionButton";
 
 export function ScriptRowActions({
   script,

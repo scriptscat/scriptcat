@@ -68,7 +68,7 @@ export interface ImportView {
   onToggleSubscribe: (id: string) => void;
   onToggleAllSubscribes: () => void;
   onSetEnabled: (id: string, enabled: boolean) => void;
-  onImport: () => void;
+  onImport: () => void | Promise<void>;
   onCancel: () => void;
   onClose: () => void;
   onRetry: () => void;

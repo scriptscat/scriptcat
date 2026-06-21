@@ -42,7 +42,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [autoClose, setAutoClose] = useState<number | null>(() => parseAutoClose());
   // 触发本次更新页的当前网址：命中该站点的更新在列表中优先靠前。整页生命周期内不变。
-  const siteRef = useRef(parseSite());
+  const [site] = useState(parseSite);
 
   const loadingRef = useRef(false);
   // 标记本次检查由用户主动发起（点击「检查更新」），用于在检查完成后弹出反馈 toast
@@ -105,7 +105,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
 
   const cancelAutoClose = useCallback(() => setAutoClose(null), []);
 
-  const { updates, ignored } = useMemo(() => categorize(records, siteRef.current), [records]);
+  const { updates, ignored } = useMemo(() => categorize(records, site), [records, site]);
 
   const onUpdate = useCallback(
     (item: UpdateItem) => {

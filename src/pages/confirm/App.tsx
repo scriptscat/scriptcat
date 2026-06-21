@@ -91,7 +91,9 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
 
   const ignore = useCallback(() => decide(false, 0), [decide]);
   const ignoreRef = useRef(ignore);
-  ignoreRef.current = ignore;
+  useEffect(() => {
+    ignoreRef.current = ignore;
+  }, [ignore]);
 
   // 加载授权信息
   useEffect(() => {
@@ -108,7 +110,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
       setSecond((s) => {
         if (s <= 1) {
           clearInterval(timer);
-          ignoreRef.current();
+          void ignoreRef.current();
           return 0;
         }
         return s - 1;
@@ -120,7 +122,7 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
   // 用户直接关闭窗口时记为忽略，避免脚本调用悬挂
   useEffect(() => {
     const handler = () => {
-      if (!decidedRef.current) permissionClient.confirm(uuid, { allow: false, type: 0 });
+      if (!decidedRef.current) void permissionClient.confirm(uuid, { allow: false, type: 0 });
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
@@ -225,11 +227,11 @@ export function PermissionConfirm({ uuid }: { uuid: string }) {
     if (origins?.length) {
       const granted = await chrome.permissions.request({ origins }).catch(() => false);
       if (!granted) {
-        ignore();
+        void ignore();
         return;
       }
     }
-    decide(true, 1);
+    void decide(true, 1);
   };
 
   return (

@@ -46,10 +46,6 @@ export const requestStopScript = async (uuid: string) => {
   return await runtimeClient.stopScript(uuid);
 };
 
-// export const requestDeleteScript = createAsyncThunk("script/deleteScript", async (uuid: string) => {
-//   return await scriptClient.delete(uuid);
-// });
-
 export const requestDeleteScripts = async (uuids: string[]) => {
   return await scriptClient.deletes(uuids);
 };

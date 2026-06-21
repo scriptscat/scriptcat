@@ -43,82 +43,83 @@ export function useImport(): ImportView {
   const [doneCount, setDoneCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [summaryState, setSummaryState] = useState({ scripts: 0, subscribes: 0, values: 0 });
+  // 重试时自增以重跑装配 effect(对照 install useInstallData 的 reloadKey)
+  const [reloadKey, setReloadKey] = useState(0);
 
   const loadingRef = useRef(false);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    setPhase("loading");
-    try {
-      const uuid = new URLSearchParams(location.search).get("uuid") || "";
-      const cached = await cacheInstance.get<{ filename: string; url: string }>(CACHE_KEY_IMPORT_FILE + uuid);
-      if (!cached) {
-        setPhase("invalid");
-        return;
-      }
-      setFilename(cached.filename || "");
-      const blob = await fetch(cached.url).then((r) => r.blob());
-      const zip = await loadAsyncJSZip(blob);
-      const backData = await parseBackupZipFile(zip);
-
-      const dao = new ScriptDAO();
-      dao.enableCache();
-
-      const scripts: ScriptData[] = [];
-      for (const item of backData.script as ScriptData[]) {
-        try {
-          const prepared = await prepareScriptByCode(
-            item.code,
-            item.options?.meta.file_url || "",
-            item.options?.meta.sc_uuid || undefined,
-            true,
-            dao
-          );
-          item.script = prepared;
-          prepared.script.status = resolveEnabled(item, prepared.script) ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
-          // 还原备份中的列表排序位置(对照 v1.4-agent)
-          const position = item.options?.settings.position;
-          if (typeof position === "number") prepared.script.sort = position;
-          item.install = true;
-        } catch (e) {
-          item.error = (e as Error)?.message || String(e);
+    void (async () => {
+      try {
+        const uuid = new URLSearchParams(location.search).get("uuid") || "";
+        const cached = await cacheInstance.get<{ filename: string; url: string }>(CACHE_KEY_IMPORT_FILE + uuid);
+        if (!cached) {
+          setPhase("invalid");
+          return;
         }
-        scripts.push(item);
-      }
+        setFilename(cached.filename || "");
+        const blob = await fetch(cached.url).then((r) => r.blob());
+        const zip = await loadAsyncJSZip(blob);
+        const backData = await parseBackupZipFile(zip);
 
-      const subs: PreparedSubscribe[] = [];
-      for (const sub of backData.subscribe as SubscribeData[]) {
-        try {
-          const { subscribe, oldSubscribe } = await prepareSubscribeByCode(sub.source, sub.options?.meta.url || "");
-          sub.subscribe = subscribe;
-          subs.push({ data: sub, subscribe, oldExists: !!oldSubscribe });
-        } catch (e) {
-          subs.push({ data: sub, error: (e as Error)?.message || String(e) });
+        const dao = new ScriptDAO();
+        dao.enableCache();
+
+        const scripts: ScriptData[] = [];
+        for (const item of backData.script as ScriptData[]) {
+          try {
+            const prepared = await prepareScriptByCode(
+              item.code,
+              item.options?.meta.file_url || "",
+              item.options?.meta.sc_uuid || undefined,
+              true,
+              dao
+            );
+            item.script = prepared;
+            prepared.script.status = resolveEnabled(item, prepared.script)
+              ? SCRIPT_STATUS_ENABLE
+              : SCRIPT_STATUS_DISABLE;
+            // 还原备份中的列表排序位置(对照 v1.4-agent)
+            const position = item.options?.settings.position;
+            if (typeof position === "number") prepared.script.sort = position;
+            item.install = true;
+          } catch (e) {
+            item.error = (e as Error)?.message || String(e);
+          }
+          scripts.push(item);
         }
+
+        const subs: PreparedSubscribe[] = [];
+        for (const sub of backData.subscribe as SubscribeData[]) {
+          try {
+            const { subscribe, oldSubscribe } = await prepareSubscribeByCode(sub.source, sub.options?.meta.url || "");
+            sub.subscribe = subscribe;
+            subs.push({ data: sub, subscribe, oldExists: !!oldSubscribe });
+          } catch (e) {
+            subs.push({ data: sub, error: (e as Error)?.message || String(e) });
+          }
+        }
+
+        if (scripts.length === 0 && subs.length === 0) {
+          setPhase("empty");
+          return;
+        }
+
+        setScriptData(scripts);
+        setSubData(subs);
+        setSelectedScripts(new Set(scripts.filter((d) => !d.error && d.script).map((d) => d.script!.script.uuid)));
+        setSelectedSubscribes(new Set(subs.filter((p) => !p.error && p.subscribe).map((p) => p.subscribe!.url)));
+        setPhase("ready");
+      } catch (e) {
+        setErrorMessage((e as Error)?.message || String(e));
+        setPhase("error");
+      } finally {
+        loadingRef.current = false;
       }
-
-      if (scripts.length === 0 && subs.length === 0) {
-        setPhase("empty");
-        return;
-      }
-
-      setScriptData(scripts);
-      setSubData(subs);
-      setSelectedScripts(new Set(scripts.filter((d) => !d.error && d.script).map((d) => d.script!.script.uuid)));
-      setSelectedSubscribes(new Set(subs.filter((p) => !p.error && p.subscribe).map((p) => p.subscribe!.url)));
-      setPhase("ready");
-    } catch (e) {
-      setErrorMessage((e as Error)?.message || String(e));
-      setPhase("error");
-    } finally {
-      loadingRef.current = false;
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    })();
+  }, [reloadKey]);
 
   const scripts = useMemo(() => sortByName(scriptData.map(toScriptImportItem)), [scriptData]);
   const subscribes = useMemo(() => sortByName(subData.map(toSubscribeImportItem)), [subData]);
@@ -236,7 +237,11 @@ export function useImport(): ImportView {
 
   const onClose = useCallback(() => window.close(), []);
   const onCancel = useCallback(() => window.close(), []);
-  const onRetry = useCallback(() => void load(), [load]);
+  const onRetry = useCallback(() => {
+    // 重试:重置为加载态并自增 reloadKey 触发 effect 重跑(初次挂载由 useState 初值 "loading" 覆盖)
+    setPhase("loading");
+    setReloadKey((n) => n + 1);
+  }, []);
   const onOpenScriptList = useCallback(() => {
     window.location.href = chrome.runtime.getURL("src/options.html");
   }, []);

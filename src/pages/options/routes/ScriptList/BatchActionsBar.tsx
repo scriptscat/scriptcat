@@ -1,4 +1,4 @@
-import { useEffect, useState, forwardRef } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
@@ -29,9 +29,11 @@ export default function BatchActionsBar({
   const isOpen = selectedCount > 0;
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) setMounted(true);
-  }, [isOpen]);
+  // 打开时立即标记为已挂载以触发展开动画。渲染期对比上一个值再 setState（React 会丢弃本次输出并立即重渲，
+  // 不会提交到 DOM/产生级联渲染），等价于原先 useEffect 里的同步 setMounted(true)，但符合 react-hooks 规则。
+  if (isOpen && !mounted) {
+    setMounted(true);
+  }
 
   return (
     <div
@@ -92,8 +94,14 @@ interface BatchBtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   color: "primary" | "muted" | "destructive";
 }
 
-// forwardRef + 透传 props：使其可直接作为 Popconfirm（Radix asChild）的 trigger，无需外包 div
-const BatchBtn = forwardRef<HTMLButtonElement, BatchBtnProps>(({ color, children, className, ...rest }, ref) => (
+// 透传 props + ref：使其可直接作为 Popconfirm（Radix asChild）的 trigger，无需外包 div
+const BatchBtn = ({
+  color,
+  children,
+  className,
+  ref,
+  ...rest
+}: BatchBtnProps & { ref?: React.Ref<HTMLButtonElement> }) => (
   <button
     ref={ref}
     type="button"
@@ -108,5 +116,4 @@ const BatchBtn = forwardRef<HTMLButtonElement, BatchBtnProps>(({ color, children
   >
     {children}
   </button>
-));
-BatchBtn.displayName = "BatchBtn";
+);

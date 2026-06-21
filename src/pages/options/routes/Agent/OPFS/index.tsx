@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEventHandler } from "react";
+import type { ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
 import {
@@ -75,7 +75,7 @@ export default function AgentOPFS() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    navigator.storage.getDirectory().then(setRoot);
+    void navigator.storage.getDirectory().then(setRoot);
   }, []);
 
   const load = useCallback(async () => {
@@ -91,7 +91,9 @@ export default function AgentOPFS() {
   }, [root, path]);
 
   useEffect(() => {
-    load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   // 目录恒置顶,组内按当前排序键升/降序(保留 v1.4 的大小/时间列排序)
@@ -148,7 +150,7 @@ export default function AgentOPFS() {
     await load();
   };
 
-  const handleUpload: ChangeEventHandler<HTMLInputElement> = async (e) => {
+  const handleUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = ""; // 允许重复选择同名文件
     if (!root || files.length === 0) return;
@@ -446,25 +448,30 @@ function menuItems(
     handleDelete,
     t,
   }: {
-    openEntry: (e: FileEntry) => void;
-    handleDownload: (e: FileEntry) => void;
-    handleDelete: (e: FileEntry) => void;
+    openEntry: (e: FileEntry) => void | Promise<void>;
+    handleDownload: (e: FileEntry) => void | Promise<void>;
+    handleDelete: (e: FileEntry) => void | Promise<void>;
     t: (k: string) => string;
   }
 ): AgentCardMenuItem[] {
   const items: AgentCardMenuItem[] = [];
   if (entry.kind === "file" && PREVIEWABLE.includes(fileKind(entry.name))) {
-    items.push({ key: "preview", label: t("agent:opfs_preview"), icon: Eye, onSelect: () => openEntry(entry) });
+    items.push({ key: "preview", label: t("agent:opfs_preview"), icon: Eye, onSelect: () => void openEntry(entry) });
   }
   if (entry.kind === "file") {
-    items.push({ key: "download", label: t("common:download"), icon: Download, onSelect: () => handleDownload(entry) });
+    items.push({
+      key: "download",
+      label: t("common:download"),
+      icon: Download,
+      onSelect: () => void handleDownload(entry),
+    });
   }
   items.push({
     key: "delete",
     label: t("common:delete"),
     icon: Trash2,
     danger: true,
-    onSelect: () => handleDelete(entry),
+    onSelect: () => void handleDelete(entry),
   });
   return items;
 }

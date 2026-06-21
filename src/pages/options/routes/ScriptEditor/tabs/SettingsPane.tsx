@@ -162,19 +162,19 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
 
   const onRunIn = (value: string) => {
     const v = value === "default" ? [] : [value];
-    scriptClient.updateMetadata(uuid, "run-in", v);
+    void scriptClient.updateMetadata(uuid, "run-in", v);
     patchSelf({ "run-in": v });
   };
 
   const onRunAt = (value: string) => {
     if (value === "early-start") {
-      scriptClient.updateMetadata(uuid, "early-start", [""]);
-      scriptClient.updateMetadata(uuid, "run-at", ["document-start"]);
+      void scriptClient.updateMetadata(uuid, "early-start", [""]);
+      void scriptClient.updateMetadata(uuid, "run-at", ["document-start"]);
       patchSelf({ "early-start": [""], "run-at": ["document-start"] });
     } else {
       const v = value === "default" ? [] : [value];
-      scriptClient.updateMetadata(uuid, "early-start", []);
-      scriptClient.updateMetadata(uuid, "run-at", v);
+      void scriptClient.updateMetadata(uuid, "early-start", []);
+      void scriptClient.updateMetadata(uuid, "run-at", v);
       patchSelf({ "early-start": [], "run-at": v });
     }
   };
@@ -182,7 +182,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   // ===== 标签 =====
   const commitTags = (next: string[]) => {
     setTags(next);
-    scriptClient.updateMetadata(uuid, "tag", next);
+    void scriptClient.updateMetadata(uuid, "tag", next);
   };
   const addTag = () => {
     const v = tagInput.trim();
@@ -193,7 +193,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
 
   // ===== 更新 =====
   const onCheckUpdate = (checked: boolean) => {
-    scriptClient.setCheckUpdateUrl(uuid, checked, updateUrl);
+    void scriptClient.setCheckUpdateUrl(uuid, checked, updateUrl);
     setScript((prev) => (prev ? { ...prev, checkUpdate: checked } : prev));
   };
   const saveUpdateUrl = () => scriptClient.setCheckUpdateUrl(uuid, checkUpdate, updateUrl);
@@ -201,10 +201,10 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   // ===== 匹配 / 排除 =====
   const setMatchList = (kind: "match" | "exclude", next: string[] | undefined) => {
     if (kind === "match") {
-      scriptClient.resetMatch(uuid, next);
+      void scriptClient.resetMatch(uuid, next);
       setMatches(next ?? []);
     } else {
-      scriptClient.resetExclude(uuid, next);
+      void scriptClient.resetExclude(uuid, next);
       setExcludes(next ?? []);
     }
     patchSelf({ [kind]: next ?? [] });
@@ -224,18 +224,18 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
     a.permission === b.permission && a.permissionValue === b.permissionValue;
   const toggleAllow = (p: Permission) => {
     const updated = { ...p, allow: !p.allow };
-    permissionClient.updatePermission(updated).then(() => {
+    void permissionClient.updatePermission(updated).then(() => {
       setPermissions((prev) => prev.map((x) => (samePermission(x, p) ? updated : x)));
     });
   };
   const removePermission = (p: Permission) => {
-    permissionClient.deletePermission(uuid, p.permission, p.permissionValue).then(() => {
+    void permissionClient.deletePermission(uuid, p.permission, p.permissionValue).then(() => {
       setPermissions((prev) => prev.filter((x) => !samePermission(x, p)));
       notify.success(t("delete_success"));
     });
   };
   const resetPermissions = () => {
-    permissionClient.resetPermission(uuid).then(() => {
+    void permissionClient.resetPermission(uuid).then(() => {
       setPermissions([]);
       notify.success(t("update_success"));
     });
@@ -253,7 +253,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
       createtime: Date.now(),
       updatetime: 0,
     };
-    permissionClient.addPermission(perm).then(() => {
+    void permissionClient.addPermission(perm).then(() => {
       setPermissions((prev) => [...prev.filter((x) => !samePermission(x, perm)), perm]);
       setPermOpen(false);
       notify.success(t("update_success"));

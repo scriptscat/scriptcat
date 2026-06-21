@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { editor } from "monaco-editor";
@@ -74,9 +74,13 @@ export default function ScriptEditor() {
 
   // refs 避免 stale closure
   const stateRef = useRef(state);
-  stateRef.current = state;
   const scriptListRef = useRef(scriptList);
-  scriptListRef.current = scriptList;
+  // 每次渲染提交后同步最新值到 ref(供回调/effect 读取),避免在渲染期写 ref。
+  // 用 useLayoutEffect 在提交阶段同步写入,保持与原渲染期赋值一致的可见时机。
+  useLayoutEffect(() => {
+    stateRef.current = state;
+    scriptListRef.current = scriptList;
+  });
   const templateRef = useRef(searchParams.get("template") || undefined);
   const targetRef = useRef(searchParams.get("target") || undefined);
 
@@ -127,14 +131,14 @@ export default function ScriptEditor() {
       const known =
         stateRef.current.tabs.some((x) => x.uuid === uuid) || scriptListRef.current.some((s) => s.uuid === uuid);
       if (known) {
-        openScript(uuid, templateRef.current, targetRef.current);
+        void openScript(uuid, templateRef.current, targetRef.current);
       } else if (stateRef.current.tabs.length === 0) {
-        openScript(undefined, templateRef.current, targetRef.current);
+        void openScript(undefined, templateRef.current, targetRef.current);
       } else {
         notify.error(t("editor:script_not_found"));
       }
     } else if (stateRef.current.tabs.length === 0) {
-      openScript(undefined, templateRef.current, targetRef.current);
+      void openScript(undefined, templateRef.current, targetRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingList, params.uuid]);
@@ -143,7 +147,7 @@ export default function ScriptEditor() {
   useEffect(() => {
     if (!state.activeUuid) return;
     if (params.uuid !== state.activeUuid) {
-      navigate(`/script/editor/${state.activeUuid}`, { replace: true });
+      void navigate(`/script/editor/${state.activeUuid}`, { replace: true });
     }
     const tab = state.tabs.find((x) => x.uuid === state.activeUuid);
     if (tab) document.title = `${i18nName(tab.script)} - Script Editor`;
@@ -204,7 +208,7 @@ export default function ScriptEditor() {
       const wasLast = stateRef.current.tabs.length === 1;
       editorsRef.current.delete(uuid);
       dispatch({ type: "close", uuid });
-      if (wasLast) openScript(undefined, templateRef.current, targetRef.current);
+      if (wasLast) void openScript(undefined, templateRef.current, targetRef.current);
     },
     [confirm, openScript, t]
   );
@@ -306,10 +310,10 @@ export default function ScriptEditor() {
           e.trigger("menu", "editor.action.clipboardPasteAction", null);
           break;
         case "find":
-          e.getAction("actions.find")?.run();
+          void e.getAction("actions.find")?.run();
           break;
         case "replace":
-          e.getAction("editor.action.startFindReplaceAction")?.run();
+          void e.getAction("editor.action.startFindReplaceAction")?.run();
           break;
         case "selectAll":
           e.trigger("menu", "editor.action.selectAll", null);
@@ -317,7 +321,7 @@ export default function ScriptEditor() {
         case "format": {
           const sel = e.getSelection();
           const id = sel && !sel.isEmpty() ? "editor.action.formatSelection" : "editor.action.formatDocument";
-          e.getAction(id)?.run();
+          void e.getAction(id)?.run();
           break;
         }
       }
@@ -336,7 +340,7 @@ export default function ScriptEditor() {
       if (!ok) return;
       try {
         await scriptClient.deletes([script.uuid]);
-        if (stateRef.current.tabs.some((x) => x.uuid === script.uuid)) closeTab(script.uuid, true);
+        if (stateRef.current.tabs.some((x) => x.uuid === script.uuid)) void closeTab(script.uuid, true);
         notify.success(t("editor:delete_success"));
       } catch (err) {
         notify.error(`${t("editor:delete_failed")}: ${err}`);
@@ -352,7 +356,7 @@ export default function ScriptEditor() {
   const getActiveEditor = () => (state.activeUuid ? editorsRef.current.get(state.activeUuid) : undefined);
   const handleSaveActive = () => {
     const e = getActiveEditor();
-    if (e && activeTab) doSave(activeTab.script, e);
+    if (e && activeTab) void doSave(activeTab.script, e);
   };
   const handleSaveAsActive = () => {
     const e = getActiveEditor();
@@ -360,7 +364,7 @@ export default function ScriptEditor() {
   };
   const handleRunActive = () => {
     const e = getActiveEditor();
-    if (e && activeTab) doRun(activeTab.script, e);
+    if (e && activeTab) void doRun(activeTab.script, e);
   };
 
   // 编辑区：所有标签常驻挂载，非激活隐藏以保留 Monaco 状态（桌面/移动共用）

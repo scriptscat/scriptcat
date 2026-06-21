@@ -31,7 +31,7 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
 
   const handleCreate = (path: string) => {
     close();
-    navigate(path);
+    void navigate(path);
   };
   const importLocal = async () => {
     close();

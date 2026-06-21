@@ -10,12 +10,12 @@ export function useSystemConfig<K extends SystemConfigKey>(
 
   useEffect(() => {
     let alive = true;
-    Promise.resolve(systemConfig.get(key)).then((v) => {
+    void Promise.resolve(systemConfig.get(key)).then((v) => {
       if (alive) setValue(v);
     });
     const unsub = subscribeMessage<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key: k }) => {
       if (k !== key) return;
-      Promise.resolve(systemConfig.get(key)).then((v) => {
+      void Promise.resolve(systemConfig.get(key)).then((v) => {
         if (alive) setValue(v);
       });
     });

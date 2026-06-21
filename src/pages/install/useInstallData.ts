@@ -136,7 +136,7 @@ export interface UseInstallData {
   watchFileName?: string;
   /** 最后一次因文件变更自动重装的本地化时间(未发生过则为 undefined) */
   lastSync?: string;
-  toggleWatch: () => void;
+  toggleWatch: () => void | Promise<void>;
   install: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => Promise<void>;
   close: (opts?: { noMoreUpdates?: boolean }) => void;
   installSkill: () => Promise<void>;
@@ -212,7 +212,7 @@ export function useInstallData(): UseInstallData {
       });
     };
 
-    (async () => {
+    void (async () => {
       try {
         if (skill) {
           skillUuidRef.current = skill;
@@ -291,7 +291,7 @@ export function useInstallData(): UseInstallData {
   // 卸载时停止监听
   useEffect(() => {
     return () => {
-      if (handleRef.current) unmountFileTrack(handleRef.current);
+      if (handleRef.current) void unmountFileTrack(handleRef.current);
     };
   }, []);
 
@@ -329,7 +329,7 @@ export function useInstallData(): UseInstallData {
   const close = useCallback((opts?: { noMoreUpdates?: boolean }) => {
     const info = infoRef.current;
     if (opts?.noMoreUpdates && info && !info.userSubscribe) {
-      scriptClient.setCheckUpdateUrl(info.uuid, false);
+      void scriptClient.setCheckUpdateUrl(info.uuid, false);
     }
     window.close();
   }, []);
@@ -369,7 +369,7 @@ export function useInstallData(): UseInstallData {
       const ftInfo: FTInfo = {
         uuid: info.uuid,
         fileName: handle.name,
-        setCode: (c) => onWatchedCodeChanged(c),
+        setCode: (c) => void onWatchedCodeChanged(c),
         onFileError: () => setWatching(false),
       };
       startFileTrack(handle, ftInfo);
@@ -377,7 +377,7 @@ export function useInstallData(): UseInstallData {
       setLastSync(new Date().toLocaleTimeString());
       setWatching(true);
     } else {
-      unmountFileTrack(handle);
+      void unmountFileTrack(handle);
       setWatching(false);
     }
   }, [watching, onWatchedCodeChanged, t]);
@@ -396,7 +396,7 @@ export function useInstallData(): UseInstallData {
 
   const cancelSkill = useCallback(() => {
     const uuid = skillUuidRef.current;
-    if (uuid) agentClient.cancelSkillInstall(uuid);
+    if (uuid) void agentClient.cancelSkillInstall(uuid);
     window.close();
   }, []);
 

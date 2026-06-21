@@ -21,7 +21,11 @@ export function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
         const updatedToolCalls = msg.toolCalls.map((tc) => {
           const result = toolResultMap.get(tc.id);
           if (result !== undefined) {
-            return { ...tc, result, status: (tc.status || "completed") as typeof tc.status };
+            // 存在对应的 tool 结果消息即证明工具已结束。"running" 是过期状态
+            // （如 SW 在回写 completed 前被终止/中断），必须纠正为 "completed"，
+            // 否则刷新/重载后工具图标会一直转圈。其它状态（error）保留。
+            const status = !tc.status || tc.status === "running" ? "completed" : tc.status;
+            return { ...tc, result, status };
           }
           return tc;
         });
@@ -74,6 +78,16 @@ export function computeRegenerateAction(
 
   const idsToDelete = group.messages.map((m) => m.id);
   idsToDelete.push(userMessage.id);
+
+  // group.messages 来自 mergeToolResults 过滤后的视图，不含 tool 角色消息。
+  // 必须把该组 assistant 工具调用对应的 tool 结果消息一并删除，
+  // 否则存储中残留孤立 tool_result，重新生成时会混入 LLM 上下文（无配对的 tool_use）。
+  const groupToolCallIds = new Set(group.messages.flatMap((m) => m.toolCalls?.map((tc) => tc.id) || []));
+  for (const m of allMessages) {
+    if (m.role === "tool" && m.toolCallId && groupToolCallIds.has(m.toolCallId)) {
+      idsToDelete.push(m.id);
+    }
+  }
 
   const idSet = new Set(idsToDelete);
   const remainingMessages = allMessages.filter((m) => !idSet.has(m.id));

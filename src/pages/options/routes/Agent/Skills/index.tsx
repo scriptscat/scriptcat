@@ -325,7 +325,7 @@ export default function AgentSkills() {
             placeholder={t("agent:skills_url_placeholder")}
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleUrl();
+              if (e.key === "Enter") void handleUrl();
             }}
           />
           <DialogFooter>

@@ -16,8 +16,8 @@ export function DevToolsSection({ register }: { register: (id: string) => (el: H
   const [reconnect, setReconnect] = useState(false);
 
   useEffect(() => {
-    Promise.resolve(systemConfig.get("vscode_url")).then((v) => setUrl((v as string) ?? ""));
-    Promise.resolve(systemConfig.get("vscode_reconnect")).then((v) => setReconnect(Boolean(v)));
+    void Promise.resolve(systemConfig.get("vscode_url")).then((v) => setUrl((v as string) ?? ""));
+    void Promise.resolve(systemConfig.get("vscode_reconnect")).then((v) => setReconnect(Boolean(v)));
   }, []);
 
   const connect = () => {

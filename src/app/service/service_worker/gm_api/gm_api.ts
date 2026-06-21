@@ -776,13 +776,6 @@ export default class GMApi {
     }
 
     if (modifyReqHeaders.length > 0) {
-      // const tabs = await chrome.tabs.query({});
-      // const excludedTabIds: number[] = [];
-      // for (const tab of tabs) {
-      //   if (tab.id) {
-      //     excludedTabIds.push(tab.id);
-      //   }
-      // }
       let requestMethod = (params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod;
       if (!supportedRequestMethods.has(requestMethod)) {
         requestMethod = "other" as chrome.declarativeNetRequest.RequestMethod;

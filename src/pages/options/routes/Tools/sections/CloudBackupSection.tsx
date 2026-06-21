@@ -22,7 +22,7 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
   const [backupFileList, setBackupFileList] = useState<FileInfo[]>([]);
 
   useEffect(() => {
-    Promise.resolve(systemConfig.get("backup")).then((v) => setDraft(v as BackupConfig));
+    void Promise.resolve(systemConfig.get("backup")).then((v) => setDraft(v as BackupConfig));
   }, []);
 
   const currentParams = () => draft!.params[draft!.filesystem];

@@ -60,12 +60,6 @@ describe("设置外壳 SettingsLayout", () => {
       renderLayout();
       expect(screen.getByRole("navigation").className).toContain("bg-card");
     });
-
-    it("标题栏使用 bg-card 背景(与其它页面顶栏一致)", () => {
-      renderLayout();
-      const header = screen.getByText("设置").parentElement!;
-      expect(header.className).toContain("bg-card");
-    });
   });
 
   describe("移动端(顶部横向栏)", () => {

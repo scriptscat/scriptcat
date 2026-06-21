@@ -137,7 +137,7 @@ function CloudScriptPlanContent({
         notify.error(t("editor:invalid_script_code"));
         return;
       }
-      cloudScript.exportCloud(script, code.code, values, cookies);
+      void cloudScript.exportCloud(script, code.code, values, cookies);
       const zipOutput = await zipFile.generateAsync({
         type: "blob",
         compression: "DEFLATE",
@@ -145,7 +145,7 @@ function CloudScriptPlanContent({
         comment: "Created by Scriptcat",
       });
       const url = makeBlobURL({ blob: zipOutput, persistence: false }) as string;
-      chrome.downloads.download({ url, saveAs: true, filename: `${script.uuid}.zip` });
+      void chrome.downloads.download({ url, saveAs: true, filename: `${script.uuid}.zip` });
     }
     onOpenChange(false);
   };

@@ -11,8 +11,8 @@ export function useSubscribeDataManagement() {
 
   useEffect(() => {
     let mounted = true;
-    setLoadingList(true);
-    fetchSubscribeList().then((list) => {
+    // loadingList 初始即为 true（见上方 useState），effect 仅挂载时执行一次，无需再同步置 true
+    void fetchSubscribeList().then((list) => {
       if (!mounted) return;
       // 按创建时间升序，保证「#」序号稳定
       setSubscribeList([...list].sort((a, b) => a.createtime - b.createtime));

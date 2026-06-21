@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import {
@@ -69,16 +69,23 @@ export function McpFormDialog({
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<McpModalTestResult | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      setName(value?.name ?? "");
-      setUrl(value?.url ?? "");
-      setApiKey(value?.apiKey ?? "");
-      setHeadersText(stringifyHeaders(value?.headers));
-      setEnabled(value?.enabled ?? true);
-      setResult(null);
-    }
-  }, [open, value]);
+  // 弹窗打开时(open false→true)或打开期间 value 变化时,用 value 同步表单字段。
+  // 沿用「渲染期比较上一次输入再 setState」模式,等价于原 useEffect([open, value]) 的触发时机:
+  // 仅当 open 为 true 且 [open, value] 较上次渲染发生变化时重置;open 为 false 时变化不重置。
+  // 初值 open 取 false,使首渲染若已 open(等价于原 effect 在挂载后执行一次)也能用 value 初始化表单。
+  const [prevReset, setPrevReset] = useState<{ open: boolean; value: MCPServerConfig | null }>({
+    open: false,
+    value,
+  });
+  if (open && (open !== prevReset.open || value !== prevReset.value)) {
+    setPrevReset({ open, value });
+    setName(value?.name ?? "");
+    setUrl(value?.url ?? "");
+    setApiKey(value?.apiKey ?? "");
+    setHeadersText(stringifyHeaders(value?.headers));
+    setEnabled(value?.enabled ?? true);
+    setResult(null);
+  }
 
   const buildConfig = (): McpServerInput => ({
     name,

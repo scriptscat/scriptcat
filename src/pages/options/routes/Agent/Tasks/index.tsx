@@ -42,7 +42,9 @@ export default function AgentTasks() {
   }, []);
 
   useEffect(() => {
-    reload();
+    void (async () => {
+      await reload();
+    })();
   }, [reload]);
 
   const handleAdd = () => {
@@ -68,10 +70,13 @@ export default function AgentTasks() {
     await reload();
   };
 
-  const handleToggle = async (task: AgentTask, enabled: boolean) => {
-    await taskRepo.saveTask({ ...task, enabled, updatetime: Date.now() });
-    await reload();
-  };
+  const handleToggle = useCallback(
+    async (task: AgentTask, enabled: boolean) => {
+      await taskRepo.saveTask({ ...task, enabled, updatetime: Date.now() });
+      await reload();
+    },
+    [reload]
+  );
 
   const handleDelete = async (task: AgentTask) => {
     await taskRepo.removeTask(task.id);

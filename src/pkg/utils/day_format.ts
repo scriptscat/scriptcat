@@ -1,16 +1,6 @@
 // 把简单的时间格式function以pure javascript做出来
 
-// export function dayFormatCurrent() {
-//   // return dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss")
-//   return dayFormat(new Date(), "YYYY-MM-DD HH:mm:ss");
-// }
-
-// export function formatTime(time: Date) {
-//   return dayFormat(time, "YYYY-MM-DD HH:mm:ss");
-// }
-
 export function formatUnixTime(time: number) {
-  // return dayjs.unix(time).format("YYYY-MM-DD HH:mm:ss");
   const date = new Date(time * 1000);
   return dayFormat(date, "YYYY-MM-DD HH:mm:ss");
 }

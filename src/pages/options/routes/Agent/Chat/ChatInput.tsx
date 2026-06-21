@@ -244,9 +244,12 @@ export default function ChatInput({
 
   const showSlashMenu = filteredSkills.length > 0;
 
-  useEffect(() => {
+  // 过滤结果长度变化时重置高亮项（渲染期比较上一个值，避免在 effect 内同步 setState）
+  const [prevFilteredLength, setPrevFilteredLength] = useState(filteredSkills.length);
+  if (prevFilteredLength !== filteredSkills.length) {
+    setPrevFilteredLength(filteredSkills.length);
     setSlashActiveIndex(0);
-  }, [filteredSkills.length]);
+  }
 
   // 自动调整高度
   useEffect(() => {

@@ -45,8 +45,10 @@ import { Toolbar } from "./Toolbar";
 import { versionDisplay } from "@App/pages/utils";
 
 // ========== 拖拽上下文 ==========
-type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
-const SortableDragCtx = createContext<DragCtx>(null);
+// 把「手柄元素」作为已渲染节点经 context 下传：ref/listeners 仅在 useSortable 所在的
+// DraggableRow 渲染期被应用（同 setNodeRef），RowDragHandle 只消费节点，不在自身渲染期读取 ref 值。
+type DragHandleNode = React.ReactNode;
+const SortableDragCtx = createContext<DragHandleNode>(null);
 
 function DraggableRow({ id, disabled, children }: { id: string; disabled?: boolean; children: React.ReactNode }) {
   const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging, attributes } = useSortable({
@@ -60,12 +62,13 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
     zIndex: isDragging ? 10 : "auto",
   };
   // 排序激活时禁用拖拽：ctx 置空，RowDragHandle 渲染不可拖拽的占位手柄
-  const ctxValue = useMemo(
-    () => (disabled ? null : { listeners, setActivatorNodeRef }),
-    [disabled, listeners, setActivatorNodeRef]
+  const handle = disabled ? null : (
+    <span ref={setActivatorNodeRef} {...listeners} className="cursor-grab opacity-0 group-hover/row:opacity-50">
+      <GripVertical className="w-4 h-4 text-muted-foreground" />
+    </span>
   );
   return (
-    <SortableDragCtx.Provider value={ctxValue}>
+    <SortableDragCtx.Provider value={handle}>
       <div className="cursor-auto" ref={setNodeRef} style={style} {...attributes}>
         {children}
       </div>
@@ -74,18 +77,8 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
 }
 
 function RowDragHandle() {
-  const sortable = useContext(SortableDragCtx);
-  return !sortable ? (
-    <GripVertical className="w-4 h-4 text-muted-foreground collapse" />
-  ) : (
-    <span
-      ref={sortable.setActivatorNodeRef}
-      {...sortable.listeners}
-      className="cursor-grab opacity-0 group-hover/row:opacity-50"
-    >
-      <GripVertical className="w-4 h-4 text-muted-foreground" />
-    </span>
-  );
+  const handle = useContext(SortableDragCtx);
+  return handle ?? <GripVertical className="w-4 h-4 text-muted-foreground collapse" />;
 }
 
 // ========== 可排序表头 ==========

@@ -119,7 +119,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
 
   const onDownload = useCallback((r: ResItem) => {
     const url = makeBlobURL({ blob: base64ToBlob(r.base64), persistence: false }) as string;
-    chrome.downloads.download({ url, saveAs: true, filename: fileName(r.key) });
+    void chrome.downloads.download({ url, saveAs: true, filename: fileName(r.key) });
   }, []);
 
   return (
