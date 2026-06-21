@@ -16,7 +16,7 @@ import type {
   TScriptRunStatus,
 } from "../queue";
 import { getCurrentTab } from "@App/pkg/utils/utils";
-import type { SystemConfig } from "@App/pkg/config/config";
+import { type SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { v5 as uuidv5 } from "uuid";

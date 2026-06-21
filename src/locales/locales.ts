@@ -1,4 +1,4 @@
-import type { SystemConfig } from "@App/pkg/config/config";
+import { type SystemConfig } from "@App/pkg/config/config";
 import type { Callback } from "i18next";
 import i18n, { t } from "i18next";
 import { initReactI18next } from "react-i18next";
