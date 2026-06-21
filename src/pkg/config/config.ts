@@ -73,8 +73,18 @@ export type SystemConfigValueType<K extends SystemConfigKey> =
         : never
     : never;
 
+export interface SystemConfigExternalStore<K extends SystemConfigKey> {
+  subscribe: (listener: () => void) => () => void;
+  getSnapshot: () => SystemConfigValueType<K> | undefined;
+  set: (value: SystemConfigValueType<K>) => void;
+}
+
 export class SystemConfig {
   private readonly cache = new Map<string, any>();
+  private readonly snapshots = new Map<string, unknown>();
+  private readonly snapshotVersions = new Map<string, number>();
+  private readonly externalStores = new Map<string, unknown>();
+  private readonly externalStoreEvents = new EventEmitter<string>();
 
   // 跨设备同步的配置项，使用 chrome.storage.sync
   private readonly syncStorage = new ChromeStorage("system", true);
@@ -96,9 +106,46 @@ export class SystemConfig {
     this.mq.subscribe<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key, value, prev }) => {
       // 更新缓存
       this.cache.set(key, value);
+      this.advanceSnapshotVersion(key);
+      this.updateSnapshot(key, value);
       // 触发事件
       this.EE.emit(key, value, prev);
     });
+  }
+
+  private advanceSnapshotVersion(key: string) {
+    this.snapshotVersions.set(key, (this.snapshotVersions.get(key) ?? 0) + 1);
+  }
+
+  private updateSnapshot<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
+    if (this.snapshots.has(key) && Object.is(this.snapshots.get(key), value)) return;
+    this.snapshots.set(key, value);
+    this.externalStoreEvents.emit(key);
+  }
+
+  private snapshotOrDefault<T>(
+    key: SystemConfigKey,
+    defaultValue: WithAsyncValue<Exclude<T, undefined>>
+  ): T | Promise<T> {
+    if (this.snapshots.has(key)) return this.snapshots.get(key) as T;
+    return this.resolveDefault<T>(defaultValue);
+  }
+
+  public externalStore<T extends SystemConfigKey>(key: T): SystemConfigExternalStore<T> {
+    const existing = this.externalStores.get(key) as SystemConfigExternalStore<T> | undefined;
+    if (existing) return existing;
+
+    const store: SystemConfigExternalStore<T> = {
+      subscribe: (listener) => {
+        this.externalStoreEvents.on(key, listener);
+        void this.get(key);
+        return this.externalStoreEvents.off.bind(this.externalStoreEvents, key, listener) as () => void;
+      },
+      getSnapshot: () => this.snapshots.get(key) as SystemConfigValueType<T> | undefined,
+      set: (value) => this.set(key, value),
+    };
+    this.externalStores.set(key, store);
+    return store;
   }
 
   // 添加配置变更监听
@@ -152,8 +199,12 @@ export class SystemConfig {
       const val = this.cache.get(key);
       return Promise.resolve(val === undefined ? this.resolveDefault<T>(defaultValue) : (val as T));
     }
+    const snapshotVersion = this.snapshotVersions.get(key) ?? 0;
     const storage = this.getStorage(key);
     return storage.get(key).then((val) => {
+      if (snapshotVersion !== (this.snapshotVersions.get(key) ?? 0)) {
+        return this.snapshotOrDefault<T>(key, defaultValue);
+      }
       if (val !== undefined) {
         this.cache.set(key, val);
         return val as T;
@@ -169,10 +220,17 @@ export class SystemConfig {
 
   public get<T extends SystemConfigKey>(key: T): Promise<SystemConfigValueType<T>> {
     const funcName = `get${toCamelCase(key)}`;
+    const snapshotVersion = this.snapshotVersions.get(key) ?? 0;
     // @ts-ignore
     if (typeof this[funcName] === "function") {
       // @ts-ignore
-      return this[funcName]() as Promise<any>;
+      return Promise.resolve(this[funcName]()).then((value) => {
+        if (snapshotVersion === (this.snapshotVersions.get(key) ?? 0)) {
+          this.updateSnapshot(key, value);
+          return value;
+        }
+        return this.snapshots.has(key) ? (this.snapshots.get(key) as SystemConfigValueType<T>) : value;
+      });
     } else {
       throw new Error(`Method ${funcName} does not exist on SystemConfig`);
     }
@@ -191,6 +249,8 @@ export class SystemConfig {
 
   private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
     const prev = this.cache.get(key);
+    this.advanceSnapshotVersion(key);
+    this.updateSnapshot(key, value);
     const storage = this.getStorage(key);
     let asyncOp;
     if (value === undefined) {

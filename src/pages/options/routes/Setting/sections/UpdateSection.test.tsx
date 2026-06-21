@@ -5,10 +5,10 @@ const { get, set } = vi.hoisted(() => ({
   get: vi.fn(() => Promise.resolve(86400)),
   set: vi.fn(),
 }));
-vi.mock("@App/pages/store/global", () => ({
-  systemConfig: { get, set },
-  subscribeMessage: () => () => {},
-}));
+vi.mock("@App/pages/store/global", async () => {
+  const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
+  return createGlobalStoreMock({ systemConfig: { get, set } });
+});
 
 import { UpdateSection } from "./UpdateSection";
 
