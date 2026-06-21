@@ -35,7 +35,7 @@ export default function ScriptListPanel({
     <div
       className={cn(
         "flex h-full w-60 shrink-0 flex-col border-r border-border bg-card",
-        scriptListCollapsed ? "absolute left-0 z-8 ml-6 -translate-x-full opacity-0" : "",
+        scriptListCollapsed ? "absolute left-0 z-8 ml-5 -translate-x-full opacity-0" : "",
         scriptListCollapsed
           ? "hover:ml-0 hover:translate-x-0 hover:opacity-100 hover:transition-all hover:duration-220 hover:ease-in"
           : ""
