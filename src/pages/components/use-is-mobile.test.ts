@@ -5,7 +5,7 @@ import { useIsMobile } from "./use-is-mobile";
 afterEach(cleanup);
 
 // 可控的 matchMedia mock:matches 可变、change 监听器可手动触发
-function stubMatchMedia(initialMatches: boolean) {
+function stubMatchMedia(initialMatches: boolean, matchesOnSubscribe?: boolean) {
   let matches = initialMatches;
   const listeners = new Set<() => void>();
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -14,7 +14,10 @@ function stubMatchMedia(initialMatches: boolean) {
     },
     media: query,
     onchange: null,
-    addEventListener: (_: string, cb: () => void) => listeners.add(cb),
+    addEventListener: (_: string, cb: () => void) => {
+      listeners.add(cb);
+      if (matchesOnSubscribe !== undefined) matches = matchesOnSubscribe;
+    },
     removeEventListener: (_: string, cb: () => void) => listeners.delete(cb),
     addListener: () => {},
     removeListener: () => {},
@@ -46,6 +49,12 @@ describe("useIsMobile 视口断点", () => {
     const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(false);
     act(() => mql.setMatches(true));
+    expect(result.current).toBe(true);
+  });
+
+  it("订阅期间视口变化时不丢失最新快照", () => {
+    stubMatchMedia(false, true);
+    const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(true);
   });
 });
