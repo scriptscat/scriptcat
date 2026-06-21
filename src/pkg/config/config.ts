@@ -159,7 +159,7 @@ export class SystemConfig {
     return this.isLocalKey(key) ? this.localStorage : this.syncStorage;
   }
 
-  private EE: EventEmitter<SystemConfigKey> = new EventEmitter<SystemConfigKey>();
+  private readonly EE: EventEmitter<SystemConfigKey> = new EventEmitter<SystemConfigKey>();
 
   constructor(private mq: IMessageQueue) {
     this.mq.subscribe<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key, value, prev }) => {
