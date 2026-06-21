@@ -13,7 +13,7 @@ import noRawColorClassname from "./eslint-rules/no-raw-color-classname.mjs";
 export default [
   {
     languageOptions: {
-      ecmaVersion: "latest",
+      ecmaVersion: 2020,
       sourceType: "module",
       globals: {
         ...globals.browser,
