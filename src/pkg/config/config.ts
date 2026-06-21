@@ -126,6 +126,22 @@ interface SystemConfigEntry {
   store?: unknown;
 }
 
+type GetterFn<T extends SystemConfigKey> = (
+  ...args: any[]
+) => Promise<SystemConfigValueType<T>> | SystemConfigValueType<T>;
+
+type SetterFn<T extends SystemConfigKey> = (value: SystemConfigValueType<T>) => unknown;
+
+type TGetterKey<T extends SystemConfigKey = SystemConfigKey> = Extract<
+  `get${Capitalize<SnakeToCamel<T>>}`,
+  keyof SystemConfig
+>;
+
+type TSetterKey<T extends SystemConfigKey = SystemConfigKey> = Extract<
+  `set${Capitalize<SnakeToCamel<T>>}`,
+  keyof SystemConfig
+>;
+
 export class SystemConfig {
   private readonly cache = new Map<string, SystemConfigEntry>();
 
@@ -198,8 +214,11 @@ export class SystemConfig {
   }
 
   private resolveDefault<T>(defaultValue: WithAsyncValue<Exclude<T, undefined>>): T | Promise<T> {
-    //@ts-ignore
-    return (defaultValue?.asyncValue?.() || defaultValue) as T | Promise<T>;
+    const asyncFactory =
+      typeof defaultValue === "object" && defaultValue !== null
+        ? (defaultValue as { asyncValue?: () => Promise<T> }).asyncValue
+        : undefined;
+    return (asyncFactory?.() ?? defaultValue) as T | Promise<T>;
   }
 
   private async transferSyncToLocal<T>(
@@ -253,25 +272,15 @@ export class SystemConfig {
   }
 
   public get<T extends SystemConfigKey>(key: T): Promise<SystemConfigValueType<T>> | SystemConfigValueType<T> {
-    const funcName = `get${toCamelCase(key)}`;
-    // @ts-ignore
-    if (typeof this[funcName] === "function") {
-      // @ts-ignore
-      return this[funcName]() as Promise<any>;
-    } else {
-      throw new Error(`Method ${funcName} does not exist on SystemConfig`);
-    }
+    const funcName = `get${toCamelCase(key)}` as TGetterKey<T>;
+    if (typeof this[funcName] !== "function") throw new Error(`Method ${funcName} does not exist on SystemConfig`);
+    return (this[funcName] as GetterFn<T>)();
   }
 
   public set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T>): void {
-    const funcName = `set${toCamelCase(key)}`;
-    // @ts-ignore
-    if (typeof this[funcName] === "function") {
-      // @ts-ignore
-      this[funcName](value);
-    } else {
-      throw new Error(`Method ${funcName} does not exist on SystemConfig`);
-    }
+    const funcName = `set${toCamelCase(key)}` as TSetterKey<T>;
+    if (typeof this[funcName] !== "function") throw new Error(`Method ${funcName} does not exist on SystemConfig`);
+    (this[funcName] as SetterFn<T>)(value);
   }
 
   private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
