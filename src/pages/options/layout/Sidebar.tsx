@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useHoverMenu } from "../../components/ui/use-hover-menu";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -34,10 +34,24 @@ import { mainNav, agentNav, auxNav } from "./nav-items";
 
 const SIDEBAR_KEY = "scriptcat-sidebar-collapsed";
 
+/**
+  要检查系统色，避免用户在第一次点击时看不到变化
+*/
+const getThemeCycle = (theme: Theme): Theme[] => {
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  if (systemDark && theme === "dark") return ["dark", "light", "auto"];
+  if (systemDark && theme === "auto") return ["auto", "light", "dark"];
+  if (!systemDark && theme === "auto") return ["auto", "dark", "light"];
+  if (!systemDark && theme === "light") return ["light", "dark", "auto"];
+  return ["light", "dark", "auto"];
+};
+
 export default function Sidebar() {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === "1");
   const { theme, setTheme } = useTheme();
+  const cycleThemeOrder = useRef<Theme[] | null>(null);
+  if (cycleThemeOrder.current === null) cycleThemeOrder.current = getThemeCycle(theme);
 
   const toggleCollapse = () => {
     setCollapsed((prev) => {
@@ -47,7 +61,7 @@ export default function Sidebar() {
   };
 
   const cycleTheme = () => {
-    const order: Theme[] = ["light", "dark", "auto"];
+    const order: Theme[] = cycleThemeOrder.current!;
     setTheme(order[(order.indexOf(theme) + 1) % order.length]);
   };
 
