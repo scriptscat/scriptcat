@@ -23,8 +23,8 @@ describe("全局焦点 outline 可访问性", () => {
 describe("主色背景令牌", () => {
   const css = fs.readFileSync(path.join(process.cwd(), "src/index.css"), "utf8");
 
-  it("浅色模式应沿用原按钮背景色", () => {
-    expect(css).toMatch(/:root\s*{[\s\S]*?--primary-background:\s*#1296db;/);
+  it("浅色模式应使用提高对比度的按钮背景色", () => {
+    expect(css).toMatch(/:root\s*{[\s\S]*?--primary-background:\s*#2b92ed;/);
   });
 
   it("深色模式应使用提高对比度的按钮背景色", () => {
