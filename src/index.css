@@ -294,7 +294,12 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", "Noto Sans SC",
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, "Liberation Mono", "PingFang SC", "Microsoft YaHei",
+    monospace;
 }
 
 /* Radix Collapsible 动画（基于 --radix-collapsible-content-height 变量） */
@@ -321,7 +326,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

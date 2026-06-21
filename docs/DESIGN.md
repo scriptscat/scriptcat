@@ -225,11 +225,14 @@ setTheme("auto"); // "auto" follows the system theme and updates on change
 
 ### Fonts
 
+**System-font-only, zero webfonts.** A browser extension must work offline, must not phone home to a font CDN (privacy + CSP), and pays for every byte it ships — so the type system is **the platform's own fonts**, declared as two tokens in the `@theme inline` block of [`src/index.css`](../src/index.css). Both stacks end with an **explicit CJK fallback** (`PingFang SC` / `Microsoft YaHei` / `Noto Sans SC`) because ScriptCat is Chinese-first and CJK coverage must be controlled, not left to whatever `system-ui` happens to resolve to on a non-Chinese OS.
+
 | Token | Value | Use |
 | --- | --- | --- |
-| `font-mono` (`--font-mono`) | `"Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace` | Code, version numbers, `@match`/permission rules, stored values — anything monospaced (`font-mono`) |
+| `font-sans` (`--font-sans`) | `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif, "Apple Color Emoji", "Segoe UI Emoji"` | Body / UI text. Applied on `body` via `@apply font-sans`, so everything inherits it by default; this is the default — you rarely write `font-sans` explicitly |
+| `font-mono` (`--font-mono`) | `ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, "Liberation Mono", "PingFang SC", "Microsoft YaHei", monospace` | Code, version numbers, `@match`/permission rules, stored values — anything monospaced (`font-mono`) |
 
-> **There is no dedicated sans token.** `src/index.css` defines only `--font-mono`; body text uses Tailwind's default system sans stack. If you need a specific sans family, add a `--font-sans` token first (see Constraint 9) and update this section — don't reference an unconfigured font.
+> **No webfont, no `@font-face`.** Don't reference a family that isn't actually packaged (it would silently fall back and mislead — Constraint 9). If a brand font is genuinely required, self-host it (woff2, local `@font-face`, never a CDN), keep the CJK fallback, and update this table.
 
 ### Radius
 
