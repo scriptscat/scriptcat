@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, X } from "lucide-react";
 import { i18nName } from "@App/locales/locales";
@@ -22,7 +22,7 @@ interface MenuState {
   uuid: string;
 }
 
-export default function EditorTabs(props: EditorTabsProps) {
+function EditorTabs(props: EditorTabsProps) {
   const { t } = useTranslation();
   const { tabs, activeUuid, onActivate, onClose, onCloseOthers, onCloseLeft, onCloseRight, onNew } = props;
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -109,3 +109,4 @@ export default function EditorTabs(props: EditorTabsProps) {
     </div>
   );
 }
+export default React.memo(EditorTabs);

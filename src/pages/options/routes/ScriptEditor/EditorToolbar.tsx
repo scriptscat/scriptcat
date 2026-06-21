@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Code,
   Database,
@@ -26,7 +27,7 @@ export interface EditorToolbarProps {
   onToggleScriptList: () => void;
 }
 
-export default function EditorToolbar(props: EditorToolbarProps) {
+function EditorToolbar(props: EditorToolbarProps) {
   const { t } = useTranslation();
   const {
     subView,
@@ -95,3 +96,4 @@ export default function EditorToolbar(props: EditorToolbarProps) {
     </div>
   );
 }
+export default React.memo(EditorToolbar);

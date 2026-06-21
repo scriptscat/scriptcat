@@ -1,4 +1,4 @@
-import type React from "react";
+import React from "react";
 import {
   ArrowLeft,
   Code,
@@ -30,7 +30,7 @@ export interface MobileEditorProps {
   children: React.ReactNode;
 }
 
-export default function MobileEditor(props: MobileEditorProps) {
+function MobileEditor(props: MobileEditorProps) {
   const { t } = useTranslation();
   const {
     title,
@@ -150,3 +150,4 @@ export default function MobileEditor(props: MobileEditorProps) {
     </div>
   );
 }
+export default React.memo(MobileEditor);

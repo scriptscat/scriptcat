@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Script } from "@App/app/repo/scripts";
@@ -17,7 +17,7 @@ export interface ScriptListPanelProps {
   onDelete: (script: Script) => void;
 }
 
-export default function ScriptListPanel({
+function ScriptListPanel({
   scripts,
   activeUuid,
   openUuids,
@@ -98,3 +98,4 @@ export default function ScriptListPanel({
     </div>
   );
 }
+export default React.memo(ScriptListPanel);
