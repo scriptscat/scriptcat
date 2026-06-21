@@ -7,7 +7,7 @@ import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt } from "@App/app/
 // 详情抽屉 Tab：品牌色下划线激活态（覆盖 shadcn 默认胶囊样式）
 const TAB_LIST_CLASS = "h-11 w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0 px-5";
 const TAB_TRIGGER_CLASS =
-  "-mb-px h-11 rounded-none border-b-2 border-transparent bg-transparent px-0.5 font-normal text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none";
+  "-mb-px h-11 rounded-none border-b-2 pt-[2px] border-transparent bg-transparent px-0.5 font-normal text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none";
 
 function ParamChips({ schema }: { schema: Record<string, unknown> }) {
   const properties = (schema?.properties as Record<string, unknown>) ?? {};

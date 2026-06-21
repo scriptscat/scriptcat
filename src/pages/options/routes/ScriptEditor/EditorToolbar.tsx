@@ -48,7 +48,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
       onPointerEnter={() => onPreloadSubView?.(v)}
       onFocus={() => onPreloadSubView?.(v)}
       className={cn(
-        "flex items-center gap-1.5 border-b-2 px-2.5 text-xs",
+        "flex items-center gap-1.5 border-b-2 pt-[2px] px-2.5 text-xs",
         subView === v
           ? "border-b-primary font-medium text-primary"
           : "border-b-transparent text-muted-foreground hover:text-foreground"

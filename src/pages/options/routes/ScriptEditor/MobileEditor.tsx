@@ -53,7 +53,7 @@ export default function MobileEditor(props: MobileEditorProps) {
       onPointerEnter={() => onPreloadSubView?.(v)}
       onFocus={() => onPreloadSubView?.(v)}
       className={cn(
-        "flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm",
+        "flex shrink-0 items-center gap-1.5 border-b-2 pt-[2px] px-4 py-2.5 text-sm",
         subView === v ? "border-primary font-medium text-primary" : "border-transparent text-muted-foreground"
       )}
     >

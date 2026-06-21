@@ -52,7 +52,7 @@ export default function EditorTabs(props: EditorTabsProps) {
               setMenu({ x: e.clientX, y: e.clientY, uuid: tab.uuid });
             }}
             className={cn(
-              "group/tab flex max-w-[180px] cursor-pointer items-center gap-1.5 border-r border-b-2 border-border px-3 text-xs",
+              "group/tab flex max-w-[180px] cursor-pointer items-center gap-1.5 border-r border-b-2 pt-[2px] border-border px-3 text-xs",
               isActive ? "border-b-primary text-primary" : "border-b-transparent text-muted-foreground hover:bg-accent"
             )}
           >
