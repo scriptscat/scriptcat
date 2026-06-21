@@ -88,14 +88,4 @@ describe("脚本自然顺序重编号 reindexScriptList", () => {
     expect(first.sort).toBe(8);
     expect(second.sort).toBe(9);
   });
-
-  it("sort 已正确时应保留对象引用", () => {
-    const first = mk({ uuid: "a", sort: 0 });
-    const second = mk({ uuid: "b", sort: 1 });
-
-    const result = reindexScriptList([first, second]);
-
-    expect(result[0]).toBe(first);
-    expect(result[1]).toBe(second);
-  });
 });

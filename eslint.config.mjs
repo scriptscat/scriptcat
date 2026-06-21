@@ -8,13 +8,6 @@ import ts from "typescript-eslint";
 import globals from "globals";
 import requireLastErrorCheck from "./eslint-rules/require-last-error-check.mjs";
 
-const reactHooksRules = Object.fromEntries(
-  Object.keys(reactHooks.configs.recommended.rules).map((rule) => [
-    rule,
-    rule === "react-hooks/rules-of-hooks" ? "error" : "warn",
-  ])
-);
-
 export default [
   {
     languageOptions: {
@@ -59,7 +52,8 @@ export default [
           caughtErrorsIgnorePattern: "^_",
         },
       ],
-      ...reactHooksRules,
+      ...reactHooks.configs.recommended.rules,
+      "react-hooks/exhaustive-deps": "warn",
       "react/prop-types": "off",
       "chrome-error/require-last-error-check": "error",
       "react/jsx-no-literals": "warn",
