@@ -385,42 +385,46 @@ export default function ScriptEditor() {
   }, [doRun]);
 
   // 编辑区：所有标签常驻挂载，非激活隐藏以保留 Monaco 状态（桌面/移动共用）
-  const editorArea = (
-    <div className="relative min-h-0 flex-1">
-      {state.tabs.map((tab) => (
-        <div
-          key={tab.uuid}
-          className="absolute inset-0"
-          style={{ display: tab.uuid === state.activeUuid && subView === "code" ? "block" : "none" }}
-        >
-          <CodePane
-            tab={tab}
-            getScript={() => stateRef.current.tabs.find((x) => x.uuid === tab.uuid)?.script ?? tab.script}
-            onChange={(code) => dispatch({ type: "markChanged", uuid: tab.uuid, code })}
-            onSave={doSave}
-            onSaveAs={doSaveAs}
-            onRun={doRun}
-            onStatus={setStatus}
-            onMount={(e) => editorsRef.current.set(tab.uuid, e)}
-          />
-        </div>
-      ))}
-      {activeTab && subView === "storage" && (
-        <div className="absolute inset-0">
-          <StoragePane uuid={activeTab.uuid} />
-        </div>
-      )}
-      {activeTab && subView === "resource" && (
-        <div className="absolute inset-0">
-          <ResourcePane uuid={activeTab.uuid} />
-        </div>
-      )}
-      {activeTab && subView === "setting" && (
-        <div className="absolute inset-0">
-          <SettingsPane uuid={activeTab.uuid} />
-        </div>
-      )}
-    </div>
+  // useMemo 保证 children 引用稳定，使 MobileEditor 的 React.memo 能有效跳过渲染
+  const editorArea = useMemo(
+    () => (
+      <div className="relative min-h-0 flex-1">
+        {state.tabs.map((tab) => (
+          <div
+            key={tab.uuid}
+            className="absolute inset-0"
+            style={{ display: tab.uuid === state.activeUuid && subView === "code" ? "block" : "none" }}
+          >
+            <CodePane
+              tab={tab}
+              getScript={() => stateRef.current.tabs.find((x) => x.uuid === tab.uuid)?.script ?? tab.script}
+              onChange={(code) => dispatch({ type: "markChanged", uuid: tab.uuid, code })}
+              onSave={doSave}
+              onSaveAs={doSaveAs}
+              onRun={doRun}
+              onStatus={setStatus}
+              onMount={(e) => editorsRef.current.set(tab.uuid, e)}
+            />
+          </div>
+        ))}
+        {activeTab && subView === "storage" && (
+          <div className="absolute inset-0">
+            <StoragePane uuid={activeTab.uuid} />
+          </div>
+        )}
+        {activeTab && subView === "resource" && (
+          <div className="absolute inset-0">
+            <ResourcePane uuid={activeTab.uuid} />
+          </div>
+        )}
+        {activeTab && subView === "setting" && (
+          <div className="absolute inset-0">
+            <SettingsPane uuid={activeTab.uuid} />
+          </div>
+        )}
+      </div>
+    ),
+    [state.tabs, state.activeUuid, subView, activeTab, doSave, doSaveAs, doRun]
   );
 
   return (
