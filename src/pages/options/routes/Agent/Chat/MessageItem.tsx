@@ -282,7 +282,7 @@ export function UserMessageItem({
 
   return (
     <div className="flex gap-3 py-5 flex-row-reverse group/msg">
-      <div className="size-8 rounded-full flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-primary to-primary-hover text-primary-foreground">
+      <div className="size-8 rounded-full flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-primary-background to-primary-hover text-primary-foreground">
         <User className="size-3.5" />
       </div>
       <div className="flex flex-col items-end max-w-[80%] min-w-0">
@@ -376,7 +376,7 @@ export function UserMessageItem({
                 <button
                   type="button"
                   data-testid="user-edit-save"
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium border-none bg-primary text-primary-foreground cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border-none bg-primary-background text-primary-foreground cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
                   onClick={handleSave}
                 >
                   {t("agent:chat_save_and_send")}
@@ -387,7 +387,7 @@ export function UserMessageItem({
         ) : (
           <>
             {textContent && (
-              <div className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-gradient-to-br from-primary to-primary-hover text-primary-foreground text-sm whitespace-pre-wrap break-words shadow-sm">
+              <div className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-gradient-to-br from-primary-background to-primary-hover text-primary-foreground text-sm whitespace-pre-wrap break-words shadow-sm">
                 {textContent}
               </div>
             )}

@@ -62,7 +62,7 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
   class on `document.documentElement` (`src/pages/common.ts` sets the initial class before React mounts to avoid a
   flash). Every UI change must work in both themes:
   - Use the design-system CSS variables defined in `src/index.css` (`bg-background`, `text-foreground`,
-    `border-border`, `bg-primary`, `text-muted-foreground`, …) — they auto-adapt per theme.
+    `border-border`, `text-primary`, `bg-primary-background`, `text-muted-foreground`, …) — they auto-adapt per theme.
   - Use Tailwind's `dark:` variant for dark-only overrides (`@custom-variant dark` in `src/index.css`).
   - No hard-coded colors.
 - **Design system** — the full color-token reference (light/dark values), component palette, layout &

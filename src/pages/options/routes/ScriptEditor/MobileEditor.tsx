@@ -80,7 +80,7 @@ export default function MobileEditor(props: MobileEditorProps) {
           aria-label={t("editor:save")}
           onClick={onSave}
           disabled={!hasActive}
-          className="flex size-9 items-center justify-center rounded bg-primary text-primary-foreground disabled:opacity-40"
+          className="flex size-9 items-center justify-center rounded bg-primary-background text-primary-foreground disabled:opacity-40"
         >
           <Save className="size-4" />
         </button>
@@ -115,7 +115,7 @@ export default function MobileEditor(props: MobileEditorProps) {
             type="button"
             onClick={onRun}
             disabled={!hasActive}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-md bg-primary-background px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40"
           >
             <Play className="size-4" />
             {t("editor:run")}

@@ -19,3 +19,19 @@ describe("全局焦点 outline 可访问性", () => {
     expect(css).toMatch(/a:focus:not\(:focus-visible\)/);
   });
 });
+
+describe("主色背景令牌", () => {
+  const css = fs.readFileSync(path.join(process.cwd(), "src/index.css"), "utf8");
+
+  it("浅色模式应沿用原按钮背景色", () => {
+    expect(css).toMatch(/:root\s*{[\s\S]*?--primary-background:\s*#1296db;/);
+  });
+
+  it("深色模式应使用提高对比度的按钮背景色", () => {
+    expect(css).toMatch(/\.dark\s*{[\s\S]*?--primary-background:\s*#0383f3;/);
+  });
+
+  it("应向 Tailwind 暴露 primary-background 颜色", () => {
+    expect(css).toContain("--color-primary-background: var(--primary-background);");
+  });
+});

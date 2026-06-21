@@ -412,7 +412,7 @@ export function Calendar({ value, onChange }: { value: Date; onChange: (d: Date)
               className={cn(
                 "flex h-8 items-center justify-center rounded-md text-[13px] transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                 selected
-                  ? "bg-primary font-semibold text-primary-foreground"
+                  ? "bg-primary-background font-semibold text-primary-foreground"
                   : cell.inMonth
                     ? "text-foreground hover:bg-accent"
                     : "text-muted-foreground hover:bg-accent"

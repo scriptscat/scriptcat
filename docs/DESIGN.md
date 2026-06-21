@@ -23,11 +23,11 @@ This doc restates the `DEVELOP.md` hard rules only where needed, then links back
 
 Every UI change must satisfy all of these. They are the bar for "friendly, consistent UI/UX" in this codebase.
 
-- **Use tokens, not literal colors — one value, one place.** Never write a hex (`#1296db`), an `rgb()`, or a palette class (`text-blue-500`). Always use a semantic token — `bg-background`, `text-foreground`, `border-border`, `bg-primary`, `text-muted-foreground`, … (§3). All color values live in exactly one place — the token definitions in `src/index.css` — so the palette stays unified and a single edit re-skins everything. One semantic concept maps to **one** token: before adding a color, check §3 for an existing token and reuse it; don't introduce a near-duplicate (a second slightly-different gray or blue). Only add a new token when the concept is genuinely new — with both light and dark values — and document it in §3.
+- **Use tokens, not literal colors — one value, one place.** Never write a hex (`#1296db`), an `rgb()`, or a palette class (`text-blue-500`). Always use a semantic token — `bg-background`, `text-foreground`, `border-border`, `text-primary`, `bg-primary-background`, `text-muted-foreground`, … (§3). All color values live in exactly one place — the token definitions in `src/index.css` — so the palette stays unified and a single edit re-skins everything. One semantic concept maps to **one** token: before adding a color, check §3 for an existing token and reuse it; don't introduce a near-duplicate (a second slightly-different gray or blue). Only add a new token when the concept is genuinely new — with both light and dark values — and document it in §3.
 - **Both themes, always.** Light and dark are first-class. Because every color comes from a token that has a `:root` and a `.dark` value, using tokens makes a component theme-correct for free. Verify on real light *and* dark before considering anything done (§4).
 - **Design for mobile too.** The UI is responsive around a single `768px` breakpoint (`useIsMobile`). Mobile is **a different shell, not a shrunk desktop** — side nav becomes bottom tabs + drawer, tables become cards, rows stack, details/code collapse, actions move into a sticky bar (§7). A feature isn't finished until it works on a narrow viewport.
 - **No inline `style={{}}` for what Tailwind can express.** Compose utility classes via `cn()` (`clsx` + `tailwind-merge`); build variants with `class-variance-authority` (CVA). Inline styles only for genuinely dynamic values (e.g. a computed width).
-- **Hover/focus are CSS, not state.** Express interactive visuals with pseudo-classes (`hover:bg-primary/90`, `focus-visible:ring-ring/50`). React state is for data/logic, not styling.
+- **Hover/focus are CSS, not state.** Express interactive visuals with pseudo-classes (`hover:bg-primary-background/90`, `focus-visible:ring-ring/50`). React state is for data/logic, not styling.
 - **Reuse components before building new ones.** Default to the shadcn primitives in `src/pages/components/ui/` (§6); icons come from `lucide-react` only — don't hand-roll a control that already exists. Beyond primitives, search the existing pages for a composed block (card row, identity header, permission card, state screen…) that already does what you need and reuse it. When the same block appears in two or more places, extract one shared component instead of copy-pasting — keep one implementation per concept so behavior and styling stay consistent and a fix lands everywhere at once.
 - **Keep motion restrained.** Enter/leave in `150–250ms`, `ease-out`; reuse the existing `@utility` animations rather than inlining `@keyframes`; prefer `transition-colors` over `transition-all` (§8).
 - **No silent operations.** Every async flow surfaces loading / empty / error / success (and progress for long-running work). The user must always know whether their action worked (§9).
@@ -54,7 +54,7 @@ The "why" behind the constraints — apply these when shaping a screen.
 
 **Usage:**
 - Background `bg-<token>`, text `text-<token>`, border `border-<token>`, focus ring `ring-ring`.
-- Opacity modifiers compose directly: `bg-primary/90` (hover), `ring-destructive/20`, `bg-input/30`.
+- Opacity modifiers compose directly: `bg-primary-background/90` (solid primary hover), `ring-destructive/20`, `bg-input/30`.
 - **Never hard-code a color value** — see Constraint 1 and [`DEVELOP.md` § UI](./DEVELOP.md). For dark-only tweaks use the `dark:` variant.
 
 ### 3.1 Base surfaces & text
@@ -74,9 +74,10 @@ The "why" behind the constraints — apply these when shaping a screen.
 
 | Token / class | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `primary` | `#1296db` | `#3aacef` | Primary actions, active state, emphasis (dark is brightened for contrast) |
-| `primary-foreground` | `#ffffff` | `#ffffff` | Text on the brand color |
-| `primary-hover` | `#0a7db8` | `#1296db` | Brand hover (or use `bg-primary/90`) |
+| `primary` | `#1296db` | `#3aacef` | Brand text, icons, borders, indicators, and active-state emphasis; not a solid control fill |
+| `primary-background` | `#1296db` | `#0383f3` | Solid primary control/surface fill paired with `primary-foreground`; dark is deliberately deeper than `primary` for stronger contrast |
+| `primary-foreground` | `#ffffff` | `#ffffff` | Text/icons on `primary-background` |
+| `primary-hover` | `#0a7db8` | `#1296db` | Solid primary gradient/hover endpoint (or use `bg-primary-background/90`) |
 | `primary-light` | `#d6ecfa` | `#1e3040` | Soft brand wash — icon backgrounds, chip fills |
 
 ### 3.3 Secondary / muted / accent backgrounds
@@ -207,7 +208,7 @@ setTheme("auto"); // "auto" follows the system theme and updates on change
 ```tsx
 // ✅ Tokens — adapt to light/dark automatically
 <div className="bg-card text-foreground border-border">…</div>
-<button className="bg-primary text-primary-foreground hover:bg-primary/90">…</button>
+<button className="bg-primary-background text-primary-foreground hover:bg-primary-background/90">…</button>
 
 // ✅ dark: variant only for a dark-specific tweak
 <div className="bg-input/30 dark:bg-input/50">…</div>
@@ -309,6 +310,9 @@ Source: [`button.tsx`](../src/pages/components/ui/button.tsx).
 
 - **variant:** `default` (brand solid), `destructive`, `outline`, `secondary`, `ghost`, `link`
 - **size:** `default`, `xs`, `sm`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`
+
+The `default` variant uses `bg-primary-background text-primary-foreground`. Keep `text-primary` / `border-primary`
+for accent semantics; do not use `bg-primary` as a solid button fill.
 
 ```tsx
 import { Button } from "@App/pages/components/ui/button";
@@ -423,7 +427,7 @@ Copy is translated into 7 locales and German/Russian run ~30% longer than Englis
 ### How to add motion that stays friendly
 
 - **Fast and light:** enter/leave in `150–250ms`, `ease-out`; the built-in collapse/progress animations use `200ms ease-out`.
-- **Hover/focus via CSS pseudo-classes, not React state** (`hover:bg-primary/90`, `focus-visible:ring-ring/50`) — a `DEVELOP.md` rule.
+- **Hover/focus via CSS pseudo-classes, not React state** (`hover:bg-primary-background/90`, `focus-visible:ring-ring/50`) — a `DEVELOP.md` rule.
 - **Enter/leave via Radix `data-state`** — don't hand-roll show/hide with `setTimeout`.
 - **Prefer `transition-colors` over `transition-all`:** animate only what should move, avoiding layout thrash and wasted work.
 - **Reuse existing utilities;** don't inline `@keyframes` in a component. New animation → add an `@utility` in `src/index.css` so it's globally reusable.
@@ -569,7 +573,7 @@ When building a new page or dialog, run this checklist to stay consistent:
 - [ ] **Entry** reuses the existing `main.tsx` pattern — mount `ThemeProvider`, `Toaster` (and `TooltipProvider` if needed); don't roll your own theme logic.
 - [ ] **Shell:** sticky TopBar + `.scrollbar-custom` scroll container + sticky ActionBar (§7).
 - [ ] **Responsive:** branch on `useIsMobile()`; re-shell on mobile (bottom bar/drawer, cards, collapse) rather than scaling down (Constraint 3, §7).
-- [ ] **Color** entirely from tokens (`bg-card` / `text-foreground` / `border-border` / `bg-primary` …), no literals, verified on both themes (Constraint 1–2, §3–4).
+- [ ] **Color** entirely from tokens (`bg-card` / `text-foreground` / `border-border` / `text-primary` / `bg-primary-background` …), no literals, verified on both themes (Constraint 1–2, §3–4).
 - [ ] **Components** reuse first — search existing pages for a composed block before building; use `src/pages/components/ui/` primitives; extract a shared component when a block repeats; variants via CVA, classes via `cn()`, icons via `lucide-react` (Constraint 6, §6).
 - [ ] **Hierarchy** orders the most important info first; decision pages go identity → permissions → code (Principle 1).
 - [ ] **State:** loading / empty / error / success / in-progress all covered, never silent (§9).

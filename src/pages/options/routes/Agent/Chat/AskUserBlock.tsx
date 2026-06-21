@@ -95,7 +95,7 @@ export default function AskUserBlock({
         <div className="bg-card p-4">
           {/* 问题 */}
           <div className="flex items-start gap-2.5 mb-4">
-            <div className="size-6 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-primary to-primary-hover text-primary-foreground">
+            <div className="size-6 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-primary-background to-primary-hover text-primary-foreground">
               <span className="text-xs font-bold">{"?"}</span>
             </div>
             <div className="text-sm text-foreground leading-relaxed pt-0.5 whitespace-pre-wrap">{question}</div>
@@ -124,7 +124,7 @@ export default function AskUserBlock({
                         className={cn(
                           "inline-flex items-center justify-center size-4 rounded border text-xs transition-colors",
                           isSelected
-                            ? "bg-primary border-primary text-primary-foreground"
+                            ? "bg-primary-background border-primary text-primary-foreground"
                             : "border-border bg-transparent"
                         )}
                       >
@@ -145,7 +145,7 @@ export default function AskUserBlock({
                 type="button"
                 data-testid="ask-confirm"
                 onClick={handleMultiSubmit}
-                className="px-4 py-1.5 rounded-lg text-xs font-medium border-none bg-primary text-primary-foreground cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
+                className="px-4 py-1.5 rounded-lg text-xs font-medium border-none bg-primary-background text-primary-foreground cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
               >
                 {t("common:confirm")} {`(${selectedOptions.length})`}
               </button>
@@ -172,7 +172,7 @@ export default function AskUserBlock({
               className={cn(
                 "flex size-7 shrink-0 items-center justify-center rounded-full border-none transition-opacity",
                 answer.trim()
-                  ? "bg-primary text-primary-foreground cursor-pointer hover:opacity-80 shadow-sm"
+                  ? "bg-primary-background text-primary-foreground cursor-pointer hover:opacity-80 shadow-sm"
                   : "bg-muted text-muted-foreground cursor-not-allowed"
               )}
             >

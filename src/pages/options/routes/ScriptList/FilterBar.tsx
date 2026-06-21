@@ -105,7 +105,7 @@ function FilterChip({
           className={cn(
             "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors shrink-0",
             isActive
-              ? "bg-primary text-primary-foreground font-medium"
+              ? "bg-primary-background text-primary-foreground font-medium"
               : "border border-border text-muted-foreground hover:bg-accent/50"
           )}
         >

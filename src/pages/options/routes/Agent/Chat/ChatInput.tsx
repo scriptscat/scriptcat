@@ -540,7 +540,7 @@ export default function ChatInput({
                     className={cn(
                       "flex size-8 items-center justify-center rounded-full border-none shadow-sm transition-opacity max-md:size-11",
                       canSend
-                        ? "bg-gradient-to-br from-primary to-primary-hover text-primary-foreground cursor-pointer hover:opacity-80"
+                        ? "bg-gradient-to-br from-primary-background to-primary-hover text-primary-foreground cursor-pointer hover:opacity-80"
                         : "bg-muted text-muted-foreground cursor-not-allowed"
                     )}
                   >

@@ -33,7 +33,7 @@ function MobileHeader({ onClose }: { onClose?: () => void }) {
   const { t } = useTranslation();
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-border bg-card px-4">
-      <div className="flex size-6 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
+      <div className="flex size-6 items-center justify-center rounded-md bg-primary-background text-sm font-bold text-primary-foreground">
         {"S"}
       </div>
       <span className="text-base font-semibold text-foreground">{t("install:importpage.title")}</span>
