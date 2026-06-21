@@ -172,6 +172,15 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       unsubscribe();
     });
 
+    it("通知期间新增的监听器不应加入当前派发", async () => {
+      const store = config.externalStore("favicon_service");
+      const lateListener = vi.fn();
+      store.subscribe(() => store.subscribe(lateListener));
+
+      await vi.waitFor(() => expect(store.getSnapshot()).toBe("scriptcat"));
+      expect(lateListener).not.toHaveBeenCalled();
+    });
+
     it("store setter 应同步更新快照且不提前触发旧 addListener", () => {
       const store = config.externalStore("favicon_service");
       const storeListener = vi.fn();

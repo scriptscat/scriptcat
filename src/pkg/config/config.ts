@@ -73,18 +73,61 @@ export type SystemConfigValueType<K extends SystemConfigKey> =
         : never
     : never;
 
-export interface SystemConfigExternalStore<K extends SystemConfigKey> {
+interface ISystemConfigExternalStore<K extends SystemConfigKey> {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => SystemConfigValueType<K> | undefined;
   set: (value: SystemConfigValueType<K>) => void;
 }
 
+const events = new EventEmitter<SystemConfigKey>();
+
+class SystemConfigExternalStore<K extends SystemConfigKey> implements ISystemConfigExternalStore<K> {
+  private value: SystemConfigValueType<K> | undefined;
+  private unsubscribeConfig: (() => void) | undefined;
+
+  constructor(
+    private readonly config: SystemConfig,
+    private readonly key: K
+  ) {}
+
+  readonly getSnapshot = () => this.value;
+
+  readonly subscribe = (listener: () => void) => {
+    events.on(this.key, listener);
+    if (events.listenerCount(this.key) === 1) {
+      this.unsubscribeConfig = this.config.watch(this.key, this.update);
+    }
+    return () => {
+      events.off(this.key, listener);
+      if (events.listenerCount(this.key) === 0) {
+        this.unsubscribeConfig?.();
+        this.unsubscribeConfig = undefined;
+        this.value = undefined;
+      }
+    };
+  };
+
+  readonly set = (value: SystemConfigValueType<K>) => {
+    this.update(value);
+    this.config.set(this.key, value);
+  };
+
+  private readonly update = (value: SystemConfigValueType<K>) => {
+    if (Object.is(this.value, value)) return;
+    this.value = value;
+    events.emit(this.key);
+  };
+}
+
+interface SystemConfigEntry {
+  hasValue: boolean;
+  value: unknown;
+  version: number;
+  store?: unknown;
+}
+
 export class SystemConfig {
-  private readonly cache = new Map<string, any>();
-  private readonly snapshots = new Map<string, unknown>();
-  private readonly snapshotVersions = new Map<string, number>();
-  private readonly externalStores = new Map<string, unknown>();
-  private readonly externalStoreEvents = new EventEmitter<string>();
+  private readonly cache = new Map<string, SystemConfigEntry>();
 
   // 跨设备同步的配置项，使用 chrome.storage.sync
   private readonly syncStorage = new ChromeStorage("system", true);
@@ -100,51 +143,35 @@ export class SystemConfig {
     return this.isLocalKey(key) ? this.localStorage : this.syncStorage;
   }
 
-  private EE: EventEmitter<string> = new EventEmitter<string>();
+  private EE: EventEmitter<SystemConfigKey> = new EventEmitter<SystemConfigKey>();
 
   constructor(private mq: IMessageQueue) {
     this.mq.subscribe<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key, value, prev }) => {
       // 更新缓存
-      this.cache.set(key, value);
-      this.advanceSnapshotVersion(key);
-      this.updateSnapshot(key, value);
+      const entry = this.cacheEntry(key);
+      entry.hasValue = true;
+      entry.value = value;
+      entry.version += 1;
       // 触发事件
       this.EE.emit(key, value, prev);
     });
   }
 
-  private advanceSnapshotVersion(key: string) {
-    this.snapshotVersions.set(key, (this.snapshotVersions.get(key) ?? 0) + 1);
+  private cacheEntry(key: string) {
+    let entry = this.cache.get(key);
+    if (!entry) {
+      entry = { hasValue: false, value: undefined, version: 0 };
+      this.cache.set(key, entry);
+    }
+    return entry;
   }
 
-  private updateSnapshot<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
-    if (this.snapshots.has(key) && Object.is(this.snapshots.get(key), value)) return;
-    this.snapshots.set(key, value);
-    this.externalStoreEvents.emit(key);
-  }
-
-  private snapshotOrDefault<T>(
-    key: SystemConfigKey,
-    defaultValue: WithAsyncValue<Exclude<T, undefined>>
-  ): T | Promise<T> {
-    if (this.snapshots.has(key)) return this.snapshots.get(key) as T;
-    return this.resolveDefault<T>(defaultValue);
-  }
-
-  public externalStore<T extends SystemConfigKey>(key: T): SystemConfigExternalStore<T> {
-    const existing = this.externalStores.get(key) as SystemConfigExternalStore<T> | undefined;
+  public externalStore<T extends SystemConfigKey>(key: T): ISystemConfigExternalStore<T> {
+    const entry = this.cacheEntry(key);
+    const existing = entry.store as ISystemConfigExternalStore<T> | undefined;
     if (existing) return existing;
-
-    const store: SystemConfigExternalStore<T> = {
-      subscribe: (listener) => {
-        this.externalStoreEvents.on(key, listener);
-        void this.get(key);
-        return this.externalStoreEvents.off.bind(this.externalStoreEvents, key, listener) as () => void;
-      },
-      getSnapshot: () => this.snapshots.get(key) as SystemConfigValueType<T> | undefined,
-      set: (value) => this.set(key, value),
-    };
-    this.externalStores.set(key, store);
+    const store = new SystemConfigExternalStore(this, key);
+    entry.store = store;
     return store;
   }
 
@@ -163,7 +190,7 @@ export class SystemConfig {
     callback: (value: SystemConfigValueType<T>, prev: SystemConfigValueType<T> | undefined) => void
   ) {
     // 立即执行一次
-    this.get(key).then((val) => {
+    Promise.resolve(this.get(key)).then((val) => {
       callback(val, undefined);
     });
     // 监听变更
@@ -181,13 +208,17 @@ export class SystemConfig {
   ): Promise<T> {
     const syncVal = await this.syncStorage.get(key);
     if (syncVal === undefined) {
-      this.cache.set(key, undefined);
+      const entry = this.cacheEntry(key);
+      entry.hasValue = true;
+      entry.value = undefined;
       return this.resolveDefault<T>(defaultValue);
     }
     // 迁移到 local storage 并从 sync 中删除
     await this.syncStorage.remove(key); // 先删除
     await this.localStorage.set(key, syncVal); // 删除成功后储回本地
-    this.cache.set(key, syncVal);
+    const entry = this.cacheEntry(key);
+    entry.hasValue = true;
+    entry.value = syncVal;
     return syncVal as T;
   }
 
@@ -195,42 +226,38 @@ export class SystemConfig {
     key: SystemConfigKey,
     defaultValue: WithAsyncValue<Exclude<T, undefined>>
   ): Promise<T> {
-    if (this.cache.has(key)) {
-      const val = this.cache.get(key);
+    const entry = this.cacheEntry(key);
+    if (entry.hasValue) {
+      const val = entry.value;
       return Promise.resolve(val === undefined ? this.resolveDefault<T>(defaultValue) : (val as T));
     }
-    const snapshotVersion = this.snapshotVersions.get(key) ?? 0;
+    const version = entry.version;
     const storage = this.getStorage(key);
     return storage.get(key).then((val) => {
-      if (snapshotVersion !== (this.snapshotVersions.get(key) ?? 0)) {
-        return this.snapshotOrDefault<T>(key, defaultValue);
+      if (version !== entry.version) {
+        return entry.hasValue && entry.value !== undefined ? (entry.value as T) : this.resolveDefault<T>(defaultValue);
       }
       if (val !== undefined) {
-        this.cache.set(key, val);
+        entry.hasValue = true;
+        entry.value = val;
         return val as T;
       }
       // 对 local key，回退读取 sync storage（兼容旧版本数据迁移）
       if (this.isLocalKey(key)) {
         return this.transferSyncToLocal<T>(key, defaultValue);
       }
-      this.cache.set(key, val);
+      entry.hasValue = true;
+      entry.value = val;
       return this.resolveDefault<T>(defaultValue);
     });
   }
 
-  public get<T extends SystemConfigKey>(key: T): Promise<SystemConfigValueType<T>> {
+  public get<T extends SystemConfigKey>(key: T): Promise<SystemConfigValueType<T>> | SystemConfigValueType<T> {
     const funcName = `get${toCamelCase(key)}`;
-    const snapshotVersion = this.snapshotVersions.get(key) ?? 0;
     // @ts-ignore
     if (typeof this[funcName] === "function") {
       // @ts-ignore
-      return Promise.resolve(this[funcName]()).then((value) => {
-        if (snapshotVersion === (this.snapshotVersions.get(key) ?? 0)) {
-          this.updateSnapshot(key, value);
-          return value;
-        }
-        return this.snapshots.has(key) ? (this.snapshots.get(key) as SystemConfigValueType<T>) : value;
-      });
+      return this[funcName]() as Promise<any>;
     } else {
       throw new Error(`Method ${funcName} does not exist on SystemConfig`);
     }
@@ -248,16 +275,18 @@ export class SystemConfig {
   }
 
   private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
-    const prev = this.cache.get(key);
-    this.advanceSnapshotVersion(key);
-    this.updateSnapshot(key, value);
+    const entry = this.cacheEntry(key);
+    const prev = entry.value as SystemConfigValueType<T> | undefined;
+    entry.version += 1;
     const storage = this.getStorage(key);
     let asyncOp;
     if (value === undefined) {
-      this.cache.delete(key);
+      entry.hasValue = false;
+      entry.value = undefined;
       asyncOp = storage.remove(key);
     } else {
-      this.cache.set(key, value);
+      entry.hasValue = true;
+      entry.value = value;
       asyncOp = storage.set(key, value);
     }
     asyncOp.then(() => {
