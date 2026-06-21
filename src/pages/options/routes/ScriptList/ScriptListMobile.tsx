@@ -1,4 +1,4 @@
-import { memo } from "react";
+import React from "react";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import type { SearchFilterRequest } from "./SearchFilter";
 import type { FilterBarProps } from "./FilterBar";
@@ -46,4 +46,4 @@ function ScriptListMobile({
   );
 }
 
-export default memo(ScriptListMobile);
+export default React.memo(ScriptListMobile);

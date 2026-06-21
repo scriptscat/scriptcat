@@ -1,4 +1,4 @@
-import { memo } from "react";
+import React from "react";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import type { SearchFilterRequest } from "./SearchFilter";
 import FilterBar from "./FilterBar";
@@ -56,7 +56,7 @@ function ScriptCard({
   );
 }
 
-export default memo(ScriptCard, (prev, next) => {
+export default React.memo(ScriptCard, (prev, next) => {
   return (
     prev.loadingList === next.loadingList &&
     prev.scriptList === next.scriptList &&

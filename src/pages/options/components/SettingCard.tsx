@@ -1,4 +1,4 @@
-import type React from "react";
+import React from "react";
 import { Surface } from "@App/pages/components/ui/surface";
 
 export function SettingCard({
