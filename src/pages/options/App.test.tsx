@@ -11,6 +11,26 @@ vi.mock("@App/pages/components/use-is-mobile", () => ({
   useIsMobile: vi.fn(),
 }));
 
+vi.mock("./layout/Sidebar", () => ({ default: () => <aside /> }));
+vi.mock("./layout/MobileHeader", () => ({ default: () => <header data-testid="mobile-header" /> }));
+vi.mock("./layout/BottomTabBar", () => ({ default: () => <nav data-testid="bottom-tab-bar" /> }));
+vi.mock("./layout/useScriptDropzone", () => ({ useScriptDropzone: () => ({ isDragActive: false }) }));
+vi.mock("./layout/DropOverlay", () => ({ DropOverlay: () => null }));
+vi.mock("./routes/ScriptList/importHandler", () => ({ handleImportFiles: vi.fn() }));
+vi.mock("./routes/ScriptList", () => ({ default: () => null }));
+vi.mock("./routes/SubscribeList", () => ({ default: () => null }));
+vi.mock("./routes/ScriptEditor", () => ({ default: () => null }));
+vi.mock("./routes/Logger", () => ({ default: () => null }));
+vi.mock("./routes/Setting", () => ({ default: () => null }));
+vi.mock("./routes/Tools", () => ({ default: () => null }));
+vi.mock("./routes/Agent/Chat", () => ({ default: () => null }));
+vi.mock("./routes/Agent/Skills", () => ({ default: () => null }));
+vi.mock("./routes/Agent/Provider", () => ({ default: () => null }));
+vi.mock("./routes/Agent/Mcp", () => ({ default: () => null }));
+vi.mock("./routes/Agent/Tasks", () => ({ default: () => null }));
+vi.mock("./routes/Agent/OPFS", () => ({ default: () => null }));
+vi.mock("./routes/Agent/Settings", () => ({ default: () => null }));
+
 const mockedUseIsMobile = vi.mocked(useIsMobile);
 
 beforeEach(() => {

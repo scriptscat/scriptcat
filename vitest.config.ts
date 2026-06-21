@@ -22,17 +22,11 @@ const tplPlugin = {
 // Files that need a fresh module environment per file (cannot share isolate:false).
 // Reasons:
 //   - web-jszipp (TransformStream unavailable in vmThreads VM context): backup.test.ts, skill.test.ts
-//   - Dexie window.addEventListener on stale happy-dom window: App.test.tsx, log.test.ts,
-//     MobileHeader.test.tsx, ScriptCard.test.tsx
 //   - module-level sharedInitCopy captured against wrong window: create_context.test.ts
 //   - fake-timer cross-file bleed risk: exec_script.test.ts
 const ISOLATED = [
   "src/pkg/backup/backup.test.ts",
   "src/pkg/utils/skill.test.ts",
-  "src/pages/options/App.test.tsx",
-  "src/app/service/service_worker/log.test.ts",
-  "src/pages/options/layout/MobileHeader.test.tsx",
-  "src/pages/options/routes/ScriptList/ScriptCard.test.tsx",
   "src/app/service/content/create_context.test.ts",
   "src/app/service/content/exec_script.test.ts",
 ];

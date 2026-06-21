@@ -1,8 +1,21 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import ScriptCard from "./ScriptCard";
+
+vi.mock("@App/pages/store/features/script", () => ({
+  requestEnableScript: vi.fn(),
+  requestFilterResult: vi.fn(),
+}));
+
+vi.mock("./importHandler", () => ({
+  handleImportFiles: vi.fn(),
+  handleImportUrls: vi.fn(),
+}));
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
@@ -24,7 +37,6 @@ const baseProps = {
 
 describe("ScriptCard 卡片视图顶栏", () => {
   it("卡片模式也应显示「新建脚本」按钮", () => {
-    initLanguage("zh-CN");
     render(
       <MemoryRouter>
         <ScriptCard {...baseProps} />

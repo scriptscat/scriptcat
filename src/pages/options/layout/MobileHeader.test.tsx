@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { cleanup, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -6,9 +6,15 @@ import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
 import MobileHeader from "./MobileHeader";
 
+vi.mock("@App/pages/options/routes/ScriptList/importHandler", () => ({
+  handleImportFiles: vi.fn(),
+  handleImportUrls: vi.fn(),
+}));
+
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
   localStorage.clear();
-  initTestLanguage("zh-CN");
   mockMatchMedia();
 });
 
@@ -34,9 +40,9 @@ describe("MobileHeader 移动顶栏", () => {
     expect(queryByText(t("agent:title"))).toBeNull();
   });
 
-  it("点击菜单按钮(☰)打开导航抽屉,展示 AI Agent 等导航入口", async () => {
-    const { getByLabelText, findByText } = renderHeader();
+  it("点击菜单按钮(☰)打开导航抽屉,展示 AI Agent 等导航入口", () => {
+    const { getByLabelText, getByText } = renderHeader();
     fireEvent.click(getByLabelText(t("menu")));
-    expect(await findByText(t("agent:title"))).toBeInTheDocument();
+    expect(getByText(t("agent:title"))).toBeInTheDocument();
   });
 });

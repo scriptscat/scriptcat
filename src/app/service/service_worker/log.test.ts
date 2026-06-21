@@ -3,6 +3,10 @@ import type { Group } from "@Packages/message/server";
 import type { LoggerDAO } from "@App/app/repo/logger";
 import { LogService } from "./log";
 
+vi.mock("@App/app/repo/logger", () => ({
+  LoggerDAO: class {},
+}));
+
 function fakeDAO(overrides: Partial<LoggerDAO> = {}) {
   return {
     queryLogs: vi.fn(() => Promise.resolve([])),
