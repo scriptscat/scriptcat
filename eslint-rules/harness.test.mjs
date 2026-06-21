@@ -56,6 +56,19 @@ describe("harness lint 规则", () => {
     it("不误伤非 i18n 的成员调用（如 GM_getValue 第二参对象）", () => {
       expect(ruleIdsAt(`store.getValue("k", { defaultValue: 1 });`, "src/pages/foo.tsx")).not.toContain(RULE);
     });
+
+    it("拦截可选链 / computed 成员调用中的 defaultValue", () => {
+      expect(ruleIdsAt(`i18n?.t("k", { defaultValue: "x" });`, "src/pages/foo.tsx")).toContain(RULE);
+      expect(ruleIdsAt(`i18next["t"]("k", { defaultValue: "x" });`, "src/pages/foo.tsx")).toContain(RULE);
+    });
+
+    it("拦截 computed defaultValue key", () => {
+      expect(ruleIdsAt(`t("k", { ["defaultValue"]: "x" });`, "src/pages/foo.tsx")).toContain(RULE);
+    });
+
+    it("明确只禁止 defaultValue 对象兜底，不拦截非对象第二参", () => {
+      expect(ruleIdsAt(`t("k", "fallback text");`, "src/pages/foo.tsx")).not.toContain(RULE);
+    });
   });
 
   describe("② no-restricted-imports：强制合并包 radix-ui", () => {
@@ -102,6 +115,22 @@ describe("harness lint 规则", () => {
 
     it("仅作用于 src/pages（src/app 不受限）", () => {
       expect(ruleIdsAt(`const e = <div className="bg-white" />;`, "src/app/foo.tsx")).not.toContain(RULE);
+    });
+
+    it("拦截非灰阶 Tailwind 色板（text-red-500 / bg-blue-600）", () => {
+      expect(ruleIdsAt(`const e = <div className="text-red-500" />;`, "src/pages/foo.tsx")).toContain(RULE);
+      expect(ruleIdsAt(`const e = <div className="bg-blue-600" />;`, "src/pages/foo.tsx")).toContain(RULE);
+    });
+
+    it("拦截带变体和 opacity 后缀的原始色板", () => {
+      expect(ruleIdsAt(`const e = <div className="hover:text-red-500/80" />;`, "src/pages/foo.tsx")).toContain(RULE);
+      expect(ruleIdsAt(`const e = <div className="dark:focus:border-emerald-400" />;`, "src/pages/foo.tsx")).toContain(
+        RULE
+      );
+    });
+
+    it("拦截 cn() 内的非灰阶原始颜色", () => {
+      expect(ruleIdsAt(`const e = <div className={cn("bg-purple-500")} />;`, "src/pages/foo.tsx")).toContain(RULE);
     });
   });
 
