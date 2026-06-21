@@ -36,6 +36,7 @@ import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import ScriptListMobile from "./ScriptListMobile";
 import { notify } from "@App/pages/components/ui/toast";
 import { useUserConfigPreload } from "./preload";
+import { reindexScriptList } from "./sort";
 
 type SelectionProps = {
   selectedUuids: Set<string>;
@@ -286,8 +287,7 @@ export default function ScriptList() {
         const next = arrayMove(prev, oldIdx, newIdx);
         const after = next.map((s) => s.uuid);
         sortScript({ before, after });
-        next.forEach((s, i) => (s.sort = i));
-        return next;
+        return reindexScriptList(next);
       });
     },
     [setFilterScriptList]

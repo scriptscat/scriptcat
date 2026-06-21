@@ -1,3 +1,4 @@
+import { createRef, type ComponentRef } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, act } from "@testing-library/react";
 
@@ -59,6 +60,16 @@ afterEach(() => {
 });
 
 describe("CodeEditor 可访问性与主题", () => {
+  it("应通过 ref 暴露当前普通编辑器实例", async () => {
+    const ref = createRef<ComponentRef<typeof CodeEditor>>();
+
+    await act(async () => {
+      render(<CodeEditor ref={ref} id="ed-ref" code="const a = 1;" diffCode="" editable />);
+    });
+
+    expect(ref.current?.editor).toBe(h.create.mock.results[0].value);
+  });
+
   it("accessibilitySupport 应为 auto（不关闭辅助功能，利于屏幕阅读器/键盘）", async () => {
     await act(async () => {
       render(<CodeEditor id="ed-a11y" code="const a = 1;" diffCode="" editable />);

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { initLanguage } from "@App/locales/locales";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import { nextSortState, sortScriptList } from "./sort";
+import { nextSortState, reindexScriptList, sortScriptList } from "./sort";
 
 beforeEach(() => initLanguage("zh-CN"));
 
@@ -74,5 +74,28 @@ describe("脚本列表排序 sortScriptList", () => {
     const list = [mk({ uuid: "b", name: "B" }), mk({ uuid: "a", name: "A" })];
     sortScriptList(list, { key: "name", order: "asc" });
     expect(list.map((s) => s.uuid)).toEqual(["b", "a"]);
+  });
+});
+
+describe("脚本自然顺序重编号 reindexScriptList", () => {
+  it("应按数组顺序生成连续 sort 且不修改原对象", () => {
+    const first = mk({ uuid: "a", sort: 8 });
+    const second = mk({ uuid: "b", sort: 9 });
+
+    const result = reindexScriptList([first, second]);
+
+    expect(result.map((script) => script.sort)).toEqual([0, 1]);
+    expect(first.sort).toBe(8);
+    expect(second.sort).toBe(9);
+  });
+
+  it("sort 已正确时应保留对象引用", () => {
+    const first = mk({ uuid: "a", sort: 0 });
+    const second = mk({ uuid: "b", sort: 1 });
+
+    const result = reindexScriptList([first, second]);
+
+    expect(result[0]).toBe(first);
+    expect(result[1]).toBe(second);
   });
 });

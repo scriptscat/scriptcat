@@ -26,6 +26,7 @@ import type {
   TSortedScript,
 } from "@App/app/service/queue";
 import type { SearchFilterRequest } from "./SearchFilter";
+import { reindexScriptList } from "./sort";
 
 import { Code, Play, Pause, Square, Monitor, Clock, Tag, Link } from "lucide-react";
 
@@ -112,9 +113,7 @@ export function useScriptDataManagement() {
             newList[idx] = { ...newList[idx], ...installedScript };
             return newList;
           }
-          const res = [{ ...installedScript }, ...list];
-          res.forEach((s, i) => (s.sort = i));
-          return res;
+          return reindexScriptList([{ ...installedScript }, ...list]);
         });
       },
       deleteScripts(data: TDeleteScript[]) {
@@ -122,8 +121,7 @@ export function useScriptDataManagement() {
         setScriptList((list) => {
           const res = list.filter((s) => !set.has(s.uuid));
           if (res.length === list.length) return list;
-          res.forEach((s, i) => (s.sort = i));
-          return res;
+          return reindexScriptList(res);
         });
       },
       enableScripts(data: TEnableScript[]) {
@@ -158,10 +156,7 @@ export function useScriptDataManagement() {
           }
           const entries = Object.values(sortingObject);
           entries.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-          return entries.map((entry, i) => {
-            entry.obj.sort = i;
-            return entry.obj;
-          });
+          return reindexScriptList(entries.map((entry) => entry.obj));
         });
       },
     } as const;

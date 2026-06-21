@@ -31,3 +31,8 @@ export function sortScriptList(list: ScriptLoading[], state: SortState): ScriptL
   const dir = state.order === "asc" ? 1 : -1;
   return [...list].sort((a, b) => dir * cmp(a, b));
 }
+
+/** 按当前数组顺序更新自然排序编号，不修改输入对象。 */
+export function reindexScriptList(list: ScriptLoading[]): ScriptLoading[] {
+  return list.map((script, sort) => (script.sort === sort ? script : { ...script, sort }));
+}
