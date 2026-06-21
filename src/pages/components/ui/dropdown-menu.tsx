@@ -1,4 +1,4 @@
-import * as React from "react";
+import type React from "react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";

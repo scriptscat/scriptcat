@@ -1,4 +1,4 @@
-import * as React from "react";
+import type React from "react";
 import { Checkbox as CheckboxPrimitive } from "radix-ui";
 import { Check, Minus } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";

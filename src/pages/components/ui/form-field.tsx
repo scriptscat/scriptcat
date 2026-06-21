@@ -1,4 +1,4 @@
-import * as React from "react";
+import type React from "react";
 import { cn } from "@App/pkg/utils/cn";
 import { Label } from "./label";
 

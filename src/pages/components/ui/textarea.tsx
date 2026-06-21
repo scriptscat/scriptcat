@@ -1,4 +1,4 @@
-import * as React from "react";
+import type React from "react";
 import { cn } from "@App/pkg/utils/cn";
 
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
