@@ -170,7 +170,7 @@ export default function ScriptEditor() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [anyChanged]);
 
-  const activeTab = state.tabs.find((x) => x.uuid === state.activeUuid);
+  const activeTab = useMemo(() => state.tabs.find((x) => x.uuid === state.activeUuid), [state.tabs, state.activeUuid]);
   usePreloadResourcePane(activeTab?.uuid);
   usePreloadSettingsPane(activeTab?.uuid);
   usePreloadStoragePane(activeTab?.uuid);
@@ -349,23 +349,40 @@ export default function ScriptEditor() {
     [confirm, closeTab, t]
   );
 
+  // dispatch from useReducer is stable — zero deps needed
+  const onActivateTab = useCallback((uuid: string) => dispatch({ type: "activate", uuid }), []);
+  const onCloseOthersTab = useCallback((uuid: string) => dispatch({ type: "closeOthers", uuid }), []);
+  const onCloseLeftTab = useCallback((uuid: string) => dispatch({ type: "closeLeft", uuid }), []);
+  const onCloseRightTab = useCallback((uuid: string) => dispatch({ type: "closeRight", uuid }), []);
+  const onNewTab = useCallback(() => void openScript(undefined, templateRef.current, targetRef.current), [openScript]);
+  const onOpenScript = useCallback((uuid: string) => void openScript(uuid), [openScript]);
+  const onBack = useCallback(() => navigate("/"), [navigate]);
+
   const openUuids = useMemo(() => new Set(state.tabs.map((x) => x.uuid)), [state.tabs]);
   const changedUuids = useMemo(() => new Set(state.tabs.filter((x) => x.isChanged).map((x) => x.uuid)), [state.tabs]);
 
   // 针对当前激活标签的动作（桌面工具栏 / 移动端共用）
-  const getActiveEditor = () => (state.activeUuid ? editorsRef.current.get(state.activeUuid) : undefined);
-  const handleSaveActive = () => {
-    const e = getActiveEditor();
-    if (e && activeTab) void doSave(activeTab.script, e);
-  };
-  const handleSaveAsActive = () => {
-    const e = getActiveEditor();
-    if (e && activeTab) doSaveAs(activeTab.script, e);
-  };
-  const handleRunActive = () => {
-    const e = getActiveEditor();
-    if (e && activeTab) void doRun(activeTab.script, e);
-  };
+  // 读取 stateRef 而非直接用 activeTab，避免对 activeTab 产生依赖，使这三个回调仅在操作函数本身变化时才更新
+  const handleSaveActive = useCallback(() => {
+    const uuid = stateRef.current.activeUuid;
+    const e = uuid ? editorsRef.current.get(uuid) : undefined;
+    const tab = stateRef.current.tabs.find((x) => x.uuid === uuid);
+    if (e && tab) void doSave(tab.script, e);
+  }, [doSave]);
+
+  const handleSaveAsActive = useCallback(() => {
+    const uuid = stateRef.current.activeUuid;
+    const e = uuid ? editorsRef.current.get(uuid) : undefined;
+    const tab = stateRef.current.tabs.find((x) => x.uuid === uuid);
+    if (e && tab) doSaveAs(tab.script, e);
+  }, [doSaveAs]);
+
+  const handleRunActive = useCallback(() => {
+    const uuid = stateRef.current.activeUuid;
+    const e = uuid ? editorsRef.current.get(uuid) : undefined;
+    const tab = stateRef.current.tabs.find((x) => x.uuid === uuid);
+    if (e && tab) void doRun(tab.script, e);
+  }, [doRun]);
 
   // 编辑区：所有标签常驻挂载，非激活隐藏以保留 Monaco 状态（桌面/移动共用）
   const editorArea = (
@@ -415,7 +432,7 @@ export default function ScriptEditor() {
           onSubView={selectSubView}
           onPreloadSubView={preloadSubView}
           hasActive={!!activeTab}
-          onBack={() => navigate("/")}
+          onBack={onBack}
           onSave={handleSaveActive}
           onSaveAs={handleSaveAsActive}
           onRun={handleRunActive}
@@ -431,7 +448,7 @@ export default function ScriptEditor() {
             openUuids={openUuids}
             changedUuids={changedUuids}
             scriptListCollapsed={scriptListCollapsed}
-            onOpen={(uuid) => openScript(uuid)}
+            onOpen={onOpenScript}
             onDelete={onDelete}
           />
 
@@ -439,12 +456,12 @@ export default function ScriptEditor() {
             <EditorTabs
               tabs={state.tabs}
               activeUuid={state.activeUuid}
-              onActivate={(uuid) => dispatch({ type: "activate", uuid })}
-              onClose={(uuid) => closeTab(uuid)}
-              onCloseOthers={(uuid) => dispatch({ type: "closeOthers", uuid })}
-              onCloseLeft={(uuid) => dispatch({ type: "closeLeft", uuid })}
-              onCloseRight={(uuid) => dispatch({ type: "closeRight", uuid })}
-              onNew={() => openScript(undefined, templateRef.current, targetRef.current)}
+              onActivate={onActivateTab}
+              onClose={closeTab}
+              onCloseOthers={onCloseOthersTab}
+              onCloseLeft={onCloseLeftTab}
+              onCloseRight={onCloseRightTab}
+              onNew={onNewTab}
             />
 
             <EditorToolbar
