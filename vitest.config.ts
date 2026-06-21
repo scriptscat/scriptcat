@@ -21,12 +21,12 @@ const tplPlugin = {
 
 // Files that need a fresh module environment per file (cannot share isolate:false).
 // Reasons:
-//   - web-jszipp (TransformStream unavailable in vmThreads VM context): backup.test.ts, skill.test.ts
+//   - web-jszipp（vmThreads 的 VM 上下文没有 TransformStream）：backup.test.ts、skill-zip.test.ts
 //   - module-level sharedInitCopy captured against wrong window: create_context.test.ts
 //   - 沙盒断言依赖 vmThreads 中不可用的原生 happy-dom Window 语义：exec_script.test.ts
 const ISOLATED = [
   "src/pkg/backup/backup.test.ts",
-  "src/pkg/utils/skill.test.ts",
+  "src/pkg/utils/skill-zip.test.ts",
   "src/app/service/content/create_context.test.ts",
   "src/app/service/content/exec_script.test.ts",
 ];
