@@ -54,18 +54,16 @@ const COLOR_PREFIXES = [
 ].join("|");
 
 const PALETTE = new RegExp(
-  `(?:^|\\s)(?:[\\w-]+:)*(?:${COLOR_PREFIXES})-(?:${TAILWIND_PALETTES})(?:-\\d{1,3})?(?=$|\\s|/|\\])`
+  `(?:^|[^\\w-])((?:[\\w-]+:)*(?:${COLOR_PREFIXES})-(?:${TAILWIND_PALETTES})(?:-\\d{1,3})?)(?=$|[^\\w-])`
 );
 
 // 任意值十六进制颜色，如 bg-[#fff] / text-[#112233] / dark:border-[#ffffffcc]。
-const ARBITRARY_HEX = new RegExp(`(?:^|\\s)(?:[\\w-]+:)*(?:${COLOR_PREFIXES})-\\[#[0-9a-fA-F]{3,8}\\](?=$|\\s)`);
-
-function normalizeMatch(match) {
-  return match?.trim() ?? null;
-}
+const ARBITRARY_HEX = new RegExp(
+  `(?:^|[^\\w-])((?:[\\w-]+:)*(?:${COLOR_PREFIXES})-\\[#[0-9a-fA-F]{3,8}\\])(?=$|[^\\w-])`
+);
 
 function findRawColor(text) {
-  return normalizeMatch(PALETTE.exec(text)?.[0]) ?? normalizeMatch(ARBITRARY_HEX.exec(text)?.[0]);
+  return PALETTE.exec(text)?.[1] ?? ARBITRARY_HEX.exec(text)?.[1] ?? null;
 }
 
 export default {
