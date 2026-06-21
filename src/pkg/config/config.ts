@@ -79,27 +79,26 @@ interface ISystemConfigExternalStore<K extends SystemConfigKey> {
   set: (value: SystemConfigValueType<K>) => void;
 }
 
-const events = new EventEmitter<SystemConfigKey>();
-
 class SystemConfigExternalStore<K extends SystemConfigKey> implements ISystemConfigExternalStore<K> {
   private value: SystemConfigValueType<K> | undefined;
   private unsubscribeConfig: (() => void) | undefined;
 
   constructor(
     private readonly config: SystemConfig,
-    private readonly key: K
+    private readonly key: K,
+    private readonly events: EventEmitter<SystemConfigKey>
   ) {}
 
   readonly getSnapshot = () => this.value;
 
   readonly subscribe = (listener: () => void) => {
-    events.on(this.key, listener);
-    if (events.listenerCount(this.key) === 1) {
+    this.events.on(this.key, listener);
+    if (this.events.listenerCount(this.key) === 1) {
       this.unsubscribeConfig = this.config.watch(this.key, this.update);
     }
     return () => {
-      events.off(this.key, listener);
-      if (events.listenerCount(this.key) === 0) {
+      this.events.off(this.key, listener);
+      if (this.events.listenerCount(this.key) === 0) {
         this.unsubscribeConfig?.();
         this.unsubscribeConfig = undefined;
         this.value = undefined;
@@ -115,7 +114,7 @@ class SystemConfigExternalStore<K extends SystemConfigKey> implements ISystemCon
   private readonly update = (value: SystemConfigValueType<K>) => {
     if (Object.is(this.value, value)) return;
     this.value = value;
-    events.emit(this.key);
+    this.events.emit(this.key);
   };
 }
 
@@ -144,6 +143,7 @@ type TSetterKey<T extends SystemConfigKey = SystemConfigKey> = Extract<
 
 export class SystemConfig {
   private readonly cache = new Map<string, SystemConfigEntry>();
+  private readonly storeEvents = new EventEmitter<SystemConfigKey>();
 
   // 跨设备同步的配置项，使用 chrome.storage.sync
   private readonly syncStorage = new ChromeStorage("system", true);
@@ -186,7 +186,7 @@ export class SystemConfig {
     const entry = this.cacheEntry(key);
     const existing = entry.store as ISystemConfigExternalStore<T> | undefined;
     if (existing) return existing;
-    const store = new SystemConfigExternalStore(this, key);
+    const store = new SystemConfigExternalStore(this, key, this.storeEvents);
     entry.store = store;
     return store;
   }
