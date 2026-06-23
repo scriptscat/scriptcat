@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { toast as sonnerToast } from "sonner";
 
 export type NotifyOpts = {
@@ -5,6 +6,7 @@ export type NotifyOpts = {
   duration?: number;
   id?: string | number;
   action?: { label: string; onClick: () => void };
+  style?: CSSProperties;
 };
 
 // 显示时长（ms）：常规反馈 ~3s，错误略长便于阅读，带动作的略长以留操作时间，loading 直到 resolve。
@@ -12,7 +14,9 @@ const DURATION = { success: 3000, info: 3000, warning: 3000, error: 4000, action
 
 function withDuration(base: number, opts?: NotifyOpts): NotifyOpts {
   const duration = opts?.duration ?? (opts?.action ? DURATION.action : base);
-  return { ...opts, duration };
+  // 把实际时长注入 --sc-toast-duration，驱动底部"距自动关闭剩余时间"进度条（样式见 src/index.css）。
+  const style = { ...opts?.style, "--sc-toast-duration": `${duration}ms` } as CSSProperties;
+  return { ...opts, duration, style };
 }
 
 type PromiseMsgs<T> = {

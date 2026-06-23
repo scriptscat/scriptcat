@@ -415,6 +415,71 @@
 }
 
 /*
+  Sonner toast 自动关闭进度条。
+  底部 3px 细条随 --sc-toast-duration（由 notify 按每条实际时长注入）从满到空衰减，
+  提示距自动关闭的剩余时间；颜色取语义令牌（与左强调条一致），明暗主题自动切换。
+  仅 success / info / warning / error 显示；loading 与 Infinity（不自动关闭）无进度条。
+  hover 整列（data-expanded）或拖拽中（data-swiping）时随 sonner 计时器同步暂停。
+
+  实现说明：sonner 自身占用了 toast 的 ::before/::after（hover 桥接、滑动命中区），
+  故进度条改用 li 的多层 background-image 绘制——底部叠"填充层 + 轨道层"两条渐变，
+  由动画驱动自定义属性 --sc-progress(1→0) 改变填充层宽度。背景相关声明加 !important，
+  以压过 sonner 运行时注入到 <head> 末尾的 `background: var(--normal-bg)` 简写重置；
+  --sc-progress 经 @property 注册才能被动画插值，且 background-size 的 !important 不会冻结
+  动画——被动画改变的是自定义属性，而非 background-size 本身。圆角由 background-clip:
+  border-box + rounded-xl 自动裁切。
+*/
+@property --sc-progress {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+@keyframes sc-toast-progress {
+  from {
+    --sc-progress: 1;
+  }
+  to {
+    --sc-progress: 0;
+  }
+}
+
+[data-sonner-toast][data-type="success"] {
+  --sc-toast-progress-color: var(--success);
+}
+[data-sonner-toast][data-type="info"] {
+  --sc-toast-progress-color: var(--primary);
+}
+[data-sonner-toast][data-type="warning"] {
+  --sc-toast-progress-color: var(--warning);
+}
+[data-sonner-toast][data-type="error"] {
+  --sc-toast-progress-color: var(--destructive);
+}
+
+[data-sonner-toast]:is([data-type="success"], [data-type="info"], [data-type="warning"], [data-type="error"]) {
+  /* 第一层＝填充（不透明语义色），第二层＝轨道（同色 18% 铺底） */
+  background-image:
+    linear-gradient(var(--sc-toast-progress-color), var(--sc-toast-progress-color)),
+    linear-gradient(
+      color-mix(in srgb, var(--sc-toast-progress-color) 18%, transparent),
+      color-mix(in srgb, var(--sc-toast-progress-color) 18%, transparent)
+    ) !important;
+  background-repeat: no-repeat !important;
+  background-position:
+    bottom left,
+    bottom left !important;
+  background-size:
+    calc(var(--sc-progress) * 100%) 3px,
+    100% 3px !important;
+  animation: sc-toast-progress var(--sc-toast-duration, 4000ms) linear forwards;
+}
+/* 与 sonner 计时器同步：hover 整列或拖拽时暂停倒计时 */
+[data-sonner-toast][data-expanded="true"],
+[data-sonner-toast][data-swiping="true"] {
+  animation-play-state: paused;
+}
+
+/*
   无障碍：尊重系统「减少动态效果」偏好（prefers-reduced-motion）。
   对开启该偏好的用户，把所有动画/过渡压到近乎瞬时，避免前庭不适，
   同时保留终态（不直接 display:none，弹层仍会出现，只是不再有进出动画）。
@@ -427,5 +492,9 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  /* 进度条只有动起来才有意义；减少动态效果时整条隐藏，不留静态轨道线 */
+  [data-sonner-toast]:is([data-type="success"], [data-type="info"], [data-type="warning"], [data-type="error"]) {
+    background-image: none !important;
   }
 }
