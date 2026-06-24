@@ -47,6 +47,10 @@ OpenModel 是高可用、高可靠的 AI 模型呼叫平台，讓你的應用程
 <td width="180"><a href="https://www.packyapi.com/register?aff=BOKa"><img src="./assets/sponsors/packycode-banner.png" alt="PackyCode" width="150"></a></td>
 <td>PackyCode 是穩定、高效的 API 中轉服務商，提供 Claude Code、Codex、Gemini 等多種中轉服務。具備自動故障轉移、智慧路由與無限並行等功能，讓 AI 編程成為真正的生產力工具。<a href="https://www.packyapi.com/register?aff=BOKa">點此連結註冊</a>，立即開始使用！</td>
 </tr>
+<tr>
+<td width="180"><a href="https://enncy.cn/"><img src="./assets/sponsors/yanxi-tech-logo.png" alt="言溪科技" width="150"></a></td>
+<td>言溪科技專注於腳本軟體客製化、網頁程式設計與開發，提供高度個人化的客製化服務；專案方案穩定可靠，並同步分享產業前沿資訊，一站式滿足各類程式開發客製需求。官網：<a href="https://enncy.cn/">https://enncy.cn/</a></td>
+</tr>
 </table>
 
 </details>
