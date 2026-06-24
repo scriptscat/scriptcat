@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import React from "react";
 import "./index.css";
+import "./popup.css";
 import { ConfigProvider } from "@arco-design/web-react";
 import { arcoLocale } from "@App/locales/arco";
 import i18n from "@App/locales/locales";
