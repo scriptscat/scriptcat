@@ -5,6 +5,19 @@
   white-space: nowrap;
 }
 
+/* ScriptEditor 脚本列表颜色变量 */
+body {
+  --editor-bg-selected: #D4D7DE;
+  --editor-bg-open: #EBEBEB;
+  --editor-bg-default: #F5F5F5;
+}
+
+body[arco-theme='dark'] {
+  --editor-bg-selected: #414958;
+  --editor-bg-open: #474747;
+  --editor-bg-default: #333333;
+}
+
 .script-code-editor {
 	margin: 0;
 	padding: 0;

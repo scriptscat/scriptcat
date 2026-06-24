@@ -35,13 +35,12 @@ const test = base.extend<{
       args: ["--headless=new", ...chromeArgs],
     });
     let [bg] = ctx1.serviceWorkers();
-    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 780 });
+    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
     const extensionId = bg.url().split("/")[2];
     const extPage = await ctx1.newPage();
     await extPage.goto("chrome://extensions/");
     await extPage.waitForLoadState("domcontentloaded");
-    // Wait for developerPrivate API to be available instead of a fixed delay
-    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 720 });
+    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 10_000 });
     await extPage.evaluate(async (id) => {
       await (chrome as any).developerPrivate.updateExtensionConfiguration({
         extensionId: id,
@@ -56,10 +55,8 @@ const test = base.extend<{
       headless: false,
       args: ["--headless=new", ...chromeArgs],
     });
-    // Ensure service worker is registered before handing context to fixtures,
-    // preventing extensionId fixture from timing out with the global 10s timeout.
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 780 });
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -77,7 +74,6 @@ const test = base.extend<{
   },
 });
 
-/** Strip SRI hashes and replace slow CDN with faster alternative */
 function patchScriptCode(code: string): string {
   return code
     .replace(/^(\/\/\s*@(?:require|resource)\s+.*?)#sha(?:256|384|512)[=-][^\s]+/gm, "$1")
@@ -103,6 +99,18 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
         JSON.stringify({
           url: `http://${req.headers.host}${url.pathname}`,
           args,
+        })
+      );
+      return;
+    }
+
+    if (url.pathname === "/repos/scriptscat/scriptcat") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          name: "scriptcat",
+          full_name: "scriptscat/scriptcat",
+          description: "ScriptCat",
         })
       );
       return;
@@ -177,7 +185,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -185,19 +193,17 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
 function patchGMApiTestCode(code: string, mockOrigin: string): string {
   const mockHost = new URL(mockOrigin).host;
   return code
+    .replace(/^\/\/\s*@connect\s+api\.github\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
     .replace(/^\/\/\s*@connect\s+httpbun\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
+    .replace(/https:\/\/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockOrigin}/repos/scriptscat/scriptcat`)
     .replace(/https:\/\/httpbun\.com\/get/g, `${mockOrigin}/get`)
     .replace(/https:\/\/httpbun\.com\/bytes\/64/g, `${mockOrigin}/bytes/64`)
     .replace(/https:\/\/httpbun\.com\/delay\/5/g, `${mockOrigin}/delay/5`)
     .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
+    .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
     .replace(/httpbun\.com\/get/g, `${mockHost}/get`);
 }
 
-/**
- * Auto-approve permission confirm dialogs opened by the extension.
- * Listens for new pages matching confirm.html and clicks the
- * "permanent allow all" button (type=4, allow=true).
- */
 function autoApprovePermissions(context: BrowserContext): void {
   context.on("page", async (page) => {
     const url = page.url();
@@ -205,20 +211,12 @@ function autoApprovePermissions(context: BrowserContext): void {
 
     try {
       await page.waitForLoadState("domcontentloaded");
-      // Click the "permanent allow" button (4th success button = type=5 permanent allow this)
-      // The buttons in order are: allow_once(1), temporary_allow(3), permanent_allow(5)
-      // We want "permanent_allow" which is the 3rd success button
       const successButtons = page.locator("button.arco-btn-status-success");
-      await successButtons.first().waitFor({ timeout: 680 });
-      // Find and click the last always-visible success button (permanent_allow, type=5)
-      // Button order: allow_once(type=1), temporary_allow(type=3), permanent_allow(type=5)
-      // Index 2 = permanent_allow (always visible)
+      await successButtons.first().waitFor({ timeout: 5_000 });
       const count = await successButtons.count();
       if (count >= 3) {
-        // permanent_allow is at index 2
         await successButtons.nth(2).click();
       } else {
-        // Fallback: click the last visible success button
         await successButtons.last().click();
       }
       console.log("[autoApprove] Permission approved on confirm page");
@@ -228,7 +226,6 @@ function autoApprovePermissions(context: BrowserContext): void {
   });
 }
 
-/** Run a test script on the target page and collect console results */
 async function runTestScript(
   context: BrowserContext,
   extensionId: string,
@@ -243,8 +240,6 @@ async function runTestScript(
   code = options?.patchCode ? options.patchCode(code) : code;
 
   await installScriptByCode(context, extensionId, code);
-
-  // Start auto-approving permission dialogs
   autoApprovePermissions(context);
 
   const page = await context.newPage();
@@ -252,22 +247,20 @@ async function runTestScript(
   let passed = -1;
   let failed = -1;
 
-  // Resolve as soon as both pass and fail counts appear in console output
-  const resultReady = new Promise<void>((resolve) => {
-    page.on("console", (msg) => {
-      const text = msg.text();
-      logs.push(text);
-      const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
-      const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
-      if (passMatch) passed = parseInt(passMatch[2], 10);
-      if (failMatch) failed = parseInt(failMatch[2], 10);
-      if (passed >= 0 && failed >= 0) resolve();
-    });
+  page.on("console", (msg) => {
+    const text = msg.text();
+    logs.push(text);
+    const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
+    const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
+    if (passMatch) passed = parseInt(passMatch[2], 10);
+    if (failMatch) failed = parseInt(failMatch[2], 10);
   });
 
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  // Race: resolve immediately when results arrive, or fall through after timeout
-  await Promise.race([resultReady, page.waitForTimeout(timeoutMs)]);
+  await expect
+    .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+    .toBe(true)
+    .catch(() => undefined);
 
   await page.close();
   return { passed, failed, logs };
@@ -288,7 +281,6 @@ test.describe("GM API", () => {
     return patchGMApiTestCode(code, gmApiMockServer.origin);
   }
 
-  // Two-phase launch + script install + network fetches + permission dialogs
   test.setTimeout(300_000);
 
   test("local CSP target blocks page inline scripts", async ({ context }) => {
@@ -301,7 +293,7 @@ test.describe("GM API", () => {
       script.textContent = `window["${key}"] = true;`;
       document.head.appendChild(script);
       await new Promise((resolve) => setTimeout(resolve, 0));
-      return Boolean(window[key as keyof Window]);
+      return Boolean((window as Record<string, unknown>)[key]);
     });
 
     await page.close();
@@ -358,6 +350,23 @@ test.describe("GM API", () => {
       console.log("[inject_content_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some content inject tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("Unwrap scriptlet tests (unwrap_e2e_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "unwrap_e2e_test.js",
+      `${gmApiMockServer.cspOrigin}/?unwrap_e2e_test`,
+      60_000
+    );
+
+    console.log(`[unwrap_e2e_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[unwrap_e2e_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some unwrap scriptlet tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { screen } from "@testing-library/react";
 import { render, setupGlobalMocks } from "@Tests/test-utils";
 import MainLayout from "@App/pages/components/layout/MainLayout";
 
@@ -14,8 +15,12 @@ vi.mock("react-router-dom", () => ({
   Outlet: () => <div data-testid="outlet">{"Options Content"}</div>,
 }));
 
-// Use vi.hoisted to avoid hoisting pitfalls
 const hoisted = vi.hoisted(() => {
+  const mockAppContext = {
+    updateColorTheme: vi.fn(),
+    setGuideMode: vi.fn(),
+  };
+
   const mockPopupClient = {
     getCurrentTab: vi.fn().mockResolvedValue({ id: 1, url: "https://example.com", title: "Test Page" }),
     getPopupData: vi.fn().mockResolvedValue({
@@ -48,13 +53,35 @@ const hoisted = vi.hoisted(() => {
     subscribe: () => () => {},
   };
 
-  return { mockPopupClient, mockScriptClient, mockSystemConfig, mockMessageQueue };
+  return { mockAppContext, mockPopupClient, mockScriptClient, mockSystemConfig, mockMessageQueue };
 });
 
-// IMPORTANT: mock the exact paths used by App
+vi.mock("@App/pages/store/AppContext", () => ({
+  AppProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useAppContext: () => ({
+    colorThemeState: "auto",
+    guideMode: false,
+    setGuideMode: hoisted.mockAppContext.setGuideMode,
+    updateColorTheme: hoisted.mockAppContext.updateColorTheme,
+  }),
+}));
+
+vi.mock("react-dropzone", () => ({
+  useDropzone: () => ({
+    getRootProps: () => ({}),
+    getInputProps: () => ({}),
+    isDragActive: false,
+  }),
+}));
+
+vi.mock("@App/pages/components/layout/ScrollBoundary", () => ({
+  default: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
 vi.mock("@App/pages/store/features/script", () => ({
   popupClient: hoisted.mockPopupClient,
   scriptClient: hoisted.mockScriptClient,
+  agentClient: { prepareSkillInstall: vi.fn().mockResolvedValue("mock-uuid") },
 }));
 
 vi.mock("@App/pages/store/global", () => ({
@@ -88,9 +115,9 @@ vi.mock("@App/locales/locales", () => ({
   localePath: "",
   initLocales: vi.fn(),
   changeLanguage: vi.fn(),
-  i18nName: vi.fn((script: any) => script.name),
-  i18nDescription: vi.fn((script: any) => script.metadata?.description || ""),
-  matchLanguage: () => Promise.resolve(undefined),
+  i18nName: vi.fn((script: { name: string }) => script.name),
+  i18nDescription: vi.fn((script: { metadata?: { description?: string } }) => script.metadata?.description || ""),
+  matchLanguage: vi.fn().mockResolvedValue(true),
   isChineseUser: vi.fn(() => true),
   t: vi.fn((key: string) => key),
   default: {
@@ -110,59 +137,51 @@ vi.mock("@App/locales/locales", () => ({
 }));
 
 beforeEach(() => {
-  setupGlobalMocks(); // Setup global window mocks
+  setupGlobalMocks();
   vi.clearAllMocks();
 });
 
-afterEach(() => {
-  vi.resetAllMocks();
-});
-
 describe("Options MainLayout Component", () => {
-  it("should render main layout successfully", async () => {
+  it("should render main layout successfully", () => {
     render(
       <MainLayout className="" pageName="options">
         {"Test Content"}
       </MainLayout>
     );
 
-    // 布局应该成功渲染
-    expect(document.body).toBeInTheDocument();
+    expect(screen.getByText("ScriptCat")).toBeInTheDocument();
+    expect(screen.getByText("Test Content")).toBeInTheDocument();
   });
 
-  it("should render children content", async () => {
+  it("should render children content", () => {
     const testContent = "Test Options Content";
+
     render(
       <MainLayout className="" pageName="options">
         {testContent}
       </MainLayout>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText(testContent)).toBeInTheDocument();
-    });
+    expect(screen.getByText(testContent)).toBeInTheDocument();
   });
 
-  it("should handle page name prop", async () => {
+  it("should handle page name prop", () => {
     render(
       <MainLayout className="" pageName="options">
         {"Content"}
       </MainLayout>
     );
 
-    // 验证组件正确接受pageName属性
-    expect(screen.getByText("Content")).toBeInTheDocument();
+    expect(screen.getByText("create_script")).toBeInTheDocument();
   });
 
-  it("should render with custom className", async () => {
+  it("should render with custom className", () => {
     render(
       <MainLayout pageName="options" className="custom-class">
         {"Content"}
       </MainLayout>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText("Content")).toBeInTheDocument();
-    });
+    expect(screen.getByText("Content").closest(".custom-class")).toBeInTheDocument();
   });
 });

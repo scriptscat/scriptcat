@@ -16,14 +16,8 @@ test.describe("Install Page", () => {
   test("should display script metadata when loading a script", async ({ context, extensionId }) => {
     const page = await openInstallPage(context, extensionId, testScriptUrl);
 
-    // Wait for the script to be fetched and metadata to be displayed
-    // The install page shows script name, version, description, etc.
-    // Wait for either the metadata to load or an error message
-    await page.waitForTimeout(380);
-
     // Check that the page has loaded content (not just blank)
     const body = page.locator("body");
-    const text = await body.innerText();
-    expect(text.length).toBeGreaterThan(0);
+    await expect(body).not.toHaveText("", { timeout: 10_000 });
   });
 });

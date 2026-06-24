@@ -1,694 +1,919 @@
-import { globalCache, systemConfig } from "@App/pages/store/global";
+import { systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
-import { languages } from "monaco-editor";
+import { editor, languages, MarkerSeverity } from "monaco-editor";
 import { findGlobalInsertionInfo, updateGlobalCommentLine } from "./utils";
+import type { EditorLangCode, EditorLangEntry } from "./langs";
+import { asEditorLangEntry, editorLangs } from "./langs";
+import { deferred } from "../utils";
+import { type EslintFix, getModelEslintFixKey } from "./eslintFixCache";
 
-// 注册eslint
-const linterWorker = new Worker("/src/linter.worker.js");
-const langPromise = systemConfig.getLanguage();
+interface ILinterWorker extends Worker {
+  myLinterHook: EventEmitter<string, any>;
+}
 
-const langs = {
-  "zh-CN": {
-    title: "简体中文",
-    thisIsAUserScript: "一个用户脚本",
-    undefinedPrompt: "未定义的提示符",
-    quickfix: "修复 {0} 问题",
-    addEslintDisableNextLine: "添加 eslint-disable-next-line 注释",
-    addEslintDisable: "添加 eslint-disable 注释",
-    declareGlobal: "将 '{0}' 声明为全局变量 (/* global */)",
-    prompt: {
-      name: "脚本名称",
-      namespace: "脚本命名空间",
-      copyright: "脚本的版权信息",
-      license: "脚本的开源协议",
-      version: "脚本版本",
-      description: "脚本描述",
-      icon: "脚本图标",
-      iconURL: "脚本图标",
-      defaulticon: "脚本图标",
-      icon64: "64x64 大小的脚本图标",
-      icon64URL: "64x64 大小的脚本图标",
-      grant: "脚本特殊 Api 权限申请",
-      author: "脚本作者",
-      "run-at":
-        "脚本的运行时间<br>`document-start`：在前端匹配到网址后，以最快的速度注入脚本到页面中<br>`document-end`：DOM 加载完成后注入脚本，此时页面脚本和图像等资源可能仍在加载<br>`document-idle`：所有内容加载完成后注入脚本<br>`document-body`：脚本只会在页面中有 body 元素时才会注入",
-      "run-in": "脚本注入的环境",
-      homepage: "脚本主页",
-      homepageURL: "脚本主页",
-      website: "脚本主页",
-      background: "后台脚本",
-      include: "脚本匹配 url 运行的页面",
-      match: "脚本匹配 url 运行的页面",
-      exclude: "脚本匹配 url 不运行的页面",
-      connect: "获取网站的访问权限",
-      resource: "引入资源文件",
-      require: "引入外部 js 文件",
-      "require-css": "引入外部 css 文件",
-      noframes: "表示脚本不运行在 `<frame>` 中",
-      compatible: "用于在 GreasyFork 中显示脚本的兼容性支持",
-      "inject-into":
-        "脚本注入环境<br>`content`：脚本注入到 content 环境<br>`page`：脚本注入到网页环境（默认）<br>注：SC 不支持以 CSP 判断是否需要脚本注入到 content 环境的 `inject-into: auto` 设计。",
-      "early-start":
-        "配合 `run-at: document-start` 的声明，使用 `early-start` 可以比网页更快地加载并执行脚本，但存在一定性能问题与 GM API 使用限制。（SC 独有）",
-      definition: "ScriptCat 特有功能：一个 `.d.ts` 文件的引用地址，能够自动补全编辑器的提示",
-      // https://bbs.tampermonkey.net.cn/thread-3036-1-1.html#%40antifeature%E8%A7%84%E5%88%99
-      antifeature: `与脚本市场有关，不受欢迎的功能需要加上此描述值
-referral-link：该脚本会修改或重定向到作者的返佣链接
-ads：该脚本会在访问的页面上插入广告
-payment：该脚本需要付费才能够正常使用
-miner：该脚本存在利用用户资源但不为用户产生收益或收益极其微弱的行为
-membership：该脚本需要注册会员/关注公众号才能正常使用
-tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
-      updateURL: "脚本检查更新的 url",
-      downloadURL: "脚本更新的下载地址",
-      supportURL: "支持站点、bug 反馈页面",
-      source: "脚本源码页",
-      crontab: `定时脚本 crontab 参考（不适用于云端脚本）
-* * * * * * 每秒运行一次
-* * * * * 每分钟运行一次
-0 */6 * * * 每 6 小时的 0 分执行一次
-15 */6 * * * 每 6 小时的 15 分执行一次
-* once * * * 每小时运行一次
-* * once * * 每天运行一次
-* 10 once * * 每天 10:00-10:59 运行一次，若 10:04 已运行，本日 10:05-10:59 不再运行
-* 1,3,5 once * * 每天 1/3/5 点运行一次，若 1 点已运行，当天 3、5 点不再运行
-* */4 once * * 每隔 4 小时检测并运行一次，若 4 点已运行，当天 8/12/16/20/24 点不再运行
-* 10-23 once * * 每天 10:00-23:59 运行一次，若 10:04 已运行，当日 10:05-23:59 不再运行
-* once 13 * * 每个月 13 号的每小时运行一次`.replace(/\n/g, "<br>"),
-    },
-  },
+type MetadataLineParts = {
+  prefix: string;
+  tag: string;
+  normalizedTag: MetadataTag;
+  spacing: string;
+  value: string;
+  suffix: string;
+};
 
-  "en-US": {
-    title: "English",
-    thisIsAUserScript: "A user script",
-    undefinedPrompt: "Undefined Prompt",
-    quickfix: "Fix {0} Issue",
-    addEslintDisableNextLine: "Add eslint-disable-next-line Comment",
-    addEslintDisable: "Add eslint-disable Comment",
-    declareGlobal: "Declare '{0}' as a global variable (/* global */)",
-    prompt: {
-      name: "Script name",
-      namespace: "Script namespace",
-      copyright: "Script copyright information",
-      license: "Script open-source license",
-      version: "Script version",
-      description: "Script description",
-      icon: "Script icon",
-      iconURL: "Script icon",
-      defaulticon: "Script icon",
-      icon64: "64x64 script icon",
-      icon64URL: "64x64 script icon",
-      grant: "Request special script API permissions",
-      author: "Script author",
-      "run-at":
-        "When the script runs<br>`document-start`: inject as early as possible after URL match<br>`document-end`: inject after DOM has loaded (images etc. may still load)<br>`document-idle`: inject after all content has finished loading<br>`document-body`: inject only when a body element exists",
-      "run-in": "Environment in which the script is injected",
-      homepage: "Script homepage",
-      homepageURL: "Script homepage",
-      website: "Script homepage",
-      background: "Background script",
-      include: "Pages whose URLs match and run this script",
-      match: "Pages whose URLs match and run this script",
-      exclude: "Pages whose URLs match and do NOT run this script",
-      connect: "Sites the script can access",
-      resource: "Imported resource files",
-      require: "Imported external JS files",
-      "require-css": "Imported external CSS files",
-      noframes: "Do not run the script inside `<frame>`",
-      compatible: "Compatibility information shown on GreasyFork",
-      "inject-into":
-        "Script injection context<br>`content`: inject into content context<br>`page`: inject into page context (default)<br>Note: SC does not support `inject-into: auto`, which chooses context based on CSP.",
-      "early-start":
-        "Used with `run-at: document-start`. `early-start` lets the script execute even earlier than the page, but may affect performance and limit GM APIs. (SC only)",
-      definition: "ScriptCat-only: URL of a `.d.ts` file used for editor auto-completion",
-      antifeature: "For script markets: describe any unwanted or controversial features",
-      updateURL: "URL used to check for script updates",
-      downloadURL: "URL used to download script updates",
-      supportURL: "Support site / bug report page",
-      source: "Script source code page",
-      crontab: `Scheduled script crontab examples (not for cloud scripts)
-* * * * * * Run every second
-* * * * * Run every minute
-0 */6 * * * Run once at minute 0 every 6 hours
-15 */6 * * * Run once at minute 15 every 6 hours
-* once * * * Run once every hour
-* * once * * Run once every day
-* 10 once * * Run once between 10:00-10:59 each day; if it runs at 10:04, it won't run again that day between 10:05-10:59
-* 1,3,5 once * * Run once at 1:00, 3:00, 5:00 each day; if it runs at 1:00, it won't run again at 3:00 or 5:00
-* */4 once * * Check and run once every 4 hours; if it runs at 4:00, it won't run again that day at 8:00, 12:00, 16:00, 20:00, 24:00
-* 10-23 once * * Run once between 10:00-23:59 each day; if it runs at 10:04, it won't run again that day between 10:05-23:59
-* once 13 * * Run once every hour on the 13th day of each month`.replace(/\n/g, "<br>"),
-    },
-  },
+type MetadataTag = "connect" | "match" | "include";
 
-  "zh-TW": {
-    title: "繁體中文",
-    thisIsAUserScript: "一個使用者腳本",
-    undefinedPrompt: "未定義的提示符",
-    quickfix: "修復 {0} 問題",
-    addEslintDisableNextLine: "新增 eslint-disable-next-line 註解",
-    addEslintDisable: "新增 eslint-disable 註解",
-    declareGlobal: "將 '{0}' 宣告為全域變數 (/* global */)",
-    prompt: {
-      name: "腳本名稱",
-      namespace: "腳本命名空間",
-      copyright: "腳本的版權資訊",
-      license: "腳本的開源協議",
-      version: "腳本版本",
-      description: "腳本描述",
-      icon: "腳本圖示",
-      iconURL: "腳本圖示",
-      defaulticon: "腳本圖示",
-      icon64: "64x64 大小的腳本圖示",
-      icon64URL: "64x64 大小的腳本圖示",
-      grant: "腳本特殊 Api 權限申請",
-      author: "腳本作者",
-      "run-at":
-        "腳本的執行時間<br>`document-start`：在前端匹配到網址後，以最快速度將腳本注入頁面<br>`document-end`：DOM 載入完成後注入腳本，此時頁面腳本與圖像資源可能仍在載入<br>`document-idle`：所有內容載入完成後注入腳本<br>`document-body`：僅在頁面存在 body 元素時才注入腳本",
-      "run-in": "腳本注入的環境",
-      homepage: "腳本首頁",
-      homepageURL: "腳本首頁",
-      website: "腳本首頁",
-      background: "背景腳本",
-      include: "腳本匹配 url 執行的頁面",
-      match: "腳本匹配 url 執行的頁面",
-      exclude: "腳本匹配 url 不執行的頁面",
-      connect: "取得網站的存取權限",
-      resource: "引入資源檔案",
-      require: "引入外部 js 檔",
-      "require-css": "引入外部 css 檔",
-      noframes: "表示腳本不在 `<frame>` 中執行",
-      compatible: "用於在 GreasyFork 中顯示腳本相容性資訊",
-      "inject-into":
-        "腳本注入環境<br>`content`：將腳本注入 content 環境<br>`page`：將腳本注入網頁環境（預設）<br>註：SC 不支援依據 CSP 判斷是否注入 content 環境的 `inject-into: auto`。",
-      "early-start":
-        "配合 `run-at: document-start` 使用，`early-start` 可以比網頁更早載入並執行腳本，但可能造成效能問題與 GM API 限制。（SC 獨有）",
-      definition: "ScriptCat 特有功能：一個 `.d.ts` 檔案的引用網址，可啟用編輯器自動提示",
-      antifeature: "與腳本市場相關，不受歡迎的功能需要在此描述",
-      updateURL: "腳本檢查更新的 url",
-      downloadURL: "腳本更新的下載網址",
-      supportURL: "支援站點、錯誤回報頁面",
-      source: "腳本原始碼頁面",
-      crontab: `排程腳本 crontab 參考（不適用於雲端腳本）
-* * * * * * 每秒執行一次
-* * * * * 每分鐘執行一次
-0 */6 * * * 每 6 小時的第 0 分執行一次
-15 */6 * * * 每 6 小時的第 15 分執行一次
-* once * * * 每小時執行一次
-* * once * * 每天執行一次
-* 10 once * * 每天 10:00-10:59 執行一次，若在 10:04 已執行，當日 10:05-10:59 不再執行
-* 1,3,5 once * * 每天 1/3/5 點執行一次，若 1 點已執行，當天 3、5 點不再執行
-* */4 once * * 每隔 4 小時檢查並執行一次，若 4 點已執行，當天 8/12/16/20/24 點不再執行
-* 10-23 once * * 每天 10:00-23:59 執行一次，若 10:04 已執行，當日 10:05-23:59 不再執行
-* once 13 * * 每月 13 號的每小時執行一次`.replace(/\n/g, "<br>"),
-    },
-  },
+type MetadataLineFix = {
+  code: string;
+  title: string;
+  text: string;
+};
 
-  "ja-JP": {
-    title: "日本語",
-    thisIsAUserScript: "ユーザースクリプト",
-    undefinedPrompt: "未定義のプロンプト",
-    quickfix: "{0} の問題を修正",
-    addEslintDisableNextLine: "eslint-disable-next-line コメントを追加",
-    addEslintDisable: "eslint-disable コメントを追加",
-    declareGlobal: "'{0}' をグローバル変数として宣言 (/* global */)",
-    prompt: {
-      name: "スクリプト名",
-      namespace: "スクリプトの名前空間",
-      copyright: "スクリプトの著作権情報",
-      license: "スクリプトのライセンス",
-      version: "スクリプトのバージョン",
-      description: "スクリプトの説明",
-      icon: "スクリプトのアイコン",
-      iconURL: "スクリプトのアイコン",
-      defaulticon: "スクリプトのアイコン",
-      icon64: "64x64 サイズのスクリプトアイコン",
-      icon64URL: "64x64 サイズのスクリプトアイコン",
-      grant: "スクリプトが要求する特別な API 権限",
-      author: "スクリプトの作者",
-      "run-at":
-        "スクリプトの実行タイミング<br>`document-start`：URL がマッチした直後、できるだけ早くスクリプトを注入<br>`document-end`：DOM 読み込み完了後に注入（画像などは読み込み中の可能性あり）<br>`document-idle`：ページ内のすべての読み込み完了後に注入<br>`document-body`：body 要素が存在する場合のみ注入",
-      "run-in": "スクリプトを注入するコンテキスト",
-      homepage: "スクリプトのホームページ",
-      homepageURL: "スクリプトのホームページ",
-      website: "スクリプトのホームページ",
-      background: "バックグラウンドスクリプト",
-      include: "スクリプトを実行する URL パターン",
-      match: "スクリプトを実行する URL パターン",
-      exclude: "スクリプトを実行しない URL パターン",
-      connect: "アクセス権を要求するサイト",
-      resource: "読み込むリソースファイル",
-      require: "読み込む外部 JS ファイル",
-      "require-css": "読み込む外部 CSS ファイル",
-      noframes: "スクリプトを `<frame>` 内では実行しない",
-      compatible: "GreasyFork に表示される互換性情報",
-      "inject-into":
-        "スクリプトの注入コンテキスト<br>`content`：コンテンツスクリプト環境に注入<br>`page`：ページコンテキストに注入（既定）<br>注：SC は CSP に基づき自動でコンテキストを切り替える `inject-into: auto` には対応していません。",
-      "early-start":
-        "`run-at: document-start` と併用します。`early-start` を指定するとページよりも早くスクリプトを実行できますが、パフォーマンスへの影響や GM API の制限が発生する場合があります（SC 独自機能）。",
-      definition: "ScriptCat 専用機能：`.d.ts` ファイルの URL。エディタの補完を有効にします。",
-      antifeature: "スクリプトマーケット向け：好まれない機能がある場合、ここに説明を記載します。",
-      updateURL: "スクリプト更新を確認する URL",
-      downloadURL: "スクリプト更新をダウンロードする URL",
-      supportURL: "サポートサイト・バグ報告ページ",
-      source: "スクリプトのソースコードページ",
-      crontab: `スケジュールスクリプトの crontab 例（クラウドスクリプトには非対応）
-* * * * * * 毎秒実行
-* * * * * 毎分実行
-0 */6 * * * 6 時間ごとに 0 分に 1 回実行
-15 */6 * * * 6 時間ごとに 15 分に 1 回実行
-* once * * * 毎時 1 回実行
-* * once * * 毎日 1 回実行
-* 10 once * * 毎日 10:00-10:59 の間に 1 回実行。10:04 に実行された場合、その日は 10:05-10:59 に再実行されません
-* 1,3,5 once * * 毎日 1/3/5 時に 1 回実行。1 時に実行された場合、その日は 3 時と 5 時に再実行されません
-* */4 once * * 4 時間ごとに確認して 1 回実行。4 時に実行された場合、その日は 8/12/16/20/24 時に再実行されません
-* 10-23 once * * 毎日 10:00-23:59 の間に 1 回実行。10:04 に実行された場合、その日は 10:05-23:59 に再実行されません
-* once 13 * * 毎月 13 日の各時間帯で 1 回実行`.replace(/\n/g, "<br>"),
-    },
-  },
+type TextEdit = languages.IWorkspaceTextEdit["textEdit"];
 
-  "de-DE": {
-    title: "Deutsch",
-    thisIsAUserScript: "Ein Benutzerskript",
-    undefinedPrompt: "Undefinierter Prompt",
-    quickfix: "{0}-Problem beheben",
-    addEslintDisableNextLine: "eslint-disable-next-line Kommentar hinzufügen",
-    addEslintDisable: "eslint-disable Kommentar hinzufügen",
-    declareGlobal: "'{0}' als globale Variable deklarieren (/* global */)",
-    prompt: {
-      name: "Skriptname",
-      namespace: "Skript-Namensraum",
-      copyright: "Urheberrechtsinformationen des Skripts",
-      license: "Open-Source-Lizenz des Skripts",
-      version: "Skriptversion",
-      description: "Skriptbeschreibung",
-      icon: "Skript-Symbol",
-      iconURL: "Skript-Symbol",
-      defaulticon: "Skript-Symbol",
-      icon64: "64x64 Skript-Symbol",
-      icon64URL: "64x64 Skript-Symbol",
-      grant: "Angeforderte spezielle API-Berechtigungen",
-      author: "Skriptautor",
-      "run-at":
-        "Zeitpunkt der Skriptausführung<br>`document-start`: so früh wie möglich nach URL-Match injizieren<br>`document-end`: nach dem Laden des DOM injizieren (Bilder usw. können noch laden)<br>`document-idle`: nach vollständigem Laden aller Inhalte injizieren<br>`document-body`: nur injizieren, wenn ein body-Element vorhanden ist",
-      "run-in": "Kontext, in den das Skript injiziert wird",
-      homepage: "Skript-Homepage",
-      homepageURL: "Skript-Homepage",
-      website: "Skript-Homepage",
-      background: "Hintergrundskript",
-      include: "Seiten-URLs, auf denen das Skript ausgeführt wird",
-      match: "Seiten-URLs, auf denen das Skript ausgeführt wird",
-      exclude: "Seiten-URLs, auf denen das Skript nicht ausgeführt wird",
-      connect: "Websites, auf die das Skript zugreifen darf",
-      resource: "Zu ladende Ressourcendateien",
-      require: "Zu ladende externe JS-Dateien",
-      "require-css": "Zu ladende externe CSS-Dateien",
-      noframes: "Skript nicht innerhalb von `<frame>` ausführen",
-      compatible: "Kompatibilitätsinformationen für GreasyFork",
-      "inject-into":
-        "Skript-Injektionskontext<br>`content`: in den Content-Kontext injizieren<br>`page`: in den Seitenkontext injizieren (Standard)<br>Hinweis: SC unterstützt `inject-into: auto` nicht, bei dem der Kontext über CSP gewählt wird.",
-      "early-start":
-        "Wird mit `run-at: document-start` verwendet. `early-start` lässt das Skript noch vor der Seite laufen, kann aber die Leistung beeinträchtigen und GM-APIs einschränken. (Nur in SC)",
-      definition: "Nur für ScriptCat: URL zu einer `.d.ts`-Datei für Editor-Autovervollständigung",
-      antifeature: "Für Script-Marktplätze: hier unerwünschte oder kontroverse Funktionen beschreiben",
-      updateURL: "URL zur Aktualisierungsprüfung des Skripts",
-      downloadURL: "URL zum Herunterladen von Skriptaktualisierungen",
-      supportURL: "Support-Seite / Bugtracker",
-      source: "Quellcode-Seite des Skripts",
-      crontab: `Beispiele für geplante Skripte (crontab, nicht für Cloud-Skripte)
-* * * * * * Jede Sekunde ausführen
-* * * * * Jede Minute ausführen
-0 */6 * * * Alle 6 Stunden zur Minute 0 ausführen
-15 */6 * * * Alle 6 Stunden zur Minute 15 ausführen
-* once * * * Einmal pro Stunde ausführen
-* * once * * Einmal pro Tag ausführen
-* 10 once * * Einmal täglich zwischen 10:00-10:59; wenn um 10:04 ausgeführt, an diesem Tag nicht erneut zwischen 10:05-10:59
-* 1,3,5 once * * Einmal täglich um 1:00, 3:00, 5:00; wenn um 1:00 ausgeführt, an diesem Tag nicht erneut um 3:00 oder 5:00
-* */4 once * * Alle 4 Stunden prüfen und einmal ausführen; wenn um 4:00 ausgeführt, an diesem Tag nicht erneut um 8:00, 12:00, 16:00, 20:00, 24:00
-* 10-23 once * * Einmal täglich zwischen 10:00-23:59; wenn um 10:04 ausgeführt, an diesem Tag nicht erneut zwischen 10:05-23:59
-* once 13 * * Einmal stündlich am 13. Tag jedes Monats ausführen`.replace(/\n/g, "<br>"),
-    },
-  },
+type MetadataAlignmentLine = {
+  lineNumber: number;
+  lineText: string;
+  prefix: string;
+  tag: string;
+  spacing: string;
+  value: string;
+  valueColumn: number;
+};
 
-  "vi-VN": {
-    title: "Tiếng Việt",
-    thisIsAUserScript: "Một user script",
-    undefinedPrompt: "Prompt chưa được định nghĩa",
-    quickfix: "Sửa lỗi {0}",
-    addEslintDisableNextLine: "Thêm chú thích eslint-disable-next-line",
-    addEslintDisable: "Thêm chú thích eslint-disable",
-    declareGlobal: "Khai báo '{0}' là biến toàn cục (/* global */)",
-    prompt: {
-      name: "Tên script",
-      namespace: "Namespace của script",
-      copyright: "Thông tin bản quyền của script",
-      license: "Giấy phép mã nguồn mở của script",
-      version: "Phiên bản script",
-      description: "Mô tả script",
-      icon: "Biểu tượng script",
-      iconURL: "Biểu tượng script",
-      defaulticon: "Biểu tượng script",
-      icon64: "Biểu tượng script kích thước 64x64",
-      icon64URL: "Biểu tượng script kích thước 64x64",
-      grant: "Quyền API đặc biệt mà script yêu cầu",
-      author: "Tác giả script",
-      "run-at":
-        "Thời điểm chạy script<br>`document-start`: chèn script sớm nhất có thể sau khi khớp URL<br>`document-end`: chèn sau khi DOM tải xong (ảnh v.v. có thể vẫn đang tải)<br>`document-idle`: chèn sau khi toàn bộ nội dung đã tải xong<br>`document-body`: chỉ chèn khi trang có phần tử body",
-      "run-in": "Ngữ cảnh mà script được chèn vào",
-      homepage: "Trang chủ script",
-      homepageURL: "Trang chủ script",
-      website: "Trang chủ script",
-      background: "Script nền (background)",
-      include: "Trang có URL khớp và chạy script",
-      match: "Trang có URL khớp và chạy script",
-      exclude: "Trang có URL khớp nhưng KHÔNG chạy script",
-      connect: "Trang web mà script được phép truy cập",
-      resource: "Tệp tài nguyên được import",
-      require: "Tệp JS bên ngoài được import",
-      "require-css": "Tệp CSS bên ngoài được import",
-      noframes: "Không chạy script bên trong `<frame>`",
-      compatible: "Thông tin tương thích hiển thị trên GreasyFork",
-      "inject-into":
-        "Ngữ cảnh chèn script<br>`content`: chèn vào ngữ cảnh content<br>`page`: chèn vào ngữ cảnh trang (mặc định)<br>Lưu ý: SC không hỗ trợ `inject-into: auto`, lựa chọn ngữ cảnh dựa trên CSP.",
-      "early-start":
-        "Dùng cùng với `run-at: document-start`. `early-start` cho phép script chạy sớm hơn cả trang, nhưng có thể gây ảnh hưởng hiệu năng và giới hạn một số GM API. (Chỉ có trong SC)",
-      definition: "Tính năng riêng của ScriptCat: URL tới tệp `.d.ts` giúp bật gợi ý tự động trong trình soạn thảo",
-      antifeature: "Dùng cho chợ script: mô tả các tính năng không được người dùng ưa thích",
-      updateURL: "URL dùng để kiểm tra cập nhật script",
-      downloadURL: "URL tải về bản cập nhật script",
-      supportURL: "Trang hỗ trợ / báo lỗi",
-      source: "Trang mã nguồn script",
-      crontab: `Ví dụ crontab cho script chạy định kỳ (không áp dụng cho script trên cloud)
-* * * * * * Chạy mỗi giây
-* * * * * Chạy mỗi phút
-0 */6 * * * Chạy 1 lần vào phút 0 mỗi 6 giờ
-15 */6 * * * Chạy 1 lần vào phút 15 mỗi 6 giờ
-* once * * * Chạy 1 lần mỗi giờ
-* * once * * Chạy 1 lần mỗi ngày
-* 10 once * * Chạy 1 lần mỗi ngày trong khoảng 10:00-10:59; nếu chạy lúc 10:04 thì hôm đó không chạy lại trong 10:05-10:59
-* 1,3,5 once * * Chạy 1 lần lúc 1:00, 3:00, 5:00 mỗi ngày; nếu chạy lúc 1:00 thì hôm đó không chạy lại lúc 3:00 hoặc 5:00
-* */4 once * * Kiểm tra và chạy 1 lần mỗi 4 giờ; nếu chạy lúc 4:00 thì hôm đó không chạy lại lúc 8:00, 12:00, 16:00, 20:00, 24:00
-* 10-23 once * * Chạy 1 lần mỗi ngày trong khoảng 10:00-23:59; nếu chạy lúc 10:04 thì hôm đó không chạy lại trong 10:05-23:59
-* once 13 * * Chạy 1 lần mỗi giờ vào ngày 13 hằng tháng`.replace(/\n/g, "<br>"),
-    },
-  },
+type MetadataAlignmentBlock = {
+  startLineNumber: number;
+  endLineNumber: number;
+  lines: MetadataAlignmentLine[];
+};
 
-  "ru-RU": {
-    title: "Русский",
-    thisIsAUserScript: "Пользовательский скрипт",
-    undefinedPrompt: "Неопределённый промпт",
-    quickfix: "Исправить проблему {0}",
-    addEslintDisableNextLine: "Добавить комментарий eslint-disable-next-line",
-    addEslintDisable: "Добавить комментарий eslint-disable",
-    declareGlobal: "Объявить '{0}' как глобальную переменную (/* global */)",
-    prompt: {
-      name: "Имя скрипта",
-      namespace: "Пространство имён скрипта",
-      copyright: "Информация об авторских правах скрипта",
-      license: "Лицензия с открытым исходным кодом",
-      version: "Версия скрипта",
-      description: "Описание скрипта",
-      icon: "Иконка скрипта",
-      iconURL: "Иконка скрипта",
-      defaulticon: "Иконка скрипта",
-      icon64: "Иконка скрипта 64x64",
-      icon64URL: "Иконка скрипта 64x64",
-      grant: "Запрашиваемые специальные права доступа к API",
-      author: "Автор скрипта",
-      "run-at":
-        "Момент запуска скрипта<br>`document-start`: внедрить как можно раньше после совпадения URL<br>`document-end`: внедрить после загрузки DOM (изображения и др. могут ещё загружаться)<br>`document-idle`: внедрить после полной загрузки содержимого<br>`document-body`: внедрить только если на странице есть элемент body",
-      "run-in": "Контекст, в который внедряется скрипт",
-      homepage: "Домашняя страница скрипта",
-      homepageURL: "Домашняя страница скрипта",
-      website: "Домашняя страница скрипта",
-      background: "Фоновый скрипт",
-      include: "Страницы, на которых скрипт выполняется (совпадение URL)",
-      match: "Страницы, на которых скрипт выполняется (совпадение URL)",
-      exclude: "Страницы, на которых скрипт НЕ выполняется (совпадение URL)",
-      connect: "Сайты, к которым скрипт может обращаться",
-      resource: "Подключаемые ресурсные файлы",
-      require: "Подключаемые внешние JS-файлы",
-      "require-css": "Подключаемые внешние CSS-файлы",
-      noframes: "Не запускать скрипт внутри `<frame>`",
-      compatible: "Информация о совместимости, отображаемая на GreasyFork",
-      "inject-into":
-        "Контекст внедрения скрипта<br>`content`: внедрить в контекст content<br>`page`: внедрить в контекст страницы (по умолчанию)<br>Примечание: SC не поддерживает `inject-into: auto`, когда контекст выбирается по CSP.",
-      "early-start":
-        "Используется совместно с `run-at: document-start`. `early-start` позволяет выполнять скрипт раньше загрузки страницы, но может ухудшать производительность и ограничивать некоторые GM API. (Только в SC)",
-      definition: "Особенность ScriptCat: URL файла `.d.ts`, используемого для автодополнения в редакторе",
-      antifeature: "Для маркетплейсов скриптов: опишите здесь нежелательные / спорные функции",
-      updateURL: "URL для проверки обновлений скрипта",
-      downloadURL: "URL для загрузки обновлений скрипта",
-      supportURL: "Страница поддержки / отчёта об ошибках",
-      source: "Страница с исходным кодом скрипта",
-      crontab: `Примеры crontab для планового запуска скриптов (не для облачных скриптов)
-* * * * * * Запуск каждую секунду
-* * * * * Запуск каждую минуту
-0 */6 * * * Запуск раз в 6 часов в 00 минут
-15 */6 * * * Запуск раз в 6 часов в 15 минут
-* once * * * Запуск раз в час
-* * once * * Запуск раз в день
-* 10 once * * Запуск раз в день между 10:00-10:59; если выполнен в 10:04, в этот день не запустится снова между 10:05-10:59
-* 1,3,5 once * * Запуск раз в день в 1:00, 3:00, 5:00; если выполнен в 1:00, в этот день не запустится в 3:00 и 5:00
-* */4 once * * Проверка и запуск раз в 4 часа; если выполнен в 4:00, в этот день не запустится в 8:00, 12:00, 16:00, 20:00, 24:00
-* 10-23 once * * Запуск раз в день между 10:00-23:59; если выполнен в 10:04, в этот день не запустится снова между 10:05-23:59
-* once 13 * * Запуск каждый час в течение 13-го числа месяца`.replace(/\n/g, "<br>"),
-    },
-  },
-} as const;
+type MetadataAlignmentFix = {
+  range: TextEdit["range"];
+  text: string;
+};
 
-type LangCode = keyof typeof langs;
-type Prompt = (typeof langs)["zh-CN"]["prompt"];
-type LangEntry = (typeof langs)["zh-CN"];
+type ScriptcatMonacoEnvironment = typeof window.MonacoEnvironment & {
+  myLinterWorker?: ILinterWorker;
+  eslintFixMap?: Map<string, EslintFix>;
+};
 
-export default function registerEditor() {
-  window.MonacoEnvironment = {
-    getWorkerUrl(moduleId: any, label: any) {
-      if (label === "typescript" || label === "javascript") {
-        return "/src/ts.worker.js";
-      }
-      return "/src/editor.worker.js";
-    },
-  };
-  function asLangEntry<T extends keyof typeof langs>(key: T) {
-    return langs[key] as LangEntry;
+// 注册 eslint worker（全局单例）
+const linterWorkerDeferred = deferred<ILinterWorker>();
+const configuredLanguagePromise = systemConfig.getLanguage();
+
+let currentEditorLang: EditorLangEntry;
+type EditorLangEntryPrompt = typeof currentEditorLang.prompt;
+let promptByMetadataTag: EditorLangEntryPrompt;
+
+const loadEditorLangEntry = (languageCode: EditorLangCode) => {
+  currentEditorLang = asEditorLangEntry(languageCode);
+  promptByMetadataTag = Object.fromEntries(
+    Object.entries(currentEditorLang.prompt).map(([metadataTag, prompt]) => [metadataTag.toLowerCase(), prompt])
+  ) as typeof currentEditorLang.prompt;
+};
+
+loadEditorLangEntry("en-US");
+
+const updateEditorLang = (language: string) => {
+  const requestedLanguageCode = `${language || ""}` as EditorLangCode | "";
+  const supportedLanguageCode = ((Object.hasOwn(editorLangs, requestedLanguageCode) && requestedLanguageCode) ||
+    "en-US") as EditorLangCode;
+  loadEditorLangEntry(supportedLanguageCode);
+};
+
+configuredLanguagePromise.then((language) => updateEditorLang(language));
+
+systemConfig.addListener("language", (language) => {
+  updateEditorLang(language);
+});
+
+export class LinterWorkerController {
+  static sendLinterMessage(data: unknown) {
+    linterWorkerDeferred.promise.then((linterWorker) => {
+      linterWorker.postMessage(data);
+    });
   }
-  let multiLang = asLangEntry("en-US");
-  const updateLang = (lang: string) => {
-    lang = (lang || "") as LangCode | "";
-    const key = (lang && (lang in langs ? lang : "en-US")) || ("en-US" as LangCode);
-    multiLang = asLangEntry(key as LangCode);
+  static hookAddListener(event: string, fn: (...args: any[]) => void) {
+    linterWorkerDeferred.promise.then((linterWorker) => {
+      linterWorker.myLinterHook.addListener(event, fn);
+    });
+  }
+  static hookRemoveListener(event: string, fn: (...args: any[]) => void) {
+    linterWorkerDeferred.promise.then((linterWorker) => {
+      linterWorker.myLinterHook.removeListener(event, fn);
+    });
+  }
+  static hookEmit(event: string, data: any) {
+    linterWorkerDeferred.promise.then((linterWorker) => {
+      linterWorker.myLinterHook.emit(event, data);
+    });
+  }
+}
+
+let isEditorRegistered = false;
+
+const scriptcatMarkerOwner = "ScriptCat";
+const eslintMarkerOwner = "ESLint";
+const scriptcatMetadataAlignmentRuleId = "scriptcat/align-metadata-attributes";
+const scriptcatRemoveConnectWildcardRuleId = "scriptcat/remove-connect-wildcard";
+const scriptcatReplaceMatchTldWildcardRuleId = "scriptcat/replace-match-tld-wildcard-with-include";
+const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-match";
+const scriptcatGrantNoneConflictRuleId = "scriptcat/grant-none-conflict";
+const quickfixKind = "quickfix";
+const noop = () => {};
+const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
+const metadataHoverPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]*)(.*)$/;
+const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match|include)([ \t]+)(\S+)(.*)$/i;
+const metadataAlignmentPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]+)(.*)$/;
+const metadataLineStartPattern = /^\s*\/\/[ \t]*@/;
+const userscriptHeaderPattern = /^\s*\/\/[ \t]*==UserScript==[ \t]*$/;
+const userscriptEndPattern = /^\s*\/\/[ \t]*==\/UserScript==[ \t]*$/;
+const matchMetadataPattern = /^(\*|[-a-z]+|http\*):\/\/([^/]+)(\/.*)?$/i;
+const noUndefMessagePattern = /^[^']*'([^']+)'[^']*$/;
+
+const getMonacoEnvironment = () => window.MonacoEnvironment as ScriptcatMonacoEnvironment | undefined;
+
+const ensureEslintFixMap = (environment: ScriptcatMonacoEnvironment) => {
+  environment.eslintFixMap ??= new Map();
+  return environment.eslintFixMap;
+};
+
+const getMarkerCode = (marker: editor.IMarkerData) => {
+  if (!marker.code) return "";
+  return typeof marker.code === "string" ? marker.code : marker.code.value;
+};
+
+const normalizeGrantValue = (grantValue: string) => {
+  switch (grantValue) {
+    case "GM.xmlHttpRequest":
+      return "GM_xmlhttpRequest";
+    case "GM.cookie":
+      return "GM_cookie";
+    default:
+      return grantValue.startsWith("GM.") ? grantValue.replace("GM.", "GM_") : grantValue;
+  }
+};
+
+const getGrantValueHoverPrompt = (lineText: string, column: number) => {
+  const match = metadataHoverPattern.exec(lineText);
+  if (!match) return null;
+
+  const [, prefix, tag, spacing, value] = match;
+  if (tag.toLowerCase() !== "grant") return null;
+
+  const grantValueMatch = /^\S+/.exec(value);
+  if (!grantValueMatch) return null;
+
+  const valueStartColumn = prefix.length + tag.length + spacing.length + 1;
+  const valueEndColumn = valueStartColumn + grantValueMatch[0].length;
+  if (column < valueStartColumn || column > valueEndColumn) return null;
+
+  const grantValue = grantValueMatch[0];
+  const prompt =
+    currentEditorLang.grantValuePrompts[grantValue as keyof typeof currentEditorLang.grantValuePrompts] ??
+    currentEditorLang.grantValuePrompts[
+      normalizeGrantValue(grantValue) as keyof typeof currentEditorLang.grantValuePrompts
+    ];
+  if (!prompt) return null;
+
+  return `\`${grantValue}\`<br>${prompt}`;
+};
+
+const getMetadataValueToken = (value: string) => /^\S+/.exec(value)?.[0] || "";
+
+const createTextEditAction = (
+  model: editor.ITextModel,
+  title: string,
+  diagnostics: editor.IMarkerData[],
+  textEdit: TextEdit,
+  isPreferred: boolean
+) => {
+  return {
+    title,
+    diagnostics,
+    kind: quickfixKind,
+    edit: {
+      edits: [{ resource: model.uri, textEdit, versionId: undefined }],
+    },
+    isPreferred,
+  } satisfies languages.CodeAction;
+};
+
+const createTextEditsAction = (
+  model: editor.ITextModel,
+  title: string,
+  diagnostics: editor.IMarkerData[],
+  textEdits: TextEdit[],
+  isPreferred: boolean
+) => {
+  return {
+    title,
+    diagnostics,
+    kind: quickfixKind,
+    edit: {
+      edits: textEdits.map((textEdit) => ({
+        resource: model.uri,
+        textEdit,
+        versionId: undefined,
+      })),
+    },
+    isPreferred,
+  } satisfies languages.CodeAction;
+};
+
+const createLineReplacementAction = (
+  model: editor.ITextModel,
+  title: string,
+  diagnostics: editor.IMarkerData[],
+  lineNumber: number,
+  lineText: string,
+  text: string,
+  isPreferred: boolean
+) => {
+  return createTextEditAction(
+    model,
+    title,
+    diagnostics,
+    {
+      range: {
+        startLineNumber: lineNumber,
+        startColumn: 1,
+        endLineNumber: lineNumber,
+        endColumn: lineText.length + 1,
+      },
+      text,
+    },
+    isPreferred
+  );
+};
+
+const isSimpleValidHost = (hostName: string) => {
+  if (!hostName) return false;
+  try {
+    hostName = hostName.toLowerCase();
+    return new URL(`https://${hostName}.com/path`).origin === `https://${hostName}.com`;
+  } catch {
+    return false;
+  }
+};
+
+const parseMetadataLine = (lineText: string): MetadataLineParts | null => {
+  if (lineText.length < 6 || !lineText.includes("@")) return null;
+  const metadataMatch = metadataFixPattern.exec(lineText);
+  if (!metadataMatch) return null;
+
+  const [, prefix, tag, spacing, value, suffix] = metadataMatch;
+  return {
+    prefix,
+    tag,
+    normalizedTag: tag.toLowerCase() as MetadataTag,
+    spacing,
+    value,
+    suffix,
   };
-  langPromise.then((res) => {
-    updateLang(res);
-  });
+};
 
-  systemConfig.addListener("language", (lang) => {
-    updateLang(lang);
-  });
+const createMetadataFix = (code: string, titleTemplate: string, titleValue: string, text: string): MetadataLineFix => {
+  return {
+    code,
+    title: titleTemplate.replace("{0}", titleValue),
+    text,
+  };
+};
 
-  const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
+const getIncludeSpacing = (spacing: string, tag: string) => {
+  const lenDiff = "include".length - tag.length;
+  if (lenDiff <= 0) return spacing;
+  const targetLength = Math.max(1, spacing.length - lenDiff);
+  return spacing.slice(0, targetLength);
+};
+
+const normalizeHost = (hostPattern: string) => {
+  const wildcardNormalizedHost = hostPattern
+    .split(".")
+    .map((hostSegment) => (hostSegment.includes("*") ? "*" : hostSegment))
+    .join(".");
+  return wildcardNormalizedHost;
+};
+
+const getConnectMetadataFixes = ({ prefix, tag, spacing, value, suffix }: MetadataLineParts): MetadataLineFix[] => {
+  if (!value.startsWith("*.") || value.includes("**")) return [];
+
+  const hostName = value.slice(2);
+  if (!/\.\w{2,}$/.test(hostName) || !isSimpleValidHost(hostName)) return [];
+
+  const titleTemplate = currentEditorLang.removeConnectWildcard;
+  return [
+    createMetadataFix(
+      scriptcatRemoveConnectWildcardRuleId,
+      titleTemplate,
+      hostName,
+      `${prefix}${tag}${spacing}${hostName}${suffix}`
+    ),
+  ];
+};
+
+const getMatchMetadataFixes = ({
+  prefix,
+  normalizedTag,
+  spacing,
+  value,
+  suffix,
+}: MetadataLineParts): MetadataLineFix[] => {
+  if (!value || value.startsWith("/")) return [];
+  const metadataValueMatch = matchMetadataPattern.exec(value);
+  if (!metadataValueMatch || !metadataValueMatch[2]) return [];
+  const hostPattern = metadataValueMatch[2];
+  const wildcardNormalizedHost = normalizeHost(hostPattern);
+  if (
+    !wildcardNormalizedHost.endsWith(".*") ||
+    !hostPattern.includes(".") ||
+    hostPattern.includes("**") ||
+    hostPattern.includes("\\")
+  )
+    return [];
+
+  const hostName = hostPattern.slice(0, hostPattern.lastIndexOf("."));
+  if (!isSimpleValidHost(hostName.replace(/\*/g, "x"))) return [];
+
+  const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
+  const tldValue = `${metadataValueMatch[1]}://${hostName}.tld${metadataValueMatch[3] || ""}`;
+
+  const titleTemplate = currentEditorLang.replaceMatchTldWildcardWithInclude;
+  const actions = [];
+  if (hostPattern.endsWith(".*")) {
+    actions.push(
+      createMetadataFix(
+        scriptcatReplaceMatchTldWildcardRuleId,
+        titleTemplate,
+        tldValue,
+        `${prefix}include${includeSpacing}${tldValue}${suffix}`
+      )
+    );
+  }
+  actions.push(
+    createMetadataFix(
+      scriptcatReplaceMatchTldWildcardRuleId,
+      titleTemplate,
+      value,
+      `${prefix}include${includeSpacing}${value}${suffix}`
+    )
+  );
+  return actions;
+};
+
+const getIncludeMetadataFixes = ({
+  prefix,
+  normalizedTag,
+  spacing,
+  value,
+  suffix,
+}: MetadataLineParts): MetadataLineFix[] => {
+  const metadataValueMatch = matchMetadataPattern.exec(value);
+  const hostPattern = metadataValueMatch?.[2];
+  const wildcardNormalizedHost = hostPattern ? normalizeHost(hostPattern) : "";
+  if (
+    !metadataValueMatch ||
+    !hostPattern ||
+    wildcardNormalizedHost.endsWith(".*") ||
+    hostPattern.includes("**") ||
+    hostPattern.endsWith(".tld")
+  )
+    return [];
+  if (isSimpleValidHost(wildcardNormalizedHost.replace(/\*/g, "x"))) {
+    const includeSpacing = getIncludeSpacing(spacing, normalizedTag);
+    const titleTemplate = currentEditorLang.replaceIncludeWithMatch;
+    return [
+      createMetadataFix(
+        scriptcatReplaceIncludeWithMatchRuleId,
+        titleTemplate,
+        value,
+        `${prefix}match  ${includeSpacing}${value}${suffix}`
+      ),
+    ];
+  }
+  return [];
+};
+
+const getMetadataLineFixes = (lineText: string): MetadataLineFix[] => {
+  const parts = parseMetadataLine(lineText);
+  if (!parts) return [];
+
+  switch (parts.normalizedTag) {
+    case "connect":
+      return getConnectMetadataFixes(parts);
+    case "match":
+      return getMatchMetadataFixes(parts);
+    case "include":
+      return getIncludeMetadataFixes(parts);
+    default:
+      return [];
+  }
+};
+
+const getMetadataLineActions = (
+  model: editor.ITextModel,
+  lineNumber: number,
+  lineText: string,
+  markers: editor.IMarkerData[]
+): languages.CodeAction[] => {
+  const metadataFixes = getMetadataLineFixes(lineText);
+  if (metadataFixes.length === 0) return [];
+
+  return metadataFixes.map((metadataFix, index) =>
+    createLineReplacementAction(
+      model,
+      metadataFix.title,
+      markers.filter(
+        (marker) =>
+          marker.source === scriptcatMarkerOwner &&
+          marker.startLineNumber === lineNumber &&
+          getMarkerCode(marker) === metadataFix.code
+      ),
+      lineNumber,
+      lineText,
+      metadataFix.text,
+      index === 0
+    )
+  );
+};
+
+const getMetadataAlignmentLine = (lineNumber: number, lineText: string): MetadataAlignmentLine | null => {
+  const match = metadataAlignmentPattern.exec(lineText);
+  if (!match) return null;
+
+  const [, prefix, tag, spacing, value] = match;
+  return {
+    lineNumber,
+    lineText,
+    prefix,
+    tag,
+    spacing,
+    value,
+    valueColumn: prefix.length + tag.length + spacing.length,
+  };
+};
+
+const getMetadataAlignmentBlocks = (model: editor.ITextModel): MetadataAlignmentBlock[] => {
+  const blocks: MetadataAlignmentBlock[] = [];
+  const lineCount = model.getLineCount();
+  let currentBlock: MetadataAlignmentBlock | null = null;
+
+  const finishBlock = (endLineNumber: number) => {
+    if (!currentBlock) return;
+    currentBlock.endLineNumber = endLineNumber;
+    blocks.push(currentBlock);
+    currentBlock = null;
+  };
+
+  for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
+    const lineText = model.getLineContent(lineNumber);
+
+    if (userscriptHeaderPattern.test(lineText)) {
+      finishBlock(lineNumber - 1);
+      currentBlock = {
+        startLineNumber: lineNumber,
+        endLineNumber: lineNumber,
+        lines: [],
+      };
+      continue;
+    }
+
+    if (!currentBlock) continue;
+
+    const alignmentLine = getMetadataAlignmentLine(lineNumber, lineText);
+    if (alignmentLine) {
+      currentBlock.lines.push(alignmentLine);
+    }
+
+    if (userscriptEndPattern.test(lineText)) {
+      finishBlock(lineNumber);
+    }
+  }
+
+  finishBlock(lineCount);
+  return blocks;
+};
+
+const getMetadataAlignmentTargetColumn = (lines: MetadataAlignmentLine[]) =>
+  Math.max(...lines.map((line) => line.prefix.length + line.tag.length + 1));
+
+const isMetadataAlignmentBlockAligned = (block: MetadataAlignmentBlock) => {
+  if (block.lines.length < 2) return true;
+  const firstValueColumn = block.lines[0].valueColumn;
+  return block.lines.every((line) => line.valueColumn === firstValueColumn);
+};
+
+const getMetadataAlignmentFix = (model: editor.ITextModel, block: MetadataAlignmentBlock): MetadataAlignmentFix => {
+  const targetColumn = getMetadataAlignmentTargetColumn(block.lines);
+  const lineFixes = new Map(
+    block.lines.map((line) => {
+      const spacing = " ".repeat(Math.max(1, targetColumn - line.prefix.length - line.tag.length));
+      return [line.lineNumber, `${line.prefix}${line.tag}${spacing}${line.value}`];
+    })
+  );
+  const blockLines: string[] = [];
+
+  for (let lineNumber = block.startLineNumber; lineNumber <= block.endLineNumber; lineNumber += 1) {
+    blockLines.push(lineFixes.get(lineNumber) ?? model.getLineContent(lineNumber));
+  }
+
+  return {
+    range: {
+      startLineNumber: block.startLineNumber,
+      startColumn: 1,
+      endLineNumber: block.endLineNumber,
+      endColumn: model.getLineContent(block.endLineNumber).length + 1,
+    },
+    text: blockLines.join("\n"),
+  };
+};
+
+const getMetadataAlignmentBlockAtLine = (model: editor.ITextModel, lineNumber: number) =>
+  getMetadataAlignmentBlocks(model).find(
+    (block) =>
+      block.startLineNumber <= lineNumber &&
+      lineNumber <= block.endLineNumber &&
+      !isMetadataAlignmentBlockAligned(block)
+  );
+
+const getMetadataAlignmentActions = (
+  model: editor.ITextModel,
+  lineNumber: number,
+  markers: editor.IMarkerData[]
+): languages.CodeAction[] => {
+  const alignmentMarkers = markers.filter(
+    (marker) =>
+      marker.source === scriptcatMarkerOwner &&
+      getMarkerCode(marker) === scriptcatMetadataAlignmentRuleId &&
+      marker.startLineNumber <= lineNumber &&
+      lineNumber <= marker.endLineNumber
+  );
+  if (alignmentMarkers.length === 0) return [];
+
+  const block = getMetadataAlignmentBlockAtLine(model, lineNumber);
+  if (!block) return [];
+
+  return [
+    createTextEditsAction(
+      model,
+      currentEditorLang.quickfix.replace("{0}", scriptcatMetadataAlignmentRuleId),
+      alignmentMarkers,
+      [getMetadataAlignmentFix(model, block)],
+      true
+    ),
+  ];
+};
+
+const getGrantNoneConflictMarkers = (blocks: MetadataAlignmentBlock[]): editor.IMarkerData[] => {
+  const markers: editor.IMarkerData[] = [];
+
+  for (const block of blocks) {
+    const grantLines: Array<{ line: MetadataAlignmentLine; grantValue: string }> = [];
+    let hasNone = false;
+    let hasGmApi = false;
+
+    for (const line of block.lines) {
+      if (line.tag.toLowerCase() !== "grant") continue;
+
+      const grantValue = getMetadataValueToken(line.value);
+      if (!grantValue) continue;
+
+      grantLines.push({ line, grantValue });
+      hasNone ||= grantValue === "none";
+      hasGmApi ||= grantValue.startsWith("GM");
+    }
+
+    if (!hasNone || !hasGmApi) continue;
+
+    for (const { line, grantValue } of grantLines) {
+      if (grantValue !== "none" && !grantValue.startsWith("GM")) continue;
+      markers.push({
+        severity: MarkerSeverity.Warning,
+        message: currentEditorLang.grantConflict,
+        source: scriptcatMarkerOwner,
+        code: scriptcatGrantNoneConflictRuleId,
+        startLineNumber: line.lineNumber,
+        startColumn: 1,
+        endLineNumber: line.lineNumber,
+        endColumn: line.lineText.length + 1,
+      });
+    }
+  }
+
+  return markers;
+};
+
+const getNoUndefGlobalName = (marker: editor.IMarkerData) => {
+  return noUndefMessagePattern.exec(marker.message)?.[1] || null;
+};
+
+const getGlobalDeclarationTextEdit = (model: editor.ITextModel, globalName: string): TextEdit => {
+  const { insertLine, globalLine } = findGlobalInsertionInfo(model);
+
+  if (globalLine == null) {
+    return {
+      range: {
+        startLineNumber: insertLine,
+        startColumn: 1,
+        endLineNumber: insertLine,
+        endColumn: 1,
+      },
+      text: `/* global ${globalName} */\n`,
+    };
+  }
+
+  const existingGlobalLineText = model.getLineContent(globalLine);
+  return {
+    range: {
+      startLineNumber: globalLine,
+      startColumn: 1,
+      endLineNumber: globalLine,
+      endColumn: existingGlobalLineText.length + 1,
+    },
+    text: updateGlobalCommentLine(existingGlobalLineText, globalName),
+  };
+};
+
+const getMarkerCodeActions = (
+  model: editor.ITextModel,
+  marker: editor.IMarkerData,
+  eslintFixMap?: Map<string, EslintFix>
+): languages.CodeAction[] => {
+  if (marker.source !== eslintMarkerOwner) return [];
+  const eslintRuleId = getMarkerCode(marker);
+  if (!eslintRuleId) return [];
+
+  const actions: languages.CodeAction[] = [];
+
+  const eslintFix = eslintFixMap?.get(getModelEslintFixKey(model, eslintRuleId, marker));
+  if (eslintFix) {
+    actions.push(
+      createTextEditAction(
+        model,
+        currentEditorLang.quickfix.replace("{0}", eslintRuleId),
+        [marker],
+        {
+          range: eslintFix.range,
+          text: eslintFix.text,
+        },
+        true
+      )
+    );
+  }
+
+  let canAddEslintDisableNextLine = true;
+
+  switch (eslintRuleId) {
+    case "no-undef": {
+      const globalName = getNoUndefGlobalName(marker);
+      if (globalName) {
+        actions.push(
+          createTextEditAction(
+            model,
+            currentEditorLang.declareGlobal.replace("{0}", globalName),
+            [marker],
+            getGlobalDeclarationTextEdit(model, globalName),
+            false
+          )
+        );
+      }
+      break;
+    }
+    case "userscripts/align-attributes":
+    case "userscripts/better-use-match":
+    case "userscripts/no-invalid-headers":
+      canAddEslintDisableNextLine = false;
+  }
+
+  if (canAddEslintDisableNextLine) {
+    actions.push(
+      createTextEditAction(
+        model,
+        currentEditorLang.addEslintDisableNextLine,
+        [marker],
+        {
+          range: {
+            startLineNumber: marker.startLineNumber,
+            endLineNumber: marker.startLineNumber,
+            startColumn: 1,
+            endColumn: 1,
+          },
+          text: `// eslint-disable-next-line ${eslintRuleId}\n`,
+        },
+        true
+      )
+    );
+  }
+  actions.push(
+    createTextEditAction(
+      model,
+      currentEditorLang.addEslintDisable,
+      [marker],
+      {
+        range: {
+          startLineNumber: 1,
+          startColumn: 1,
+          endLineNumber: 1,
+          endColumn: 1,
+        },
+        text: `/* eslint-disable ${eslintRuleId} */\n`,
+      },
+      true
+    )
+  );
+
+  return actions;
+};
+
+const lineCanAffectMetadataMarkers = (lineText: string) =>
+  metadataLineStartPattern.test(lineText) ||
+  userscriptHeaderPattern.test(lineText) ||
+  userscriptEndPattern.test(lineText);
+
+const commentEditCanAffectMetadataMarkers = (lineText: string, change: editor.IModelContentChange) =>
+  /^\s*\/\//.test(lineText) || (change.rangeLength > 0 && change.range.startColumn <= 12);
+
+const contentChangeCanAffectMetadataMarkers = (model: editor.ITextModel, event: editor.IModelContentChangedEvent) => {
+  if (event.isFlush || event.isEolChange) return true;
+
+  for (const change of event.changes) {
+    if (
+      change.range.startLineNumber !== change.range.endLineNumber ||
+      change.text.includes("\n") ||
+      change.text.includes("@") ||
+      change.text.includes("UserScript")
+    ) {
+      return true;
+    }
+
+    const lineText = model.getLineContent(change.range.startLineNumber);
+    if (lineCanAffectMetadataMarkers(lineText) || commentEditCanAffectMetadataMarkers(lineText, change)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
+  if (model.getLanguageId() !== "javascript") {
+    editor.setModelMarkers(model, scriptcatMarkerOwner, []);
+    return;
+  }
+
+  const metadataBlocks = getMetadataAlignmentBlocks(model);
+  const markers: editor.IMarkerData[] = [];
+  markers.push(...getGrantNoneConflictMarkers(metadataBlocks));
+
+  for (const block of metadataBlocks) {
+    if (isMetadataAlignmentBlockAligned(block)) continue;
+    markers.push({
+      severity: MarkerSeverity.Warning,
+      message: currentEditorLang.quickfix.replace("{0}", scriptcatMetadataAlignmentRuleId),
+      source: scriptcatMarkerOwner,
+      code: scriptcatMetadataAlignmentRuleId,
+      startLineNumber: block.startLineNumber,
+      startColumn: 1,
+      endLineNumber: block.endLineNumber,
+      endColumn: model.getLineContent(block.endLineNumber).length + 1,
+    });
+  }
+
+  for (const block of metadataBlocks) {
+    for (const line of block.lines) {
+      const metadataLineFixes = getMetadataLineFixes(line.lineText);
+      if (metadataLineFixes.length === 0) continue;
+
+      markers.push({
+        severity: MarkerSeverity.Warning,
+        message: metadataLineFixes[0].title,
+        source: scriptcatMarkerOwner,
+        code: metadataLineFixes[0].code,
+        startLineNumber: line.lineNumber,
+        startColumn: 1,
+        endLineNumber: line.lineNumber,
+        endColumn: line.lineText.length + 1,
+      });
+    }
+  }
+
+  editor.setModelMarkers(model, scriptcatMarkerOwner, markers);
+};
+
+const registerScriptcatMetadataMarkerProvider = () => {
+  const registerMetadataModel = (model: editor.ITextModel) => {
+    updateScriptcatMetadataMarkers(model);
+    model.onDidChangeContent((event) => {
+      if (model.getLanguageId() !== "javascript") return;
+      if (contentChangeCanAffectMetadataMarkers(model, event)) {
+        updateScriptcatMetadataMarkers(model);
+      }
+    });
+    model.onDidChangeLanguage(() => {
+      updateScriptcatMetadataMarkers(model);
+    });
+  };
+
+  editor.getModels().forEach(registerMetadataModel);
+  editor.onDidCreateModel(registerMetadataModel);
+};
+
+/**
+ * 注册 monaco-editor 的全局环境与语言支援
+ * 应该在应用启动早期执行一次（例如在 App 根组件 mount 时）
+ */
+export function registerEditor() {
+  // 避免重复注册
+  if (isEditorRegistered) return;
+  isEditorRegistered = true;
+
+  // worker 初始化：复用已有 worker 或创建新的
+  const existingEnvironment = getMonacoEnvironment();
+  if (existingEnvironment?.myLinterWorker) {
+    ensureEslintFixMap(existingEnvironment);
+    linterWorkerDeferred.resolve(existingEnvironment.myLinterWorker);
+  } else {
+    const linterWorker = new Worker("/src/linter.worker.js") as ILinterWorker;
+    linterWorker.myLinterHook = new EventEmitter<string, any>();
+
+    linterWorker.onmessage = (event) => {
+      LinterWorkerController.hookEmit("message", event.data);
+    };
+
+    window.MonacoEnvironment = {
+      ...existingEnvironment,
+      getWorkerUrl(_moduleId: unknown, label: string) {
+        if (label === "typescript" || label === "javascript") {
+          return "/src/ts.worker.js";
+        }
+        return "/src/editor.worker.js";
+      },
+      myLinterWorker: linterWorker,
+      eslintFixMap: new Map<string, EslintFix>(),
+    } as ScriptcatMonacoEnvironment;
+
+    linterWorkerDeferred.resolve(linterWorker);
+  }
+
+  // provider 注册始终执行，不受 worker 复用影响
+  registerScriptcatMetadataMarkerProvider();
+
   languages.registerHoverProvider("javascript", {
     provideHover: (model, position) => {
-      return new Promise((resolve) => {
-        const line = model.getLineContent(position.lineNumber);
-        const m = META_LINE.exec(line);
-        if (m) {
-          const key = m[1] as keyof Prompt;
-          const prompt = multiLang.prompt;
-          resolve({
-            contents: [
-              {
-                value: prompt[key] || multiLang.undefinedPrompt,
-                supportHtml: true,
-              },
-            ],
-          });
-        } else if (/==UserScript==/.test(line)) {
-          // 匹配==UserScript==
-          resolve({
-            contents: [{ value: multiLang.thisIsAUserScript }],
-          });
-        } else {
-          resolve(null);
-        }
-      });
-    },
-  });
-
-  // 处理quick fix
-  languages.registerCodeActionProvider("javascript", {
-    provideCodeActions: (model /** ITextModel */, range /** Range */, context /** CodeActionContext */) => {
-      const actions: languages.CodeAction[] = [];
-      const eslintFix = <Map<string, any>>globalCache.get("eslint-fix");
-      for (let i = 0; i < context.markers.length; i += 1) {
-        // 判断有没有修复方案
-        const val = context.markers[i];
-        const code = typeof val.code === "string" ? val.code : val.code!.value;
-
-        // =============================
-        // 1) eslint-fix logic
-        // =============================
-        const fix = eslintFix.get(
-          `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
-        );
-        if (fix) {
-          const edit: languages.IWorkspaceTextEdit = {
-            resource: model.uri,
-            textEdit: {
-              range: fix.range,
-              text: fix.text,
+      const lineText = model.getLineContent(position.lineNumber);
+      const grantValuePrompt = getGrantValueHoverPrompt(lineText, position.column);
+      if (grantValuePrompt) {
+        return {
+          contents: [
+            {
+              value: grantValuePrompt,
+              supportHtml: true,
             },
-            versionId: undefined,
-          };
-          actions.push(<languages.CodeAction>{
-            title: multiLang.quickfix.replace("{0}", `${code}`),
-            diagnostics: [val],
-            kind: "quickfix",
-            edit: {
-              edits: [edit],
-            },
-            isPreferred: true,
-          });
-        }
-
-        // =============================
-        // 2) /* global XXX */ fix
-        // =============================
-
-        // message format usually like: "'XXX' is not defined.ESLint (no-undef)"
-        if (code === "no-undef") {
-          const message = val.message || "";
-          const match = message.match(/^[^']*'([^']+)'[^']*$/);
-          const globalName = match && match[1];
-
-          if (globalName) {
-            const { insertLine, globalLine } = findGlobalInsertionInfo(model);
-            let textEdit: languages.IWorkspaceTextEdit["textEdit"];
-
-            if (globalLine != null) {
-              // there is already a /* global ... */ line → update it
-              const oldLine = model.getLineContent(globalLine);
-              const newLine = updateGlobalCommentLine(oldLine, globalName);
-
-              textEdit = {
-                range: {
-                  startLineNumber: globalLine,
-                  startColumn: 1,
-                  endLineNumber: globalLine,
-                  endColumn: oldLine.length + 1,
-                },
-                text: newLine,
-              };
-            } else {
-              // no global line yet → insert a new one
-              textEdit = {
-                range: {
-                  startLineNumber: insertLine,
-                  startColumn: 1,
-                  endLineNumber: insertLine,
-                  endColumn: 1,
-                },
-                text: `/* global ${globalName} */\n`,
-              };
-            }
-
-            actions.push(<languages.CodeAction>{
-              title: multiLang.declareGlobal.replace("{0}", globalName),
-              diagnostics: [val],
-              kind: "quickfix",
-              edit: {
-                edits: [
-                  {
-                    resource: model.uri,
-                    textEdit,
-                    versionId: undefined,
-                  },
-                ],
-              },
-              isPreferred: false,
-            });
-          }
-        }
-
-        // =============================
-        // 3) disable-next-line / disable fixes
-        // =============================
-        // 添加eslint-disable-next-line和eslint-disable
-        actions.push(<languages.CodeAction>{
-          title: multiLang.addEslintDisableNextLine,
-          diagnostics: [val],
-          kind: "quickfix",
-          edit: {
-            edits: [
-              {
-                resource: model.uri,
-                textEdit: {
-                  range: {
-                    startLineNumber: val.startLineNumber,
-                    endLineNumber: val.startLineNumber,
-                    startColumn: 1,
-                    endColumn: 1,
-                  },
-                  text: `// eslint-disable-next-line ${typeof val.code === "string" ? val.code : val.code!.value}\n`,
-                },
-                versionId: undefined,
-              },
-            ],
-          },
-          isPreferred: true,
-        });
-        actions.push(<languages.CodeAction>{
-          title: multiLang.addEslintDisable,
-          diagnostics: [val],
-          kind: "quickfix",
-          edit: {
-            edits: [
-              {
-                resource: model.uri,
-                textEdit: {
-                  range: {
-                    startLineNumber: 1,
-                    endLineNumber: 1,
-                    startColumn: 1,
-                    endColumn: 1,
-                  },
-                  text: `/* eslint-disable ${typeof val.code === "string" ? val.code : val.code!.value} */\n`,
-                },
-                versionId: undefined,
-              },
-            ],
-          },
-          isPreferred: true,
-        });
+          ],
+        };
       }
 
-      // const actions = context.markers.map((error) => {
-      //   const edit: languages.IWorkspaceTextEdit = {
-      //     resource: model.uri,
-      //     textEdit: {
-      //       range,
-      //       text: "console.log(1)",
-      //     },
-      //     versionId: undefined,
-      //   };
-      //   return <languages.CodeAction>{
-      //     title: ``,
-      //     diagnostics: [error],
-      //     kind: "quickfix",
-      //     edit: {
-      //       edits: [edit],
-      //     },
-      //     isPreferred: true,
-      //   };
-      // });
-      return {
-        actions,
-        dispose: () => {},
-      };
+      const metadataCommentMatch = metaLinePattern.exec(lineText);
+
+      if (metadataCommentMatch) {
+        const metadataTag = metadataCommentMatch[1].toLowerCase() as keyof EditorLangEntryPrompt;
+        return {
+          contents: [
+            {
+              value: promptByMetadataTag[metadataTag] || currentEditorLang.undefinedPrompt,
+              supportHtml: true,
+            },
+          ],
+        };
+      }
+
+      if (/==UserScript==/.test(lineText)) {
+        return { contents: [{ value: currentEditorLang.thisIsAUserScript }] };
+      }
+
+      return null;
     },
   });
 
+  languages.registerCodeActionProvider(
+    "javascript",
+    {
+      provideCodeActions: (model /** ITextModel */, range /** Range */, context /** CodeActionContext */) => {
+        const eslintFixMap = getMonacoEnvironment()?.eslintFixMap;
+        const lineText = model.getLineContent(range.startLineNumber);
+        const actions = [
+          ...getMetadataLineActions(model, range.startLineNumber, lineText, context.markers),
+          ...getMetadataAlignmentActions(model, range.startLineNumber, context.markers),
+          ...context.markers.flatMap((marker) => getMarkerCodeActions(model, marker, eslintFixMap)),
+        ];
+
+        return { actions, dispose: noop };
+      },
+    },
+    { providedCodeActionKinds: ["quickfix"] }
+  );
+
+  // 设定编译器选项与额外类型定义
   Promise.all([systemConfig.getEditorConfig(), systemConfig.getEditorTypeDefinition()]).then(
     ([editorConfig, typeDefinition]) => {
       // 设置编辑器设置
@@ -702,15 +927,3 @@ export default function registerEditor() {
     }
   );
 }
-
-export class LinterWorker {
-  static hook = new EventEmitter<string, any>();
-
-  static sendLinterMessage(data: unknown) {
-    linterWorker.postMessage(data);
-  }
-}
-
-linterWorker.onmessage = (event) => {
-  LinterWorker.hook.emit("message", event.data);
-};

@@ -1,17 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MessageQueue, MessageQueueGroup, type IMessageQueue } from "./message_queue";
 
-// Mock LoggerCore
-vi.mock("@App/app/logger/core", () => ({
-  default: {
-    getInstance: () => ({
-      logger: () => ({
-        trace: vi.fn(),
-      }),
-    }),
-  },
-}));
-
 const nextTick = () => Promise.resolve().then(() => {});
 
 describe("MessageQueueGroup", () => {

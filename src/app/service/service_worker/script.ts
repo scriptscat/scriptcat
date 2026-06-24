@@ -3,8 +3,6 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
-import { cacheInstance } from "@App/app/cache";
-import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import {
   checkSilenceUpdate,
   getBrowserType,
@@ -23,7 +21,7 @@ import type {
 } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
-import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
+import { type ScriptInfo, type InstallSource, createTempCodeEntry } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
@@ -47,12 +45,27 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
+import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
 >;
 
 export type TOpenBatchUpdatePageOption = { q: string; dontCheckNow: boolean };
+
+export type TScriptInstallParam = {
+  script: Script; // 脚本信息（包含脚本的基础元数据）
+  code: string; // 脚本源码内容
+  upsertBy?: InstallSource; // 安装/更新来源（用于标识脚本来源渠道）
+  createtime?: number; // 导入时指定的创建时间（时间戳，毫秒）
+  updatetime?: number; // 导入时指定的最后更新时间（时间戳，毫秒）
+};
+
+export type TScriptInstallReturn = {
+  update: boolean; // 是否为更新操作（true 表示更新，false 表示新增）
+  updatetime: number | undefined; // 实际生效的更新时间（时间戳，毫秒）
+};
 
 export class ScriptService {
   logger: Logger;
@@ -85,8 +98,8 @@ export class ScriptService {
         }
         // 处理url, 实现安装脚本
         let targetUrl: string;
-        // 判断是否为 file:///*/*.user.js
-        if (req.url.startsWith("file://") && req.url.endsWith(".user.js")) {
+        // 判断是否为 file:///*/*.user.js 或 file:///*/*.skill.js
+        if (req.url.startsWith("file://") && (req.url.endsWith(".user.js") || req.url.endsWith(".skill.js"))) {
           targetUrl = req.url;
         } else {
           const reqUrl = new URL(req.url);
@@ -153,6 +166,8 @@ export class ScriptService {
           { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/en/docs/script_installation/" },
           { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
           { schemes: ["file"], pathSuffix: ".user.js" },
+          { schemes: ["file"], pathSuffix: ".skill.js" },
+          { schemes: ["file"], pathSuffix: ".cat.md" },
         ],
       }
     );
@@ -237,6 +252,21 @@ export class ScriptService {
         isUrlFilterCaseSensitive: false,
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
+      // SkillScript (.skill.js) 安装检测
+      {
+        regexFilter: "^([^?#]+?\\.skill\\.js)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
+      },
+      // Skill 包 (.cat.md) 安装检测
+      {
+        regexFilter: "^([^?#]+?\\.cat\\.md)",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+      },
     ];
     const installPageURL = chrome.runtime.getURL("src/install.html");
     const rules = conditions.map((condition, idx) => {
@@ -255,6 +285,7 @@ export class ScriptService {
                 "text/plain*",
                 "application/octet-stream*",
                 "application/force-download*",
+                "text/markdown*",
               ],
             },
           ],
@@ -358,9 +389,9 @@ export class ScriptService {
   }
 
   // 获取安装信息
-  getInstallInfo(uuid: string) {
-    const cacheKey = `${CACHE_KEY_SCRIPT_INFO}${uuid}`;
-    return cacheInstance.get<[boolean, ScriptInfo]>(cacheKey);
+  async getInstallInfo(uuid: string) {
+    const entry = await new TempStorageDAO().get(uuid);
+    return <[boolean, ScriptInfo, Record<string, any>]>entry?.value;
   }
 
   publishInstallScript(scriptFull: Script, options: any) {
@@ -369,14 +400,8 @@ export class ScriptService {
     return this.mq.publish<TInstallScript>("installScript", { script, ...options });
   }
 
-  // 安装脚本 / 更新腳本
-  async installScript(param: {
-    script: Script;
-    code: string;
-    upsertBy?: InstallSource;
-    createtime?: number;
-    updatetime?: number;
-  }) {
+  // 安装脚本 / 更新脚本
+  async installScript(param: TScriptInstallParam): Promise<TScriptInstallReturn> {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy, createtime, updatetime } = param;
     // 删 storage cache
@@ -446,16 +471,16 @@ export class ScriptService {
         // Cache更新 & 下载资源
         await Promise.all([
           compiledResourceUpdatePromise,
-          this.resourceService.updateResourceByType(script, "require"),
-          this.resourceService.updateResourceByType(script, "require-css"),
-          this.resourceService.updateResourceByType(script, "resource"),
+          this.resourceService.updateResourceByTypes(script, ["require", "require-css", "resource"]),
         ]);
+        // 资源下载失败不阻止安装，失败不影响安装
 
         // 广播一下
-        // Runtime 會負責更新 CompiledResource
+        // Runtime 会负责更新 CompiledResource
         this.publishInstallScript(script, { update, upsertBy });
 
-        return { update };
+        // 传回(由后台控制的)实际更新时间，让 editor 中的script能保持正确的更新时间
+        return { update, updatetime: script.updatetime };
       })
       .catch((e: any) => {
         logger.error("install error", Logger.E(e));
@@ -679,7 +704,7 @@ export class ScriptService {
     const ret = buildScriptRunResourceBasic(script);
     return Promise.all([
       this.valueService.getScriptValue(ret),
-      this.resourceService.getScriptResources(ret, true),
+      this.resourceService.getScriptResourceValue(ret),
       this.scriptCodeDAO.get(script.uuid),
     ]).then(([value, resource, code]) => {
       if (!code) {
@@ -789,17 +814,51 @@ export class ScriptService {
         setTimeout(resolve, Math.round(MIN_DELAY + ((++i / n + Math.random()) / 2) * (MAX_DELAY - MIN_DELAY)))
       );
 
-    return Promise.all(
-      (uuids as string[]).map(async (uuid, _idx) => {
-        const script = scripts[_idx];
-        const res =
-          !script || script.uuid !== uuid || !checkScripts.includes(script)
-            ? false
-            : await this._checkUpdateAvailable(script, delayFn);
-        if (!res) return false;
-        return res;
-      })
-    );
+    const CHECK_UPDATE_TIMEOUT_MS = 300_000; // 5 分钟超时
+
+    const results = new Map<
+      string,
+      | false
+      | {
+          updateAvailable: true;
+          code: string;
+          metadata: Partial<Record<string, string[]>>;
+        }
+    >();
+
+    // 预初始化 Map 确保顺序
+    for (const uuid of uuids as string[]) {
+      results.set(uuid, false);
+    }
+
+    const abortController = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const timeoutPromise = new Promise<void>((resolve) => {
+      timeoutId = setTimeout(() => {
+        abortController.abort();
+        resolve();
+      }, CHECK_UPDATE_TIMEOUT_MS);
+    });
+
+    await Promise.race([
+      timeoutPromise,
+      Promise.allSettled(
+        (uuids as string[]).map(async (uuid, _idx) => {
+          const script = scripts[_idx];
+          const res =
+            !script || script.uuid !== uuid || !checkScripts.includes(script)
+              ? false
+              : await this._checkUpdateAvailable(script, delayFn, abortController.signal);
+          if (!res) return false;
+          results.set(uuid, res);
+          return res;
+        })
+      ).finally(() => {
+        clearTimeout(timeoutId);
+      }),
+    ]);
+    return [...results.values()];
   }
 
   async _checkUpdateAvailable(
@@ -809,7 +868,8 @@ export class ScriptService {
       checkUpdateUrl?: string;
       metadata: Partial<Record<string, any>>;
     },
-    delayFn?: () => Promise<any>
+    delayFn?: () => Promise<any>,
+    signal?: AbortSignal
   ): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
     const { uuid, name, checkUpdateUrl } = script;
 
@@ -821,8 +881,12 @@ export class ScriptService {
       name,
     });
     try {
-      if (delayFn) await delayFn();
-      const code = await fetchScriptBody(checkUpdateUrl);
+      if (delayFn) {
+        if (signal?.aborted) return false;
+        await delayFn();
+      }
+      if (signal?.aborted) return false;
+      const code = await fetchScriptBody(checkUpdateUrl, signal);
       const metadata = parseMetadata(code);
       if (!metadata) {
         logger.error("parse metadata failed");
@@ -862,30 +926,53 @@ export class ScriptService {
   ) {
     const upsertBy = options.source;
     const code = await fetchScriptBody(url);
-    if (update && (await this.systemConfig.getSilenceUpdateScript())) {
+    if (update) {
       try {
         const { oldScript, script } = await prepareScriptByCode(code, url, uuid);
-        if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
-          logger?.info("silence update script");
-          await this.installScript({
-            script,
-            code,
-            upsertBy,
-          });
+        // 订阅脚本始终静默更新，信任关系由订阅建立
+        if (oldScript?.subscribeUrl) {
+          logger?.info("silence update subscribe script");
+          await this.installScript({ script, code, upsertBy });
           return 2;
         }
-        // 如果不符合静默更新规则，走后面的流程
-        logger?.info("not silence update script, open install page");
+        // 普通脚本：检查静默更新开关和 connect 变化
+        if (await this.systemConfig.getSilenceUpdateScript()) {
+          if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
+            logger?.info("silence update script");
+            await this.installScript({ script, code, upsertBy });
+            return 2;
+          }
+          logger?.info("not silence update script, open install page");
+        }
       } catch (e) {
         logger?.error("prepare script failed", Logger.E(e));
       }
     }
+    // 检测是否为 SkillScript
+    const skillScriptMeta = parseSkillScriptMetadata(code);
+    if (skillScriptMeta) {
+      const si = await createTempCodeEntry(false, uuid, code, url, upsertBy, {} as SCMetadata, options);
+      si[1].skillScript = true;
+      await new TempStorageDAO().save({
+        key: uuid,
+        value: si,
+        savedAt: Date.now(),
+        type: TempStorageItemType.tempCode,
+      });
+      return 1;
+    }
+
     const metadata = parseMetadata(code);
     if (!metadata) {
       throw new Error("parse script info failed");
     }
-    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata), options];
-    await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+    const si = await createTempCodeEntry(update, uuid, code, url, upsertBy, metadata, options);
+    await new TempStorageDAO().save({
+      key: uuid,
+      value: si,
+      savedAt: Date.now(),
+      type: TempStorageItemType.tempCode,
+    });
     return 1;
   }
 
@@ -1169,7 +1256,7 @@ export class ScriptService {
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
-    // 用於 window.external
+    // 用于 window.external
     return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
       if (script) {
         return {

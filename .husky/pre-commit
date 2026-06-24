@@ -1,13 +1,20 @@
 #!/bin/sh
 
-pnpm run lint-fix
+# Skip: SKIP_PRE_COMMIT=1 git commit 或 git commit --no-verify
+if [ "$SKIP_PRE_COMMIT" = "1" ]; then
+  echo "⏭ SKIP_PRE_COMMIT=1, skipping pre-commit checks"
+  exit 0
+fi
 
-# 将已暂存且被 lint-fix 修改过的文件重新加入暂存区
-STAGED=$(git diff --cached --name-only --diff-filter=d)
-CHANGED=$(git diff --name-only)
+pnpm run lint || exit 1
 
-for file in $CHANGED; do
-  case "$STAGED" in
-    *"$file"*) git add "$file" ;;
-  esac
-done
+# 在 main 或 release/* 分支上提交时额外跑测试
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release/"; then
+  echo ""
+  echo "🔍 Detected branch: $branch"
+  echo "▶ Running tests..."
+  pnpm run test:ci || exit 1
+  echo ""
+  echo "✅ All checks passed!"
+fi

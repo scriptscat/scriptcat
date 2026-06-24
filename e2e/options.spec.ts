@@ -35,20 +35,12 @@ test.describe("Options Page", () => {
       .click();
     await expect(page).toHaveURL(/.*#\/logger/);
 
-    // Click "Tools" / "工具" menu item
-    await page
-      .locator(".arco-menu-item")
-      .filter({ hasText: /tool|工具/i })
-      .first()
-      .click();
+    // Click "Tools" / "工具" menu item (use .menu-tools class to avoid hitting "CATool" submenu)
+    await page.locator(".menu-tools .arco-menu-item").click();
     await expect(page).toHaveURL(/.*#\/tools/);
 
-    // Click "Settings" / "设置" menu item
-    await page
-      .locator(".arco-menu-item")
-      .filter({ hasText: /setting|设置/i })
-      .first()
-      .click();
+    // Click "Settings" / "设置" menu item (use .menu-setting to avoid matching agent_settings in submenu)
+    await page.locator(".menu-setting .arco-menu-item").click();
     await expect(page).toHaveURL(/.*#\/setting/);
 
     // Navigate back to script list (home) - click the first menu item
@@ -70,7 +62,7 @@ test.describe("Options Page", () => {
 
     // Verify dropdown with theme options appears - use role="menuitem"
     const menuItems = page.locator('[role="menuitem"]');
-    await expect(menuItems.first()).toBeVisible({ timeout: 680 });
+    await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
     const count = await menuItems.count();
     expect(count).toBeGreaterThanOrEqual(3);
   });
@@ -84,7 +76,7 @@ test.describe("Options Page", () => {
 
     // Verify dropdown menu appears - use role="menuitem"
     const menuItems = page.locator('[role="menuitem"]');
-    await expect(menuItems.first()).toBeVisible({ timeout: 680 });
+    await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
     const count = await menuItems.count();
     expect(count).toBeGreaterThanOrEqual(3);
   });
@@ -92,11 +84,8 @@ test.describe("Options Page", () => {
   test("should show empty state when script list is empty", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
 
-    // Wait for the content area to load
-    await page.waitForTimeout(380);
-
     // The empty state component from arco-design should be visible
     const emptyState = page.locator(".arco-empty");
-    await expect(emptyState).toBeVisible({ timeout: 720 });
+    await expect(emptyState).toBeVisible({ timeout: 10_000 });
   });
 });

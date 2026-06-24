@@ -1,0 +1,526 @@
+/* Agent Chat 全局样式 */
+
+/* 消息淡入动画 */
+@keyframes message-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.agent-message-item {
+  animation: message-fade-in 0.3s ease-out;
+}
+
+/* 流式光标闪烁 */
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.agent-streaming-cursor::after {
+  content: "▍";
+  animation: cursor-blink 1s step-end infinite;
+  color: var(--color-text-3);
+  margin-left: 1px;
+}
+
+/* 展开收起过渡 */
+.agent-collapsible-content {
+  overflow: hidden;
+  transition:
+    max-height 0.25s ease-out,
+    opacity 0.2s ease-out;
+}
+
+/* Loading spinner for running tool calls */
+@keyframes spin-dot {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.agent-tool-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--color-border-2);
+  border-top-color: rgb(var(--arcoblue-6));
+  border-radius: 50%;
+  animation: spin-dot 0.8s linear infinite;
+}
+
+/* 自定义滚动条 */
+.agent-chat-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.agent-chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-chat-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-fill-3);
+  border-radius: 3px;
+}
+
+.agent-chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fill-4);
+}
+
+/* Markdown 样式 */
+.ai-markdown-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-1);
+  word-wrap: break-word;
+}
+
+.ai-markdown-body p {
+  margin: 0.6em 0;
+}
+
+.ai-markdown-body p:first-child {
+  margin-top: 0;
+}
+
+.ai-markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-markdown-body h1,
+.ai-markdown-body h2,
+.ai-markdown-body h3,
+.ai-markdown-body h4,
+.ai-markdown-body h5,
+.ai-markdown-body h6 {
+  margin: 1em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text-1);
+}
+
+.ai-markdown-body h1 {
+  font-size: 1.5em;
+}
+
+.ai-markdown-body h2 {
+  font-size: 1.3em;
+}
+
+.ai-markdown-body h3 {
+  font-size: 1.15em;
+}
+
+.ai-markdown-body ul,
+.ai-markdown-body ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.ai-markdown-body li {
+  margin: 0.25em 0;
+}
+
+.ai-markdown-body li > p {
+  margin: 0.25em 0;
+}
+
+.ai-markdown-body blockquote {
+  margin: 0.8em 0;
+  padding: 0.4em 1em;
+  border-left: 3px solid rgb(var(--arcoblue-5));
+  background: var(--color-fill-1);
+  border-radius: 0 6px 6px 0;
+  color: var(--color-text-2);
+}
+
+.ai-markdown-body blockquote p {
+  margin: 0.25em 0;
+}
+
+.ai-markdown-body hr {
+  margin: 1.2em 0;
+  border: none;
+  border-top: 1px solid var(--color-border-2);
+}
+
+.ai-markdown-body a {
+  color: rgb(var(--arcoblue-6));
+  text-decoration: none;
+}
+
+.ai-markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.ai-markdown-body img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+/* 代码块 */
+.ai-markdown-body pre {
+  margin: 0.8em 0;
+  padding: 14px 16px;
+  background: var(--color-fill-2);
+  border-radius: 0 0 8px 8px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ai-markdown-body pre code {
+  font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+  font-size: inherit;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* 行内代码 */
+.ai-markdown-body code {
+  font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0.15em 0.4em;
+  background: var(--color-fill-2);
+  border-radius: 4px;
+  color: rgb(var(--arcoblue-6));
+}
+
+/* 表格 */
+.ai-markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.8em 0;
+  font-size: 13px;
+}
+
+.ai-markdown-body th,
+.ai-markdown-body td {
+  border: 1px solid var(--color-border-2);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.ai-markdown-body th {
+  background: var(--color-fill-1);
+  font-weight: 600;
+}
+
+/* 暗色模式代码高亮 (github-dark) */
+body[arco-theme="dark"] .ai-markdown-body .hljs {
+  color: #c9d1d9;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-doctag,
+body[arco-theme="dark"] .ai-markdown-body .hljs-keyword,
+body[arco-theme="dark"] .ai-markdown-body .hljs-meta .hljs-keyword,
+body[arco-theme="dark"] .ai-markdown-body .hljs-template-tag,
+body[arco-theme="dark"] .ai-markdown-body .hljs-template-variable,
+body[arco-theme="dark"] .ai-markdown-body .hljs-type,
+body[arco-theme="dark"] .ai-markdown-body .hljs-variable.language_ {
+  color: #ff7b72;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-title,
+body[arco-theme="dark"] .ai-markdown-body .hljs-title.class_,
+body[arco-theme="dark"] .ai-markdown-body .hljs-title.class_.inherited__,
+body[arco-theme="dark"] .ai-markdown-body .hljs-title.function_ {
+  color: #d2a8ff;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-attr,
+body[arco-theme="dark"] .ai-markdown-body .hljs-attribute,
+body[arco-theme="dark"] .ai-markdown-body .hljs-literal,
+body[arco-theme="dark"] .ai-markdown-body .hljs-meta,
+body[arco-theme="dark"] .ai-markdown-body .hljs-number,
+body[arco-theme="dark"] .ai-markdown-body .hljs-operator,
+body[arco-theme="dark"] .ai-markdown-body .hljs-variable,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-attr,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-class,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-id {
+  color: #79c0ff;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-regexp,
+body[arco-theme="dark"] .ai-markdown-body .hljs-string,
+body[arco-theme="dark"] .ai-markdown-body .hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-built_in,
+body[arco-theme="dark"] .ai-markdown-body .hljs-symbol {
+  color: #ffa657;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-comment,
+body[arco-theme="dark"] .ai-markdown-body .hljs-code,
+body[arco-theme="dark"] .ai-markdown-body .hljs-formula {
+  color: #8b949e;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-name,
+body[arco-theme="dark"] .ai-markdown-body .hljs-quote,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-tag,
+body[arco-theme="dark"] .ai-markdown-body .hljs-selector-pseudo {
+  color: #7ee787;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-subst {
+  color: #c9d1d9;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-section {
+  color: #1f6feb;
+  font-weight: bold;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-bullet {
+  color: #f2cc60;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-emphasis {
+  color: #c9d1d9;
+  font-style: italic;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-strong {
+  color: #c9d1d9;
+  font-weight: bold;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-addition {
+  color: #aff5b4;
+  background-color: #033a16;
+}
+body[arco-theme="dark"] .ai-markdown-body .hljs-deletion {
+  color: #ffdcd7;
+  background-color: #67060c;
+}
+
+/* 系统警告 */
+.agent-warning-block {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border-left: 3px solid #d97706;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.agent-warning-block .agent-warning-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  margin-top: 1px;
+  color: #d97706;
+}
+
+body[arco-theme="dark"] .agent-warning-block {
+  background: rgba(217, 119, 6, 0.1);
+  color: #fbbf24;
+  border-left-color: #d97706;
+}
+
+body[arco-theme="dark"] .agent-warning-block .agent-warning-icon {
+  color: #fbbf24;
+}
+
+/* 错误消息 */
+.agent-error-block {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border-left: 3px solid #e5484d;
+  background: #fff0f0;
+  color: #ce2c31;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.agent-error-block .agent-error-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  margin-top: 1px;
+  color: #e5484d;
+}
+
+body[arco-theme="dark"] .agent-error-block {
+  background: rgba(229, 72, 77, 0.1);
+  color: #ff6369;
+  border-left-color: #e5484d;
+}
+
+body[arco-theme="dark"] .agent-error-block .agent-error-icon {
+  color: #ff6369;
+}
+
+/* ask_user 交互卡片 */
+.agent-ask-user-card {
+  border-color: rgb(var(--arcoblue-4));
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+body[arco-theme="dark"] .agent-ask-user-card {
+  border-color: rgb(var(--arcoblue-7));
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.24);
+}
+
+/* ask_user 选项按钮 */
+.agent-ask-option {
+  border-color: var(--color-border-2);
+}
+
+.agent-ask-option:hover {
+  border-color: rgb(var(--arcoblue-4));
+  color: rgb(var(--arcoblue-6));
+  background-color: rgb(var(--arcoblue-1));
+}
+
+.agent-ask-option.selected {
+  border-color: rgb(var(--arcoblue-5));
+  background-color: rgb(var(--arcoblue-1));
+  color: rgb(var(--arcoblue-6));
+}
+
+body[arco-theme="dark"] .agent-ask-option {
+  border-color: var(--color-border-2);
+}
+
+body[arco-theme="dark"] .agent-ask-option:hover {
+  border-color: rgb(var(--arcoblue-5));
+  background-color: rgba(var(--arcoblue-6), 0.1);
+}
+
+body[arco-theme="dark"] .agent-ask-option.selected {
+  border-color: rgb(var(--arcoblue-5));
+  background-color: rgba(var(--arcoblue-6), 0.15);
+}
+
+/* 侧边栏会话列表 */
+.agent-conversation-item {
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.agent-conversation-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background: rgb(var(--arcoblue-6));
+  border-radius: 0 2px 2px 0;
+  transition: height 0.2s ease;
+}
+
+.agent-conversation-item.active::before {
+  height: 60%;
+}
+
+/* 消息工具条：hover 消息组时显示操作按钮 */
+.agent-message-item:hover .agent-toolbar-actions {
+  opacity: 1 !important;
+}
+
+/* 用户消息编辑容器 */
+.agent-edit-container {
+  border: 1px solid rgb(var(--arcoblue-4));
+  background: var(--color-bg-2);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  animation: edit-expand 0.2s ease-out;
+}
+
+body[arco-theme="dark"] .agent-edit-container {
+  border-color: rgb(var(--arcoblue-7));
+  background: var(--color-bg-3);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.32);
+}
+
+@keyframes edit-expand {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 子代理卡片 */
+.sub-agent-card {
+  background: var(--color-fill-1);
+  border: 1px solid var(--color-border-2);
+  border-left: 3px solid rgb(var(--arcoblue-5));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+body[arco-theme="dark"] .sub-agent-card {
+  background: var(--color-fill-2);
+  border-color: var(--color-border-3);
+  border-left-color: rgb(var(--arcoblue-6));
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16);
+}
+
+.sub-agent-header:hover {
+  background: var(--color-fill-2);
+}
+
+body[arco-theme="dark"] .sub-agent-header:hover {
+  background: var(--color-fill-3);
+}
+
+/* 子代理运行脉冲动画 */
+@keyframes sub-agent-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--arcoblue-6), 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(var(--arcoblue-6), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--arcoblue-6), 0);
+  }
+}
+
+.sub-agent-pulse {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgb(var(--arcoblue-6));
+  flex-shrink: 0;
+  animation: sub-agent-pulse-ring 1.5s ease-out infinite;
+}
+
+/* 子代理内容区域 */
+.sub-agent-body {
+  border-top: 1px solid var(--color-border-1);
+}
+
+body[arco-theme="dark"] .sub-agent-body {
+  border-top-color: var(--color-border-2);
+}
+
+/* Task 列表项淡入动画 */
+@keyframes taskFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

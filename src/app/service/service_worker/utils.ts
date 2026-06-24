@@ -6,9 +6,11 @@ import {
   compileInjectScript,
   compilePreInjectScript,
   compileScriptCode,
+  compileScriptletCode,
   getScriptFlag,
   isEarlyStartScript,
   isInjectIntoContent,
+  isScriptletUnwrap,
 } from "../content/utils";
 import {
   extractUrlPatterns,
@@ -67,30 +69,37 @@ export function isBase64(str: string): boolean {
   return false;
 }
 
-// 解析URL SRI
-export function parseUrlSRI(url: string): {
+export type TUrlSRIInfo = {
   url: string;
-  hash?: { [key: string]: string };
-} {
+  hash: { [key: string]: string } | undefined;
+  originalUrl: string;
+};
+
+// 解析URL SRI
+export function parseUrlSRI(url: string): TUrlSRIInfo {
   const urls = url.split("#");
   if (urls.length < 2) {
-    return { url: urls[0], hash: undefined };
+    return { url: urls[0], hash: undefined, originalUrl: url };
   }
   const hashs = urls[1].split(/[,;]/);
   const hash: { [key: string]: string } = {};
+  const pattern = /^([a-zA-Z0-9]+)[-=](.+)$/;
   for (const val of hashs) {
     // 接受以下格式
     // sha256-abc123== 格式
     // sha256=abc123== 格式
-    const match = val.match(/^([a-zA-Z0-9]+)[-=](.+)$/);
+    const match = pattern.exec(val);
     if (match) {
       const [, key, value] = match;
       hash[key] = value;
     }
   }
 
-  // 即使没有解析到任何哈希值，也只会返回空对象而不是 undefined
-  return { url: urls[0], hash };
+  // 如果没有解析到任何哈希值，则返回 undefined，与类型定义保持一致
+  if (Object.keys(hash).length === 0) {
+    return { url: urls[0], hash: undefined, originalUrl: url };
+  }
+  return { url: urls[0], hash, originalUrl: url };
 }
 
 export async function notificationsUpdate(
@@ -174,13 +183,17 @@ export function compileInjectionCode(
   scriptCode: string,
   scriptUrlPatterns: URLRuleEntry[]
 ): string {
-  const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
+  // 注意！ restoreJSCodeFromCompiledResource 跟 compileInjectionCode 的处理是不同的！
   let scriptInjectCode;
-  scriptCode = compileScriptCode(scriptRes, scriptCode);
-  if (preDocumentStartScript) {
-    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
+  if (isScriptletUnwrap(scriptRes.metadata)) {
+    scriptInjectCode = compileScriptletCode(scriptRes, scriptCode, scriptUrlPatterns);
   } else {
-    scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
+    scriptCode = compileScriptCode(scriptRes, scriptCode);
+    if (isEarlyStartScript(scriptRes.metadata)) {
+      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
+    } else {
+      scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
+    }
   }
   return scriptInjectCode;
 }

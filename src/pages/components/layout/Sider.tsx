@@ -1,3 +1,4 @@
+import Agent from "@App/pages/options/routes/Agent";
 import Logger from "@App/pages/options/routes/Logger";
 import ScriptEditor from "@App/pages/options/routes/script/ScriptEditor";
 import ScriptList from "@App/pages/options/routes/ScriptList";
@@ -13,6 +14,7 @@ import {
   IconLink,
   IconQuestion,
   IconRight,
+  IconRobot,
   IconSettings,
   IconSubscribe,
   IconTool,
@@ -37,6 +39,7 @@ if (!hash.length) {
 const Sider: React.FC = () => {
   const [menuSelect, setMenuSelect] = useState(hash);
   const [collapsed, setCollapsed] = useState(localStorage.collapsed === "true");
+  const [openKeys, setOpenKeys] = useState<string[]>(hash.startsWith("/agent") ? ["/agent"] : []);
   const { t } = useTranslation();
   const guideRef = useRef<{ open: () => void }>(null);
 
@@ -51,7 +54,14 @@ const Sider: React.FC = () => {
       <SiderGuide ref={guideRef} />
       <Layout.Sider collapsed={collapsed} width={170}>
         <div className="tw-flex tw-flex-col tw-justify-between tw-h-full">
-          <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
+          <Menu
+            style={{ width: "100%" }}
+            selectedKeys={[menuSelect]}
+            openKeys={openKeys}
+            onClickSubMenu={(_, openKeys) => setOpenKeys(openKeys)}
+            selectable
+            onClickMenuItem={handleMenuClick}
+          >
             <CustomLink to="/">
               <Tooltip
                 position="tl"
@@ -72,6 +82,43 @@ const Sider: React.FC = () => {
                 </MenuItem>
               </Tooltip>
             </CustomLink>
+            <Menu.SubMenu
+              key="/agent"
+              title={
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuSelect("/agent/chat");
+                    setOpenKeys((prev) => (prev.includes("/agent") ? prev : [...prev, "/agent"]));
+                    window.location.hash = "/agent/chat";
+                  }}
+                >
+                  <IconRobot /> {t("agent")}
+                </span>
+              }
+            >
+              <CustomLink to="/agent/chat">
+                <MenuItem key="/agent/chat">{t("agent_chat")}</MenuItem>
+              </CustomLink>
+              <CustomLink to="/agent/provider">
+                <MenuItem key="/agent/provider">{t("agent_provider")}</MenuItem>
+              </CustomLink>
+              <CustomLink to="/agent/skills">
+                <MenuItem key="/agent/skills">{t("agent_skills")}</MenuItem>
+              </CustomLink>
+              <CustomLink to="/agent/mcp">
+                <MenuItem key="/agent/mcp">{t("agent_mcp")}</MenuItem>
+              </CustomLink>
+              <CustomLink to="/agent/tasks">
+                <MenuItem key="/agent/tasks">{t("agent_tasks")}</MenuItem>
+              </CustomLink>
+              <CustomLink to="/agent/opfs">
+                <MenuItem key="/agent/opfs">{t("agent_opfs")}</MenuItem>
+              </CustomLink>
+              <CustomLink to="/agent/settings">
+                <MenuItem key="/agent/settings">{t("agent_settings")}</MenuItem>
+              </CustomLink>
+            </Menu.SubMenu>
             <CustomLink to="/logger">
               <Tooltip position="tl" mini content={`${t("logs")}`} popupHoverStay={false} disabled={collapsed}>
                 <MenuItem key="/logger">
@@ -131,11 +178,30 @@ const Sider: React.FC = () => {
                       <RiFileCodeLine /> {t("development_guide")}
                     </a>
                   </Menu.Item>
-                  <Menu.Item key="scriptcat/userscript">
-                    <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
-                      <IconLink /> {t("script_gallery")}
-                    </a>
-                  </Menu.Item>
+                  <Menu.SubMenu
+                    key="scriptGallery"
+                    title={
+                      <span>
+                        <IconLink /> {t("script_gallery")}
+                      </span>
+                    }
+                  >
+                    <Menu.Item key="scriptcat/userscript">
+                      <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
+                        ScriptCat
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="greasyfork/userscript">
+                      <a href="https://greasyfork.org/scripts" target="_blank" rel="noreferrer">
+                        Greasy Fork
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="openuserjs/userscript">
+                      <a href="https://openuserjs.org/" target="_blank" rel="noreferrer">
+                        OpenUserJS
+                      </a>
+                    </Menu.Item>
+                  </Menu.SubMenu>
                   <Menu.Item key="tampermonkey/bbs">
                     <a href="https://bbs.tampermonkey.net.cn/" target="_blank" rel="noreferrer">
                       <IconLink /> {t("community_forum")}
@@ -213,6 +279,7 @@ const Sider: React.FC = () => {
             <Route path="/subscribe" element={<SubscribeList />} />
             <Route path="/logger" element={<Logger />} />
             <Route path="/tools" element={<Tools />} />
+            <Route path="/agent/*" element={<Agent />} />
             <Route path="/setting" element={<Setting />} />
           </Routes>
         </div>

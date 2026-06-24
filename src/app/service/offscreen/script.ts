@@ -24,14 +24,14 @@ export class ScriptService {
 
   constructor(
     private group: Group,
-    private extMsgSender: MessageSend,
+    private msgSender: MessageSend,
     private windowMessage: WindowMessage,
     private messageQueue: IMessageQueue
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
-    this.scriptClient = new ScriptClient(this.extMsgSender);
-    this.resourceClient = new ResourceClient(this.extMsgSender);
-    this.valueClient = new ValueClient(this.extMsgSender);
+    this.scriptClient = new ScriptClient(this.msgSender);
+    this.resourceClient = new ResourceClient(this.msgSender);
+    this.valueClient = new ValueClient(this.msgSender);
   }
 
   runScript(script: ScriptRunResource) {
