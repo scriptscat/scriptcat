@@ -35,6 +35,7 @@ import "./index.css";
 import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode, parseMetadata } from "@App/pkg/utils/script";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
+import { EnableAgent } from "@App/app/const";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL, openInCurrentTab } from "@App/pkg/utils/utils";
 import ScrollBoundary from "@App/pages/components/layout/ScrollBoundary";
@@ -221,8 +222,8 @@ const MainLayout: React.FC<{
     Promise.all(
       acceptedFiles.map(async (aFile) => {
         try {
-          // ZIP 文件走 Skill 安装流程
-          if (aFile.name.endsWith(".zip")) {
+          // ZIP 文件走 Skill 安装流程（仅 agent 启用时）
+          if (EnableAgent && aFile.name.endsWith(".zip")) {
             await handleZipSkillInstall(aFile);
             stat.success++;
             return;
@@ -261,9 +262,11 @@ const MainLayout: React.FC<{
               // 先尝试 UserScript 解析
               const metadata = parseMetadata(code);
               if (metadata) return prepareScriptByCode(code, `file:///*resp-check*/${file.name}`);
-              // 再尝试 SkillScript 解析
-              const skillScriptMeta = parseSkillScriptMetadata(code);
-              if (skillScriptMeta) return { script: {} as any };
+              // 再尝试 SkillScript 解析（仅 agent 启用时）
+              if (EnableAgent) {
+                const skillScriptMeta = parseSkillScriptMetadata(code);
+                if (skillScriptMeta) return { script: {} as any };
+              }
               throw new Error("not a valid UserScript or SkillScript");
             }),
             simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),

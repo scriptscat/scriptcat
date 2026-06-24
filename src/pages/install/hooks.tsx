@@ -18,6 +18,7 @@ import { formatBytes, isPermissionOk } from "@App/pkg/utils/utils";
 import { i18nName } from "@App/locales/locales";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import type { SkillScriptMetadata } from "@App/app/service/agent/core/types";
+import { EnableAgent } from "@App/app/const";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 import {
   cIdKey,
@@ -49,8 +50,8 @@ export function useInstallData() {
   const [watchFile, setWatchFile] = useState(false);
   const closingWindowRef = useRef(false);
 
-  // Skill 安装相关状态
-  const skillInstallUuid = searchParams.get("skill");
+  // Skill 安装相关状态（agent 关闭时不识别 skill 入口）
+  const skillInstallUuid = EnableAgent ? searchParams.get("skill") : null;
   const [skillPreview, setSkillPreview] = useState<{
     metadata: { name: string; description: string; version?: string };
     prompt: string;
@@ -189,8 +190,8 @@ export function useInstallData() {
         const code = await file.text();
         const metadata = parseMetadata(code);
         if (!metadata) {
-          // 非 UserScript，尝试作为 SkillScript 处理
-          const skillScriptMeta = parseSkillScriptMetadata(code);
+          // 非 UserScript，尝试作为 SkillScript 处理（仅 agent 启用时）
+          const skillScriptMeta = EnableAgent ? parseSkillScriptMetadata(code) : null;
           if (!skillScriptMeta) {
             throw new Error("parse script info failed");
           }
@@ -611,7 +612,7 @@ export function useInstallData() {
     try {
       const { result, url } = await fetchValidScript();
       const { code, metadata } = result;
-      const isSkillScript = "skillScript" in result && result.skillScript === true;
+      const isSkillScript = EnableAgent && "skillScript" in result && result.skillScript === true;
 
       const uuid = uuidv4();
       const scriptData = await createTempCodeEntry(false, uuid, code, url, "user", metadata, {});
@@ -655,8 +656,8 @@ export function useInstallData() {
   };
 
   const handleUrlChangeAndFetch = (targetUrlHref: string) => {
-    // .cat.md URL → Skill 安装流程
-    if (targetUrlHref.match(/\.cat\.md(\?|#|$)/i)) {
+    // .cat.md URL → Skill 安装流程（仅 agent 启用时）
+    if (EnableAgent && targetUrlHref.match(/\.cat\.md(\?|#|$)/i)) {
       loadSkillFromUrl(targetUrlHref);
       return;
     }

@@ -3,6 +3,7 @@ import { readRawContent } from "@App/pkg/utils/encoding";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import type { SCMetadata } from "@App/app/repo/scripts";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
+import { EnableAgent } from "@App/app/const";
 
 export const cIdKey = `(cid_${Math.random()})`;
 
@@ -79,9 +80,9 @@ export const fetchScriptBody = async (url: string, { onProgress }: { [key: strin
   const code = await readRawContent(chunksAll, contentType);
 
   const metadata = parseMetadata(code);
-  // 如果不是 UserScript，检测是否为 SkillScript
+  // 如果不是 UserScript，检测是否为 SkillScript（仅 agent 启用时）
   if (!metadata) {
-    const skillScriptMeta = parseSkillScriptMetadata(code);
+    const skillScriptMeta = EnableAgent ? parseSkillScriptMetadata(code) : null;
     if (skillScriptMeta) {
       return { code, metadata: {} as SCMetadata, skillScript: true };
     }
