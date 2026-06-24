@@ -98,7 +98,9 @@ export class ResourceService {
           }
         }
         if (path) {
-          if (uri.startsWith("file:///")) {
+          // 注意：必须判断 path 而非 uri。@resource 的两段式写法 uri 为「资源名 file:///...」，
+          // 不以 file:/// 开头；真正的文件路径在 path 上。判断 uri 会漏掉两段式本地资源的刷新。
+          if (path.startsWith("file:///")) {
             // 如果是file://协议，则每次请求更新一下文件
             const res = await this.updateResource(script.uuid, path, type);
             ret[resourceKey] = res;
