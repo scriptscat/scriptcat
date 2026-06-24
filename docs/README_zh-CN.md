@@ -47,6 +47,10 @@ OpenModel 是一个高可用、高可靠的 AI 模型调用平台，让你的应
 <td width="180"><a href="https://www.packyapi.com/register?aff=BOKa"><img src="./assets/sponsors/packycode-banner.png" alt="PackyCode" width="150"></a></td>
 <td>PackyCode 是一家稳定、高效的 API 中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。具备自动故障转移、智能路由和无限并发等多种功能，让 AI 编程成为真正的生产力工具。<a href="https://www.packyapi.com/register?aff=BOKa">点此链接注册</a>，立即开始使用！</td>
 </tr>
+<tr>
+<td width="180"><img src="./assets/sponsors/yanxi-tech-logo.png" alt="言溪科技" width="150"></td>
+<td>言溪科技专注脚本软件定制、网页程序设计开发，提供高度个性化定制服务，项目方案稳定可靠，同步分享行业前沿资讯，一站式满足各类程序开发定制需求。</td>
+</tr>
 </table>
 
 </details>
