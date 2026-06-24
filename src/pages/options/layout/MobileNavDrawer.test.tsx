@@ -6,10 +6,16 @@ import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
 import MobileNavDrawer from "./MobileNavDrawer";
 
+const start = vi.fn();
+vi.mock("../onboarding/OnboardingProvider", () => ({
+  useOnboarding: () => ({ start }),
+}));
+
 beforeEach(() => {
   localStorage.clear();
   initTestLanguage("zh-CN");
   mockMatchMedia();
+  start.mockReset();
 });
 
 afterEach(cleanup);
@@ -66,5 +72,13 @@ describe("MobileNavDrawer 移动导航抽屉", () => {
     const { getByText } = renderDrawer("/agent/skills");
     const link = getByText(t("agent:skills")).closest("a");
     expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("点「新手引导」应调用 start 并触发 onNavigate 关闭抽屉", () => {
+    const onNavigate = vi.fn();
+    const { getByText } = renderDrawer("/", onNavigate);
+    fireEvent.click(getByText(t("guide:title")));
+    expect(start).toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalled();
   });
 });

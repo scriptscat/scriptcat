@@ -19,6 +19,8 @@ import BottomTabBar from "./layout/BottomTabBar";
 import { useScriptDropzone } from "./layout/useScriptDropzone";
 import { DropOverlay } from "./layout/DropOverlay";
 import { handleImportFiles } from "./routes/ScriptList/importHandler";
+import { OnboardingProvider } from "./onboarding/OnboardingProvider";
+import { OnboardingHost } from "./onboarding/OnboardingHost";
 
 export function Layout() {
   const isMobile = useIsMobile();
@@ -41,6 +43,7 @@ export function Layout() {
           <Outlet />
         </main>
         <BottomTabBar />
+        <OnboardingHost />
       </div>
     );
   }
@@ -53,6 +56,7 @@ export function Layout() {
         </main>
       </div>
       <DropOverlay active={isDragActive} />
+      <OnboardingHost />
     </>
   );
 }
@@ -60,28 +64,30 @@ export function Layout() {
 export default function App() {
   return (
     <HashRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<ScriptList />} />
-          <Route path="subscribe" element={<SubscribeList />} />
-          <Route path="agent">
-            <Route index element={<Navigate to="/agent/chat" replace />} />
-            <Route path="chat" element={<AgentChat />} />
-            <Route path="provider" element={<AgentProvider />} />
-            <Route path="skills" element={<AgentSkills />} />
-            <Route path="mcp" element={<AgentMcp />} />
-            <Route path="tasks" element={<AgentTasks />} />
-            <Route path="opfs" element={<AgentOPFS />} />
-            <Route path="settings" element={<AgentSettings />} />
+      <OnboardingProvider>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<ScriptList />} />
+            <Route path="subscribe" element={<SubscribeList />} />
+            <Route path="agent">
+              <Route index element={<Navigate to="/agent/chat" replace />} />
+              <Route path="chat" element={<AgentChat />} />
+              <Route path="provider" element={<AgentProvider />} />
+              <Route path="skills" element={<AgentSkills />} />
+              <Route path="mcp" element={<AgentMcp />} />
+              <Route path="tasks" element={<AgentTasks />} />
+              <Route path="opfs" element={<AgentOPFS />} />
+              <Route path="settings" element={<AgentSettings />} />
+            </Route>
+            <Route path="logs" element={<Logger />} />
+            <Route path="logger" element={<Navigate to="/logs" replace />} />
+            <Route path="tools" element={<Tools />} />
+            <Route path="settings" element={<Setting />} />
+            <Route path="setting" element={<Navigate to="/settings" replace />} />
+            <Route path="script/editor/:uuid?" element={<ScriptEditor />} />
           </Route>
-          <Route path="logs" element={<Logger />} />
-          <Route path="logger" element={<Navigate to="/logs" replace />} />
-          <Route path="tools" element={<Tools />} />
-          <Route path="settings" element={<Setting />} />
-          <Route path="setting" element={<Navigate to="/settings" replace />} />
-          <Route path="script/editor/:uuid?" element={<ScriptEditor />} />
-        </Route>
-      </Routes>
+        </Routes>
+      </OnboardingProvider>
     </HashRouter>
   );
 }

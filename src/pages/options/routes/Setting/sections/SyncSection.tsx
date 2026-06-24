@@ -36,54 +36,56 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
   };
 
   return (
-    <SettingCard id="sync" title={t("settings:script_sync")} register={register}>
-      {draft && (
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                data-testid="cloud_sync_sync_delete"
-                aria-label={t("settings:sync_delete")}
-                checked={draft.syncDelete}
-                onCheckedChange={(c) => patch({ syncDelete: c === true })}
-              />
-              {t("settings:sync_delete")}
-            </label>
-            <p className="text-xs text-muted-foreground pl-6">{t("settings:sync_delete_desc")}</p>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                data-testid="cloud_sync_sync_status"
-                aria-label={t("settings:sync_status")}
-                checked={draft.syncStatus}
-                onCheckedChange={(c) => patch({ syncStatus: c === true })}
-              />
-              {t("settings:sync_status")}
-            </label>
-          </div>
-
-          <FileSystemParams
-            headerContent={
+    <div data-tour="setting-sync">
+      <SettingCard id="sync" title={t("settings:script_sync")} register={register}>
+        {draft && (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
-                  data-testid="cloud_sync_enable"
-                  aria-label={t("settings:enable_script_sync_to")}
-                  checked={draft.enable}
-                  onCheckedChange={(c) => patch({ enable: c === true })}
+                  data-testid="cloud_sync_sync_delete"
+                  aria-label={t("settings:sync_delete")}
+                  checked={draft.syncDelete}
+                  onCheckedChange={(c) => patch({ syncDelete: c === true })}
                 />
-                {t("settings:enable_script_sync_to")}
+                {t("settings:sync_delete")}
               </label>
-            }
-            fileSystemType={draft.filesystem}
-            fileSystemParams={draft.params[draft.filesystem] || {}}
-            onChangeFileSystemType={(type) => patch({ filesystem: type })}
-            onChangeFileSystemParams={(params) => patch({ params: { ...draft.params, [draft.filesystem]: params } })}
-          >
-            <Button data-testid="cloud_sync_save" size="sm" onClick={save}>
-              {t("save")}
-            </Button>
-          </FileSystemParams>
-        </div>
-      )}
-    </SettingCard>
+              <p className="text-xs text-muted-foreground pl-6">{t("settings:sync_delete_desc")}</p>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  data-testid="cloud_sync_sync_status"
+                  aria-label={t("settings:sync_status")}
+                  checked={draft.syncStatus}
+                  onCheckedChange={(c) => patch({ syncStatus: c === true })}
+                />
+                {t("settings:sync_status")}
+              </label>
+            </div>
+
+            <FileSystemParams
+              headerContent={
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    data-testid="cloud_sync_enable"
+                    aria-label={t("settings:enable_script_sync_to")}
+                    checked={draft.enable}
+                    onCheckedChange={(c) => patch({ enable: c === true })}
+                  />
+                  {t("settings:enable_script_sync_to")}
+                </label>
+              }
+              fileSystemType={draft.filesystem}
+              fileSystemParams={draft.params[draft.filesystem] || {}}
+              onChangeFileSystemType={(type) => patch({ filesystem: type })}
+              onChangeFileSystemParams={(params) => patch({ params: { ...draft.params, [draft.filesystem]: params } })}
+            >
+              <Button data-testid="cloud_sync_save" size="sm" onClick={save}>
+                {t("save")}
+              </Button>
+            </FileSystemParams>
+          </div>
+        )}
+      </SettingCard>
+    </div>
   );
 }

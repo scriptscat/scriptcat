@@ -216,3 +216,24 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
     });
   });
 });
+
+describe("SystemConfig onboarding_done", () => {
+  let mq: MessageQueue;
+  let config: SystemConfig;
+
+  beforeEach(() => {
+    chrome.storage.sync.clear();
+    chrome.storage.local.clear();
+    mq = new MessageQueue();
+    config = new SystemConfig(mq);
+  });
+
+  it("默认未看过引导时应返回 false", async () => {
+    await expect(config.getOnboardingDone()).resolves.toBe(false);
+  });
+
+  it("设置为 true 后应读取到 true", async () => {
+    config.setOnboardingDone(true);
+    await expect(config.getOnboardingDone()).resolves.toBe(true);
+  });
+});

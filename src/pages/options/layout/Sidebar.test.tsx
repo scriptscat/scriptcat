@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { cleanup, fireEvent, within } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -6,10 +6,16 @@ import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
 import Sidebar from "./Sidebar";
 
+const start = vi.fn();
+vi.mock("../onboarding/OnboardingProvider", () => ({
+  useOnboarding: () => ({ start }),
+}));
+
 beforeEach(() => {
   localStorage.clear();
   initTestLanguage("zh-CN");
   mockMatchMedia();
+  start.mockReset();
 });
 
 afterEach(cleanup);
@@ -48,5 +54,15 @@ describe("Sidebar 侧边栏 AI Agent 菜单", () => {
     const { getByText } = renderSidebar("/agent/skills");
     const link = getByText(t("agent:skills")).closest("a");
     expect(link).toHaveAttribute("aria-current", "page");
+  });
+});
+
+describe("Sidebar 帮助中心", () => {
+  it("悬浮帮助中心后点「新手引导」应调用 start", () => {
+    const { getByText, getByRole } = renderSidebar();
+    // 帮助中心为 hover 触发的二级菜单（useHoverMenu），用 mouseEnter 打开
+    fireEvent.mouseEnter(getByText(t("helpcenter")).closest("button")!);
+    fireEvent.click(getByRole("menuitem", { name: t("guide:title") }));
+    expect(start).toHaveBeenCalled();
   });
 });

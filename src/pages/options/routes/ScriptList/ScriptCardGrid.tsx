@@ -172,7 +172,7 @@ function ScriptCardGrid({
           accessibility={a11y}
         >
           <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-tour="m-card-list">
               {scriptList.map((script) => (
                 <DraggableCard key={script.uuid} id={script.uuid}>
                   <CardItem

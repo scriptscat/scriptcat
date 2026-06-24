@@ -10,6 +10,10 @@ vi.mock("@App/pages/options/routes/ScriptList/importHandler", () => ({
   handleImportFiles: vi.fn(),
   handleImportUrls: vi.fn(),
 }));
+// MobileHeader 的 ☰ 抽屉(MobileNavDrawer)现会调用 useOnboarding,隔离渲染需提供桩
+vi.mock("../onboarding/OnboardingProvider", () => ({
+  useOnboarding: () => ({ start: () => {} }),
+}));
 
 beforeAll(() => initTestLanguage("zh-CN"));
 

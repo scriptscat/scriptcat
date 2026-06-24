@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Bot,
   ChevronRight,
+  GraduationCap,
 } from "lucide-react";
 import { GithubIcon } from "../../components/icons/GithubIcon";
 import {
@@ -31,6 +32,7 @@ import { useTheme, type Theme } from "../../components/theme-provider";
 import { DocumentationSite } from "@App/app/const";
 import { localePath } from "@App/locales/locales";
 import { mainNav, agentNav, auxNav } from "./nav-items";
+import { useOnboarding } from "../onboarding/OnboardingProvider";
 
 const SIDEBAR_KEY = "scriptcat-sidebar-collapsed";
 
@@ -142,6 +144,9 @@ function SidebarItem({
     <NavLink
       to={to}
       end={to === "/"}
+      data-tour={
+        to === "/" ? "nav-scripts" : to === "/tools" ? "nav-tools" : to === "/settings" ? "nav-settings" : undefined
+      }
       className={({ isActive }) =>
         `flex items-center gap-2.5 h-9 rounded-md text-[14px] transition-colors ${
           collapsed ? "justify-center px-0" : "px-3"
@@ -258,6 +263,7 @@ function AgentMenuCollapsed({ isActive }: { isActive: boolean }) {
 // ========== 帮助中心菜单（hover 触发） ==========
 function HelpMenu({ collapsed }: { collapsed: boolean }) {
   const { t } = useTranslation();
+  const { start } = useOnboarding();
   const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
 
   const openUrl = (url: string) => {
@@ -276,7 +282,12 @@ function HelpMenu({ collapsed }: { collapsed: boolean }) {
           }`}
         >
           <LifeBuoy className="w-[18px] h-[18px] shrink-0" />
-          {!collapsed && <span className="truncate">{t("helpcenter")}</span>}
+          {!collapsed && (
+            <>
+              <span className="truncate flex-1 text-left">{t("helpcenter")}</span>
+              <ChevronRight className="w-4 h-4 shrink-0" />
+            </>
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" className="w-48" {...contentProps}>
@@ -324,6 +335,16 @@ function HelpMenu({ collapsed }: { collapsed: boolean }) {
         <DropdownMenuItem onClick={() => openUrl(`${DocumentationSite}${localePath}/docs/use/use/`)}>
           <BookOpen className="w-4 h-4" />
           {t("user_guide")}
+        </DropdownMenuItem>
+        {/* 新手引导入口 */}
+        <DropdownMenuItem
+          onClick={() => {
+            close();
+            start();
+          }}
+        >
+          <GraduationCap className="w-4 h-4" />
+          {t("guide:title")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

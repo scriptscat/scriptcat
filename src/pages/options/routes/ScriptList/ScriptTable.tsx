@@ -257,7 +257,7 @@ export default function ScriptTable({
             />
           </div>
           <div className="w-8" />
-          <div className="w-12">
+          <div className="w-12" data-tour="col-enable">
             <SortHeader
               label={t("script:script_list.sidebar.status")}
               sortKey="status"
@@ -265,13 +265,15 @@ export default function ScriptTable({
               onSort={handleSort}
             />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0" data-tour="col-sort">
             <SortHeader label={t("name")} sortKey="name" sortState={sortState} onSort={handleSort} />
           </div>
           <div className="w-[76px]">{t("source")}</div>
           <div className="w-[100px]">{t("script:tags")}</div>
-          <div className="w-[140px]">{t("script:apply_to_run_status")}</div>
-          <div className="w-[132px] justify-items-center">
+          <div className="w-[140px]" data-tour="col-apply-status">
+            {t("script:apply_to_run_status")}
+          </div>
+          <div className="w-[132px] justify-items-center" data-tour="col-update">
             <SortHeader
               label={t("logs:last_updated")}
               sortKey="updatetime"
@@ -280,7 +282,9 @@ export default function ScriptTable({
               leftPad={true}
             />
           </div>
-          <div className="w-[192px] text-right">{t("action")}</div>
+          <div className="w-[192px] text-right" data-tour="col-action">
+            {t("action")}
+          </div>
         </div>
 
         {/* 加载状态 */}

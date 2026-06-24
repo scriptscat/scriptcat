@@ -17,7 +17,6 @@ vi.mock("@App/pages/store/global", async () => {
   const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
   return createGlobalStoreMock({ systemConfig: { get, set } });
 });
-
 import Setting from "./index";
 
 beforeEach(() => {
@@ -28,8 +27,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("设置页", () => {
-  it("渲染 7 个分类导航项", async () => {
+  it("渲染 8 个分类导航项", async () => {
     render(<Setting />);
-    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThanOrEqual(7));
+    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThanOrEqual(8));
   });
 });

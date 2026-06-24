@@ -24,6 +24,7 @@ export default function BottomTabBar() {
           key={to}
           to={to}
           end={end}
+          {...(to === "/subscribe" ? { "data-tour": "tab-subscribe" } : {})}
           className={({ isActive }) =>
             cn(
               "relative flex flex-col items-center justify-center gap-1 flex-1 py-2 text-[10px] transition-colors",

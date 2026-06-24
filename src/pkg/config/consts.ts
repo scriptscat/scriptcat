@@ -10,4 +10,5 @@ export const STORAGE_LOCAL_KEYS: Set<string> = new Set([
   "check_update", // 扩展更新通知及已读状态（各设备已读状态独立）
   "enable_script", // 全局脚本开关（设备独立）
   "enable_script_incognito", // 隐身模式开关（浏览器级别）
+  "onboarding_done", // 新手引导是否已看过（设备独立，不跨设备同步）
 ]);

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation } from "react-router-dom";
-import { Bot, ChevronRight, LifeBuoy, Moon, Sun, Monitor } from "lucide-react";
+import { Bot, ChevronRight, LifeBuoy, Moon, Sun, Monitor, GraduationCap } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { DocumentationSite } from "@App/app/const";
 import { localePath } from "@App/locales/locales";
 import { useTheme, type Theme } from "@App/pages/components/theme-provider";
 import { mainNav, agentNav, auxNav, type NavItem } from "./nav-items";
+import { useOnboarding } from "../onboarding/OnboardingProvider";
 
 /**
  * 移动端导航抽屉内容:1:1 镜像桌面 Sidebar(主导航 + AI Agent 分组 + 辅助导航 + 主题/帮助),
@@ -18,6 +19,7 @@ export default function MobileNavDrawer({ onNavigate }: { onNavigate?: () => voi
   const [agentOpen, setAgentOpen] = useState(true);
   const isAgentActive = useLocation().pathname.startsWith("/agent");
   const { theme, setTheme } = useTheme();
+  const { start } = useOnboarding();
 
   const cycleTheme = () => {
     const order: Theme[] = ["light", "dark", "auto"];
@@ -83,6 +85,14 @@ export default function MobileNavDrawer({ onNavigate }: { onNavigate?: () => voi
           icon={LifeBuoy}
           label={t("helpcenter")}
           onClick={() => window.open(`${DocumentationSite}${localePath}/docs/use/use/`, "_blank")}
+        />
+        <DrawerButton
+          icon={GraduationCap}
+          label={t("guide:title")}
+          onClick={() => {
+            onNavigate?.();
+            start();
+          }}
         />
       </div>
     </div>

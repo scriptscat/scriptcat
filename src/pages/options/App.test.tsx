@@ -16,6 +16,7 @@ vi.mock("./layout/MobileHeader", () => ({ default: () => <header data-testid="mo
 vi.mock("./layout/BottomTabBar", () => ({ default: () => <nav data-testid="bottom-tab-bar" /> }));
 vi.mock("./layout/useScriptDropzone", () => ({ useScriptDropzone: () => ({ isDragActive: false }) }));
 vi.mock("./layout/DropOverlay", () => ({ DropOverlay: () => null }));
+vi.mock("./onboarding/OnboardingHost", () => ({ OnboardingHost: () => null }));
 vi.mock("./routes/ScriptList/importHandler", () => ({ handleImportFiles: vi.fn() }));
 vi.mock("./routes/ScriptList", () => ({ default: () => null }));
 vi.mock("./routes/SubscribeList", () => ({ default: () => null }));

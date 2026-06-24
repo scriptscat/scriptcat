@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, memo } from "react";
+import { useCallback, useEffect, useState, memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
@@ -37,6 +37,8 @@ import ScriptListMobile from "./ScriptListMobile";
 import { notify } from "@App/pages/components/ui/toast";
 import { useUserConfigPreload } from "./preload";
 import { reindexScriptList } from "./sort";
+import { useOnboardingDemoActive } from "@App/pages/options/onboarding/OnboardingProvider";
+import { getDemoScripts } from "@App/pages/options/onboarding/demo-scripts";
 
 type SelectionProps = {
   selectedUuids: Set<string>;
@@ -109,6 +111,10 @@ export default function ScriptList() {
   const isMobile = useIsMobile();
   const { stats, filterItems } = useScriptFilters(scriptList, selectedFilters, searchRequest);
   const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
+
+  const demoActive = useOnboardingDemoActive();
+  const demoScripts = useMemo(() => getDemoScripts(t), [t]);
+  const displayScripts = demoActive ? demoScripts : filterScriptList;
 
   // 3. 持久化视图切换
   const handleSetViewMode = useCallback((mode: "table" | "card") => {
@@ -335,7 +341,7 @@ export default function ScriptList() {
     return (
       <div className="flex flex-col h-full">
         <ScriptListMobile
-          scriptList={filterScriptList}
+          scriptList={displayScripts}
           loadingList={loadingList}
           updateScripts={updateScripts}
           handleDelete={handleDelete}
@@ -357,7 +363,7 @@ export default function ScriptList() {
     <div className="flex flex-col h-full">
       <MainContent
         viewMode={viewMode}
-        scriptList={filterScriptList}
+        scriptList={displayScripts}
         loadingList={loadingList}
         updateScripts={updateScripts}
         handleDelete={handleDelete}
@@ -365,7 +371,7 @@ export default function ScriptList() {
         setViewMode={handleSetViewMode}
         searchRequest={searchRequest}
         setSearchRequest={setSearchRequest}
-        totalCount={scriptList.length}
+        totalCount={demoActive ? demoScripts.length : scriptList.length}
         scriptListSortOrderMove={scriptListSortOrderMove}
         filterItems={filterItems}
         selectedFilters={selectedFilters}
