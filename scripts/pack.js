@@ -7,7 +7,7 @@ import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 import { toChromeVersion } from "./version.js";
-import { isAgentEnabled, applyAgentManifest } from "./build-config.js";
+import { resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
 
 // ============================================================================
 
@@ -30,7 +30,12 @@ const addZipFile = async (zip, path, content) => {
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
 // agent 功能仅在 beta 版本提供，正式版本屏蔽入口并移除 debugger 权限
-const agentEnabled = isAgentEnabled({ isDev: false, isBeta: version.prerelease.length > 0 });
+// （与 rspack 构建一致，支持环境变量 SC_ENABLE_AGENT 覆盖）
+const agentEnabled = resolveAgentEnabled({
+  isDev: false,
+  isBeta: version.prerelease.length > 0,
+  envValue: process.env.SC_ENABLE_AGENT,
+});
 manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
   manifest.name = `__MSG_scriptcat_beta__`;

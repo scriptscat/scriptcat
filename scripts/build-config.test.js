@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isAgentEnabled, applyAgentManifest } from "./build-config.js";
+import { isAgentEnabled, resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
 
 describe("构建配置 - agent 开关", () => {
   describe("isAgentEnabled", () => {
@@ -13,6 +13,24 @@ describe("构建配置 - agent 开关", () => {
 
     it("正式版本应禁用 agent", () => {
       expect(isAgentEnabled({ isDev: false, isBeta: false })).toBe(false);
+    });
+  });
+
+  describe("resolveAgentEnabled - 环境变量覆盖", () => {
+    it("未设置环境变量时按版本派生（正式版禁用）", () => {
+      expect(resolveAgentEnabled({ isDev: false, isBeta: false, envValue: undefined })).toBe(false);
+    });
+
+    it("未设置环境变量时按版本派生（beta 启用）", () => {
+      expect(resolveAgentEnabled({ isDev: false, isBeta: true, envValue: undefined })).toBe(true);
+    });
+
+    it("环境变量 'true' 可在正式版强制启用 agent（用于 e2e）", () => {
+      expect(resolveAgentEnabled({ isDev: false, isBeta: false, envValue: "true" })).toBe(true);
+    });
+
+    it("环境变量 'false' 可在 beta 强制禁用 agent", () => {
+      expect(resolveAgentEnabled({ isDev: false, isBeta: true, envValue: "false" })).toBe(false);
     });
   });
 
