@@ -19,15 +19,11 @@
   "clear_completed": "Bereinigung abgeschlossen",
   "clear_logs": "Protokolle bereinigen",
   "now": "Jetzt",
-  "total_logs": "Insgesamt {{length}} Protokolle gefunden",
-  "filtered_logs": "Nach Filterung {{length}} Protokolle",
-  "enter_filter_conditions": "Bitte geben Sie Filterbedingungen für die Abfrage ein",
   "last_updated": "Zuletzt aktualisiert",
   "runtime": "Laufzeit",
   "advanced": "Erweitert",
   "label_filter": "Label-Filter",
   "add_label": "Label hinzufügen",
-  "custom_range": "Benutzerdefiniert",
   "back_to_top": "Nach oben",
   "refresh": "Aktualisieren",
   "all_levels": "Alle",
@@ -55,5 +51,9 @@
   "time": "Zeit",
   "prev_month": "Voriger Monat",
   "next_month": "Nächster Monat",
-  "live": "Live"
+  "live": "Live",
+  "total_logs": "Insgesamt {{length}} Protokolle gefunden",
+  "filtered_logs": "Nach Filterung {{length}} Protokolle",
+  "enter_filter_conditions": "Bitte geben Sie Filterbedingungen für die Abfrage ein",
+  "custom_range": "Benutzerdefiniert"
 }

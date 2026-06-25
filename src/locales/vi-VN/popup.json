@@ -2,8 +2,6 @@
   "new_version_available": "Phiên bản mới có sẵn",
   "current_page_scripts": "Script đang chạy trên trang hiện tại",
   "enabled_background_scripts": "Script nền đã bật và đang chạy",
-  "menu_expand_num_before": "Các mục menu nhiều hơn",
-  "menu_expand_num_after": "sẽ bị ẩn.",
   "develop_mode_guide": "'Chế độ nhà phát triển' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Nhấn để xem cách bật</a>",
   "lower_version_browser_guide": "Trình duyệt của bạn quá cũ, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\">👉Nhấn để xem thêm</a>",
   "click_to_reload": "👉Nhấp chuột để tải lại",
@@ -23,5 +21,7 @@
   "request_permission": "Yêu cầu quyền",
   "show_more_scripts": "+{{count}} tập lệnh",
   "use_on_mobile": "Sử dụng ScriptCat trên điện thoại",
-  "scan_qr_to_install": "Quét mã QR để cài ScriptCat trên điện thoại"
+  "scan_qr_to_install": "Quét mã QR để cài ScriptCat trên điện thoại",
+  "menu_expand_num_before": "Các mục menu nhiều hơn",
+  "menu_expand_num_after": "sẽ bị ẩn."
 }

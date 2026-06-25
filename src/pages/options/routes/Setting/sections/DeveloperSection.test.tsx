@@ -29,6 +29,14 @@ describe("开发者分区", () => {
     expect(screen.getAllByText("检查脚本代码质量和错误")).toHaveLength(1);
   });
 
+  it("应展示编辑器配置与类型定义的说明文字（含 jsconfig 文档链接）", async () => {
+    render(<DeveloperSection register={() => () => {}} />);
+    await screen.findByTestId("editor_config_textarea");
+    expect(screen.getByText("你可以自定义自己的类型定义，脚本编辑器会自动加载这些类型定义")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "jsconfig.js" });
+    expect(link).toHaveAttribute("href", "https://code.visualstudio.com/docs/languages/jsconfig");
+  });
+
   it("编辑器类型定义失焦时写入 editor_type_definition", async () => {
     render(<DeveloperSection register={() => () => {}} />);
     const ta = await screen.findByTestId("editor_type_definition_textarea");

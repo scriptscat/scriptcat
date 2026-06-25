@@ -6,7 +6,6 @@
   "sync_delete": "同步刪除",
   "sync_delete_desc": "啟用後，腳本刪除時會標記腳本為刪除，其他裝置檢測到刪除狀態後會將腳本刪除；關閉時，會直接刪除本機與雲端的腳本，如果有多台裝置可能出現腳本反覆同步的情況。",
   "enable_script_sync_to": "啟用腳本同步至",
-  "script_subscription_check_interval": "腳本/訂閱檢查更新間隔",
   "never": "從不",
   "6_hours": "6小時",
   "12_hours": "12小時",
@@ -16,6 +15,7 @@
   "silent_update_non_critical_changes": "悄悄更新非重大變更",
   "enable_eslint": "開啟 ESLint",
   "eslint_rules": "ESLint規則",
+  "custom_eslint_rules_config": "自訂 ESLint 規則設定（JSON 格式）",
   "enter_eslint_rules": "請輸入 ESLint 規則，可以從 https://eslint.org/play/ 下載設定",
   "language_change_tip": "語言切換成功",
   "backup": "備份",
@@ -71,23 +71,18 @@
   "auto_collapse_when_exceeds": "超過此數量時自動摺疊",
   "script_update_check_frequency": "腳本更新檢查頻率",
   "script_auto_update_frequency": "腳本自動檢查更新的頻率",
-  "update_options": "更新選項",
   "control_script_update_behavior": "控制腳本更新的行為",
   "blacklist_pages_desc": "禁止腳本在指定頁面執行，支援萬用字元",
   "development_tools": "開發工具",
   "check_script_code_quality": "檢查腳本程式碼品質和錯誤",
-  "custom_eslint_rules_config": "自訂 ESLint 規則設定（JSON 格式）",
   "script_run_env": {
     "title": "運作環境",
     "all": "所有標籤",
     "normal-tabs": "普通標籤",
     "incognito-tabs": "隱身標籤"
   },
-  "script_run_at": {
-    "title": "運行時機"
-  },
+  "script_run_at": {},
   "script_setting": {
-    "title": "腳本設定",
     "default": "預設"
   },
   "notification": {

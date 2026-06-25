@@ -3,10 +3,6 @@
   "permission_value": "Giá trị quyền",
   "allow": "Cho phép",
   "permission_management": "Quản lý quyền",
-  "permission_cors": "Liên miền (CORS)",
-  "permission_cookie": "Quản lý cookie",
-  "allow_once": "Cho phép một lần",
-  "deny_once": "Từ chối một lần",
   "script_accessing_cross_origin_resource": "Script đang cố gắng truy cập tài nguyên cross-origin",
   "confirm_operation_description": "Vui lòng xác nhận xem bạn có cho phép script thực hiện thao tác này không. Script cũng có thể thêm thẻ @connect để bỏ qua tùy chọn này.",
   "request_domain": "Miền yêu cầu",
@@ -21,7 +17,6 @@
   "extension_site_access_description": "Cấp quyền truy cập trang web của trình duyệt cho nguồn này để ScriptCat có thể thực hiện yêu cầu. Thao tác này thay đổi cài đặt truy cập trang web của tiện ích.",
   "extension_site_access_content": "Trang web",
   "request_permission": "Yêu cầu quyền",
-  "allow_user_script_guide": "'Cho phép tập lệnh người dùng' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Nhấn để xem cách bật</a>",
   "user_script_type": "Script người dùng",
   "auth_duration": "Thời hạn cấp quyền",
   "duration_once": "Chỉ lần này",
@@ -38,5 +33,7 @@
   "cookie_warning_desc": "Cookie chứa dữ liệu nhạy cảm như trạng thái đăng nhập. Chỉ cấp quyền cho các script đáng tin cậy.",
   "confirm_expired_title": "Yêu cầu cấp quyền đã hết hạn",
   "confirm_expired_desc": "Yêu cầu cấp quyền này đã hết thời gian chờ hoặc đã được xử lý. Vui lòng quay lại trang và kích hoạt lại thao tác này.",
-  "auto_close_in": "Cửa sổ sẽ tự động đóng sau {{second}} giây"
+  "auto_close_in": "Cửa sổ sẽ tự động đóng sau {{second}} giây",
+  "permission_cors": "Liên miền (CORS)",
+  "permission_cookie": "Quản lý cookie"
 }

@@ -2,8 +2,6 @@
   "new_version_available": "有新版本可用",
   "current_page_scripts": "当前页运行脚本",
   "enabled_background_scripts": "开启和运行的后台脚本",
-  "menu_expand_num_before": "菜单项超过",
-  "menu_expand_num_after": "个时，自动隐藏",
   "develop_mode_guide": "当前未启用“开发者模式”，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉点击查看启用方法</a>",
   "lower_version_browser_guide": "您的浏览器版本过低，脚本无法正常运行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\">👉点击了解更多</a>",
   "click_to_reload": "👉点击重新加载",
@@ -23,5 +21,7 @@
   "request_permission": "请求权限",
   "show_more_scripts": "+{{count}} 个脚本",
   "use_on_mobile": "在手机上使用脚本猫",
-  "scan_qr_to_install": "扫描二维码在手机上安装脚本猫"
+  "scan_qr_to_install": "扫描二维码在手机上安装脚本猫",
+  "menu_expand_num_before": "菜单项超过",
+  "menu_expand_num_after": "个时，自动隐藏"
 }

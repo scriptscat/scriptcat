@@ -42,9 +42,10 @@ function EditorToolbar(props: EditorToolbarProps) {
     onToggleScriptList,
   } = props;
 
-  const tabBtn = (v: SubView, label: string, Icon: typeof Code) => (
+  const tabBtn = (v: SubView, label: string, Icon: typeof Code, title?: string) => (
     <button
       type="button"
+      title={title}
       onClick={() => onSubView(v)}
       onPointerEnter={() => onPreloadSubView?.(v)}
       onFocus={() => onPreloadSubView?.(v)}
@@ -78,9 +79,9 @@ function EditorToolbar(props: EditorToolbarProps) {
       <div className="mx-1 h-4 w-px self-center bg-border" />
 
       {tabBtn("code", t("editor:code"), Code)}
-      {tabBtn("storage", t("editor:storage"), Database)}
-      {tabBtn("resource", t("editor:resource"), Folder)}
-      {tabBtn("setting", t("editor:script_setting"), SlidersHorizontal)}
+      {tabBtn("storage", t("editor:storage"), Database, t("editor:script_storage_tooltip"))}
+      {tabBtn("resource", t("editor:resource"), Folder, t("editor:script_resource_tooltip"))}
+      {tabBtn("setting", t("editor:script_setting"), SlidersHorizontal, t("editor:script_setting_tooltip"))}
 
       <div className="flex-1" />
 

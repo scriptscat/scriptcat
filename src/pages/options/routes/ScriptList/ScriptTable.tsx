@@ -19,6 +19,7 @@ import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import type { SCMetadata } from "@App/app/repo/scripts";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { cn } from "@App/pkg/utils/cn";
@@ -29,6 +30,7 @@ import {
   ScriptIcon,
   FaviconDots,
   RunStatusBadge,
+  ScheduleNextRun,
   UpdateTimeCell,
   SourceTag,
   scriptTypeLabel,
@@ -341,6 +343,8 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
   const { t } = useTranslation();
   const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
   const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
+  const typeTooltip =
+    script.type === SCRIPT_TYPE_CRONTAB ? t("script:scheduled_script_tooltip") : t("script:background_script_tooltip");
   const version = script.metadata?.version?.[0] || "";
   const author = script.metadata?.author?.[0] || "";
   const name = i18nName(script);
@@ -395,8 +399,22 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
       </div>
 
       {/* 应用至 / 运行状态 */}
-      <div className="w-[140px]">
-        {isBackground ? <RunStatusBadge runStatus={script.runStatus} /> : <FaviconDots favorites={script.favorite} />}
+      <div className="w-[140px] min-w-0">
+        {isBackground ? (
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="w-fit">
+                  <RunStatusBadge runStatus={script.runStatus} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{typeTooltip}</TooltipContent>
+            </Tooltip>
+            <ScheduleNextRun script={script} />
+          </div>
+        ) : (
+          <FaviconDots favorites={script.favorite} />
+        )}
       </div>
 
       {/* 最后更新 */}

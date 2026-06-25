@@ -13,9 +13,19 @@ const ANTIFEATURE_TITLE_KEY: Record<AntifeatureType, string> = {
   tracking: "install:tracking_title",
 };
 
-function Tag({ tone, children }: { tone: "green" | "amber"; children: React.ReactNode }) {
+const ANTIFEATURE_DESC_KEY: Record<AntifeatureType, string> = {
+  "referral-link": "install:referral_link_description",
+  ads: "install:ads_description",
+  payment: "install:payment_description",
+  miner: "install:miner_description",
+  membership: "install:membership_description",
+  tracking: "install:tracking_description",
+};
+
+function Tag({ tone, title, children }: { tone: "green" | "amber"; title?: string; children: React.ReactNode }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium",
         tone === "green" ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg"
@@ -110,10 +120,18 @@ export function ScriptIdentity({
 
           {(schedule || antifeatures.length > 0) && (
             <div className="flex flex-wrap gap-1.5">
-              {schedule?.kind === "background" && <Tag tone="green">{t("install:badge_background")}</Tag>}
-              {schedule?.kind === "cron" && <Tag tone="green">{t("install:badge_scheduled")}</Tag>}
+              {schedule?.kind === "background" && (
+                <Tag tone="green" title={t("install:background_script_description")}>
+                  {t("install:badge_background")}
+                </Tag>
+              )}
+              {schedule?.kind === "cron" && (
+                <Tag tone="green" title={t("install:scheduled_script_description_title")}>
+                  {t("install:badge_scheduled")}
+                </Tag>
+              )}
               {antifeatures.map((a) => (
-                <Tag tone="amber" key={a}>
+                <Tag tone="amber" key={a} title={t(ANTIFEATURE_DESC_KEY[a])}>
                   {t(ANTIFEATURE_TITLE_KEY[a])}
                 </Tag>
               ))}

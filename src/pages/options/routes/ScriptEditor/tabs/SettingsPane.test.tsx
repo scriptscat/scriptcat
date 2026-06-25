@@ -191,6 +191,21 @@ describe("SettingsPane 网站匹配/排除", () => {
     await waitFor(() => expect(resetMatch).toHaveBeenCalledWith("u1", ["*://script.com/*"]));
   });
 
+  it("删除匹配项的确认气泡应展示删除匹配文案而非通用重置文案", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://user.com/*");
+    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} *://user.com/*` }));
+    expect(screen.getByText(t("editor:confirm_delete_match"))).toBeInTheDocument();
+    expect(screen.queryByText(t("editor:confirm_reset"))).toBeNull();
+  });
+
+  it("删除排除项的确认气泡应展示删除排除文案", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://exclude.com/*");
+    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} *://exclude.com/*` }));
+    expect(screen.getByText(t("editor:confirm_delete_exclude"))).toBeInTheDocument();
+  });
+
   it("添加匹配:输入保存应调用 resetMatch", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://script.com/*");

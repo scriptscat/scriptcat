@@ -17,6 +17,16 @@ function getProxyOptions() {
 
 const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
 
+// 预先标记「非首次使用」，避免新手引导欢迎弹窗的模态遮罩拦截测试交互。
+// 用 addInitScript 在每个页面脚本执行前注入，避开持久化 profile 下「开页→写→关页」的 localStorage 落盘竞态。
+function dismissOnboarding() {
+  try {
+    localStorage.setItem("firstUse", "false");
+  } catch {
+    // about:blank 等不透明来源无法访问 localStorage，忽略即可
+  }
+}
+
 /**
  * 简单启动 fixture — 不需要 userScripts 的测试使用
  */
@@ -31,6 +41,7 @@ export const test = base.extend<{
       args: ["--headless=new", ...chromeArgs],
       ...getProxyOptions(),
     });
+    await context.addInitScript(dismissOnboarding);
     await use(context);
     await context.close();
   },
@@ -40,17 +51,6 @@ export const test = base.extend<{
       background = await context.waitForEvent("serviceworker");
     }
     const extensionId = background.url().split("/")[2];
-
-    // Dismiss the first-use guide by navigating to the options page and setting localStorage,
-    // then reload to apply the change before any tests run.
-    const initPage = await context.newPage();
-    await initPage.goto(`chrome-extension://${extensionId}/src/options.html`);
-    await initPage.waitForLoadState("domcontentloaded");
-    await initPage.evaluate(() => {
-      localStorage.setItem("firstUse", "false");
-    });
-    await initPage.close();
-
     await use(extensionId);
   },
 });
@@ -98,6 +98,7 @@ export const testWithUserScripts = base.extend<{
       args: ["--headless=new", ...chromeArgs],
       ...getProxyOptions(),
     });
+    await context.addInitScript(dismissOnboarding);
     const [sw] = context.serviceWorkers();
     if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
     await use(context);
@@ -108,13 +109,6 @@ export const testWithUserScripts = base.extend<{
     let [background] = context.serviceWorkers();
     if (!background) background = await context.waitForEvent("serviceworker");
     const extensionId = background.url().split("/")[2];
-
-    const initPage = await context.newPage();
-    await initPage.goto(`chrome-extension://${extensionId}/src/options.html`);
-    await initPage.waitForLoadState("domcontentloaded");
-    await initPage.evaluate(() => localStorage.setItem("firstUse", "false"));
-    await initPage.close();
-
     await use(extensionId);
   },
 });

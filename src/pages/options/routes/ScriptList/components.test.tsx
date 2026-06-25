@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, screen, fireEvent } from "@testing-library/react";
+import { act, cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip } from "@Tests/renderWithTooltip";
-import { SCRIPT_TYPE_NORMAL, SCRIPT_TYPE_BACKGROUND } from "@App/app/repo/scripts";
+import { TooltipProvider } from "@App/pages/components/ui/tooltip";
+import { SCRIPT_TYPE_NORMAL, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/app/repo/scripts";
 
 // requestCheckUpdate 走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
 const { requestCheckUpdate, preloadUserConfig, preloadCloudScriptPlan } = vi.hoisted(() => ({
@@ -16,8 +17,20 @@ vi.mock("@App/pages/store/features/script", () => ({
 }));
 vi.mock("./preload", () => ({ preloadUserConfig }));
 vi.mock("@App/pages/components/CloudScriptPlan", () => ({ preloadCloudScriptPlan }));
+vi.mock("@App/pkg/utils/cron", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return { ...actual, nextTimeDisplay: vi.fn(() => "2026-06-25 08:00:00") };
+});
 
-import { FaviconDots, getScriptHomePage, getTagColor, ScriptRowActions, UpdateTimeCell } from "./components";
+import {
+  FaviconDots,
+  getScriptHomePage,
+  getTagColor,
+  ScheduleNextRun,
+  ScriptRowActions,
+  scriptTypeLabel,
+  UpdateTimeCell,
+} from "./components";
 
 beforeEach(() => {
   initTestLanguage("zh-CN");
@@ -296,5 +309,60 @@ describe("UpdateTimeCell 检查更新交互", () => {
     expect(button.className).not.toContain("rounded-full");
     // whitespace-nowrap 保证中文不会被窄槽位挤成一字一行
     expect(button).toHaveClass("whitespace-nowrap");
+  });
+});
+
+describe("脚本类型标签 scriptTypeLabel", () => {
+  it("定时脚本应返回『定时脚本』而非『后台脚本』", () => {
+    expect(scriptTypeLabel(SCRIPT_TYPE_CRONTAB, t)).toBe(t("script:scheduled_script"));
+  });
+
+  it("后台脚本应返回『后台脚本』", () => {
+    expect(scriptTypeLabel(SCRIPT_TYPE_BACKGROUND, t)).toBe(t("script:background_script"));
+  });
+});
+
+describe("ScheduleNextRun 定时脚本下次运行时间", () => {
+  const makeScript = (over: Record<string, unknown> = {}) =>
+    ({ uuid: "u1", name: "S", metadata: {}, type: SCRIPT_TYPE_NORMAL, ...over }) as never;
+
+  it("定时脚本行内只展示时间，省去「下次运行」前缀以适配窄槽位", () => {
+    renderWithTooltip(
+      <ScheduleNextRun script={makeScript({ type: SCRIPT_TYPE_CRONTAB, metadata: { crontab: ["0 8 * * *"] } })} />
+    );
+    // 140px 槽位放不下「下次运行 + 完整时间」，行内只保留时间，避免截断
+    const timeNode = screen.getByText("2026-06-25 08:00:00");
+    expect(timeNode).toBeInTheDocument();
+    expect(timeNode.textContent).not.toContain(t("script:next_run"));
+  });
+
+  it("悬浮时通过 Tooltip 展示完整「下次运行」文案与原始 cron 表达式，截断也不丢信息", async () => {
+    // delayDuration=0 让 Tooltip 悬浮即开，避免依赖默认 700ms 延迟
+    render(
+      <TooltipProvider delayDuration={0}>
+        <ScheduleNextRun script={makeScript({ type: SCRIPT_TYPE_CRONTAB, metadata: { crontab: ["0 8 * * *"] } })} />
+      </TooltipProvider>
+    );
+    // 鼠标移入 trigger 让 Radix Tooltip 展开（delayDuration=0 + 等定时器刷新）
+    const trigger = screen.getByText("2026-06-25 08:00:00").closest('[data-slot="tooltip-trigger"]')!;
+    await act(async () => {
+      fireEvent.pointerMove(trigger, { pointerType: "mouse" });
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    // Tooltip 内容经 Portal 渲染，含完整文案与 cron 表达式（Radix 会额外渲染一份无障碍副本，故用 getAllByText）
+    expect(screen.getAllByText("0 8 * * *").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText((c) => c.includes(t("script:next_run")) && c.includes("2026-06-25 08:00:00")).length
+    ).toBeGreaterThan(0);
+  });
+
+  it("普通脚本不渲染下次运行时间", () => {
+    const { container } = renderWithTooltip(<ScheduleNextRun script={makeScript()} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("定时脚本缺少 crontab 元数据时不渲染", () => {
+    const { container } = renderWithTooltip(<ScheduleNextRun script={makeScript({ type: SCRIPT_TYPE_CRONTAB })} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

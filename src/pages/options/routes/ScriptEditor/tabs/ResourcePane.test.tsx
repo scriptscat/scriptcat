@@ -57,11 +57,15 @@ describe("ResourcePane 资源面板", () => {
     expect(screen.getByText("application/javascript")).toBeInTheDocument();
   });
 
-  it("行内删除应调用 resourceClient.deleteResource 并移除该行", async () => {
+  it("行内删除应二次确认后才调用 deleteResource 并移除该行", async () => {
     render(<ResourcePane uuid="u1" />);
     await screen.findByText("jquery.min.js");
     const delButtons = screen.getAllByRole("button", { name: t("delete") });
     fireEvent.click(delButtons[0]);
+    // 点击删除按钮仅弹出确认气泡，未确认前不应删除
+    expect(deleteResource).not.toHaveBeenCalled();
+    expect(screen.getByText(t("confirm_delete_resource"))).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("popconfirm-confirm"));
     await waitFor(() => expect(deleteResource).toHaveBeenCalledWith("https://cdn.test/jquery.min.js"));
     await waitFor(() => expect(screen.queryByText("jquery.min.js")).toBeNull());
   });

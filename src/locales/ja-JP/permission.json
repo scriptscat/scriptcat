@@ -3,10 +3,6 @@
   "permission_value": "権限値",
   "allow": "許可",
   "permission_management": "権限管理",
-  "permission_cors": "クロスドメイン（CORS）",
-  "permission_cookie": "Cookieを管理",
-  "allow_once": "一度許可",
-  "deny_once": "一度拒否",
   "script_accessing_cross_origin_resource": "スクリプトがクロスドメインリソースにアクセスしようとしています",
   "confirm_operation_description": "スクリプトがこの操作を実行することを許可するかどうか確認してください。スクリプトは@connectタグを追加してこのオプションをスキップすることもできます",
   "request_domain": "リクエストドメイン",
@@ -21,7 +17,6 @@
   "extension_site_access_description": "ScriptCat がこのリクエストを実行できるように、このオリジンへのブラウザーのサイトアクセス権限を許可してください。これは拡張機能のサイトアクセス設定を変更します。",
   "extension_site_access_content": "サイト",
   "request_permission": "権限をリクエストする",
-  "allow_user_script_guide": "現在「ユーザー スクリプトを許可する」が有効ではないため、スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉有効化の方法はこちら</a>",
   "user_script_type": "ユーザースクリプト",
   "auth_duration": "許可の有効期間",
   "duration_once": "今回のみ",
@@ -38,5 +33,7 @@
   "cookie_warning_desc": "Cookie にはログイン状態などの機密データが含まれます。信頼できるスクリプトにのみ許可してください。",
   "confirm_expired_title": "許可リクエストの有効期限が切れました",
   "confirm_expired_desc": "この許可リクエストはタイムアウトしたか、すでに処理されています。ページに戻ってもう一度実行してください。",
-  "auto_close_in": "{{second}} 秒後にウィンドウが自動的に閉じます"
+  "auto_close_in": "{{second}} 秒後にウィンドウが自動的に閉じます",
+  "permission_cors": "クロスドメイン（CORS）",
+  "permission_cookie": "Cookieを管理"
 }

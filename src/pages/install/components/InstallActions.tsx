@@ -101,6 +101,7 @@ export function InstallActions({
           <Button
             data-testid="watch-toggle"
             variant={watching ? "default" : "outline"}
+            title={t("editor:watch_file_description")}
             onClick={onToggleWatch}
             className="gap-1.5"
           >

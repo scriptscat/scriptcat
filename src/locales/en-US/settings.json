@@ -6,7 +6,6 @@
   "sync_delete": "Sync Delete",
   "sync_delete_desc": "When enabled, scripts will be marked as deleted when removed, and other devices will detect this status and delete the script accordingly. When disabled, scripts will be deleted directly from both local and cloud storage, which may cause repeated sync issues if multiple devices are in use.",
   "enable_script_sync_to": "Enable Script Sync to",
-  "script_subscription_check_interval": "Script/Subscription Update Check Interval",
   "never": "Never",
   "6_hours": "6 Hours",
   "12_hours": "12 Hours",
@@ -16,7 +15,8 @@
   "silent_update_non_critical_changes": "Silently Update Non-critical Changes",
   "enable_eslint": "Enable ESLint",
   "eslint_rules": "ESLint Rules",
-  "enter_eslint_rules": "Please enter ESLint rules. Configurations can be downloaded from https://eslint.org/play/.",
+  "custom_eslint_rules_config": "Custom ESLint rules configuration (JSON format)",
+  "enter_eslint_rules": "Enter ESLint rules. You can download a configuration from https://eslint.org/play/",
   "language_change_tip": "Language Change Successful",
   "backup": "Backup",
   "local": "Local",
@@ -71,23 +71,18 @@
   "auto_collapse_when_exceeds": "Auto collapse when exceeds this number",
   "script_update_check_frequency": "Script Update Check Frequency",
   "script_auto_update_frequency": "Script automatic update check frequency",
-  "update_options": "Update Options",
   "control_script_update_behavior": "Control script update behavior",
   "blacklist_pages_desc": "Prevent scripts from running on specified pages, supports wildcards",
   "development_tools": "Development Tools",
   "check_script_code_quality": "Check script code quality and errors",
-  "custom_eslint_rules_config": "Custom ESLint rules configuration (JSON format)",
   "script_run_env": {
     "title": "Operating environment",
     "all": "All",
     "normal-tabs": "Normal tags",
     "incognito-tabs": "Incognito tags"
   },
-  "script_run_at": {
-    "title": "Run Timing"
-  },
+  "script_run_at": {},
   "script_setting": {
-    "title": "Script Setting",
     "default": "default"
   },
   "notification": {

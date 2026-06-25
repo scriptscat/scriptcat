@@ -193,13 +193,16 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
                     size="icon-xs"
                     onClick={() => onDownload(r)}
                   />
-                  <TooltipIconButton
-                    label={t("delete")}
-                    icon={Trash2}
-                    size="icon-xs"
+                  <Popconfirm
+                    description={t("confirm_delete_resource")}
                     destructive
-                    onClick={() => onDelete(r.key)}
-                  />
+                    confirmText={t("delete")}
+                    cancelText={t("editor:cancel")}
+                    side="left"
+                    onConfirm={() => onDelete(r.key)}
+                  >
+                    <TooltipIconButton label={t("delete")} icon={Trash2} size="icon-xs" destructive />
+                  </Popconfirm>
                 </div>
               </DataPanelRow>
             ))

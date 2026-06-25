@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
-import { saveScript, SAVE_CANCELED, type SaveDeps } from "./saveScript";
+import { saveScript, SAVE_CANCELED, SAVE_EMPTY_NAME, type SaveDeps } from "./saveScript";
 
 const mk = (over: Partial<Script> = {}): Script =>
   ({
@@ -83,11 +83,11 @@ describe("saveScript 保存逻辑", () => {
     expect(deps.install).not.toHaveBeenCalled();
   });
 
-  it("脚本名为空时应抛错且不 install", async () => {
+  it("脚本名为空时应抛 SAVE_EMPTY_NAME 且不 install（供调用方本地化提示）", async () => {
     const deps = baseDeps({
       prepareScript: vi.fn(async () => ({ script: mk({ name: "" }), oldScript: mk() })),
     });
-    await expect(saveScript(mk(), "code", deps)).rejects.toThrow();
+    await expect(saveScript(mk(), "code", deps)).rejects.toThrow(SAVE_EMPTY_NAME);
     expect(deps.install).not.toHaveBeenCalled();
   });
 });

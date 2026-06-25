@@ -5,6 +5,7 @@ import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
 const mockedUseIsMobile = vi.mocked(useIsMobile);
+vi.mock("@App/pages/components/ui/toast", () => ({ notify: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@App/pages/options/hooks/useScrollSpy", () => ({
   useScrollSpy: () => ({
     activeId: "model",
@@ -29,6 +30,7 @@ vi.mock("@App/pages/store/features/script", () => ({
 
 import AgentSettings from "./index";
 import { agentClient } from "@App/pages/store/features/script";
+import { notify } from "@App/pages/components/ui/toast";
 
 beforeEach(() => {
   initLanguage("zh-CN");
@@ -74,6 +76,15 @@ describe("AgentSettings 页面", () => {
     const input = await screen.findByTestId("search-google-cse-id");
     fireEvent.change(input, { target: { value: "cse123" } });
     expect(agentClient.saveSearchConfig).toHaveBeenCalledWith(expect.objectContaining({ googleCseId: "cse123" }));
+  });
+
+  it("保存搜索设置失败时提示错误而非静默吞掉", async () => {
+    getSearchConfigMock.mockResolvedValueOnce({ engine: "google_custom", googleApiKey: "", googleCseId: "" });
+    vi.mocked(agentClient.saveSearchConfig).mockRejectedValueOnce(new Error("boom"));
+    render(<AgentSettings />);
+    const input = await screen.findByTestId("search-google-cse-id");
+    fireEvent.change(input, { target: { value: "cse123" } });
+    await waitFor(() => expect(notify.error).toHaveBeenCalledWith(t("agent:settings_save_failed")));
   });
 
   describe("桌面端", () => {

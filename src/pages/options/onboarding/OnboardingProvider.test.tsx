@@ -2,11 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-const setDone = vi.fn();
-let doneValue: boolean | undefined = false;
-vi.mock("@App/pages/options/hooks/useSystemConfig", () => ({
-  useSystemConfig: () => [doneValue, setDone],
-}));
 let mobile = false;
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => mobile }));
 
@@ -40,10 +35,9 @@ function renderApp(path = "/") {
 }
 
 beforeEach(() => {
-  doneValue = false;
+  localStorage.clear();
   mobile = false;
   (chrome.extension as unknown as { inIncognitoContext: boolean }).inIncognitoContext = false;
-  setDone.mockReset();
 });
 afterEach(cleanup);
 
@@ -54,7 +48,7 @@ describe("新手引导控制器", () => {
   });
 
   it("已看过时不应自动打开", () => {
-    doneValue = true;
+    localStorage.setItem("firstUse", "false");
     renderApp();
     expect(screen.getByTestId("phase").textContent).toBe("null");
   });
@@ -65,7 +59,7 @@ describe("新手引导控制器", () => {
     expect(screen.getByTestId("phase").textContent).toBe("null");
     fireEvent.click(screen.getByText("start"));
     fireEvent.click(screen.getByText("skip"));
-    expect(setDone).not.toHaveBeenCalled();
+    expect(localStorage.getItem("firstUse")).toBeNull();
   });
 
   it("从欢迎开始导览应进入巡览第一步", () => {
@@ -87,7 +81,7 @@ describe("新手引导控制器", () => {
   it("跳过应置位并关闭", () => {
     renderApp();
     fireEvent.click(screen.getByText("skip"));
-    expect(setDone).toHaveBeenCalledWith(true);
+    expect(localStorage.getItem("firstUse")).toBe("false");
     expect(screen.getByTestId("phase").textContent).toBe("null");
   });
 
@@ -105,23 +99,8 @@ describe("新手引导控制器", () => {
     for (let i = 0; i < total; i++) {
       fireEvent.click(screen.getByText("next"));
     }
-    expect(setDone).toHaveBeenCalledWith(true);
+    expect(localStorage.getItem("firstUse")).toBe("false");
     expect(screen.getByTestId("phase").textContent).toBe("null");
-  });
-
-  it("配置异步加载完成后（undefined→false）应自动打开欢迎", () => {
-    doneValue = undefined;
-    const view = renderApp(); // 初始：done 为 undefined → 不应打开
-    expect(view.getByTestId("phase").textContent).toBe("null");
-    doneValue = false;
-    view.rerender(
-      <MemoryRouter initialEntries={["/"]}>
-        <OnboardingProvider>
-          <Harness />
-        </OnboardingProvider>
-      </MemoryRouter>
-    );
-    expect(view.getByTestId("phase").textContent).toBe("welcome");
   });
 });
 

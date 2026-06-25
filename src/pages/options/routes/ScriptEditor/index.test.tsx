@@ -56,7 +56,7 @@ vi.mock("./editorScriptLoaders", () => ({
   emptyScript: vi.fn(),
   loadScriptCode: vi.fn(async () => "code"),
 }));
-vi.mock("./saveScript", () => ({ saveScript, SAVE_CANCELED: "SAVE_CANCELED" }));
+vi.mock("./saveScript", () => ({ saveScript, SAVE_CANCELED: "SAVE_CANCELED", SAVE_EMPTY_NAME: "SAVE_EMPTY_NAME" }));
 vi.mock("./useActiveEditorFocus", () => ({ useActiveEditorFocus: vi.fn() }));
 vi.mock("./tabs/ResourcePane", () => ({
   default: () => null,

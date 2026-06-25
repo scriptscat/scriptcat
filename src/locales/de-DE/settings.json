@@ -6,7 +6,6 @@
   "sync_delete": "Synchronisiertes Löschen",
   "sync_delete_desc": "Wenn aktiviert, wird das Skript beim Löschen als gelöscht markiert und andere Geräte erkennen diesen Status und löschen das Skript ebenfalls. Wenn deaktiviert, wird das Skript direkt aus dem lokalen und Cloud-Speicher gelöscht, was zu wiederholten Synchronisierungsproblemen führen kann, wenn mehrere Geräte verwendet werden.",
   "enable_script_sync_to": "Skript-Synchronisation aktivieren zu",
-  "script_subscription_check_interval": "Skript-/Abonnement-Update-Überprüfungsintervall",
   "never": "Nie",
   "6_hours": "6 Stunden",
   "12_hours": "12 Stunden",
@@ -16,7 +15,8 @@
   "silent_update_non_critical_changes": "Nicht-kritische Änderungen still aktualisieren",
   "enable_eslint": "ESLint aktivieren",
   "eslint_rules": "ESLint-Regeln",
-  "enter_eslint_rules": "Bitte geben Sie ESLint-Regeln ein. Sie können die Konfiguration von https://eslint.org/play/ herunterladen",
+  "custom_eslint_rules_config": "Konfiguration benutzerdefinierter ESLint-Regeln (JSON-Format)",
+  "enter_eslint_rules": "ESLint-Regeln eingeben. Eine Konfiguration kannst du von https://eslint.org/play/ herunterladen",
   "language_change_tip": "Sprachwechsel erfolgreich",
   "backup": "Sicherung",
   "local": "Lokal",
@@ -71,23 +71,18 @@
   "auto_collapse_when_exceeds": "Automatisch einklappen, wenn diese Anzahl überschritten wird",
   "script_update_check_frequency": "Häufigkeit der Skript-Aktualisierungsprüfung",
   "script_auto_update_frequency": "Frequenz der automatischen Skript-Update-Prüfung",
-  "update_options": "Update-Optionen",
   "control_script_update_behavior": "Skript-Update-Verhalten kontrollieren",
   "blacklist_pages_desc": "Verbietet Skripts auf bestimmten Seiten zu laufen, unterstützt Wildcards",
   "development_tools": "Entwicklertools",
   "check_script_code_quality": "Skriptcode-Qualität und Fehler prüfen",
-  "custom_eslint_rules_config": "Benutzerdefinierte ESLint-Regelkonfiguration (JSON-Format)",
   "script_run_env": {
     "title": "Laufzeitumgebung",
     "all": "Alle Bezeichnungen",
     "normal-tabs": "Normale Tabs",
     "incognito-tabs": "Inkognito-Tabs"
   },
-  "script_run_at": {
-    "title": "Ausführungszeitpunkt"
-  },
+  "script_run_at": {},
   "script_setting": {
-    "title": "Skript-Einstellungen",
     "default": "Standard"
   },
   "notification": {

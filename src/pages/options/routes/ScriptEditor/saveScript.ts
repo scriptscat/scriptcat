@@ -3,6 +3,9 @@ import type { Script } from "@App/app/repo/scripts";
 // 用户主动取消保存（重名/编辑冲突时点了取消）——非错误，调用方静默处理
 export const SAVE_CANCELED = "SAVE_CANCELED";
 
+// 脚本名为空——调用方据此弹出本地化提示（saveScript 为纯逻辑，不持有 t）
+export const SAVE_EMPTY_NAME = "SAVE_EMPTY_NAME";
+
 export interface SaveDeps {
   // 解析代码并与磁盘对比，返回新脚本及磁盘旧脚本
   prepareScript: (code: string, origin: string, uuid?: string) => Promise<{ script: Script; oldScript?: Script }>;
@@ -50,7 +53,7 @@ export async function saveScript(editorScript: Script, code: string, deps: SaveD
   }
 
   if (!script.name) {
-    throw new Error("script name cannot be empty");
+    throw new Error(SAVE_EMPTY_NAME);
   }
 
   // 编辑冲突：编辑器内记录的 updatetime 与磁盘最新不一致

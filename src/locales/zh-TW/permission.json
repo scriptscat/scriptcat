@@ -3,10 +3,6 @@
   "permission_value": "權限值",
   "allow": "是否允許",
   "permission_management": "權限管理",
-  "permission_cors": "跨網域(CORS)",
-  "permission_cookie": "管理Cookie",
-  "allow_once": "允許一次",
-  "deny_once": "拒絕一次",
   "script_accessing_cross_origin_resource": "腳本正在嘗試存取跨網域資源",
   "confirm_operation_description": "請您確認是否允許腳本進行此操作，腳本也可增加@connect標籤跳過此選項",
   "request_domain": "請求網域",
@@ -21,7 +17,6 @@
   "extension_site_access_description": "請授予瀏覽器對此來源的網站存取權限，讓 ScriptCat 可以完成本次請求。這會修改擴充功能的網站存取設定。",
   "extension_site_access_content": "網站",
   "request_permission": "要求權限",
-  "allow_user_script_guide": "目前尚未啟用「允許使用者指令碼」，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉點此查看啟用方式</a>",
   "user_script_type": "使用者腳本",
   "auth_duration": "授權時長",
   "duration_once": "僅此次",
@@ -38,5 +33,7 @@
   "cookie_warning_desc": "Cookie 包含登入狀態等敏感資料，請僅授權可信任的腳本。",
   "confirm_expired_title": "授權請求已失效",
   "confirm_expired_desc": "此次授權請求已逾時或已被處理。請返回頁面重新觸發該操作。",
-  "auto_close_in": "{{second}} 秒後自動關閉視窗"
+  "auto_close_in": "{{second}} 秒後自動關閉視窗",
+  "permission_cors": "跨網域(CORS)",
+  "permission_cookie": "管理Cookie"
 }

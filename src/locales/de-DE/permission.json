@@ -3,10 +3,6 @@
   "permission_value": "Berechtigungswert",
   "allow": "Erlauben",
   "permission_management": "Berechtigungsverwaltung",
-  "permission_cors": "Cross-Origin (CORS)",
-  "permission_cookie": "Cookies verwalten",
-  "allow_once": "Einmal erlauben",
-  "deny_once": "Einmal verweigern",
   "script_accessing_cross_origin_resource": "Skript versucht auf Cross-Origin-Ressourcen zuzugreifen",
   "confirm_operation_description": "Bitte bestätigen Sie, ob Sie dem Skript erlauben, diese Operation durchzuführen. Das Skript kann auch ein @connect-Tag hinzufügen, um diese Option zu überspringen",
   "request_domain": "Anfrage-Domain",
@@ -21,7 +17,6 @@
   "extension_site_access_description": "Gewähren Sie dem Browser Website-Zugriff auf diesen Ursprung, damit ScriptCat die Anfrage ausführen kann. Dadurch wird die Website-Zugriffseinstellung der Erweiterung geändert.",
   "extension_site_access_content": "Website",
   "request_permission": "Beantragen Sie Genehmigungen",
-  "allow_user_script_guide": "'Nutzerskripts zulassen' ist derzeit nicht aktiviert, daher können die Skripte nicht richtig ausgeführt werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Hier klicken, um zu erfahren, wie man es aktiviert</a>",
   "user_script_type": "Benutzerskript",
   "auth_duration": "Autorisierungsdauer",
   "duration_once": "Nur dieses Mal",
@@ -38,5 +33,7 @@
   "cookie_warning_desc": "Cookies enthalten sensible Daten wie den Anmeldestatus. Autorisieren Sie nur vertrauenswürdige Skripte.",
   "confirm_expired_title": "Autorisierungsanfrage abgelaufen",
   "confirm_expired_desc": "Diese Autorisierungsanfrage ist abgelaufen oder wurde bereits bearbeitet. Bitte kehren Sie zur Seite zurück und lösen Sie sie erneut aus.",
-  "auto_close_in": "Das Fenster wird in {{second}}s automatisch geschlossen"
+  "auto_close_in": "Das Fenster wird in {{second}}s automatisch geschlossen",
+  "permission_cors": "Cross-Origin (CORS)",
+  "permission_cookie": "Cookies verwalten"
 }

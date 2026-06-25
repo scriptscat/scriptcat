@@ -10,6 +10,8 @@ import { Textarea } from "@App/pages/components/ui/textarea";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { notify } from "@App/pages/components/ui/toast";
 
+const JSCONFIG_DOC_URL = "https://code.visualstudio.com/docs/languages/jsconfig";
+
 function useDraft(value: string | undefined) {
   const [draft, setDraft] = useState("");
   // 当外部加载到的 value 变化时，于渲染期同步 draft（React 推荐的「prop 变化重置 state」模式，避免 effect 触发级联渲染）
@@ -51,9 +53,11 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
       {enableEslint && (
         <div className="flex flex-col gap-2">
           <div className="text-[13px] font-medium text-foreground">{t("settings:eslint_rules")}</div>
+          <div className="text-xs text-muted-foreground">{t("settings:custom_eslint_rules_config")}</div>
           <Textarea
             data-testid="eslint_rules_textarea"
             aria-label={t("settings:eslint_rules")}
+            placeholder={t("settings:enter_eslint_rules")}
             className="min-h-[120px] font-mono text-xs"
             value={eslintDraft}
             onChange={(e) => setEslintDraft(e.target.value)}
@@ -72,6 +76,12 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
 
       <div className="flex flex-col gap-2">
         <div className="text-[13px] font-medium text-foreground">{t("editor:editor_config")}</div>
+        <div className="text-xs text-muted-foreground">
+          {t("editor:editor_config_description")}{" "}
+          <a className="text-primary hover:underline" href={JSCONFIG_DOC_URL} target="_blank" rel="noreferrer">
+            {"jsconfig.js"}
+          </a>
+        </div>
         <Textarea
           data-testid="editor_config_textarea"
           aria-label={t("editor:editor_config")}
@@ -92,6 +102,7 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
 
       <div className="flex flex-col gap-2">
         <div className="text-[13px] font-medium text-foreground">{t("editor:editor_type_definition")}</div>
+        <div className="text-xs text-muted-foreground">{t("editor:editor_type_definition_description")}</div>
         <Textarea
           data-testid="editor_type_definition_textarea"
           aria-label={t("editor:editor_type_definition")}

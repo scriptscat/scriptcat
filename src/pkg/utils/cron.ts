@@ -88,10 +88,10 @@ export const nextTimeDisplay = (crontab: string, date = new Date()): string => {
   try {
     const res = nextTimeInfo(crontab, date);
     const nextTimeFormatted = res.next.toFormat(res.format);
-    return res.once ? t(`cron_oncetype.${res.once}`, { next: nextTimeFormatted }) : nextTimeFormatted;
+    return res.once ? t(`script:cron_oncetype.${res.once}`, { next: nextTimeFormatted }) : nextTimeFormatted;
   } catch (e) {
     console.error(`nextTimeDisplay: Invalid cron expression "${crontab}"`, e);
-    return t("cron_invalid_expr");
+    return t("script:cron_invalid_expr");
   }
 };
 

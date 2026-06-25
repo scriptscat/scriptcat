@@ -559,14 +559,6 @@ export class SystemConfig {
     return this._get<boolean>("enable_script_incognito", true);
   }
 
-  setOnboardingDone(value: boolean) {
-    this._set("onboarding_done", value);
-  }
-
-  getOnboardingDone() {
-    return this._get<boolean>("onboarding_done", false);
-  }
-
   setBlacklist(blacklist: string) {
     this._set("blacklist", blacklist);
   }

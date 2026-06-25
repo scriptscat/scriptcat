@@ -19,15 +19,11 @@
   "clear_completed": "清空完成",
   "clear_logs": "清空日志",
   "now": "至今",
-  "total_logs": "共查询到 {{length}} 条日志",
-  "filtered_logs": "筛选后 {{length}} 条日志",
-  "enter_filter_conditions": "请输入筛选条件进行查询",
   "last_updated": "最后更新",
   "runtime": "运行时",
   "advanced": "高级",
   "label_filter": "标签筛选",
   "add_label": "添加标签",
-  "custom_range": "自定义范围",
   "back_to_top": "回到顶部",
   "refresh": "刷新",
   "all_levels": "全部",
@@ -55,5 +51,9 @@
   "time": "时间",
   "prev_month": "上个月",
   "next_month": "下个月",
-  "live": "实时"
+  "live": "实时",
+  "total_logs": "共查询到 {{length}} 条日志",
+  "filtered_logs": "筛选后 {{length}} 条日志",
+  "enter_filter_conditions": "请输入筛选条件进行查询",
+  "custom_range": "自定义范围"
 }

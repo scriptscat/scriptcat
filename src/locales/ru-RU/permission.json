@@ -3,10 +3,6 @@
   "permission_value": "Значение разрешения",
   "allow": "Разрешить",
   "permission_management": "Управление разрешениями",
-  "permission_cors": "Кросс-домен (cors)",
-  "permission_cookie": "Управление cookie",
-  "allow_once": "Разрешить один раз",
-  "deny_once": "Отклонить один раз",
   "script_accessing_cross_origin_resource": "Скрипт пытается получить доступ к кросс-доменному ресурсу",
   "confirm_operation_description": "Пожалуйста, подтвердите, разрешаете ли вы скрипту выполнить эту операцию. Скрипт также может добавить тег @connect, чтобы пропустить эту опцию",
   "request_domain": "Запрашиваемый домен",
@@ -21,7 +17,6 @@
   "extension_site_access_description": "Разрешите браузеру доступ к сайту для этого источника, чтобы ScriptCat мог выполнить запрос. Это изменит настройку доступа к сайтам для расширения.",
   "extension_site_access_content": "Сайт",
   "request_permission": "Запрос разрешения",
-  "allow_user_script_guide": "«Разрешить пользовательские скрипты» сейчас отключён, поэтому скрипты не могут работать корректно. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Нажмите, чтобы узнать, как включить</a>",
   "user_script_type": "Пользовательский скрипт",
   "auth_duration": "Срок действия разрешения",
   "duration_once": "Только сейчас",
@@ -38,5 +33,7 @@
   "cookie_warning_desc": "Cookie содержат конфиденциальные данные, например состояние входа. Разрешайте только доверенным скриптам.",
   "confirm_expired_title": "Запрос разрешения истёк",
   "confirm_expired_desc": "Этот запрос разрешения превысил время ожидания или уже был обработан. Вернитесь на страницу и вызовите его снова.",
-  "auto_close_in": "Окно закроется автоматически через {{second}} с"
+  "auto_close_in": "Окно закроется автоматически через {{second}} с",
+  "permission_cors": "Кросс-домен (cors)",
+  "permission_cookie": "Управление cookie"
 }

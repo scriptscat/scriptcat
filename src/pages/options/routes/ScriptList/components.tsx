@@ -5,6 +5,7 @@ import {
   SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_RUN_STATUS_ERROR,
   SCRIPT_TYPE_NORMAL,
+  SCRIPT_TYPE_CRONTAB,
 } from "@App/app/repo/scripts";
 import { scriptClient, type ScriptLoading } from "@App/pages/store/features/script";
 import { Switch } from "@App/pages/components/ui/switch";
@@ -30,9 +31,11 @@ import {
   Trash2,
   CircleArrowUp,
   Check,
+  Clock,
 } from "lucide-react";
 import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
 import { preloadUserConfig } from "./preload";
+import { nextTimeDisplay } from "@App/pkg/utils/cron";
 
 // ========== Tag 配色 ==========
 // 分类标签 chip 取 --label-* 令牌族（src/index.css），明暗主题自动切换；详见 DESIGN.md §3.6。
@@ -51,6 +54,7 @@ export const EnableSwitch = React.memo(
     enableLoading: boolean | undefined;
     onCheckedChange: (checked: boolean) => void;
   }) => {
+    // 开关本身即自解释（开/关），无需 Tooltip 提示——全应用其它 Switch 也均无提示。
     return (
       <Switch
         size="sm"
@@ -451,5 +455,34 @@ SourceTag.displayName = "SourceTag";
 // ========== 脚本类型标签文本 ==========
 export function scriptTypeLabel(type: number, t: TFunction): string {
   if (type === SCRIPT_TYPE_NORMAL) return t("script:script_list.sidebar.normal_script");
+  if (type === SCRIPT_TYPE_CRONTAB) return t("script:scheduled_script");
   return t("script:background_script");
+}
+
+// ========== 定时脚本下次运行时间 ==========
+// 仅 crontab 脚本展示，复用安装页同款 nextTimeDisplay；Tooltip 显示完整文案与原始 cron 表达式。
+export function ScheduleNextRun({ script, className }: { script: ScriptLoading; className?: string }) {
+  const { t } = useTranslation();
+  if (script.type !== SCRIPT_TYPE_CRONTAB) return null;
+  const cron = script.metadata?.crontab?.[0];
+  if (!cron) return null;
+  const display = nextTimeDisplay(cron);
+  // 槽位仅 140px，「下次运行 + 完整时间」会被截断；行内只保留时间（前置时钟图标已表意），
+  // 完整文案与原始 cron 表达式放进 Tooltip，悬浮即可查看，截断也不丢信息。
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn("flex items-center gap-1 text-[11px] text-muted-foreground truncate", className)}>
+          <Clock className="size-3 shrink-0" />
+          <span className="truncate">{display}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div>
+          {t("script:next_run")} {display}
+        </div>
+        <div className="font-mono text-[10px] opacity-80">{cron}</div>
+      </TooltipContent>
+    </Tooltip>
+  );
 }

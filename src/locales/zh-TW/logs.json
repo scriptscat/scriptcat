@@ -19,15 +19,11 @@
   "clear_completed": "清除完成",
   "clear_logs": "清除紀錄",
   "now": "至今",
-  "total_logs": "共查詢到 {{length}} 筆紀錄",
-  "filtered_logs": "篩選後 {{length}} 條紀錄",
-  "enter_filter_conditions": "請輸入篩選條件進行查詢",
   "last_updated": "最近更新",
   "runtime": "運行時",
   "advanced": "進階",
   "label_filter": "標籤篩選",
   "add_label": "新增標籤",
-  "custom_range": "自訂範圍",
   "back_to_top": "回到頂部",
   "refresh": "重新整理",
   "all_levels": "全部",
@@ -55,5 +51,9 @@
   "time": "時間",
   "prev_month": "上個月",
   "next_month": "下個月",
-  "live": "即時"
+  "live": "即時",
+  "total_logs": "共查詢到 {{length}} 筆紀錄",
+  "filtered_logs": "篩選後 {{length}} 條紀錄",
+  "enter_filter_conditions": "請輸入篩選條件進行查詢",
+  "custom_range": "自訂範圍"
 }

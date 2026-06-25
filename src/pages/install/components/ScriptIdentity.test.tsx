@@ -48,6 +48,11 @@ describe("ScriptIdentity 身份卡", () => {
     expect(screen.getByText("推荐链接")).toBeInTheDocument();
   });
 
+  it("反特性徽章应通过 title 展示风险描述", () => {
+    render(<ScriptIdentity {...base} antifeatures={["miner"]} version={{ kind: "install", version: "1.0.0" }} />);
+    expect(screen.getByText("挖矿")).toHaveAttribute("title", "该脚本存在挖矿行为");
+  });
+
   it("定时脚本显示 cron 信息条与下次运行", () => {
     render(
       <ScriptIdentity

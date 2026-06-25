@@ -300,6 +300,10 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
           </div>
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          {t(kind === "match" ? "editor:after_deleting_match_item" : "editor:after_deleting_exclude_item")}
+        </p>
+
         <Card>
           <DataPanelHeader>
             <span className="min-w-0 flex-1">{t("editor:match")}</span>
@@ -323,7 +327,9 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                   </span>
                   <div className="flex w-16 shrink-0 justify-end">
                     <Popconfirm
-                      description={t("editor:confirm_reset")}
+                      description={t(
+                        kind === "match" ? "editor:confirm_delete_match" : "editor:confirm_delete_exclude"
+                      )}
                       destructive
                       confirmText={t("confirm")}
                       cancelText={t("editor:cancel")}

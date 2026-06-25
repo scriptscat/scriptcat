@@ -114,15 +114,23 @@ export default function AgentSettings() {
   const handleSummaryChange = async (v: string) => {
     const id = v === DEFAULT_MODEL ? "" : v;
     setSummaryModelId(id);
-    await agentClient.setSummaryModelId(id);
-    notify.success(t("agent:settings_saved"));
+    try {
+      await agentClient.setSummaryModelId(id);
+      notify.success(t("agent:settings_saved"));
+    } catch {
+      notify.error(t("agent:settings_save_failed"));
+    }
   };
 
   const updateSearch = async (patch: Partial<SearchEngineConfig>) => {
     const next = { ...searchConfig, ...patch };
     setSearchConfig(next);
-    await agentClient.saveSearchConfig(next);
-    notify.success(t("agent:settings_saved"));
+    try {
+      await agentClient.saveSearchConfig(next);
+      notify.success(t("agent:settings_saved"));
+    } catch {
+      notify.error(t("agent:settings_save_failed"));
+    }
   };
 
   const nav = (

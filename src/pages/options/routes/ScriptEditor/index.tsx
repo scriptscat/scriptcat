@@ -24,7 +24,7 @@ import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { editorTabsReducer, initialEditorTabsState } from "./useEditorTabs";
 import { useActiveEditorFocus } from "./useActiveEditorFocus";
 import { emptyScript, loadScriptCode } from "./editorScriptLoaders";
-import { saveScript, SAVE_CANCELED } from "./saveScript";
+import { saveScript, SAVE_CANCELED, SAVE_EMPTY_NAME } from "./saveScript";
 import ScriptListPanel from "./ScriptListPanel";
 import EditorTabs from "./EditorTabs";
 import EditorToolbar, { type EditorCommand, type SubView } from "./EditorToolbar";
@@ -242,6 +242,10 @@ export default function ScriptEditor() {
         return res.script;
       } catch (err) {
         if (err instanceof Error && err.message === SAVE_CANCELED) return undefined;
+        if (err instanceof Error && err.message === SAVE_EMPTY_NAME) {
+          notify.error(t("editor:script_name_cannot_be_set_to_empty"));
+          return undefined;
+        }
         notify.error(`${t("editor:save_failed")}: ${err}`);
         return undefined;
       }

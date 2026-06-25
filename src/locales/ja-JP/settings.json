@@ -6,7 +6,6 @@
   "sync_delete": "同期削除",
   "sync_delete_desc": "有効にすると、スクリプト削除時に削除マークが付けられ、他のデバイスがその状態を検出してスクリプトを削除します。無効にすると、ローカルとクラウドのスクリプトが直接削除されるため、複数のデバイスを使用している場合、スクリプトが繰り返し同期される可能性があります。",
   "enable_script_sync_to": "スクリプト同期を有効にする",
-  "script_subscription_check_interval": "スクリプト/サブスクライブの更新チェック間隔",
   "never": "なし",
   "6_hours": "6時間",
   "12_hours": "12時間",
@@ -16,7 +15,8 @@
   "silent_update_non_critical_changes": "重要ではない変更を静かに更新する",
   "enable_eslint": "ESLintを有効にする",
   "eslint_rules": "ESLintルール",
-  "enter_eslint_rules": "ESLintルールを入力してください。https://eslint.org/play/ から設定をダウンロードできます",
+  "custom_eslint_rules_config": "カスタム ESLint ルール設定（JSON 形式）",
+  "enter_eslint_rules": "ESLint ルールを入力してください。設定は https://eslint.org/play/ からダウンロードできます",
   "language_change_tip": "言語の切り替えが成功しました",
   "backup": "バックアップ",
   "local": "ローカル",
@@ -71,23 +71,18 @@
   "auto_collapse_when_exceeds": "この数を超えたときに自動的に折りたたむ",
   "script_update_check_frequency": "スクリプト更新の確認頻度",
   "script_auto_update_frequency": "スクリプトの自動更新確認頻度",
-  "update_options": "更新オプション",
   "control_script_update_behavior": "スクリプト更新の動作を制御",
   "blacklist_pages_desc": "指定されたページでスクリプトの実行を禁止、ワイルドカードをサポート",
   "development_tools": "開発ツール",
   "check_script_code_quality": "スクリプトコードの品質とエラーをチェック",
-  "custom_eslint_rules_config": "カスタムESLintルール設定（JSON形式）",
   "script_run_env": {
     "title": "実行環境",
     "all": "すべてのタブ",
     "normal-tabs": "通常のタブ",
     "incognito-tabs": "シークレットタブ"
   },
-  "script_run_at": {
-    "title": "実行タイミング"
-  },
+  "script_run_at": {},
   "script_setting": {
-    "title": "スクリプト設定",
     "default": "デフォルト"
   },
   "notification": {

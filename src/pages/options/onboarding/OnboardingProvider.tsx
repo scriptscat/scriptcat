@@ -1,6 +1,5 @@
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { DESKTOP_STEPS, MOBILE_STEPS } from "./steps";
 import type { OnboardingContextValue, OnboardingPhase } from "./types";
@@ -15,35 +14,30 @@ export function useOnboarding(): OnboardingContextValue {
 
 const isIncognito = () => Boolean(chrome?.extension?.inIncognitoContext);
 
+// 首次进入标志（localStorage，设备独立、不跨设备同步）：firstUse 为 null 即首次，标记完成写 "false"。
+const isFirstUse = () => localStorage.getItem("firstUse") === null;
+const markFirstUseDone = () => localStorage.setItem("firstUse", "false");
+
 export function OnboardingProvider({ children }: { children: ReactNode }) {
-  const [done, setDone] = useSystemConfig("onboarding_done");
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [phase, setPhase] = useState<OnboardingPhase | null>(null);
+  // 首次（非隐身、非全屏编辑器）进入时自动弹欢迎。firstUse 同步可读，用 lazy initializer 一次判定即可。
+  const [phase, setPhase] = useState<OnboardingPhase | null>(() =>
+    isFirstUse() && !isIncognito() && !location.pathname.startsWith("/script/editor") ? "welcome" : null
+  );
   const [stepIndex, setStepIndex] = useState(0);
-  const [autoChecked, setAutoChecked] = useState(false);
   const initialPath = useRef("/");
 
   const mode = isMobile ? "mobile" : "desktop";
   const steps = isMobile ? MOBILE_STEPS : DESKTOP_STEPS;
 
-  // 配置异步就绪后按条件自动打开欢迎（仅一次）。
-  // 用「渲染期受保护地调整 state」而非 effect：既规避 react-hooks/set-state-in-effect，
-  // 又正确处理 done 由 undefined→false 的异步加载（lazy initializer 会漏掉异步到达的值）。
-  if (!autoChecked && done !== undefined) {
-    setAutoChecked(true);
-    if (done === false && !isIncognito() && !location.pathname.startsWith("/script/editor")) {
-      setPhase("welcome");
-    }
-  }
-
   // mode 切换时钳制 stepIndex（派生计算，不需 effect）
   const clampedIndex = Math.min(stepIndex, steps.length - 1);
 
   const markDone = () => {
-    if (!isIncognito()) setDone(true);
+    if (!isIncognito()) markFirstUseDone();
   };
 
   const close = () => {

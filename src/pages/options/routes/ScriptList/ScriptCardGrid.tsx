@@ -11,6 +11,7 @@ import type { SCMetadata } from "@App/app/repo/scripts";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { Surface } from "@App/pages/components/ui/surface";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { cn } from "@App/pkg/utils/cn";
 import { i18nName } from "@App/locales/locales";
 import {
@@ -18,6 +19,7 @@ import {
   ScriptIcon,
   FaviconDots,
   RunStatusBadge,
+  ScheduleNextRun,
   UpdateTimeCell,
   SourceTag,
   scriptTypeLabel,
@@ -219,6 +221,10 @@ const CardItem = React.memo(
     const { t } = useTranslation();
     const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
     const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
+    const typeTooltip =
+      script.type === SCRIPT_TYPE_CRONTAB
+        ? t("script:scheduled_script_tooltip")
+        : t("script:background_script_tooltip");
     const name = i18nName(script);
     const version = script.metadata?.version?.[0] || "";
     const author = script.metadata?.author?.[0] || "";
@@ -251,7 +257,19 @@ const CardItem = React.memo(
         <div className="flex items-center gap-2 mb-3 min-h-[20px]">
           <SourceTag script={script} />
           <CardTagBadges metadata={script.metadata} selfMetadata={script.selfMetadata} />
-          {isBackground ? <RunStatusBadge runStatus={script.runStatus} /> : <FaviconDots favorites={script.favorite} />}
+          {isBackground ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <RunStatusBadge runStatus={script.runStatus} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{typeTooltip}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <FaviconDots favorites={script.favorite} />
+          )}
+          <ScheduleNextRun script={script} className="ml-auto" />
         </div>
 
         {/* 分隔线 */}

@@ -19,15 +19,11 @@
   "clear_completed": "クリア完了",
   "clear_logs": "ログをクリア",
   "now": "現在",
-  "total_logs": "合計{{length}}件のログが見つかりました",
-  "filtered_logs": "フィルタリング後{{length}}件のログ",
-  "enter_filter_conditions": "フィルタリング条件を入力してクエリしてください",
   "last_updated": "最終更新",
   "runtime": "ランタイム",
   "advanced": "詳細",
   "label_filter": "ラベル絞り込み",
   "add_label": "ラベルを追加",
-  "custom_range": "カスタム範囲",
   "back_to_top": "トップへ戻る",
   "refresh": "更新",
   "all_levels": "すべて",
@@ -55,5 +51,9 @@
   "time": "時刻",
   "prev_month": "前の月",
   "next_month": "次の月",
-  "live": "リアルタイム"
+  "live": "リアルタイム",
+  "total_logs": "合計{{length}}件のログが見つかりました",
+  "filtered_logs": "フィルタリング後{{length}}件のログ",
+  "enter_filter_conditions": "フィルタリング条件を入力してクエリしてください",
+  "custom_range": "カスタム範囲"
 }
