@@ -26,7 +26,7 @@ import { RiFileCodeLine, RiGuideLine, RiLinkM } from "react-icons/ri";
 import SiderGuide from "./SiderGuide";
 import CustomLink from "../CustomLink";
 import { localePath } from "@App/locales/locales";
-import { DocumentationSite } from "@App/app/const";
+import { DocumentationSite, EnableAgent } from "@App/app/const";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -82,43 +82,45 @@ const Sider: React.FC = () => {
                 </MenuItem>
               </Tooltip>
             </CustomLink>
-            <Menu.SubMenu
-              key="/agent"
-              title={
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuSelect("/agent/chat");
-                    setOpenKeys((prev) => (prev.includes("/agent") ? prev : [...prev, "/agent"]));
-                    window.location.hash = "/agent/chat";
-                  }}
-                >
-                  <IconRobot /> {t("agent")}
-                </span>
-              }
-            >
-              <CustomLink to="/agent/chat">
-                <MenuItem key="/agent/chat">{t("agent_chat")}</MenuItem>
-              </CustomLink>
-              <CustomLink to="/agent/provider">
-                <MenuItem key="/agent/provider">{t("agent_provider")}</MenuItem>
-              </CustomLink>
-              <CustomLink to="/agent/skills">
-                <MenuItem key="/agent/skills">{t("agent_skills")}</MenuItem>
-              </CustomLink>
-              <CustomLink to="/agent/mcp">
-                <MenuItem key="/agent/mcp">{t("agent_mcp")}</MenuItem>
-              </CustomLink>
-              <CustomLink to="/agent/tasks">
-                <MenuItem key="/agent/tasks">{t("agent_tasks")}</MenuItem>
-              </CustomLink>
-              <CustomLink to="/agent/opfs">
-                <MenuItem key="/agent/opfs">{t("agent_opfs")}</MenuItem>
-              </CustomLink>
-              <CustomLink to="/agent/settings">
-                <MenuItem key="/agent/settings">{t("agent_settings")}</MenuItem>
-              </CustomLink>
-            </Menu.SubMenu>
+            {EnableAgent && (
+              <Menu.SubMenu
+                key="/agent"
+                title={
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuSelect("/agent/chat");
+                      setOpenKeys((prev) => (prev.includes("/agent") ? prev : [...prev, "/agent"]));
+                      window.location.hash = "/agent/chat";
+                    }}
+                  >
+                    <IconRobot /> {t("agent")}
+                  </span>
+                }
+              >
+                <CustomLink to="/agent/chat">
+                  <MenuItem key="/agent/chat">{t("agent_chat")}</MenuItem>
+                </CustomLink>
+                <CustomLink to="/agent/provider">
+                  <MenuItem key="/agent/provider">{t("agent_provider")}</MenuItem>
+                </CustomLink>
+                <CustomLink to="/agent/skills">
+                  <MenuItem key="/agent/skills">{t("agent_skills")}</MenuItem>
+                </CustomLink>
+                <CustomLink to="/agent/mcp">
+                  <MenuItem key="/agent/mcp">{t("agent_mcp")}</MenuItem>
+                </CustomLink>
+                <CustomLink to="/agent/tasks">
+                  <MenuItem key="/agent/tasks">{t("agent_tasks")}</MenuItem>
+                </CustomLink>
+                <CustomLink to="/agent/opfs">
+                  <MenuItem key="/agent/opfs">{t("agent_opfs")}</MenuItem>
+                </CustomLink>
+                <CustomLink to="/agent/settings">
+                  <MenuItem key="/agent/settings">{t("agent_settings")}</MenuItem>
+                </CustomLink>
+              </Menu.SubMenu>
+            )}
             <CustomLink to="/logger">
               <Tooltip position="tl" mini content={`${t("logs")}`} popupHoverStay={false} disabled={collapsed}>
                 <MenuItem key="/logger">
@@ -279,7 +281,7 @@ const Sider: React.FC = () => {
             <Route path="/subscribe" element={<SubscribeList />} />
             <Route path="/logger" element={<Logger />} />
             <Route path="/tools" element={<Tools />} />
-            <Route path="/agent/*" element={<Agent />} />
+            {EnableAgent && <Route path="/agent/*" element={<Agent />} />}
             <Route path="/setting" element={<Setting />} />
           </Routes>
         </div>
