@@ -547,6 +547,42 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     registry.unregisterBuiltin("screenshot");
   });
 
+  it("工具执行完成后：持久化消息的 toolCall.status 应为 completed（否则刷新/重载后图标一直转圈）", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    const registry = (service as any).toolRegistry;
+    // 普通工具（无附件），走不到附件回写分支
+    registry.registerBuiltin(
+      { name: "echo", description: "Echo", parameters: { type: "object", properties: { msg: { type: "string" } } } },
+      { execute: async (args: Record<string, unknown>) => `echo: ${args.msg}` }
+    );
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+
+    // 真实持久化语义：存深拷贝，与内存对象解耦——status 只能靠真正写库变成 completed
+    const storedMessages: any[] = [];
+    mockRepo.appendMessage.mockImplementation(async (msg: any) => {
+      storedMessages.push(structuredClone(msg));
+    });
+    mockRepo.getMessages.mockImplementation(async () => storedMessages.map((m) => structuredClone(m)));
+    mockRepo.saveMessages.mockImplementation(async (_id: string, msgs: any[]) => {
+      storedMessages.length = 0;
+      storedMessages.push(...msgs.map((m) => structuredClone(m)));
+    });
+
+    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "call_1", name: "echo", arguments: '{"msg":"hi"}' }]));
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "test" }, sender);
+
+    const assistantWithTools = storedMessages.find((m) => m.role === "assistant" && m.toolCalls?.length);
+    expect(assistantWithTools).toBeDefined();
+    expect(assistantWithTools.toolCalls[0].status).toBe("completed");
+
+    registry.unregisterBuiltin("echo");
+  });
+
   it("同一轮返回多个 tool_call：两个工具都被执行", async () => {
     const { service, mockRepo } = createTestService();
     const { sender, sentMessages } = createMockSender();

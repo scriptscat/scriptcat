@@ -19,7 +19,7 @@ import { test as base, expect, chromium, type BrowserContext } from "@playwright
 const pathToExtension = path.resolve(__dirname, "../dist/ext");
 
 /** 全部映射到本地 mock server 的测试域名 */
-export const TEST_HOSTS = [
+const TEST_HOSTS = [
   "reslib.test",
   "reslib2.test",
   "sitea.test",

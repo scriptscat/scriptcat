@@ -4,6 +4,7 @@ import { ZipExecutionPlugin } from "./rspack-plugins/ZipExecutionPlugin";
 import { readFileSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { toChromeVersion } from "./scripts/version.js";
+import { applyAgentManifest } from "./scripts/build-config.js";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
@@ -12,6 +13,8 @@ const dirname = path.resolve();
 const isDev = process.env.NODE_ENV === "development";
 const isBeta = version.includes("-");
 const isReactTools = process.env.REACT_DEVTOOLS === "true";
+// agent 默认开启；正式版屏蔽由 scripts/pack.js 按版本判断后通过 SC_DISABLE_AGENT 声明。
+const enableAgent = process.env.SC_DISABLE_AGENT !== "true";
 
 // Target browsers, see: https://github.com/browserslist/browserslist
 // 依照 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
@@ -24,6 +27,7 @@ const assets = path.join(src, "assets");
 // 排除这些文件，不进行分离
 const chunkExcludeSet = new Set([
   "editor.worker",
+  "json.worker",
   "ts.worker",
   "linter.worker",
   "service_worker",
@@ -58,12 +62,13 @@ export default {
     inject: `${src}/inject.ts`,
     common: `${src}/pages/common.ts`,
     popup: `${src}/pages/popup/main.tsx`,
-    install: `${src}/pages/install/main.tsx`,
-    batchupdate: `${src}/pages/batchupdate/main.tsx`,
-    confirm: `${src}/pages/confirm/main.tsx`,
-    import: `${src}/pages/import/main.tsx`,
     options: `${src}/pages/options/main.tsx`,
+    confirm: `${src}/pages/confirm/main.tsx`,
+    batchupdate: `${src}/pages/batchupdate/main.tsx`,
+    install: `${src}/pages/install/main.tsx`,
+    import: `${src}/pages/import/main.tsx`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
+    "json.worker": "monaco-editor/esm/vs/language/json/json.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
     "linter.worker": `${src}/linter.worker.ts`,
   },
@@ -132,6 +137,7 @@ export default {
     new rspack.DefinePlugin({
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
+      "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
     }),
     new rspack.CopyRspackPlugin({
       patterns: [
@@ -140,7 +146,10 @@ export default {
           to: `${dist}/ext`,
           // 将manifest.json内版本号替换为package.json中版本号
           transform(content: Buffer) {
-            const manifest = JSON.parse(content.toString()) as chrome.runtime.ManifestV3;
+            const manifest = applyAgentManifest(
+              JSON.parse(content.toString()) as chrome.runtime.ManifestV3,
+              enableAgent
+            );
             manifest.version = toChromeVersion(version);
             if (isDev || isBeta) {
               manifest.name = "__MSG_scriptcat_beta__";
@@ -171,55 +180,52 @@ export default {
       ],
     }),
     new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/install.html`,
-      template: `${src}/pages/template.html`,
+      filename: `${dist}/ext/src/popup.html`,
+      template: `${src}/pages/popup.html`,
       inject: "head",
-      title: "Install - ScriptCat",
+      title: "ScriptCat",
       minify: true,
-      chunks: ["install"],
+      chunks: ["popup"],
     }),
     new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/batchupdate.html`,
-      template: `${src}/pages/template.html`,
-      inject: "head",
-      title: "BatchUpdate - ScriptCat",
-      minify: true,
-      chunks: ["batchupdate"],
-    }),
-    new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/confirm.html`,
-      template: `${src}/pages/template.html`,
-      inject: "head",
-      title: "Confirm - ScriptCat",
-      minify: true,
-      chunks: ["confirm"],
-    }),
-    new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/import.html`,
-      template: `${src}/pages/template.html`,
-      inject: "head",
-      title: "Import - ScriptCat",
-      minify: true,
-      chunks: ["import"],
-    }),
-    new rspack.HtmlRspackPlugin({
-      templateParameters: {
-        isReactTools: isReactTools ? "true" : "false",
-      },
       filename: `${dist}/ext/src/options.html`,
       template: `${src}/pages/options.html`,
       inject: "head",
-      title: "Home - ScriptCat",
+      title: "ScriptCat",
       minify: true,
       chunks: ["options"],
     }),
     new rspack.HtmlRspackPlugin({
-      filename: `${dist}/ext/src/popup.html`,
-      template: `${src}/pages/popup.html`,
+      filename: `${dist}/ext/src/confirm.html`,
+      template: `${src}/pages/confirm.html`,
       inject: "head",
-      title: "Home - ScriptCat",
+      title: "ScriptCat",
       minify: true,
-      chunks: ["popup"],
+      chunks: ["confirm"],
+    }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/batchupdate.html`,
+      template: `${src}/pages/batchupdate.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: true,
+      chunks: ["batchupdate"],
+    }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/install.html`,
+      template: `${src}/pages/install.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: true,
+      chunks: ["install"],
+    }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/import.html`,
+      template: `${src}/pages/import.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: true,
+      chunks: ["import"],
     }),
     new rspack.HtmlRspackPlugin({
       filename: `${dist}/ext/src/offscreen.html`,
@@ -321,33 +327,18 @@ export default {
           }
           if (module.type !== "css" && tag === "monaco-editor") return "lib_monaco";
           switch (tag) {
-            case "react-icons":
-              if (p.includes("/react-icons/tb")) return undefined;
-            // eslint-disable-next-line no-fallthrough
-            case "react-dropzone":
             case "react-dom":
             case "react-i18next":
             case "react-router-dom":
-            case "react-joyride":
             case "react":
               return `lib_${tag}`;
           }
           if (tag.startsWith("dnd-kit")) return "lib_dnd-kit";
-          if (tag.startsWith("popper")) return "lib_react-joyride";
           if (tag.startsWith("react-")) return "lib_react";
           if (tag.startsWith("eslint")) return "lib_eslint";
           if (tag.startsWith("i18n")) return "lib_i18n";
-          if (
-            tag.startsWith("arco-design") ||
-            tag === "resize-observer-polyfill" ||
-            tag === "b-validate" ||
-            tag === "lodash" ||
-            tag === "focus-lock"
-          ) {
-            return "lib_arco_design";
-          }
           if (tag) {
-            // cron, dayjs, yaml, jszip, prettier, ...
+            // cron, yaml, jszip, prettier, ...
             if (tag === "luxon") return "lib_cron";
             return `lib_${tag}`;
           }

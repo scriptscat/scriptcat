@@ -1,13 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
-import { AppProvider } from "../store/AppContext.tsx";
-import MainLayout from "../components/layout/MainLayout.tsx";
 import LoggerCore from "@App/app/logger/core.ts";
 import { message } from "../store/global.ts";
 import MessageWriter from "@App/app/logger/message_writer.ts";
-import "@arco-design/web-react/dist/css/arco.css";
-import "@App/locales/locales";
+import { ThemeProvider } from "../components/theme-provider.tsx";
+import { Toaster } from "../components/ui/sonner.tsx";
 import "@App/index.css";
 
 // 初始化日志组件
@@ -19,11 +17,10 @@ const loggerCore = new LoggerCore({
 loggerCore.logger().debug("confirm page start");
 
 const Root = (
-  <AppProvider>
-    <MainLayout className="!tw-flex-col !tw-px-4 tw-box-border">
-      <App />
-    </MainLayout>
-  </AppProvider>
+  <ThemeProvider>
+    <App />
+    <Toaster />
+  </ThemeProvider>
 );
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

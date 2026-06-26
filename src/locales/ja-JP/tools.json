@@ -1,0 +1,17 @@
+{
+  "development_tool": "開発ツール",
+  "vscode_url": "VSCodeアドレス",
+  "auto_connect_vscode_service": "VSCodeサービスに自動接続",
+  "connect": "接続",
+  "connection_success": "接続に成功しました",
+  "connection_failed": "接続に失敗しました",
+  "select_import_script": "新しいページでインポートするスクリプトを選択してください",
+  "import_error": "インポートエラー",
+  "pulling_data_from_cloud": "クラウドからデータを取得中",
+  "pull_failed": "取得に失敗しました",
+  "restore": "復元",
+  "local_backup": "ローカルバックアップ",
+  "cloud_backup": "クラウドバックアップ",
+  "auto_backup": "自動バックアップ",
+  "data_migration": "データ移行"
+}

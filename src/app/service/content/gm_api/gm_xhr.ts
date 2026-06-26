@@ -87,7 +87,7 @@ export const blobToDataURL = (blob: Blob): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = function () {
-      resolve(<string>this.result);
+      resolve(<string>reader.result);
     };
     reader.onerror = reject;
     reader.onabort = reject;
@@ -259,9 +259,6 @@ export function GM_xmlhttpRequest(
           break;
       }
     }
-    // const xhrType = param.responseType;
-    // const responseType = responseTypeOriginal; // 回传用
-
     // 发送信息
     let connectMessage: Promise<MessageConnect>;
     if (isDownload) {

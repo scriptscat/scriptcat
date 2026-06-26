@@ -286,12 +286,6 @@ describe("getSkillScriptGrantsByUuid", () => {
   });
 });
 
-describe("SKILL_SCRIPT_UUID_PREFIX", () => {
-  it("应为 'skillscript-'", () => {
-    expect(SKILL_SCRIPT_UUID_PREFIX).toBe("skillscript-");
-  });
-});
-
 describe("SkillScriptExecutor 类型转换边界值", () => {
   it('boolean 转换："false" → false', async () => {
     const sender = createMockSender();

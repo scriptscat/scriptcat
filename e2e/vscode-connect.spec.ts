@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures";
 import { openOptionsPage } from "./utils";
-import type { Page } from "@playwright/test";
+import type { BrowserContext, Page } from "@playwright/test";
 import { WebSocketServer, type WebSocket } from "ws";
 
 // ────────────────────────────────────────────────
@@ -8,17 +8,16 @@ import { WebSocketServer, type WebSocket } from "ws";
 // ────────────────────────────────────────────────
 
 /** 打开 Tools 页面 */
-async function openToolsPage(context: Parameters<typeof openOptionsPage>[0], extensionId: string): Promise<Page> {
+async function openToolsPage(context: BrowserContext, extensionId: string): Promise<Page> {
   const page = await openOptionsPage(context, extensionId);
   await page.goto(`chrome-extension://${extensionId}/src/options.html#/tools`);
   await page.waitForLoadState("domcontentloaded");
   return page;
 }
 
-/** 获取「开发工具」卡片区域的定位器 */
+/** 「开发工具」卡片（new-ui SettingCard，data-spy-id="dev-tools"） */
 function getDevCard(page: Page) {
-  // 开发工具 / Development Tool 卡片是页面上第二个 Card
-  return page.locator(".arco-card").nth(1);
+  return page.locator('[data-spy-id="dev-tools"]');
 }
 
 /** 启动一个临时 WebSocket 服务器，返回 URL 和清理函数 */
@@ -26,9 +25,7 @@ function createMockWSServer(): Promise<{
   url: string;
   connections: WebSocket[];
   close: () => Promise<void>;
-  /** 向所有已连接客户端发送消息 */
   broadcast: (data: unknown) => void;
-  /** 等待收到指定 action 的消息 */
   waitForAction: (action: string, timeout?: number) => Promise<unknown>;
 }> {
   return new Promise((resolve, reject) => {
@@ -37,7 +34,7 @@ function createMockWSServer(): Promise<{
 
     const wss = new WebSocketServer({ host: "127.0.0.1", port: 0 }, () => {
       const addr = wss.address();
-      if (typeof addr === "string") {
+      if (!addr || typeof addr === "string") {
         reject(new Error("Unexpected address type"));
         return;
       }
@@ -48,9 +45,7 @@ function createMockWSServer(): Promise<{
         ws.on("message", (raw) => {
           try {
             const msg = JSON.parse(raw.toString());
-            for (const listener of messageListeners) {
-              listener(msg);
-            }
+            for (const listener of messageListeners) listener(msg);
           } catch {
             // 忽略非 JSON 消息
           }
@@ -68,17 +63,15 @@ function createMockWSServer(): Promise<{
         broadcast: (data: unknown) => {
           const payload = JSON.stringify(data);
           for (const ws of connections) {
-            if (ws.readyState === ws.OPEN) {
-              ws.send(payload);
-            }
+            if (ws.readyState === ws.OPEN) ws.send(payload);
           }
         },
         waitForAction: (action: string, timeout = 10_000) =>
-          new Promise<unknown>((resolve, reject) => {
+          new Promise<unknown>((resolveAction, rejectAction) => {
             const timer = setTimeout(() => {
               const idx = messageListeners.indexOf(handler);
               if (idx >= 0) messageListeners.splice(idx, 1);
-              reject(new Error(`Timeout waiting for action: ${action}`));
+              rejectAction(new Error(`Timeout waiting for action: ${action}`));
             }, timeout);
 
             const handler = (msg: any) => {
@@ -86,7 +79,7 @@ function createMockWSServer(): Promise<{
                 clearTimeout(timer);
                 const idx = messageListeners.indexOf(handler);
                 if (idx >= 0) messageListeners.splice(idx, 1);
-                resolve(msg);
+                resolveAction(msg);
               }
             };
             messageListeners.push(handler);
@@ -106,60 +99,47 @@ test.describe("VSCode 连接", () => {
     const card = getDevCard(page);
 
     // 卡片标题
-    await expect(card.getByText(/development tool|开发工具/i)).toBeVisible();
+    await expect(card.getByText(/development tool|开发工具/i).first()).toBeVisible();
 
-    // VSCode URL 输入框
-    const urlInput = card.locator(".arco-input");
+    // VSCode URL 输入框（默认值含 ws://）
+    const urlInput = card.getByTestId("vscode_url_input");
     await expect(urlInput).toBeVisible();
-    // 默认值应包含 ws://
-    const value = await urlInput.inputValue();
-    expect(value).toMatch(/^ws:\/\//);
+    expect(await urlInput.inputValue()).toMatch(/^ws:\/\//);
 
     // 自动连接复选框
-    const checkbox = card.locator(".arco-checkbox");
-    await expect(checkbox).toBeVisible();
+    await expect(card.getByTestId("vscode_reconnect")).toBeVisible();
     await expect(card.getByText(/auto connect vscode|自动连接\s*vscode/i)).toBeVisible();
 
     // 连接按钮
-    const connectBtn = card.locator(".arco-btn-primary");
-    await expect(connectBtn).toBeVisible();
-    await expect(connectBtn.getByText(/connect|连接/i)).toBeVisible();
+    await expect(card.getByTestId("vscode_connect")).toBeVisible();
   });
 
   test("应能修改 VSCode URL 和切换自动连接", async ({ context, extensionId }) => {
     const page = await openToolsPage(context, extensionId);
     const card = getDevCard(page);
 
-    // 修改 URL
-    const urlInput = card.locator(".arco-input");
-    await urlInput.clear();
+    const urlInput = card.getByTestId("vscode_url_input");
     await urlInput.fill("ws://localhost:9999");
     await expect(urlInput).toHaveValue("ws://localhost:9999");
 
-    // 切换自动连接复选框
-    const checkbox = card.locator(".arco-checkbox input");
-    const initialChecked = await checkbox.isChecked();
-    await card.locator(".arco-checkbox").evaluate((element) => (element as HTMLElement).click());
-    const newChecked = await checkbox.isChecked();
-    expect(newChecked).toBe(!initialChecked);
+    const checkbox = card.getByTestId("vscode_reconnect");
+    const initialChecked = await checkbox.getAttribute("aria-checked");
+    await checkbox.click();
+    await expect(checkbox).not.toHaveAttribute("aria-checked", initialChecked || "");
   });
 
-  test("点击连接按钮应发送连接命令", async ({ context, extensionId }) => {
+  test("点击连接按钮应发送连接命令并提示成功", async ({ context, extensionId }) => {
     const page = await openToolsPage(context, extensionId);
     const card = getDevCard(page);
 
-    // 连接按钮存在且可点击
-    const connectBtn = card.locator(".arco-btn-primary");
-    await connectBtn.evaluate((element) => (element as HTMLElement).click());
+    // connectVSCode 为消息传递操作，消息投递成功即 resolve，
+    // 即使没有 WebSocket 服务器运行也应显示「连接成功」toast。
+    await card.getByTestId("vscode_connect").click();
 
-    // connectVSCode 是消息传递操作，消息投递成功即 resolve，
-    // 所以即使没有 WebSocket 服务器运行，也应显示「连接成功」提示
-    const successMsg = page.locator(".arco-message").getByText(/connection successful|连接成功/i);
-    await expect(successMsg).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/connection success|连接成功/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("应能通过 WebSocket 连接并接收脚本同步", async ({ context, extensionId }) => {
-    // 启动 Mock WebSocket 服务器
     const server = await createMockWSServer();
 
     try {
@@ -167,29 +147,20 @@ test.describe("VSCode 连接", () => {
       const card = getDevCard(page);
 
       // 设置 URL 为 Mock 服务器地址
-      const urlInput = card.locator(".arco-input");
-      await urlInput.clear();
+      const urlInput = card.getByTestId("vscode_url_input");
       await urlInput.fill(server.url);
 
-      // 在点击连接之前就开始监听 hello 消息，避免竞态
+      // 点击连接前先监听 hello 握手，避免竞态
       const helloPromise = server.waitForAction("hello", 30_000);
 
-      // 点击连接
-      const connectBtn = card.locator(".arco-btn-primary");
-      await expect(connectBtn).toBeVisible({ timeout: 10_000 });
-      await connectBtn.evaluate((element) => (element as HTMLElement).click());
+      await card.getByTestId("vscode_connect").click();
+      await expect(page.getByText(/connection success|连接成功/i).first()).toBeVisible({ timeout: 10_000 });
 
-      // 等待「连接成功」消息
-      const successMsg = page.locator(".arco-message").getByText(/connection successful|连接成功/i);
-      await expect(successMsg).toBeVisible({ timeout: 10_000 });
-
-      // 等待收到 hello 握手消息
+      // 收到 hello 握手
       await helloPromise;
-
-      // 验证客户端已连接
       expect(server.connections.length).toBeGreaterThanOrEqual(1);
 
-      // 发送 onchange 消息，模拟 VSCode 推送脚本
+      // 推送 onchange，模拟 VSCode 同步脚本
       const testScript = `// ==UserScript==
 // @name         VSCode E2E Test Script
 // @namespace    https://e2e.test/vscode
@@ -201,19 +172,14 @@ test.describe("VSCode 连接", () => {
 
 console.log("VSCode synced script");
 `;
-
       server.broadcast({
         action: "onchange",
-        data: {
-          script: testScript,
-          uri: "file:///e2e-test/vscode-sync-test.user.js",
-        },
+        data: { script: testScript, uri: "file:///e2e-test/vscode-sync-test.user.js" },
       });
 
-      // 验证脚本已安装：导航到脚本列表，检查脚本是否出现
+      // 脚本应安装并出现在列表
       const listPage = await openOptionsPage(context, extensionId);
-      const scriptItem = listPage.getByText("VSCode E2E Test Script");
-      await expect(scriptItem).toBeVisible({ timeout: 15_000 });
+      await expect(listPage.getByText("VSCode E2E Test Script")).toBeVisible({ timeout: 15_000 });
       await listPage.close();
     } finally {
       await server.close();

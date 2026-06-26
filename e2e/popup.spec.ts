@@ -1,53 +1,34 @@
 import { test, expect } from "./fixtures";
 import { openPopupPage } from "./utils";
 
-test.describe("Popup Page", () => {
-  test("should load and display ScriptCat title", async ({ context, extensionId }) => {
+// new-ui popup（shadcn）：标题 h1、全局 Radix Switch、Radix Accordion 分组、
+// 图标按钮（aria-label 设置/更多菜单）、Radix DropdownMenu（role=menuitem）。
+test.describe("Popup 页面", () => {
+  test("应加载并显示 ScriptCat 标题", async ({ context, extensionId }) => {
     const page = await openPopupPage(context, extensionId);
-
-    // The popup should show "ScriptCat" title in the card header
     await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
   });
 
-  test("should show global script enable/disable switch", async ({ context, extensionId }) => {
+  test("应显示全局脚本启用/禁用开关", async ({ context, extensionId }) => {
     const page = await openPopupPage(context, extensionId);
-
-    // The switch for enabling/disabling scripts should be present
-    const globalSwitch = page.locator(".arco-switch").first();
-    await expect(globalSwitch).toBeVisible({ timeout: 10_000 });
+    // 顶部全局开关为 Radix Switch（role=switch）
+    await expect(page.getByRole("switch").first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("should render Collapse sections for scripts", async ({ context, extensionId }) => {
+  test("应渲染脚本分组折叠区", async ({ context, extensionId }) => {
     const page = await openPopupPage(context, extensionId);
-
-    // Wait for the collapse component to render
-    const collapse = page.locator(".arco-collapse");
-    await expect(collapse).toBeVisible({ timeout: 10_000 });
-
-    // Should have at least one collapse item (current page scripts)
-    const collapseItems = page.locator(".arco-collapse-item");
-    const count = await collapseItems.count();
-    expect(count).toBeGreaterThanOrEqual(1);
+    // 「当前页运行脚本」分组标题（0 脚本时分组仍渲染，仅内容为空提示）
+    await expect(page.getByText(/current page|当前页/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("should have settings button that works", async ({ context, extensionId }) => {
+  test("点击设置按钮应打开选项页", async ({ context, extensionId }) => {
     const page = await openPopupPage(context, extensionId);
-
-    // Wait for the popup to fully load
     await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
-
-    // Find the settings button - it's an icon-only button in the header
-    // The order is: Switch, Settings, Notification, MoreMenu
-    const iconButtons = page.locator(".arco-btn-icon-only");
-    // Settings is the first icon-only button
-    const settingsBtn = iconButtons.first();
-    await expect(settingsBtn).toBeVisible();
 
     const existingPages = new Set(context.pages());
-    await settingsBtn.click();
+    await page.getByLabel(/settings|设置/i).click();
 
-    // Startup guide pages may open around the same time; assert on the
-    // settings page specifically instead of whichever page event arrives first.
+    // 首次引导页等可能同时打开，断言专门匹配 options 页而非最先到达的 page
     await expect
       .poll(
         () =>
@@ -60,22 +41,14 @@ test.describe("Popup Page", () => {
       .toMatch(/options\.html/);
   });
 
-  test("should show more menu dropdown with items", async ({ context, extensionId }) => {
+  test("更多菜单应展开并含多个菜单项", async ({ context, extensionId }) => {
     const page = await openPopupPage(context, extensionId);
-
-    // Wait for popup to load
     await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
 
-    // The more menu button is the last icon-only button
-    const iconButtons = page.locator(".arco-btn-icon-only");
-    const count = await iconButtons.count();
-    const moreBtn = iconButtons.nth(count - 1);
-    await moreBtn.click();
+    await page.getByLabel(/more menu|更多菜单/i).click();
 
-    // The dropdown menu items use role="menuitem"
     const menuItems = page.locator('[role="menuitem"]');
     await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
-    const itemCount = await menuItems.count();
-    expect(itemCount).toBeGreaterThanOrEqual(3);
+    expect(await menuItems.count()).toBeGreaterThanOrEqual(3);
   });
 });

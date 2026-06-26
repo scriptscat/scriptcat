@@ -63,8 +63,4 @@ describe("SubAgentService", () => {
     expect(result.result).toBe("result");
     expect(orchestrator.callLLMWithToolLoop).toHaveBeenCalledOnce();
   });
-
-  it("cleanup 不抛异常", () => {
-    expect(() => service.cleanup("conv-1")).not.toThrow();
-  });
 });

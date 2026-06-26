@@ -73,7 +73,7 @@ export default class ScriptingRuntime {
     deliveryStorage.onChanged.addListener((changes) => {
       const record = changes["valueUpdateDelivery"];
       if (record?.newValue) {
-        const sendData = record.newValue.sendData as ValueUpdateDataEncoded;
+        const sendData = (record.newValue as { sendData: ValueUpdateDataEncoded }).sendData;
         const activeOn =
           this.activeStorageNames === null
             ? PageOrContent.PAGE_AND_CONTENT

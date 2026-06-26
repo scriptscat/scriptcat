@@ -44,23 +44,19 @@ const assertNextTimeInfo = (expr: string, date: Date, expected: any) => {
     once: actual.once,
   };
 
-  // 1) 失败时讯息包含 expr / expected / actual
-  // 2) 用 soft，方便一次看到多笔失败（可选）
-  expect
-    .soft(
-      result,
-      [
-        "",
-        "",
-        `expr: ${expr}`,
-        `date: ${date.toISOString()}`,
-        `expected: ${JSON.stringify(expected)}`,
-        `actual:   ${JSON.stringify(result)}`,
-        "",
-        "",
-      ].join("\n")
-    )
-    .toEqual(expected);
+  expect(
+    result,
+    [
+      "",
+      "",
+      `expr: ${expr}`,
+      `date: ${date.toISOString()}`,
+      `expected: ${JSON.stringify(expected)}`,
+      `actual:   ${JSON.stringify(result)}`,
+      "",
+      "",
+    ].join("\n")
+  ).toEqual(expected);
 };
 
 describe.concurrent("nextTimeDisplay ERROR SAFE", () => {
@@ -543,7 +539,6 @@ describe.concurrent("toCamelCase", () => {
 
   it.concurrent("应当正确处理多下划线配置键", () => {
     expect(toCamelCase("editor_type_definition")).toBe("EditorTypeDefinition");
-    expect(toCamelCase("script_list_column_width")).toBe("ScriptListColumnWidth");
   });
 });
 

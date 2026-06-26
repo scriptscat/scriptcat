@@ -1,91 +1,60 @@
 import { test, expect } from "./fixtures";
 import { openOptionsPage } from "./utils";
 
-test.describe("Options Page", () => {
-  test("should load and display ScriptCat title and logo", async ({ context, extensionId }) => {
+// new-ui 选项页（shadcn）：侧边栏为 React Router NavLink（HashRouter → a[href="#/..."]），
+// 主题切换为循环按钮(data-testid="theme-toggle")，新建脚本为 Radix 下拉
+// (data-testid="create-script")，脚本列表空状态 data-testid="script-list-empty"。
+test.describe("Options 选项页", () => {
+  test("应加载并显示 ScriptCat 标题和 Logo", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
-
-    // Check logo is visible
-    const logo = page.locator('img[alt="ScriptCat"]');
-    await expect(logo).toBeVisible();
-
-    // Check title text
-    await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible();
+    await expect(page.locator('img[alt="ScriptCat"]')).toBeVisible();
+    await expect(page.getByText("ScriptCat", { exact: true }).first()).toBeVisible();
   });
 
-  test("should navigate via sidebar menu items", async ({ context, extensionId }) => {
+  test("应通过侧边栏导航切换路由", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
+    const side = page.locator("aside");
+    await expect(side).toBeVisible();
 
-    // Wait for the sidebar menu to be visible (use first() since there are two menus)
-    await expect(page.locator(".arco-menu").first()).toBeVisible();
+    await side.locator('a[href="#/subscribe"]').click();
+    await expect(page).toHaveURL(/#\/subscribe/);
 
-    // Click "Subscribe" / "订阅" menu item and verify route change
-    await page
-      .locator(".arco-menu-item")
-      .filter({ hasText: /subscribe|订阅/i })
-      .first()
-      .click();
-    await expect(page).toHaveURL(/.*#\/subscribe/);
+    await side.locator('a[href="#/logs"]').click();
+    await expect(page).toHaveURL(/#\/logs/);
 
-    // Click "Logs" / "日志" menu item
-    await page
-      .locator(".arco-menu-item")
-      .filter({ hasText: /log|日志/i })
-      .first()
-      .click();
-    await expect(page).toHaveURL(/.*#\/logger/);
+    await side.locator('a[href="#/tools"]').click();
+    await expect(page).toHaveURL(/#\/tools/);
 
-    // Click "Tools" / "工具" menu item (use .menu-tools class to avoid hitting "CATool" submenu)
-    await page.locator(".menu-tools .arco-menu-item").click();
-    await expect(page).toHaveURL(/.*#\/tools/);
+    await side.locator('a[href="#/settings"]').click();
+    await expect(page).toHaveURL(/#\/settings/);
 
-    // Click "Settings" / "设置" menu item (use .menu-setting to avoid matching agent_settings in submenu)
-    await page.locator(".menu-setting .arco-menu-item").click();
-    await expect(page).toHaveURL(/.*#\/setting/);
-
-    // Navigate back to script list (home) - click the first menu item
-    await page
-      .locator(".arco-menu-item")
-      .filter({ hasText: /installed.*script|已安装脚本/i })
-      .first()
-      .click();
-    await expect(page).toHaveURL(/.*#\//);
+    // 返回首页（脚本列表）
+    await side.locator('a[href="#/"]').first().click();
+    await expect(page).toHaveURL(/options\.html#\/$/);
   });
 
-  test("should show theme switch dropdown with light/dark/auto options", async ({ context, extensionId }) => {
+  test("主题切换按钮应在亮/暗/自动间循环", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
+    const themeBtn = page.getByTestId("theme-toggle");
+    await expect(themeBtn).toBeVisible();
 
-    // Find the theme toggle button in the action-tools area (icon-only button)
-    const actionTools = page.locator(".action-tools");
-    const themeButton = actionTools.locator(".arco-btn-icon-only").first();
-    await themeButton.click();
+    // 循环切换会更换图标（Sun/Moon/Monitor），断言图标 class 变化
+    const before = await themeBtn.locator("svg").getAttribute("class");
+    await themeBtn.click();
+    await expect.poll(() => themeBtn.locator("svg").getAttribute("class"), { timeout: 5_000 }).not.toBe(before);
+  });
 
-    // Verify dropdown with theme options appears - use role="menuitem"
+  test("新建脚本按钮应展开下拉菜单", async ({ context, extensionId }) => {
+    const page = await openOptionsPage(context, extensionId);
+    await page.getByTestId("create-script").click();
+
     const menuItems = page.locator('[role="menuitem"]');
     await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
-    const count = await menuItems.count();
-    expect(count).toBeGreaterThanOrEqual(3);
+    expect(await menuItems.count()).toBeGreaterThanOrEqual(3);
   });
 
-  test("should show create script dropdown menu", async ({ context, extensionId }) => {
+  test("脚本列表为空时应显示空状态", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
-
-    // The create script button is the first text button in action-tools
-    const createBtn = page.locator(".action-tools .arco-btn-text").first();
-    await createBtn.click();
-
-    // Verify dropdown menu appears - use role="menuitem"
-    const menuItems = page.locator('[role="menuitem"]');
-    await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
-    const count = await menuItems.count();
-    expect(count).toBeGreaterThanOrEqual(3);
-  });
-
-  test("should show empty state when script list is empty", async ({ context, extensionId }) => {
-    const page = await openOptionsPage(context, extensionId);
-
-    // The empty state component from arco-design should be visible
-    const emptyState = page.locator(".arco-empty");
-    await expect(emptyState).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("script-list-empty")).toBeVisible({ timeout: 10_000 });
   });
 });

@@ -1,23 +1,13 @@
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
+import type { Message } from "@Packages/message/types";
 
 const nilFn: ScriptFunc = () => {};
 
-const scriptRes = {
-  id: 0,
-  name: "test",
-  metadata: {
-    grant: ["none"],
-    version: ["1.0.0"],
-  },
-  code: "console.log('test')",
-  sourceCode: "sourceCode",
-  value: {},
-} as unknown as ScriptLoadInfo;
 const envInfo: GMInfoEnv = {
   sandboxMode: "raw",
   userAgentData: {
@@ -28,50 +18,52 @@ const envInfo: GMInfoEnv = {
   isIncognito: false,
 };
 
-const noneExec = new ExecScript(scriptRes, {
-  envPrefix: "scripting",
-  message: undefined as any,
-  contentMsg: undefined as any,
-  code: nilFn,
-  envInfo,
-});
+function makeScript(overrides: Partial<ScriptLoadInfo> = {}): ScriptLoadInfo {
+  return {
+    id: 0,
+    name: "test",
+    metadata: { version: ["1.0.0"] },
+    code: "",
+    sourceCode: "sourceCode",
+    value: {},
+    ...overrides,
+  } as unknown as ScriptLoadInfo;
+}
 
-const scriptRes2 = {
-  id: 0,
-  name: "test",
-  metadata: {
-    version: ["1.0.0"],
-  },
-  code: "console.log('test')",
-  sourceCode: "sourceCode",
-  value: {},
-} as unknown as ScriptLoadInfo;
+function setExecCode(exec: ExecScript, script: ScriptLoadInfo, code: string): void {
+  script.code = code;
+  exec.scriptFunc = compileScript(compileScriptCode(script));
+}
 
-const sandboxExec = new ExecScript(scriptRes2, {
-  envPrefix: "scripting",
-  message: undefined as any,
-  contentMsg: undefined as any,
-  code: nilFn,
-  envInfo,
-});
+function makeExec(code: string, grant?: string[]): { exec: ExecScript; script: ScriptLoadInfo } {
+  const script = makeScript({ code, metadata: { grant, version: ["1.0.0"] } });
+  const message = {} as Message;
+  const exec = new ExecScript(script, {
+    envPrefix: "scripting",
+    message,
+    contentMsg: message,
+    code: nilFn,
+    envInfo,
+  });
+  setExecCode(exec, script, code);
+  return { exec, script };
+}
 
 describe.concurrent("GM_info", () => {
   it.concurrent("none", async () => {
-    expect(noneExec.sandboxContext).toBeUndefined();
-    expect(noneExec.named).not.toBeUndefined();
-    scriptRes.code = "return {_this:this,GM_info};";
-    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes));
-    const ret = await noneExec.exec();
+    const { exec } = makeExec("return {_this:this,GM_info};", ["none"]);
+    expect(exec.sandboxContext).toBeUndefined();
+    expect(exec.named).not.toBeUndefined();
+    const ret = await exec.exec();
     expect(ret.GM_info.version).toEqual(ExtVersion);
     expect(ret.GM_info.script.version).toEqual("1.0.0");
     expect(ret._this).toEqual(global);
   });
   it.concurrent("sandbox", async () => {
-    expect(sandboxExec.sandboxContext).not.toBeUndefined();
-    expect(sandboxExec.named).toBeUndefined();
-    scriptRes2.code = "return {_this:this,GM_info};";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    const { exec } = makeExec("return {_this:this,GM_info};");
+    expect(exec.sandboxContext).not.toBeUndefined();
+    expect(exec.named).toBeUndefined();
+    const ret = await exec.exec();
     expect(ret.GM_info.version).toEqual(ExtVersion);
     expect(ret.GM_info.script.version).toEqual("1.0.0");
     expect(ret._this).not.toEqual(global);
@@ -80,178 +72,166 @@ describe.concurrent("GM_info", () => {
 
 describe.concurrent("unsafeWindow", () => {
   it.concurrent("unsafeWindow available", async () => {
-    const ret0 = sandboxExec.sandboxContext?.unsafeWindow === global;
+    const { exec, script } = makeExec("return unsafeWindow");
+    const ret0 = exec.sandboxContext?.unsafeWindow === global;
     expect(ret0).toEqual(true);
-    scriptRes2.code = `return unsafeWindow`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    const ret = await exec.exec();
     expect(ret).toEqual(global);
-    scriptRes2.code = `return window`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret3 = await sandboxExec.exec();
+    setExecCode(exec, script, "return window");
+    const ret3 = await exec.exec();
     expect(ret3).not.toEqual(global);
   });
 
   it.concurrent("sandbox", async () => {
-    const ret0 = sandboxExec.sandboxContext?.unsafeWindow === global;
+    const { exec, script } = makeExec("return unsafeWindow.testUnsafeWindow");
+    const ret0 = exec.sandboxContext?.unsafeWindow === global;
     expect(ret0).toEqual(true);
-    // @ts-ignore
-    global.testUnsafeWindow = "ok";
-    scriptRes2.code = `return unsafeWindow.testUnsafeWindow`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
-    expect(ret).toEqual("ok");
-    scriptRes2.code = "return window.testUnsafeWindow";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret2 = await sandboxExec.exec();
-    expect(ret2).toEqual(undefined);
+    const testGlobal = global as typeof global & { testUnsafeWindow?: string };
+    testGlobal.testUnsafeWindow = "ok";
+    try {
+      const ret = await exec.exec();
+      expect(ret).toEqual("ok");
+      setExecCode(exec, script, "return window.testUnsafeWindow");
+      const ret2 = await exec.exec();
+      expect(ret2).toEqual(undefined);
+    } finally {
+      delete testGlobal.testUnsafeWindow;
+    }
   });
 
   it.concurrent("sandbox NodeFilter", async () => {
+    const { exec, script } = makeExec("return unsafeWindow.NodeFilter");
     const nodeFilter = global.NodeFilter;
-    expect(nodeFilter).toEqual(expect.any(Function));
-    scriptRes2.code = `return unsafeWindow.NodeFilter`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    expect(nodeFilter.FILTER_REJECT).toEqual(2);
+    const ret = await exec.exec();
     expect(ret).toEqual(nodeFilter);
-    scriptRes2.code = "return window.NodeFilter";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret2 = await sandboxExec.exec();
+    setExecCode(exec, script, "return window.NodeFilter");
+    const ret2 = await exec.exec();
     expect(ret2).toEqual(nodeFilter);
   });
 });
 
 describe.concurrent("sandbox", () => {
   it.concurrent("global", async () => {
-    scriptRes2.code = "window.testObj = 'ok';return window.testObj";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    let ret = await sandboxExec.exec();
+    const { exec, script } = makeExec("window.testObj = 'ok';return window.testObj");
+    let ret = await exec.exec();
     expect(ret).toEqual("ok");
-    scriptRes2.code = "window.testObj = 'ok2';return testObj";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    ret = await sandboxExec.exec();
+    setExecCode(exec, script, "window.testObj = 'ok2';return testObj");
+    ret = await exec.exec();
     expect(ret).toEqual("ok2");
   });
   it.concurrent("this", async () => {
-    scriptRes2.code = "this.testObj='ok2';return testObj;";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    const { exec } = makeExec("this.testObj='ok2';return testObj;");
+    const ret = await exec.exec();
     expect(ret).toEqual("ok2");
   });
   it.concurrent("this2", async () => {
-    scriptRes2.code = `
+    const { exec } = makeExec(`
     !function(t, e) {
       "object" == typeof exports ? module.exports = exports = e() : "function" == typeof define && define.amd ? define([], e) : t.CryptoJS = e()
   } (this, function () {
       return { test: "ok3" }
   });
-  return CryptoJS.test;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+  return CryptoJS.test;`);
+    const ret = await exec.exec();
     expect(ret).toEqual("ok3");
   });
 
   // 沉浸式翻译, 常量值被改变
   it.concurrent("NodeFilter #214", async () => {
-    scriptRes2.code = `return NodeFilter.FILTER_REJECT;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    const { exec } = makeExec("return NodeFilter.FILTER_REJECT;");
+    const ret = await exec.exec();
     expect(ret).toEqual(2);
   });
 
   // RegExp.$x 内容被覆盖 https://github.com/scriptscat/scriptcat/issues/293
   it.concurrent("RegExp", async () => {
-    scriptRes2.code = `let ok = /12(3)/.test('123');return RegExp.$1;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    const { exec } = makeExec("let ok = /12(3)/.test('123');return RegExp.$1;");
+    const ret = await exec.exec();
     expect(ret).toEqual("3");
   });
 });
 
 describe("this", () => {
   it("onload", async () => {
+    const { exec } = makeExec("onload = ()=>{};return onload;");
     // null确认
     global.onload = null;
     expect(global.onload).toBeNull();
     // onload 改变，global.onload不改变
-    scriptRes2.code = `onload = ()=>{};return onload;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    const ret = await exec.exec();
     expect(ret).toEqual(expect.any(Function));
     // global.onload
     expect(global.onload).toBeNull();
   });
   it("this.onload", async () => {
+    const { exec } = makeExec('this.onload = () => "ok"; return this.onload;');
     // null确认
     global.onload = null;
     expect(global.onload).toBeNull();
     // this.onload 改变，global.onload不改变
-    scriptRes2.code = `this.onload = () => "ok"; return this.onload;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    const ret = await exec.exec();
     expect(ret).toEqual(expect.any(Function));
     // global.onload
     expect(global.onload).toBeNull();
   });
   it.concurrent("undefined variable", async () => {
-    scriptRes2.code = `return typeof testVar;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    const { exec } = makeExec("return typeof testVar;");
+    const ret = await exec.exec();
     expect(ret).toEqual("undefined");
   });
   it.concurrent("undefined variable in global", async () => {
-    scriptRes2.code = `return testVar;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const { exec } = makeExec("return testVar;");
     // 在沙盒中访问未定义的变量会抛出错误
-    try {
-      await sandboxExec.exec();
-      // 如果没有抛出错误，测试应该失败
-      expect.fail("Expected an error to be thrown when accessing undefined variable");
-    } catch (e: any) {
-      expect(e.message).toContain("testVar is not defined");
-    }
+    await expect(exec.exec()).rejects.toThrow("testVar is not defined");
   });
 });
 
 describe("none this", () => {
   it("onload", async () => {
-    scriptRes2.code = `onload = ()=>{};return onload;`;
-    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await noneExec.exec();
+    const { exec } = makeExec("onload = ()=>{};return onload;", ["none"]);
+    const ret = await exec.exec();
     expect(ret).toEqual(expect.any(Function));
     // global.onload
     expect(global.onload).toEqual(expect.any(Function));
     global.onload = null; // 清理全局变量
   });
   it.concurrent("this.test", async () => {
-    scriptRes2.code = `this.test = "ok";return this.test;`;
-    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await noneExec.exec();
+    const { exec } = makeExec('this.test = "ok";return this.test;', ["none"]);
+    const ret = await exec.exec();
     expect(ret).toEqual("ok");
+    delete (global as typeof global & { test?: string }).test;
   });
 });
 
-describe("沙盒环境测试", async () => {
-  //@ts-ignore
-  global.gbok = "gbok";
-  Object.assign(global, { gbok2: "gbok2" });
-  //@ts-ignore
-  global.gbok3 = function gbok3() {};
-  Object.assign(global, { gbok4: function gbok4() {} });
-  //@ts-ignore
-  global.gbok5 = { test: "gbok5" };
-  Object.assign(global, { gbok6: { test: "gbok6" } });
+describe("沙盒环境测试", () => {
+  const _global = global as typeof global & Record<string, any>;
+  let _win: Record<string, any>;
+  let _this: Record<PropertyKey, any>;
 
-  const _global = <any>global;
+  beforeAll(async () => {
+    const { exec } = makeExec("return [window, this];");
+    Object.assign(global, {
+      gbok: "gbok",
+      gbok2: "gbok2",
+      gbok3: function gbok3() {},
+      gbok4: function gbok4() {},
+      gbok5: { test: "gbok5" },
+      gbok6: { test: "gbok6" },
+    });
+    [_win, _this] = await exec.exec();
+    expect(_win).toEqual(expect.any(Object));
+    expect(_win.setTimeout).toEqual(expect.any(Function));
+  });
 
-  scriptRes2.code = `return [window, this];`;
-  sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-  const [_win, _this] = await sandboxExec.exec();
-  expect(_win).toEqual(expect.any(Object));
-  expect(_win.setTimeout).toEqual(expect.any(Function));
+  afterAll(() => {
+    for (const key of ["gbok", "gbok2", "gbok3", "gbok4", "gbok5", "gbok6", "testSVar1", "testSVar2"]) {
+      delete _global[key];
+    }
+  });
 
-  describe.concurrent("测试全局变量访问性", () => {
-    it.concurrent("global gbok", () => {
+  describe("测试全局变量访问性", () => {
+    it("global gbok", () => {
       expect(_global["gbok"]).toEqual("gbok");
       expect(_global["gbok2"]).toEqual("gbok2");
       expect(_global["gbok3"]?.name).toEqual("gbok3");
@@ -261,7 +241,7 @@ describe("沙盒环境测试", async () => {
       // 这是后来新加入的值，沙盒中应该是无法访问的
       expect(_this["gbok"]).toEqual(undefined);
     });
-    it.concurrent("global sandboxTestValue", () => {
+    it("global sandboxTestValue", () => {
       expect(_global["sandboxTestValue"]).toEqual("sandboxTestValue");
       // 这是初始的值，沙盒中应该是可以访问的
       expect(_this["sandboxTestValue"]).toEqual("sandboxTestValue");
@@ -276,7 +256,7 @@ describe("沙盒环境测试", async () => {
     });
   });
 
-  it.concurrent("set contenxt", () => {
+  it("设置沙盒上下文", () => {
     _this["test_md5"] = "ok";
     expect(_this["test_md5"]).toEqual("ok");
     expect(_global["test_md5"]).toEqual(undefined);
@@ -357,7 +337,7 @@ describe("沙盒环境测试", async () => {
   });
 
   // https://github.com/scriptscat/scriptcat/issues/273
-  it.concurrent("禁止穿透global对象", () => {
+  it("禁止穿透global对象", () => {
     expect(_this["gbok"]).toBeUndefined();
     expect(_this["gbok2"]).toBeUndefined();
     expect(_this["gbok3"]).toBeUndefined();
@@ -366,7 +346,7 @@ describe("沙盒环境测试", async () => {
     expect(_this["gbok6"]).toBeUndefined();
   });
 
-  it.concurrent("禁止修改window", () => {
+  it("禁止修改window", () => {
     // expect(() => (_this["window"] = "ok")).toThrow();
     expect(() => {
       const before = _this["window"];
@@ -375,16 +355,16 @@ describe("沙盒环境测试", async () => {
     }).toThrow();
   });
 
-  it.concurrent("访问location", () => {
+  it("访问location", () => {
     expect(_this.location).not.toBeUndefined();
   });
 
   // 只允许访问onxxxxx
-  it.concurrent("window.onxxxxx", () => {
+  it("window.onxxxxx", () => {
     expect(_this.onanimationstart).toBeNull();
   });
 
-  it.concurrent("[兼容问题] Ensure Illegal invocation can be tested", () => {
+  it("[兼容问题] Ensure Illegal invocation can be tested", () => {
     expect(global.setTimeout.name).toEqual("setTimeout");
     // -----
     //@ts-ignore
@@ -408,59 +388,54 @@ describe("沙盒环境测试", async () => {
     expect(() => global.setTimeoutForTest2.call({}, () => {}, 1)).toThrow();
   });
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
-  it.concurrent("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
+  it("[兼容问题] Uncaught TypeError: Illegal invocation #189", async () => {
     // setTimeout 和 setTimeoutForTest1 都测试吧
     const promise1 = new Promise((resolve) => {
-      console.log(_this.setTimeout.prototype);
       _this.setTimeoutForTest1(resolve, 1);
     });
     const promise2 = new Promise((resolve) => {
-      console.log(_this.setTimeout.prototype);
       _this.setTimeout(resolve, 1);
     });
     const res = Promise.all([promise1, promise2]);
-    expect(res.then((res) => (!res[0] && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
+    await expect(res.then((res) => (!res[0] && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
   });
   // AC-baidu-重定向优化百度搜狗谷歌必应搜索_favicon_双列
-  it.concurrent("[兼容问题] TypeError: Object.freeze is not a function #116", () => {
+  it("[兼容问题] TypeError: Object.freeze is not a function #116", () => {
     expect(() => _this.Object.freeze({})).not.toThrow();
   });
-  it.concurrent("Proxy Function #985", () => {
+  it("Proxy Function #985", async () => {
     // setTimeout 和 setTimeoutForTest2 都测试吧
     const promise1 = new Promise((resolve) => {
-      console.log(_this.setTimeout.prototype);
       _this.setTimeoutForTest2(resolve, 1);
     });
     const promise2 = new Promise((resolve) => {
-      console.log(_this.setTimeout.prototype);
       _this.setTimeout(resolve, 1);
     });
     const res = Promise.all([promise1, promise2]);
-    expect(res.then((res) => (res[0] === "proxy" && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
+    await expect(res.then((res) => (res[0] === "proxy" && !res[1] ? "ok" : "ng"))).resolves.toBe("ok");
   });
 
   const tag = (<any>global)[Symbol.toStringTag]; // 实际环境：'[object Window]' 测试环境：'[object global]'
 
   // 允许往global写入Symbol属性,影响内容: https://bbs.tampermonkey.net.cn/thread-5509-1-1.html
-  it.concurrent("Symbol", () => {
+  it("Symbol", () => {
     const s = Symbol("test");
     _this[s] = "ok";
     expect(_this[s]).toEqual("ok");
   });
   // toString.call(window)返回的是'[object Object]',影响内容: https://github.com/scriptscat/scriptcat/issues/260
-  it.concurrent("toString.call(window)", () => {
+  it("toString.call(window)", () => {
     expect(toString.call(_this)).toEqual(`[object Window]`);
   });
 
   // 与TM保持一致，toString返回global([object Window]) #737
-  it.concurrent("toString", async () => {
-    scriptRes2.code = `return {
+  it("toString", async () => {
+    const { exec } = makeExec(`return {
       toStringThis: {}.toString.call(this),
       toStringWindow: {}.toString.call(window),
       toString: toString(),
-    }`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
-    const ret = await sandboxExec.exec();
+    }`);
+    const ret = await exec.exec();
     expect(ret).toEqual({
       toStringThis: `[object Window]`,
       toStringWindow: `[object Window]`,
@@ -469,7 +444,7 @@ describe("沙盒环境测试", async () => {
   });
 
   // Object.hasOwnProperty穿透 https://github.com/scriptscat/scriptcat/issues/272
-  it.concurrent("[穿透测试] Object.hasOwnProperty", () => {
+  it("[穿透测试] Object.hasOwnProperty", () => {
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(false);
     _this.test1 = "ok";
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(true);
@@ -479,7 +454,7 @@ describe("沙盒环境测试", async () => {
   // https://github.com/scriptscat/scriptcat/issues/962
   // window.constructor === Window
   // window instanceof Window === false
-  it.concurrent("TM Sandbox Window", () => {
+  it("TM Sandbox Window", () => {
     const window = global;
     //@ts-ignore
     expect(_win.PERSISTENT === window.PERSISTENT).toEqual(true);
@@ -503,7 +478,7 @@ describe("沙盒环境测试", async () => {
     expect(Object.getPrototypeOf(_win) === null).toEqual(true);
   });
 
-  it.concurrent("特殊关键字不能穿透沙盒", async () => {
+  it("特殊关键字不能穿透沙盒", () => {
     expect(_global["define"]).toEqual("特殊关键字不能穿透沙盒");
     expect(_this["define"]).toBeUndefined();
     _this["define"] = "ok";
@@ -511,60 +486,30 @@ describe("沙盒环境测试", async () => {
     expect(_global["define"]).toEqual("特殊关键字不能穿透沙盒");
   });
 
-  it.concurrent("RegExp", async () => {
-    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    const exec = new ExecScript(script, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    script.code = `const str = "12345";
+  it("RegExp", async () => {
+    const { exec } = makeExec(`const str = "12345";
 const reg = /(123)/;
-return [str.match(reg), RegExp.$1];`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+return [str.match(reg), RegExp.$1];`);
     const ret = await exec.exec();
     expect(ret?.[0][1]).toEqual("123");
     expect(ret?.[1]).toEqual("123");
   });
-  it.concurrent("沙盒之间不应该共享变量", async () => {
-    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script.code = `this.testVar = "ok"; ttest1 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
-    const exec1 = new ExecScript(script, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    exec1.scriptFunc = compileScript(compileScriptCode(script));
+  it("沙盒之间不应该共享变量", async () => {
+    const { exec: exec1 } = makeExec(
+      `this.testVar = "ok"; ttest1 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`
+    );
     const ret1 = await exec1.exec();
     expect(ret1).toEqual({ testVar: "ok", testVar2: undefined, ttest1: "string", ttest2: "number" });
 
-    const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script2.code = `this.testVar2 = "ok"; ttest2 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
-    const exec2 = new ExecScript(script2, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    exec2.scriptFunc = compileScript(compileScriptCode(script2));
+    const { exec: exec2 } = makeExec(
+      `this.testVar2 = "ok"; ttest2 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`
+    );
     const ret2 = await exec2.exec();
     expect(ret2).toEqual({ testVar: undefined, testVar2: "ok", ttest1: "number", ttest2: "string" });
 
-    const script3 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script3.code = `onload = function (){return 123}; return {onload, thisOnload: this.onload, winOnload: window.onload};`;
-    const exec3 = new ExecScript(script3, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    exec3.scriptFunc = compileScript(compileScriptCode(script3));
+    const { exec: exec3 } = makeExec(
+      `onload = function (){return 123}; return {onload, thisOnload: this.onload, winOnload: window.onload};`
+    );
     const ret3 = await exec3.exec();
     expect(ret3.onload).toEqual(expect.any(Function));
     expect(ret3.thisOnload).toEqual(expect.any(Function));
@@ -573,16 +518,9 @@ return [str.match(reg), RegExp.$1];`;
     expect(ret3.winOnload).toEqual(ret3.onload);
     const cacheRet3Onload = ret3.onload;
 
-    const script4 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script4.code = `onload = function (){return 456}; return {onload, thisOnload: this.onload, winOnload: window.onload};`;
-    const exec4 = new ExecScript(script4, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    exec4.scriptFunc = compileScript(compileScriptCode(script4));
+    const { exec: exec4 } = makeExec(
+      `onload = function (){return 456}; return {onload, thisOnload: this.onload, winOnload: window.onload};`
+    );
     const ret4 = await exec4.exec();
     expect(ret4.onload).toEqual(expect.any(Function));
     expect(ret4.thisOnload).toEqual(expect.any(Function));
@@ -596,60 +534,32 @@ return [str.match(reg), RegExp.$1];`;
     expect(cacheRet3Onload() + ret4.onload()).toEqual(579);
   });
 
-  it.concurrent("沙盒之间能用unsafeWindow（及全局作用域）共享变量", async () => {
-    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script.code = `unsafeWindow.testSVar1 = "shareA"; ggaa1 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
-    const exec1 = new ExecScript(script, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    exec1.scriptFunc = compileScript(compileScriptCode(script));
+  it("沙盒之间能用unsafeWindow（及全局作用域）共享变量", async () => {
+    const { exec: exec1 } = makeExec(
+      `unsafeWindow.testSVar1 = "shareA"; ggaa1 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`
+    );
     const ret1 = await exec1.exec();
     expect(ret1).toEqual({ testSVar1: "shareA", testSVar2: undefined, ggaa1: "string", ggaa2: "undefined" });
 
-    const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script2.code = `unsafeWindow.testSVar2 = "shareB"; ggaa2 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
-    const exec2 = new ExecScript(script2, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    exec2.scriptFunc = compileScript(compileScriptCode(script2));
+    const { exec: exec2 } = makeExec(
+      `unsafeWindow.testSVar2 = "shareB"; ggaa2 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`
+    );
     const ret2 = await exec2.exec();
     expect(ret2).toEqual({ testSVar1: "shareA", testSVar2: "shareB", ggaa1: "string", ggaa2: "string" });
   });
 
-  it.concurrent("测试SC沙盒与TM沙盒有相近的特殊处理", async () => {
-    const script1 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script1.code = `onfocus = function(){}; onresize = 123; onblur = "123"; const ret = {onfocus, onresize, onblur}; onfocus = null; onresize = null; onblur = null; return ret;`;
-    const exec1 = new ExecScript(script1, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    exec1.scriptFunc = compileScript(compileScriptCode(script1));
+  it("测试SC沙盒与TM沙盒有相近的特殊处理", async () => {
+    const { exec: exec1 } = makeExec(
+      `onfocus = function(){}; onresize = 123; onblur = "123"; const ret = {onfocus, onresize, onblur}; onfocus = null; onresize = null; onblur = null; return ret;`
+    );
     const ret1 = await exec1.exec();
     expect(ret1.onfocus).toEqual(expect.any(Function));
     expect(ret1.onresize).toBeNull();
     expect(ret1.onblur).toBeNull();
 
-    const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script2.code = `window.onfocus = function(){}; window.onresize = 123; window.onblur = "123"; const {onfocus, onresize, onblur} = window; const ret = {onfocus, onresize, onblur}; window.onfocus = null; window.onresize = null; window.onblur = null; return ret;`;
-    const exec2 = new ExecScript(script2, {
-      envPrefix: "scripting",
-      message: undefined as any,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
-    });
-    exec2.scriptFunc = compileScript(compileScriptCode(script2));
+    const { exec: exec2 } = makeExec(
+      `window.onfocus = function(){}; window.onresize = 123; window.onblur = "123"; const {onfocus, onresize, onblur} = window; const ret = {onfocus, onresize, onblur}; window.onfocus = null; window.onresize = null; window.onblur = null; return ret;`
+    );
     const ret2 = await exec2.exec();
     expect(ret2.onfocus).toEqual(expect.any(Function));
     expect(ret2.onresize).toBeNull();

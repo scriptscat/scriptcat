@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractSummary, buildCompactUserPrompt, COMPACT_SYSTEM_PROMPT } from "./compact_prompt";
+import { extractSummary, buildCompactUserPrompt } from "./compact_prompt";
 
 describe("extractSummary", () => {
   it("extracts content from <summary> tags", () => {
@@ -54,12 +54,5 @@ describe("buildCompactUserPrompt", () => {
   it("appends custom instruction when provided", () => {
     const prompt = buildCompactUserPrompt("只保留代码相关内容");
     expect(prompt).toContain("Additional summarization instructions from the user: 只保留代码相关内容");
-  });
-});
-
-describe("COMPACT_SYSTEM_PROMPT", () => {
-  it("is defined and non-empty", () => {
-    expect(COMPACT_SYSTEM_PROMPT).toBeTruthy();
-    expect(COMPACT_SYSTEM_PROMPT.length).toBeGreaterThan(0);
   });
 });

@@ -49,6 +49,10 @@ models the day they launch, and plug straight into Claude Code, Codex, and Gemin
 <td width="180"><a href="https://www.packyapi.com/register?aff=BOKa"><img src="./docs/assets/sponsors/packycode-banner.png" alt="PackyCode" width="150"></a></td>
 <td>PackyCode is a stable, high-performance API relay provider, offering relay services for Claude Code, Codex, Gemini, and more. With automatic failover, smart routing, and unlimited concurrency, it turns AI programming into a real productivity tool. <a href="https://www.packyapi.com/register?aff=BOKa">Register via this link</a> and get started!</td>
 </tr>
+<tr>
+<td width="180"><a href="https://enncy.cn/"><img src="./docs/assets/sponsors/yanxi-tech-logo.png" alt="Yanxi Technology" width="150"></a></td>
+<td>Yanxi Technology focuses on custom script software and web application design and development. It provides highly personalized customization services, stable and reliable project solutions, and industry insights to meet a wide range of custom program development needs in one place. Website: <a href="https://enncy.cn/">https://enncy.cn/</a></td>
+</tr>
 </table>
 
 </details>

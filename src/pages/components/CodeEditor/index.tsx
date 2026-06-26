@@ -1,18 +1,21 @@
 import { editor, Range } from "monaco-editor";
-import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { systemConfig } from "@App/pages/store/global";
+import { DEFAULT_EDITOR_PREFERENCES } from "@App/pkg/config/config";
 import { LinterWorkerController, registerEditor } from "@App/pkg/utils/monaco-editor";
-import { fnPlaceHolder } from "@App/pages/store/AppContext";
 import { clearModelEslintFixes, getModelEslintFixKey } from "@App/pkg/utils/monaco-editor/eslintFixCache";
-
-fnPlaceHolder.setEditorTheme = (theme: string) => editor.setTheme(theme);
+import { useTheme } from "@App/pages/components/theme-provider";
+import { resolveMonacoTheme } from "./theme";
 
 type Props = {
+  ref?: Ref<{ editor: editor.IStandaloneCodeEditor | undefined }>;
   className?: string;
-  diffCode?: string; // 因为代码加载是异步的,diifCode有3种状态:undefined不确定,""没有diff,有diff,不确定的情况下,编辑器不会加载
+  diffCode?: string; // 代码加载是异步的：undefined=不确定(不加载)，""=无 diff，有值=diff
   editable?: boolean;
   id: string;
   code?: string;
+  onChange?: (code: string) => void;
+  onEditorMount?: (editor: editor.IStandaloneCodeEditor) => void;
 };
 
 type TMarker = {
@@ -30,34 +33,69 @@ type TFormattedMarker = {
   severity: number;
 } & Record<string, any>;
 
-const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | undefined }, Props>(
-  ({ id, className, code, diffCode, editable }, ref) => {
-    const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
-    const [enableEslint, setEnableEslint] = useState(false);
-    const [eslintConfig, setEslintConfig] = useState("");
+function toMonacoEditorPreferenceOptions(
+  preferences: Awaited<ReturnType<typeof systemConfig.getEditorPreferences>> | undefined
+) {
+  const resolvedPreferences = preferences ?? DEFAULT_EDITOR_PREFERENCES;
+  return {
+    fontSize: resolvedPreferences.fontSize,
+    mouseWheelScrollSensitivity: resolvedPreferences.mouseWheelScrollSensitivity,
+    smoothScrolling: resolvedPreferences.smoothScrolling,
+  } satisfies editor.IEditorOptions;
+}
 
-    const divRef = useRef<HTMLDivElement>(null);
-    useImperativeHandle(ref, () => ({ editor: monacoEditor }));
+function CodeEditor({ id, className, code, diffCode, editable, onChange, onEditorMount, ref }: Props) {
+  const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
+  const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | editor.IStandaloneDiffEditor | undefined>(undefined);
+  // 普通 editor 与 diff editor 都会置位，供主题切换 effect 判断实例是否就绪
+  // （monacoEditor 仅在普通 editor 时设置，diff 分支不设置，故不能用它来 gate 主题切换）
+  const editorReadyRef = useRef(false);
+  const [enableEslint, setEnableEslint] = useState(false);
+  const [eslintConfig, setEslintConfig] = useState("");
 
-    // 注册 monaco 全局环境（只需执行一次）
-    useEffect(() => {
-      registerEditor();
-    }, []);
+  const { resolvedTheme } = useTheme();
 
-    // 载入 ESLint 设定
-    useEffect(() => {
-      Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(([config, enabled]) => {
-        setEslintConfig(config);
-        setEnableEslint(enabled);
-      });
-    }, []);
+  // 用 ref 保存最新回调，避免 stale closure 同时不让创建 effect 重跑
+  const onChangeRef = useRef(onChange);
+  const onEditorMountRef = useRef(onEditorMount);
+  // ref 赋值须在创建 effect 之前，确保 mount 时创建 effect 同步读到最新 onEditorMount
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onEditorMountRef.current = onEditorMount;
+  });
 
-    // 建立 monaco 编辑器实例
-    useEffect(() => {
-      if (diffCode === undefined || code === undefined || !divRef.current) return;
+  const divRef = useRef<HTMLDivElement>(null);
+  useImperativeHandle(ref, () => ({ editor: monacoEditor }));
 
-      const container = document.getElementById(id) as HTMLDivElement;
-      let edit: editor.IStandaloneCodeEditor | editor.IStandaloneDiffEditor;
+  // 注册 monaco 全局环境（只需执行一次）
+  useEffect(() => {
+    registerEditor();
+  }, []);
+
+  // 载入 ESLint 设定
+  useEffect(() => {
+    void Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(([config, enabled]) => {
+      setEslintConfig(config);
+      setEnableEslint(enabled);
+    });
+  }, []);
+
+  // 建立 monaco 编辑器实例
+  useEffect(() => {
+    if (diffCode === undefined || code === undefined || !divRef.current) return;
+
+    const container = document.getElementById(id) as HTMLDivElement;
+    let disposed = false;
+    let edit: editor.IStandaloneCodeEditor | editor.IStandaloneDiffEditor | undefined;
+    let originalModel: editor.ITextModel | undefined;
+    let modifiedModel: editor.ITextModel | undefined;
+    let changeListener: { dispose: () => void } | undefined;
+
+    editorReadyRef.current = false;
+    editorInstanceRef.current = undefined;
+
+    void systemConfig.getEditorPreferences().then((preferences) => {
+      if (disposed) return;
 
       const commonEditorOptions = {
         folding: true,
@@ -72,52 +110,27 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
           ambiguousCharacters: false,
         },
 
-        // https://code.visualstudio.com/docs/editing/intellisense
-
-        // Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.
         acceptSuggestionOnCommitCharacter: true,
-
-        // Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change
         acceptSuggestionOnEnter: "on",
-
-        // Controls the delay in ms after which quick suggestions will show up.
         quickSuggestionsDelay: 10,
-
-        // Controls if suggestions should automatically show up when typing trigger characters
         suggestOnTriggerCharacters: true,
-
-        // Controls if pressing tab inserts the best suggestion and if tab cycles through other suggestions
         tabCompletion: "off",
-
-        // Controls whether sorting favours words that appear close to the cursor
         suggest: {
           localityBonus: true,
           preview: true,
         },
-
-        // Controls how suggestions are pre-selected when showing the suggest list
         suggestSelection: "first",
-
-        // Enable word based suggestions
         wordBasedSuggestions: "off",
-
-        // Enable parameter hints
         parameterHints: {
           enabled: true,
         },
-
-        // https://qiita.com/H-goto16/items/43802950fc5c112c316b
-        // https://zenn.dev/udonj/articles/ultimate-vscode-customization-2024
-        // https://github.com/is0383kk/VSCode
-
         quickSuggestions: {
           other: true,
           comments: true,
           strings: true,
         },
-
         fastScrollSensitivity: 10,
-        smoothScrolling: true,
+        ...toMonacoEditorPreferenceOptions(preferences),
         inlineSuggest: {
           enabled: true,
         },
@@ -126,14 +139,11 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         },
         renderLineHighlightOnlyWhenFocus: true,
         snippetSuggestions: "top",
-
         cursorBlinking: "phase",
         cursorSmoothCaretAnimation: "off",
-
         autoIndent: "advanced",
         wrappingIndent: "indent",
         wordSegmenterLocales: ["ja", "zh-CN", "zh-Hant-TW"] as string[],
-
         renderLineHighlight: "gutter",
         renderWhitespace: "selection",
         renderControlCharacters: true,
@@ -145,13 +155,12 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
         },
         mouseWheelZoom: true,
         links: true,
-        accessibilitySupport: "off",
+        accessibilitySupport: "auto",
         largeFileOptimizations: true,
         colorDecorators: true,
       } as const;
 
-      let originalModel: editor.ITextModel | undefined;
-      let modifiedModel: editor.ITextModel | undefined;
+      const initialTheme = resolveMonacoTheme(resolvedTheme);
       if (diffCode) {
         edit = editor.createDiffEditor(container, {
           hideUnchangedRegions: { enabled: true },
@@ -159,147 +168,156 @@ const CodeEditor = React.forwardRef<{ editor: editor.IStandaloneCodeEditor | und
           renderSideBySide: false,
           readOnly: true,
           diffWordWrap: "off",
+          theme: initialTheme,
           ...commonEditorOptions,
         });
-        // standalone model 不会随 editor.dispose 自动清理，需手动跟踪并在 cleanup 释放
+        // standalone model 不随 editor.dispose 自动清理，需手动跟踪并在 cleanup 释放
         originalModel = editor.createModel(diffCode, "javascript");
         modifiedModel = editor.createModel(code, "javascript");
         edit.setModel({
           original: originalModel,
           modified: modifiedModel,
         });
+        editorInstanceRef.current = edit;
+        editorReadyRef.current = true;
       } else {
-        edit = editor.create(container, {
+        const standaloneEdit = editor.create(container, {
           language: "javascript",
-          theme: document.body.getAttribute("arco-theme") === "dark" ? "vs-dark" : "vs",
+          theme: initialTheme,
           readOnly: !editable,
           ...commonEditorOptions,
         });
-        edit.setValue(code);
-        setEditor(edit);
+        edit = standaloneEdit;
+        standaloneEdit.setValue(code);
+        const model = standaloneEdit.getModel();
+        if (model) {
+          changeListener = model.onDidChangeContent(() => {
+            onChangeRef.current?.(standaloneEdit.getValue() || "");
+          });
+        }
+        setEditor(standaloneEdit);
+        editorInstanceRef.current = standaloneEdit;
+        editorReadyRef.current = true;
+        onEditorMountRef.current?.(standaloneEdit);
+      }
+    });
+
+    return () => {
+      // 目前会出现：Uncaught (in promise) Canceled: Canceled
+      // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
+      disposed = true;
+      editorReadyRef.current = false;
+      editorInstanceRef.current = undefined;
+      changeListener?.dispose();
+      edit?.dispose();
+      originalModel?.dispose();
+      modifiedModel?.dispose();
+    };
+    // resolvedTheme 仅作为初始主题，运行时变化由下方 effect 通过 setTheme 处理，不重建实例
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, code, diffCode, editable]);
+
+  // 主题切换：monaco theme 为全局静态，切换时无需重建实例。
+  // 用 editorReadyRef（普通 + diff 实例都会置位）判断就绪，确保 diff 预览也随主题更新。
+  // 依赖含创建 effect 的入参：创建 effect 声明在前先执行并置位 ref，本 effect 随后即可应用主题。
+  // editorReadyRef 为 ref 不入依赖；id/code/diffCode/editable 用于在重建实例后重新应用主题
+  useEffect(() => {
+    if (!editorReadyRef.current) return;
+    editor.setTheme(resolveMonacoTheme(resolvedTheme));
+  }, [resolvedTheme, id, code, diffCode, editable]);
+
+  useEffect(() => {
+    return systemConfig.watch("editor_preferences", (preferences) => {
+      editorInstanceRef.current?.updateOptions(toMonacoEditorPreferenceOptions(preferences));
+    });
+  }, []);
+
+  // ESLint 即时检查逻辑
+  useEffect(() => {
+    if (!enableEslint || !monacoEditor) return;
+
+    const model = monacoEditor.getModel();
+    if (!model) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const lint = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        LinterWorkerController.sendLinterMessage({
+          code: model.getValue(),
+          id,
+          config: JSON.parse(eslintConfig),
+        });
+      }, 500);
+    };
+    lint(); // 初次载入即检查
+    const changeListener = model.onDidChangeContent(lint);
+
+    // 在 glyph margin (行号旁) 显示 ESLint 错误/警告图示
+    const showGlyphIcons = (markers: { startLineNumber: number; endLineNumber: number; severity: number }[]) => {
+      const glyphMarginClassList = { 4: "icon-warn", 8: "icon-error" };
+      const oldDecorations = model
+        .getAllDecorations()
+        .filter(
+          (d) =>
+            d.options.glyphMarginClassName &&
+            Object.values(glyphMarginClassList).includes(d.options.glyphMarginClassName!)
+        );
+      monacoEditor.removeDecorations(oldDecorations.map((d) => d.id));
+      monacoEditor.createDecorationsCollection(
+        markers.map(({ startLineNumber, endLineNumber, severity }) => ({
+          range: new Range(startLineNumber, 1, endLineNumber, 1),
+          options: {
+            isWholeLine: true,
+            glyphMarginClassName: glyphMarginClassList[severity as 4 | 8],
+          },
+        }))
+      );
+    };
+
+    const messageHandler = (message: any) => {
+      if (id !== message.id) return;
+      editor.setModelMarkers(model, "ESLint", message.markers);
+
+      const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
+      if (eslintFixMap) {
+        clearModelEslintFixes(eslintFixMap, model);
+        message.markers.forEach((m: TMarker) => {
+          if (m.fix) {
+            const key = getModelEslintFixKey(model, m.code.value, m);
+            eslintFixMap.set(key, m.fix);
+          }
+        });
       }
 
-      return () => {
-        // 目前会出现：Uncaught (in promise) Canceled: Canceled
-        // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
-        edit?.dispose();
-        originalModel?.dispose();
-        modifiedModel?.dispose();
-      };
-    }, [id, code, diffCode, editable]);
+      const formatted = message.markers.map((m: TFormattedMarker) => ({
+        startLineNumber: m.startLineNumber,
+        endLineNumber: m.endLineNumber,
+        severity: m.severity,
+      }));
+      showGlyphIcons(formatted);
+    };
 
-    // ESLint 即时检查逻辑
-    useEffect(() => {
-      if (!enableEslint || !monacoEditor) return;
+    LinterWorkerController.hookAddListener("message", messageHandler);
 
-      const model = monacoEditor.getModel();
-      if (!model) return;
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      changeListener.dispose();
+      const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
+      if (eslintFixMap) {
+        clearModelEslintFixes(eslintFixMap, model);
+      }
+      LinterWorkerController.hookRemoveListener("message", messageHandler);
+    };
+  }, [monacoEditor, enableEslint, eslintConfig, id]);
 
-      let timer: ReturnType<typeof setTimeout> | null = null;
-
-      const lint = () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-          timer = null;
-          LinterWorkerController.sendLinterMessage({
-            code: model.getValue(),
-            id,
-            config: JSON.parse(eslintConfig),
-          });
-        }, 500);
-      };
-      // 加载完成就检测一次
-      lint(); // 初次载入即检查
-      const changeListener = model.onDidChangeContent(lint);
-
-      // 在 glyph margin (行号旁) 显示EsLint错误/警告图示
-      const showGlyphIcons = (markers: { startLineNumber: number; endLineNumber: number; severity: number }[]) => {
-        const glyphMarginClassList = { 4: "icon-warn", 8: "icon-error" };
-
-        // 清除旧装饰
-        const oldDecorations = model
-          .getAllDecorations()
-          .filter(
-            (d) =>
-              d.options.glyphMarginClassName &&
-              Object.values(glyphMarginClassList).includes(d.options.glyphMarginClassName!)
-          );
-        monacoEditor.removeDecorations(oldDecorations.map((d) => d.id));
-
-        // (重新)添加新装饰 - Decorations
-        monacoEditor.createDecorationsCollection(
-          markers.map(({ startLineNumber, endLineNumber, severity }) => ({
-            range: new Range(startLineNumber, 1, endLineNumber, 1),
-            options: {
-              isWholeLine: true,
-              glyphMarginClassName: glyphMarginClassList[severity as 4 | 8],
-              /* 待改进 目前monaco似乎无法满足需求
-              glyphMarginHoverMessage: allMarkers.reduce(
-                (prev: any, next: any) => {
-                  if (
-                    next.startLineNumber === startLineNumber &&
-                    next.endLineNumber === endLineNumber
-                  ) {
-                    prev.push({
-                      value: `${next.message} ESLinter [(${next.code.value})](${next.code.target})`,
-                      isTrusted: true,
-                    });
-                  }
-                  return prev;
-                },
-                []
-              ),
-              */
-            },
-          }))
-        );
-      };
-
-      const messageHandler = (message: any) => {
-        if (id !== message.id) return;
-
-        editor.setModelMarkers(model, "ESLint", message.markers);
-
-        // 更新当前 model 的 eslint-fix 快取，避免多个脚本编辑器互相覆盖 quick-fix。
-        const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
-        if (eslintFixMap) {
-          clearModelEslintFixes(eslintFixMap, model);
-          message.markers.forEach((m: TMarker) => {
-            if (m.fix) {
-              const key = getModelEslintFixKey(model, m.code.value, m);
-              eslintFixMap.set(key, m.fix);
-            }
-          });
-        }
-
-        // 显示 glyph 图示 (在行号旁显示ESLint错误/警告图标)
-        const formatted = message.markers.map((m: TFormattedMarker) => ({
-          startLineNumber: m.startLineNumber,
-          endLineNumber: m.endLineNumber,
-          severity: m.severity,
-        }));
-        showGlyphIcons(formatted);
-      };
-
-      LinterWorkerController.hookAddListener("message", messageHandler);
-
-      return () => {
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-        changeListener.dispose();
-        const eslintFixMap = (window.MonacoEnvironment as any)?.eslintFixMap;
-        if (eslintFixMap) {
-          clearModelEslintFixes(eslintFixMap, model);
-        }
-        LinterWorkerController.hookRemoveListener("message", messageHandler);
-      };
-    }, [monacoEditor, enableEslint, eslintConfig, id]);
-
-    return <div id={id} className={className} ref={divRef} />;
-  }
-);
+  return <div id={id} className={className} ref={divRef} />;
+}
 
 CodeEditor.displayName = "CodeEditor";
 

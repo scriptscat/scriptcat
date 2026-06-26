@@ -2,7 +2,7 @@
 
 本文件是 ScriptCat 繁體中文（`zh-TW`）介面與文件的用語依據。翻譯或修改繁體中文時，目標是讓台灣使用者自然理解，並維持台灣軟體產品介面常見的語氣。
 
-盤點來源：`src/locales/zh-TW/translation.json`、`docs/README_zh-TW.md`
+盤點來源：`src/locales/zh-TW/*.json`、`docs/README_zh-TW.md`
 
 產品互動參考：[PR #1421 討論](https://github.com/scriptscat/scriptcat/pull/1421)。CodFrm 對相同同步刪除設定確認應以簡短標籤呈現，詳細行為由旁側說明交代；此項產品決策在 `zh-TW` 對應為 `同步刪除` / `同步腳本刪除`，不代表其他 `zh-CN` 詞彙偏好應套用至繁中。
 

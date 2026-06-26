@@ -2,96 +2,67 @@ import { test, expect } from "./fixtures";
 import type { BrowserContext, Page } from "@playwright/test";
 import { openEditorPage, openOptionsPage, saveCurrentEditor } from "./utils";
 
-/**
- * Helper: create a script via the editor, then open the options page.
- */
+// new-ui 脚本列表（shadcn 表格视图，桌面默认）：空状态 data-testid="script-list-empty"，
+// 每行启用开关为 Radix Switch(role=switch)，删除为行内 Trash2 图标 + Popconfirm
+// (确认按钮 data-testid="popconfirm-confirm")，搜索框 data-testid="script-search"。
+
+/** 通过编辑器创建一个脚本，再打开脚本列表 */
 async function createScriptAndGoToList(context: BrowserContext, extensionId: string): Promise<Page> {
   const editorPage = await openEditorPage(context, extensionId);
-
-  // Wait for Monaco editor
   await expect(editorPage.locator(".monaco-editor")).toBeVisible({ timeout: 10_000 });
-  await expect(editorPage.locator(".view-lines")).toContainText("==UserScript==", {
-    timeout: 10_000,
-  });
-
+  await expect(editorPage.locator(".view-lines")).toContainText("==UserScript==", { timeout: 10_000 });
   await saveCurrentEditor(context, extensionId, editorPage);
+  await editorPage.close();
 
-  // Open the options page (script list)
-  const page = await openOptionsPage(context, extensionId);
-
-  return page;
+  return openOptionsPage(context, extensionId);
 }
 
-test.describe("Script Management", () => {
-  test("should create a script and see it in the list", async ({ context, extensionId }) => {
+test.describe("脚本管理", () => {
+  test("创建脚本后应出现在列表中", async ({ context, extensionId }) => {
     const page = await createScriptAndGoToList(context, extensionId);
-
-    // The script list should have at least one entry (no empty state)
-    const emptyState = page.locator(".arco-empty");
-    await expect(emptyState).toHaveCount(0);
+    // 列表非空（无空状态）
+    await expect(page.getByTestId("script-list-empty")).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByRole("switch").first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("should toggle enable/disable on a script", async ({ context, extensionId }) => {
+  test("应能切换脚本的启用/禁用", async ({ context, extensionId }) => {
     const page = await createScriptAndGoToList(context, extensionId);
 
-    // Find the switch/toggle in the script list
-    const scriptSwitch = page.locator(".arco-switch").first();
+    const scriptSwitch = page.getByRole("switch").first();
     await expect(scriptSwitch).toBeVisible({ timeout: 10_000 });
 
-    // Get initial state
     const initialChecked = await scriptSwitch.getAttribute("aria-checked");
-
-    // Click to toggle. Use DOM click because the current layout can intercept
-    // Playwright's pointer event even when the switch itself is visible.
-    await scriptSwitch.evaluate((element) => (element as HTMLElement).click());
+    await scriptSwitch.click();
     await expect(scriptSwitch).not.toHaveAttribute("aria-checked", initialChecked || "", { timeout: 10_000 });
-
-    const newChecked = await scriptSwitch.getAttribute("aria-checked");
-    expect(newChecked).not.toBe(initialChecked);
   });
 
-  test("should delete a script", async ({ context, extensionId }) => {
+  test("应能删除脚本", async ({ context, extensionId }) => {
     const page = await createScriptAndGoToList(context, extensionId);
 
-    // Right-click on a script row to get context menu
-    const scriptRow = page.locator(".arco-table-row, .arco-card-body .arco-list-item, [class*='script']").first();
-    if (await scriptRow.isVisible()) {
-      await scriptRow.click({ button: "right" });
+    // 行内删除按钮（Trash2 图标，lucide class 语言无关）
+    const deleteBtn = page.locator("button:has(svg.lucide-trash-2)").first();
+    await expect(deleteBtn).toBeVisible({ timeout: 10_000 });
+    await deleteBtn.click();
 
-      // Look for delete option in context menu
-      const deleteOption = page.getByText(/delete|删除/i).first();
-      if (await deleteOption.isVisible({ timeout: 10_000 }).catch(() => false)) {
-        await deleteOption.click();
+    // Popconfirm 确认
+    await page.getByTestId("popconfirm-confirm").click();
 
-        // Confirm deletion if a modal appears
-        const confirmBtn = page.locator(".arco-modal .arco-btn-primary");
-        if (await confirmBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
-          await confirmBtn.click();
-        }
-
-        // After deletion, the list should be empty again
-        const emptyState = page.locator(".arco-empty");
-        await expect(emptyState).toBeVisible({ timeout: 10_000 });
-      }
-    }
+    // 删除后回到空状态
+    await expect(page.getByTestId("script-list-empty")).toBeVisible({ timeout: 10_000 });
   });
 
-  test("should search/filter scripts", async ({ context, extensionId }) => {
+  test("应能搜索/过滤脚本", async ({ context, extensionId }) => {
     const page = await createScriptAndGoToList(context, extensionId);
 
-    // Look for a search input
-    const searchInput = page.locator('input[type="text"], .arco-input').first();
-    if (await searchInput.isVisible({ timeout: 10_000 }).catch(() => false)) {
-      // Type a search query that won't match
-      await searchInput.fill("nonexistent_script_xyz");
+    const search = page.getByTestId("script-search");
+    await expect(search).toBeVisible({ timeout: 10_000 });
 
-      // The list should show empty or no results
-      const emptyState = page.locator(".arco-empty");
-      await expect(emptyState).toBeVisible({ timeout: 10_000 });
+    // 不匹配的关键字 → 空状态
+    await search.fill("nonexistent_script_xyz");
+    await expect(page.getByTestId("script-list-empty")).toBeVisible({ timeout: 10_000 });
 
-      // Clear search and scripts should reappear
-      await searchInput.clear();
-      await expect(emptyState).toHaveCount(0, { timeout: 10_000 });
-    }
+    // 清空 → 脚本重新出现
+    await search.fill("");
+    await expect(page.getByTestId("script-list-empty")).toHaveCount(0, { timeout: 10_000 });
   });
 });

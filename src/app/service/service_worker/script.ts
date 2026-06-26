@@ -44,9 +44,10 @@ import {
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
-import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { initRegularUpdateCheck, watchRegularUpdateCheck } from "./regular_updatecheck";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
+import { EnableAgent } from "@App/app/const";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -98,8 +99,11 @@ export class ScriptService {
         }
         // 处理url, 实现安装脚本
         let targetUrl: string;
-        // 判断是否为 file:///*/*.user.js 或 file:///*/*.skill.js
-        if (req.url.startsWith("file://") && (req.url.endsWith(".user.js") || req.url.endsWith(".skill.js"))) {
+        // 判断是否为 file:///*/*.user.js 或 file:///*/*.skill.js（skill 仅 agent 启用时）
+        if (
+          req.url.startsWith("file://") &&
+          (req.url.endsWith(".user.js") || (EnableAgent && req.url.endsWith(".skill.js")))
+        ) {
           targetUrl = req.url;
         } else {
           const reqUrl = new URL(req.url);
@@ -166,8 +170,13 @@ export class ScriptService {
           { schemes: ["http", "https"], hostEquals: "docs.scriptcat.org", pathPrefix: "/en/docs/script_installation/" },
           { schemes: ["http", "https"], hostEquals: "www.tampermonkey.net", pathPrefix: "/script_installation.php" },
           { schemes: ["file"], pathSuffix: ".user.js" },
-          { schemes: ["file"], pathSuffix: ".skill.js" },
-          { schemes: ["file"], pathSuffix: ".cat.md" },
+          // Skill 安装入口仅在 agent 启用时拦截（正式版屏蔽）
+          ...(EnableAgent
+            ? [
+                { schemes: ["file"], pathSuffix: ".skill.js" },
+                { schemes: ["file"], pathSuffix: ".cat.md" },
+              ]
+            : []),
         ],
       }
     );
@@ -252,21 +261,17 @@ export class ScriptService {
         isUrlFilterCaseSensitive: false,
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
-      // SkillScript (.skill.js) 安装检测
-      {
-        regexFilter: "^([^?#]+?\\.skill\\.js)",
-        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-        isUrlFilterCaseSensitive: false,
-        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
-      },
-      // Skill 包 (.cat.md) 安装检测
-      {
-        regexFilter: "^([^?#]+?\\.cat\\.md)",
-        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-        isUrlFilterCaseSensitive: false,
-      },
+      // Skill 包 (.cat.md) 安装检测，仅 agent 启用时拦截（正式版屏蔽）
+      ...(EnableAgent
+        ? [
+            {
+              regexFilter: "^([^?#]+?\\.cat\\.md)",
+              resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+              requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+              isUrlFilterCaseSensitive: false,
+            },
+          ]
+        : []),
     ];
     const installPageURL = chrome.runtime.getURL("src/install.html");
     const rules = conditions.map((condition, idx) => {
@@ -948,8 +953,8 @@ export class ScriptService {
         logger?.error("prepare script failed", Logger.E(e));
       }
     }
-    // 检测是否为 SkillScript
-    const skillScriptMeta = parseSkillScriptMetadata(code);
+    // 检测是否为 SkillScript（仅 agent 启用时，正式版不识别 skill 安装）
+    const skillScriptMeta = EnableAgent ? parseSkillScriptMetadata(code) : null;
     if (skillScriptMeta) {
       const si = await createTempCodeEntry(false, uuid, code, url, upsertBy, {} as SCMetadata, options);
       si[1].skillScript = true;
@@ -1026,9 +1031,7 @@ export class ScriptService {
         err?: string | Error;
       }
   > {
-    // const executeSlienceUpdate = opts.checkType === "system";
     const executeSlienceUpdate = opts.checkType === "system" && (await this.systemConfig.getSilenceUpdateScript());
-    // const executeSlienceUpdate = true;
     const checkCycle = await this.systemConfig.getCheckScriptUpdateCycle();
     if (!checkCycle) {
       return {
@@ -1038,7 +1041,6 @@ export class ScriptService {
     }
     const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
     const scripts = await this.scriptDAO.all();
-    // const now = Date.now();
 
     const checkScripts = scripts.filter((script) => {
       // 不检查更新
@@ -1049,10 +1051,6 @@ export class ScriptService {
       if (!checkDisableScript && script.status === SCRIPT_STATUS_DISABLE) {
         return false;
       }
-      // 检查是否符合
-      // if (script.checktime + checkCycle * 1000 > now) {
-      //   return false;
-      // }
       return true;
     });
 
@@ -1093,7 +1091,6 @@ export class ScriptService {
             withNewConnect,
           });
         }
-        // this.openUpdatePage(script, "system");
       }
     }
 
@@ -1159,7 +1156,6 @@ export class ScriptService {
     const batchUpdateRecord = checkResults.map((entry, i) => {
       const script = entry.script;
       const result = entry.result;
-      // const uuid = entry.uuid;
       if (!result || !script.downloadUrl) {
         return {
           uuid: script.uuid,
@@ -1488,7 +1484,6 @@ export class ScriptService {
     this.group.on("getAllScripts", this.getAllScripts.bind(this));
     this.group.on("getInstallInfo", this.getInstallInfo);
     this.group.on("install", this.installScript.bind(this));
-    // this.group.on("delete", this.deleteScript.bind(this));
     this.group.on("deletes", this.deleteScripts.bind(this));
     this.group.on("enable", this.enableScript.bind(this));
     this.group.on("enables", this.enableScripts.bind(this));
@@ -1516,5 +1511,7 @@ export class ScriptService {
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
     initRegularUpdateCheck(this.systemConfig);
+    // 更新周期配置变更后立即重新设定alarm，无需等待SW重启
+    watchRegularUpdateCheck(this.systemConfig);
   }
 }

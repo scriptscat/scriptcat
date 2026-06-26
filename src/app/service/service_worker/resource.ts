@@ -329,7 +329,7 @@ export class ResourceService {
       const reader = new FileReader();
       reader.readAsArrayBuffer(blob);
       reader.onloadend = function () {
-        if (!this.result) {
+        if (!reader.result) {
           resolve({
             md5: "",
             sha1: "",
@@ -338,7 +338,7 @@ export class ResourceService {
             sha512: "",
           });
         } else {
-          resolve(calculateHashFromArrayBuffer(<ArrayBuffer>this.result));
+          resolve(calculateHashFromArrayBuffer(<ArrayBuffer>reader.result));
         }
       };
     });
