@@ -9,6 +9,12 @@ const { get, set } = vi.hoisted(() => ({
     if (key === "cloud_sync")
       return Promise.resolve({ enable: false, syncDelete: false, syncStatus: true, filesystem: "webdav", params: {} });
     if (key === "cat_file_storage") return Promise.resolve({ status: "unset", filesystem: "webdav", params: {} });
+    if (key === "editor_preferences")
+      return Promise.resolve({ version: 1, fontSize: 14, mouseWheelScrollSensitivity: 1, smoothScrolling: true });
+    if (key === "editor_config") return Promise.resolve("{}");
+    if (key === "editor_type_definition") return Promise.resolve("declare const GM_info: unknown;");
+    if (key === "enable_eslint") return Promise.resolve(false);
+    if (key === "eslint_config") return Promise.resolve("{}");
     return Promise.resolve("scriptcat");
   }),
   set: vi.fn(),

@@ -89,6 +89,34 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       const localData = await chrome.storage.local.get("system_enable_eslint");
       expect(localData["system_enable_eslint"]).toBeUndefined();
     });
+
+    it("编辑器偏好应返回默认值并写入 sync storage", async () => {
+      await expect(config.getEditorPreferences()).resolves.toEqual({
+        version: 1,
+        fontSize: 14,
+        mouseWheelScrollSensitivity: 1,
+        smoothScrolling: true,
+      });
+
+      const value = { version: 1 as const, fontSize: 16, mouseWheelScrollSensitivity: 1.5, smoothScrolling: false };
+      config.setEditorPreferences(value);
+
+      await expect(config.getEditorPreferences()).resolves.toEqual(value);
+      const syncData = await chrome.storage.sync.get("system_editor_preferences");
+      expect(syncData["system_editor_preferences"]).toEqual(value);
+
+      const localData = await chrome.storage.local.get("system_editor_preferences");
+      expect(localData["system_editor_preferences"]).toBeUndefined();
+    });
+
+    it("编辑器偏好重置后应回到当前默认值", async () => {
+      config.setEditorPreferences({ version: 1, fontSize: 18, mouseWheelScrollSensitivity: 2, smoothScrolling: false });
+      config.setEditorPreferences(undefined);
+
+      await expect(config.getEditorPreferences()).resolves.toEqual(config.defaultEditorPreferences());
+      const syncData = await chrome.storage.sync.get("system_editor_preferences");
+      expect(syncData["system_editor_preferences"]).toBeUndefined();
+    });
   });
 
   describe("懒迁移：sync → local", () => {

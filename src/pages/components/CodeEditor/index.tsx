@@ -1,6 +1,7 @@
 import { editor, Range } from "monaco-editor";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { systemConfig } from "@App/pages/store/global";
+import { DEFAULT_EDITOR_PREFERENCES } from "@App/pkg/config/config";
 import { LinterWorkerController, registerEditor } from "@App/pkg/utils/monaco-editor";
 import { clearModelEslintFixes, getModelEslintFixKey } from "@App/pkg/utils/monaco-editor/eslintFixCache";
 import { useTheme } from "@App/pages/components/theme-provider";
@@ -32,8 +33,20 @@ type TFormattedMarker = {
   severity: number;
 } & Record<string, any>;
 
+function toMonacoEditorPreferenceOptions(
+  preferences: Awaited<ReturnType<typeof systemConfig.getEditorPreferences>> | undefined
+) {
+  const resolvedPreferences = preferences ?? DEFAULT_EDITOR_PREFERENCES;
+  return {
+    fontSize: resolvedPreferences.fontSize,
+    mouseWheelScrollSensitivity: resolvedPreferences.mouseWheelScrollSensitivity,
+    smoothScrolling: resolvedPreferences.smoothScrolling,
+  } satisfies editor.IEditorOptions;
+}
+
 function CodeEditor({ id, className, code, diffCode, editable, onChange, onEditorMount, ref }: Props) {
   const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
+  const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | editor.IStandaloneDiffEditor | undefined>(undefined);
   // 普通 editor 与 diff editor 都会置位，供主题切换 effect 判断实例是否就绪
   // （monacoEditor 仅在普通 editor 时设置，diff 分支不设置，故不能用它来 gate 主题切换）
   const editorReadyRef = useRef(false);
@@ -72,116 +85,129 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
     if (diffCode === undefined || code === undefined || !divRef.current) return;
 
     const container = document.getElementById(id) as HTMLDivElement;
-    let edit: editor.IStandaloneCodeEditor | editor.IStandaloneDiffEditor;
-
-    const commonEditorOptions = {
-      folding: true,
-      foldingStrategy: "indentation",
-      automaticLayout: true,
-      scrollbar: { alwaysConsumeMouseWheel: false },
-      overviewRulerBorder: false,
-      scrollBeyondLastLine: false,
-
-      glyphMargin: true,
-      unicodeHighlight: {
-        ambiguousCharacters: false,
-      },
-
-      acceptSuggestionOnCommitCharacter: true,
-      acceptSuggestionOnEnter: "on",
-      quickSuggestionsDelay: 10,
-      suggestOnTriggerCharacters: true,
-      tabCompletion: "off",
-      suggest: {
-        localityBonus: true,
-        preview: true,
-      },
-      suggestSelection: "first",
-      wordBasedSuggestions: "off",
-      parameterHints: {
-        enabled: true,
-      },
-      quickSuggestions: {
-        other: true,
-        comments: true,
-        strings: true,
-      },
-      fastScrollSensitivity: 10,
-      smoothScrolling: true,
-      inlineSuggest: {
-        enabled: true,
-      },
-      guides: {
-        indentation: true,
-      },
-      renderLineHighlightOnlyWhenFocus: true,
-      snippetSuggestions: "top",
-      cursorBlinking: "phase",
-      cursorSmoothCaretAnimation: "off",
-      autoIndent: "advanced",
-      wrappingIndent: "indent",
-      wordSegmenterLocales: ["ja", "zh-CN", "zh-Hant-TW"] as string[],
-      renderLineHighlight: "gutter",
-      renderWhitespace: "selection",
-      renderControlCharacters: true,
-      dragAndDrop: false,
-      emptySelectionClipboard: false,
-      copyWithSyntaxHighlighting: false,
-      bracketPairColorization: {
-        enabled: true,
-      },
-      mouseWheelZoom: true,
-      links: true,
-      accessibilitySupport: "auto",
-      largeFileOptimizations: true,
-      colorDecorators: true,
-    } as const;
-
-    const initialTheme = resolveMonacoTheme(resolvedTheme);
+    let disposed = false;
+    let edit: editor.IStandaloneCodeEditor | editor.IStandaloneDiffEditor | undefined;
     let originalModel: editor.ITextModel | undefined;
     let modifiedModel: editor.ITextModel | undefined;
     let changeListener: { dispose: () => void } | undefined;
-    if (diffCode) {
-      edit = editor.createDiffEditor(container, {
-        hideUnchangedRegions: { enabled: true },
-        enableSplitViewResizing: false,
-        renderSideBySide: false,
-        readOnly: true,
-        diffWordWrap: "off",
-        theme: initialTheme,
-        ...commonEditorOptions,
-      });
-      // standalone model 不随 editor.dispose 自动清理，需手动跟踪并在 cleanup 释放
-      originalModel = editor.createModel(diffCode, "javascript");
-      modifiedModel = editor.createModel(code, "javascript");
-      edit.setModel({
-        original: originalModel,
-        modified: modifiedModel,
-      });
-      editorReadyRef.current = true;
-    } else {
-      const standaloneEdit = editor.create(container, {
-        language: "javascript",
-        theme: initialTheme,
-        readOnly: !editable,
-        ...commonEditorOptions,
-      });
-      edit = standaloneEdit;
-      standaloneEdit.setValue(code);
-      const model = standaloneEdit.getModel();
-      if (model) {
-        changeListener = model.onDidChangeContent(() => {
-          onChangeRef.current?.(standaloneEdit.getValue() || "");
+
+    editorReadyRef.current = false;
+    editorInstanceRef.current = undefined;
+
+    void systemConfig.getEditorPreferences().then((preferences) => {
+      if (disposed) return;
+
+      const commonEditorOptions = {
+        folding: true,
+        foldingStrategy: "indentation",
+        automaticLayout: true,
+        scrollbar: { alwaysConsumeMouseWheel: false },
+        overviewRulerBorder: false,
+        scrollBeyondLastLine: false,
+
+        glyphMargin: true,
+        unicodeHighlight: {
+          ambiguousCharacters: false,
+        },
+
+        acceptSuggestionOnCommitCharacter: true,
+        acceptSuggestionOnEnter: "on",
+        quickSuggestionsDelay: 10,
+        suggestOnTriggerCharacters: true,
+        tabCompletion: "off",
+        suggest: {
+          localityBonus: true,
+          preview: true,
+        },
+        suggestSelection: "first",
+        wordBasedSuggestions: "off",
+        parameterHints: {
+          enabled: true,
+        },
+        quickSuggestions: {
+          other: true,
+          comments: true,
+          strings: true,
+        },
+        fastScrollSensitivity: 10,
+        ...toMonacoEditorPreferenceOptions(preferences),
+        inlineSuggest: {
+          enabled: true,
+        },
+        guides: {
+          indentation: true,
+        },
+        renderLineHighlightOnlyWhenFocus: true,
+        snippetSuggestions: "top",
+        cursorBlinking: "phase",
+        cursorSmoothCaretAnimation: "off",
+        autoIndent: "advanced",
+        wrappingIndent: "indent",
+        wordSegmenterLocales: ["ja", "zh-CN", "zh-Hant-TW"] as string[],
+        renderLineHighlight: "gutter",
+        renderWhitespace: "selection",
+        renderControlCharacters: true,
+        dragAndDrop: false,
+        emptySelectionClipboard: false,
+        copyWithSyntaxHighlighting: false,
+        bracketPairColorization: {
+          enabled: true,
+        },
+        mouseWheelZoom: true,
+        links: true,
+        accessibilitySupport: "auto",
+        largeFileOptimizations: true,
+        colorDecorators: true,
+      } as const;
+
+      const initialTheme = resolveMonacoTheme(resolvedTheme);
+      if (diffCode) {
+        edit = editor.createDiffEditor(container, {
+          hideUnchangedRegions: { enabled: true },
+          enableSplitViewResizing: false,
+          renderSideBySide: false,
+          readOnly: true,
+          diffWordWrap: "off",
+          theme: initialTheme,
+          ...commonEditorOptions,
         });
+        // standalone model 不随 editor.dispose 自动清理，需手动跟踪并在 cleanup 释放
+        originalModel = editor.createModel(diffCode, "javascript");
+        modifiedModel = editor.createModel(code, "javascript");
+        edit.setModel({
+          original: originalModel,
+          modified: modifiedModel,
+        });
+        editorInstanceRef.current = edit;
+        editorReadyRef.current = true;
+      } else {
+        const standaloneEdit = editor.create(container, {
+          language: "javascript",
+          theme: initialTheme,
+          readOnly: !editable,
+          ...commonEditorOptions,
+        });
+        edit = standaloneEdit;
+        standaloneEdit.setValue(code);
+        const model = standaloneEdit.getModel();
+        if (model) {
+          changeListener = model.onDidChangeContent(() => {
+            onChangeRef.current?.(standaloneEdit.getValue() || "");
+          });
+        }
+        setEditor(standaloneEdit);
+        editorInstanceRef.current = standaloneEdit;
+        editorReadyRef.current = true;
+        onEditorMountRef.current?.(standaloneEdit);
       }
-      setEditor(standaloneEdit);
-      editorReadyRef.current = true;
-      onEditorMountRef.current?.(standaloneEdit);
-    }
+    });
 
     return () => {
       // 目前会出现：Uncaught (in promise) Canceled: Canceled
       // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
+      disposed = true;
+      editorReadyRef.current = false;
+      editorInstanceRef.current = undefined;
       changeListener?.dispose();
       edit?.dispose();
       originalModel?.dispose();
@@ -199,6 +225,12 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
     if (!editorReadyRef.current) return;
     editor.setTheme(resolveMonacoTheme(resolvedTheme));
   }, [resolvedTheme, id, code, diffCode, editable]);
+
+  useEffect(() => {
+    return systemConfig.watch("editor_preferences", (preferences) => {
+      editorInstanceRef.current?.updateOptions(toMonacoEditorPreferenceOptions(preferences));
+    });
+  }, []);
 
   // ESLint 即时检查逻辑
   useEffect(() => {

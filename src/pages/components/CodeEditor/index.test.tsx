@@ -1,12 +1,13 @@
 import { createRef, type ComponentRef } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup, act } from "@testing-library/react";
+import { render, cleanup, act, waitFor } from "@testing-library/react";
 
 // 用 hoisted 持有可在测试内变更的主题与 monaco 桩，供被提升的 vi.mock 工厂引用
 const h = vi.hoisted(() => {
   const makeEditor = () => ({
     setModel: vi.fn(),
     setValue: vi.fn(),
+    updateOptions: vi.fn(),
     getValue: () => "",
     getModel: () => null,
     dispose: vi.fn(),
@@ -47,7 +48,25 @@ vi.mock("@App/pkg/utils/monaco-editor/eslintFixCache", () => ({
   getModelEslintFixKey: vi.fn(),
 }));
 vi.mock("@App/pages/store/global", () => ({
-  systemConfig: { getEslintConfig: async () => "{}", getEnableEslint: async () => false },
+  systemConfig: {
+    getEslintConfig: async () => "{}",
+    getEnableEslint: async () => false,
+    getEditorPreferences: async () => ({
+      version: 1,
+      fontSize: 15,
+      mouseWheelScrollSensitivity: 1.75,
+      smoothScrolling: false,
+    }),
+    watch: vi.fn((_key: string, callback: (value: any) => void) => {
+      callback({
+        version: 1,
+        fontSize: 15,
+        mouseWheelScrollSensitivity: 1.75,
+        smoothScrolling: false,
+      });
+      return vi.fn();
+    }),
+  },
 }));
 vi.mock("@App/pages/components/theme-provider", () => ({ useTheme: () => ({ resolvedTheme: h.resolvedTheme }) }));
 
@@ -67,6 +86,7 @@ describe("CodeEditor 可访问性与主题", () => {
       render(<CodeEditor ref={ref} id="ed-ref" code="const a = 1;" diffCode="" editable />);
     });
 
+    await waitFor(() => expect(h.create).toHaveBeenCalled());
     expect(ref.current?.editor).toBe(h.create.mock.results[0].value);
   });
 
@@ -74,15 +94,28 @@ describe("CodeEditor 可访问性与主题", () => {
     await act(async () => {
       render(<CodeEditor id="ed-a11y" code="const a = 1;" diffCode="" editable />);
     });
-    expect(h.create).toHaveBeenCalled();
+    await waitFor(() => expect(h.create).toHaveBeenCalled());
     const opts = h.create.mock.calls[0][1];
     expect(opts.accessibilitySupport).toBe("auto");
   });
 
+  it("应把编辑器偏好传给 Monaco 运行时选项", async () => {
+    await act(async () => {
+      render(<CodeEditor id="ed-preferences" code="const a = 1;" diffCode="" editable />);
+    });
+
+    await waitFor(() => expect(h.create).toHaveBeenCalled());
+    const opts = h.create.mock.calls[0][1];
+    expect(opts).toMatchObject({
+      fontSize: 15,
+      mouseWheelScrollSensitivity: 1.75,
+      smoothScrolling: false,
+    });
+  });
+
   it("diff 编辑器在主题切换时也应调用 editor.setTheme（不能只对普通 editor 生效）", async () => {
     const { rerender } = render(<CodeEditor id="ed-diff" code="const a = 2;" diffCode="const a = 1;" />);
-    await act(async () => {});
-    expect(h.createDiffEditor).toHaveBeenCalled();
+    await waitFor(() => expect(h.createDiffEditor).toHaveBeenCalled());
 
     h.setTheme.mockClear();
     // 切换主题并重渲染：diff 预览必须随之更新主题

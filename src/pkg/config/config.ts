@@ -28,6 +28,20 @@ export type CATFileStorage = {
   status: "unset" | "success" | "error";
 };
 
+export type EditorPreferences = {
+  version: 1;
+  fontSize: number;
+  mouseWheelScrollSensitivity: number;
+  smoothScrolling: boolean;
+};
+
+export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
+  version: 1,
+  fontSize: 14,
+  mouseWheelScrollSensitivity: 1,
+  smoothScrolling: true,
+};
+
 type WithAsyncValue<T> = T | { asyncValue?: () => Promise<T> };
 
 // typeof获取 SystemConfig 的所有方法，去掉 get/set 前缀，并把方法名的第一个字母改为小写
@@ -443,6 +457,18 @@ export class SystemConfig {
     }
     JSON.parse(v);
     return this._set("editor_config", v);
+  }
+
+  defaultEditorPreferences(): EditorPreferences {
+    return { ...DEFAULT_EDITOR_PREFERENCES };
+  }
+
+  getEditorPreferences() {
+    return this._get<EditorPreferences>("editor_preferences", this.defaultEditorPreferences());
+  }
+
+  setEditorPreferences(v: EditorPreferences | undefined) {
+    this._set("editor_preferences", v);
   }
 
   // 获取typescript类型定义
