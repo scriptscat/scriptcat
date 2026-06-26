@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { cleanup, screen, fireEvent, render } from "@testing-library/react";
+import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { TooltipProvider } from "@App/pages/components/ui/tooltip";
 import { t } from "@App/locales/locales";
@@ -7,6 +8,7 @@ import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithRouterTooltip } from "@Tests/renderWithTooltip";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
+import type { SortState } from "./sort";
 
 // 行内开关会触发后台消息，打桩；其余子组件（顶栏/筛选栏/批量栏）与排序无关，置空以隔离测试。
 vi.mock("@App/pages/store/features/script", async () => {
@@ -38,35 +40,51 @@ const mk = (uuid: string, name: string, updatetime: number): ScriptLoading =>
 
 const noop = () => {};
 
-const tableEl = (scriptList: ScriptLoading[]) => (
-  <ScriptTable
-    scriptList={scriptList}
-    loadingList={false}
-    updateScripts={noop}
-    handleDelete={noop}
-    handleRunStop={() => Promise.resolve()}
-    setViewMode={noop}
-    searchRequest={{ keyword: "", type: "auto" }}
-    setSearchRequest={noop}
-    totalCount={scriptList.length}
-    scriptListSortOrderMove={noop}
-    filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
-    selectedFilters={{ status: null, type: null, tags: null, source: null }}
-    setSelectedFilters={noop}
-    selectedUuids={new Set()}
-    toggleSelect={noop}
-    toggleSelectAll={noop}
-    clearSelection={noop}
-    onBatchEnable={noop}
-    onBatchDisable={noop}
-    onBatchExport={noop}
-    onBatchDelete={noop}
-    onBatchPinTop={noop}
-    onBatchCheckUpdate={noop}
-  />
+const TableHarness = ({
+  scriptList,
+  initialSortState = { key: null, order: "asc" },
+}: {
+  scriptList: ScriptLoading[];
+  initialSortState?: SortState;
+}) => {
+  const [sortState, setSortState] = useState<SortState>(initialSortState);
+  return (
+    <ScriptTable
+      scriptList={scriptList}
+      loadingList={false}
+      updateScripts={noop}
+      handleDelete={noop}
+      handleRunStop={() => Promise.resolve()}
+      setViewMode={noop}
+      searchRequest={{ keyword: "", type: "auto" }}
+      setSearchRequest={noop}
+      totalCount={scriptList.length}
+      scriptListSortOrderMove={noop}
+      filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
+      selectedFilters={{ status: null, type: null, tags: null, source: null }}
+      setSelectedFilters={noop}
+      selectedUuids={new Set()}
+      toggleSelect={noop}
+      toggleSelectAll={noop}
+      clearSelection={noop}
+      onBatchEnable={noop}
+      onBatchDisable={noop}
+      onBatchExport={noop}
+      onBatchDelete={noop}
+      onBatchPinTop={noop}
+      onBatchCheckUpdate={noop}
+      sortState={sortState}
+      setSortState={setSortState}
+    />
+  );
+};
+
+const tableEl = (scriptList: ScriptLoading[], initialSortState?: SortState) => (
+  <TableHarness scriptList={scriptList} initialSortState={initialSortState} />
 );
 
-const renderTable = (scriptList: ScriptLoading[]) => renderWithRouterTooltip(tableEl(scriptList));
+const renderTable = (scriptList: ScriptLoading[], initialSortState?: SortState) =>
+  renderWithRouterTooltip(tableEl(scriptList, initialSortState));
 
 // 取出脚本名链接（href 指向编辑器）的文本顺序，即可见行顺序
 const renderedOrder = () =>
@@ -96,6 +114,11 @@ describe("ScriptTable 列头点击排序", () => {
     fireEvent.click(screen.getByRole("button", { name: t("logs:last_updated") }));
     // updatetime: A=10, C=20, B=30
     expect(renderedOrder()).toEqual(["Apple", "Cherry", "Banana"]);
+  });
+
+  it("从外部排序状态恢复上次的列排序", () => {
+    renderTable(list, { key: "updatetime", order: "desc" });
+    expect(renderedOrder()).toEqual(["Banana", "Cherry", "Apple"]);
   });
 
   it("排序激活时禁用手动拖拽（不再渲染可拖拽手柄）", () => {

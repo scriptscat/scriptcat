@@ -340,6 +340,10 @@
   a:focus:not(:focus-visible) {
     outline: none;
   }
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    @apply outline-none ring-2 ring-ring/50;
+  }
 }
 
 @utility animate-collapsible-down {

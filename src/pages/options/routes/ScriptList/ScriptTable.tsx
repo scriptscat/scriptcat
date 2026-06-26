@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp, ChevronsUpDown, GripVertical } from "lucide-react";
@@ -148,6 +148,8 @@ export interface ScriptTableProps extends FilterBarProps {
   onBatchDelete: () => void;
   onBatchPinTop: () => void;
   onBatchCheckUpdate: () => void;
+  sortState: SortState;
+  setSortState: React.Dispatch<React.SetStateAction<SortState>>;
 }
 
 export default function ScriptTable({
@@ -174,6 +176,8 @@ export default function ScriptTable({
   onBatchDelete,
   onBatchPinTop,
   onBatchCheckUpdate,
+  sortState,
+  setSortState,
 }: ScriptTableProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -193,9 +197,8 @@ export default function ScriptTable({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // 列头点击排序（瞬时视图排序，不持久化；激活时禁用手动拖拽）
-  const [sortState, setSortState] = useState<SortState>({ key: null, order: "asc" });
-  const handleSort = useCallback((key: SortKey) => setSortState((s) => nextSortState(s, key)), []);
+  // 列头点击排序；激活时禁用手动拖拽，状态由脚本列表偏好持久化。
+  const handleSort = useCallback((key: SortKey) => setSortState((s) => nextSortState(s, key)), [setSortState]);
   const isSorted = sortState.key !== null;
   const displayList = useMemo(() => sortScriptList(scriptList, sortState), [scriptList, sortState]);
 

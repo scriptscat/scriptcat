@@ -6,9 +6,10 @@ import prettierPluginEstree from "prettier/plugins/estree";
 import { SettingCard } from "../../../components/SettingCard";
 import { SettingRow } from "../../../components/SettingRow";
 import { Switch } from "@App/pages/components/ui/switch";
-import { Textarea } from "@App/pages/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@App/pages/components/ui/tabs";
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { notify } from "@App/pages/components/ui/toast";
+import { DeveloperMonacoEditor } from "./DeveloperMonacoEditor";
 
 const JSCONFIG_DOC_URL = "https://code.visualstudio.com/docs/languages/jsconfig";
 
@@ -46,77 +47,90 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
 
   return (
     <SettingCard id="developer" title={t("settings:development_tools")} register={register}>
-      <SettingRow label={t("settings:enable_eslint")} description={t("settings:check_script_code_quality")}>
-        <Switch checked={!!enableEslint} onCheckedChange={(c) => setEnableEslint(c)} />
-      </SettingRow>
+      <Tabs defaultValue="eslint" className="flex flex-col gap-3">
+        <TabsList className="max-w-full self-start justify-start overflow-x-auto">
+          <TabsTrigger value="eslint">{t("settings:eslint_rules")}</TabsTrigger>
+          <TabsTrigger value="editor-config">{t("editor:editor_config")}</TabsTrigger>
+          <TabsTrigger value="type-definition">{t("editor:editor_type_definition")}</TabsTrigger>
+        </TabsList>
 
-      {enableEslint && (
-        <div className="flex flex-col gap-2">
-          <div className="text-[13px] font-medium text-foreground">{t("settings:eslint_rules")}</div>
-          <div className="text-xs text-muted-foreground">{t("settings:custom_eslint_rules_config")}</div>
-          <Textarea
-            data-testid="eslint_rules_textarea"
-            aria-label={t("settings:eslint_rules")}
-            placeholder={t("settings:enter_eslint_rules")}
-            className="min-h-[120px] font-mono text-xs"
-            value={eslintDraft}
-            onChange={(e) => setEslintDraft(e.target.value)}
+        <TabsContent value="eslint" className="mt-0 flex flex-col gap-3">
+          <SettingRow label={t("settings:enable_eslint")} description={t("settings:check_script_code_quality")}>
+            <Switch checked={!!enableEslint} onCheckedChange={(c) => setEnableEslint(c)} />
+          </SettingRow>
+
+          {enableEslint && (
+            <div className="flex flex-col gap-2">
+              <div className="text-[13px] font-medium text-foreground">{t("settings:eslint_rules")}</div>
+              <div className="text-xs text-muted-foreground">{t("settings:custom_eslint_rules_config")}</div>
+              <DeveloperMonacoEditor
+                id="developer-eslint-config-editor"
+                data-testid="eslint_rules_editor"
+                ariaLabel={t("settings:eslint_rules")}
+                language="json"
+                value={eslintDraft}
+                onChange={setEslintDraft}
+                onBlur={() =>
+                  saveJson(
+                    eslintDraft,
+                    (v) => setEslintCfg(v),
+                    "editor:eslint_rules_reset",
+                    "editor:eslint_rules_saved",
+                    "editor:eslint_config_format_error"
+                  )
+                }
+              />
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="editor-config" className="mt-0 flex flex-col gap-2">
+          <div className="text-[13px] font-medium text-foreground">{t("editor:editor_config")}</div>
+          <div className="text-xs text-muted-foreground">
+            {t("editor:editor_config_description")}{" "}
+            <a className="text-primary hover:underline" href={JSCONFIG_DOC_URL} target="_blank" rel="noreferrer">
+              {"jsconfig.js"}
+            </a>
+          </div>
+          <DeveloperMonacoEditor
+            id="developer-editor-config-editor"
+            data-testid="editor_config_editor"
+            ariaLabel={t("editor:editor_config")}
+            language="json"
+            value={editorDraft}
+            onChange={setEditorDraft}
             onBlur={() =>
               saveJson(
-                eslintDraft,
-                (v) => setEslintCfg(v),
-                "editor:eslint_rules_reset",
-                "editor:eslint_rules_saved",
-                "editor:eslint_config_format_error"
+                editorDraft,
+                (v) => setEditorCfg(v),
+                "editor:editor_config_reset",
+                "editor:editor_config_saved",
+                "editor:editor_config_format_error"
               )
             }
           />
-        </div>
-      )}
+        </TabsContent>
 
-      <div className="flex flex-col gap-2">
-        <div className="text-[13px] font-medium text-foreground">{t("editor:editor_config")}</div>
-        <div className="text-xs text-muted-foreground">
-          {t("editor:editor_config_description")}{" "}
-          <a className="text-primary hover:underline" href={JSCONFIG_DOC_URL} target="_blank" rel="noreferrer">
-            {"jsconfig.js"}
-          </a>
-        </div>
-        <Textarea
-          data-testid="editor_config_textarea"
-          aria-label={t("editor:editor_config")}
-          className="min-h-[120px] font-mono text-xs"
-          value={editorDraft}
-          onChange={(e) => setEditorDraft(e.target.value)}
-          onBlur={() =>
-            saveJson(
-              editorDraft,
-              (v) => setEditorCfg(v),
-              "editor:editor_config_reset",
-              "editor:editor_config_saved",
-              "editor:editor_config_format_error"
-            )
-          }
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <div className="text-[13px] font-medium text-foreground">{t("editor:editor_type_definition")}</div>
-        <div className="text-xs text-muted-foreground">{t("editor:editor_type_definition_description")}</div>
-        <Textarea
-          data-testid="editor_type_definition_textarea"
-          aria-label={t("editor:editor_type_definition")}
-          className="min-h-[120px] font-mono text-xs"
-          value={typeDraft}
-          onChange={(e) => setTypeDraft(e.target.value)}
-          onBlur={() => {
-            notify.success(
-              t(typeDraft === "" ? "editor:editor_type_definition_reset" : "editor:editor_type_definition_saved") ?? ""
-            );
-            setTypeDef(typeDraft);
-          }}
-        />
-      </div>
+        <TabsContent value="type-definition" className="mt-0 flex flex-col gap-2">
+          <div className="text-[13px] font-medium text-foreground">{t("editor:editor_type_definition")}</div>
+          <div className="text-xs text-muted-foreground">{t("editor:editor_type_definition_description")}</div>
+          <DeveloperMonacoEditor
+            id="developer-editor-type-definition-editor"
+            data-testid="editor_type_definition_editor"
+            ariaLabel={t("editor:editor_type_definition")}
+            language="typescript"
+            value={typeDraft}
+            onChange={setTypeDraft}
+            onBlur={() => {
+              notify.success(
+                t(typeDraft === "" ? "editor:editor_type_definition_reset" : "editor:editor_type_definition_saved") ??
+                  ""
+              );
+              setTypeDef(typeDraft);
+            }}
+          />
+        </TabsContent>
+      </Tabs>
     </SettingCard>
   );
 }

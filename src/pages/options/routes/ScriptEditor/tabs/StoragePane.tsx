@@ -230,7 +230,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
           />
           <div className="flex-1" />
           <span className="text-xs text-muted-foreground">{t("editor:record_count", { count: data.length })}</span>
-          <Button size="sm" variant="outline" onClick={enterBatch} disabled={data.length === 0}>
+          <Button size="sm" variant="outline" onClick={enterBatch}>
             <Braces className="size-3.5" />
             {t("editor:batch_edit")}
           </Button>

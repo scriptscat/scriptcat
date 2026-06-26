@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, memo, useMemo } from "react";
+import { useCallback, useEffect, useState, memo, useMemo, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
@@ -37,6 +37,13 @@ import ScriptListMobile from "./ScriptListMobile";
 import { notify } from "@App/pages/components/ui/toast";
 import { useUserConfigPreload } from "./preload";
 import { reindexScriptList } from "./sort";
+import type { SortState } from "./sort";
+import {
+  type ScriptListPreferences,
+  type ScriptListViewMode,
+  readScriptListPreferences,
+  writeScriptListPreferences,
+} from "./preferences";
 import { useOnboardingDemoActive } from "@App/pages/options/onboarding/OnboardingProvider";
 import { getDemoScripts } from "@App/pages/options/onboarding/demo-scripts";
 
@@ -52,7 +59,7 @@ type BatchProps = Pick<
   "onBatchEnable" | "onBatchDisable" | "onBatchExport" | "onBatchDelete" | "onBatchPinTop" | "onBatchCheckUpdate"
 >;
 
-type ContentProps = { viewMode: "table" | "card" } & ScriptTableProps & FilterBarProps & SelectionProps & BatchProps;
+type ContentProps = { viewMode: ScriptListViewMode } & ScriptTableProps & FilterBarProps & SelectionProps & BatchProps;
 
 /**
  * 子组件: 内容区域（memo 防止弹窗状态引起列表重绘）
@@ -93,18 +100,17 @@ function PreloadedUserConfigPanel({ script, onClose }: { script: Script; onClose
  */
 export default function ScriptList() {
   const { t } = useTranslation();
+  const [preferences, setPreferences] = useState<ScriptListPreferences>(readScriptListPreferences);
   // 1. UI 状态
-  const [viewMode, setViewMode] = useState<"table" | "card">(() => {
-    const saved = localStorage.getItem("script-list-view-mode");
-    return saved === "table" || saved === "card" ? saved : "table";
-  });
-  const [selectedFilters, setSelectedFilters] = useState<TSelectFilter>({
-    status: null,
-    type: null,
-    tags: null,
-    source: null,
-  });
-  const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({ keyword: "", type: "auto" });
+  const { viewMode, selectedFilters, searchRequest, sortState } = preferences;
+
+  const updatePreferences = useCallback((updater: (prev: ScriptListPreferences) => ScriptListPreferences) => {
+    setPreferences((prev) => {
+      const next = updater(prev);
+      writeScriptListPreferences(next);
+      return next;
+    });
+  }, []);
 
   // 2. 数据 Hook
   const { scriptList, setScriptList, loadingList } = useScriptDataManagement();
@@ -117,10 +123,35 @@ export default function ScriptList() {
   const displayScripts = demoActive ? demoScripts : filterScriptList;
 
   // 3. 持久化视图切换
-  const handleSetViewMode = useCallback((mode: "table" | "card") => {
-    localStorage.setItem("script-list-view-mode", mode);
-    setViewMode(mode);
-  }, []);
+  const handleSetViewMode = useCallback(
+    (mode: ScriptListViewMode) => updatePreferences((prev) => ({ ...prev, viewMode: mode })),
+    [updatePreferences]
+  );
+
+  const handleSetSelectedFilters = useCallback(
+    (updater: SetStateAction<TSelectFilter>) => {
+      updatePreferences((prev) => ({
+        ...prev,
+        selectedFilters: typeof updater === "function" ? updater(prev.selectedFilters) : updater,
+      }));
+    },
+    [updatePreferences]
+  );
+
+  const handleSetSearchRequest = useCallback(
+    (req: SearchFilterRequest) => updatePreferences((prev) => ({ ...prev, searchRequest: req })),
+    [updatePreferences]
+  );
+
+  const handleSetSortState = useCallback(
+    (updater: SetStateAction<SortState>) => {
+      updatePreferences((prev) => ({
+        ...prev,
+        sortState: typeof updater === "function" ? updater(prev.sortState) : updater,
+      }));
+    },
+    [updatePreferences]
+  );
 
   // 4. 更新脚本（useCallback 保证引用稳定）
   const updateScripts = useCallback(
@@ -347,11 +378,11 @@ export default function ScriptList() {
           handleDelete={handleDelete}
           handleRunStop={handleRunStop}
           searchRequest={searchRequest}
-          setSearchRequest={setSearchRequest}
+          setSearchRequest={handleSetSearchRequest}
           scriptListSortOrderMove={scriptListSortOrderMove}
           filterItems={filterItems}
           selectedFilters={selectedFilters}
-          setSelectedFilters={setSelectedFilters}
+          setSelectedFilters={handleSetSelectedFilters}
         />
         {userConfigDialog}
         {cloudDialog}
@@ -370,12 +401,14 @@ export default function ScriptList() {
         handleRunStop={handleRunStop}
         setViewMode={handleSetViewMode}
         searchRequest={searchRequest}
-        setSearchRequest={setSearchRequest}
+        setSearchRequest={handleSetSearchRequest}
         totalCount={demoActive ? demoScripts.length : scriptList.length}
         scriptListSortOrderMove={scriptListSortOrderMove}
         filterItems={filterItems}
         selectedFilters={selectedFilters}
-        setSelectedFilters={setSelectedFilters}
+        setSelectedFilters={handleSetSelectedFilters}
+        sortState={sortState}
+        setSortState={handleSetSortState}
         selectedUuids={selectedUuids}
         toggleSelect={toggleSelect}
         toggleSelectAll={toggleSelectAll}

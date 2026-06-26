@@ -54,7 +54,6 @@ export default function ScriptEditor() {
 
   const { scriptList, setScriptList, loadingList } = useScriptDataManagement();
   const [state, dispatch] = useReducer(editorTabsReducer, initialEditorTabsState);
-  const [subView, setSubView] = useState<SubView>("code");
   const [status, setStatus] = useState<EditorStatus | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [scriptListCollapsed, setScriptListCollapsed] = useState(
@@ -113,7 +112,7 @@ export default function ScriptEditor() {
           return;
         }
         const code = await loadScriptCode(uuid);
-        dispatch({ type: "open", tab: { uuid, script, code, isChanged: false } });
+        dispatch({ type: "open", tab: { uuid, script, code, subView: "code", isChanged: false } });
       } else {
         const tab = await emptyScript(template || "", target);
         dispatch({ type: "open", tab });
@@ -171,6 +170,7 @@ export default function ScriptEditor() {
   }, [anyChanged]);
 
   const activeTab = useMemo(() => state.tabs.find((x) => x.uuid === state.activeUuid), [state.tabs, state.activeUuid]);
+  const subView = activeTab?.subView ?? "code";
   // 仅后台/定时脚本可运行；普通脚本隐藏「运行」入口（与脚本列表/弹窗一致）
   const canRun = !!activeTab && activeTab.script.type !== SCRIPT_TYPE_NORMAL;
   usePreloadResourcePane(activeTab?.uuid);
@@ -193,8 +193,10 @@ export default function ScriptEditor() {
 
   const selectSubView = useCallback(
     (view: SubView) => {
+      const uuid = stateRef.current.activeUuid;
+      if (!uuid) return;
       preloadSubView(view);
-      setSubView(view);
+      dispatch({ type: "setSubView", uuid, subView: view });
     },
     [preloadSubView]
   );

@@ -10,10 +10,10 @@ import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { cn } from "@App/pkg/utils/cn";
 import { notify } from "@App/pages/components/ui/toast";
 import { Input } from "@App/pages/components/ui/input";
+import { Textarea } from "@App/pages/components/ui/textarea";
 import { Button } from "@App/pages/components/ui/button";
 import { DataPanel, DataPanelEmpty, DataPanelHeader, DataPanelRow } from "@App/pages/components/ui/data-panel";
 import { Switch } from "@App/pages/components/ui/switch";
-import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { TooltipIconButton } from "@App/pages/components/ui/tooltip-icon-button";
 import {
@@ -46,6 +46,40 @@ const pillColor: Record<string, string> = {
   script: "bg-muted text-muted-foreground",
 };
 const iconBtn = "rounded p-1 text-muted-foreground hover:bg-accent transition-colors";
+
+type BulkLine = {
+  line: number;
+  value: string;
+  status: "new" | "duplicate";
+};
+
+type BulkParseResult = {
+  lines: BulkLine[];
+  entries: string[];
+};
+
+const parseBulkValues = (input: string, existing: Iterable<string>): BulkParseResult => {
+  const seen = new Set(existing);
+  const lines: BulkLine[] = [];
+
+  input.split(/\r?\n/).forEach((raw, index) => {
+    const value = raw.trim();
+    if (!value) {
+      return;
+    }
+    if (seen.has(value)) {
+      lines.push({ line: index + 1, value, status: "duplicate" });
+      return;
+    }
+    seen.add(value);
+    lines.push({ line: index + 1, value, status: "new" });
+  });
+
+  return {
+    lines,
+    entries: lines.filter((line) => line.status === "new").map((line) => line.value),
+  };
+};
 
 type SettingsPaneData = {
   script: Script;
@@ -139,13 +173,13 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
     return self.exclude ?? meta.exclude ?? [];
   });
   const [permissions, setPermissions] = useState<Permission[]>(data.permissions);
-  const [addMatchKind, setAddMatchKind] = useState<"match" | "exclude" | null>(null);
-  const [addMatchValue, setAddMatchValue] = useState("");
-  const [permOpen, setPermOpen] = useState(false);
-  const [permDraft, setPermDraft] = useState<{ permission: string; permissionValue: string; allow: boolean }>({
+  const [bulkMatchKind, setBulkMatchKind] = useState<"match" | "exclude" | null>(null);
+  const [bulkMatchValue, setBulkMatchValue] = useState("");
+  const [bulkPermOpen, setBulkPermOpen] = useState(false);
+  const [bulkPermDraft, setBulkPermDraft] = useState<{ permission: string; allow: boolean; values: string }>({
     permission: "cors",
-    permissionValue: "",
     allow: true,
+    values: "",
   });
 
   const meta = script.metadata || {};
@@ -209,14 +243,20 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
     }
     patchSelf({ [kind]: next ?? [] });
   };
-  const submitAddMatch = () => {
-    const v = addMatchValue.trim();
-    if (!v) return;
-    const kind = addMatchKind!;
-    const list = kind === "match" ? matches : excludes;
-    setMatchList(kind, [...list, v]);
-    setAddMatchKind(null);
-    setAddMatchValue("");
+  const openBulkMatch = (kind: "match" | "exclude") => {
+    setBulkMatchValue("");
+    setBulkMatchKind(kind);
+  };
+  const bulkMatchParsed = parseBulkValues(
+    bulkMatchValue,
+    bulkMatchKind === "match" ? matches : bulkMatchKind === "exclude" ? excludes : []
+  );
+  const submitBulkMatch = () => {
+    if (!bulkMatchKind || bulkMatchParsed.entries.length === 0) return;
+    const list = bulkMatchKind === "match" ? matches : excludes;
+    setMatchList(bulkMatchKind, [...list, ...bulkMatchParsed.entries]);
+    setBulkMatchKind(null);
+    setBulkMatchValue("");
   };
 
   // ===== 授权管理 =====
@@ -240,25 +280,60 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
       notify.success(t("update_success"));
     });
   };
-  const openAddPermission = () => {
-    setPermDraft({ permission: "cors", permissionValue: "", allow: true });
-    setPermOpen(true);
+  const openBulkPermission = () => {
+    setBulkPermDraft({ permission: "cors", allow: true, values: "" });
+    setBulkPermOpen(true);
   };
-  const submitAddPermission = () => {
-    const perm: Permission = {
+  const bulkPermissionExisting = permissions
+    .filter((p) => p.permission === bulkPermDraft.permission)
+    .map((p) => p.permissionValue);
+  const bulkPermissionParsed = parseBulkValues(bulkPermDraft.values, bulkPermissionExisting);
+  const submitBulkPermission = () => {
+    if (bulkPermissionParsed.entries.length === 0) return;
+    const created = bulkPermissionParsed.entries.map<Permission>((permissionValue) => ({
       uuid,
-      permission: permDraft.permission,
-      permissionValue: permDraft.permissionValue.trim(),
-      allow: permDraft.allow,
+      permission: bulkPermDraft.permission,
+      permissionValue,
+      allow: bulkPermDraft.allow,
       createtime: Date.now(),
       updatetime: 0,
-    };
-    void permissionClient.addPermission(perm).then(() => {
-      setPermissions((prev) => [...prev.filter((x) => !samePermission(x, perm)), perm]);
-      setPermOpen(false);
+    }));
+    void Promise.all(created.map((perm) => permissionClient.addPermission(perm))).then(() => {
+      setPermissions((prev) => [
+        ...prev.filter((p) => !created.some((createdPerm) => samePermission(p, createdPerm))),
+        ...created,
+      ]);
+      setBulkPermOpen(false);
       notify.success(t("update_success"));
     });
   };
+
+  const bulkPreview = (parsed: BulkParseResult) => (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <DataPanelHeader>
+        <span className="w-10 shrink-0">{"#"}</span>
+        <span className="min-w-0 flex-1">{t("editor:preview")}</span>
+        <span className="w-24 shrink-0 text-right">{t("editor:status")}</span>
+      </DataPanelHeader>
+      {parsed.lines.length === 0 ? (
+        <DataPanelEmpty>{t("editor:bulk_empty_preview")}</DataPanelEmpty>
+      ) : (
+        parsed.lines.map((line) => (
+          <DataPanelRow key={`${line.line}:${line.value}`} className={line.status === "duplicate" ? "opacity-70" : ""}>
+            <span className="w-10 shrink-0 text-muted-foreground">{line.line}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-foreground" title={line.value}>
+              {line.value}
+            </span>
+            <span className="w-24 shrink-0 text-right">
+              <span className={cn(pill, line.status === "new" ? pillColor.yes : pillColor.script)}>
+                {t(line.status === "new" ? "editor:bulk_status_new" : "editor:bulk_status_duplicate")}
+              </span>
+            </span>
+          </DataPanelRow>
+        ))
+      )}
+    </div>
+  );
 
   const matchTable = (kind: "match" | "exclude") => {
     const list = kind === "match" ? matches : excludes;
@@ -269,14 +344,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
           <SectionTitle>{t(kind === "match" ? "editor:website_match" : "editor:website_exclude")}</SectionTitle>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setAddMatchValue("");
-                setAddMatchKind(kind);
-              }}
-            >
+            <Button size="sm" variant="outline" onClick={() => openBulkMatch(kind)}>
               <Plus className="size-3.5" />
               {t(kind === "match" ? "editor:add_match" : "editor:add_exclude")}
             </Button>
@@ -472,7 +540,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
             <SectionTitle>{t("permission:permission_management")}</SectionTitle>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={openAddPermission}>
+              <Button size="sm" variant="outline" onClick={openBulkPermission}>
                 <Plus className="size-3.5" />
                 {t("editor:add_permission")}
               </Button>
@@ -523,7 +591,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                       onClick={() => toggleAllow(p)}
                       className={cn(pill, p.allow ? pillColor.yes : pillColor.no)}
                     >
-                      {p.allow ? t("yes") : t("no")}
+                      {p.allow ? t("permission:allow_action") : t("permission:deny_action")}
                     </button>
                   </div>
                   <div className="flex w-16 shrink-0 justify-end">
@@ -550,69 +618,87 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
         </div>
       </div>
 
-      {/* 添加匹配 / 排除 弹窗 */}
-      <Dialog open={!!addMatchKind} onOpenChange={(open) => !open && setAddMatchKind(null)}>
-        <DialogContent className="sm:max-w-md">
+      {/* 添加匹配 / 排除弹窗 */}
+      <Dialog open={!!bulkMatchKind} onOpenChange={(open) => !open && setBulkMatchKind(null)}>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{t(addMatchKind === "exclude" ? "editor:add_exclude" : "editor:add_match")}</DialogTitle>
-            <DialogDescription className="sr-only">
-              {t(addMatchKind === "exclude" ? "editor:add_exclude" : "editor:add_match")}
-            </DialogDescription>
+            <DialogTitle>{t(bulkMatchKind === "exclude" ? "editor:add_exclude" : "editor:add_match")}</DialogTitle>
+            <DialogDescription>{t("editor:bulk_match_desc")}</DialogDescription>
           </DialogHeader>
-          <Input
-            value={addMatchValue}
-            onChange={(e) => setAddMatchValue(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitAddMatch()}
-            placeholder="*://*.example.com/*"
-            className="font-mono text-xs"
-          />
+          <div className="flex flex-col gap-3">
+            <Textarea
+              aria-label={t("editor:bulk_values")}
+              value={bulkMatchValue}
+              onChange={(e) => setBulkMatchValue(e.target.value)}
+              placeholder="https://*.example.com/*"
+              className="min-h-36 font-mono text-xs"
+            />
+            {bulkPreview(bulkMatchParsed)}
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddMatchKind(null)}>
+            <Button variant="outline" onClick={() => setBulkMatchKind(null)}>
               {t("editor:cancel")}
             </Button>
-            <Button onClick={submitAddMatch}>{t("confirm")}</Button>
+            <Button onClick={submitBulkMatch} disabled={bulkMatchParsed.entries.length === 0}>
+              {t("confirm")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* 添加授权 弹窗 */}
-      <Dialog open={permOpen} onOpenChange={setPermOpen}>
-        <DialogContent className="sm:max-w-md">
+      {/* 添加授权弹窗 */}
+      <Dialog open={bulkPermOpen} onOpenChange={setBulkPermOpen}>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{t("editor:add_permission")}</DialogTitle>
-            <DialogDescription className="sr-only">{t("editor:add_permission")}</DialogDescription>
+            <DialogDescription>{t("editor:bulk_permission_desc")}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
-            <Select value={permDraft.permission} onValueChange={(v) => setPermDraft({ ...permDraft, permission: v })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PERMISSION_TYPES.map((tp) => (
-                  <SelectItem key={tp} value={tp}>
-                    {t(`permission:permission_${tp}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              value={permDraft.permissionValue}
-              onChange={(e) => setPermDraft({ ...permDraft, permissionValue: e.target.value })}
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <Select
+                value={bulkPermDraft.permission}
+                onValueChange={(v) => setBulkPermDraft({ ...bulkPermDraft, permission: v })}
+              >
+                <SelectTrigger aria-label={t("permission:permission")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PERMISSION_TYPES.map((tp) => (
+                    <SelectItem key={tp} value={tp}>
+                      {t(`permission:permission_${tp}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={bulkPermDraft.allow ? "allow" : "deny"}
+                onValueChange={(v) => setBulkPermDraft({ ...bulkPermDraft, allow: v === "allow" })}
+              >
+                <SelectTrigger aria-label={t("permission:allow")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="allow">{t("permission:allow_action")}</SelectItem>
+                  <SelectItem value="deny">{t("permission:deny_action")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Textarea
+              aria-label={t("editor:bulk_values")}
+              value={bulkPermDraft.values}
+              onChange={(e) => setBulkPermDraft({ ...bulkPermDraft, values: e.target.value })}
               placeholder={t("permission:permission_value")}
+              className="min-h-32 font-mono text-xs"
             />
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <Checkbox
-                checked={permDraft.allow}
-                onCheckedChange={(c) => setPermDraft({ ...permDraft, allow: c === true })}
-              />
-              {t("permission:allow")}
-            </label>
+            {bulkPreview(bulkPermissionParsed)}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPermOpen(false)}>
+            <Button variant="outline" onClick={() => setBulkPermOpen(false)}>
               {t("editor:cancel")}
             </Button>
-            <Button onClick={submitAddPermission}>{t("confirm")}</Button>
+            <Button onClick={submitBulkPermission} disabled={bulkPermissionParsed.entries.length === 0}>
+              {t("confirm")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

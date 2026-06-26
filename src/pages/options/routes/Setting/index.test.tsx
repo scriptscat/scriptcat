@@ -17,6 +17,9 @@ vi.mock("@App/pages/store/global", async () => {
   const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
   return createGlobalStoreMock({ systemConfig: { get, set } });
 });
+vi.mock("./sections/DeveloperMonacoEditor", () => ({
+  DeveloperMonacoEditor: ({ ariaLabel }: { ariaLabel: string }) => <textarea aria-label={ariaLabel} />,
+}));
 import Setting from "./index";
 
 beforeEach(() => {

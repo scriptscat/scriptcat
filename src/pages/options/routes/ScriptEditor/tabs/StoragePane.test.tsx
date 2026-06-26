@@ -147,6 +147,29 @@ describe("StoragePane 储存面板", () => {
     await waitFor(() => expect(setScriptValues).toHaveBeenCalledWith(expect.objectContaining({ isReplace: true })));
   });
 
+  it("无数据时也应允许进入批量编辑并从空对象新增储存值", async () => {
+    getScriptValue.mockResolvedValue({});
+    render(<StoragePane uuid="u1" />);
+    await screen.findByText(t("no_data"));
+
+    fireEvent.click(screen.getByRole("button", { name: t("editor:batch_edit") }));
+    const textarea = screen.getByRole("textbox");
+    expect((textarea as HTMLTextAreaElement).value).toBe("{}");
+
+    fireEvent.change(textarea, { target: { value: '{"newKey": "hello"}' } });
+    fireEvent.click(screen.getByRole("button", { name: t("save") }));
+
+    await waitFor(() =>
+      expect(setScriptValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isReplace: true,
+          keyValuePairs: [["newKey", [0, "hello"]]],
+        })
+      )
+    );
+    expect(await screen.findByText("newKey")).toBeInTheDocument();
+  });
+
   it("无数据时应展示空状态", async () => {
     getScriptValue.mockResolvedValue({});
     render(<StoragePane uuid="u1" />);

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { initLanguage, t } from "@App/locales/locales";
 import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
@@ -45,8 +45,11 @@ const samplePermissions = () => [
   { uuid: "u1", permission: "cookie", permissionValue: "b.com", allow: false, createtime: 2, updatetime: 0 },
 ];
 
-beforeEach(() => {
+beforeAll(() => {
   initLanguage("zh-CN");
+});
+
+beforeEach(() => {
   vi.clearAllMocks();
   fetchScript.mockResolvedValue(sampleScript());
   getScriptPermissions.mockResolvedValue(samplePermissions());
@@ -206,14 +209,52 @@ describe("SettingsPane 网站匹配/排除", () => {
     expect(screen.getByText(t("editor:confirm_delete_exclude"))).toBeInTheDocument();
   });
 
-  it("添加匹配:输入保存应调用 resetMatch", async () => {
+  it("添加匹配应打开多行弹窗并去除空行与重复项后复用 resetMatch", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://script.com/*");
+
     fireEvent.click(screen.getByRole("button", { name: t("editor:add_match") }));
-    fireEvent.change(screen.getByPlaceholderText("*://*.example.com/*"), { target: { value: "*://new.com/*" } });
+    fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
+      target: {
+        value: `
+          *://user.com/*
+          https://new.example.com/*
+
+          https://new.example.com/*
+          *://trimmed.example.org/*
+        `,
+      },
+    });
     fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+
     await waitFor(() =>
-      expect(resetMatch).toHaveBeenCalledWith("u1", ["*://script.com/*", "*://user.com/*", "*://new.com/*"])
+      expect(resetMatch).toHaveBeenCalledWith("u1", [
+        "*://script.com/*",
+        "*://user.com/*",
+        "https://new.example.com/*",
+        "*://trimmed.example.org/*",
+      ])
+    );
+  });
+
+  it("添加排除应打开多行弹窗并去除空行与重复项后复用 resetExclude", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://exclude.com/*");
+
+    fireEvent.click(screen.getByRole("button", { name: t("editor:add_exclude") }));
+    fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
+      target: {
+        value: `
+          *://exclude.com/*
+          https://ads.example.com/*
+          https://ads.example.com/*
+        `,
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+
+    await waitFor(() =>
+      expect(resetExclude).toHaveBeenCalledWith("u1", ["*://exclude.com/*", "https://ads.example.com/*"])
     );
   });
 
@@ -256,16 +297,32 @@ describe("SettingsPane 授权管理(CORS)", () => {
     await waitFor(() => expect(screen.queryByText("a.com")).toBeNull());
   });
 
-  it("新增授权:填值保存应调用 addPermission", async () => {
+  it("新增授权应打开多行弹窗并使用下拉框选择允许状态", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
+
     fireEvent.click(screen.getByRole("button", { name: t("editor:add_permission") }));
-    fireEvent.change(screen.getByPlaceholderText(t("permission:permission_value")), { target: { value: "c.com" } });
+    expect(screen.getByRole("combobox", { name: t("permission:allow") })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
+      target: {
+        value: `
+          a.com
+          c.com
+          c.com
+          d.com
+        `,
+      },
+    });
     fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
-    await waitFor(() =>
-      expect(addPermission).toHaveBeenCalledWith(
-        expect.objectContaining({ uuid: "u1", permission: "cors", permissionValue: "c.com" })
-      )
+
+    await waitFor(() => expect(addPermission).toHaveBeenCalledTimes(2));
+    expect(addPermission).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ uuid: "u1", permission: "cors", permissionValue: "c.com", allow: true })
+    );
+    expect(addPermission).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ uuid: "u1", permission: "cors", permissionValue: "d.com", allow: true })
     );
   });
 

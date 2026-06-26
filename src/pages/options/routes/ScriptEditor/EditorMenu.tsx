@@ -13,8 +13,9 @@ import {
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
 import { useHoverMenu } from "@App/pages/components/ui/use-hover-menu";
+import type { EditorSubView } from "./useEditorTabs";
 
-export type SubView = "code" | "storage" | "resource" | "setting";
+export type SubView = EditorSubView;
 export type EditorCommand = "undo" | "redo" | "cut" | "copy" | "paste" | "find" | "replace" | "selectAll" | "format";
 
 export interface EditorMenuProps {

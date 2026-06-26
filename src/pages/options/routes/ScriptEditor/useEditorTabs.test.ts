@@ -22,6 +22,7 @@ const mkTab = (uuid: string, code = `// ${uuid}`): EditorTab => ({
   uuid,
   script: mkScript(uuid),
   code,
+  subView: "code",
   isChanged: false,
 });
 
@@ -67,6 +68,17 @@ describe("editorTabsReducer 多标签状态机", () => {
       const state = openMany(["a", "b"]);
       const next = editorTabsReducer(state, { type: "activate", uuid: "x" });
       expect(next.activeUuid).toBe("b");
+    });
+
+    it("不同脚本标签应各自记住代码/储存/资源子标签", () => {
+      let state = openMany(["a", "b"]); // active=b
+      state = editorTabsReducer(state, { type: "activate", uuid: "a" });
+      state = editorTabsReducer(state, { type: "setSubView", uuid: "a", subView: "storage" });
+      state = editorTabsReducer(state, { type: "activate", uuid: "b" });
+      expect(state.tabs.find((t) => t.uuid === "b")?.subView).toBe("code");
+
+      state = editorTabsReducer(state, { type: "activate", uuid: "a" });
+      expect(state.tabs.find((t) => t.uuid === "a")?.subView).toBe("storage");
     });
   });
 

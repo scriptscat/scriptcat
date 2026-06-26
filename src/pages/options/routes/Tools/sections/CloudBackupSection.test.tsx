@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import type { ChangeEvent, ReactNode } from "react";
 
 const { create, backupToCloud } = vi.hoisted(() => ({
   create: vi.fn(),
@@ -30,6 +31,39 @@ vi.mock("../openImportWindow", () => ({ openImportWindow: openImport }));
 
 const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
 vi.mock("@App/pages/store/global", () => ({ systemConfig: { get, set }, subscribeMessage: () => () => {} }));
+
+vi.mock("../../../components/FileSystemParams", async () => {
+  const React = await import("react");
+  return {
+    default: function MockFileSystemParams({
+      children,
+      fileSystemParams,
+      onChangeFileSystemType,
+      onChangeFileSystemParams,
+    }: {
+      children?: ReactNode;
+      fileSystemParams: Record<string, any>;
+      onChangeFileSystemType: (type: "googledrive") => void;
+      onChangeFileSystemParams: (params: Record<string, any>) => void;
+    }) {
+      return React.createElement(
+        "div",
+        null,
+        React.createElement(
+          "button",
+          { type: "button", "data-testid": "filesystem_type", onClick: () => onChangeFileSystemType("googledrive") },
+          "Google Drive"
+        ),
+        React.createElement("input", {
+          "aria-label": "url",
+          value: fileSystemParams.url ?? "",
+          onChange: (e: ChangeEvent<HTMLInputElement>) => onChangeFileSystemParams({ url: e.target.value }),
+        }),
+        children
+      );
+    },
+  };
+});
 
 import { CloudBackupSection } from "./CloudBackupSection";
 
@@ -70,6 +104,35 @@ async function openBackupList() {
 }
 
 describe("云端备份分区", () => {
+  it("切换备份目标应立即保存配置但不执行备份", async () => {
+    mockBackup({ params: { webdav: { url: "https://dav" }, googledrive: {} } });
+    render(<CloudBackupSection register={() => () => {}} />);
+    const trigger = await screen.findByTestId("filesystem_type");
+
+    fireEvent.click(trigger);
+
+    await waitFor(() =>
+      expect(set).toHaveBeenCalledWith("backup", expect.objectContaining({ filesystem: "googledrive" }))
+    );
+    expect(backupToCloud).not.toHaveBeenCalled();
+  });
+
+  it("修改当前备份目标参数应立即保存配置但不执行备份", async () => {
+    mockBackup();
+    render(<CloudBackupSection register={() => () => {}} />);
+    const urlInput = await screen.findByLabelText("url");
+
+    fireEvent.change(urlInput, { target: { value: "https://dav-new" } });
+
+    await waitFor(() =>
+      expect(set).toHaveBeenCalledWith(
+        "backup",
+        expect.objectContaining({ params: expect.objectContaining({ webdav: { url: "https://dav-new" } }) })
+      )
+    );
+    expect(backupToCloud).not.toHaveBeenCalled();
+  });
+
   it("点击备份写入配置并上传云端", async () => {
     mockBackup();
     render(<CloudBackupSection register={() => () => {}} />);

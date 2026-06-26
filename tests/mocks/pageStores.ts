@@ -2,6 +2,8 @@ type MockOverrides = Record<string, unknown>;
 
 type SystemConfigMock = {
   get: (key: string) => unknown;
+  getLanguage: () => Promise<string>;
+  addListener: (key: string, callback: (value: unknown) => void) => () => void;
   set: (key: string, value: unknown) => unknown;
 };
 
@@ -52,6 +54,8 @@ export function createGlobalStoreMock(overrides: MockOverrides = {}) {
   const { systemConfig: systemConfigOverride, ...rest } = overrides;
   const systemConfig = {
     get: () => undefined,
+    getLanguage: () => Promise.resolve("zh-CN"),
+    addListener: () => () => {},
     set: () => undefined,
     ...(systemConfigOverride as Partial<SystemConfigMock> | undefined),
   };

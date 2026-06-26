@@ -1,10 +1,13 @@
 import type { Script } from "@App/app/repo/scripts";
 
+export type EditorSubView = "code" | "storage" | "resource" | "setting";
+
 // 单个打开的编辑器标签（仅数据状态，不持有 Monaco 实例）
 export interface EditorTab {
   uuid: string;
   script: Script;
   code: string; // 最近一次保存的基线代码，用于计算脏标记
+  subView: EditorSubView;
   isChanged: boolean;
 }
 
@@ -25,6 +28,7 @@ export type EditorTabsAction =
   | { type: "closeOthers"; uuid: string }
   | { type: "closeLeft"; uuid: string }
   | { type: "closeRight"; uuid: string }
+  | { type: "setSubView"; uuid: string; subView: EditorSubView }
   | { type: "markChanged"; uuid: string; code: string }
   | { type: "commitSaved"; uuid: string; code: string; script: Script };
 
@@ -86,6 +90,13 @@ export function editorTabsReducer(state: EditorTabsState, action: EditorTabsActi
       if (idx === -1) return state;
       const tabs = state.tabs.slice(0, idx + 1);
       return { tabs, activeUuid: ensureActive(tabs, state.activeUuid) };
+    }
+    case "setSubView": {
+      if (!has(state.tabs, action.uuid)) return state;
+      return {
+        ...state,
+        tabs: state.tabs.map((t) => (t.uuid === action.uuid ? { ...t, subView: action.subView } : t)),
+      };
     }
     case "markChanged": {
       return {

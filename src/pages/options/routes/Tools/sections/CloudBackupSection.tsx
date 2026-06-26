@@ -27,6 +27,11 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
 
   const currentParams = () => draft!.params[draft!.filesystem];
 
+  const saveDraft = (nextDraft: BackupConfig) => {
+    setDraft(nextDraft);
+    systemConfig.set("backup", nextDraft);
+  };
+
   const saveAndBackup = () => {
     if (!draft) return;
     systemConfig.set("backup", draft);
@@ -117,9 +122,9 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
           headerContent={<span className="text-sm text-muted-foreground">{t("settings:backup_to")}</span>}
           fileSystemType={draft.filesystem}
           fileSystemParams={draft.params[draft.filesystem] || {}}
-          onChangeFileSystemType={(type) => setDraft((d) => (d ? { ...d, filesystem: type } : d))}
+          onChangeFileSystemType={(type) => saveDraft({ ...draft, filesystem: type })}
           onChangeFileSystemParams={(params) =>
-            setDraft((d) => (d ? { ...d, params: { ...d.params, [d.filesystem]: params } } : d))
+            saveDraft({ ...draft, params: { ...draft.params, [draft.filesystem]: params } })
           }
         >
           <Button data-testid="tools_backup" size="sm" disabled={loading} onClick={saveAndBackup}>

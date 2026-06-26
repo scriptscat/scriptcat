@@ -70,5 +70,5 @@ export async function emptyScript(template: string, target?: string): Promise<Ed
   }
   const { script } = await prepareScriptByCode(code, "", uuidv4());
   script.createtime = 0; // 标记为未保存的新脚本
-  return { uuid: script.uuid, script, code, isChanged: false };
+  return { uuid: script.uuid, script, code, subView: "code", isChanged: false };
 }
