@@ -27,6 +27,7 @@ const assets = path.join(src, "assets");
 // 排除这些文件，不进行分离
 const chunkExcludeSet = new Set([
   "editor.worker",
+  "json.worker",
   "ts.worker",
   "linter.worker",
   "service_worker",
@@ -67,6 +68,7 @@ export default {
     install: `${src}/pages/install/main.tsx`,
     import: `${src}/pages/import/main.tsx`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
+    "json.worker": "monaco-editor/esm/vs/language/json/json.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
     "linter.worker": `${src}/linter.worker.ts`,
   },

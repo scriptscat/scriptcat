@@ -843,6 +843,9 @@ export function registerEditor() {
     window.MonacoEnvironment = {
       ...existingEnvironment,
       getWorkerUrl(_moduleId: unknown, label: string) {
+        if (label === "json") {
+          return "/src/json.worker.js";
+        }
         if (label === "typescript" || label === "javascript") {
           return "/src/ts.worker.js";
         }
