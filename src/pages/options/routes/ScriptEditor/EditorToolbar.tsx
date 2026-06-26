@@ -18,6 +18,7 @@ export interface EditorToolbarProps {
   subView: SubView;
   onSubView: (v: SubView) => void;
   hasActive: boolean;
+  canRun: boolean;
   onSave: () => void;
   onSaveAs: () => void;
   onRun: () => void;
@@ -33,6 +34,7 @@ function EditorToolbar(props: EditorToolbarProps) {
     subView,
     onSubView,
     hasActive,
+    canRun,
     onSave,
     onSaveAs,
     onRun,
@@ -67,6 +69,7 @@ function EditorToolbar(props: EditorToolbarProps) {
         hover
         align="start"
         hasActive={hasActive}
+        canRun={canRun}
         onSave={onSave}
         onSaveAs={onSaveAs}
         onRun={onRun}

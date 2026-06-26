@@ -109,13 +109,13 @@ export default function PopupWarnings() {
               <TriangleAlert className="w-4 h-4 text-warning shrink-0 mt-0.5" />
               <div className="flex flex-col gap-1 min-w-0">
                 <div
-                  className="text-[12px] text-warning-fg [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2"
+                  className="text-sm text-warning-fg [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2"
                   dangerouslySetInnerHTML={{ __html: warningHTML }}
                 />
                 <button
                   type="button"
                   onClick={handleReload}
-                  className="text-[12px] font-medium text-primary text-left hover:underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm"
+                  className="text-[13px] font-medium text-primary text-left hover:underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm"
                 >
                   {t("popup:click_to_reload")}
                 </button>
@@ -126,7 +126,7 @@ export default function PopupWarnings() {
             <button
               type="button"
               onClick={handleRequestPermission}
-              className="inline-flex items-center gap-1.5 self-start h-7 px-2.5 rounded-md border border-border bg-card text-[12px] font-medium text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
+              className="inline-flex items-center gap-1.5 self-start h-7 px-2.5 rounded-md border border-border bg-card text-xs font-medium text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               {t("popup:request_permission")}
@@ -138,11 +138,11 @@ export default function PopupWarnings() {
       {showEdgeQr && (
         <div className="flex items-center gap-3 px-4 py-3 bg-primary-light border-b border-border">
           <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-            <div className="text-[12px] font-semibold text-foreground">{t("popup:use_on_mobile")}</div>
-            <div className="text-[11px] text-muted-foreground">{t("popup:scan_qr_to_install")}</div>
+            <div className="text-sm font-semibold text-foreground">{t("popup:use_on_mobile")}</div>
+            <div className="text-[13px] text-muted-foreground">{t("popup:scan_qr_to_install")}</div>
           </div>
           {/* eslint-disable-next-line scriptcat/no-raw-color-classname -- 二维码需固定白底以保证可扫描，与主题无关 */}
-          <img src={edgeMobileQrCode} alt="QR" className="w-14 h-14 rounded-md bg-white shrink-0" />
+          <img src={edgeMobileQrCode} alt="QR" className="w-[104px] h-[104px] rounded-md bg-white shrink-0" />
           <button
             type="button"
             data-testid="close"

@@ -8,11 +8,38 @@ export interface ScrollSpyResult {
   scrollTo: (id: string) => void;
 }
 
+// 触发线距滚动容器顶部的固定像素：top 落在该线之上的最后一个分区即“当前阅读”分区。
+// 必须是固定像素而非视口百分比——百分比会随视口增高而下移，使过短的首个分区永远
+// 命不中触发线，导致顶部恒高亮第二项（本 bug 根因）。其值须小于首个分区的高度。
+const TRIGGER_OFFSET = 96;
+
+/**
+ * 按 ids 顺序，取触发线 lineY 之上最靠下的分区；触底时强制末项
+ * （过短的尾部分区无法滚动到触发线，否则永远高亮不到）。
+ * 抽成纯函数以便单测覆盖选择与边界逻辑。
+ * @param topOf 返回分区相对滚动容器顶部的 top(px)，未注册返回 undefined。
+ */
+export function selectActiveId(
+  ids: string[],
+  topOf: (id: string) => number | undefined,
+  lineY: number,
+  atBottom: boolean
+): string {
+  if (ids.length === 0) return "";
+  if (atBottom) return ids[ids.length - 1];
+  let current = ids[0];
+  for (const id of ids) {
+    const top = topOf(id);
+    if (top !== undefined && top <= lineY) current = id;
+  }
+  return current;
+}
+
 export function useScrollSpy(ids: string[]): ScrollSpyResult {
   const [activeId, setActiveId] = useState<string>(ids[0] ?? "");
   const elements = useRef<Map<string, HTMLElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // 点击导航期间抑制 IO 回写，避免动画途经分区抢占高亮
+  // 点击导航期间抑制滚动回写，避免平滑滚动途经分区抢占高亮
   const suppressUntil = useRef<number>(0);
 
   const register = useCallback(
@@ -23,32 +50,39 @@ export function useScrollSpy(ids: string[]): ScrollSpyResult {
     []
   );
 
-  // 用 ids 顺序排序命中分区，取最靠上的可见分区为 active
   useEffect(() => {
     const root = scrollContainerRef.current;
-    const visible = new Set<string>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (performance.now() < suppressUntil.current) return;
-        for (const e of entries) {
-          const id = (e.target as HTMLElement).dataset.spyId;
-          if (!id) continue;
-          if (e.isIntersecting) visible.add(id);
-          else visible.delete(id);
-        }
-        const firstVisible = ids.find((id) => visible.has(id));
-        if (firstVisible) setActiveId(firstVisible);
-      },
-      { root, rootMargin: "-30% 0px -60% 0px", threshold: 0 }
-    );
-    for (const id of ids) {
-      const el = elements.current.get(id);
-      if (el) {
-        el.dataset.spyId = id;
-        observer.observe(el);
-      }
-    }
-    return () => observer.disconnect();
+    if (!root) return;
+    let raf = 0;
+    const compute = () => {
+      raf = 0;
+      if (performance.now() < suppressUntil.current) return;
+      const rootTop = root.getBoundingClientRect().top;
+      // 内容不足以滚动时不应误判触底，否则会高亮末项
+      const scrollable = root.scrollHeight - root.clientHeight > 2;
+      const atBottom = scrollable && root.scrollTop + root.clientHeight >= root.scrollHeight - 2;
+      const next = selectActiveId(
+        ids,
+        (id) => {
+          const el = elements.current.get(id);
+          return el ? el.getBoundingClientRect().top - rootTop : undefined;
+        },
+        TRIGGER_OFFSET,
+        atBottom
+      );
+      if (next) setActiveId(next);
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(compute);
+    };
+    root.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    compute();
+    return () => {
+      root.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [ids]);
 
   const scrollTo = useCallback((id: string) => {

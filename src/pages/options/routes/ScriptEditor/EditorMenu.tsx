@@ -19,6 +19,8 @@ export type EditorCommand = "undo" | "redo" | "cut" | "copy" | "paste" | "find" 
 
 export interface EditorMenuProps {
   hasActive: boolean;
+  /** 仅后台/定时脚本可运行；普通脚本隐藏「运行」分组（与脚本列表/弹窗一致） */
+  canRun: boolean;
   onSave: () => void;
   onSaveAs: () => void;
   onRun: () => void;
@@ -40,6 +42,7 @@ export default function EditorMenu(props: EditorMenuProps) {
   const { t } = useTranslation();
   const {
     hasActive,
+    canRun,
     onSave,
     onSaveAs,
     onRun,
@@ -146,16 +149,18 @@ export default function EditorMenu(props: EditorMenuProps) {
           </DropdownMenuSubContent>
         </DropdownMenuSub>
 
-        {/* 运行 */}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>{t("editor:run")}</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-52" {...hoverOnly}>
-            <DropdownMenuItem {...itemProps(onRun)}>
-              {t("editor:run")}
-              <DropdownMenuShortcut>{formatShortcut(["mod", "F5"], mac)}</DropdownMenuShortcut>
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        {/* 运行（仅后台/定时脚本，普通脚本无运行入口） */}
+        {canRun && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>{t("editor:run")}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-52" {...hoverOnly}>
+              <DropdownMenuItem {...itemProps(onRun)}>
+                {t("editor:run")}
+                <DropdownMenuShortcut>{formatShortcut(["mod", "F5"], mac)}</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
 
         <DropdownMenuSeparator />
         <DropdownMenuItem {...itemProps(onSettings)}>{t("editor:settings")}</DropdownMenuItem>

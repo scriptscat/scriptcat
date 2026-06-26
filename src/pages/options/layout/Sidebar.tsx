@@ -82,7 +82,7 @@ export default function Sidebar() {
         }`}
       >
         <img src={chrome.runtime.getURL("assets/logo.png")} alt="ScriptCat" className="w-7 h-7 shrink-0" />
-        {!collapsed && <span className="text-[16px] font-semibold text-foreground truncate">{"ScriptCat"}</span>}
+        {!collapsed && <span className="text-base font-semibold text-foreground truncate">{"ScriptCat"}</span>}
       </NavLink>
 
       {/* 主导航 */}
@@ -148,7 +148,7 @@ function SidebarItem({
         to === "/" ? "nav-scripts" : to === "/tools" ? "nav-tools" : to === "/settings" ? "nav-settings" : undefined
       }
       className={({ isActive }) =>
-        `flex items-center gap-2.5 h-9 rounded-md text-[14px] transition-colors ${
+        `flex items-center gap-2.5 h-9 rounded-md text-sm transition-colors ${
           collapsed ? "justify-center px-0" : "px-3"
         } ${
           isActive
@@ -188,7 +188,7 @@ function AgentMenu({ collapsed }: { collapsed: boolean }) {
         data-testid="nav-agent"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        className={`flex items-center gap-2.5 h-9 w-full rounded-md text-[14px] px-3 transition-colors ${
+        className={`flex items-center gap-2.5 h-9 w-full rounded-md text-sm px-3 transition-colors ${
           isAgentActive
             ? "text-sidebar-primary font-medium"
             : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -277,7 +277,7 @@ function HelpMenu({ collapsed }: { collapsed: boolean }) {
         <button
           type="button"
           {...hoverProps}
-          className={`flex items-center gap-2.5 h-9 rounded-md text-[14px] text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+          className={`flex items-center gap-2.5 h-9 rounded-md text-sm text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
             collapsed ? "justify-center px-0" : "px-3"
           }`}
         >
@@ -370,7 +370,7 @@ function SidebarButton({
       type="button"
       data-testid={testId}
       onClick={onClick}
-      className={`flex items-center gap-2.5 h-9 rounded-md text-[14px] text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+      className={`flex items-center gap-2.5 h-9 rounded-md text-sm text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
         collapsed ? "justify-center px-0" : "px-3"
       }`}
     >

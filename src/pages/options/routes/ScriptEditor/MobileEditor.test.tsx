@@ -24,6 +24,7 @@ const baseProps = () => ({
   subView: "code" as const,
   onSubView: vi.fn(),
   hasActive: true,
+  canRun: true,
   onBack: vi.fn(),
   onSave: vi.fn(),
   onSaveAs: vi.fn(),
@@ -134,6 +135,18 @@ describe("MobileEditor 移动端编辑器外壳", () => {
     expect(queryByLabelText("重做")).toBeNull();
     expect(queryByLabelText("查找")).toBeNull();
   });
+
+  it("普通脚本（canRun=false）代码视图下应隐藏底部运行按钮，但保留撤销/重做/查找", () => {
+    const { queryByText, getByLabelText } = render(
+      <MobileEditor {...baseProps()} canRun={false} subView="code">
+        <div />
+      </MobileEditor>
+    );
+    expect(queryByText("运行")).toBeNull();
+    expect(getByLabelText("撤销")).toBeInTheDocument();
+    expect(getByLabelText("重做")).toBeInTheDocument();
+    expect(getByLabelText("查找")).toBeInTheDocument();
+  });
 });
 
 describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）", () => {
@@ -147,6 +160,19 @@ describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）
     for (const name of ["文件", "编辑", "运行", "设置"]) {
       expect(getByRole("menuitem", { name })).toBeInTheDocument();
     }
+  });
+
+  it("普通脚本（canRun=false）展开更多菜单时应隐藏「运行」分组", async () => {
+    const { getByLabelText, getByRole, queryByRole } = render(
+      <MobileEditor {...baseProps()} canRun={false}>
+        <div />
+      </MobileEditor>
+    );
+    await openMore(getByLabelText("更多"));
+    for (const name of ["文件", "编辑", "设置"]) {
+      expect(getByRole("menuitem", { name })).toBeInTheDocument();
+    }
+    expect(queryByRole("menuitem", { name: "运行" })).toBeNull();
   });
 
   it("编辑子菜单应包含完整命令：剪切/复制/粘贴/替换/全选/格式化", async () => {

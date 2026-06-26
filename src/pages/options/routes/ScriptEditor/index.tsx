@@ -171,6 +171,8 @@ export default function ScriptEditor() {
   }, [anyChanged]);
 
   const activeTab = useMemo(() => state.tabs.find((x) => x.uuid === state.activeUuid), [state.tabs, state.activeUuid]);
+  // 仅后台/定时脚本可运行；普通脚本隐藏「运行」入口（与脚本列表/弹窗一致）
+  const canRun = !!activeTab && activeTab.script.type !== SCRIPT_TYPE_NORMAL;
   usePreloadResourcePane(activeTab?.uuid);
   usePreloadSettingsPane(activeTab?.uuid);
   usePreloadStoragePane(activeTab?.uuid);
@@ -440,6 +442,7 @@ export default function ScriptEditor() {
           onSubView={selectSubView}
           onPreloadSubView={preloadSubView}
           hasActive={!!activeTab}
+          canRun={canRun}
           onBack={onBack}
           onSave={handleSaveActive}
           onSaveAs={handleSaveAsActive}
@@ -477,6 +480,7 @@ export default function ScriptEditor() {
               onSubView={selectSubView}
               onPreloadSubView={preloadSubView}
               hasActive={!!activeTab}
+              canRun={canRun}
               scriptListCollapsed={scriptListCollapsed}
               onSave={handleSaveActive}
               onSaveAs={handleSaveAsActive}

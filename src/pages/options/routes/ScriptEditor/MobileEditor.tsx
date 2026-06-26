@@ -21,6 +21,7 @@ export interface MobileEditorProps {
   subView: SubView;
   onSubView: (v: SubView) => void;
   hasActive: boolean;
+  canRun: boolean;
   onBack: () => void;
   onSave: () => void;
   onSaveAs: () => void;
@@ -37,6 +38,7 @@ function MobileEditor(props: MobileEditorProps) {
     subView,
     onSubView,
     hasActive,
+    canRun,
     onBack,
     onSave,
     onSaveAs,
@@ -87,6 +89,7 @@ function MobileEditor(props: MobileEditorProps) {
         <EditorMenu
           align="end"
           hasActive={hasActive}
+          canRun={canRun}
           onSave={onSave}
           onSaveAs={onSaveAs}
           onRun={onRun}
@@ -111,15 +114,18 @@ function MobileEditor(props: MobileEditorProps) {
       {/* 底部工具栏：仅代码视图下展示（运行/撤销/重做/查找 均针对代码编辑器） */}
       {subView === "code" && (
         <div className="flex shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <button
-            type="button"
-            onClick={onRun}
-            disabled={!hasActive}
-            className="flex items-center gap-1.5 rounded-md bg-primary-background px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40"
-          >
-            <Play className="size-4" />
-            {t("editor:run")}
-          </button>
+          {/* 运行按钮仅后台/定时脚本可见，普通脚本无运行入口 */}
+          {canRun && (
+            <button
+              type="button"
+              onClick={onRun}
+              disabled={!hasActive}
+              className="flex items-center gap-1.5 rounded-md bg-primary-background px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40"
+            >
+              <Play className="size-4" />
+              {t("editor:run")}
+            </button>
+          )}
           <div className="flex-1" />
           <button
             type="button"

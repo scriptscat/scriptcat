@@ -105,7 +105,7 @@ export default function App() {
         <PopupWarnings />
         {/* 黑名单警告 */}
         {data.isBlacklist && (
-          <div className="px-4 py-2 bg-warning-bg text-warning-fg text-[12px] font-medium border-b border-border">
+          <div className="px-4 py-2 bg-warning-bg text-warning-fg text-xs font-medium border-b border-border">
             {t("popup:page_in_blacklist")}
           </div>
         )}
@@ -121,7 +121,7 @@ export default function App() {
         />
         {/* 错误提示 */}
         {data.errorMessage && (
-          <div className="px-4 py-2 border-b border-border bg-destructive/10 text-destructive text-[12px]">
+          <div className="px-4 py-2 border-b border-border bg-destructive/10 text-destructive text-xs">
             {data.errorMessage}
           </div>
         )}
@@ -129,12 +129,9 @@ export default function App() {
         {data.showAlert && (
           <div className="px-4 py-2 border-b border-border bg-primary-light">
             {data.checkUpdate.notice ? (
-              <div
-                className="text-[12px] text-foreground"
-                dangerouslySetInnerHTML={{ __html: data.checkUpdate.notice }}
-              />
+              <div className="text-xs text-foreground" dangerouslySetInnerHTML={{ __html: data.checkUpdate.notice }} />
             ) : (
-              <div className="text-[12px] text-muted-foreground">{t("no_data")}</div>
+              <div className="text-xs text-muted-foreground">{t("no_data")}</div>
             )}
           </div>
         )}
@@ -422,7 +419,7 @@ function ShowMoreButton({ count, expanded, onClick }: { count: number; expanded:
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center justify-center gap-1 h-8 w-full text-[12px] text-primary hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
+      className="flex items-center justify-center gap-1 h-8 w-full text-xs text-primary hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors"
     >
       {expanded ? t("collapse") : t("popup:show_more_scripts", { count })}
       <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -431,7 +428,7 @@ function ShowMoreButton({ count, expanded, onClick }: { count: number; expanded:
 }
 
 function EmptyHint({ children }: { children: React.ReactNode }) {
-  return <div className="py-4 text-center text-[12px] text-muted-foreground">{children}</div>;
+  return <div className="py-4 text-center text-xs text-muted-foreground">{children}</div>;
 }
 
 // ========== Script Row ==========
@@ -670,7 +667,7 @@ function InputMenuItem({
             value={String(value)}
             onChange={(e) => setValue(opts.inputType === "number" ? Number(e.target.value) : e.target.value)}
             placeholder={opts.inputPlaceholder}
-            className="h-7 text-[12px]"
+            className="h-7 text-xs"
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
         </div>
@@ -778,13 +775,13 @@ function Footer({
           className="bg-transparent border-none p-0 rounded font-mono text-[11px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring/50"
         >{`v${ExtVersion}`}</button>
       ) : checkUpdateStatus === 1 ? (
-        <span className="text-[12px] font-medium text-muted-foreground">{t("script:checking_for_updates")}</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("script:checking_for_updates")}</span>
       ) : (
         <button
           type="button"
           onClick={onVersionClick}
           title={t("check_update")}
-          className="bg-transparent border-none p-0 rounded text-[12px] font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="bg-transparent border-none p-0 rounded text-xs font-medium text-muted-foreground cursor-pointer hover:underline hover:underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           {t("script:latest_version")}
         </button>

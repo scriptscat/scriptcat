@@ -14,6 +14,7 @@ const baseProps = () => ({
   subView: "code" as const,
   onSubView: vi.fn(),
   hasActive: true,
+  canRun: true,
   onSave: vi.fn(),
   onSaveAs: vi.fn(),
   onRun: vi.fn(),
@@ -94,6 +95,15 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
     // 子触发器与运行项同名「运行」，用快捷键文本定位二级菜单里的运行项
     fireEvent.click(getByRole("menuitem", { name: /Ctrl\+F5/ }));
     expect(props.onRun).toHaveBeenCalledOnce();
+  });
+
+  it("普通脚本（canRun=false）时应隐藏「运行」二级分组", async () => {
+    const { getByLabelText, queryByText } = render(<EditorToolbar {...baseProps()} canRun={false} />);
+    await openRoot(getByLabelText("更多"));
+    // 仅普通脚本不可运行，「运行」分组整体不应出现；文件/编辑仍在
+    expect(queryByText("文件")).toBeInTheDocument();
+    expect(queryByText("编辑")).toBeInTheDocument();
+    expect(queryByText("运行")).toBeNull();
   });
 
   it("编辑 → 剪切/复制/粘贴/全选 应展示对应快捷键", async () => {
