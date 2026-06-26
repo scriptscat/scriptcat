@@ -83,10 +83,7 @@ jobs:
         run: pnpm test:e2e:install
 
       - name: Build extension
-        # 正式版构建默认屏蔽 agent 入口；e2e 需覆盖 agent 用例，故强制开启
         run: pnpm build
-        env:
-          SC_ENABLE_AGENT: "true"
 
       - name: Run E2E tests
         run: pnpm test:e2e

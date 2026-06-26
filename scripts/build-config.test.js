@@ -1,36 +1,27 @@
 import { describe, it, expect } from "vitest";
-import { isAgentEnabled, resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
+import { resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
 
 describe("构建配置 - agent 开关", () => {
-  describe("isAgentEnabled", () => {
-    it("开发版本应启用 agent", () => {
-      expect(isAgentEnabled({ isDev: true, isBeta: false })).toBe(true);
+  describe("resolveAgentEnabled - 打包判断（稳定版屏蔽、beta 开启，SC_DISABLE_AGENT 覆盖）", () => {
+    it("稳定版（非 beta）默认屏蔽 agent", () => {
+      expect(resolveAgentEnabled({ isBeta: false, disableEnv: undefined })).toBe(false);
     });
 
-    it("beta 版本应启用 agent", () => {
-      expect(isAgentEnabled({ isDev: false, isBeta: true })).toBe(true);
+    it("beta 版默认开启 agent", () => {
+      expect(resolveAgentEnabled({ isBeta: true, disableEnv: undefined })).toBe(true);
     });
 
-    it("正式版本应禁用 agent", () => {
-      expect(isAgentEnabled({ isDev: false, isBeta: false })).toBe(false);
-    });
-  });
-
-  describe("resolveAgentEnabled - 环境变量覆盖", () => {
-    it("未设置环境变量时按版本派生（正式版禁用）", () => {
-      expect(resolveAgentEnabled({ isDev: false, isBeta: false, envValue: undefined })).toBe(false);
+    it("SC_DISABLE_AGENT='true' 强制屏蔽，覆盖 beta 默认开启", () => {
+      expect(resolveAgentEnabled({ isBeta: true, disableEnv: "true" })).toBe(false);
     });
 
-    it("未设置环境变量时按版本派生（beta 启用）", () => {
-      expect(resolveAgentEnabled({ isDev: false, isBeta: true, envValue: undefined })).toBe(true);
+    it("SC_DISABLE_AGENT='false' 强制开启，覆盖稳定版默认屏蔽", () => {
+      expect(resolveAgentEnabled({ isBeta: false, disableEnv: "false" })).toBe(true);
     });
 
-    it("环境变量 'true' 可在正式版强制启用 agent（用于 e2e）", () => {
-      expect(resolveAgentEnabled({ isDev: false, isBeta: false, envValue: "true" })).toBe(true);
-    });
-
-    it("环境变量 'false' 可在 beta 强制禁用 agent", () => {
-      expect(resolveAgentEnabled({ isDev: false, isBeta: true, envValue: "false" })).toBe(false);
+    it("SC_DISABLE_AGENT 为非 'true'/'false' 的值时回退到版本派生", () => {
+      expect(resolveAgentEnabled({ isBeta: false, disableEnv: "1" })).toBe(false);
+      expect(resolveAgentEnabled({ isBeta: true, disableEnv: "1" })).toBe(true);
     });
   });
 

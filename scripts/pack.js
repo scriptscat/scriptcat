@@ -29,12 +29,9 @@ const addZipFile = async (zip, path, content) => {
 
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
-// agent 功能仅在 beta 版本提供，正式版本屏蔽入口并移除 debugger 权限
-// （与 rspack 构建一致，支持环境变量 SC_ENABLE_AGENT 覆盖）
 const agentEnabled = resolveAgentEnabled({
-  isDev: false,
   isBeta: version.prerelease.length > 0,
-  envValue: process.env.SC_ENABLE_AGENT,
+  disableEnv: process.env.SC_DISABLE_AGENT,
 });
 manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
@@ -59,7 +56,11 @@ if (process.env.GITHUB_REF_TYPE === "branch") {
   await fs.writeFile("./src/app/const.ts", configSystem);
 }
 
-execSync("pnpm run build", { stdio: "inherit" });
+// 将 agent 屏蔽状态传递给子构建，使打入产物的 EnableAgent 与下方 manifest 处理保持一致
+execSync("pnpm run build", {
+  stdio: "inherit",
+  env: { ...process.env, SC_DISABLE_AGENT: agentEnabled ? "false" : "true" },
+});
 
 // logo 在 rspack.config.ts 处理
 
