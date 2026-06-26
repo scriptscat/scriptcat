@@ -94,14 +94,19 @@ function ModelSelect({
 }) {
   const { t } = useTranslation();
   const groups = useMemo(() => groupModelsByProvider(models), [models]);
+  const hasModels = models.length > 0;
 
   return (
-    <Select value={selectedModelId || undefined} onValueChange={onModelChange}>
+    <Select
+      value={hasModels ? selectedModelId || undefined : undefined}
+      onValueChange={onModelChange}
+      disabled={!hasModels}
+    >
       <SelectTrigger
         data-testid="agent-model-select"
         className="h-7 border-none shadow-none gap-1.5 px-2 text-xs min-w-[100px] w-auto"
       >
-        <SelectValue placeholder={t("agent:chat_model_select")} />
+        <SelectValue placeholder={hasModels ? t("agent:chat_model_select") : t("agent:model_no_models")} />
       </SelectTrigger>
       <SelectContent>
         {groups.map((g) => (

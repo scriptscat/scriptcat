@@ -10,12 +10,19 @@ import { Button } from "@App/pages/components/ui/button";
 import { DataPanel, DataPanelEmpty, DataPanelHeader, DataPanelRow } from "@App/pages/components/ui/data-panel";
 import { Input } from "@App/pages/components/ui/input";
 import { SearchInput } from "@App/pages/components/ui/search-input";
-import { Textarea } from "@App/pages/components/ui/textarea";
 import { TooltipIconButton } from "@App/pages/components/ui/tooltip-icon-button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@App/pages/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@App/pages/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { createPreloadableQuery } from "@App/pages/preloadable-query";
+import { StorageValueEditor } from "./StorageValueEditor";
 
 type Row = { key: string; value: unknown };
 type ValType = "string" | "number" | "boolean" | "object";
@@ -57,6 +64,14 @@ export function usePreloadStoragePane(uuid?: string) {
 
 function displayValue(v: unknown): string {
   return typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
+}
+
+function editValue(v: unknown): string {
+  return typeof v === "object" && v !== null ? JSON.stringify(v, null, 2) : String(v);
+}
+
+function getValueEditorLanguage(type: ValType): "json" | "plaintext" {
+  return type === "object" ? "json" : "plaintext";
 }
 
 // 储存值类型徽章配色（令牌定义于 src/index.css，随明暗主题自动切换）
@@ -114,7 +129,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
   const openEdit = (r: Row) => {
     const vt = valueType(r.value);
     const type: ValType = TYPES.includes(vt as ValType) ? (vt as ValType) : "string";
-    setDialog({ isNew: false, key: r.key, valueStr: displayValue(r.value), type });
+    setDialog({ isNew: false, key: r.key, valueStr: editValue(r.value), type });
   };
 
   const saveDialog = () => {
@@ -204,11 +219,13 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
               {t("save")}
             </Button>
           </div>
-          <Textarea
+          <StorageValueEditor
+            id={`storage-batch-editor-${uuid}`}
             value={batchText}
-            onChange={(e) => setBatchText(e.target.value)}
-            className="min-h-0 flex-1 font-mono text-xs"
-            spellCheck={false}
+            language="json"
+            ariaLabel={t("editor:batch_edit")}
+            className="min-h-0 flex-1"
+            onChange={setBatchText}
           />
         </div>
       </div>
@@ -297,9 +314,10 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
       </div>
 
       <Dialog open={!!dialog} onOpenChange={(open) => !open && setDialog(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{dialog?.isNew ? t("add_value") : t("edit_value")}</DialogTitle>
+            <DialogDescription className="sr-only">{t("editor:value_placeholder")}</DialogDescription>
           </DialogHeader>
           {dialog && (
             <div className="flex flex-col gap-3">
@@ -321,13 +339,13 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <Textarea
+              <StorageValueEditor
+                id={`storage-value-editor-${uuid}-${dialog.isNew ? "new" : "edit"}`}
                 value={dialog.valueStr}
-                onChange={(e) => setDialog({ ...dialog, valueStr: e.target.value })}
-                placeholder={t("editor:value_placeholder")}
-                rows={5}
-                className="font-mono text-xs"
-                spellCheck={false}
+                language={getValueEditorLanguage(dialog.type)}
+                ariaLabel={t("editor:value_placeholder")}
+                className="h-[320px]"
+                onChange={(value) => setDialog({ ...dialog, valueStr: value })}
               />
             </div>
           )}

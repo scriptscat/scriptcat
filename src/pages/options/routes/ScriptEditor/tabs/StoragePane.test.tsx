@@ -14,6 +14,31 @@ vi.mock("@App/pages/store/features/script", () => ({
   fetchScript,
   valueClient: { getScriptValue, setScriptValue, setScriptValues },
 }));
+vi.mock("./StorageValueEditor", () => ({
+  StorageValueEditor: ({
+    id,
+    value,
+    language,
+    ariaLabel,
+    onChange,
+  }: {
+    id: string;
+    value: string;
+    language: string;
+    ariaLabel: string;
+    onChange: (value: string) => void;
+  }) => (
+    <textarea
+      aria-label={ariaLabel}
+      data-testid={
+        id.startsWith("storage-batch-editor-") ? "storage-batch-monaco-editor" : "storage-value-monaco-editor"
+      }
+      data-language={language}
+      value={value}
+      onChange={(e) => onChange(e.currentTarget.value)}
+    />
+  ),
+}));
 
 import StoragePane, { invalidateStoragePane, preloadStoragePane } from "./StoragePane";
 
@@ -104,7 +129,7 @@ describe("StoragePane 储存面板", () => {
     await screen.findByText("token");
     fireEvent.click(screen.getByRole("button", { name: t("add") }));
     fireEvent.change(screen.getByPlaceholderText(t("editor:key_placeholder")), { target: { value: "newKey" } });
-    fireEvent.change(screen.getByPlaceholderText(t("editor:value_placeholder")), { target: { value: "hello" } });
+    fireEvent.change(screen.getByLabelText(t("editor:value_placeholder")), { target: { value: "hello" } });
     fireEvent.click(screen.getByRole("button", { name: t("save") }));
     await waitFor(() =>
       expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "newKey", value: "hello" }))
@@ -117,12 +142,23 @@ describe("StoragePane 储存面板", () => {
     await screen.findByText("count");
     // count 行的编辑按钮（第二行）
     fireEvent.click(screen.getAllByRole("button", { name: t("edit") })[1]);
-    const valueBox = screen.getByPlaceholderText(t("editor:value_placeholder"));
+    const valueBox = screen.getByLabelText(t("editor:value_placeholder"));
     fireEvent.change(valueBox, { target: { value: "100" } });
     fireEvent.click(screen.getByRole("button", { name: t("save") }));
     await waitFor(() =>
       expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "count", value: 100 }))
     );
+  });
+
+  it("单独编辑应使用 Monaco 编辑器并按对象类型启用 JSON 语言", async () => {
+    render(<StoragePane uuid="u1" />);
+    await screen.findByText("config");
+
+    fireEvent.click(screen.getAllByRole("button", { name: t("edit") })[3]);
+
+    const editor = screen.getByTestId("storage-value-monaco-editor");
+    expect(editor).toHaveAttribute("data-language", "json");
+    expect((editor as HTMLTextAreaElement).value).toContain('"a": 1');
   });
 
   it("清空应以 isReplace 空键值对调用 setScriptValues 并清空列表", async () => {
@@ -140,9 +176,10 @@ describe("StoragePane 储存面板", () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("token");
     fireEvent.click(screen.getByRole("button", { name: t("editor:batch_edit") }));
-    const textarea = screen.getByRole("textbox");
-    expect((textarea as HTMLTextAreaElement).value).toContain("token");
-    fireEvent.change(textarea, { target: { value: '{"onlyKey": 1}' } });
+    const editor = screen.getByTestId("storage-batch-monaco-editor");
+    expect(editor).toHaveAttribute("data-language", "json");
+    expect((editor as HTMLTextAreaElement).value).toContain("token");
+    fireEvent.change(editor, { target: { value: '{"onlyKey": 1}' } });
     fireEvent.click(screen.getByRole("button", { name: t("save") }));
     await waitFor(() => expect(setScriptValues).toHaveBeenCalledWith(expect.objectContaining({ isReplace: true })));
   });
@@ -153,10 +190,10 @@ describe("StoragePane 储存面板", () => {
     await screen.findByText(t("no_data"));
 
     fireEvent.click(screen.getByRole("button", { name: t("editor:batch_edit") }));
-    const textarea = screen.getByRole("textbox");
-    expect((textarea as HTMLTextAreaElement).value).toBe("{}");
+    const editor = screen.getByTestId("storage-batch-monaco-editor");
+    expect((editor as HTMLTextAreaElement).value).toBe("{}");
 
-    fireEvent.change(textarea, { target: { value: '{"newKey": "hello"}' } });
+    fireEvent.change(editor, { target: { value: '{"newKey": "hello"}' } });
     fireEvent.click(screen.getByRole("button", { name: t("save") }));
 
     await waitFor(() =>

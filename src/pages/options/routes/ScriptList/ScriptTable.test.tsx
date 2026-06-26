@@ -131,6 +131,28 @@ describe("ScriptTable 列头点击排序", () => {
   });
 });
 
+describe("ScriptTable 英文列头布局", () => {
+  it("状态列为 Status 文本和排序图标保留完整宽度", () => {
+    initTestLanguage("en-US");
+    renderTable([mk("a", "Apple", 10)]);
+
+    const statusColumn = document.querySelector('[data-tour="col-enable"]');
+    expect(statusColumn).toHaveClass("w-16");
+  });
+
+  it("状态列表头居中且开关列不额外偏移", () => {
+    initTestLanguage("zh-CN");
+    renderTable([mk("a", "Apple", 10)]);
+
+    expect(screen.getByRole("button", { name: t("script:script_list.sidebar.status") })).toHaveClass("justify-center");
+    expect(document.querySelector('[data-tour="col-enable"]')).toHaveClass("text-center");
+
+    const switchColumn = screen.getByRole("switch").parentElement;
+    expect(switchColumn).toHaveClass("w-16", "flex");
+    expect(switchColumn).not.toHaveClass("justify-center");
+  });
+});
+
 describe("ScriptTable 行级 memo 不会展示过期数据", () => {
   // 关键：updatetime 不变（如 selfMetadata/tag/版本等被原地更新时不一定 bump updatetime），
   // 但脚本对象内容变了，行必须重新渲染显示最新内容，否则用户看到旧数据。

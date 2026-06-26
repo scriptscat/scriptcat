@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import { t } from "@App/locales/locales";
 import { TaskFormDialog } from "./TaskFormDialog";
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -24,6 +25,13 @@ describe("TaskFormDialog 定时任务弹窗", () => {
     setup();
     fireEvent.change(screen.getByTestId("task-cron"), { target: { value: "bad cron" } });
     expect(screen.getByTestId("task-cron-error")).toBeInTheDocument();
+  });
+
+  it("没有模型时展示空状态文案并禁用模型选择", () => {
+    setup();
+    const trigger = screen.getByTestId("task-model");
+    expect(trigger).toHaveTextContent(t("agent:model_no_models"));
+    expect(trigger).toBeDisabled();
   });
 
   it("填写名称与合法 cron 后保存，回调带表单值", () => {

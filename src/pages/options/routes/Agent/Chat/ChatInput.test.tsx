@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { AgentModelConfig, SkillSummary } from "@App/app/service/agent/core/types";
 import ChatInput from "./ChatInput";
@@ -64,6 +65,13 @@ describe("聊天输入框 ChatInput", () => {
     setup({ isStreaming: true, onStop });
     fireEvent.click(screen.getByTestId("chat-stop"));
     expect(onStop).toHaveBeenCalledOnce();
+  });
+
+  it("没有模型时展示空状态文案并禁用模型选择", () => {
+    setup({ models: [], selectedModelId: "" });
+    const trigger = screen.getByTestId("agent-model-select");
+    expect(trigger).toHaveTextContent(t("agent:model_no_models"));
+    expect(trigger).toBeDisabled();
   });
 
   it("输入斜杠时展示 Skill 命令菜单并可选择填充", () => {

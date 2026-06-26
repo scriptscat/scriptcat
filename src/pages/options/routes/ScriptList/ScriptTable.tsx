@@ -262,12 +262,13 @@ export default function ScriptTable({
             />
           </div>
           <div className="w-8" />
-          <div className="w-12" data-tour="col-enable">
+          <div className="w-16 text-center" data-tour="col-enable">
             <SortHeader
               label={t("script:script_list.sidebar.status")}
               sortKey="status"
               sortState={sortState}
               onSort={handleSort}
+              className="justify-center"
             />
           </div>
           <div className="flex-1 min-w-0" data-tour="col-sort">
@@ -370,7 +371,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
       </div>
 
       {/* 开关 */}
-      <div className="w-12 flex justify-center">
+      <div className="w-16 flex">
         <EnableSwitch
           status={script.status}
           enableLoading={script.enableLoading}

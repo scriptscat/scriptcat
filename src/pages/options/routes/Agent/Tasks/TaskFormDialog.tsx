@@ -76,6 +76,7 @@ export function TaskFormDialog({
   const cron = nextRunText(crontab);
   const cronInvalid = crontab.trim().length > 0 && !cron.valid;
   const canSubmit = !!name && cron.valid;
+  const hasModels = models.length > 0;
 
   const handleSubmit = () => {
     const base = { name, crontab, enabled, notify };
@@ -157,9 +158,11 @@ export function TaskFormDialog({
               </FormField>
               <div className="grid grid-cols-2 gap-3">
                 <FormField label={t("agent:tasks_model_select")}>
-                  <Select value={modelId} onValueChange={setModelId}>
+                  <Select value={hasModels ? modelId : undefined} onValueChange={setModelId} disabled={!hasModels}>
                     <SelectTrigger data-testid="task-model">
-                      <SelectValue placeholder={t("agent:tasks_model_select")} />
+                      <SelectValue
+                        placeholder={hasModels ? t("agent:tasks_model_select") : t("agent:model_no_models")}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {models.map((m) => (
