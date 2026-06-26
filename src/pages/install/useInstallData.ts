@@ -18,6 +18,7 @@ import type { SkillConfigField } from "@App/app/service/agent/core/types";
 import { loadHandle } from "@App/pkg/utils/filehandle-db";
 import { startFileTrack, unmountFileTrack, type FTInfo } from "@App/pkg/utils/file-tracker";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
+import { EnableAgent } from "@App/app/const";
 import { derivePermissions, type PermissionRow } from "./permissions";
 import {
   deriveVersion,
@@ -161,7 +162,8 @@ export function useInstallData(): UseInstallData {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const uuid = params.get("uuid");
-    const skill = params.get("skill");
+    // agent 关闭时(正式版)不识别 skill 安装入口
+    const skill = EnableAgent ? params.get("skill") : null;
     const fid = params.get("file");
     const urlIdx = location.search.indexOf("url=");
     const rawUrl = !uuid && urlIdx !== -1 ? location.search.slice(urlIdx + 4) : null;
@@ -229,8 +231,8 @@ export function useInstallData(): UseInstallData {
           info.code = code;
           await loadFromInfo(info, !!cached?.[0], cached?.[2] || {});
         } else if (rawUrl) {
-          // .cat.md URL → Skill 安装流程(DNR 把 *.cat.md 重定向到安装页),不走脚本解析
-          if (/\.cat\.md(\?|#|$)/i.test(rawUrl)) {
+          // .cat.md URL → Skill 安装流程(DNR 把 *.cat.md 重定向到安装页),不走脚本解析;仅 agent 启用时
+          if (EnableAgent && /\.cat\.md(\?|#|$)/i.test(rawUrl)) {
             const uuid = await agentClient.prepareSkillFromUrl(rawUrl);
             if (cancelled) return;
             skillUuidRef.current = uuid;

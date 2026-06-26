@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { NavLink, useLocation } from "react-router-dom";
 import { Bot, ChevronRight, LifeBuoy, Moon, Sun, Monitor, GraduationCap } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
-import { DocumentationSite } from "@App/app/const";
+import { DocumentationSite, EnableAgent } from "@App/app/const";
 import { localePath } from "@App/locales/locales";
 import { useTheme, type Theme } from "@App/pages/components/theme-provider";
 import { mainNav, agentNav, auxNav, type NavItem } from "./nav-items";
@@ -42,27 +42,31 @@ export default function MobileNavDrawer({ onNavigate }: { onNavigate?: () => voi
             <DrawerItem key={item.to} item={item} onNavigate={onNavigate} />
           ))}
 
-          <button
-            type="button"
-            onClick={() => setAgentOpen((prev) => !prev)}
-            aria-expanded={agentOpen}
-            className={cn(
-              "flex items-center gap-2.5 h-11 w-full rounded-md text-sm px-3 transition-colors",
-              isAgentActive
-                ? "text-sidebar-primary font-medium"
-                : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            )}
-          >
-            <Bot className="w-[18px] h-[18px] shrink-0" />
-            <span className="truncate flex-1 text-left">{t("agent:title")}</span>
-            <ChevronRight className={cn("w-4 h-4 shrink-0 transition-transform", agentOpen && "rotate-90")} />
-          </button>
-          {agentOpen && (
-            <div data-testid="drawer-agent-submenu" className="flex flex-col gap-0.5 mt-0.5">
-              {agentNav.map((item) => (
-                <DrawerSubItem key={item.to} item={item} onNavigate={onNavigate} />
-              ))}
-            </div>
+          {EnableAgent && (
+            <>
+              <button
+                type="button"
+                onClick={() => setAgentOpen((prev) => !prev)}
+                aria-expanded={agentOpen}
+                className={cn(
+                  "flex items-center gap-2.5 h-11 w-full rounded-md text-sm px-3 transition-colors",
+                  isAgentActive
+                    ? "text-sidebar-primary font-medium"
+                    : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                )}
+              >
+                <Bot className="w-[18px] h-[18px] shrink-0" />
+                <span className="truncate flex-1 text-left">{t("agent:title")}</span>
+                <ChevronRight className={cn("w-4 h-4 shrink-0 transition-transform", agentOpen && "rotate-90")} />
+              </button>
+              {agentOpen && (
+                <div data-testid="drawer-agent-submenu" className="flex flex-col gap-0.5 mt-0.5">
+                  {agentNav.map((item) => (
+                    <DrawerSubItem key={item.to} item={item} onNavigate={onNavigate} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </nav>
 

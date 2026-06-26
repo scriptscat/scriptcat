@@ -21,6 +21,7 @@ import { DropOverlay } from "./layout/DropOverlay";
 import { handleImportFiles } from "./routes/ScriptList/importHandler";
 import { OnboardingProvider } from "./onboarding/OnboardingProvider";
 import { OnboardingHost } from "./onboarding/OnboardingHost";
+import { EnableAgent } from "@App/app/const";
 
 export function Layout() {
   const isMobile = useIsMobile();
@@ -69,16 +70,18 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<ScriptList />} />
             <Route path="subscribe" element={<SubscribeList />} />
-            <Route path="agent">
-              <Route index element={<Navigate to="/agent/chat" replace />} />
-              <Route path="chat" element={<AgentChat />} />
-              <Route path="provider" element={<AgentProvider />} />
-              <Route path="skills" element={<AgentSkills />} />
-              <Route path="mcp" element={<AgentMcp />} />
-              <Route path="tasks" element={<AgentTasks />} />
-              <Route path="opfs" element={<AgentOPFS />} />
-              <Route path="settings" element={<AgentSettings />} />
-            </Route>
+            {EnableAgent && (
+              <Route path="agent">
+                <Route index element={<Navigate to="/agent/chat" replace />} />
+                <Route path="chat" element={<AgentChat />} />
+                <Route path="provider" element={<AgentProvider />} />
+                <Route path="skills" element={<AgentSkills />} />
+                <Route path="mcp" element={<AgentMcp />} />
+                <Route path="tasks" element={<AgentTasks />} />
+                <Route path="opfs" element={<AgentOPFS />} />
+                <Route path="settings" element={<AgentSettings />} />
+              </Route>
+            )}
             <Route path="logs" element={<Logger />} />
             <Route path="logger" element={<Navigate to="/logs" replace />} />
             <Route path="tools" element={<Tools />} />

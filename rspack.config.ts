@@ -4,6 +4,7 @@ import { ZipExecutionPlugin } from "./rspack-plugins/ZipExecutionPlugin";
 import { readFileSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { toChromeVersion } from "./scripts/version.js";
+import { applyAgentManifest } from "./scripts/build-config.js";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
@@ -12,6 +13,8 @@ const dirname = path.resolve();
 const isDev = process.env.NODE_ENV === "development";
 const isBeta = version.includes("-");
 const isReactTools = process.env.REACT_DEVTOOLS === "true";
+// agent 默认开启；正式版屏蔽由 scripts/pack.js 按版本判断后通过 SC_DISABLE_AGENT 声明。
+const enableAgent = process.env.SC_DISABLE_AGENT !== "true";
 
 // Target browsers, see: https://github.com/browserslist/browserslist
 // 依照 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
@@ -132,6 +135,7 @@ export default {
     new rspack.DefinePlugin({
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
+      "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
     }),
     new rspack.CopyRspackPlugin({
       patterns: [
@@ -140,7 +144,10 @@ export default {
           to: `${dist}/ext`,
           // 将manifest.json内版本号替换为package.json中版本号
           transform(content: Buffer) {
-            const manifest = JSON.parse(content.toString()) as chrome.runtime.ManifestV3;
+            const manifest = applyAgentManifest(
+              JSON.parse(content.toString()) as chrome.runtime.ManifestV3,
+              enableAgent
+            );
             manifest.version = toChromeVersion(version);
             if (isDev || isBeta) {
               manifest.name = "__MSG_scriptcat_beta__";

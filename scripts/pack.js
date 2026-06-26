@@ -7,6 +7,7 @@ import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 import { toChromeVersion } from "./version.js";
+import { resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
 
 // ============================================================================
 
@@ -28,6 +29,10 @@ const addZipFile = async (zip, path, content) => {
 
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
+const agentEnabled = resolveAgentEnabled({
+  isBeta: version.prerelease.length > 0,
+  disableEnv: process.env.SC_DISABLE_AGENT,
+});
 manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
   manifest.name = `__MSG_scriptcat_beta__`;
@@ -51,15 +56,19 @@ if (process.env.GITHUB_REF_TYPE === "branch") {
   await fs.writeFile("./src/app/const.ts", configSystem);
 }
 
-execSync("pnpm run build", { stdio: "inherit" });
+// 将 agent 屏蔽状态传递给子构建，使打入产物的 EnableAgent 与下方 manifest 处理保持一致
+execSync("pnpm run build", {
+  stdio: "inherit",
+  env: { ...process.env, SC_DISABLE_AGENT: agentEnabled ? "false" : "true" },
+});
 
 // logo 在 rspack.config.ts 处理
 
 // 处理firefox和chrome的zip压缩包
 
 // 浅拷贝防止后续修改
-const firefoxManifest = { ...manifest, background: { ...manifest.background } };
-const chromeManifest = { ...manifest, background: { ...manifest.background } };
+const firefoxManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
+const chromeManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
 
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;

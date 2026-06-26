@@ -29,7 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import { useTheme, type Theme } from "../../components/theme-provider";
-import { DocumentationSite } from "@App/app/const";
+import { DocumentationSite, EnableAgent } from "@App/app/const";
 import { localePath } from "@App/locales/locales";
 import { mainNav, agentNav, auxNav } from "./nav-items";
 import { useOnboarding } from "../onboarding/OnboardingProvider";
@@ -90,7 +90,7 @@ export default function Sidebar() {
         {mainNav.map((item) => (
           <SidebarItem key={item.to} {...item} label={item.label()} collapsed={collapsed} />
         ))}
-        <AgentMenu collapsed={collapsed} />
+        {EnableAgent && <AgentMenu collapsed={collapsed} />}
       </nav>
 
       {/* 分隔线 */}

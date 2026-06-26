@@ -5,6 +5,7 @@ import { parseMetadata } from "@App/pkg/utils/script";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { notify } from "@App/pages/components/ui/toast";
 import { t } from "@App/locales/locales";
+import { EnableAgent } from "@App/app/const";
 
 export interface ImportItem {
   file: File;
@@ -67,7 +68,7 @@ export async function handleImportFiles(items: ImportItem[]): Promise<ImportStat
   await Promise.all(
     items.map(async ({ file, handle }) => {
       try {
-        if (file.name.toLowerCase().endsWith(".zip")) {
+        if (EnableAgent && file.name.toLowerCase().endsWith(".zip")) {
           await installSkillZip(file);
         } else {
           await installLocalFile(file, handle);
@@ -88,7 +89,7 @@ export async function handleImportUrls(urls: string[]): Promise<ImportStat> {
   await Promise.all(
     urls.map(async (url) => {
       try {
-        if (url.toLowerCase().endsWith(".zip")) {
+        if (EnableAgent && url.toLowerCase().endsWith(".zip")) {
           const uuid = await agentClient.prepareSkillFromUrl(url);
           await openInCurrentTab(`/src/install.html?skill=${uuid}`);
         } else {
