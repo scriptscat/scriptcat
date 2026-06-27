@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { FileSystemError } from "./error";
 import type FileSystem from "./filesystem";
 import type { FileInfo, FileReader, FileWriter } from "./filesystem";
 import LimiterFileSystem from "./limiter";
@@ -52,6 +53,66 @@ describe("LimiterFileSystem", () => {
 
     await expect(promise).resolves.toEqual([]);
     expect(fs.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("应当根据 typed rateLimit 错误重试 list", async () => {
+    vi.useFakeTimers();
+    const fs = createFs();
+    vi.mocked(fs.list)
+      .mockRejectedValueOnce(
+        new FileSystemError({
+          provider: "dropbox",
+          message: "Quota exhausted",
+          status: 429,
+          rateLimit: true,
+          retryable: true,
+        })
+      )
+      .mockResolvedValueOnce([]);
+    const limiter = new LimiterFileSystem(fs);
+
+    const promise = limiter.list();
+    await vi.runOnlyPendingTimersAsync();
+
+    await expect(promise).resolves.toEqual([]);
+    expect(fs.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("应当根据 typed retryable 5xx 错误重试 list", async () => {
+    vi.useFakeTimers();
+    const fs = createFs();
+    vi.mocked(fs.list)
+      .mockRejectedValueOnce(
+        new FileSystemError({
+          provider: "googledrive",
+          message: "Service unavailable",
+          status: 503,
+          retryable: true,
+        })
+      )
+      .mockResolvedValueOnce([]);
+    const limiter = new LimiterFileSystem(fs);
+
+    const promise = limiter.list();
+    await vi.runOnlyPendingTimersAsync();
+
+    await expect(promise).resolves.toEqual([]);
+    expect(fs.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("遇到 typed conflict 错误时不能重试 list", async () => {
+    const fs = createFs();
+    const conflictError = new FileSystemError({
+      provider: "onedrive",
+      message: "Conflict",
+      status: 409,
+      conflict: true,
+    });
+    vi.mocked(fs.list).mockRejectedValueOnce(conflictError);
+    const limiter = new LimiterFileSystem(fs);
+
+    await expect(limiter.list()).rejects.toBe(conflictError);
+    expect(fs.list).toHaveBeenCalledTimes(1);
   });
 
   it("should retry verify on 429", async () => {
@@ -161,6 +222,93 @@ describe("LimiterFileSystem", () => {
 
     await expect(writer.write("content")).rejects.toThrow("429 Too Many Requests");
     expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it("writer.write 遇到 typed retryable 错误时仍不能重试", async () => {
+    const fs = createFs();
+    const write = vi.fn(async () => {});
+    const retryableError = new FileSystemError({
+      provider: "googledrive",
+      message: "Service unavailable",
+      status: 503,
+      retryable: true,
+    });
+    vi.mocked(fs.create).mockResolvedValueOnce({
+      write,
+    });
+    write.mockRejectedValueOnce(retryableError);
+    const limiter = new LimiterFileSystem(fs);
+    const writer = await limiter.create(file.path);
+
+    await expect(writer.write("content")).rejects.toBe(retryableError);
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it("受 expectedDigest 保护的 writer.write 遇到 typed retryable 错误时应当重试", async () => {
+    vi.useFakeTimers();
+    const fs = createFs();
+    const write = vi.fn(async () => {});
+    const retryableError = new FileSystemError({
+      provider: "s3",
+      message: "Service unavailable",
+      status: 503,
+      retryable: true,
+    });
+    vi.mocked(fs.create).mockResolvedValueOnce({
+      write,
+    });
+    write.mockRejectedValueOnce(retryableError).mockResolvedValueOnce(undefined);
+    const limiter = new LimiterFileSystem(fs);
+    const writer = await limiter.create(file.path, { expectedDigest: "digest" });
+
+    const promise = writer.write("content");
+    await vi.runOnlyPendingTimersAsync();
+
+    await expect(promise).resolves.toBeUndefined();
+    expect(write).toHaveBeenCalledTimes(2);
+  });
+
+  it("受 createOnly 保护的 writer.write 遇到 typed retryable 错误时应当重试", async () => {
+    vi.useFakeTimers();
+    const fs = createFs();
+    const write = vi.fn(async () => {});
+    const retryableError = new FileSystemError({
+      provider: "webdav",
+      message: "Service unavailable",
+      status: 503,
+      retryable: true,
+    });
+    vi.mocked(fs.create).mockResolvedValueOnce({
+      write,
+    });
+    write.mockRejectedValueOnce(retryableError).mockResolvedValueOnce(undefined);
+    const limiter = new LimiterFileSystem(fs);
+    const writer = await limiter.create(file.path, { createOnly: true });
+
+    const promise = writer.write("content");
+    await vi.runOnlyPendingTimersAsync();
+
+    await expect(promise).resolves.toBeUndefined();
+    expect(write).toHaveBeenCalledTimes(2);
+  });
+
+  it("受 expectedDigest 保护的 delete 遇到 typed retryable 错误时应当重试", async () => {
+    vi.useFakeTimers();
+    const fs = createFs();
+    const retryableError = new FileSystemError({
+      provider: "onedrive",
+      message: "Service unavailable",
+      status: 503,
+      retryable: true,
+    });
+    vi.mocked(fs.delete).mockRejectedValueOnce(retryableError).mockResolvedValueOnce(undefined);
+    const limiter = new LimiterFileSystem(fs);
+
+    const promise = limiter.delete(file.path, { expectedDigest: "digest" });
+    await vi.runOnlyPendingTimersAsync();
+
+    await expect(promise).resolves.toBeUndefined();
+    expect(fs.delete).toHaveBeenCalledTimes(2);
   });
 
   it("should retry reader.read on 429", async () => {

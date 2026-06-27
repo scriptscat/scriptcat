@@ -5,6 +5,9 @@ import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../fil
 import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";
+import { createWebDAVFileSystemError } from "./error";
+import type { FileDeleteOptions } from "../filesystem";
+import { quoteETag } from "./utils";
 
 // 禁止 WebDAV 请求携带浏览器 cookies，只通过账号密码认证 (#1297)
 // 全局单次注册
@@ -24,6 +27,12 @@ const initWebDAVPatch = () => {
 };
 
 export default class WebDAVFileSystem implements FileSystem {
+  readonly capabilities = {
+    supportsAtomicCompareAndSwap: true,
+    supportsCreateOnly: true,
+    supportsConditionalDelete: true,
+  };
+
   client: WebDAVClient;
 
   url: string;
@@ -75,8 +84,8 @@ export default class WebDAVFileSystem implements FileSystem {
     return WebDAVFileSystem.fromSameClient(this, joinPath(this.basePath, path));
   }
 
-  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
-    return new WebDAVFileWriter(this.client, joinPath(this.basePath, path));
+  async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
+    return new WebDAVFileWriter(this.client, joinPath(this.basePath, path), opts);
   }
 
   async createDir(path: string, _opts?: FileCreateOptions): Promise<void> {
@@ -87,18 +96,26 @@ export default class WebDAVFileSystem implements FileSystem {
       if (e.response?.status === 405 || e.message?.includes("405")) {
         return;
       }
-      throw e;
+      throw createWebDAVFileSystemError(e);
     }
   }
 
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     try {
+      if (opts?.expectedDigest) {
+        await this.client.deleteFile(joinPath(this.basePath, path), {
+          headers: {
+            "If-Match": quoteETag(opts.expectedDigest),
+          },
+        });
+        return;
+      }
       await this.client.deleteFile(joinPath(this.basePath, path));
     } catch (e: any) {
       if (e.response?.status === 404 || e.message?.includes("404")) {
         return;
       }
-      throw e;
+      throw createWebDAVFileSystemError(e);
     }
   }
 
@@ -108,7 +125,7 @@ export default class WebDAVFileSystem implements FileSystem {
       dir = (await this.client.getDirectoryContents(this.basePath)) as FileStat[];
     } catch (e: any) {
       if (e.response?.status === 404) return [] as FileInfo[]; // 目录不存在视为空
-      throw e;
+      throw createWebDAVFileSystemError(e);
     }
     const ret: FileInfo[] = [];
     for (const item of dir) {

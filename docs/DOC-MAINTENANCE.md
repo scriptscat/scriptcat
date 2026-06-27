@@ -29,6 +29,7 @@ Aspirational / feature-branch content belongs in that branch's docs, or is clear
 | [`DEVELOP.md`](./DEVELOP.md) | The concrete "how": commands, structure, style, testing, i18n, commit/PR. |
 | [`VERIFICATION.md`](./VERIFICATION.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension. |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Deep internals: process model, message passing, service/data layers, GM API, execution, build. |
+| [`CLOUD-SYNC.md`](./CLOUD-SYNC.md) | Cloud sync internals: sync files, digest/status semantics, provider differences, error classification, retry policy. |
 | [`translation/README.md`](./translation/README.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: doc-set organization rules + fact-check / anti-drift discipline. |
 | [`README.md`](./README.md) | The index that points to all of the above. |
@@ -97,7 +98,7 @@ git ls-files eslint-rules/; git grep -l "require-last-error-check" -- eslint.con
 Link integrity — confirm every relative markdown link in the core docs resolves:
 
 ```bash
-for doc in AGENTS.md docs/README.md docs/DEVELOP.md docs/VERIFICATION.md docs/ARCHITECTURE.md docs/DOC-MAINTENANCE.md docs/translation/README.md; do
+for doc in AGENTS.md docs/README.md docs/DEVELOP.md docs/VERIFICATION.md docs/ARCHITECTURE.md docs/CLOUD-SYNC.md docs/DOC-MAINTENANCE.md docs/translation/README.md; do
   grep -oE '\]\(([^)]+)\)' "$doc" | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while read -r link; do
     target="$(dirname "$doc")/${link%%#*}"
     [ -e "$target" ] && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"

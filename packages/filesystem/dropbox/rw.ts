@@ -35,7 +35,7 @@ export class DropboxFileReader implements FileReader {
     );
 
     if (data.status !== 200) {
-      return Promise.reject(await data.text());
+      throw await this.fs.createResponseError(data);
     }
 
     switch (type) {

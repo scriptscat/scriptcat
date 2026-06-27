@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { WebDAVClient } from "webdav";
 import { getPatcher } from "webdav";
 import WebDAVFileSystem from "./webdav";
-import { WarpTokenError } from "../error";
+import { isConflictError, WarpTokenError } from "../error";
 
 /** 创建 mock WebDAVClient */
 function createMockClient(overrides?: Partial<WebDAVClient>): WebDAVClient {
@@ -30,6 +30,16 @@ describe("WebDAVFileSystem", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient = createMockClient();
+  });
+
+  it("应当声明支持原子条件写入和条件删除能力", () => {
+    const fs = createTestFS(mockClient);
+
+    expect((fs as any).capabilities).toMatchObject({
+      supportsAtomicCompareAndSwap: true,
+      supportsCreateOnly: true,
+      supportsConditionalDelete: true,
+    });
   });
 
   describe("initWebDAVPatch", () => {
@@ -206,6 +216,18 @@ describe("WebDAVFileSystem", () => {
 
       await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
     });
+
+    it("条件删除应当将 expectedDigest 转成 If-Match", async () => {
+      const fs = createTestFS(mockClient);
+
+      await (fs as any).delete("test.txt", { expectedDigest: '"abc123"' });
+
+      expect(mockClient.deleteFile).toHaveBeenCalledWith("/test.txt", {
+        headers: {
+          "If-Match": '"abc123"',
+        },
+      });
+    });
   });
 
   describe("create", () => {
@@ -218,6 +240,69 @@ describe("WebDAVFileSystem", () => {
       const writer = await fs.create("dir//file.user.js");
 
       expect((writer as any).path).toBe("/ScriptCat/sync/dir/file.user.js");
+    });
+
+    it("条件写入应当将 expectedDigest 转成 If-Match", async () => {
+      const fs = createTestFS(mockClient);
+      const writer = await (fs as any).create("test.txt", { expectedDigest: '"abc123"' });
+
+      await writer.write("content");
+
+      expect(mockClient.putFileContents).toHaveBeenCalledWith(
+        "/test.txt",
+        "content",
+        expect.objectContaining({
+          headers: {
+            "If-Match": '"abc123"',
+          },
+        })
+      );
+    });
+
+    it("createOnly 写入应当使用 WebDAV overwrite=false", async () => {
+      const fs = createTestFS(mockClient);
+      const writer = await (fs as any).create("new.txt", { createOnly: true });
+
+      await writer.write("content");
+
+      expect(mockClient.putFileContents).toHaveBeenCalledWith(
+        "/new.txt",
+        "content",
+        expect.objectContaining({
+          overwrite: false,
+        })
+      );
+    });
+
+    it("createOnly 冲突返回 false 时应当抛出 typed conflict 错误", async () => {
+      (mockClient.putFileContents as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+      const fs = createTestFS(mockClient);
+      const writer = await (fs as any).create("exists.txt", { createOnly: true });
+
+      await expect(writer.write("content")).rejects.toSatisfy(isConflictError);
+    });
+  });
+
+  describe("open", () => {
+    it("读取文件遇到 503 时应当抛出 typed 可重试错误", async () => {
+      const err = new Error("Service Unavailable");
+      (err as any).response = { status: 503 };
+      (mockClient.getFileContents as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+      const fs = createTestFS(mockClient);
+      const reader = await fs.open({
+        name: "busy.user.js",
+        path: "/",
+        size: 1,
+        digest: "digest",
+        createtime: 1,
+        updatetime: 1,
+      });
+
+      await expect(reader.read("string")).rejects.toMatchObject({
+        provider: "webdav",
+        status: 503,
+        retryable: true,
+      });
     });
   });
 
@@ -269,6 +354,20 @@ describe("WebDAVFileSystem", () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.list()).rejects.toThrow("Server Error");
+    });
+
+    it("列目录遇到 429 时应当抛出 typed 限流错误", async () => {
+      const err = new Error("Too Many Requests");
+      (err as any).response = { status: 429 };
+      (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.list()).rejects.toMatchObject({
+        provider: "webdav",
+        status: 429,
+        rateLimit: true,
+        retryable: true,
+      });
     });
   });
 

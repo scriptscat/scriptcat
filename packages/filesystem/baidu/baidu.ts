@@ -2,6 +2,7 @@ import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
 import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
+import { createBaiduFileSystemError } from "./error";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
 
 export default class BaiduFileSystem implements FileSystem {
@@ -52,7 +53,7 @@ export default class BaiduFileSystem implements FileSystem {
       }
     );
     if (data.errno) {
-      throw new Error(JSON.stringify(data));
+      throw createBaiduFileSystemError(data);
     }
   }
 
@@ -62,18 +63,27 @@ export default class BaiduFileSystem implements FileSystem {
     config.headers = headers;
     // 对百度网盘请求显式禁用 cookie，避免依赖全局 DNR 规则造成并发竞态
     config.credentials = "omit";
+    const parseResponse = async (response: Response) => {
+      const data = await response.json().catch(() => ({
+        errmsg: response.statusText || `HTTP ${response.status}`,
+      }));
+      if (!response.ok) {
+        throw createBaiduFileSystemError({ ...data, httpStatus: response.status });
+      }
+      return data;
+    };
     return fetch(url, config)
-      .then((data) => data.json())
+      .then(parseResponse)
       .then(async (data) => {
         if (data.errno === 111 || data.errno === -6) {
           const token = await AuthVerify("baidu", true);
           this.accessToken = token;
           url = url.replace(/access_token=[^&]+/, `access_token=${token}`);
           return fetch(url, config)
-            .then((data2) => data2.json())
+            .then(parseResponse)
             .then((data2) => {
               if (data2.errno === 111 || data2.errno === -6) {
-                throw new Error(JSON.stringify(data2));
+                throw createBaiduFileSystemError(data2);
               }
               return data2;
             });
@@ -95,7 +105,7 @@ export default class BaiduFileSystem implements FileSystem {
       }
     ).then((data) => {
       if (data.errno) {
-        throw new Error(JSON.stringify(data));
+        throw createBaiduFileSystemError(data);
       }
       return data;
     });
@@ -126,7 +136,7 @@ export default class BaiduFileSystem implements FileSystem {
         if (data.errno === -9) {
           break;
         }
-        throw new Error(JSON.stringify(data));
+        throw createBaiduFileSystemError(data);
       }
 
       if (!data.list || data.list.length === 0) {

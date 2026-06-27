@@ -1,5 +1,8 @@
 import type { WebDAVClient } from "webdav";
-import type { FileReader, FileWriter } from "../filesystem";
+import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import { FileSystemError } from "../error";
+import { createWebDAVFileSystemError } from "./error";
+import { quoteETag } from "./utils";
 
 export class WebDAVFileReader implements FileReader {
   client: WebDAVClient;
@@ -12,17 +15,21 @@ export class WebDAVFileReader implements FileReader {
   }
 
   async read(type?: "string" | "blob"): Promise<string | Blob> {
-    switch (type) {
-      case "string":
-        return await (this.client.getFileContents(this.path, {
-          format: "text",
-        }) as Promise<string>);
-      default: {
-        const resp = (await this.client.getFileContents(this.path, {
-          format: "binary",
-        })) as ArrayBuffer;
-        return new Blob([resp]);
+    try {
+      switch (type) {
+        case "string":
+          return await (this.client.getFileContents(this.path, {
+            format: "text",
+          }) as Promise<string>);
+        default: {
+          const resp = (await this.client.getFileContents(this.path, {
+            format: "binary",
+          })) as ArrayBuffer;
+          return new Blob([resp]);
+        }
       }
+    } catch (error) {
+      throw createWebDAVFileSystemError(error);
     }
   }
 }
@@ -32,16 +39,58 @@ export class WebDAVFileWriter implements FileWriter {
 
   path: string;
 
-  constructor(client: WebDAVClient, path: string) {
+  opts?: FileCreateOptions;
+
+  constructor(client: WebDAVClient, path: string, opts?: FileCreateOptions) {
     this.client = client;
     this.path = path;
+    this.opts = opts;
   }
 
   async write(content: string | Blob): Promise<void> {
     const data = content instanceof Blob ? await content.arrayBuffer() : content;
-    const resp = await this.client.putFileContents(this.path, data);
-    if (!resp) {
-      throw new Error("write error");
+    let resp: boolean;
+    try {
+      const opts = this.buildWriteOptions();
+      if (opts) {
+        resp = await this.client.putFileContents(this.path, data, opts);
+      } else {
+        resp = await this.client.putFileContents(this.path, data);
+      }
+    } catch (error) {
+      throw createWebDAVFileSystemError(error);
     }
+    if (!resp) {
+      if (this.opts?.createOnly) {
+        throw new FileSystemError({
+          provider: "webdav",
+          message: "WebDAV create-only write conflict",
+          status: 412,
+          conflict: true,
+        });
+      }
+      throw new FileSystemError({
+        provider: "webdav",
+        message: "WebDAV write failed",
+        status: 500,
+        retryable: false,
+      });
+    }
+  }
+
+  private buildWriteOptions() {
+    if (this.opts?.expectedDigest) {
+      return {
+        headers: {
+          "If-Match": quoteETag(this.opts.expectedDigest),
+        },
+      };
+    }
+    if (this.opts?.createOnly) {
+      return {
+        overwrite: false,
+      };
+    }
+    return undefined;
   }
 }

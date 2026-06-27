@@ -2,10 +2,12 @@ import { XMLParser } from "fast-xml-parser";
 import { S3Client, S3Error } from "./client";
 import type { S3ClientConfig } from "./client";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { S3FileReader, S3FileWriter } from "./rw";
 import { WarpTokenError } from "../error";
+import { createS3FileSystemError } from "./error";
+import { quoteETag } from "./utils";
 
 // ---- ListObjectsV2 XML 解析 ----
 
@@ -52,6 +54,12 @@ function parseListObjectsV2(xml: string): ListObjectsV2Result {
  * 使用原生 fetch + AWS Signature V4 签名，不依赖 @aws-sdk/client-s3
  */
 export default class S3FileSystem implements FileSystem {
+  readonly capabilities = {
+    supportsAtomicCompareAndSwap: true,
+    supportsCreateOnly: true,
+    supportsConditionalDelete: true,
+  };
+
   client: S3Client;
 
   bucket: string;
@@ -167,7 +175,7 @@ export default class S3FileSystem implements FileSystem {
    * @returns 文件写入器
    */
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
-    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts?.modifiedDate);
+    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts);
   }
 
   /**
@@ -182,15 +190,22 @@ export default class S3FileSystem implements FileSystem {
    * 此操作幂等——删除不存在的文件也会成功
    * @param path 相对于当前 basePath 的文件路径
    */
-  async delete(path: string): Promise<void> {
+  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
     try {
-      await this.client.request("DELETE", this.bucket, joinPath(this.basePath, path).substring(1));
+      const key = joinPath(this.basePath, path).substring(1);
+      if (opts?.expectedDigest) {
+        await this.client.request("DELETE", this.bucket, key, {
+          headers: { "if-match": quoteETag(opts.expectedDigest) },
+        });
+        return;
+      }
+      await this.client.request("DELETE", this.bucket, key);
     } catch (error: any) {
       // S3 delete 是幂等的，key 不存在时也视为成功
       if (error instanceof S3Error && error.code === "NoSuchKey") {
         return;
       }
-      throw error;
+      throw createS3FileSystemError(error);
     }
   }
 
@@ -254,7 +269,7 @@ export default class S3FileSystem implements FileSystem {
       if (error instanceof S3Error && error.code === "AccessDenied") {
         throw new Error(`Permission denied. Check your IAM permissions for bucket: ${this.bucket}`);
       }
-      throw error;
+      throw createS3FileSystemError(error);
     }
   }
 
