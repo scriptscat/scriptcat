@@ -25,7 +25,8 @@
     "test:e2e:install": "pnpm exec playwright install chromium",
     "test:e2e": "pnpm exec playwright test",
     "test:e2e:ui": "pnpm exec playwright test --ui",
-    "validate:yaml": "node ./scripts/validate-yaml.mjs"
+    "validate:yaml": "node ./scripts/validate-yaml.mjs",
+    "validate:yaml:all": "node ./scripts/validate-yaml.mjs --all"
   },
   "dependencies": {
     "@arco-design/web-react": "^2.66.7",
