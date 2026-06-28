@@ -1,0 +1,102 @@
+name: "13 - ⭐ Feature Request"
+description: Request a new or improved ScriptCat feature, API, UI, sync behavior, editor behavior, etc.
+title: "[Feature] "
+type: "Feature"
+labels: ["enhancement"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the real problem you want to solve, not just a button name or an API name.
+
+        If this is a GM/CAT API design request, please provide:
+        - Proposed API shape
+        - Compatibility target
+        - Security impact
+        - Possible abuse cases
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: Pre-check
+      options:
+        - label: I have searched existing issues and confirmed this is not a duplicate feature request.
+          required: true
+        - label: I confirm this is not a bug. If this is unexpected behavior, I should use the Bug Report template.
+          required: true
+
+  - type: dropdown
+    id: feature-area
+    attributes:
+      label: Feature Area
+      multiple: true
+      options:
+        - Userscript management / list / group / search
+        - Script installation / update / subscription
+        - Script matching / exclusion / permission management
+        - GM API / CAT API
+        - Background scripts / scheduled scripts
+        - Cloud Sync / backup / restore / migration
+        - Popup / Options / UI
+        - Built-in editor / Monaco / ESLint / VSCode extension
+        - Logs / debugging / developer experience
+        - Mobile support
+        - Internationalization / translation
+        - Performance / storage / security
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to Solve
+      description: What pain point do users or userscript authors experience without this feature?
+      placeholder: |
+        Example: I have many scheduled check-in scripts. Currently I must open logs one by one to confirm whether they ran successfully.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      placeholder: |
+        Example: Add "Last Run Time" and "Last Result" columns to the script list. If a scheduled script fails, show the failure count on the extension icon.
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-design
+    attributes:
+      label: API / UI Draft, if Applicable
+      description: If this involves GM/CAT APIs, configuration structure, sync format, or UI flow, please provide a draft.
+      placeholder: |
+        ```ts
+        // Proposed API
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Is there any workaround? How do other extensions handle this?
+      placeholder: |
+        References from Tampermonkey / Violentmonkey / FireMonkey / Soulsign / Automa / others:
+    validations:
+      required: false
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and Security Impact
+      description: Does this affect MV2/MV3, Firefox, mobile browsers, incognito mode, site permissions, or userscript permissions?
+      placeholder: |
+        Possible impact:
+        New permissions required:
+        Possible abuse cases:
+    validations:
+      required: false

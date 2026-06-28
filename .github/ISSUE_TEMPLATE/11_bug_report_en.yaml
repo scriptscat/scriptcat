@@ -1,0 +1,209 @@
+name: "11 - 🕷️ Bug Report"
+description: Report bugs in ScriptCat itself, extension UI, sync, installation, scheduled/background scripts, etc.
+title: "[BUG] "
+type: "Bug"
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        Please provide as much detail as possible, especially:
+        - ScriptCat version
+        - Browser and OS version
+        - Reproduction steps
+        - Logs or screenshots
+        - Related userscript link or exported script package, if applicable
+
+        If the issue is that a specific userscript works in Tampermonkey / Violentmonkey but not in ScriptCat, please use the **Userscript Compatibility** template instead.
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: Pre-check
+      options:
+        - label: I have searched existing issues and confirmed this is not a duplicate.
+          required: true
+        - label: I have tested with the latest stable or beta version where possible.
+          required: true
+        - label: This is not a security vulnerability. Security issues should be reported privately through Security Advisory.
+          required: true
+
+  - type: dropdown
+    id: bug-area
+    attributes:
+      label: Issue Area
+      multiple: true
+      options:
+        - Extension installation / update / uninstall
+        - Userscript installation / update / import / export
+        - Script execution / injection / matching rules
+        - GM API / CAT API
+        - Background scripts / scheduled scripts / offscreen
+        - Cloud Sync / backup / restore / WebDAV / Google Drive / OneDrive
+        - Popup / Options page / UI
+        - Built-in editor / Monaco / ESLint
+        - Logs / debugging / error messages
+        - Mobile / small-screen support
+        - Incognito mode / multiple windows / multiple tabs
+        - Performance / memory / storage
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem Description
+      description: What happened? What did you expect to happen?
+      placeholder: |
+        Example: On Edge for Android, after opening the ScriptCat popup and selecting "Import File", the file picker opens, but nothing happens after choosing a file.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Minimal Reproduction Steps
+      description: Please provide steps that others can follow. Do not write only "1", "see screenshot", or "as title".
+      placeholder: |
+        1. Install ScriptCat v...
+        2. Open ...
+        3. Click ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected Behavior vs Actual Behavior
+      placeholder: |
+        Expected:
+
+        Actual:
+    validations:
+      required: true
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat Version
+      placeholder: "Example: v1.4.0 / v1.4.0-beta / Firefox MV2 v0.16.15"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release-channel
+    attributes:
+      label: ScriptCat Channel
+      options:
+        - Chrome Stable
+        - Chrome Beta
+        - Edge Stable
+        - Edge Beta
+        - Firefox Stable / MV2
+        - Firefox Beta / MV2
+        - GitHub Release manual installation
+        - Self-built / dev
+        - VSCode extension
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: manifest-mode
+    attributes:
+      label: Manifest / Extension Mode
+      options:
+        - MV3
+        - MV2 / Firefox
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: "Example: Windows 11 24H2 / macOS 15 / Android 16 / HarmonyOS 4.2 / iOS"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and Version
+      placeholder: "Example: Chrome 143.0.7499.41 / Edge 146.0.3802.0 / Firefox 151.0b7 / Brave 1.92.120 / Cromite 142..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device-type
+    attributes:
+      label: Device Type
+      options:
+        - Desktop
+        - Android phone / tablet
+        - iOS / iPadOS
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: browser-flags
+    attributes:
+      label: Browser / Extension State
+      options:
+        - label: Incognito / InPrivate / Private Window is enabled
+        - label: Mobile browser extension support is being used
+        - label: Third-party Chromium-based browser is being used
+        - label: Third-party Firefox / Gecko-based browser is being used
+        - label: ScriptCat has been granted site access permission for the target website
+        - label: Developer mode is enabled
+        - label: Other extensions may affect pages, requests, or userscripts
+
+  - type: textarea
+    id: related-script
+    attributes:
+      label: Related Userscript / Configuration
+      description: If the issue is related to a specific userscript, please provide its install URL, metadata block, or an exported ScriptCat zip package. Please remove sensitive information first.
+      placeholder: |
+        Userscript URL:
+        Target website:
+        Relevant metadata:
+        ```js
+        // ==UserScript==
+        // @name ...
+        // @match ...
+        // @grant ...
+        // @connect ...
+        // ==/UserScript==
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Error Messages / Screenshots
+      description: |
+        Please also mention where the logs come from:
+        page DevTools, extension Service Worker, offscreen.html, popup, options page, scheduled script logs, etc.
+      placeholder: |
+        Log source:
+        Error message:
+        Screenshots / video:
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Temporary Workaround
+      placeholder: |
+        Example: Refreshing the page fixes it; it works in Tampermonkey; it works after disabling incognito mode; reinstalling the userscript fixes it.
+    validations:
+      required: false

@@ -1,0 +1,199 @@
+name: "01 - 🕷️ Bug 反馈"
+description: ScriptCat 本体、扩展界面、同步、安装、定时/后台脚本等异常
+title: "[BUG] "
+type: "Bug"
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请尽量填写完整，尤其是 **ScriptCat 版本、浏览器版本、复现步骤、日志、相关脚本链接/导出文件**。
+        如果是某个用户脚本在 ScriptCat 不兼容，但在 Tampermonkey/Violentmonkey 正常，请改用 “Userscript Compatibility” 模板。
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: 提交前检查
+      options:
+        - label: 我已经搜索过现有 issues，确认不是重复问题
+          required: true
+        - label: 我已经尽量使用最新 stable 或 beta 版本测试
+          required: true
+        - label: 这不是安全漏洞；安全漏洞会通过 Security Advisory 私密提交
+          required: true
+
+  - type: dropdown
+    id: bug-area
+    attributes:
+      label: 问题类型
+      multiple: true
+      options:
+        - 扩展安装 / 更新 / 卸载
+        - 脚本安装 / 更新 / 导入 / 导出
+        - 脚本执行 / 注入 / 匹配规则
+        - GM API / CAT API
+        - 后台脚本 / 定时脚本 / offscreen
+        - Cloud Sync / 备份 / 恢复 / WebDAV / Google Drive / OneDrive
+        - Popup / Options 管理页 / UI
+        - 内置编辑器 / Monaco / ESLint
+        - 日志 / 调试 / 错误提示
+        - 移动端 / 小屏适配
+        - 隐身模式 / 多窗口 / 多标签页
+        - 性能 / 内存 / 存储
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？你原本期望发生什么？
+      placeholder: |
+        例：在 Edge Android 上打开 ScriptCat popup 后点击“导入文件”，文件选择器出现但选择后没有任何反应。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 最小复现步骤
+      description: 请写成别人可以照着操作的步骤。不要只写“1”“见图”“如题”。
+      placeholder: |
+        1. 安装 ScriptCat v...
+        2. 打开 ...
+        3. 点击 ...
+        4. 观察到 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: 期望行为 vs 实际行为
+      placeholder: |
+        期望：
+        实际：
+    validations:
+      required: true
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat 版本
+      placeholder: "例如：v1.4.0 / v1.4.0-beta / Firefox MV2 v0.16.15"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release-channel
+    attributes:
+      label: ScriptCat 渠道
+      options:
+        - Chrome Stable
+        - Chrome Beta
+        - Edge Stable
+        - Edge Beta
+        - Firefox Stable / MV2
+        - Firefox Beta / MV2
+        - GitHub Release 手动安装
+        - 自行构建 / dev
+        - VSCode 插件
+        - 不确定
+    validations:
+      required: true
+
+  - type: dropdown
+    id: manifest-mode
+    attributes:
+      label: Manifest / 扩展模式
+      options:
+        - MV3
+        - MV2 / Firefox
+        - 不确定
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统
+      placeholder: "例如：Windows 11 24H2 / macOS 15 / Android 16 / HarmonyOS 4.2 / iOS"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: 浏览器及版本
+      placeholder: "例如：Chrome 143.0.7499.41 / Edge 146.0.3802.0 / Firefox 151.0b7 / Brave 1.92.120 / Cromite 142..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device-type
+    attributes:
+      label: 设备类型
+      options:
+        - 桌面端
+        - Android 手机/平板
+        - iOS/iPadOS
+        - 其他
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: browser-flags
+    attributes:
+      label: 浏览器/扩展状态
+      options:
+        - label: 开启了隐身模式 / InPrivate / Private Window
+        - label: 使用移动端浏览器扩展支持
+        - label: 使用第三方 Chromium 浏览器
+        - label: 使用第三方 Firefox/Gecko 浏览器
+        - label: 已授予 ScriptCat 对目标网站的站点访问权限
+        - label: 开启了开发者模式
+        - label: 安装了其他可能影响页面/请求/脚本的扩展
+
+  - type: textarea
+    id: related-script
+    attributes:
+      label: 相关用户脚本 / 配置
+      description: 如果问题和某个脚本有关，请提供安装链接、脚本头部 metadata、或 ScriptCat 导出的 zip。敏感信息请先脱敏。
+      placeholder: |
+        脚本链接：
+        目标网站：
+        关键 metadata：
+        ```js
+        // ==UserScript==
+        // @name ...
+        // @match ...
+        // @grant ...
+        // @connect ...
+        // ==/UserScript==
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 错误信息 / 截图
+      description: |
+        请说明日志来自哪里：页面 DevTools、扩展 Service Worker、offscreen.html、popup、options 页面、定时脚本日志等。
+      placeholder: |
+        日志来源：
+        错误信息：
+        截图/视频：
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 是否有临时解决办法
+      placeholder: |
+        例：刷新页面后恢复；换成 Tampermonkey 正常；关闭隐身模式后正常；重新安装脚本后正常。
+    validations:
+      required: false

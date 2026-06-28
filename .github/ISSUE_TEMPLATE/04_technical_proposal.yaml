@@ -1,0 +1,74 @@
+name: "04 - 🧑‍💻 技术方案 / 重构提案"
+description: 面向维护者和贡献者的架构、性能、存储、API 语义、重构提案
+title: "[Proposal] "
+type: "Task"
+labels: ["proposal", "technical"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这个模板用于技术设计、重构、性能优化、存储结构、运行时架构等提案。
+        普通用户 bug 或功能请求请使用其他模板。
+
+  - type: dropdown
+    id: proposal-area
+    attributes:
+      label: 涉及模块
+      multiple: true
+      options:
+        - Service Worker
+        - offscreen
+        - sandbox / inject / content script
+        - script matching / registry
+        - GM/CAT API runtime
+        - storage / Dexie / IndexedDB / OPFS
+        - sync / backup / import/export
+        - resource loader / @require / @resource
+        - editor / Monaco / ESLint
+        - popup / options UI
+        - build / packaging / manifest
+        - tests / e2e / CI
+        - docs / i18n
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景问题
+      description: 当前实现有什么限制、bug、性能问题或维护成本？
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 具体方案
+      description: 请尽量写清数据结构、流程、API、迁移策略。
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: 兼容性 / 迁移影响
+      placeholder: |
+        对旧版本数据的影响：
+        对 MV2/MV3 的影响：
+        对 Firefox/Chrome/Edge/移动端的影响：
+        是否需要 migration：
+    validations:
+      required: true
+
+  - type: textarea
+    id: test-plan
+    attributes:
+      label: 测试计划
+      placeholder: |
+        单元测试：
+        e2e：
+        手动测试浏览器：
+        回归风险：
+    validations:
+      required: false
