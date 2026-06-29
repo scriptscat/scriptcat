@@ -1,4 +1,4 @@
-name: "12 - 🧩 Userscript Compatibility"
+name: "🧩 Userscript Compatibility"
 description: Report userscripts that fail in ScriptCat but work in Tampermonkey, Violentmonkey, or other managers.
 title: "[Compatibility] "
 type: "Bug"

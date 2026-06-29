@@ -1,4 +1,4 @@
-name: "02 - 🧩 Userscript 兼容性问题"
+name: "🧩 Userscript 兼容性问题"
 description: 某个用户脚本在 ScriptCat 中异常，但在 Tampermonkey / Violentmonkey / 其他管理器中正常
 title: "[Compatibility] "
 type: "Bug"
