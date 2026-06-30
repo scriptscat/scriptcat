@@ -1,0 +1,65 @@
+.popup-div .arco-collapse-item-header {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    line-height: 125%;
+}
+
+.popup-list-item .arco-collapse-item-header{
+    padding: 4px 12px;
+    line-height: initial;
+}
+
+.popup-list-item .arco-avatar-image {
+    width: 16px;
+    height: 16px;
+}
+
+.popup-list-item .arco-space-item:last-child {
+    margin-right: 16px;
+}
+
+.popup-list-item .arco-avatar-square {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center;
+    place-content: center;
+    place-items: center;
+    place-self: center;
+    margin-right: 4px !important;
+}
+
+.popup-list-item .arco-space-item {
+    display: inline-flex !important;
+}
+
+
+.popup-list-item .arco-collapse-item-active .arco-collapse-item-header-title {
+    font-weight: unset !important;
+}
+
+.popup-list-item .arco-collapse-item-content-box * {
+    line-height: initial;
+}
+
+.popup-list-item .arco-collapse-item-content-box .arco-btn-size-default {
+    height: 24px;
+    padding: 0 6px;
+    font-size: 12px;
+}
+
+.popup-list-item .arco-switch-small {
+    min-width: 28px;
+    height: 14px;
+    line-height: 14px;
+}
+
+.popup-list-item .arco-switch-small .arco-switch-dot {
+    border-radius: 6px;
+    width: 10px;
+    height: 10px;
+    left: 2px;
+}
+
+.popup-list-item .arco-switch-small.arco-switch-checked .arco-switch-dot {
+    left: calc(100% - 12px);
+}

@@ -211,6 +211,7 @@ const ListMenuItem = React.memo(
 
     return (
       <Collapse
+        className={"popup-list-item"}
         activeKey={isActive ? item.uuid : undefined}
         onChange={(_, keys) => {
           setIsActive(keys.includes(item.uuid));
