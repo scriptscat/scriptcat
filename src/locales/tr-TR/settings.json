@@ -3,7 +3,7 @@
   "language": "Dil",
   "help_translate": "Çevirmemize yardım edin",
   "script_sync": "Betik Senkronizasyonu",
-  "sync_delete": "Senkronizasyonu Sil",
+  "sync_delete": "Silme Senkronizasyonu",
   "sync_delete_desc": "Etkinleştirildiğinde, betikler kaldırıldığında silinmiş olarak işaretlenecek ve diğer cihazlar bu durumu algılayıp betiği buna göre silecektir. Devre dışı bırakıldığında betikler doğrudan hem yerel hem de bulut depolama alanından silinir; bu, birden fazla cihaz kullanılıyorsa tekrarlanan senkronizasyon sorunlarına neden olabilir.",
   "enable_script_sync_to": "Betik Senkronizasyonunu Etkinleştir",
   "never": "Asla",
@@ -86,7 +86,7 @@
     "default": "varsayılan"
   },
   "notification": {
-    "script_sync_delete": "Betik Senkronizasyonunu Sil",
+    "script_sync_delete": "Betik Silme Senkronizasyonu",
     "script_sync_delete_desc": "{{scriptName}} betiği silindi",
     "subscribe_update": "{{subscribeName}} aboneliği güncellendi",
     "subscribe_update_desc": "Yeni betikler: {{newScripts}}\nSilinen betikler: {{deletedScripts}}"
@@ -108,7 +108,7 @@
   "favicon_service_google": "Google",
   "favicon_service_duckduckgo": "DuckDuckGo",
   "favicon_service_icon-horse": "Icon Horse",
-  "favicon_service_local": "Yerel",
+  "favicon_service_local": "Yerel Getirme",
   "cloud_sync_account_verification": "Bulut Senkronizasyonu Hesap Doğrulaması Devam Ediyor...",
   "cloud_sync_verification_failed": "Bulut Senkronizasyonu Hesabı Doğrulaması Başarısız Oldu"
 }
