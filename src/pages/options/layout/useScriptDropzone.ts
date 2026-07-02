@@ -46,7 +46,7 @@ export function useScriptDropzone(onFiles: (items: ImportItem[]) => void | Promi
             let handle: FileSystemFileHandle | null = null;
             if ("getAsFileSystemHandle" in it) {
               // Chrome 专有:取 FileSystemFileHandle 以支持本地文件监听;Firefox/Safari 无此 API,回退 getAsFile
-              const h = await (it as any).getAsFileSystemHandle().catch(() => null);
+              const h = await it.getAsFileSystemHandle().catch(() => null);
               if (h && h.kind === "file") handle = h as FileSystemFileHandle;
             }
             const file = handle ? await handle.getFile() : it.getAsFile();

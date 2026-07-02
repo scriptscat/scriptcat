@@ -8,7 +8,7 @@ interface PickerType {
 async function pick(types: PickerType[], inputAccept: string): Promise<ImportItem[]> {
   if ("showOpenFilePicker" in window) {
     try {
-      const handles: FileSystemFileHandle[] = await (window as any).showOpenFilePicker({ multiple: true, types });
+      const handles = await window.showOpenFilePicker({ multiple: true, types });
       return await Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle })));
     } catch (e) {
       // 用户取消(AbortError)等同未选择
