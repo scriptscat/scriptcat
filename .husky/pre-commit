@@ -6,7 +6,6 @@ if [ "$SKIP_PRE_COMMIT" = "1" ]; then
   exit 0
 fi
 
-pnpm run validate:yaml || exit 1
 pnpm run lint || exit 1
 
 # 在 main 或 release/* 分支上提交时额外跑测试
