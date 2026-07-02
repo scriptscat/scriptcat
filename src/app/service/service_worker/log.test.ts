@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import type { Group } from "@Packages/message/server";
+import EventEmitter from "eventemitter3";
+import { Server, type Group } from "@Packages/message/server";
+import { MockMessage } from "@Packages/message/mock_message";
 import type { LoggerDAO } from "@App/app/repo/logger";
 import { LogService } from "./log";
+import { LogClient } from "./client";
 
 vi.mock("@App/app/repo/logger", () => ({
   LoggerDAO: class {},
@@ -52,5 +55,28 @@ describe("日志服务 LogService", () => {
       "deleteLogs",
       "clearLogs",
     ]);
+  });
+});
+
+describe("日志客户端 LogClient（经消息通道端到端）", () => {
+  const wire = (dao: LoggerDAO) => {
+    const message = new MockMessage(new EventEmitter<string, any>());
+    const server = new Server("serviceWorker", message);
+    new LogService(server.group("log"), dao).init();
+    return new LogClient(message);
+  };
+
+  it("deleteLogs 删除成功后应 resolve（不能因服务端返回空而抛错）", async () => {
+    const dao = fakeDAO();
+    const client = wire(dao);
+    await expect(client.deleteLogs([1, 2])).resolves.toBeUndefined();
+    expect(dao.delete).toHaveBeenCalledTimes(2);
+  });
+
+  it("clearLogs 清空成功后应 resolve（不能因服务端返回空而抛错）", async () => {
+    const dao = fakeDAO();
+    const client = wire(dao);
+    await expect(client.clearLogs()).resolves.toBeUndefined();
+    expect(dao.clear).toHaveBeenCalledTimes(1);
   });
 });

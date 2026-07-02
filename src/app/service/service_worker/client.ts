@@ -333,11 +333,11 @@ export class LogClient extends Client {
   }
 
   deleteLogs(ids: number[]): Promise<void> {
-    return this.doThrow("deleteLogs", ids);
+    return this.do("deleteLogs", ids);
   }
 
   clearLogs(): Promise<void> {
-    return this.doThrow("clearLogs");
+    return this.do("clearLogs");
   }
 }
 
