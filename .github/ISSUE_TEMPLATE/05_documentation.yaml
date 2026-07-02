@@ -1,0 +1,133 @@
+name: "📚 文档问题 / 改进"
+description: 报告 ScriptCat 文档错误、过期内容、缺失说明、示例不可用或文档结构改进
+title: "[Docs] "
+type: "Task"
+labels: ["documentation"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢帮助改进 ScriptCat 文档。
+        请尽量提供具体页面、章节、当前问题和建议修改内容。
+
+        如果是界面翻译、语言包、本地化措辞问题，请使用 “Translation / i18n” 模板。
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: 提交前检查
+      options:
+        - label: 我已经搜索过现有 issues，确认不是重复问题
+          required: true
+        - label: 我确认这是文档问题，而不是 ScriptCat 本体 bug
+          required: true
+
+  - type: input
+    id: doc-url
+    attributes:
+      label: 相关文档页面
+      description: 请提供 docs.scriptcat.org、learn.scriptcat.org、README、CONTRIBUTING 或其他相关页面。
+      placeholder: "例如：<documentation page URL>"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc-language
+    attributes:
+      label: 文档语言
+      options:
+        - 简体中文 / zh-CN
+        - 繁體中文 / zh-TW
+        - English / en
+        - 日本語 / ja
+        - Русский / ru
+        - Deutsch / de
+        - Tiếng Việt / vi
+        - 其他 / Other
+        - 不确定
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc-area
+    attributes:
+      label: 文档领域
+      multiple: true
+      options:
+        - 安装 / 更新 / 浏览器支持
+        - 用户脚本安装 / 更新 / 订阅
+        - 用户脚本开发指南
+        - GM API / CAT API
+        - 后台脚本 / 定时脚本
+        - Cloud Sync / 备份 / 恢复 / 迁移
+        - 权限 / 安全 / 隐身模式
+        - Popup / Options / UI
+        - 内置编辑器 / VSCode 插件
+        - 调试 / 日志 / 开发者工具
+        - 构建 / 贡献指南
+        - README / Release Notes
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc-issue-type
+    attributes:
+      label: 文档问题类型
+      multiple: true
+      options:
+        - 内容错误
+        - 内容过期
+        - 缺少说明
+        - 表达不清楚
+        - 示例代码无法运行
+        - 链接失效
+        - 图片 / 截图过期
+        - 页面结构或导航问题
+        - 与实际 UI 或行为不一致
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-problem
+    attributes:
+      label: 当前问题
+      description: 请说明目前文档哪里有问题。
+      placeholder: |
+        例：该页面仍然描述旧版同步流程，但当前设置页面已经改为 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-change
+    attributes:
+      label: 建议修改
+      description: 请说明你希望如何修改文档。可以直接贴出建议文案。
+      placeholder: |
+        建议改为：
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-version
+    attributes:
+      label: 相关版本 / 环境（如适用）
+      description: 如果文档问题和特定 ScriptCat 版本、浏览器或平台有关，请填写。
+      placeholder: |
+        ScriptCat 版本：
+        浏览器 / 平台：
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: 补充信息
+      description: 可以补充截图、相关 issue、PR、代码位置或参考资料。
+      placeholder: |
+        截图 / 参考资料 / 相关链接：
+    validations:
+      required: false
