@@ -53,6 +53,10 @@ models the day they launch, and plug straight into Claude Code, Codex, and Gemin
 <td width="180"><a href="https://enncy.cn/"><img src="./docs/assets/sponsors/yanxi-tech-logo.png" alt="Yanxi Technology" width="150"></a></td>
 <td>Yanxi Technology focuses on custom script software and web application design and development. It provides highly personalized customization services, stable and reliable project solutions, and industry insights to meet a wide range of custom program development needs in one place. Website: <a href="https://enncy.cn/">https://enncy.cn/</a></td>
 </tr>
+<tr>
+<td width="180"><a href="https://runapi.co/register?aff=vpKz"><img src="./docs/assets/sponsors/runapi-logo.png" alt="Run API" width="150"></a></td>
+<td>RunAPI is an efficient and stable API platform, and an alternative to OpenRouter. A single API Key gives you access to 150+ leading models, including OpenAI, Claude, Gemini, DeepSeek, Grok, and more, at prices as low as 10% of the original, with exceptional stability. It's seamlessly compatible with tools like Claude Code, OpenClaw, and others. RunAPI offers an exclusive perk for ScriptCat users: register and contact an administrator to claim ¥7 in free credit. <a href="https://runapi.co/register?aff=vpKz">Register via this link</a>.</td>
+</tr>
 </table>
 
 </details>

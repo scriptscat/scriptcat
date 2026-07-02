@@ -51,6 +51,10 @@ OpenModel 是高可用、高可靠的 AI 模型呼叫平台，讓你的應用程
 <td width="180"><a href="https://enncy.cn/"><img src="./assets/sponsors/yanxi-tech-logo.png" alt="言溪科技" width="150"></a></td>
 <td>言溪科技專注於腳本軟體客製化、網頁程式設計與開發，提供高度個人化的客製化服務；專案方案穩定可靠，並同步分享產業前沿資訊，一站式滿足各類程式開發客製需求。官網：<a href="https://enncy.cn/">https://enncy.cn/</a></td>
 </tr>
+<tr>
+<td width="180"><a href="https://runapi.co/register?aff=vpKz"><img src="./assets/sponsors/runapi-logo.png" alt="Run API" width="150"></a></td>
+<td>RunAPI 是高效穩定的 API 平台，可作為 OpenRouter 的替代方案；一個 API Key 即可存取 OpenAI、Claude、Gemini、DeepSeek、Grok 等 150+ 主流模型，價格最低可到原價 1 折，且穩定性極高。它能無縫相容 Claude Code、OpenClaw 等工具。RunAPI 為 ScriptCat 使用者提供專屬福利：註冊後聯絡管理員即可領取 ￥7 免費額度。<a href="https://runapi.co/register?aff=vpKz">點此連結註冊</a>。</td>
+</tr>
 </table>
 
 </details>
