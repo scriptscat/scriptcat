@@ -1,0 +1,17 @@
+{
+  "development_tool": "Geliştirme Aracı",
+  "vscode_url": "VSCode URL'si",
+  "auto_connect_vscode_service": "Otomatik Bağlantı VSCode Hizmeti",
+  "connect": "Bağlan",
+  "connection_success": "Bağlantı Başarılı",
+  "connection_failed": "Bağlantı Başarısız",
+  "select_import_script": "Lütfen Yeni Sayfada İçe Aktarılacak Komut Dosyasını Seçin",
+  "import_error": "İçe Aktarma Hatası",
+  "pulling_data_from_cloud": "Buluttan Veri Çekme",
+  "pull_failed": "Çekme Başarısız",
+  "restore": "Eski Haline Getir",
+  "local_backup": "Yerel Yedekleme",
+  "cloud_backup": "Bulut Yedekleme",
+  "auto_backup": "Otomatik Yedekleme",
+  "data_migration": "Veri Taşıma"
+}
