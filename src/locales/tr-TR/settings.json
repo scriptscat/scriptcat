@@ -40,14 +40,14 @@
   "get_backup_dir_url_failed": "Yedek dizin adresi alınamadı",
   "get_backup_files_failed": "Yedeklemeler getirilemedi",
   "baidu_netdisk": "BaiduNetdisk",
-  "netdisk_unbind": "{{sağlayıcı}} bağlantısını kaldır",
+  "netdisk_unbind": "{{provider}} bağlantısını kaldır",
   "netdisk_unbind_confirm": "{{provider}} hesabının bağlantısı kaldırılsın mı?",
   "netdisk_unbind_success": "{{provider}} hesabının bağlantısı kaldırıldı",
   "netdisk_unbind_error": "{{provider}} hesabının bağlantısı kaldırılamadı",
   "save_only_current_group": "Yalnızca geçerli grup için kaydet",
   "security": "Güvenlik",
   "blacklist_pages": "Kara Liste Sayfası",
-  "blacklist_placeholder": "Gibi sayfalarda komut dosyalarını çalıştırmak için ScriptCat'i devre dışı bırakın\nhttps://*.example.com",
+  "blacklist_placeholder": "ScriptCat'in şu gibi sayfalarda komut dosyası çalıştırmasını devre dışı bırakın\nhttps://*.example.com",
   "expression_format_error": "Koşul ifadesi biçimi hatası",
   "migration_confirm_message": "Mevcut verileri değiştirmek için geçiş depolama motorunu yeniden deneyin. Lütfen onaylayın, bkz.: https://docs.scriptcat.org/docs/change/v0.17/.",
   "retry_migration": "Geçiş Depolama Motorunu Yeniden Deneyin",
@@ -78,8 +78,8 @@
   "script_run_env": {
     "title": "Çalışma ortamı",
     "all": "Tüm",
-    "normal-tabs": "Normal etiketler",
-    "incognito-tabs": "Gizli etiketler"
+    "normal-tabs": "Normal sekmeler",
+    "incognito-tabs": "Gizli sekmeler"
   },
   "script_run_at": {},
   "script_setting": {
@@ -93,7 +93,7 @@
   },
   "enable_background": {
     "title": "Arka Planda Çalıştırmayı Etkinleştir",
-    "description": "Etkinleştirildiğinde, tüm pencereleri kapattıktan sonra tarayıcı arka planda çalışmaya devam eder ve siz Chrome'dan manuel olarak çıkana kadar tepsiyi küçültür. Bu, arka plan komut dosyalarının çalışmaya devam etmesini sağlar.",
+    "description": "Etkinleştirildiğinde, tüm pencereleri kapattıktan sonra tarayıcı arka planda çalışmaya devam eder ve siz Chrome'dan manuel olarak çıkana kadar sistem tepsisine küçültülür. Bu, arka plan komut dosyalarının çalışmaya devam etmesini sağlar.",
     "enable_failed": "Etkinleştirilemedi",
     "disable_failed": "Devre Dışı Bırakılamadı",
     "prompt_title": "Arka Planda Çalıştırma Etkinleştirilsin mi?",
