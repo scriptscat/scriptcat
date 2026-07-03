@@ -70,7 +70,9 @@ function main() {
     labels: { env: "service_worker" },
   });
   loggerCore.logger().debug("service worker start");
-  const server = new Server("serviceWorker", message);
+  const swMessage = new ServiceWorkerMessageSend();
+  // 同时接收ExtensionMessage(chrome.runtime)和ServiceWorkerMessageSend(postMessage)的消息
+  const server = new Server("serviceWorker", [message, swMessage]);
   const messageQueue = new MessageQueue();
   const hasOffscreenDocument = typeof chrome.offscreen?.createDocument === "function";
   // Chrome needs a real offscreen document. Firefox MV3 uses EventPageOffscreenManager instead.

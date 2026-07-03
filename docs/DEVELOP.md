@@ -23,10 +23,12 @@ pnpm run typecheck        # tsc --noEmit
 pnpm run test:e2e:install # install Playwright Chromium (first run only)
 pnpm run test:e2e         # Playwright (e2e/*.spec.ts, 1 worker)
 pnpm run lint             # tsc --noEmit + eslint
-pnpm run lint-fix         # tsc --noEmit + eslint --fix (also applies Prettier via eslint-plugin-prettier)
+pnpm run lint-fix         # prettier --write + tsc --noEmit + eslint --fix
 ```
 
-No standalone `format` script — formatting is part of `lint-fix`. Husky pre-commit runs `pnpm run lint-fix` and re-stages the files it touched.
+No standalone `format` script — formatting is part of `lint-fix` and runs through `prettier --write`. Husky
+pre-commit runs `prettier --check` and `pnpm run typecheck` plus ESLint for staged JS/TS files, and also runs
+`pnpm run test:ci` when committing on `main` or `release/*`.
 
 After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
 
@@ -51,28 +53,71 @@ Use strict TypeScript, React JSX runtime, 2-space indentation, semicolons, doubl
 
 ## UI
 
-React 18 + Arco Design + UnoCSS + React Router. Pages in `src/pages/`.
+React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 + React Router. Pages in
+`src/pages/`; shared primitives in `src/pages/components/ui/` (config in `components.json`).
 
-- Use `tw-` UnoCSS utilities; avoid inline `style={{}}`.
+- Compose styles with Tailwind utility classes joined via `cn()` (`src/pkg/utils/cn.ts` — clsx + tailwind-merge);
+  avoid inline `style={{}}`. Build component variants with `class-variance-authority`; icons from `lucide-react`.
 - **Hover/focus visuals → CSS pseudo-classes (`hover:`, `focus:`)**, not React state. State is for data/logic.
-- **Theme** (light/dark/auto, persisted as `lightMode`, state in `src/pages/store/AppContext.tsx`) — every UI change must work in both themes:
-  - Arco vars (`var(--color-fill-1)`, `var(--color-text-1)`, `var(--color-border-2)`) — auto-adapt.
-  - UnoCSS `dark:tw-*` (configured `dark: "class"`).
-  - `body[arco-theme="dark"]` selector for custom CSS overrides.
+- **Theme** (light/dark/auto) — managed by `src/pages/components/theme-provider.tsx` and applied as the `.dark`
+  class on `document.documentElement` (`src/pages/common.ts` sets the initial class before React mounts to avoid a
+  flash). Every UI change must work in both themes:
+  - Use the design-system CSS variables defined in `src/index.css` (`bg-background`, `text-foreground`,
+    `border-border`, `text-primary`, `bg-primary-background`, `text-muted-foreground`, …) — they auto-adapt per theme.
+  - Use Tailwind's `dark:` variant for dark-only overrides (`@custom-variant dark` in `src/index.css`).
   - No hard-coded colors.
+- **Design system** — the full color-token reference (light/dark values), component palette, layout &
+  responsive patterns, motion guidance, state patterns, and a new-page recipe live in
+  [`DESIGN.md`](./DESIGN.md). Read it before building a new page, dialog, or block.
 
 ## Testing
 
 > The **TDD/BDD-first principle** (write failing tests before implementation; fix code not tests) lives in
 > [`AGENTS.md`](../AGENTS.md) → *Engineering Principles*. This section is the mechanics.
 
-Vitest + jsdom, 500ms timeout, isolation disabled. Chrome APIs mocked via `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
+Vitest + happy-dom, 850ms timeout. Chrome APIs mocked via `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
 
 - Write failing tests **before** implementation; co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
 - Single file: `pnpm test -- --run path/to/file.test.ts`.
-- 避免冗余测试 — 如果调用方测试已充分覆盖，可省略被调函数的独立单测。
 - Playwright tests are `*.spec.ts` files in `e2e`; they run with one worker and retain failure artifacts. Run targeted tests while iterating, then run `pnpm run lint` plus the relevant full suite before a PR.
+
+### Writing meaningful tests (what to clean up / not write)
+
+A test earns its place by exercising **our own logic** and failing on a real regression. Don't write the "tests nothing" kinds below — and clean them up when you find them (delete the test; don't touch business logic):
+
+- **Tautology** — asserting a constant equals its own literal definition (source `const FOO = [Type.BAR]`, test `expect(FOO).toEqual([Type.BAR])`).
+- **Genuine duplicate** — a whole file/block near-verbatim identical to another, differing only by irrelevant suffixes.
+- **Redundant** — when the caller's tests already cover a callee fully, skip the callee's standalone unit test.
+- **Pure pass-through render** — `render(<Comp prop={x} />)` that only asserts `x` shows up, with no branching / variant mapping / derived logic in the component.
+- **Testing the mock or framework, not our code** — configuring a `vi.fn()` then asserting it returned what it was fed; asserting a third-party lib's or the JS language's own semantics.
+- **Mislabeled** — the test name claims a behavior the body never triggers (e.g. claims to test abort but never calls abort). Worse than no test: it gives false confidence.
+- **File-content assertion that belongs in a lint rule** — reading a source file and grepping its text for a token/string is a mechanical convention; express it as an ESLint rule, not a unit test.
+
+Conversely, keep these — they look thin but carry real value:
+
+- One branch of a conditional (`showLabel` default vs hidden, optional prop present vs absent, compact vs non-compact).
+- Variant → design-token mapping (CVA `tone="success"` → `text-success-fg`) and accessibility derivation (`title` → `aria-label`).
+- `instanceof` / `name` guards on custom `Error` subclasses, security-blocklist completeness, and similar regression guards.
+- The **only** coverage of a component / sub-component — deleting it removes coverage, not noise.
+
+> **Verify each against the source before deleting.** Many "looks meaningless" tests actually exercise a real branch; judging in bulk from a scan over-flags heavily. Confirm the behavior genuinely exists / is covered elsewhere before removing anything.
+
+### Vitest Performance Hygiene
+
+- Keep `tests/vitest.setup.ts` lightweight. Shared setup should only install global browser/chrome mocks; heavier
+  feature helpers belong in opt-in test utilities.
+- For files that use one fixed UI language, prefer `initTestLanguage()` from `tests/initTestLanguage.ts` in
+  `beforeAll` over repeated `initLanguage()` calls inside every test. Tests that intentionally switch languages
+  should keep explicit language setup.
+- Prefer shared DOM helpers such as `mockMatchMedia()` from `tests/mockMatchMedia.ts` over copying local browser
+  stubs into every page test.
+- To spot setup/import regressions without running the full suite, run one small file and read Vitest's timing
+  breakdown, for example:
+
+```bash
+pnpm exec vitest run --test-timeout=850 --no-coverage --reporter=verbose src/pkg/utils/url-utils.test.ts
+```
 
 > To **verify a change works end-to-end without growing the suite** — drive the real built extension with a
 > throwaway scratch script — see [`VERIFICATION.md`](./VERIFICATION.md). That is lightweight verification, not
@@ -80,7 +125,7 @@ Vitest + jsdom, 500ms timeout, isolation disabled. Chrome APIs mocked via `@Pack
 
 ## i18n
 
-i18next, 7 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. For localization, edit `src/locales/<locale>/translation.json`; new locales must also be registered in `src/locales/locales.ts`.
+i18next, 7 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
 
 **Before translating, read [`docs/translation/README.md`](translation/README.md)** — the translation/localization guide (terminology rules + per-locale `terminology-<locale>.md` specs).
 

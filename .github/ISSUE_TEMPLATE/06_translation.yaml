@@ -1,0 +1,134 @@
+name: "🌐 翻译 / 本地化"
+description: 报告 ScriptCat 界面、文档或语言包的翻译问题，或请求新增/改进语言支持
+title: "[i18n] "
+type: "Task"
+labels: ["i18n", "translation"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢帮助改进 ScriptCat 的本地化。
+        请尽量提供原文、当前译文、建议译文和出现位置。
+
+        如果是文档内容本身错误、过期或缺失，请使用 “Documentation” 模板。
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: 提交前检查
+      options:
+        - label: 我已经搜索过现有 issues，确认不是重复问题
+          required: true
+        - label: 我已经确认这是翻译 / 本地化问题，而不是功能 bug
+          required: true
+
+  - type: dropdown
+    id: i18n-area
+    attributes:
+      label: 问题范围
+      multiple: true
+      options:
+        - 扩展界面 / Popup
+        - Options 管理页
+        - 安装 / 更新页面
+        - 内置编辑器 / Monaco / ESLint 提示
+        - 日志 / 错误提示 / 通知
+        - 文档
+        - README / CONTRIBUTING / SECURITY
+        - VSCode 插件
+        - ScriptCat 网站 / 脚本市场
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: 语言
+      options:
+        - 简体中文 / zh-CN
+        - 繁體中文 / zh-TW
+        - English / en
+        - 日本語 / ja
+        - Русский / ru
+        - Deutsch / de
+        - Tiếng Việt / vi
+        - 新增语言请求 / New language request
+        - 其他 / Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: 翻译问题类型
+      multiple: true
+      options:
+        - 翻译错误
+        - 术语不一致
+        - 机器翻译不自然
+        - 缺少翻译 / fallback 到其他语言
+        - 文案太长导致 UI 溢出
+        - 标点 / 大小写 / 格式问题
+        - 新增语言支持
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: 出现位置
+      description: 请提供页面、菜单路径、截图位置、文件路径或文档页面。
+      placeholder: "例如：Options > Settings > Script Sync / src/locales/<locale>/translation.json"
+    validations:
+      required: true
+
+  - type: textarea
+    id: source-text
+    attributes:
+      label: 原文 / 当前文案
+      description: 请贴出看到的原文或当前翻译。
+      placeholder: |
+        当前文案：
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-text
+    attributes:
+      label: 建议译文
+      description: 请提供你建议使用的翻译；如果是新增语言请求，请说明目标语言和是否愿意贡献。
+      placeholder: |
+        建议改为：
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: 修改理由
+      description: 为什么当前翻译不合适？是否有术语、上下文或地区用语考虑？
+      placeholder: |
+        例：这里的 “sync” 在产品中统一译为 “同步”，不应译为 “备份”。
+    validations:
+      required: false
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat 版本（如适用）
+      placeholder: "例如：v1.4.0 / v1.4.0-beta / Firefox MV2 v0.16.15"
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图 / 补充信息
+      description: 如果涉及 UI 溢出、截断、换行或上下文，请上传截图。
+      placeholder: |
+        截图 / 相关链接：
+    validations:
+      required: false

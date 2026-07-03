@@ -35,6 +35,8 @@ export class JSZippZipObject {
 
   date: Date;
 
+  dir = false;
+
   private content: ZipEntryData;
 
   constructor(name: string, content: ZipEntryData, date?: Date) {
@@ -90,6 +92,12 @@ export class JSZippZipFile {
   remove(path: string) {
     delete this.files[path];
     return this;
+  }
+
+  forEach(callback: (relativePath: string, file: JSZippZipObject) => void): void {
+    for (const [path, file] of Object.entries(this.files)) {
+      callback(path, file);
+    }
   }
 
   async loadAsync(content: InputFileFormat): Promise<this> {

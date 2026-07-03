@@ -1,0 +1,17 @@
+{
+  "development_tool": "开发工具",
+  "vscode_url": "VSCode地址",
+  "auto_connect_vscode_service": "自动连接vscode服务",
+  "connect": "连接",
+  "connection_success": "连接成功",
+  "connection_failed": "连接失败",
+  "select_import_script": "请在新页面中选择要导入的脚本",
+  "import_error": "导入错误",
+  "pulling_data_from_cloud": "正在从云端拉取数据",
+  "pull_failed": "拉取失败",
+  "restore": "恢复",
+  "local_backup": "本地备份",
+  "cloud_backup": "云端备份",
+  "auto_backup": "自动备份",
+  "data_migration": "数据迁移"
+}

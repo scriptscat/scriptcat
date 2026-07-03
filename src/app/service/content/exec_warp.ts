@@ -2,6 +2,7 @@ import ExecScript from "./exec_script";
 import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { GMInfoEnv } from "./types";
+import { type TExtensionEnv } from "../extension/extension_env";
 
 export class CATRetryError {
   msg: string;
@@ -23,7 +24,7 @@ export class BgExecScriptWarp extends ExecScript {
 
   setInterval: Map<number, boolean>;
 
-  constructor(scriptRes: ScriptLoadInfo, message: Message) {
+  constructor(scriptRes: ScriptLoadInfo, message: Message, extensionEnv: TExtensionEnv | undefined) {
     const thisContext: { [key: string]: any } = {};
     const setTimeout = new Map<number, any>();
     const setInterval = new Map<number, any>();
@@ -73,6 +74,9 @@ export class BgExecScriptWarp extends ExecScript {
       },
       isIncognito: false,
     };
+    const { inIncognitoContext, userAgentData } = extensionEnv || {};
+    if (typeof inIncognitoContext === "boolean") envInfo.isIncognito = inIncognitoContext;
+    if (userAgentData) envInfo.userAgentData = userAgentData;
     super(scriptRes, {
       envPrefix: "offscreen",
       message: message,

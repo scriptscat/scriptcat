@@ -14,8 +14,8 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 
 > **Before any translation/localization work, read [`docs/translation/README.md`](docs/translation/README.md)** —
 > the single source of truth for translation. Whenever you add or change localized content
-> (`src/locales/<locale>/translation.json`, per-language docs, UI copy, or test snapshots), you must first read
-> that guide and follow the matching `docs/translation/terminology-<locale>.md` if it exists.
+> (`src/locales/<locale>/*.json` namespace files, per-language docs, UI copy, or test snapshots), you must first
+> read that guide and follow the matching `docs/translation/terminology-<locale>.md` if it exists.
 
 > **Before adding, editing, reorganizing, or reviewing any contributor doc (this file or `docs/*`), read
 > [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md)** — keep the doc set organized (links resolve, index
@@ -27,7 +27,12 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 
 ## Project Overview
 
-ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible user scripts. TypeScript + React 18 + Rspack. Package manager is **pnpm** (preinstall enforces).
+ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible user scripts. TypeScript + React 19 + Rspack. Package manager is **pnpm** (preinstall enforces).
+
+> **UI stack.** The presentation layer (`src/pages/`) is built with **shadcn/ui + Tailwind CSS v4** on
+> **React 19** (migrated from Arco Design + UnoCSS). The concrete UI/theme rules live in
+> [`docs/DEVELOP.md`](docs/DEVELOP.md); the design system (color tokens, components, layout/motion/state
+> patterns, new-page recipe) lives in [`docs/DESIGN.md`](docs/DESIGN.md) — read it before building any page.
 
 ## Engineering Principles
 
@@ -86,4 +91,11 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 
 `message/` (with mocks), `filesystem/` (WebDAV + local), `cloudscript/`, `eslint/` (userscript lint config — `eslint-plugin-userscripts`-based `defaultConfig` for the in-app editor), `chrome-extension-mock/`.
 
-> The project's own custom ESLint rule `require-last-error-check` (enforces `chrome.runtime.lastError` handling) lives in `eslint-rules/` at the repo root and is wired in `eslint.config.mjs` — not in `packages/eslint/`.
+> The project's own custom ESLint rules live in `eslint-rules/` at the repo root (wired in `eslint.config.mjs`, **not** in `packages/eslint/`) and act as a **mechanical harness** for conventions that would otherwise rely on memory:
+> - `require-last-error-check` — enforces `chrome.runtime.lastError` handling.
+> - `scriptcat/no-i18n-default-value` — bans `t(key, { defaultValue })` inline fallbacks (they leak hardcoded text to every language and bypass the `i18n-usage` key check); add the key to `src/locales/<locale>/*.json` instead.
+> - `scriptcat/no-raw-color-classname` (`src/pages/**/*.tsx`) — bans raw palette/hex colors in `className` (`bg-white`, `text-gray-500`, `dark:bg-gray-800`, `bg-[#fff]`); use design tokens (`bg-background`/`text-foreground`/…) so light & dark both work.
+>
+> Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans `@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`); `no-restricted-syntax` bans `forwardRef` across `src/pages/**` (use React 19 `function` + ref-prop). All four syntax-based harness rules are covered by `eslint-rules/harness.test.mjs`.
+>
+> Separately, type-aware rules run on `src/pages/**` (tests excluded) via `projectService` — `@typescript-eslint/no-floating-promises`, `no-misused-promises` (with `checksVoidReturn.attributes: false`, so `async` JSX handlers are allowed), and `await-thenable`, all `error` — to catch missing `await`s and promises misused as void callbacks. These need type information, so they are *not* part of `harness.test.mjs`.

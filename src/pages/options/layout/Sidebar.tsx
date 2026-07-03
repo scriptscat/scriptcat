@@ -1,0 +1,381 @@
+import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useHoverMenu } from "../../components/ui/use-hover-menu";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import {
+  LifeBuoy,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Moon,
+  Sun,
+  Monitor,
+  BookOpen,
+  Link,
+  FileCode,
+  Store,
+  MessageCircle,
+  Bot,
+  ChevronRight,
+  GraduationCap,
+} from "lucide-react";
+import { GithubIcon } from "../../components/icons/GithubIcon";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
+import { useTheme, type Theme } from "../../components/theme-provider";
+import { DocumentationSite, EnableAgent } from "@App/app/const";
+import { localePath } from "@App/locales/locales";
+import { mainNav, agentNav, auxNav } from "./nav-items";
+import { useOnboarding } from "../onboarding/OnboardingProvider";
+
+const SIDEBAR_KEY = "scriptcat-sidebar-collapsed";
+
+/**
+  要检查系统色，避免用户在第一次点击时看不到变化
+*/
+const getThemeCycle = (theme: Theme): Theme[] => {
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  if (systemDark && theme === "dark") return ["dark", "light", "auto"];
+  if (systemDark && theme === "auto") return ["auto", "light", "dark"];
+  if (!systemDark && theme === "auto") return ["auto", "dark", "light"];
+  if (!systemDark && theme === "light") return ["light", "dark", "auto"];
+  return ["light", "dark", "auto"];
+};
+
+export default function Sidebar() {
+  const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === "1");
+  const { theme, setTheme } = useTheme();
+  const cycleThemeOrder = useRef<Theme[] | null>(null);
+  if (cycleThemeOrder.current === null) cycleThemeOrder.current = getThemeCycle(theme);
+
+  const toggleCollapse = () => {
+    setCollapsed((prev) => {
+      localStorage.setItem(SIDEBAR_KEY, prev ? "0" : "1");
+      return !prev;
+    });
+  };
+
+  const cycleTheme = () => {
+    const order: Theme[] = cycleThemeOrder.current!;
+    setTheme(order[(order.indexOf(theme) + 1) % order.length]);
+  };
+
+  const themeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
+
+  return (
+    <aside
+      className={`flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-[width] duration-200 ${collapsed ? "w-14" : "w-[200px]"}`}
+    >
+      {/* Logo（点击回到首页） */}
+      <NavLink
+        to="/"
+        end
+        className={`flex items-center gap-2.5 h-14 shrink-0 transition-opacity hover:opacity-80 ${
+          collapsed ? "justify-center px-0" : "px-4"
+        }`}
+      >
+        <img src={chrome.runtime.getURL("assets/logo.png")} alt="ScriptCat" className="w-7 h-7 shrink-0" />
+        {!collapsed && <span className="text-base font-semibold text-foreground truncate">{"ScriptCat"}</span>}
+      </NavLink>
+
+      {/* 主导航 */}
+      <nav className="flex flex-col gap-0.5 px-2 py-1">
+        {mainNav.map((item) => (
+          <SidebarItem key={item.to} {...item} label={item.label()} collapsed={collapsed} />
+        ))}
+        {EnableAgent && <AgentMenu collapsed={collapsed} />}
+      </nav>
+
+      {/* 分隔线 */}
+      <div className="h-px bg-sidebar-border mx-4" />
+
+      {/* 辅助导航 */}
+      <nav className="flex flex-col gap-0.5 px-2 py-1">
+        {auxNav.map((item) => (
+          <SidebarItem key={item.to} {...item} label={item.label()} collapsed={collapsed} />
+        ))}
+      </nav>
+
+      {/* 弹性空间 */}
+      <div className="flex-1" />
+
+      {/* 底部区域 */}
+      <div className="flex flex-col gap-0.5 px-2 pb-3 pt-2">
+        <div className="h-px bg-sidebar-border mx-2 mb-1" />
+        <SidebarButton
+          icon={themeIcon}
+          label={t("change_theme")}
+          collapsed={collapsed}
+          onClick={cycleTheme}
+          testId="theme-toggle"
+        />
+        <HelpMenu collapsed={collapsed} />
+        <SidebarButton
+          icon={collapsed ? PanelLeftOpen : PanelLeftClose}
+          label={collapsed ? t("show_main_sidebar") : t("hide_main_sidebar")}
+          collapsed={collapsed}
+          onClick={toggleCollapse}
+        />
+      </div>
+    </aside>
+  );
+}
+
+// ========== 导航项 ==========
+function SidebarItem({
+  to,
+  icon: Icon,
+  label,
+  collapsed,
+}: {
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  collapsed: boolean;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={to === "/"}
+      data-tour={
+        to === "/" ? "nav-scripts" : to === "/tools" ? "nav-tools" : to === "/settings" ? "nav-settings" : undefined
+      }
+      className={({ isActive }) =>
+        `flex items-center gap-2.5 h-9 rounded-md text-sm transition-colors ${
+          collapsed ? "justify-center px-0" : "px-3"
+        } ${
+          isActive
+            ? "bg-sidebar-accent text-sidebar-primary font-medium"
+            : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        }`
+      }
+    >
+      <Icon className="w-[18px] h-[18px] shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
+    </NavLink>
+  );
+}
+
+// ========== AI Agent 子菜单 ==========
+function AgentMenu({ collapsed }: { collapsed: boolean }) {
+  const { t } = useTranslation();
+  const isAgentActive = useLocation().pathname.startsWith("/agent");
+  const [open, setOpen] = useState(isAgentActive);
+
+  // 进入 /agent 路由时自动展开（不在离开时强制收起，尊重用户手动操作）
+  // 渲染期比较上一个值，仅在 isAgentActive 变为 true 时同步展开
+  const [prevAgentActive, setPrevAgentActive] = useState(isAgentActive);
+  if (isAgentActive !== prevAgentActive) {
+    setPrevAgentActive(isAgentActive);
+    if (isAgentActive) setOpen(true);
+  }
+
+  if (collapsed) {
+    return <AgentMenuCollapsed isActive={isAgentActive} />;
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        data-testid="nav-agent"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        className={`flex items-center gap-2.5 h-9 w-full rounded-md text-sm px-3 transition-colors ${
+          isAgentActive
+            ? "text-sidebar-primary font-medium"
+            : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        }`}
+      >
+        <Bot className="w-[18px] h-[18px] shrink-0" />
+        <span className="truncate flex-1 text-left">{t("agent:title")}</span>
+        <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && (
+        <div data-testid="sidebar-agent-submenu" className="flex flex-col gap-0.5 mt-0.5">
+          {agentNav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 h-8 rounded-md text-[13px] pl-9 pr-3 transition-colors ${
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-primary font-medium"
+                    : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                }`
+              }
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{item.label()}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 折叠态下以 hover 浮层展示 AI Agent 子项
+function AgentMenuCollapsed({ isActive }: { isActive: boolean }) {
+  const navigate = useNavigate();
+  const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
+
+  return (
+    <DropdownMenu {...rootProps}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          {...hoverProps}
+          className={`flex items-center justify-center h-9 w-full rounded-md transition-colors ${
+            isActive
+              ? "text-sidebar-primary"
+              : "text-fg-secondary hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          }`}
+        >
+          <Bot className="w-[18px] h-[18px] shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" className="w-44" {...contentProps}>
+        {agentNav.map((item) => (
+          <DropdownMenuItem
+            key={item.to}
+            onClick={() => {
+              close();
+              void navigate(item.to);
+            }}
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label()}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// ========== 帮助中心菜单（hover 触发） ==========
+function HelpMenu({ collapsed }: { collapsed: boolean }) {
+  const { t } = useTranslation();
+  const { start } = useOnboarding();
+  const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
+
+  const openUrl = (url: string) => {
+    close();
+    window.open(url, "_blank");
+  };
+
+  return (
+    <DropdownMenu {...rootProps}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          {...hoverProps}
+          className={`flex items-center gap-2.5 h-9 rounded-md text-sm text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+            collapsed ? "justify-center px-0" : "px-3"
+          }`}
+        >
+          <LifeBuoy className="w-[18px] h-[18px] shrink-0" />
+          {!collapsed && (
+            <>
+              <span className="truncate flex-1 text-left">{t("helpcenter")}</span>
+              <ChevronRight className="w-4 h-4 shrink-0" />
+            </>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="end" className="w-48" {...contentProps}>
+        {/* 外部链接 */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Link className="w-4 h-4" />
+            {t("external_links")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent {...hoverProps}>
+            <DropdownMenuItem onClick={() => openUrl(`${DocumentationSite}${localePath}/docs/dev/`)}>
+              <FileCode className="w-4 h-4" />
+              {t("api_docs")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openUrl("https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/")}>
+              <FileCode className="w-4 h-4" />
+              {t("development_guide")}
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Store className="w-4 h-4" />
+                {t("script_gallery")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent {...hoverProps}>
+                <DropdownMenuItem onClick={() => openUrl("https://scriptcat.org/search")}>
+                  {"ScriptCat"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openUrl("https://greasyfork.org/scripts")}>
+                  {"Greasy Fork"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openUrl("https://openuserjs.org/")}>{"OpenUserJS"}</DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuItem onClick={() => openUrl("https://bbs.tampermonkey.net.cn/")}>
+              <MessageCircle className="w-4 h-4" />
+              {t("community_forum")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openUrl("https://github.com/scriptscat/scriptcat")}>
+              <GithubIcon className="w-4 h-4" />
+              {"GitHub"}
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        {/* 使用指南 */}
+        <DropdownMenuItem onClick={() => openUrl(`${DocumentationSite}${localePath}/docs/use/use/`)}>
+          <BookOpen className="w-4 h-4" />
+          {t("user_guide")}
+        </DropdownMenuItem>
+        {/* 新手引导入口 */}
+        <DropdownMenuItem
+          onClick={() => {
+            close();
+            start();
+          }}
+        >
+          <GraduationCap className="w-4 h-4" />
+          {t("guide:title")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// ========== 底部按钮 ==========
+function SidebarButton({
+  icon: Icon,
+  label,
+  collapsed,
+  onClick,
+  testId,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  collapsed: boolean;
+  onClick: () => void;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      className={`flex items-center gap-2.5 h-9 rounded-md text-sm text-fg-secondary transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+        collapsed ? "justify-center px-0" : "px-3"
+      }`}
+    >
+      <Icon className="w-[18px] h-[18px] shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
+    </button>
+  );
+}

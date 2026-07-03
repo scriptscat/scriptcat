@@ -6,10 +6,10 @@ export function calculateMd5(blob: Blob) {
     const reader = new FileReader();
     reader.readAsArrayBuffer(blob);
     reader.onloadend = function () {
-      if (!this.result) {
+      if (!reader.result) {
         reject(new Error("result is null"));
       } else {
-        const result = calculateMD5FromArrayBuffer(<ArrayBuffer>this.result);
+        const result = calculateMD5FromArrayBuffer(<ArrayBuffer>reader.result);
         resolve(result);
       }
     };

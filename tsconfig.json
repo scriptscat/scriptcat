@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsc/.tsbuildinfo",
     "target": "ES2022",
     "lib": [
       "DOM",
@@ -35,10 +37,5 @@
     "src",
     "packages",
     "tests"
-  ],
-  "ts-node": {
-    "compilerOptions": {
-      "module": "CommonJS"
-    }
-  }
+  ]
 }
