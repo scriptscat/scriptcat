@@ -12,6 +12,7 @@ const localeMap: Record<string, string> = {
   ja: "ja",
   de: "de",
   ru: "ru",
+  tr: "tr",
 };
 
 let currentLocale = DEFAULT_LOCALE;
