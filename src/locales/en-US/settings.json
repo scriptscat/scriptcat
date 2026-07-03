@@ -36,7 +36,7 @@
   "sync_system_connect_failed": "Sync system connection failed",
   "sync_system_closed": "Sync turned off",
   "sync_system_closed_description": "Sync is disabled, please configure again",
-  "export_success": "Dump success saved",
+  "export_success": "Export Successful",
   "get_backup_dir_url_failed": "Failed to get backup directory address",
   "get_backup_files_failed": "Failed to fetch backups",
   "baidu_netdisk": "BaiduNetdisk",
@@ -78,8 +78,8 @@
   "script_run_env": {
     "title": "Operating environment",
     "all": "All",
-    "normal-tabs": "Normal tags",
-    "incognito-tabs": "Incognito tags"
+    "normal-tabs": "Normal tabs",
+    "incognito-tabs": "Incognito tabs"
   },
   "script_run_at": {},
   "script_setting": {

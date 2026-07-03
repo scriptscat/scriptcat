@@ -10,6 +10,7 @@ import * as jaJP from "./ja-JP";
 import * as deDE from "./de-DE";
 import * as viVN from "./vi-VN";
 import * as ruRU from "./ru-RU";
+import * as trTR from "./tr-TR";
 import { changeRelativeTimeLanguage } from "./relative-date";
 
 export let localePath = "";
@@ -55,6 +56,7 @@ export function initLanguage(lng: string = "en-US"): void {
       "de-DE": { title: "Deutsch", ...deDE },
       "vi-VN": { title: "Tiếng Việt", ...viVN },
       "ru-RU": { title: "Русский", ...ruRU },
+      "tr-TR": { title: "Türkçe", ...trTR },
     },
   });
 
