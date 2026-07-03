@@ -2,7 +2,7 @@
 
 本書は、ScriptCat の日本語（`ja-JP`）UI およびドキュメントで使用する用語と UI 文言の基準です。日本語の文言を翻訳または修正する際は、日本語として自然で、製品 UI として一貫した表現を使用します。
 
-用例の参照元：`src/locales/ja-JP/translation.json`、`docs/README_ja.md`
+用例の参照元：`src/locales/ja-JP/*.json`、`docs/README_ja.md`
 
 ## 外来語表記の基準
 

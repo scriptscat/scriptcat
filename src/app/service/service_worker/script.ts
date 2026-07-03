@@ -44,7 +44,7 @@ import {
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
-import { initRegularUpdateCheck } from "./regular_updatecheck";
+import { initRegularUpdateCheck, watchRegularUpdateCheck } from "./regular_updatecheck";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 import { EnableAgent } from "@App/app/const";
@@ -261,18 +261,9 @@ export class ScriptService {
         isUrlFilterCaseSensitive: false,
         requestDomains: ["bitbucket.org"], // Chrome 101+
       },
-      // Skill 安装入口仅在 agent 启用时拦截（正式版屏蔽）
+      // Skill 包 (.cat.md) 安装检测，仅 agent 启用时拦截（正式版屏蔽）
       ...(EnableAgent
         ? [
-            // SkillScript (.skill.js) 安装检测
-            {
-              regexFilter: "^([^?#]+?\\.skill\\.js)",
-              resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-              requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-              isUrlFilterCaseSensitive: false,
-              excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
-            },
-            // Skill 包 (.cat.md) 安装检测
             {
               regexFilter: "^([^?#]+?\\.cat\\.md)",
               resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
@@ -1040,9 +1031,7 @@ export class ScriptService {
         err?: string | Error;
       }
   > {
-    // const executeSlienceUpdate = opts.checkType === "system";
     const executeSlienceUpdate = opts.checkType === "system" && (await this.systemConfig.getSilenceUpdateScript());
-    // const executeSlienceUpdate = true;
     const checkCycle = await this.systemConfig.getCheckScriptUpdateCycle();
     if (!checkCycle) {
       return {
@@ -1052,7 +1041,6 @@ export class ScriptService {
     }
     const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
     const scripts = await this.scriptDAO.all();
-    // const now = Date.now();
 
     const checkScripts = scripts.filter((script) => {
       // 不检查更新
@@ -1063,10 +1051,6 @@ export class ScriptService {
       if (!checkDisableScript && script.status === SCRIPT_STATUS_DISABLE) {
         return false;
       }
-      // 检查是否符合
-      // if (script.checktime + checkCycle * 1000 > now) {
-      //   return false;
-      // }
       return true;
     });
 
@@ -1107,7 +1091,6 @@ export class ScriptService {
             withNewConnect,
           });
         }
-        // this.openUpdatePage(script, "system");
       }
     }
 
@@ -1173,7 +1156,6 @@ export class ScriptService {
     const batchUpdateRecord = checkResults.map((entry, i) => {
       const script = entry.script;
       const result = entry.result;
-      // const uuid = entry.uuid;
       if (!result || !script.downloadUrl) {
         return {
           uuid: script.uuid,
@@ -1502,7 +1484,6 @@ export class ScriptService {
     this.group.on("getAllScripts", this.getAllScripts.bind(this));
     this.group.on("getInstallInfo", this.getInstallInfo);
     this.group.on("install", this.installScript.bind(this));
-    // this.group.on("delete", this.deleteScript.bind(this));
     this.group.on("deletes", this.deleteScripts.bind(this));
     this.group.on("enable", this.enableScript.bind(this));
     this.group.on("enables", this.enableScripts.bind(this));
@@ -1530,5 +1511,7 @@ export class ScriptService {
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
     initRegularUpdateCheck(this.systemConfig);
+    // 更新周期配置变更后立即重新设定alarm，无需等待SW重启
+    watchRegularUpdateCheck(this.systemConfig);
   }
 }

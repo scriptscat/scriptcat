@@ -2,7 +2,7 @@
 
 Tài liệu này quy định thuật ngữ dùng cho giao diện và tài liệu tiếng Việt (`vi-VN`) của ScriptCat. Mục đích là giữ rõ các khái niệm sản phẩm, dùng câu chữ tự nhiên trong giao diện và bảo toàn các định danh kỹ thuật khi tiếp tục bản địa hóa.
 
-Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/translation.json`
+Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`
 
 ## Nguyên tắc
 
@@ -76,7 +76,7 @@ Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/translation.json`
 
 ## E. Điểm cần rà soát sau
 
-Các mục dưới đây ghi nhận vấn đề đã tồn tại. Việc tạo hướng dẫn không tự thay đổi `translation.json`; mọi sửa đổi nên là một đợt chỉnh riêng có kiểm tra giao diện.
+Các mục dưới đây ghi nhận vấn đề đã tồn tại. Việc tạo hướng dẫn không tự thay đổi `*.json`; mọi sửa đổi nên là một đợt chỉnh riêng có kiểm tra giao diện.
 
 | Chủ đề | Hiện trạng | Hướng ưu tiên | Key ví dụ hiện tại |
 | --- | --- | --- | --- |

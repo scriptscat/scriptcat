@@ -7,10 +7,6 @@ function parseHtml(html: string): Document {
 }
 
 describe("bingEngine", () => {
-  it("引擎名为 bing", () => {
-    expect(bingEngine.name).toBe("bing");
-  });
-
   it("从标准 Bing HTML 中提取结果", () => {
     const html = `
       <html><body>

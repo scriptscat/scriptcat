@@ -69,9 +69,9 @@ pnpm start
 
 Файлы перевода ScriptCat размещены на GitHub. Мы приветствуем вклад через Pull Request.
 
-- Файлы перевода находятся в каталоге [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); для каждого языка есть отдельный файл `<язык>/translation.json`
-- **Улучшение существующего перевода**: отредактируйте соответствующий `translation.json` напрямую
-- **Добавление нового языка**: создайте каталог в `src/locales/` (например, `fr-FR`), скопируйте `en-US/translation.json` в качестве шаблона и переведите строки, затем зарегистрируйте локаль в `src/locales/locales.ts`
+- Файлы перевода находятся в каталоге [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); для каждого языка есть каталог `<язык>/`, разделённый по пространствам имён на несколько файлов `*.json` (например, `common.json`, `popup.json`, `script.json`)
+- **Улучшение существующего перевода**: отредактируйте нужный файл `*.json` соответствующего пространства имён напрямую
+- **Добавление нового языка**: создайте каталог в `src/locales/` (например, `fr-FR`), скопируйте файлы `*.json` каждого пространства имён и `index.ts` из `en-US/` в качестве шаблона и переведите строки, затем зарегистрируйте локаль в `src/locales/locales.ts`
 - По завершении создайте Pull Request в ветку `main`
 
 ## Участие в разработке
@@ -86,8 +86,8 @@ pnpm run lint
 Для разработки страниц ScriptCat используются следующие технологии:
 
 - [React](https://reactjs.org/)
-- UI-фреймворк [arco](https://arco.design)
-- CSS-фреймворк [unocss](https://unocss.dev/interactive/)
+- UI-фреймворк [shadcn/ui](https://ui.shadcn.com/) (на основе [Radix UI](https://www.radix-ui.com/))
+- CSS-фреймворк [Tailwind CSS](https://tailwindcss.com/)
 - Инструмент сборки RsPack [rspack](https://rspack.dev/)
 
 Если вы хотите запустить ScriptCat локально, вы можете использовать следующую команду:

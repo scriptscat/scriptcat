@@ -28,6 +28,20 @@ export type CATFileStorage = {
   status: "unset" | "success" | "error";
 };
 
+export type EditorPreferences = {
+  version: 1;
+  fontSize: number;
+  mouseWheelScrollSensitivity: number;
+  smoothScrolling: boolean;
+};
+
+export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
+  version: 1,
+  fontSize: 14,
+  mouseWheelScrollSensitivity: 1,
+  smoothScrolling: true,
+};
+
 type WithAsyncValue<T> = T | { asyncValue?: () => Promise<T> };
 
 // typeof获取 SystemConfig 的所有方法，去掉 get/set 前缀，并把方法名的第一个字母改为小写
@@ -73,8 +87,77 @@ export type SystemConfigValueType<K extends SystemConfigKey> =
         : never
     : never;
 
+interface ISystemConfigExternalStore<K extends SystemConfigKey> {
+  subscribe: (listener: () => void) => () => void;
+  getSnapshot: () => SystemConfigValueType<K> | undefined;
+  set: (value: SystemConfigValueType<K>) => void;
+}
+
+class SystemConfigExternalStore<K extends SystemConfigKey> implements ISystemConfigExternalStore<K> {
+  private value: SystemConfigValueType<K> | undefined;
+  private unsubscribeConfig: (() => void) | undefined;
+
+  constructor(
+    private readonly config: SystemConfig,
+    private readonly key: K,
+    private readonly events: EventEmitter<SystemConfigKey>
+  ) {}
+
+  readonly getSnapshot = () => this.value;
+
+  readonly subscribe = (listener: () => void) => {
+    this.events.on(this.key, listener);
+    if (this.events.listenerCount(this.key) === 1) {
+      this.unsubscribeConfig = this.config.watch(this.key, this.update);
+    }
+    return () => {
+      this.events.off(this.key, listener);
+      if (this.events.listenerCount(this.key) === 0) {
+        this.unsubscribeConfig?.();
+        this.unsubscribeConfig = undefined;
+        this.value = undefined;
+      }
+    };
+  };
+
+  readonly set = (value: SystemConfigValueType<K>) => {
+    this.update(value);
+    this.config.set(this.key, value);
+  };
+
+  private readonly update = (value: SystemConfigValueType<K>) => {
+    if (Object.is(this.value, value)) return;
+    this.value = value;
+    this.events.emit(this.key);
+  };
+}
+
+interface SystemConfigEntry {
+  hasValue: boolean;
+  value: unknown;
+  version: number;
+  store?: unknown;
+}
+
+type GetterFn<T extends SystemConfigKey> = (
+  ...args: any[]
+) => Promise<SystemConfigValueType<T>> | SystemConfigValueType<T>;
+
+type SetterFn<T extends SystemConfigKey> = (value: SystemConfigValueType<T>) => unknown;
+
+type TGetterKey<T extends SystemConfigKey = SystemConfigKey> = Extract<
+  `get${Capitalize<SnakeToCamel<T>>}`,
+  keyof SystemConfig
+>;
+
+type TSetterKey<T extends SystemConfigKey = SystemConfigKey> = Extract<
+  `set${Capitalize<SnakeToCamel<T>>}`,
+  keyof SystemConfig
+>;
+
 export class SystemConfig {
-  private readonly cache = new Map<string, any>();
+  private readonly cache = new Map<string, SystemConfigEntry>();
+  private readonly storeEvents = new EventEmitter<SystemConfigKey>();
 
   // 跨设备同步的配置项，使用 chrome.storage.sync
   private readonly syncStorage = new ChromeStorage("system", true);
@@ -90,15 +173,36 @@ export class SystemConfig {
     return this.isLocalKey(key) ? this.localStorage : this.syncStorage;
   }
 
-  private EE: EventEmitter<string> = new EventEmitter<string>();
+  private readonly EE: EventEmitter<SystemConfigKey> = new EventEmitter<SystemConfigKey>();
 
   constructor(private mq: IMessageQueue) {
     this.mq.subscribe<TKeyValue<SystemConfigKey>>(SystemConfigChange, ({ key, value, prev }) => {
       // 更新缓存
-      this.cache.set(key, value);
+      const entry = this.cacheEntry(key);
+      entry.hasValue = true;
+      entry.value = value;
+      entry.version += 1;
       // 触发事件
       this.EE.emit(key, value, prev);
     });
+  }
+
+  private cacheEntry(key: string) {
+    let entry = this.cache.get(key);
+    if (!entry) {
+      entry = { hasValue: false, value: undefined, version: 0 };
+      this.cache.set(key, entry);
+    }
+    return entry;
+  }
+
+  public externalStore<T extends SystemConfigKey>(key: T): ISystemConfigExternalStore<T> {
+    const entry = this.cacheEntry(key);
+    const existing = entry.store as ISystemConfigExternalStore<T> | undefined;
+    if (existing) return existing;
+    const store = new SystemConfigExternalStore(this, key, this.storeEvents);
+    entry.store = store;
+    return store;
   }
 
   // 添加配置变更监听
@@ -116,7 +220,7 @@ export class SystemConfig {
     callback: (value: SystemConfigValueType<T>, prev: SystemConfigValueType<T> | undefined) => void
   ) {
     // 立即执行一次
-    this.get(key).then((val) => {
+    Promise.resolve(this.get(key)).then((val) => {
       callback(val, undefined);
     });
     // 监听变更
@@ -124,8 +228,11 @@ export class SystemConfig {
   }
 
   private resolveDefault<T>(defaultValue: WithAsyncValue<Exclude<T, undefined>>): T | Promise<T> {
-    //@ts-ignore
-    return (defaultValue?.asyncValue?.() || defaultValue) as T | Promise<T>;
+    const asyncFactory =
+      typeof defaultValue === "object" && defaultValue !== null
+        ? (defaultValue as { asyncValue?: () => Promise<T> }).asyncValue
+        : undefined;
+    return (asyncFactory?.() ?? defaultValue) as T | Promise<T>;
   }
 
   private async transferSyncToLocal<T>(
@@ -134,13 +241,17 @@ export class SystemConfig {
   ): Promise<T> {
     const syncVal = await this.syncStorage.get(key);
     if (syncVal === undefined) {
-      this.cache.set(key, undefined);
+      const entry = this.cacheEntry(key);
+      entry.hasValue = true;
+      entry.value = undefined;
       return this.resolveDefault<T>(defaultValue);
     }
     // 迁移到 local storage 并从 sync 中删除
     await this.syncStorage.remove(key); // 先删除
     await this.localStorage.set(key, syncVal); // 删除成功后储回本地
-    this.cache.set(key, syncVal);
+    const entry = this.cacheEntry(key);
+    entry.hasValue = true;
+    entry.value = syncVal;
     return syncVal as T;
   }
 
@@ -148,56 +259,57 @@ export class SystemConfig {
     key: SystemConfigKey,
     defaultValue: WithAsyncValue<Exclude<T, undefined>>
   ): Promise<T> {
-    if (this.cache.has(key)) {
-      const val = this.cache.get(key);
+    const entry = this.cacheEntry(key);
+    if (entry.hasValue) {
+      const val = entry.value;
       return Promise.resolve(val === undefined ? this.resolveDefault<T>(defaultValue) : (val as T));
     }
+    const version = entry.version;
     const storage = this.getStorage(key);
     return storage.get(key).then((val) => {
+      if (version !== entry.version) {
+        return entry.hasValue && entry.value !== undefined ? (entry.value as T) : this.resolveDefault<T>(defaultValue);
+      }
       if (val !== undefined) {
-        this.cache.set(key, val);
+        entry.hasValue = true;
+        entry.value = val;
         return val as T;
       }
       // 对 local key，回退读取 sync storage（兼容旧版本数据迁移）
       if (this.isLocalKey(key)) {
         return this.transferSyncToLocal<T>(key, defaultValue);
       }
-      this.cache.set(key, val);
+      entry.hasValue = true;
+      entry.value = val;
       return this.resolveDefault<T>(defaultValue);
     });
   }
 
-  public get<T extends SystemConfigKey>(key: T): Promise<SystemConfigValueType<T>> {
-    const funcName = `get${toCamelCase(key)}`;
-    // @ts-ignore
-    if (typeof this[funcName] === "function") {
-      // @ts-ignore
-      return this[funcName]() as Promise<any>;
-    } else {
-      throw new Error(`Method ${funcName} does not exist on SystemConfig`);
-    }
+  public get<T extends SystemConfigKey>(key: T): Promise<SystemConfigValueType<T>> | SystemConfigValueType<T> {
+    const funcName = `get${toCamelCase(key)}` as TGetterKey<T>;
+    if (typeof this[funcName] !== "function") throw new Error(`Method ${funcName} does not exist on SystemConfig`);
+    return (this[funcName] as GetterFn<T>)();
   }
 
   public set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T>): void {
-    const funcName = `set${toCamelCase(key)}`;
-    // @ts-ignore
-    if (typeof this[funcName] === "function") {
-      // @ts-ignore
-      this[funcName](value);
-    } else {
-      throw new Error(`Method ${funcName} does not exist on SystemConfig`);
-    }
+    const funcName = `set${toCamelCase(key)}` as TSetterKey<T>;
+    if (typeof this[funcName] !== "function") throw new Error(`Method ${funcName} does not exist on SystemConfig`);
+    (this[funcName] as SetterFn<T>)(value);
   }
 
   private _set<T extends SystemConfigKey>(key: T, value: SystemConfigValueType<T> | undefined) {
-    const prev = this.cache.get(key);
+    const entry = this.cacheEntry(key);
+    const prev = entry.value as SystemConfigValueType<T> | undefined;
+    entry.version += 1;
     const storage = this.getStorage(key);
     let asyncOp;
     if (value === undefined) {
-      this.cache.delete(key);
+      entry.hasValue = false;
+      entry.value = undefined;
       asyncOp = storage.remove(key);
     } else {
-      this.cache.set(key, value);
+      entry.hasValue = true;
+      entry.value = value;
       asyncOp = storage.set(key, value);
     }
     asyncOp.then(() => {
@@ -347,6 +459,18 @@ export class SystemConfig {
     return this._set("editor_config", v);
   }
 
+  defaultEditorPreferences(): EditorPreferences {
+    return { ...DEFAULT_EDITOR_PREFERENCES };
+  }
+
+  getEditorPreferences() {
+    return this._get<EditorPreferences>("editor_preferences", this.defaultEditorPreferences());
+  }
+
+  setEditorPreferences(v: EditorPreferences | undefined) {
+    this._set("editor_preferences", v);
+  }
+
   // 获取typescript类型定义
   getEditorTypeDefinition(): string {
     return localStorage.getItem("editor_type_definition") || defaultTypeDefinition;
@@ -368,15 +492,6 @@ export class SystemConfig {
 
   setLogCleanCycle(val: number) {
     this._set("log_clean_cycle", val);
-  }
-
-  // 设置脚本列表列宽度
-  getScriptListColumnWidth() {
-    return this._get<{ [key: string]: number }>("script_list_column_width", {});
-  }
-
-  setScriptListColumnWidth(val: { [key: string]: number }) {
-    this._set("script_list_column_width", val);
   }
 
   defaultMenuExpandNum() {

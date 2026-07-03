@@ -4,7 +4,6 @@ import {
   parseFaviconsNew,
   fetchIconByService,
   fetchIconByDomain,
-  timeoutAbortSignal,
 } from "@App/pages/store/favicons";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -321,12 +320,5 @@ describe("fetchIconByDomain", () => {
     expect(icons).toContain("https://multi.com/icon16.png");
     expect(icons).toContain("https://multi.com/icon32.png");
     expect(icons).toContain("https://multi.com/apple.png");
-  });
-});
-
-describe("timeoutAbortSignal", () => {
-  it("应该返回AbortSignal", () => {
-    const signal = timeoutAbortSignal(5000);
-    expect(signal).toBeInstanceOf(AbortSignal);
   });
 });

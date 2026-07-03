@@ -9,20 +9,6 @@ let scriptDAO: ScriptDAO | null = null;
 let faviconDAO: FaviconDAO | null = null;
 const loadFaviconPromises = new Map<string, any>(); // 关联 iconUrl 和 blobUrl
 
-// 清除内存中的 favicon 缓存，切换服务时调用
-export const clearFaviconMemoryCache = () => {
-  loadFaviconPromises.forEach((promise) => {
-    Promise.resolve(promise)
-      .then((blobUrl) => {
-        if (typeof blobUrl === "string" && blobUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(blobUrl);
-        }
-      })
-      .catch(() => {});
-  });
-  loadFaviconPromises.clear();
-};
-
 /**
  * 从URL模式中提取域名
  */
@@ -265,10 +251,7 @@ export async function fetchIconByService(domain: string, service: FaviconService
 }
 
 // 获取脚本的favicon
-export const getScriptFavicon = async (
-  uuid: string,
-  service: FaviconService = "scriptcat"
-): Promise<FaviconRecord[]> => {
+const getScriptFavicon = async (uuid: string, service: FaviconService = "scriptcat"): Promise<FaviconRecord[]> => {
   scriptDAO ||= new ScriptDAO();
   faviconDAO ||= new FaviconDAO();
   const script = await scriptDAO.get(uuid);
@@ -306,7 +289,7 @@ export const getScriptFavicon = async (
 };
 
 // 加载favicon并缓存到OPFS (blobUrl结果在SW活跃时保持在loadFaviconPromises)
-export const loadFavicon = async (iconUrl: string): Promise<string> => {
+const loadFavicon = async (iconUrl: string): Promise<string> => {
   const directoryHandle = await getFaviconRootFolder();
   // 使用url的uuid作为文件名
   const filename = `icon_${uuidv5(iconUrl, uuidv5.URL)}.dat`;
@@ -412,7 +395,7 @@ export const loadScriptFavicons = async function* (scripts: Script[], service: F
   const results: FavIconResult[] = [];
   let waiting = false;
   for (const script of scripts) {
-    processScriptFavicon(script, service).then((result: FavIconResult) => {
+    void processScriptFavicon(script, service).then((result: FavIconResult) => {
       results.push(result);
       // 下一个 MacroTask 执行。
       // 使用 requestAnimationFrame 而非setTimeout 是因为前台才要显示。而且网页绘画中时会延后这个

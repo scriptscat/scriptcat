@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseMetadata, parseScriptFromCode } from "./script";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { parseMetadata, parseScriptFromCode, fetchScriptBody } from "./script";
 import { getMetadataStr, getUserConfigStr } from "./utils";
 import { parseUserConfig } from "./yaml";
 import {
@@ -1175,5 +1175,104 @@ console.log('Hello World');
 // ==/UserScript==
 `;
     expect(() => parseScriptFromCode(code, "https://example.com/test.user.js")).toThrow();
+  });
+});
+
+describe("fetchScriptBody 流式下载与进度", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    vi.restoreAllMocks();
+  });
+
+  // 构造一个分两块返回的 Response 假体,模拟流式下载
+  const makeStreamResponse = (
+    text: string,
+    opts: { contentLength?: number; contentType?: string; status?: number; contentEncoding?: string } = {}
+  ) => {
+    const bytes = new TextEncoder().encode(text);
+    const mid = Math.ceil(bytes.length / 2) || bytes.length;
+    const parts = bytes.length ? [bytes.slice(0, mid), bytes.slice(mid)] : [];
+    let i = 0;
+    const headers = new Map<string, string>();
+    headers.set("content-type", opts.contentType ?? "application/javascript");
+    if (opts.contentLength !== undefined) headers.set("content-length", String(opts.contentLength));
+    if (opts.contentEncoding !== undefined) headers.set("content-encoding", opts.contentEncoding);
+    return {
+      status: opts.status ?? 200,
+      headers,
+      body: {
+        getReader: () => ({
+          read: async () => (i < parts.length ? { done: false, value: parts[i++] } : { done: true, value: undefined }),
+        }),
+      },
+      arrayBuffer: async () => bytes.buffer,
+    };
+  };
+
+  it("逐块累加并回调已接收字节与总大小", async () => {
+    const code = "// ==UserScript==\n// @name x\n// ==/UserScript==\nconsole.log(1);";
+    const total = new TextEncoder().encode(code).length;
+    globalThis.fetch = vi.fn(async () => makeStreamResponse(code, { contentLength: total })) as unknown as typeof fetch;
+
+    const progress: Array<{ receivedLength: number; totalLength?: number }> = [];
+    const body = await fetchScriptBody("https://e.com/x.user.js", undefined, (p) => progress.push(p));
+
+    expect(body).toBe(code);
+    expect(progress.length).toBeGreaterThan(0);
+    // 末次回调:已接收等于总长度,总大小为 Content-Length
+    expect(progress.at(-1)).toEqual({ receivedLength: total, totalLength: total });
+    // 已接收字节单调不减
+    const received = progress.map((p) => p.receivedLength);
+    expect(received).toEqual([...received].sort((a, b) => a - b));
+  });
+
+  it("无 Content-Length 时 totalLength 为 undefined 但仍报告已接收字节", async () => {
+    const code = "// hello world\nconsole.log(2);";
+    const total = new TextEncoder().encode(code).length;
+    globalThis.fetch = vi.fn(async () => makeStreamResponse(code)) as unknown as typeof fetch;
+
+    const progress: Array<{ receivedLength: number; totalLength?: number }> = [];
+    const body = await fetchScriptBody("https://e.com/x.user.js", undefined, (p) => progress.push(p));
+
+    expect(body).toBe(code);
+    expect(progress.at(-1)?.totalLength).toBeUndefined();
+    expect(progress.at(-1)?.receivedLength).toBe(total);
+  });
+
+  it("压缩响应(Content-Encoding)不报告 totalLength,因为 Content-Length 是压缩后大小", async () => {
+    const code = "// ==UserScript==\n// @name gz\n// ==/UserScript==\nconsole.log(4);";
+    const compressedLen = 5; // 压缩后大小,远小于解压后字节数
+    globalThis.fetch = vi.fn(async () =>
+      makeStreamResponse(code, { contentLength: compressedLen, contentEncoding: "gzip" })
+    ) as unknown as typeof fetch;
+
+    const progress: Array<{ receivedLength: number; totalLength?: number }> = [];
+    const body = await fetchScriptBody("https://e.com/x.user.js", undefined, (p) => progress.push(p));
+
+    expect(body).toBe(code);
+    // 压缩响应:不能用压缩后的 Content-Length 当总大小
+    expect(progress.every((p) => p.totalLength === undefined)).toBe(true);
+    expect(progress.at(-1)?.receivedLength).toBe(new TextEncoder().encode(code).length);
+  });
+
+  it("未传 onProgress 时仍能正常返回脚本正文(兼容旧调用)", async () => {
+    const code = "console.log(3);";
+    globalThis.fetch = vi.fn(async () => makeStreamResponse(code)) as unknown as typeof fetch;
+    const body = await fetchScriptBody("https://e.com/x.user.js");
+    expect(body).toBe(code);
+  });
+
+  it("非 200 响应抛出错误", async () => {
+    globalThis.fetch = vi.fn(async () => makeStreamResponse("x", { status: 404 })) as unknown as typeof fetch;
+    await expect(fetchScriptBody("https://e.com/x.user.js", undefined, () => {})).rejects.toThrow();
+  });
+
+  it("fetch 时以脚本来源 origin 作为 referrer(对齐 v1.4 反盗链处理)", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => makeStreamResponse("console.log(5);"));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    await fetchScriptBody("https://greasyfork.org/scripts/1.user.js");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1]?.referrer).toBe("https://greasyfork.org/");
   });
 });

@@ -329,8 +329,8 @@ export class SynchronizeService {
       // 如果是token失效之类的错误,通知用户并关闭云同步
       if (isWarpTokenError(e)) {
         InfoNotification(
-          `${t("sync_system_connect_failed")}, ${t("sync_system_closed")}`,
-          `${t("sync_system_closed_description")}\n${errorMsg(e)}`
+          `${t("settings:sync_system_connect_failed")}, ${t("settings:sync_system_closed")}`,
+          `${t("settings:sync_system_closed_description")}\n${errorMsg(e)}`
         );
         this.systemConfig.setCloudSync({
           ...config,
@@ -429,8 +429,8 @@ export class SynchronizeService {
                 // 删除脚本
                 await this.script.deleteScript(script.uuid, "sync");
                 InfoNotification(
-                  i18n.t("notification.script_sync_delete"),
-                  i18n.t("notification.script_sync_delete_desc", {
+                  i18n.t("settings:notification.script_sync_delete"),
+                  i18n.t("settings:notification.script_sync_delete_desc", {
                     scriptName: i18nName(script),
                   })
                 );
@@ -769,7 +769,6 @@ export class SynchronizeService {
     this.group.on("export", this.requestExport.bind(this));
     this.group.on("backupToCloud", this.backupToCloud.bind(this));
     this.group.on("importResources", this.importResources.bind(this));
-    // this.group.on("import", this.openImportWindow.bind(this));
     // 监听脚本变化, 进行同步
     this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", this.scriptsDelete.bind(this));

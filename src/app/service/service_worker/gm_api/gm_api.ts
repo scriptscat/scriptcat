@@ -425,14 +425,14 @@ export default class GMApi {
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
-      metadata[i18next.t("request_domain")] = url.host;
+      metadata[i18next.t("permission:request_domain")] = url.host;
       return {
         permission: "cookie",
         permissionValue: url.host,
-        title: i18next.t("access_cookie_content")!,
+        title: i18next.t("permission:access_cookie_content")!,
         metadata,
-        describe: i18next.t("confirm_script_operation")!,
-        permissionContent: i18next.t("cookie_domain")!,
+        describe: i18next.t("permission:confirm_script_operation")!,
+        permissionContent: i18next.t("permission:cookie_domain")!,
         uuid: "",
       };
     },
@@ -594,11 +594,11 @@ export default class GMApi {
       return {
         permission: "file_storage",
         permissionValue: dir,
-        title: i18next.t("script_operation_title"),
+        title: i18next.t("permission:script_operation_title"),
         metadata,
-        describe: i18next.t("script_operation_description", { dir }),
+        describe: i18next.t("permission:script_operation_description", { dir }),
         wildcard: false,
-        permissionContent: i18next.t("script_permission_content"),
+        permissionContent: i18next.t("permission:script_permission_content"),
       } as ConfirmParam;
     },
   })
@@ -776,13 +776,6 @@ export default class GMApi {
     }
 
     if (modifyReqHeaders.length > 0) {
-      // const tabs = await chrome.tabs.query({});
-      // const excludedTabIds: number[] = [];
-      // for (const tab of tabs) {
-      //   if (tab.id) {
-      //     excludedTabIds.push(tab.id);
-      //   }
-      // }
       let requestMethod = (params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod;
       if (!supportedRequestMethods.has(requestMethod)) {
         requestMethod = "other" as chrome.declarativeNetRequest.RequestMethod;
@@ -890,16 +883,16 @@ export default class GMApi {
       const confirmExtensionSiteAccess = (): ConfirmParam => {
         const metadata: { [key: string]: string } = {};
         metadata[i18next.t("script_name")] = i18nName(request.script);
-        metadata[i18next.t("request_domain")] = url.hostname;
-        metadata[i18next.t("request_url")] = details.url;
+        metadata[i18next.t("permission:request_domain")] = url.hostname;
+        metadata[i18next.t("permission:request_url")] = details.url;
         throwErrorFn = null; // 确保 GC 可以释放 conn
         return {
           permission: "extension-site-access",
           permissionValue: originPattern,
-          title: i18next.t("extension_site_access_title"),
+          title: i18next.t("permission:extension_site_access_title"),
           metadata,
-          describe: i18next.t("extension_site_access_description"),
-          permissionContent: i18next.t("extension_site_access_content"),
+          describe: i18next.t("permission:extension_site_access_description"),
+          permissionContent: i18next.t("permission:extension_site_access_content"),
           extensionSiteAccessOrigins,
         } as ConfirmParam;
       };
@@ -930,8 +923,8 @@ export default class GMApi {
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
-      metadata[i18next.t("request_domain")] = url.hostname;
-      metadata[i18next.t("request_url")] = details.url;
+      metadata[i18next.t("permission:request_domain")] = url.hostname;
+      metadata[i18next.t("permission:request_url")] = details.url;
 
       throwErrorFn = null; // 确保 GC 可以释放 conn
 
@@ -946,9 +939,9 @@ export default class GMApi {
       return {
         permission: "cors",
         permissionValue: url.hostname,
-        title: i18next.t("script_accessing_cross_origin_resource"),
+        title: i18next.t("permission:script_accessing_cross_origin_resource"),
         metadata,
-        describe: i18next.t("confirm_operation_description"),
+        describe: i18next.t("permission:confirm_operation_description"),
         wildcard: true,
         permissionContent: i18next.t("domain"),
         extensionSiteAccessOrigins,

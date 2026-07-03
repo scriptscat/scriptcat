@@ -14,7 +14,7 @@ export class SearchConfigRepo {
   async getConfig(): Promise<SearchEngineConfig> {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEY);
-      return result[STORAGE_KEY] || DEFAULT_CONFIG;
+      return (result[STORAGE_KEY] as SearchEngineConfig) || DEFAULT_CONFIG;
     } catch {
       return DEFAULT_CONFIG;
     }

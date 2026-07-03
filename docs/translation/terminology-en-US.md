@@ -2,7 +2,7 @@
 
 This document defines terminology for ScriptCat's US English (`en-US`) interface and documentation. It is intended to keep product concepts identifiable, make UI actions read naturally in English, and prevent later translations from copying unclear source wording.
 
-Usage sources reviewed: `src/locales/en-US/translation.json`, `README.md`
+Usage sources reviewed: `src/locales/en-US/*.json`, `README.md`
 
 ## Principles
 
@@ -81,7 +81,7 @@ Usage sources reviewed: `src/locales/en-US/translation.json`, `README.md`
 
 ## E. Copy Review Targets
 
-The entries below identify defects or inconsistencies already present in `translation.json`. Creating this guideline does not itself change runtime strings; these should be corrected in a scoped English copy pass with UI checks.
+The entries below identify defects or inconsistencies already present in `*.json`. Creating this guideline does not itself change runtime strings; these should be corrected in a scoped English copy pass with UI checks.
 
 | Target | Current wording or issue | Preferred direction | Current example keys |
 | --- | --- | --- | --- |

@@ -750,7 +750,7 @@ export class RuntimeService {
     let jsCode = "";
     if (withCode) {
       const code = compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
-      registerScript.js[0].code = jsCode = code;
+      registerScript.js![0].code = jsCode = code;
     }
 
     // 过滤掉matches为空的脚本

@@ -88,10 +88,10 @@ export const nextTimeDisplay = (crontab: string, date = new Date()): string => {
   try {
     const res = nextTimeInfo(crontab, date);
     const nextTimeFormatted = res.next.toFormat(res.format);
-    return res.once ? t(`cron_oncetype.${res.once}`, { next: nextTimeFormatted }) : nextTimeFormatted;
+    return res.once ? t(`script:cron_oncetype.${res.once}`, { next: nextTimeFormatted }) : nextTimeFormatted;
   } catch (e) {
     console.error(`nextTimeDisplay: Invalid cron expression "${crontab}"`, e);
-    return t("cron_invalid_expr");
+    return t("script:cron_invalid_expr");
   }
 };
 
@@ -119,7 +119,7 @@ export const extractCronExpr = (
 
   // 长度不合法，直接判定为非法表达式
   if (parts.length + lenOffset !== 6) {
-    throw new Error(t("cron_invalid_expr"));
+    throw new Error(t("script:cron_invalid_expr"));
   }
 
   let oncePos = -1;
@@ -160,7 +160,7 @@ export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult
      * 不支持多个 once
      * 示例："* once once * *"
      */
-    throw new Error(t("cron_invalid_expr"));
+    throw new Error(t("script:cron_invalid_expr"));
   }
 
   let luxonDate = (DateTime as any).fromJSDate(date) as LuxonDate;
