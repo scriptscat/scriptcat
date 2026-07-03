@@ -81,6 +81,7 @@ Vitest + happy-dom, 850ms timeout. Chrome APIs mocked via `@Packages/chrome-exte
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
 - Single file: `pnpm test -- --run path/to/file.test.ts`.
 - Playwright tests are `*.spec.ts` files in `e2e`; they run with one worker and retain failure artifacts. Run targeted tests while iterating, then run `pnpm run lint` plus the relevant full suite before a PR.
+- Firefox MV3 has a separate committed E2E suite (Selenium + geckodriver, `e2e/firefox/`) run via `pnpm run test:e2e:firefox` — Playwright cannot drive Firefox extension UI. See [`E2E-FIREFOX.md`](./E2E-FIREFOX.md).
 
 ### Writing meaningful tests (what to clean up / not write)
 

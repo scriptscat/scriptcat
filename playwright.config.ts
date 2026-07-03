@@ -4,7 +4,9 @@ export default defineConfig({
   testDir: "./e2e",
   // 一次性验证脚本放在 e2e/scratch/（已 gitignore），不纳入正式 E2E 套件/CI。
   // 单跑请用 playwright.scratch.config.ts：见 docs/VERIFICATION.md。
-  testIgnore: ["**/scratch/**"],
+  // e2e/firefox/ 是独立的 Selenium+geckodriver Firefox MV3 套件（非 Playwright），
+  // 用 `pnpm run test:e2e:firefox` 运行：见 docs/E2E-FIREFOX.md。
+  testIgnore: ["**/scratch/**", "**/firefox/**"],
   timeout: 60_000,
   expect: {
     timeout: 10_000,

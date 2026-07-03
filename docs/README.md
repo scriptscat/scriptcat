@@ -10,6 +10,7 @@
 | [`DEVELOP.md`](./DEVELOP.md) | 开发规范:命令、目录结构、编码风格、UI/主题、测试机制、i18n、提交/PR 流程。**写代码前先读。** |
 | [`DESIGN.md`](./DESIGN.md) | 设计系统参考:深/浅色令牌完整值、主题机制、shadcn 组件清单与选型、布局与响应式范式、动效、状态模式、新建页面配方。**做页面/对话框/区块前先读。** |
 | [`VERIFICATION.md`](./VERIFICATION.md) | 功能验证指南:用一次性 scratch 脚本驱动真实扩展做端到端验证(不跑全量 E2E、不加永久用例)。**验证改动是否真正跑通时读。** |
+| [`E2E-FIREFOX.md`](./E2E-FIREFOX.md) | Firefox MV3 E2E 套件(Selenium+geckodriver):怎么跑、解包安装等 Firefox 专属坑、gm_api_sync 结果与已知 CSP 差异。**动 Firefox e2e 时读。** |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 内部原理深入:多进程模型、消息传递、服务/数据层、GM API、脚本执行、构建管线。 |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | 文档维护与事实核对指南:组织规则、逐条核对清单、一键校验脚本。**改/审文档前先读。** |
 

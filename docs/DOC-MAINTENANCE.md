@@ -29,6 +29,7 @@ Aspirational / feature-branch content belongs in that branch's docs, or is clear
 | [`DEVELOP.md`](./DEVELOP.md) | The concrete "how": commands, structure, style, testing, i18n, commit/PR. |
 | [`DESIGN.md`](./DESIGN.md) | The design system: light/dark color tokens, theme mechanism, shadcn component palette, layout & responsive patterns, motion, state patterns, new-page recipe. |
 | [`VERIFICATION.md`](./VERIFICATION.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension. |
+| [`E2E-FIREFOX.md`](./E2E-FIREFOX.md) | The committed Firefox MV3 E2E suite (Selenium + geckodriver): how to run it, Firefox-specific hurdles, results. |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Deep internals: process model, message passing, service/data layers, GM API, execution, build. |
 | [`translation/README.md`](./translation/README.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: doc-set organization rules + fact-check / anti-drift discipline. |
