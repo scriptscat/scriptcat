@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CronTime } from "cron";
 
-import { createCronJob, getLocalUtcOffset, getLuxonDate, toUtcOffsetZone } from "./cron";
+import { createCronJob, getLocalUtcOffset, getLuxonDate, nextTimeInfo, toUtcOffsetZone } from "./cron";
 
 /**
  * 这些测试刻意不依赖真实机器的时区。
@@ -182,6 +183,37 @@ describe("cron-utils", () => {
       expect(getTimezoneOffsetSpy).toHaveBeenCalled();
       expect(queriedDates).toContain("2024-04-04T04:44:44.000Z");
       expect(nextDate.toUTC().toISO({ suppressMilliseconds: true })).toBe("2024-04-04T21:30:00Z");
+    });
+  });
+
+  describe("nextTimeInfo", () => {
+    it.each([
+      ["* * * * *", "2026-01-01T17:05:00Z"], // 01:05 GMT+8
+      ["* once * * *", "2026-01-01T18:00:00Z"], // 02:00 GMT+8
+      ["11 7 * * *", "2026-01-01T23:11:00Z"], // 07:11 GMT+8
+    ])("不应依赖系统 IANA timezone，而应使用 fixed offset 计算 %s", (cronExpr, expected) => {
+      vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-480);
+      const getNextDateFrom = vi.spyOn(CronTime.prototype, "getNextDateFrom");
+
+      const result = nextTimeInfo(cronExpr, new Date("2026-01-01T17:04:00Z")); // 01:04 GMT+8
+
+      expect(getNextDateFrom).toHaveBeenLastCalledWith(expect.anything(), "UTC+08:00");
+      expect((getNextDateFrom.mock.instances.at(-1) as CronTime | undefined)?.timeZone).toBe("UTC+08:00");
+      expect(result.next.toUTC().toISO({ suppressMilliseconds: true })).toBe(expected);
+    });
+    it.each([
+      ["* * * * *", "2026-01-01T22:01:00Z"], // 03:31 GMT+5:30
+      ["* once * * *", "2026-01-01T22:30:00Z"], // 04:00 GMT+5:30
+      ["11 7 * * *", "2026-01-02T01:41:00Z"], // 07:11 GMT+5:30
+    ])("不应依赖系统 IANA timezone，而应使用 fixed offset 计算 %s", (cronExpr, expected) => {
+      vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-330);
+      const getNextDateFrom = vi.spyOn(CronTime.prototype, "getNextDateFrom");
+
+      const result = nextTimeInfo(cronExpr, new Date("2026-01-01T22:00:00Z")); // 03:30 GMT+5:30
+
+      expect(getNextDateFrom).toHaveBeenLastCalledWith(expect.anything(), "UTC+05:30");
+      expect((getNextDateFrom.mock.instances.at(-1) as CronTime | undefined)?.timeZone).toBe("UTC+05:30");
+      expect(result.next.toUTC().toISO({ suppressMilliseconds: true })).toBe(expected);
     });
   });
 

@@ -288,11 +288,13 @@ export const extractCronExpr = (
  */
 export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult => {
   const { cronExpr, oncePos } = extractCronExpr(crontab);
+  const utcOffset = getLocalUtcOffset(date);
+  const utcOffsetZone = toUtcOffsetZone(utcOffset);
 
   let cron: CronTime;
   try {
     // 使用标准 cron 表达式进行解析
-    cron = new CronTime(cronExpr);
+    cron = new CronTime(cronExpr, utcOffsetZone, null);
   } catch {
     /**
      * 不支持多个 once
@@ -334,7 +336,7 @@ export const nextTimeInfo = (crontab: string, date = new Date()): NextTimeResult
     luxonDate = luxonDate.minus({ milliseconds: 1 });
   }
 
-  const next = cron.getNextDateFrom(luxonDate);
+  const next = cron.getNextDateFrom(luxonDate, utcOffsetZone);
 
   return {
     next: next,
