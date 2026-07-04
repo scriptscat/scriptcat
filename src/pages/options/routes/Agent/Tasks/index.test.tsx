@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, waitFor } from "@testing-library/react";
+import { render, cleanup, screen } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
@@ -46,13 +46,13 @@ afterEach(() => cleanup());
 describe("AgentTasks 页面", () => {
   it("挂载后展示已配置任务", async () => {
     render(<AgentTasks />);
-    await waitFor(() => expect(screen.getByText("每日总结")).toBeInTheDocument());
+    expect(await screen.findByText("每日总结")).toBeInTheDocument();
   });
 
   it("无任务时展示空状态", async () => {
     listTasksMock.mockResolvedValueOnce([]);
     render(<AgentTasks />);
-    await waitFor(() => expect(screen.getByText(t("agent:tasks_no_tasks"))).toBeInTheDocument());
+    expect(await screen.findByText(t("agent:tasks_no_tasks"))).toBeInTheDocument();
   });
 
   it("桌面页头渲染「文档」按钮并深链到定时任务文档页", async () => {
@@ -63,7 +63,7 @@ describe("AgentTasks 页面", () => {
 
   it("有任务时使用共享 CountBar 展示计数摘要", async () => {
     render(<AgentTasks />);
-    await waitFor(() => expect(screen.getByTestId("count-bar")).toBeInTheDocument());
+    expect(await screen.findByTestId("count-bar")).toBeInTheDocument();
   });
 
   it("移动端不渲染桌面 64px 页头(交由全局 MobileHeader),改用页内顶部行", async () => {

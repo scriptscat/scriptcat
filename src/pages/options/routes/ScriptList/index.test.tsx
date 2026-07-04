@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -109,7 +109,7 @@ describe("脚本列表删除接口调用", () => {
 
     fireEvent.click(screen.getByText("trigger-delete"));
 
-    await waitFor(() => expect(requestDeleteScripts).toHaveBeenCalledWith(["u1"]));
+    expect(requestDeleteScripts).toHaveBeenCalledWith(["u1"]);
   });
 
   it("批量删除按选中的 uuid 调用删除接口", async () => {
@@ -117,7 +117,7 @@ describe("脚本列表删除接口调用", () => {
     fireEvent.click(screen.getByText("trigger-select")); // 选中 1 项
     fireEvent.click(screen.getByText("trigger-batch-delete"));
 
-    await waitFor(() => expect(requestDeleteScripts).toHaveBeenCalledWith(["u1"]));
+    expect(requestDeleteScripts).toHaveBeenCalledWith(["u1"]);
   });
 
   it("未选中任何脚本时批量删除不调用删除接口", () => {
@@ -185,9 +185,9 @@ describe("脚本列表用户配置弹窗", () => {
 
     expect(await screen.findByText("TestScript")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" }));
+    await act(async () => fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" })));
 
-    await waitFor(() => expect(screen.queryByText("TestScript")).toBeNull());
+    expect(screen.queryByText("TestScript")).toBeNull();
   });
 });
 

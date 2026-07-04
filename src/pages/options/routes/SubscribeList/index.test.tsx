@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -81,7 +81,7 @@ describe("订阅列表删除二次确认", () => {
 
     fireEvent.click(screen.getByText(t("delete"), { selector: "button" }));
 
-    await waitFor(() => expect(requestDeleteSubscribe).toHaveBeenCalledWith("https://example.com/a.user.sub.js"));
+    expect(requestDeleteSubscribe).toHaveBeenCalledWith("https://example.com/a.user.sub.js");
   });
 
   it("点击取消按钮不应调用删除接口", async () => {
@@ -89,9 +89,9 @@ describe("订阅列表删除二次确认", () => {
     fireEvent.click(screen.getByText("trigger-delete"));
     await screen.findByText(t("confirm_delete"));
 
-    fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" }));
+    await act(async () => fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" })));
 
-    await waitFor(() => expect(screen.queryByText(t("confirm_delete"))).toBeNull());
+    expect(screen.queryByText(t("confirm_delete"))).toBeNull();
     expect(requestDeleteSubscribe).not.toHaveBeenCalled();
   });
 });

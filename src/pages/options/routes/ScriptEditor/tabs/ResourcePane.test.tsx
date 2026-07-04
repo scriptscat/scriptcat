@@ -67,18 +67,18 @@ describe("ResourcePane 资源面板", () => {
     // 点击删除按钮仅弹出确认气泡，未确认前不应删除
     expect(deleteResource).not.toHaveBeenCalled();
     expect(screen.getByText(t("confirm_delete_resource"))).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("popconfirm-confirm"));
-    await waitFor(() => expect(deleteResource).toHaveBeenCalledWith("https://cdn.test/jquery.min.js"));
-    await waitFor(() => expect(screen.queryByText("jquery.min.js")).toBeNull());
+    await act(async () => fireEvent.click(screen.getByTestId("popconfirm-confirm")));
+    expect(deleteResource).toHaveBeenCalledWith("https://cdn.test/jquery.min.js");
+    expect(screen.queryByText("jquery.min.js")).toBeNull();
   });
 
   it("清空应对每个资源调用删除并清空列表", async () => {
     render(<ResourcePane uuid="u1" />);
     await screen.findByText("jquery.min.js");
     fireEvent.click(screen.getByText(t("clear"), { selector: "button" }));
-    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
-    await waitFor(() => expect(deleteResource).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByText(t("no_data"))).toBeInTheDocument());
+    await act(async () => fireEvent.click(screen.getByText(t("confirm"), { selector: "button" })));
+    expect(deleteResource).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(t("no_data"))).toBeInTheDocument();
   });
 
   it("搜索应按文件名过滤资源", async () => {

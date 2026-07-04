@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { synchronizeClient, pinToTop } from "@App/pages/store/features/script";
@@ -80,7 +80,7 @@ describe("脚本列表批量导出", () => {
     fireEvent.click(screen.getByText("batch-export"));
 
     // 选中 u1(sort2) 与 u3(sort1)，按 sort 升序导出应为 [u3, u1]
-    await waitFor(() => expect(synchronizeClient.export).toHaveBeenCalledWith(["u3", "u1"]));
+    expect(synchronizeClient.export).toHaveBeenCalledWith(["u3", "u1"]);
   });
 
   it("未选中任何脚本时不应调用导出接口", () => {
@@ -97,7 +97,7 @@ describe("脚本列表批量置顶", () => {
     fireEvent.click(screen.getByText("sel-u3")); // sort 1
     fireEvent.click(screen.getByText("batch-pin"));
 
-    await waitFor(() => expect(pinToTop).toHaveBeenCalledWith(["u3", "u1"]));
+    expect(pinToTop).toHaveBeenCalledWith(["u3", "u1"]);
   });
 
   it("未选中任何脚本时不应调用置顶接口", () => {

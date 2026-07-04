@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
@@ -126,7 +126,7 @@ describe("SettingsPane 基本信息", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("alpha");
     fireEvent.click(screen.getByLabelText(`${t("delete")} alpha`));
-    await waitFor(() => expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["beta"]));
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["beta"]);
   });
 
   it("添加标签后回车应调用 updateMetadata 写入新标签", async () => {
@@ -135,7 +135,7 @@ describe("SettingsPane 基本信息", () => {
     const input = screen.getByPlaceholderText(t("script:input_tags_placeholder"));
     fireEvent.change(input, { target: { value: "gamma" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["alpha", "beta", "gamma"]));
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["alpha", "beta", "gamma"]);
   });
 });
 
@@ -168,9 +168,7 @@ describe("SettingsPane 更新URL", () => {
     const input = screen.getByDisplayValue("https://example.com/a.meta.js");
     fireEvent.change(input, { target: { value: "https://new.example.com/a.meta.js" } });
     fireEvent.blur(input);
-    await waitFor(() =>
-      expect(setCheckUpdateUrl).toHaveBeenCalledWith("u1", true, "https://new.example.com/a.meta.js")
-    );
+    expect(setCheckUpdateUrl).toHaveBeenCalledWith("u1", true, "https://new.example.com/a.meta.js");
   });
 });
 
@@ -190,7 +188,7 @@ describe("SettingsPane 网站匹配/排除", () => {
     await screen.findByText("*://user.com/*");
     fireEvent.click(screen.getByLabelText(`${t("delete")} *://user.com/*`));
     fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
-    await waitFor(() => expect(resetMatch).toHaveBeenCalledWith("u1", ["*://script.com/*"]));
+    expect(resetMatch).toHaveBeenCalledWith("u1", ["*://script.com/*"]);
   });
 
   it("删除匹配项的确认气泡应展示删除匹配文案而非通用重置文案", async () => {
@@ -226,14 +224,12 @@ describe("SettingsPane 网站匹配/排除", () => {
     });
     fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
-    await waitFor(() =>
-      expect(resetMatch).toHaveBeenCalledWith("u1", [
-        "*://script.com/*",
-        "*://user.com/*",
-        "https://new.example.com/*",
-        "*://trimmed.example.org/*",
-      ])
-    );
+    expect(resetMatch).toHaveBeenCalledWith("u1", [
+      "*://script.com/*",
+      "*://user.com/*",
+      "https://new.example.com/*",
+      "*://trimmed.example.org/*",
+    ]);
   });
 
   it("添加排除应打开多行弹窗并去除空行与重复项后复用 resetExclude", async () => {
@@ -252,9 +248,7 @@ describe("SettingsPane 网站匹配/排除", () => {
     });
     fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
-    await waitFor(() =>
-      expect(resetExclude).toHaveBeenCalledWith("u1", ["*://exclude.com/*", "https://ads.example.com/*"])
-    );
+    expect(resetExclude).toHaveBeenCalledWith("u1", ["*://exclude.com/*", "https://ads.example.com/*"]);
   });
 
   it("重置匹配应以 undefined 调用 resetMatch", async () => {
@@ -263,7 +257,7 @@ describe("SettingsPane 网站匹配/排除", () => {
     // 三个重置按钮按 DOM 顺序：匹配 / 排除 / 授权
     fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[0]);
     fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
-    await waitFor(() => expect(resetMatch).toHaveBeenCalledWith("u1", undefined));
+    expect(resetMatch).toHaveBeenCalledWith("u1", undefined);
   });
 });
 
@@ -280,10 +274,8 @@ describe("SettingsPane 授权管理(CORS)", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
     fireEvent.click(screen.getByLabelText(`${t("permission:allow")} a.com`));
-    await waitFor(() =>
-      expect(updatePermission).toHaveBeenCalledWith(
-        expect.objectContaining({ permission: "cors", permissionValue: "a.com", allow: false })
-      )
+    expect(updatePermission).toHaveBeenCalledWith(
+      expect.objectContaining({ permission: "cors", permissionValue: "a.com", allow: false })
     );
   });
 
@@ -291,9 +283,9 @@ describe("SettingsPane 授权管理(CORS)", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
     fireEvent.click(screen.getByLabelText(`${t("delete")} a.com`));
-    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
-    await waitFor(() => expect(deletePermission).toHaveBeenCalledWith("u1", "cors", "a.com"));
-    await waitFor(() => expect(screen.queryByText("a.com")).toBeNull());
+    await act(async () => fireEvent.click(screen.getByText(t("confirm"), { selector: "button" })));
+    expect(deletePermission).toHaveBeenCalledWith("u1", "cors", "a.com");
+    expect(screen.queryByText("a.com")).toBeNull();
   });
 
   it("新增授权应打开多行弹窗并使用下拉框选择允许状态", async () => {
@@ -314,7 +306,7 @@ describe("SettingsPane 授权管理(CORS)", () => {
     });
     fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
-    await waitFor(() => expect(addPermission).toHaveBeenCalledTimes(2));
+    expect(addPermission).toHaveBeenCalledTimes(2);
     expect(addPermission).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ uuid: "u1", permission: "cors", permissionValue: "c.com", allow: true })
@@ -330,9 +322,9 @@ describe("SettingsPane 授权管理(CORS)", () => {
     await screen.findByText("a.com");
     // 第三个重置按钮为授权管理
     fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[2]);
-    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
-    await waitFor(() => expect(resetPermission).toHaveBeenCalledWith("u1"));
-    await waitFor(() => expect(screen.queryByText("a.com")).toBeNull());
+    await act(async () => fireEvent.click(screen.getByText(t("confirm"), { selector: "button" })));
+    expect(resetPermission).toHaveBeenCalledWith("u1");
+    expect(screen.queryByText("a.com")).toBeNull();
   });
 
   it("无授权时应展示空状态", async () => {

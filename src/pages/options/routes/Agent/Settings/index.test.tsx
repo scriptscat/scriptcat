@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
@@ -44,7 +44,7 @@ afterEach(() => cleanup());
 describe("AgentSettings 页面", () => {
   it("挂载后展示当前搜索引擎提示", async () => {
     render(<AgentSettings />);
-    await waitFor(() => expect(screen.getByText(t("agent:search_engine_tip_bing"))).toBeInTheDocument());
+    expect(await screen.findByText(t("agent:search_engine_tip_bing"))).toBeInTheDocument();
   });
 
   it("当前分类导航项使用 primary-light 高亮(对照设计稿激活态)", async () => {
@@ -69,7 +69,7 @@ describe("AgentSettings 页面", () => {
   it("google_custom 引擎时显示 Google 字段", async () => {
     getSearchConfigMock.mockResolvedValueOnce({ engine: "google_custom", googleApiKey: "", googleCseId: "" });
     render(<AgentSettings />);
-    await waitFor(() => expect(screen.getByTestId("search-google-cse-id")).toBeInTheDocument());
+    expect(await screen.findByTestId("search-google-cse-id")).toBeInTheDocument();
   });
 
   it("修改 Google CSE ID 触发 saveSearchConfig", async () => {
@@ -85,8 +85,8 @@ describe("AgentSettings 页面", () => {
     vi.mocked(agentClient.saveSearchConfig).mockRejectedValueOnce(new Error("boom"));
     render(<AgentSettings />);
     const input = await screen.findByTestId("search-google-cse-id");
-    fireEvent.change(input, { target: { value: "cse123" } });
-    await waitFor(() => expect(notify.error).toHaveBeenCalledWith(t("agent:settings_save_failed")));
+    await act(async () => fireEvent.change(input, { target: { value: "cse123" } }));
+    expect(notify.error).toHaveBeenCalledWith(t("agent:settings_save_failed"));
   });
 
   describe("桌面端", () => {

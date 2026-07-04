@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Conversation } from "@App/app/service/agent/core/types";
 
@@ -60,13 +60,13 @@ afterEach(() => cleanup());
 describe("Agent 会话页 AgentChat 桌面外壳", () => {
   it("同时渲染会话列表与聊天主区域", async () => {
     render(<AgentChat />);
-    await waitFor(() => expect(screen.getByTestId("chat-area")).toBeInTheDocument());
+    expect(await screen.findByTestId("chat-area")).toBeInTheDocument();
     expect(screen.getByTestId("conv-new")).toBeInTheDocument();
   });
 
   it("点击折叠按钮可隐藏会话列表，再次点击恢复", async () => {
     render(<AgentChat />);
-    await waitFor(() => expect(screen.getByTestId("conv-new")).toBeInTheDocument());
+    expect(await screen.findByTestId("conv-new")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("sidebar-collapse"));
     expect(screen.queryByTestId("conv-new")).toBeNull();
@@ -87,7 +87,7 @@ describe("Agent 会话页 AgentChat 桌面外壳", () => {
     state.conversations = [conv("a", "会话A")];
     state.activeId = "a";
     render(<AgentChat />);
-    await waitFor(() => expect(screen.getByTestId("header-export")).toBeInTheDocument());
+    expect(await screen.findByTestId("header-export")).toBeInTheDocument();
     expect(screen.getByTestId("header-new")).toBeInTheDocument();
   });
 });
@@ -100,13 +100,13 @@ describe("Agent 会话页 AgentChat 移动端外壳", () => {
 
   it("默认只展示会话列表，不展示聊天主区域", async () => {
     render(<AgentChat />);
-    await waitFor(() => expect(screen.getByTestId("conv-new")).toBeInTheDocument());
+    expect(await screen.findByTestId("conv-new")).toBeInTheDocument();
     expect(screen.queryByTestId("chat-area")).toBeNull();
   });
 
   it("点击会话进入对话视图（隐藏列表、显示聊天与返回钮）", async () => {
     render(<AgentChat />);
-    await waitFor(() => expect(screen.getByTestId("conv-item-b")).toBeInTheDocument());
+    expect(await screen.findByTestId("conv-item-b")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("conv-item-b"));
     expect(screen.getByTestId("chat-area")).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("Agent 会话页 AgentChat 移动端外壳", () => {
 
   it("对话视图点返回回到列表", async () => {
     render(<AgentChat />);
-    await waitFor(() => expect(screen.getByTestId("conv-item-a")).toBeInTheDocument());
+    expect(await screen.findByTestId("conv-item-a")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("conv-item-a"));
 
     fireEvent.click(screen.getByTestId("mobile-back"));

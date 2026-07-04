@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { BackgroundPrompt, backgroundPromptShownKey } from "./BackgroundPrompt";
 
@@ -23,8 +23,8 @@ describe("BackgroundPrompt 后台权限弹窗", () => {
     const req = vi.spyOn(chrome.permissions, "request");
     const onResult = vi.fn();
     render(<BackgroundPrompt open scriptType="后台脚本" onResult={onResult} />);
-    fireEvent.click(screen.getByText("立即启用").closest("button")!);
-    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
+    await act(async () => fireEvent.click(screen.getByText("立即启用").closest("button")!));
+    expect(onResult).toHaveBeenCalledWith(true);
     expect(req).toHaveBeenCalledWith({ permissions: ["background"] });
     expect(localStorage.getItem(backgroundPromptShownKey)).toBe("true");
   });

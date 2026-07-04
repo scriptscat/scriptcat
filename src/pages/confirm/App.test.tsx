@@ -84,7 +84,7 @@ describe("授权确认页 · 时长与范围映射", () => {
     getPermissionInfo.mockResolvedValue(baseInfo());
     render(<PermissionConfirm uuid="u1" />);
     fireEvent.click((await screen.findByText("允许")).closest("button")!);
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 }));
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 });
   });
 
   it("选择「永久」后点击允许应以 type 5 确认", async () => {
@@ -92,7 +92,7 @@ describe("授权确认页 · 时长与范围映射", () => {
     render(<PermissionConfirm uuid="u1" />);
     fireEvent.click(await screen.findByTestId("confirm-duration-permanent"));
     fireEvent.click(screen.getByText("允许").closest("button")!);
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 5 }));
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 5 });
   });
 
   it("通配权限且 likeNum>2 时，开启通配并选永久，允许应为 type 4", async () => {
@@ -101,14 +101,14 @@ describe("授权确认页 · 时长与范围映射", () => {
     fireEvent.click(await screen.findByTestId("confirm-duration-permanent"));
     fireEvent.click(document.querySelector('[role="switch"]')!);
     fireEvent.click(screen.getByText("允许").closest("button")!);
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 4 }));
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 4 });
   });
 
   it("点击拒绝应以当前时长 type 确认 allow=false", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo());
     render(<PermissionConfirm uuid="u1" />);
     fireEvent.click((await screen.findByText("拒绝")).closest("button")!);
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: false, type: 1 }));
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: false, type: 1 });
   });
 
   it("点击忽略应以 type 0 确认（忽略不留授权记录）", async () => {
@@ -116,7 +116,7 @@ describe("授权确认页 · 时长与范围映射", () => {
     render(<PermissionConfirm uuid="u1" />);
     await screen.findByText("脚本正在试图访问跨域资源");
     fireEvent.click(screen.getByText(/忽略/).closest("button")!);
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: false, type: 0 }));
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: false, type: 0 });
   });
 });
 
@@ -169,8 +169,10 @@ describe("授权确认页 · 站点访问变体", () => {
     );
     render(<PermissionConfirm uuid="u1" />);
     fireEvent.click((await screen.findByText("请求权限")).closest("button")!);
-    await waitFor(() => expect(requestSpy).toHaveBeenCalledWith({ origins: ["https://example.com/*"] }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 }));
+    await waitFor(() => {
+      expect(requestSpy).toHaveBeenCalledWith({ origins: ["https://example.com/*"] });
+      expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 });
+    });
   });
 });
 

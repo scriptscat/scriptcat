@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import type { SkillSummary } from "@App/app/service/agent/core/types";
@@ -92,11 +92,11 @@ describe("AgentSkills 页面", () => {
     const trigger = screen.getByTestId("skill-open-翻译助手");
 
     fireEvent.focus(trigger);
-    await waitFor(() => expect(loadSkillDetail).toHaveBeenCalledOnce());
+    expect(loadSkillDetail).toHaveBeenCalledOnce();
     fireEvent.click(trigger);
 
     expect(await screen.findByText("执行翻译")).toBeInTheDocument();
-    await waitFor(() => expect(getSkillConfigValues).toHaveBeenCalledOnce());
+    expect(getSkillConfigValues).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByTestId("skill-open-config"));
 
     expect(await screen.findByDisplayValue("saved-key")).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("AgentSkills 页面", () => {
     const file = new File([new Uint8Array([1])], "s.zip", { type: "application/zip" });
     const input = screen.getByTestId("skill-zip-input");
     fireEvent.change(input, { target: { files: [file] } });
-    await waitFor(() => expect(installSkillFromZip).toHaveBeenCalledWith(file));
+    expect(installSkillFromZip).toHaveBeenCalledWith(file);
   });
 
   it("从 URL 导入时以填入的地址调用 installSkillFromUrl", async () => {
@@ -131,7 +131,7 @@ describe("AgentSkills 页面", () => {
     fireEvent.click(await screen.findByTestId("skill-import-url"));
     fireEvent.change(screen.getByTestId("skill-url-input"), { target: { value: "https://x.com/s.zip" } });
     fireEvent.click(screen.getByTestId("skill-url-confirm"));
-    await waitFor(() => expect(installSkillFromUrl).toHaveBeenCalledWith("https://x.com/s.zip"));
+    expect(installSkillFromUrl).toHaveBeenCalledWith("https://x.com/s.zip");
   });
 
   it("桌面页头通过 docHref 渲染统一「文档」按钮", () => {

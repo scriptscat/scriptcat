@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 const { create } = vi.hoisted(() => ({ create: vi.fn(() => Promise.resolve({})) }));
 vi.mock("@Packages/filesystem/factory", () => ({
@@ -63,8 +63,8 @@ describe("同步分区", () => {
     mockCloudSync({ enable: false });
     render(<SyncSection register={() => () => {}} />);
     const save = await screen.findByTestId("cloud_sync_save");
-    fireEvent.click(save);
-    await waitFor(() => expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: false })));
+    await act(async () => fireEvent.click(save));
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: false }));
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -72,9 +72,9 @@ describe("同步分区", () => {
     mockCloudSync({ enable: true, filesystem: "webdav", params: { webdav: { url: "https://dav" } } });
     render(<SyncSection register={() => () => {}} />);
     const save = await screen.findByTestId("cloud_sync_save");
-    fireEvent.click(save);
-    await waitFor(() => expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" }));
-    await waitFor(() => expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: true })));
+    await act(async () => fireEvent.click(save));
+    expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" });
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: true }));
   });
 
   it("校验失败时不写入配置", async () => {
@@ -82,8 +82,8 @@ describe("同步分区", () => {
     mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
     render(<SyncSection register={() => () => {}} />);
     const save = await screen.findByTestId("cloud_sync_save");
-    fireEvent.click(save);
-    await waitFor(() => expect(create).toHaveBeenCalled());
+    await act(async () => fireEvent.click(save));
+    expect(create).toHaveBeenCalled();
     expect(set).not.toHaveBeenCalled();
   });
 
@@ -92,8 +92,8 @@ describe("同步分区", () => {
     render(<SyncSection register={() => () => {}} />);
     const cb = await screen.findByTestId("cloud_sync_sync_delete");
     fireEvent.click(cb);
-    fireEvent.click(screen.getByTestId("cloud_sync_save"));
-    await waitFor(() => expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncDelete: true })));
+    await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncDelete: true }));
   });
 
   it("切换同步状态复选框后保存写入新值", async () => {
@@ -101,7 +101,7 @@ describe("同步分区", () => {
     render(<SyncSection register={() => () => {}} />);
     const cb = await screen.findByTestId("cloud_sync_sync_status");
     fireEvent.click(cb);
-    fireEvent.click(screen.getByTestId("cloud_sync_save"));
-    await waitFor(() => expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncStatus: false })));
+    await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncStatus: false }));
   });
 });

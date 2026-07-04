@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
@@ -119,11 +119,9 @@ describe("StoragePane 储存面板", () => {
   it("删除应以 undefined 调用 setScriptValue 并移除该行", async () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("token");
-    fireEvent.click(screen.getAllByLabelText(t("delete"))[0]);
-    await waitFor(() =>
-      expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "token", value: undefined }))
-    );
-    await waitFor(() => expect(screen.queryByText("token")).toBeNull());
+    await act(async () => fireEvent.click(screen.getAllByLabelText(t("delete"))[0]));
+    expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "token", value: undefined }));
+    expect(screen.queryByText("token")).toBeNull();
   });
 
   it("添加：填写 key/value 后保存应调用 setScriptValue 并新增行", async () => {
@@ -132,10 +130,8 @@ describe("StoragePane 储存面板", () => {
     fireEvent.click(screen.getByText(t("add"), { selector: "button" }));
     fireEvent.change(screen.getByPlaceholderText(t("editor:key_placeholder")), { target: { value: "newKey" } });
     fireEvent.change(screen.getByLabelText(t("editor:value_placeholder")), { target: { value: "hello" } });
-    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
-    await waitFor(() =>
-      expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "newKey", value: "hello" }))
-    );
+    await act(async () => fireEvent.click(screen.getByText(t("save"), { selector: "button" })));
+    expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "newKey", value: "hello" }));
     expect(await screen.findByText("newKey")).toBeInTheDocument();
   });
 
@@ -146,10 +142,8 @@ describe("StoragePane 储存面板", () => {
     fireEvent.click(screen.getAllByLabelText(t("edit"))[1]);
     const valueBox = screen.getByLabelText(t("editor:value_placeholder"));
     fireEvent.change(valueBox, { target: { value: "100" } });
-    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
-    await waitFor(() =>
-      expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "count", value: 100 }))
-    );
+    await act(async () => fireEvent.click(screen.getByText(t("save"), { selector: "button" })));
+    expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "count", value: 100 }));
   });
 
   it("单独编辑应使用 Monaco 编辑器并按对象类型启用 JSON 语言", async () => {
@@ -167,11 +161,9 @@ describe("StoragePane 储存面板", () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("token");
     fireEvent.click(screen.getByText(t("clear"), { selector: "button" }));
-    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
-    await waitFor(() =>
-      expect(setScriptValues).toHaveBeenCalledWith(expect.objectContaining({ isReplace: true, keyValuePairs: [] }))
-    );
-    await waitFor(() => expect(screen.getByText(t("no_data"))).toBeInTheDocument());
+    await act(async () => fireEvent.click(screen.getByText(t("confirm"), { selector: "button" })));
+    expect(setScriptValues).toHaveBeenCalledWith(expect.objectContaining({ isReplace: true, keyValuePairs: [] }));
+    expect(screen.getByText(t("no_data"))).toBeInTheDocument();
   });
 
   it("批量编辑：进入 JSON 模式展示数据，保存以 isReplace 调用 setScriptValues", async () => {
@@ -182,8 +174,8 @@ describe("StoragePane 储存面板", () => {
     expect(editor).toHaveAttribute("data-language", "json");
     expect((editor as HTMLTextAreaElement).value).toContain("token");
     fireEvent.change(editor, { target: { value: '{"onlyKey": 1}' } });
-    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
-    await waitFor(() => expect(setScriptValues).toHaveBeenCalledWith(expect.objectContaining({ isReplace: true })));
+    await act(async () => fireEvent.click(screen.getByText(t("save"), { selector: "button" })));
+    expect(setScriptValues).toHaveBeenCalledWith(expect.objectContaining({ isReplace: true }));
   });
 
   it("无数据时也应允许进入批量编辑并从空对象新增储存值", async () => {
@@ -196,15 +188,13 @@ describe("StoragePane 储存面板", () => {
     expect((editor as HTMLTextAreaElement).value).toBe("{}");
 
     fireEvent.change(editor, { target: { value: '{"newKey": "hello"}' } });
-    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
+    await act(async () => fireEvent.click(screen.getByText(t("save"), { selector: "button" })));
 
-    await waitFor(() =>
-      expect(setScriptValues).toHaveBeenCalledWith(
-        expect.objectContaining({
-          isReplace: true,
-          keyValuePairs: [["newKey", [0, "hello"]]],
-        })
-      )
+    expect(setScriptValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isReplace: true,
+        keyValuePairs: [["newKey", [0, "hello"]]],
+      })
     );
     expect(await screen.findByText("newKey")).toBeInTheDocument();
   });

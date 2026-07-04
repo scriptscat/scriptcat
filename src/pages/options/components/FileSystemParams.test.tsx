@@ -112,7 +112,7 @@ describe("文件系统参数表单", () => {
   it("非网盘后端不显示解绑按钮", async () => {
     hasNetDiskToken.mockResolvedValue(true);
     setup({ fileSystemType: "webdav", fileSystemParams: {} });
-    await waitFor(() => expect(screen.getByLabelText("url")).toBeInTheDocument());
+    expect(await screen.findByLabelText("url")).toBeInTheDocument();
     expect(screen.queryByTestId("netdisk_unbind")).not.toBeInTheDocument();
   });
 });
