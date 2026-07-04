@@ -1,0 +1,17 @@
+{
+  "development_tool": "Development Tool",
+  "vscode_url": "VSCode URL",
+  "auto_connect_vscode_service": "Auto Connect VSCode Service",
+  "connect": "Connect",
+  "connection_success": "Connection Successful",
+  "connection_failed": "Connection Failed",
+  "select_import_script": "Please Select the Script to Import in the New Page",
+  "import_error": "Import Error",
+  "pulling_data_from_cloud": "Pulling Data from Cloud",
+  "pull_failed": "Pull Failed",
+  "restore": "Restore",
+  "local_backup": "Local Backup",
+  "cloud_backup": "Cloud Backup",
+  "auto_backup": "Auto Backup",
+  "data_migration": "Data Migration"
+}

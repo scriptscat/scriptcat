@@ -1,7 +1,7 @@
 # 翻译与本地化指南 / Translation & Localization Guide
 
 > **开始任何翻译之前，先读本文件。**
-> 凡是新增或修改本地化内容（`src/locales/<locale>/translation.json`、对应语言的文档、界面文案、测试快照），都必须先阅读本指南，并遵循对应语言的术语规范文件。
+> 凡是新增或修改本地化内容（`src/locales/<locale>/` 下按命名空间拆分的 `*.json` 文件、对应语言的文档、界面文案、测试快照），都必须先阅读本指南，并遵循对应语言的术语规范文件。
 
 本目录是 ScriptCat 翻译 / 本地化的单一信息源：
 
@@ -43,9 +43,9 @@
 
 ## 翻译工作流 / Workflow
 
-- 翻译文件位于 `src/locales/<locale>/translation.json`，按页面划分，最终由 `src/locales/locales.ts` 合并导出。
-- **改进已有翻译**：直接编辑对应语言的 `translation.json`。
-- **新增语言**：在 `src/locales/` 下新建语言代码目录（如 `fr-FR`），复制 `en-US/translation.json` 作为模板翻译，并在 `src/locales/locales.ts` 中注册；如需术语规范，在本目录新增 `terminology-fr-FR.md`。
+- 翻译文件位于 `src/locales/<locale>/`，按命名空间（页面）拆分为多个 `*.json` 文件（如 `common.json`、`popup.json`、`script.json`），最终由 `src/locales/locales.ts` 合并导出。
+- **改进已有翻译**：直接编辑对应语言目录下相应命名空间的 `*.json` 文件。`defaultNS` 为 `common`，其它命名空间的 key 在代码中需带 `ns:` 前缀（如 `t("script:tags")`）。
+- **新增语言**：在 `src/locales/` 下新建语言代码目录（如 `fr-FR`），复制 `en-US/` 下的各命名空间 `*.json` 与 `index.ts` 作为模板翻译，并在 `src/locales/locales.ts` 中注册；如需术语规范，在本目录新增 `terminology-fr-FR.md`。
 - **关键字冲突**：同一页面中关键字相同但翻译不同时，使用 `page.key` 的方式区分。
 - 为满足部分扩展市场要求，`chrome.i18n` 语言文件位于 `src/assets/_locales`。
 - i18n 方案的实现细节见 [`src/locales/README.md`](../../src/locales/README.md)。
@@ -55,7 +55,7 @@
 将 React 文件中的中文提取为 i18next key 时使用：
 
 ```md
-你是一个翻译专家，使用 react-i18next 做为翻译框架，我需要你帮助我翻译这个 React 文件中的中文，首先你需要提取文件中的中文部分，生成一个合适的 key，使用蛇形命名，添加到 src/locales/zh-CN/translation.json 文件中，然后使用 `useTranslation` 替换原有中文，如果有参数你可以使用 i18next 的格式，不需要处理其他语言，不要做多余的事情
+你是一个翻译专家，使用 react-i18next 做为翻译框架，我需要你帮助我翻译这个 React 文件中的中文，首先你需要提取文件中的中文部分，生成一个合适的 key，使用蛇形命名，添加到 src/locales/zh-CN/ 下对应命名空间的 json 文件中（如 common.json、script.json），注意非 common 命名空间的 key 在代码中需带 `ns:` 前缀，然后使用 `useTranslation` 替换原有中文，如果有参数你可以使用 i18next 的格式，不需要处理其他语言，不要做多余的事情
 ```
 
 ## 完成前检查清单 / Checklist

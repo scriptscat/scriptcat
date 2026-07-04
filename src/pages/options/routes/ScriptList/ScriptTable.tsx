@@ -1,43 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  Avatar,
-  Button,
-  Card,
-  Divider,
-  Dropdown,
-  Input,
-  Menu,
-  Message,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Tooltip,
-  Typography,
-} from "@arco-design/web-react";
-import type { ColumnProps } from "@arco-design/web-react/es/Table";
-import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
-import type { Script, UserConfig } from "@App/app/repo/scripts";
-import { FaThLarge } from "react-icons/fa";
-import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
-import {
-  SCRIPT_RUN_STATUS_RUNNING,
-  SCRIPT_STATUS_DISABLE,
-  SCRIPT_STATUS_ENABLE,
-  SCRIPT_TYPE_BACKGROUND,
-  SCRIPT_TYPE_NORMAL,
-} from "@App/app/repo/scripts";
-import { IconClockCircle, IconDragDotVertical, IconSearch } from "@arco-design/web-react/icon";
-import {
-  RiDeleteBin5Fill,
-  RiPencilFill,
-  RiPlayFill,
-  RiSettings3Fill,
-  RiStopFill,
-  RiUploadCloudFill,
-} from "react-icons/ri";
+import React, { createContext, useCallback, useContext, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
+import { ChevronDown, ChevronUp, ChevronsUpDown, GripVertical } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
@@ -48,1048 +12,458 @@ import {
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
-import { useTranslation } from "react-i18next";
-import { nextTimeDisplay } from "@App/pkg/utils/cron";
-import { systemConfig } from "@App/pages/store/global";
-import { i18nName } from "@App/locales/locales";
-import { hashColor, ScriptIcons } from "../utils";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "@App/pages/store/features/script";
-import { getCombinedMeta } from "@App/app/service/service_worker/utils";
+import { requestEnableScript } from "@App/pages/store/features/script";
 import { parseTags } from "@App/app/repo/metadata";
-import { EnableSwitch, HomeCell, MemoizedAvatar, ScriptSearchField, SourceCell, UpdateTimeCell } from "./components";
-import { SearchFilter, type SearchFilterKeyEntry } from "./SearchFilter";
+import { getCombinedMeta } from "@App/app/service/service_worker/utils";
+import type { SCMetadata } from "@App/app/repo/scripts";
+import { Checkbox } from "@App/pages/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
+import { EmptyState } from "@App/pages/components/ui/empty-state";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
+import { cn } from "@App/pkg/utils/cn";
+import { i18nName } from "@App/locales/locales";
 
-type ListType = ScriptLoading;
+import {
+  EnableSwitch,
+  ScriptIcon,
+  FaviconDots,
+  RunStatusBadge,
+  ScheduleNextRun,
+  UpdateTimeCell,
+  SourceTag,
+  scriptTypeLabel,
+  getTagColor,
+  ScriptRowActions,
+} from "./components";
+import type { SearchFilterRequest } from "./SearchFilter";
+import { nextSortState, sortScriptList } from "./sort";
+import type { SortKey, SortState } from "./sort";
+import FilterBar from "./FilterBar";
+import type { FilterBarProps } from "./FilterBar";
+import BatchActionsBar from "./BatchActionsBar";
+import { Toolbar } from "./Toolbar";
+import { versionDisplay } from "@App/pages/utils";
 
-type DragCtx = Pick<ReturnType<typeof useSortable>, "listeners" | "setActivatorNodeRef"> | null;
-const SortableDragCtx = createContext<DragCtx>(null);
+// ========== 拖拽上下文 ==========
+// 把「手柄元素」作为已渲染节点经 context 下传：ref/listeners 仅在 useSortable 所在的
+// DraggableRow 渲染期被应用（同 setNodeRef），RowDragHandle 只消费节点，不在自身渲染期读取 ref 值。
+type DragHandleNode = React.ReactNode;
+const SortableDragCtx = createContext<DragHandleNode>(null);
 
-// Create context for DraggableContainer
-interface DraggableContextType {
-  sensors: ReturnType<typeof useSensors>;
-  sortableIds: string[];
-  handleDragEnd: (event: DragEndEvent) => void;
-  a11y: {
-    container: HTMLElement;
-  };
-}
-const DraggableContext = createContext<DraggableContextType | null>(null);
-
-type DraggableContainerProps = React.HTMLAttributes<HTMLTableSectionElement>;
-
-const DraggableContainer = React.forwardRef<HTMLTableSectionElement, DraggableContainerProps>((props, ref) => {
-  const ctx = useContext(DraggableContext);
-  const { sensors, sortableIds, handleDragEnd, a11y } = ctx || {};
-
-  // compute once, even if context is null (keeps hook order legal)
-
-  return !sortableIds?.length ? (
-    // render a plain tbody to keep the table structure intact
-    <tbody ref={ref} {...props} />
-  ) : (
-    <DndContext
-      sensors={sensors}
-      onDragEnd={handleDragEnd}
-      collisionDetection={closestCenter}
-      accessibility={a11y}
-      modifiers={[restrictToVerticalAxis]}
-    >
-      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-        <tbody ref={ref} {...props} />
-      </SortableContext>
-    </DndContext>
-  );
-});
-
-DraggableContainer.displayName = "DraggableContainer";
-
-const DraggableRow = ({
-  record,
-  index: _index,
-  ...rest
-}: { record: ScriptLoading; index: number } & React.HTMLAttributes<HTMLTableRowElement>) => {
-  const sortable = useSortable({ id: record.uuid });
-  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef } = sortable;
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
+function DraggableRow({ id, disabled, children }: { id: string; disabled?: boolean; children: React.ReactNode }) {
+  const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging, attributes } = useSortable({
+    id,
+    disabled,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform) ?? undefined,
     transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : "auto",
   };
-
-  const ctxValue = useMemo(
-    () => ({
-      listeners: listeners,
-      setActivatorNodeRef: setActivatorNodeRef,
-    }),
-    [listeners, setActivatorNodeRef]
+  // 排序激活时禁用拖拽：ctx 置空，RowDragHandle 渲染不可拖拽的占位手柄
+  const handle = disabled ? null : (
+    <span ref={setActivatorNodeRef} {...listeners} className="cursor-grab opacity-0 group-hover/row:opacity-50">
+      <GripVertical className="w-4 h-4 text-muted-foreground" />
+    </span>
   );
-
   return (
-    <SortableDragCtx.Provider value={ctxValue}>
-      <tr ref={setNodeRef} style={style} {...rest} />
+    <SortableDragCtx.Provider value={handle}>
+      <div className="cursor-auto" ref={setNodeRef} style={style} {...attributes}>
+        {children}
+      </div>
     </SortableDragCtx.Provider>
   );
-};
-
-DraggableRow.displayName = "DraggableRow";
-
-const DragHandle = () => {
-  const sortable = useContext(SortableDragCtx);
-
-  const { listeners, setActivatorNodeRef } = sortable || {};
-  const style = { cursor: "move", padding: 6 };
-
-  return !setActivatorNodeRef ? (
-    <span style={style}>
-      <IconDragDotVertical />
-    </span>
-  ) : (
-    <span ref={setActivatorNodeRef} {...listeners} style={style}>
-      <IconDragDotVertical />
-    </span>
-  );
-};
-
-type ApplyToRunStatusCellProps = {
-  item: ListType;
-  navigate: ReturnType<typeof useNavigate>;
-  t: ReturnType<typeof useTranslation>[0];
-};
-
-const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: ApplyToRunStatusCellProps) => {
-  const { toLogger } = {
-    toLogger: () =>
-      navigate({
-        pathname: "logger",
-        search: `query=${encodeURIComponent(
-          JSON.stringify([
-            { key: "uuid", value: item.uuid },
-            {
-              key: "component",
-              value: "GM_log",
-            },
-          ])
-        )}`,
-      }),
-  };
-
-  const favoriteMemo = useMemo(() => {
-    const fav1 = item.favorite;
-    const fav2 = !fav1
-      ? []
-      : fav1
-          .slice()
-          .sort((a, b) => (a.icon && !b.icon ? -1 : !a.icon && b.icon ? 1 : a.match.localeCompare(b.match)))
-          .slice(0, 4);
-    return {
-      trimmed: fav2,
-      originalLen: fav1?.length ?? 0,
-    };
-  }, [item.favorite]);
-
-  if (item.type === SCRIPT_TYPE_NORMAL) {
-    return (
-      <>
-        <Avatar.Group size={20}>
-          {favoriteMemo.trimmed.map((fav) => (
-            <MemoizedAvatar
-              key={`${fav.match}_${fav.icon}_${fav.website}`}
-              {...fav}
-              onClick={() => {
-                if (fav.website) {
-                  window.open(fav.website, "_blank");
-                }
-              }}
-            />
-          ))}
-          {favoriteMemo.originalLen > 4 && "..."}
-        </Avatar.Group>
-      </>
-    );
-  }
-  let tooltip = "";
-  if (item.type === SCRIPT_TYPE_BACKGROUND) {
-    tooltip = t("background_script_tooltip");
-  } else {
-    tooltip = `${t("scheduled_script_tooltip")} ${nextTimeDisplay(item.metadata!.crontab![0])}`;
-  }
-  return (
-    <>
-      <Tooltip content={tooltip}>
-        <Tag
-          icon={<IconClockCircle />}
-          color="blue"
-          bordered
-          style={{
-            cursor: "pointer",
-          }}
-          onClick={toLogger}
-        >
-          {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
-        </Tag>
-      </Tooltip>
-    </>
-  );
-});
-ApplyToRunStatusCell.displayName = "ApplyToRunStatusCell";
-
-type ActionCellProps = {
-  item: ScriptLoading;
-  setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
-  setCloudScript: (script: Script) => void;
-  t: ReturnType<typeof useTranslation>[0];
-  handleDelete: (item: ScriptLoading) => void;
-  handleConfig: (
-    item: ScriptLoading,
-    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
-  ) => void;
-  handleRunStop: (item: ScriptLoading) => Promise<void>;
-};
-
-const ActionCell = React.memo(
-  ({ item, setUserConfig, setCloudScript, t, handleDelete, handleConfig, handleRunStop }: ActionCellProps) => {
-    return (
-      <Button.Group>
-        <Link to={`/script/editor/${item.uuid}`}>
-          <Button
-            type="text"
-            icon={<RiPencilFill />}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        </Link>
-        <Popconfirm title={t("confirm_delete_script")} icon={<RiDeleteBin5Fill />} onOk={() => handleDelete(item)}>
-          <Button
-            type="text"
-            icon={<RiDeleteBin5Fill />}
-            loading={item.actionLoading}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        </Popconfirm>
-        {item.config && (
-          <Button
-            type="text"
-            icon={<RiSettings3Fill />}
-            onClick={() => handleConfig(item, setUserConfig)}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        )}
-        {item.type !== SCRIPT_TYPE_NORMAL && (
-          <Button
-            type="text"
-            icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
-            loading={item.actionLoading}
-            onClick={() => handleRunStop(item)}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        )}
-        {item.metadata.cloudcat && (
-          <Button
-            type="text"
-            icon={<RiUploadCloudFill />}
-            onClick={() => setCloudScript(item)}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        )}
-      </Button.Group>
-    );
-  },
-  (prevProps, nextProps) => {
-    return prevProps.item === nextProps.item && prevProps.t === nextProps.t;
-  }
-);
-ActionCell.displayName = "ActionCell";
-
-// 提取render函数以避免每次渲染时重新创建
-const SortRender = React.memo(({ col }: { col: number }) => {
-  if (col < 0) {
-    return "-";
-  }
-  return col + 1;
-});
-SortRender.displayName = "SortRender";
-
-const EnableSwitchCell = React.memo(
-  ({ item, updateScripts }: { item: ScriptLoading; updateScripts: any }) => {
-    const { uuid } = item;
-    // console.log("Rendered - " + item.name); // 用于检查垃圾React有否过度更新
-    return (
-      <EnableSwitch
-        status={item.status}
-        enableLoading={item.enableLoading}
-        onChange={(checked: boolean) => {
-          updateScripts([uuid], { enableLoading: true });
-          requestEnableScript({ uuid: uuid, enable: checked });
-        }}
-      />
-    );
-  },
-  (prevProps, nextProps) => {
-    return prevProps.item === nextProps.item;
-  }
-);
-EnableSwitchCell.displayName = "EnableSwitchCell";
-
-const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
-  const { tags } = useMemo(() => {
-    let metadata = item.metadata;
-    if (item.selfMetadata) {
-      metadata = getCombinedMeta(item.metadata, item.selfMetadata);
-    }
-    return { tags: parseTags(metadata) || [] };
-  }, [item.metadata, item.selfMetadata]);
-  return (
-    <Tooltip content={col} position="tl">
-      <Link
-        to={`/script/editor/${item.uuid}`}
-        style={{
-          textDecoration: "none",
-        }}
-      >
-        <Typography.Text
-          style={{
-            display: "block",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            lineHeight: "20px",
-          }}
-        >
-          <ScriptIcons script={item} size={20} />
-          {i18nName(item)}
-          {tags && (
-            <Space style={{ marginLeft: 8 }}>
-              {tags.map((t) => (
-                <Tag key={t} color={hashColor(t)}>
-                  {t}
-                </Tag>
-              ))}
-            </Space>
-          )}
-        </Typography.Text>
-      </Link>
-    </Tooltip>
-  );
-});
-NameCell.displayName = "NameCell";
-
-const VersionCell = React.memo(({ item }: { item: ListType }) => {
-  return item.metadata.version?.[0] || "0.0";
-});
-VersionCell.displayName = "VersionCell";
-
-const TitleCell = React.memo(
-  ({
-    sidebarOpen,
-    setSidebarOpen,
-    setViewMode,
-    t,
-  }: {
-    sidebarOpen: boolean;
-    setSidebarOpen: ReactStateSetter<boolean>;
-    setViewMode: (mode: "card" | "table") => void;
-    t: ReturnType<typeof useTranslation>[0];
-  }) => {
-    return (
-      <div className="tw-flex tw-flex-row tw-justify-between tw-items-center">
-        <span>{t("action")}</span>
-        <Space size={4}>
-          <Tooltip content={sidebarOpen ? t("close_sidebar") : t("open_sidebar")}>
-            <Button
-              icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
-              iconOnly
-              type="text"
-              size="small"
-              style={{
-                color: "var(--color-text-2)",
-              }}
-              onClick={() => {
-                setSidebarOpen((sidebarOpen) => {
-                  const newState = !sidebarOpen;
-                  localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
-                  return newState;
-                });
-              }}
-            />
-          </Tooltip>
-          <Tooltip content={t("switch_to_card_mode")}>
-            <Button
-              icon={<FaThLarge />}
-              iconOnly
-              type="text"
-              size="small"
-              style={{
-                color: "var(--color-text-2)",
-              }}
-              onClick={() => {
-                localStorage.setItem("script-list-view-mode", "card");
-                setViewMode("card");
-              }}
-            />
-          </Tooltip>
-        </Space>
-      </div>
-    );
-  }
-);
-TitleCell.displayName = "TitleCell";
-
-type FilterProps = {
-  filterKeys: SearchFilterKeyEntry[] | undefined;
-};
-
-const filterDropdownFunctions: {
-  setFilterKeys?: (filterKeys: SearchFilterKeyEntry[] | undefined, callback?: (...args: any[]) => any) => void;
-  confirm?: (...args: any[]) => any;
-} = {};
-
-export const ScriptFilterNode = React.memo(
-  function ScriptFilterNode({ filterKeys }: FilterProps) {
-    const { t } = useTranslation();
-    return (
-      <div className="arco-table-custom-filter tw-flex tw-flex-row tw-gap-2">
-        <ScriptSearchField
-          t={t}
-          autoFocus
-          defaultValue={filterKeys?.[0] || { type: "auto", keyword: "" }}
-          onChange={(req) => {
-            SearchFilter.requestFilterResult(req).then(() => {
-              filterDropdownFunctions.setFilterKeys!([{ type: req.type, keyword: req.keyword }]);
-            });
-          }}
-          onSearch={(req) => {
-            if (req.bySelect) return;
-            filterDropdownFunctions.confirm!();
-          }}
-        />
-      </div>
-    );
-  },
-  (prev, next) => {
-    return prev.filterKeys?.[0] === next.filterKeys?.[0];
-  }
-);
-
-interface ScriptTableProps {
-  loadingList: boolean;
-  scriptList: ScriptLoading[];
-  scriptListSortOrderMove: (params: { active: string; over: string }) => void;
-  scriptListSortOrderSwap: (params: { active: string; over: string }) => void;
-  sidebarOpen: boolean;
-  setSidebarOpen: ReactStateSetter<boolean>;
-  setViewMode: (mode: "card" | "table") => void;
-  updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
-  setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
-  setCloudScript: (script: Script) => void;
-  handleDelete: (item: ScriptLoading) => void;
-  handleConfig: (
-    item: ScriptLoading,
-    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
-  ) => void;
-  handleRunStop: (item: ScriptLoading) => Promise<void>;
 }
 
-const ScriptTable = ({
-  loadingList,
+function RowDragHandle() {
+  const handle = useContext(SortableDragCtx);
+  return handle ?? <GripVertical className="w-4 h-4 text-muted-foreground collapse" />;
+}
+
+// ========== 可排序表头 ==========
+function SortHeader({
+  label,
+  sortKey,
+  sortState,
+  onSort,
+  className,
+  leftPad,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sortState: SortState;
+  onSort: (key: SortKey) => void;
+  className?: string;
+  leftPad?: boolean;
+}) {
+  const active = sortState.key === sortKey;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      className={cn(
+        "flex items-center gap-1 max-w-full hover:text-foreground transition-colors",
+        active && "text-foreground",
+        className
+      )}
+    >
+      {leftPad && <span className="inline-flex w-3">{/*fixed-width*/}</span>}
+      <span className="truncate">{label}</span>
+      <span className="inline-flex w-3">
+        {active ? (
+          sortState.order === "asc" ? (
+            <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+          )
+        ) : (
+          <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-30" />
+        )}
+      </span>
+    </button>
+  );
+}
+
+export interface ScriptTableProps extends FilterBarProps {
+  scriptList: ScriptLoading[];
+  loadingList: boolean;
+  updateScripts: (uuids: string[], data: Partial<ScriptLoading>) => void;
+  handleDelete: (script: ScriptLoading) => void;
+  handleRunStop: (script: ScriptLoading) => void;
+  setViewMode: (mode: "table" | "card") => void;
+  searchRequest: SearchFilterRequest;
+  setSearchRequest: (req: SearchFilterRequest) => void;
+  totalCount: number;
+  scriptListSortOrderMove: (params: { active: string; over: string }) => void;
+  selectedUuids: Set<string>;
+  toggleSelect: (uuid: string) => void;
+  toggleSelectAll: () => void;
+  clearSelection: () => void;
+  onBatchEnable: () => void;
+  onBatchDisable: () => void;
+  onBatchExport: () => void;
+  onBatchDelete: () => void;
+  onBatchPinTop: () => void;
+  onBatchCheckUpdate: () => void;
+  sortState: SortState;
+  setSortState: React.Dispatch<React.SetStateAction<SortState>>;
+}
+
+export default function ScriptTable({
   scriptList,
-  scriptListSortOrderMove,
-  // scriptListSortOrderSwap,
-  sidebarOpen,
-  setSidebarOpen,
-  setViewMode,
+  loadingList,
   updateScripts,
-  setUserConfig,
-  setCloudScript,
   handleDelete,
-  handleConfig,
   handleRunStop,
-}: ScriptTableProps) => {
+  setViewMode,
+  searchRequest,
+  setSearchRequest,
+  totalCount,
+  scriptListSortOrderMove,
+  filterItems,
+  selectedFilters,
+  setSelectedFilters,
+  selectedUuids,
+  toggleSelect,
+  toggleSelectAll,
+  clearSelection,
+  onBatchEnable,
+  onBatchDisable,
+  onBatchExport,
+  onBatchDelete,
+  onBatchPinTop,
+  onBatchCheckUpdate,
+  sortState,
+  setSortState,
+}: ScriptTableProps) {
   const { t } = useTranslation();
-  const [showAction, setShowAction] = useState(false);
-  const [action, setAction] = useState("");
-  const [select, setSelect] = useState<Script[]>([]);
-  const [selectColumn, setSelectColumn] = useState(0);
   const navigate = useNavigate();
 
-  const columns: ColumnProps<ListType>[] = useMemo(
-    () => [
-      {
-        title: "#",
-        dataIndex: "sort",
-        width: 60,
-        key: "#",
-        sorter: (a: ListType, b: ListType) => a.sort - b.sort,
-        render: (col: number) => <SortRender col={col} />,
-      },
-      {
-        key: "title",
-        title: t("enable"),
-        width: t("script_list_enable_width"),
-        dataIndex: "status",
-        className: "script-enable",
-        sorter: (a: ListType, b: ListType) => a.status - b.status,
-        filters: [
-          {
-            text: t("enable"),
-            value: SCRIPT_STATUS_ENABLE,
-          },
-          {
-            text: t("disable"),
-            value: SCRIPT_STATUS_DISABLE,
-          },
-        ],
-        onFilter: (value: any, row: any) => row.status === value,
-        render: (col: any, item: ListType) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
-      },
-      {
-        key: "name",
-        title: t("name"),
-        dataIndex: "name",
-        sorter: (a: ListType, b: ListType) => a.name.localeCompare(b.name),
-        filterIcon: <IconSearch />,
-        filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
-          // setFilterKeys, confirm 会不断改变参考但又不影响元件绘画。用 filterDropdownFunctions 把它们抽出 React绘图
-          filterDropdownFunctions.setFilterKeys = setFilterKeys;
-          filterDropdownFunctions.confirm = confirm;
-          return <ScriptFilterNode filterKeys={filterKeys as SearchFilterKeyEntry[] | undefined} />;
-        },
-        onFilter: (value: any, row: any) => {
-          if (!value || !value.keyword) {
-            return true;
-          }
-          return SearchFilter.checkByUUID(row.uuid);
-        },
-        className: "tw-max-w-[240px] tw-min-w-[100px]",
-        render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
-      },
-      {
-        title: t("version"),
-        dataIndex: "version",
-        key: "version",
-        width: 120,
-        align: "center",
-        render: (col: any, item: ListType) => <VersionCell item={item} />,
-      },
-      {
-        key: "apply_to_run_status",
-        dataIndex: "apply_to_run_status",
-        title: t("apply_to_run_status"),
-        width: t("script_list_apply_to_run_status_width"),
-        className: "apply_to_run_status",
-        render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
-      },
-      {
-        title: t("source"),
-        dataIndex: "origin",
-        key: "origin",
-        width: 100,
-        className: "source_cell",
-        render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
-      },
-      {
-        title: t("home"),
-        dataIndex: "home",
-        align: "center",
-        key: "home",
-        width: 100,
-        render: (col: any, item: ListType) => <HomeCell item={item} />,
-      },
-      {
-        title: t("last_updated"),
-        dataIndex: "updatetime",
-        align: "center",
-        key: "updatetime",
-        className: "script-updatetime",
-        width: t("script_list_last_updated_width"),
-        sorter: (a: ListType, b: ListType) => a.updatetime! - b.updatetime!,
-        render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
-      },
-      {
-        title: <TitleCell sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} setViewMode={setViewMode} t={t} />,
-        dataIndex: "action",
-        key: "action",
-        className: "script-action",
-        width: 160,
-        render: (col: any, item: ListType) => (
-          <ActionCell
-            item={item}
-            setUserConfig={setUserConfig}
-            setCloudScript={setCloudScript}
-            t={t}
-            handleDelete={handleDelete}
-            handleConfig={handleConfig}
-            handleRunStop={handleRunStop}
-          />
-        ),
-      },
-    ],
-    [
-      handleConfig,
-      handleDelete,
-      handleRunStop,
-      navigate,
-      setCloudScript,
-      setSidebarOpen,
-      setUserConfig,
-      setViewMode,
-      sidebarOpen,
-      t,
-      updateScripts,
-    ]
+  const handleEnable = useCallback(
+    (script: ScriptLoading, checked: boolean) => {
+      updateScripts([script.uuid], { enableLoading: true });
+      requestEnableScript({ uuid: script.uuid, enable: checked }).catch(() => {
+        updateScripts([script.uuid], { enableLoading: false });
+      });
+    },
+    [updateScripts]
   );
 
-  // 1. Only store the width overrides, initialized from your saved settings
-  const [manualWidths, setManualWidths] = useState<Record<string, number>>({});
-  // 2. Local state for the input field to make typing "instant"
-  const [inputBuffer, setInputBuffer] = useState<string>("");
-  const [typing, setTyping] = useState<boolean>(false);
-
-  // 3. Update the buffer when the selected column changes
-  useEffect(() => {
-    const activeCol = columns[selectColumn];
-    if (!activeCol) return; // Safety check
-
-    // 1. Get width from manual overrides
-    // 2. Or get width from the column definition
-    // 3. Or fallback to 0 (or your preferred default) to avoid undefined
-    const currentWidth = manualWidths[activeCol.key as string] ?? activeCol.width ?? 0;
-    setTyping(false);
-    setInputBuffer(currentWidth.toString());
-  }, [selectColumn, manualWidths, columns]);
-
-  // 4. Optimized setWidth using the Column Key
-  const setWidthByKey = (key: string, width: number) => {
-    setManualWidths((prev) => {
-      return prev[key] === width ? prev : { ...prev, [key]: width };
-    });
-  };
-  // 2. Load initial widths once
-  useEffect(() => {
-    systemConfig.getScriptListColumnWidth().then((saved) => {
-      if (saved) setManualWidths(saved);
-    });
-  }, []);
-
-  // 3. MERGE logic: This is the high-performance "Source of Truth"
-  const dealColumns = useMemo(() => {
-    return columns
-      .map((col) => {
-        const customWidth = manualWidths[col.key as string];
-        return {
-          ...col,
-          // If customWidth is undefined, use default.
-          // 0 = Auto, -1 = Hidden
-          width: customWidth !== undefined ? customWidth : col.width,
-        };
-      })
-      .filter((col) => col.width !== -1); // Remove hidden columns
-  }, [columns, manualWidths]);
-
-  const components: ComponentsProps = useMemo(
-    () => ({
-      header: {
-        operations: ({
-          selectionNode,
-          expandNode,
-        }: {
-          selectionNode?: React.ReactNode;
-          expandNode?: React.ReactNode;
-        }) => [
-          {
-            node: <th className="script-sort" style={{ borderRadius: 0 }} />,
-            width: 34,
-          },
-          {
-            name: "expandNode",
-            node: expandNode,
-          },
-          {
-            name: "selectionNode",
-            node: selectionNode,
-          },
-        ],
-      },
-      body: {
-        operations: ({
-          selectionNode,
-          expandNode,
-        }: {
-          selectionNode?: React.ReactNode;
-          expandNode?: React.ReactNode;
-        }) => [
-          {
-            node: (
-              <td>
-                <div className="arco-table-cell">
-                  <DragHandle />
-                </div>
-              </td>
-            ),
-            width: 34,
-          },
-          {
-            name: "expandNode",
-            node: expandNode,
-          },
-          {
-            name: "selectionNode",
-            node: selectionNode,
-          },
-        ],
-        tbody: DraggableContainer,
-        row: DraggableRow,
-      },
-    }),
-    []
-  );
-
-  // 处理拖拽排序
   const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // 故意生成一个字串 避免因 list 的参考频繁改动而导致 ctx 的 sortableIds 参考出现非预期更改。
-  const sortableIdsString = scriptList?.map((s) => s.uuid).join(",") || "";
+  // 列头点击排序；激活时禁用手动拖拽，状态由脚本列表偏好持久化。
+  const handleSort = useCallback((key: SortKey) => setSortState((s) => nextSortState(s, key)), [setSortState]);
+  const isSorted = sortState.key !== null;
+  const displayList = useMemo(() => sortScriptList(scriptList, sortState), [scriptList, sortState]);
 
-  // sortableIds 应该只包含 ID 字符串数组，而不是对象数组，
-  // 且确保 items 属性接收的是纯 ID 列表，这样 dnd-kit 内部对比更高效。
-  const sortableIds = useMemo(() => sortableIdsString?.split(",").filter(Boolean), [sortableIdsString]);
+  const sortableIds = useMemo(() => displayList.map((s) => s.uuid), [displayList]);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      if (isSorted) return;
       const { active, over } = event;
       if (over && active.id !== over.id) {
-        scriptListSortOrderMove!({
-          active: `${active.id}`,
-          over: `${over.id}`,
-        });
+        scriptListSortOrderMove({ active: `${active.id}`, over: `${over.id}` });
       }
     },
-    [scriptListSortOrderMove]
+    [scriptListSortOrderMove, isSorted]
   );
 
-  const a11y = useMemo(
-    () => ({
-      container: document.body,
-    }),
-    []
-  );
+  const a11y = useMemo(() => ({ container: document.body }), []);
 
-  // Provide context for DraggableContainer
-  const draggableContextValue = useMemo(
-    () => ({
-      sensors,
-      sortableIds,
-      handleDragEnd,
-      a11y,
-    }),
-    [sensors, sortableIds, handleDragEnd, a11y]
-  );
-
-  const rowSelection = useMemo(
-    () => ({
-      type: "checkbox" as const,
-      onChange: (keys: any[], selectedRows: ListType[]) => {
-        setSelect(selectedRows);
-        setShowAction(keys.length > 0);
-      },
-    }),
-    []
-  );
-
-  const currentActiveWidth = manualWidths[columns[selectColumn].key as string] ?? columns[selectColumn].width;
-  const isSpecialWidth = currentActiveWidth === 0 || currentActiveWidth === -1;
+  const isAllSelected = scriptList.length > 0 && selectedUuids.size === scriptList.length;
+  const isIndeterminate = selectedUuids.size > 0 && selectedUuids.size < scriptList.length;
 
   return (
-    <DraggableContext.Provider value={draggableContextValue}>
-      {showAction && (
-        <Card>
-          <div
-            className="tw-flex tw-flex-row tw-justify-between tw-items-center"
-            style={{
-              padding: "8px 6px",
-            }}
-          >
-            <Space direction="horizontal">
-              <Typography.Text>{t("batch_operations") + ":"}</Typography.Text>
-              <Select
-                style={{ minWidth: "100px" }}
-                triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
-                size="mini"
-                value={action}
-                onChange={(value) => {
-                  setAction(value);
-                }}
-              >
-                <Select.Option key={"enable"} value="enable">
-                  {t("enable")}
-                </Select.Option>
-                <Select.Option key={"disable"} value="disable">
-                  {t("disable")}
-                </Select.Option>
-                <Select.Option key={"export"} value="export">
-                  {t("export")}
-                </Select.Option>
-                <Select.Option key={"delete"} value="delete">
-                  {t("delete")}
-                </Select.Option>
-                <Select.Option key={"pin_to_top"} value="pin_to_top">
-                  {t("pin_to_top")}
-                </Select.Option>
-                <Select.Option key={"check_update"} value="check_update">
-                  {t("check_update")}
-                </Select.Option>
-              </Select>
-              <Button
-                type="primary"
-                size="mini"
-                onClick={() => {
-                  const enableAction = (enable: boolean) => {
-                    const uuids = select.map((item) => item.uuid);
-                    updateScripts(uuids, { enableLoading: true });
-                    scriptClient.enables(uuids, enable);
-                  };
-                  switch (action) {
-                    case "enable":
-                      enableAction(true);
-                      break;
-                    case "disable":
-                      enableAction(false);
-                      break;
-                    case "export": {
-                      const sortedSelect = [...select].sort((a, b) => a.sort - b.sort);
-                      const uuids = sortedSelect.map((item) => item.uuid);
-                      Message.loading({
-                        id: "export",
-                        content: t("exporting"),
-                      });
-                      synchronizeClient.export(uuids).then(() => {
-                        Message.success({
-                          id: "export",
-                          content: t("export_success"),
-                          duration: 3000,
-                        });
-                      });
-                      break;
-                    }
-                    case "delete":
-                      if (confirm(t("list.confirm_delete"))) {
-                        const uuids = select.map((item) => item.uuid);
-                        scriptClient.deletes(uuids); // async
-                      }
-                      break;
-                    case "pin_to_top": {
-                      // 将选中的脚本置顶
-                      const sortedSelect = [...select].sort((a, b) => a.sort - b.sort);
-                      const uuids = sortedSelect.map((item) => item.uuid);
-                      pinToTop(uuids).then(() => {
-                        Message.success({
-                          content: t("scripts_pinned_to_top"),
-                          duration: 3000,
-                        });
-                      });
-                      break;
-                    }
-                    // 批量检查更新
-                    case "check_update":
-                      if (confirm(t("list.confirm_update")!)) {
-                        select.forEach((item, index, array) => {
-                          if (!item.checkUpdateUrl) {
-                            return;
-                          }
-                          Message.warning({
-                            id: "checkupdateStart",
-                            content: t("starting_updates"),
-                          });
-                          scriptClient
-                            .requestCheckUpdate(item.uuid)
-                            .then((res) => {
-                              if (res) {
-                                // 需要更新
-                                Message.warning({
-                                  id: "checkupdate",
-                                  content: `${i18nName(item)} ${t("new_version_available")}`,
-                                });
-                              }
-                              if (index === array.length - 1) {
-                                // 当前元素是最后一个
-                                Message.success({
-                                  id: "checkupdateEnd",
-                                  content: t("checked_for_all_selected"),
-                                });
-                              }
-                            })
-                            .catch((e) => {
-                              Message.error({
-                                id: "checkupdate",
-                                content: `${t("update_check_failed")}: ${e.message}`,
-                              });
-                            });
-                        });
-                      }
-                      break;
-                    default:
-                      Message.error(t("unknown_operation")!);
-                      break;
-                  }
-                }}
-              >
-                {t("confirm")}
-              </Button>
-              <Divider type="horizontal" />
-              <Typography.Text>{t("resize_column_width") + ":"}</Typography.Text>
-              <Select
-                style={{ minWidth: "120px" }}
-                triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
-                size="mini"
-                // Use the base 'columns' for the source of truth
-                value={selectColumn}
-                onChange={(val) => {
-                  setSelectColumn(val as number);
-                }}
-              >
-                {columns.map((column, index) => (
-                  <Select.Option key={index} value={index}>
-                    {column.key === "action" ? t("action") : (column.title as string)}
-                  </Select.Option>
-                ))}
-              </Select>
-              <Dropdown
-                droplist={
-                  <Menu>
-                    <Menu.Item key="auto" onClick={() => setWidthByKey(columns[selectColumn].key as string, 0)}>
-                      {t("auto")}
-                    </Menu.Item>
-                    <Menu.Item key="hide" onClick={() => setWidthByKey(columns[selectColumn].key as string, -1)}>
-                      {t("hide")}
-                    </Menu.Item>
-                    <Menu.Item
-                      key="custom"
-                      onClick={() => {
-                        // If current is auto/hide, reset to base width; otherwise keep it
-                        const baseWidth = columns[selectColumn].width as number;
-                        setWidthByKey(columns[selectColumn].key as string, baseWidth);
-                      }}
-                    >
-                      {t("custom")}
-                    </Menu.Item>
-                  </Menu>
-                }
-                position="bl"
-              >
-                <Input
-                  type={isSpecialWidth ? "text" : "number"}
-                  style={{ width: "80px" }}
-                  size="mini"
-                  // Display "auto" or "hide" if the buffer matches those values
-                  value={
-                    typing
-                      ? inputBuffer
-                      : inputBuffer === "0"
-                        ? t("auto")
-                        : inputBuffer === "-1"
-                          ? t("hide")
-                          : inputBuffer
-                  }
-                  step={5}
-                  min={isSpecialWidth ? undefined : 5}
-                  onInput={() => {
-                    setTyping(true);
-                  }}
-                  onChange={(val) => {
-                    // 數值輸入忽略 -1 和 0
-                    setInputBuffer(val);
-                  }}
-                  onPointerUp={() => {
-                    setTyping(false);
-                    const width = parseInt(inputBuffer, 10);
-                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
-                  }}
-                  // Trigger the heavy table re-render only when finished
-                  onBlur={() => {
-                    setTyping(false);
-                    const width = parseInt(inputBuffer, 10);
-                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
-                  }}
-                  onPressEnter={() => {
-                    setTyping(false);
-                    const width = parseInt(inputBuffer, 10);
-                    if (!isNaN(width)) setWidthByKey(columns[selectColumn].key as string, width);
-                  }}
-                />
-              </Dropdown>
-
-              <Button
-                type="primary"
-                size="mini"
-                onClick={() => {
-                  systemConfig.setScriptListColumnWidth(manualWidths);
-                  Message.success(t("save_success"));
-                }}
-              >
-                {t("save")}
-              </Button>
-
-              <Button
-                size="mini"
-                onClick={() => {
-                  // Resetting is now instant: just clear the overrides
-                  setManualWidths({});
-                  Message.info(t("reset_success"));
-                }}
-              >
-                {t("reset")}
-              </Button>
-            </Space>
-            <Button
-              type="primary"
-              size="mini"
-              onClick={() => {
-                setShowAction(false);
-              }}
-            >
-              {t("close")}
-            </Button>
-          </div>
-        </Card>
-      )}
-      <Table
-        key="script-list-table"
-        className="script-list-table arco-drag-table-container"
-        components={components}
-        rowKey="uuid"
-        tableLayoutFixed
-        columns={dealColumns}
-        data={scriptList}
-        pagination={false}
-        loading={loadingList}
-        rowSelection={rowSelection}
+    <div className="flex flex-col h-full">
+      {/* 顶栏 */}
+      <Toolbar
+        totalCount={totalCount}
+        viewMode="table"
+        setViewMode={setViewMode}
+        searchRequest={searchRequest}
+        setSearchRequest={setSearchRequest}
       />
-    </DraggableContext.Provider>
-  );
-};
 
-export const MemoizedScriptTable = React.memo(ScriptTable, (prevProps, nextProps) => {
-  return (
-    prevProps.loadingList === nextProps.loadingList &&
-    prevProps.scriptList === nextProps.scriptList &&
-    prevProps.sidebarOpen === nextProps.sidebarOpen
+      <div className="h-11 overflow-hidden contain-layout">
+        {/* 批量操作栏 */}
+        <BatchActionsBar
+          selectedCount={selectedUuids.size}
+          onBatchEnable={onBatchEnable}
+          onBatchDisable={onBatchDisable}
+          onBatchExport={onBatchExport}
+          onBatchDelete={onBatchDelete}
+          onBatchPinTop={onBatchPinTop}
+          onBatchCheckUpdate={onBatchCheckUpdate}
+          onClose={clearSelection}
+        />
+        {/* 筛选栏 */}
+        <FilterBar
+          filterItems={filterItems}
+          selectedFilters={selectedFilters}
+          setSelectedFilters={setSelectedFilters}
+        />
+      </div>
+
+      {/* 表格 */}
+      <div className="flex-1 overflow-auto scrollbar-custom px-6 pb-6">
+        {/* 表头 */}
+        <div className="flex items-center h-10 px-3 text-xs font-medium text-muted-foreground border-b border-border sticky top-0 bg-background z-10">
+          <div className="w-8 flex justify-center">
+            <Checkbox
+              checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
+              onCheckedChange={toggleSelectAll}
+            />
+          </div>
+          <div className="w-8" />
+          <div className="w-16 text-center" data-tour="col-enable">
+            <SortHeader
+              label={t("script:script_list.sidebar.status")}
+              sortKey="status"
+              sortState={sortState}
+              onSort={handleSort}
+              className="justify-center"
+            />
+          </div>
+          <div className="flex-1 min-w-0" data-tour="col-sort">
+            <SortHeader label={t("name")} sortKey="name" sortState={sortState} onSort={handleSort} />
+          </div>
+          <div className="w-[76px]">{t("source")}</div>
+          <div className="w-[100px]">{t("script:tags")}</div>
+          <div className="w-[140px]" data-tour="col-apply-status">
+            {t("script:apply_to_run_status")}
+          </div>
+          <div className="w-[132px] justify-items-center" data-tour="col-update">
+            <SortHeader
+              label={t("logs:last_updated")}
+              sortKey="updatetime"
+              sortState={sortState}
+              onSort={handleSort}
+              leftPad={true}
+            />
+          </div>
+          <div className="w-[192px] text-right" data-tour="col-action">
+            {t("action")}
+          </div>
+        </div>
+
+        {/* 加载状态 */}
+        {loadingList && <LoadingState label={t("loading")} />}
+
+        {/* 空状态 */}
+        {!loadingList && scriptList.length === 0 && (
+          <EmptyState data-testid="script-list-empty" title={t("no_scripts")} compact />
+        )}
+
+        {/* 脚本行（带拖拽排序） */}
+        {!loadingList && displayList.length > 0 && (
+          <DndContext
+            sensors={sensors}
+            onDragEnd={handleDragEnd}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+            accessibility={a11y}
+          >
+            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+              {displayList.map((script) => (
+                <DraggableRow key={script.uuid} id={script.uuid} disabled={isSorted}>
+                  <ScriptRow
+                    script={script}
+                    selected={selectedUuids.has(script.uuid)}
+                    onSelect={toggleSelect}
+                    onEnable={handleEnable}
+                    onDelete={handleDelete}
+                    onRunStop={handleRunStop}
+                    navigate={navigate}
+                  />
+                </DraggableRow>
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
+      </div>
+    </div>
   );
+}
+
+// ========== 脚本行 ==========
+interface ScriptRowProps {
+  script: ScriptLoading;
+  selected: boolean;
+  onSelect: (uuid: string) => void;
+  onEnable: (script: ScriptLoading, checked: boolean) => void;
+  onDelete: (script: ScriptLoading) => void;
+  onRunStop: (script: ScriptLoading) => void;
+  navigate: ReturnType<typeof useNavigate>;
+}
+
+function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunStop, navigate }: ScriptRowProps) {
+  const { t } = useTranslation();
+  const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
+  const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
+  const typeTooltip =
+    script.type === SCRIPT_TYPE_CRONTAB ? t("script:scheduled_script_tooltip") : t("script:background_script_tooltip");
+  const version = script.metadata?.version?.[0] || "";
+  const author = script.metadata?.author?.[0] || "";
+  const name = i18nName(script);
+
+  return (
+    <div
+      className={cn(
+        "group/row flex items-center h-[52px] px-3 rounded-lg transition-colors hover:bg-primary/[0.08]",
+        isDisabled && "opacity-60"
+      )}
+    >
+      {/* 复选框 */}
+      <div className="w-8 flex justify-center">
+        <Checkbox checked={selected} onCheckedChange={() => onSelect(script.uuid)} />
+      </div>
+
+      {/* 拖拽手柄 */}
+      <div className="w-8 flex justify-center">
+        <RowDragHandle />
+      </div>
+
+      {/* 开关 */}
+      <div className="w-16 flex">
+        <EnableSwitch
+          status={script.status}
+          enableLoading={script.enableLoading}
+          onCheckedChange={(checked) => onEnable(script, checked)}
+        />
+      </div>
+
+      {/* 脚本名称 + 元信息 */}
+      <div className="flex-1 min-w-0 flex items-center gap-2.5">
+        <ScriptIcon name={name} metadata={script.metadata} />
+        <div className="min-w-0 flex flex-col gap-px">
+          <Link to={`/script/editor/${script.uuid}`} className="text-sm font-medium truncate hover:underline">
+            {name}
+          </Link>
+          <span className="text-[11px] text-muted-foreground truncate">
+            {[versionDisplay(version), scriptTypeLabel(script.type, t), author].filter(Boolean).join(" · ")}
+          </span>
+        </div>
+      </div>
+
+      {/* 来源 */}
+      <div className="w-[76px]">
+        <SourceTag script={script} />
+      </div>
+
+      {/* 标签 */}
+      <div className="w-[100px]">
+        <TagBadges metadata={script.metadata} selfMetadata={script.selfMetadata} />
+      </div>
+
+      {/* 应用至 / 运行状态 */}
+      <div className="w-[140px] min-w-0">
+        {isBackground ? (
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="w-fit">
+                  <RunStatusBadge runStatus={script.runStatus} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{typeTooltip}</TooltipContent>
+            </Tooltip>
+            <ScheduleNextRun script={script} />
+          </div>
+        ) : (
+          <FaviconDots favorites={script.favorite} />
+        )}
+      </div>
+
+      {/* 最后更新 */}
+      <div className="w-[132px] justify-items-center">
+        <UpdateTimeCell script={script} />
+      </div>
+
+      {/* 操作（行内图标按钮，已去掉 ⋯ 更多菜单） */}
+      <ScriptRowActions
+        script={script}
+        navigate={navigate}
+        onDelete={onDelete}
+        onRunStop={onRunStop}
+        className="w-[192px] justify-end opacity-[0.55] group-hover/row:opacity-100"
+      />
+    </div>
+  );
+}
+
+// store 对任一字段变更都会为该行生成新的 script 对象引用（未变更的行保持同引用），
+// 故直接按对象引用比较即可：既保留 memo 优化，又避免逐字段比较漏掉
+// name/metadata/selfMetadata/tag/config/source 等导致行展示过期数据。
+const ScriptRow = React.memo(ScriptRowInner, (prev, next) => {
+  return prev.script === next.script && prev.selected === next.selected;
 });
 
-MemoizedScriptTable.displayName = "ScriptTable";
-
-export default MemoizedScriptTable;
+// ========== 标签 ==========
+function TagBadges({ metadata, selfMetadata }: { metadata: SCMetadata; selfMetadata?: SCMetadata }) {
+  const meta = selfMetadata ? getCombinedMeta(metadata, selfMetadata) : metadata;
+  const tags = parseTags(meta);
+  if (tags.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.slice(0, 2).map((tag) => {
+        const color = getTagColor(tag);
+        return (
+          <span
+            key={tag}
+            className={cn("inline-flex rounded-md px-2 py-0.5 text-[11px] font-medium", color.bg, color.text)}
+          >
+            {tag}
+          </span>
+        );
+      })}
+      {tags.length > 2 && <span className="text-[10px] text-muted-foreground">{`+${tags.length - 2}`}</span>}
+    </div>
+  );
+}

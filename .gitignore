@@ -26,7 +26,8 @@ dist-ssr
 coverage
 CHANGELOG.md
 
-tailwind.config.js
+.eslintcache
+.prettiercache
 
 .env
 
@@ -44,3 +45,4 @@ playwright-report
 e2e/scratch/
 
 superpowers
+.omc

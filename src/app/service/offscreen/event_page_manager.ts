@@ -36,14 +36,14 @@ class InProcessMessageConnect implements MessageConnect {
       return;
     }
     this.disconnected = true;
-    this.disconnects.emit("disconnect");
+    this.disconnects.emit("disconnect", true);
     if (this.peer && !this.peer.disconnected) {
       this.peer.disconnected = true;
-      this.peer.disconnects.emit("disconnect");
+      this.peer.disconnects.emit("disconnect", false);
     }
   }
 
-  onDisconnect(callback: () => void): void {
+  onDisconnect(callback: (isSelfDisconnected: boolean) => void): void {
     this.disconnects.on("disconnect", callback);
   }
 }

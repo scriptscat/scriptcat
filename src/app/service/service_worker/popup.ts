@@ -5,7 +5,7 @@ import type { ScriptMenu, TPopupScript } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { ScriptDAO } from "@App/app/repo/scripts";
-import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { applyScriptDisplayInfo, scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type {
   TDeleteScript,
@@ -16,7 +16,7 @@ import type {
   TScriptRunStatus,
 } from "../queue";
 import { getCurrentTab } from "@App/pkg/utils/utils";
-import type { SystemConfig } from "@App/pkg/config/config";
+import { type SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { v5 as uuidv5 } from "uuid";
@@ -423,8 +423,20 @@ export class PopupService {
     const scriptMenu = [...scriptMenuMap.values()];
     // 检查是否在黑名单中
     const isBlacklist = this.runtime.isUrlBlacklist(url);
+    // 即时附加图标与本地化脚本名（仅写入响应，不回写 session 缓存，避免 icon64 等占用过大）
+    const [scriptListWithInfo, backScriptListWithInfo] = await Promise.all([
+      this.attachScriptDisplayInfo(scriptMenu),
+      this.attachScriptDisplayInfo(backScriptList),
+    ]);
     // 后台脚本只显示开启或者运行中的脚本
-    return { isBlacklist, scriptList: scriptMenu, backScriptList };
+    return { isBlacklist, scriptList: scriptListWithInfo, backScriptList: backScriptListWithInfo };
+  }
+
+  /** 为 ScriptMenu 列表即时附加图标 URL 与本地化脚本名（返回浅拷贝，不修改缓存中的原对象） */
+  private async attachScriptDisplayInfo(list: ScriptMenu[]): Promise<ScriptMenu[]> {
+    if (!list.length) return list;
+    const scripts = await this.scriptDAO.gets(list.map((s) => s.uuid));
+    return list.map((s, i) => (scripts[i] ? applyScriptDisplayInfo(s, scripts[i]!) : s));
   }
 
   async getScriptMenu(tabId: number): Promise<ScriptMenu[]> {

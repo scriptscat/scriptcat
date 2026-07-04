@@ -9,17 +9,18 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  workers: process.env.CI ? 2 : 4,
   reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
   outputDir: "test-results",
   use: {
     actionTimeout: 10_000,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    // Record only retried failures in CI to avoid encoding video for every passing test.
+    video: process.env.CI ? "on-first-retry" : "off",
     permissions: ["clipboard-read", "clipboard-write"],
   },
 });

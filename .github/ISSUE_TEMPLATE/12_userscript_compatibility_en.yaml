@@ -1,0 +1,149 @@
+name: "🧩 Userscript Compatibility"
+description: Report userscripts that fail in ScriptCat but work in Tampermonkey, Violentmonkey, or other managers.
+title: "[Compatibility] "
+type: "Bug"
+labels: ["compatibility", "userscript"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is specifically for **userscript compatibility issues**.
+
+        Please provide:
+        - Userscript URL
+        - Target website
+        - Metadata block
+        - Comparison with Tampermonkey / Violentmonkey / other managers
+        - Minimal reproduction script if possible
+
+        If the issue is about ScriptCat UI, sync, backup, installation, or general extension behavior, please use the Bug Report template instead.
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: Pre-check
+      options:
+        - label: I have searched existing issues.
+          required: true
+        - label: I confirm this issue is related to a userscript or userscript API compatibility.
+          required: true
+        - label: I have provided a userscript link or a minimal reproduction script where possible.
+          required: true
+
+  - type: input
+    id: script-url
+    attributes:
+      label: Userscript URL
+      placeholder: "GreasyFork / OpenUserJS / GitHub raw / scriptcat.org / other"
+    validations:
+      required: true
+
+  - type: input
+    id: target-url
+    attributes:
+      label: Target Website
+      placeholder: "Example: <target website URL>"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What Fails in ScriptCat?
+      placeholder: |
+        Example: Button does not appear / script does not run / GM_xmlhttpRequest fails / menu command does not work / page refreshes infinitely.
+    validations:
+      required: true
+
+  - type: textarea
+    id: comparison
+    attributes:
+      label: Comparison with Other Userscript Managers
+      description: Please describe the behavior in Tampermonkey, Violentmonkey, FireMonkey, Greasemonkey, etc.
+      placeholder: |
+        Tampermonkey version:
+        Violentmonkey version:
+        FireMonkey / Greasemonkey version:
+        Behavior in those managers:
+    validations:
+      required: true
+
+  - type: textarea
+    id: metadata
+    attributes:
+      label: Userscript Metadata
+      description: Please include relevant fields such as `@match`, `@grant`, `@connect`, `@require`, `@resource`, `@run-at`, `@inject-into`, etc.
+      render: javascript
+      placeholder: |
+        // ==UserScript==
+        // @name ...
+        // @match ...
+        // @grant ...
+        // @connect ...
+        // ==/UserScript==
+    validations:
+      required: true
+
+  - type: textarea
+    id: minimal-reproduction
+    attributes:
+      label: Minimal Reproduction Script
+      description: If the original userscript is large, please try to reduce it to the smallest script that can reproduce the problem.
+      render: javascript
+      placeholder: |
+        // Please provide the smallest standalone script that reproduces the issue.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: api-area
+    attributes:
+      label: Related API / Mechanism
+      multiple: true
+      options:
+        - GM_xmlhttpRequest / GM.xmlHttpRequest
+        - GM_getValue / GM.setValue / GM storage
+        - GM_registerMenuCommand
+        - GM_download
+        - GM_cookie / Cookie API
+        - "@match / @include / @exclude"
+        - "@connect"
+        - "@require / @resource"
+        - "@run-at"
+        - "@inject-into"
+        - sandbox / unsafeWindow / page context
+        - iframe / allFrames / noframes
+        - CSP / Trusted Types
+        - service worker / offscreen / background
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat Version
+      placeholder: "Example: v1.4.0 / v1.4.0-beta / Firefox MV2 v0.16.15"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Operating System and Browser
+      placeholder: "Example: Windows 11 Chrome 143 / macOS Firefox 151 / Android WebLibre 0.20"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console Logs / Network Requests / Screenshots
+      description: Please mention the log source, such as page console, content script, service worker, offscreen, network panel, etc.
+      placeholder: |
+        Log source:
+        Error:
+        Screenshots / video:
+    validations:
+      required: false

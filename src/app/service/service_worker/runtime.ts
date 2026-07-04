@@ -14,6 +14,7 @@ import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
   getUserScriptRegister,
+  parseUrlSRI,
   scriptURLPatternResults,
   type RegisteredUserScriptWithJsCode,
 } from "./utils";
@@ -25,6 +26,7 @@ import {
   obtainBlackList,
   sourceMapTo,
 } from "@App/pkg/utils/utils";
+import { BrowserType, getBrowserInstalledVersion, getBrowserType, isPermissionOk } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
@@ -34,9 +36,11 @@ import type { CompileScriptCodeResource } from "../content/utils";
 import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
+  compileScriptletCode,
   isContextMenuScript,
   isEarlyStartScript,
   isInjectIntoContent,
+  isScriptletUnwrap,
   trimScriptInfo,
 } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
@@ -54,6 +58,7 @@ import type { CompiledResource, Resource, ResourceType } from "@App/app/repo/res
 import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { getExtensionUserAgentData } from "../extension/extension_env";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -125,6 +130,11 @@ const deliveryStorage = chrome.storage.local; // 日后再处理
 export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
+  private gmApi?: GMApi;
+
+  getGMApi(): GMApi | undefined {
+    return this.gmApi;
+  }
 
   private readonly disabledMatcherTaskKey = `runtime_disabled_matcher:${Math.random()}`;
   private disabledMatcher: UrlMatch<string> | null = null;
@@ -201,44 +211,11 @@ export class RuntimeService {
   }
 
   async initUserAgentData() {
-    // @ts-ignore
-    const userAgentData = navigator.userAgentData;
-    if (userAgentData) {
-      this.userAgentData = {
-        brands: userAgentData.brands,
-        mobile: userAgentData.mobile,
-        platform: userAgentData.platform,
-      };
-      // 处理architecture和bitness
-      if (chrome.runtime.getPlatformInfo) {
-        try {
-          const platformInfo = await chrome.runtime.getPlatformInfo();
-          this.userAgentData.architecture = platformInfo.nacl_arch;
-          this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
-        } catch (e) {
-          // 避免 API 无法执行的问题。不影响整体运作
-          console.warn(e);
-        }
-      }
-    }
+    this.userAgentData = (await getExtensionUserAgentData()) || {};
   }
 
-  showNoDeveloperModeWarning() {
-    // 判断是否首次
-    this.localStorageDAO.get("firstShowDeveloperMode").then((res) => {
-      if (!res) {
-        this.localStorageDAO.save({
-          key: "firstShowDeveloperMode",
-          value: true,
-        });
-        // 打开页面
-        initLocalesPromise.then(() => {
-          chrome.tabs.create({
-            url: `${DocumentationSite}${localePath}/docs/use/open-dev/`,
-          });
-        });
-      }
-    });
+  async showUserscriptActivationGuide() {
+    const storageKey = "firstShowDeveloperMode";
     chrome.action.setBadgeBackgroundColor({
       color: "#ff8c00",
     });
@@ -267,6 +244,35 @@ export class RuntimeService {
         });
       }
     });
+
+    const currentInstalledBrowser = getBrowserInstalledVersion();
+    const lastInstalledBrowser = (await this.localStorageDAO.get(storageKey))?.value as string | boolean | undefined;
+    // 判断是否安装后的首次，或是浏览器升级后的首次
+    if (currentInstalledBrowser === lastInstalledBrowser) return; // 非首次则不弹出页面
+
+    const savePromise = this.localStorageDAO.save({
+      key: storageKey,
+      value: currentInstalledBrowser,
+    });
+    await Promise.allSettled([initLocalesPromise, this.initReady, savePromise]); // 等一下语言加载和 isUserScriptsAvailable 检查之类的
+
+    const userscript_enabled: boolean = this.isUserScriptsAvailable;
+    const permission = await isPermissionOk("userScripts");
+    const browserType = getBrowserType();
+    const guard =
+      browserType.chrome & BrowserType.guardedByDeveloperMode
+        ? "developerMode"
+        : browserType.chrome & BrowserType.guardedByAllowScript
+          ? "allowScript"
+          : "none";
+
+    // 打开页面
+    const path = `${DocumentationSite}${localePath}/docs/use/open-dev/`;
+    let search = `?userscript_enabled=${userscript_enabled}&userscript_permission=${permission}&userscript_guard=${guard}`;
+    if (browserType.chrome & BrowserType.Edge) search += "&browser=edge";
+    else if (browserType.chrome & BrowserType.Chrome) search += "&browser=chrome";
+    const hash = `${guard === "developerMode" ? "#enable-developer-mode" : guard === "allowScript" ? "#allow-user-scripts" : ""}`;
+    chrome.tabs.create({ url: `${path}${search}${hash}` });
   }
 
   async getInjectJsCode() {
@@ -496,7 +502,7 @@ export class RuntimeService {
     }
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
-    const gmApi = new GMApi(
+    this.gmApi = new GMApi(
       this.systemConfig,
       permission,
       this.group,
@@ -506,7 +512,7 @@ export class RuntimeService {
       new GMExternalDependencies(this)
     );
     permission.init();
-    gmApi.start();
+    this.gmApi.start();
 
     this.group.on("stopScript", this.stopScript.bind(this));
     this.group.on("runScript", this.runScript.bind(this));
@@ -744,7 +750,7 @@ export class RuntimeService {
       // 检查是否开启了开发者模式
       if (!this.isUserScriptsAvailable) {
         // 未开启加上警告引导
-        this.showNoDeveloperModeWarning();
+        this.showUserscriptActivationGuide();
         let cid: ReturnType<typeof setInterval> | number;
         cid = setInterval(async () => {
           if (!this.isUserScriptsAvailable) {
@@ -854,7 +860,7 @@ export class RuntimeService {
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
-    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResources(scriptRes, true);
+    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResourceValue(scriptRes);
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
@@ -865,7 +871,7 @@ export class RuntimeService {
     let jsCode = "";
     if (withCode) {
       const code = compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
-      registerScript.js[0].code = jsCode = code;
+      registerScript.js![0].code = jsCode = code;
     }
 
     // 过滤掉matches为空的脚本
@@ -902,9 +908,15 @@ export class RuntimeService {
 
   // 从CompiledResource中还原脚本代码
   async restoreJSCodeFromCompiledResource(script: Script, result: CompiledResource) {
-    const earlyScript = isEarlyStartScript(script.metadata);
+    // 如果是 Scriptlet (unwrap) 脚本，需要另外的处理方式
+    if (isScriptletUnwrap(script.metadata)) {
+      const scriptRes = await this.script.buildScriptRunResource(script);
+      if (!scriptRes) return "";
+      return compileScriptletCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
+    }
+
     // 如果是预加载脚本，需要另外的处理方式
-    if (earlyScript) {
+    if (isEarlyStartScript(script.metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
@@ -1363,7 +1375,7 @@ export class RuntimeService {
     scriptCacheKey: string
   ): Promise<TPageLoadScriptCache | undefined> {
     const [resource, codeInfo] = await Promise.all([
-      this.resource.getScriptResources(scriptRes, false) as Promise<Record<string, TRuntimeResource>>,
+      this.resource.getScriptResourceValue(scriptRes) as Promise<Record<string, TRuntimeResource>>,
       this.getScriptInfoForCode(scriptRes),
     ]);
     if (!codeInfo) return undefined;
@@ -1429,12 +1441,16 @@ export class RuntimeService {
         await Promise.all(
           cache.localResources.map(async (localResource) => {
             try {
+              // updateResource 需要解析后的 SRI 信息和旧资源：旧资源用于合并 link、下载失败时回退。
+              const u = parseUrlSRI(localResource.url);
+              const oldResources = await this.resource.getResourceModel(u);
               const updatedResource = await this.resource.updateResource(
                 scriptRes.uuid,
-                localResource.url,
-                localResource.type
+                u,
+                localResource.type,
+                oldResources
               );
-              if (updatedResource.hash?.sha512 === localResource.sha512) return;
+              if (!updatedResource || updatedResource.hash?.sha512 === localResource.sha512) return;
               const nextResource = { ...updatedResource } as TRuntimeResource;
               if (nextResource.content) {
                 nextResource.base64 = undefined;

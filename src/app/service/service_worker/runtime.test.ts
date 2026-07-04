@@ -264,17 +264,6 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
   });
 
   describe.concurrent("错误处理", () => {
-    // it.concurrent("应该正确处理buildScriptRunResource抛出异常的情况", async () => {
-    //   // Arrange
-    //   const script = createMockScript();
-    //   mockScriptService.buildScriptRunResource.mockImplementation(() => {
-    //     throw new Error("Build script run resource failed");
-    //   });
-
-    //   // Act & Assert
-    //   await expect(runtime.applyScriptMatchInfo(script)).rejects.toThrow("Build script run resource failed");
-    // });
-
     it.concurrent("应该正确处理空metadata的脚本", async () => {
       // Arrange
       const script = createMockScript({
@@ -483,7 +472,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       };
 
       const mockResourceService = {
-        getScriptResources: vi.fn().mockResolvedValue({}),
+        getScriptResourceValue: vi.fn().mockResolvedValue({}),
       };
 
       const mockValueService = {
@@ -795,7 +784,7 @@ describe("getScriptsForTab 附加边界场景", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     const mockScriptCodeDAO = { get: vi.fn().mockResolvedValue({ code: "// test" }) };
-    const mockResourceService = { getScriptResources: vi.fn().mockResolvedValue({}) };
+    const mockResourceService = { getScriptResourceValue: vi.fn().mockResolvedValue({}) };
     const mockValueService = { getScriptValue: vi.fn().mockResolvedValue({}) };
 
     (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);

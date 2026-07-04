@@ -2,7 +2,7 @@
 
 Dieses Dokument definiert die Terminologie für die deutsche (`de-DE`) Benutzeroberfläche und Dokumentation von ScriptCat. Es dient dazu, Produktkonzepte eindeutig zu benennen, UI-Texte natürlich zu formulieren und technische Bezeichner bei künftigen Übersetzungen unverändert zu erhalten.
 
-Geprüfte Verwendungsquelle: `src/locales/de-DE/translation.json`
+Geprüfte Verwendungsquelle: `src/locales/de-DE/*.json`
 
 ## Grundsätze
 
