@@ -81,7 +81,7 @@
     "@types/semver": "^7.7.1",
     "@types/serviceworker": "^0.0.120",
     "@types/ws": "^8.18.1",
-    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/coverage-v8": "^4.1.8",
     "acorn": "^8.16.0",
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
