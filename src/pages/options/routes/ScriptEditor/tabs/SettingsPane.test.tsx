@@ -188,15 +188,15 @@ describe("SettingsPane 网站匹配/排除", () => {
   it("删除用户匹配应以剩余规则调用 resetMatch", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://user.com/*");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} *://user.com/*` }));
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://user.com/*`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
     await waitFor(() => expect(resetMatch).toHaveBeenCalledWith("u1", ["*://script.com/*"]));
   });
 
   it("删除匹配项的确认气泡应展示删除匹配文案而非通用重置文案", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://user.com/*");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} *://user.com/*` }));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://user.com/*`));
     expect(screen.getByText(t("editor:confirm_delete_match"))).toBeInTheDocument();
     expect(screen.queryByText(t("editor:confirm_reset"))).toBeNull();
   });
@@ -204,7 +204,7 @@ describe("SettingsPane 网站匹配/排除", () => {
   it("删除排除项的确认气泡应展示删除排除文案", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://exclude.com/*");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} *://exclude.com/*` }));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://exclude.com/*`));
     expect(screen.getByText(t("editor:confirm_delete_exclude"))).toBeInTheDocument();
   });
 
@@ -212,7 +212,7 @@ describe("SettingsPane 网站匹配/排除", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://script.com/*");
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:add_match") }));
+    fireEvent.click(screen.getByText(t("editor:add_match"), { selector: "button" }));
     fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
       target: {
         value: `
@@ -224,7 +224,7 @@ describe("SettingsPane 网站匹配/排除", () => {
         `,
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
     await waitFor(() =>
       expect(resetMatch).toHaveBeenCalledWith("u1", [
@@ -240,7 +240,7 @@ describe("SettingsPane 网站匹配/排除", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://exclude.com/*");
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:add_exclude") }));
+    fireEvent.click(screen.getByText(t("editor:add_exclude"), { selector: "button" }));
     fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
       target: {
         value: `
@@ -250,7 +250,7 @@ describe("SettingsPane 网站匹配/排除", () => {
         `,
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
     await waitFor(() =>
       expect(resetExclude).toHaveBeenCalledWith("u1", ["*://exclude.com/*", "https://ads.example.com/*"])
@@ -261,8 +261,8 @@ describe("SettingsPane 网站匹配/排除", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://script.com/*");
     // 三个重置按钮按 DOM 顺序：匹配 / 排除 / 授权
-    fireEvent.click(screen.getAllByRole("button", { name: t("reset") })[0]);
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[0]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
     await waitFor(() => expect(resetMatch).toHaveBeenCalledWith("u1", undefined));
   });
 });
@@ -279,7 +279,7 @@ describe("SettingsPane 授权管理(CORS)", () => {
   it("点击是否允许徽标应调用 updatePermission", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
-    fireEvent.click(screen.getByRole("button", { name: `${t("permission:allow")} a.com` }));
+    fireEvent.click(screen.getByLabelText(`${t("permission:allow")} a.com`));
     await waitFor(() =>
       expect(updatePermission).toHaveBeenCalledWith(
         expect.objectContaining({ permission: "cors", permissionValue: "a.com", allow: false })
@@ -290,8 +290,8 @@ describe("SettingsPane 授权管理(CORS)", () => {
   it("删除授权应调用 deletePermission 并移除该行", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} a.com` }));
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} a.com`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
     await waitFor(() => expect(deletePermission).toHaveBeenCalledWith("u1", "cors", "a.com"));
     await waitFor(() => expect(screen.queryByText("a.com")).toBeNull());
   });
@@ -300,8 +300,8 @@ describe("SettingsPane 授权管理(CORS)", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:add_permission") }));
-    expect(screen.getByRole("combobox", { name: t("permission:allow") })).toBeInTheDocument();
+    fireEvent.click(screen.getByText(t("editor:add_permission"), { selector: "button" }));
+    expect(screen.getByLabelText(t("permission:allow"))).toHaveAttribute("role", "combobox");
     fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
       target: {
         value: `
@@ -312,7 +312,7 @@ describe("SettingsPane 授权管理(CORS)", () => {
         `,
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
     await waitFor(() => expect(addPermission).toHaveBeenCalledTimes(2));
     expect(addPermission).toHaveBeenNthCalledWith(
@@ -329,8 +329,8 @@ describe("SettingsPane 授权管理(CORS)", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
     // 第三个重置按钮为授权管理
-    fireEvent.click(screen.getAllByRole("button", { name: t("reset") })[2]);
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[2]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
     await waitFor(() => expect(resetPermission).toHaveBeenCalledWith("u1"));
     await waitFor(() => expect(screen.queryByText("a.com")).toBeNull());
   });

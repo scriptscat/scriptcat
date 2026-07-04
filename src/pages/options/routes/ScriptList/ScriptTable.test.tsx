@@ -98,7 +98,7 @@ describe("ScriptTable 列头点击排序", () => {
     renderTable(list);
     expect(renderedOrder()).toEqual(["Banana", "Apple", "Cherry"]);
 
-    const nameHeader = screen.getByRole("button", { name: t("name") });
+    const nameHeader = screen.getByText(t("name")).closest("button")!;
     fireEvent.click(nameHeader); // 升序
     expect(renderedOrder()).toEqual(["Apple", "Banana", "Cherry"]);
 
@@ -111,7 +111,7 @@ describe("ScriptTable 列头点击排序", () => {
 
   it("点击「最后更新」表头按更新时间升序排列", () => {
     renderTable(list);
-    fireEvent.click(screen.getByRole("button", { name: t("logs:last_updated") }));
+    fireEvent.click(screen.getByText(t("logs:last_updated")).closest("button")!);
     // updatetime: A=10, C=20, B=30
     expect(renderedOrder()).toEqual(["Apple", "Cherry", "Banana"]);
   });
@@ -126,7 +126,7 @@ describe("ScriptTable 列头点击排序", () => {
     // 未排序时每行都有可拖拽手柄
     expect(document.querySelectorAll(".cursor-grab").length).toBe(list.length);
 
-    fireEvent.click(screen.getByRole("button", { name: t("name") }));
+    fireEvent.click(screen.getByText(t("name")).closest("button")!);
     expect(document.querySelectorAll(".cursor-grab").length).toBe(0);
   });
 });

@@ -129,10 +129,10 @@ describe("StoragePane 储存面板", () => {
   it("添加：填写 key/value 后保存应调用 setScriptValue 并新增行", async () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("token");
-    fireEvent.click(screen.getByRole("button", { name: t("add") }));
+    fireEvent.click(screen.getByText(t("add"), { selector: "button" }));
     fireEvent.change(screen.getByPlaceholderText(t("editor:key_placeholder")), { target: { value: "newKey" } });
     fireEvent.change(screen.getByLabelText(t("editor:value_placeholder")), { target: { value: "hello" } });
-    fireEvent.click(screen.getByRole("button", { name: t("save") }));
+    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
     await waitFor(() =>
       expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "newKey", value: "hello" }))
     );
@@ -143,10 +143,10 @@ describe("StoragePane 储存面板", () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("count");
     // count 行的编辑按钮（第二行）
-    fireEvent.click(screen.getAllByRole("button", { name: t("edit") })[1]);
+    fireEvent.click(screen.getAllByLabelText(t("edit"))[1]);
     const valueBox = screen.getByLabelText(t("editor:value_placeholder"));
     fireEvent.change(valueBox, { target: { value: "100" } });
-    fireEvent.click(screen.getByRole("button", { name: t("save") }));
+    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
     await waitFor(() =>
       expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "count", value: 100 }))
     );
