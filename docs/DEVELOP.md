@@ -130,9 +130,19 @@ Conversely, keep these — they look thin but carry real value:
     Portal mounting). Keep its callback cheap and scoped, and combine related assertions into one polling loop.
 - Avoid real sleeps in unit tests. Use fake timers for timer behavior; a short real delay is acceptable only when
   the delay itself is the regression guard (for example, proving a rejected load does not start a runaway loop).
+- Match test concurrency to the workload:
+  - Use `describe.concurrent()` / `it.concurrent()` only when cases can make useful progress without blocking the
+    same worker. Synchronous CPU-heavy work such as parsing, encoding, compression, and large fixture loops still
+    competes for one JavaScript event loop; under coverage or full-shard load, contention can make otherwise-fast
+    cases exceed their wall-clock timeout.
+  - Keep lightweight independent cases concurrent, but mark CPU-heavy cases or fixture batches with
+    `it.sequential()` / `describe.sequential()`. Preserve their assertions and inputs; do not trade coverage for
+    speed or raise the timeout to hide worker contention.
+  - A focused file run is only the first check. Re-run the exact CI combination of timeout, coverage, reporter, and
+    shard that exposed the failure, because an isolated run does not reproduce cross-file worker pressure.
 - Treat performance measurements as evidence, not a one-run verdict. Run the affected file first, then the full
   TSX suite; concurrent full-suite timings are noisy, so repeat suspicious runs and compare the same command,
-  reporter, files, and environment. Never raise the 850ms timeout to hide a slow query or wait.
+  reporter, files, and environment. Never raise the configured timeout to hide a slow query or wait.
 - To spot setup/import regressions without running the full suite, run one small file and read Vitest's timing
   breakdown, for example:
 
