@@ -478,7 +478,8 @@ describe.concurrent("encoding", () => {
       await expect(readRawContent(new Blob([shiftJisBytes.buffer]), null)).resolves.toBe(shiftJisText);
     });
 
-    it.concurrent("preserves legacy fallback fixture coverage through decoded output", async () => {
+    // chardet 会阻塞同一 worker；大批 fixture 顺序执行，避免覆盖率运行时的排队时间计入单测超时。
+    it.sequential("preserves legacy fallback fixture coverage through decoded output", async () => {
       const cases: [Uint8Array, string][] = [
         [new Uint8Array([0xa7, 0xda, 0xb7, 0x52, 0x20, 0x43, 0x20, 0xbb, 0x79, 0xa8, 0xec]), "big5"],
         [
@@ -553,7 +554,7 @@ describe.concurrent("encoding", () => {
       }
     });
 
-    it.concurrent("preserves legacy GBK and GB18030 edge fixture coverage", async () => {
+    it.sequential("preserves legacy GBK and GB18030 edge fixture coverage", async () => {
       const cases: [Uint8Array, string][] = [
         [new Uint8Array([0xc4, 0xe3, 0xba, 0xc3]), "big5"],
         [new Uint8Array([0xc4, 0xe3, 0xba, 0xc3, 0xa3, 0xac, 0xca, 0xc0, 0xbd, 0xe7, 0xa3, 0xa1]), "big5"],
@@ -590,7 +591,7 @@ describe.concurrent("encoding", () => {
       expect(result).toContain("这是一个GBK编码测试Sentence");
     });
 
-    it.concurrent("preserves legacy single-byte fixture coverage", async () => {
+    it.sequential("preserves legacy single-byte fixture coverage", async () => {
       const cases: [Uint8Array, string][] = [
         [
           new Uint8Array([
@@ -621,7 +622,7 @@ describe.concurrent("encoding", () => {
       }
     });
 
-    it.concurrent("detects legacy bytes after a large ASCII prefix", async () => {
+    it.sequential("detects legacy bytes after a large ASCII prefix", async () => {
       const shiftJisText = "これはShiftJISのテスト文除withEnglish123";
       const shiftJisBytes = new Uint8Array([
         0x82, 0xb1, 0x82, 0xea, 0x82, 0xcd, 0x53, 0x68, 0x69, 0x66, 0x74, 0x4a, 0x49, 0x53, 0x82, 0xcc, 0x83, 0x65,
@@ -637,7 +638,7 @@ describe.concurrent("encoding", () => {
       );
     });
 
-    it.concurrent(
+    it.sequential(
       "detects legacy bytes after an ASCII prefix larger than the full UTF-8 validation limit",
       async () => {
         const shiftJisText = "これはShiftJISのテスト文除withEnglish123";
