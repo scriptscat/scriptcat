@@ -83,7 +83,7 @@ export class ScriptService {
     private readonly scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
-    this.scriptCodeDAO.enableCache();
+    // this.scriptCodeDAO.enableCache();
     this.scriptUpdateCheck = new ScriptUpdateCheck(systemConfig, group, mq, valueService, resourceService, scriptDAO);
   }
 

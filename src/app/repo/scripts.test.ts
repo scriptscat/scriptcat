@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   ScriptDAO,
+  ScriptCodeDAO,
   type Script,
   SCRIPT_TYPE_NORMAL,
   SCRIPT_STATUS_ENABLE,
@@ -150,5 +151,73 @@ describe("ScriptDAO.searchExistingScript", () => {
 
     const found = await dao.searchExistingScript(target);
     expect(found[0]).toBeUndefined();
+  });
+});
+
+describe("ScriptCodeDAO", () => {
+  let dao: ScriptCodeDAO;
+
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+    (globalThis as any).__clearOPFSMock?.();
+    dao = new ScriptCodeDAO();
+  });
+
+  it("save 后 get 应该从 OPFS 读取", async () => {
+    await dao.save({ uuid: "test-1", code: "alert('hello');" });
+    const result = await dao.get("test-1");
+    expect(result).toBeDefined();
+    expect(result!.code).toBe("alert('hello');");
+  });
+
+  it("get 不存在的脚本应返回 undefined", async () => {
+    const result = await dao.get("nonexistent");
+    expect(result).toBeUndefined();
+  });
+
+  it("OPFS 不存在时应 fallback 到 chrome.storage.local", async () => {
+    await chrome.storage.local.set({ "scriptCode:old-script": { uuid: "old-script", code: "old code" } });
+    const result = await dao.get("old-script");
+    expect(result).toBeDefined();
+    expect(result!.code).toBe("old code");
+  });
+
+  it("fallback 读取后应懒迁移到 OPFS", async () => {
+    await chrome.storage.local.set({ "scriptCode:lazy": { uuid: "lazy", code: "lazy code" } });
+    await dao.get("lazy");
+    // 等待懒迁移的异步写入完成
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await chrome.storage.local.clear();
+    const dao2 = new ScriptCodeDAO();
+    const result = await dao2.get("lazy");
+    expect(result).toBeDefined();
+    expect(result!.code).toBe("lazy code");
+  });
+
+  it("delete 应同时删除 OPFS 和 chrome.storage.local", async () => {
+    await dao.save({ uuid: "del-test", code: "to delete" });
+    await dao.delete("del-test");
+    const result = await dao.get("del-test");
+    expect(result).toBeUndefined();
+  });
+
+  it("gets 应批量获取", async () => {
+    await dao.save({ uuid: "a", code: "code-a" });
+    await dao.save({ uuid: "b", code: "code-b" });
+    const results = await dao.gets(["a", "b", "c"]);
+    expect(results[0]?.code).toBe("code-a");
+    expect(results[1]?.code).toBe("code-b");
+    expect(results[2]).toBeUndefined();
+  });
+
+  it("saveToOPFS 仅写 OPFS 不写 chrome.storage.local", async () => {
+    await dao.saveToOPFS({ uuid: "opfs-only", code: "opfs code" });
+    const storageResult = await new Promise<any>((resolve) => {
+      chrome.storage.local.get("scriptCode:opfs-only", resolve);
+    });
+    expect(storageResult["scriptCode:opfs-only"]).toBeUndefined();
+    const result = await dao.get("opfs-only");
+    expect(result).toBeDefined();
+    expect(result!.code).toBe("opfs code");
   });
 });
