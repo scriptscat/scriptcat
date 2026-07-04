@@ -1,5 +1,6 @@
-import { CronTime } from "cron";
+import { CronJob, CronTime, type CronJobParams } from "cron";
 import { t } from "@App/locales/locales";
+export { type CronJob, type CronTime };
 
 // ===================================== Cron 工具库说明 =====================================
 //
@@ -46,9 +47,146 @@ import { t } from "@App/locales/locales";
 //
 // ============================================================================================
 
+/**
+ * 获取指定日期在当前运行环境中的本地 UTC offset，单位为分钟。
+ *
+ * 注意：
+ * JavaScript Date#getTimezoneOffset() 的符号方向和 UTC offset 相反。
+ *
+ * 例如：
+ * - UTC+8: Date#getTimezoneOffset() 返回 -480，这里转换成 480
+ * - UTC+9: Date#getTimezoneOffset() 返回 -540，这里转换成 540
+ * - UTC-6: Date#getTimezoneOffset() 返回 360，这里转换成 -360
+ */
+export const getLocalUtcOffset = (date = new Date()) => {
+  return -date.getTimezoneOffset();
+};
+
+/**
+ * 将 UTC offset 分钟数转换成 Luxon 可识别的 fixed offset zone 字符串。
+ *
+ * 例如：
+ * - 480  -> UTC+08:00
+ * - 540  -> UTC+09:00
+ * - 180  -> UTC+03:00
+ * - -360 -> UTC-06:00
+ *
+ * 这里返回的不是 IANA timezone。
+ * 它不是 Asia/Tokyo、Asia/Shanghai、Asia/Amman 这种地区时区名称，
+ * 而是一个固定 UTC 偏移量。
+ */
+export const toUtcOffsetZone = (utcOffset: number) => {
+  const sign = utcOffset < 0 ? "-" : "+";
+
+  const offsetHours = Math.trunc(utcOffset / 60);
+  const offsetHoursStr = String(Math.abs(offsetHours)).padStart(2, "0");
+
+  const offsetMinutes = Math.abs(utcOffset - offsetHours * 60);
+  const offsetMinutesStr = String(offsetMinutes).padStart(2, "0");
+
+  return `UTC${sign}${offsetHoursStr}:${offsetMinutesStr}`;
+};
+
+/**
+ * 独立成 getLuxonDate 用于 debug。
+ *
+ * 目标：
+ * - 不直接 import luxon
+ * - 不使用 IANA timezone
+ * - 不让 CronTime constructor 在未指定 timeZone / utcOffset 时，
+ *   内部调用 Intl.DateTimeFormat().resolvedOptions().timeZone
+ *   进行自动侦测
+ *
+ * 做法：
+ * - 使用当前运行环境的本地 UTC offset
+ * - 将 offset 转成 fixed offset zone 字符串，例如 UTC+08:00
+ * - CronTime constructor 和 getNextDateFrom 都显式传入这个 fixed offset zone
+ *
+ * 注意：
+ * fixed offset zone 是固定偏移量，不会自动跟随 DST / 夏令时变化。
+ */
+export const getLuxonDate = (startDateStr: string, cronTimeStr: string) => {
+  const startDate = new Date(startDateStr);
+
+  /**
+   * 用 startDate 计算 offset，而不是直接用当前时间。
+   *
+   * 如果运行环境所在地区有 DST / 夏令时，
+   * startDate 对应日期的 offset 可能和当前日期不同。
+   */
+  const utcOffset = getLocalUtcOffset(startDate);
+  const utcOffsetZone = toUtcOffsetZone(utcOffset);
+
+  /**
+   * 这里显式传入 fixed offset zone。
+   *
+   * 因为 timeZone 参数已经有值，所以 CronTime constructor 不会调用：
+   * Intl.DateTimeFormat().resolvedOptions().timeZone
+   */
+  const cronTime = new CronTime(cronTimeStr, utcOffsetZone, null);
+
+  return cronTime.getNextDateFrom(startDate, utcOffsetZone);
+};
+
+/**
+ * 创建 CronJob。
+ *
+ * 当调用方没有显式指定 timeZone 或 utcOffset 时，
+ * 自动使用当前运行环境的 fixed offset zone。
+ *
+ * 这样可以避免 cron 内部通过：
+ *
+ *   Intl.DateTimeFormat().resolvedOptions().timeZone
+ *
+ * 自动侦测 IANA timezone。
+ *
+ * 在某些运行环境中，自动侦测出来的 timezone 可能是无效值，
+ * 例如 Etc/Unknown，从而导致 CronTime#sendAt() 抛出：
+ *
+ *   ERROR: You specified an invalid date.
+ *
+ * 注意：
+ * - 这里使用的是 fixed offset zone，例如 UTC+08:00
+ * - 它不是 IANA timezone
+ * - 它是固定偏移量，不会自动跟随 DST / 夏令时变化
+ * - 如果调用方已经传入 timeZone 或 utcOffset，则尊重调用方设置
+ */
+export const createCronJob = (params: CronJobParams<null, null>) => {
+  /**
+   * cron 内部也是用 nullish 语义判断。
+   *
+   * 所以这里不要只判断 undefined。
+   * null 和 undefined 都应该视为“没有显式指定”。
+   */
+  if (params.utcOffset == null && params.timeZone == null) {
+    const utcOffset = getLocalUtcOffset();
+    const utcOffsetZone = toUtcOffsetZone(utcOffset);
+
+    /**
+     * 不直接修改传入的 params，避免产生副作用。
+     *
+     * 这里显式设置 timeZone 为 fixed offset zone。
+     * 因为 timeZone 已经有值，cron 不会再走内部 timezone 自动侦测。
+     *
+     * 另外，CronJobParams 的类型定义里 timeZone 和 utcOffset 是互斥的。
+     * 所以这里需要把原来的 timeZone / utcOffset 字段解构掉，
+     * 再重新组装成只包含 utcOffset 的参数对象。
+     */
+    const { timeZone: _timeZone, utcOffset: _utcOffset, ...restParams } = params;
+
+    params = {
+      ...restParams,
+      timeZone: utcOffsetZone,
+    };
+  }
+
+  return CronJob.from(params);
+};
+
 // 使用 cron 内部的 DateTime<boolean> 构造函数
 // 等价于：import { DateTime } from "luxon"
-const DateTime = new CronTime("* * * * *").sendAt().constructor;
+// 固定为 '2024-04-04T04:44:44Z' 和 '30 0 * * 5' 避免runtime环境导致错误
+const DateTime = getLuxonDate("2024-04-04T04:44:44Z", "30 0 * * 5").constructor;
 type LuxonDate = ReturnType<CronTime["sendAt"]>[0];
 
 /**
