@@ -265,7 +265,7 @@ describe.concurrent("stackAsyncTask 测试", () => {
   });
 
   /* ------------------- 5. 压力 + 递回 ------------------- */
-  it.concurrent("【5】大量任务、递回不死锁 + 返回值正确", async () => {
+  it.sequential("【5】大量任务、递回不死锁 + 返回值正确", async () => {
     const kMass = generateKey("mass");
     const kRecur = generateKey("recur");
     const gMass = setupBlockingTask(kMass);
