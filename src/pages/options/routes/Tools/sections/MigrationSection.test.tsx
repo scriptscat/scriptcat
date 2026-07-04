@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 const { migrate } = vi.hoisted(() => ({ migrate: vi.fn() }));
 vi.mock("@App/app/migrate", () => ({ migrateToChromeStorage: migrate }));
@@ -15,9 +15,8 @@ describe("数据迁移分区", () => {
   it("确认后触发存储迁移", async () => {
     render(<MigrationSection register={() => () => {}} />);
     fireEvent.click(screen.getByTestId("retry_migration"));
-    await waitFor(() => expect(document.querySelectorAll("button").length).toBeGreaterThan(1));
-    const buttons = document.querySelectorAll("button");
-    fireEvent.click(buttons[buttons.length - 1]); // 气泡内确认按钮
-    await waitFor(() => expect(migrate).toHaveBeenCalled());
+    const confirm = await screen.findByTestId("popconfirm-confirm");
+    await act(async () => fireEvent.click(confirm));
+    expect(migrate).toHaveBeenCalled();
   });
 });

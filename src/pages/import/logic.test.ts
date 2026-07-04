@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { initLanguage } from "@App/locales/locales";
+import { describe, it, expect, beforeAll } from "vitest";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import type { ScriptData } from "@App/pkg/backup/struct";
@@ -15,6 +15,8 @@ import {
   type PreparedSubscribe,
   type ScriptImportItem,
 } from "./logic";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 function mkScript(p: Partial<Script>): Script {
   return {
@@ -162,7 +164,6 @@ describe("toScriptImportItem 脚本转视图模型", () => {
     expect(toScriptImportItem(mkScriptData({}), 0).iconUrl).toBe("");
   });
   it("脚本名优先取当前语言的本地化名称(@name:zh-CN)", () => {
-    initLanguage("zh-CN");
     const data = mkScriptData({ name: "Raw English Name" });
     data.script!.script.metadata["name:zh-cn"] = ["中文脚本名"];
     expect(toScriptImportItem(data, 0).name).toBe("中文脚本名");

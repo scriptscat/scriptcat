@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { act, render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { ChangeEvent, ReactNode } from "react";
 
 const { create, backupToCloud } = vi.hoisted(() => ({
@@ -111,9 +111,7 @@ describe("云端备份分区", () => {
 
     fireEvent.click(trigger);
 
-    await waitFor(() =>
-      expect(set).toHaveBeenCalledWith("backup", expect.objectContaining({ filesystem: "googledrive" }))
-    );
+    expect(set).toHaveBeenCalledWith("backup", expect.objectContaining({ filesystem: "googledrive" }));
     expect(backupToCloud).not.toHaveBeenCalled();
   });
 
@@ -124,11 +122,9 @@ describe("云端备份分区", () => {
 
     fireEvent.change(urlInput, { target: { value: "https://dav-new" } });
 
-    await waitFor(() =>
-      expect(set).toHaveBeenCalledWith(
-        "backup",
-        expect.objectContaining({ params: expect.objectContaining({ webdav: { url: "https://dav-new" } }) })
-      )
+    expect(set).toHaveBeenCalledWith(
+      "backup",
+      expect.objectContaining({ params: expect.objectContaining({ webdav: { url: "https://dav-new" } }) })
     );
     expect(backupToCloud).not.toHaveBeenCalled();
   });
@@ -183,9 +179,8 @@ describe("云端备份分区", () => {
     render(<CloudBackupSection register={() => () => {}} />);
     await openBackupList();
     fireEvent.click(await screen.findByTestId("tools_delete"));
-    await waitFor(() => expect(document.querySelectorAll("button").length).toBeGreaterThan(2));
-    const buttons = document.querySelectorAll("button");
-    await act(async () => fireEvent.click(buttons[buttons.length - 1])); // 气泡确认
+    const confirm = await screen.findByTestId("popconfirm-confirm");
+    await act(async () => fireEvent.click(confirm));
     expect(fsDir.delete).toHaveBeenCalledWith("a.zip");
     expect(screen.queryByText("a.zip")).not.toBeInTheDocument();
   });

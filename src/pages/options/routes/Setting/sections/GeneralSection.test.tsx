@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 
 const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
 vi.mock("@App/pages/store/global", async () => {
@@ -52,9 +52,7 @@ describe("通用分区-界面语言", () => {
     const helpOption = await screen.findByText("协助翻译");
     fireEvent.click(helpOption);
 
-    await waitFor(() => {
-      expect(openSpy).toHaveBeenCalledWith("https://github.com/scriptscat/scriptcat/discussions/531", "_blank");
-    });
+    expect(openSpy).toHaveBeenCalledWith("https://github.com/scriptscat/scriptcat/discussions/531", "_blank");
     // 协助翻译不应改变已存语言，也不应弹出语言切换提示
     expect(set).not.toHaveBeenCalled();
     expect(success).not.toHaveBeenCalled();
@@ -69,9 +67,7 @@ describe("通用分区-界面语言", () => {
     const enOption = await screen.findByText("English");
     fireEvent.click(enOption);
 
-    await waitFor(() => {
-      expect(set).toHaveBeenCalledWith("language", "en-US");
-    });
+    expect(set).toHaveBeenCalledWith("language", "en-US");
     expect(success).toHaveBeenCalledWith("语言切换成功");
   });
 });

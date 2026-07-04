@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { get, set } = vi.hoisted(() => ({
@@ -116,7 +116,7 @@ describe("开发者设置区", () => {
     fireEvent.click(typeDefinitionTab);
     fireEvent.keyDown(typeDefinitionTab, { key: "Enter" });
     const editor = await screen.findByTestId("editor_type_definition_editor");
-    await waitFor(() => expect(get).toHaveBeenCalledWith("editor_type_definition"));
+    expect(get).toHaveBeenCalledWith("editor_type_definition");
     fireEvent.change(editor, { target: { value: "declare const x: unknown;" } });
     fireEvent.blur(editor);
 
