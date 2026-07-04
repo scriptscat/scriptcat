@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { ModelFormDialog } from "./ModelFormDialog";
 import { getDefaultBaseUrl } from "./provider_api";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 function setup(props: Record<string, unknown> = {}) {

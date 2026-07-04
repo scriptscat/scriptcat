@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { setScriptValues } = vi.hoisted(() => ({ setScriptValues: vi.fn() }));
 vi.mock("@App/pages/store/features/script", () => ({
@@ -60,8 +61,9 @@ const renderPanel = (onOpenChange = vi.fn()) => {
   return onOpenChange;
 };
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
 });
 afterEach(cleanup);

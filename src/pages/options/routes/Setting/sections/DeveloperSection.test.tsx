@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
@@ -65,8 +65,9 @@ vi.mock("@App/pages/components/ui/slider", () => ({
 
 import { DeveloperSection } from "./DeveloperSection";
 
+beforeAll(() => initTestLanguage("en-US"));
+
 beforeEach(() => {
-  initTestLanguage("en-US");
   get.mockClear();
   set.mockClear();
 });

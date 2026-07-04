@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { requestDeleteSubscribe } from "@App/pages/store/features/subscribe";
 import type { SubscribeLoading } from "@App/pages/store/features/subscribe";
 
@@ -48,8 +49,9 @@ vi.mock("./SubscribeTable", () => ({
 
 import SubscribeList from "./index";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   mockSubscribeData.subscribeList = [];
   mockSubscribeData.setSubscribeList = vi.fn();
   mockSubscribeData.loadingList = false;

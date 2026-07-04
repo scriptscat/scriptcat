@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vitest";
 import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { CreateScriptMenu } from "./CreateScriptMenu";
 import * as filePicker from "./filePicker";
 
@@ -9,8 +9,8 @@ vi.mock("./filePicker", () => ({ pickScriptFiles: vi.fn(async () => []), pickSki
 vi.mock("./importHandler", () => ({ handleImportFiles: vi.fn(), handleImportUrls: vi.fn() }));
 
 afterEach(cleanup);
+beforeAll(() => initTestLanguage("zh-CN"));
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
 });
 

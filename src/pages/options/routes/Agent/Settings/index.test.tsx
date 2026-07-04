@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, waitFor, fireEvent } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
@@ -32,8 +33,9 @@ import AgentSettings from "./index";
 import { agentClient } from "@App/pages/store/features/script";
 import { notify } from "@App/pages/components/ui/toast";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   getSearchConfigMock.mockResolvedValue({ engine: "bing" });
   mockedUseIsMobile.mockReturnValue(false);
 });

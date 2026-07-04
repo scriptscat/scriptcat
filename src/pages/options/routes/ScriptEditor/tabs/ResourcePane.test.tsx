@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { act, cleanup, screen, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { notify } from "@App/pages/components/ui/toast";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
 
 // 资源数据走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
@@ -34,8 +35,9 @@ const sampleResources = () => ({
   },
 });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
   fetchScript.mockResolvedValue({ uuid: "u1", name: "脚本A" });
   getScriptResources.mockResolvedValue(sampleResources());

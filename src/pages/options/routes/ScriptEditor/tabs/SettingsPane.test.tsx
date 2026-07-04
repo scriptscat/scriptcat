@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
 
 // 脚本/授权数据走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
@@ -45,9 +46,7 @@ const samplePermissions = () => [
   { uuid: "u1", permission: "cookie", permissionValue: "b.com", allow: false, createtime: 2, updatetime: 0 },
 ];
 
-beforeAll(() => {
-  initLanguage("zh-CN");
-});
+beforeAll(() => initTestLanguage("zh-CN"));
 
 beforeEach(() => {
   vi.clearAllMocks();

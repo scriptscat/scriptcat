@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { act, cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -32,8 +32,9 @@ import {
   UpdateTimeCell,
 } from "./components";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initTestLanguage("zh-CN");
   vi.clearAllMocks();
 });
 afterEach(cleanup);

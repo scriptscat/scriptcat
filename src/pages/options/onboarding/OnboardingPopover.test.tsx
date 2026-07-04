@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { TourStep } from "./types";
@@ -32,8 +32,9 @@ vi.mock("./OnboardingProvider", () => ({
 
 import { OnboardingPopover } from "./OnboardingPopover";
 
+beforeAll(() => initTestLanguage("en-US"));
+
 beforeEach(() => {
-  initTestLanguage("en-US");
   stepIndex = 0;
   next.mockReset();
   prev.mockReset();

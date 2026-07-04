@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, waitFor } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 const { listTasksMock } = vi.hoisted(() => ({ listTasksMock: vi.fn() }));
@@ -34,8 +35,9 @@ const sampleTask = {
   updatetime: 0,
 };
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   (useIsMobile as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
   listTasksMock.mockResolvedValue([sampleTask]);
 });

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 
 // 授权数据走后台消息，统一打桩
@@ -39,8 +39,9 @@ const baseInfo = (over: Partial<ConfirmParam> = {}, likeNum = 0) => ({
   likeNum,
 });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
   vi.spyOn(window, "close").mockImplementation(() => {});
   confirm.mockResolvedValue(undefined);

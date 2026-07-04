@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, waitFor, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
@@ -61,8 +61,9 @@ function writableFor(name: string, children: Record<string, any>): any {
 
 let root: any;
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   mockedUseIsMobile.mockReturnValue(false);
   root = dirHandle("root", {
     "file1.txt": fileHandle("file1.txt", "hi"),

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { synchronizeClient, pinToTop } from "@App/pages/store/features/script";
 
 // 列表数据 Hook 整体打桩，返回带 sort 的脚本，便于校验批量操作的排序
@@ -64,8 +64,9 @@ vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false
 
 import ScriptList from "./index";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
 });
 

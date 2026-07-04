@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 import BatchActionsBar from "./BatchActionsBar";
 
@@ -21,8 +22,9 @@ const renderBar = (over: Partial<React.ComponentProps<typeof BatchActionsBar>> =
     />
   );
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
 });
 afterEach(cleanup);

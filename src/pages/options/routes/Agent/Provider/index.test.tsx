@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, waitFor, fireEvent } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { agentClient } from "@App/pages/store/features/script";
 
 let mobile = false;
@@ -20,9 +21,10 @@ vi.mock("@App/pages/store/features/script", () => ({
 
 import AgentProvider from "./index";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
   mobile = false;
-  initLanguage("zh-CN");
 });
 afterEach(() => cleanup());
 

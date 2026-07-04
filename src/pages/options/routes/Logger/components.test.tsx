@@ -1,11 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { Calendar, RefreshControl, TimeRangePicker } from "./components";
 
-beforeEach(() => {
-  initLanguage("zh-CN");
-});
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 describe("自动刷新控件 RefreshControl", () => {

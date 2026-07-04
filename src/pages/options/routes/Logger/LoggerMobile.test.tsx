@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import type { Logger as LoggerEntry } from "@App/app/repo/logger";
 
@@ -56,8 +57,9 @@ import Logger from "./index";
 const mockedUseIsMobile = vi.mocked(useIsMobile);
 const renderPage = () => render(<Logger />, { wrapper: MemoryRouter });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   mockLoggerData.logs = sampleLogs;
   mockedUseIsMobile.mockReturnValue(true);
   vi.clearAllMocks();

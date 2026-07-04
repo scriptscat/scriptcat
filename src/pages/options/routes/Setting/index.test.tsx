@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
@@ -28,8 +28,9 @@ vi.mock("./sections/DeveloperMonacoEditor", () => ({
 }));
 import Setting from "./index";
 
+beforeAll(() => initTestLanguage("en-US"));
+
 beforeEach(() => {
-  initTestLanguage("en-US");
   mockMatchMedia();
   mockIntersectionObserver();
 });

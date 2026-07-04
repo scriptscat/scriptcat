@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import type { SkillSummary } from "@App/app/service/agent/core/types";
 
@@ -47,11 +47,12 @@ const skill = (over: Partial<SkillSummary> = {}): SkillSummary => ({
   ...over,
 });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
   state.skills = [];
   vi.clearAllMocks();
   vi.mocked(useIsMobile).mockReturnValue(false);
-  initLanguage("zh-CN");
   loadSkillDetail.mockResolvedValue({
     record: {
       name: "翻译助手",

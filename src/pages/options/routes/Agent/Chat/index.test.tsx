@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Conversation } from "@App/app/service/agent/core/types";
 
 // index 是组合外壳：mock 重型子组件与数据 hooks，仅验证布局/折叠/移动端视图切换。
@@ -48,8 +48,9 @@ const conv = (id: string, title: string): Conversation => ({
   updatetime: 1,
 });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   state.isMobile = false;
   state.conversations = [];
   state.activeId = "";

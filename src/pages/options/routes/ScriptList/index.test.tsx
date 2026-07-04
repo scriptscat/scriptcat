@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { requestDeleteScripts } from "@App/pages/store/features/script";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
@@ -81,8 +82,9 @@ import ScriptList from "./index";
 import { invalidateUserConfig, preloadUserConfig } from "./preload";
 import { SCRIPT_LIST_PREFERENCES_KEY, SCRIPT_LIST_VIEW_MODE_KEY } from "./preferences";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   mockScriptData.scriptList = [];
   mockScriptData.setScriptList = vi.fn();
   mockScriptData.loadingList = false;

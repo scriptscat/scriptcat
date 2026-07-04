@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Logger as LoggerEntry } from "@App/app/repo/logger";
 
 // 数据 Hook 涉及 IndexedDB 读取，测试中整体打桩；返回稳定引用避免无限重渲染。
@@ -51,8 +52,9 @@ import Logger from "./index";
 
 const renderPage = () => render(<Logger />, { wrapper: MemoryRouter });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   mockLoggerData.logs = sampleLogs;
   mockLoggerData.clearLogs = vi.fn(() => Promise.resolve());
   vi.clearAllMocks();
