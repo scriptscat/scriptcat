@@ -85,16 +85,16 @@ describe("开发者设置区", () => {
   it("应使用标签页切换编辑器配置与类型定义", async () => {
     render(<DeveloperSection register={() => () => {}} />);
 
-    const editorConfigTab = screen.getByRole("tab", { name: "Editor Configuration" });
+    const editorConfigTab = screen.getByText("Editor Configuration").closest('[role="tab"]')!;
     fireEvent.pointerDown(editorConfigTab, { button: 0, ctrlKey: false });
     fireEvent.pointerUp(editorConfigTab, { button: 0, ctrlKey: false });
     fireEvent.click(editorConfigTab);
     fireEvent.keyDown(editorConfigTab, { key: "Enter" });
     await screen.findByTestId("editor_config_editor");
-    const link = screen.getByRole("link", { name: "jsconfig.js" });
+    const link = screen.getByText("jsconfig.js").closest("a")!;
     expect(link).toHaveAttribute("href", "https://code.visualstudio.com/docs/languages/jsconfig");
 
-    const typeDefinitionTab = screen.getByRole("tab", { name: "Editor Type Definition" });
+    const typeDefinitionTab = screen.getByText("Editor Type Definition").closest('[role="tab"]')!;
     fireEvent.pointerDown(typeDefinitionTab, { button: 0, ctrlKey: false });
     fireEvent.pointerUp(typeDefinitionTab, { button: 0, ctrlKey: false });
     fireEvent.click(typeDefinitionTab);
@@ -110,7 +110,7 @@ describe("开发者设置区", () => {
   it("编辑器类型定义失焦时写入 editor_type_definition", async () => {
     render(<DeveloperSection register={() => () => {}} />);
 
-    const typeDefinitionTab = screen.getByRole("tab", { name: "Editor Type Definition" });
+    const typeDefinitionTab = screen.getByText("Editor Type Definition").closest('[role="tab"]')!;
     fireEvent.pointerDown(typeDefinitionTab, { button: 0, ctrlKey: false });
     fireEvent.pointerUp(typeDefinitionTab, { button: 0, ctrlKey: false });
     fireEvent.click(typeDefinitionTab);
@@ -126,7 +126,7 @@ describe("开发者设置区", () => {
   it("编辑器配置应包含常用 Monaco 偏好并保存修改", async () => {
     render(<DeveloperSection register={() => () => {}} />);
 
-    const editorConfigTab = screen.getByRole("tab", { name: "Editor Configuration" });
+    const editorConfigTab = screen.getByText("Editor Configuration").closest('[role="tab"]')!;
     fireEvent.pointerDown(editorConfigTab, { button: 0, ctrlKey: false });
     fireEvent.pointerUp(editorConfigTab, { button: 0, ctrlKey: false });
     fireEvent.click(editorConfigTab);
@@ -150,7 +150,7 @@ describe("开发者设置区", () => {
       smoothScrolling: true,
     });
 
-    fireEvent.click(screen.getByRole("switch", { name: "Smooth Scrolling" }));
+    fireEvent.click(screen.getByLabelText("Smooth Scrolling"));
     expect(set).toHaveBeenLastCalledWith("editor_preferences", {
       version: 1,
       fontSize: 16,

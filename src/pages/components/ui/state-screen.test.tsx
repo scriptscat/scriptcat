@@ -16,10 +16,10 @@ describe("StateScreen 状态屏", () => {
       />
     );
 
-    expect(screen.getByRole("status")).toHaveAttribute("aria-label", "处理完成");
+    expect(document.querySelector('[role="status"]')).toHaveAttribute("aria-label", "处理完成");
     expect(screen.getByText("处理完成")).toBeInTheDocument();
     expect(screen.getByText("已导入 3 项")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "继续" })).toBeInTheDocument();
+    expect(screen.getByText("继续").closest("button")).toBeInTheDocument();
     expect(document.querySelector("svg")).toHaveClass("opacity-80");
   });
 

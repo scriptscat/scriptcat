@@ -67,7 +67,7 @@ describe("巡览步骤卡", () => {
 
   it("气泡根元素应可聚焦（tabIndex -1）", () => {
     render(<OnboardingPopover />);
-    const dialog = screen.getByRole("dialog");
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog).toHaveAttribute("tabindex", "-1");
   });
 
@@ -93,7 +93,7 @@ describe("巡览步骤卡", () => {
     steps[0] = { ...orig, target: "reposition-target", placement: "bottom" };
     try {
       render(<OnboardingPopover />);
-      const dialog = screen.getByRole("dialog");
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
       expect(dialog.style.left).toBe("100px");
       // 目标移动后触发 resize，气泡应跟随到新位置
       rect = makeRect(300);

@@ -15,15 +15,15 @@ describe("BackgroundPrompt 后台权限弹窗", () => {
   it("open 时渲染标题、说明与按钮", () => {
     render(<BackgroundPrompt open scriptType="后台脚本" onResult={() => {}} />);
     expect(screen.getByText("是否开启后台运行？")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "立即启用" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "暂不启用" })).toBeInTheDocument();
+    expect(screen.getByText("立即启用").closest("button")).toBeInTheDocument();
+    expect(screen.getByText("暂不启用").closest("button")).toBeInTheDocument();
   });
 
   it("点击立即启用请求 background 权限并回调结果,记录已展示", async () => {
     const req = vi.spyOn(chrome.permissions, "request");
     const onResult = vi.fn();
     render(<BackgroundPrompt open scriptType="后台脚本" onResult={onResult} />);
-    fireEvent.click(screen.getByRole("button", { name: "立即启用" }));
+    fireEvent.click(screen.getByText("立即启用").closest("button")!);
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
     expect(req).toHaveBeenCalledWith({ permissions: ["background"] });
     expect(localStorage.getItem(backgroundPromptShownKey)).toBe("true");
@@ -32,7 +32,7 @@ describe("BackgroundPrompt 后台权限弹窗", () => {
   it("点击暂不启用回调 false 且记录已展示", () => {
     const onResult = vi.fn();
     render(<BackgroundPrompt open scriptType="后台脚本" onResult={onResult} />);
-    fireEvent.click(screen.getByRole("button", { name: "暂不启用" }));
+    fireEvent.click(screen.getByText("暂不启用").closest("button")!);
     expect(onResult).toHaveBeenCalledWith(false);
     expect(localStorage.getItem(backgroundPromptShownKey)).toBe("true");
   });

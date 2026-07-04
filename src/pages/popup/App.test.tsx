@@ -116,7 +116,7 @@ describe("Popup 脚本列表展开/收起", () => {
 
     render(<App />);
 
-    const collapseBtn = screen.getByRole("button", { name: /收起/ });
+    const collapseBtn = screen.getByText(/收起/).closest("button")!;
     expect(collapseBtn).toBeInTheDocument();
 
     fireEvent.click(collapseBtn);
@@ -134,7 +134,7 @@ describe("Popup 脚本列表展开/收起", () => {
     render(<App />);
 
     expect(screen.getByText(/12/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /收起/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/收起/)).not.toBeInTheDocument();
   });
 
   it("当前页脚本不超过上限时，不显示展开/收起按钮", () => {
@@ -147,7 +147,7 @@ describe("Popup 脚本列表展开/收起", () => {
 
     render(<App />);
 
-    expect(screen.queryByRole("button", { name: /收起/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/收起/)).not.toBeInTheDocument();
   });
 });
 
@@ -210,7 +210,7 @@ describe("Popup GM 菜单项 tooltip", () => {
 
     render(<App />);
 
-    const btn = screen.getByRole("button", { name: "菜单命令" });
+    const btn = screen.getByText("菜单命令").closest("button")!;
     expect(btn).toHaveAttribute("title", "这是提示");
   });
 });
@@ -226,7 +226,7 @@ describe("Popup 禁用脚本操作项样式", () => {
 
     render(<App />);
 
-    const btn = screen.getByRole("button", { name: "用户配置" });
+    const btn = screen.getByText("用户配置").closest("button")!;
     expect(cls(btn)).toMatch(/\btext-muted-foreground\b/);
   });
 });
@@ -250,7 +250,7 @@ describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）"
     });
 
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "输入命令" }));
+    fireEvent.click(screen.getByText("输入命令").closest("button")!);
 
     expect(handleMenuClick).toHaveBeenCalledWith("u1", [menu], "默认值");
   });
@@ -274,11 +274,11 @@ describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）"
 
     render(<App />);
     // 行内有「脚本启用开关」与「布尔菜单开关」，后者位于菜单区（DOM 中靠后）
-    const switches = screen.getAllByRole("switch");
+    const switches = document.querySelectorAll<HTMLElement>('[role="switch"]');
     fireEvent.click(switches[switches.length - 1]);
     expect(handleMenuClick).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "开关命令" }));
+    fireEvent.click(screen.getByText("开关命令").closest("button")!);
     expect(handleMenuClick).toHaveBeenCalledTimes(1);
     expect(handleMenuClick).toHaveBeenCalledWith("u1", [menu], true);
   });
@@ -304,7 +304,7 @@ describe("Popup 页脚版本号可达性", () => {
     });
 
     render(<App />);
-    const btn = screen.getByRole("button", { name: /^v/ });
+    const btn = screen.getByText(/^v/).closest("button")!;
     expect(btn.tagName).toBe("BUTTON");
     expect(cls(btn)).toMatch(/focus-visible:ring-2/);
 
@@ -319,7 +319,7 @@ describe("Popup 页脚版本号可达性", () => {
     });
 
     render(<App />);
-    const btn = screen.getByRole("button", { name: /^v/ });
+    const btn = screen.getByText(/^v/).closest("button")!;
     expect(btn.tagName).toBe("BUTTON");
     expect(cls(btn)).toMatch(/focus-visible:ring-2/);
   });
@@ -333,7 +333,7 @@ describe("Popup 页脚版本号可达性", () => {
     });
 
     render(<App />);
-    const btn = screen.getByRole("button", { name: t("script:latest_version") });
+    const btn = screen.getByText(t("script:latest_version")).closest("button")!;
     expect(btn.tagName).toBe("BUTTON");
     expect(cls(btn)).toMatch(/focus-visible:ring-2/);
 

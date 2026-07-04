@@ -183,8 +183,8 @@ describe("云端备份分区", () => {
     render(<CloudBackupSection register={() => () => {}} />);
     await openBackupList();
     fireEvent.click(await screen.findByTestId("tools_delete"));
-    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThan(2));
-    const buttons = screen.getAllByRole("button");
+    await waitFor(() => expect(document.querySelectorAll("button").length).toBeGreaterThan(2));
+    const buttons = document.querySelectorAll("button");
     fireEvent.click(buttons[buttons.length - 1]); // 气泡确认
     await waitFor(() => expect(fsDir.delete).toHaveBeenCalledWith("a.zip"));
     await waitFor(() => expect(screen.queryByText("a.zip")).not.toBeInTheDocument());

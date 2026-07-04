@@ -185,7 +185,7 @@ describe("脚本列表用户配置弹窗", () => {
 
     expect(await screen.findByText("TestScript")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:cancel") }));
+    fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" }));
 
     await waitFor(() => expect(screen.queryByText("TestScript")).toBeNull());
   });

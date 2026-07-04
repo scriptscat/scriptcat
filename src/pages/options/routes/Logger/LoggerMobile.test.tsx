@@ -71,8 +71,8 @@ afterEach(() => cleanup());
 describe("日志页面 - 移动端", () => {
   it("移动端顶栏的删除/清空按钮以图标按钮呈现(带无障碍名,不显示文字标签)", () => {
     renderPage();
-    const del = screen.getByRole("button", { name: t("logs:delete_current_logs") });
-    const clear = screen.getByRole("button", { name: t("logs:clear_logs") });
+    const del = screen.getByLabelText(t("logs:delete_current_logs"));
+    const clear = screen.getByLabelText(t("logs:clear_logs"));
     // 图标按钮:可见文本里不再包含完整中文标签
     expect(del.textContent).not.toContain(t("logs:delete_current_logs"));
     expect(clear.textContent).not.toContain(t("logs:clear_logs"));

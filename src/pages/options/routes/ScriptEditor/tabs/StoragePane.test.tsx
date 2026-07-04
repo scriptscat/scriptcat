@@ -119,7 +119,7 @@ describe("StoragePane 储存面板", () => {
   it("删除应以 undefined 调用 setScriptValue 并移除该行", async () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("token");
-    fireEvent.click(screen.getAllByRole("button", { name: t("delete") })[0]);
+    fireEvent.click(screen.getAllByLabelText(t("delete"))[0]);
     await waitFor(() =>
       expect(setScriptValue).toHaveBeenCalledWith(expect.objectContaining({ key: "token", value: undefined }))
     );
@@ -156,7 +156,7 @@ describe("StoragePane 储存面板", () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("config");
 
-    fireEvent.click(screen.getAllByRole("button", { name: t("edit") })[3]);
+    fireEvent.click(screen.getAllByLabelText(t("edit"))[3]);
 
     const editor = screen.getByTestId("storage-value-monaco-editor");
     expect(editor).toHaveAttribute("data-language", "json");
@@ -166,8 +166,8 @@ describe("StoragePane 储存面板", () => {
   it("清空应以 isReplace 空键值对调用 setScriptValues 并清空列表", async () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("token");
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("clear")) }));
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByText(t("clear"), { selector: "button" }));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
     await waitFor(() =>
       expect(setScriptValues).toHaveBeenCalledWith(expect.objectContaining({ isReplace: true, keyValuePairs: [] }))
     );
@@ -177,12 +177,12 @@ describe("StoragePane 储存面板", () => {
   it("批量编辑：进入 JSON 模式展示数据，保存以 isReplace 调用 setScriptValues", async () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText("token");
-    fireEvent.click(screen.getByRole("button", { name: t("editor:batch_edit") }));
+    fireEvent.click(screen.getByText(t("editor:batch_edit"), { selector: "button" }));
     const editor = screen.getByTestId("storage-batch-monaco-editor");
     expect(editor).toHaveAttribute("data-language", "json");
     expect((editor as HTMLTextAreaElement).value).toContain("token");
     fireEvent.change(editor, { target: { value: '{"onlyKey": 1}' } });
-    fireEvent.click(screen.getByRole("button", { name: t("save") }));
+    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
     await waitFor(() => expect(setScriptValues).toHaveBeenCalledWith(expect.objectContaining({ isReplace: true })));
   });
 
@@ -191,12 +191,12 @@ describe("StoragePane 储存面板", () => {
     render(<StoragePane uuid="u1" />);
     await screen.findByText(t("no_data"));
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:batch_edit") }));
+    fireEvent.click(screen.getByText(t("editor:batch_edit"), { selector: "button" }));
     const editor = screen.getByTestId("storage-batch-monaco-editor");
     expect((editor as HTMLTextAreaElement).value).toBe("{}");
 
     fireEvent.change(editor, { target: { value: '{"newKey": "hello"}' } });
-    fireEvent.click(screen.getByRole("button", { name: t("save") }));
+    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
 
     await waitFor(() =>
       expect(setScriptValues).toHaveBeenCalledWith(

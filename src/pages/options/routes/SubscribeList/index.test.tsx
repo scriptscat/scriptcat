@@ -79,7 +79,7 @@ describe("订阅列表删除二次确认", () => {
     fireEvent.click(screen.getByText("trigger-delete"));
     await screen.findByText(t("confirm_delete"));
 
-    fireEvent.click(screen.getByRole("button", { name: t("delete") }));
+    fireEvent.click(screen.getByText(t("delete"), { selector: "button" }));
 
     await waitFor(() => expect(requestDeleteSubscribe).toHaveBeenCalledWith("https://example.com/a.user.sub.js"));
   });
@@ -89,7 +89,7 @@ describe("订阅列表删除二次确认", () => {
     fireEvent.click(screen.getByText("trigger-delete"));
     await screen.findByText(t("confirm_delete"));
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:cancel") }));
+    fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" }));
 
     await waitFor(() => expect(screen.queryByText(t("confirm_delete"))).toBeNull());
     expect(requestDeleteSubscribe).not.toHaveBeenCalled();

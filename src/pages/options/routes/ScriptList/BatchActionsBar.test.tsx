@@ -32,7 +32,7 @@ afterEach(cleanup);
 describe("BatchActionsBar 批量删除二次确认", () => {
   it("批量删除触发器为带 aria-haspopup 的真实按钮（trigger 属性透传到 BatchBtn 内层按钮）", () => {
     renderBar({});
-    const trigger = screen.getByRole("button", { name: t("delete") });
+    const trigger = screen.getByText(t("delete"), { selector: "button" });
     expect(trigger.tagName).toBe("BUTTON");
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
   });
@@ -41,7 +41,7 @@ describe("BatchActionsBar 批量删除二次确认", () => {
     const onBatchDelete = vi.fn();
     renderBar({ onBatchDelete });
 
-    const trigger = screen.getByRole("button", { name: t("delete") });
+    const trigger = screen.getByText(t("delete"), { selector: "button" });
     fireEvent.click(trigger);
 
     expect(await screen.findByText(t("script:confirm_delete_scripts_content", { count: 3 }))).toBeInTheDocument();
@@ -52,11 +52,11 @@ describe("BatchActionsBar 批量删除二次确认", () => {
     const onBatchDelete = vi.fn();
     renderBar({ onBatchDelete });
 
-    const trigger = screen.getByRole("button", { name: t("delete") });
+    const trigger = screen.getByText(t("delete"), { selector: "button" });
     fireEvent.click(trigger);
     await screen.findByText(t("script:confirm_delete_scripts_content", { count: 3 }));
 
-    const confirmBtn = screen.getAllByRole("button", { name: t("delete") }).find((b) => b !== trigger)!;
+    const confirmBtn = screen.getAllByText(t("delete"), { selector: "button" }).find((b) => b !== trigger)!;
     fireEvent.click(confirmBtn);
     expect(onBatchDelete).toHaveBeenCalledTimes(1);
   });

@@ -53,47 +53,47 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
 
   it("文件 → 保存 应回调 onSave", async () => {
     const props = baseProps();
-    const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
+    const { getByLabelText, getByText } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
     await openSub(getByText("文件"));
-    fireEvent.click(getByRole("menuitem", { name: /保存/ }));
+    fireEvent.click(getByText("保存").closest('[role="menuitem"]')!);
     expect(props.onSave).toHaveBeenCalledOnce();
   });
 
   it("文件 → 另存为 应回调 onSaveAs", async () => {
     const props = baseProps();
-    const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
+    const { getByLabelText, getByText } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
     await openSub(getByText("文件"));
-    fireEvent.click(getByRole("menuitem", { name: /另存为/ }));
+    fireEvent.click(getByText("另存为").closest('[role="menuitem"]')!);
     expect(props.onSaveAs).toHaveBeenCalledOnce();
   });
 
   it("编辑 → 撤销 应回调 onCommand('undo')", async () => {
     const props = baseProps();
-    const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
+    const { getByLabelText, getByText } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
     await openSub(getByText("编辑"));
-    fireEvent.click(getByRole("menuitem", { name: /撤销/ }));
+    fireEvent.click(getByText("撤销").closest('[role="menuitem"]')!);
     expect(props.onCommand).toHaveBeenCalledWith("undo");
   });
 
   it("编辑 → 格式化 应回调 onCommand('format')", async () => {
     const props = baseProps();
-    const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
+    const { getByLabelText, getByText } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
     await openSub(getByText("编辑"));
-    fireEvent.click(getByRole("menuitem", { name: /格式化/ }));
+    fireEvent.click(getByText("格式化").closest('[role="menuitem"]')!);
     expect(props.onCommand).toHaveBeenCalledWith("format");
   });
 
   it("运行 → 运行 应回调 onRun", async () => {
     const props = baseProps();
-    const { getByLabelText, getByText, getByRole } = render(<EditorToolbar {...props} />);
+    const { getByLabelText, getByText } = render(<EditorToolbar {...props} />);
     await openRoot(getByLabelText("更多"));
     await openSub(getByText("运行"));
     // 子触发器与运行项同名「运行」，用快捷键文本定位二级菜单里的运行项
-    fireEvent.click(getByRole("menuitem", { name: /Ctrl\+F5/ }));
+    fireEvent.click(getByText("Ctrl+F5").closest('[role="menuitem"]')!);
     expect(props.onRun).toHaveBeenCalledOnce();
   });
 

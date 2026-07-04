@@ -18,6 +18,6 @@ describe("PreviewDialog 文件预览", () => {
 
   it("图片类型渲染 img", () => {
     render(<PreviewDialog open name="x.png" kind="img" imageUrl="blob:abc" onOpenChange={() => {}} />);
-    expect(screen.getByRole("img")).toHaveAttribute("src", "blob:abc");
+    expect(document.querySelector("img")).toHaveAttribute("src", "blob:abc");
   });
 });

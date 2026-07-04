@@ -119,13 +119,13 @@ describe("SettingsPane 基本信息", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("alpha");
     expect(screen.getByText("u1")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: t("copy") })).toBeInTheDocument();
+    expect(screen.getByLabelText(t("copy"))).toBeInTheDocument();
   });
 
   it("删除标签应以剩余标签调用 updateMetadata", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("alpha");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} alpha` }));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} alpha`));
     await waitFor(() => expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["beta"]));
   });
 

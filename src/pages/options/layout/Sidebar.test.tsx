@@ -60,10 +60,10 @@ describe("Sidebar 侧边栏 AI Agent 菜单", () => {
 
 describe("Sidebar 帮助中心", () => {
   it("悬浮帮助中心后点「新手引导」应调用 start", () => {
-    const { getByText, getByRole } = renderSidebar();
+    const { getByText } = renderSidebar();
     // 帮助中心为 hover 触发的二级菜单（useHoverMenu），用 mouseEnter 打开
     fireEvent.mouseEnter(getByText(t("helpcenter")).closest("button")!);
-    fireEvent.click(getByRole("menuitem", { name: t("guide:title") }));
+    fireEvent.click(getByText(t("guide:title")).closest('[role="menuitem"]')!);
     expect(start).toHaveBeenCalled();
   });
 });

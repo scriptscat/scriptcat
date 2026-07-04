@@ -79,8 +79,8 @@ describe("AgentProvider 页面", () => {
     await waitFor(() => expect(nameInput.value).toContain("GPT-4o"));
     expect(nameInput.value).not.toBe("GPT-4o");
     // 弹窗以「新增」模式打开(对话框标题为新增,而非编辑)
-    expect(screen.getByRole("dialog")).toHaveTextContent(t("agent:model_add"));
-    expect(screen.getByRole("dialog")).not.toHaveTextContent(t("agent:model_edit"));
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent(t("agent:model_add"));
+    expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent(t("agent:model_edit"));
   });
 
   it("复制后提交:作为新条目保存(全新 id,不覆盖源模型),携带预填值", async () => {

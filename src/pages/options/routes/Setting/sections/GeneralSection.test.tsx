@@ -48,7 +48,7 @@ describe("通用分区-界面语言", () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     render(<GeneralSection register={() => () => {}} />);
 
-    fireEvent.click(await screen.findByRole("combobox"));
+    fireEvent.click((await screen.findByText("简体中文")).closest("button")!);
     const helpOption = await screen.findByText("协助翻译");
     fireEvent.click(helpOption);
 
@@ -65,7 +65,7 @@ describe("通用分区-界面语言", () => {
     get.mockResolvedValue("zh-CN");
     render(<GeneralSection register={() => () => {}} />);
 
-    fireEvent.click(await screen.findByRole("combobox"));
+    fireEvent.click((await screen.findByText("简体中文")).closest("button")!);
     const enOption = await screen.findByText("English");
     fireEvent.click(enOption);
 

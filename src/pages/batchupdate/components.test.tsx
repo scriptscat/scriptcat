@@ -60,12 +60,12 @@ afterEach(cleanup);
 describe("批量更新桌面视图 检查中反馈", () => {
   it("检查中时显示顶部进度条", () => {
     renderDesktop({ checking: true });
-    expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(document.querySelector('[role="progressbar"]')).toBeTruthy();
   });
 
   it("未检查时不显示顶部进度条", () => {
     renderDesktop({ checking: false });
-    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(document.querySelector('[role="progressbar"]')).toBeNull();
   });
 
   it("列表为空且检查中时显示骨架而非空状态", () => {
@@ -91,7 +91,7 @@ describe("批量更新桌面视图 检查中反馈", () => {
 describe("批量更新移动视图 检查中反馈", () => {
   it("检查中时显示顶部进度条", () => {
     renderMobile({ checking: true });
-    expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(document.querySelector('[role="progressbar"]')).toBeTruthy();
   });
 
   it("列表为空且检查中时显示骨架而非空状态", () => {

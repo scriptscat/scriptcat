@@ -103,8 +103,8 @@ describe("文件系统参数表单", () => {
     const unbind = await screen.findByTestId("netdisk_unbind");
     fireEvent.click(unbind);
     // 弹出确认气泡后点击确认按钮（气泡内最后一个按钮）
-    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThan(1));
-    const buttons = screen.getAllByRole("button");
+    await waitFor(() => expect(document.querySelectorAll("button").length).toBeGreaterThan(1));
+    const buttons = document.querySelectorAll("button");
     fireEvent.click(buttons[buttons.length - 1]);
     await waitFor(() => expect(clearNetDiskToken).toHaveBeenCalledWith("baidu"));
   });

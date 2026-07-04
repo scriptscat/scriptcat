@@ -15,8 +15,8 @@ describe("数据迁移分区", () => {
   it("确认后触发存储迁移", async () => {
     render(<MigrationSection register={() => () => {}} />);
     fireEvent.click(screen.getByTestId("retry_migration"));
-    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThan(1));
-    const buttons = screen.getAllByRole("button");
+    await waitFor(() => expect(document.querySelectorAll("button").length).toBeGreaterThan(1));
+    const buttons = document.querySelectorAll("button");
     fireEvent.click(buttons[buttons.length - 1]); // 气泡内确认按钮
     await waitFor(() => expect(migrate).toHaveBeenCalled());
   });

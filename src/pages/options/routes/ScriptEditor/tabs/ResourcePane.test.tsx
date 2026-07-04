@@ -62,7 +62,7 @@ describe("ResourcePane 资源面板", () => {
   it("行内删除应二次确认后才调用 deleteResource 并移除该行", async () => {
     render(<ResourcePane uuid="u1" />);
     await screen.findByText("jquery.min.js");
-    const delButtons = screen.getAllByRole("button", { name: t("delete") });
+    const delButtons = screen.getAllByLabelText(t("delete"));
     fireEvent.click(delButtons[0]);
     // 点击删除按钮仅弹出确认气泡，未确认前不应删除
     expect(deleteResource).not.toHaveBeenCalled();
@@ -75,8 +75,8 @@ describe("ResourcePane 资源面板", () => {
   it("清空应对每个资源调用删除并清空列表", async () => {
     render(<ResourcePane uuid="u1" />);
     await screen.findByText("jquery.min.js");
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("clear")) }));
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByText(t("clear"), { selector: "button" }));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
     await waitFor(() => expect(deleteResource).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByText(t("no_data"))).toBeInTheDocument());
   });

@@ -144,10 +144,10 @@ describe("ScriptTable 英文列头布局", () => {
     initTestLanguage("zh-CN");
     renderTable([mk("a", "Apple", 10)]);
 
-    expect(screen.getByRole("button", { name: t("script:script_list.sidebar.status") })).toHaveClass("justify-center");
+    expect(screen.getByText(t("script:script_list.sidebar.status")).closest("button")).toHaveClass("justify-center");
     expect(document.querySelector('[data-tour="col-enable"]')).toHaveClass("text-center");
 
-    const switchColumn = screen.getByRole("switch").parentElement;
+    const switchColumn = document.querySelector('[role="switch"]')!.parentElement;
     expect(switchColumn).toHaveClass("w-16", "flex");
     expect(switchColumn).not.toHaveClass("justify-center");
   });

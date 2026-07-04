@@ -88,7 +88,7 @@ describe("日志页面", () => {
   it("点击清空日志先弹出确认，确认前不调用 clearLogs", async () => {
     renderPage();
     expect(mockLoggerData.clearLogs).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: t("logs:clear_logs") }));
+    fireEvent.click(screen.getByText(t("logs:clear_logs")).closest("button")!);
     expect(await screen.findByText(t("logs:clear_logs_confirm"))).toBeTruthy();
     expect(mockLoggerData.clearLogs).not.toHaveBeenCalled();
   });
