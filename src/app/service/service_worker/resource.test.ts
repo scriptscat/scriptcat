@@ -365,10 +365,9 @@ describe("ResourceService - getResourceByTypes", () => {
     vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
     const updateSpy = vi.spyOn(service, "updateResource").mockResolvedValue(freshResource);
 
-    const [res] = await service.getResourceByTypes(
-      normalScript("script-1", { resource: [`data ${url}`] }),
-      ["resource"]
-    );
+    const [res] = await service.getResourceByTypes(normalScript("script-1", { resource: [`data ${url}`] }), [
+      "resource",
+    ]);
 
     expect(updateSpy).toHaveBeenCalledWith("script-1", expect.objectContaining({ url }), "resource", oldResource);
     expect(res.data).toBe(freshResource);
