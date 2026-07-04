@@ -271,7 +271,7 @@ export class Runtime {
         const cron = createCronJob({
           cronTime: cronExpr,
           onTick,
-          start: false, // 不使用 start: true。下面手動執行。
+          start: false, // 不使用 start: true。下面手动执行。
         });
         ok = 6;
         cron.start();
