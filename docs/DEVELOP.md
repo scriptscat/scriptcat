@@ -147,14 +147,14 @@ Conversely, keep these — they look thin but carry real value:
   breakdown, for example:
 
 ```bash
-pnpm exec vitest run --test-timeout=620 --no-coverage --reporter=verbose src/pkg/utils/url-utils.test.ts
+pnpm exec vitest run --test-timeout=340 --no-coverage --reporter=verbose src/pkg/utils/url-utils.test.ts
 ```
 
 To inventory slow TSX tests without relying on console ordering, write Vitest's JSON report outside the repository
 and sort individual assertions by duration:
 
 ```bash
-rg --files -g '*.test.tsx' | xargs pnpm exec vitest run --test-timeout=620 --no-coverage \
+rg --files -g '*.test.tsx' | xargs pnpm exec vitest run --test-timeout=340 --no-coverage \
   --reporter=json --outputFile=/tmp/scriptcat-tsx-tests.json
 jq -r '.testResults[] | .name as $file | .assertionResults[] | [.duration, $file, .fullName] | @tsv' \
   /tmp/scriptcat-tsx-tests.json | sort -nr | head -20
