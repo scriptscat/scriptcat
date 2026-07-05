@@ -15,6 +15,10 @@ function getProxyOptions() {
   return proxy ? { proxy: { server: proxy } } : {};
 }
 
+function getRecordVideoOptions() {
+  return process.env.E2E_RECORD_VIDEO_DIR ? { recordVideo: { dir: process.env.E2E_RECORD_VIDEO_DIR } } : {};
+}
+
 const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
 
 // 预先标记「非首次使用」，避免新手引导欢迎弹窗的模态遮罩拦截测试交互。
@@ -40,6 +44,7 @@ export const test = base.extend<{
       headless: false,
       args: ["--headless=new", ...chromeArgs],
       ...getProxyOptions(),
+      ...getRecordVideoOptions(),
     });
     await context.addInitScript(dismissOnboarding);
     await use(context);
@@ -97,6 +102,7 @@ export const testWithUserScripts = base.extend<{
       headless: false,
       args: ["--headless=new", ...chromeArgs],
       ...getProxyOptions(),
+      ...getRecordVideoOptions(),
     });
     await context.addInitScript(dismissOnboarding);
     const [sw] = context.serviceWorkers();
