@@ -31,7 +31,7 @@ describe("消息工具栏 MessageToolbar", () => {
     render(<MessageToolbar {...baseProps({ onDelete })} />);
     fireEvent.click(screen.getByTestId("toolbar-delete"));
     expect(onDelete).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole("button", { name: t("common:confirm") }));
+    fireEvent.click(await screen.findByText(t("common:confirm"), { selector: "button" }));
     expect(onDelete).toHaveBeenCalledOnce();
   });
 

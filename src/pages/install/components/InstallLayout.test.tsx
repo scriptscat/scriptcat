@@ -34,6 +34,6 @@ describe("InstallLayout 安装页外壳", () => {
       </InstallLayout>
     );
     const bar = screen.getByTestId("action-bar");
-    expect(within(bar).getByRole("button", { name: "do-update" })).toBeInTheDocument();
+    expect(within(bar).getByText("do-update").closest("button")).toBeInTheDocument();
   });
 });

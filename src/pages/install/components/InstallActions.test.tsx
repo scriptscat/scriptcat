@@ -38,7 +38,7 @@ describe("InstallActions 操作区", () => {
     const p = baseProps();
     render(<InstallActions {...p} />);
     await open(screen.getByTestId("install-more"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /不关闭窗口/ }));
+    fireEvent.click(screen.getByText(/不关闭窗口/).closest('[role="menuitem"]')!);
     expect(p.onInstall).toHaveBeenCalledWith({ closeAfterInstall: false });
   });
 
@@ -46,14 +46,14 @@ describe("InstallActions 操作区", () => {
     const p = baseProps();
     render(<InstallActions {...p} />);
     await open(screen.getByTestId("install-more"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /不再检查更新/ }));
+    fireEvent.click(screen.getByText(/不再检查更新/).closest('[role="menuitem"]')!);
     expect(p.onInstall).toHaveBeenCalledWith({ noMoreUpdates: true });
   });
 
   it("订阅源隐藏禁止更新项", async () => {
     render(<InstallActions {...baseProps()} isSubscribe />);
     await open(screen.getByTestId("install-more"));
-    expect(screen.queryByRole("menuitem", { name: /不再检查更新/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/不再检查更新/)).not.toBeInTheDocument();
   });
 
   it("全新安装关闭为普通按钮并触发关闭", () => {
@@ -68,7 +68,7 @@ describe("InstallActions 操作区", () => {
     const p = baseProps();
     render(<InstallActions {...p} isUpdate />);
     await open(screen.getByTestId("close-more"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /不再检查更新/ }));
+    fireEvent.click(screen.getByText(/不再检查更新/).closest('[role="menuitem"]')!);
     expect(p.onClose).toHaveBeenCalledWith({ noMoreUpdates: true });
   });
 

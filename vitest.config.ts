@@ -33,6 +33,11 @@ const ISOLATED = [
 
 const BASE_EXCLUDE = ["**/node_modules/**", "**/.claude/**", "e2e/**"];
 
+// 页面层（React 渲染，含 .ts 的 renderHook 测试）用例的真实 solo 成本在覆盖率下可达 100–200ms，
+// 乘上 worker 并行负载后 340ms 预算必然偶发超时（本地满载观测峰值 ~630ms）；
+// 按工作负载分类给预算：UI 850，非 UI 保持 340。按目录而非扩展名分类，避免 .ts hook 测试漏网。
+const UI_TESTS = ["src/pages/**/*.test.ts", "src/pages/**/*.test.tsx"];
+
 const sharedTest = {
   environment: "happy-dom" as const,
   setupFiles: ["./tests/vitest.setup.ts"],
@@ -47,21 +52,39 @@ export default defineConfig({
   plugins: [tplPlugin],
 
   test: {
-    experimental: {
-      fsModuleCache: true,
-    },
-
+    // 不启用 experimental.fsModuleCache：其缓存（node_modules/.experimental-vitest-cache）在依赖
+    // 变更（如 pnpm patch/install）后不失效，会产生按「路径+内容哈希」键控的确定性挂死；
+    // CI 冷缓存永不复现，只坑本地。曾致 Logger/hooks、confirm/App 三例挂死，
+    // 唯一解法是 vitest --clearCache。
     projects: [
       {
         resolve: { alias },
         plugins: [tplPlugin],
         test: {
           name: "fast",
-          exclude: [...BASE_EXCLUDE, ...ISOLATED],
+          exclude: [...BASE_EXCLUDE, ...ISOLATED, ...UI_TESTS],
           ...sharedTest,
           pool: "vmThreads",
           isolate: false,
           maxWorkers: "75%",
+          testTimeout: 340,
+          sequence: {
+            groupOrder: 0,
+          },
+        },
+      },
+      {
+        resolve: { alias },
+        plugins: [tplPlugin],
+        test: {
+          name: "ui",
+          include: UI_TESTS,
+          exclude: BASE_EXCLUDE,
+          ...sharedTest,
+          pool: "vmThreads",
+          isolate: false,
+          maxWorkers: "75%",
+          testTimeout: 850,
           sequence: {
             groupOrder: 0,
           },
@@ -78,6 +101,7 @@ export default defineConfig({
           pool: "threads",
           isolate: true,
           maxWorkers: "50%",
+          testTimeout: 340,
           sequence: {
             groupOrder: 1,
           },

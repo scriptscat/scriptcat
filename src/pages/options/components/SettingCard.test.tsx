@@ -28,6 +28,6 @@ describe("设置卡片原语", () => {
     );
     expect(screen.getByText("语言")).toBeInTheDocument();
     expect(screen.getByText("界面语言")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ctrl" })).toBeInTheDocument();
+    expect(screen.getByText("ctrl").closest("button")).toBeInTheDocument();
   });
 });

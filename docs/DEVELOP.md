@@ -75,7 +75,16 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
 > The **TDD/BDD-first principle** (write failing tests before implementation; fix code not tests) lives in
 > [`AGENTS.md`](../AGENTS.md) → *Engineering Principles*. This section is the mechanics.
 
-Vitest + happy-dom, 850ms timeout. Chrome APIs mocked via `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
+Vitest + happy-dom. Per-test budgets live in `vitest.config.ts` per project: non-UI projects (`fast`,
+`isolated`) use 340ms; the `ui` project (`src/pages/**/*.test.{ts,tsx}` — React renders, including
+`renderHook` tests in `.ts` files) uses 850ms because a render + interaction case genuinely costs 100–200ms
+solo under coverage and worker parallelism multiplies that (fake-timer countdown cases have been observed at
+~630ms under full local load). Don't pass `--test-timeout` on the CLI — it would override every project's
+budget at once. Chrome APIs mocked via
+`@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
+`happy-dom` is patched via `patches/` (see `pnpm-workspace.yaml` `patchedDependencies`) to build its
+invalid-selector `DOMException` lazily — the upstream eager construction captures a deep stack on every
+`matches()`/`querySelector()` call and cost ~15% of TSX suite time.
 
 - Write failing tests **before** implementation; co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
@@ -112,11 +121,56 @@ Conversely, keep these — they look thin but carry real value:
   should keep explicit language setup.
 - Prefer shared DOM helpers such as `mockMatchMedia()` from `tests/mockMatchMedia.ts` over copying local browser
   stubs into every page test.
+- Query only as broadly as the behavior requires:
+  - `screen` is appropriate for document-level output and Portal content. When the target is already known, use
+    `within(container)` / `within(region)` so the query does not rescan the whole rendered document.
+  - In a large integration render, prefer an existing `data-testid` for control identity, `getByLabelText` for an
+    ARIA-labelled control, or visible text followed by `closest("button")` / `closest("a")` for interaction. Do not
+    pay for a full accessibility-tree `*ByRole` scan when the role itself is not the behavior under test.
+  - Accessibility coverage must not be weakened for speed. When role/ARIA derivation is the contract, assert the
+    resulting `role` / `aria-*` attribute directly (or use the semantic query in a small, focused component test).
+- Choose the narrowest async primitive that matches the production boundary:
+  - If an event handler calls the observed mock synchronously, assert immediately; `waitFor` only adds polling.
+  - For an element that appears after an effect or request, use `findBy*` instead of wrapping `screen.getBy*` in
+    `waitFor`.
+  - When a resolved Promise drives React state, locate the control first, trigger it inside one
+    `await act(async () => ...)`, then assert directly. Do not put a `findBy*` query inside `act`.
+  - Keep `waitFor` for genuinely open-ended async boundaries (deferred effects, externally controlled Promises,
+    Portal mounting). Keep its callback cheap and scoped, and combine related assertions into one polling loop.
+- Avoid real sleeps in unit tests. Use fake timers for timer behavior; a short real delay is acceptable only when
+  the delay itself is the regression guard (for example, proving a rejected load does not start a runaway loop).
+- Match test concurrency to the workload:
+  - Use `describe.concurrent()` / `it.concurrent()` only when cases can make useful progress without blocking the
+    same worker. Synchronous CPU-heavy work such as parsing, encoding, compression, and large fixture loops still
+    competes for one JavaScript event loop; under coverage or full-shard load, contention can make otherwise-fast
+    cases exceed their wall-clock timeout.
+  - Keep lightweight independent cases concurrent, but mark CPU-heavy cases or fixture batches with
+    `it.sequential()` / `describe.sequential()`. Preserve their assertions and inputs; do not trade coverage for
+    speed or raise the timeout to hide worker contention.
+  - If a case still sits near the budget in a **solo** coverage run (single test, no concurrency, no worker
+    contention — genuine CPU cost, e.g. chardet's 32 KB sample analysis is roughly 10× slower under V8 coverage
+    instrumentation), give that one case an explicit per-test `{ timeout }` with a comment citing the measured
+    solo cost. The global timeout stays tight for everything else.
+  - A focused file run is only the first check. Re-run the exact CI combination of timeout, coverage, reporter, and
+    shard that exposed the failure, because an isolated run does not reproduce cross-file worker pressure.
+- Treat performance measurements as evidence, not a one-run verdict. Run the affected file first, then the full
+  TSX suite; concurrent full-suite timings are noisy, so repeat suspicious runs and compare the same command,
+  reporter, files, and environment. Never raise the configured timeout to hide a slow query or wait.
 - To spot setup/import regressions without running the full suite, run one small file and read Vitest's timing
   breakdown, for example:
 
 ```bash
-pnpm exec vitest run --test-timeout=850 --no-coverage --reporter=verbose src/pkg/utils/url-utils.test.ts
+pnpm exec vitest run --no-coverage --reporter=verbose src/pkg/utils/url-utils.test.ts
+```
+
+To inventory slow TSX tests without relying on console ordering, write Vitest's JSON report outside the repository
+and sort individual assertions by duration:
+
+```bash
+rg --files -g '*.test.tsx' | xargs pnpm exec vitest run --no-coverage \
+  --reporter=json --outputFile=/tmp/scriptcat-tsx-tests.json
+jq -r '.testResults[] | .name as $file | .assertionResults[] | [.duration, $file, .fullName] | @tsv' \
+  /tmp/scriptcat-tsx-tests.json | sort -nr | head -20
 ```
 
 > To **verify a change works end-to-end without growing the suite** — drive the real built extension with a

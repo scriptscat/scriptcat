@@ -199,7 +199,7 @@ describe("导入桌面视图 状态屏", () => {
       doneCount: 1,
       totalCount: 2,
     });
-    expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(document.querySelector('[role="progressbar"]')).toBeTruthy();
     expect(screen.getByTestId("status-done-u1")).toBeTruthy();
     expect(screen.queryByTestId("script-checkbox-u1")).toBeNull();
   });

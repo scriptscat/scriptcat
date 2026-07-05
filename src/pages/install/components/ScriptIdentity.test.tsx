@@ -85,7 +85,7 @@ describe("ScriptIdentity 身份卡", () => {
         version={{ kind: "install", version: "1.0.0" }}
       />
     );
-    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(document.querySelector('[role="switch"]')!);
     expect(onEnabledChange).toHaveBeenCalledWith(false);
   });
 });

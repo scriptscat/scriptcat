@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, it, expect, vi } from "vitest";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { findByScriptID } = vi.hoisted(() => ({ findByScriptID: vi.fn() }));
@@ -12,8 +12,9 @@ vi.mock("@App/app/repo/export", () => ({
 
 import CloudScriptPlan, { cloudDefaultParams, invalidateCloudScriptPlan, preloadCloudScriptPlan } from "./index";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initTestLanguage("zh-CN");
   findByScriptID.mockReset();
   findByScriptID.mockResolvedValue(undefined);
 });

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
@@ -118,9 +118,10 @@ afterEach(() => {
 describe("ScriptEditor 延迟面板缓存", () => {
   it("保存成功后应使当前脚本的资源、设置与储存缓存失效", async () => {
     render(<ScriptEditor />);
-    fireEvent.click(await screen.findByTestId("save"));
+    const save = await screen.findByTestId("save");
+    await act(async () => fireEvent.click(save));
 
-    await waitFor(() => expect(invalidateResourcePane).toHaveBeenCalledWith("u1"));
+    expect(invalidateResourcePane).toHaveBeenCalledWith("u1");
     expect(invalidateSettingsPane).toHaveBeenCalledWith("u1");
     expect(invalidateStoragePane).toHaveBeenCalledWith("u1");
   });
@@ -128,9 +129,10 @@ describe("ScriptEditor 延迟面板缓存", () => {
   it("保存失败时不应使资源缓存失效", async () => {
     saveScript.mockRejectedValue(new Error("boom"));
     render(<ScriptEditor />);
-    fireEvent.click(await screen.findByTestId("save"));
+    const save = await screen.findByTestId("save");
+    await act(async () => fireEvent.click(save));
 
-    await waitFor(() => expect(saveScript).toHaveBeenCalledOnce());
+    expect(saveScript).toHaveBeenCalledOnce();
     expect(invalidateResourcePane).not.toHaveBeenCalled();
     expect(invalidateSettingsPane).not.toHaveBeenCalled();
     expect(invalidateStoragePane).not.toHaveBeenCalled();

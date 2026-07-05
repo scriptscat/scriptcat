@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { ChatMessage, AgentModelConfig } from "@App/app/service/agent/core/types";
 
 // 通过模块级状态控制被 mock 的 hooks 返回值，从而单独验证 ChatArea 的组合渲染逻辑。
@@ -51,8 +51,9 @@ const baseProps = {
   onModelChange: vi.fn(),
 };
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   hookState.messages = [];
   hookState.isStreaming = false;
   hookState.tasks = [];

@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { ModelFormDialog } from "./ModelFormDialog";
 import { getDefaultBaseUrl } from "./provider_api";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 function setup(props: Record<string, unknown> = {}) {
@@ -32,7 +32,7 @@ describe("ModelFormDialog 模型表单弹窗", () => {
     fireEvent.change(screen.getByTestId("model-name"), { target: { value: "My GPT" } });
     // 拉取可用模型列表 -> 填充下拉选项（异步，需等待 state 更新后再展开下拉）
     fireEvent.click(screen.getByTestId("model-fetch"));
-    await waitFor(() => expect(onFetchModels).toHaveBeenCalled());
+    expect(onFetchModels).toHaveBeenCalled();
     // 用键盘展开 Radix Select(测试环境下 pointerDown 不触发其打开)，再选择拉取到的模型
     const trigger = screen.getByTestId("model-id");
     trigger.focus();

@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { initLanguage } from "@App/locales/locales";
+import { describe, it, expect, beforeAll } from "vitest";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { nextSortState, reindexScriptList, sortScriptList } from "./sort";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 
 const mk = (over: Partial<ScriptLoading>): ScriptLoading =>
   ({

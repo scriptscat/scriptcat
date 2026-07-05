@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import type { Logger as LoggerEntry } from "@App/app/repo/logger";
 
@@ -56,8 +57,9 @@ import Logger from "./index";
 const mockedUseIsMobile = vi.mocked(useIsMobile);
 const renderPage = () => render(<Logger />, { wrapper: MemoryRouter });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   mockLoggerData.logs = sampleLogs;
   mockedUseIsMobile.mockReturnValue(true);
   vi.clearAllMocks();
@@ -69,8 +71,8 @@ afterEach(() => cleanup());
 describe("日志页面 - 移动端", () => {
   it("移动端顶栏的删除/清空按钮以图标按钮呈现(带无障碍名,不显示文字标签)", () => {
     renderPage();
-    const del = screen.getByRole("button", { name: t("logs:delete_current_logs") });
-    const clear = screen.getByRole("button", { name: t("logs:clear_logs") });
+    const del = screen.getByLabelText(t("logs:delete_current_logs"));
+    const clear = screen.getByLabelText(t("logs:clear_logs"));
     // 图标按钮:可见文本里不再包含完整中文标签
     expect(del.textContent).not.toContain(t("logs:delete_current_logs"));
     expect(clear.textContent).not.toContain(t("logs:clear_logs"));
