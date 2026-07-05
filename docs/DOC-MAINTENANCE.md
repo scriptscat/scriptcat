@@ -12,13 +12,13 @@ The contributor docs describe a living codebase, so two failure modes recur:
   examples caught in review: docs named the offscreen GM API `OffscreenGMApi` (no such class — it is `GMApi`),
   and claimed "8 locales" when there were 7.
 - **Branch leakage** — work that only lives on a feature branch gets documented as if it ships on `main`.
-  Example: the Agent Subsystem only lives on its feature branch and is not committed to `main`; describing it
-  in `main`'s quick-map misleads readers into expecting code that is not there.
+  Example: a subsystem committed only on a feature branch (not on `main`) gets written into `main`'s
+  quick-map, misleading readers into expecting code that is not there.
 
 **Rule of thumb: if you can't `git grep` it in the committed code on this branch, don't claim it.** Verify with
 git-aware commands (`git grep`, `git ls-files`, `git ls-tree`) — never a plain `rg`/`ls`, which also match
 **untracked** files in your working tree, so feature-branch code sitting in your checkout but not committed to
-`main` will masquerade as shipped (this is exactly how the Agent Subsystem above sneaks into a `main` doc).
+`main` will masquerade as shipped (this is exactly how a feature-branch-only subsystem sneaks into a `main` doc).
 Aspirational / feature-branch content belongs in that branch's docs, or is clearly marked as planned.
 
 ## Doc set & responsibilities (don't duplicate — cross-link)
@@ -27,6 +27,7 @@ Aspirational / feature-branch content belongs in that branch's docs, or is clear
 | --- | --- |
 | [`../AGENTS.md`](../AGENTS.md) | Engineering principles + architecture quick-map. Single source of truth; `CLAUDE.md` only `@import`s it. |
 | [`DEVELOP.md`](./DEVELOP.md) | The concrete "how": commands, structure, style, testing, i18n, commit/PR. |
+| [`DESIGN.md`](./DESIGN.md) | The design system: light/dark color tokens, theme mechanism, shadcn component palette, layout & responsive patterns, motion, state patterns, new-page recipe. |
 | [`VERIFICATION.md`](./VERIFICATION.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension. |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Deep internals: process model, message passing, service/data layers, GM API, execution, build. |
 | [`CLOUD-SYNC.md`](./CLOUD-SYNC.md) | Cloud sync internals: sync files, digest/status semantics, provider differences, error classification, retry policy. |
@@ -98,7 +99,7 @@ git ls-files eslint-rules/; git grep -l "require-last-error-check" -- eslint.con
 Link integrity — confirm every relative markdown link in the core docs resolves:
 
 ```bash
-for doc in AGENTS.md docs/README.md docs/DEVELOP.md docs/VERIFICATION.md docs/ARCHITECTURE.md docs/CLOUD-SYNC.md docs/DOC-MAINTENANCE.md docs/translation/README.md; do
+for doc in AGENTS.md docs/README.md docs/DEVELOP.md docs/DESIGN.md docs/VERIFICATION.md docs/ARCHITECTURE.md docs/CLOUD-SYNC.md docs/DOC-MAINTENANCE.md docs/translation/README.md; do
   grep -oE '\]\(([^)]+)\)' "$doc" | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while read -r link; do
     target="$(dirname "$doc")/${link%%#*}"
     [ -e "$target" ] && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"

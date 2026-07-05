@@ -71,9 +71,9 @@ User scripts are compiled with sandbox context isolation:
 
 ## Technology Stack
 
-- **React 18** - Component framework with automatic runtime
-- **Arco Design** - UI component library (`@arco-design/web-react`)
-- **UnoCSS** - Atomic CSS framework for styling
+- **React 19** - Component framework with automatic runtime
+- **shadcn/ui** - UI component library built on Radix UI
+- **Tailwind CSS** - Utility-first CSS framework for styling
 - **Rspack** - Fast bundler (Webpack alternative) with SWC
 - **TypeScript** - Type-safe development
 
@@ -95,7 +95,7 @@ pnpm run coverage      # Generate coverage reports
 ```
 
 **Testing Patterns:**
-- Uses Vitest with jsdom environment
+- Uses Vitest with happy-dom environment
 - Chrome extension APIs mocked via `@Packages/chrome-extension-mock`
 - Message system testing with `MockMessage` classes
 - Sandbox testing validates script isolation
@@ -121,7 +121,7 @@ pnpm run coverage      # Generate coverage reports
 4. Scripts registered with appropriate execution environment
 
 ### GM API Implementation
-- Split between Service Worker (`GMApi`) and Offscreen (`OffscreenGMApi`)
+- Split across Content, Service Worker, and Offscreen contexts (each a `GMApi` in its own module)
 - Permission verification via `PermissionVerify` service
 - Value storage abstracted through `ValueService`
 - Cross-origin requests handled in service worker context

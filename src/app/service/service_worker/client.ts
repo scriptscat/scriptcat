@@ -1,6 +1,7 @@
 import type { Script, ScriptCode, ScriptRunResource, TClientPageLoadInfo } from "@App/app/repo/scripts";
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
+import { type Logger } from "@App/app/repo/logger";
 import { type Permission } from "@App/app/repo/permission";
 import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction } from "./types";
 import { Client } from "@Packages/message/client";
@@ -9,9 +10,17 @@ import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
-import { type VSCodeConnect } from "../offscreen/vscode-connect";
+import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
+import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/core/types";
+import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
+import type {
+  ScriptService,
+  TCheckScriptUpdateOption,
+  TOpenBatchUpdatePageOption,
+  TScriptInstallParam,
+  TScriptInstallReturn,
+} from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 
@@ -40,20 +49,10 @@ export class ScriptClient extends Client {
     return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean }]>("getInstallInfo", uuid);
   }
 
-  install(params: {
-    script: Script;
-    code: string;
-    upsertBy?: InstallSource;
-    createtime?: number;
-    updatetime?: number;
-  }): Promise<{ update: boolean }> {
+  install(params: TScriptInstallParam): Promise<TScriptInstallReturn> {
     if (!params.upsertBy) params.upsertBy = "user";
-    return this.doThrow("install", { ...params });
+    return this.doThrow("install", { ...params } satisfies TScriptInstallParam);
   }
-
-  // delete(uuid: string) {
-  //   return this.do("delete", uuid);
-  // }
 
   deletes(uuids: string[]) {
     return this.do("deletes", uuids);
@@ -67,8 +66,8 @@ export class ScriptClient extends Client {
     return this.do("enables", { uuids, enable });
   }
 
-  info(uuid: string): Promise<Script> {
-    return this.doThrow("fetchInfo", uuid);
+  findInfo(uuid: string): Promise<Script | null | undefined> {
+    return this.do<Script | null>("fetchInfo", uuid);
   }
 
   getFilterResult(req: { value: string }): Promise<ScriptCode | undefined> {
@@ -302,6 +301,11 @@ export class SubscribeClient extends Client {
     super(msgSender, "serviceWorker/subscribe");
   }
 
+  // 订阅数量通常不多，但与 getAllScripts 一致，直接从 serviceWorker 内存读取
+  getAllSubscribe(): Promise<Subscribe[]> {
+    return this.doThrow("getAllSubscribe");
+  }
+
   install(subscribe: Subscribe) {
     return this.do("install", { subscribe });
   }
@@ -319,12 +323,156 @@ export class SubscribeClient extends Client {
   }
 }
 
+export class LogClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/log");
+  }
+
+  getLogs(start: number, end: number): Promise<Logger[]> {
+    return this.doThrow("getLogs", { start, end });
+  }
+
+  deleteLogs(ids: number[]): Promise<void> {
+    return this.do("deleteLogs", ids);
+  }
+
+  clearLogs(): Promise<void> {
+    return this.do("clearLogs");
+  }
+}
+
 export class SystemClient extends Client {
   constructor(msgSender: MessageSend) {
     super(msgSender, "serviceWorker/system");
   }
 
-  connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
+  connectVSCode(params: VSCodeConnectParam): Promise<void> {
     return this.do("connectVSCode", params);
+  }
+}
+
+export class AgentClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/agent");
+  }
+
+  installSkill(params: {
+    skillMd: string;
+    scripts?: Array<{ name: string; code: string }>;
+    references?: Array<{ name: string; content: string }>;
+  }): Promise<unknown> {
+    return this.do("installSkill", params);
+  }
+
+  removeSkill(name: string): Promise<unknown> {
+    return this.do("removeSkill", name);
+  }
+
+  refreshSkill(name: string): Promise<boolean> {
+    return this.doThrow("refreshSkill", name);
+  }
+
+  setSkillEnabled(name: string, enabled: boolean): Promise<boolean> {
+    return this.doThrow("setSkillEnabled", { name, enabled });
+  }
+
+  prepareSkillInstall(zipBase64: string): Promise<string> {
+    return this.doThrow("prepareSkillInstall", zipBase64);
+  }
+
+  prepareSkillFromUrl(url: string): Promise<string> {
+    return this.doThrow("prepareSkillFromUrl", url);
+  }
+
+  getSkillInstallData(uuid: string): Promise<{
+    skillMd: string;
+    metadata: {
+      name: string;
+      description: string;
+      version?: string;
+      config?: Record<string, SkillConfigField>;
+    };
+    prompt: string;
+    scripts: Array<{ name: string; code: string }>;
+    references: Array<{ name: string; content: string }>;
+    isUpdate: boolean;
+    installUrl?: string;
+  }> {
+    return this.doThrow("getSkillInstallData", uuid);
+  }
+
+  completeSkillInstall(uuid: string): Promise<unknown> {
+    return this.doThrow("completeSkillInstall", uuid);
+  }
+
+  cancelSkillInstall(uuid: string): Promise<void> {
+    return this.do("cancelSkillInstall", uuid);
+  }
+
+  checkForUpdates(): Promise<
+    Array<{ name: string; currentVersion: string; remoteVersion: string; installUrl: string }>
+  > {
+    return this.doThrow("checkForUpdates");
+  }
+
+  updateSkill(name: string): Promise<unknown> {
+    return this.doThrow("updateSkill", name);
+  }
+
+  getSkillConfigValues(name: string): Promise<Record<string, unknown>> {
+    return this.doThrow("getSkillConfigValues", name);
+  }
+
+  saveSkillConfig(params: { name: string; values: Record<string, unknown> }): Promise<void> {
+    return this.doThrow("saveSkillConfig", params);
+  }
+
+  // Model CRUD
+  listModels(): Promise<AgentModelConfig[]> {
+    return this.doThrow("listModels");
+  }
+
+  getModel(id: string) {
+    return this.do<AgentModelConfig | undefined>("getModel", id);
+  }
+
+  saveModel(model: AgentModelConfig) {
+    return this.do("saveModel", model);
+  }
+
+  removeModel(id: string) {
+    return this.do("removeModel", id);
+  }
+
+  // 默认模型（未设置时返回空字符串，不能用 doThrow，否则全新安装无默认模型时会抛错）
+  getDefaultModelId(): Promise<string> {
+    return this.do("getDefaultModelId").then((id) => id || "");
+  }
+
+  setDefaultModelId(id: string) {
+    return this.do("setDefaultModelId", id);
+  }
+
+  // 摘要模型（未设置时返回空字符串，不能用 doThrow）
+  getSummaryModelId(): Promise<string> {
+    return this.do("getSummaryModelId").then((id) => id || "");
+  }
+
+  setSummaryModelId(id: string) {
+    return this.do("setSummaryModelId", id);
+  }
+
+  // 搜索配置
+  getSearchConfig(): Promise<SearchEngineConfig> {
+    return this.doThrow("getSearchConfig");
+  }
+
+  saveSearchConfig(config: SearchEngineConfig) {
+    return this.do("saveSearchConfig", config);
+  }
+
+  // MCP API
+  mcpApi(request: MCPApiRequest): Promise<unknown> {
+    return this.doThrow("mcpApi", request);
   }
 }

@@ -1,0 +1,17 @@
+{
+  "development_tool": "Công cụ phát triển",
+  "vscode_url": "Url vscode",
+  "auto_connect_vscode_service": "Tự động kết nối dịch vụ vscode",
+  "connect": "Kết nối",
+  "connection_success": "Kết nối thành công",
+  "connection_failed": "Kết nối thất bại",
+  "select_import_script": "Vui lòng chọn script để nhập trong trang mới",
+  "import_error": "Lỗi nhập",
+  "pulling_data_from_cloud": "Đang tải dữ liệu từ đám mây",
+  "pull_failed": "Tải thất bại",
+  "restore": "Khôi phục",
+  "local_backup": "Sao lưu cục bộ",
+  "cloud_backup": "Sao lưu đám mây",
+  "auto_backup": "Sao lưu tự động",
+  "data_migration": "Di chuyển dữ liệu"
+}

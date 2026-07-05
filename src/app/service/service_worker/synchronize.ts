@@ -154,9 +154,11 @@ export class SynchronizeService {
     }
     const lastModificationDate = script.updatetime || script.createtime || undefined;
     const [values, valueRet] = await this.value.getScriptValueDetails(script);
-    const requires = await this.resource.getResourceByType(script, "require", false);
-    const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
-    const resources = await this.resource.getResourceByType(script, "resource", false);
+    const [requires, requiresCss, resources] = await this.resource.getResourceByTypes(script, [
+      "require",
+      "require-css",
+      "resource",
+    ]);
     const storage: ValueStorage = {
       data: { ...values },
       ts: valueRet?.updatetime || lastModificationDate || Date.now(),
@@ -342,8 +344,8 @@ export class SynchronizeService {
       // 如果是token失效之类的错误,通知用户并关闭云同步
       if (isWarpTokenError(e)) {
         InfoNotification(
-          `${t("sync_system_connect_failed")}, ${t("sync_system_closed")}`,
-          `${t("sync_system_closed_description")}\n${errorMsg(e)}`
+          `${t("settings:sync_system_connect_failed")}, ${t("settings:sync_system_closed")}`,
+          `${t("settings:sync_system_closed_description")}\n${errorMsg(e)}`
         );
         this.systemConfig.setCloudSync({
           ...config,
@@ -461,8 +463,8 @@ export class SynchronizeService {
                 if (!hasNotifiedSyncDelete) {
                   hasNotifiedSyncDelete = true;
                   InfoNotification(
-                    i18n.t("notification.script_sync_delete"),
-                    i18n.t("notification.script_sync_delete_desc", {
+                    i18n.t("settings:notification.script_sync_delete"),
+                    i18n.t("settings:notification.script_sync_delete_desc", {
                       scriptName: i18nName(script),
                     })
                   );
@@ -975,7 +977,6 @@ export class SynchronizeService {
     this.group.on("export", this.requestExport.bind(this));
     this.group.on("backupToCloud", this.backupToCloud.bind(this));
     this.group.on("importResources", this.importResources.bind(this));
-    // this.group.on("import", this.openImportWindow.bind(this));
     // 监听脚本变化, 进行同步
     this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", this.scriptsDelete.bind(this));

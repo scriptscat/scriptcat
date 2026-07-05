@@ -7,10 +7,11 @@ import type { Message } from "@Packages/message/types";
 import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
+import { type TExtensionEnv } from "./app/service/extension/extension_env";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
-getEventFlag(messageFlag, (eventFlag: string) => {
+getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
   const scriptEnvTag = ScriptEnvTag.inject;
 
   const msg: Message = new CustomEventMessage(eventFlag, false, scriptEnvTag);
@@ -26,7 +27,7 @@ getEventFlag(messageFlag, (eventFlag: string) => {
 
   const server = new Server("inject", msg);
   const scriptExecutor = new ScriptExecutor(msg, new CustomEventMessage(eventFlag, true, ScriptEnvTag.content));
-  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor);
+  const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, extensionEnv);
   runtime.init();
 
   // inject环境，直接判断白名单，注入对外接口

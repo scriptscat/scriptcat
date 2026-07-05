@@ -11,7 +11,7 @@ export interface Resource {
   hash: ResourceHash;
   type: ResourceType;
   link: { [key: string]: boolean }; // 关联的脚本
-  contentType: string;
+  contentType: string; // 下载成功的话必定有 contentType. 下载失败的话则没有 （空Resource）
   createtime: number;
   updatetime?: number;
 }

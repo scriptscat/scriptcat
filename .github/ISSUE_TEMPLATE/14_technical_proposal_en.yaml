@@ -1,0 +1,75 @@
+name: "🧑‍💻 Technical Proposal / Refactor"
+description: Architecture, performance, storage, API semantics, runtime, or refactoring proposals for maintainers and contributors.
+title: "[Proposal] "
+type: "Task"
+labels: ["proposal", "technical"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for technical design, refactoring, performance optimization, storage design, runtime architecture, and similar proposals.
+
+        For regular user bugs or feature requests, please use the other templates.
+
+  - type: dropdown
+    id: proposal-area
+    attributes:
+      label: Affected Module
+      multiple: true
+      options:
+        - Service Worker
+        - offscreen
+        - sandbox / inject / content script
+        - script matching / registry
+        - GM/CAT API runtime
+        - storage / Dexie / IndexedDB / OPFS
+        - sync / backup / import / export
+        - resource loader / @require / @resource
+        - editor / Monaco / ESLint
+        - popup / options UI
+        - build / packaging / manifest
+        - tests / e2e / CI
+        - docs / i18n
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: Background
+      description: What limitation, bug, performance issue, or maintenance problem exists in the current implementation?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Please describe the data structure, flow, API, migration strategy, or implementation approach as clearly as possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility / Migration Impact
+      placeholder: |
+        Impact on existing data:
+        Impact on MV2/MV3:
+        Impact on Firefox / Chrome / Edge / mobile:
+        Migration required:
+    validations:
+      required: true
+
+  - type: textarea
+    id: test-plan
+    attributes:
+      label: Test Plan
+      placeholder: |
+        Unit tests:
+        E2E tests:
+        Manual browsers to test:
+        Regression risks:
+    validations:
+      required: false

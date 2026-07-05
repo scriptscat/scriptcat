@@ -5,20 +5,19 @@ on:
     branches:
       - main
       - release/*
-      - dev
       - develop/*
   pull_request:
 
 jobs:
-  tests:
+  lint:
     runs-on: ubuntu-latest
-    name: Run tests
+    name: Lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: 'pnpm'
@@ -30,7 +29,7 @@ jobs:
         run: pnpm i --frozen-lockfile
 
       - name: Cache ESLint cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .eslintcache
           key: eslint-${{ hashFiles('pnpm-lock.yaml', '.eslintrc*') }}
@@ -38,14 +37,88 @@ jobs:
             eslint-
 
       - name: Lint
-        run: |
-          pnpm typecheck
-          pnpm lint:ci
+        run: pnpm lint:ci
 
-      - name: Unit Test
-        run: |
-          pnpm test:ci
-          pnpm coverage:ci
+  test-shards:
+    runs-on: ubuntu-latest
+    name: Run test shard (${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2]
+        shardTotal: [2]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Run test shard
+        run: >
+          pnpm exec vitest run
+          --coverage
+          --silent
+          --reporter=blob
+          --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: vitest-report-${{ matrix.shardIndex }}
+          path: .vitest-reports/*
+          include-hidden-files: true
+          retention-days: 1
+
+  tests:
+    runs-on: ubuntu-latest
+    name: Run tests
+    needs: [lint, test-shards]
+    if: ${{ !cancelled() }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v6
+        with:
+          pattern: vitest-report-*
+          path: .vitest-reports
+          merge-multiple: true
+
+      - name: Merge test and coverage reports
+        run: >
+          pnpm exec vitest
+          --merge-reports
+          --coverage
+          --reporter=default
+          --reporter.default.summary=false
+
+      - name: Verify prerequisite jobs
+        if: ${{ always() && (needs.lint.result != 'success' || needs.test-shards.result != 'success') }}
+        run: exit 1
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v5
@@ -54,11 +127,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Run E2E tests
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: 'pnpm'
@@ -71,7 +144,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
@@ -90,7 +163,7 @@ jobs:
 
       - name: Upload test artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-test-results
           path: |

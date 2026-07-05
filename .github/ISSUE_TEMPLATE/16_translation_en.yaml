@@ -1,0 +1,135 @@
+name: "🌐 Translation / Localization"
+description: Report translation issues in ScriptCat UI, documentation, or language files, or request new/improved language support.
+title: "[i18n] "
+type: "Task"
+labels: ["i18n", "translation"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve ScriptCat localization.
+
+        Please provide the source text, current translation, suggested translation, and where it appears.
+
+        If the documentation content itself is incorrect, outdated, or missing, please use the **Documentation** template instead.
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: Pre-check
+      options:
+        - label: I have searched existing issues and confirmed this is not a duplicate.
+          required: true
+        - label: I confirm this is a translation / localization issue, not a feature bug.
+          required: true
+
+  - type: dropdown
+    id: i18n-area
+    attributes:
+      label: Affected Area
+      multiple: true
+      options:
+        - Extension UI / Popup
+        - Options page
+        - Installation / update page
+        - Built-in editor / Monaco / ESLint messages
+        - Logs / error messages / notifications
+        - Documentation
+        - README / CONTRIBUTING / SECURITY
+        - VSCode extension
+        - ScriptCat website / script marketplace
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - Simplified Chinese / zh-CN
+        - Traditional Chinese / zh-TW
+        - English / en
+        - Japanese / ja
+        - Russian / ru
+        - German / de
+        - Vietnamese / vi
+        - New language request
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Translation Issue Type
+      multiple: true
+      options:
+        - Incorrect translation
+        - Inconsistent terminology
+        - Unnatural machine translation
+        - Missing translation / fallback to another language
+        - Text too long and breaks UI
+        - Punctuation / capitalization / formatting issue
+        - New language support
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Please provide the page, menu path, screenshot location, file path, or documentation page.
+      placeholder: "Example: Options > Settings > Script Sync / src/locales/<locale>/translation.json"
+    validations:
+      required: true
+
+  - type: textarea
+    id: source-text
+    attributes:
+      label: Source Text / Current Text
+      description: Please paste the current source text or translation you see.
+      placeholder: |
+        Current text:
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-text
+    attributes:
+      label: Suggested Translation
+      description: Please provide the wording you suggest. For new language requests, mention the target language and whether you are willing to contribute.
+      placeholder: |
+        Suggested wording:
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+      description: Why is the current translation unsuitable? Are there terminology, context, or regional-language considerations?
+      placeholder: |
+        Example: In this product, "sync" is consistently translated as "...", so this string should not use "...".
+    validations:
+      required: false
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat Version, if Applicable
+      placeholder: "Example: v1.4.0 / v1.4.0-beta / Firefox MV2 v0.16.15"
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Additional Information
+      description: If this involves UI overflow, truncation, line wrapping, or context, please upload screenshots.
+      placeholder: |
+        Screenshots / related links:
+    validations:
+      required: false
