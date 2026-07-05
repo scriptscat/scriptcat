@@ -9,7 +9,7 @@ import {
 } from "@App/app/repo/scripts";
 import type { Server } from "@Packages/message/server";
 import type { WindowMessage } from "@Packages/message/window_message";
-import { CronJob } from "cron";
+import { createCronJob, type CronJob } from "@App/pkg/utils/cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
@@ -268,7 +268,11 @@ export class Runtime {
         ok = 2;
         const onTick = this.crontabExec(script, oncePos);
         ok = 4;
-        const cron = new CronJob(cronExpr, onTick);
+        const cron = createCronJob({
+          cronTime: cronExpr,
+          onTick,
+          start: false, // 不使用 start: true。下面手动执行。
+        });
         ok = 6;
         cron.start();
         ok = 8;
