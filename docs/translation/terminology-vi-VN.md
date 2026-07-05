@@ -2,7 +2,7 @@
 
 Tài liệu này quy định thuật ngữ dùng cho giao diện và tài liệu tiếng Việt (`vi-VN`) của ScriptCat. Mục đích là giữ rõ các khái niệm sản phẩm, dùng câu chữ tự nhiên trong giao diện và bảo toàn các định danh kỹ thuật khi tiếp tục bản địa hóa.
 
-Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`
+Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`, `docs/ARCHITECTURE.md`
 
 ## Nguyên tắc
 
@@ -27,15 +27,16 @@ Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`
 
 | Khái niệm | Cách viết ưu tiên | Key ví dụ hiện tại | Ghi chú |
 | --- | --- | --- | --- |
-| ScriptCat browser extension | `tiện ích ScriptCat` | `start_guide_title`, `ext_update_notification` | Giữ tên sản phẩm là `ScriptCat`. |
-| generic user script | `script người dùng` | `create_user_script`, `guide_script_list_content` | Dùng cho khái niệm userscript chung. |
-| Tampermonkey-compatible script type | `script Tampermonkey` | `script_status_tooltip` | Không rút gọn thành loại script chung nếu cần giữ ý tương thích. |
-| page script | `script trang` | `page_script`, `foreground_page_script_tooltip` | Script chạy trên các trang được chỉ định. |
+| ScriptCat browser extension | `tiện ích ScriptCat` | `welcome_title`, `ext_update_notification` | Giữ tên sản phẩm là `ScriptCat`. |
+| generic user script | `script người dùng` | `create_user_script`, `script_list_content` | Dùng cho khái niệm userscript chung. |
+| normal userscript type | `script người dùng` / nhãn danh mục hiện tại `script bình thường` | `create_user_script`, `script_list.sidebar.normal_script` | Không gộp với script nền hoặc script hẹn giờ. |
+| Tampermonkey compatibility | `script người dùng tương thích Tampermonkey` / `script Tampermonkey` | `docs/ARCHITECTURE.md` | Chỉ dùng khi cần nói rõ tính tương thích; không thay thế mọi tên gọi userscript hoặc danh mục script. |
+| page script | `script trang` | `script_list_enable_content` | Chỉ khái niệm script chạy trên trang trong nội dung UI; không tự động thay thế nhãn danh mục `script bình thường`. |
 | background script | `script nền` | `create_background_script`, `background_script` | Loại script chạy nền của sản phẩm. |
 | scheduled script | `script hẹn giờ` | `create_scheduled_script`, `scheduled_script` | Dùng thay cho việc giới thiệu thêm tên `script crontab`. |
 | script synchronization | `đồng bộ script` | `script_sync`, `sync_status` | Khi liên quan đến xóa, cần nói rõ trạng thái hoặc thao tác xóa được đồng bộ. |
-| subscription | `đăng ký` | `subscribe_url`, `install_subscribe`, `subscribe_import_progress` | Cần phân biệt với thao tác đăng ký bằng ngữ cảnh câu. |
-| script gallery / market | `thư viện script` / `chợ script` | `script_gallery`, `guide_script_list_title` | Dùng tên phù hợp với trang đích thực tế. |
+| subscription | `đăng ký` | `subscribe_url`, `subscribe`, `importpage.count_subscribes` | Cần phân biệt với thao tác đăng ký bằng ngữ cảnh câu. |
+| script gallery / market | `thư viện script` / `chợ script` | `script_gallery`, `script_list_title` | Dùng tên phù hợp với trang đích thực tế. |
 
 ## B. Thao tác và trạng thái giao diện
 
@@ -44,10 +45,10 @@ Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`
 | create | `Tạo` | `create_script`, `create_background_script` | Thêm đối tượng khi nhãn cần rõ nghĩa. |
 | save / save as | `Lưu` / `Lưu thành` | `save`, `save_as` | Giữ nhất quán với giao diện hiện tại. |
 | import / export | `Nhập` / `Xuất` | `import`, `export`, `import_file`, `export_file` | Dùng cho dữ liệu hoặc tệp theo ngữ cảnh. |
-| install / update | `Cài đặt` / `Cập nhật` | `install_script`, `update_script` | Có thể thêm `script` hoặc `đăng ký` để phân biệt. |
+| install / update | `Cài đặt` / `Cập nhật` | `script`, `update_script` | Có thể thêm `script` hoặc `đăng ký` để phân biệt. |
 | run / runtime | `Chạy` / `Thời gian chạy` | `run`, `runtime`, `log_title` | Dùng cho việc thực thi script. |
 | enable / disable | `Bật` / `Tắt`; trạng thái `Đã bật` / `Đã tắt` | `enable`, `disable`, `script_disabled` | Không dùng như thao tác mở hoặc đóng thành phần giao diện. |
-| settings | `Cài đặt` | `settings`, `script_setting.title` | Dành cho các tùy chọn sản phẩm. |
+| settings | `Cài đặt` | `settings`, `script_setting` | Dành cho các tùy chọn sản phẩm. |
 | permission | `Quyền` / `Cấp quyền` | `permission`, `confirm_script_operation` | Phân biệt loại quyền và thao tác cho phép. |
 | connect / sync | `Kết nối` / `Đồng bộ` | `connect`, `script_sync` | Không gộp trạng thái kết nối với đồng bộ dữ liệu. |
 | directory | `Thư mục` | `open_directory`, `open_backup_dir` | Dùng cho thao tác hệ thống tệp. |
@@ -59,7 +60,7 @@ Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`
 | --- | --- | --- | --- |
 | local / cloud | `Cục bộ` / `Đám mây` | Dùng cho nguồn, nơi lưu hoặc đích đồng bộ; thêm đối tượng nếu câu chưa rõ. | `local`, `cloud`, `source_local_script` |
 | panel / console | `bảng điều khiển` / `console` | Thành phần điều khiển của sản phẩm dùng `bảng điều khiển`; đầu ra công cụ phát triển cần giữ nghĩa console. | `background_script_description`, `build_success_message` |
-| source | `Nguồn`, `Nguồn cài đặt`, `Nguồn đăng ký` | Nêu rõ nguồn cung cấp nội dung gì. | `source`, `install_source`, `subscribe_source_tooltip` |
+| source | `Nguồn`, `Nguồn cài đặt`, `Nguồn đăng ký` | Nêu rõ nguồn cung cấp nội dung gì. | `source`, `importpage.col_source`, `source_subscribe_link` |
 | storage | `Lưu trữ`, `không gian lưu trữ`, `API lưu trữ` | Phân biệt dữ liệu script, vị trí được cấu hình và tên API. | `script_storage`, `script_operation_description`, `storage_api` |
 | sync deletion | `Đồng bộ trạng thái xóa` / `Đồng bộ xóa` | Chỉ thống nhất sau khi xác nhận hành vi thực tế của tùy chọn. | `sync_delete`, `sync_delete_desc`, `notification.script_sync_delete` |
 
@@ -80,11 +81,10 @@ Các mục dưới đây ghi nhận vấn đề đã tồn tại. Việc tạo h
 
 | Chủ đề | Hiện trạng | Hướng ưu tiên | Key ví dụ hiện tại |
 | --- | --- | --- | --- |
-| `script` / `tập lệnh` | Hai cách gọi xuất hiện trong cùng luồng giao diện. | Xác nhận giọng điệu sản phẩm rồi thống nhất; với chuỗi mới trong ngữ cảnh hiện đang dùng rộng rãi, ưu tiên `script`. | `installed_scripts`, `create_user_script`, `script_status_tooltip` |
+| `script` / `tập lệnh` | Hai cách gọi xuất hiện trong cùng luồng giao diện. | Xác nhận giọng điệu sản phẩm rồi thống nhất; với chuỗi mới trong ngữ cảnh hiện đang dùng rộng rãi, ưu tiên `script`. | `installed_scripts`, `create_user_script`, `script_list_action_content` |
 | scheduled script naming | Loại sản phẩm là `script hẹn giờ` nhưng một thông báo dùng `script crontab`. | Dùng `script hẹn giờ` cho cùng loại sản phẩm; chỉ nhắc `cron` khi nói đến biểu thức lịch chạy. | `scheduled_script`, `only_background_scheduled_can_run`, `cron_invalid_expr` |
-| identifier and brand capitalization | Có các dạng `scriptcat`, `eslint`, `vscode`, `api`, `Url` trong văn bản hiện tại. | Trong chỉnh sửa có phạm vi rõ ràng, giữ `ScriptCat`, `ESLint`, `VSCode`, `API`, `URL`. | `start_guide_title`, `api_docs`, `enable_eslint`, `vscode_url` |
-| metadata identifier | Tooltip tài nguyên ghi `@required`, trong khi metadata dùng `@require`. | Giữ đúng định danh `@require`. | `script_resource_tooltip` |
-| documentation link locale | Một số chuỗi tiếng Việt liên kết đến tài liệu `/en/`. | Chỉ đổi khi đã xác nhận có trang tiếng Việt tương ứng. | `guide_script_list_content`, `develop_mode_guide` |
+| identifier and brand capitalization | Có các dạng `scriptcat`, `eslint`, `vscode`, `api`, `Url` trong văn bản hiện tại. | Trong chỉnh sửa có phạm vi rõ ràng, giữ `ScriptCat`, `ESLint`, `VSCode`, `API`, `URL`. | `script_list_content`, `api_docs`, `enable_eslint`, `vscode_url` |
+| documentation link locale | Một số chuỗi tiếng Việt liên kết đến tài liệu `/en/`. | Chỉ đổi khi đã xác nhận có trang tiếng Việt tương ứng. | `script_list_content`, `develop_mode_guide` |
 
 ## Danh sách kiểm tra cho AI và người đóng góp
 

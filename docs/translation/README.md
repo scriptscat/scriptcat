@@ -36,6 +36,7 @@
 | `ru-RU` | Русский | [terminology-ru-RU.md](./terminology-ru-RU.md) |
 | `de-DE` | Deutsch | [terminology-de-DE.md](./terminology-de-DE.md) |
 | `vi-VN` | Tiếng Việt | [terminology-vi-VN.md](./terminology-vi-VN.md) |
+| `tr-TR` | Türkçe | [terminology-tr-TR.md](./terminology-tr-TR.md) |
 
 > `en-US` 是运行时的回退语言（fallback），也是新翻译的模板。其措辞应被刻意校准而非将含糊或不通顺的英文直接传播到其他 locale。
 

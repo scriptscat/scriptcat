@@ -419,7 +419,7 @@ Script list and Logger can hold thousands of rows. Keep large lists responsive: 
 
 ### Text expansion (i18n)
 
-Copy is translated into 7 locales and German/Russian run ~30% longer than English. Layouts must **flex or truncate, never clip**: let labels wrap or `truncate` with a `title`/tooltip, give buttons/badges `min-w` room instead of fixed widths, and don't pin a control's width to its English string. Verify a long-locale on the tightest screens (mobile cards, the ActionBar). RTL is **not** a target for the current locale set.
+Copy is translated into 8 locales and German/Russian run ~30% longer than English. Layouts must **flex or truncate, never clip**: let labels wrap or `truncate` with a `title`/tooltip, give buttons/badges `min-w` room instead of fixed widths, and don't pin a control's width to its English string. Verify a long-locale on the tightest screens (mobile cards, the ActionBar). RTL is **not** a target for the current locale set.
 
 ---
 
