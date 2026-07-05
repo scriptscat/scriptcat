@@ -66,7 +66,6 @@ jobs:
       - name: Run test shard
         run: >
           pnpm exec vitest run
-          --test-timeout=340
           --coverage
           --silent
           --reporter=blob
