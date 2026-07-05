@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { SystemConfig } from "./config";
 import { MessageQueue } from "@Packages/message/message_queue";
+import { defaultConfig as eslintDefaultConfig } from "@Packages/eslint/linter-config";
+import { defaultConfig as editorDefaultConfig } from "@App/pkg/utils/monaco-editor/config";
 
 describe("SystemConfig 双 storage 与懒迁移", () => {
   let mq: MessageQueue;
@@ -182,6 +184,89 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       // 第二次读取应返回缓存值
       const second = await config.getVscodeUrl();
       expect(second).toBe("ws://old:8642");
+    });
+  });
+
+  describe("JSON 配置的稀疏存储与默认值合并", () => {
+    it("未修改时应返回最新默认配置", async () => {
+      await expect(config.getEslintConfig()).resolves.toBe(eslintDefaultConfig);
+      await expect(config.getEditorConfig()).resolves.toBe(editorDefaultConfig);
+    });
+
+    it("保存时应只存储与默认配置的差异", async () => {
+      const modified = JSON.parse(eslintDefaultConfig);
+      modified.rules["no-debugger"] = ["warn"];
+      modified.rules["custom/added-rule"] = ["error"];
+      config.setEslintConfig(JSON.stringify(modified));
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_eslint_config");
+        expect(JSON.parse(syncData["system_eslint_config"] as string)).toEqual({
+          rules: { "no-debugger": ["warn"], "custom/added-rule": ["error"] },
+        });
+      });
+    });
+
+    it("读取时应将存储的差异合并到最新默认配置", async () => {
+      await chrome.storage.sync.set({
+        system_eslint_config: JSON.stringify({ rules: { "no-debugger": ["warn"] } }),
+      });
+
+      const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
+      const defaults = JSON.parse(eslintDefaultConfig);
+      expect(result.rules["no-debugger"]).toEqual(["warn"]);
+      expect(result.rules["no-empty"]).toEqual(defaults.rules["no-empty"]);
+      expect(result.globals).toEqual(defaults.globals);
+    });
+
+    it("旧版全量配置应自动获得新默认字段且保留用户改动", async () => {
+      // 模拟旧版本存储的全量 JSON：缺少后续新增的默认规则，且用户改过其中一条
+      const legacy = JSON.parse(eslintDefaultConfig);
+      legacy.rules["no-debugger"] = ["off"];
+      delete legacy.rules["no-empty"];
+      await chrome.storage.sync.set({ system_eslint_config: JSON.stringify(legacy) });
+
+      const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
+      expect(result.rules["no-debugger"]).toEqual(["off"]);
+      // 新增的默认规则应自动生效
+      expect(result.rules["no-empty"]).toEqual(JSON.parse(eslintDefaultConfig).rules["no-empty"]);
+    });
+
+    it("保存与默认配置一致的内容时应清除存储", async () => {
+      // 使用紧凑格式，验证差异按语义比较而非字符串比较
+      config.setEslintConfig(JSON.stringify(JSON.parse(eslintDefaultConfig)));
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_eslint_config");
+        expect(syncData["system_eslint_config"]).toBeUndefined();
+      });
+      // 重新读取（新实例，不走缓存）应返回默认配置
+      await expect(new SystemConfig(new MessageQueue()).getEslintConfig()).resolves.toBe(eslintDefaultConfig);
+    });
+
+    it("保存空字符串应恢复默认配置", async () => {
+      config.setEslintConfig(JSON.stringify({ rules: { "no-debugger": ["warn"] } }));
+      config.setEslintConfig("");
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_eslint_config");
+        expect(syncData["system_eslint_config"]).toBeUndefined();
+      });
+      await expect(config.getEslintConfig()).resolves.toBe(eslintDefaultConfig);
+    });
+
+    it("editor_config 同样只存储差异并合并读取", async () => {
+      const modified = JSON.parse(editorDefaultConfig);
+      modified.strict = false;
+      config.setEditorConfig(JSON.stringify(modified));
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_editor_config");
+        expect(JSON.parse(syncData["system_editor_config"] as string)).toEqual({ strict: false });
+      });
+
+      const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEditorConfig());
+      expect(result).toEqual({ ...JSON.parse(editorDefaultConfig), strict: false });
     });
   });
 
