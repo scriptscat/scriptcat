@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { ChangeEvent, ReactNode } from "react";
 
 const { create, backupToCloud } = vi.hoisted(() => ({
@@ -111,9 +111,7 @@ describe("云端备份分区", () => {
 
     fireEvent.click(trigger);
 
-    await waitFor(() =>
-      expect(set).toHaveBeenCalledWith("backup", expect.objectContaining({ filesystem: "googledrive" }))
-    );
+    expect(set).toHaveBeenCalledWith("backup", expect.objectContaining({ filesystem: "googledrive" }));
     expect(backupToCloud).not.toHaveBeenCalled();
   });
 
@@ -124,11 +122,9 @@ describe("云端备份分区", () => {
 
     fireEvent.change(urlInput, { target: { value: "https://dav-new" } });
 
-    await waitFor(() =>
-      expect(set).toHaveBeenCalledWith(
-        "backup",
-        expect.objectContaining({ params: expect.objectContaining({ webdav: { url: "https://dav-new" } }) })
-      )
+    expect(set).toHaveBeenCalledWith(
+      "backup",
+      expect.objectContaining({ params: expect.objectContaining({ webdav: { url: "https://dav-new" } }) })
     );
     expect(backupToCloud).not.toHaveBeenCalled();
   });
@@ -137,9 +133,9 @@ describe("云端备份分区", () => {
     mockBackup();
     render(<CloudBackupSection register={() => () => {}} />);
     const btn = await screen.findByTestId("tools_backup");
-    fireEvent.click(btn);
+    await act(async () => fireEvent.click(btn));
     expect(set).toHaveBeenCalledWith("backup", expect.objectContaining({ filesystem: "webdav" }));
-    await waitFor(() => expect(backupToCloud).toHaveBeenCalledWith("webdav", { url: "https://dav" }));
+    expect(backupToCloud).toHaveBeenCalledWith("webdav", { url: "https://dav" });
   });
 
   it("点击备份列表拉取 zip 文件并展示", async () => {
@@ -156,9 +152,9 @@ describe("云端备份分区", () => {
     mockBackup();
     render(<CloudBackupSection register={() => () => {}} />);
     const btn = await screen.findByTestId("tools_backup_list");
-    fireEvent.click(btn);
-    await waitFor(() => expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" }));
-    await waitFor(() => expect(fs1.openDir).toHaveBeenCalledWith("ScriptCat"));
+    await act(async () => fireEvent.click(btn));
+    expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" });
+    expect(fs1.openDir).toHaveBeenCalledWith("ScriptCat");
     // 只展示 .zip，过滤掉 txt
     expect(await screen.findByText("a.zip")).toBeInTheDocument();
     expect(screen.getByText("b.zip")).toBeInTheDocument();
@@ -171,10 +167,10 @@ describe("云端备份分区", () => {
     render(<CloudBackupSection register={() => () => {}} />);
     await openBackupList();
     const restore = await screen.findByTestId("tools_restore");
-    fireEvent.click(restore);
-    await waitFor(() => expect(fsDir.open).toHaveBeenCalledWith({ name: "a.zip", updatetime: 2000 }));
-    await waitFor(() => expect(fileReader.read).toHaveBeenCalledWith("blob"));
-    await waitFor(() => expect(openImport).toHaveBeenCalledWith("a.zip", expect.any(Blob)));
+    await act(async () => fireEvent.click(restore));
+    expect(fsDir.open).toHaveBeenCalledWith({ name: "a.zip", updatetime: 2000 });
+    expect(fileReader.read).toHaveBeenCalledWith("blob");
+    expect(openImport).toHaveBeenCalledWith("a.zip", expect.any(Blob));
   });
 
   it("确认删除后从云端删除文件并移出列表", async () => {
@@ -183,10 +179,9 @@ describe("云端备份分区", () => {
     render(<CloudBackupSection register={() => () => {}} />);
     await openBackupList();
     fireEvent.click(await screen.findByTestId("tools_delete"));
-    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThan(2));
-    const buttons = screen.getAllByRole("button");
-    fireEvent.click(buttons[buttons.length - 1]); // 气泡确认
-    await waitFor(() => expect(fsDir.delete).toHaveBeenCalledWith("a.zip"));
-    await waitFor(() => expect(screen.queryByText("a.zip")).not.toBeInTheDocument());
+    const confirm = await screen.findByTestId("popconfirm-confirm");
+    await act(async () => fireEvent.click(confirm));
+    expect(fsDir.delete).toHaveBeenCalledWith("a.zip");
+    expect(screen.queryByText("a.zip")).not.toBeInTheDocument();
   });
 });

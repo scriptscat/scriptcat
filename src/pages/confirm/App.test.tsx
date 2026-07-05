@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 
 // 授权数据走后台消息，统一打桩
@@ -39,8 +39,9 @@ const baseInfo = (over: Partial<ConfirmParam> = {}, likeNum = 0) => ({
   likeNum,
 });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
   vi.spyOn(window, "close").mockImplementation(() => {});
   confirm.mockResolvedValue(undefined);
@@ -82,40 +83,40 @@ describe("授权确认页 · 时长与范围映射", () => {
   it("默认时长为「仅此次」，点击允许应以 type 1 确认", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo());
     render(<PermissionConfirm uuid="u1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "允许" }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 }));
+    fireEvent.click((await screen.findByText("允许")).closest("button")!);
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 });
   });
 
   it("选择「永久」后点击允许应以 type 5 确认", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo());
     render(<PermissionConfirm uuid="u1" />);
-    fireEvent.click(await screen.findByRole("radio", { name: "永久" }));
-    fireEvent.click(screen.getByRole("button", { name: "允许" }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 5 }));
+    fireEvent.click(await screen.findByTestId("confirm-duration-permanent"));
+    fireEvent.click(screen.getByText("允许").closest("button")!);
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 5 });
   });
 
   it("通配权限且 likeNum>2 时，开启通配并选永久，允许应为 type 4", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo({ wildcard: true }, 3));
     render(<PermissionConfirm uuid="u1" />);
-    fireEvent.click(await screen.findByRole("radio", { name: "永久" }));
-    fireEvent.click(screen.getByRole("switch"));
-    fireEvent.click(screen.getByRole("button", { name: "允许" }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 4 }));
+    fireEvent.click(await screen.findByTestId("confirm-duration-permanent"));
+    fireEvent.click(document.querySelector('[role="switch"]')!);
+    fireEvent.click(screen.getByText("允许").closest("button")!);
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 4 });
   });
 
   it("点击拒绝应以当前时长 type 确认 allow=false", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo());
     render(<PermissionConfirm uuid="u1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "拒绝" }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: false, type: 1 }));
+    fireEvent.click((await screen.findByText("拒绝")).closest("button")!);
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: false, type: 1 });
   });
 
   it("点击忽略应以 type 0 确认（忽略不留授权记录）", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo());
     render(<PermissionConfirm uuid="u1" />);
     await screen.findByText("脚本正在试图访问跨域资源");
-    fireEvent.click(screen.getByRole("button", { name: /忽略/ }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: false, type: 0 }));
+    fireEvent.click(screen.getByText(/忽略/).closest("button")!);
+    expect(confirm).toHaveBeenCalledWith("u1", { allow: false, type: 0 });
   });
 });
 
@@ -124,16 +125,16 @@ describe("授权确认页 · 选项可见性", () => {
     getPermissionInfo.mockResolvedValue(baseInfo({ wildcard: true }, 2));
     render(<PermissionConfirm uuid="u1" />);
     await screen.findByText("脚本正在试图访问跨域资源");
-    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(document.querySelector('[role="switch"]')).not.toBeInTheDocument();
   });
 
   it("persistentOnly 权限不展示「临时」选项", async () => {
     getPermissionInfo.mockResolvedValue(baseInfo({ persistentOnly: true, wildcard: false }));
     render(<PermissionConfirm uuid="u1" />);
     await screen.findByText("脚本正在试图访问跨域资源");
-    expect(screen.getByRole("radio", { name: "仅此次" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "永久" })).toBeInTheDocument();
-    expect(screen.queryByRole("radio", { name: "临时" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("confirm-duration-once")).toBeInTheDocument();
+    expect(screen.getByTestId("confirm-duration-permanent")).toBeInTheDocument();
+    expect(screen.queryByTestId("confirm-duration-temporary")).not.toBeInTheDocument();
   });
 
   it("cookie 权限应展示高敏感警示", async () => {
@@ -151,9 +152,9 @@ describe("授权确认页 · 站点访问变体", () => {
       baseInfo({ permission: "extension-site-access", title: "ScriptCat 需要站点访问权限", wildcard: false })
     );
     render(<PermissionConfirm uuid="u1" />);
-    expect(await screen.findByRole("button", { name: "请求权限" })).toBeInTheDocument();
+    expect((await screen.findByText("请求权限")).closest("button")).toBeInTheDocument();
     expect(screen.queryByText("授权时长")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "允许" })).not.toBeInTheDocument();
+    expect(screen.queryByText("允许", { selector: "button" })).not.toBeInTheDocument();
   });
 
   it("点击请求权限应先申请站点访问再以 type 1 确认", async () => {
@@ -167,9 +168,11 @@ describe("授权确认页 · 站点访问变体", () => {
       })
     );
     render(<PermissionConfirm uuid="u1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "请求权限" }));
-    await waitFor(() => expect(requestSpy).toHaveBeenCalledWith({ origins: ["https://example.com/*"] }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 }));
+    fireEvent.click((await screen.findByText("请求权限")).closest("button")!);
+    await waitFor(() => {
+      expect(requestSpy).toHaveBeenCalledWith({ origins: ["https://example.com/*"] });
+      expect(confirm).toHaveBeenCalledWith("u1", { allow: true, type: 1 });
+    });
   });
 });
 

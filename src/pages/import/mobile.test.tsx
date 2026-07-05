@@ -100,7 +100,7 @@ describe("导入移动视图", () => {
       doneCount: 1,
       totalCount: 1,
     });
-    expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(document.querySelector('[role="progressbar"]')).toBeTruthy();
     expect(screen.getByTestId("status-done-u1")).toBeTruthy();
     expect(screen.queryByTestId("script-checkbox-u1")).toBeNull();
   });

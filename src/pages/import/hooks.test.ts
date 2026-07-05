@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { ScriptBackupData, SubscribeBackupData } from "@App/pkg/backup/struct";
 
@@ -90,8 +90,9 @@ function mkBackupSubscribe(url: string, name: string): SubscribeBackupData {
   };
 }
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
   h.backup = { script: [], subscribe: [] };
   h.cacheGet.mockResolvedValue({ filename: "backup.zip", url: "blob:abc" });

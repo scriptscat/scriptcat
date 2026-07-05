@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { TourStep } from "./types";
@@ -32,8 +32,9 @@ vi.mock("./OnboardingProvider", () => ({
 
 import { OnboardingPopover } from "./OnboardingPopover";
 
+beforeAll(() => initTestLanguage("en-US"));
+
 beforeEach(() => {
-  initTestLanguage("en-US");
   stepIndex = 0;
   next.mockReset();
   prev.mockReset();
@@ -66,7 +67,7 @@ describe("巡览步骤卡", () => {
 
   it("气泡根元素应可聚焦（tabIndex -1）", () => {
     render(<OnboardingPopover />);
-    const dialog = screen.getByRole("dialog");
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog).toHaveAttribute("tabindex", "-1");
   });
 
@@ -92,7 +93,7 @@ describe("巡览步骤卡", () => {
     steps[0] = { ...orig, target: "reposition-target", placement: "bottom" };
     try {
       render(<OnboardingPopover />);
-      const dialog = screen.getByRole("dialog");
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
       expect(dialog.style.left).toBe("100px");
       // 目标移动后触发 resize，气泡应跟随到新位置
       rect = makeRect(300);

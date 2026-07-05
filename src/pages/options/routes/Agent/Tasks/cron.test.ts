@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { initLanguage } from "@App/locales/locales";
+import { describe, it, expect, beforeAll } from "vitest";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { nextRunText } from "./cron";
 
-beforeEach(() => initLanguage("zh-CN"));
+beforeAll(() => initTestLanguage("zh-CN"));
 
 describe("nextRunText cron 下次运行预览", () => {
   it("合法表达式返回 valid=true 与非空文案", () => {

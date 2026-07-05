@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, waitFor, fireEvent } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
@@ -61,8 +61,9 @@ function writableFor(name: string, children: Record<string, any>): any {
 
 let root: any;
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   mockedUseIsMobile.mockReturnValue(false);
   root = dirHandle("root", {
     "file1.txt": fileHandle("file1.txt", "hi"),
@@ -78,21 +79,21 @@ afterEach(() => cleanup());
 describe("AgentOPFS 页面", () => {
   it("挂载后展示文件与目录", async () => {
     render(<AgentOPFS />);
-    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
     expect(screen.getByText("subdir")).toBeInTheDocument();
   });
 
   it("点击目录进入并更新面包屑", async () => {
     render(<AgentOPFS />);
-    await waitFor(() => expect(screen.getByTestId("entry-subdir")).toBeInTheDocument());
+    expect(await screen.findByTestId("entry-subdir")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("entry-subdir"));
-    await waitFor(() => expect(screen.getByText("inner.json")).toBeInTheDocument());
+    expect(await screen.findByText("inner.json")).toBeInTheDocument();
     expect(screen.getByTestId("crumb-1")).toHaveTextContent("subdir");
   });
 
   it("点击刷新重新读取当前目录", async () => {
     render(<AgentOPFS />);
-    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
     // 挂载后往底层目录注入新文件:刷新前不应出现,刷新后应出现
     Object.defineProperty(root, Symbol.asyncIterator, {
       configurable: true,
@@ -104,16 +105,16 @@ describe("AgentOPFS 页面", () => {
     });
     expect(screen.queryByText("added-after.txt")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("opfs-refresh"));
-    await waitFor(() => expect(screen.getByText("added-after.txt")).toBeInTheDocument());
+    expect(await screen.findByText("added-after.txt")).toBeInTheDocument();
   });
 
   it("选择文件后写入当前目录并刷新展示", async () => {
     render(<AgentOPFS />);
-    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
     const input = screen.getByTestId("opfs-upload-input") as HTMLInputElement;
     const file = new File(["uploaded-content"], "report.json", { type: "application/json" });
     fireEvent.change(input, { target: { files: [file] } });
-    await waitFor(() => expect(screen.getByText("report.json")).toBeInTheDocument());
+    expect(await screen.findByText("report.json")).toBeInTheDocument();
   });
 
   it("上传进行中:上传按钮禁用并显示忙碌指示器,完成后恢复(无静默操作)", async () => {
@@ -138,7 +139,7 @@ describe("AgentOPFS 页面", () => {
     (navigator.storage.getDirectory as any).mockResolvedValue(root);
 
     render(<AgentOPFS />);
-    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
 
     const upload = screen.getByTestId("opfs-upload");
     expect(upload).not.toBeDisabled();
@@ -172,7 +173,7 @@ describe("AgentOPFS 页面", () => {
   it("移动端:页内工具行为图标按钮(无可见文案标签)+ 标题作为页内标题", async () => {
     mockedUseIsMobile.mockReturnValue(true);
     render(<AgentOPFS />);
-    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
     const upload = screen.getByTestId("opfs-upload");
     const refresh = screen.getByTestId("opfs-refresh");
     // 图标按钮:有可访问名,但没有可见文本节点
@@ -186,7 +187,7 @@ describe("AgentOPFS 页面", () => {
   it("移动端抑制 64px 桌面页头(避免与全局 MobileHeader 双层堆叠)", async () => {
     mockedUseIsMobile.mockReturnValue(true);
     render(<AgentOPFS />);
-    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
     // AgentPageHeader 的副标题与带文案的桌面按钮均不应出现:说明 64px 页头未渲染
     expect(screen.queryByText("Origin Private File System · Agent 私有存储")).not.toBeInTheDocument();
     expect(screen.queryByTestId("opfs-refresh")?.textContent).not.toContain("刷新");
@@ -196,7 +197,7 @@ describe("AgentOPFS 页面", () => {
   it("桌面端渲染 64px 页头(含副标题与带文案的刷新/上传按钮)", async () => {
     mockedUseIsMobile.mockReturnValue(false);
     render(<AgentOPFS />);
-    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
     expect(screen.getByText("Origin Private File System · Agent 私有存储")).toBeInTheDocument();
     expect(screen.getByTestId("opfs-refresh")).toHaveTextContent("刷新");
     expect(screen.getByTestId("opfs-upload")).toHaveTextContent("上传");

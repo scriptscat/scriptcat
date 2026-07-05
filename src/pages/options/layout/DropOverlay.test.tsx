@@ -1,12 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { DropOverlay } from "./DropOverlay";
 
 describe("DropOverlay", () => {
-  beforeEach(() => {
-    initLanguage("zh-CN");
-  });
+  beforeAll(() => initTestLanguage("zh-CN"));
 
   it("active=false 时不渲染", () => {
     const { container } = render(<DropOverlay active={false} />);

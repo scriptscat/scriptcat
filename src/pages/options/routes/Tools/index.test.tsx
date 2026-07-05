@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vitest";
+import { render, cleanup } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -42,8 +42,9 @@ vi.mock("@Packages/filesystem/auth", () => ({
 
 import Tools from "./index";
 
+beforeAll(() => initTestLanguage("en-US"));
+
 beforeEach(() => {
-  initTestLanguage("en-US");
   mockMatchMedia();
   mockIntersectionObserver();
 });
@@ -52,7 +53,7 @@ afterEach(cleanup);
 describe("工具页", () => {
   it("渲染 5 个分类导航项", () => {
     render(<Tools />);
-    const nav = screen.getByRole("navigation");
-    expect(within(nav).getAllByRole("button")).toHaveLength(5);
+    const nav = document.querySelector("nav")!;
+    expect(nav.querySelectorAll("button")).toHaveLength(5);
   });
 });

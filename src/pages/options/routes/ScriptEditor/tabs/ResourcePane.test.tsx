@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { act, cleanup, screen, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { notify } from "@App/pages/components/ui/toast";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
 
 // 资源数据走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
@@ -34,8 +35,9 @@ const sampleResources = () => ({
   },
 });
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
   fetchScript.mockResolvedValue({ uuid: "u1", name: "脚本A" });
   getScriptResources.mockResolvedValue(sampleResources());
@@ -60,23 +62,23 @@ describe("ResourcePane 资源面板", () => {
   it("行内删除应二次确认后才调用 deleteResource 并移除该行", async () => {
     render(<ResourcePane uuid="u1" />);
     await screen.findByText("jquery.min.js");
-    const delButtons = screen.getAllByRole("button", { name: t("delete") });
+    const delButtons = screen.getAllByLabelText(t("delete"));
     fireEvent.click(delButtons[0]);
     // 点击删除按钮仅弹出确认气泡，未确认前不应删除
     expect(deleteResource).not.toHaveBeenCalled();
     expect(screen.getByText(t("confirm_delete_resource"))).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("popconfirm-confirm"));
-    await waitFor(() => expect(deleteResource).toHaveBeenCalledWith("https://cdn.test/jquery.min.js"));
-    await waitFor(() => expect(screen.queryByText("jquery.min.js")).toBeNull());
+    await act(async () => fireEvent.click(screen.getByTestId("popconfirm-confirm")));
+    expect(deleteResource).toHaveBeenCalledWith("https://cdn.test/jquery.min.js");
+    expect(screen.queryByText("jquery.min.js")).toBeNull();
   });
 
   it("清空应对每个资源调用删除并清空列表", async () => {
     render(<ResourcePane uuid="u1" />);
     await screen.findByText("jquery.min.js");
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("clear")) }));
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
-    await waitFor(() => expect(deleteResource).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByText(t("no_data"))).toBeInTheDocument());
+    fireEvent.click(screen.getByText(t("clear"), { selector: "button" }));
+    await act(async () => fireEvent.click(screen.getByText(t("confirm"), { selector: "button" })));
+    expect(deleteResource).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(t("no_data"))).toBeInTheDocument();
   });
 
   it("搜索应按文件名过滤资源", async () => {
