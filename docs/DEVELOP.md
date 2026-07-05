@@ -138,6 +138,10 @@ Conversely, keep these — they look thin but carry real value:
   - Keep lightweight independent cases concurrent, but mark CPU-heavy cases or fixture batches with
     `it.sequential()` / `describe.sequential()`. Preserve their assertions and inputs; do not trade coverage for
     speed or raise the timeout to hide worker contention.
+  - If a case still sits near the budget in a **solo** coverage run (single test, no concurrency, no worker
+    contention — genuine CPU cost, e.g. chardet's 32 KB sample analysis is roughly 10× slower under V8 coverage
+    instrumentation), give that one case an explicit per-test `{ timeout }` with a comment citing the measured
+    solo cost. The global timeout stays tight for everything else.
   - A focused file run is only the first check. Re-run the exact CI combination of timeout, coverage, reporter, and
     shard that exposed the failure, because an isolated run does not reproduce cross-file worker pressure.
 - Treat performance measurements as evidence, not a one-run verdict. Run the affected file first, then the full

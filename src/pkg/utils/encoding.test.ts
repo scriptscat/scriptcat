@@ -325,7 +325,9 @@ describe.concurrent("encoding", () => {
       expect(result).not.toContain("ðŸ› ");
     });
 
-    it.concurrent("keeps valid UTF-8 multilingual userscripts intact without charset", async () => {
+    // 以下大夹具（百 KB 级验证/采样）为同步 CPU 工作；并发时在同一 worker 内互相排队，
+    // 单例耗时会被放大到逼近超时，故顺序执行。
+    it.sequential("keeps valid UTF-8 multilingual userscripts intact without charset", async () => {
       const cases = [
         {
           name: "Vietnamese",
@@ -415,19 +417,19 @@ describe.concurrent("encoding", () => {
       }
     });
 
-    it.concurrent("correctly decodes UTF-8 content larger than the full validation limit", async () => {
+    it.sequential("correctly decodes UTF-8 content larger than the full validation limit", async () => {
       const text = "Hello 世界 Emoji 🚀\n".repeat(20 * 1024);
 
       await expect(readRawContent(new Blob([text]), null)).resolves.toBe(text);
     });
 
-    it.concurrent("keeps a UTF-8 emoji crossing a sampled range boundary intact", async () => {
+    it.sequential("keeps a UTF-8 emoji crossing a sampled range boundary intact", async () => {
       const text = `${"a".repeat(16 * 1024 - 2)}🚀${"b".repeat(300 * 1024)}`;
 
       await expect(readRawContent(new Blob([text]), null)).resolves.toBe(text);
     });
 
-    it.concurrent("keeps large mostly valid UTF-8 with late corruption as UTF-8", async () => {
+    it.sequential("keeps large mostly valid UTF-8 with late corruption as UTF-8", async () => {
       const prefix = "a".repeat(300 * 1024);
       const suffix = "你好世界 Emoji 🚀";
       const suffixBytes = new TextEncoder().encode(suffix);
@@ -442,7 +444,9 @@ describe.concurrent("encoding", () => {
       expect(result).toContain(suffix);
     });
 
-    it.concurrent("detects legacy CJK bytes hidden between large UTF-8 ranges", async () => {
+    // chardet 对 32KB 采样的分析在 V8 覆盖率插桩下单次实测约 280–310ms（无并发、无争抢），
+    // 逼近全局 340ms 预算；对这类真实 CPU 成本用例给出显式单测预算，不放宽全局超时。
+    it.sequential("detects legacy CJK bytes hidden between large UTF-8 ranges", { timeout: 850 }, async () => {
       const utf8Part = new TextEncoder().encode("// ==UserScript==\n".repeat(12000));
       const gbkBlock = new Uint8Array([
         ...Array.from({ length: 64 }).flatMap(() => [
@@ -622,7 +626,7 @@ describe.concurrent("encoding", () => {
       }
     });
 
-    it.sequential("detects legacy bytes after a large ASCII prefix", async () => {
+    it.sequential("detects legacy bytes after a large ASCII prefix", { timeout: 850 }, async () => {
       const shiftJisText = "これはShiftJISのテスト文除withEnglish123";
       const shiftJisBytes = new Uint8Array([
         0x82, 0xb1, 0x82, 0xea, 0x82, 0xcd, 0x53, 0x68, 0x69, 0x66, 0x74, 0x4a, 0x49, 0x53, 0x82, 0xcc, 0x83, 0x65,
@@ -640,6 +644,7 @@ describe.concurrent("encoding", () => {
 
     it.sequential(
       "detects legacy bytes after an ASCII prefix larger than the full UTF-8 validation limit",
+      { timeout: 850 },
       async () => {
         const shiftJisText = "これはShiftJISのテスト文除withEnglish123";
         const shiftJisBytes = new Uint8Array([
