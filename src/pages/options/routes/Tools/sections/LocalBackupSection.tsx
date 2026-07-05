@@ -5,16 +5,18 @@ import { synchronizeClient } from "@App/pages/store/features/script";
 import { openImportWindow } from "../openImportWindow";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
+import type { LocalBackupExport } from "@App/app/service/service_worker/synchronize";
 
 export function LocalBackupSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState(false);
+  const [localBackup, setLocalBackup] = useState<LocalBackupExport>();
 
   const exportFile = async () => {
     setExporting(true);
     try {
-      await synchronizeClient.export();
+      setLocalBackup(await synchronizeClient.export());
     } finally {
       setExporting(false);
     }
@@ -58,6 +60,13 @@ export function LocalBackupSection({ register }: { register: (id: string) => (el
           <Button data-testid="tools_import" size="sm" variant="secondary" onClick={pickImportFile}>
             {t("settings:import_file")}
           </Button>
+          {localBackup && (
+            <Button asChild size="sm" variant="link">
+              <a href={localBackup.url} download={localBackup.filename}>
+                {t("tools:manual_download")}
+              </a>
+            </Button>
+          )}
         </div>
       </SettingCard>
     </div>

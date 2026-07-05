@@ -23,6 +23,7 @@ import type {
 } from "./script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
+import type { LocalBackupExport } from "./synchronize";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -278,8 +279,8 @@ export class SynchronizeClient extends Client {
     super(msgSender, "serviceWorker/synchronize");
   }
 
-  export(uuids?: string[]) {
-    return this.do("export", uuids);
+  export(uuids?: string[]): Promise<LocalBackupExport> {
+    return this.doThrow("export", uuids);
   }
 
   backupToCloud(type: FileSystemType, params: any) {

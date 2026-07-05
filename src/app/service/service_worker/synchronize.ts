@@ -69,6 +69,11 @@ type ScriptcatSyncStatus = {
 
 type PushScriptParam = TInstallScriptParams & Partial<Pick<Script, "createtime" | "updatetime">>;
 
+export type LocalBackupExport = {
+  url: string;
+  filename: string;
+};
+
 type FileDigestMap = {
   [key: string]: string;
 };
@@ -258,7 +263,7 @@ export class SynchronizeService {
   }
 
   // 请求导出文件
-  async requestExport(uuids?: string[]) {
+  async requestExport(uuids?: string[]): Promise<LocalBackupExport> {
     const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     await this.backup(fs, uuids);
@@ -274,12 +279,13 @@ export class SynchronizeService {
     const url = await makeBlobURL({ blob: zipOutput, persistence: false }, (params) =>
       createObjectURL(this.msgSender, params)
     );
-    startDownload({
+    const filename = `scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`;
+    void startDownload({
       url,
       saveAs: true,
-      filename: `scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`,
+      filename,
     });
-    return;
+    return { url, filename };
   }
 
   // 备份到云端
