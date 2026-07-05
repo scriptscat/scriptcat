@@ -4,12 +4,12 @@ import App from "./App.tsx";
 import LoggerCore from "@App/app/logger/core.ts";
 import { message } from "../store/global.ts";
 import MessageWriter from "@App/app/logger/message_writer.ts";
-import "@arco-design/web-react/dist/css/arco.css";
-import "@App/locales/locales";
+import { ThemeProvider } from "../components/theme-provider.tsx";
+import { Toaster } from "../components/ui/sonner.tsx";
+import { preloadPopupData } from "./preload.ts";
 import "@App/index.css";
-import "./index.css";
-import PopupLayout from "../components/layout/PopupLayout.tsx";
-import { AppProvider } from "../store/AppContext.tsx";
+
+preloadPopupData();
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
@@ -20,11 +20,10 @@ const loggerCore = new LoggerCore({
 loggerCore.logger().debug("popup page start");
 
 const Root = (
-  <AppProvider>
-    <PopupLayout>
-      <App />
-    </PopupLayout>
-  </AppProvider>
+  <ThemeProvider>
+    <App />
+    <Toaster />
+  </ThemeProvider>
 );
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

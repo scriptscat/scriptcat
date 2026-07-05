@@ -1,8 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { isBase64, parseUrlSRI, getCombinedMeta, selfMetadataUpdate, getUserScriptRegister } from "./utils";
-import type { SCMetadata, Script } from "@App/app/repo/scripts";
+import {
+  isBase64,
+  parseUrlSRI,
+  getCombinedMeta,
+  selfMetadataUpdate,
+  getUserScriptRegister,
+  compileInjectionCode,
+} from "./utils";
+import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { ScriptMatchInfo } from "./types";
+import { extractUrlPatterns } from "@App/pkg/utils/url_matcher";
 
 describe.concurrent("parseUrlSRI", () => {
   it.concurrent("should parse URL SRI", () => {
@@ -55,10 +63,10 @@ describe.concurrent("parseUrlSRI", () => {
     expect(result.hash).toBeUndefined();
   });
   it.concurrent("不规则的SRI", () => {
-    const url = "https://example.com/script.js#sha256";
+    const url = "https://example.com/script.js#sha256"; // 格式错误不视为哈希值
     const result = parseUrlSRI(url);
     expect(result.url).toEqual("https://example.com/script.js");
-    expect(result.hash).toEqual({});
+    expect(result.hash).toBeUndefined();
     const url2 = "https://example.com/script.js#sha256=abc123==,md5";
     const result2 = parseUrlSRI(url2);
     expect(result2.url).toEqual("https://example.com/script.js");
@@ -254,5 +262,55 @@ describe.concurrent("getUserScriptRegister", () => {
     expect(result.registerScript.allFrames).toBe(false);
     expect(result.registerScript.world).toBe("MAIN");
     expect(result.registerScript.runAt).toBe("document_end");
+  });
+});
+
+describe.concurrent("compileInjectionCode", () => {
+  const createMockScriptRes = (overrides: Partial<ScriptRunResource> = {}): ScriptRunResource => ({
+    uuid: "test-uuid",
+    name: "Test Script",
+    namespace: "test.namespace",
+    type: 1,
+    status: 1,
+    sort: 0,
+    runStatus: "complete",
+    createtime: Date.now(),
+    checktime: Date.now(),
+    code: "console.log('test');",
+    value: {},
+    flag: "#-test-uuid",
+    resource: {},
+    metadata: {},
+    originalMetadata: {},
+    ...overrides,
+  });
+
+  it.concurrent("unwrap 脚本走 scriptlet 编译路径", () => {
+    const scriptRes = createMockScriptRes({
+      metadata: { unwrap: [""] },
+    });
+    const patterns = extractUrlPatterns(["@match https://example.com/*"]);
+    const result = compileInjectionCode(scriptRes, scriptRes.code, patterns);
+
+    // 包含 URL 条件包裹和 flag 注册
+    expect(result).toMatch(/^if\(/);
+    expect(result).toContain(`window['#-test-uuid']=function(){};`);
+    // 不包含沙箱封装
+    expect(result).not.toContain("with(arguments[0]||this.$)");
+    expect(result).not.toContain("return(async function(){");
+  });
+
+  it.concurrent("非 unwrap 脚本走普通编译路径", () => {
+    const scriptRes = createMockScriptRes({
+      metadata: {},
+    });
+    const patterns = extractUrlPatterns(["@match https://example.com/*"]);
+    const result = compileInjectionCode(scriptRes, scriptRes.code, patterns);
+
+    // 包含沙箱封装
+    expect(result).toContain("with(arguments[0]||this.$)");
+    expect(result).toContain("return(async function(){");
+    // 使用 compileInjectScript 包裹（window[flag] = function(){...}）
+    expect(result).toContain("window['#-test-uuid']");
   });
 });

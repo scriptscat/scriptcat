@@ -1,0 +1,17 @@
+{
+  "development_tool": "Инструмент разработки",
+  "vscode_url": "Адрес VSCode",
+  "auto_connect_vscode_service": "Автоматически подключаться к службе VSCode",
+  "connect": "Подключить",
+  "connection_success": "Подключение успешно",
+  "connection_failed": "Ошибка подключения",
+  "select_import_script": "Выберите скрипт для импорта на новой странице",
+  "import_error": "Ошибка импорта",
+  "pulling_data_from_cloud": "Получение данных из облака",
+  "pull_failed": "Ошибка получения",
+  "restore": "Восстановить",
+  "local_backup": "Локальная резервная копия",
+  "cloud_backup": "Облачная резервная копия",
+  "auto_backup": "Автоматическая резервная копия",
+  "data_migration": "Миграция данных"
+}

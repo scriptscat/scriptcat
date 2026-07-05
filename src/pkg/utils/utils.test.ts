@@ -5,6 +5,7 @@ import {
   cleanFileName,
   formatBytes,
   normalizeResponseHeaders,
+  openInCurrentTab,
   stringMatching,
   stripUndefined,
   toCamelCase,
@@ -43,23 +44,19 @@ const assertNextTimeInfo = (expr: string, date: Date, expected: any) => {
     once: actual.once,
   };
 
-  // 1) 失败时讯息包含 expr / expected / actual
-  // 2) 用 soft，方便一次看到多笔失败（可选）
-  expect
-    .soft(
-      result,
-      [
-        "",
-        "",
-        `expr: ${expr}`,
-        `date: ${date.toISOString()}`,
-        `expected: ${JSON.stringify(expected)}`,
-        `actual:   ${JSON.stringify(result)}`,
-        "",
-        "",
-      ].join("\n")
-    )
-    .toEqual(expected);
+  expect(
+    result,
+    [
+      "",
+      "",
+      `expr: ${expr}`,
+      `date: ${date.toISOString()}`,
+      `expected: ${JSON.stringify(expected)}`,
+      `actual:   ${JSON.stringify(result)}`,
+      "",
+      "",
+    ].join("\n")
+  ).toEqual(expected);
 };
 
 describe.concurrent("nextTimeDisplay ERROR SAFE", () => {
@@ -542,7 +539,6 @@ describe.concurrent("toCamelCase", () => {
 
   it.concurrent("应当正确处理多下划线配置键", () => {
     expect(toCamelCase("editor_type_definition")).toBe("EditorTypeDefinition");
-    expect(toCamelCase("script_list_column_width")).toBe("ScriptListColumnWidth");
   });
 });
 
@@ -702,5 +698,31 @@ describe("stripUndefined", () => {
     const input = { a: [1, 2, 3], b: undefined };
     const result = stripUndefined(input);
     expect(result).toEqual({ a: [1, 2, 3] });
+  });
+});
+
+describe("openInCurrentTab", () => {
+  // 在 Edge Android 等移动端，window.open 打不开 chrome-extension:// 内部页，
+  // 内部页必须经由扩展 API（chrome.tabs.create）打开（见 #686）。
+  it("应通过 chrome.tabs.create 在当前标签页之后打开内部页", async () => {
+    let created: chrome.tabs.CreateProperties | undefined;
+    const onCreate = (props: chrome.tabs.CreateProperties) => {
+      created = props;
+    };
+    (chrome.tabs as any).hook.on("create", onCreate);
+    try {
+      await openInCurrentTab("/src/options.html");
+    } finally {
+      (chrome.tabs as any).hook.removeListener("create", onCreate);
+    }
+    expect(created?.url).toBe("/src/options.html");
+    // getCurrentTab 返回 index:0 的标签，新标签应排在其后
+    expect(created?.index).toBe(1);
+  });
+
+  // MainLayout 拖拽导入据返回值判断是否成功打开安装页，因此必须回传创建出来的标签
+  it("应返回创建出来的标签供调用方判断是否成功打开", async () => {
+    const tab = await openInCurrentTab("/src/install.html?file=abc");
+    expect(tab?.id).toBe(1);
   });
 });

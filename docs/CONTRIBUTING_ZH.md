@@ -71,9 +71,9 @@ pnpm start
 
 ScriptCat 的翻译文件托管在 GitHub 上，欢迎通过 Pull Request 贡献翻译。
 
-- 翻译文件位于 [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales)，每种语言对应一个 `<语言代码>/translation.json`
-- **改进已有翻译**：直接编辑对应语言的 `translation.json`
-- **新增语言**：在 `src/locales/` 下新建对应语言代码目录（如 `fr-FR`），复制 `en-US/translation.json` 作为模板进行翻译，并在 `src/locales/locales.ts` 中注册
+- 翻译文件位于 [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales)，每种语言对应一个 `<语言代码>/` 目录，按命名空间拆分为多个 `*.json` 文件（如 `common.json`、`popup.json`、`script.json`）
+- **改进已有翻译**：直接编辑对应语言目录下相应命名空间的 `*.json` 文件
+- **新增语言**：在 `src/locales/` 下新建对应语言代码目录（如 `fr-FR`），复制 `en-US/` 下的各命名空间 `*.json` 与 `index.ts` 作为模板进行翻译，并在 `src/locales/locales.ts` 中注册
 - 完成后向 `main` 分支提交 Pull Request 即可
 
 ## 参与开发
@@ -88,8 +88,8 @@ pnpm run lint
 ScriptCat 的页面开发使用了以下技术：
 
 - [React](https://reactjs.org/)
-- UI 框架 [arco](https://arco.design)
-- CSS 框架 [unocss](https://unocss.dev/interactive/)
+- UI 框架 [shadcn/ui](https://ui.shadcn.com/)（基于 [Radix UI](https://www.radix-ui.com/)）
+- CSS 框架 [Tailwind CSS](https://tailwindcss.com/)
 - RsPack 打包工具 [rspack](https://rspack.dev/)
 
 如果你想在本地运行 ScriptCat，可以使用以下命令：

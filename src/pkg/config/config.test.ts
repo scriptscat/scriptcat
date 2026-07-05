@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { SystemConfig } from "./config";
 import { MessageQueue } from "@Packages/message/message_queue";
 
@@ -89,6 +89,34 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       const localData = await chrome.storage.local.get("system_enable_eslint");
       expect(localData["system_enable_eslint"]).toBeUndefined();
     });
+
+    it("编辑器偏好应返回默认值并写入 sync storage", async () => {
+      await expect(config.getEditorPreferences()).resolves.toEqual({
+        version: 1,
+        fontSize: 14,
+        mouseWheelScrollSensitivity: 1,
+        smoothScrolling: true,
+      });
+
+      const value = { version: 1 as const, fontSize: 16, mouseWheelScrollSensitivity: 1.5, smoothScrolling: false };
+      config.setEditorPreferences(value);
+
+      await expect(config.getEditorPreferences()).resolves.toEqual(value);
+      const syncData = await chrome.storage.sync.get("system_editor_preferences");
+      expect(syncData["system_editor_preferences"]).toEqual(value);
+
+      const localData = await chrome.storage.local.get("system_editor_preferences");
+      expect(localData["system_editor_preferences"]).toBeUndefined();
+    });
+
+    it("编辑器偏好重置后应回到当前默认值", async () => {
+      config.setEditorPreferences({ version: 1, fontSize: 18, mouseWheelScrollSensitivity: 2, smoothScrolling: false });
+      config.setEditorPreferences(undefined);
+
+      await expect(config.getEditorPreferences()).resolves.toEqual(config.defaultEditorPreferences());
+      const syncData = await chrome.storage.sync.get("system_editor_preferences");
+      expect(syncData["system_editor_preferences"]).toBeUndefined();
+    });
   });
 
   describe("懒迁移：sync → local", () => {
@@ -154,6 +182,65 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       // 第二次读取应返回缓存值
       const second = await config.getVscodeUrl();
       expect(second).toBe("ws://old:8642");
+    });
+  });
+
+  describe("React 外部存储适配器", () => {
+    it("同一配置键应返回稳定的 store 实例", () => {
+      expect(config.externalStore("favicon_service")).toBe(config.externalStore("favicon_service"));
+    });
+
+    it("订阅时应加载初始快照并通知监听器", async () => {
+      const store = config.externalStore("favicon_service");
+      const listener = vi.fn();
+      const unsubscribe = store.subscribe(listener);
+
+      await vi.waitFor(() => expect(store.getSnapshot()).toBe("scriptcat"));
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    });
+
+    it("通知期间新增的监听器不应加入当前派发", async () => {
+      const store = config.externalStore("favicon_service");
+      const lateListener = vi.fn();
+      store.subscribe(() => store.subscribe(lateListener));
+
+      await vi.waitFor(() => expect(store.getSnapshot()).toBe("scriptcat"));
+      expect(lateListener).not.toHaveBeenCalled();
+    });
+
+    it("store setter 应同步更新快照且不提前触发旧 addListener", () => {
+      const store = config.externalStore("favicon_service");
+      const storeListener = vi.fn();
+      const legacyListener = vi.fn();
+      store.subscribe(storeListener);
+      config.addListener("favicon_service", legacyListener);
+      storeListener.mockClear();
+
+      store.set("google");
+
+      expect(store.getSnapshot()).toBe("google");
+      expect(storeListener).toHaveBeenCalledTimes(1);
+      expect(legacyListener).not.toHaveBeenCalled();
+    });
+
+    it("延迟的初始读取不应覆盖 store setter 的新值", async () => {
+      let resolveRead!: () => void;
+      vi.spyOn(chrome.storage.sync, "get").mockImplementationOnce(((
+        _key: string,
+        callback: (items: Record<string, unknown>) => void
+      ) => {
+        resolveRead = () => callback({ system_favicon_service: "scriptcat" });
+      }) as never);
+      const store = config.externalStore("favicon_service");
+      store.subscribe(() => {});
+
+      store.set("google");
+      resolveRead();
+      await Promise.resolve();
+
+      expect(store.getSnapshot()).toBe("google");
+      await expect(config.get("favicon_service")).resolves.toBe("google");
     });
   });
 });
