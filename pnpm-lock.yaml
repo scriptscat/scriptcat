@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  happy-dom:
+    hash: 86b1a6f00877afcb6d67373ff776e646c72e69fa38fa94f6bde86e7ae9b300da
+    path: patches/happy-dom.patch
+
 importers:
 
   .:
@@ -197,7 +202,7 @@ importers:
         version: 16.5.0
       happy-dom:
         specifier: ^20.10.2
-        version: 20.10.2
+        version: 20.10.2(patch_hash=86b1a6f00877afcb6d67373ff776e646c72e69fa38fa94f6bde86e7ae9b300da)
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -236,7 +241,7 @@ importers:
         version: 3.19.3
       vitest:
         specifier: ^4.1.8
-        version: 4.1.8(@types/node@22.16.0)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.2)(vite@7.3.2(@types/node@22.16.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3))
+        version: 4.1.8(@types/node@22.16.0)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.2(patch_hash=86b1a6f00877afcb6d67373ff776e646c72e69fa38fa94f6bde86e7ae9b300da))(vite@7.3.2(@types/node@22.16.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3))
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -6677,7 +6682,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.8(@types/node@22.16.0)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.2)(vite@7.3.2(@types/node@22.16.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3))
+      vitest: 4.1.8(@types/node@22.16.0)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.2(patch_hash=86b1a6f00877afcb6d67373ff776e646c72e69fa38fa94f6bde86e7ae9b300da))(vite@7.3.2(@types/node@22.16.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3))
 
   '@vitest/expect@4.1.8':
     dependencies:
@@ -7791,7 +7796,7 @@ snapshots:
 
   handle-thing@2.0.1: {}
 
-  happy-dom@20.10.2:
+  happy-dom@20.10.2(patch_hash=86b1a6f00877afcb6d67373ff776e646c72e69fa38fa94f6bde86e7ae9b300da):
     dependencies:
       '@types/node': 22.16.2
       '@types/whatwg-mimetype': 3.0.2
@@ -9782,7 +9787,7 @@ snapshots:
       lightningcss: 1.32.0
       yaml: 2.8.3
 
-  vitest@4.1.8(@types/node@22.16.0)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.2)(vite@7.3.2(@types/node@22.16.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3)):
+  vitest@4.1.8(@types/node@22.16.0)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.2(patch_hash=86b1a6f00877afcb6d67373ff776e646c72e69fa38fa94f6bde86e7ae9b300da))(vite@7.3.2(@types/node@22.16.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.8
       '@vitest/mocker': 4.1.8(vite@7.3.2(@types/node@22.16.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3))
@@ -9807,7 +9812,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.16.0
       '@vitest/coverage-v8': 4.1.8(vitest@4.1.8)
-      happy-dom: 20.10.2
+      happy-dom: 20.10.2(patch_hash=86b1a6f00877afcb6d67373ff776e646c72e69fa38fa94f6bde86e7ae9b300da)
     transitivePeerDependencies:
       - msw
 

@@ -1,0 +1,67 @@
+diff --git a/lib/query-selector/SelectorParser.js b/lib/query-selector/SelectorParser.js
+index baf2d34ceffe4b1dcaed9ad4580173a98e3aae68..a6187f8ff63a5c9cc1a22a10e186713ff3042b50 100644
+--- a/lib/query-selector/SelectorParser.js
++++ b/lib/query-selector/SelectorParser.js
+@@ -124,7 +124,7 @@ export default class SelectorParser {
+             singleApostrophe: 0
+         };
+         const name = this.scope.nodeType === NodeTypeEnum.documentNode ? 'Document' : 'Element';
+-        const error = new this.window.DOMException(`Failed to execute 'querySelectorAll' on '${name}': '${selector}' is not a valid selector.`);
++        const getError = () => new this.window.DOMException(`Failed to execute 'querySelectorAll' on '${name}': '${selector}' is not a valid selector.`);
+         let match = null;
+         let lastIndex = 0;
+         let selectorItem = null;
+@@ -145,7 +145,7 @@ export default class SelectorParser {
+                                 if (this.ignoreErrors) {
+                                     return [];
+                                 }
+-                                throw error;
++                                throw getError();
+                             }
+                             currentGroup.push(selectorItem);
+                             currentGroup = [];
+@@ -158,7 +158,7 @@ export default class SelectorParser {
+                                 if (this.ignoreErrors) {
+                                     return [];
+                                 }
+-                                throw error;
++                                throw getError();
+                             }
+                             currentGroup.push(selectorItem);
+                             combinator = SelectorCombinatorEnum.child;
+@@ -169,7 +169,7 @@ export default class SelectorParser {
+                                 if (this.ignoreErrors) {
+                                     return [];
+                                 }
+-                                throw error;
++                                throw getError();
+                             }
+                             currentGroup.push(selectorItem);
+                             combinator = SelectorCombinatorEnum.adjacentSibling;
+@@ -180,7 +180,7 @@ export default class SelectorParser {
+                                 if (this.ignoreErrors) {
+                                     return [];
+                                 }
+-                                throw error;
++                                throw getError();
+                             }
+                             currentGroup.push(selectorItem);
+                             combinator = SelectorCombinatorEnum.subsequentSibling;
+@@ -191,7 +191,7 @@ export default class SelectorParser {
+                                 if (this.ignoreErrors) {
+                                     return [];
+                                 }
+-                                throw error;
++                                throw getError();
+                             }
+                             currentGroup.push(selectorItem);
+                             combinator = SelectorCombinatorEnum.descendant;
+@@ -245,7 +245,7 @@ export default class SelectorParser {
+             if (this.ignoreErrors) {
+                 return [];
+             }
+-            throw error;
++            throw getError();
+         }
+         if (combinator === SelectorCombinatorEnum.none && currentGroup.length > 0) {
+             groups.push([selectorItem]);
