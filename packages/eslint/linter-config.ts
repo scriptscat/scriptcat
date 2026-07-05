@@ -102,6 +102,8 @@ config.rules["userscripts/better-use-match"] = ["off"];
 config.rules["userscripts/require-name"] = ["off"];
 // ScriptCat 不用指定 ==UserScript== 放最前。在 ==UserScript== 前面可以写其他注释, 例如是 License。 不视为 invalid
 config.rules["userscripts/no-invalid-metadata"] = ["off"];
+// @homepage 与 @homepageURL 只需其一即可，不强制成对出现
+config.rules["userscripts/use-homepage-and-url"] = ["off"];
 
 // 以文本形式导出默认规则
 export const defaultConfig = JSON.stringify(config, null, 2);
