@@ -20,6 +20,7 @@ import {
   makeBlobURL,
   stripUndefined,
 } from "@App/pkg/utils/utils";
+import { deferred, type Deferred } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -59,6 +60,8 @@ import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
 import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import { mightPrepareSetClipboard, setClipboard } from "../clipboard";
 import { nativePageWindowOpen } from "../../offscreen/gm_api";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+
 import type { AgentService } from "@App/app/service/agent/service_worker/agent";
 // 导入 Agent API 以触发装饰器注册
 // 注意：不能使用 import "./gm_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
@@ -74,6 +77,7 @@ import GMAgentModelApi from "./gm_agent_model";
 void GMAgentModelApi;
 import GMAgentOPFSApi from "./gm_agent_opfs";
 void GMAgentOPFSApi;
+
 import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller";
 import type { DownloadCallback } from "../download";
 import { detachDownloadCallback, startDownload } from "../download";
@@ -1483,6 +1487,46 @@ export default class GMApi {
         active: true,
       });
     }
+  }
+
+  @PermissionVerify.API({ link: ["GM.takeTurn", "GM_takeTurn"] })
+  takeTurn(request: GMApiRequest<[string]>, sender: IGetSender) {
+    if (!request.params || request.params.length < 1) {
+      throw new Error("param is failed");
+    }
+    const lockKey = request.params[0];
+    if (!sender.isType(GetSenderType.CONNECT)) {
+      throw new Error("GM_download ERROR: sender is not MessageConnect");
+    }
+    let msgConn: MessageConnect | undefined | null = sender.getConnect();
+    if (!msgConn) {
+      throw new Error("GM_download ERROR: msgConn is undefined");
+    }
+    let isConnDisconnected = false;
+    let d: Deferred<boolean> | null = deferred<boolean>();
+    let done: boolean = false;
+    const onDisconnected = () => {
+      if (isConnDisconnected) return;
+      isConnDisconnected = true;
+      d!.resolve(done);
+      msgConn = null; // release for GC
+      d = null; // release for GC
+    };
+    msgConn.onDisconnect(onDisconnected);
+    msgConn.onMessage((msg) => {
+      if (msg.action === "done") {
+        done = true;
+        msgConn?.disconnect();
+        onDisconnected(); // in case .disconnect() not working
+      }
+    });
+    stackAsyncTask(`${lockKey}`, async () => {
+      if (isConnDisconnected) return;
+      msgConn!.sendMessage({
+        action: "start",
+      });
+      return d!.promise;
+    });
   }
 
   handlerNotification() {
