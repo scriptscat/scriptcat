@@ -14,7 +14,14 @@ import type {
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { getContextWindow } from "@App/app/service/agent/core/model_context";
 import { detectToolCallIssues, type ToolCallRecord } from "@App/app/service/agent/core/tool_call_guard";
+import { elideOldToolResults } from "@App/app/service/agent/core/context_elision";
 import type { LLMCallResult } from "./llm_client";
+
+// 上下文占用达到这些比例时，分批裁剪保留窗口外的旧 tool 结果（早于 autoCompact 的 80% 阈值）。
+// 按阈值分批触发而非逐轮触发，避免每轮都重写消息前缀导致 Anthropic 的 prompt cache 断点失效。
+const ELISION_THRESHOLDS = [0.4, 0.6];
+// 保留最近几轮 assistant(带 toolCalls) 及其 tool 结果的完整原文，更早的轮次被裁剪为占位文本
+const ELISION_KEEP_LAST_ASSISTANT_TURNS = 5;
 
 /** ToolLoopOrchestrator 所需的外部依赖（由 AgentService 注入） */
 export interface ToolLoopDeps {
@@ -81,6 +88,8 @@ export class ToolLoopOrchestrator {
     const totalUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
     const toolCallHistory: ToolCallRecord[] = [];
     let guardStartIndex = 0;
+    // 已触发过的裁剪阈值下标（-1 表示尚未触发过），避免同一阈值区间内每轮重复裁剪
+    let lastElisionThresholdIndex = -1;
 
     while (iterations < maxIterations) {
       iterations++;
@@ -110,13 +119,21 @@ export class ToolLoopOrchestrator {
         totalUsage.cacheReadInputTokens += result.usage.cacheReadInputTokens || 0;
       }
 
-      // 自动 compact：当上下文占用超过 80% 时触发
+      // 自动 compact：当上下文占用超过 80% 时触发；否则按阈值分批裁剪旧 tool 结果（见下方 pendingElision）
+      let pendingElision = false;
       if (result.usage && conversationId) {
         const contextWindow = getContextWindow(model);
         const usageRatio = result.usage.inputTokens / contextWindow;
 
         if (usageRatio >= 0.8) {
           await this.deps.autoCompact(conversationId, model, messages, sendEvent, signal);
+        } else {
+          for (let i = 0; i < ELISION_THRESHOLDS.length; i++) {
+            if (i > lastElisionThresholdIndex && usageRatio >= ELISION_THRESHOLDS[i]) {
+              pendingElision = true;
+              lastElisionThresholdIndex = i;
+            }
+          }
         }
       }
 
@@ -239,6 +256,11 @@ export class ToolLoopOrchestrator {
           guardStartIndex = toolCallHistory.length;
           messages.push({ role: "user", content: toolCallWarning });
           sendEvent({ type: "system_warning", message: toolCallWarning });
+        }
+
+        // 分批裁剪：待本轮 assistant/tool 消息入列后再裁剪，让本轮内容计入"最近 K 轮"窗口
+        if (pendingElision) {
+          elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
         }
 
         // 通知 UI 即将开始新一轮 LLM 调用，创建新的 assistant 消息

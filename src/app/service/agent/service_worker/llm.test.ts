@@ -362,6 +362,24 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     return makeSSEResponse(chunks);
   }
 
+  // 与 makeToolCallResponse 相同，但 prompt_tokens 可自定义，用于驱动 usageRatio 跨越裁剪阈值
+  function makeToolCallResponseWithUsage(
+    toolCalls: Array<{ id: string; name: string; arguments: string }>,
+    promptTokens: number
+  ): Response {
+    const chunks: string[] = [];
+    for (const tc of toolCalls) {
+      chunks.push(
+        `data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`
+      );
+      chunks.push(
+        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`
+      );
+    }
+    chunks.push(`data: {"usage":{"prompt_tokens":${promptTokens},"completion_tokens":5}}\n\n`);
+    return makeSSEResponse(chunks);
+  }
+
   function createMockSender() {
     const sentMessages: any[] = [];
     const mockConn = {
@@ -499,6 +517,65 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     registry.unregisterBuiltin("loop");
+  });
+
+  it("上下文占用跨过裁剪阈值时应分批裁剪窗口外的旧 tool 结果，窗口内轮次保持原文", async () => {
+    const { service, mockRepo, mockModelRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    // 使用较小的 contextWindow，便于用少量 prompt_tokens 触发裁剪阈值
+    mockModelRepo.getModel.mockResolvedValue({
+      id: "test-openai",
+      name: "Test",
+      provider: "openai",
+      apiBaseUrl: "",
+      apiKey: "",
+      model: "gpt-4o",
+      contextWindow: 1000,
+    });
+
+    const registry = (service as any).toolRegistry;
+    let callCount = 0;
+    registry.registerBuiltin(
+      { name: "counter", description: "Count", parameters: { type: "object", properties: {} } },
+      {
+        execute: async () => {
+          callCount++;
+          return `count=${callCount}`;
+        },
+      }
+    );
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // 前 4 轮占用较低；第 5 轮跨过 0.4 阈值（此时恰好 5 轮，保留窗口内不裁剪）；
+    // 第 6 轮跨过 0.6 阈值，触发第二次裁剪，第 1 轮此时已超出保留窗口
+    const usages = [100, 100, 100, 100, 500, 700];
+    for (let i = 0; i < usages.length; i++) {
+      fetchSpy.mockResolvedValueOnce(
+        makeToolCallResponseWithUsage([{ id: `c${i + 1}`, name: "counter", arguments: "{}" }], usages[i])
+      );
+    }
+    // 第 7 轮：最终文本，结束循环
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "test" }, sender);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(7);
+
+    // 最后一次 fetch（第 7 轮）请求体中，第 1 轮的 tool 结果应已被裁剪为占位文本，
+    // 而保留窗口内（第 2~6 轮）应保持原文
+    const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
+    const lastBody = JSON.parse((lastCall[1] as RequestInit).body as string);
+    const toolMessages = lastBody.messages.filter((m: any) => m.role === "tool");
+
+    expect(toolMessages).toHaveLength(6);
+    expect(toolMessages[0].content).toContain("elided");
+    expect(toolMessages[1].content).toBe("count=2");
+    expect(toolMessages[toolMessages.length - 1].content).toBe("count=6");
+
+    registry.unregisterBuiltin("counter");
   });
 
   it("工具执行后附件回写：toolCalls 被更新", async () => {
