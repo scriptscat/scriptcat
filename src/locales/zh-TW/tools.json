@@ -10,6 +10,7 @@
   "pulling_data_from_cloud": "正在從雲端拉取資料",
   "pull_failed": "拉取失敗",
   "restore": "還原",
+  "manual_download": "如果下載未開始，請按此手動下載",
   "local_backup": "本機備份",
   "cloud_backup": "雲端備份",
   "auto_backup": "自動備份",
