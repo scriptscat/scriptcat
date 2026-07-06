@@ -31,7 +31,7 @@ Key extension URLs (replace `<id>` with `extensionId`):
 
 ## Common gotchas
 
-This `recordVideo` wiring lives in the **shared** `e2e/fixtures.ts` only. A Step 3 scratch that copies
+The `E2E_RECORD_VIDEO_DIR` → `recordVideo` wiring lives in the **shared** `e2e/fixtures.ts` only. A Step 3 scratch that copies
 gm-api.spec's inline two-phase fixture does **not** read `E2E_RECORD_VIDEO_DIR` — either add
 `recordVideo: { dir }` to your own `launchPersistentContext(...)`, or rely on screenshots + logs as evidence.
 

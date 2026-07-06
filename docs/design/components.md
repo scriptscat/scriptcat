@@ -36,7 +36,7 @@ The shadcn primitives live in [`src/pages/components/ui/`](../../src/pages/compo
 > hand-rolling. **Name-seeded avatars** (script / subscribe icons, provider badges) use the shared
 > `NameAvatar` / `getNameAvatarTone` in [`src/pages/components/NameAvatar.tsx`](../../src/pages/components/NameAvatar.tsx) — see [stored-value type badges](./tokens.md#stored-value-type-badges-string--number--boolean--object).
 
-**Composites** — project blocks built on the primitives. Reuse these before hand-rolling ([Design Principle 2](./README.md#design-principles): one implementation per concept):
+**Composites** — project blocks built on the primitives. Reuse these before hand-rolling ([Design Principles](./README.md#design-principles): one implementation per concept):
 
 | Component | File | Use |
 | --- | --- | --- |

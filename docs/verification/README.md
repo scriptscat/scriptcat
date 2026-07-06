@@ -197,9 +197,11 @@ script or a git-ignored file — it is verification scaffolding, not a committed
 ### When the behavior needs an external trigger (popup menu, action)
 
 The self-test pattern only covers what a userscript can observe *in the page*. Some behavior is fired from
-extension UI — e.g. a `GM_registerMenuCommand` menu is triggered from the popup. One fact makes that drivable:
+extension UI — e.g. a `GM_registerMenuCommand` menu is triggered from the popup.
 
 > Why not click the popup button? See [gotchas](./debugging.md#common-gotchas).
+
+One fact makes that drivable:
 
 - **Send the same SW message the button sends, from any extension page.** ScriptCat clients talk to the
   Service Worker via `chrome.runtime.sendMessage({ action, data })`, where `action` is `<client-prefix>/<method>`
