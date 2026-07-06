@@ -14,6 +14,7 @@ import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/core/types";
 import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
+import type { AgentGeneralConfig } from "@App/app/service/agent/core/agent_config";
 import type {
   ScriptService,
   TCheckScriptUpdateOption,
@@ -469,6 +470,15 @@ export class AgentClient extends Client {
 
   saveSearchConfig(config: SearchEngineConfig) {
     return this.do("saveSearchConfig", config);
+  }
+
+  // Agent 通用设置
+  getAgentConfig(): Promise<AgentGeneralConfig> {
+    return this.doThrow("getAgentConfig");
+  }
+
+  saveAgentConfig(config: AgentGeneralConfig) {
+    return this.do("saveAgentConfig", config);
   }
 
   // MCP API

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { BookOpen, Cpu, Info, Search, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { BookOpen, Cpu, Info, Repeat, Search, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { notify } from "@App/pages/components/ui/toast";
 import { cn } from "@App/pkg/utils/cn";
 import { useScrollSpy } from "@App/pages/options/hooks/useScrollSpy";
@@ -14,8 +14,11 @@ import { Surface } from "@App/pages/components/ui/surface";
 import { agentClient } from "@App/pages/store/features/script";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
+import { DEFAULT_CHAT_MAX_ITERATIONS, type AgentGeneralConfig } from "@App/app/service/agent/core/agent_config";
 
 const DEFAULT_MODEL = "__default__";
+const MIN_CHAT_MAX_ITERATIONS = 1;
+const MAX_CHAT_MAX_ITERATIONS = 1000;
 
 type Engine = SearchEngineConfig["engine"];
 
@@ -94,21 +97,29 @@ export default function AgentSettings() {
   const [models, setModels] = useState<AgentModelConfig[]>([]);
   const [summaryModelId, setSummaryModelId] = useState("");
   const [searchConfig, setSearchConfig] = useState<SearchEngineConfig>({ engine: "bing" });
+  const [agentConfig, setAgentConfig] = useState<AgentGeneralConfig>({
+    chatMaxIterations: DEFAULT_CHAT_MAX_ITERATIONS,
+  });
 
   const categories = [
     { id: "model", icon: Cpu, label: t("agent:settings_cat_model") },
+    { id: "conversation", icon: Repeat, label: t("agent:settings_cat_conversation") },
     { id: "search", icon: Search, label: t("agent:settings_cat_search") },
   ];
   const { activeId, register, scrollContainerRef, scrollTo } = useScrollSpy(categories.map((c) => c.id));
 
   useEffect(() => {
-    void Promise.all([agentClient.listModels(), agentClient.getSummaryModelId(), agentClient.getSearchConfig()]).then(
-      ([m, sid, sc]) => {
-        setModels(m);
-        setSummaryModelId(sid);
-        setSearchConfig(sc || { engine: "bing" });
-      }
-    );
+    void Promise.all([
+      agentClient.listModels(),
+      agentClient.getSummaryModelId(),
+      agentClient.getSearchConfig(),
+      agentClient.getAgentConfig(),
+    ]).then(([m, sid, sc, ac]) => {
+      setModels(m);
+      setSummaryModelId(sid);
+      setSearchConfig(sc || { engine: "bing" });
+      setAgentConfig(ac);
+    });
   }, []);
 
   const handleSummaryChange = async (v: string) => {
@@ -116,6 +127,20 @@ export default function AgentSettings() {
     setSummaryModelId(id);
     try {
       await agentClient.setSummaryModelId(id);
+      notify.success(t("agent:settings_saved"));
+    } catch {
+      notify.error(t("agent:settings_save_failed"));
+    }
+  };
+
+  const handleChatMaxIterationsChange = async (raw: string) => {
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return;
+    const clamped = Math.min(MAX_CHAT_MAX_ITERATIONS, Math.max(MIN_CHAT_MAX_ITERATIONS, Math.round(parsed)));
+    const next = { ...agentConfig, chatMaxIterations: clamped };
+    setAgentConfig(next);
+    try {
+      await agentClient.saveAgentConfig(next);
       notify.success(t("agent:settings_saved"));
     } catch {
       notify.error(t("agent:settings_save_failed"));
@@ -251,6 +276,29 @@ export default function AgentSettings() {
                     ))}
                   </SelectContent>
                 </Select>
+              </SettingsField>
+            </SettingsCard>
+
+            <SettingsCard
+              id="conversation"
+              icon={Repeat}
+              title={t("agent:settings_cat_conversation")}
+              register={register}
+            >
+              <SettingsField
+                label={t("agent:chat_max_iterations")}
+                description={t("agent:chat_max_iterations_desc")}
+                isMobile={isMobile}
+              >
+                <Input
+                  data-testid="chat-max-iterations"
+                  type="number"
+                  min={MIN_CHAT_MAX_ITERATIONS}
+                  max={MAX_CHAT_MAX_ITERATIONS}
+                  className="w-full"
+                  value={agentConfig.chatMaxIterations}
+                  onChange={(e) => handleChatMaxIterationsChange(e.target.value)}
+                />
               </SettingsField>
             </SettingsCard>
 

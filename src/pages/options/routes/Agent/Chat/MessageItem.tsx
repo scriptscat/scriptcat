@@ -30,10 +30,12 @@ function AssistantMessageContent({
   message,
   isStreaming,
   subAgents,
+  onContinue,
 }: {
   message: ChatMessage;
   isStreaming?: boolean;
   subAgents?: Map<string, SubAgentState>;
+  onContinue?: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -73,7 +75,19 @@ function AssistantMessageContent({
       {message.error && (
         <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg text-xs bg-destructive/10 text-destructive">
           <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
-          <span className="min-w-0 break-words">{message.error}</span>
+          <div className="min-w-0 flex flex-col gap-1.5 items-start">
+            <span className="break-words">{message.error}</span>
+            {message.errorCode === "max_iterations" && onContinue && (
+              <button
+                type="button"
+                data-testid="continue-max-iterations"
+                onClick={onContinue}
+                className="rounded-md border border-destructive/30 bg-transparent px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+              >
+                {t("agent:chat_continue_max_iterations")}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -466,6 +480,7 @@ export function AssistantMessageGroup({
   onCopy,
   onRegenerate,
   onDelete,
+  onContinue,
 }: {
   messages: ChatMessage[];
   streamingId?: string;
@@ -475,6 +490,7 @@ export function AssistantMessageGroup({
   onCopy: () => void;
   onRegenerate: () => void;
   onDelete: () => void;
+  onContinue?: () => void;
 }) {
   const lastMsg = messages[messages.length - 1];
   const usage = lastMsg.usage;
@@ -492,7 +508,13 @@ export function AssistantMessageGroup({
 
       <div className="flex flex-col max-w-[80%] min-w-0 gap-1">
         {messages.map((m) => (
-          <AssistantMessageContent key={m.id} message={m} isStreaming={streamingId === m.id} subAgents={subAgents} />
+          <AssistantMessageContent
+            key={m.id}
+            message={m}
+            isStreaming={streamingId === m.id}
+            subAgents={subAgents}
+            onContinue={onContinue}
+          />
         ))}
 
         <MessageToolbar

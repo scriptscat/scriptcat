@@ -97,4 +97,35 @@ describe("助手消息组 AssistantMessageGroup", () => {
     render(<AssistantMessageGroup {...groupProps} messages={[m]} subAgents={subAgents} />);
     expect(screen.getByTestId("subagent-trigger")).toBeInTheDocument();
   });
+
+  it("达到最大工具调用次数时展示继续按钮，点击触发 onContinue", () => {
+    const onContinue = vi.fn();
+    const m = msg({
+      role: "assistant",
+      content: "",
+      error: "Tool calling loop exceeded maximum iterations (50)",
+      errorCode: "max_iterations",
+    });
+    render(<AssistantMessageGroup {...groupProps} messages={[m]} onContinue={onContinue} />);
+    fireEvent.click(screen.getByTestId("continue-max-iterations"));
+    expect(onContinue).toHaveBeenCalledOnce();
+  });
+
+  it("普通错误（非 max_iterations）不展示继续按钮", () => {
+    const onContinue = vi.fn();
+    const m = msg({ role: "assistant", content: "", error: "网络请求失败", errorCode: "api_error" });
+    render(<AssistantMessageGroup {...groupProps} messages={[m]} onContinue={onContinue} />);
+    expect(screen.queryByTestId("continue-max-iterations")).toBeNull();
+  });
+
+  it("未传入 onContinue 时即使达到最大迭代次数也不展示继续按钮", () => {
+    const m = msg({
+      role: "assistant",
+      content: "",
+      error: "Tool calling loop exceeded maximum iterations (50)",
+      errorCode: "max_iterations",
+    });
+    render(<AssistantMessageGroup {...groupProps} messages={[m]} />);
+    expect(screen.queryByTestId("continue-max-iterations")).toBeNull();
+  });
 });

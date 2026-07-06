@@ -94,6 +94,8 @@ export type ChatMessage = {
   // tool 角色的消息需要关联到对应的 tool_call
   toolCallId?: string;
   error?: string;
+  // 错误分类码，如 "max_iterations"；用于 UI 判断是否展示针对性操作（如"继续对话"）
+  errorCode?: string;
   warning?: string;
   modelId?: string;
   usage?: TokenUsage;

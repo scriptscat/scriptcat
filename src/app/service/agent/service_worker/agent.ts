@@ -36,6 +36,7 @@ import { AgentTaskScheduler } from "@App/app/service/agent/core/task_scheduler";
 import { WEB_FETCH_DEFINITION, WebFetchExecutor } from "@App/app/service/agent/core/tools/web_fetch";
 import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent/core/tools/web_search";
 import { SearchConfigRepo, type SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
+import { AgentConfigRepo, type AgentGeneralConfig } from "@App/app/service/agent/core/agent_config";
 import { SubAgentService } from "./sub_agent_service";
 import { BackgroundSessionManager } from "./background_session_manager";
 import { createOPFSTools, setCreateBlobUrlFn } from "@App/app/service/agent/core/tools/opfs_tools";
@@ -66,6 +67,7 @@ export class AgentService {
   // 定时任务逻辑委托给 AgentTaskService
   private agentTaskService!: AgentTaskService;
   private searchConfigRepo = new SearchConfigRepo();
+  private agentConfigRepo = new AgentConfigRepo();
   // 后台运行的会话注册表（委托给 BackgroundSessionManager）
   private bgSessionManager = new BackgroundSessionManager();
   // 子代理编排逻辑委托给 SubAgentService
@@ -133,7 +135,8 @@ export class AgentService {
         callLLM: (model, params, sendEvent, signal) => this.callLLM(model, params, sendEvent, signal),
         callLLMWithToolLoop: (params) => this.callLLMWithToolLoop(params),
       },
-      agentChatRepo
+      agentChatRepo,
+      this.agentConfigRepo
     );
   }
 
@@ -214,6 +217,9 @@ export class AgentService {
     // 搜索配置 API（供 Options UI 调用）
     this.group.on("getSearchConfig", () => this.searchConfigRepo.getConfig());
     this.group.on("saveSearchConfig", (config: SearchEngineConfig) => this.searchConfigRepo.saveConfig(config));
+    // Agent 通用设置 API（供 Options UI 调用）
+    this.group.on("getAgentConfig", () => this.agentConfigRepo.getConfig());
+    this.group.on("saveAgentConfig", (config: AgentGeneralConfig) => this.agentConfigRepo.saveConfig(config));
     // 注册永久内置工具
     this.toolRegistry.registerBuiltin(
       WEB_FETCH_DEFINITION,

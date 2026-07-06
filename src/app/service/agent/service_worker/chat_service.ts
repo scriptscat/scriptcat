@@ -12,6 +12,7 @@ import type {
 import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { ToolCall } from "@App/app/service/agent/core/types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
+import type { AgentConfigRepo } from "@App/app/service/agent/core/agent_config";
 import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import { SessionToolRegistry } from "@App/app/service/agent/core/session_tool_registry";
 import type { SkillService } from "./skill_service";
@@ -98,7 +99,8 @@ export class ChatService {
     private subAgentService: SubAgentService,
     private executeScriptDeps: ChatServiceExecuteScriptDeps,
     private llmDeps: ChatServiceLLMDeps,
-    private chatRepo: AgentChatRepo
+    private chatRepo: AgentChatRepo,
+    private agentConfigRepo: AgentConfigRepo
   ) {}
 
   // 处理 Sandbox conversation API 请求（非流式）
@@ -281,6 +283,8 @@ export class ChatService {
       }
 
       const model = await this.modelService.getModel(conv.modelId);
+      // UI 未显式传入 maxIterations 时，使用用户在设置页配置的对话最大循环次数
+      const agentConfig = await this.agentConfigRepo.getConfig();
 
       // 构建 session 级工具注册表
       const { sessionRegistry, promptSuffix, enableTools, metaTools } = await this.buildSessionToolRegistry({
@@ -316,7 +320,7 @@ export class ChatService {
           model,
           messages,
           tools: enableTools ? params.tools : undefined,
-          maxIterations: params.maxIterations || 50,
+          maxIterations: params.maxIterations || agentConfig.chatMaxIterations,
           sendEvent,
           signal: abortController.signal,
           scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
@@ -337,6 +341,7 @@ export class ChatService {
         return;
       }
       const errorMsg = e.message || "Unknown error";
+      const errorCode = classifyErrorCode(e);
       // 持久化错误消息到 OPFS，确保刷新后仍可见
       if (params.conversationId && !params.ephemeral) {
         try {
@@ -346,13 +351,14 @@ export class ChatService {
             role: "assistant",
             content: "",
             error: errorMsg,
+            errorCode,
             createtime: Date.now(),
           });
         } catch {
           // 持久化失败不阻塞错误事件发送
         }
       }
-      sendEvent({ type: "error", message: errorMsg, errorCode: classifyErrorCode(e) });
+      sendEvent({ type: "error", message: errorMsg, errorCode });
       this.bgSessionManager.cleanupIfDone(params.conversationId);
     }
   }

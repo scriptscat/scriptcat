@@ -277,6 +277,7 @@ export class ToolLoopOrchestrator {
         role: "assistant",
         content: "",
         error: maxIterMsg,
+        errorCode: "max_iterations",
         createtime: Date.now(),
       });
     }

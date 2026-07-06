@@ -731,6 +731,7 @@ export default function ChatArea({
                   onCopy={() => handleCopy(group.messages)}
                   onRegenerate={() => handleRegenerate(messageGroups, groupIndex)}
                   onDelete={() => handleDeleteRound(messageGroups, groupIndex)}
+                  onContinue={isStreaming ? undefined : () => void handleSend(t("agent:chat_continue_message"))}
                 />
               )
             )
