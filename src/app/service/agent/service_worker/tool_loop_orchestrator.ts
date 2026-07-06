@@ -23,6 +23,10 @@ const ELISION_THRESHOLDS = [0.4, 0.6];
 // 保留最近几轮 assistant(带 toolCalls) 及其 tool 结果的完整原文，更早的轮次被裁剪为占位文本
 const ELISION_KEEP_LAST_ASSISTANT_TURNS = 5;
 
+// 循环检测（tool_call_guard）连续命中达到此次数时，暂停并询问用户是否继续（仅当调用方提供 askUserForGuard 时生效）
+const GUARD_ESCALATION_STRIKES = 2;
+const GUARD_STOP_ANSWER = "Stop";
+
 /** ToolLoopOrchestrator 所需的外部依赖（由 AgentService 注入） */
 export interface ToolLoopDeps {
   // callLLM 通过 lambda 注入，确保测试 spy 可以拦截
@@ -70,6 +74,9 @@ export class ToolLoopOrchestrator {
     excludeTools?: string[];
     // 是否启用 prompt caching，默认 true
     cache?: boolean;
+    // 循环检测连续命中达到 GUARD_ESCALATION_STRIKES 次时调用，暂停循环询问用户是否继续。
+    // 仅由 UI 对话（含后台会话）传入；定时任务、子代理不传，保持原有的仅告警不暂停行为。
+    askUserForGuard?: (question: string, options: string[]) => Promise<string>;
   }): Promise<void> {
     const {
       toolRegistry,
@@ -90,6 +97,8 @@ export class ToolLoopOrchestrator {
     let guardStartIndex = 0;
     // 已触发过的裁剪阈值下标（-1 表示尚未触发过），避免同一阈值区间内每轮重复裁剪
     let lastElisionThresholdIndex = -1;
+    // 循环检测命中次数，达到 GUARD_ESCALATION_STRIKES 后暂停询问用户
+    let guardStrikeCount = 0;
 
     while (iterations < maxIterations) {
       iterations++;
@@ -256,6 +265,31 @@ export class ToolLoopOrchestrator {
           guardStartIndex = toolCallHistory.length;
           messages.push({ role: "user", content: toolCallWarning });
           sendEvent({ type: "system_warning", message: toolCallWarning });
+          guardStrikeCount++;
+
+          // 连续命中达到阈值时暂停，询问用户是否继续（仅 UI 对话传入 askUserForGuard 时生效）
+          if (guardStrikeCount >= GUARD_ESCALATION_STRIKES && params.askUserForGuard) {
+            const answer = await params.askUserForGuard(
+              `[System] The Agent has triggered the loop-guard warning ${guardStrikeCount} times in this run. Continue letting it proceed automatically, or stop here?`,
+              ["Continue", GUARD_STOP_ANSWER]
+            );
+            if (answer.trim().toLowerCase() === GUARD_STOP_ANSWER.toLowerCase()) {
+              const durationMs = Date.now() - startTime;
+              if (conversationId) {
+                await this.chatRepo.appendMessage({
+                  id: uuidv4(),
+                  conversationId,
+                  role: "assistant",
+                  content: "Stopped at the user's request after repeated loop-guard warnings.",
+                  usage: totalUsage,
+                  durationMs,
+                  createtime: Date.now(),
+                });
+              }
+              sendEvent({ type: "done", usage: totalUsage, durationMs });
+              return;
+            }
+          }
         }
 
         // 分批裁剪：待本轮 assistant/tool 消息入列后再裁剪，让本轮内容计入"最近 K 轮"窗口

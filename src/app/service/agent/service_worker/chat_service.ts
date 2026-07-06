@@ -195,6 +195,27 @@ export class ChatService {
       }
     };
 
+    // 循环检测（tool_call_guard）连续命中时暂停询问用户是否继续；复用 ask_user 的事件/resolver 机制，
+    // 5 分钟无人应答时默认"继续"，避免无 UI 监听的后台会话被无限期挂起
+    const askUserForGuard = (question: string, options: string[]): Promise<string> => {
+      return new Promise((resolve) => {
+        const askId = `guard_${uuidv4()}`;
+        sendEvent({ type: "ask_user", id: askId, question, options, multiple: false });
+        const timer = setTimeout(
+          () => {
+            askResolvers.delete(askId);
+            resolve("Continue");
+          },
+          5 * 60 * 1000
+        );
+        askResolvers.set(askId, (answer: string) => {
+          clearTimeout(timer);
+          askResolvers.delete(askId);
+          resolve(answer);
+        });
+      });
+    };
+
     if (rc) {
       // 后台模式：初始 listener
       const listener: ListenerEntry = {
@@ -326,6 +347,7 @@ export class ChatService {
           scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
           conversationId: params.conversationId,
           skipBuiltinTools: !enableTools,
+          askUserForGuard,
         });
         // 后台模式：正常完成后延迟清理
         this.bgSessionManager.cleanupIfDone(params.conversationId);

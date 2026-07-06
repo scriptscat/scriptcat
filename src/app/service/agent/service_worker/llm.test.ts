@@ -534,16 +534,21 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
       contextWindow: 1000,
     });
 
+    // 使用两个不同名称的工具交替调用，避免触发 tool_call_guard 的重复调用检测
+    // （相同工具名连续出现会命中循环检测，暂停询问用户，与本测试无关）
     const registry = (service as any).toolRegistry;
     let callCount = 0;
+    const execute = async () => {
+      callCount++;
+      return `count=${callCount}`;
+    };
     registry.registerBuiltin(
-      { name: "counter", description: "Count", parameters: { type: "object", properties: {} } },
-      {
-        execute: async () => {
-          callCount++;
-          return `count=${callCount}`;
-        },
-      }
+      { name: "counterA", description: "Count A", parameters: { type: "object", properties: {} } },
+      { execute }
+    );
+    registry.registerBuiltin(
+      { name: "counterB", description: "Count B", parameters: { type: "object", properties: {} } },
+      { execute }
     );
 
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
@@ -553,8 +558,10 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     // 第 6 轮跨过 0.6 阈值，触发第二次裁剪，第 1 轮此时已超出保留窗口
     const usages = [100, 100, 100, 100, 500, 700];
     for (let i = 0; i < usages.length; i++) {
+      const toolName = i % 2 === 0 ? "counterA" : "counterB";
+      // 每轮参数不同，避免触发 tool_call_guard 的“相同参数重复调用”检测
       fetchSpy.mockResolvedValueOnce(
-        makeToolCallResponseWithUsage([{ id: `c${i + 1}`, name: "counter", arguments: "{}" }], usages[i])
+        makeToolCallResponseWithUsage([{ id: `c${i + 1}`, name: toolName, arguments: `{"round":${i}}` }], usages[i])
       );
     }
     // 第 7 轮：最终文本，结束循环
@@ -575,7 +582,8 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     expect(toolMessages[1].content).toBe("count=2");
     expect(toolMessages[toolMessages.length - 1].content).toBe("count=6");
 
-    registry.unregisterBuiltin("counter");
+    registry.unregisterBuiltin("counterA");
+    registry.unregisterBuiltin("counterB");
   });
 
   it("工具执行后附件回写：toolCalls 被更新", async () => {
