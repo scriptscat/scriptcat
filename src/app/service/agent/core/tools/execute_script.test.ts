@@ -117,6 +117,49 @@ describe("execute_script 工具", () => {
     });
   });
 
+  describe("超大返回值截断", () => {
+    it.concurrent("page 模式返回值过大时应截断并标注 truncated", async () => {
+      const bigString = "x".repeat(50_000);
+      const mockExecuteInPage = vi.fn().mockResolvedValue({ result: bigString, tabId: 1 });
+      const deps = makeDeps({ executeInPage: mockExecuteInPage });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = await executor.execute({ code: "return bigString", target: "page" });
+      const parsed = JSON.parse(result as string);
+
+      expect(parsed.truncated).toBe(true);
+      expect(typeof parsed.result).toBe("string");
+      expect(parsed.result.length).toBeLessThan(bigString.length);
+      expect(parsed.result).toContain("truncated");
+      expect(parsed.original_length).toBeGreaterThan(50_000);
+    });
+
+    it.concurrent("sandbox 模式返回值过大时应截断并标注 truncated", async () => {
+      const bigArray = Array.from({ length: 10_000 }, (_, i) => i);
+      const mockExecuteInSandbox = vi.fn().mockResolvedValue(bigArray);
+      const deps = makeDeps({ executeInSandbox: mockExecuteInSandbox });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = await executor.execute({ code: "return bigArray", target: "sandbox" });
+      const parsed = JSON.parse(result as string);
+
+      expect(parsed.truncated).toBe(true);
+      expect(typeof parsed.result).toBe("string");
+    });
+
+    it.concurrent("正常大小的返回值不应被截断或添加 truncated 字段", async () => {
+      const mockExecuteInPage = vi.fn().mockResolvedValue({ result: { count: 5 }, tabId: 1 });
+      const deps = makeDeps({ executeInPage: mockExecuteInPage });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = await executor.execute({ code: "return {count:5}", target: "page" });
+      const parsed = JSON.parse(result as string);
+
+      expect(parsed).toEqual({ result: { count: 5 }, target: "page", tab_id: 1 });
+      expect(parsed.truncated).toBeUndefined();
+    });
+  });
+
   describe("错误传播", () => {
     it.concurrent("page 模式执行错误应传播", async () => {
       const mockExecuteInPage = vi.fn().mockRejectedValue(new Error("No active tab found"));

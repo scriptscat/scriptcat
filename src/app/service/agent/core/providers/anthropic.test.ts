@@ -170,6 +170,95 @@ describe("buildAnthropicRequest", () => {
     expect(body.system[0].cache_control).toBeUndefined();
     // tool 不应有 cache_control
     expect(body.tools[0].cache_control).toBeUndefined();
+    // 消息历史也不应有 cache_control
+    expect(body.messages[0].content).toBe("hi");
+  });
+
+  describe("消息历史的 cache_control 断点（用于长 tool loop 中复用已缓存前缀）", () => {
+    it("最后一条纯文本消息应转换为带 cache_control 的 text block", () => {
+      const request: ChatRequest = {
+        conversationId: "c1",
+        modelId: "test",
+        messages: [
+          { role: "user", content: "第一句" },
+          { role: "assistant", content: "第一句回复" },
+          { role: "user", content: "最后一句" },
+        ],
+      };
+
+      const { init } = buildAnthropicRequest(config, request);
+      const body = JSON.parse(init.body as string);
+
+      // 非最后一条消息保持原样（字符串），不应被转换
+      expect(body.messages[0].content).toBe("第一句");
+      expect(body.messages[1].content).toBe("第一句回复");
+      // 最后一条转换为带 cache_control 的 text block
+      expect(body.messages[2].content).toEqual([
+        { type: "text", text: "最后一句", cache_control: { type: "ephemeral" } },
+      ]);
+    });
+
+    it("最后一条消息已是 tool_result content block 时应在最后一个 block 上加 cache_control", () => {
+      const request: ChatRequest = {
+        conversationId: "c1",
+        modelId: "test",
+        messages: [
+          { role: "user", content: "天气" },
+          {
+            role: "assistant",
+            content: "让我查一下",
+            toolCalls: [{ id: "toolu_1", name: "get_weather", arguments: "{}" }],
+          },
+          { role: "tool", content: '{"temp":25}', toolCallId: "toolu_1" },
+        ],
+      };
+
+      const { init } = buildAnthropicRequest(config, request);
+      const body = JSON.parse(init.body as string);
+
+      const lastMsg = body.messages[body.messages.length - 1];
+      expect(lastMsg.role).toBe("user");
+      expect(lastMsg.content[0].type).toBe("tool_result");
+      expect(lastMsg.content[0].cache_control).toEqual({ type: "ephemeral" });
+    });
+
+    it("cache: false 时最后一条消息不应转换或添加 cache_control", () => {
+      const request: ChatRequest = {
+        conversationId: "c1",
+        modelId: "test",
+        messages: [{ role: "user", content: "最后一句" }],
+        cache: false,
+      };
+
+      const { init } = buildAnthropicRequest(config, request);
+      const body = JSON.parse(init.body as string);
+
+      expect(body.messages[0].content).toBe("最后一句");
+    });
+
+    it("最后一条消息内容为空字符串时不应添加 cache_control（无内容块可挂载）", () => {
+      const request: ChatRequest = {
+        conversationId: "c1",
+        modelId: "test",
+        messages: [
+          { role: "user", content: "天气" },
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [{ id: "toolu_1", name: "get_weather", arguments: "{}" }],
+          },
+        ],
+      };
+
+      const { init } = buildAnthropicRequest(config, request);
+      const body = JSON.parse(init.body as string);
+
+      const lastMsg = body.messages[body.messages.length - 1];
+      // 仅有 tool_use block，没有额外的空 text block
+      expect(lastMsg.content).toHaveLength(1);
+      expect(lastMsg.content[0].type).toBe("tool_use");
+      expect(lastMsg.content[0].cache_control).toEqual({ type: "ephemeral" });
+    });
   });
 
   it("默认 max_tokens 为 16384，应设置 stream", () => {
@@ -201,6 +290,7 @@ describe("buildAnthropicRequest", () => {
       messages: [
         { role: "user", content: "hi" },
         { role: "tool", content: "result" }, // 无 toolCallId
+        { role: "user", content: "继续" }, // 占位，避免上一条被当作最后一条消息加上 cache_control
       ],
     };
 

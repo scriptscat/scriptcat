@@ -117,6 +117,21 @@ export function buildAnthropicRequest(
     return { role: m.role, content: m.content };
   });
 
+  // 最后一条消息追加 cache_control：使本轮完整历史被缓存。
+  // 下一轮请求中该消息不再是最后一条，但 Anthropic 按前缀匹配复用已缓存部分，
+  // 只需为新增的增量消息计费，从而避免长 tool loop 下每轮都全量计费输入 token。
+  if (useCache && messages.length > 0) {
+    const lastMessage = messages[messages.length - 1];
+    const content: unknown = lastMessage.content;
+    if (Array.isArray(content) && content.length > 0) {
+      (content[content.length - 1] as Record<string, unknown>).cache_control = { type: "ephemeral" };
+    } else if (typeof content === "string" && content.length > 0) {
+      (lastMessage as { content: unknown }).content = [
+        { type: "text", text: content, cache_control: { type: "ephemeral" } },
+      ];
+    }
+  }
+
   const body: Record<string, unknown> = {
     model: config.model,
     messages,
