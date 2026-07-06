@@ -26,10 +26,10 @@ Aspirational / feature-branch content belongs in that branch's docs, or is clear
 | Doc | Owns |
 | --- | --- |
 | [`../AGENTS.md`](../AGENTS.md) | Engineering principles + architecture quick-map. Single source of truth; `CLAUDE.md` only `@import`s it. |
-| [`develop.md`](./develop.md) | The concrete "how": commands, structure, style, i18n, commit/PR; testing mechanics split to [`references/develop-testing.md`](./references/develop-testing.md). |
-| [`design.md`](./design.md) | The design system: theme mechanism, shadcn component selection, new-page recipe; tokens split to [`references/design-tokens.md`](./references/design-tokens.md), component palette to [`references/design-components.md`](./references/design-components.md), layout/motion/state/a11y patterns to [`references/design-patterns.md`](./references/design-patterns.md). |
-| [`verification.md`](./verification.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension; report template split to [`references/verification-report-template.md`](./references/verification-report-template.md), debugging FAQ to [`references/verification-debugging.md`](./references/verification-debugging.md). |
-| [`architecture.md`](./architecture.md) | Deep internals: process model, message passing; subsystem deep-dives split to [`references/architecture-services.md`](./references/architecture-services.md), [`references/architecture-data.md`](./references/architecture-data.md), [`references/architecture-gm-api.md`](./references/architecture-gm-api.md), [`references/architecture-execution.md`](./references/architecture-execution.md), [`references/architecture-build.md`](./references/architecture-build.md). |
+| [`develop.md`](./develop.md) | The concrete "how": commands, structure, style, i18n, commit/PR; testing mechanics split to [`annexes/develop-testing.md`](./annexes/develop-testing.md). |
+| [`design.md`](./design.md) | The design system: theme mechanism, shadcn component selection, new-page recipe; tokens split to [`annexes/design-tokens.md`](./annexes/design-tokens.md), component palette to [`annexes/design-components.md`](./annexes/design-components.md), layout/motion/state/a11y patterns to [`annexes/design-patterns.md`](./annexes/design-patterns.md). |
+| [`verification.md`](./verification.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension; report template split to [`annexes/verification-report-template.md`](./annexes/verification-report-template.md), debugging FAQ to [`annexes/verification-debugging.md`](./annexes/verification-debugging.md). |
+| [`architecture.md`](./architecture.md) | Deep internals: process model, message passing; subsystem deep-dives split to [`annexes/architecture-services.md`](./annexes/architecture-services.md), [`annexes/architecture-data.md`](./annexes/architecture-data.md), [`annexes/architecture-gm-api.md`](./annexes/architecture-gm-api.md), [`annexes/architecture-execution.md`](./annexes/architecture-execution.md), [`annexes/architecture-build.md`](./annexes/architecture-build.md). |
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: doc-set organization rules + fact-check / anti-drift discipline. |
 | [`README.md`](./README.md) | The index that points to all of the above. |
@@ -56,7 +56,7 @@ Verify **every** concrete claim against the code. Common claim types and how to 
 | Workspace packages exist | `git ls-tree --name-only HEAD packages/` |
 | A class / identifier exists **by that exact name** | `git grep "class <Name>\b" -- src packages` — a renamed class is the #1 source of drift |
 | DAOs extend `Repo<T>` | `git grep "class \w*DAO" -- src/app/repo` |
-| Service file tree (references/architecture-services.md) | `git ls-tree --name-only -d HEAD src/app/service/`, then confirm each listed file |
+| Service file tree (annexes/architecture-services.md) | `git ls-tree --name-only -d HEAD src/app/service/`, then confirm each listed file |
 | A constructor / function signature | open the file and compare param-by-param |
 | A count ("N locales", "N tools", "5 contexts") | enumerate the canonical source, e.g. `git ls-tree --name-only -d HEAD src/locales/` **and** `src/locales/locales.ts` |
 | Custom ESLint rule / config | `eslint.config.mjs` (project rules) **vs** `packages/eslint/linter-config.ts` (userscript lint config) — these are different things |
@@ -98,9 +98,9 @@ git ls-files eslint-rules/; git grep -l "require-last-error-check" -- eslint.con
 Link integrity — confirm every relative markdown link in the core docs resolves:
 
 ```bash
-for doc in AGENTS.md docs/README.md docs/DOC-MAINTENANCE.md docs/develop.md docs/references/develop-testing.md docs/design.md docs/references/design-tokens.md docs/references/design-components.md docs/references/design-patterns.md docs/architecture.md docs/references/architecture-services.md docs/references/architecture-data.md docs/references/architecture-gm-api.md docs/references/architecture-execution.md docs/references/architecture-build.md docs/verification.md docs/references/verification-debugging.md docs/references/verification-report-template.md docs/translation.md; do
+for doc in AGENTS.md docs/README.md docs/DOC-MAINTENANCE.md docs/develop.md docs/annexes/develop-testing.md docs/design.md docs/annexes/design-tokens.md docs/annexes/design-components.md docs/annexes/design-patterns.md docs/architecture.md docs/annexes/architecture-services.md docs/annexes/architecture-data.md docs/annexes/architecture-gm-api.md docs/annexes/architecture-execution.md docs/annexes/architecture-build.md docs/verification.md docs/annexes/verification-debugging.md docs/annexes/verification-report-template.md docs/translation.md; do
   # the sed pipeline drops fenced code blocks and inline code spans first, so illustrative sample
-  # links inside ```md snippets or `single-backtick` text (e.g. references/verification-report-template.md's
+  # links inside ```md snippets or `single-backtick` text (e.g. annexes/verification-report-template.md's
   # screenshot/resource examples, verification.md's "Evidence location" spans) aren't false-flagged as broken
   sed '/^```/,/^```/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while read -r link; do
     target="$(dirname "$doc")/${link%%#*}"

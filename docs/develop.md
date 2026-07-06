@@ -74,7 +74,7 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
 
 This project uses Vitest for unit tests and Playwright for end-to-end tests.
 
-> Mechanics, meaningful-test guidance, and Vitest performance hygiene live in [testing.md](./references/develop-testing.md). To verify a change end-to-end without growing the suite, see [verification.md](./verification.md).
+> Mechanics, meaningful-test guidance, and Vitest performance hygiene live in [testing.md](./annexes/develop-testing.md). To verify a change end-to-end without growing the suite, see [verification.md](./verification.md).
 
 ## i18n
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@App/pkg/utils/cn";
 
-// 名称播种的头像配色：把任意字符串哈希到 --label-* 令牌族的 8 个固定色调之一（明暗主题自动切换，详见 docs/references/design-tokens.md）。
+// 名称播种的头像配色：把任意字符串哈希到 --label-* 令牌族的 8 个固定色调之一（明暗主题自动切换，详见 docs/annexes/design-tokens.md）。
 // 脚本图标、订阅图标、供应商徽标共用此基元，标签 chip 也经 getTagColor 复用 getNameAvatarTone。
 const NAME_AVATAR_TONES = [
   { bg: "bg-label-green-bg", text: "text-label-green-fg" },

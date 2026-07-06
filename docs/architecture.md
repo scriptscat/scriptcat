@@ -15,11 +15,11 @@
 - [The Big Picture](#the-big-picture)
 - [The Five Contexts (Process Model)](#the-five-contexts-process-model)
 - [Message Passing](#message-passing)
-- [Service layer](./references/architecture-services.md)
-- [Data layer (Repo<T> + DAOs)](./references/architecture-data.md)
-- [GM API system](./references/architecture-gm-api.md)
-- [Script execution](./references/architecture-execution.md)
-- [Build pipeline & manifest](./references/architecture-build.md)
+- [Service layer](./annexes/architecture-services.md)
+- [Data layer (Repo<T> + DAOs)](./annexes/architecture-data.md)
+- [GM API system](./annexes/architecture-gm-api.md)
+- [Script execution](./annexes/architecture-execution.md)
+- [Build pipeline & manifest](./annexes/architecture-build.md)
 - [Extending ScriptCat — Recipes](#extending-scriptcat--recipes)
 - [Testing the Internals](#testing-the-internals)
 
@@ -75,7 +75,7 @@ Three ideas explain almost everything in the codebase:
 
 ## The Five Contexts (Process Model)
 
-Each context is a separate bundle (see [Build pipeline & manifest](./references/architecture-build.md)) with its own entry file in `src/`.
+Each context is a separate bundle (see [Build pipeline & manifest](./annexes/architecture-build.md)) with its own entry file in `src/`.
 
 | Context | Entry | Realm / capabilities | Bootstraps |
 |---|---|---|---|
@@ -86,7 +86,7 @@ Each context is a separate bundle (see [Build pipeline & manifest](./references/
 | **Sandbox** | [`src/sandbox.ts`](../src/sandbox.ts) | `sandbox`ed iframe inside offscreen. Evaluates background/scheduled scripts; runs cron. | `WindowMessage(window, parent)` + `Server("sandbox")` → `SandboxManager` |
 
 There is also a sixth bundle, [`src/scripting.ts`](../src/scripting.ts), injected via `chrome.userScripts` /
-`chrome.scripting` to carry the compiled page-script payload (see [Script execution](./references/architecture-execution.md)).
+`chrome.scripting` to carry the compiled page-script payload (see [Script execution](./annexes/architecture-execution.md)).
 
 ### Service-worker bootstrap
 
@@ -212,12 +212,12 @@ Map a change onto the existing extension points instead of inventing new structu
   its `init()`, and call it from the other context with a `Client`. No new transport, no new wiring.
 - **A new broadcast event.** `this.mq.publish("myTopic", payload)` where state changes; `this.mq.subscribe(...)`
   wherever it matters. Use this, not RPC, for "X changed" notifications.
-- **A new persisted entity.** Subclass `Repo<T>` (see [data layer](./references/architecture-data.md#adding-an-entity-is-tiny)),
+- **A new persisted entity.** Subclass `Repo<T>` (see [data layer](./annexes/architecture-data.md#adding-an-entity-is-tiny)),
   construct it in the manager, expose ops via `group.on`.
 - **A new service.** Constructor-inject `Group` + `IMessageQueue` + DAOs; register handlers in `init()`;
-  instantiate it in the relevant manager with its own `group("name")` (see [service layer](./references/architecture-services.md)).
+  instantiate it in the relevant manager with its own `group("name")` (see [service layer](./annexes/architecture-services.md)).
 - **A new GM API.** Decorate the method with `@GMContext.API` on the content side, add a privileged/offscreen
-  handler if needed, register the `@grant` (see [GM API system](./references/architecture-gm-api.md#adding-a-gm-api-sketch)).
+  handler if needed, register the `@grant` (see [GM API system](./annexes/architecture-gm-api.md#adding-a-gm-api-sketch)).
 
 Follow the engineering principles in [`AGENTS.md`](../AGENTS.md): fix root causes (no `as any` / swallowed
 errors), prefer direct replacement over adapter sandwiches, and keep scope tight — three similar lines beat a
@@ -234,7 +234,7 @@ premature abstraction.
   the test to pass.
 - **E2E (Playwright).** `e2e/*.spec.ts`, one worker, real Chromium. `pnpm run test:e2e` (first run:
   `pnpm run test:e2e:install`).
-- **Before a PR:** lint + the relevant suite — owned by [references/develop-testing.md](./references/develop-testing.md) → *Testing*.
+- **Before a PR:** lint + the relevant suite — owned by [annexes/develop-testing.md](./annexes/develop-testing.md) → *Testing*.
 
 The DI + interface design is what makes this tractable: because services receive `IMessageQueue` and DAOs by
 constructor, a test builds a service with `MockMessage` and an in-memory DAO and exercises handlers directly,

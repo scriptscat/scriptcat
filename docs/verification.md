@@ -91,7 +91,7 @@ Embed screenshots inline with `![alt](screenshots/…png)` plus a caption line, 
 record you can skim without opening files. Link videos, logs, and resources instead — markdown can't inline them.
 Never list bare links: every item carries a short note explaining what it proves and how to read it. Before running
 the browser, create the record following the Evidence Index shape in the
-[verification record template](./references/verification-report-template.md).
+[verification record template](./annexes/verification-report-template.md).
 
 ### Minimal template (drive a UI page)
 
@@ -126,7 +126,7 @@ Playwright finalizes `.webm` files when pages/contexts close at the end of the t
 produce multiple videos because the harness may open setup pages as well as the page under verification; keep all
 of them beside the screenshots for the same scenario.
 
-> Scratch copying the inline fixture won't read `E2E_RECORD_VIDEO_DIR` — see [gotchas](./references/verification-debugging.md#common-gotchas).
+> Scratch copying the inline fixture won't read `E2E_RECORD_VIDEO_DIR` — see [gotchas](./annexes/verification-debugging.md#common-gotchas).
 
 ### Run only your scratch script
 
@@ -199,7 +199,7 @@ script or a git-ignored file — it is verification scaffolding, not a committed
 The self-test pattern only covers what a userscript can observe *in the page*. Some behavior is fired from
 extension UI — e.g. a `GM_registerMenuCommand` menu is triggered from the popup.
 
-> Why not click the popup button? See [gotchas](./references/verification-debugging.md#common-gotchas).
+> Why not click the popup button? See [gotchas](./annexes/verification-debugging.md#common-gotchas).
 
 One fact makes that drivable:
 
@@ -225,9 +225,9 @@ await chrome.runtime.sendMessage({
 This drives the real SW → content → sandbox → callback path, behaviorally identical to the popup button (which
 discards the DOM event and calls the same message). State the substitution in `report.md`.
 
-> Local server hangs on `close()`? See [gotchas](./references/verification-debugging.md#common-gotchas).
+> Local server hangs on `close()`? See [gotchas](./annexes/verification-debugging.md#common-gotchas).
 
-> Hit a failure or a hang? See [debugging & common gotchas](./references/verification-debugging.md).
+> Hit a failure or a hang? See [debugging & common gotchas](./annexes/verification-debugging.md).
 
 ## Step 4 — Report honestly
 

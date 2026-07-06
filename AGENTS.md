@@ -15,7 +15,7 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 > **Before any translation/localization work, read [`docs/translation.md`](docs/translation.md)** —
 > the single source of truth for translation. Whenever you add or change localized content
 > (`src/locales/<locale>/*.json` namespace files, per-language docs, UI copy, or test snapshots), you must first
-> read that guide and follow the matching `docs/references/terminology-<locale>.md` if it exists.
+> read that guide and follow the matching `docs/annexes/terminology-<locale>.md` if it exists.
 
 > **Before adding, editing, reorganizing, or reviewing any contributor doc (this file or `docs/*`), read
 > [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md)** — keep the doc set organized (links resolve, index
