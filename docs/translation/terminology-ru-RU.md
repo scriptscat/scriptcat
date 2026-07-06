@@ -2,7 +2,7 @@
 
 Этот документ задает терминологию для русского (`ru-RU`) интерфейса и документации ScriptCat. Его цель - сохранять различия между возможностями продукта, использовать естественные для интерфейса формулировки и не повреждать технические идентификаторы при дальнейшей локализации.
 
-Проверенные источники употребления: `src/locales/ru-RU/*.json`, `docs/README_RU.md`
+Проверенные источники употребления: `src/locales/ru-RU/*.json`, `docs/README_RU.md`, `docs/ARCHITECTURE.md`
 
 ## Основные принципы
 
@@ -27,15 +27,16 @@
 
 | Понятие | Предпочтительная формулировка | Примеры ключей | Примечание |
 | --- | --- | --- | --- |
-| ScriptCat browser extension | `Расширение ScriptCat` | `start_guide_title`, `ext_update_notification` | Название продукта писать как `ScriptCat`. |
-| generic user script | `Пользовательский скрипт` | `create_user_script`, `guide_script_list_content` | Общее название пользовательского скрипта. |
-| Tampermonkey-compatible script type | `Скрипт Tampermonkey` | `script_status_tooltip` | Не заменять общим названием, если важна совместимость. |
-| page script | `Скрипт страницы` | `page_script`, `foreground_page_script_tooltip` | Выполняется на указанных страницах. |
+| ScriptCat browser extension | `Расширение ScriptCat` | `welcome_title`, `ext_update_notification` | Название продукта писать как `ScriptCat`. |
+| generic user script | `Пользовательский скрипт` | `create_user_script`, `script_list_content` | Общее название пользовательского скрипта. |
+| normal userscript type | `Пользовательский скрипт` / текущая категория `Обычный скрипт` | `create_user_script`, `script_list.sidebar.normal_script` | Не объединять с фоновыми или запланированными скриптами. |
+| Tampermonkey compatibility | `Пользовательский скрипт, совместимый с Tampermonkey` / `Скрипт Tampermonkey` | `docs/README_RU.md`, `docs/ARCHITECTURE.md` | Использовать, когда важна совместимость; не заменять этим общее название или категорию скрипта. |
+| page script | `Скрипт страницы` | `script_list_enable_content` | Обозначает выполняющийся на страницах скрипт в тексте интерфейса; не подменяет без проверки категорию `Обычный скрипт`. |
 | background script | `Фоновый скрипт` | `create_background_script`, `background_script` | Тип скрипта, выполняемого в фоне. |
 | scheduled script | `Скрипт по расписанию` | `create_scheduled_script`, `scheduled_script` | Предпочтительно для нового текста; сохраняет смысл планового запуска. |
 | script synchronization | `Синхронизация скриптов` | `script_sync`, `sync_status` | Для удаления следует уточнять синхронизацию состояния удаления. |
-| subscription | `Подписка` | `subscribe_url`, `install_subscribe`, `subscribe_import_progress` | `Подписаться` использовать только для действия. |
-| script browsing destination / gallery / market | `Хранилище скриптов` / `Галерея скриптов` / `Магазин скриптов` | `script_gallery`, `guide_script_list_title`, README | В документации `Хранилище скриптов` обозначает переход к `scriptcat.org/ru/search`; для UI выбирать название фактического раздела назначения. |
+| subscription | `Подписка` | `subscribe_url`, `subscribe`, `importpage.count_subscribes` | `Подписаться` использовать только для действия. |
+| script browsing destination / gallery / market | `Хранилище скриптов` / `Галерея скриптов` / `Магазин скриптов` | `script_gallery`, `script_list_title`, README | В документации `Хранилище скриптов` обозначает переход к `scriptcat.org/ru/search`; для UI выбирать название фактического раздела назначения. |
 
 ## B. Действия и состояния интерфейса
 
@@ -44,10 +45,10 @@
 | create | `Создать` | `create_script`, `create_background_script` | При необходимости указывать объект действия. |
 | save / save as | `Сохранить` / `Сохранить как` | `save`, `save_as` | Стандартные команды интерфейса. |
 | import / export | `Импорт` / `Экспорт`; в предложениях `импортировать` / `экспортировать` | `import`, `export`, `import_file`, `export_file` | Форму выбирать по роли строки. |
-| install / update | `Установить` / `Обновить` | `install_script`, `update_script` | При необходимости уточнять скрипт или подписку. |
+| install / update | `Установить` / `Обновить` | `script`, `update_script` | При необходимости уточнять скрипт или подписку. |
 | run / runtime | `Запустить` / `Время выполнения` | `run`, `runtime`, `log_title` | Для журнала подходит `Журнал выполнения`. |
 | enable / disable | `Включить` / `Выключить`; состояния `Включено` / `Выключено` | `enable`, `disable`, `updatepage.enabled` | Не смешивать с открытием и закрытием UI. |
-| settings | `Настройки` | `settings`, `script_setting.title` | Для параметров продукта. |
+| settings | `Настройки` | `settings`, `script_setting` | Для параметров продукта. |
 | permission | `Разрешение` / `Разрешения` | `permission`, `request_permission` | Для прав доступа скрипта. |
 | connect / sync | `Подключить` / `Синхронизировать` | `connect`, `script_sync` | Подключение сервиса и синхронизация данных различаются. |
 | directory | `Папка` / `Каталог` | `open_backup_dir`, `open_directory` | В пользовательском интерфейсе естественнее `папка`; технический контекст может требовать `каталог`. |
@@ -59,7 +60,7 @@
 | --- | --- | --- | --- |
 | local / cloud | `Локальный` / `Облачный`, `Облако` | Выбирать по тому, описывается ли источник, место хранения или назначение синхронизации. | `local`, `cloud`, `source_local_script` |
 | panel / console | `панель` / `консоль` | Панель управления продуктом не называть консолью разработчика. | `background_script_description`, `build_success_message` |
-| source | `Источник`, `Источник установки`, `Источник подписки` | Называть объект, который предоставляет источник. | `source`, `install_source`, `subscribe_source_tooltip` |
+| source | `Источник`, `Источник установки`, `Источник подписки` | Называть объект, который предоставляет источник. | `source`, `importpage.col_source`, `source_subscribe_link` |
 | storage | `Хранилище`, `пространство хранения`, `API хранилища` | Различать данные скрипта, настроенное место хранения и API. | `script_storage`, `script_operation_description`, `storage_api` |
 | sync deletion | `Синхронизировать состояние удаления` / `Синхронизировать удаления` | Выбрать после подтверждения поведения функции. | `sync_delete`, `sync_delete_desc`, `notification.script_sync_delete` |
 
@@ -81,9 +82,8 @@
 | Тема | Текущее состояние | Предпочтительное направление | Примеры ключей |
 | --- | --- | --- | --- |
 | scheduled script naming | Используются как `Скрипт по расписанию`, так и `Запланированный скрипт`. | После проверки экранов унифицировать термин продукта как `Скрипт по расписанию`, если это соответствует назначению типа. | `create_scheduled_script`, `scheduled_script` |
-| subscription as object/action | Действие и объект могут встречаться в близких строках. | Для объекта использовать `Подписка`, для кнопки действия - `Подписаться`. | `subscribe`, `subscribe_url`, `install_subscribe` |
-| documentation link locale | Русские строки могут вести на англоязычные страницы документации. | Менять ссылки только после подтверждения доступной русской страницы. | `guide_script_list_content`, `develop_mode_guide` |
-| metadata identifier | В подсказках ресурсов следует подтвердить использование `@require`, а не ошибочного варианта. | Всегда сохранять действительный metadata-идентификатор `@require`. | `script_resource_tooltip` |
+| subscription as object/action | Действие и объект могут встречаться в близких строках. | Для объекта использовать `Подписка`, для кнопки действия - `Подписаться`. | `subscribe`, `subscribe_url`, `update_subscribe` |
+| documentation link locale | Русские строки могут вести на англоязычные страницы документации. | Менять ссылки только после подтверждения доступной русской страницы. | `script_list_content`, `develop_mode_guide` |
 
 ## Контрольный список для AI и участников
 
