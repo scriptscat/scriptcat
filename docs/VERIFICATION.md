@@ -4,8 +4,7 @@
 > **real built extension** end-to-end, written so an AI coding tool (Claude, Codex, …) or a human can do it
 > without inventing a workflow. Both modes use the same harness; the per-scenario `report.md` (below) is the
 > consultable record of what was verified or reproduced. This is deliberately **lightweight**: one-shot scratch
-> scripts and local-only evidence, kept out of Git and cleaned up manually when the user decides it is no longer
-> needed.
+> scripts and local-only evidence — kept out of Git and never deleted as part of a run; cleanup is the user's call.
 >
 > **What this is NOT.** It is *not* the test-suite reference. The mechanics of Vitest unit tests and the
 > permanent Playwright E2E suite live in [`DEVELOP.md`](./DEVELOP.md) → *Testing*; the TDD-first principle and
@@ -24,10 +23,9 @@ Promoting a scenario into the permanent suite is a *separate, deliberate* decisi
 permanent regression coverage. That path is owned by [`DEVELOP.md`](./DEVELOP.md), not this guide.
 
 **Reproducing a bug you intend to fix is *not* "casual verification."** A scratch reproduction is the *确定 bug
-存在* step from [`../AGENTS.md`](../AGENTS.md) (确定 bug 存在 → 写测试 → 修复): it confirms the bug is real, it
-does **not** replace the test. Once reproduced, the deliberate next step is to promote the reproduction into a
-*failing* committed test, then fix, then confirm it goes green. Writing that permanent test is owned by
-[`DEVELOP.md`](./DEVELOP.md) / [`../AGENTS.md`](../AGENTS.md).
+存在* step from [`../AGENTS.md`](../AGENTS.md) (确定 bug 存在 → 写测试 → 修复): it confirms the bug is real but does
+**not** replace the test. Next, promote it into a *failing* committed test, then fix, then confirm it goes green —
+that permanent test is owned by [`DEVELOP.md`](./DEVELOP.md) / [`../AGENTS.md`](../AGENTS.md).
 
 ## Prerequisite gate (cheap signals first)
 
@@ -77,8 +75,7 @@ Keep all throwaway verification evidence under **`test-results/verify/<scenario>
 
 `test-results/` and `playwright-report/` are git-ignored, so these files are local evidence only and must not be
 committed. Do not put verification screenshots, videos, or notes under `docs/`, `e2e/`, or committed source
-directories unless you are deliberately adding permanent documentation assets. Do not delete these evidence files
-as part of the verification run; leave cleanup to the user.
+directories unless you are deliberately adding permanent documentation assets.
 
 Use `resources/` for any extra local inputs or outputs needed to understand or reproduce the run, for example:
 
@@ -167,10 +164,8 @@ Use this shape:
 
 ## Evidence Index
 
-- Screenshots: `screenshots/...png`
-- Videos: `videos/...webm`
-- Logs: `console.log`
-- Resources: `resources/...`
+One annotated bullet per item (`path — what it proves`), grouped by Screenshots / Videos / Logs / Resources —
+see the shape above.
 ```
 
 In `verify-change` mode, drop the `Reproduction Steps` / `Minimal Reproduction` sections. In `reproduce-bug`
@@ -183,10 +178,6 @@ Keep the checklist factual:
 - Check items only after the corresponding command/assertion has actually passed.
 - If a step is blocked, leave its checkbox unchecked and add a concrete entry under `Blockers`: what failed,
   where it failed, and what evidence was captured.
-- Reference screenshots and videos from the report using relative paths such as
-  `![Script list screenshot](screenshots/options-root.png)` and `[Recording](videos/page@....webm)`.
-- Add a note beside each evidence item; a future reader should understand the expected visual/state without
-  opening every file first.
 
 ### Minimal template (drive a UI page)
 
@@ -239,8 +230,7 @@ pnpm exec playwright test --config playwright.scratch.config.ts -g "options page
 
 Why two configs: [`playwright.config.ts`](../playwright.config.ts) sets `testIgnore: ["**/scratch/**"]`, so
 `pnpm run test:e2e` and CI **never** pick up scratch scripts; [`playwright.scratch.config.ts`](../playwright.scratch.config.ts)
-points `testDir` at `e2e/scratch/` so you can run them on demand. Scratch files are git-ignored; leave local
-cleanup to the user unless they explicitly ask you to remove the scratch script.
+points `testDir` at `e2e/scratch/` so you can run them on demand. Scratch files are git-ignored.
 
 ## Step 3 — Verify actual script *execution* (GM APIs, injection)
 
