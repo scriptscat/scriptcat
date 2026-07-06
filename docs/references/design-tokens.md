@@ -7,7 +7,7 @@
 **Usage:**
 - Background `bg-<token>`, text `text-<token>`, border `border-<token>`, focus ring `ring-ring`.
 - Opacity modifiers compose directly: `bg-primary-background/90` (solid primary hover), `ring-destructive/20`, `bg-input/30`.
-- **Never hard-code a color value** — see Constraint 1 and [`DEVELOP.md` UI section](../develop/README.md). For dark-only tweaks use the `dark:` variant.
+- **Never hard-code a color value** — see Constraint 1 and [`DEVELOP.md` UI section](../develop.md). For dark-only tweaks use the `dark:` variant.
 
 ### Base surfaces & text
 
@@ -41,7 +41,7 @@
 | `secondary` | `#f0f0f0` | `#2a2a2a` | Secondary buttons / fills |
 | `secondary-foreground` | `#1a1a1a` | `#e5e5e5` | Text on secondary |
 | `muted` | `#f0f0f0` | `#2a2a2a` | Muted background (group fills, placeholders) |
-| `muted-foreground` | `#767676` | `#8a8a8a` | De-emphasized / descriptive text. **AA-tuned** (≥4.5:1 on `card`/`background`) — reserve for secondary/large text, not dense body copy ([state & a11y](./patterns.md#accessibility)) |
+| `muted-foreground` | `#767676` | `#8a8a8a` | De-emphasized / descriptive text. **AA-tuned** (≥4.5:1 on `card`/`background`) — reserve for secondary/large text, not dense body copy ([state & a11y](./design-patterns.md#accessibility)) |
 | `accent` | `#f0f0f0` | `#2a2a2a` | Hover / selected background (menu items, etc.) |
 | `accent-foreground` | `#1a1a1a` | `#e5e5e5` | Text on accent |
 
@@ -134,4 +134,4 @@ Shadows signal *how high* a surface floats. There are **no `--shadow-*` tokens**
 
 - **Don't reach past `shadow-lg`.** `shadow-xl` / `shadow-2xl` read as heavy and inconsistent; if something needs more separation it usually needs a scrim/backdrop, not a bigger shadow.
 - **Shadows barely render in dark mode.** On `#151515` cards a black shadow is nearly invisible, so depth in dark relies on the `border` + the surface step (`background #1e1e1e` → `card #151515`). Don't lean on shadow alone to separate layers in dark — keep the border. (If dark-specific depth becomes necessary, introduce `--shadow-*` tokens with separate `.dark` values and document them here — don't hand-tune per component.)
-- Pair elevation with the matching radius ([typography & radius](./README.md#typography--radius)): raised → `rounded-lg`, overlay → `rounded-xl`.
+- Pair elevation with the matching radius ([typography & radius](../design.md#typography--radius)): raised → `rounded-lg`, overlay → `rounded-xl`.

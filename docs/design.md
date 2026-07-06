@@ -10,10 +10,10 @@
 
 | Owned here | Owned elsewhere |
 | --- | --- |
-| Color-token values, semantics, usage → [`tokens.md`](./tokens.md) | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` UI section](../develop/README.md) |
-| Theming mechanism, `dark:` usage | Commands, structure, coding style, testing, i18n, commit/PR → [`DEVELOP.md`](../develop/README.md) |
-| Component palette, variants, selection guidance → [`components.md`](./components.md) | Process model, message passing, service layers, internals → [`ARCHITECTURE.md`](../architecture/README.md) |
-| Layout shell, responsive patterns, **layering (z-index)**, motion, state patterns, **accessibility** → [`patterns.md`](./patterns.md); **elevation (shadows)** → [`tokens.md`](./tokens.md#elevation-shadows); page recipe (this doc) | — |
+| Color-token values, semantics, usage → [`tokens.md`](./references/design-tokens.md) | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` UI section](./develop.md) |
+| Theming mechanism, `dark:` usage | Commands, structure, coding style, testing, i18n, commit/PR → [`DEVELOP.md`](./develop.md) |
+| Component palette, variants, selection guidance → [`components.md`](./references/design-components.md) | Process model, message passing, service layers, internals → [`ARCHITECTURE.md`](./architecture.md) |
+| Layout shell, responsive patterns, **layering (z-index)**, motion, state patterns, **accessibility** → [`patterns.md`](./references/design-patterns.md); **elevation (shadows)** → [`tokens.md`](./references/design-tokens.md#elevation-shadows); page recipe (this doc) | — |
 
 This doc restates the `DEVELOP.md` hard rules only where needed, then links back — it does not duplicate them.
 
@@ -23,14 +23,14 @@ This doc restates the `DEVELOP.md` hard rules only where needed, then links back
 
 Every UI change must satisfy all of these. They are the bar for "friendly, consistent UI/UX" in this codebase.
 
-- **Use tokens, not literal colors — one value, one place.** Never write a hex (`#1296db`), an `rgb()`, or a palette class (`text-blue-500`). Always use a semantic token — `bg-background`, `text-foreground`, `border-border`, `text-primary`, `bg-primary-background`, `text-muted-foreground`, … ([tokens](./tokens.md)). All color values live in exactly one place — the token definitions in `src/index.css` — so the palette stays unified and a single edit re-skins everything. One semantic concept maps to **one** token: before adding a color, check [tokens](./tokens.md) for an existing token and reuse it; don't introduce a near-duplicate (a second slightly-different gray or blue). Only add a new token when the concept is genuinely new — with both light and dark values — and document it in [tokens](./tokens.md).
+- **Use tokens, not literal colors — one value, one place.** Never write a hex (`#1296db`), an `rgb()`, or a palette class (`text-blue-500`). Always use a semantic token — `bg-background`, `text-foreground`, `border-border`, `text-primary`, `bg-primary-background`, `text-muted-foreground`, … ([tokens](./references/design-tokens.md)). All color values live in exactly one place — the token definitions in `src/index.css` — so the palette stays unified and a single edit re-skins everything. One semantic concept maps to **one** token: before adding a color, check [tokens](./references/design-tokens.md) for an existing token and reuse it; don't introduce a near-duplicate (a second slightly-different gray or blue). Only add a new token when the concept is genuinely new — with both light and dark values — and document it in [tokens](./references/design-tokens.md).
 - **Both themes, always.** Light and dark are first-class. Because every color comes from a token that has a `:root` and a `.dark` value, using tokens makes a component theme-correct for free. Verify on real light *and* dark before considering anything done ([theming](#theming)).
-- **Design for mobile too.** The UI is responsive around a single `768px` breakpoint (`useIsMobile`). Mobile is **a different shell, not a shrunk desktop** — side nav becomes bottom tabs + drawer, tables become cards, rows stack, details/code collapse, actions move into a sticky bar ([layout & responsive](./patterns.md#layout--responsive)). A feature isn't finished until it works on a narrow viewport.
+- **Design for mobile too.** The UI is responsive around a single `768px` breakpoint (`useIsMobile`). Mobile is **a different shell, not a shrunk desktop** — side nav becomes bottom tabs + drawer, tables become cards, rows stack, details/code collapse, actions move into a sticky bar ([layout & responsive](./references/design-patterns.md#layout--responsive)). A feature isn't finished until it works on a narrow viewport.
 - **No inline `style={{}}` for what Tailwind can express.** Compose utility classes via `cn()` (`clsx` + `tailwind-merge`); build variants with `class-variance-authority` (CVA). Inline styles only for genuinely dynamic values (e.g. a computed width).
 - **Hover/focus are CSS, not state.** Express interactive visuals with pseudo-classes (`hover:bg-primary-background/90`, `focus-visible:ring-ring/50`). React state is for data/logic, not styling.
-- **Reuse components before building new ones.** Default to the shadcn primitives in `src/pages/components/ui/` ([components](./components.md)); icons come from `lucide-react` only — don't hand-roll a control that already exists. Beyond primitives, search the existing pages for a composed block (card row, identity header, permission card, state screen…) that already does what you need and reuse it. When the same block appears in two or more places, extract one shared component instead of copy-pasting — keep one implementation per concept so behavior and styling stay consistent and a fix lands everywhere at once.
-- **Keep motion restrained.** Enter/leave in `150–250ms`, `ease-out`; reuse the existing `@utility` animations rather than inlining `@keyframes`; prefer `transition-colors` over `transition-all` ([motion](./patterns.md#motion)).
-- **No silent operations.** Every async flow surfaces loading / empty / error / success (and progress for long-running work). The user must always know whether their action worked ([state patterns](./patterns.md#state-patterns)).
+- **Reuse components before building new ones.** Default to the shadcn primitives in `src/pages/components/ui/` ([components](./references/design-components.md)); icons come from `lucide-react` only — don't hand-roll a control that already exists. Beyond primitives, search the existing pages for a composed block (card row, identity header, permission card, state screen…) that already does what you need and reuse it. When the same block appears in two or more places, extract one shared component instead of copy-pasting — keep one implementation per concept so behavior and styling stay consistent and a fix lands everywhere at once.
+- **Keep motion restrained.** Enter/leave in `150–250ms`, `ease-out`; reuse the existing `@utility` animations rather than inlining `@keyframes`; prefer `transition-colors` over `transition-all` ([motion](./references/design-patterns.md#motion)).
+- **No silent operations.** Every async flow surfaces loading / empty / error / success (and progress for long-running work). The user must always know whether their action worked ([state patterns](./references/design-patterns.md#state-patterns)).
 - **Don't introduce new colors or fonts ad hoc.** New color → add a token in `src/index.css` (with both light and dark values) and document it here. New font → add a `--font-*` token; don't reference an unconfigured family.
 
 ---
@@ -52,7 +52,7 @@ The "why" behind the constraints — apply these when shaping a screen.
 
 **Mechanism:** the theme switches by adding/removing `.dark` on `document.documentElement` (`@custom-variant dark (&:is(.dark *))` is what makes the `dark:` variant work). Every token is defined under both `:root` and `.dark`, so toggling the class re-skins the whole app — no per-component color changes needed.
 
-**Provider:** [`src/pages/components/theme-provider.tsx`](../../src/pages/components/theme-provider.tsx)
+**Provider:** [`src/pages/components/theme-provider.tsx`](../src/pages/components/theme-provider.tsx)
 
 ```tsx
 import { useTheme } from "@App/pages/components/theme-provider";
@@ -63,7 +63,7 @@ const { theme, resolvedTheme, setTheme } = useTheme();
 setTheme("auto"); // "auto" follows the system theme and updates on change
 ```
 
-**Flash prevention:** [`src/pages/common.ts`](../../src/pages/common.ts) reads `lightMode` and sets `.dark` *before* React mounts, so non-auto users don't see a wrong-theme frame on refresh. New page entry points should reuse the existing `main.tsx` pattern rather than rolling their own theme logic.
+**Flash prevention:** [`src/pages/common.ts`](../src/pages/common.ts) reads `lightMode` and sets `.dark` *before* React mounts, so non-auto users don't see a wrong-theme frame on refresh. New page entry points should reuse the existing `main.tsx` pattern rather than rolling their own theme logic.
 
 **Correct usage (do / don't):**
 
@@ -87,7 +87,7 @@ setTheme("auto"); // "auto" follows the system theme and updates on change
 
 ### Fonts
 
-**System-font-only, zero webfonts.** A browser extension must work offline, must not phone home to a font CDN (privacy + CSP), and pays for every byte it ships — so the type system is **the platform's own fonts**, declared as two tokens in the `@theme inline` block of [`src/index.css`](../../src/index.css). Both stacks end with an **explicit CJK fallback** (`PingFang SC` / `Microsoft YaHei` / `Noto Sans SC`) because ScriptCat is Chinese-first and CJK coverage must be controlled, not left to whatever `system-ui` happens to resolve to on a non-Chinese OS.
+**System-font-only, zero webfonts.** A browser extension must work offline, must not phone home to a font CDN (privacy + CSP), and pays for every byte it ships — so the type system is **the platform's own fonts**, declared as two tokens in the `@theme inline` block of [`src/index.css`](../src/index.css). Both stacks end with an **explicit CJK fallback** (`PingFang SC` / `Microsoft YaHei` / `Noto Sans SC`) because ScriptCat is Chinese-first and CJK coverage must be controlled, not left to whatever `system-ui` happens to resolve to on a non-Chinese OS.
 
 | Token | Value | Use |
 | --- | --- | --- |
@@ -121,16 +121,16 @@ setTheme("auto"); // "auto" follows the system theme and updates on change
 When building a new page or dialog, run this checklist to stay consistent:
 
 - [ ] **Entry** reuses the existing `main.tsx` pattern — mount `ThemeProvider`, `Toaster` (and `TooltipProvider` if needed); don't roll your own theme logic.
-- [ ] **Shell:** sticky TopBar + `.scrollbar-custom` scroll container + sticky ActionBar ([layout & responsive](./patterns.md#layout--responsive)).
-- [ ] **Responsive:** branch on `useIsMobile()`; re-shell on mobile (bottom bar/drawer, cards, collapse) rather than scaling down (Constraint 3, [layout & responsive](./patterns.md#layout--responsive)).
-- [ ] **Color** entirely from tokens (`bg-card` / `text-foreground` / `border-border` / `text-primary` / `bg-primary-background` …), no literals, verified on both themes (Constraint 1–2, [tokens](./tokens.md) & [theming](#theming)).
-- [ ] **Components** reuse first — search existing pages for a composed block before building; use `src/pages/components/ui/` primitives; extract a shared component when a block repeats; variants via CVA, classes via `cn()`, icons via `lucide-react` (Constraint 6, [components](./components.md)).
+- [ ] **Shell:** sticky TopBar + `.scrollbar-custom` scroll container + sticky ActionBar ([layout & responsive](./references/design-patterns.md#layout--responsive)).
+- [ ] **Responsive:** branch on `useIsMobile()`; re-shell on mobile (bottom bar/drawer, cards, collapse) rather than scaling down (Constraint 3, [layout & responsive](./references/design-patterns.md#layout--responsive)).
+- [ ] **Color** entirely from tokens (`bg-card` / `text-foreground` / `border-border` / `text-primary` / `bg-primary-background` …), no literals, verified on both themes (Constraint 1–2, [tokens](./references/design-tokens.md) & [theming](#theming)).
+- [ ] **Components** reuse first — search existing pages for a composed block before building; use `src/pages/components/ui/` primitives; extract a shared component when a block repeats; variants via CVA, classes via `cn()`, icons via `lucide-react` (Constraint 6, [components](./references/design-components.md)).
 - [ ] **Hierarchy** orders the most important info first; decision pages go identity → permissions → code (Principle 1).
-- [ ] **State:** loading / empty / error / success / in-progress all covered, never silent ([state patterns](./patterns.md#state-patterns)).
-- [ ] **Motion** restrained (`150–250ms`, `ease-out`), hover/focus via pseudo-classes, enter/leave via `data-state`, reuse existing utilities ([motion](./patterns.md#motion)).
-- [ ] **Depth** uses the elevation ladder (resting/raised/overlay, [elevation](./tokens.md#elevation-shadows)) and the z-index ladder (`z-10` chrome / `z-50` floating, [layering](./patterns.md#layering-z-index)) — no `shadow-2xl`, no magic `z-[…]`.
-- [ ] **Accessibility:** AA contrast on both themes; meaning never color-only; custom controls keyboard-reachable with a visible focus ring; `aria-label` on icon buttons; ≥ ~44px mobile tap targets; reduced-motion-safe ([accessibility](./patterns.md#accessibility)).
-- [ ] **Copy** defaults to sentence-case English + i18n; verbs on buttons; specific errors ([writing & microcopy](./patterns.md#writing--microcopy)), and flexes for long locales ([layout & responsive](./patterns.md#layout--responsive)); see [`DEVELOP.md`](../develop/README.md) and [`translation/README.md`](../translation/README.md).
+- [ ] **State:** loading / empty / error / success / in-progress all covered, never silent ([state patterns](./references/design-patterns.md#state-patterns)).
+- [ ] **Motion** restrained (`150–250ms`, `ease-out`), hover/focus via pseudo-classes, enter/leave via `data-state`, reuse existing utilities ([motion](./references/design-patterns.md#motion)).
+- [ ] **Depth** uses the elevation ladder (resting/raised/overlay, [elevation](./references/design-tokens.md#elevation-shadows)) and the z-index ladder (`z-10` chrome / `z-50` floating, [layering](./references/design-patterns.md#layering-z-index)) — no `shadow-2xl`, no magic `z-[…]`.
+- [ ] **Accessibility:** AA contrast on both themes; meaning never color-only; custom controls keyboard-reachable with a visible focus ring; `aria-label` on icon buttons; ≥ ~44px mobile tap targets; reduced-motion-safe ([accessibility](./references/design-patterns.md#accessibility)).
+- [ ] **Copy** defaults to sentence-case English + i18n; verbs on buttons; specific errors ([writing & microcopy](./references/design-patterns.md#writing--microcopy)), and flexes for long locales ([layout & responsive](./references/design-patterns.md#layout--responsive)); see [`DEVELOP.md`](./develop.md) and [`translation.md`](./translation.md).
 
 Page skeleton (tokens + existing primitives + the shell pattern):
 
@@ -171,11 +171,11 @@ export default function ExamplePage() {
 
 **Implementation source of truth (read/edit these when changing the design):**
 
-- Color / motion / scrollbar tokens → [`src/index.css`](../../src/index.css)
-- Theming → [`src/pages/components/theme-provider.tsx`](../../src/pages/components/theme-provider.tsx) + [`src/pages/common.ts`](../../src/pages/common.ts)
-- Component primitives → [`src/pages/components/ui/`](../../src/pages/components/ui/); shadcn config → [`components.json`](../../components.json)
-- `cn()` → [`src/pkg/utils/cn.ts`](../../src/pkg/utils/cn.ts); breakpoint → [`src/pages/components/use-is-mobile.ts`](../../src/pages/components/use-is-mobile.ts)
+- Color / motion / scrollbar tokens → [`src/index.css`](../src/index.css)
+- Theming → [`src/pages/components/theme-provider.tsx`](../src/pages/components/theme-provider.tsx) + [`src/pages/common.ts`](../src/pages/common.ts)
+- Component primitives → [`src/pages/components/ui/`](../src/pages/components/ui/); shadcn config → [`components.json`](../components.json)
+- `cn()` → [`src/pkg/utils/cn.ts`](../src/pkg/utils/cn.ts); breakpoint → [`src/pages/components/use-is-mobile.ts`](../src/pages/components/use-is-mobile.ts)
 
-**Related docs:** UI hard rules and commit flow → [`DEVELOP.md`](../develop/README.md); internals → [`ARCHITECTURE.md`](../architecture/README.md); doc maintenance and fact-checking → [`DOC-MAINTENANCE.md`](../DOC-MAINTENANCE.md).
+**Related docs:** UI hard rules and commit flow → [`DEVELOP.md`](./develop.md); internals → [`ARCHITECTURE.md`](./architecture.md); doc maintenance and fact-checking → [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md).
 
-> When editing this doc, follow [`DOC-MAINTENANCE.md`](../DOC-MAINTENANCE.md): token values, component names, and variant names track the current branch's `src/` code (if you can't `git grep` it, don't claim it); enumerate counts and lists rather than trusting memory.
+> When editing this doc, follow [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md): token values, component names, and variant names track the current branch's `src/` code (if you can't `git grep` it, don't claim it); enumerate counts and lists rather than trusting memory.

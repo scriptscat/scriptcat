@@ -111,7 +111,7 @@ Every async flow covers the states below, presented consistently:
 | **Success** | Centered green icon + title + summary stats + next-step CTA; for transient feedback use `notify.success` |
 | **In-progress** | Top progress bar + per-row status icons (✓ green done / ○ brand in-progress / ⏱ `muted` pending / ✗ `muted` skipped) + readable copy ("Importing… 2/5, keep this page open") |
 
-These states have canonical shared components — reuse them rather than re-implementing: `StateScreen` (full-area loading/empty/error/success), `EmptyState` / `LoadingState` (inline), `Skeleton`, and `Progress` (`top` / `indeterminate`); see [primitives & shared composites](./components.md#primitives--shared-composites).
+These states have canonical shared components — reuse them rather than re-implementing: `StateScreen` (full-area loading/empty/error/success), `EmptyState` / `LoadingState` (inline), `Skeleton`, and `Progress` (`top` / `indeterminate`); see [primitives & shared composites](./design-components.md#primitives--shared-composites).
 
 ### Loading patterns
 
@@ -135,7 +135,7 @@ The rule: **no silent operations** — after any action the user can see success
 
 ### Forms & validation
 
-Forms are plain `useState` + controlled components ([components](./components.md#primitives--shared-composites) — no form library). Keep their feedback consistent:
+Forms are plain `useState` + controlled components ([components](./design-components.md#primitives--shared-composites) — no form library). Keep their feedback consistent:
 
 - **Validate late, forgive early.** Don't show errors while a field is still being filled. Validate on **blur** and on **submit**; once a field is showing an error, switch it to **live** revalidation so the message clears the instant it's fixed.
 - **Error message sits with the field**, not in a far-off banner: a short `text-destructive text-xs` line directly under the input, and mark the control (`aria-invalid`, `border-destructive`). For *form-level* failures (the save request itself failed) raise a `notify` error toast ([state patterns](#state-patterns)) — there is no `Alert` primitive; if an inline form-level banner is unavoidable, build it ad-hoc with `border-destructive` / `text-destructive`.
@@ -154,7 +154,7 @@ Consistent words are part of a consistent UI.
 
 ### Interactive states
 
-[Core Constraints](./README.md#core-constraints-non-negotiable) covers hover/focus (CSS pseudo-classes, never React state). For completeness every interactive control also needs:
+[Core Constraints](../design.md#core-constraints-non-negotiable) covers hover/focus (CSS pseudo-classes, never React state). For completeness every interactive control also needs:
 
 - **Disabled:** the shadcn primitives already apply `disabled:opacity-50 disabled:pointer-events-none` — reuse them; don't hand-roll a greyed-out look. A disabled control still needs a reason nearby (helper text/tooltip) if it's non-obvious.
 - **Active / pressed:** rely on the primitive's built-in `active:`; add `active:` utilities only for custom controls.
@@ -181,7 +181,7 @@ The base layer in [`src/index.css`](../../src/index.css) intentionally **removes
 
 ### Keyboard & screen readers
 
-- **Everything actionable is reachable and operable by keyboard** — prefer native `<button>`/`<a>`/`<input>`; the Radix primitives (Dialog, Sheet, DropdownMenu, Tabs…) already ship focus trap, arrow-key nav, Esc, and return-focus — that's a reason to reuse them over hand-rolled overlays ([components](./components.md)).
+- **Everything actionable is reachable and operable by keyboard** — prefer native `<button>`/`<a>`/`<input>`; the Radix primitives (Dialog, Sheet, DropdownMenu, Tabs…) already ship focus trap, arrow-key nav, Esc, and return-focus — that's a reason to reuse them over hand-rolled overlays ([components](./design-components.md)).
 - **Icon-only controls need an accessible name:** `aria-label` on every icon `Button` (an icon alone is invisible to a screen reader).
 - **Announce async state:** loading/empty/error/progress regions carry `role="status"` / `role="progressbar"` + `aria-label` (the `TopProgressBar` already does) so non-visual users hear the same "no silent operations" guarantee ([state patterns](#state-patterns)).
 - **Decorative icons** (next to a text label) are `aria-hidden` so they aren't double-announced.

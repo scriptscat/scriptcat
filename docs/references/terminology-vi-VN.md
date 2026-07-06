@@ -2,7 +2,7 @@
 
 Tài liệu này quy định thuật ngữ dùng cho giao diện và tài liệu tiếng Việt (`vi-VN`) của ScriptCat. Mục đích là giữ rõ các khái niệm sản phẩm, dùng câu chữ tự nhiên trong giao diện và bảo toàn các định danh kỹ thuật khi tiếp tục bản địa hóa.
 
-Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`, `docs/architecture/README.md`
+Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`, `docs/architecture.md`
 
 ## Nguyên tắc
 
@@ -30,7 +30,7 @@ Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`, `docs/architect
 | ScriptCat browser extension | `tiện ích ScriptCat` | `welcome_title`, `ext_update_notification` | Giữ tên sản phẩm là `ScriptCat`. |
 | generic user script | `script người dùng` | `create_user_script`, `script_list_content` | Dùng cho khái niệm userscript chung. |
 | normal userscript type | `script người dùng` / nhãn danh mục hiện tại `script bình thường` | `create_user_script`, `script_list.sidebar.normal_script` | Không gộp với script nền hoặc script hẹn giờ. |
-| Tampermonkey compatibility | `script người dùng tương thích Tampermonkey` / `script Tampermonkey` | `docs/architecture/README.md` | Chỉ dùng khi cần nói rõ tính tương thích; không thay thế mọi tên gọi userscript hoặc danh mục script. |
+| Tampermonkey compatibility | `script người dùng tương thích Tampermonkey` / `script Tampermonkey` | `docs/architecture.md` | Chỉ dùng khi cần nói rõ tính tương thích; không thay thế mọi tên gọi userscript hoặc danh mục script. |
 | page script | `script trang` | `script_list_enable_content` | Chỉ khái niệm script chạy trên trang trong nội dung UI; không tự động thay thế nhãn danh mục `script bình thường`. |
 | background script | `script nền` | `create_background_script`, `background_script` | Loại script chạy nền của sản phẩm. |
 | scheduled script | `script hẹn giờ` | `create_scheduled_script`, `scheduled_script` | Dùng thay cho việc giới thiệu thêm tên `script crontab`. |

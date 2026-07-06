@@ -2,7 +2,7 @@
 
 Bu belge, ScriptCat'in Türkçe (`tr-TR`) arayüzü ve belgeleri için terminoloji kurallarını tanımlar. Amaç, ürün kavramlarını tutarlı biçimde adlandırmak, doğal Türkçe arayüz metinleri yazmak ve teknik tanımlayıcıları korumaktır.
 
-İncelenen kullanım kaynakları: `src/locales/tr-TR/*.json`, `docs/architecture/README.md`
+İncelenen kullanım kaynakları: `src/locales/tr-TR/*.json`, `docs/architecture.md`
 
 ## İlkeler
 
@@ -30,7 +30,7 @@ Bu belge, ScriptCat'in Türkçe (`tr-TR`) arayüzü ve belgeleri için terminolo
 | ScriptCat browser extension | `ScriptCat uzantısı` | `welcome_title`, `ext_update_notification` | Ürün adını her zaman `ScriptCat` olarak yazın. |
 | generic userscript | `kullanıcı betiği` | `create_user_script`, `script_list_content` | Userscript kavramının genel adıdır. |
 | normal userscript type | `Normal Betik` | `create_user_script`, `script_list.sidebar.normal_script` | Arka plan ve zamanlanmış betik türleriyle birleştirmeyin. |
-| Tampermonkey compatibility | `Tampermonkey uyumlu kullanıcı betiği` / `Tampermonkey betiği` | `docs/architecture/README.md` | Yalnızca uyumluluk vurgulanırken kullanın; genel userscript veya kategori adının yerine geçirmeyin. |
+| Tampermonkey compatibility | `Tampermonkey uyumlu kullanıcı betiği` / `Tampermonkey betiği` | `docs/architecture.md` | Yalnızca uyumluluk vurgulanırken kullanın; genel userscript veya kategori adının yerine geçirmeyin. |
 | page script | `Sayfa Betiği` | `script_list_enable_content` | Arayüz metnindeki sayfada çalışan betik kavramıdır; `Normal Betik` kategori etiketinin yerine denetimsiz kullanmayın. |
 | background script | `Arka Plan Betiği` | `create_background_script`, `background_script` | Arka planda çalışan ScriptCat betik türüdür. |
 | scheduled script | `Zamanlanmış Betik` | `create_scheduled_script`, `scheduled_script` | Tür adı olarak `crontab betiği` kullanmayın; `cron` yalnızca zamanlama ifadesini anlatır. |

@@ -65,7 +65,7 @@ locally); the Firefox zip is gated behind the `PACK_FIREFOX` flag (`false` by de
 
 | Package | Purpose |
 |---|---|
-| [`message`](../../packages/message) | The cross-context RPC + pub/sub layer (see [Message Passing](./README.md#message-passing)). Ships its own mocks. |
+| [`message`](../../packages/message) | The cross-context RPC + pub/sub layer (see [Message Passing](../architecture.md#message-passing)). Ships its own mocks. |
 | [`filesystem`](../../packages/filesystem) | Pluggable FS adapters for sync/backup — WebDAV, cloud drives (OneDrive, Google Drive, Dropbox, Baidu, S3), and zip archives. |
 | [`cloudscript`](../../packages/cloudscript) | Cloud-script integration. |
 | [`eslint`](../../packages/eslint) | The ESLint config + globals shipped to the in-editor linter for userscripts (`CAT_*`, `GM_*`, `CATRetryError`, …). |

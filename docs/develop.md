@@ -1,10 +1,10 @@
 # ScriptCat Development Guide (开发规范)
 
-> **Read this before writing code.** [`AGENTS.md`](../../AGENTS.md) holds the non-negotiable engineering
+> **Read this before writing code.** [`AGENTS.md`](../AGENTS.md) holds the non-negotiable engineering
 > principles (SOLID / high cohesion & low coupling, TDD/BDD-first, root-cause fixes, scope discipline) and the
 > architecture quick-map — those are **not** repeated here. This file is the concrete development spec: the
 > commands, structure, coding style, UI/theme rules, testing mechanics, i18n, and commit/PR workflow you follow
-> while implementing. For deep internals see [`docs/architecture/README.md`](../architecture/README.md).
+> while implementing. For deep internals see [`docs/architecture.md`](./architecture.md).
 
 ## Commands
 
@@ -68,19 +68,19 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
   - No hard-coded colors.
 - **Design system** — the full color-token reference (light/dark values), component palette, layout &
   responsive patterns, motion guidance, state patterns, and a new-page recipe live in
-  [`DESIGN.md`](../design/README.md). Read it before building a new page, dialog, or block.
+  [`DESIGN.md`](./design.md). Read it before building a new page, dialog, or block.
 
 ## Testing
 
 This project uses Vitest for unit tests and Playwright for end-to-end tests.
 
-> Mechanics, meaningful-test guidance, and Vitest performance hygiene live in [testing.md](./testing.md). To verify a change end-to-end without growing the suite, see [../verification/README.md](../verification/README.md).
+> Mechanics, meaningful-test guidance, and Vitest performance hygiene live in [testing.md](./references/develop-testing.md). To verify a change end-to-end without growing the suite, see [verification.md](./verification.md).
 
 ## i18n
 
 i18next, 8 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU, tr-TR); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
 
-**Before translating, read [`docs/translation/README.md`](../translation/README.md)** — the translation/localization guide (terminology rules + per-locale `terminology-<locale>.md` specs).
+**Before translating, read [`docs/translation.md`](./translation.md)** — the translation/localization guide (terminology rules + per-locale `terminology-<locale>.md` specs).
 
 ## Security & Configuration Tips
 

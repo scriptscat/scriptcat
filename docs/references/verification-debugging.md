@@ -3,7 +3,7 @@
 ## Five-context debug map
 
 A feature can break in any of ScriptCat's five isolated contexts. Match the symptom to where its logs live (deep
-model in [`ARCHITECTURE.md`](../architecture/README.md)):
+model in [`ARCHITECTURE.md`](../architecture.md)):
 
 | Symptom | Where to look |
 | --- | --- |

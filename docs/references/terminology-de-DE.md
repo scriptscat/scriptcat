@@ -2,7 +2,7 @@
 
 Dieses Dokument definiert die Terminologie für die deutsche (`de-DE`) Benutzeroberfläche und Dokumentation von ScriptCat. Es dient dazu, Produktkonzepte eindeutig zu benennen, UI-Texte natürlich zu formulieren und technische Bezeichner bei künftigen Übersetzungen unverändert zu erhalten.
 
-Geprüfte Verwendungsquellen: `src/locales/de-DE/*.json`, `docs/architecture/README.md`
+Geprüfte Verwendungsquellen: `src/locales/de-DE/*.json`, `docs/architecture.md`
 
 ## Grundsätze
 
@@ -30,7 +30,7 @@ Geprüfte Verwendungsquellen: `src/locales/de-DE/*.json`, `docs/architecture/REA
 | ScriptCat browser extension | `ScriptCat-Erweiterung` | `welcome_title`, `ext_update_notification` | Produktname als `ScriptCat` schreiben. |
 | generic user script | `Benutzerskript` | `create_user_script`, `script_list_content` | Allgemeine Bezeichnung für ein Userscript. |
 | normal userscript type | `Benutzerskript` / aktuelle Kategorie `Normales Skript` | `create_user_script`, `script_list.sidebar.normal_script` | Nicht mit Hintergrund- oder geplanten Skripten zusammenführen. |
-| Tampermonkey compatibility | `Tampermonkey-kompatibles Benutzerskript` / `Tampermonkey-Skript` | `docs/architecture/README.md` | Nur verwenden, wenn die Kompatibilität gemeint ist; nicht als pauschalen Ersatz für `Benutzerskript`. |
+| Tampermonkey compatibility | `Tampermonkey-kompatibles Benutzerskript` / `Tampermonkey-Skript` | `docs/architecture.md` | Nur verwenden, wenn die Kompatibilität gemeint ist; nicht als pauschalen Ersatz für `Benutzerskript`. |
 | page script | `Seitenskript` | `script_list_enable_content` | Bezeichnet im UI ein auf Seiten ausgeführtes Skript; nicht ungeprüft als Ersatz für die Kategorie `Normales Skript` verwenden. |
 | background script | `Hintergrundskript` | `create_background_script`, `background_script` | Produkttyp für Ausführung im Hintergrund. |
 | scheduled script | `Geplantes Skript` | `create_scheduled_script`, `scheduled_script` | Produkttyp für geplante Ausführung; nicht ohne Kontext in `Cron-Skript` umbenennen. |

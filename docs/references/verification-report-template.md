@@ -84,7 +84,7 @@ Use this shape:
 Embed screenshots inline, link videos / logs / resources, and annotate every item — see the shape above.
 ```
 
-Fill `Result` at the end — the honest verdict, per *Step 4 — Report honestly* in [`README.md`](./README.md).
+Fill `Result` at the end — the honest verdict, per *Step 4 — Report honestly* in [`verification.md`](../verification.md).
 Execution Log `Status` moves `Pending` → `Pass` / `Fail` / `Blocked`.
 
 In `verify-change` mode, drop the `Reproduction Steps` / `Minimal Reproduction` sections. In `reproduce-bug`

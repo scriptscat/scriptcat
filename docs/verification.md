@@ -7,8 +7,8 @@
 > scripts and local-only evidence — kept out of Git and never deleted as part of a run; cleanup is the user's call.
 >
 > **What this is NOT.** It is *not* the test-suite reference. The mechanics of Vitest unit tests and the
-> permanent Playwright E2E suite live in [`DEVELOP.md`](../develop/README.md) → *Testing*; the TDD-first principle and
-> engineering rules live in [`../../AGENTS.md`](../../AGENTS.md). Read those for writing committed tests.
+> permanent Playwright E2E suite live in [`DEVELOP.md`](./develop.md) → *Testing*; the TDD-first principle and
+> engineering rules live in [`../AGENTS.md`](../AGENTS.md). Read those for writing committed tests.
 
 ## The one rule: verification ≠ growing the E2E suite
 
@@ -20,12 +20,12 @@ you only want to *check that a feature works*, do not pay that cost and do not l
 - ✅ Write a **throwaway scratch script** under `e2e/scratch/` (git-ignored), run it, and keep any evidence local.
 
 Promoting a scenario into the permanent suite is a *separate, deliberate* decision — only when it deserves
-permanent regression coverage. That path is owned by [`DEVELOP.md`](../develop/README.md), not this guide.
+permanent regression coverage. That path is owned by [`DEVELOP.md`](./develop.md), not this guide.
 
 **Reproducing a bug you intend to fix is *not* "casual verification."** A scratch reproduction is the *确定 bug
-存在* step from [`../../AGENTS.md`](../../AGENTS.md) (确定 bug 存在 → 写测试 → 修复): it confirms the bug is real but does
+存在* step from [`../AGENTS.md`](../AGENTS.md) (确定 bug 存在 → 写测试 → 修复): it confirms the bug is real but does
 **not** replace the test. Next, promote it into a *failing* committed test, then fix, then confirm it goes green —
-that permanent test is owned by [`DEVELOP.md`](../develop/README.md) / [`../../AGENTS.md`](../../AGENTS.md).
+that permanent test is owned by [`DEVELOP.md`](./develop.md) / [`../AGENTS.md`](../AGENTS.md).
 
 ## Prerequisite gate (cheap signals first)
 
@@ -59,8 +59,8 @@ Load `dist/ext` as an unpacked extension (the scratch scripts below do this for 
 Scratch scripts live in **`e2e/scratch/`** and reuse the existing harness, so you write almost no boilerplate:
 
 - `import { test, expect } from "../fixtures";` — gives you a `context` (with `dist/ext` loaded) and an
-  `extensionId`, with the first-use guide already dismissed. See [`e2e/fixtures.ts`](../../e2e/fixtures.ts).
-- `import { ... } from "../utils";` — page openers and a script installer. See [`e2e/utils.ts`](../../e2e/utils.ts):
+  `extensionId`, with the first-use guide already dismissed. See [`e2e/fixtures.ts`](../e2e/fixtures.ts).
+- `import { ... } from "../utils";` — page openers and a script installer. See [`e2e/utils.ts`](../e2e/utils.ts):
   `openOptionsPage`, `openPopupPage`, `openEditorPage`, `installScriptByCode`, `saveCurrentEditor`,
   `autoApprovePermissions`, and `runInlineTestScript`.
 
@@ -91,7 +91,7 @@ Embed screenshots inline with `![alt](screenshots/…png)` plus a caption line, 
 record you can skim without opening files. Link videos, logs, and resources instead — markdown can't inline them.
 Never list bare links: every item carries a short note explaining what it proves and how to read it. Before running
 the browser, create the record following the Evidence Index shape in the
-[verification record template](./report-template.md).
+[verification record template](./references/verification-report-template.md).
 
 ### Minimal template (drive a UI page)
 
@@ -126,7 +126,7 @@ Playwright finalizes `.webm` files when pages/contexts close at the end of the t
 produce multiple videos because the harness may open setup pages as well as the page under verification; keep all
 of them beside the screenshots for the same scenario.
 
-> Scratch copying the inline fixture won't read `E2E_RECORD_VIDEO_DIR` — see [gotchas](./debugging.md#common-gotchas).
+> Scratch copying the inline fixture won't read `E2E_RECORD_VIDEO_DIR` — see [gotchas](./references/verification-debugging.md#common-gotchas).
 
 ### Run only your scratch script
 
@@ -140,14 +140,14 @@ pnpm exec playwright test --config playwright.scratch.config.ts
 pnpm exec playwright test --config playwright.scratch.config.ts -g "options page"
 ```
 
-Why two configs: [`playwright.config.ts`](../../playwright.config.ts) sets `testIgnore: ["**/scratch/**"]`, so
-`pnpm run test:e2e` and CI **never** pick up scratch scripts; [`playwright.scratch.config.ts`](../../playwright.scratch.config.ts)
+Why two configs: [`playwright.config.ts`](../playwright.config.ts) sets `testIgnore: ["**/scratch/**"]`, so
+`pnpm run test:e2e` and CI **never** pick up scratch scripts; [`playwright.scratch.config.ts`](../playwright.scratch.config.ts)
 points `testDir` at `e2e/scratch/` so you can run them on demand. Scratch files are git-ignored.
 
 ## Step 3 — Verify actual script *execution* (GM APIs, injection)
 
 The shared `e2e/fixtures.ts` is enough to drive extension pages, but to make a userscript **actually inject and
-run in a page** you need two extra things, both already solved in [`e2e/gm-api.spec.ts`](../../e2e/gm-api.spec.ts) —
+run in a page** you need two extra things, both already solved in [`e2e/gm-api.spec.ts`](../e2e/gm-api.spec.ts) —
 copy that file's inline fixture and helpers into your scratch script rather than re-deriving them:
 
 1. **Enable the `userScripts` permission.** It is an *optional* MV3 permission (see `manifest.json`
@@ -161,7 +161,7 @@ copy that file's inline fixture and helpers into your scratch script rather than
 
 The canonical way to verify GM APIs / injection is a userscript that **runs assertions in the page and prints a
 summary line**, which the harness parses from the console. The bundled scripts in
-[`example/tests/`](../../example/tests/) (e.g. `gm_api_sync_test.js`, `gm_api_async_test.js`,
+[`example/tests/`](../example/tests/) (e.g. `gm_api_sync_test.js`, `gm_api_async_test.js`,
 `inject_content_test.js`, `sandbox_test.js`, `window_message_test.js`) do exactly this. The exact line varies by
 script — what matters is that each emits a `通过`/`Passed` and a `失败`/`Failed` count the harness can parse:
 
@@ -199,14 +199,14 @@ script or a git-ignored file — it is verification scaffolding, not a committed
 The self-test pattern only covers what a userscript can observe *in the page*. Some behavior is fired from
 extension UI — e.g. a `GM_registerMenuCommand` menu is triggered from the popup.
 
-> Why not click the popup button? See [gotchas](./debugging.md#common-gotchas).
+> Why not click the popup button? See [gotchas](./references/verification-debugging.md#common-gotchas).
 
 One fact makes that drivable:
 
 - **Send the same SW message the button sends, from any extension page.** ScriptCat clients talk to the
   Service Worker via `chrome.runtime.sendMessage({ action, data })`, where `action` is `<client-prefix>/<method>`
   (e.g. `serviceWorker/popup/menuClick`) and the reply is wrapped as `{ code, data }` — payload is `res.data`,
-  a truthy `code` means error (see [`packages/message/client.ts`](../../packages/message/client.ts)). Read the tab
+  a truthy `code` means error (see [`packages/message/client.ts`](../packages/message/client.ts)). Read the tab
   coordinates you need (`tabId`/`frameId`/`documentId`) from a prior `getPopupData` call.
 
 ```ts
@@ -225,9 +225,9 @@ await chrome.runtime.sendMessage({
 This drives the real SW → content → sandbox → callback path, behaviorally identical to the popup button (which
 discards the DOM event and calls the same message). State the substitution in `report.md`.
 
-> Local server hangs on `close()`? See [gotchas](./debugging.md#common-gotchas).
+> Local server hangs on `close()`? See [gotchas](./references/verification-debugging.md#common-gotchas).
 
-> Hit a failure or a hang? See [debugging & common gotchas](./debugging.md).
+> Hit a failure or a hang? See [debugging & common gotchas](./references/verification-debugging.md).
 
 ## Step 4 — Report honestly
 
@@ -250,7 +250,7 @@ before assertions).
 ## Maintaining this guide
 
 When the harness, scripts, or paths change, keep this doc true to the branch (see
-[`DOC-MAINTENANCE.md`](../DOC-MAINTENANCE.md)). Quick checks:
+[`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md)). Quick checks:
 
 ```bash
 ls e2e/fixtures.ts e2e/utils.ts e2e/gm-api.spec.ts playwright.scratch.config.ts

@@ -102,5 +102,5 @@ jq -r '.testResults[] | .name as $file | .assertionResults[] | [.duration, $file
 ```
 
 > To **verify a change works end-to-end without growing the suite** — drive the real built extension with a
-> throwaway scratch script — see [`VERIFICATION.md`](../verification/README.md). That is lightweight verification, not
+> throwaway scratch script — see [`VERIFICATION.md`](../verification.md). That is lightweight verification, not
 > the committed test suite owned by this section.
