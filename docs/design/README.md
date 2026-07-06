@@ -13,7 +13,7 @@
 | Color-token values, semantics, usage → [`tokens.md`](./tokens.md) | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` UI section](../develop/README.md) |
 | Theming mechanism, `dark:` usage | Commands, structure, coding style, testing, i18n, commit/PR → [`DEVELOP.md`](../develop/README.md) |
 | Component palette, variants, selection guidance → [`components.md`](./components.md) | Process model, message passing, service layers, internals → [`ARCHITECTURE.md`](../architecture/README.md) |
-| Layout shell, responsive patterns, layering (z-index), motion, state patterns, accessibility → [`patterns.md`](./patterns.md); **elevation (shadows)** → [`tokens.md`](./tokens.md#elevation-shadows); page recipe (this doc) | — |
+| Layout shell, responsive patterns, **layering (z-index)**, motion, state patterns, **accessibility** → [`patterns.md`](./patterns.md); **elevation (shadows)** → [`tokens.md`](./tokens.md#elevation-shadows); page recipe (this doc) | — |
 
 This doc restates the `DEVELOP.md` hard rules only where needed, then links back — it does not duplicate them.
 

@@ -4,7 +4,7 @@
 > principles (SOLID / high cohesion & low coupling, TDD/BDD-first, root-cause fixes, scope discipline) and the
 > architecture quick-map — those are **not** repeated here. This file is the concrete development spec: the
 > commands, structure, coding style, UI/theme rules, testing mechanics, i18n, and commit/PR workflow you follow
-> while implementing. For deep internals see [`docs/ARCHITECTURE.md`](../architecture/README.md).
+> while implementing. For deep internals see [`docs/architecture/README.md`](../architecture/README.md).
 
 ## Commands
 

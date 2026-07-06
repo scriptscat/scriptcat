@@ -89,10 +89,9 @@ sanitize them before saving evidence.
 
 Embed screenshots inline with `![alt](screenshots/…png)` plus a caption line, so `report.md` renders as a visual
 record you can skim without opening files. Link videos, logs, and resources instead — markdown can't inline them.
-Never list bare links: every item carries a short note explaining what it proves and how to read it. Prefer this
-shape:
-
-> Before running the browser, create the record from the [verification record template](./report-template.md).
+Never list bare links: every item carries a short note explaining what it proves and how to read it. Before running
+the browser, create the record following the Evidence Index shape in the
+[verification record template](./report-template.md).
 
 ### Minimal template (drive a UI page)
 
@@ -198,7 +197,7 @@ script or a git-ignored file — it is verification scaffolding, not a committed
 ### When the behavior needs an external trigger (popup menu, action)
 
 The self-test pattern only covers what a userscript can observe *in the page*. Some behavior is fired from
-extension UI — e.g. a `GM_registerMenuCommand` menu is triggered from the popup. Two facts make that drivable:
+extension UI — e.g. a `GM_registerMenuCommand` menu is triggered from the popup. One fact makes that drivable:
 
 > Why not click the popup button? See [gotchas](./debugging.md#common-gotchas).
 

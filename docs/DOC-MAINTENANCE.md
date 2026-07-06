@@ -40,7 +40,7 @@ places, or they drift apart.
 ## Checklist 1 — Organization (every doc change)
 
 - [ ] Added / renamed / removed a doc → update the [`docs/README.md`](./README.md) index, the *Doc set &
-      responsibilities* table above, **and** every reference in `AGENTS.md` / `DEVELOP.md`.
+      responsibilities* table above, **and** every reference in `AGENTS.md` / `develop/README.md`.
 - [ ] All relative links resolve (run the link check in *One-shot verification* below).
 - [ ] No content that only exists on a feature branch is presented as current `main` — removed, or explicitly
       marked "planned (branch `X`)".
