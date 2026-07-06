@@ -216,13 +216,11 @@ export default class GMApi extends GM_Base {
   notificationTagMap?: Map<string, string>;
 
   @GMContext.protected()
-  audioStateChangeListeners?: Set<GMTypes.AudioStateChangeListener>;
-
-  @GMContext.protected()
-  audioStateChangeConnection?: MessageConnect;
-
-  @GMContext.protected()
-  audioStateChangeRegistration?: Promise<void>;
+  audioStateChange?: {
+    listeners: Set<GMTypes.AudioStateChangeListener>;
+    connection?: MessageConnect;
+    registration?: Promise<void>;
+  };
 
   constructor(
     public prefix: string,
@@ -246,10 +244,8 @@ export default class GMApi extends GM_Base {
         setInvalidContext() {
           if (invalid) return;
           invalid = true;
-          this.audioStateChangeConnection?.disconnect(true);
-          this.audioStateChangeConnection = undefined;
-          this.audioStateChangeRegistration = undefined;
-          this.audioStateChangeListeners?.clear();
+          this.audioStateChange?.connection?.disconnect(true);
+          this.audioStateChange = undefined;
           this.valueChangeListener.clear();
           this.EE.removeAllListeners();
           // 释放记忆
@@ -675,24 +671,24 @@ export default class GMApi extends GM_Base {
       return Promise.reject("GM_audio.addStateChangeListener: Invalid argument");
     }
 
-    a.audioStateChangeListeners ??= new Set();
-    if (a.audioStateChangeListeners.has(listener)) {
-      return a.audioStateChangeRegistration ?? Promise.resolve();
+    const state = (a.audioStateChange ??= { listeners: new Set() });
+    if (state.listeners.has(listener)) {
+      return state.registration ?? Promise.resolve();
     }
-    a.audioStateChangeListeners.add(listener);
-    if (a.audioStateChangeRegistration) return a.audioStateChangeRegistration;
+    state.listeners.add(listener);
+    if (state.registration) return state.registration;
 
     const registration = a.connect("GM_audio", ["addStateChangeListener"]).then(
       (connection) =>
         new Promise<void>((resolve, reject) => {
-          if (!a.audioStateChangeListeners?.size) {
+          if (!state.listeners.size) {
             connection.disconnect(true);
             resolve();
             return;
           }
 
           let registered = false;
-          a.audioStateChangeConnection = connection;
+          state.connection = connection;
           connection.onMessage((message) => {
             if (message.code) {
               reject(message.message);
@@ -704,38 +700,41 @@ export default class GMApi extends GM_Base {
               return;
             }
             if (message.action === "stateChange") {
-              for (const stateListener of a.audioStateChangeListeners ?? []) {
+              for (const stateListener of state.listeners) {
                 stateListener(message.data as GMTypes.AudioStateChangeInfo);
               }
             }
           });
           connection.onDisconnect(() => {
-            if (a.audioStateChangeConnection !== connection) return;
-            a.audioStateChangeConnection = undefined;
-            a.audioStateChangeRegistration = undefined;
-            a.audioStateChangeListeners?.clear();
+            if (state.connection !== connection) return;
+            state.connection = undefined;
+            state.registration = undefined;
+            state.listeners.clear();
             if (!registered) reject("GM_audio.addStateChangeListener: Connection disconnected");
           });
         })
     );
-    a.audioStateChangeRegistration = registration.catch((error) => {
-      const connection = a.audioStateChangeConnection;
-      a.audioStateChangeConnection = undefined;
-      a.audioStateChangeRegistration = undefined;
-      a.audioStateChangeListeners?.clear();
+    state.registration = registration.catch((error) => {
+      const connection = state.connection;
+      state.connection = undefined;
+      state.registration = undefined;
+      state.listeners.clear();
       connection?.disconnect(true);
       throw error;
     });
-    return a.audioStateChangeRegistration;
+    return state.registration;
   }
 
   static _GM_audioRemoveStateChangeListener(a: GMApi, listener: GMTypes.AudioStateChangeListener): Promise<void> {
-    a.audioStateChangeListeners?.delete(listener);
-    if (a.audioStateChangeListeners?.size) return Promise.resolve();
+    const state = a.audioStateChange;
+    state?.listeners.delete(listener);
+    if (state?.listeners.size) return Promise.resolve();
 
-    const connection = a.audioStateChangeConnection;
-    a.audioStateChangeConnection = undefined;
-    a.audioStateChangeRegistration = undefined;
+    const connection = state?.connection;
+    if (state) {
+      state.connection = undefined;
+      state.registration = undefined;
+    }
     connection?.disconnect(true);
     return Promise.resolve();
   }
