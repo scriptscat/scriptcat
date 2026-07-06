@@ -26,10 +26,10 @@ Aspirational / feature-branch content belongs in that branch's docs, or is clear
 | Doc | Owns |
 | --- | --- |
 | [`../AGENTS.md`](../AGENTS.md) | Engineering principles + architecture quick-map. Single source of truth; `CLAUDE.md` only `@import`s it. |
-| [`DEVELOP.md`](./DEVELOP.md) | The concrete "how": commands, structure, style, testing, i18n, commit/PR. |
-| [`DESIGN.md`](./DESIGN.md) | The design system: light/dark color tokens, theme mechanism, shadcn component palette, layout & responsive patterns, motion, state patterns, new-page recipe. |
-| [`VERIFICATION.md`](./VERIFICATION.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension. |
-| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Deep internals: process model, message passing, service/data layers, GM API, execution, build. |
+| [`develop/README.md`](./develop/README.md) | The concrete "how": commands, structure, style, i18n, commit/PR; testing mechanics split to [`develop/testing.md`](./develop/testing.md). |
+| [`design/README.md`](./design/README.md) | The design system: theme mechanism, shadcn component selection, new-page recipe; tokens split to [`design/tokens.md`](./design/tokens.md), component palette to [`design/components.md`](./design/components.md), layout/motion/state/a11y patterns to [`design/patterns.md`](./design/patterns.md). |
+| [`verification/README.md`](./verification/README.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension; report template split to [`verification/report-template.md`](./verification/report-template.md), debugging FAQ to [`verification/debugging.md`](./verification/debugging.md). |
+| [`architecture/README.md`](./architecture/README.md) | Deep internals: process model, message passing; subsystem deep-dives split to [`architecture/services.md`](./architecture/services.md), [`architecture/data.md`](./architecture/data.md), [`architecture/gm-api.md`](./architecture/gm-api.md), [`architecture/execution.md`](./architecture/execution.md), [`architecture/build.md`](./architecture/build.md). |
 | [`translation/README.md`](./translation/README.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: doc-set organization rules + fact-check / anti-drift discipline. |
 | [`README.md`](./README.md) | The index that points to all of the above. |
@@ -56,7 +56,7 @@ Verify **every** concrete claim against the code. Common claim types and how to 
 | Workspace packages exist | `git ls-tree --name-only HEAD packages/` |
 | A class / identifier exists **by that exact name** | `git grep "class <Name>\b" -- src packages` — a renamed class is the #1 source of drift |
 | DAOs extend `Repo<T>` | `git grep "class \w*DAO" -- src/app/repo` |
-| Service file tree (ARCHITECTURE §4) | `git ls-tree --name-only -d HEAD src/app/service/`, then confirm each listed file |
+| Service file tree (architecture/services.md) | `git ls-tree --name-only -d HEAD src/app/service/`, then confirm each listed file |
 | A constructor / function signature | open the file and compare param-by-param |
 | A count ("N locales", "N tools", "5 contexts") | enumerate the canonical source, e.g. `git ls-tree --name-only -d HEAD src/locales/` **and** `src/locales/locales.ts` |
 | Custom ESLint rule / config | `eslint.config.mjs` (project rules) **vs** `packages/eslint/linter-config.ts` (userscript lint config) — these are different things |
@@ -98,8 +98,11 @@ git ls-files eslint-rules/; git grep -l "require-last-error-check" -- eslint.con
 Link integrity — confirm every relative markdown link in the core docs resolves:
 
 ```bash
-for doc in AGENTS.md docs/README.md docs/DEVELOP.md docs/DESIGN.md docs/VERIFICATION.md docs/ARCHITECTURE.md docs/DOC-MAINTENANCE.md docs/translation/README.md; do
-  grep -oE '\]\(([^)]+)\)' "$doc" | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while read -r link; do
+for doc in AGENTS.md docs/README.md docs/DOC-MAINTENANCE.md docs/develop/README.md docs/develop/testing.md docs/design/README.md docs/design/tokens.md docs/design/components.md docs/design/patterns.md docs/architecture/README.md docs/architecture/services.md docs/architecture/data.md docs/architecture/gm-api.md docs/architecture/execution.md docs/architecture/build.md docs/verification/README.md docs/verification/debugging.md docs/verification/report-template.md docs/translation/README.md; do
+  # the sed pipeline drops fenced code blocks and inline code spans first, so illustrative sample
+  # links inside ```md snippets or `single-backtick` text (e.g. verification/report-template.md's
+  # screenshot/resource examples, verification/README.md's "Evidence location" spans) aren't false-flagged as broken
+  sed '/^```/,/^```/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while read -r link; do
     target="$(dirname "$doc")/${link%%#*}"
     [ -e "$target" ] && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"
   done
