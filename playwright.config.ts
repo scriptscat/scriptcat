@@ -3,7 +3,7 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   // 一次性验证脚本放在 e2e/scratch/（已 gitignore），不纳入正式 E2E 套件/CI。
-  // 单跑请用 playwright.scratch.config.ts：见 docs/VERIFICATION.md。
+  // 单跑请用 playwright.scratch.config.ts：见 docs/verification/README.md。
   testIgnore: ["**/scratch/**"],
   timeout: 60_000,
   expect: {
