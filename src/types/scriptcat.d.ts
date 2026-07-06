@@ -250,6 +250,18 @@ declare function GM_cookie(
   ondone: (cookie: GMTypes.Cookie[], error: unknown | undefined) => void
 ): void;
 
+/** Control and observe the current browser tab's audio state. */
+declare const GM_audio: {
+  /** Mute or unmute the current tab. */
+  setMute(details: GMTypes.AudioMuteDetails, callback?: GMTypes.AudioErrorCallback): void;
+  /** Read the current tab's mute and audible state. */
+  getState(callback: GMTypes.AudioStateCallback): void;
+  /** Listen for mute or audible state changes. */
+  addStateChangeListener(listener: GMTypes.AudioStateChangeListener, callback?: GMTypes.AudioErrorCallback): void;
+  /** Remove a previously registered state-change listener. */
+  removeStateChangeListener(listener: GMTypes.AudioStateChangeListener, callback?: () => void): void;
+};
+
 // ===========================================================================
 // GM.* object (Greasemonkey 4 / Tampermonkey 4+ Promise-style API)
 // ===========================================================================
@@ -364,6 +376,18 @@ declare const GM: {
     list(details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
     /** Delete a cookie. */
     delete(details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
+  };
+
+  /** Control and observe the current browser tab's audio state. */
+  audio: {
+    /** Mute or unmute the current tab. */
+    setMute(details: GMTypes.AudioMuteDetails): Promise<void>;
+    /** Read the current tab's mute and audible state. */
+    getState(): Promise<GMTypes.AudioState>;
+    /** Listen for mute or audible state changes. */
+    addStateChangeListener(listener: GMTypes.AudioStateChangeListener): Promise<void>;
+    /** Remove a previously registered state-change listener. */
+    removeStateChangeListener(listener: GMTypes.AudioStateChangeListener): Promise<void>;
   };
 };
 
@@ -515,6 +539,27 @@ declare namespace CATType {
 
 declare namespace GMTypes {
   type CookieAction = "list" | "delete" | "set";
+
+  type AudioMuteReason = "user" | "capture" | "extension";
+
+  interface AudioMuteDetails {
+    isMuted: boolean;
+  }
+
+  interface AudioState {
+    isMuted?: boolean;
+    muteReason?: AudioMuteReason;
+    isAudible?: boolean;
+  }
+
+  interface AudioStateChangeInfo {
+    muted?: AudioMuteReason | false;
+    audible?: boolean;
+  }
+
+  type AudioErrorCallback = (error?: string) => void;
+  type AudioStateCallback = (info: AudioState | undefined) => void;
+  type AudioStateChangeListener = (info: AudioStateChangeInfo) => void;
 
   type LoggerLevel = "debug" | "info" | "warn" | "error";
 

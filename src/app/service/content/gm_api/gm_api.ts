@@ -215,6 +215,15 @@ export default class GMApi extends GM_Base {
    */
   notificationTagMap?: Map<string, string>;
 
+  @GMContext.protected()
+  audioStateChangeListeners?: Set<GMTypes.AudioStateChangeListener>;
+
+  @GMContext.protected()
+  audioStateChangeConnection?: MessageConnect;
+
+  @GMContext.protected()
+  audioStateChangeRegistration?: Promise<void>;
+
   constructor(
     public prefix: string,
     public message: Message,
@@ -237,6 +246,10 @@ export default class GMApi extends GM_Base {
         setInvalidContext() {
           if (invalid) return;
           invalid = true;
+          this.audioStateChangeConnection?.disconnect(true);
+          this.audioStateChangeConnection = undefined;
+          this.audioStateChangeRegistration = undefined;
+          this.audioStateChangeListeners?.clear();
           this.valueChangeListener.clear();
           this.EE.removeAllListeners();
           // 释放记忆
@@ -649,6 +662,131 @@ export default class GMApi extends GM_Base {
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
     _GM_cookie(this, action, details, done);
+  }
+
+  static _GM_audioError(error: unknown): string {
+    if (typeof error === "string") return error;
+    if (error instanceof Error) return error.message;
+    return `${error}`;
+  }
+
+  static _GM_audioAddStateChangeListener(a: GMApi, listener: GMTypes.AudioStateChangeListener): Promise<void> {
+    if (typeof listener !== "function") {
+      return Promise.reject("GM_audio.addStateChangeListener: Invalid argument");
+    }
+
+    a.audioStateChangeListeners ??= new Set();
+    if (a.audioStateChangeListeners.has(listener)) {
+      return a.audioStateChangeRegistration ?? Promise.resolve();
+    }
+    a.audioStateChangeListeners.add(listener);
+    if (a.audioStateChangeRegistration) return a.audioStateChangeRegistration;
+
+    const registration = a.connect("GM_audio", ["addStateChangeListener"]).then(
+      (connection) =>
+        new Promise<void>((resolve, reject) => {
+          if (!a.audioStateChangeListeners?.size) {
+            connection.disconnect(true);
+            resolve();
+            return;
+          }
+
+          let registered = false;
+          a.audioStateChangeConnection = connection;
+          connection.onMessage((message) => {
+            if (message.code) {
+              reject(message.message);
+              return;
+            }
+            if (message.action === "registered") {
+              registered = true;
+              resolve();
+              return;
+            }
+            if (message.action === "stateChange") {
+              for (const stateListener of a.audioStateChangeListeners ?? []) {
+                stateListener(message.data as GMTypes.AudioStateChangeInfo);
+              }
+            }
+          });
+          connection.onDisconnect(() => {
+            if (a.audioStateChangeConnection !== connection) return;
+            a.audioStateChangeConnection = undefined;
+            a.audioStateChangeRegistration = undefined;
+            a.audioStateChangeListeners?.clear();
+            if (!registered) reject("GM_audio.addStateChangeListener: Connection disconnected");
+          });
+        })
+    );
+    a.audioStateChangeRegistration = registration.catch((error) => {
+      const connection = a.audioStateChangeConnection;
+      a.audioStateChangeConnection = undefined;
+      a.audioStateChangeRegistration = undefined;
+      a.audioStateChangeListeners?.clear();
+      connection?.disconnect(true);
+      throw error;
+    });
+    return a.audioStateChangeRegistration;
+  }
+
+  static _GM_audioRemoveStateChangeListener(a: GMApi, listener: GMTypes.AudioStateChangeListener): Promise<void> {
+    a.audioStateChangeListeners?.delete(listener);
+    if (a.audioStateChangeListeners?.size) return Promise.resolve();
+
+    const connection = a.audioStateChangeConnection;
+    a.audioStateChangeConnection = undefined;
+    a.audioStateChangeRegistration = undefined;
+    connection?.disconnect(true);
+    return Promise.resolve();
+  }
+
+  @GMContext.API({ follow: "GM_audio" })
+  public "GM_audio.setMute"(details: GMTypes.AudioMuteDetails, callback?: GMTypes.AudioErrorCallback): void {
+    void this.sendMessage("GM_audio", ["setMute", details])
+      .then(() => callback?.())
+      .catch((error) => callback?.(_GM_audioError(error)));
+  }
+
+  @GMContext.API({ follow: "GM_audio" })
+  public "GM_audio.getState"(callback: GMTypes.AudioStateCallback): void {
+    void this.sendMessage("GM_audio", ["getState"])
+      .then((state: GMTypes.AudioState) => callback(state))
+      .catch(() => callback(undefined));
+  }
+
+  @GMContext.API({ follow: "GM_audio" })
+  public "GM_audio.addStateChangeListener"(
+    listener: GMTypes.AudioStateChangeListener,
+    callback?: GMTypes.AudioErrorCallback
+  ): void {
+    void _GM_audioAddStateChangeListener(this, listener)
+      .then(() => callback?.())
+      .catch((error) => callback?.(_GM_audioError(error)));
+  }
+
+  @GMContext.API({ follow: "GM_audio" })
+  public "GM_audio.removeStateChangeListener"(listener: GMTypes.AudioStateChangeListener, callback?: () => void): void {
+    void _GM_audioRemoveStateChangeListener(this, listener).then(() => callback?.());
+  }
+
+  @GMContext.API({ follow: "GM.audio" })
+  public "GM.audio.setMute"(details: GMTypes.AudioMuteDetails): Promise<void> {
+    return this.sendMessage("GM_audio", ["setMute", details]);
+  }
+
+  @GMContext.API({ follow: "GM.audio" })
+  public "GM.audio.getState"(): Promise<GMTypes.AudioState> {
+    return this.sendMessage("GM_audio", ["getState"]);
+  }
+
+  @GMContext.API({ follow: "GM.audio" })
+  public "GM.audio.addStateChangeListener"(listener: GMTypes.AudioStateChangeListener): Promise<void> {
+    return _GM_audioAddStateChangeListener(this, listener);
+  }
+
+  @GMContext.API({ follow: "GM.audio" })
+  public "GM.audio.removeStateChangeListener"(listener: GMTypes.AudioStateChangeListener): Promise<void> {
+    return _GM_audioRemoveStateChangeListener(this, listener);
   }
 
   // 已注册的「菜单唯一键」集合，用于去重与解除绑定。
@@ -1614,4 +1752,14 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download, _GM_notification } = GMApi;
+const {
+  _GM_getValue,
+  _GM_cookie,
+  _GM_setValue,
+  _GM_setValues,
+  _GM_download,
+  _GM_notification,
+  _GM_audioError,
+  _GM_audioAddStateChangeListener,
+  _GM_audioRemoveStateChangeListener,
+} = GMApi;

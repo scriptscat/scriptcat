@@ -1232,6 +1232,70 @@ export default class GMApi {
     });
   }
 
+  @PermissionVerify.API()
+  async GM_audio(request: GMApiRequest<[string, GMTypes.AudioMuteDetails?]>, sender: IGetSender): Promise<unknown> {
+    const tabId = sender.getExtMessageSender().tabId;
+    if (tabId < 0) {
+      throw new Error("GM_audio is not available in this context");
+    }
+
+    const [action, details] = request.params;
+    switch (action) {
+      case "setMute": {
+        if (typeof details?.isMuted !== "boolean") {
+          throw new Error("GM_audio.setMute: Invalid argument");
+        }
+        await chrome.tabs.update(tabId, { muted: details.isMuted });
+        return undefined;
+      }
+      case "getState": {
+        const tab = await chrome.tabs.get(tabId);
+        const state: GMTypes.AudioState = {};
+        if (typeof tab.mutedInfo?.muted === "boolean") state.isMuted = tab.mutedInfo.muted;
+        if (tab.mutedInfo?.reason) state.muteReason = tab.mutedInfo.reason;
+        if (typeof tab.audible === "boolean") state.isAudible = tab.audible;
+        return state;
+      }
+      case "addStateChangeListener": {
+        if (!sender.isType(GetSenderType.CONNECT)) {
+          throw new Error("GM_audio.addStateChangeListener requires a connection");
+        }
+        const connection = sender.getConnect();
+        if (!connection) {
+          throw new Error("GM_audio.addStateChangeListener requires a connection");
+        }
+
+        let connected = true;
+        const listener = (updatedTabId: number, changeInfo: chrome.tabs.OnUpdatedInfo) => {
+          if (!connected || updatedTabId !== tabId) return;
+          const stateChange: GMTypes.AudioStateChangeInfo = {};
+          if (changeInfo.mutedInfo) {
+            stateChange.muted = changeInfo.mutedInfo.muted ? (changeInfo.mutedInfo.reason ?? "extension") : false;
+          }
+          if (typeof changeInfo.audible === "boolean") stateChange.audible = changeInfo.audible;
+          if (stateChange.muted === undefined && stateChange.audible === undefined) return;
+          connection.sendMessage({ action: "stateChange", data: stateChange });
+        };
+        const cleanup = () => {
+          if (!connected) return;
+          connected = false;
+          chrome.tabs.onUpdated.removeListener(listener);
+        };
+        connection.onDisconnect(cleanup);
+        chrome.tabs.onUpdated.addListener(listener);
+        try {
+          connection.sendMessage({ action: "registered" });
+        } catch (error) {
+          cleanup();
+          throw error;
+        }
+        return undefined;
+      }
+      default:
+        throw new Error(`GM_audio: Unknown action ${action}`);
+    }
+  }
+
   @PermissionVerify.API({})
   async GM_notification(request: GMApiRequest<[GMTypes.NotificationDetails, string | undefined]>, sender: IGetSender) {
     const details: GMTypes.NotificationDetails = request.params[0];

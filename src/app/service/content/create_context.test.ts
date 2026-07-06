@@ -102,6 +102,22 @@ describe.concurrent("createContext", () => {
     expect(context.GM_cookie.delete.name).toBe("bound GM_cookie.delete");
   });
 
+  it.concurrent("按 @grant 注入 GM_audio 与 GM.audio 的完整方法", () => {
+    const legacyContext = createTestContext(["GM_audio"]);
+    const promiseContext = createTestContext(["GM.audio"]);
+
+    for (const context of [legacyContext, promiseContext]) {
+      expect(context.GM_audio.setMute.name).toBe("bound GM_audio.setMute");
+      expect(context.GM_audio.getState.name).toBe("bound GM_audio.getState");
+      expect(context.GM_audio.addStateChangeListener.name).toBe("bound GM_audio.addStateChangeListener");
+      expect(context.GM_audio.removeStateChangeListener.name).toBe("bound GM_audio.removeStateChangeListener");
+      expect(context.GM.audio.setMute.name).toBe("bound GM.audio.setMute");
+      expect(context.GM.audio.getState.name).toBe("bound GM.audio.getState");
+      expect(context.GM.audio.addStateChangeListener.name).toBe("bound GM.audio.addStateChangeListener");
+      expect(context.GM.audio.removeStateChangeListener.name).toBe("bound GM.audio.removeStateChangeListener");
+    }
+  });
+
   it.concurrent("window grant 先挂到 context.window，再由代理沙盒暴露为 window 方法", () => {
     const context = createTestContext(["window.close", "window.focus"]);
     const sandbox = createProxyContext(context);
