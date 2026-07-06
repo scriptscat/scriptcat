@@ -45,6 +45,7 @@ function makeData(overrides: Record<string, any> = {}) {
     checkUpdateStatus: 0,
     showAlert: false,
     menuExpandNum: 5,
+    popupCompactLayout: false,
     defaultScriptProvider: "scriptcat",
     currentUrl: "https://example.com",
     handleToggleScript: vi.fn(),
@@ -100,6 +101,24 @@ describe("Popup 页头品牌标识", () => {
     const logo = screen.getByAltText("ScriptCat");
     expect(logo.tagName).toBe("IMG");
     expect(logo.getAttribute("src")).toContain("assets/logo.png");
+  });
+});
+
+describe("Popup 紧凑布局", () => {
+  it("启用后应缩小分组标题与脚本行间距", () => {
+    const script = makeScriptMenu();
+    mockData = makeData({
+      popupCompactLayout: true,
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+    });
+
+    render(<App />);
+
+    expect(screen.getByText(new RegExp(t("popup:current_page_scripts"))).closest("button")).toHaveClass("h-8", "px-3");
+    expect(screen.getByText("Script A").closest("button")?.parentElement).toHaveClass("h-9", "px-3", "gap-2");
   });
 });
 

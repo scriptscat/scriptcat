@@ -148,6 +148,7 @@ export default function App() {
             title={t("popup:current_page_scripts")}
             enabledCount={data.enabledScriptCount}
             totalCount={data.fullScriptCount}
+            compact={data.popupCompactLayout}
           >
             {data.scriptList.map((script) => (
               <ScriptRow
@@ -156,6 +157,7 @@ export default function App() {
                 host={data.host}
                 isPageScript
                 menuExpandNum={data.menuExpandNum}
+                compact={data.popupCompactLayout}
                 onToggle={data.handleToggleScript}
                 onDelete={data.handleDeleteScript}
                 onOpenEditor={data.handleOpenEditor}
@@ -180,6 +182,7 @@ export default function App() {
             enabledCount={data.enabledBackScriptCount}
             totalCount={data.fullBackScriptCount}
             runningSummary={data.backRunningCount > 0 ? `${data.backRunningCount} ${t("script:running")}` : undefined}
+            compact={data.popupCompactLayout}
           >
             {data.backScriptList.map((script) => (
               <ScriptRow
@@ -187,6 +190,7 @@ export default function App() {
                 script={script}
                 isPageScript={false}
                 menuExpandNum={data.menuExpandNum}
+                compact={data.popupCompactLayout}
                 onToggle={data.handleToggleScript}
                 onDelete={data.handleDeleteScript}
                 onOpenEditor={data.handleOpenEditor}
@@ -383,14 +387,20 @@ interface SectionProps {
   enabledCount: number;
   totalCount: number;
   runningSummary?: string;
+  compact?: boolean;
   children: React.ReactNode;
 }
 
-function Section({ id, title, enabledCount, totalCount, runningSummary, children }: SectionProps) {
+function Section({ id, title, enabledCount, totalCount, runningSummary, compact = false, children }: SectionProps) {
   return (
     <AccordionPrimitive.Item value={id}>
       <AccordionPrimitive.Header className="flex">
-        <AccordionPrimitive.Trigger className="flex flex-1 items-center gap-1.5 h-9 px-4 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 hover:bg-accent transition-colors">
+        <AccordionPrimitive.Trigger
+          className={cn(
+            "flex flex-1 items-center gap-1.5 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 hover:bg-accent transition-colors",
+            compact ? "h-8 px-3" : "h-9 px-4"
+          )}
+        >
           <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
           <span className="text-xs font-semibold text-fg-secondary">{`${title} (${enabledCount}/${totalCount})`}</span>
           <div className="flex-1" />
@@ -437,6 +447,7 @@ interface ScriptRowProps {
   host?: string;
   isPageScript?: boolean;
   menuExpandNum?: number;
+  compact?: boolean;
   onToggle: (uuid: string, enable: boolean) => void;
   onDelete: (uuid: string) => void;
   onOpenEditor: (uuid: string) => void;
@@ -452,6 +463,7 @@ function ScriptRow({
   host,
   isPageScript = true,
   menuExpandNum = 5,
+  compact = false,
   onToggle,
   onDelete,
   onOpenEditor,
@@ -484,12 +496,22 @@ function ScriptRow({
 
   return (
     <CollapsiblePrimitive.Root open={isActive} onOpenChange={setIsActive}>
-      <div className="flex items-center gap-2.5 h-11 px-4 hover:bg-accent transition-colors">
-        <CollapsiblePrimitive.Trigger className="flex flex-1 items-center gap-2.5 min-w-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      <div
+        className={cn(
+          "flex items-center hover:bg-accent transition-colors",
+          compact ? "h-9 px-3 gap-2" : "h-11 px-4 gap-2.5"
+        )}
+      >
+        <CollapsiblePrimitive.Trigger
+          className={cn(
+            "flex flex-1 min-w-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+            compact ? "gap-2" : "gap-2.5"
+          )}
+        >
           <ScriptIcon
             name={script.name}
             iconUrl={script.icon}
-            size={20}
+            size={compact ? 16 : 20}
             className={script.enable ? undefined : "opacity-40"}
           />
           <span
@@ -505,7 +527,7 @@ function ScriptRow({
 
       {/* 折叠区域：操作按钮（点击展开） */}
       <CollapsiblePrimitive.Content className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-        <div className="flex flex-col gap-0.5 pl-11 pr-4 pt-1 pb-2">
+        <div className={cn("flex flex-col gap-0.5", compact ? "pl-9 pr-3 pt-0.5 pb-1" : "pl-11 pr-4 pt-1 pb-2")}>
           {/* 运行/停止（仅后台脚本） */}
           {!isPageScript && onRun && onStop && (
             <>
@@ -553,7 +575,7 @@ function ScriptRow({
 
       {/* 始终可见区域：GM 菜单、用户配置（与旧版一致，不在折叠内） */}
       {(visibleMenus.length > 0 || script.hasUserConfig) && (
-        <div className="flex flex-col gap-0.5 pl-11 pr-4 pb-1">
+        <div className={cn("flex flex-col gap-0.5", compact ? "pl-9 pr-3 pb-0.5" : "pl-11 pr-4 pb-1")}>
           {visibleMenus.map((menuItem) =>
             menuItem.options?.inputType ? (
               <InputMenuItem

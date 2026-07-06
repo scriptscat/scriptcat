@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 
 const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
 vi.mock("@App/pages/store/global", async () => {
@@ -33,5 +33,19 @@ describe("界面分区-图标服务", () => {
     render(<InterfaceSection register={() => () => {}} />);
     await screen.findByText("扩展图标徽标");
     expect(screen.getAllByText("扩展图标徽标")).toHaveLength(1);
+  });
+});
+
+describe("界面分区-popup 布局", () => {
+  it("应显示紧凑布局开关并保存切换结果", async () => {
+    get.mockImplementation((key: string) => Promise.resolve(key === "popup_compact_layout"));
+    render(<InterfaceSection register={() => () => {}} />);
+
+    await screen.findByText("紧凑弹窗布局");
+    const compactSwitch = screen.getByRole("switch", { name: "紧凑弹窗布局" });
+    expect(compactSwitch).toBeChecked();
+
+    fireEvent.click(compactSwitch);
+    expect(set).toHaveBeenCalledWith("popup_compact_layout", false);
   });
 });

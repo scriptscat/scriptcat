@@ -98,6 +98,7 @@ export function usePopupData() {
   const [checkUpdateStatus, setCheckUpdateStatus] = useState(0); // 0=idle, 1=checking, 2=latest
   const [showAlert, setShowAlert] = useState(false);
   const [menuExpandNum, setMenuExpandNum] = useState(initialData?.menuExpandNum ?? 5);
+  const [popupCompactLayout, setPopupCompactLayout] = useState(initialData?.popupCompactLayout ?? false);
   const [defaultScriptProvider, setDefaultScriptProvider] = useState<ScriptProvider>(
     initialData?.defaultScriptProvider ?? "scriptcat"
   );
@@ -138,6 +139,7 @@ export function usePopupData() {
     setIsEnableScript(initialData.isEnableScript);
     setCheckUpdate(initialData.checkUpdate);
     setMenuExpandNum(initialData.menuExpandNum);
+    setPopupCompactLayout(initialData.popupCompactLayout);
     setDefaultScriptProvider(initialData.defaultScriptProvider);
     setInitialized(true);
   }
@@ -423,6 +425,7 @@ export function usePopupData() {
     checkUpdateStatus,
     showAlert,
     menuExpandNum,
+    popupCompactLayout,
     handleSearch,
     handleToggleExpand,
   };

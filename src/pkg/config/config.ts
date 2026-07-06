@@ -507,6 +507,14 @@ export class SystemConfig {
     this._set("menu_expand_num", val);
   }
 
+  getPopupCompactLayout() {
+    return this._get<boolean>("popup_compact_layout", false);
+  }
+
+  setPopupCompactLayout(val: boolean) {
+    this._set("popup_compact_layout", val);
+  }
+
   async getLanguage() {
     if (globalThis.localStorage) {
       const cachedLanguage = localStorage.getItem("language");
