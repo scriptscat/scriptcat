@@ -87,32 +87,36 @@ Reference these resources from `report.md` with relative links such as `[Import 
 `[Mock response](resources/provider-response.json)`. Keep secrets and real credentials out of the resource directory;
 sanitize them before saving evidence.
 
-Do not list evidence as bare links only. Every screenshot, video, log, or resource should carry a short note that
-explains what it proves and how to read it. Prefer this shape:
+Embed screenshots inline with `![alt](screenshots/…png)` plus a caption line, so `report.md` renders as a visual
+record you can skim without opening files. Link videos, logs, and resources instead — markdown can't inline them.
+Never list bare links: every item carries a short note explaining what it proves and how to read it. Prefer this
+shape:
 
 ```md
 ## Evidence Index
 
 ### Screenshots
 
-- `screenshots/options-root.png` — The script list page rendered and the view toggle is visible, proving the `/`
-  route mounted successfully.
-- `screenshots/settings.png` — The settings page shell and settings content are visible, proving `/settings`
-  did not render blank or crash during mount.
+![Options root](screenshots/options-root.png)
+The script list page rendered and the view toggle is visible, proving the `/` route mounted successfully.
+
+![Settings](screenshots/settings.png)
+The settings page shell and content are visible, proving `/settings` did not render blank or crash during mount.
 
 ### Videos
 
-- `videos/page@abc.webm` — Full page-viewport recording from the script list to the settings page; use it to
-  review the navigation and final stable state.
+- [videos/page@abc.webm](videos/page@abc.webm) — Full page-viewport recording from the script list to the
+  settings page; review it for the navigation and final stable state.
 
 ### Logs
 
-- `console.log` — Browser console output captured during the run; use it to confirm whether unexpected errors
+- [console.log](console.log) — Browser console output captured during the run; confirms whether unexpected errors
   appeared.
 
 ### Resources
 
-- `resources/import.yaml` — Input file used by the import verification; keep it to reproduce the import flow.
+- [resources/import.yaml](resources/import.yaml) — Input file used by the import verification; keep it to
+  reproduce the import flow.
 ```
 
 ### Verification record
@@ -150,7 +154,7 @@ Use this shape:
 - [ ] Built and loaded the real extension
 - [ ] Opened target page and confirmed stable anchor
 - [ ] Saved screenshots, videos, and logs
-- [ ] Summarized the result
+- [ ] Recorded the verdict in Result
 
 ## Execution Log
 
@@ -158,15 +162,24 @@ Use this shape:
 | --- | --- | --- | --- |
 | Open options page | Pending | - | - |
 
+## Result
+
+- **Verdict:** PASS / FAIL — (verify) does the behavior hold? (reproduce) did it reproduce?
+- **Observed:** the summary line / asserted value / screenshot that backs the verdict
+- (reproduce) Scratch asserts the **desired** behavior (stays red) or the **current buggy** contract
+  (passes green; the fix must flip it) — say which
+
 ## Blockers
 
 - None
 
 ## Evidence Index
 
-One annotated bullet per item (`path — what it proves`), grouped by Screenshots / Videos / Logs / Resources —
-see the shape above.
+Embed screenshots inline, link videos / logs / resources, and annotate every item — see the shape above.
 ```
+
+Fill `Result` at the end — the honest verdict, per *Step 5 — Report honestly* below. Execution Log `Status`
+moves `Pending` → `Pass` / `Fail` / `Blocked`.
 
 In `verify-change` mode, drop the `Reproduction Steps` / `Minimal Reproduction` sections. In `reproduce-bug`
 mode, fill `Expected`/`Actual` and keep those sections so the record stands on its own — a later reader or AI
