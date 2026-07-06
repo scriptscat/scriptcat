@@ -10,6 +10,7 @@
   "pulling_data_from_cloud": "Daten werden aus der Cloud abgerufen",
   "pull_failed": "Abrufen fehlgeschlagen",
   "restore": "Wiederherstellen",
+  "manual_download": "Manuell herunterladen, falls der Download nicht startet",
   "local_backup": "Lokale Sicherung",
   "cloud_backup": "Cloud-Sicherung",
   "auto_backup": "Automatische Sicherung",

@@ -2,7 +2,7 @@
 
 Dieses Dokument definiert die Terminologie für die deutsche (`de-DE`) Benutzeroberfläche und Dokumentation von ScriptCat. Es dient dazu, Produktkonzepte eindeutig zu benennen, UI-Texte natürlich zu formulieren und technische Bezeichner bei künftigen Übersetzungen unverändert zu erhalten.
 
-Geprüfte Verwendungsquelle: `src/locales/de-DE/*.json`
+Geprüfte Verwendungsquellen: `src/locales/de-DE/*.json`, `docs/architecture/README.md`
 
 ## Grundsätze
 
@@ -27,15 +27,16 @@ Geprüfte Verwendungsquelle: `src/locales/de-DE/*.json`
 
 | Konzept | Bevorzugte Formulierung | Aktuelle Beispiel-Keys | Hinweise |
 | --- | --- | --- | --- |
-| ScriptCat browser extension | `ScriptCat-Erweiterung` | `start_guide_title`, `ext_update_notification` | Produktname als `ScriptCat` schreiben. |
-| generic user script | `Benutzerskript` | `create_user_script`, `guide_script_list_content` | Allgemeine Bezeichnung für ein Userscript. |
-| Tampermonkey-compatible script type | `Tampermonkey-Skript` | `script_status_tooltip` | Nicht zu einem allgemeinen Skripttyp verkürzen. |
-| page script | `Seitenskript` | `page_script`, `foreground_page_script_tooltip` | Skript, das auf angegebenen Seiten ausgeführt wird. |
+| ScriptCat browser extension | `ScriptCat-Erweiterung` | `welcome_title`, `ext_update_notification` | Produktname als `ScriptCat` schreiben. |
+| generic user script | `Benutzerskript` | `create_user_script`, `script_list_content` | Allgemeine Bezeichnung für ein Userscript. |
+| normal userscript type | `Benutzerskript` / aktuelle Kategorie `Normales Skript` | `create_user_script`, `script_list.sidebar.normal_script` | Nicht mit Hintergrund- oder geplanten Skripten zusammenführen. |
+| Tampermonkey compatibility | `Tampermonkey-kompatibles Benutzerskript` / `Tampermonkey-Skript` | `docs/architecture/README.md` | Nur verwenden, wenn die Kompatibilität gemeint ist; nicht als pauschalen Ersatz für `Benutzerskript`. |
+| page script | `Seitenskript` | `script_list_enable_content` | Bezeichnet im UI ein auf Seiten ausgeführtes Skript; nicht ungeprüft als Ersatz für die Kategorie `Normales Skript` verwenden. |
 | background script | `Hintergrundskript` | `create_background_script`, `background_script` | Produkttyp für Ausführung im Hintergrund. |
 | scheduled script | `Geplantes Skript` | `create_scheduled_script`, `scheduled_script` | Produkttyp für geplante Ausführung; nicht ohne Kontext in `Cron-Skript` umbenennen. |
 | script synchronization | `Skript-Synchronisation` | `script_sync`, `sync_status` | Bei Löschungen klarstellen, ob ein Löschstatus synchronisiert wird. |
-| subscription | `Abonnement` | `subscribe_url`, `install_subscribe`, `subscribe_import_progress` | `Abonnieren` nur für die Aktion verwenden. |
-| script gallery / market | `Skript-Galerie` / `Skript-Markt` | `script_gallery`, `guide_script_list_title` | Nach dem tatsächlichen Zielbereich benennen. |
+| subscription | `Abonnement` | `subscribe_url`, `subscribe`, `importpage.count_subscribes` | `Abonnieren` nur für die Aktion verwenden. |
+| script gallery / market | `Skript-Galerie` / `Skript-Markt` | `script_gallery`, `script_list_title` | Nach dem tatsächlichen Zielbereich benennen. |
 
 ## B. UI-Aktionen und Zustände
 
@@ -44,10 +45,10 @@ Geprüfte Verwendungsquelle: `src/locales/de-DE/*.json`
 | create | `Erstellen` | `create_script`, `create_background_script` | Mit Objekt verwenden, wenn ein Button sonst unklar wäre. |
 | save / save as | `Speichern` / `Speichern unter` | `save`, `save_as` | Standardformulierungen für Datei- und Einstellungsaktionen. |
 | import / export | `Importieren` / `Exportieren` | `import`, `export`, `import_file`, `export_file` | Als Aktionen verwenden; Nomen nur in zusammengesetzten Labels. |
-| install / update | `Installieren` / `Aktualisieren` | `install_script`, `update_script` | Zielobjekt ergänzen, falls erforderlich. |
+| install / update | `Installieren` / `Aktualisieren` | `script`, `update_script` | Zielobjekt ergänzen, falls erforderlich. |
 | run / runtime | `Ausführen` / `Laufzeit` | `run`, `runtime`, `log_title` | Für Ausführungsprotokolle ist `Ausführungsprotokoll` passend. |
 | enable / disable | `Aktivieren` / `Deaktivieren`; Zustände `Aktiviert` / `Deaktiviert` | `enable`, `disable`, `updatepage.enabled` | Nicht mit Öffnen/Schließen verwechseln. |
-| settings | `Einstellungen` | `settings`, `script_setting.title` | Für benutzerseitige Konfigurationen. |
+| settings | `Einstellungen` | `settings`, `script_setting` | Für benutzerseitige Konfigurationen. |
 | permission | `Berechtigung` | `permission`, `request_permission` | Für Zugriffsrechte und Abfragen. |
 | connect / sync | `Verbinden` / `Synchronisieren` | `connect`, `script_sync` | Verbindung und Datensynchronisation getrennt halten. |
 | directory | `Verzeichnis` | `open_directory`, `open_backup_dir` | Für Dateisystemfunktionen des Tools. |
@@ -59,7 +60,7 @@ Geprüfte Verwendungsquelle: `src/locales/de-DE/*.json`
 | --- | --- | --- | --- |
 | local / cloud | `Lokal` / `Cloud` | Für Quelle, Speicherort oder Synchronisationsziel verwenden; bei Bedarf Objekt ergänzen. | `local`, `cloud`, `source_local_script` |
 | panel / console | `Panel` / `Konsole` | Bedienoberfläche als `Panel`, Entwicklerausgabe als `Konsole` benennen. | `scheduled_script_description_title`, `build_success_message` |
-| source | `Quelle`, `Installationsquelle`, `Abonnementquelle` | Benennen, was die Quelle liefert. | `source`, `install_source`, `subscribe_source_tooltip` |
+| source | `Quelle`, `Installationsquelle`, `Abonnementquelle` | Benennen, was die Quelle liefert. | `source`, `importpage.col_source`, `source_subscribe_link` |
 | storage | `Speicher`, `Speicherplatz`, `Speicher-API` | Nach Datenablage, zugewiesenem Speicherplatz oder API unterscheiden. | `script_storage`, `script_operation_description`, `storage_api` |
 | sync deletion | `Löschstatus synchronisieren` / `Löschungen synchronisieren` | Erst nach Bestätigung des tatsächlichen Verhaltens vereinheitlichen. | `sync_delete`, `sync_delete_desc`, `notification.script_sync_delete` |
 
@@ -80,10 +81,8 @@ Die folgenden Einträge beschreiben bereits vorhandene Auffälligkeiten. Dieses 
 
 | Thema | Aktueller Stand | Empfohlene Richtung | Aktuelle Beispiel-Keys |
 | --- | --- | --- | --- |
-| browser tabs | Die Ausführungsumgebung enthält `Alle Bezeichnungen`, während Schließen-Aktionen `Tab` verwenden. | Falls `script_run_env` Browser-Tabs bezeichnet, durchgängig `Alle Tabs`, `Normale Tabs`, `Inkognito-Tabs` verwenden. | `script_run_env.all`, `close_current_tab` |
-| scheduled script expression label | `Geplante Aufgaben-Ausdruck` ist grammatisch unklar. | Nach Bestätigung der Funktion etwa `Ausdruck für geplante Aufgabe` verwenden. | `scheduled_script_description_description_expr` |
-| ScriptCat capitalization | Einige Einstiegstexte können eine abweichende Produkt-Schreibung enthalten. | Produktnamen stets als `ScriptCat` schreiben. | `start_guide_title`, `ext_update_notification` |
-| documentation link locale | Deutsche UI-Texte verweisen teilweise auf `/en/`-Dokumentation. | Nur ändern, wenn ein entsprechendes deutsches Ziel verfügbar ist. | `guide_script_list_content`, `develop_mode_guide` |
+| browser tabs | Die Ausführungsumgebung enthält `Alle Bezeichnungen`, während Schließen-Aktionen `Tab` verwenden. | Falls die Felder der Laufzeitumgebung Browser-Tabs bezeichnen, durchgängig `Alle Tabs`, `Normale Tabs`, `Inkognito-Tabs` verwenden. | `script_run_env.all`, `close_current_tab` |
+| documentation link locale | Deutsche UI-Texte verweisen teilweise auf `/en/`-Dokumentation. | Nur ändern, wenn ein entsprechendes deutsches Ziel verfügbar ist. | `script_list_content`, `develop_mode_guide` |
 
 ## Checkliste für AI und Mitwirkende
 

@@ -10,6 +10,7 @@
   "pulling_data_from_cloud": "Buluttan veri çekiliyor",
   "pull_failed": "Çekme başarısız",
   "restore": "Geri yükle",
+  "manual_download": "İndirme başlamazsa manuel olarak indirin",
   "local_backup": "Yerel Yedekleme",
   "cloud_backup": "Bulut Yedekleme",
   "auto_backup": "Otomatik Yedekleme",

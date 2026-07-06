@@ -10,6 +10,7 @@
   "pulling_data_from_cloud": "Pulling Data from Cloud",
   "pull_failed": "Pull Failed",
   "restore": "Restore",
+  "manual_download": "Download manually if the download doesn't start",
   "local_backup": "Local Backup",
   "cloud_backup": "Cloud Backup",
   "auto_backup": "Auto Backup",
