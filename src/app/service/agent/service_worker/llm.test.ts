@@ -519,6 +519,64 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     registry.unregisterBuiltin("loop");
   });
 
+  it("显式传入非法 maxIterations（如负数）时应被兜底截断，而非直接导致循环立即失败", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", message: "test", maxIterations: -5 },
+      sender
+    );
+
+    // 不应立即触发 max_iterations 错误：兜底截断为下限后循环至少能执行 1 次
+    const events = sentMessages.map((m) => m.data);
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("点击继续对话后，历史中的 max_iterations 错误占位消息不应被重放给 LLM", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    // 历史中包含一条超过 max_iterations 时持久化的错误占位消息（content 为空字符串）
+    mockRepo.getMessages.mockResolvedValue([
+      { id: "u1", conversationId: "conv-1", role: "user", content: "第一条消息", createtime: 1 },
+      {
+        id: "a1",
+        conversationId: "conv-1",
+        role: "assistant",
+        content: "",
+        error: "Tool calling loop exceeded maximum iterations (50)",
+        errorCode: "max_iterations",
+        createtime: 2,
+      },
+    ]);
+
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("好的，继续"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "请继续。" }, sender);
+
+    const reqInit = fetchSpy.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(reqInit.body as string);
+
+    // 出站请求中不应包含空 content 且无 tool_calls 的 assistant 消息（即错误占位消息）
+    const emptyAssistantMsgs = body.messages.filter(
+      (m: any) => m.role === "assistant" && m.content === "" && !m.tool_calls
+    );
+    expect(emptyAssistantMsgs).toHaveLength(0);
+
+    // 正常的历史用户消息与新消息应仍然存在
+    const userMsgs = body.messages.filter((m: any) => m.role === "user");
+    expect(userMsgs.map((m: any) => m.content)).toEqual(["第一条消息", "请继续。"]);
+  });
+
   it("上下文占用跨过裁剪阈值时应分批裁剪窗口外的旧 tool 结果，窗口内轮次保持原文", async () => {
     const { service, mockRepo, mockModelRepo } = createTestService();
     const { sender } = createMockSender();

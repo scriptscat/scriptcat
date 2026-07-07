@@ -135,4 +135,28 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     const stopMessage = assistantCalls.find((m: any) => typeof m.content === "string" && m.content.includes("Stop"));
     expect(stopMessage).toBeDefined();
   });
+
+  it("回答 Continue 后应重置命中计数，之后需再次连续命中 2 次才会重新暂停询问", async () => {
+    // 第 1~4 轮：触发前两次命中（第 2、4 轮），第 4 轮暂停询问，回答 Continue
+    // 第 5~6 轮：命中第 3 次（重置后的第 1 次），不应再次暂停
+    // 第 7~8 轮：命中第 4 次（重置后的第 2 次），应再次暂停询问
+    // 第 9 轮：最终文本，结束循环
+    for (let i = 1; i <= 8; i++) {
+      callLLM.mockResolvedValueOnce(dupToolCallResult(`c${i}`));
+    }
+    callLLM.mockResolvedValueOnce(finalTextResult("done"));
+
+    const askUserForGuard = vi.fn().mockResolvedValue("Continue");
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ askUserForGuard }));
+
+    // 仅在第 4 轮和第 8 轮各暂停一次，中间第 6 轮的命中（重置后第 1 次）不应触发暂停
+    expect(askUserForGuard).toHaveBeenCalledTimes(2);
+    expect(askUserForGuard.mock.calls[0][0]).toContain("2");
+    expect(askUserForGuard.mock.calls[1][0]).toContain("2");
+
+    expect(callLLM).toHaveBeenCalledTimes(9);
+    const doneEvents = sendEvent.mock.calls.filter((c) => c[0].type === "done");
+    expect(doneEvents).toHaveLength(1);
+  });
 });

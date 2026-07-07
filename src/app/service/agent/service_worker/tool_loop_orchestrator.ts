@@ -270,7 +270,7 @@ export class ToolLoopOrchestrator {
           // 连续命中达到阈值时暂停，询问用户是否继续（仅 UI 对话传入 askUserForGuard 时生效）
           if (guardStrikeCount >= GUARD_ESCALATION_STRIKES && params.askUserForGuard) {
             const answer = await params.askUserForGuard(
-              `[System] The Agent has triggered the loop-guard warning ${guardStrikeCount} times in this run. Continue letting it proceed automatically, or stop here?`,
+              `[System] The Agent has triggered the loop-guard warning ${guardStrikeCount} times since the last check. Continue letting it proceed automatically, or stop here?`,
               ["Continue", GUARD_STOP_ANSWER]
             );
             if (answer.trim().toLowerCase() === GUARD_STOP_ANSWER.toLowerCase()) {
@@ -289,6 +289,8 @@ export class ToolLoopOrchestrator {
               sendEvent({ type: "done", usage: totalUsage, durationMs });
               return;
             }
+            // 用户选择继续：重置命中计数，避免此后每一次告警都重新弹出询问
+            guardStrikeCount = 0;
           }
         }
 

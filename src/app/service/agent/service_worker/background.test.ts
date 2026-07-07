@@ -1,5 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTestService, makeTextResponse, createRunningConversation } from "./test-helpers";
+import { createTestService, makeTextResponse, makeSSEResponse, createRunningConversation } from "./test-helpers";
+
+// 与 llm.test.ts 中的同名辅助函数一致：构造带 tool_call 的 OpenAI SSE 响应
+function makeToolCallResponse(toolCalls: Array<{ id: string; name: string; arguments: string }>): Response {
+  const chunks: string[] = [];
+  for (const tc of toolCalls) {
+    chunks.push(
+      `data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`
+    );
+    chunks.push(
+      `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`
+    );
+  }
+  chunks.push(`data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`);
+  return makeSSEResponse(chunks);
+}
 
 // ---- updateStreamingState 快照状态管理 ----
 
@@ -622,6 +637,51 @@ describe("后台运行会话 集成测试", () => {
 
     await chatPromise;
     // 不应抛异常
+  });
+
+  it("循环检测升级提问超时（5 分钟无人应答）后，应清除 rc.pendingAskUser，避免后续 attach 看到过期提问", async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, mockRepo } = createTestService();
+      setupConversation(mockRepo);
+      const { sender } = createMockSender();
+
+      const registry = (service as any).toolRegistry;
+      registry.registerBuiltin(
+        { name: "dup", description: "dup", parameters: { type: "object", properties: {} } },
+        { execute: async () => "ok" }
+      );
+
+      // 连续 4 轮相同参数调用同一工具，触发两次循环检测告警（第 2、4 轮），
+      // 第二次告警会暂停并调用 askUserForGuard；第 5 轮永不 resolve，
+      // 用于在会话真正结束（发出 done 事件）之前观测超时后的瞬时状态——
+      // 如果只等到 done 事件才检查，done 处理器本身就会清掉 pendingAskUser，
+      // 从而掩盖“超时未主动清除”这个问题
+      fetchSpy
+        .mockResolvedValueOnce(makeToolCallResponse([{ id: "c1", name: "dup", arguments: "{}" }]))
+        .mockResolvedValueOnce(makeToolCallResponse([{ id: "c2", name: "dup", arguments: "{}" }]))
+        .mockResolvedValueOnce(makeToolCallResponse([{ id: "c3", name: "dup", arguments: "{}" }]))
+        .mockResolvedValueOnce(makeToolCallResponse([{ id: "c4", name: "dup", arguments: "{}" }]))
+        .mockReturnValueOnce(new Promise(() => {}));
+
+      void (service as any).handleConversationChat(
+        { conversationId: "conv-bg", message: "test", background: true },
+        sender
+      );
+
+      // 推进 5 分钟，让 askUserForGuard 的超时触发（默认按 Continue 继续），
+      // 此时第 5 轮请求已发出但永不 resolve，会话仍处于 running，尚未发出 done 事件
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+      const rc = (service as any).bgSessionManager.get("conv-bg");
+      expect(rc).toBeDefined();
+      expect(rc.status).toBe("running");
+      expect(rc.pendingAskUser).toBeUndefined();
+
+      registry.unregisterBuiltin("dup");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("getRunningConversationIds 返回正确的 ID 列表", () => {

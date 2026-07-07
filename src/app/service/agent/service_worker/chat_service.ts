@@ -13,6 +13,7 @@ import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/co
 import type { ToolCall } from "@App/app/service/agent/core/types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import type { AgentConfigRepo } from "@App/app/service/agent/core/agent_config";
+import { normalizeChatMaxIterations } from "@App/app/service/agent/core/agent_config";
 import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import { SessionToolRegistry } from "@App/app/service/agent/core/session_tool_registry";
 import type { SkillService } from "./skill_service";
@@ -204,6 +205,8 @@ export class ChatService {
         const timer = setTimeout(
           () => {
             askResolvers.delete(askId);
+            // 后台会话：清除过期的 pendingAskUser，避免后续 attach 的 UI 看到已超时的提问
+            if (rc && rc.pendingAskUser?.id === askId) rc.pendingAskUser = undefined;
             resolve("Continue");
           },
           5 * 60 * 1000
@@ -341,7 +344,10 @@ export class ChatService {
           model,
           messages,
           tools: enableTools ? params.tools : undefined,
-          maxIterations: params.maxIterations || agentConfig.chatMaxIterations,
+          // ?? 而非 || ：显式传入 0 不应被当作"未传入"而回退到配置值；
+          // 无论来自配置还是直接传参，最终值都经 normalizeChatMaxIterations 兜底截断，
+          // 避免非法值（如负数）导致循环立即失败或无限运行
+          maxIterations: normalizeChatMaxIterations(params.maxIterations ?? agentConfig.chatMaxIterations),
           sendEvent,
           signal: abortController.signal,
           scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
@@ -671,9 +677,12 @@ export class ChatService {
     });
     messages.push({ role: "system", content: systemContent });
 
-    // 添加历史消息（跳过 system）
+    // 添加历史消息（跳过 system；跳过错误占位消息 —— 如超过 max_iterations 时持久化的空 content
+    // assistant 消息，仅用于 UI 展示"继续对话"操作，重放给 LLM 会产生空 content 的无意义消息，
+    // 部分 provider（如 Anthropic）甚至会因空 content 拒绝请求）
     for (const msg of existingMessages) {
       if (msg.role === "system") continue;
+      if (msg.error) continue;
       messages.push({
         role: msg.role,
         content: msg.content,
