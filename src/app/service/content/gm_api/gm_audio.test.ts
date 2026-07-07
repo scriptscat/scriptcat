@@ -118,6 +118,58 @@ describe("GM_audio 状态变化监听", () => {
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
+  it("connect() 尚未 resolve 时移除再重新添加监听器，不应泄漏先前的连接", async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+
+    const connections = [
+      new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      new MockMessageConnect(new EventEmitter<string, TMessage>()),
+    ];
+    const disconnects = connections.map((c) => vi.spyOn(c, "disconnect"));
+    const resolvers: Array<(connection: MockMessageConnect) => void> = [];
+    const connect = vi.fn(
+      () =>
+        new Promise<MockMessageConnect>((resolve) => {
+          resolvers.push(resolve);
+        })
+    );
+    const message = { connect } as unknown as Message;
+    const api = new GMApi("serviceWorker", message, message, {
+      uuid: "gm-audio-test",
+      value: {},
+    } as ScriptRunResource);
+
+    // 1. 添加监听器，connect() 尚未 resolve
+    const firstAttempt = api["GM.audio.addStateChangeListener"](first);
+    // 2. 在 connect() resolve 之前移除该监听器（归零）
+    await api["GM.audio.removeStateChangeListener"](first);
+    // 3. 立即重新添加，触发第二次 connect()
+    const secondAttempt = api["GM.audio.addStateChangeListener"](second);
+    expect(connect).toHaveBeenCalledTimes(2);
+
+    // 4. 两次 connect() 均 resolve：先是过期的第一次尝试，然后才是当前尝试
+    resolvers[0](connections[0]);
+    await Promise.resolve();
+    await Promise.resolve();
+    resolvers[1](connections[1]);
+    await Promise.resolve();
+    connections[1].sendMessage({ action: "registered" });
+    await secondAttempt;
+    await firstAttempt;
+
+    // 过期的第一个连接必须被立即断开，不能被当前连接覆盖后遗留
+    expect(disconnects[0]).toHaveBeenCalledTimes(1);
+    expect(disconnects[1]).toHaveBeenCalledTimes(0);
+
+    connections[1].sendMessage({ action: "stateChange", data: { muted: "user", audible: true } });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith({ muted: "user", audible: true });
+
+    await api["GM.audio.removeStateChangeListener"](second);
+    expect(disconnects[1]).toHaveBeenCalledTimes(1);
+  });
+
   it("回调风格在注册成功后回调，注册失败时回传错误字符串", async () => {
     const { api, connection } = createAudioApi();
     const listener = vi.fn();

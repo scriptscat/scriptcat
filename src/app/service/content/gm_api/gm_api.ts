@@ -220,6 +220,9 @@ export default class GMApi extends GM_Base {
     listeners: Set<GMTypes.AudioStateChangeListener>;
     connection?: MessageConnect;
     registration?: Promise<void>;
+    // 每次“最后一个监听器被移除”或 context 失效时递增，
+    // 用于识别并丢弃在此之后才resolve的过期 connect() 请求，避免其连接泄漏
+    generation: number;
   };
 
   constructor(
@@ -671,17 +674,22 @@ export default class GMApi extends GM_Base {
       return Promise.reject("GM_audio.addStateChangeListener: Invalid argument");
     }
 
-    const state = (a.audioStateChange ??= { listeners: new Set() });
+    const state = (a.audioStateChange ??= { listeners: new Set(), generation: 0 });
     if (state.listeners.has(listener)) {
       return state.registration ?? Promise.resolve();
     }
     state.listeners.add(listener);
     if (state.registration) return state.registration;
 
+    // 记录本次尝试所属的世代：若在 connect() 完成前监听器被清空（remove 归零 / context 失效），
+    // 世代会被递增或 audioStateChange 整体被替换，届时应丢弃这个迟到的连接，避免连接泄漏
+    const generation = state.generation;
+    const isCurrentAttempt = () => a.audioStateChange === state && state.generation === generation;
+
     const registration = a.connect("GM_audio", ["addStateChangeListener"]).then(
       (connection) =>
         new Promise<void>((resolve, reject) => {
-          if (!state.listeners.size) {
+          if (!isCurrentAttempt() || !state.listeners.size) {
             connection.disconnect(true);
             resolve();
             return;
@@ -707,6 +715,7 @@ export default class GMApi extends GM_Base {
           });
           connection.onDisconnect(() => {
             if (state.connection !== connection) return;
+            state.generation++;
             state.connection = undefined;
             state.registration = undefined;
             state.listeners.clear();
@@ -715,11 +724,13 @@ export default class GMApi extends GM_Base {
         })
     );
     state.registration = registration.catch((error) => {
-      const connection = state.connection;
-      state.connection = undefined;
-      state.registration = undefined;
-      state.listeners.clear();
-      connection?.disconnect(true);
+      if (isCurrentAttempt()) {
+        state.connection?.disconnect(true);
+        state.generation++;
+        state.connection = undefined;
+        state.registration = undefined;
+        state.listeners.clear();
+      }
       throw error;
     });
     return state.registration;
@@ -730,12 +741,13 @@ export default class GMApi extends GM_Base {
     state?.listeners.delete(listener);
     if (state?.listeners.size) return Promise.resolve();
 
-    const connection = state?.connection;
     if (state) {
+      const connection = state.connection;
+      state.generation++;
       state.connection = undefined;
       state.registration = undefined;
+      connection?.disconnect(true);
     }
-    connection?.disconnect(true);
     return Promise.resolve();
   }
 
