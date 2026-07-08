@@ -9,11 +9,11 @@
   "never": "Asla",
   "6_hours": "6 Saat",
   "12_hours": "12 Saat",
-  "every_day": "Her gün",
+  "every_day": "Her Gün",
   "every_week": "Her Hafta",
   "update_disabled_scripts": "Devre Dışı Bırakılan Betikleri Güncelle",
   "silent_update_non_critical_changes": "Kritik Olmayan Değişiklikleri Sessizce Güncelleyin",
-  "enable_eslint": "ESLint'i etkinleştir",
+  "enable_eslint": "ESLint'i Etkinleştir",
   "eslint_rules": "ESLint Kuralları",
   "custom_eslint_rules_config": "Özel ESLint kuralları yapılandırması (JSON biçimi)",
   "enter_eslint_rules": "ESLint kurallarını girin. https://eslint.org/play/ adresinden bir konfigürasyon indirebilirsiniz.",
@@ -65,7 +65,7 @@
   "badge_type_run_count": "Çalıştırma Sayısı",
   "badge_type_script_count": "Betik Sayısı",
   "script_menu": "Betik Menüsü",
-  "display_right_click_menu": "Sağ tıklama menüsünü göster",
+  "display_right_click_menu": "Sağ Tıklama Menüsünü Göster",
   "display_right_click_menu_desc": "Tarayıcının sağ tıklama menüsünde betik menüsünü göster",
   "expand_count": "Genişletme Sayısı",
   "auto_collapse_when_exceeds": "Bu sayı aşıldığında otomatik daralt",
@@ -83,7 +83,7 @@
   },
   "script_run_at": {},
   "script_setting": {
-    "default": "varsayılan"
+    "default": "Varsayılan"
   },
   "notification": {
     "script_sync_delete": "Betik Silme Senkronizasyonu",
