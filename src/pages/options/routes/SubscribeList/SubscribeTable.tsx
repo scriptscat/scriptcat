@@ -191,7 +191,7 @@ export default function SubscribeTable({
         {/* 加载状态 */}
         {loadingList && <LoadingState label={t("loading")} />}
 
-        {/* 空状态：居中图标 + 标题 + 说明（对齐 docs/annexes/design-patterns.md） */}
+        {/* 空状态：居中图标 + 标题 + 说明（对齐 docs/references/design-patterns.md） */}
         {!loadingList && subscribeList.length === 0 && (
           <EmptyState
             data-testid="subscribe-empty"

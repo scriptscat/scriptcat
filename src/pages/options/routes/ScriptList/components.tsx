@@ -38,7 +38,7 @@ import { preloadUserConfig } from "./preload";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";
 
 // ========== Tag 配色 ==========
-// 分类标签 chip 取 --label-* 令牌族（src/index.css），明暗主题自动切换；详见 docs/annexes/design-tokens.md。
+// 分类标签 chip 取 --label-* 令牌族（src/index.css），明暗主题自动切换；详见 docs/references/design-tokens.md。
 export function getTagColor(tag: string) {
   return getNameAvatarTone(tag);
 }

@@ -7,10 +7,10 @@
 | 文档 | 说明 |
 | --- | --- |
 | [`../AGENTS.md`](../AGENTS.md) | 工程原则、架构速览、AI/贡献者约定的单一信息源(`CLAUDE.md` 仅导入它)。 |
-| [`develop.md`](./develop.md) | 开发规范:命令、目录结构、编码风格、UI/主题、i18n、提交/PR 流程;测试机制(含 Vitest 性能)拆到 [`annexes/develop-testing.md`](./annexes/develop-testing.md)。**写代码前先读。** |
-| [`design.md`](./design.md) | 设计系统参考:主题机制、shadcn 组件选型、新建页面配方总览;令牌完整值拆到 [`annexes/design-tokens.md`](./annexes/design-tokens.md),组件清单拆到 [`annexes/design-components.md`](./annexes/design-components.md),布局/响应式/动效/状态/无障碍范式拆到 [`annexes/design-patterns.md`](./annexes/design-patterns.md)。**做页面/对话框/区块前先读。** |
-| [`verification.md`](./verification.md) | 功能验证指南:用一次性 scratch 脚本驱动真实扩展做端到端验证(不跑全量 E2E、不加永久用例);报告模板拆到 [`annexes/verification-report-template.md`](./annexes/verification-report-template.md),调试 FAQ 拆到 [`annexes/verification-debugging.md`](./annexes/verification-debugging.md)。**验证改动是否真正跑通时读。** |
-| [`architecture.md`](./architecture.md) | 内部原理总览:多进程模型、消息传递;各子系统深入拆到 [`annexes/architecture-services.md`](./annexes/architecture-services.md)(服务层)、[`annexes/architecture-data.md`](./annexes/architecture-data.md)(数据层)、[`annexes/architecture-gm-api.md`](./annexes/architecture-gm-api.md)(GM API)、[`annexes/architecture-execution.md`](./annexes/architecture-execution.md)(脚本执行)、[`annexes/architecture-build.md`](./annexes/architecture-build.md)(构建管线)。 |
+| [`develop.md`](./develop.md) | 开发规范:命令、目录结构、编码风格、UI/主题、i18n、提交/PR 流程;测试机制(含 Vitest 性能)拆到 [`references/develop-testing.md`](./references/develop-testing.md)。**写代码前先读。** |
+| [`design.md`](./design.md) | 设计系统参考:主题机制、shadcn 组件选型、新建页面配方总览;令牌完整值拆到 [`references/design-tokens.md`](./references/design-tokens.md),组件清单拆到 [`references/design-components.md`](./references/design-components.md),布局/响应式/动效/状态/无障碍范式拆到 [`references/design-patterns.md`](./references/design-patterns.md)。**做页面/对话框/区块前先读。** |
+| [`verification.md`](./verification.md) | 功能验证指南:用一次性 scratch 脚本驱动真实扩展做端到端验证(不跑全量 E2E、不加永久用例);报告模板拆到 [`references/verification-report-template.md`](./references/verification-report-template.md),调试 FAQ 拆到 [`references/verification-debugging.md`](./references/verification-debugging.md)。**验证改动是否真正跑通时读。** |
+| [`architecture.md`](./architecture.md) | 内部原理总览:多进程模型、消息传递;各子系统深入拆到 [`references/architecture-services.md`](./references/architecture-services.md)(服务层)、[`references/architecture-data.md`](./references/architecture-data.md)(数据层)、[`references/architecture-gm-api.md`](./references/architecture-gm-api.md)(GM API)、[`references/architecture-execution.md`](./references/architecture-execution.md)(脚本执行)、[`references/architecture-build.md`](./references/architecture-build.md)(构建管线)。 |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | 文档维护与事实核对指南:组织规则、逐条核对清单、一键校验脚本。**改/审文档前先读。** |
 
 ## 翻译 / Translation
