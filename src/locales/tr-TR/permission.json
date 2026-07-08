@@ -34,6 +34,6 @@
   "confirm_expired_title": "Yetkilendirme isteğinin süresi doldu",
   "confirm_expired_desc": "Bu yetkilendirme isteği zaman aşımına uğradı veya zaten işleme alındı. Lütfen sayfaya dönün ve tekrar tetikleyin.",
   "auto_close_in": "Pencere {{second}}s içinde otomatik olarak kapanacak",
-  "permission_cors": "Alanlar arası (cors)",
+  "permission_cors": "Alanlar Arası (cors)",
   "permission_cookie": "Çerezleri Yönet"
 }
