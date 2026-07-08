@@ -5,6 +5,7 @@ import { blobToBase64 } from "../utils/utils";
 import { parseStorageValue } from "../utils/utils";
 import { parseMetadata } from "@App/pkg/utils/script";
 import { overrideToSelfMetadata, vmCustomToOverride, vmValueUri } from "./self_metadata";
+import type { ConfigBundle } from "./config_bundle";
 import type {
   BackupData,
   ResourceBackup,
@@ -45,6 +46,16 @@ export default class BackupImport {
     const map = new Map<string, Partial<ScriptData> & ScriptBackupData>();
     const subscribe = new Map<string, Partial<SubscribeData> & SubscribeBackupData>();
     let files = await this.fs.list();
+
+    // 处理 ScriptCat 设置 bundle(#1533)
+    let configBundle: ConfigBundle | undefined;
+    files = await this.dealFile(files, async (file) => {
+      if (file.name !== "scriptcat-config.json") {
+        return false;
+      }
+      configBundle = (await this.getFileContent(file, true)) as ConfigBundle;
+      return true;
+    });
 
     // 处理订阅
     files = await this.dealFile(files, async (file) => {
@@ -243,6 +254,7 @@ export default class BackupImport {
     return {
       script: [...map.values()] as ScriptData[],
       subscribe: [...subscribe.values()] as SubscribeData[],
+      config: configBundle,
     };
   }
 

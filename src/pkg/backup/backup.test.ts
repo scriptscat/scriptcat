@@ -402,4 +402,17 @@ describe.concurrent("backup", () => {
     const resp = await parseBackupZipFile(zipFile);
     expect(resp.script[0].options?.selfMeta).toEqual({ exclude: ["https://a.com/x"] });
   });
+
+  it.concurrent("导出携带 config bundle 并可原样解析回来", async () => {
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
+    const config = {
+      version: 1,
+      systemConfig: { sync: { language: "zh-CN" }, local: { backup: { filesystem: "webdav", params: {} } } },
+      agent: { models: [{ id: "m1", name: "gpt" }], mcp: [], tasks: [] },
+    };
+    await new BackupExport(fs).export({ script: [], subscribe: [], config });
+    const resp = await parseBackupZipFile(zipFile);
+    expect(resp.config).toEqual(config);
+  });
 });

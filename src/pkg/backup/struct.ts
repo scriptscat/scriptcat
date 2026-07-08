@@ -1,6 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import type { SCMetadata } from "@App/app/repo/metadata";
+import type { ConfigBundle } from "./config_bundle";
 
 export type ResourceMeta = {
   name: string;
@@ -117,6 +118,8 @@ export type SubscribeBackupData = {
 export type BackupData = {
   script: ScriptBackupData[];
   subscribe: SubscribeBackupData[];
+  // ScriptCat 自身设置 bundle(可选;#1533)
+  config?: ConfigBundle;
 };
 
 // Violentmonkey 导出的根清单文件（文件名恰为 "violentmonkey"）

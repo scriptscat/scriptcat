@@ -30,7 +30,7 @@ import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { AgentModelRepo } from "@App/app/repo/agent_model";
 import { MCPServerRepo } from "@App/app/repo/mcp_server_repo";
 import { AgentTaskRepo } from "@App/app/repo/agent_task";
-import { CONFIG_BUNDLE_VERSION, pickBundleKeys, type ConfigBundle } from "@App/pkg/backup/config_bundle";
+import { CONFIG_BUNDLE_VERSION, toBundleConfig, type ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { type ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { ExtVersion } from "@App/app/const";
@@ -109,12 +109,13 @@ export class SynchronizeService {
     this.scriptCodeDAO = this.scriptDAO.scriptCodeDAO;
   }
 
-  // 生成备份文件到文件系统
-  async backup(fs: FileSystem, uuids?: string[]) {
+  // 生成备份文件到文件系统(includeConfig=true 时附带 ScriptCat 设置 bundle,#1533)
+  async backup(fs: FileSystem, uuids?: string[], includeConfig = false) {
     // 生成导出数据
     const data: BackupData = {
       script: await this.getScriptBackupData(uuids),
       subscribe: [],
+      config: includeConfig ? await this.getConfigBundle() : undefined,
     };
 
     await new BackupExport(fs).export(data);
@@ -131,7 +132,7 @@ export class SynchronizeService {
     ]);
     return {
       version: CONFIG_BUNDLE_VERSION,
-      systemConfig: { sync: pickBundleKeys(sync), local: pickBundleKeys(local) },
+      systemConfig: { sync: toBundleConfig(sync), local: toBundleConfig(local) },
       agent: { models, mcp, tasks },
     };
   }
@@ -308,11 +309,11 @@ export class SynchronizeService {
     };
   }
 
-  // 请求导出文件
+  // 请求导出文件(本地文件导出附带设置 bundle,#1533/#684)
   async requestExport(uuids?: string[]): Promise<LocalBackupExport> {
     const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
-    await this.backup(fs, uuids);
+    await this.backup(fs, uuids, true);
     // 生成文件,并下载
     const zipOutput = await zipFile.generateAsync({
       type: "blob",
