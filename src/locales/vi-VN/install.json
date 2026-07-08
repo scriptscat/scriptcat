@@ -148,6 +148,7 @@
     "status_warning": "Một số tài nguyên lỗi",
     "resource_import_failed": "Không thể nhập các tài nguyên sau:",
     "overwrite_local": "Xóa tất cả script cục bộ trước khi nhập",
+    "include_settings": "Khôi phục cả cài đặt",
     "done_title": "Đã nhập xong",
     "done_desc": "Đã khôi phục các script và dữ liệu đã chọn",
     "done_stat_scripts": "{{count}} script",

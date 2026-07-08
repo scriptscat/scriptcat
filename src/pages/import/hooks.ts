@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, ScriptDAO } from "@App/app/repo/scripts";
 import type { ScriptData, SubscribeData } from "@App/pkg/backup/struct";
+import type { ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { loadAsyncJSZip } from "@App/pkg/utils/jszip-x";
@@ -45,6 +46,9 @@ export function useImport(): ImportView {
   const [resourceErrors, setResourceErrors] = useState<Record<string, string[]>>({});
   // 覆盖模式:导入前删除所有本地脚本(#841)
   const [overwriteLocal, setOverwriteLocal] = useState(false);
+  // 备份包内的 ScriptCat 设置 bundle(#1533)及"导入时包含设置"开关
+  const [configBundle, setConfigBundle] = useState<ConfigBundle | undefined>(undefined);
+  const [includeSettings, setIncludeSettings] = useState(true);
   const [doneCount, setDoneCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [summaryState, setSummaryState] = useState({ scripts: 0, subscribes: 0, values: 0 });
@@ -68,6 +72,7 @@ export function useImport(): ImportView {
         const blob = await fetch(cached.url).then((r) => r.blob());
         const zip = await loadAsyncJSZip(blob);
         const backData = await parseBackupZipFile(zip);
+        setConfigBundle(backData.config);
 
         const dao = new ScriptDAO();
         dao.enableCache();
@@ -255,10 +260,30 @@ export function useImport(): ImportView {
       })
     );
 
+    // 应用备份包内的 ScriptCat 设置(#1533)
+    if (includeSettings && configBundle) {
+      try {
+        await synchronizeClient.restoreConfigBundle(configBundle);
+      } catch {
+        /* 设置还原失败不阻断脚本导入结果 */
+      }
+    }
+
     setPhase("done");
-  }, [scriptData, subData, scripts, subscribes, selectedScripts, selectedSubscribes, overwriteLocal]);
+  }, [
+    scriptData,
+    subData,
+    scripts,
+    subscribes,
+    selectedScripts,
+    selectedSubscribes,
+    overwriteLocal,
+    includeSettings,
+    configBundle,
+  ]);
 
   const onToggleOverwrite = useCallback(() => setOverwriteLocal((v) => !v), []);
+  const onToggleIncludeSettings = useCallback(() => setIncludeSettings((v) => !v), []);
   const onClose = useCallback(() => window.close(), []);
   const onCancel = useCallback(() => window.close(), []);
   const onRetry = useCallback(() => {
@@ -281,10 +306,13 @@ export function useImport(): ImportView {
     importStatus,
     resourceErrors,
     overwriteLocal,
+    hasConfig: !!configBundle,
+    includeSettings,
     doneCount,
     totalCount,
     summary: summaryState,
     onToggleOverwrite,
+    onToggleIncludeSettings,
     onToggleScript,
     onToggleAllScripts,
     onToggleSubscribe,

@@ -257,6 +257,16 @@ function MobileActions({ view }: { view: ImportView }) {
             />
             {t("install:importpage.overwrite_local")}
           </label>
+          {view.hasConfig && (
+            <label className="flex cursor-pointer items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              <Checkbox
+                data-testid="include-settings"
+                checked={view.includeSettings}
+                onCheckedChange={view.onToggleIncludeSettings}
+              />
+              {t("install:importpage.include_settings")}
+            </label>
+          )}
           <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="size-3.5 shrink-0" />
             {t("install:importpage.trust_hint")}

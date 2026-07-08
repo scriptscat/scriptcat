@@ -63,6 +63,10 @@ export interface ImportView {
   resourceErrors: Record<string, string[]>;
   /** 覆盖模式:导入前删除所有本地脚本(#841) */
   overwriteLocal: boolean;
+  /** 备份包是否含 ScriptCat 设置(#1533) */
+  hasConfig: boolean;
+  /** 导入时是否一并还原设置 */
+  includeSettings: boolean;
   doneCount: number;
   totalCount: number;
   /** 完成屏统计(已勾选可导入项) */
@@ -73,6 +77,7 @@ export interface ImportView {
   onToggleAllSubscribes: () => void;
   onSetEnabled: (id: string, enabled: boolean) => void;
   onToggleOverwrite: () => void;
+  onToggleIncludeSettings: () => void;
   onImport: () => void | Promise<void>;
   onCancel: () => void;
   onClose: () => void;
@@ -578,6 +583,16 @@ function ReadyActions({ view }: { view: ImportView }) {
         />
         {t("install:importpage.overwrite_local")}
       </label>
+      {view.hasConfig && (
+        <label className="flex cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
+          <Checkbox
+            data-testid="include-settings"
+            checked={view.includeSettings}
+            onCheckedChange={view.onToggleIncludeSettings}
+          />
+          {t("install:importpage.include_settings")}
+        </label>
+      )}
       <span className="hidden items-center gap-1.5 text-[13px] text-muted-foreground sm:flex">
         <ShieldCheck className="size-4 shrink-0" />
         {t("install:importpage.trust_hint")}
