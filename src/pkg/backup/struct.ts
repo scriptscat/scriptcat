@@ -1,5 +1,6 @@
 import type { Script } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
+import type { SCMetadata } from "@App/app/repo/metadata";
 
 export type ResourceMeta = {
   name: string;
@@ -63,6 +64,8 @@ export type ScriptOptionsFile = {
   options: ScriptOptions;
   settings: { enabled: boolean; position: number };
   meta: ScriptMeta;
+  // ScriptCat 自定义脚本元数据（自往返无损用；TM/VM 备份无此字段，导入时从 override/custom 推导）
+  selfMeta?: SCMetadata;
 };
 
 export type ScriptBackupData = {

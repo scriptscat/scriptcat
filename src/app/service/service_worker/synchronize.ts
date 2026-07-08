@@ -169,6 +169,7 @@ export class SynchronizeService {
           file_url: script.downloadUrl!,
           subscribe_url: script.subscribeUrl,
         },
+        selfMeta: script.selfMetadata && Object.keys(script.selfMetadata).length > 0 ? script.selfMetadata : undefined,
       },
       // storage,
       requires: this.resourceToBackdata(requires),

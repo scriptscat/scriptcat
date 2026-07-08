@@ -377,4 +377,29 @@ describe.concurrent("backup", () => {
     const resp = await parseBackupZipFile(zipFile);
     expect(resp).toEqual(data);
   });
+
+  it.concurrent("导出的 options 携带 selfMeta 并可原样解析", async () => {
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
+    await new BackupExport(fs).export({
+      script: [
+        {
+          code: "// ==UserScript==\n// @name t\n// @match https://a.com/*\n// ==/UserScript==\n",
+          options: {
+            options: {} as never,
+            settings: { enabled: true, position: 1 },
+            meta: { name: "t", uuid: "", sc_uuid: "", modified: 1, file_url: "" },
+            selfMeta: { exclude: ["https://a.com/x"] },
+          },
+          storage: { data: {}, ts: 0 },
+          requires: [],
+          requiresCss: [],
+          resources: [],
+        },
+      ],
+      subscribe: [],
+    });
+    const resp = await parseBackupZipFile(zipFile);
+    expect(resp.script[0].options?.selfMeta).toEqual({ exclude: ["https://a.com/x"] });
+  });
 });
