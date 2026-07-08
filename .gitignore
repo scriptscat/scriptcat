@@ -36,6 +36,8 @@ yarn.lock
 
 .claude
 
+.codex
+
 .omc
 
 test-results
