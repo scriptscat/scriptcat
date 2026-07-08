@@ -7,7 +7,7 @@
 ScriptCat
 </h1>
 
-<p align="center">ScriptCat は、ユーザースクリプトを実行できるブラウザ拡張機能です。すべてをスクリプト化し、ブラウザにもっと多くのことをさせましょう！</p>
+<p align="center">ScriptCat は強力なユーザースクリプトマネージャーです。ウェブページのカスタマイズ、広告の除去、タスクの自動化など手軽に実現し、ブラウザの無限の可能性を引き出します！</p>
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">ドキュメント</a> ·
