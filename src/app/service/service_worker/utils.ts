@@ -104,6 +104,10 @@ export function parseUrlSRI(url: string): TUrlSRIInfo {
   return { url: urls[0], hash, originalUrl: url };
 }
 
+export function shouldAutoOpenChangelog(version: string): boolean {
+  return version.includes("-") || version.endsWith(".0");
+}
+
 export async function notificationsUpdate(
   notificationId: string,
   options: chrome.notifications.NotificationOptions

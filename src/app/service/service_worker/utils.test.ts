@@ -6,6 +6,7 @@ import {
   selfMetadataUpdate,
   getUserScriptRegister,
   compileInjectionCode,
+  shouldAutoOpenChangelog,
 } from "./utils";
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
@@ -104,6 +105,18 @@ describe.concurrent("isBase64", () => {
       )
     ).toBe(false);
     expect(isBase64("")).toBe(false);
+  });
+});
+
+describe.concurrent("shouldAutoOpenChangelog", () => {
+  it.concurrent("beta 版本更新时应该自动打开更新页面", () => {
+    expect(shouldAutoOpenChangelog("1.5.0-beta")).toBe(true);
+    expect(shouldAutoOpenChangelog("1.5.1-beta.2")).toBe(true);
+  });
+
+  it.concurrent("正式版仅在次版本发布时自动打开更新页面", () => {
+    expect(shouldAutoOpenChangelog("1.5.0")).toBe(true);
+    expect(shouldAutoOpenChangelog("1.5.1")).toBe(false);
   });
 });
 
