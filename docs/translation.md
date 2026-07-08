@@ -15,7 +15,7 @@
 ## 术语与本地化修改规则
 
 ```md
-凡是新增或修改某个语言地区（locale）的内容，必须先检查是否存在对应的术语规范文件 `docs/translation/terminology-<locale>.md`；如果存在，必须读取并遵循该文件。例如，修改 Traditional Chinese / 繁体中文（zh-TW）时，必须遵循 `docs/translation/terminology-zh-TW.md`。
+凡是新增或修改某个语言地区（locale）的内容，必须先检查是否存在对应的术语规范文件 `docs/references/terminology-<locale>.md`；如果存在，必须读取并遵循该文件。例如，修改 Traditional Chinese / 繁体中文（zh-TW）时，必须遵循 `docs/references/terminology-zh-TW.md`。
 
 - 遵循目标语言地区的自然表达和产品界面惯用语，不可仅做文字或字形的机械转换。
 - 对应术语规范文件中标注为固定保留的术语，或明确限定在当前同类 UI 场景中的修正规则，必须遵循。
@@ -29,14 +29,14 @@
 
 | Locale | 语言 / Language | 规范文件 |
 | --- | --- | --- |
-| `en-US` | English (US) | [terminology-en-US.md](./terminology-en-US.md) |
-| `zh-CN` | 简体中文 | [terminology-zh-CN.md](./terminology-zh-CN.md) |
-| `zh-TW` | 繁體中文 | [terminology-zh-TW.md](./terminology-zh-TW.md) |
-| `ja-JP` | 日本語 | [terminology-ja-JP.md](./terminology-ja-JP.md) |
-| `ru-RU` | Русский | [terminology-ru-RU.md](./terminology-ru-RU.md) |
-| `de-DE` | Deutsch | [terminology-de-DE.md](./terminology-de-DE.md) |
-| `vi-VN` | Tiếng Việt | [terminology-vi-VN.md](./terminology-vi-VN.md) |
-| `tr-TR` | Türkçe | [terminology-tr-TR.md](./terminology-tr-TR.md) |
+| `en-US` | English (US) | [terminology-en-US.md](./references/terminology-en-US.md) |
+| `zh-CN` | 简体中文 | [terminology-zh-CN.md](./references/terminology-zh-CN.md) |
+| `zh-TW` | 繁體中文 | [terminology-zh-TW.md](./references/terminology-zh-TW.md) |
+| `ja-JP` | 日本語 | [terminology-ja-JP.md](./references/terminology-ja-JP.md) |
+| `ru-RU` | Русский | [terminology-ru-RU.md](./references/terminology-ru-RU.md) |
+| `de-DE` | Deutsch | [terminology-de-DE.md](./references/terminology-de-DE.md) |
+| `vi-VN` | Tiếng Việt | [terminology-vi-VN.md](./references/terminology-vi-VN.md) |
+| `tr-TR` | Türkçe | [terminology-tr-TR.md](./references/terminology-tr-TR.md) |
 
 > `en-US` 是运行时的回退语言（fallback），也是新翻译的模板。其措辞应被刻意校准而非将含糊或不通顺的英文直接传播到其他 locale。
 
@@ -49,7 +49,7 @@
 - **新增语言**：在 `src/locales/` 下新建语言代码目录（如 `fr-FR`），复制 `en-US/` 下的各命名空间 `*.json` 与 `index.ts` 作为模板翻译，并在 `src/locales/locales.ts` 中注册；如需术语规范，在本目录新增 `terminology-fr-FR.md`。
 - **关键字冲突**：同一页面中关键字相同但翻译不同时，使用 `page.key` 的方式区分。
 - 为满足部分扩展市场要求，`chrome.i18n` 语言文件位于 `src/assets/_locales`。
-- i18n 方案的实现细节见 [`src/locales/README.md`](../../src/locales/README.md)。
+- i18n 方案的实现细节见 [`src/locales/README.md`](../src/locales/README.md)。
 
 ## 提取翻译提示词 / Extract-translation prompt
 

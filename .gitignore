@@ -41,7 +41,7 @@ yarn.lock
 test-results
 playwright-report
 
-# 一次性功能验证脚本(见 docs/VERIFICATION.md)，不提交、不进 CI
+# 一次性功能验证脚本(见 docs/verification.md)，不提交、不进 CI
 e2e/scratch/
 
 superpowers

@@ -2,7 +2,7 @@
 
 Этот документ задает терминологию для русского (`ru-RU`) интерфейса и документации ScriptCat. Его цель - сохранять различия между возможностями продукта, использовать естественные для интерфейса формулировки и не повреждать технические идентификаторы при дальнейшей локализации.
 
-Проверенные источники употребления: `src/locales/ru-RU/*.json`, `docs/README_RU.md`, `docs/ARCHITECTURE.md`
+Проверенные источники употребления: `src/locales/ru-RU/*.json`, `docs/README_RU.md`, `docs/architecture.md`
 
 ## Основные принципы
 
@@ -30,7 +30,7 @@
 | ScriptCat browser extension | `Расширение ScriptCat` | `welcome_title`, `ext_update_notification` | Название продукта писать как `ScriptCat`. |
 | generic user script | `Пользовательский скрипт` | `create_user_script`, `script_list_content` | Общее название пользовательского скрипта. |
 | normal userscript type | `Пользовательский скрипт` / текущая категория `Обычный скрипт` | `create_user_script`, `script_list.sidebar.normal_script` | Не объединять с фоновыми или запланированными скриптами. |
-| Tampermonkey compatibility | `Пользовательский скрипт, совместимый с Tampermonkey` / `Скрипт Tampermonkey` | `docs/README_RU.md`, `docs/ARCHITECTURE.md` | Использовать, когда важна совместимость; не заменять этим общее название или категорию скрипта. |
+| Tampermonkey compatibility | `Пользовательский скрипт, совместимый с Tampermonkey` / `Скрипт Tampermonkey` | `docs/README_RU.md`, `docs/architecture.md` | Использовать, когда важна совместимость; не заменять этим общее название или категорию скрипта. |
 | page script | `Скрипт страницы` | `script_list_enable_content` | Обозначает выполняющийся на страницах скрипт в тексте интерфейса; не подменяет без проверки категорию `Обычный скрипт`. |
 | background script | `Фоновый скрипт` | `create_background_script`, `background_script` | Тип скрипта, выполняемого в фоне. |
 | scheduled script | `Скрипт по расписанию` | `create_scheduled_script`, `scheduled_script` | Предпочтительно для нового текста; сохраняет смысл планового запуска. |

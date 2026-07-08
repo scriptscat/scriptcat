@@ -2,7 +2,7 @@
 
 本文档是 ScriptCat 简体中文（`zh-CN`）界面与文档的用语依据。翻译或修改简体中文时，目标是让中国大陆用户自然理解，同时保留 ScriptCat 已建立的脚本类型、功能名称和开发者术语。
 
-用例参考来源：`src/locales/zh-CN/*.json`、`docs/README_zh-CN.md`、`docs/ARCHITECTURE.md`
+用例参考来源：`src/locales/zh-CN/*.json`、`docs/README_zh-CN.md`、`docs/architecture.md`
 
 作者确认参考：[PR #1421 讨论](https://github.com/scriptscat/scriptcat/pull/1421)。其中 CodFrm 明确确认了 `同步删除`、`同步脚本删除`、`查询`，并建议将存储权限标题写为 `脚本正在尝试访问存储空间`。
 
@@ -33,7 +33,7 @@
 | ScriptCat browser extension | `脚本猫扩展` | `welcome_title`, `ext_update_notification` | `扩展` 是浏览器 extension 的标准表达。 |
 | generic user script | `用户脚本` | `script_list_content`, `allow_user_script_guide` | 泛指用户脚本能力或浏览器权限。 |
 | ordinary userscript type | `普通脚本` | `create_user_script`, `script_list.sidebar.normal_script` | 表示当前产品中的普通脚本分类；不可与后台脚本或定时脚本合并。 |
-| Tampermonkey compatibility | `油猴脚本` / `兼容 Tampermonkey 的用户脚本` | `docs/README_zh-CN.md`, `docs/ARCHITECTURE.md` | 仅在说明兼容性时使用，不把所有“用户脚本”泛称或“普通脚本”分类改写为油猴脚本。 |
+| Tampermonkey compatibility | `油猴脚本` / `兼容 Tampermonkey 的用户脚本` | `docs/README_zh-CN.md`, `docs/architecture.md` | 仅在说明兼容性时使用，不把所有“用户脚本”泛称或“普通脚本”分类改写为油猴脚本。 |
 | page script | `页面脚本` | `script_list_enable_content` | 表示页面运行概念；不能仅因分类标签使用“普通脚本”而删去，也不应未经界面确认便互相替换。 |
 | background script | `后台脚本` | `create_background_script`, `background_script`, `enable_background.description` | 表示后台运行能力及脚本类型。 |
 | scheduled script | `定时脚本` | `create_scheduled_script`, `scheduled_script`, `scheduled_script_description_title` | 表示按计划执行的脚本类型。 |

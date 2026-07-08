@@ -2,7 +2,7 @@
 
 本文件是 ScriptCat 繁體中文（`zh-TW`）介面與文件的用語依據。翻譯或修改繁體中文時，目標是讓台灣使用者自然理解，並維持台灣軟體產品介面常見的語氣。
 
-盤點來源：`src/locales/zh-TW/*.json`、`docs/README_zh-TW.md`、`docs/ARCHITECTURE.md`
+盤點來源：`src/locales/zh-TW/*.json`、`docs/README_zh-TW.md`、`docs/architecture.md`
 
 產品互動參考：[PR #1421 討論](https://github.com/scriptscat/scriptcat/pull/1421)。CodFrm 對相同同步刪除設定確認應以簡短標籤呈現，詳細行為由旁側說明交代；此項產品決策在 `zh-TW` 對應為 `同步刪除` / `同步腳本刪除`，不代表其他 `zh-CN` 詞彙偏好應套用至繁中。
 
@@ -63,7 +63,7 @@
 | `退出瀏覽器` | quit/close browser 通常用 `關閉瀏覽器`，必要時可用 `結束瀏覽器`。 | `enable_background.description` |
 | `前臺` / `後臺` | foreground/background 用 `前景` / `背景`；frontend/backend 用 `前端` / `後端`；管理系統語境才可能用 `前台` / `後台`。 | `error_script_type_mismatch` |
 | `使用者腳本` / `普通腳本` / `頁面腳本` | `使用者腳本` 是一般概念，`普通腳本` 是現行分類標籤，`頁面腳本` 是介面中的頁面執行概念。三者應依顯示位置保留，不因用詞相近而自動合併或互換。 | `script_list_content`, `create_user_script`, `script_list.sidebar.normal_script`, `script_list_enable_content` |
-| `Tampermonkey 腳本` | 僅在說明相容性時使用；不要把所有 `使用者腳本` 泛稱或 `普通腳本` 分類改成 Tampermonkey 標籤。 | `docs/README_zh-TW.md`, `docs/ARCHITECTURE.md` |
+| `Tampermonkey 腳本` | 僅在說明相容性時使用；不要把所有 `使用者腳本` 泛稱或 `普通腳本` 分類改成 Tampermonkey 標籤。 | `docs/README_zh-TW.md`, `docs/architecture.md` |
 | `本地` / `本機` | 兩者皆為台灣可用寫法，不應只因 `zh-TW` 在地化而互相取代。`本地` 適合表達 local source / local creation 等與遠端來源相對的概念；`本機` 適合強調目前裝置或與雲端相對的儲存、匯入位置。同一功能流程內應維持一致。 | `source_local_script`, `local`, `importpage.source_local`, `sync_delete_desc`, `tools_backup_content` |
 | `腳本站` / `腳本網站` / `腳本中心` | README 將指向 `https://scriptcat.org/zh-TW/search` 的入口稱為 `腳本站`；介面另有 `腳本網站` 與用於尋找、安裝腳本的 `腳本中心`。依顯示位置沿用名稱，不自動互換。 | `script_gallery`, `script_list_title`, `script_list_content`, README |
 | `查詢` / `搜尋` | 兩者皆可用；紀錄或資料條件查詢的欄位可保留 `查詢`，搜尋動作與正規表達式搜尋使用 `搜尋`。不因 `zh-CN` 對 `查詢` 的偏好而全域統一。 | `query`, `search_regex`, `search_scripts` |
