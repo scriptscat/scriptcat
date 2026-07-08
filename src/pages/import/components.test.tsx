@@ -45,6 +45,7 @@ function mkView(p: Partial<ImportView> = {}): ImportView {
     selectedScripts: new Set(),
     selectedSubscribes: new Set(),
     importStatus: {},
+    resourceErrors: {},
     doneCount: 0,
     totalCount: 0,
     summary: { scripts: 0, subscribes: 0, values: 0 },

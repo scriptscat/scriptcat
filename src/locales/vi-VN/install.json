@@ -145,6 +145,8 @@
     "status_importing": "Đang nhập",
     "status_done": "Đã nhập",
     "status_skipped": "Đã bỏ qua",
+    "status_warning": "Một số tài nguyên lỗi",
+    "resource_import_failed": "Không thể nhập các tài nguyên sau:",
     "done_title": "Đã nhập xong",
     "done_desc": "Đã khôi phục các script và dữ liệu đã chọn",
     "done_stat_scripts": "{{count}} script",

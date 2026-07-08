@@ -292,7 +292,7 @@ export class SynchronizeClient extends Client {
     requires: ResourceBackup[],
     resources: ResourceBackup[],
     requiresCss: ResourceBackup[]
-  ) {
+  ): Promise<string[] | undefined> {
     return this.do("importResources", { uuid, requires, resources, requiresCss });
   }
 }

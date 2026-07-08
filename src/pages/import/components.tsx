@@ -43,8 +43,8 @@ import {
 
 export type ImportPhase = "loading" | "invalid" | "error" | "empty" | "ready" | "importing" | "done";
 
-/** 导入过程中单项的逐行状态 */
-export type ImportItemStatus = "pending" | "importing" | "done" | "skipped";
+/** 导入过程中单项的逐行状态(warning=脚本已导入但部分资源失败) */
+export type ImportItemStatus = "pending" | "importing" | "done" | "skipped" | "warning";
 
 /** 导入页视图(桌面/移动共用)所需的数据与回调 */
 export interface ImportView {
@@ -59,6 +59,8 @@ export interface ImportView {
   selectedSubscribes: Set<string>;
   /** 导入进行中/完成时,各项的逐行状态(id → status) */
   importStatus: Record<string, ImportItemStatus>;
+  /** 导入后各脚本导入失败的资源名(uuid → 资源名列表) */
+  resourceErrors: Record<string, string[]>;
   doneCount: number;
   totalCount: number;
   /** 完成屏统计(已勾选可导入项) */
@@ -305,11 +307,20 @@ const STATUS_ICON: Record<ImportItemStatus, ReactNode> = {
   importing: <Loader2 className="size-4 animate-spin text-primary" />,
   done: <CircleCheck className="size-4 text-success" />,
   skipped: <Ban className="size-4 text-muted-foreground" />,
+  warning: <TriangleAlert className="size-4 text-warning" />,
 };
 
-export function ImportStatusIcon({ status, id }: { status: ImportItemStatus; id: string }) {
+export function ImportStatusIcon({
+  status,
+  id,
+  resourceErrors,
+}: {
+  status: ImportItemStatus;
+  id: string;
+  resourceErrors?: string[];
+}) {
   const { t } = useTranslation();
-  return (
+  const icon = (
     <span
       data-testid={`status-${status}-${id}`}
       className="flex items-center justify-center"
@@ -318,6 +329,22 @@ export function ImportStatusIcon({ status, id }: { status: ImportItemStatus; id:
       {STATUS_ICON[status]}
     </span>
   );
+  if (status === "warning" && resourceErrors?.length) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{icon}</TooltipTrigger>
+        <TooltipContent>
+          <p className="font-medium">{t("install:importpage.resource_import_failed")}</p>
+          <ul className="list-disc pl-4">
+            {resourceErrors.map((name) => (
+              <li key={name}>{name}</li>
+            ))}
+          </ul>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return icon;
 }
 
 /** 桌面端脚本行 */
@@ -330,7 +357,11 @@ function ScriptRow({ item, view }: { item: ScriptImportItem; view: ImportView })
     <div className="flex h-14 items-center gap-3.5 px-4 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors">
       <div className="flex w-9 shrink-0 items-center">
         {inProgress ? (
-          <ImportStatusIcon status={item.importable ? status : "skipped"} id={item.id} />
+          <ImportStatusIcon
+            status={item.importable ? status : "skipped"}
+            id={item.id}
+            resourceErrors={view.resourceErrors[item.id]}
+          />
         ) : (
           <Checkbox
             data-testid={`script-checkbox-${item.id}`}
@@ -409,7 +440,11 @@ function SubscribeRow({ item, view }: { item: SubscribeImportItem; view: ImportV
     <div className="flex h-[54px] items-center gap-3.5 px-4 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors">
       <div className="flex w-9 shrink-0 items-center">
         {inProgress ? (
-          <ImportStatusIcon status={item.importable ? status : "skipped"} id={item.id} />
+          <ImportStatusIcon
+            status={item.importable ? status : "skipped"}
+            id={item.id}
+            resourceErrors={view.resourceErrors[item.id]}
+          />
         ) : (
           <Checkbox
             data-testid={`sub-checkbox-${item.id}`}

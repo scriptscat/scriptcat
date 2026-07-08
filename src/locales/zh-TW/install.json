@@ -145,6 +145,8 @@
     "status_importing": "匯入中",
     "status_done": "已匯入",
     "status_skipped": "已略過",
+    "status_warning": "部分資源失敗",
+    "resource_import_failed": "以下資源匯入失敗：",
     "done_title": "匯入完成",
     "done_desc": "已還原所選的腳本與資料",
     "done_stat_scripts": "{{count}} 個腳本",

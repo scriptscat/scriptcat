@@ -145,6 +145,8 @@
     "status_importing": "Импорт",
     "status_done": "Импортирован",
     "status_skipped": "Пропущен",
+    "status_warning": "Часть ресурсов не удалась",
+    "resource_import_failed": "Не удалось импортировать следующие ресурсы:",
     "done_title": "Импорт завершён",
     "done_desc": "Выбранные скрипты и данные восстановлены",
     "done_stat_scripts": "{{count}} скриптов",

@@ -41,6 +41,8 @@ export function useImport(): ImportView {
   const [selectedScripts, setSelectedScripts] = useState<Set<string>>(() => new Set());
   const [selectedSubscribes, setSelectedSubscribes] = useState<Set<string>>(() => new Set());
   const [importStatus, setImportStatus] = useState<Record<string, ImportItemStatus>>({});
+  // 导入后各脚本导入失败的资源名(uuid → 资源名列表),用于结果页逐项回显
+  const [resourceErrors, setResourceErrors] = useState<Record<string, string[]>>({});
   const [doneCount, setDoneCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [summaryState, setSummaryState] = useState({ scripts: 0, subscribes: 0, values: 0 });
@@ -186,6 +188,7 @@ export function useImport(): ImportView {
       }
       return init;
     });
+    setResourceErrors({});
     setSummaryState(summarize(scripts, subscribes, selectedScripts, selectedSubscribes));
     setTotalCount(pickedScripts.length + pickedSubs.length);
     setDoneCount(0);
@@ -206,15 +209,23 @@ export function useImport(): ImportView {
             createtime: d.lastModificationDate,
             updatetime: d.lastModificationDate,
           });
+          let failedResources: string[] = [];
           if (hasResources(d)) {
-            await synchronizeClient.importResources(s.uuid, d.requires, d.resources, d.requiresCss);
+            // 资源逐项导入，单个资源失败不影响脚本本体已安装；失败清单逐项回显而非只落后台 log(#1150)
+            failedResources =
+              (await synchronizeClient.importResources(s.uuid, d.requires, d.resources, d.requiresCss)) || [];
           }
           const entries = Object.entries(d.storage?.data || {});
           if (entries.length > 0) {
             const keyValuePairs: TKeyValuePair[] = entries.map(([k, v]) => [k, encodeRValue(v)]);
             await valueClient.setScriptValues({ uuid: s.uuid, keyValuePairs, isReplace: false, ts: d.storage.ts || 0 });
           }
-          mark(s.uuid, "done");
+          if (failedResources.length > 0) {
+            setResourceErrors((prev) => ({ ...prev, [s.uuid]: failedResources }));
+            mark(s.uuid, "warning");
+          } else {
+            mark(s.uuid, "done");
+          }
         } catch {
           mark(s.uuid, "skipped");
         }
@@ -259,6 +270,7 @@ export function useImport(): ImportView {
     selectedScripts,
     selectedSubscribes,
     importStatus,
+    resourceErrors,
     doneCount,
     totalCount,
     summary: summaryState,

@@ -145,6 +145,8 @@
     "status_importing": "Wird importiert",
     "status_done": "Importiert",
     "status_skipped": "Übersprungen",
+    "status_warning": "Einige Ressourcen fehlgeschlagen",
+    "resource_import_failed": "Die folgenden Ressourcen konnten nicht importiert werden:",
     "done_title": "Import abgeschlossen",
     "done_desc": "Die ausgewählten Skripte und Daten wurden wiederhergestellt",
     "done_stat_scripts": "{{count}} Skripte",

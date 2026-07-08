@@ -145,6 +145,8 @@
     "status_importing": "导入中",
     "status_done": "已导入",
     "status_skipped": "已跳过",
+    "status_warning": "部分资源失败",
+    "resource_import_failed": "以下资源导入失败：",
     "done_title": "导入完成",
     "done_desc": "已恢复所选的脚本与数据",
     "done_stat_scripts": "{{count}} 个脚本",

@@ -72,7 +72,11 @@ function MobileScriptCard({ item, view }: { item: ScriptImportItem; view: Import
     <Surface data-testid="import-script-card" padding="compact" className="gap-2.5 rounded-lg">
       <div className="flex items-center gap-2.5">
         {inProgress ? (
-          <ImportStatusIcon status={item.importable ? status : "skipped"} id={item.id} />
+          <ImportStatusIcon
+            status={item.importable ? status : "skipped"}
+            id={item.id}
+            resourceErrors={view.resourceErrors[item.id]}
+          />
         ) : (
           <Checkbox
             data-testid={`script-checkbox-${item.id}`}
@@ -131,7 +135,11 @@ function MobileSubscribeCard({ item, view }: { item: SubscribeImportItem; view: 
   return (
     <Surface data-testid="import-subscribe-card" padding="compact" className="flex-row items-center gap-2.5 rounded-lg">
       {inProgress ? (
-        <ImportStatusIcon status={item.importable ? status : "skipped"} id={item.id} />
+        <ImportStatusIcon
+          status={item.importable ? status : "skipped"}
+          id={item.id}
+          resourceErrors={view.resourceErrors[item.id]}
+        />
       ) : (
         <Checkbox
           data-testid={`sub-checkbox-${item.id}`}

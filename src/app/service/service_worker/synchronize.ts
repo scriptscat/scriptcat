@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import type { Resource } from "@App/app/repo/resource";
+import type { Resource, ResourceType } from "@App/app/repo/resource";
 import {
   type Script,
   SCRIPT_STATUS_DISABLE,
@@ -200,23 +200,31 @@ export class SynchronizeService {
     return ret;
   }
 
-  importResources(data: {
+  // 导入脚本资源；返回失败的资源名列表(不因单个资源失败而整体 reject，供导入页逐项展示)
+  async importResources(data: {
     uuid: string;
     requires: ResourceBackup[];
     resources: ResourceBackup[];
     requiresCss: ResourceBackup[];
-  }) {
+  }): Promise<string[]> {
     const { uuid, requires, resources, requiresCss } = data;
-    return Promise.all([
-      // 处理requires
-      ...requires.map((item) => this.resource.importResource(uuid, item, "require")),
-      // 处理resources
-      ...resources.map((item) => this.resource.importResource(uuid, item, "resource")),
-      // 处理requiresCss
-      ...requiresCss.map((item) => this.resource.importResource(uuid, item, "require-css")),
-    ]).then(() => {
-      return;
+    const items: Array<{ res: ResourceBackup; type: ResourceType }> = [
+      ...requires.map((res) => ({ res, type: "require" as ResourceType })),
+      ...resources.map((res) => ({ res, type: "resource" as ResourceType })),
+      ...requiresCss.map((res) => ({ res, type: "require-css" as ResourceType })),
+    ];
+    const settled = await Promise.allSettled(
+      items.map(({ res, type }) => this.resource.importResource(uuid, res, type))
+    );
+    const failed: string[] = [];
+    settled.forEach((r, i) => {
+      if (r.status === "rejected") {
+        const { res } = items[i];
+        failed.push(res.meta.name || res.meta.url);
+        this.logger.error("import resource failed", { uuid, url: res.meta.url }, Logger.E(r.reason));
+      }
     });
+    return failed;
   }
 
   getUrlName(url: string): string {
