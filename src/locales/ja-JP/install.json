@@ -147,6 +147,7 @@
     "status_skipped": "スキップ",
     "status_warning": "一部リソース失敗",
     "resource_import_failed": "以下のリソースのインポートに失敗しました：",
+    "overwrite_local": "インポート前にすべてのローカルスクリプトを削除",
     "done_title": "インポート完了",
     "done_desc": "選択したスクリプトとデータを復元しました",
     "done_stat_scripts": "{{count}} 件のスクリプト",

@@ -43,6 +43,8 @@ export function useImport(): ImportView {
   const [importStatus, setImportStatus] = useState<Record<string, ImportItemStatus>>({});
   // 导入后各脚本导入失败的资源名(uuid → 资源名列表),用于结果页逐项回显
   const [resourceErrors, setResourceErrors] = useState<Record<string, string[]>>({});
+  // 覆盖模式:导入前删除所有本地脚本(#841)
+  const [overwriteLocal, setOverwriteLocal] = useState(false);
   const [doneCount, setDoneCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [summaryState, setSummaryState] = useState({ scripts: 0, subscribes: 0, values: 0 });
@@ -194,6 +196,12 @@ export function useImport(): ImportView {
     setDoneCount(0);
     setPhase("importing");
 
+    // 覆盖模式(#841)：导入前清空本地全部脚本，避免与云端精简过的共存
+    if (overwriteLocal) {
+      const all = await scriptClient.getAllScripts();
+      if (all.length > 0) await scriptClient.deletes(all.map((s) => s.uuid));
+    }
+
     const mark = (id: string, status: ImportItemStatus) => setImportStatus((prev) => ({ ...prev, [id]: status }));
     const bump = () => setDoneCount((n) => n + 1);
 
@@ -248,8 +256,9 @@ export function useImport(): ImportView {
     );
 
     setPhase("done");
-  }, [scriptData, subData, scripts, subscribes, selectedScripts, selectedSubscribes]);
+  }, [scriptData, subData, scripts, subscribes, selectedScripts, selectedSubscribes, overwriteLocal]);
 
+  const onToggleOverwrite = useCallback(() => setOverwriteLocal((v) => !v), []);
   const onClose = useCallback(() => window.close(), []);
   const onCancel = useCallback(() => window.close(), []);
   const onRetry = useCallback(() => {
@@ -271,9 +280,11 @@ export function useImport(): ImportView {
     selectedSubscribes,
     importStatus,
     resourceErrors,
+    overwriteLocal,
     doneCount,
     totalCount,
     summary: summaryState,
+    onToggleOverwrite,
     onToggleScript,
     onToggleAllScripts,
     onToggleSubscribe,

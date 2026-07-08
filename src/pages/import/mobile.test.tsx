@@ -40,6 +40,8 @@ function mkView(p: Partial<ImportView> = {}): ImportView {
     selectedSubscribes: new Set(),
     importStatus: {},
     resourceErrors: {},
+    overwriteLocal: false,
+    onToggleOverwrite: () => {},
     doneCount: 0,
     totalCount: 0,
     summary: { scripts: 0, subscribes: 0, values: 0 },

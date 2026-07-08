@@ -147,6 +147,7 @@
     "status_skipped": "Skipped",
     "status_warning": "Some resources failed",
     "resource_import_failed": "The following resources failed to import:",
+    "overwrite_local": "Delete all local scripts before importing",
     "done_title": "Import Complete",
     "done_desc": "The selected scripts and data have been restored",
     "done_stat_scripts": "{{count}} scripts",

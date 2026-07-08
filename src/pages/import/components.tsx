@@ -61,6 +61,8 @@ export interface ImportView {
   importStatus: Record<string, ImportItemStatus>;
   /** 导入后各脚本导入失败的资源名(uuid → 资源名列表) */
   resourceErrors: Record<string, string[]>;
+  /** 覆盖模式:导入前删除所有本地脚本(#841) */
+  overwriteLocal: boolean;
   doneCount: number;
   totalCount: number;
   /** 完成屏统计(已勾选可导入项) */
@@ -70,6 +72,7 @@ export interface ImportView {
   onToggleSubscribe: (id: string) => void;
   onToggleAllSubscribes: () => void;
   onSetEnabled: (id: string, enabled: boolean) => void;
+  onToggleOverwrite: () => void;
   onImport: () => void | Promise<void>;
   onCancel: () => void;
   onClose: () => void;
@@ -567,6 +570,14 @@ function ReadyActions({ view }: { view: ImportView }) {
   const total = view.selectedScripts.size + view.selectedSubscribes.size;
   return (
     <div className="flex items-center gap-4">
+      <label className="flex cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
+        <Checkbox
+          data-testid="overwrite-local"
+          checked={view.overwriteLocal}
+          onCheckedChange={view.onToggleOverwrite}
+        />
+        {t("install:importpage.overwrite_local")}
+      </label>
       <span className="hidden items-center gap-1.5 text-[13px] text-muted-foreground sm:flex">
         <ShieldCheck className="size-4 shrink-0" />
         {t("install:importpage.trust_hint")}

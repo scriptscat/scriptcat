@@ -147,6 +147,7 @@
     "status_skipped": "Atlandı",
     "status_warning": "Bazı kaynaklar başarısız",
     "resource_import_failed": "Aşağıdaki kaynaklar içe aktarılamadı:",
+    "overwrite_local": "İçe aktarmadan önce tüm yerel betikleri sil",
     "done_title": "İçe Aktarma Tamamlandı",
     "done_desc": "Seçilen betikler ve veriler geri yüklendi",
     "done_stat_scripts": "{{count}} betik",

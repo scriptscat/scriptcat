@@ -249,6 +249,14 @@ function MobileActions({ view }: { view: ImportView }) {
         </>
       ) : (
         <>
+          <label className="flex cursor-pointer items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox
+              data-testid="overwrite-local"
+              checked={view.overwriteLocal}
+              onCheckedChange={view.onToggleOverwrite}
+            />
+            {t("install:importpage.overwrite_local")}
+          </label>
           <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="size-3.5 shrink-0" />
             {t("install:importpage.trust_hint")}
