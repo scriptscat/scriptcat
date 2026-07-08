@@ -297,10 +297,6 @@ export class SynchronizeClient extends Client {
     return this.do("importResources", { uuid, requires, resources, requiresCss });
   }
 
-  getConfigBundle(): Promise<ConfigBundle> {
-    return this.doThrow("getConfigBundle");
-  }
-
   restoreConfigBundle(bundle: ConfigBundle): Promise<void> {
     return this.do("restoreConfigBundle", bundle);
   }

@@ -822,7 +822,6 @@ export class SynchronizeService {
     this.group.on("export", this.requestExport.bind(this));
     this.group.on("backupToCloud", this.backupToCloud.bind(this));
     this.group.on("importResources", this.importResources.bind(this));
-    this.group.on("getConfigBundle", this.getConfigBundle.bind(this));
     this.group.on("restoreConfigBundle", this.restoreConfigBundle.bind(this));
     // 监听脚本变化, 进行同步
     this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
