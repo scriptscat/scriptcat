@@ -7,7 +7,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
-import { blobToBase64, randNum, sleep } from "@App/pkg/utils/utils";
+import { base64ToBlob, blobToBase64, randNum, sleep } from "@App/pkg/utils/utils";
 import { type TDeleteScript } from "../queue";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { isBase64, parseUrlSRI, type TUrlSRIInfo } from "./utils";
@@ -425,8 +425,8 @@ export class ResourceService {
   }
 
   async importResource(uuid: string, data: ResourceBackup, type: ResourceType) {
-    // 导入资源
-    if (!data.source) {
+    // 导入资源：文本资源用 source，二进制资源(如图片/字体)只有 base64(dataURI)
+    if (!data.source && !data.base64) {
       return undefined;
     }
     const now = Date.now();
@@ -434,11 +434,11 @@ export class ResourceService {
     let res = await this.resourceDAO.get(data.meta.url);
     if (!res) {
       // 新增资源
-      const blob = new Blob([data.source!]);
+      const blob = data.source ? new Blob([data.source]) : base64ToBlob(data.base64);
       const [hash, base64] = await Promise.all([this.calculateHash(blob), blobToBase64(blob)]);
       res = {
         url: data.meta.url,
-        content: data.source!,
+        content: data.source || "",
         contentType: data.meta.mimetype || "",
         hash,
         base64,
@@ -451,7 +451,8 @@ export class ResourceService {
       res.updatetime = now;
     }
     res.link[uuid] = true;
-    return await this.resourceDAO.update(data.meta.url, res);
+    // 用 save(=_save，无则创建) 而非 update(键不存在时返回 false 不落库)——否则备份中的新资源永不入库(#1150)
+    return await this.resourceDAO.save(res);
   }
 
   requestGetScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
