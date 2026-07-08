@@ -345,3 +345,31 @@ describe("ResourceService - getResource", () => {
     expect(res).toBe(updatedResource);
   });
 });
+
+describe("ResourceService - getResourceByTypes", () => {
+  let service: ResourceService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const mockGroup = {} as Group;
+    const mockMQ = {} as IMessageQueue;
+    service = new ResourceService(mockGroup, mockMQ);
+  });
+
+  it("命名 @resource 的 file:/// path 应按 path 判断并立即更新", async () => {
+    // @resource 两段式写法 "key file:///..."，mdValue 本身不以 file:/// 开头，
+    // 必须按解析出的 path 判断，才能对本地文件走「每次读取都更新」而非命中缓存。
+    const url = "file:///tmp/local.txt";
+    const oldResource = resourceModel(url, "old");
+    const freshResource = resourceModel(url, "local");
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateSpy = vi.spyOn(service, "updateResource").mockResolvedValue(freshResource);
+
+    const [res] = await service.getResourceByTypes(normalScript("script-1", { resource: [`data ${url}`] }), [
+      "resource",
+    ]);
+
+    expect(updateSpy).toHaveBeenCalledWith("script-1", expect.objectContaining({ url }), "resource", oldResource);
+    expect(res.data).toBe(freshResource);
+  });
+});
