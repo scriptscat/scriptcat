@@ -10,6 +10,7 @@ import { prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/scri
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { scriptClient, synchronizeClient, valueClient, subscribeClient } from "@App/pages/store/features/script";
 import {
+  deriveSelfMetadata,
   hasResources,
   importableScriptIds,
   importableSubscribeIds,
@@ -84,6 +85,9 @@ export function useImport(): ImportView {
             // 还原备份中的列表排序位置(对照 v1.4-agent)
             const position = item.options?.settings.position;
             if (typeof position === "number") prepared.script.sort = position;
+            // 还原脚本自定义配置(自定义 match/exclude/run-at 等):SC 用 selfMeta,TM 从 override 推导,VM 已预置
+            const selfMeta = deriveSelfMetadata(item, prepared.script.metadata);
+            if (selfMeta) prepared.script.selfMetadata = selfMeta;
             item.install = true;
           } catch (e) {
             item.error = (e as Error)?.message || String(e);

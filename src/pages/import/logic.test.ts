@@ -5,6 +5,7 @@ import type { Subscribe } from "@App/app/repo/subscribe";
 import type { ScriptData } from "@App/pkg/backup/struct";
 import {
   deriveSource,
+  deriveSelfMetadata,
   countValues,
   hasResources,
   toScriptImportItem,
@@ -240,5 +241,29 @@ describe("importableScriptIds / sortByName / summarize 选择与汇总", () => {
     );
     const result = summarize([a, b, err], [sub], new Set(["a", "b", "c"]), new Set(["u1"]));
     expect(result).toEqual({ scripts: 2, subscribes: 1, values: 3 });
+  });
+});
+
+describe("deriveSelfMetadata", () => {
+  const md = { match: ["https://a.com/*"] };
+  it("SC 备份:直接用 options.selfMeta", () => {
+    const item = { options: { selfMeta: { exclude: ["https://a.com/x"] } } } as unknown as ScriptData;
+    expect(deriveSelfMetadata(item, md)).toEqual({ exclude: ["https://a.com/x"] });
+  });
+  it("TM 备份:从 options.options.override.use_* 推导", () => {
+    const item = {
+      options: {
+        options: {
+          run_at: null,
+          noframes: null,
+          override: { use_excludes: ["https://a.com/y"], merge_excludes: true },
+        },
+      },
+    } as unknown as ScriptData;
+    expect(deriveSelfMetadata(item, md)).toEqual({ exclude: ["https://a.com/y"] });
+  });
+  it("无自定义时返回 undefined", () => {
+    const item = { options: { options: { override: {} } } } as unknown as ScriptData;
+    expect(deriveSelfMetadata(item, md)).toBeUndefined();
   });
 });
